@@ -7,8 +7,10 @@
 import { Context, Markup } from 'telegraf';
 import { v4 as uuidv4 } from 'uuid';
 import { APIClient, type ModelInfo } from '../../shared/api-client';
+import { createLogger } from '../../shared/logger';
 
 const apiClient = new APIClient('telegram', process.env.TELEGRAM_BOT_SECRET || '');
+const logger = createLogger('TelegramBot');
 
 // ---------------------------------------------------------------------------
 // Model cache
@@ -72,7 +74,7 @@ export async function sendAuthRequest(ctx: Context): Promise<boolean> {
 
     return false;
   } catch (error) {
-    console.error('[Telegram Bot] Auth request error:', error);
+    logger.error('Auth request error:', error);
     await ctx.reply('Sorry, an error occurred. Please try again later.');
     return false;
   }
@@ -135,7 +137,7 @@ export async function handleStart(ctx: Context) {
       },
     );
   } catch (error) {
-    console.error('[Telegram Bot] Start command error:', error);
+    logger.error('Start command error:', error);
     await ctx.reply('Sorry, an error occurred. Please try again later.');
   }
 }
@@ -171,7 +173,7 @@ export async function handleLogout(ctx: Context) {
       },
     );
   } catch (error) {
-    console.error('[Telegram Bot] Logout error:', error);
+    logger.error('Logout error:', error);
     await ctx.reply('Sorry, an error occurred. Please try again later.');
   }
 }
@@ -210,7 +212,7 @@ export async function handleStatus(ctx: Context) {
       },
     );
   } catch (error) {
-    console.error('[Telegram Bot] Status error:', error);
+    logger.error('Status error:', error);
     await ctx.reply('Sorry, an error occurred. Please try again later.');
   }
 }
@@ -324,7 +326,7 @@ export async function handleModel(ctx: Context) {
       ...Markup.inlineKeyboard(buttonRows),
     });
   } catch (error) {
-    console.error('[Telegram Bot] Model command error:', error);
+    logger.error('Model command error:', error);
     await ctx.reply('❌ Error loading model settings. Please try again.');
   }
 }
@@ -355,7 +357,7 @@ export async function handleModelSelection(ctx: Context, modelId: string) {
       },
     );
   } catch (error) {
-    console.error('[Telegram Bot] Model selection error:', error);
+    logger.error('Model selection error:', error);
     await ctx.answerCbQuery('Error updating model');
     await ctx.reply('❌ Error updating model. Please try again.');
   }
@@ -393,7 +395,7 @@ export async function handleNewConversation(ctx: Context) {
       },
     );
   } catch (error) {
-    console.error('[Telegram Bot] New conversation error:', error);
+    logger.error('New conversation error:', error);
     await ctx.reply('Sorry, an error occurred. Please try again later.');
   }
 }
@@ -451,11 +453,11 @@ export async function handleHistory(ctx: Context) {
         ]),
       });
     } catch (error) {
-      console.error('[Telegram Bot] Error fetching history:', error);
+      logger.error('Error fetching history:', error);
       await ctx.reply('❌ Unable to fetch conversation history.');
     }
   } catch (error) {
-    console.error('[Telegram Bot] History error:', error);
+    logger.error('History error:', error);
     await ctx.reply('Sorry, an error occurred. Please try again later.');
   }
 }

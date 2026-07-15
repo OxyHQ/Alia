@@ -76,7 +76,7 @@ router.get('/export', authenticateToken, async (req: Request, res: Response) => 
         id: entry._id,
         sessionId: entry.sessionId,
         agentId: session?.agentId,
-        task: (session as any)?.task,
+        task: session?.task,
         seq: entry.seq,
         timestamp: new Date(entry.timestamp).toISOString(),
         type: entry.type,
@@ -89,12 +89,12 @@ router.get('/export', authenticateToken, async (req: Request, res: Response) => 
 
     if (format === 'csv') {
       // Generate CSV
-      const headers = ['id', 'sessionId', 'agentId', 'task', 'seq', 'timestamp', 'type', 'toolName', 'durationMs', 'content'];
+      const headers = ['id', 'sessionId', 'agentId', 'task', 'seq', 'timestamp', 'type', 'toolName', 'durationMs', 'content'] as const;
       const csvRows = [
         headers.join(','),
         ...enriched.map(e =>
           headers.map(h => {
-            const val = (e as any)[h];
+            const val = e[h];
             if (val == null) return '';
             const str = String(val).replace(/"/g, '""');
             return `"${str}"`;
@@ -218,7 +218,7 @@ router.get('/threats', authenticateToken, async (req: Request, res: Response) =>
         id: entry._id,
         timestamp: new Date(entry.timestamp).toISOString(),
         severity: isBlocked ? 'critical' : entry.content?.includes('WARNING') ? 'warning' : 'info',
-        agentName: (agent as any)?.name || (agent as any)?.handle || 'Unknown',
+        agentName: agent?.name || agent?.handle || 'Unknown',
         description: entry.content,
         sessionId: entry.sessionId,
         type: entry.type,

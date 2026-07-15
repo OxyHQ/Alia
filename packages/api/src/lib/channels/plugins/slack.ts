@@ -3,6 +3,12 @@ import type { ChannelPlugin, OutboundContext, OutboundResult, ChannelInboundMess
 import type { Request } from 'express';
 import { getErrorMessage } from '../../errors/index.js';
 
+interface SlackPostMessageResponse {
+  ok?: boolean;
+  error?: string;
+  ts?: string;
+}
+
 export const slackPlugin: ChannelPlugin = {
   id: 'slack',
 
@@ -52,7 +58,7 @@ export const slackPlugin: ChannelPlugin = {
           body: JSON.stringify(payload),
         });
 
-        const data = await res.json() as any;
+        const data = await res.json() as SlackPostMessageResponse;
 
         if (!data.ok) {
           return { channel: 'slack', ok: false, error: `Slack API: ${data.error}` };

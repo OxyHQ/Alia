@@ -8,6 +8,7 @@
 
 import { spawn } from 'child_process';
 import { errorMessage, errorCode } from '../shared/utils';
+import { createLogger } from '../shared/logger';
 import type {
   McpServerSession,
   McpServerConfig,
@@ -19,6 +20,8 @@ import type {
 
 const RPC_TIMEOUT_MS = 30_000;
 const MAX_STDOUT_BUFFER_BYTES = 1_024 * 1_024; // 1 MiB
+
+const logger = createLogger('MCP');
 
 /** Active server sessions keyed by server document ID */
 const sessions = new Map<string, McpServerSession>();
@@ -176,7 +179,7 @@ async function startStdioServer(
       session.stdoutBuffer += data.toString();
 
       if (session.stdoutBuffer.length > MAX_STDOUT_BUFFER_BYTES) {
-        console.error(`[MCP:${serverId}] stdout buffer overflow, killing server`);
+        logger.error(`[${serverId}] stdout buffer overflow, killing server`);
         session.status = 'error';
         session.statusMessage = 'stdout buffer overflow';
         child.kill('SIGTERM');
@@ -188,17 +191,17 @@ async function startStdioServer(
 
     child.stderr!.on('data', (data: Buffer) => {
       const msg = data.toString().trim();
-      if (msg) console.warn(`[MCP:${serverId}] stderr: ${msg}`);
+      if (msg) logger.warn(`[${serverId}] stderr: ${msg}`);
     });
 
     child.on('error', (err) => {
-      console.error(`[MCP:${serverId}] Process error:`, errorMessage(err));
+      logger.error(`[${serverId}] Process error:`, errorMessage(err));
       session.status = 'error';
       session.statusMessage = errorMessage(err);
     });
 
     child.on('exit', (code, signal) => {
-      console.log(`[MCP:${serverId}] Process exited (code=${code}, signal=${signal})`);
+      logger.info(`[${serverId}] Process exited (code=${code}, signal=${signal})`);
       if (session.status === 'running') {
         session.status = 'error';
         session.statusMessage = `Process exited unexpectedly (code=${code})`;
@@ -221,7 +224,7 @@ async function startStdioServer(
     session.resources = resources;
     session.status = 'running';
 
-    console.log(`[MCP:${serverId}] Started (${tools.length} tools, ${resources.length} resources)`);
+    logger.info(`[${serverId}] Started (${tools.length} tools, ${resources.length} resources)`);
     return { tools, resources };
   } catch (err: unknown) {
     cleanupFailedSession(serverId, session, err);
@@ -270,7 +273,7 @@ async function startHttpServer(
     session.resources = resources;
     session.status = 'running';
 
-    console.log(`[MCP:${serverId}] Connected via streamable-http (${tools.length} tools)`);
+    logger.info(`[${serverId}] Connected via streamable-http (${tools.length} tools)`);
     return { tools, resources };
   } catch (err: unknown) {
     cleanupFailedSession(serverId, session, err);

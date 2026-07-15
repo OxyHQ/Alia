@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { generateText } from 'ai';
-import { Skill } from '../models/skill.js';
+import { Skill, type ISkill } from '../models/skill.js';
 import { authenticateToken, optionalAuth, oxyClient } from '../middleware/auth.js';
 import { resolveModel, getAIModel, getDefaultAliaModel } from '../lib/chat-core.js';
 import { log } from '../lib/logger.js';
@@ -161,7 +161,7 @@ Do not include any text outside the JSON object.`,
     let authorName = req.user.username || '';
     if (!authorName) {
       try {
-        const oxyUser = await oxyClient.getUserById(req.user.id) as any;
+        const oxyUser = await oxyClient.getUserById(req.user.id);
         authorName = oxyUser?.username || oxyUser?.name?.first || 'Unknown';
       } catch {
         authorName = 'Unknown';
@@ -261,7 +261,7 @@ router.post('/', authenticateToken, async (req: Request, res: Response) => {
     let authorName = author || req.user.username;
     if (!authorName) {
       try {
-        const oxyUser = await oxyClient.getUserById(req.user.id) as any;
+        const oxyUser = await oxyClient.getUserById(req.user.id);
         authorName = oxyUser?.username || oxyUser?.name?.first || 'Unknown';
       } catch {
         authorName = 'Unknown';
@@ -302,8 +302,8 @@ router.post('/', authenticateToken, async (req: Request, res: Response) => {
     });
 
     // Return without systemPrompt
-    const result = skill.toObject();
-    delete (result as any).systemPrompt;
+    const result: Partial<ISkill> = skill.toObject();
+    delete result.systemPrompt;
     res.status(201).json({ skill: result });
   } catch (error: unknown) {
     log.skills.error({ err: error }, 'Error creating skill');
@@ -335,19 +335,19 @@ router.patch('/:skillId', authenticateToken, async (req: Request, res: Response)
       'title', 'tagline', 'description', 'systemPrompt',
       'icon', 'color', 'category', 'language',
       'triggers', 'includes', 'useCase', 'goodAt', 'notGoodAt', 'isPublished',
-    ];
+    ] as const satisfies readonly (keyof ISkill)[];
 
     for (const field of allowedFields) {
       if (req.body[field] !== undefined) {
-        (skill as any)[field] = req.body[field];
+        skill.set(field, req.body[field]);
       }
     }
 
     await skill.save();
 
     // Return without systemPrompt
-    const result = skill.toObject();
-    delete (result as any).systemPrompt;
+    const result: Partial<ISkill> = skill.toObject();
+    delete result.systemPrompt;
     res.json({ skill: result });
   } catch (error: unknown) {
     log.skills.error({ err: error }, 'Error updating skill');

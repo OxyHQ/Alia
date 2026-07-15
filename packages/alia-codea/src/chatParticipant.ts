@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import type { AliaAuthenticationProvider } from './authProvider';
+import { log } from './logger';
 
 export class AliaChatParticipant {
   private apiBaseUrl: string = '';
@@ -34,13 +35,13 @@ export class AliaChatParticipant {
     const config = vscode.workspace.getConfiguration('codea');
     const enabled = config.get('enableChatParticipant', true);
     if (!enabled) {
-      console.log('Chat participant disabled in settings');
+      log.info('Chat participant disabled in settings');
       return;
     }
 
     // Check if the chat API is available (VS Code 1.90+)
     if (!vscode.chat) {
-      console.log('Chat API not available in this VS Code version');
+      log.warn('Chat API not available in this VS Code version');
       return;
     }
 
@@ -66,9 +67,9 @@ export class AliaChatParticipant {
 
       context.subscriptions.push(this.participant);
 
-      console.log('Codea chat participant registered successfully');
+      log.info('Codea chat participant registered successfully');
     } catch (error) {
-      console.error('Failed to register chat participant:', error);
+      log.error('Failed to register chat participant:', error);
     }
   }
 

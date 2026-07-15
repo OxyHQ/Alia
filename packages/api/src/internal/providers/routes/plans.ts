@@ -127,6 +127,23 @@ router.post('/', async (req: Request, res: Response) => {
       }
     }
 
+    // Whitelist optional fields — never spread req.body directly into create().
+    // stripeProductId is excluded: it is server-authoritative, auto-created
+    // lazily by ensureStripeProduct() in lib/stripe-prices.ts.
+    const optionalFields: Record<string, unknown> = {};
+    if ('dailyFreeCredits' in rest) optionalFields.dailyFreeCredits = rest.dailyFreeCredits;
+    if ('subtitle' in rest) optionalFields.subtitle = rest.subtitle;
+    if ('creditsLabel' in rest) optionalFields.creditsLabel = rest.creditsLabel;
+    if ('isFeatured' in rest) optionalFields.isFeatured = rest.isFeatured;
+    if ('isFree' in rest) optionalFields.isFree = rest.isFree;
+    if ('sortOrder' in rest) optionalFields.sortOrder = rest.sortOrder;
+    if ('modelIds' in rest) optionalFields.modelIds = rest.modelIds;
+    if ('isActive' in rest) optionalFields.isActive = rest.isActive;
+    if ('stripeMonthlyPriceId' in rest) optionalFields.stripeMonthlyPriceId = rest.stripeMonthlyPriceId;
+    if ('stripeAnnualPriceId' in rest) optionalFields.stripeAnnualPriceId = rest.stripeAnnualPriceId;
+    if ('description' in rest) optionalFields.description = rest.description;
+    if ('notes' in rest) optionalFields.notes = rest.notes;
+
     const plan = await Plan.create({
       planId: planId.toLowerCase(),
       name,
@@ -135,7 +152,7 @@ router.post('/', async (req: Request, res: Response) => {
       monthlyPrice: monthlyPrice || 0,
       annualPrice: annualPrice || 0,
       currency: currency || 'usd',
-      ...rest,
+      ...optionalFields,
     });
 
     res.status(201).json({
@@ -161,12 +178,33 @@ router.post('/', async (req: Request, res: Response) => {
 router.patch('/:planId', async (req: Request, res: Response) => {
   try {
     const { planId } = req.params;
-    const updates = { ...req.body };
 
-    // Don't allow changing planId
-    delete updates.planId;
+    // Explicit whitelist — planId is immutable and excluded on purpose.
+    // stripeProductId is excluded: it is server-authoritative, auto-created
+    // lazily by ensureStripeProduct() in lib/stripe-prices.ts.
+    // Never spread req.body directly into a $set update (mass-assignment).
+    const body = req.body as Record<string, unknown>;
+    const updates: Record<string, unknown> = {};
+    if ('name' in body) updates.name = body.name;
+    if ('product' in body) updates.product = body.product;
+    if ('creditsPerMonth' in body) updates.creditsPerMonth = body.creditsPerMonth;
+    if ('dailyFreeCredits' in body) updates.dailyFreeCredits = body.dailyFreeCredits;
+    if ('monthlyPrice' in body) updates.monthlyPrice = body.monthlyPrice;
+    if ('annualPrice' in body) updates.annualPrice = body.annualPrice;
+    if ('currency' in body) updates.currency = body.currency;
+    if ('subtitle' in body) updates.subtitle = body.subtitle;
+    if ('creditsLabel' in body) updates.creditsLabel = body.creditsLabel;
+    if ('isFeatured' in body) updates.isFeatured = body.isFeatured;
+    if ('isFree' in body) updates.isFree = body.isFree;
+    if ('sortOrder' in body) updates.sortOrder = body.sortOrder;
+    if ('modelIds' in body) updates.modelIds = body.modelIds;
+    if ('isActive' in body) updates.isActive = body.isActive;
+    if ('stripeMonthlyPriceId' in body) updates.stripeMonthlyPriceId = body.stripeMonthlyPriceId;
+    if ('stripeAnnualPriceId' in body) updates.stripeAnnualPriceId = body.stripeAnnualPriceId;
+    if ('description' in body) updates.description = body.description;
+    if ('notes' in body) updates.notes = body.notes;
 
-    if (updates.product && !['alia', 'codea'].includes(updates.product)) {
+    if (updates.product && (typeof updates.product !== 'string' || !['alia', 'codea'].includes(updates.product))) {
       return res.status(400).json({
         success: false,
         error: 'product must be "alia" or "codea"',
@@ -184,10 +222,11 @@ router.patch('/:planId', async (req: Request, res: Response) => {
       });
     }
 
-    if (updates.modelIds && Array.isArray(updates.modelIds) && updates.modelIds.length > 0) {
-      const validModels = await AliaModel.find({ modelId: { $in: updates.modelIds } }).select('modelId').lean();
+    const updateModelIds = updates.modelIds;
+    if (Array.isArray(updateModelIds) && updateModelIds.length > 0) {
+      const validModels = await AliaModel.find({ modelId: { $in: updateModelIds } }).select('modelId').lean();
       const validIds = new Set(validModels.map((m: any) => m.modelId));
-      const invalid = updates.modelIds.filter((id: string) => !validIds.has(id));
+      const invalid = updateModelIds.filter((id: string) => !validIds.has(id));
       if (invalid.length > 0) {
         return res.status(400).json({
           success: false,

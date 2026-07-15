@@ -8,6 +8,7 @@ import OpenAI from 'openai'
 import { ToolExecutor } from './tools'
 import Store from 'electron-store'
 import { errorMessage, errorName, errorStack } from './errors'
+import { createLogger } from './logger'
 
 /** A file/folder context item attached to a chat message from the renderer. */
 interface ContextItem {
@@ -19,6 +20,8 @@ interface ContextItem {
 
 /** OpenAI streaming delta may carry a non-standard `reasoning` field on the Alia gateway. */
 type ReasoningDelta = OpenAI.Chat.ChatCompletionChunk.Choice.Delta & { reasoning?: string }
+
+const logger = createLogger('ChatProvider')
 
 const store = new Store({
   defaults: {
@@ -133,12 +136,12 @@ export class ChatProvider {
     this.send('chat:start', {})
 
     try {
-      console.log('[ChatProvider] ===== NEW MESSAGE =====')
-      console.log('[ChatProvider] Mode:', mode)
-      console.log('[ChatProvider] Model:', selectedModel)
-      console.log('[ChatProvider] Base URL:', baseUrl)
-      console.log('[ChatProvider] Tools enabled:', enableTools)
-      console.log('[ChatProvider] Message count:', this.messages.length)
+      logger.debug('===== NEW MESSAGE =====')
+      logger.debug('Mode:', mode)
+      logger.debug('Model:', selectedModel)
+      logger.debug('Base URL:', baseUrl)
+      logger.debug('Tools enabled:', enableTools)
+      logger.debug('Message count:', this.messages.length)
 
       // Create OpenAI client pointing to our API
       const openai = new OpenAI({
@@ -401,7 +404,7 @@ export class ChatProvider {
         : undefined
 
       // Stream with OpenAI SDK
-      console.log('[ChatProvider] Creating stream...')
+      logger.debug('Creating stream...')
       const stream = await openai.chat.completions.create(
         {
           model: selectedModel,
@@ -416,7 +419,7 @@ export class ChatProvider {
         }
       )
 
-      console.log('[ChatProvider] Stream created, processing chunks...')
+      logger.debug('Stream created, processing chunks...')
       let assistantMessage = ''
       let toolCalls: OpenAI.Chat.ChatCompletionMessageToolCall[] = []
       let chunkCount = 0
@@ -424,36 +427,36 @@ export class ChatProvider {
       // Process stream chunks
       for await (const chunk of stream) {
         chunkCount++
-        console.log(`[ChatProvider] Chunk ${chunkCount}:`, JSON.stringify(chunk, null, 2))
+        logger.debug(`Chunk ${chunkCount}:`, JSON.stringify(chunk, null, 2))
         const delta = chunk.choices?.[0]?.delta
 
         if (!delta) {
-          console.log('[ChatProvider] Chunk has no delta, skipping')
+          logger.debug('Chunk has no delta, skipping')
           continue
         }
 
         // Handle reasoning (chain-of-thought)
         if ((delta as ReasoningDelta).reasoning) {
-          console.log('[ChatProvider] Reasoning chunk:', (delta as ReasoningDelta).reasoning)
+          logger.debug('Reasoning chunk:', (delta as ReasoningDelta).reasoning)
           this.send('chat:thinking', { content: (delta as ReasoningDelta).reasoning })
         }
 
         // Handle content
         if (delta.content) {
-          console.log('[ChatProvider] Content chunk:', delta.content)
+          logger.debug('Content chunk:', delta.content)
           assistantMessage += delta.content
           this.send('chat:stream', { content: delta.content })
         }
 
         // Handle tool calls
         if (delta.tool_calls) {
-          console.log('[ChatProvider] Tool call delta:', JSON.stringify(delta.tool_calls, null, 2))
+          logger.debug('Tool call delta:', JSON.stringify(delta.tool_calls, null, 2))
           for (const toolCall of delta.tool_calls) {
             const index = toolCall.index ?? toolCalls.length
-            console.log(`[ChatProvider] Processing tool call at index ${index}`)
+            logger.debug(`Processing tool call at index ${index}`)
 
             if (!toolCalls[index]) {
-              console.log(`[ChatProvider] Creating new tool call at index ${index}`)
+              logger.debug(`Creating new tool call at index ${index}`)
               toolCalls[index] = {
                 id: toolCall.id || '',
                 type: 'function',
@@ -462,39 +465,39 @@ export class ChatProvider {
             }
 
             if (toolCall.function?.name) {
-              console.log(`[ChatProvider] Setting tool name: ${toolCall.function.name}`)
+              logger.debug(`Setting tool name: ${toolCall.function.name}`)
               toolCalls[index].function.name = toolCall.function.name
             }
 
             if (toolCall.function?.arguments) {
-              console.log(`[ChatProvider] Appending arguments: ${toolCall.function.arguments}`)
+              logger.debug(`Appending arguments: ${toolCall.function.arguments}`)
               toolCalls[index].function.arguments += toolCall.function.arguments
             }
 
             if (toolCall.id) {
-              console.log(`[ChatProvider] Setting tool call ID: ${toolCall.id}`)
+              logger.debug(`Setting tool call ID: ${toolCall.id}`)
               toolCalls[index].id = toolCall.id
             }
 
-            console.log(`[ChatProvider] Current tool call state at index ${index}:`, JSON.stringify(toolCalls[index], null, 2))
+            logger.debug(`Current tool call state at index ${index}:`, JSON.stringify(toolCalls[index], null, 2))
           }
         }
 
         // Handle finish reason
         if (chunk.choices?.[0]?.finish_reason) {
-          console.log('[ChatProvider] Stream finished:', chunk.choices[0]?.finish_reason)
+          logger.debug('Stream finished:', chunk.choices[0]?.finish_reason)
         }
       }
 
-      console.log('[ChatProvider] Stream processing complete')
-      console.log('[ChatProvider] Total chunks processed:', chunkCount)
-      console.log('[ChatProvider] Assistant message length:', assistantMessage.length)
-      console.log('[ChatProvider] Raw tool calls array:', JSON.stringify(toolCalls, null, 2))
+      logger.debug('Stream processing complete')
+      logger.debug('Total chunks processed:', chunkCount)
+      logger.debug('Assistant message length:', assistantMessage.length)
+      logger.debug('Raw tool calls array:', JSON.stringify(toolCalls, null, 2))
 
       // Filter out undefined and incomplete tool calls before processing
       const validToolCalls = toolCalls.filter(tc => tc && tc.id && tc.function && tc.function.name)
-      console.log('[ChatProvider] Valid tool calls after filtering:', validToolCalls.length)
-      console.log('[ChatProvider] Valid tool calls:', JSON.stringify(validToolCalls, null, 2))
+      logger.debug('Valid tool calls after filtering:', validToolCalls.length)
+      logger.debug('Valid tool calls:', JSON.stringify(validToolCalls, null, 2))
 
       // Add assistant message to history (with tool calls if any)
       if (assistantMessage || validToolCalls.length > 0) {
@@ -510,39 +513,39 @@ export class ChatProvider {
 
       // Execute tools if there are tool calls
       if (validToolCalls.length > 0) {
-        console.log('[ChatProvider] ===== EXECUTING TOOLS =====')
-        console.log('[ChatProvider] Number of tools to execute:', validToolCalls.length)
+        logger.debug('===== EXECUTING TOOLS =====')
+        logger.debug('Number of tools to execute:', validToolCalls.length)
 
         for (const toolCall of validToolCalls) {
-          console.log('[ChatProvider] Processing tool call:', JSON.stringify(toolCall, null, 2))
+          logger.debug('Processing tool call:', JSON.stringify(toolCall, null, 2))
 
           if (!toolCall || !toolCall.function) {
-            console.error('[ChatProvider] Invalid tool call:', toolCall)
+            logger.error('Invalid tool call:', toolCall)
             continue
           }
 
           const toolName = toolCall.function.name
           if (!toolName) {
-            console.error('[ChatProvider] Tool call missing name:', toolCall)
+            logger.error('Tool call missing name:', toolCall)
             continue
           }
 
-          console.log(`[ChatProvider] Executing tool: ${toolName}`)
-          console.log(`[ChatProvider] Tool call ID: ${toolCall.id}`)
-          console.log(`[ChatProvider] Raw arguments: ${toolCall.function.arguments}`)
+          logger.debug(`Executing tool: ${toolName}`)
+          logger.debug(`Tool call ID: ${toolCall.id}`)
+          logger.debug(`Raw arguments: ${toolCall.function.arguments}`)
 
           let args: Record<string, unknown> = {}
           try {
             args = JSON.parse(toolCall.function.arguments || '{}')
-            console.log('[ChatProvider] Parsed arguments:', JSON.stringify(args, null, 2))
+            logger.debug('Parsed arguments:', JSON.stringify(args, null, 2))
           } catch (e) {
-            console.error('[ChatProvider] Failed to parse tool arguments:', toolCall.function.arguments, e)
+            logger.error('Failed to parse tool arguments:', toolCall.function.arguments, e)
             continue
           }
 
           // Handle set_mode specially
           if (toolName === 'set_mode') {
-            console.log(`[ChatProvider] Setting mode to: ${args.mode}`)
+            logger.debug(`Setting mode to: ${args.mode}`)
             this.currentMode = String(args.mode ?? this.currentMode)
             this.send('chat:modeChanged', { mode: this.currentMode })
           }
@@ -554,89 +557,89 @@ export class ChatProvider {
           })
 
           try {
-            console.log(`[ChatProvider] Calling tool executor for: ${toolName}`)
+            logger.debug(`Calling tool executor for: ${toolName}`)
             // Execute tool locally
             let result: string
             switch (toolName) {
               case 'read_file':
-                console.log('[ChatProvider] Executing read_file')
+                logger.debug('Executing read_file')
                 result = await this.toolExecutor.readFile(args as { path: string; start_line?: number; end_line?: number })
                 break
               case 'write_file':
-                console.log('[ChatProvider] Executing write_file')
+                logger.debug('Executing write_file')
                 result = await this.toolExecutor.writeFile(args as { path: string; content: string })
                 break
               case 'edit_file':
-                console.log('[ChatProvider] Executing edit_file')
+                logger.debug('Executing edit_file')
                 result = await this.toolExecutor.editFile(args as { path: string; old_text: string; new_text: string })
                 break
               case 'list_files':
-                console.log('[ChatProvider] Executing list_files')
+                logger.debug('Executing list_files')
                 result = await this.toolExecutor.listFiles(args as { path?: string; recursive?: boolean })
                 break
               case 'search_files':
-                console.log('[ChatProvider] Executing search_files')
+                logger.debug('Executing search_files')
                 result = await this.toolExecutor.searchFiles(args as { pattern: string; path?: string })
                 break
               case 'run_command':
-                console.log('[ChatProvider] Executing run_command')
+                logger.debug('Executing run_command')
                 result = await this.toolExecutor.runCommand(args as { command: string; cwd?: string })
                 break
               case 'open_application':
-                console.log('[ChatProvider] Executing open_application')
+                logger.debug('Executing open_application')
                 result = await this.toolExecutor.openApplication(args as { application_name: string })
                 break
               case 'open_url':
-                console.log('[ChatProvider] Executing open_url')
+                logger.debug('Executing open_url')
                 result = await this.toolExecutor.openUrl(args as { url: string })
                 break
               case 'clipboard_read':
-                console.log('[ChatProvider] Executing clipboard_read')
+                logger.debug('Executing clipboard_read')
                 result = this.toolExecutor.clipboardRead()
                 break
               case 'clipboard_write':
-                console.log('[ChatProvider] Executing clipboard_write')
+                logger.debug('Executing clipboard_write')
                 result = this.toolExecutor.clipboardWrite(args as { text: string })
                 break
               case 'get_system_info':
-                console.log('[ChatProvider] Executing get_system_info')
+                logger.debug('Executing get_system_info')
                 result = this.toolExecutor.getSystemInfo()
                 break
               case 'screenshot':
-                console.log('[ChatProvider] Executing screenshot')
+                logger.debug('Executing screenshot')
                 result = await this.toolExecutor.screenshot()
                 break
               case 'set_mode':
-                console.log('[ChatProvider] Executing set_mode')
+                logger.debug('Executing set_mode')
                 result = `Mode changed to ${args.mode}`
                 break
               case 'list_installed_applications':
-                console.log('[ChatProvider] Executing list_installed_applications')
+                logger.debug('Executing list_installed_applications')
                 result = await this.toolExecutor.listInstalledApplications()
                 break
               case 'browser_action':
-                console.log('[ChatProvider] Executing browser_action')
+                logger.debug('Executing browser_action')
                 this.browserUsedInCurrentTurn = true
                 result = await this.toolExecutor.browserAction(args)
                 break
               case 'close_browser':
-                console.log('[ChatProvider] Executing close_browser')
+                logger.debug('Executing close_browser')
                 result = await this.toolExecutor.closeBrowser()
                 break
               default:
-                console.error(`[ChatProvider] Unknown tool: ${toolName}`)
+                logger.error(`Unknown tool: ${toolName}`)
                 result = `Unknown tool: ${toolName}`
             }
 
-            console.log(`[ChatProvider] Tool ${toolName} executed successfully`)
-            console.log(`[ChatProvider] Result length: ${String(result || '').length}`)
-            console.log(`[ChatProvider] Result preview: ${String(result || '').slice(0, 200)}`)
+            logger.debug(`Tool ${toolName} executed successfully`)
+            logger.debug(`Result length: ${String(result || '').length}`)
+            logger.debug(`Result preview: ${String(result || '').slice(0, 200)}`)
 
             // Add tool result to messages
             // Append reminder to tool result to prevent redundant calls
             let toolResult = result
             if (result.includes('already open') || result.includes('DO NOT call')) {
-              console.log('[ChatProvider] Adding reminder to tool result to prevent redundant tool calls')
+              logger.debug('Adding reminder to tool result to prevent redundant tool calls')
               toolResult += '\n\n[SYSTEM REMINDER: The action is complete. Do NOT call the same tool again. Move to the next task or provide your final response.]'
             }
 
@@ -645,7 +648,7 @@ export class ChatProvider {
               tool_call_id: toolCall.id,
               content: toolResult
             })
-            console.log(`[ChatProvider] Added tool result to messages (total: ${this.messages.length})`)
+            logger.debug(`Added tool result to messages (total: ${this.messages.length})`)
 
             this.send('chat:toolResult', {
               tool: toolName,
@@ -654,8 +657,8 @@ export class ChatProvider {
             })
           } catch (error: unknown) {
             const errorMsg = errorMessage(error)
-            console.error(`[ChatProvider] Tool ${toolName} execution failed:`, errorMsg)
-            console.error('[ChatProvider] Error stack:', errorStack(error))
+            logger.error(`Tool ${toolName} execution failed:`, errorMsg)
+            logger.error('Error stack:', errorStack(error))
 
             this.messages.push({
               role: 'tool',
@@ -671,41 +674,41 @@ export class ChatProvider {
           }
         }
 
-        console.log('[ChatProvider] All tools executed, continuing with tool results...')
-        console.log('[ChatProvider] Current message history:', JSON.stringify(this.messages.map(m => ({ role: m.role, hasContent: !!m.content })), null, 2))
+        logger.debug('All tools executed, continuing with tool results...')
+        logger.debug('Current message history:', JSON.stringify(this.messages.map(m => ({ role: m.role, hasContent: !!m.content })), null, 2))
 
         // Continue conversation with tool results - recursively call handleMessage
         // but without adding a new user message
         await this.continueWithToolResults(openai, selectedModel, tools)
       }
 
-      console.log('[ChatProvider] Chat session complete')
+      logger.debug('Chat session complete')
       this.send('chat:end', {})
 
       // Auto-close browser if it was used in this turn
       if (this.browserUsedInCurrentTurn) {
-        console.log('[ChatProvider] Browser was used, auto-closing and returning to chat...')
+        logger.debug('Browser was used, auto-closing and returning to chat...')
         try {
           await this.toolExecutor.closeBrowser()
         } catch (error) {
-          console.error('[ChatProvider] Error auto-closing browser:', error)
+          logger.error('Error auto-closing browser:', error)
         }
       }
     } catch (error: unknown) {
       if (errorName(error) === 'AbortError') {
-        console.log('[ChatProvider] Stream aborted by user')
+        logger.debug('Stream aborted by user')
         this.send('chat:end', {})
       } else {
-        console.error('[ChatProvider] ===== STREAM ERROR =====')
-        console.error('[ChatProvider] Error name:', errorName(error))
-        console.error('[ChatProvider] Error message:', errorMessage(error))
-        console.error('[ChatProvider] Error stack:', errorStack(error))
-        console.error('[ChatProvider] Full error:', JSON.stringify(error, null, 2))
+        logger.error('===== STREAM ERROR =====')
+        logger.error('Error name:', errorName(error))
+        logger.error('Error message:', errorMessage(error))
+        logger.error('Error stack:', errorStack(error))
+        logger.error('Full error:', JSON.stringify(error, null, 2))
         this.send('chat:error', { message: this.formatErrorMessage(error) })
       }
     } finally {
-      console.log('[ChatProvider] ===== SESSION END =====')
-      console.log('[ChatProvider] Final message count:', this.messages.length)
+      logger.debug('===== SESSION END =====')
+      logger.debug('Final message count:', this.messages.length)
       this.isProcessing = false
       this.abortController = undefined
       this.browserUsedInCurrentTurn = false
@@ -721,7 +724,7 @@ export class ChatProvider {
     // Prevent infinite loops
     const MAX_ITERATIONS = 5
     if (iterationCount >= MAX_ITERATIONS) {
-      console.warn(`[ChatProvider] Max iterations (${MAX_ITERATIONS}) reached, forcing final response`)
+      logger.warn(`Max iterations (${MAX_ITERATIONS}) reached, forcing final response`)
       // Force final response without more tool calls
       const stream = await openai.chat.completions.create(
         {
@@ -755,10 +758,10 @@ export class ChatProvider {
       return
     }
 
-    console.log('[ChatProvider] ===== CONTINUING WITH TOOL RESULTS =====')
-    console.log('[ChatProvider] Iteration:', iterationCount + 1)
-    console.log('[ChatProvider] Current message count:', this.messages.length)
-    console.log('[ChatProvider] Last 3 messages:', JSON.stringify(this.messages.slice(-3).map(m => ({
+    logger.debug('===== CONTINUING WITH TOOL RESULTS =====')
+    logger.debug('Iteration:', iterationCount + 1)
+    logger.debug('Current message count:', this.messages.length)
+    logger.debug('Last 3 messages:', JSON.stringify(this.messages.slice(-3).map(m => ({
       role: m.role,
       contentLength: typeof m.content === 'string' ? m.content.length : 0,
       hasToolCalls: !!(m as OpenAI.Chat.ChatCompletionAssistantMessageParam).tool_calls
@@ -766,7 +769,7 @@ export class ChatProvider {
 
     try {
       // Stream continuation with tool results
-      console.log('[ChatProvider] Creating continuation stream...')
+      logger.debug('Creating continuation stream...')
 
       // After first iteration, prefer not calling more tools unless absolutely necessary
       const streamConfig: OpenAI.Chat.ChatCompletionCreateParamsStreaming = {
@@ -781,7 +784,7 @@ export class ChatProvider {
       // After iteration 1, discourage more tool calls
       if (iterationCount >= 1) {
         streamConfig.tool_choice = 'auto' // Let model decide, but with penalty
-        console.log('[ChatProvider] Iteration >= 1, model should prefer responding')
+        logger.debug('Iteration >= 1, model should prefer responding')
       }
 
       const stream = await openai.chat.completions.create(
@@ -791,7 +794,7 @@ export class ChatProvider {
         }
       ) as unknown as AsyncIterable<OpenAI.Chat.Completions.ChatCompletionChunk>
 
-      console.log('[ChatProvider] Continuation stream created, processing chunks...')
+      logger.debug('Continuation stream created, processing chunks...')
       let assistantMessage = ''
       let toolCalls: OpenAI.Chat.ChatCompletionMessageToolCall[] = []
       let contChunkCount = 0
@@ -799,24 +802,24 @@ export class ChatProvider {
       // Process stream chunks
       for await (const chunk of stream) {
         contChunkCount++
-        console.log(`[ChatProvider] Continuation chunk ${contChunkCount}:`, JSON.stringify(chunk, null, 2))
+        logger.debug(`Continuation chunk ${contChunkCount}:`, JSON.stringify(chunk, null, 2))
 
         const delta = chunk.choices?.[0]?.delta
 
         if (!delta) {
-          console.log('[ChatProvider] Continuation chunk has no delta, skipping')
+          logger.debug('Continuation chunk has no delta, skipping')
           continue
         }
 
         // Handle reasoning
         if ((delta as ReasoningDelta).reasoning) {
-          console.log('[ChatProvider] Continuation reasoning chunk:', (delta as ReasoningDelta).reasoning)
+          logger.debug('Continuation reasoning chunk:', (delta as ReasoningDelta).reasoning)
           this.send('chat:thinking', { content: (delta as ReasoningDelta).reasoning })
         }
 
         // Handle content
         if (delta.content) {
-          console.log('[ChatProvider] Continuation content chunk:', delta.content)
+          logger.debug('Continuation content chunk:', delta.content)
           assistantMessage += delta.content
           this.send('chat:stream', { content: delta.content })
         }
@@ -867,13 +870,13 @@ export class ChatProvider {
       if (validToolCalls.length > 0) {
         for (const toolCall of validToolCalls) {
           if (!toolCall || !toolCall.function) {
-            console.error('[ChatProvider] Invalid tool call in continuation:', toolCall)
+            logger.error('Invalid tool call in continuation:', toolCall)
             continue
           }
 
           const toolName = toolCall.function.name
           if (!toolName) {
-            console.error('[ChatProvider] Tool call missing name in continuation:', toolCall)
+            logger.error('Tool call missing name in continuation:', toolCall)
             continue
           }
 
@@ -881,7 +884,7 @@ export class ChatProvider {
           try {
             args = JSON.parse(toolCall.function.arguments || '{}')
           } catch (e) {
-            console.error('[ChatProvider] Failed to parse tool arguments in continuation:', toolCall.function.arguments, e)
+            logger.error('Failed to parse tool arguments in continuation:', toolCall.function.arguments, e)
             continue
           }
 
@@ -955,7 +958,7 @@ export class ChatProvider {
             // Append reminder to tool result to prevent redundant calls
             let toolResult = result
             if (result.includes('already open') || result.includes('DO NOT call')) {
-              console.log('[ChatProvider] Adding reminder to tool result in continuation to prevent redundant tool calls')
+              logger.debug('Adding reminder to tool result in continuation to prevent redundant tool calls')
               toolResult += '\n\n[SYSTEM REMINDER: The action is complete. Do NOT call the same tool again. Move to the next task or provide your final response.]'
             }
 
@@ -986,21 +989,21 @@ export class ChatProvider {
           }
         }
 
-        console.log('[ChatProvider] More tools to execute, continuing recursively...')
+        logger.debug('More tools to execute, continuing recursively...')
         // Continue recursively with incremented iteration count
         await this.continueWithToolResults(openai, model, tools, iterationCount + 1)
       } else {
-        console.log('[ChatProvider] No more tools to execute, continuation complete')
+        logger.debug('No more tools to execute, continuation complete')
       }
     } catch (error: unknown) {
       if (errorName(error) !== 'AbortError') {
-        console.error('[ChatProvider] ===== CONTINUATION ERROR =====')
-        console.error('[ChatProvider] Error name:', errorName(error))
-        console.error('[ChatProvider] Error message:', errorMessage(error))
-        console.error('[ChatProvider] Error stack:', errorStack(error))
-        console.error('[ChatProvider] Full error:', JSON.stringify(error, null, 2))
+        logger.error('===== CONTINUATION ERROR =====')
+        logger.error('Error name:', errorName(error))
+        logger.error('Error message:', errorMessage(error))
+        logger.error('Error stack:', errorStack(error))
+        logger.error('Full error:', JSON.stringify(error, null, 2))
       } else {
-        console.log('[ChatProvider] Continuation aborted by user')
+        logger.debug('Continuation aborted by user')
       }
     }
   }

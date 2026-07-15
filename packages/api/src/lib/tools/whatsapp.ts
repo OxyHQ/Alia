@@ -6,7 +6,22 @@ import { getErrorMessage } from '../errors/index.js';
 const WHATSAPP_GATEWAY_URL = process.env.WHATSAPP_GATEWAY_URL;
 const WHATSAPP_GATEWAY_SECRET = process.env.WHATSAPP_GATEWAY_SECRET;
 
-async function gatewayFetch(path: string, options?: RequestInit) {
+interface WhatsAppChatSummary {
+  name?: string;
+  jid?: string;
+  unreadCount?: number;
+  lastMessagePreview?: string;
+  lastMessageTimestamp?: number;
+}
+
+interface WhatsAppMessageSummary {
+  fromMe?: boolean;
+  pushName?: string;
+  text?: string;
+  timestamp?: number;
+}
+
+async function gatewayFetch<T = unknown>(path: string, options?: RequestInit): Promise<T> {
   if (!WHATSAPP_GATEWAY_URL || !WHATSAPP_GATEWAY_SECRET) {
     throw new Error('WhatsApp gateway not configured');
   }
@@ -25,7 +40,7 @@ async function gatewayFetch(path: string, options?: RequestInit) {
     throw new Error(`Gateway ${res.status}: ${body}`);
   }
 
-  return res.json();
+  return res.json() as Promise<T>;
 }
 
 /**
@@ -37,7 +52,7 @@ export function createGetWhatsAppChatsTool(userId: string) {
     inputSchema: z.object({}),
     execute: async () => {
       try {
-        const data = await gatewayFetch(`/sessions/${userId}/chats`) as any;
+        const data = await gatewayFetch<{ chats?: WhatsAppChatSummary[] }>(`/sessions/${userId}/chats`);
         const chats = data.chats || [];
 
         if (chats.length === 0) {
@@ -46,7 +61,7 @@ export function createGetWhatsAppChatsTool(userId: string) {
 
         return {
           success: true,
-          chats: chats.map((c: any) => ({
+          chats: chats.map((c) => ({
             name: c.name,
             jid: c.jid,
             unreadCount: c.unreadCount,
@@ -76,7 +91,7 @@ export function createGetWhatsAppMessagesTool(userId: string) {
     }),
     execute: async ({ jid, limit }) => {
       try {
-        const data = await gatewayFetch(`/sessions/${userId}/chats/${encodeURIComponent(jid)}/messages?limit=${limit}`) as any;
+        const data = await gatewayFetch<{ messages?: WhatsAppMessageSummary[] }>(`/sessions/${userId}/chats/${encodeURIComponent(jid)}/messages?limit=${limit}`);
         const messages = data.messages || [];
 
         if (messages.length === 0) {
@@ -85,7 +100,7 @@ export function createGetWhatsAppMessagesTool(userId: string) {
 
         return {
           success: true,
-          messages: messages.map((m: any) => ({
+          messages: messages.map((m) => ({
             from: m.fromMe ? 'You' : (m.pushName || 'Unknown'),
             text: m.text,
             time: m.timestamp ? new Date(m.timestamp * 1000).toISOString() : null,
@@ -111,10 +126,10 @@ export function createSendWhatsAppMessageTool(userId: string) {
     }),
     execute: async ({ jid, message }) => {
       try {
-        const data = await gatewayFetch(`/sessions/${userId}/send`, {
+        const data = await gatewayFetch<{ messageId?: string }>(`/sessions/${userId}/send`, {
           method: 'POST',
           body: JSON.stringify({ jid, text: message }),
-        }) as any;
+        });
 
         return {
           success: true,

@@ -27,7 +27,7 @@ export async function buildUserContext(userId: string): Promise<UserContext> {
 
   // Fetch user name from Oxy
   try {
-    const user = await oxyClient.getUserById(userId) as any;
+    const user = await oxyClient.getUserById(userId);
     userName = user?.name?.full || user?.name?.first || user?.username || null;
     if (userName) {
       contextString += `\nThe user's name is ${userName}.`;

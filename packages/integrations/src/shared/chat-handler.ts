@@ -11,6 +11,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import { APIClient } from './api-client';
 import { chunkText } from './utils';
+import { createLogger } from './logger';
 
 export interface IncomingMessageParams {
   platform: string;
@@ -43,6 +44,8 @@ export async function handleIncomingMessage(
     platformContext = '',
   } = params;
 
+  const logger = createLogger(`${platform}/Chat`);
+
   try {
     // Get bot user from API
     const botUser = await apiClient.getBotUser(oxyUserId);
@@ -56,7 +59,12 @@ export async function handleIncomingMessage(
 
     // Show typing
     if (setTyping) {
-      try { await setTyping(true); } catch {}
+      try {
+        await setTyping(true);
+      } catch (error) {
+        // Typing indicator is best-effort; a failure must not interrupt the reply.
+        logger.debug('Failed to start typing indicator:', error);
+      }
     }
 
     // Conversation management
@@ -77,7 +85,7 @@ export async function handleIncomingMessage(
           .map((m) => ({ role: m.role, content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content) }));
       }
     } catch (error) {
-      console.error(`[${platform}/Chat] Failed to load history:`, error);
+      logger.error('Failed to load history:', error);
     }
 
     messages.push({ role: 'user', content: messageText });
@@ -114,12 +122,17 @@ export async function handleIncomingMessage(
 
     // Clear typing
     if (setTyping) {
-      try { await setTyping(false); } catch {}
+      try {
+        await setTyping(false);
+      } catch (error) {
+        // Typing indicator is best-effort; a failure must not interrupt the reply.
+        logger.debug('Failed to clear typing indicator:', error);
+      }
     }
 
     // Conversation is auto-saved by the API when conversationId is provided
   } catch (error: unknown) {
-    console.error(`[${platform}/Chat] Error:`, error);
+    logger.error('Error:', error);
     await sendResponse('Sorry, an error occurred. Please try again.').catch(() => {});
   }
 }

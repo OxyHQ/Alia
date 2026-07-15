@@ -4,6 +4,9 @@
  */
 
 import type { Browser, BrowserContext, Page } from 'playwright';
+import { createLogger } from '../shared/logger';
+
+const logger = createLogger('Browser');
 
 let browser: Browser | null = null;
 const contexts = new Map<string, { context: BrowserContext; page: Page; lastUsed: number }>();
@@ -26,7 +29,7 @@ async function ensureBrowser(): Promise<Browser> {
     ],
   });
 
-  console.log('[Browser] Chromium launched');
+  logger.info('Chromium launched');
   return browser;
 }
 
@@ -86,7 +89,7 @@ export async function shutdown(): Promise<void> {
 }
 
 // Periodic cleanup of idle contexts
-setInterval(() => {
+const idleContextCleanupTimer = setInterval(() => {
   const now = Date.now();
   for (const [id, ctx] of contexts) {
     if (now - ctx.lastUsed > IDLE_TIMEOUT_MS) {
@@ -94,3 +97,4 @@ setInterval(() => {
     }
   }
 }, 60_000);
+idleContextCleanupTimer.unref?.();

@@ -64,7 +64,7 @@ router.get('/:id', async (req: Request, res: Response) => {
 router.post('/upload', upload.single('file'), async (req: Request, res: Response) => {
   try {
     const userId = req.user!.id;
-    const file = (req as any).file as { buffer: Buffer; originalname: string; mimetype: string; size: number } | undefined;
+    const file = req.file;
 
     if (!file) {
       return res.status(400).json({ error: 'No file provided' });

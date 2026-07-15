@@ -23,9 +23,11 @@ import { SignalChat } from './models';
 import { handleIncomingMessage } from '../../shared/chat-handler';
 import { APIClient } from '../../shared/api-client';
 import { DedupSet, errorCode, errorName } from '../../shared/utils';
+import { createLogger } from '../../shared/logger';
 
 const apiClient = new APIClient('signal', process.env.INTEGRATIONS_SECRET || '');
 const dedup = new DedupSet();
+const logger = createLogger('Signal');
 
 /**
  * Pending QR resolver used while a session is being linked and the user
@@ -60,13 +62,13 @@ class SessionManager {
     const activeSessions = await SignalSession.find({
       status: { $in: ['connected', 'disconnected'] },
     });
-    console.log(`[Signal] Found ${activeSessions.length} active session(s) to restore`);
+    logger.info(`Found ${activeSessions.length} active session(s) to restore`);
 
     for (const session of activeSessions) {
       try {
         await this.startDaemon(session.sessionId);
       } catch (err) {
-        console.error(`[Signal] Failed to restore session ${session.sessionId}:`, err);
+        logger.error(`Failed to restore session ${session.sessionId}:`, err);
       }
     }
   }
@@ -129,7 +131,7 @@ class SessionManager {
     });
 
     linkProcess.stderr.on('data', (chunk: Buffer) => {
-      console.error(`[Signal] link stderr for ${sessionId}:`, chunk.toString());
+      logger.error(`link stderr for ${sessionId}:`, chunk.toString());
     });
 
     linkProcess.on('close', async (code) => {
@@ -157,11 +159,11 @@ class SessionManager {
           // Start the daemon for receiving messages
           await this.startDaemon(sessionId);
         } catch (err) {
-          console.error(`[Signal] Post-link error for ${sessionId}:`, err);
+          logger.error(`Post-link error for ${sessionId}:`, err);
           await SignalSession.updateOne({ sessionId }, { $set: { status: 'failed' } });
         }
       } else {
-        console.error(`[Signal] Link process exited with code ${code} for ${sessionId}`);
+        logger.error(`Link process exited with code ${code} for ${sessionId}`);
         await SignalSession.updateOne({ sessionId }, { $set: { status: 'failed' } });
 
         const pending = this.pendingQRs.get(sessionId);
@@ -251,7 +253,7 @@ class SessionManager {
 
     // Handle daemon crash with reconnect backoff
     daemon.on('close', async (code) => {
-      console.log(`[Signal] Daemon for ${sessionId} exited with code ${code}`);
+      logger.info(`Daemon for ${sessionId} exited with code ${code}`);
       this.daemons.delete(sessionId);
 
       // Clean up SSE listener
@@ -277,8 +279,8 @@ class SessionManager {
       if (attempts > SessionManager.MAX_RECONNECT_ATTEMPTS) {
         await SignalSession.updateOne({ sessionId }, { $set: { status: 'failed' } });
         this.reconnectAttempts.delete(sessionId);
-        console.error(
-          `[Signal] Session ${sessionId} failed after ${SessionManager.MAX_RECONNECT_ATTEMPTS} reconnect attempts`
+        logger.error(
+          `Session ${sessionId} failed after ${SessionManager.MAX_RECONNECT_ATTEMPTS} reconnect attempts`
         );
       } else {
         const delay =
@@ -291,8 +293,8 @@ class SessionManager {
           { sessionId },
           { $set: { status: 'disconnected', lastDisconnected: new Date() } }
         );
-        console.log(
-          `[Signal] Session ${sessionId} disconnected (code ${code}), reconnecting in ${Math.round(delay / 1000)}s (attempt ${attempts}/${SessionManager.MAX_RECONNECT_ATTEMPTS})...`
+        logger.info(
+          `Session ${sessionId} disconnected (code ${code}), reconnecting in ${Math.round(delay / 1000)}s (attempt ${attempts}/${SessionManager.MAX_RECONNECT_ATTEMPTS})...`
         );
 
         // Clear any existing reconnect timer
@@ -302,7 +304,7 @@ class SessionManager {
         const timer = setTimeout(() => {
           this.reconnectTimers.delete(sessionId);
           this.startDaemon(sessionId).catch((err) =>
-            console.error(`[Signal] Reconnect failed for ${sessionId}:`, err)
+            logger.error(`Reconnect failed for ${sessionId}:`, err)
           );
         }, delay);
         this.reconnectTimers.set(sessionId, timer);
@@ -317,7 +319,7 @@ class SessionManager {
       { $set: { status: 'connected', lastConnected: new Date() } }
     );
 
-    console.log(`[Signal] Daemon started for session ${sessionId} on port ${port}`);
+    logger.info(`Daemon started for session ${sessionId} on port ${port}`);
   }
 
   /**
@@ -371,7 +373,7 @@ class SessionManager {
             );
           } catch (err: unknown) {
             if (errorCode(err) !== 11000) {
-              console.error(`[Signal] Error persisting message:`, err);
+              logger.error(`Error persisting message:`, err);
             }
           }
 
@@ -392,7 +394,7 @@ class SessionManager {
             );
           } catch (err: unknown) {
             if (errorCode(err) !== 11000) {
-              console.error(`[Signal] Error upserting chat:`, err);
+              logger.error(`Error upserting chat:`, err);
             }
           }
 
@@ -400,7 +402,7 @@ class SessionManager {
           try {
             const session = await SignalSession.findOne({ sessionId }).lean();
             if (!session) {
-              console.error(`[Signal] No session found for ${sessionId}`);
+              logger.error(`No session found for ${sessionId}`);
               continue;
             }
 
@@ -425,12 +427,12 @@ class SessionManager {
               platformContext: 'Accessible via Signal. Keep responses under 3000 characters when possible.',
             }, apiClient);
           } catch (err) {
-            console.error(`[Signal] Error handling message:`, err);
+            logger.error(`Error handling message:`, err);
           }
         }
       } catch (err: unknown) {
         if (errorName(err) !== 'AbortError') {
-          console.error(`[Signal] Poll error for ${sessionId}:`, err);
+          logger.error(`Poll error for ${sessionId}:`, err);
         }
       }
     }, 2000); // Poll every 2 seconds
@@ -507,7 +509,7 @@ class SessionManager {
       try {
         await fs.rm(session.dataDir, { recursive: true, force: true });
       } catch (err) {
-        console.error(`[Signal] Error deleting data dir for ${sessionId}:`, err);
+        logger.error(`Error deleting data dir for ${sessionId}:`, err);
       }
     }
 
@@ -524,7 +526,7 @@ class SessionManager {
       }
     );
 
-    console.log(`[Signal] Session ${sessionId} unlinked`);
+    logger.info(`Session ${sessionId} unlinked`);
   }
 
   /**
@@ -560,7 +562,7 @@ class SessionManager {
    * Gracefully shut down all active daemons.
    */
   async shutdown(): Promise<void> {
-    console.log(`[Signal] Shutting down ${this.daemons.size} daemon(s)...`);
+    logger.info(`Shutting down ${this.daemons.size} daemon(s)...`);
 
     // Clear all reconnect timers
     for (const [sessionId, timer] of this.reconnectTimers) {
@@ -588,13 +590,13 @@ class SessionManager {
       try {
         daemon.kill('SIGTERM');
       } catch (err) {
-        console.error(`[Signal] Error killing daemon for ${sessionId}:`, err);
+        logger.error(`Error killing daemon for ${sessionId}:`, err);
       }
     }
     this.daemons.clear();
     this.usedPorts.clear();
 
-    console.log('[Signal] All daemons shut down');
+    logger.info('All daemons shut down');
   }
 }
 

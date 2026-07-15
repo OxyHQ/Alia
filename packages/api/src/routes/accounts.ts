@@ -203,7 +203,12 @@ router.get('/gmail/callback', async (req, res) => {
       signal: AbortSignal.timeout(10_000),
     });
 
-    const tokenData = (await tokenResponse.json()) as any;
+    const tokenData = await tokenResponse.json() as {
+      access_token?: string;
+      refresh_token?: string;
+      expires_in?: number;
+      scope?: string;
+    };
 
     if (!tokenResponse.ok || !tokenData.access_token) {
       log.channels.error({ tokenData }, 'Gmail OAuth token exchange failed');
@@ -215,7 +220,7 @@ router.get('/gmail/callback', async (req, res) => {
       headers: { Authorization: `Bearer ${tokenData.access_token}` },
       signal: AbortSignal.timeout(5_000),
     });
-    const profile = (await profileResponse.json()) as any;
+    const profile = await profileResponse.json() as { email?: string; name?: string };
     const email = profile.email || 'unknown';
 
     // Update the ConnectedAccount
@@ -259,7 +264,7 @@ router.get('/gmail/callback', async (req, res) => {
               signal: AbortSignal.timeout(10_000),
             },
           );
-          const sessionData = (await sessionResponse.json()) as any;
+          const sessionData = await sessionResponse.json() as { sessionId?: string };
           if (sessionData.sessionId) {
             account.sessionId = sessionData.sessionId;
             await account.save();

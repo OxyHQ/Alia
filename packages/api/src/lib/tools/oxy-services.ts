@@ -277,7 +277,7 @@ export async function buildOxyServiceTools(
           execute: async (args: Record<string, unknown>) =>
             safeExecute(compiled.displayName, () =>
               callOxyService(compiled.toolDef, args as Record<string, any>, accessToken)),
-        } as any);
+        });
       }
     }
 

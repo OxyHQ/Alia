@@ -9,8 +9,10 @@
 import { spawn, type ChildProcess } from 'child_process'
 import Store from 'electron-store'
 import { errorMessage } from './errors'
+import { createLogger } from './logger'
 
 const store = new Store()
+const logger = createLogger('MCP')
 
 const JSON_RPC_TIMEOUT_MS = 15_000
 const RECONNECT_DELAY_MS = 5_000
@@ -98,7 +100,7 @@ export class McpLocalClient {
 
       this.connectRelay(apiKey)
     } catch (err) {
-      console.error('[MCP] Failed to start:', err)
+      logger.error('Failed to start:', err)
     }
   }
 
@@ -150,11 +152,11 @@ export class McpLocalClient {
       })
 
       proc.stderr!.on('data', (chunk: Buffer) => {
-        console.warn(`[MCP:${config.name}] ${chunk.toString().trim()}`)
+        logger.warn(`${config.name}: ${chunk.toString().trim()}`)
       })
 
       proc.on('exit', (code) => {
-        console.log(`[MCP:${config.name}] exited (code ${code})`)
+        logger.info(`${config.name} exited (code ${code})`)
         this.servers.delete(config.id)
         this.sendMessage({ type: 'unregister-tools', serverId: config.id })
       })
@@ -163,9 +165,9 @@ export class McpLocalClient {
 
       await this.initializeServer(server)
       server.tools = await this.discoverTools(server)
-      console.log(`[MCP:${config.name}] Started with ${server.tools.length} tools`)
+      logger.info(`${config.name} started with ${server.tools.length} tools`)
     } catch (err) {
-      console.error(`[MCP:${config.name}] Failed to spawn:`, err)
+      logger.error(`${config.name} failed to spawn:`, err)
     }
   }
 
@@ -241,7 +243,7 @@ export class McpLocalClient {
       this.ws = new WebSocket(wsUrl)
 
       this.ws.onopen = () => {
-        console.log('[MCP] Relay connected')
+        logger.info('Relay connected')
         this.sendMessage({ type: 'auth', token: apiKey })
       }
 
@@ -249,12 +251,14 @@ export class McpLocalClient {
         try {
           const msg = JSON.parse(event.data as string) as RelayMessage
           this.handleRelayMessage(msg)
-        } catch {}
+        } catch (err) {
+          logger.error('Failed to handle relay message:', err)
+        }
       }
 
       this.ws.onclose = () => {
         if (this.stopped) return
-        console.log('[MCP] Relay disconnected, reconnecting...')
+        logger.info('Relay disconnected, reconnecting...')
         this.reconnectTimer = setTimeout(() => this.connectRelay(apiKey), RECONNECT_DELAY_MS)
       }
 
@@ -262,7 +266,7 @@ export class McpLocalClient {
         // onclose will handle reconnection
       }
     } catch (err) {
-      console.error('[MCP] Failed to connect relay:', err)
+      logger.error('Failed to connect relay:', err)
     }
   }
 
@@ -280,12 +284,12 @@ export class McpLocalClient {
         break
 
       case 'auth-error':
-        console.error('[MCP] Auth failed:', msg.error)
+        logger.error('Auth failed:', msg.error)
         this.ws?.close()
         break
 
       case 'tool-call':
-        this.handleToolCall(msg).catch(console.error)
+        this.handleToolCall(msg).catch((err) => logger.error('Tool call handling failed:', err))
         break
     }
   }

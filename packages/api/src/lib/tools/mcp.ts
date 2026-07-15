@@ -18,6 +18,12 @@ const INTEGRATIONS_URL = process.env.INTEGRATIONS_URL;
 const INTEGRATIONS_SECRET = process.env.INTEGRATIONS_SECRET;
 const TOOL_CALL_TIMEOUT_MS = 60_000;
 
+/** Response shape returned by the integrations service tool-call endpoint. */
+interface McpToolCallResult {
+  error?: string;
+  result?: unknown;
+}
+
 // Short-lived per-user cache to avoid querying MongoDB on every chat message.
 // MCP server config changes rarely; 30s staleness is acceptable. Tool closures
 // capture only oxyUserId, so caching by user stays correct across callers.
@@ -121,7 +127,7 @@ function createServerTool(
     execute: async (args: Record<string, unknown>) => {
       return callServerTool(serverId, mcpTool.name, args as Record<string, any>);
     },
-  } as any);
+  });
 }
 
 function createLocalTool(
@@ -143,7 +149,7 @@ function createLocalTool(
     execute: async (args: Record<string, unknown>) => {
       return callLocalTool(userId, serverId, mcpTool.name, args as Record<string, any>);
     },
-  } as any);
+  });
 }
 
 async function callServerTool(
@@ -169,7 +175,7 @@ async function callServerTool(
     throw new Error(`MCP tool call failed (${response.status}): ${body}`);
   }
 
-  const data = (await response.json()) as any;
+  const data = (await response.json()) as McpToolCallResult;
   if (data.error) {
     throw new Error(data.error);
   }

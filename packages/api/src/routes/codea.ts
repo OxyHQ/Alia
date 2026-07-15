@@ -4,6 +4,7 @@ import { apiKeyRateLimit } from '../middleware/api-key-rate-limit.js';
 import { Subscription } from '../models/subscription.js';
 import { UserCredits } from '../models/user-credits.js';
 import DeveloperApiKey from '../models/developer-api-key.js';
+import type { IDeveloperApp } from '../models/developer-app.js';
 import { log } from '../lib/logger.js';
 
 const router = Router();
@@ -69,7 +70,7 @@ router.get('/user', authenticateApiKey, apiKeyRateLimit, async (req: Request, re
     await userCredits.refreshCreditsIfNeeded();
 
     // Get API key info for username
-    const apiKey = await DeveloperApiKey.findById(req.apiKey?.id).populate('appId');
+    const apiKey = await DeveloperApiKey.findById(req.apiKey?.id).populate<{ appId: IDeveloperApp }>('appId');
 
     // Calculate quota information
     const totalCredits = userCredits.credits.free + userCredits.credits.paid;
@@ -124,7 +125,7 @@ router.get('/user', authenticateApiKey, apiKeyRateLimit, async (req: Request, re
         },
       },
 
-      username: (apiKey?.appId as any)?.name || 'Alia User',
+      username: apiKey?.appId?.name || 'Alia User',
       email: undefined,
       name: 'Alia User',
     };
@@ -251,11 +252,11 @@ router.get('/me', authenticateApiKey, apiKeyRateLimit, async (req: Request, res:
     await userCredits.refreshCreditsIfNeeded();
 
     // Get API key info
-    const apiKey = await DeveloperApiKey.findById(req.apiKey?.id).populate('appId');
+    const apiKey = await DeveloperApiKey.findById(req.apiKey?.id).populate<{ appId: IDeveloperApp }>('appId');
 
     res.json({
       id: userId,
-      username: (apiKey?.appId as any)?.name || 'Alia User',
+      username: apiKey?.appId?.name || 'Alia User',
       credits: {
         free: userCredits.credits.free,
         paid: userCredits.credits.paid,

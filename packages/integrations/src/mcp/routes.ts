@@ -7,7 +7,10 @@
 
 import { Router, type Router as RouterType } from 'express';
 import { errorMessage } from '../shared/utils';
+import { createLogger } from '../shared/logger';
 import * as manager from './manager';
+
+const logger = createLogger('MCP');
 
 const VALID_TRANSPORTS = new Set(['stdio', 'streamable-http']);
 
@@ -38,7 +41,7 @@ router.post('/servers/:id/start', async (req, res) => {
     const result = await manager.startServer(serverId, oxyUserId, transport, config);
     res.json({ success: true, tools: result.tools, resources: result.resources });
   } catch (err: unknown) {
-    console.error(`[MCP] Failed to start server ${serverId}:`, errorMessage(err));
+    logger.error(`Failed to start server ${serverId}:`, errorMessage(err));
     res.status(500).json({ error: errorMessage(err) });
   }
 });
@@ -49,7 +52,7 @@ router.post('/servers/:id/stop', async (req, res) => {
     await manager.stopServer(req.params.id);
     res.json({ success: true });
   } catch (err: unknown) {
-    console.error(`[MCP] Failed to stop server ${req.params.id}:`, errorMessage(err));
+    logger.error(`Failed to stop server ${req.params.id}:`, errorMessage(err));
     res.status(500).json({ error: errorMessage(err) });
   }
 });
@@ -67,7 +70,7 @@ router.post('/servers/:id/tools/:toolName/call', async (req, res) => {
     const result = await manager.callTool(serverId, toolName, args ?? {});
     res.json({ result });
   } catch (err: unknown) {
-    console.error(`[MCP] Tool call failed (${serverId}/${toolName}):`, errorMessage(err));
+    logger.error(`Tool call failed (${serverId}/${toolName}):`, errorMessage(err));
     res.status(500).json({ error: errorMessage(err) });
   }
 });

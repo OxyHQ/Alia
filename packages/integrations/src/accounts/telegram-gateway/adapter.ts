@@ -3,6 +3,9 @@ import { errorMessage } from '../../shared/utils';
 import type { AccountAdapter } from '../types';
 import { sessionManager } from './session-manager';
 import { TelegramChat, TelegramMessage } from './models';
+import { createLogger } from '../../shared/logger';
+
+const logger = createLogger('Telegram');
 
 export class TelegramGatewayAdapter implements AccountAdapter {
   name = 'telegram-gateway';
@@ -34,7 +37,7 @@ export class TelegramGatewayAdapter implements AccountAdapter {
           message: 'Scan the QR code with Telegram to connect',
         });
       } catch (error: unknown) {
-        console.error('[Telegram] Connect error:', error);
+        logger.error('Connect error:', error);
         return res.status(500).json({ error: errorMessage(error) || 'Failed to create session' });
       }
     });

@@ -438,9 +438,13 @@ export async function streamCachedResponse(
  * Sends comment every 30s to prevent timeouts
  */
 export function setupKeepAlive(sseStream: SSEStream): ReturnType<typeof setInterval> {
-  return setInterval(() => {
+  const timer = setInterval(() => {
     if (sseStream.isConnected()) {
       sseStream['writeRaw'](': keepalive\n\n');
     }
   }, 30000); // Every 30 seconds
+  // Keep-alive pings must never block process shutdown; the live SSE connection
+  // keeps the event loop alive on its own while the stream is open.
+  timer.unref?.();
+  return timer;
 }

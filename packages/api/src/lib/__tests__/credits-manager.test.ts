@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest';
 
 // Mock dependencies before importing credits-manager
 vi.mock('../../models/user-credits.js', () => ({
@@ -37,7 +37,13 @@ import {
   type CreditReservation,
 } from '../credits-manager.js';
 
-const mockUserCredits = UserCredits as any;
+interface MockedUserCredits {
+  findById: Mock;
+  findByIdAndUpdate: Mock;
+  findOneAndUpdate: Mock;
+}
+
+const mockUserCredits = UserCredits as unknown as MockedUserCredits;
 
 function makeCreditsDoc(free: number, paid: number) {
   return { credits: { free, paid }, _id: 'user-1' };

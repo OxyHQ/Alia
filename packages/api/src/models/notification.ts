@@ -73,8 +73,11 @@ const NotificationSchema = new Schema<INotification>({
 
 // Query by user + status for notification feed
 NotificationSchema.index({ oxyUserId: 1, status: 1, createdAt: -1 });
-// Unread count query
-NotificationSchema.index({ oxyUserId: 1, status: { $in: ['pending', 'sent'] } as any });
+// Unread count query — partial index limited to unread statuses
+NotificationSchema.index(
+  { oxyUserId: 1, status: 1 },
+  { partialFilterExpression: { status: { $in: ['pending', 'sent'] } } },
+);
 // TTL: auto-delete dismissed/expired notifications after 90 days
 NotificationSchema.index({ createdAt: 1 }, { expireAfterSeconds: 90 * 24 * 60 * 60, partialFilterExpression: { status: 'dismissed' } });
 

@@ -150,9 +150,9 @@ authRouter.patch('/:id', async (req: Request, res: Response) => {
 
     if (name !== undefined) trigger.name = name;
     if (description !== undefined) trigger.description = description;
-    if (action !== undefined) trigger.action = { ...trigger.action, ...action } as any;
+    if (action !== undefined) trigger.set('action', { ...trigger.action, ...action });
     if (schedule !== undefined) trigger.schedule = schedule;
-    if (webhook !== undefined) trigger.webhook = { ...trigger.webhook, ...webhook } as any;
+    if (webhook !== undefined) trigger.set('webhook', { ...trigger.webhook, ...webhook });
     if (integrationEvent !== undefined) trigger.integrationEvent = integrationEvent;
     if (enabled !== undefined) trigger.enabled = enabled;
 
@@ -244,7 +244,7 @@ authRouter.post('/:id/regenerate-token', async (req: Request, res: Response) => 
     if (trigger.type !== 'webhook') return res.status(400).json({ error: 'Only webhook triggers have tokens' });
 
     const newToken = generateWebhookToken();
-    trigger.webhook = { ...trigger.webhook, token: newToken } as any;
+    trigger.set('webhook', { ...trigger.webhook, token: newToken });
     await trigger.save();
 
     const baseUrl = process.env.API_BASE_URL || 'http://localhost:3001';

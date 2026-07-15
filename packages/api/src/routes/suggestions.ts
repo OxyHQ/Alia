@@ -413,7 +413,8 @@ Return ONLY a valid JSON array, no other text.`,
     res.json({ suggestions: created, generated: created.length });
   } catch (error: unknown) {
     log.general.error({ err: error }, 'Error generating suggestions');
-    const status = (error as any)?.statusCode >= 500 || (error as any)?.code === 'ECONNREFUSED' ? 503 : 500;
+    const errObj = error as { statusCode?: number; code?: string };
+    const status = (errObj.statusCode ?? 0) >= 500 || errObj.code === 'ECONNREFUSED' ? 503 : 500;
     res.status(status).json({ error: 'Failed to generate suggestions' });
   }
 });
@@ -446,9 +447,9 @@ router.patch('/:id', authenticateToken, async (req: Request, res: Response) => {
     for (const field of allowedFields) {
       if (req.body[field] !== undefined) {
         if (field === 'expiresAt') {
-          (suggestion as any).expiresAt = req.body[field] ? new Date(req.body[field]) : null;
+          suggestion.set('expiresAt', req.body[field] ? new Date(req.body[field]) : null);
         } else {
-          (suggestion as any)[field] = req.body[field];
+          suggestion.set(field, req.body[field]);
         }
       }
     }

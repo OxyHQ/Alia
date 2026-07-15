@@ -131,7 +131,7 @@ router.post('/:id/unlink', authenticateToken, async (req, res) => {
       return res.status(404).json({ error: 'No linked account found' });
     }
 
-    botUser.oxyUserId = undefined as any;
+    botUser.oxyUserId = undefined;
     botUser.isLinked = false;
     botUser.conversationId = undefined;
     botUser.linkedAt = undefined;
@@ -488,7 +488,7 @@ router.post('/internal/:platform/users/:platformUserId/logout', botAuth, async (
     }
 
     botUser.isLinked = false;
-    botUser.oxyUserId = undefined as any;
+    botUser.oxyUserId = undefined;
     botUser.conversationId = undefined;
     await botUser.save();
 

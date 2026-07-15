@@ -5,6 +5,10 @@ import { markdownToTelegramHtml, stripMarkdown } from '../telegram-format.js';
 import { log } from '../../logger.js';
 import { getErrorMessage } from '../../errors/index.js';
 
+interface TelegramSendResponse {
+  result?: { message_id?: number };
+}
+
 export const telegramPlugin: ChannelPlugin = {
   id: 'telegram',
 
@@ -55,7 +59,7 @@ export const telegramPlugin: ChannelPlugin = {
         });
 
         if (res.ok) {
-          const data = await res.json() as any;
+          const data = await res.json() as TelegramSendResponse;
           return { channel: 'telegram', ok: true, messageId: String(data.result?.message_id) };
         }
 
@@ -75,7 +79,7 @@ export const telegramPlugin: ChannelPlugin = {
           });
 
           if (fallbackRes.ok) {
-            const data = await fallbackRes.json() as any;
+            const data = await fallbackRes.json() as TelegramSendResponse;
             return { channel: 'telegram', ok: true, messageId: String(data.result?.message_id) };
           }
 

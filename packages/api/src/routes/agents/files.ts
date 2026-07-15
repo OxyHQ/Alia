@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import mongoose from 'mongoose';
 import { AgentSession } from '../../models/agent-session.js';
 import { Container } from '../../models/container.js';
 import { authenticateToken } from '../../middleware/auth.js';
@@ -53,8 +54,8 @@ async function resolveSessionContainerId(
   if (resourceContainer?.resourceId) return resourceContainer.resourceId;
 
   const containerDoc = await Container.findOne({
-    sessionId: sessionId as any,
-    userId: userId as any,
+    sessionId: new mongoose.Types.ObjectId(sessionId),
+    userId: new mongoose.Types.ObjectId(userId),
     status: { $in: ['running', 'idle'] },
   }).sort({ createdAt: -1 }).lean();
 

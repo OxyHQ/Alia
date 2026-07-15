@@ -76,9 +76,9 @@ registerHook({
           },
         ],
         temperature: 0.1,
-        maxTokens: 300,
+        maxOutputTokens: 300,
         maxRetries: 0,
-      } as any);
+      });
 
       const text = result.text?.trim();
       if (!text) return;

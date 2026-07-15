@@ -21,7 +21,7 @@ export interface IConnectedAccount extends Document {
   allowedSkillIds?: mongoose.Types.ObjectId[];
   oauthTokens?: {
     accessToken: string;
-    refreshToken: string;
+    refreshToken?: string;
     expiresAt?: Date;
     scope: string;
   };
@@ -76,8 +76,8 @@ const ConnectedAccountSchema = new Schema<IConnectedAccount>(
       type: new Schema(
         {
           accessToken: { type: String, required: true, set: encrypt, get: decrypt },
-          refreshToken: { type: String, required: true, set: encrypt, get: decrypt },
-          expiresAt: { type: Date, required: true },
+          refreshToken: { type: String, required: false, set: encrypt, get: decrypt },
+          expiresAt: { type: Date, required: false },
           scope: { type: String, required: true },
         },
         { _id: false, toJSON: { getters: true }, toObject: { getters: true } },

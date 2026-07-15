@@ -3,6 +3,7 @@ import OpenAI from 'openai';
 import { fileTools, ToolExecutor, type EditorContext } from './tools';
 import type { AliaAuthenticationProvider } from './authProvider';
 import { errorMessage, errorName, errorStatus } from './errors';
+import { log } from './logger';
 
 /** Alia API streams an extra `alia_meta` field on chunks; not part of the OpenAI type. */
 type AliaMetaChunk = OpenAI.Chat.ChatCompletionChunk & {
@@ -722,7 +723,7 @@ You are running inside Visual Studio Code, Microsoft's popular code editor.
       } catch (error: unknown) {
         // On synthetic error, auto-retry once after a short delay
         if (error instanceof SyntheticErrorSignal) {
-          console.log('[Codea] Synthetic error detected, retrying in 2s...');
+          log.info('[Codea] Synthetic error detected, retrying in 2s...');
           this._view?.webview.postMessage({ type: 'clearStream' });
           await new Promise(resolve => setTimeout(resolve, 2000));
 
@@ -875,7 +876,7 @@ You are running inside Visual Studio Code, Microsoft's popular code editor.
         try {
           args = JSON.parse(toolCall.function.arguments || '{}') as Record<string, unknown>;
         } catch (e) {
-          console.error('[Codea] Failed to parse tool arguments:', toolCall.function.arguments, e);
+          log.error('[Codea] Failed to parse tool arguments:', toolCall.function.arguments, e);
           continue;
         }
 
@@ -939,7 +940,7 @@ You are running inside Visual Studio Code, Microsoft's popular code editor.
   ): Promise<void> {
     const MAX_ITERATIONS = 10;
     if (iterationCount >= MAX_ITERATIONS) {
-      console.warn(`[Codea] Max iterations (${MAX_ITERATIONS}) reached`);
+      log.warn(`[Codea] Max iterations (${MAX_ITERATIONS}) reached`);
       return;
     }
 

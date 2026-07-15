@@ -14,8 +14,10 @@ import { v4 as uuidv4 } from 'uuid';
 import { WhatsAppSession, WhatsAppChat, WhatsAppMessage, type IWhatsAppSession } from './models';
 import { handleIncomingMessage } from '../../shared/chat-handler';
 import { APIClient } from '../../shared/api-client';
+import { createLogger } from '../../shared/logger';
 
 const apiClient = new APIClient('whatsapp', process.env.INTEGRATIONS_SECRET || '');
+const logger = createLogger('WhatsApp');
 
 /** Baileys timestamps are `number` or a protobuf `Long` (`{ low, high }`). */
 type LongLike = { low: number; high?: number };
@@ -70,13 +72,13 @@ class SessionManager {
     const activeSessions = await WhatsAppSession.find({
       status: { $in: ['connected', 'disconnected'] },
     });
-    console.log(`[WhatsApp] Found ${activeSessions.length} active session(s) to restore`);
+    logger.info(`Found ${activeSessions.length} active session(s) to restore`);
 
     for (const session of activeSessions) {
       try {
         await this.startSession(session.sessionId);
       } catch (err) {
-        console.error(`[WhatsApp] Failed to restore session ${session.sessionId} (user ${session.oxyUserId}):`, err);
+        logger.error(`Failed to restore session ${session.sessionId} (user ${session.oxyUserId}):`, err);
       }
     }
   }
@@ -169,7 +171,7 @@ class SessionManager {
           this.pendingQRs.delete(sessionId);
         }
 
-        console.log(`[WhatsApp] QR code generated for session ${sessionId} (user ${oxyUserId})`);
+        logger.info(`QR code generated for session ${sessionId} (user ${oxyUserId})`);
       }
 
       if (connection === 'open') {
@@ -191,7 +193,7 @@ class SessionManager {
             },
           }
         );
-        console.log(`[WhatsApp] Session ${sessionId} connected for user ${oxyUserId} (${phoneNumber})`);
+        logger.info(`Session ${sessionId} connected for user ${oxyUserId} (${phoneNumber})`);
       }
 
       if (connection === 'close') {
@@ -210,8 +212,8 @@ class SessionManager {
               { $set: { status: 'failed', lastDisconnected: new Date() } }
             );
             this.reconnectAttempts.delete(sessionId);
-            console.error(
-              `[WhatsApp] Session ${sessionId} for ${oxyUserId} failed after ${SessionManager.MAX_RECONNECT_ATTEMPTS} reconnect attempts`
+            logger.error(
+              `Session ${sessionId} for ${oxyUserId} failed after ${SessionManager.MAX_RECONNECT_ATTEMPTS} reconnect attempts`
             );
           } else {
             const delay = Math.min(
@@ -223,8 +225,8 @@ class SessionManager {
               { sessionId },
               { $set: { status: 'disconnected', lastDisconnected: new Date() } }
             );
-            console.log(
-              `[WhatsApp] Session ${sessionId} disconnected for user ${oxyUserId} (status ${statusCode}), reconnecting in ${Math.round(delay / 1000)}s (attempt ${attempts}/${SessionManager.MAX_RECONNECT_ATTEMPTS})...`
+            logger.info(
+              `Session ${sessionId} disconnected for user ${oxyUserId} (status ${statusCode}), reconnecting in ${Math.round(delay / 1000)}s (attempt ${attempts}/${SessionManager.MAX_RECONNECT_ATTEMPTS})...`
             );
 
             // Clear any existing reconnect timer
@@ -234,7 +236,7 @@ class SessionManager {
             const timer = setTimeout(() => {
               this.reconnectTimers.delete(sessionId);
               this.startSession(sessionId).catch((err) =>
-                console.error(`[WhatsApp] Reconnect failed for session ${sessionId}:`, err)
+                logger.error(`Reconnect failed for session ${sessionId}:`, err)
               );
             }, delay);
             this.reconnectTimers.set(sessionId, timer);
@@ -251,7 +253,7 @@ class SessionManager {
               },
             }
           );
-          console.log(`[WhatsApp] Session ${sessionId} logged out for user ${oxyUserId}`);
+          logger.info(`Session ${sessionId} logged out for user ${oxyUserId}`);
         }
       }
     });
@@ -290,7 +292,7 @@ class SessionManager {
           );
         } catch (err: unknown) {
           if (errorCode(err) !== 11000) { // ignore duplicate key
-            console.error(`[WhatsApp] Error persisting message for session ${sessionId}:`, err);
+            logger.error(`Error persisting message for session ${sessionId}:`, err);
           }
         }
       }
@@ -316,7 +318,7 @@ class SessionManager {
         // Look up the oxyUserId from the session document
         const sessionDoc = await WhatsAppSession.findOne({ sessionId }).lean();
         if (!sessionDoc) {
-          console.error(`[WhatsApp/Chat] No session found for sessionId ${sessionId}`);
+          logger.error(`Chat: No session found for sessionId ${sessionId}`);
           continue;
         }
 
@@ -336,7 +338,7 @@ class SessionManager {
             platformContext: 'Accessible via WhatsApp. Keep responses under 3000 characters when possible.',
           }, apiClient);
         } catch (err) {
-          console.error(`[WhatsApp] Error handling message for session ${sessionId}:`, err);
+          logger.error(`Error handling message for session ${sessionId}:`, err);
         }
       }
     });
@@ -362,7 +364,7 @@ class SessionManager {
             { upsert: true }
           );
         } catch (err) {
-          console.error(`[WhatsApp] Error persisting chat for session ${sessionId}:`, err);
+          logger.error(`Error persisting chat for session ${sessionId}:`, err);
         }
       }
     });
@@ -386,7 +388,7 @@ class SessionManager {
               { upsert: true }
             );
           } catch (err) {
-            console.error(`[WhatsApp] Error updating chat for session ${sessionId}:`, err);
+            logger.error(`Error updating chat for session ${sessionId}:`, err);
           }
         }
       }
@@ -399,7 +401,7 @@ class SessionManager {
           await WhatsAppChat.deleteOne({ sessionId, jid });
           await WhatsAppMessage.deleteMany({ sessionId, jid });
         } catch (err) {
-          console.error(`[WhatsApp] Error deleting chat ${jid} for session ${sessionId}:`, err);
+          logger.error(`Error deleting chat ${jid} for session ${sessionId}:`, err);
         }
       }
     });
@@ -412,7 +414,7 @@ class SessionManager {
           try {
             await WhatsAppMessage.deleteOne({ sessionId, messageId: key.id });
           } catch (err) {
-            console.error(`[WhatsApp] Error deleting message for session ${sessionId}:`, err);
+            logger.error(`Error deleting message for session ${sessionId}:`, err);
           }
         }
       } else if ('jid' in item && item.all) {
@@ -420,7 +422,7 @@ class SessionManager {
         try {
           await WhatsAppMessage.deleteMany({ sessionId, jid: item.jid });
         } catch (err) {
-          console.error(`[WhatsApp] Error clearing messages for session ${sessionId}:`, err);
+          logger.error(`Error clearing messages for session ${sessionId}:`, err);
         }
       }
     });
@@ -438,7 +440,7 @@ class SessionManager {
               { $set: { text: newText } }
             );
           } catch (err) {
-            console.error(`[WhatsApp] Error updating message for session ${sessionId}:`, err);
+            logger.error(`Error updating message for session ${sessionId}:`, err);
           }
         }
       }
@@ -446,7 +448,7 @@ class SessionManager {
 
     // ---- History sync (bulk chat/message sets from WhatsApp) ----
     sock.ev.on('messaging-history.set', async ({ chats, messages, isLatest }) => {
-      console.log(`[WhatsApp] History sync for session ${sessionId}: ${chats.length} chats, ${messages.length} messages (isLatest: ${isLatest})`);
+      logger.info(`History sync for session ${sessionId}: ${chats.length} chats, ${messages.length} messages (isLatest: ${isLatest})`);
 
       // Bulk upsert chats
       if (chats.length > 0) {
@@ -475,7 +477,7 @@ class SessionManager {
           try {
             await WhatsAppChat.bulkWrite(chatOps, { ordered: false });
           } catch (err) {
-            console.error(`[WhatsApp] Error bulk upserting chats for session ${sessionId}:`, err);
+            logger.error(`Error bulk upserting chats for session ${sessionId}:`, err);
           }
         }
       }
@@ -516,9 +518,9 @@ class SessionManager {
         if (msgOps.length > 0) {
           try {
             await WhatsAppMessage.bulkWrite(msgOps, { ordered: false });
-            console.log(`[WhatsApp] Persisted ${msgOps.length} messages for session ${sessionId}`);
+            logger.info(`Persisted ${msgOps.length} messages for session ${sessionId}`);
           } catch (err) {
-            console.error(`[WhatsApp] Error bulk upserting messages for session ${sessionId}:`, err);
+            logger.error(`Error bulk upserting messages for session ${sessionId}:`, err);
           }
         }
       }
@@ -593,7 +595,7 @@ class SessionManager {
       this.credsSaveQueue = this.credsSaveQueue
         .then(() => WhatsAppSession.updateOne({ sessionId }, { $set: { authState: serialize(creds) } }))
         .then(() => {})
-        .catch((err) => console.error(`[WhatsApp] Failed to save creds for session ${sessionId}:`, err));
+        .catch((err) => logger.error(`Failed to save creds for session ${sessionId}:`, err));
     };
 
     return { state: { creds, keys }, saveCreds };
@@ -608,7 +610,7 @@ class SessionManager {
       try {
         await sock.logout();
       } catch (err) {
-        console.error(`[WhatsApp] Logout error for session ${sessionId}:`, err);
+        logger.error(`Logout error for session ${sessionId}:`, err);
         // Force-close even if logout fails
         sock.end(undefined);
       }
@@ -672,7 +674,7 @@ class SessionManager {
    * Gracefully shut down all active sessions.
    */
   async shutdown(): Promise<void> {
-    console.log(`[WhatsApp] Shutting down ${this.sessions.size} session(s)...`);
+    logger.info(`Shutting down ${this.sessions.size} session(s)...`);
 
     // Clear all reconnect timers
     for (const [sessionId, timer] of this.reconnectTimers) {
@@ -688,12 +690,12 @@ class SessionManager {
       try {
         sock.end(undefined);
       } catch (err) {
-        console.error(`[WhatsApp] Error closing socket for session ${sessionId}:`, err);
+        logger.error(`Error closing socket for session ${sessionId}:`, err);
       }
     }
     this.sessions.clear();
 
-    console.log('[WhatsApp] All sessions shut down');
+    logger.info('All sessions shut down');
   }
 
   /**

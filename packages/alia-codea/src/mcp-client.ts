@@ -10,6 +10,7 @@ import * as vscode from 'vscode';
 import { spawn, type ChildProcess } from 'child_process';
 import type { AliaAuthenticationProvider } from './authProvider';
 import { errorMessage } from './errors';
+import { log } from './logger';
 
 const JSON_RPC_TIMEOUT_MS = 15_000;
 const RECONNECT_DELAY_MS = 5_000;
@@ -105,7 +106,7 @@ export class McpLocalClient implements vscode.Disposable {
 
       this.connectRelay(token);
     } catch (err) {
-      console.error('[MCP] Failed to start:', err);
+      log.error('[MCP] Failed to start:', err);
     }
   }
 
@@ -171,11 +172,11 @@ export class McpLocalClient implements vscode.Disposable {
       });
 
       proc.stderr!.on('data', (chunk: Buffer) => {
-        console.warn(`[MCP:${config.name}] ${chunk.toString().trim()}`);
+        log.warn(`[MCP:${config.name}] ${chunk.toString().trim()}`);
       });
 
       proc.on('exit', (code) => {
-        console.log(`[MCP:${config.name}] exited (code ${code})`);
+        log.info(`[MCP:${config.name}] exited (code ${code})`);
         this.servers.delete(config.id);
         this.sendMessage({ type: 'unregister-tools', serverId: config.id });
       });
@@ -184,9 +185,9 @@ export class McpLocalClient implements vscode.Disposable {
 
       await this.initializeServer(server);
       server.tools = await this.discoverTools(server);
-      console.log(`[MCP:${config.name}] Started with ${server.tools.length} tools`);
+      log.info(`[MCP:${config.name}] Started with ${server.tools.length} tools`);
     } catch (err) {
-      console.error(`[MCP:${config.name}] Failed to spawn:`, err);
+      log.error(`[MCP:${config.name}] Failed to spawn:`, err);
     }
   }
 
@@ -261,7 +262,7 @@ export class McpLocalClient implements vscode.Disposable {
       this.ws = new WebSocketImpl(wsUrl);
 
       this.ws.onopen = () => {
-        console.log('[MCP] Relay connected');
+        log.info('[MCP] Relay connected');
         this.sendMessage({ type: 'auth', token });
       };
 
@@ -269,12 +270,14 @@ export class McpLocalClient implements vscode.Disposable {
         try {
           const msg = JSON.parse(event.data as string) as RelayMessage;
           this.handleRelayMessage(msg);
-        } catch {}
+        } catch (err) {
+          log.warn('[MCP] Failed to parse relay message:', err);
+        }
       };
 
       this.ws.onclose = () => {
         if (this.stopped) return;
-        console.log('[MCP] Relay disconnected, reconnecting...');
+        log.info('[MCP] Relay disconnected, reconnecting...');
         this.reconnectTimer = setTimeout(() => this.connectRelay(token), RECONNECT_DELAY_MS);
       };
 
@@ -282,7 +285,7 @@ export class McpLocalClient implements vscode.Disposable {
         // onclose will handle reconnection
       };
     } catch (err) {
-      console.error('[MCP] Failed to connect relay:', err);
+      log.error('[MCP] Failed to connect relay:', err);
     }
   }
 
@@ -300,12 +303,12 @@ export class McpLocalClient implements vscode.Disposable {
         break;
 
       case 'auth-error':
-        console.error('[MCP] Auth failed:', msg.error);
+        log.error('[MCP] Auth failed:', msg.error);
         this.ws?.close();
         break;
 
       case 'tool-call':
-        this.handleToolCall(msg).catch(console.error);
+        this.handleToolCall(msg).catch((err) => log.error('[MCP] Tool call failed:', err));
         break;
     }
   }

@@ -1,6 +1,9 @@
 import { Message, Client, REST, Routes, SlashCommandBuilder } from 'discord.js';
 import { APIClient } from '../../shared/api-client';
 import { v4 as uuidv4 } from 'uuid';
+import { createLogger } from '../../shared/logger';
+
+const logger = createLogger('Discord');
 
 let apiClient: APIClient;
 
@@ -29,9 +32,9 @@ export async function registerSlashCommands(client: Client): Promise<void> {
     await rest.put(Routes.applicationCommands(client.user!.id), {
       body: commands.map((c) => c.toJSON()),
     });
-    console.log('[Discord] Slash commands registered');
+    logger.info('Slash commands registered');
   } catch (error) {
-    console.error('[Discord] Failed to register slash commands:', error);
+    logger.error('Failed to register slash commands:', error);
   }
 }
 
@@ -67,7 +70,7 @@ export async function sendAuthRequest(message: Message): Promise<void> {
       ],
     });
   } catch (error) {
-    console.error('[Discord/Auth] Error:', error);
+    logger.error('Auth error:', error);
     await message.reply('Authentication error. Please try again later.');
   }
 }

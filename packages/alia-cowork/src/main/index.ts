@@ -7,12 +7,15 @@ import { ChatProvider } from './chat'
 import { AuthProvider } from './auth'
 import { WindowStateManager } from './windowState'
 import { McpLocalClient } from './mcp-client'
+import { createLogger } from './logger'
 
 // Load environment variables from .env file
 config({ path: join(__dirname, '../../.env') })
 
 // Check if running in development mode
 const isDev = process.env.NODE_ENV === 'development'
+
+const logger = createLogger('Main')
 
 // State
 let mainWindow: BrowserWindow | null = null
@@ -69,7 +72,7 @@ function createWindow(): void {
     }
     // Check screen recording permission on macOS (async, non-blocking)
     if (process.platform === 'darwin') {
-      checkScreenRecordingPermission().catch(console.error)
+      checkScreenRecordingPermission().catch((error) => logger.error('Screen recording permission check failed on ready-to-show:', error))
     }
   })
 
@@ -89,7 +92,7 @@ function createWindow(): void {
 
   // Start local MCP client (non-blocking)
   mcpClient = new McpLocalClient()
-  mcpClient.start().catch((err) => console.error('[MCP] Startup error:', err))
+  mcpClient.start().catch((err) => logger.error('MCP startup failed:', err))
 
   // Register keyboard shortcuts
   mainWindow.webContents.on('before-input-event', handleKeyboardShortcuts)
@@ -157,7 +160,7 @@ async function checkScreenRecordingPermission(): Promise<boolean> {
     })
     return sources.length > 0
   } catch (error) {
-    console.error('Screen recording permission check failed:', error)
+    logger.error('Screen recording permission check failed:', error)
     return false
   }
 }
@@ -236,7 +239,7 @@ function processFiles(filePaths: string[], basePath?: string): ProcessedFile[] {
 
       // Skip files that are too large
       if (stats.size > maxFileSize) {
-        console.log(`Skipping ${filePath} - file too large (${stats.size} bytes)`)
+        logger.warn(`Skipping ${filePath} - file too large (${stats.size} bytes)`)
         continue
       }
 
@@ -267,12 +270,12 @@ function processFiles(filePaths: string[], basePath?: string): ProcessedFile[] {
             language: getLanguageFromExtension(filePath)
           })
         } catch (error) {
-          console.error(`Error reading file ${filePath}:`, error)
+          logger.error(`Error reading file ${filePath}:`, error)
           // Skip binary files that can't be read as text
         }
       }
     } catch (error) {
-      console.error(`Error processing file ${filePath}:`, error)
+      logger.error(`Error processing file ${filePath}:`, error)
     }
   }
 
@@ -403,7 +406,7 @@ function setupIPC(): void {
 
       return sources[0].thumbnail.toDataURL()
     } catch (error: unknown) {
-      console.error('Screen capture failed:', error)
+      logger.error('Screen capture failed:', error)
       throw error
     }
   })
@@ -475,5 +478,5 @@ app.on('before-quit', () => {
   if (windowStateManager) {
     windowStateManager.untrack()
   }
-  mcpClient?.shutdown().catch(console.error)
+  mcpClient?.shutdown().catch((error) => logger.error('MCP shutdown failed:', error))
 })
