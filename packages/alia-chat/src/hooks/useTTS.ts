@@ -130,6 +130,11 @@ export function useTTS(options: UseTTSOptions = {}) {
         playerRef.current = player;
 
         player.addListener('playbackStatusUpdate', (status: AudioStatus) => {
+          if (status.error) {
+            releasePlayer();
+            setError(status.error);
+            return;
+          }
           if (status.didJustFinish) {
             releasePlayer();
             reset();
