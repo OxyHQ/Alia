@@ -30,7 +30,9 @@ import { wrapToolsWithTruncation, getToolResultBudget } from '../../lib/tools/re
 import { log } from '../../lib/logger.js';
 import { recordEvent } from '../../lib/observability/index.js';
 import { classifyError, getRetryAfterHeader } from '../../lib/errors/index.js';
-import { setupSSEHeaders, writeTextChunk, writeStopChunk, writeContentChunk, makeChunk } from '../../lib/streaming-helpers.js';
+import { writeTextChunk, writeStopChunk, writeContentChunk, makeChunk } from '../../lib/streaming-helpers.js';
+import { buildCompletionResponse } from '../../lib/chat/response-shapes.js';
+import { SSEWriter } from '../../lib/chat/sse-writer.js';
 import type { FailoverReason } from '../../lib/errors/error-codes.js';
 import { Agent as AgentModel, type IAgent } from '../../models/agent.js';
 import {
@@ -76,6 +78,7 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
   const requestId = `chatcmpl-${crypto.randomUUID()}`;
   let autonomyRuntime: AutonomyRuntimeContext | null = null;
   let recalledMemories: Array<{ key: string; value: string }> | undefined;
+  const sse = new SSEWriter(res);
 
   // Global request timeout guard — send a proper error BEFORE DO's gateway timeout (~120s)
   const GLOBAL_TIMEOUT_MS = 80_000;
@@ -85,28 +88,12 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
     log.v1.error('Global request timeout after 80s');
     if (!res.headersSent) {
       // Return synthetic response instead of raw error
-      res.json({
-        id: requestId,
-        object: 'chat.completion',
-        created: Math.floor(Date.now() / 1000),
+      res.json(buildCompletionResponse({
+        requestId,
         model: aliasModelId,
-        system_fingerprint: 'fp_alia',
-        service_tier: 'default',
-        choices: [{
-          index: 0,
-          message: { role: 'assistant', content: "I'm sorry, the request took too long. Please try again.", refusal: null },
-          logprobs: null,
-          finish_reason: 'stop',
-        }],
-        usage: {
-          prompt_tokens: 0,
-          completion_tokens: 0,
-          total_tokens: 0,
-          prompt_tokens_details: { cached_tokens: 0, audio_tokens: 0 },
-          completion_tokens_details: { reasoning_tokens: 0, audio_tokens: 0, accepted_prediction_tokens: 0, rejected_prediction_tokens: 0 },
-        },
-        alia_meta: { synthetic: true, retryable: true },
-      });
+        content: "I'm sorry, the request took too long. Please try again.",
+        aliaMeta: { synthetic: true, retryable: true },
+      }));
     } else if (!res.writableEnded) {
       // Mid-stream timeout: send graceful finish
       writeContentChunk(res, requestId, aliasModelId, '\n\nI encountered a brief interruption. Please send your message again.');
@@ -179,33 +166,8 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
     // For streaming requests, send SSE headers immediately — before any async work.
     // This gives the client instant feedback that the connection is established and
     // prevents proxy timeouts during pre-stream operations.
-    let earlySSE = false;
     if (body.stream === true) {
-      res.setHeader('Content-Type', 'text/event-stream');
-      res.setHeader('Cache-Control', 'no-cache');
-      res.setHeader('Connection', 'keep-alive');
-      res.setHeader('X-Accel-Buffering', 'no');
-      if (res.socket) {
-        res.socket.setNoDelay(true);
-      }
-      res.write(': keep-alive\n\n');
-      res.flushHeaders();
-      earlySSE = true;
-    }
-
-    /** Send an error over the SSE stream and end the response (used when headers already sent). */
-    function sendSSEError(errorPayload: Record<string, any>) {
-      const openAIError = {
-        error: {
-          message: errorPayload.message || 'An error occurred.',
-          type: errorPayload.type || 'server_error',
-          param: errorPayload.param || null,
-          code: errorPayload.code || null,
-        },
-      };
-      res.write(`data: ${JSON.stringify(openAIError)}\n\n`);
-      res.write('data: [DONE]\n\n');
-      res.end();
+      sse.openEarly();
     }
 
     // --- PARALLEL PRE-STREAMING OPERATIONS ---
@@ -277,8 +239,8 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
         param: null,
         code: 'INSUFFICIENT_CREDITS',
       };
-      if (earlySSE) {
-        sendSSEError(creditError);
+      if (sse.sent) {
+        sse.writeError(creditError);
       } else {
         res.status(402).json({ error: creditError });
       }
@@ -295,8 +257,8 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
         param: 'model',
         code: 'model_not_available',
       };
-      if (earlySSE) {
-        sendSSEError(noModelsError);
+      if (sse.sent) {
+        sse.writeError(noModelsError);
       } else {
         res.status(503).json({ error: noModelsError });
       }
@@ -318,8 +280,8 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
           param: 'model',
           code: 'MODEL_NOT_IN_PLAN',
         };
-        if (earlySSE) {
-          sendSSEError(modelError);
+        if (sse.sent) {
+          sse.writeError(modelError);
         } else {
           res.status(403).json({ error: modelError });
         }
@@ -359,7 +321,7 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
     }
 
     // Assemble all tools via the unified pipeline
-    const sseEmitter = createResponseSSEEmitter(res, ensureSSEHeaders);
+    const sseEmitter = createResponseSSEEmitter(res, sse.ensureHeaders);
     const { tools: allTools, toolNameMapping } = await ToolPipeline.forUser({
       userId: req.user?.id || '',
       accessToken: req.accessToken,
@@ -512,7 +474,6 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
     const MAX_PROVIDER_RETRIES = Math.max(tierMappings.length, 5);
     const skipProviders = new Set<string>();
     const failedKeyIds = new Set<string>();
-    let sseHeadersSent = earlySSE;
 
     /** Reasons that indicate a key-level failure (try next key, not next provider) */
     const KEY_LEVEL_REASONS: Set<FailoverReason> = new Set(['auth', 'rate_limit']);
@@ -521,14 +482,6 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
     const lastUserMsg = messages.slice().reverse().find((m: ChatMessage) => m.role === 'user');
     const lastUserText = typeof lastUserMsg?.content === 'string' ? lastUserMsg.content : '';
     const isSpanish = /[áéíóúñ¿¡]/.test(lastUserText) || /\b(hola|por favor|gracias|cómo|qué|dime|puedes)\b/i.test(lastUserText);
-
-    /** Set SSE headers if not already sent (idempotent). */
-    function ensureSSEHeaders() {
-      if (!sseHeadersSent) {
-        setupSSEHeaders(res);
-        sseHeadersSent = true;
-      }
-    }
 
     // Plan previews are now AI-generated via the planPreview tool (not autonomy runtime)
 
@@ -615,7 +568,6 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
     }
 
     let hasStreamedContent = false;
-    let keepAliveTimer: ReturnType<typeof setInterval> | undefined;
 
     // Per-provider first-byte timeout — abort if no response within 20s
     const FIRST_BYTE_TIMEOUT_MS = 20_000;
@@ -694,7 +646,7 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
         const originalToolName = toolNameMapping.get(tc.toolName) || tc.toolName;
         return {
           id: tc.toolCallId || `call_${Date.now()}_${index}`,
-          type: 'function',
+          type: 'function' as const,
           function: {
             name: originalToolName,
             arguments: JSON.stringify(tc.args || {})
@@ -703,41 +655,21 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
       });
 
       // Return OpenAI-compatible non-streaming response
-      const response = {
-        id: requestId,
-        object: 'chat.completion',
-        created: Math.floor(Date.now() / 1000),
+      res.json(buildCompletionResponse({
+        requestId,
         model: aliasModelId,
-        system_fingerprint: 'fp_alia',
-        service_tier: 'default',
-        choices: [{
-          index: 0,
-          message: {
-            role: 'assistant',
-            content: assistantResponse,
-            refusal: null,
-            ...(toolCalls && toolCalls.length > 0 && { tool_calls: toolCalls })
-          },
-          logprobs: null,
-          finish_reason: result.finishReason || 'stop'
-        }],
-        usage: {
-          prompt_tokens: tokenUsage.promptTokens,
-          completion_tokens: tokenUsage.completionTokens,
-          total_tokens: tokenUsage.totalTokens,
-          prompt_tokens_details: { cached_tokens: 0, audio_tokens: 0 },
-          completion_tokens_details: { reasoning_tokens: 0, audio_tokens: 0, accepted_prediction_tokens: 0, rejected_prediction_tokens: 0 },
-        },
-        alia_usage: {
+        content: assistantResponse,
+        finishReason: result.finishReason || 'stop',
+        toolCalls,
+        usage: tokenUsage,
+        aliaUsage: {
           system_prompt_tokens: tokenUsage.systemPromptTokens || 0,
           billable_tokens: Math.max(0, tokenUsage.totalTokens - (tokenUsage.systemPromptTokens || 0)),
           credits_charged: creditsCharged,
           credits_remaining: creditsRemaining,
           credit_warning: creditWarning,
         },
-      };
-
-      res.json(response);
+      }));
       clearTimeout(globalTimer);
       return;
     }
@@ -751,13 +683,9 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
     // Streaming request
     const result = streamText(baseConfig);
 
-    // Periodic keep-alive during stream processing.
-    // Prevents proxy timeouts during multi-step LLM calls (e.g., after tool execution
-    // when the AI SDK makes a second LLM request with the tool result).
-    const KEEPALIVE_INTERVAL_MS = 15_000;
-    keepAliveTimer = setInterval(() => {
-      if (!res.writableEnded) res.write(': keepalive\n\n');
-    }, KEEPALIVE_INTERVAL_MS);
+    // Periodic keep-alive during stream processing — prevents proxy timeouts
+    // during multi-step LLM calls (e.g. the follow-up request after tool execution).
+    sse.startKeepAlive();
 
     // Track client disconnect so we can send a push notification if the response completes after they leave
     let clientDisconnected = false;
@@ -780,7 +708,7 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
       }
 
       if (chunk.type === 'text-delta' && chunk.text) {
-        ensureSSEHeaders();
+        sse.ensureHeaders();
         hasStreamedContent = true;
         hasStreamedText = true;
 
@@ -803,7 +731,7 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
           assistantResponse += filtered;
         }
       } else if ((chunk as ExtendedChunk).type === 'thought-delta' || (chunk as ExtendedChunk).type === 'reasoning-delta') {
-        ensureSSEHeaders();
+        sse.ensureHeaders();
         hasStreamedContent = true;
 
         // Handle Gemini thought summaries and other reasoning tokens
@@ -813,7 +741,7 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
           log.v1.debug({ reasoning: reasoningText.slice(0, 100) }, 'Reasoning chunk (provider)');
         }
       } else if (chunk.type === 'tool-call') {
-        ensureSSEHeaders();
+        sse.ensureHeaders();
         hasStreamedContent = true;
 
         // Restore original tool name if it was sanitized
@@ -847,7 +775,7 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
           break;
         }
       } else if (chunk.type === 'tool-result') {
-        ensureSSEHeaders();
+        sse.ensureHeaders();
         hasStreamedContent = true;
 
         const originalToolName = toolNameMapping.get(chunk.toolName) || chunk.toolName;
@@ -901,7 +829,7 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
         }
       } else if (chunk.type === 'tool-error') {
         // Handle tool execution errors
-        ensureSSEHeaders();
+        sse.ensureHeaders();
         hasStreamedContent = true;
 
         const originalToolName = toolNameMapping.get((chunk as ExtendedChunk).toolName ?? '') || (chunk as ExtendedChunk).toolName;
@@ -987,7 +915,7 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
 
         // Mid-stream graceful recovery: send a friendly message instead of raw error
         if (!hasStreamedText && !res.writableEnded) {
-          ensureSSEHeaders();
+          sse.ensureHeaders();
           const midStreamMsg = isSpanish
             ? '\n\nHubo una breve interrupción. Por favor, envía tu mensaje de nuevo y completaré mi respuesta.'
             : '\n\nI encountered a brief interruption. Please send your message again and I\'ll complete my response.';
@@ -996,14 +924,14 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
         }
       } else if (chunk.type === 'finish') {
         log.v1.debug('Finish chunk received');
-        ensureSSEHeaders();
+        sse.ensureHeaders();
         writeStopChunk(res, requestId, aliasModelId, chunk.finishReason || 'stop');
       } else {
         log.v1.warn({ chunkType: chunk.type, chunk }, 'Unhandled chunk type');
       }
     }
 
-    clearInterval(keepAliveTimer);
+    sse.stopKeepAlive();
     log.v1.info({ totalChunks: chunkCount }, 'Stream processing complete');
 
     // ── Text-based tool call fallback ──
@@ -1170,7 +1098,7 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
       toolCallCount,
     });
 
-    if (keepAliveTimer) clearInterval(keepAliveTimer);
+    sse.stopKeepAlive();
     req.off('close', onClientClose);
     res.write('data: [DONE]\n\n');
     res.end();
@@ -1185,7 +1113,7 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
 
     } catch (providerError: unknown) {
       // Clean up timers on provider failure
-      if (keepAliveTimer) clearInterval(keepAliveTimer);
+      sse.stopKeepAlive();
       if (firstByteTimer) { clearTimeout(firstByteTimer); firstByteTimer = null; }
       // Provider attempt failed — classify with shared error classifier
       log.v1.error({ err: providerError, provider: resolved!.provider, modelId: resolved!.modelId }, 'Provider failed');
@@ -1247,33 +1175,17 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
 
     clearTimeout(globalTimer);
 
-    if (!sseHeadersSent && !res.headersSent) {
+    if (!sse.sent && !res.headersSent) {
       // Non-streaming: return standard JSON response
-      res.json({
-        id: requestId,
-        object: 'chat.completion',
-        created: Math.floor(Date.now() / 1000),
+      res.json(buildCompletionResponse({
+        requestId,
         model: aliasModelId,
-        system_fingerprint: 'fp_alia',
-        service_tier: 'default',
-        choices: [{
-          index: 0,
-          message: { role: 'assistant', content: syntheticMessage, refusal: null },
-          logprobs: null,
-          finish_reason: 'stop',
-        }],
-        usage: {
-          prompt_tokens: 0,
-          completion_tokens: 0,
-          total_tokens: 0,
-          prompt_tokens_details: { cached_tokens: 0, audio_tokens: 0 },
-          completion_tokens_details: { reasoning_tokens: 0, audio_tokens: 0, accepted_prediction_tokens: 0, rejected_prediction_tokens: 0 },
-        },
-        alia_meta: { synthetic: true, retryable: true },
-      });
+        content: syntheticMessage,
+        aliaMeta: { synthetic: true, retryable: true },
+      }));
     } else {
       // Streaming: send synthetic message as normal SSE chunks
-      ensureSSEHeaders();
+      sse.ensureHeaders();
       const syntheticChunk = { ...makeChunk(requestId, aliasModelId, [{ index: 0, delta: { content: syntheticMessage }, finish_reason: null }]), alia_meta: { synthetic: true, retryable: true } };
       res.write(`data: ${JSON.stringify(syntheticChunk)}\n\n`);
       writeStopChunk(res, requestId, aliasModelId);
