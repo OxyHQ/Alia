@@ -779,6 +779,8 @@
     "autoSaveToggleDescription": "Guardar automáticamente información que menciono",
     "failedToSaveSettings": "Error al guardar configuración",
     "importFromProvider": "Importar de otros proveedores de IA",
+    "providerImportRowDescription": "Trae contexto de otro asistente de IA a Alia.",
+    "startImport": "Iniciar importación",
     "providerImportStepPromptDescription": "Copia este prompt, pídele a otro proveedor de IA que enumere lo que sabe de ti, y luego pega la respuesta abajo.",
     "providerImportStepPasteDescription": "Pega aquí la respuesta de otro proveedor de IA. Analizaremos y agregaremos los recuerdos a tu perfil.",
     "promptCopied": "Prompt copiado al portapapeles",

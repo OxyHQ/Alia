@@ -13,7 +13,6 @@ interface MemoryRow {
 
 interface MemoryTableProps {
   heading: string;
-  icon: React.ComponentType<{ size?: number; color?: string; className?: string }>;
   rows: MemoryRow[];
   emptyLabel: string;
   onRowPress: (id: string) => void;
@@ -31,51 +30,46 @@ function formatRelativeTime(dateStr: string): string {
   return `${days}d ago`;
 }
 
-export function MemoryTable({ heading, icon: Icon, rows, emptyLabel, onRowPress, onDelete }: MemoryTableProps) {
+export function MemoryTable({ heading, rows, emptyLabel, onRowPress, onDelete }: MemoryTableProps) {
   return (
     <View className="gap-1 pt-4">
-      <View className="flex-row items-center gap-1.5 px-1">
-        <Icon size={13} className="text-muted-foreground" />
-        <Text className="text-xs font-semibold text-foreground">{heading}</Text>
-      </View>
+      <Text className="pl-1 text-sm font-semibold text-foreground">{heading}</Text>
 
       {rows.length === 0 ? (
-        <View className="px-3 py-3">
+        <View className="px-1 py-3">
           <Text className="text-xs text-muted-foreground">{emptyLabel}</Text>
         </View>
       ) : (
-        <View className="border border-border rounded-xl overflow-hidden bg-surface">
+        <View>
           {rows.map((row, index) => (
             <Pressable
               key={row._id}
               onPress={() => onRowPress(row._id)}
               className={cn(
-                "flex-row items-center px-3 py-2.5 gap-2 group active:bg-accent/50",
+                "flex-row items-center h-9 gap-3 px-1 group active:bg-accent/50 web:hover:bg-accent/40 rounded-md",
                 index !== rows.length - 1 && "border-b border-border"
               )}
             >
-              <View className="flex-1 min-w-0">
-                <Text className="text-sm font-medium text-foreground" numberOfLines={1}>
-                  {row.title}
-                </Text>
-                <Text className="text-xs text-muted-foreground" numberOfLines={1}>
-                  {row.summary}
-                </Text>
-              </View>
-
-              <Text className="text-[10px] text-muted-foreground/60 shrink-0 md:block hidden">
-                {formatRelativeTime(row.updatedAt)}
+              <Text className="w-32 shrink-0 text-sm text-foreground" numberOfLines={1}>
+                {row.title}
               </Text>
-
-              <Pressable
-                onPress={(e) => {
-                  e.stopPropagation();
-                  onDelete(row._id);
-                }}
-                className="w-7 h-7 items-center justify-center rounded-md shrink-0 active:bg-destructive/10 web:opacity-0 web:group-hover:opacity-100"
-              >
-                <Trash2 size={14} className="text-muted-foreground" />
-              </Pressable>
+              <Text className="flex-1 min-w-0 text-sm text-muted-foreground" numberOfLines={1}>
+                {row.summary}
+              </Text>
+              <Text className="w-28 shrink-0 text-xs text-muted-foreground md:block hidden" numberOfLines={1}>
+                Updated {formatRelativeTime(row.updatedAt)}
+              </Text>
+              <View className="w-9 shrink-0 items-end">
+                <Pressable
+                  onPress={(e) => {
+                    e.stopPropagation();
+                    onDelete(row._id);
+                  }}
+                  className="w-7 h-7 items-center justify-center rounded-md active:bg-destructive/10 web:opacity-0 web:group-hover:opacity-100"
+                >
+                  <Trash2 size={14} className="text-muted-foreground" />
+                </Pressable>
+              </View>
             </Pressable>
           ))}
         </View>
