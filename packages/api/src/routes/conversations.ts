@@ -114,7 +114,7 @@ router.get('/:id', authenticateTokenOrApiKey, async (req: Request, res: Response
       conversationId: req.params.id,
       oxyUserId: req.user.id,
     })
-      .sort({ createdAt: 1 })
+      .sort({ seq: 1, createdAt: 1 })
       .lean();
 
     res.json({
@@ -240,7 +240,7 @@ router.patch('/:id/messages/:messageId/vote', authenticateToken, async (req: Req
         oxyUserId: req.user.id,
         $or: [
           { id: messageId },
-          ...(objectId ? [{ _id: objectId }] as any[] : []),
+          ...(objectId ? [{ _id: objectId }] : []),
         ],
       },
       vote ? { $set: { vote } } : { $unset: { vote: 1 } },

@@ -171,67 +171,63 @@ export async function recordSuccess(
 ): Promise<void> {
   try {
     await connectDB();
-    const health = await ProviderHealth.findOne({ provider, modelId });
+    const now = new Date();
 
-    if (!health) {
-      // Create new record with success
-      await ProviderHealth.create({
-        provider,
-        modelId,
-        successCount: 1,
-        failureCount: 0,
-        totalRequests: 1,
-        successRate: 100,
-        averageLatencyMs: latencyMs,
-        latencySamples: [latencyMs],
-        lastSuccess: new Date(),
-        consecutiveFailures: 0,
-        consecutiveSuccesses: 1,
-        circuitState: 'closed',
-        isHealthy: true
-      });
-    } else {
-      // Update existing record
-      health.successCount++;
-      health.totalRequests++;
-      health.lastSuccess = new Date();
-      health.consecutiveFailures = 0;
-      health.consecutiveSuccesses++;
+    // Atomic counter update: concurrent requests each apply their own $inc, so
+    // no update is lost. latencySamples is capped in the same write. The returned
+    // doc carries the fresh counters we derive the circuit state from.
+    const health = await ProviderHealth.findOneAndUpdate(
+      { provider, modelId },
+      {
+        $inc: { successCount: 1, totalRequests: 1, consecutiveSuccesses: 1 },
+        $set: { lastSuccess: now, consecutiveFailures: 0, lastHealthCheck: now },
+        $push: { latencySamples: { $each: [latencyMs], $slice: -100 } },
+        $setOnInsert: { provider, modelId },
+      },
+      { new: true, upsert: true, setDefaultsOnInsert: true },
+    );
 
-      // Update latency (keep last 100 samples)
-      if (!health.latencySamples) health.latencySamples = [];
-      health.latencySamples.push(latencyMs);
-      if (health.latencySamples.length > 100) {
-        health.latencySamples = health.latencySamples.slice(-100);
+    const samples: number[] = Array.isArray(health.latencySamples) ? health.latencySamples : [];
+    const averageLatencyMs = samples.length > 0
+      ? samples.reduce((a: number, b: number) => a + b, 0) / samples.length
+      : latencyMs;
+    const successRate = health.totalRequests > 0
+      ? (health.successCount / health.totalRequests) * 100
+      : 100;
+
+    const prevState: string = health.circuitState || 'closed';
+    const prevHealthy: boolean = health.isHealthy ?? true;
+    const derived: Record<string, unknown> = { averageLatencyMs, successRate };
+    let nextState = prevState;
+    let nextHealthy = prevHealthy;
+
+    // Circuit breaker logic (computed from the freshly-incremented counters)
+    if (prevState === 'half-open') {
+      if (health.consecutiveSuccesses >= CIRCUIT_CONFIG.successThreshold) {
+        // Close the circuit - provider is healthy again
+        nextState = 'closed';
+        nextHealthy = true;
+        derived.circuitState = 'closed';
+        derived.circuitOpenedAt = null;
+        derived.halfOpenAttempts = 0;
+        derived.isHealthy = true;
+      } else {
+        derived.halfOpenAttempts = (health.halfOpenAttempts || 0) + 1;
       }
-      health.averageLatencyMs = health.latencySamples.reduce((a: number, b: number) => a + b, 0) / health.latencySamples.length;
-
-      // Update success rate
-      health.successRate = (health.successCount / health.totalRequests) * 100;
-
-      // Circuit breaker logic
-      if (health.circuitState === 'half-open') {
-        health.halfOpenAttempts++;
-        if (health.consecutiveSuccesses >= CIRCUIT_CONFIG.successThreshold) {
-          // Close the circuit - provider is healthy again
-          health.circuitState = 'closed';
-          health.circuitOpenedAt = null;
-          health.halfOpenAttempts = 0;
-          health.isHealthy = true;
-        }
-      }
-
-      // Check overall health
-      if (health.totalRequests >= CIRCUIT_CONFIG.minRequestsForMetrics) {
-        health.isHealthy = health.successRate >= CIRCUIT_CONFIG.unhealthySuccessRateThreshold;
-      }
-
-      health.lastHealthCheck = new Date();
-      await health.save();
     }
 
-    // Invalidate cache
-    healthCache.delete(getCacheKey(provider, modelId));
+    // Check overall health
+    if (health.totalRequests >= CIRCUIT_CONFIG.minRequestsForMetrics) {
+      nextHealthy = successRate >= CIRCUIT_CONFIG.unhealthySuccessRateThreshold;
+      derived.isHealthy = nextHealthy;
+    }
+
+    await ProviderHealth.updateOne({ provider, modelId }, { $set: derived });
+
+    // Only invalidate the availability cache when routing-relevant state changed.
+    if (nextState !== prevState || nextHealthy !== prevHealthy) {
+      healthCache.delete(getCacheKey(provider, modelId));
+    }
   } catch (error) {
     log.providers.error({ err: error }, 'Error recording success');
   }
@@ -251,65 +247,66 @@ export async function recordFailure(
 
   try {
     await connectDB();
-    const health = await ProviderHealth.findOne({ provider, modelId });
+    const now = new Date();
 
-    if (!health) {
-      // Create new record with failure
-      await ProviderHealth.create({
-        provider,
-        modelId,
-        successCount: 0,
-        failureCount: 1,
-        totalRequests: 1,
-        successRate: 0,
-        lastFailure: new Date(),
-        consecutiveFailures: isRateLimit ? 0 : 1,
-        consecutiveSuccesses: 0,
-        circuitState: 'closed',
-        isHealthy: true // Still healthy after single failure
-      });
-    } else {
-      // Update existing record
-      health.failureCount++;
-      health.totalRequests++;
-      health.lastFailure = new Date();
-
-      if (!isRateLimit) {
-        // Only real failures (500s, timeouts, auth errors) affect circuit breaker
-        health.consecutiveFailures++;
-        health.consecutiveSuccesses = 0;
-      }
-
-      // Update success rate
-      health.successRate = (health.successCount / health.totalRequests) * 100;
-
-      // Circuit breaker logic
-      if (health.circuitState === 'closed') {
-        if (health.consecutiveFailures >= CIRCUIT_CONFIG.failureThreshold) {
-          // Open the circuit - stop sending requests
-          health.circuitState = 'open';
-          health.circuitOpenedAt = new Date();
-          health.isHealthy = false;
-        }
-      } else if (health.circuitState === 'half-open') {
-        // Failed in half-open state - re-open circuit
-        health.circuitState = 'open';
-        health.circuitOpenedAt = new Date();
-        health.halfOpenAttempts = 0;
-        health.isHealthy = false;
-      }
-
-      // Check overall health
-      if (health.totalRequests >= CIRCUIT_CONFIG.minRequestsForMetrics) {
-        health.isHealthy = health.successRate >= CIRCUIT_CONFIG.unhealthySuccessRateThreshold;
-      }
-
-      health.lastHealthCheck = new Date();
-      await health.save();
+    // Atomic counter update. consecutiveFailures/consecutiveSuccesses only move
+    // for real (non-rate-limit) failures, so those operators are conditional.
+    const inc: Record<string, number> = { failureCount: 1, totalRequests: 1 };
+    const set: Record<string, unknown> = { lastFailure: now, lastHealthCheck: now };
+    if (!isRateLimit) {
+      // Only real failures (500s, timeouts, auth errors) affect circuit breaker
+      inc.consecutiveFailures = 1;
+      set.consecutiveSuccesses = 0;
     }
 
-    // Invalidate cache
-    healthCache.delete(getCacheKey(provider, modelId));
+    const health = await ProviderHealth.findOneAndUpdate(
+      { provider, modelId },
+      { $inc: inc, $set: set, $setOnInsert: { provider, modelId } },
+      { new: true, upsert: true, setDefaultsOnInsert: true },
+    );
+
+    const successRate = health.totalRequests > 0
+      ? (health.successCount / health.totalRequests) * 100
+      : 0;
+
+    const prevState: string = health.circuitState || 'closed';
+    const prevHealthy: boolean = health.isHealthy ?? true;
+    const derived: Record<string, unknown> = { successRate };
+    let nextState = prevState;
+    let nextHealthy = prevHealthy;
+
+    // Circuit breaker logic (computed from the freshly-incremented counters)
+    if (prevState === 'closed') {
+      if (health.consecutiveFailures >= CIRCUIT_CONFIG.failureThreshold) {
+        // Open the circuit - stop sending requests
+        nextState = 'open';
+        nextHealthy = false;
+        derived.circuitState = 'open';
+        derived.circuitOpenedAt = now;
+        derived.isHealthy = false;
+      }
+    } else if (prevState === 'half-open') {
+      // Failed in half-open state - re-open circuit
+      nextState = 'open';
+      nextHealthy = false;
+      derived.circuitState = 'open';
+      derived.circuitOpenedAt = now;
+      derived.halfOpenAttempts = 0;
+      derived.isHealthy = false;
+    }
+
+    // Check overall health
+    if (health.totalRequests >= CIRCUIT_CONFIG.minRequestsForMetrics) {
+      nextHealthy = successRate >= CIRCUIT_CONFIG.unhealthySuccessRateThreshold;
+      derived.isHealthy = nextHealthy;
+    }
+
+    await ProviderHealth.updateOne({ provider, modelId }, { $set: derived });
+
+    // Only invalidate the availability cache when routing-relevant state changed.
+    if (nextState !== prevState || nextHealthy !== prevHealthy) {
+      healthCache.delete(getCacheKey(provider, modelId));
+    }
   } catch (error) {
     log.providers.error({ err: error }, 'Error recording failure');
   }
