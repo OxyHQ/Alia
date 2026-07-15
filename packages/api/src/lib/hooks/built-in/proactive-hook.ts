@@ -14,6 +14,7 @@ import { generateText } from 'ai';
 import { registerHook } from '../hook-runner.js';
 import { resolveModel, getAIModel, getDefaultAliaModel } from '../../chat-core.js';
 import { Suggestion } from '../../../models/suggestion.js';
+import { getUserLanguage } from '../../memory/user-memory-service.js';
 import { log } from '../../logger.js';
 import crypto from 'crypto';
 
@@ -29,14 +30,18 @@ Classify into ONE of these categories, or "none" if no proactive action is warra
 Respond with ONLY a JSON object:
 {
   "category": "reminder" | "monitor" | "routine" | "none",
-  "title": "Short suggestion title (if not none)",
-  "description": "What the trigger/routine would do (if not none)",
+  "title": "A short, tappable label written as something the USER would ask Alia — imperative, first person (e.g. 'Remind me about my visa renewal', 'Track the Pixel 11 Pro price'). 4-8 words. (if not none)",
+  "description": "A complete, ready-to-send message phrased as something the USER would type TO Alia to request this — imperative, first person, addressed to the assistant (e.g. 'Remind me about my visa renewal in March', 'Track the price of the Pixel 11 Pro and tell me when it drops'). NEVER phrase it as Alia describing what it will do (do NOT write 'I will remind you...' or 'Alia will track...'). (if not none)",
   "triggerConfig": {
     "type": "schedule",
     "scheduleType": "daily" | "interval",
     "prompt": "What the AI should do when triggered"
   }
 }
+
+The "title" and "description" are shown to the user as a suggestion chip and are sent VERBATIM as the user's own chat message when tapped, so they MUST read as the user speaking to Alia, never as Alia speaking to the user.
+- Good: "Remind me about the Pixel 11 Pro release date"
+- Bad: "I will remind you of the Pixel 11 Pro release date"
 
 Only suggest actions that would genuinely help. Be conservative — only classify as non-"none" when the opportunity is clear and actionable.`;
 
@@ -101,7 +106,7 @@ registerHook({
         type: 'welcome',
         scope: 'personal',
         oxyUserId: ctx.userId,
-        language: 'en-US',
+        language: await getUserLanguage(ctx.userId),
         priority: 10, // Higher priority than regular suggestions
         isAIGenerated: true,
         tags: ['proactive', classification.category],
