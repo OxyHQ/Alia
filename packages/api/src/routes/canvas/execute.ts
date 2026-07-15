@@ -354,22 +354,22 @@ async function executeNode(node: WorkflowNode, input: string, userId: string): P
       if (operation === 'read') {
         const userMemory = await UserMemory.findOne({ oxyUserId: userId });
         if (!userMemory) return '';
-        const entry = userMemory.memories.find(m => m.key === memoryKey);
-        return entry ? entry.value : '';
+        const entry = userMemory.memories.find(m => m.title === memoryKey);
+        return entry ? entry.summary : '';
       } else if (operation === 'write') {
         const existing = await UserMemory.findOne({
           oxyUserId: userId,
-          'memories.key': memoryKey
+          'memories.title': memoryKey
         });
         if (existing) {
           await UserMemory.updateOne(
-            { oxyUserId: userId, 'memories.key': memoryKey },
-            { $set: { 'memories.$.value': input, 'memories.$.updatedAt': new Date() } }
+            { oxyUserId: userId, 'memories.title': memoryKey },
+            { $set: { 'memories.$.summary': input, 'memories.$.updatedAt': new Date() } }
           );
         } else {
           await UserMemory.findOneAndUpdate(
             { oxyUserId: userId },
-            { $push: { memories: { key: memoryKey, value: input, createdAt: new Date(), updatedAt: new Date() } } },
+            { $push: { memories: { title: memoryKey, summary: input, type: 'topic', createdAt: new Date(), updatedAt: new Date() } } },
             { upsert: true }
           );
         }
