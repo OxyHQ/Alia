@@ -10,6 +10,7 @@ import { tool, type ToolSet } from 'ai';
 import mongoose from 'mongoose';
 import { McpServer } from '../../models/mcp-server.js';
 import { log } from '../logger.js';
+import { TTLCache } from '../ttl-cache.js';
 import { jsonSchemaToZod } from './mcp-schema.js';
 import { getLocalTools, callLocalTool } from '../mcp-relay.js';
 
@@ -17,10 +18,10 @@ const INTEGRATIONS_URL = process.env.INTEGRATIONS_URL;
 const INTEGRATIONS_SECRET = process.env.INTEGRATIONS_SECRET;
 const TOOL_CALL_TIMEOUT_MS = 60_000;
 
-// Short-lived cache to avoid querying MongoDB on every chat message.
-// MCP server config changes rarely; 30s staleness is acceptable.
-const cache = new Map<string, { tools: ToolSet; expiresAt: number }>();
-const CACHE_TTL_MS = 30_000;
+// Short-lived per-user cache to avoid querying MongoDB on every chat message.
+// MCP server config changes rarely; 30s staleness is acceptable. Tool closures
+// capture only oxyUserId, so caching by user stays correct across callers.
+const cache = new TTLCache<ToolSet>({ ttlMs: 30_000, maxSize: 2000 });
 
 /**
  * Build MCP tool set for a user.
@@ -32,7 +33,7 @@ export async function buildMcpTools(oxyUserId: string): Promise<ToolSet> {
   if (!mongoose.Types.ObjectId.isValid(oxyUserId)) return {};
 
   const cached = cache.get(oxyUserId);
-  if (cached && cached.expiresAt > Date.now()) return cached.tools;
+  if (cached) return cached;
 
   const tools: ToolSet = {};
 
@@ -84,7 +85,7 @@ export async function buildMcpTools(oxyUserId: string): Promise<ToolSet> {
       );
     }
 
-    cache.set(oxyUserId, { tools, expiresAt: Date.now() + CACHE_TTL_MS });
+    cache.set(oxyUserId, tools);
 
     const toolCount = Object.keys(tools).length;
     if (toolCount > 0) {

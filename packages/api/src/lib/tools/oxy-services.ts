@@ -12,10 +12,12 @@
  */
 
 import { tool, type ToolSet } from 'ai';
+import type { ZodTypeAny } from 'zod';
 import { OxyService, type IOxyServiceTool, type IOxyServiceToolEndpoint } from '../../models/oxy-service.js';
 import { jsonSchemaToZod } from './mcp-schema.js';
 import { log } from '../logger.js';
 import { getErrorMessage } from '../errors/index.js';
+import { TTLCache } from '../ttl-cache.js';
 
 const TOOL_TIMEOUT_MS = 15_000;
 const OXY_API_URL = process.env.OXY_API_URL || 'https://api.oxy.so';
@@ -34,19 +36,65 @@ async function safeExecute(service: string, fn: () => Promise<any>): Promise<any
 }
 
 // ---------------------------------------------------------------------------
-// Short-lived cache (same pattern as MCP & integration tools)
+// Global service-definition cache
+//
+// OxyService manifests are user-independent (the query has no user filter), so
+// the DB read + zod compilation — the expensive part — is cached ONCE globally.
+// Per-request work (wrapping tools with the CURRENT access token, rendering the
+// per-user context) is cheap and done fresh on top of these shared defs.
 // ---------------------------------------------------------------------------
 
-interface CachedServiceMeta {
+interface CompiledTool {
+  toolName: string;
+  displayName: string;
+  description: string;
+  inputSchema: ZodTypeAny;
+  toolDef: IOxyServiceTool;
+}
+
+interface ServiceDef {
   serviceId: string;
   displayName: string;
   description: string;
   contextEndpoint?: string;
   toolNames: string[];
   hasConfirm: boolean;
+  compiledTools: CompiledTool[];
 }
-const cache = new Map<string, { tools: ToolSet; services: CachedServiceMeta[]; expiresAt: number }>();
-const CACHE_TTL_MS = 30_000;
+
+const defsCache = new TTLCache<ServiceDef[]>({ ttlMs: 60_000, maxSize: 1 });
+const contextCache = new TTLCache<string>({ ttlMs: 60_000, maxSize: 2000 });
+const DEFS_KEY = 'defs';
+
+async function loadServiceDefs(): Promise<ServiceDef[]> {
+  const services = await OxyService.find({ status: 'active' }).lean();
+
+  return services.map((svc) => {
+    const prefix = `oxy_${sanitizeName(svc.serviceId)}`;
+    const compiledTools: CompiledTool[] = svc.tools.map((svcTool) => ({
+      toolName: `${prefix}__${sanitizeName(svcTool.name)}`,
+      displayName: svc.displayName,
+      description: svcTool.description,
+      inputSchema: jsonSchemaToZod(svcTool.inputSchema),
+      toolDef: svcTool,
+    }));
+
+    return {
+      serviceId: svc.serviceId,
+      displayName: svc.displayName,
+      description: svc.description,
+      contextEndpoint: svc.contextEndpoint,
+      toolNames: compiledTools.map((t) => t.toolName),
+      hasConfirm: svc.tools.some((t) => t.confirmBeforeExecute),
+      compiledTools,
+    };
+  });
+}
+
+/** Load the shared service definitions (single-flight, 60s TTL). */
+function getServiceDefs(): Promise<ServiceDef[]> {
+  return defsCache.getOrLoad(DEFS_KEY, loadServiceDefs);
+}
 
 // ---------------------------------------------------------------------------
 // HTTP caller — executes a tool's endpoint on behalf of the user
@@ -214,53 +262,28 @@ export async function buildOxyServiceTools(
   oxyUserId: string,
   accessToken: string,
 ): Promise<ToolSet> {
-  const cacheKey = oxyUserId;
-  const cached = cache.get(cacheKey);
-  if (cached && cached.expiresAt > Date.now()) return cached.tools;
-
-  const tools: ToolSet = {};
-
   try {
-    const services = await OxyService.find({ status: 'active' }).lean();
+    const defs = await getServiceDefs();
 
-    if (services.length === 0) {
-      cache.set(cacheKey, { tools, services: [], expiresAt: Date.now() + CACHE_TTL_MS });
-      return tools;
-    }
-
-    const serviceMeta: CachedServiceMeta[] = [];
-
-    for (const svc of services) {
-      const prefix = `oxy_${sanitizeName(svc.serviceId)}`;
-      const svcToolNames: string[] = [];
-
-      for (const svcTool of svc.tools) {
-        const toolName = `${prefix}__${sanitizeName(svcTool.name)}`;
-        svcToolNames.push(toolName);
-
-        tools[toolName] = tool({
-          description: `[${svc.displayName}] ${svcTool.description}`,
-          inputSchema: jsonSchemaToZod(svcTool.inputSchema),
+    // Wrap the shared (cached) tool defs FRESH with THIS caller's access token.
+    // Closures are cheap to build; caching them per-user is what leaked the
+    // first caller's token to later callers within the TTL window.
+    const tools: ToolSet = {};
+    for (const svc of defs) {
+      for (const compiled of svc.compiledTools) {
+        tools[compiled.toolName] = tool({
+          description: `[${compiled.displayName}] ${compiled.description}`,
+          inputSchema: compiled.inputSchema,
           execute: async (args: Record<string, unknown>) =>
-            safeExecute(svc.displayName, () => callOxyService(svcTool, args as Record<string, any>, accessToken)),
+            safeExecute(compiled.displayName, () =>
+              callOxyService(compiled.toolDef, args as Record<string, any>, accessToken)),
         } as any);
       }
-
-      serviceMeta.push({
-        serviceId: svc.serviceId,
-        displayName: svc.displayName,
-        description: svc.description,
-        contextEndpoint: svc.contextEndpoint,
-        toolNames: svcToolNames,
-        hasConfirm: svc.tools.some((t) => t.confirmBeforeExecute),
-      });
     }
-
-    cache.set(cacheKey, { tools, services: serviceMeta, expiresAt: Date.now() + CACHE_TTL_MS });
 
     const toolCount = Object.keys(tools).length;
     if (toolCount > 0) {
-      log.general.info({ userId: oxyUserId, toolCount, serviceCount: services.length }, 'Oxy service tools loaded');
+      log.general.info({ userId: oxyUserId, toolCount, serviceCount: defs.length }, 'Oxy service tools loaded');
     }
 
     return tools;
@@ -275,21 +298,26 @@ export async function buildOxyServiceTools(
 // ---------------------------------------------------------------------------
 
 export async function getOxyServiceContext(
+  userId: string,
   accessToken: string,
 ): Promise<string> {
-  try {
-    const services = await OxyService.find({
-      status: 'active',
-      contextEndpoint: { $exists: true, $ne: null },
-    })
-      .select('serviceId displayName contextEndpoint')
-      .lean();
+  const cached = contextCache.get(userId);
+  if (cached !== undefined) return cached;
 
-    if (services.length === 0) return '';
+  try {
+    const defs = await getServiceDefs();
+    const contextDefs = defs.filter(
+      (d): d is ServiceDef & { contextEndpoint: string } => !!d.contextEndpoint,
+    );
+
+    if (contextDefs.length === 0) {
+      contextCache.set(userId, '');
+      return '';
+    }
 
     const results = await Promise.allSettled(
-      services.map(async (svc) => {
-        const url = new URL(svc.contextEndpoint!, OXY_API_URL);
+      contextDefs.map(async (svc) => {
+        const url = new URL(svc.contextEndpoint, OXY_API_URL);
         const response = await fetch(url.toString(), {
           headers: {
             Authorization: `Bearer ${accessToken}`,
@@ -321,9 +349,11 @@ export async function getOxyServiceContext(
       }
     }
 
-    return contextParts.length > 0
+    const rendered = contextParts.length > 0
       ? '\n\n## Connected Services Context\n' + contextParts.join('\n')
       : '';
+    contextCache.set(userId, rendered);
+    return rendered;
   } catch (err) {
     log.general.warn({ err }, 'Failed to fetch Oxy service context');
     return '';
@@ -334,11 +364,14 @@ export async function getOxyServiceContext(
 // Prompt helper — builds a system prompt fragment for connected services
 // ---------------------------------------------------------------------------
 
-export function getOxyServicePromptFragment(oxyUserId: string): string {
-  const cached = cache.get(oxyUserId);
-  if (!cached || cached.services.length === 0) return '';
+export function getOxyServicePromptFragment(_oxyUserId: string): string {
+  // Reads the shared, user-independent defs snapshot. It is warm whenever any
+  // request built tools/context in the last 60s (buildOxyServiceTools runs
+  // before the system prompt in the request flow), so this stays sync.
+  const defs = defsCache.get(DEFS_KEY);
+  if (!defs || defs.length === 0) return '';
 
-  const lines = cached.services.map((svc) => {
+  const lines = defs.map((svc) => {
     let line = `- **${svc.displayName}**: ${svc.description}. Tools: ${svc.toolNames.join(', ')}.`;
     if (svc.hasConfirm) {
       line += ' ALWAYS confirm with the user before performing write actions.';
