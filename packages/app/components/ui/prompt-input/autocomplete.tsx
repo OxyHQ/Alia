@@ -35,9 +35,10 @@ export function PromptInputAutocomplete({
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const { mutate: recordUsage } = useRecordSuggestionUsage();
 
-  // Debounce the search query (200ms)
+  // Debounce the search query (200ms). Only search on a fresh/empty conversation —
+  // never hit /suggestions/search once the conversation is active.
   useEffect(() => {
-    if (!enabled) {
+    if (!enabled || !showDefaultSuggestions) {
       setDebouncedQuery('');
       return;
     }
@@ -48,16 +49,19 @@ export function PromptInputAutocomplete({
     }
     const timer = setTimeout(() => setDebouncedQuery(trimmed), 200);
     return () => clearTimeout(timer);
-  }, [value, enabled]);
+  }, [value, enabled, showDefaultSuggestions]);
 
   // API search results (fires when debouncedQuery changes)
   const { data: apiResults } = useSearchSuggestions(debouncedQuery);
   // Default welcome suggestions (shared cache; prefetched by the app layout)
   const { data: welcomeResults } = useWelcomeSuggestions();
 
+  // Suggestions of any kind only belong on a fresh/empty conversation. Once the
+  // conversation is active neither live search nor welcome chips should appear.
   // Dual mode: query >= 2 chars → search results with match highlighting; empty
   // conversation + short query → default welcome suggestions; otherwise nothing.
   const completions = useMemo<Completion[]>(() => {
+    if (!showDefaultSuggestions) return [];
     const trimmed = value.trim();
 
     if (trimmed.length >= 2) {

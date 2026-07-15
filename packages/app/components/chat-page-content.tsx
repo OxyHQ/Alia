@@ -464,7 +464,7 @@ export const ChatPageContent = ({
                     onRemoveAttachment={removeAttachment}
                     onImagePaste={handleImagePaste}
                     autocomplete
-                    showDefaultSuggestions={messages.length === 0}
+                    showDefaultSuggestions={messages.length === 0 && !conversationLoading}
                     onSuggestionSend={handleSuggestionSend}
                     floatingAutocomplete
                     placeholder={disabled ? t('usageLimit.inputDisabledPlaceholder') : "Message Alia..."}
