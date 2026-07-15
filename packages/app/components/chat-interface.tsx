@@ -31,10 +31,10 @@ import { Reasoning, ReasoningTrigger } from "@/components/ui/reasoning";
 import { useTheme } from "@oxyhq/bloom/theme";
 import { getToolLabel, getToolActiveLabel, getResearchActiveLabel, getTextFromContent, getImagesFromContent } from '@alia.onl/sdk';
 import { useUIStore } from "@/lib/stores/ui-store";
-import { useStore, type ChatIdState } from "@/lib/globalStore";
+import { useStore, type ChatIdState } from "@/lib/stores/global-store";
 import type { ToolInvocation } from "@/lib/types/messages";
 import type { Message as ConversationMessage } from "@/lib/hooks/use-conversations";
-import { useScrollToBottom } from "@/hooks/use-scroll-to-bottom";
+import { useScrollToBottom } from "@/lib/hooks/use-scroll-to-bottom";
 import { AgentTaskCard } from "@/components/agent-task-card";
 import { AgentResultCard } from "@/components/agent-result-card";
 import { ResearchProgressCard, PlanPreviewCard } from '@alia.onl/sdk';
@@ -42,7 +42,7 @@ import type { ResearchProgress as ResearchProgressData } from '@alia.onl/sdk';
 import type { AgentActivityState } from "@/lib/hooks/use-agent-activity";
 import { Skeleton } from "@/components/ui/skeleton";
 import apiClient from "@/lib/api/client";
-import { useTranslation } from "@/hooks/useTranslation";
+import { useTranslation } from "@/lib/hooks/use-translation";
 
 const isWeb = Platform.OS === "web";
 
@@ -85,7 +85,7 @@ type Message = {
 
 type ChatInterfaceProps = {
   messages: Message[];
-  scrollViewRef: React.RefObject<GHScrollView>;
+  scrollViewRef: React.RefObject<GHScrollView | null>;
   isLoading?: boolean;
   conversationLoading?: boolean;
   onStartEdit?: (messageId: string, content: string) => void;

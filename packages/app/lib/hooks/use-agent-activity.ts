@@ -109,6 +109,8 @@ export interface AgentActivityState {
     requestId: string;
     decision: 'approved' | 'denied' | 'timeout';
   } | null;
+  /** Total credits charged for this session (present once the run settles) */
+  creditsCharged?: number;
 }
 
 export interface UseAgentActivityResult extends AgentActivityState {
@@ -313,7 +315,7 @@ export function useAgentActivity(sessionId: string | null, agentId?: string | nu
         metadata: {
           requestId: payload.requestId,
           decision: payload.decision,
-        } as any,
+        },
       } as AgentActivityEvent);
     });
 

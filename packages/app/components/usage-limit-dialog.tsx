@@ -13,7 +13,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Text } from '@/components/ui/text';
 import { UsageLimitError } from '@/lib/errors/usage-limit-error';
-import { useTranslation } from '@/hooks/useTranslation';
+import { useTranslation } from '@/lib/hooks/use-translation';
 
 interface UsageLimitDialogProps {
   error: UsageLimitError | null;
@@ -57,12 +57,12 @@ export function UsageLimitDialog({ error, onDismiss }: UsageLimitDialogProps) {
 
   const handleUpgrade = () => {
     onDismiss();
-    router.push('/(biglayout)/subscribe' as any);
+    router.push('/(biglayout)/subscribe');
   };
 
   const handleBuyCredits = () => {
     onDismiss();
-    router.push('/(app)/settings/usage' as any);
+    router.push('/(app)/settings/usage');
   };
 
   // Title

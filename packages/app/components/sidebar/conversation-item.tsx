@@ -6,7 +6,7 @@ import { useColorScheme } from "@/lib/useColorScheme";
 import type { Conversation } from "@/lib/hooks/use-conversations";
 import type { Project } from "@/lib/stores/projects-store";
 import type { Folder } from "@/lib/stores/folders-store";
-import { useStore } from "@/lib/globalStore";
+import { useStore } from "@/lib/stores/global-store";
 import { ConversationMenu } from "./conversation-menu";
 import type { StopPropagationEvent } from '@/lib/types/events';
 

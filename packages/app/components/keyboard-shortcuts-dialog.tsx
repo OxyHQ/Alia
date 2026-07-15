@@ -4,7 +4,7 @@ import { Platform } from "react-native";
 import { X } from "lucide-react-native";
 import { cn } from "@/lib/utils";
 import { Kbd, KbdGroup } from "@/components/ui/kbd";
-import { useTranslation } from "@/hooks/useTranslation";
+import { useTranslation } from "@/lib/hooks/use-translation";
 import { useUIStore } from "@/lib/stores/ui-store";
 
 const isMac =

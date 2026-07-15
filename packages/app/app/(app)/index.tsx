@@ -2,9 +2,9 @@ import { useState, useEffect, useCallback } from "react";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import Head from "expo-router/head";
 import { useRolesStore } from "@/lib/stores/roles-store";
-import { useStore } from "@/lib/globalStore";
+import { useStore } from "@/lib/stores/global-store";
 import { useModelStore } from "@/lib/stores/model-store";
-import { useChatConversation } from "@/hooks/useChatConversation";
+import { useChatConversation } from "@/lib/hooks/use-chat-conversation";
 import { useCreateConversation } from "@/lib/hooks/use-conversations";
 import { ChatPageContent } from "@/components/chat-page-content";
 import { toast } from "@/components/sonner";
@@ -46,7 +46,7 @@ const ChatPage = () => {
   const handleVoiceStart = useCallback(async () => {
     try {
       const conv = await createConversationMutation.mutateAsync({});
-      router.replace(`/(app)/c/${conv.id}?startVoice=true` as any);
+      router.replace({ pathname: "/(app)/c/[id]", params: { id: conv.id, startVoice: "true" } });
     } catch {
       toast.error("Failed to start voice session");
     }

@@ -1,6 +1,6 @@
 import * as FileSystem from 'expo-file-system';
 import { Platform } from 'react-native';
-import type { Attachment } from './globalStore';
+import type { Attachment } from './stores/global-store';
 
 export type MessageContentPart =
   | { type: 'text'; text: string }

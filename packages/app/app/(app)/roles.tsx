@@ -11,7 +11,7 @@ import {
 } from 'lucide-react-native';
 import { useRolesStore } from '@/lib/stores/roles-store';
 import { useRouter } from 'expo-router';
-import { useTranslation } from '@/hooks/useTranslation';
+import { useTranslation } from '@/lib/hooks/use-translation';
 import { toast } from '@/components/sonner';
 import { cn } from '@/lib/utils';
 import { useColorScheme } from '@/lib/useColorScheme';

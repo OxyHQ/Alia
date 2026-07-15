@@ -6,7 +6,7 @@ import {
   useMcpServers,
   type InstalledMcpServer,
   type McpRegistryEntry,
-} from "@/hooks/useMcpServers";
+} from "@/lib/hooks/use-mcp-servers";
 import { toast } from "@/components/sonner";
 import { confirm } from "@oxyhq/bloom/alert-dialog";
 import {

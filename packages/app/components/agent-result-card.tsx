@@ -131,10 +131,10 @@ export const AgentResultCard = React.memo(function AgentResultCard({
             {plan.completed}/{plan.total} plan items
           </Text>
         )}
-        {(activity as any).creditsCharged != null && (
+        {activity.creditsCharged != null && (
           <View className="flex-row items-center gap-1">
             <Coins size={12} color={colors.mutedForeground} />
-            <Text className="text-xs text-muted-foreground">{(activity as any).creditsCharged} credits</Text>
+            <Text className="text-xs text-muted-foreground">{activity.creditsCharged} credits</Text>
           </View>
         )}
       </View>

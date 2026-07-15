@@ -3,7 +3,7 @@ import { View, ScrollView, Pressable, RefreshControl } from 'react-native';
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
 import { Plus } from 'lucide-react-native';
-import { useTranslation } from '@/hooks/useTranslation';
+import { useTranslation } from '@/lib/hooks/use-translation';
 import { useRouter } from 'expo-router';
 import { useSkillsStore, type Skill } from '@/lib/stores/skills-store';
 import { useI18nStore } from '@/lib/stores/i18n-store';

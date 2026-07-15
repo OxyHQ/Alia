@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useRouter, useLocalSearchParams, type Href } from 'expo-router';
 
 export default function AuthorizeCodeaScreen() {
   const router = useRouter();
@@ -14,7 +14,7 @@ export default function AuthorizeCodeaScreen() {
       if (value) urlParams.set(key, value as string);
     });
 
-    router.replace(`/authorize?${urlParams.toString()}` as any);
+    router.replace(`/authorize?${urlParams.toString()}` as Href);
   }, [params, router]);
 
   return null;

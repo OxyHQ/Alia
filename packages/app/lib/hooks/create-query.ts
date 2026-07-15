@@ -3,10 +3,10 @@ import { useOxy } from '@oxyhq/services';
 import apiClient from '../api/client';
 
 /** Authenticated GET query — wraps the repeated useOxy + useQuery pattern. */
-export function useAuthQuery<T>(
+export function useAuthQuery<T, P extends Record<string, unknown> = Record<string, unknown>>(
   queryKey: readonly unknown[],
   url: string,
-  params?: Record<string, any>,
+  params?: P,
   options?: Partial<UseQueryOptions<T>>,
 ) {
   const { isAuthenticated } = useOxy();

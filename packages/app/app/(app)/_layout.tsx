@@ -21,7 +21,7 @@ import i18n from '@/lib/i18n';
 import { useWelcomeSuggestions, useSessionSuggestionGeneration } from '@/lib/hooks/use-suggestions';
 import { useNotificationSetup } from '@/lib/hooks/use-notification-setup';
 import { asViewStyle } from '@/lib/types/webStyles';
-import { useIsLargeScreen } from '@/hooks/useIsLargeScreen';
+import { useIsLargeScreen } from '@/lib/hooks/use-is-large-screen';
 
 // Routes visible in the drawer sidebar
 const VISIBLE_ROUTES = new Set(['c/[id]/index', 'settings/index']);

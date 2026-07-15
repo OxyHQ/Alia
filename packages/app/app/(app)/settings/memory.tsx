@@ -35,8 +35,8 @@ import {
   Wand2,
   Copy,
 } from "lucide-react-native";
-import { useTranslation } from "@/hooks/useTranslation";
-import { useUserData } from "@/hooks/useUserData";
+import { useTranslation } from "@/lib/hooks/use-translation";
+import { useUserData } from "@/lib/hooks/use-user-data";
 import { useUserDataStore } from "@/lib/stores/user-data-store";
 import { cn } from "@/lib/utils";
 import { toast } from "@/components/sonner";
@@ -52,11 +52,45 @@ interface Memory {
   updatedAt: string;
 }
 
+/** A single hit from semantic memory search (maps back onto a {@link Memory}). */
+interface SemanticResult {
+  key: string;
+  value: string;
+  category?: string;
+  score?: number;
+}
+
+/** Aggregate counts returned by the export-preview endpoint. */
+interface ExportStats {
+  totalMemories: number;
+  totalCategories: number;
+  estimatedSizeJSON: number;
+}
+
+/** Summary returned by the import-validate endpoint before committing an import. */
+interface ImportPreview {
+  totalToImport: number;
+  newKeys: number;
+  duplicateKeys: number;
+  estimatedFinalTotal: number;
+  memoryLimit: number;
+}
+
+/** A pair of memories flagged as duplicates by the dedupe endpoint. */
+interface DuplicatePair {
+  reason: string;
+  memory1?: { _id: string; key: string; value: string };
+  memory2?: { _id: string; key: string; value: string };
+}
+
+/** Icon component shared by the category config (lucide-react-native icons). */
+type CategoryIcon = React.ComponentType<{ size?: number; color?: string; className?: string }>;
+
 interface UserMemory {
   memories: Memory[];
 }
 
-const CATEGORY_CONFIG: Record<string, { icon: any; color: string; bgColor: string }> = {
+const CATEGORY_CONFIG: Record<string, { icon: CategoryIcon; color: string; bgColor: string }> = {
   'preferencia': { icon: Heart, color: 'text-pink-600', bgColor: 'bg-pink-500/10' },
   'preference': { icon: Heart, color: 'text-pink-600', bgColor: 'bg-pink-500/10' },
   'personal': { icon: User, color: 'text-blue-600', bgColor: 'bg-blue-500/10' },
@@ -93,20 +127,20 @@ export default function MemoryScreen() {
   const [showExportDialog, setShowExportDialog] = useState(false);
   const [showImportDialog, setShowImportDialog] = useState(false);
   const [exportFormat, setExportFormat] = useState<'json' | 'csv'>('json');
-  const [exportStats, setExportStats] = useState<any>(null);
+  const [exportStats, setExportStats] = useState<ExportStats | null>(null);
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importStrategy, setImportStrategy] = useState<'merge' | 'replace' | 'skip-duplicates'>('merge');
-  const [importPreview, setImportPreview] = useState<any>(null);
+  const [importPreview, setImportPreview] = useState<ImportPreview | null>(null);
   const [importing, setImporting] = useState(false);
 
   // Semantic search state
   const [semanticMode, setSemanticMode] = useState(false);
-  const [semanticResults, setSemanticResults] = useState<any[] | null>(null);
+  const [semanticResults, setSemanticResults] = useState<SemanticResult[] | null>(null);
   const [semanticLoading, setSemanticLoading] = useState(false);
 
   // Duplicate detection state
   const [showDuplicatesDialog, setShowDuplicatesDialog] = useState(false);
-  const [duplicates, setDuplicates] = useState<any[]>([]);
+  const [duplicates, setDuplicates] = useState<DuplicatePair[]>([]);
   const [duplicatesLoading, setDuplicatesLoading] = useState(false);
 
   const memories = memory?.memories || [];
@@ -345,7 +379,7 @@ export default function MemoryScreen() {
   const displayMemories = useMemo(() => {
     if (semanticMode && semanticResults) {
       // Map semantic results back to memory objects
-      return semanticResults.map((r: any) => {
+      return semanticResults.map((r) => {
         const found = memories.find(m => m.key === r.key && m.value === r.value);
         return found || { _id: r.key, key: r.key, value: r.value, category: r.category, score: r.score, createdAt: '', updatedAt: '' };
       });
@@ -408,7 +442,7 @@ export default function MemoryScreen() {
   };
 
   // Import handlers
-  const handleFileSelect = async (event: any) => {
+  const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
@@ -849,7 +883,11 @@ export default function MemoryScreen() {
                 <ToggleGroup
                   type="single"
                   value={importStrategy}
-                  onValueChange={(val) => setImportStrategy(val as any)}
+                  onValueChange={(val) => {
+                    if (val === 'merge' || val === 'skip-duplicates' || val === 'replace') {
+                      setImportStrategy(val);
+                    }
+                  }}
                 >
                   <ToggleGroupItem value="merge">
                     <Text>{t('memory.merge')}</Text>
@@ -906,7 +944,7 @@ export default function MemoryScreen() {
           {duplicates.length > 0 && (
             <ScrollView style={{ maxHeight: 400 }}>
               <View className="gap-3">
-                {duplicates.map((dup: any, i: number) => (
+                {duplicates.map((dup, i) => (
                   <View key={i} className="border border-border rounded-lg p-3 gap-2">
                     <View className="bg-muted rounded-md px-2 py-1 self-start">
                       <Text className="text-[10px] text-muted-foreground font-medium">
@@ -936,7 +974,8 @@ export default function MemoryScreen() {
                         size="sm"
                         className="flex-1 h-7"
                         onPress={() => {
-                          handleDeleteMemory(dup.memory2?._id);
+                          const targetId = dup.memory2?._id;
+                          if (targetId) handleDeleteMemory(targetId);
                           setDuplicates(prev => prev.filter((_, idx) => idx !== i));
                         }}
                       >
@@ -947,7 +986,8 @@ export default function MemoryScreen() {
                         size="sm"
                         className="flex-1 h-7"
                         onPress={() => {
-                          handleDeleteMemory(dup.memory1?._id);
+                          const targetId = dup.memory1?._id;
+                          if (targetId) handleDeleteMemory(targetId);
                           setDuplicates(prev => prev.filter((_, idx) => idx !== i));
                         }}
                       >
@@ -982,8 +1022,8 @@ function MemoryRow({
   memory: Memory;
   onEdit: () => void;
   onDelete: () => void;
-  getCategoryConfig: (category?: string) => { icon: any; color: string; bgColor: string };
-  t: (key: string, params?: Record<string, any>) => string;
+  getCategoryConfig: (category?: string) => { icon: CategoryIcon; color: string; bgColor: string };
+  t: (key: string, params?: Record<string, unknown>) => string;
   isLast: boolean;
 }) {
   const config = getCategoryConfig(memory.category);

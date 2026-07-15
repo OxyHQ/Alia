@@ -5,7 +5,7 @@ import { Text } from "@/components/ui/text";
 import { Brain, CheckCircle2, X, Globe, ChevronRight } from "lucide-react-native";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { useTheme, type ThemeColors } from "@oxyhq/bloom/theme";
-import { useTranslation } from "@/hooks/useTranslation";
+import { useTranslation } from "@/lib/hooks/use-translation";
 import { extractSources, buildSteps, buildAuditTimeline, type Source, type ThoughtStep, type AuditEntry } from "@/lib/thought-utils";
 import { getToolIcon } from "@/lib/tool-registry";
 import { LottieLoader } from "@/components/lottie-loader";
@@ -318,7 +318,7 @@ export function ThoughtPanel() {
   );
 
   const auditEntries = useMemo(
-    () => buildAuditTimeline(thoughtMessages as any[]),
+    () => buildAuditTimeline(thoughtMessages),
     [thoughtMessages]
   );
 

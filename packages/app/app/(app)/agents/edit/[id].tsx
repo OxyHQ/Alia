@@ -5,7 +5,7 @@ import {
   Pressable,
   TextInput,
 } from "react-native";
-import { useIsLargeScreen } from "@/hooks/useIsLargeScreen";
+import { useIsLargeScreen } from "@/lib/hooks/use-is-large-screen";
 import { Switch } from "@/components/ui/switch";
 import { Text } from "@/components/ui/text";
 import { Input } from "@/components/ui/input";
@@ -47,8 +47,8 @@ import * as DropdownMenu from "@/components/ui/dropdown-menu";
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const DEFAULT_AVATAR = require("@/assets/images/agent-avatar-reference.png");
 import { useRouter, useLocalSearchParams } from "expo-router";
-import { useAgentsStore, type Agent } from "@/lib/stores/agents-store";
-import { useTranslation } from "@/hooks/useTranslation";
+import { useAgentsStore, type Agent, type AgentUpdate, type AgentArchetype, type ArchetypeConfig, type RoutingRule } from "@/lib/stores/agents-store";
+import { useTranslation } from "@/lib/hooks/use-translation";
 import { useColorScheme } from "@/lib/useColorScheme";
 import { toast } from "@/components/sonner";
 import { confirm } from "@oxyhq/bloom/alert-dialog";
@@ -56,9 +56,10 @@ import { cn } from "@/lib/utils";
 import apiClient from "@/lib/api/client";
 import { API_ROUTES } from "@/lib/api/routes";
 import { useLibraryStore, type LibraryFile } from "@/lib/stores/library-store";
-import { AgentPermissionToggles, DEFAULT_PERMISSIONS, type AgentPermissions } from "@/components/agent-permission-toggles";
+import { AgentPermissionToggles, DEFAULT_PERMISSIONS } from "@/components/agent-permission-toggles";
+import type { AgentPermissions } from "@/lib/stores/agents-store";
 
-const TOOL_ICONS: Record<string, React.ComponentType<any>> = {
+const TOOL_ICONS: Record<string, React.ComponentType<{ size?: number; color?: string; className?: string }>> = {
   Globe, Terminal, Search, FileDown, FolderOpen, Image, Brain, Users,
 };
 
@@ -103,8 +104,8 @@ export default function EditAgentScreen() {
   const [allowHiring, setAllowHiring] = useState(false);
   const [isPublished, setIsPublished] = useState(false);
   const [permissions, setPermissions] = useState<AgentPermissions>(DEFAULT_PERMISSIONS);
-  const [archetype, setArchetype] = useState<string>('general');
-  const [archetypeConfig, setArchetypeConfig] = useState<any>({});
+  const [archetype, setArchetype] = useState<AgentArchetype>('general');
+  const [archetypeConfig, setArchetypeConfig] = useState<ArchetypeConfig>({});
 
   // Linked skills & knowledge
   const [linkedSkills, setLinkedSkills] = useState<LinkedSkill[]>([]);
@@ -125,7 +126,7 @@ export default function EditAgentScreen() {
   const [sidebarTab, setSidebarTab] = useState<SidebarTab>("resources");
 
   // Auto-save debounce
-  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
+  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const isInitialLoad = useRef(true);
 
   // Load available skills from backend
@@ -169,7 +170,7 @@ export default function EditAgentScreen() {
 
   // Debounced auto-save
   const debouncedSave = useCallback(
-    (updates: Partial<Agent>) => {
+    (updates: AgentUpdate) => {
       if (!id || isInitialLoad.current) return;
       if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
       saveTimeoutRef.current = setTimeout(async () => {
@@ -203,7 +204,7 @@ export default function EditAgentScreen() {
       permissions,
       archetype,
       archetypeConfig,
-    } as any);
+    });
   }, [
     name,
     tagline,
@@ -800,7 +801,7 @@ export default function EditAgentScreen() {
                 <Label>Report Template</Label>
                 <Textarea
                   value={archetypeConfig.reportTemplate || ''}
-                  onChangeText={(text) => setArchetypeConfig((prev: any) => ({ ...prev, reportTemplate: text }))}
+                  onChangeText={(text) => setArchetypeConfig((prev: ArchetypeConfig) => ({ ...prev, reportTemplate: text }))}
                   placeholder="## Daily Standup\n### What happened\n### Key metrics\n### Action items"
                   placeholderTextColor={colors.mutedForeground}
                   style={{ minHeight: 120 }}
@@ -814,10 +815,13 @@ export default function EditAgentScreen() {
                   <ToggleGroup
                     type="single"
                     value={archetypeConfig.schedule?.type || 'daily'}
-                    onValueChange={(val) => setArchetypeConfig((prev: any) => ({
-                      ...prev,
-                      schedule: { ...prev.schedule, type: val || 'daily' }
-                    }))}
+                    onValueChange={(val) => {
+                      const type = val === 'interval' ? 'interval' : val === 'cron' ? 'cron' : 'daily';
+                      setArchetypeConfig((prev: ArchetypeConfig) => ({
+                        ...prev,
+                        schedule: { ...prev.schedule, type },
+                      }));
+                    }}
                   >
                     <ToggleGroupItem value="daily">Daily</ToggleGroupItem>
                     <ToggleGroupItem value="interval">Interval</ToggleGroupItem>
@@ -826,9 +830,9 @@ export default function EditAgentScreen() {
                 {(archetypeConfig.schedule?.type || 'daily') === 'daily' && (
                   <Input
                     value={archetypeConfig.schedule?.time || '09:00'}
-                    onChangeText={(text) => setArchetypeConfig((prev: any) => ({
+                    onChangeText={(text) => setArchetypeConfig((prev: ArchetypeConfig) => ({
                       ...prev,
-                      schedule: { ...prev.schedule, time: text }
+                      schedule: { ...prev.schedule, type: prev.schedule?.type ?? 'daily', time: text }
                     }))}
                     placeholder="09:00"
                     placeholderTextColor={colors.mutedForeground}
@@ -847,7 +851,7 @@ export default function EditAgentScreen() {
                       <Pressable
                         key={channel}
                         onPress={() => {
-                          setArchetypeConfig((prev: any) => ({
+                          setArchetypeConfig((prev: ArchetypeConfig) => ({
                             ...prev,
                             deliveryChannels: isActive
                               ? channels.filter((c: string) => c !== channel)
@@ -873,7 +877,7 @@ export default function EditAgentScreen() {
                 <Label>Compare with previous report</Label>
                 <Switch
                   value={archetypeConfig.compareWithPrevious || false}
-                  onValueChange={(val) => setArchetypeConfig((prev: any) => ({ ...prev, compareWithPrevious: val }))}
+                  onValueChange={(val) => setArchetypeConfig((prev: ArchetypeConfig) => ({ ...prev, compareWithPrevious: val }))}
                 />
               </View>
             </View>
@@ -895,7 +899,7 @@ export default function EditAgentScreen() {
                         key={integration}
                         onPress={() => {
                           const current = archetypeConfig.knowledgeSources?.integrations || [];
-                          setArchetypeConfig((prev: any) => ({
+                          setArchetypeConfig((prev: ArchetypeConfig) => ({
                             ...prev,
                             knowledgeSources: {
                               ...prev.knowledgeSources,
@@ -924,7 +928,7 @@ export default function EditAgentScreen() {
                 <Label>Cite sources in answers</Label>
                 <Switch
                   value={archetypeConfig.citeSources !== false}
-                  onValueChange={(val) => setArchetypeConfig((prev: any) => ({ ...prev, citeSources: val }))}
+                  onValueChange={(val) => setArchetypeConfig((prev: ArchetypeConfig) => ({ ...prev, citeSources: val }))}
                 />
               </View>
             </View>
@@ -945,7 +949,7 @@ export default function EditAgentScreen() {
                       <Pressable
                         key={channel}
                         onPress={() => {
-                          setArchetypeConfig((prev: any) => ({
+                          setArchetypeConfig((prev: ArchetypeConfig) => ({
                             ...prev,
                             inboundChannels: isActive
                               ? channels.filter((c: string) => c !== channel)
@@ -972,7 +976,7 @@ export default function EditAgentScreen() {
                   <Label>Routing Rules</Label>
                   <Pressable
                     onPress={() => {
-                      setArchetypeConfig((prev: any) => ({
+                      setArchetypeConfig((prev: ArchetypeConfig) => ({
                         ...prev,
                         routingRules: [...(prev.routingRules || []), { condition: '', priority: 'medium', assignTo: { type: 'user', id: '', name: '' } }]
                       }));
@@ -982,14 +986,14 @@ export default function EditAgentScreen() {
                     <Plus size={16} className="text-muted-foreground" />
                   </Pressable>
                 </View>
-                {(archetypeConfig.routingRules || []).map((rule: any, index: number) => (
+                {(archetypeConfig.routingRules || []).map((rule, index) => (
                   <View key={index} className="rounded-xl bg-muted p-3 gap-2">
                     <Input
                       value={rule.condition}
                       onChangeText={(text) => {
                         const rules = [...(archetypeConfig.routingRules || [])];
                         rules[index] = { ...rules[index], condition: text };
-                        setArchetypeConfig((prev: any) => ({ ...prev, routingRules: rules }));
+                        setArchetypeConfig((prev: ArchetypeConfig) => ({ ...prev, routingRules: rules }));
                       }}
                       placeholder="When the task is about..."
                       placeholderTextColor={colors.mutedForeground}
@@ -999,9 +1003,10 @@ export default function EditAgentScreen() {
                         type="single"
                         value={rule.priority}
                         onValueChange={(val) => {
+                          const priority = val === 'low' ? 'low' : val === 'high' ? 'high' : val === 'urgent' ? 'urgent' : 'medium';
                           const rules = [...(archetypeConfig.routingRules || [])];
-                          rules[index] = { ...rules[index], priority: val || 'medium' };
-                          setArchetypeConfig((prev: any) => ({ ...prev, routingRules: rules }));
+                          rules[index] = { ...rules[index], priority };
+                          setArchetypeConfig((prev: ArchetypeConfig) => ({ ...prev, routingRules: rules }));
                         }}
                       >
                         <ToggleGroupItem value="low">Low</ToggleGroupItem>
@@ -1011,8 +1016,8 @@ export default function EditAgentScreen() {
                       </ToggleGroup>
                       <Pressable
                         onPress={() => {
-                          const rules = (archetypeConfig.routingRules || []).filter((_: any, i: number) => i !== index);
-                          setArchetypeConfig((prev: any) => ({ ...prev, routingRules: rules }));
+                          const rules = (archetypeConfig.routingRules || []).filter((_, i) => i !== index);
+                          setArchetypeConfig((prev: ArchetypeConfig) => ({ ...prev, routingRules: rules }));
                         }}
                         className="active:opacity-70 ml-auto"
                       >
@@ -1024,7 +1029,7 @@ export default function EditAgentScreen() {
                       onChangeText={(text) => {
                         const rules = [...(archetypeConfig.routingRules || [])];
                         rules[index] = { ...rules[index], assignTo: { ...rules[index].assignTo, name: text } };
-                        setArchetypeConfig((prev: any) => ({ ...prev, routingRules: rules }));
+                        setArchetypeConfig((prev: ArchetypeConfig) => ({ ...prev, routingRules: rules }));
                       }}
                       placeholder="Route to (name)"
                       placeholderTextColor={colors.mutedForeground}
@@ -1040,7 +1045,7 @@ export default function EditAgentScreen() {
                   value={String(archetypeConfig.escalationTimeoutMinutes || '')}
                   onChangeText={(text) => {
                     const num = parseInt(text, 10);
-                    setArchetypeConfig((prev: any) => ({ ...prev, escalationTimeoutMinutes: isNaN(num) ? undefined : num }));
+                    setArchetypeConfig((prev: ArchetypeConfig) => ({ ...prev, escalationTimeoutMinutes: isNaN(num) ? undefined : num }));
                   }}
                   placeholder="60"
                   placeholderTextColor={colors.mutedForeground}

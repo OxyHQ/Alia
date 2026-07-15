@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo, useCallback } from "react";
 import { View, ScrollView, Pressable, TextInput, RefreshControl } from "react-native";
-import { useIsLargeScreen } from "@/hooks/useIsLargeScreen";
+import { useIsLargeScreen } from "@/lib/hooks/use-is-large-screen";
 import { FlashList } from "@shopify/flash-list";
 import { Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
@@ -8,7 +8,7 @@ import { Plus, Search } from "lucide-react-native";
 import { useAgentsStore } from "@/lib/stores/agents-store";
 import { AgentCard } from "@/components/agent-card";
 import { useRouter } from "expo-router";
-import { useTranslation } from "@/hooks/useTranslation";
+import { useTranslation } from "@/lib/hooks/use-translation";
 import { toast } from "@/components/sonner";
 import { cn } from "@/lib/utils";
 import { useColorScheme } from "@/lib/useColorScheme";

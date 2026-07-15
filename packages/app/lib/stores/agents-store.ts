@@ -3,6 +3,41 @@ import apiClient from '../api/client';
 import { API_ROUTES } from '../api/routes';
 import { errorMessage as getErrorMessage, errorStatus, errorResponseData } from '../errors/error-utils';
 
+export interface AgentPermissions {
+  filesystem: boolean;
+  network: boolean;
+  shell: boolean;
+  communications: boolean;
+  mcp_servers: boolean;
+  delegation: boolean;
+}
+
+export type AgentArchetype = 'general' | 'qa' | 'task_router' | 'status_update';
+
+export interface RoutingRule {
+  condition: string;
+  priority: 'low' | 'medium' | 'high' | 'urgent';
+  assignTo: { type: 'agent' | 'team' | 'user'; id: string; name?: string };
+}
+
+export interface ArchetypeConfig {
+  // Q&A
+  knowledgeSources?: { integrations?: string[]; mcpServers?: string[]; oxyServices?: string[] };
+  citeSources?: boolean;
+  // Task Router
+  inboundChannels?: string[];
+  routingRules?: RoutingRule[];
+  defaultAssignee?: { type: 'agent' | 'team' | 'user'; id: string; name?: string };
+  escalationTimeoutMinutes?: number;
+  // Status Update
+  dataSources?: { integrations?: string[]; mcpServers?: string[]; oxyServices?: string[] };
+  reportTemplate?: string;
+  reportFormat?: 'markdown' | 'html' | 'plain';
+  deliveryChannels?: string[];
+  schedule?: { type: 'daily' | 'interval' | 'cron'; time?: string; days?: string[]; intervalMinutes?: number; cron?: string };
+  compareWithPrevious?: boolean;
+}
+
 export interface Agent {
   _id: string;
   name: string;
@@ -30,29 +65,24 @@ export interface Agent {
   status: 'active' | 'idle' | 'offline';
   creditBalance: number;
   allowHiring: boolean;
+  permissions?: AgentPermissions;
   systemPrompt?: string;
   allowedModels?: string[];
-  archetype?: 'general' | 'qa' | 'task_router' | 'status_update';
-  archetypeConfig?: {
-    // Q&A
-    knowledgeSources?: { integrations?: string[]; mcpServers?: string[]; oxyServices?: string[] };
-    citeSources?: boolean;
-    // Task Router
-    inboundChannels?: string[];
-    routingRules?: Array<{ condition: string; priority: 'low' | 'medium' | 'high' | 'urgent'; assignTo: { type: 'agent' | 'team' | 'user'; id: string; name?: string } }>;
-    defaultAssignee?: { type: 'agent' | 'team' | 'user'; id: string; name?: string };
-    escalationTimeoutMinutes?: number;
-    // Status Update
-    dataSources?: { integrations?: string[]; mcpServers?: string[]; oxyServices?: string[] };
-    reportTemplate?: string;
-    reportFormat?: 'markdown' | 'html' | 'plain';
-    deliveryChannels?: string[];
-    schedule?: { type: 'daily' | 'interval' | 'cron'; time?: string; days?: string[]; intervalMinutes?: number; cron?: string };
-    compareWithPrevious?: boolean;
-  };
+  archetype?: AgentArchetype;
+  archetypeConfig?: ArchetypeConfig;
   createdAt: string;
   updatedAt: string;
 }
+
+/**
+ * Write payload for agent updates. Unlike the read {@link Agent} model, `skills`
+ * and `knowledge` are sent as bare id arrays — the API resolves them to full
+ * objects on the way back.
+ */
+export type AgentUpdate = Partial<Omit<Agent, 'skills' | 'knowledge'>> & {
+  skills?: string[];
+  knowledge?: string[];
+};
 
 interface AgentsStoreState {
   agents: Agent[];
@@ -62,7 +92,7 @@ interface AgentsStoreState {
   loadAgents: (params?: { category?: string; search?: string; featured?: string; trending?: string }) => Promise<void>;
   getAgent: (id: string) => Promise<Agent | null>;
   createAgent: (data: Partial<Agent>) => Promise<Agent | null>;
-  updateAgent: (id: string, updates: Partial<Agent>) => Promise<void>;
+  updateAgent: (id: string, updates: AgentUpdate) => Promise<void>;
   deleteAgent: (id: string) => Promise<void>;
   hireAgent: (id: string, task: string) => Promise<string | null>;
 }

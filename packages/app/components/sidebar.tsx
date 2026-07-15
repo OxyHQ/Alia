@@ -45,8 +45,8 @@ import {
   type LucideIcon,
 } from "lucide-react-native";
 import { cn } from "@/lib/utils";
-import { useTranslation } from "@/hooks/useTranslation";
-import { useStore } from "@/lib/globalStore";
+import { useTranslation } from "@/lib/hooks/use-translation";
+import { useStore } from "@/lib/stores/global-store";
 import { useRouter, usePathname } from "expo-router";
 import { SettingsSidebar } from "@/components/settings/settings-sidebar";
 import { useOxy, useAuth, ProfileButton } from "@oxyhq/services";

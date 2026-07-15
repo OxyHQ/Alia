@@ -1,4 +1,5 @@
 import type { ToolInvocation } from '@/lib/types/messages';
+import type { Message } from '@/lib/hooks/use-conversations';
 import { getToolLabel } from '@alia.onl/sdk';
 
 export interface Source {
@@ -150,7 +151,7 @@ export interface AuditEntry {
  * Build a chronological audit timeline from all conversation messages.
  */
 export function buildAuditTimeline(
-  messages: Array<{ id: string; role: string; content?: any; toolInvocations?: ToolInvocation[]; agentInfo?: any; [key: string]: any }>
+  messages: Message[]
 ): AuditEntry[] {
   const entries: AuditEntry[] = [];
 

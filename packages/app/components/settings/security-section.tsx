@@ -27,12 +27,12 @@ import {
 import {
   AgentPermissionToggles,
   DEFAULT_PERMISSIONS,
-  type AgentPermissions,
 } from "@/components/agent-permission-toggles";
-import { useUserData } from "@/hooks/useUserData";
+import type { AgentPermissions } from "@/lib/stores/agents-store";
+import { useUserData } from "@/lib/hooks/use-user-data";
 import { useUserDataStore } from "@/lib/stores/user-data-store";
 import * as DropdownMenu from "@/components/ui/dropdown-menu";
-import { useTranslation } from "@/hooks/useTranslation";
+import { useTranslation } from "@/lib/hooks/use-translation";
 import { toast } from "@/components/sonner";
 import apiClient from "@/lib/api/client";
 import { API_ROUTES } from "@/lib/api/routes";
@@ -112,7 +112,7 @@ export function SecuritySection() {
       const dp = memory.preferences.defaultAgentPermissions;
       if (dp) setPermissions(dp as unknown as AgentPermissions);
 
-      const sp = memory.preferences.securityPreferences as any;
+      const sp = memory.preferences.securityPreferences;
       if (sp) {
         if (typeof sp.requireApproval === "boolean") setRequireApproval(sp.requireApproval);
         if (typeof sp.approvalTimeout === "number") setApprovalTimeout(sp.approvalTimeout);
@@ -423,7 +423,7 @@ export function SecuritySection() {
           if (memory?.preferences) {
             const dp = memory.preferences.defaultAgentPermissions;
             if (dp) setPermissions(dp as unknown as AgentPermissions);
-            const sp = memory.preferences.securityPreferences as any;
+            const sp = memory.preferences.securityPreferences;
             if (sp) {
               if (typeof sp.requireApproval === "boolean") setRequireApproval(sp.requireApproval);
               if (typeof sp.approvalTimeout === "number") setApprovalTimeout(sp.approvalTimeout);

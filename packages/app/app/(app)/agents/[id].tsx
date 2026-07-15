@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { View, ScrollView, Pressable, Share, TextInput, ActivityIndicator } from "react-native";
-import { useIsLargeScreen } from "@/hooks/useIsLargeScreen";
+import { useIsLargeScreen } from "@/lib/hooks/use-is-large-screen";
 import { Switch } from "@/components/ui/switch";
 import { Text } from "@/components/ui/text";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
@@ -18,7 +18,7 @@ import {
 } from "lucide-react-native";
 import { useAgentsStore, type Agent } from "@/lib/stores/agents-store";
 import { useRouter, useLocalSearchParams } from "expo-router";
-import { useTranslation } from "@/hooks/useTranslation";
+import { useTranslation } from "@/lib/hooks/use-translation";
 import { useOxy } from "@oxyhq/services";
 import { toast } from "@/components/sonner";
 import { confirm } from "@oxyhq/bloom/alert-dialog";
@@ -353,7 +353,7 @@ export default function AgentDetailScreen() {
     if (!agent) return;
     try {
       const conversation = await createConversationMutation.mutateAsync({ agentId: agent._id });
-      router.replace(`/(app)/c/${conversation.id}?agentId=${agent._id}` as any);
+      router.replace({ pathname: "/(app)/c/[id]", params: { id: conversation.id, agentId: agent._id } });
     } catch {
       toast.error("Failed to start chat");
     }
@@ -684,7 +684,7 @@ export default function AgentDetailScreen() {
               {isOwner && (
                 <>
                   <Pressable
-                    onPress={() => router.push(`/(app)/agents/edit/${agent._id}` as any)}
+                    onPress={() => router.push({ pathname: "/(app)/agents/edit/[id]", params: { id: agent._id } })}
                     className="items-center justify-center px-3.5 py-2 active:bg-muted"
                   >
                     <Text className="text-[13px] font-medium text-foreground">
@@ -792,10 +792,10 @@ export default function AgentDetailScreen() {
             {(agent.archetype === "status_update" || agent.archetype === "task_router") && (
               <DetailTabBar
                 tabs={[
-                  { key: "overview", label: "Overview" },
+                  { key: "overview" as const, label: "Overview" },
                   ...(agent.archetype === "status_update"
-                    ? [{ key: "reports", label: "Reports" }]
-                    : [{ key: "routing", label: "Routing" }]),
+                    ? [{ key: "reports" as const, label: "Reports" }]
+                    : [{ key: "routing" as const, label: "Routing" }]),
                 ]}
                 active={detailTab}
                 onChange={setDetailTab}

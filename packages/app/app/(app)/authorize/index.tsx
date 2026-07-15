@@ -12,7 +12,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Text } from '@/components/ui/text';
 import { Separator } from '@/components/ui/separator';
 import { io as socketIO } from 'socket.io-client';
-import { useTranslation } from '@/hooks/useTranslation';
+import { useTranslation } from '@/lib/hooks/use-translation';
 import { useColorScheme } from '@/lib/useColorScheme';
 import { errorMessage as getErrorMessage } from '@/lib/errors/error-utils';
 

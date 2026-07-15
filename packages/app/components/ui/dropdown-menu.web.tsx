@@ -46,7 +46,7 @@ function DropdownMenu({
   const onOpenChangeRef = React.useRef(onOpenChange);
   onOpenChangeRef.current = onOpenChange;
 
-  const closeRef = React.useRef<() => void>();
+  const closeRef = React.useRef<(() => void) | undefined>(undefined);
   if (!closeRef.current) {
     closeRef.current = () => {
       setInternalOpen(false);
@@ -145,7 +145,7 @@ const DropdownMenuSubContent = React.forwardRef<
       style={{
         boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -2px rgba(0,0,0,0.1)',
         border: '1px solid var(--border)',
-        ...style as any,
+        ...style,
       }}
       {...props}
     />
@@ -171,7 +171,7 @@ const DropdownMenuContent = React.forwardRef<
       style={{
         boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -2px rgba(0,0,0,0.1)',
         border: '1px solid var(--border)',
-        ...style as any,
+        ...style,
       }}
       {...props}
     />

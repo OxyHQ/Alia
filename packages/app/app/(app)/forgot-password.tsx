@@ -8,7 +8,7 @@ import { AuthButton } from '@/components/auth/auth-button';
 import { AuthError } from '@/components/auth/auth-error';
 import apiClient from '@/lib/api/client';
 import { toast } from '@/components/sonner';
-import { useTranslation } from '@/hooks/useTranslation';
+import { useTranslation } from '@/lib/hooks/use-translation';
 import { errorMessage as getErrorMessage } from '@/lib/errors/error-utils';
 
 export default function ForgotPasswordScreen() {

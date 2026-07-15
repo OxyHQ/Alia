@@ -2,7 +2,7 @@ import { View } from "react-native";
 import { useAuth } from "@oxyhq/services";
 import { Text } from "@/components/ui/text";
 import { AliaMark } from '@alia.onl/sdk';
-import { useTranslation } from "@/hooks/useTranslation";
+import { useTranslation } from "@/lib/hooks/use-translation";
 
 export const WelcomeMessage = () => {
   const { user, isAuthenticated } = useAuth();

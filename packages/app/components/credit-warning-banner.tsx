@@ -6,7 +6,7 @@ import { useRouter } from 'expo-router';
 import { useCredits } from '@/lib/hooks/use-credits';
 import { queryKeys } from '@/lib/hooks/query-keys';
 import React, { useState } from 'react';
-import { useTranslation } from '@/hooks/useTranslation';
+import { useTranslation } from '@/lib/hooks/use-translation';
 
 interface UsageWarningData {
   level: string;

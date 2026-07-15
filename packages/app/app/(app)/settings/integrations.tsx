@@ -1,6 +1,6 @@
 import { View, ScrollView } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useTranslation } from "@/hooks/useTranslation";
+import { useTranslation } from "@/lib/hooks/use-translation";
 import { IntegrationsSection } from "@/components/settings/integrations-section";
 import { SettingsHeader } from "@/components/settings/settings-header";
 
@@ -10,7 +10,7 @@ export default function SettingsIntegrationsScreen() {
   const router = useRouter();
 
   const clearConnectedParam = () => {
-    router.setParams({ connected: undefined as any });
+    router.setParams({ connected: undefined });
   };
 
   return (

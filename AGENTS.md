@@ -13,7 +13,7 @@ Non-standard layout (13 packages, not the three-package baseline):
 
 ```
 packages/
-  app/                Main Expo 56 + NativeWind app (React Native + Web)
+  app/                Main Expo 57 + NativeWind app (React Native + Web)
   api/                Express backend API
   shared-types/       Shared TypeScript types
   alia-canvas/        Web canvas app
@@ -82,7 +82,7 @@ TTS fails over across providers via `packages/api/src/lib/synthesize-speech.ts` 
 ## UI conventions (packages/app)
 
 - Bloom theming via NativeWind ONLY: surfaces/text/borders use semantic classes (`bg-background`, `text-muted-foreground`, `border-border`, etc.) mapped in `global.css` to Bloom tokens. When a JS color VALUE is unavoidable (LinearGradient stops, navigation options, SVG props) use `useColorScheme().colors` (`lib/useColorScheme`) and `withAlpha` from `@oxyhq/bloom/theme` — never hex-concat alpha (`color + "08"`), never the `transparent` keyword as a fade stop toward a surface (fade to `withAlpha(surface, 0)`).
-- Responsive: pure styling uses NativeWind `md:` classes. JS screen-size checks go through `useIsLargeScreen()` (`hooks/useIsLargeScreen.ts`, exports `MD_BREAKPOINT = 768`) and ONLY for logic (drawer type, handlers, conditionally mounted trees) — never raw `width >= 768` comparisons.
+- Responsive: pure styling uses NativeWind `md:` classes. JS screen-size checks go through `useIsLargeScreen()` (`lib/hooks/use-is-large-screen.ts`, exports `MD_BREAKPOINT = 768`) and ONLY for logic (drawer type, handlers, conditionally mounted trees) — never raw `width >= 768` comparisons.
 - Web-only CSS in RN styles (transitions, sticky positioning, cursor, etc.) goes through the typed `asViewStyle`/`asTextStyle` bridge in `lib/types/webStyles.ts` — never `as any`.
 - Hover-reveal actions must be web-scoped (`web:opacity-0 web:group-hover:opacity-100`) so they stay visible on native.
 - Sidebar primitives live in `components/sidebar.tsx`: `SidebarRow` / `SectionHeader` / `GhostIconButton` — reuse them, don't inline duplicate row markup. Desktop collapse is a 56px icon rail driven by the `ui-store` `sidebarOpen` flag.

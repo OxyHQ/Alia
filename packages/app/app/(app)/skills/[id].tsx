@@ -4,7 +4,7 @@ import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Pencil, MessageSquare } from 'lucide-react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { useTranslation } from '@/hooks/useTranslation';
+import { useTranslation } from '@/lib/hooks/use-translation';
 import { useSkillsStore, type Skill } from '@/lib/stores/skills-store';
 import { SectionLabel } from '@/components/detail/section-label';
 import { BulletList } from '@/components/detail/bullet-list';
@@ -61,7 +61,7 @@ export default function SkillDetailScreen() {
   };
 
   const handleEdit = () => {
-    router.push(`/(app)/skills/edit/${skill.skillId}` as any);
+    router.push({ pathname: "/(app)/skills/edit/[id]", params: { id: skill.skillId } });
   };
 
   return (

@@ -4,7 +4,7 @@ import { Text } from "@/components/ui/text";
 import { PromptInput } from "@/components/ui/prompt-input/prompt-input";
 import { useRouter } from "expo-router";
 import { useAgentsStore } from "@/lib/stores/agents-store";
-import { useTranslation } from "@/hooks/useTranslation";
+import { useTranslation } from "@/lib/hooks/use-translation";
 import { toast } from "@/components/sonner";
 import apiClient from "@/lib/api/client";
 import { API_ROUTES } from "@/lib/api/routes";
@@ -90,7 +90,7 @@ export default function CreateAgentScreen() {
 
       if (agent) {
         toast.success(t("agents.agentUpdated"));
-        router.replace(`/(app)/agents/edit/${agent._id}` as any);
+        router.replace({ pathname: "/(app)/agents/edit/[id]", params: { id: agent._id } });
       } else {
         toast.error("Failed to create agent");
       }

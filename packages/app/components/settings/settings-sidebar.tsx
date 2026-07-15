@@ -11,7 +11,7 @@ import {
   useSidebarCollapse,
 } from "@/components/sidebar/primitives";
 import { useRouter, usePathname, type Href } from "expo-router";
-import { useTranslation } from "@/hooks/useTranslation";
+import { useTranslation } from "@/lib/hooks/use-translation";
 import {
   User,
   Settings2,

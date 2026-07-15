@@ -59,11 +59,13 @@ export const useLibraryStore = create<LibraryStoreState>((set, get) => ({
         const blob = await response.blob();
         formData.append("file", blob, fileData.name);
       } else {
+        // React Native's FormData accepts a `{ uri, name, type }` file part at
+        // runtime, but the DOM `FormData` lib types only model `string | Blob`.
         formData.append("file", {
           uri: fileData.uri,
           name: fileData.name,
           type: fileData.type,
-        } as any);
+        } as unknown as Blob);
       }
 
       const res = await apiClient.post(API_ROUTES.library.upload, formData, {

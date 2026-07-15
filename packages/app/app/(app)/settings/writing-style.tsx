@@ -26,7 +26,7 @@ import {
   Hash,
   ChevronRight,
 } from 'lucide-react-native';
-import { useTranslation } from '@/hooks/useTranslation';
+import { useTranslation } from '@/lib/hooks/use-translation';
 import { cn } from '@/lib/utils';
 import { toast } from '@/components/sonner';
 import { useColorScheme } from '@/lib/useColorScheme';

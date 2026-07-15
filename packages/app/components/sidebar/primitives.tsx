@@ -6,7 +6,7 @@ import { useNavigation } from "expo-router";
 import type { DrawerNavigationProp } from "expo-router/drawer";
 import { Text } from "@/components/ui/text";
 import { cn } from "@/lib/utils";
-import { useIsLargeScreen } from "@/hooks/useIsLargeScreen";
+import { useIsLargeScreen } from "@/lib/hooks/use-is-large-screen";
 import { useUIStore } from "@/lib/stores/ui-store";
 
 export interface RailTooltipHandle {

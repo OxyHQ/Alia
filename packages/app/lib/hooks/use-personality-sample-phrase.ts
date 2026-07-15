@@ -3,7 +3,7 @@ import { fetch as expoFetch } from 'expo/fetch';
 import { useOxy } from '@oxyhq/services';
 import { generateAPIUrl } from '@/lib/generate-api-url';
 import { PERSONALITY_STYLE_MAP, type PersonalityStyleId } from '@/lib/personality-styles';
-import { errorName } from '../lib/errors/error-utils';
+import { errorName } from '../errors/error-utils';
 
 function pickRandom<T>(arr: T[], count: number): T[] {
   const copy = [...arr];

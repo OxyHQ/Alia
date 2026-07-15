@@ -1,7 +1,7 @@
 import { View, ScrollView } from "react-native";
 import { useEffect } from "react";
 import { useOxy, useAuth } from "@oxyhq/services";
-import { useTranslation } from "@/hooks/useTranslation";
+import { useTranslation } from "@/lib/hooks/use-translation";
 import { AccountSection } from "@/components/settings/account-section";
 import { SettingsHeader } from "@/components/settings/settings-header";
 

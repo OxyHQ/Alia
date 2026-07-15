@@ -98,7 +98,7 @@ function ScreenshotThumbnail({ screenshot }: { screenshot: AgentScreenshot }) {
 
 export const AgentTaskCard = React.memo(function AgentTaskCard({ activity }: AgentTaskCardProps) {
   const { colors } = useTheme();
-  const { plan, screenshots, currentAction, isComplete, hasError, lastError, eventCount, startedAt, latestResponse } = activity as any;
+  const { plan, screenshots, currentAction, isComplete, hasError, lastError, eventCount, startedAt, latestResponse } = activity;
   const [showPlan, setShowPlan] = useState(true);
   const [elapsed, setElapsed] = useState('');
 

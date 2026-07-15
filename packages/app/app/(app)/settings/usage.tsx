@@ -1,6 +1,6 @@
 import { View, ScrollView } from "react-native";
 import { useLocalSearchParams } from "expo-router";
-import { useTranslation } from "@/hooks/useTranslation";
+import { useTranslation } from "@/lib/hooks/use-translation";
 import { BillingSection } from "@/components/settings/billing-section";
 import { SettingsHeader } from "@/components/settings/settings-header";
 

@@ -12,7 +12,7 @@ import type { DrawerNavigationProp } from "expo-router/drawer";
 import * as DropdownMenu from "@/components/ui/dropdown-menu";
 import { toast } from "@/components/sonner";
 import { confirm } from "@oxyhq/bloom/alert-dialog";
-import { useTranslation } from "@/hooks/useTranslation";
+import { useTranslation } from "@/lib/hooks/use-translation";
 import { useTheme, withAlpha } from "@oxyhq/bloom/theme";
 
 interface ChatHeaderProps {
