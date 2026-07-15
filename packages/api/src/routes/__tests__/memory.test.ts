@@ -129,8 +129,8 @@ vi.mock('../../lib/tools/index.js', () => ({
 
 import { generateText } from 'ai';
 
-describe('POST /memory/import/from-text — extraction shape', () => {
-  it('extracts saved memories from generateText tool results', async () => {
+describe('POST /memory/import/from-text', () => {
+  it('extracts and returns saved memories via the real route handler', async () => {
     (generateText as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
       toolResults: [
         { toolName: 'saveUserMemory', input: { title: 'Food', summary: 'Loves strawberries', type: 'topic' }, output: { success: true } },
@@ -138,11 +138,27 @@ describe('POST /memory/import/from-text — extraction shape', () => {
       ],
     });
 
-    const result = await generateText({} as any);
-    const saved = (result.toolResults || [])
-      .filter((tr: any) => tr.toolName === 'saveUserMemory' && tr.output?.success)
-      .map((tr: any) => ({ title: tr.input?.title, summary: tr.input?.summary, type: tr.input?.type }));
+    const handler = getRouteHandler('post', '/import/from-text');
+    const req: any = { user: { id: 'user-1' }, body: { text: 'The user loves strawberries and dislikes cilantro.' } };
+    const res = makeMockRes();
 
-    expect(saved).toEqual([{ title: 'Food', summary: 'Loves strawberries', type: 'topic' }]);
+    await handler(req, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toEqual({ saved: [{ title: 'Food', summary: 'Loves strawberries', type: 'topic' }] });
+  });
+
+  it('rejects text over 50,000 characters without calling generateText', async () => {
+    const mockGenerateText = generateText as unknown as ReturnType<typeof vi.fn>;
+    mockGenerateText.mockClear();
+
+    const handler = getRouteHandler('post', '/import/from-text');
+    const req: any = { user: { id: 'user-1' }, body: { text: 'x'.repeat(50_001) } };
+    const res = makeMockRes();
+
+    await handler(req, res);
+
+    expect(res.statusCode).toBe(400);
+    expect(mockGenerateText).not.toHaveBeenCalled();
   });
 });
