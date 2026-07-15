@@ -42,7 +42,9 @@ export default function SkillsScreen() {
   const { t } = useTranslation();
   const router = useRouter();
   const locale = useI18nStore((s) => s.locale);
-  const { skills, loading, loadSkills } = useSkillsStore();
+  const skills = useSkillsStore((s) => s.skills);
+  const loading = useSkillsStore((s) => s.loading);
+  const loadSkills = useSkillsStore((s) => s.loadSkills);
 
   useEffect(() => {
     const lang = locale.split('-')[0];

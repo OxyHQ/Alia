@@ -51,7 +51,9 @@ export default function EditSkillScreen() {
   const { t } = useTranslation();
   const { colors } = useColorScheme();
   const isLargeScreen = useIsLargeScreen();
-  const { getSkill, updateSkill, deleteSkill } = useSkillsStore();
+  const getSkill = useSkillsStore((s) => s.getSkill);
+  const updateSkill = useSkillsStore((s) => s.updateSkill);
+  const deleteSkill = useSkillsStore((s) => s.deleteSkill);
 
   // Loading
   const [loading, setLoading] = useState(true);
