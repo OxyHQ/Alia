@@ -2516,7 +2516,7 @@ function formatRelativeTime(dateStr: string): string {
 
 export function MemoryTable({ heading, icon: Icon, rows, emptyLabel, onRowPress, onDelete }: MemoryTableProps) {
   return (
-    <View className="gap-xs pt-4">
+    <View className="gap-1 pt-4">
       <View className="flex-row items-center gap-1.5 px-1">
         <Icon size={13} className="text-muted-foreground" />
         <Text className="text-xs font-semibold text-foreground">{heading}</Text>
