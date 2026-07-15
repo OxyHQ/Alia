@@ -60,10 +60,11 @@ export function useChatConversation({ conversationId, activeRole, thinkingMode, 
       // Immediate refetch (gets saved conversation data)
       queryClient.invalidateQueries({ queryKey: queryKeys.conversations.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.conversations.detail(conversationId) });
-      // Delayed refetch as fallback for async title generation (non-streaming paths, deep research)
+      // Delayed fallback for async title generation. Only the list needs it —
+      // re-fetching the whole message detail 5s after every exchange just for
+      // a possible title was a second full refetch per message.
       const timer = setTimeout(() => {
         queryClient.invalidateQueries({ queryKey: queryKeys.conversations.all });
-        queryClient.invalidateQueries({ queryKey: queryKeys.conversations.detail(conversationId) });
       }, 5000);
       wasLoadingRef.current = isLoading;
       return () => clearTimeout(timer);

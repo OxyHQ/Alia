@@ -11,8 +11,16 @@ import {
   Credibility,
 } from "./rich-blocks";
 
+// Cheap pre-check: plain markdown (the overwhelmingly common case) skips the
+// six per-pattern regex scans below with a single pass.
+const SPECIAL_BLOCK_HINT_RE = /\[(?:ALIA_)?(?:COMPACTLIST|BANNER|COMPARISON|TIMELINE|IMAGE|CREDIBILITY)/;
+
 // Parse special blocks from content
 function parseSpecialBlocks(content: string): Array<{ type: 'text' | 'block'; content: string; blockType?: string; data?: any }> {
+  if (!SPECIAL_BLOCK_HINT_RE.test(content)) {
+    return [{ type: 'text', content }];
+  }
+
   const blocks: Array<{ type: 'text' | 'block'; content: string; blockType?: string; data?: any }> = [];
 
   const patterns = [

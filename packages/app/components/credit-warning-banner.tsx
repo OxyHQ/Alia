@@ -5,7 +5,7 @@ import { Text } from '@/components/ui/text';
 import { useRouter } from 'expo-router';
 import { useCredits } from '@/lib/hooks/use-credits';
 import { queryKeys } from '@/lib/hooks/query-keys';
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { useTranslation } from '@/hooks/useTranslation';
 
 interface UsageWarningData {
@@ -34,7 +34,9 @@ const CHEAPER_ALTERNATIVES: Record<string, { model: string; name: string; multip
   'alia-v1-voice-pro': { model: 'alia-v1-voice', name: 'Alia V1 Voice', multiplier: 2 },
 };
 
-export function CreditWarningBanner({ selectedModel, onSwitchModel }: CreditWarningBannerProps) {
+// Memoized: mounted next to the streaming chat surface, which re-renders per
+// flush; this banner's props never change per token.
+export const CreditWarningBanner = React.memo(function CreditWarningBanner({ selectedModel, onSwitchModel }: CreditWarningBannerProps) {
   const queryClient = useQueryClient();
   const router = useRouter();
   const { t } = useTranslation();
@@ -110,4 +112,4 @@ export function CreditWarningBanner({ selectedModel, onSwitchModel }: CreditWarn
       </View>
     </View>
   );
-}
+});

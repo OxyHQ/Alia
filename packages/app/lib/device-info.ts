@@ -14,12 +14,15 @@ export interface DeviceInfo {
   totalMemory?: number | null;
 }
 
+// Every field is a static device constant — collect once per session.
+let cachedDeviceInfo: DeviceInfo | null = null;
+
 /**
  * Collects device information using expo-device
  * This data is only sent to the AI when explicitly requested via the getDeviceInfo tool
  */
 export async function collectDeviceInfo(): Promise<DeviceInfo> {
-  return {
+  cachedDeviceInfo ??= {
     deviceName: Device.deviceName,
     modelName: Device.modelName,
     osName: Device.osName,
@@ -31,6 +34,7 @@ export async function collectDeviceInfo(): Promise<DeviceInfo> {
     deviceYearClass: Device.deviceYearClass,
     totalMemory: Device.totalMemory,
   };
+  return cachedDeviceInfo;
 }
 
 /**
