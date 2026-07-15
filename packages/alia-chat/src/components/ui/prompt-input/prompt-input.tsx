@@ -133,6 +133,9 @@ export function PromptInput({
 
   const handleSubmit = () => {
     onSubmit?.();
+    // Clicking the send button (as opposed to pressing Enter) shifts DOM focus
+    // to the button on web — restore it so the user can keep typing.
+    textareaRef.current?.focus();
     if (showFullscreen) setShowFullscreen(false);
   };
 
