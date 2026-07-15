@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useOxy } from '@oxyhq/services';
 import apiClient from '@/lib/api/client';
-import { errorStatus } from '../lib/errors/error-utils';
+import { errorStatus } from '../errors/error-utils';
 
 export interface ConnectedAccount {
   _id: string;

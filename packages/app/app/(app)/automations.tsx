@@ -17,7 +17,7 @@ import {
 import { CloudCog, Plus, Clock, Trash2, Play } from 'lucide-react-native';
 import { useColorScheme } from '@/lib/useColorScheme';
 import { toast } from '@/components/sonner';
-import { useTranslation } from '@/hooks/useTranslation';
+import { useTranslation } from '@/lib/hooks/use-translation';
 import apiClient from '@/lib/api/client';
 import { API_ROUTES } from '@/lib/api/routes';
 import { errorMessage as getErrorMessage } from '@/lib/errors/error-utils';

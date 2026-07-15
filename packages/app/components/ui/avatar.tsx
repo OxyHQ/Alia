@@ -25,7 +25,7 @@ interface AvatarImageProps extends Omit<ImageProps, 'style'> {
   className?: string;
 }
 
-const AvatarImage = React.forwardRef<typeof Image, AvatarImageProps>(
+const AvatarImage = React.forwardRef<Image, AvatarImageProps>(
   ({ className, ...props }, ref) => (
     <Image
       ref={ref}

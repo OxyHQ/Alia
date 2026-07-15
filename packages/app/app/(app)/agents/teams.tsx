@@ -3,7 +3,7 @@ import { View, ScrollView, Pressable } from "react-native";
 import { Text } from "@/components/ui/text";
 import { ArrowLeft, Plus, Users, ChevronRight } from "lucide-react-native";
 import { useRouter } from "expo-router";
-import { useTranslation } from "@/hooks/useTranslation";
+import { useTranslation } from "@/lib/hooks/use-translation";
 import { useAgentTeams } from "@/lib/hooks/use-agent-teams";
 
 export default function AgentTeamsScreen() {
@@ -24,7 +24,7 @@ export default function AgentTeamsScreen() {
           </Text>
         </View>
         <Pressable
-          onPress={() => router.push("/(app)/agents/teams/create" as any)}
+          onPress={() => router.push("/(app)/agents/teams/create")}
           className="active:opacity-70"
         >
           <Plus size={22} className="text-foreground" />
@@ -52,7 +52,7 @@ export default function AgentTeamsScreen() {
             {teams.map((team) => (
               <Pressable
                 key={team._id}
-                onPress={() => router.push(`/(app)/agents/teams/${team._id}` as any)}
+                onPress={() => router.push({ pathname: "/(app)/agents/teams/[id]", params: { id: team._id } })}
                 className="rounded-xl border border-border bg-surface p-4 active:opacity-80"
               >
                 <View className="flex-row items-center justify-between">

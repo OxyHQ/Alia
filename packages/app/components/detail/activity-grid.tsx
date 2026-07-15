@@ -4,7 +4,7 @@ import {
   Pressable,
   ScrollView,
 } from "react-native";
-import { useIsLargeScreen } from "@/hooks/useIsLargeScreen";
+import { useIsLargeScreen } from "@/lib/hooks/use-is-large-screen";
 import { Text } from "@/components/ui/text";
 import { useColorScheme } from "@/lib/useColorScheme";
 import { withAlpha } from "@oxyhq/bloom/theme";

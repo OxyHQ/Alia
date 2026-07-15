@@ -4,7 +4,7 @@ import { Text } from "@/components/ui/text";
 import { PromptInput } from "@/components/ui/prompt-input/prompt-input";
 import { useRouter } from "expo-router";
 import { useCreateAgentTeam } from "@/lib/hooks/use-agent-teams";
-import { useTranslation } from "@/hooks/useTranslation";
+import { useTranslation } from "@/lib/hooks/use-translation";
 import { toast } from "@/components/sonner";
 
 export default function CreateTeamScreen() {
@@ -36,7 +36,7 @@ export default function CreateTeamScreen() {
 
       if (team) {
         toast.success(t("agents.teamCreated"));
-        router.replace(`/(app)/agents/teams/${team._id}` as any);
+        router.replace({ pathname: "/(app)/agents/teams/[id]", params: { id: team._id } });
       }
     } catch {
       toast.error("Failed to create team");

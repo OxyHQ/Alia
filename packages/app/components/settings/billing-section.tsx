@@ -8,7 +8,7 @@ import { useCredits } from "@/lib/hooks/use-credits";
 import { useSubscription, useSubscriptionPolling, useCancelSubscription, useCreatePortalSession, useTransactions, useCreditPackages, useCreateCheckout, useCreateCustomCheckout, useCreditPrice } from "@/lib/hooks/use-billing";
 import { useEffect, useState, useRef } from "react";
 import { toast } from "@/components/sonner";
-import { useTranslation } from "@/hooks/useTranslation";
+import { useTranslation } from "@/lib/hooks/use-translation";
 import { errorMessage as getErrorMessage } from '../../lib/errors/error-utils';
 
 interface BillingSectionProps {

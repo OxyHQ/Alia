@@ -3,8 +3,8 @@ import { Plus } from "lucide-react-native";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import * as DropdownMenu from "@/components/ui/dropdown-menu";
-import { useImagePicker } from "@/hooks/useImagePicker";
-import { useDocumentPicker } from "@/hooks/useDocumentPicker";
+import { useImagePicker } from "@/lib/hooks/use-image-picker";
+import { useDocumentPicker } from "@/lib/hooks/use-document-picker";
 import { usePromptInput } from "./context";
 
 export type PromptInputAddMenuProps = {

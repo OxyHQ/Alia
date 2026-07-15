@@ -5,12 +5,29 @@ import { toast } from '@/components/sonner';
 import apiClient from '../api/client';
 import { queryKeys } from './query-keys';
 import type { ToolInvocation } from '../types/messages';
+import type { ResearchProgress, PendingPlan } from '@alia.onl/sdk';
 import { errorMessage as getErrorMessage, errorStatus } from '../errors/error-utils';
 
+/** Human-in-the-loop approval requested mid-stream for a sensitive tool call. */
+export interface PendingApproval {
+  requestId: string;
+  toolName: string;
+  description: string;
+  severity: string;
+  timeout: number;
+  args?: Record<string, unknown>;
+}
+
+/** Resolution of a {@link PendingApproval}. */
+export interface PendingApprovalResult {
+  requestId: string;
+  decision: string;
+}
+
 export interface Message {
-  id?: string;
+  id: string;
   role: 'user' | 'assistant' | 'system';
-  content: string | Array<{ type: string; [key: string]: any }>;
+  content: string | Array<{ type: string; [key: string]: unknown }>;
   thinking?: string; // Extended thinking content (when thinking mode is enabled)
   toolInvocations?: ToolInvocation[];
   // Voice fields (optional, only present for voice-originated messages)
@@ -25,6 +42,11 @@ export interface Message {
     handle: string;
   };
   audioUrl?: string;
+  // Streaming UI metadata (deep research, plan preview, tool approval)
+  researchProgress?: ResearchProgress;
+  pendingPlan?: PendingPlan;
+  pendingApproval?: PendingApproval;
+  pendingApprovalResult?: PendingApprovalResult;
 }
 
 export interface Conversation {
@@ -36,6 +58,26 @@ export interface Conversation {
   createdAt: Date;
   updatedAt: Date;
   messages: Message[];
+}
+
+/** Conversation as returned by the API (timestamps are ISO strings, not Dates). */
+type ApiConversation = Omit<Conversation, 'createdAt' | 'updatedAt' | 'messages'> & {
+  createdAt: string;
+  updatedAt: string;
+  messages?: Message[];
+};
+
+/** One page of the paginated conversation list. */
+interface ConversationsPage {
+  conversations: Conversation[];
+  nextCursor: string | null;
+  hasMore: boolean;
+}
+
+/** React Query infinite-query cache shape for the conversation list. */
+interface ConversationsInfiniteData {
+  pages: ConversationsPage[];
+  pageParams: unknown[];
 }
 
 const CONVERSATIONS_STORAGE_KEY = "alia-conversations";
@@ -72,14 +114,18 @@ async function fetchConversationsPage({ pageParam }: { pageParam?: string }): Pr
   hasMore: boolean;
 }> {
   try {
-    const params: any = { limit: 20 };
+    const params: { limit: number; cursor?: string } = { limit: 20 };
     if (pageParam) {
       params.cursor = pageParam;
     }
 
-    const response = await apiClient.get('/conversations', { params });
+    const response = await apiClient.get<{
+      conversations: ApiConversation[];
+      nextCursor: string | null;
+      hasMore: boolean;
+    }>('/conversations', { params });
     return {
-      conversations: response.data.conversations.map((conv: any) => ({
+      conversations: response.data.conversations.map((conv) => ({
         ...conv,
         createdAt: new Date(conv.createdAt),
         updatedAt: new Date(conv.updatedAt),
@@ -136,8 +182,8 @@ async function fetchConversation(id: string): Promise<Conversation> {
     if (errorStatus(error) === 401 || errorStatus(error) === 404) {
       const stored = await AsyncStorage.getItem(CONVERSATIONS_STORAGE_KEY);
       if (stored) {
-        const parsed = JSON.parse(stored);
-        const conversation = parsed.find((c: any) => c.id === id);
+        const parsed: Conversation[] = JSON.parse(stored);
+        const conversation = parsed.find((c) => c.id === id);
         if (conversation) {
           return {
             ...conversation,
@@ -238,7 +284,7 @@ export function useSaveConversation() {
     },
     onSuccess: (data) => {
       // Update infinite query cache
-      queryClient.setQueryData(queryKeys.conversations.all, (oldData: any) => {
+      queryClient.setQueryData(queryKeys.conversations.all, (oldData: ConversationsInfiniteData | undefined) => {
         if (!oldData?.pages) {
           return {
             pages: [{
@@ -285,7 +331,7 @@ export function useSaveConversation() {
       // Update individual conversation cache with full data including messages
       queryClient.setQueryData(queryKeys.conversations.detail(data.id), data);
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
       toast.error(getErrorMessage(error) || 'Failed to save conversation');
     },
   });
@@ -314,14 +360,14 @@ export function useDeleteConversation() {
     },
     onSuccess: (id) => {
       // Remove from infinite query cache
-      queryClient.setQueryData(queryKeys.conversations.all, (oldData: any) => {
+      queryClient.setQueryData(queryKeys.conversations.all, (oldData: ConversationsInfiniteData | undefined) => {
         if (!oldData?.pages) return oldData;
 
         return {
           ...oldData,
-          pages: oldData.pages.map((page: any) => ({
+          pages: oldData.pages.map((page) => ({
             ...page,
-            conversations: page.conversations.filter((c: Conversation) => c.id !== id),
+            conversations: page.conversations.filter((c) => c.id !== id),
           })),
         };
       });
@@ -329,7 +375,7 @@ export function useDeleteConversation() {
       // Invalidate individual conversation cache
       queryClient.removeQueries({ queryKey: queryKeys.conversations.detail(id) });
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
       toast.error(getErrorMessage(error) || 'Failed to delete conversation');
     },
   });
@@ -381,7 +427,7 @@ export function useCreateConversation() {
     },
     onSuccess: (data) => {
       // Add to first page of infinite query cache
-      queryClient.setQueryData(queryKeys.conversations.all, (oldData: any) => {
+      queryClient.setQueryData(queryKeys.conversations.all, (oldData: ConversationsInfiniteData | undefined) => {
         if (!oldData?.pages) {
           return {
             pages: [{
@@ -396,7 +442,7 @@ export function useCreateConversation() {
         const newPages = [...oldData.pages];
         if (newPages[0]) {
           // Check if already exists
-          const exists = newPages[0].conversations.some((c: Conversation) => c.id === data.id);
+          const exists = newPages[0].conversations.some((c) => c.id === data.id);
           if (!exists) {
             newPages[0] = {
               ...newPages[0],
@@ -414,7 +460,7 @@ export function useCreateConversation() {
       // Set individual conversation cache
       queryClient.setQueryData(queryKeys.conversations.detail(data.id), data);
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
       toast.error(getErrorMessage(error) || 'Failed to create conversation');
     },
   });

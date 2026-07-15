@@ -6,7 +6,7 @@ import {
   useIntegrations,
   type ConnectedIntegration,
   type IntegrationEntry,
-} from "@/hooks/useIntegrations";
+} from "@/lib/hooks/use-integrations";
 import { toast } from "@/components/sonner";
 import { confirm } from "@oxyhq/bloom/alert-dialog";
 import { Link2, Unlink, ExternalLink, Plug } from "lucide-react-native";

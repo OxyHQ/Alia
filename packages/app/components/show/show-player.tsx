@@ -26,7 +26,9 @@ export function ShowPlayer({ audioUrl, title, durationMs }: ShowPlayerProps) {
   const releasePlayer = useCallback(() => {
     try {
       playerRef.current?.remove();
-    } catch {}
+    } catch {
+      // Player may already be released by the native side; nothing to clean up.
+    }
     playerRef.current = null;
   }, []);
 

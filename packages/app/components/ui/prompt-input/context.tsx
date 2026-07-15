@@ -30,7 +30,9 @@ export type PromptInputContextType = {
   removeAttachment: (id: string) => void;
   updateAttachment: (id: string, updates: Partial<Attachment>) => void;
   handleCompletionKey: ((key: string) => boolean) | null;
-  setHandleCompletionKey: (fn: ((key: string) => boolean) | null) => void;
+  setHandleCompletionKey: React.Dispatch<
+    React.SetStateAction<((key: string) => boolean) | null>
+  >;
 };
 
 export const PromptInputContext = createContext<PromptInputContextType>({

@@ -1,6 +1,6 @@
 import { View, Pressable } from 'react-native';
 import { Text } from '@/components/ui/text';
-import { useTranslation } from '@/hooks/useTranslation';
+import { useTranslation } from '@/lib/hooks/use-translation';
 import { ChevronDown, Globe2 } from 'lucide-react-native';
 import * as DropdownMenu from '@/components/ui/dropdown-menu';
 

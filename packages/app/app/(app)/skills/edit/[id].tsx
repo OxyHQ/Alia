@@ -5,7 +5,7 @@ import {
   Pressable,
   TextInput,
 } from 'react-native';
-import { useIsLargeScreen } from '@/hooks/useIsLargeScreen';
+import { useIsLargeScreen } from '@/lib/hooks/use-is-large-screen';
 import { Text } from '@/components/ui/text';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -28,7 +28,7 @@ import {
   ThumbsDown,
 } from 'lucide-react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { useTranslation } from '@/hooks/useTranslation';
+import { useTranslation } from '@/lib/hooks/use-translation';
 import { useColorScheme } from '@/lib/useColorScheme';
 import { useSkillsStore } from '@/lib/stores/skills-store';
 import { toast } from '@/components/sonner';

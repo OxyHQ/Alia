@@ -2,8 +2,8 @@ import { useEffect, useCallback, useRef } from "react";
 import { useRouter } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/hooks/query-keys";
-import { useStore, type Attachment } from "@/lib/globalStore";
-import { useStreamingChat } from "@/hooks/useStreamingChat";
+import { useStore, type Attachment } from "@/lib/stores/global-store";
+import { useStreamingChat } from "@/lib/hooks/use-streaming-chat";
 import { useConversation, useCreateConversation } from "@/lib/hooks/use-conversations";
 import { generateAPIUrl } from "@/lib/generate-api-url";
 import { buildMessageContent } from "@/lib/attachment-utils";
@@ -148,7 +148,7 @@ export function useChatConversation({ conversationId, activeRole, thinkingMode, 
       const newConversation = await createConversationMutation.mutateAsync({ agentId });
 
       // Navigate to the new conversation
-      router.replace(`/(app)/c/${newConversation.id}` as any);
+      router.replace({ pathname: "/(app)/c/[id]", params: { id: newConversation.id } });
     } catch {
       // onError handler in useCreateConversation already shows a toast
     }

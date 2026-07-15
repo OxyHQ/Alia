@@ -359,7 +359,7 @@ const TERMINAL_HTML = `
         } else if (msg.type === 'fit') {
           fitAddon.fit();
         }
-      } catch(e) {}
+      } catch(e) { /* ignore non-JSON bridge messages */ }
     });
 
     // Also listen for document message (Android WebView)
@@ -371,7 +371,7 @@ const TERMINAL_HTML = `
         } else if (msg.type === 'fit') {
           fitAddon.fit();
         }
-      } catch(e) {}
+      } catch(e) { /* ignore non-JSON bridge messages */ }
     });
 
     // Signal ready

@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { KeyboardStickyView } from "@/lib/keyboard";
 import { LinearGradient } from "expo-linear-gradient";
 import type { ScrollView as GHScrollView } from "react-native-gesture-handler";
-import { useStore } from "@/lib/globalStore";
+import { useStore } from "@/lib/stores/global-store";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { Globe, MoreHorizontal, X, Ghost, Sparkles, Brain, Bot, Search, ShoppingBag, BookOpen } from "lucide-react-native";
 import Entypo from "@expo/vector-icons/Entypo";
@@ -29,7 +29,7 @@ import { useModelStore } from "@/lib/stores/model-store";
 import { useEntitlements } from "@/lib/hooks/use-billing";
 import { useCredits } from "@/lib/hooks/use-credits";
 import { useRouter } from "expo-router";
-import { useTranslation } from "@/hooks/useTranslation";
+import { useTranslation } from "@/lib/hooks/use-translation";
 import type { useVoiceMode } from "@/lib/hooks/use-voice-mode";
 import { useTTS } from "@/lib/hooks/use-tts";
 import type { AgentActivityState } from "@/lib/hooks/use-agent-activity";
@@ -61,7 +61,7 @@ type VoiceState = ReturnType<typeof useVoiceMode>;
 
 interface ChatPageContentProps {
   messages: Message[];
-  scrollViewRef: React.RefObject<GHScrollView>;
+  scrollViewRef: React.RefObject<GHScrollView | null>;
   isLoading: boolean;
   onSubmit: (value: string, attachments?: Attachment[]) => void;
   onEditMessage: (messageId: string, newContent: string) => void;

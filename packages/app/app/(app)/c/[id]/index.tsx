@@ -1,8 +1,8 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useLocalSearchParams } from "expo-router";
 import { useRolesStore } from "@/lib/stores/roles-store";
-import { useStore } from "@/lib/globalStore";
-import { useChatConversation } from "@/hooks/useChatConversation";
+import { useStore } from "@/lib/stores/global-store";
+import { useChatConversation } from "@/lib/hooks/use-chat-conversation";
 import { useSaveConversation } from "@/lib/hooks/use-conversations";
 import { ChatPageContent } from "@/components/chat-page-content";
 import { UsageLimitDialog } from "@/components/usage-limit-dialog";
@@ -65,7 +65,7 @@ const ChatConversationPage = () => {
   });
 
   // Check both instanceof AND name — Hermes can break instanceof for Error subclasses
-  const usageLimitError = (error instanceof UsageLimitError || (error as any)?.name === 'UsageLimitError')
+  const usageLimitError = (error instanceof UsageLimitError || error?.name === 'UsageLimitError')
     ? (error as UsageLimitError)
     : null;
 

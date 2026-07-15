@@ -12,15 +12,7 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Terminal, Globe, FileEdit, MessageSquare, Plug, Users } from 'lucide-react-native';
 import { useColorScheme } from '@/lib/useColorScheme';
-
-export interface AgentPermissions {
-  filesystem: boolean;
-  network: boolean;
-  shell: boolean;
-  communications: boolean;
-  mcp_servers: boolean;
-  delegation: boolean;
-}
+import type { AgentPermissions } from '@/lib/stores/agents-store';
 
 export const DEFAULT_PERMISSIONS: AgentPermissions = {
   filesystem: true,
@@ -101,8 +93,8 @@ export function AgentPermissionToggles({ permissions, onChange, disabled }: Perm
             </View>
           </View>
           <Switch
-            checked={permissions[key]}
-            onCheckedChange={() => handleToggle(key)}
+            value={permissions[key]}
+            onValueChange={() => handleToggle(key)}
             disabled={disabled}
           />
         </View>

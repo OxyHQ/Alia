@@ -7,9 +7,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Sparkles, Calendar, X, Crown, MessageSquare, Layers, ShoppingCart } from "lucide-react-native";
 import { useCredits, useCreditsUsage, useAnalytics, PERIODS, type UsagePeriod } from "@/lib/hooks/use-credits";
 import { useSubscription, useCreditPackages, useCreateCheckout } from "@/lib/hooks/use-billing";
-import { useRouter } from "expo-router";
+import { useRouter, type Href } from "expo-router";
 import { useUIStore } from "@/lib/stores/ui-store";
-import { useTranslation } from "@/hooks/useTranslation";
+import { useTranslation } from "@/lib/hooks/use-translation";
 import { toast } from "@/components/sonner";
 import { errorMessage as getErrorMessage } from '../lib/errors/error-utils';
 
@@ -205,9 +205,9 @@ export function CreditsPanel() {
   const dailyRefresh = data?.dailyRefresh ?? 0;
   const isSubscribed = subscription?.status === 'active';
 
-  const navigate = (path: string) => {
+  const navigate = (path: Href) => {
     setRightPanel(null);
-    router.push(path as any);
+    router.push(path);
   };
 
   const handlePurchaseCredits = async (packageId: string) => {

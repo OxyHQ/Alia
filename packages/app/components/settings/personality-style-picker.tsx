@@ -12,8 +12,8 @@ import {
   Flame,
 } from "lucide-react-native";
 import { PERSONALITY_STYLES, PERSONALITY_STYLE_MAP, type PersonalityStyleId, type PersonalityStyleUI } from "@/lib/personality-styles";
-import { useTranslation } from "@/hooks/useTranslation";
-import { usePersonalitySamplePhrase } from "@/hooks/usePersonalitySamplePhrase";
+import { useTranslation } from "@/lib/hooks/use-translation";
+import { usePersonalitySamplePhrase } from "@/lib/hooks/use-personality-sample-phrase";
 import React, { useEffect, useCallback } from "react";
 
 const ICON_MAP: Record<string, LucideIcon> = {

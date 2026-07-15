@@ -3,15 +3,18 @@ import { Platform } from "react-native";
 import { twMerge } from "tailwind-merge";
 import type { Message as DBMessage, Document } from "@/lib/db/schema";
 
-// Re-export from canonical location for backward compatibility
-export type { ToolInvocation } from "@/lib/types/messages";
+import type { ToolInvocation } from "@/lib/types/messages";
+
+export interface MessageAnnotation {
+  messageIdFromServer?: string;
+}
 
 export interface Message {
   id: string;
   role: "user" | "assistant" | "system";
   content: string;
   toolInvocations?: ToolInvocation[];
-  annotations?: any[];
+  annotations?: MessageAnnotation[];
 }
 
 export interface CoreMessage {
@@ -192,9 +195,10 @@ export function sanitizeResponseMessages(
 
     const sanitizedContent = message.content.filter((content) =>
       content.type === "tool-call"
-        ? toolResultIds.includes(content.toolCallId)
+        ? content.toolCallId !== undefined &&
+          toolResultIds.includes(content.toolCallId)
         : content.type === "text"
-          ? content.text.length > 0
+          ? (content.text?.length ?? 0) > 0
           : true,
     );
 
@@ -271,6 +275,5 @@ export function getMessageIdFromAnnotations(message: Message) {
   const [annotation] = message.annotations;
   if (!annotation) return message.id;
 
-  // @ts-expect-error messageIdFromServer is not defined in MessageAnnotation
-  return annotation.messageIdFromServer;
+  return annotation.messageIdFromServer ?? message.id;
 }

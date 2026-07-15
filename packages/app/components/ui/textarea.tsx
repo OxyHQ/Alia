@@ -1,6 +1,7 @@
 import * as React from 'react';
 import { Platform, TextInput } from 'react-native';
 import { cn } from '@/lib/utils';
+import { asTextStyle } from '@/lib/types/webStyles';
 
 interface TextareaProps extends React.ComponentPropsWithoutRef<typeof TextInput> {
   variant?: 'default' | 'ghost';
@@ -26,7 +27,7 @@ const Textarea = React.forwardRef<TextInput, TextareaProps>(
         scrollEnabled={false}
         textAlignVertical="top"
         style={[
-          Platform.OS === 'web' ? ({ fieldSizing: 'content' } as any) : undefined,
+          Platform.OS === 'web' ? asTextStyle({ fieldSizing: 'content' }) : undefined,
           style,
         ]}
         {...props}

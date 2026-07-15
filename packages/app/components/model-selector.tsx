@@ -7,7 +7,7 @@ import { useRouter } from "expo-router";
 import config from "@/lib/config";
 import { useEntitlements } from "@/lib/hooks/use-billing";
 import { toast } from "@/components/sonner";
-import { useTranslation } from "@/hooks/useTranslation";
+import { useTranslation } from "@/lib/hooks/use-translation";
 
 interface Model {
   id: string;
@@ -186,7 +186,7 @@ export function ModelSelector({
               <>
                 <DropdownMenu.Separator />
                 <DropdownMenu.Sub>
-                  <DropdownMenu.SubTrigger>
+                  <DropdownMenu.SubTrigger key="legacy-models">
                     <DropdownMenu.ItemTitle>{t('models.legacyModels')}</DropdownMenu.ItemTitle>
                   </DropdownMenu.SubTrigger>
                   <DropdownMenu.SubContent className="w-64">

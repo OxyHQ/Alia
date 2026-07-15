@@ -1,5 +1,5 @@
 import { View } from 'react-native';
-import { useTranslation } from '@/hooks/useTranslation';
+import { useTranslation } from '@/lib/hooks/use-translation';
 import { SectionLabel } from './section-label';
 import { BulletList } from './bullet-list';
 

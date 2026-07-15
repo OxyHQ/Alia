@@ -76,7 +76,9 @@ export function useAudioGen() {
   const releasePlayer = useCallback(() => {
     try {
       playerRef.current?.remove();
-    } catch {}
+    } catch {
+      // Player may already be released by the native side; nothing to clean up.
+    }
     playerRef.current = null;
   }, []);
 
@@ -116,7 +118,7 @@ export function useAudioGen() {
     return () => {
       abortRef.current = true;
       clearPollTimer();
-      try { playerRef.current?.remove(); } catch {}
+      try { playerRef.current?.remove(); } catch { /* player may already be released on unmount */ }
     };
   }, [clearPollTimer]);
 

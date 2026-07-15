@@ -251,7 +251,7 @@ export function PlanGrid({
   t: (key: string) => string;
 }) {
   const scrollRef = useRef<ScrollView>(null);
-  const scrollTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
+  const scrollTimeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const snapToNearest = useCallback(
     (offsetX: number) => {
@@ -464,7 +464,7 @@ export function PageFooter({ t }: { t: (key: string) => string }) {
         </Text>
         .
       </Text>
-      <Pressable onPress={() => router.push('/(app)/settings/usage' as any)}>
+      <Pressable onPress={() => router.push('/(app)/settings/usage')}>
         <Text className="text-xs text-muted-foreground">
           {t('subscribe.editBilling')} &rsaquo;
         </Text>

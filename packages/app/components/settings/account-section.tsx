@@ -2,7 +2,7 @@ import { View } from "react-native";
 import { Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
 import { useOxy } from "@oxyhq/services";
-import { useTranslation } from "@/hooks/useTranslation";
+import { useTranslation } from "@/lib/hooks/use-translation";
 import { ChevronRight } from "lucide-react-native";
 
 export function AccountSection() {

@@ -5,7 +5,7 @@ import {
   Pressable,
   TextInput,
 } from "react-native";
-import { useIsLargeScreen } from "@/hooks/useIsLargeScreen";
+import { useIsLargeScreen } from "@/lib/hooks/use-is-large-screen";
 import { Text } from "@/components/ui/text";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -33,7 +33,7 @@ import {
 } from "lucide-react-native";
 import * as DropdownMenu from "@/components/ui/dropdown-menu";
 import { useRouter, useLocalSearchParams } from "expo-router";
-import { useTranslation } from "@/hooks/useTranslation";
+import { useTranslation } from "@/lib/hooks/use-translation";
 import { useColorScheme } from "@/lib/useColorScheme";
 import {
   useAgentTeam,
@@ -83,7 +83,7 @@ export default function TeamDetailScreen() {
   const loadLibraryFiles = useLibraryStore((state) => state.loadFiles);
 
   // Auto-save
-  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
+  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const isInitialLoad = useRef(true);
 
   // Load available skills from backend
@@ -133,7 +133,7 @@ export default function TeamDetailScreen() {
 
   const handleAgentPress = useCallback(
     (agentId: string) => {
-      router.push(`/(app)/agents/${agentId}` as any);
+      router.push({ pathname: "/(app)/agents/[id]", params: { id: agentId } });
     },
     [router]
   );
@@ -203,7 +203,7 @@ export default function TeamDetailScreen() {
   }, []);
 
   const handleAddAgent = useCallback(() => {
-    router.push("/(app)/agents" as any);
+    router.push("/(app)/agents");
   }, [router]);
 
   if (isLoading) {

@@ -8,14 +8,16 @@ import type { CreditsInfo } from '@/lib/hooks/use-credits';
 import { collectDeviceInfo } from '@/lib/device-info';
 import { UsageLimitError } from '@/lib/errors/usage-limit-error';
 import { queryKeys } from '@/lib/hooks/query-keys';
-import { useStore } from '@/lib/globalStore';
+import { useStore } from '@/lib/stores/global-store';
 import { useModelStore } from '@/lib/stores/model-store';
 import { useUIStore } from '@/lib/stores/ui-store';
 import { toast } from '@/components/sonner';
 import i18n from '@/lib/i18n';
+import type { Role } from '@/lib/stores/roles-store';
+import type { Conversation } from '@/lib/hooks/use-conversations';
 
 import type { ToolInvocation } from '@/lib/types/messages';
-import { errorMessage as getErrorMessage, errorStatus, errorCode, errorName } from '../lib/errors/error-utils';
+import { errorMessage as getErrorMessage, errorStatus, errorCode, errorName } from '../errors/error-utils';
 export type { ToolInvocation };
 
 /** Shape of an error body thrown by the streaming fetch (rate-limit / credit info). */
@@ -27,8 +29,49 @@ interface ThrownErrorBody {
   suggestedAction?: 'wait' | 'upgrade';
 }
 
+/** Structured `error` object the server may embed in a non-OK response / SSE error event. */
+interface StreamErrorObject {
+  code?: string;
+  message?: string;
+  retryable?: boolean;
+  retryAfter?: number;
+  suggestedAction?: 'wait' | 'upgrade';
+  type?: string;
+  details?: {
+    limitType?: string;
+    current?: number;
+    limit?: number;
+    tier?: string;
+  };
+}
 
-export function useStreamingChat(apiUrl: string, activeRole?: any, conversationId?: string, thinkingMode?: boolean, selectedModel?: string, skillId?: string | null, agentId?: string | null) {
+/** Non-OK response body read from the stream before the SSE loop starts. */
+interface StreamErrorResponse {
+  error?: StreamErrorObject | string;
+  details?: unknown;
+}
+
+/** Message shape sent to the chat-completions endpoint (subset of {@link Message}). */
+interface OutboundMessage {
+  role: string;
+  content: Message['content'];
+  toolInvocations?: Array<{
+    toolCallId: string;
+    toolName: string;
+    state: ToolInvocation['state'];
+    args?: Record<string, unknown>;
+    result?: unknown;
+  }>;
+}
+
+/** Infinite-query cache shape for the conversation list. */
+interface ConversationsInfinite {
+  pages: Array<{ conversations: Conversation[] }>;
+  pageParams: unknown[];
+}
+
+
+export function useStreamingChat(apiUrl: string, activeRole?: Role, conversationId?: string, thinkingMode?: boolean, selectedModel?: string, skillId?: string | null, agentId?: string | null) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
@@ -56,7 +99,7 @@ export function useStreamingChat(apiUrl: string, activeRole?: any, conversationI
       if (lastMessage?.role === 'assistant') {
         const changes: Partial<Message> = {};
         if (content) changes.content = lastMessage.content + content;
-        if (reasoning) (changes as any).thinking = ((lastMessage as any).thinking || '') + reasoning;
+        if (reasoning) changes.thinking = (lastMessage.thinking || '') + reasoning;
         updated[updated.length - 1] = { ...lastMessage, ...changes };
       }
       return updated;
@@ -103,11 +146,11 @@ export function useStreamingChat(apiUrl: string, activeRole?: any, conversationI
     }
   }, []);
 
-  const append = useCallback(async (message: Message) => {
+  const append = useCallback(async (message: Omit<Message, 'id'>) => {
     setIsLoading(true);
     setError(null);
 
-    const userMessage = { ...message, id: Date.now().toString() };
+    const userMessage: Message = { ...message, id: Date.now().toString() };
     setMessages((prev) => [...prev, userMessage]);
 
     // Create assistant message placeholder
@@ -154,8 +197,8 @@ Use this role to guide your responses, maintaining the specified tone, style, an
       // Include tool invocations for proper conversation context
       const conversationMessages = [...messagesRef.current, userMessage];
 
-      const formatMessage = (m: Message | { role: string; content: string }) => {
-        const msg: any = {
+      const formatMessage = (m: Message | { role: string; content: string }): OutboundMessage => {
+        const msg: OutboundMessage = {
           role: m.role,
           content: m.content,
         };
@@ -203,7 +246,7 @@ Use this role to guide your responses, maintaining the specified tone, style, an
       });
 
       if (!response.ok) {
-        let errorData: any = null;
+        let errorData: StreamErrorResponse | null = null;
         try {
           // expoFetch is streaming-oriented; .json() may not work for error responses.
           // Read the body manually via the ReadableStream reader.
@@ -214,7 +257,10 @@ Use this role to guide your responses, maintaining the specified tone, style, an
               errorData = JSON.parse(new TextDecoder().decode(value));
             }
           }
-        } catch {}
+        } catch {
+          // Best-effort: if the error body isn't readable/JSON, fall through to
+          // the generic status-based error message below.
+        }
 
         // Detect usage limit errors (429 rate limit, 402 insufficient credits, 403 model access)
         if (response.status === 429 || response.status === 402 || response.status === 403) {
@@ -416,17 +462,17 @@ Use this role to guide your responses, maintaining the specified tone, style, an
                     if (parsed.title && parsed.conversationId) {
                       queryClient.setQueryData(
                         queryKeys.conversations.detail(parsed.conversationId),
-                        (old: any) => old ? { ...old, title: parsed.title } : old
+                        (old: Conversation | undefined) => old ? { ...old, title: parsed.title } : old
                       );
                       queryClient.setQueriesData(
                         { queryKey: queryKeys.conversations.all },
-                        (old: any) => {
+                        (old: ConversationsInfinite | undefined) => {
                           if (!old?.pages) return old;
                           return {
                             ...old,
-                            pages: old.pages.map((page: any) => ({
+                            pages: old.pages.map((page) => ({
                               ...page,
-                              conversations: page.conversations.map((c: any) =>
+                              conversations: page.conversations.map((c) =>
                                 c.id === parsed.conversationId ? { ...c, title: parsed.title } : c
                               ),
                             })),
@@ -448,12 +494,12 @@ Use this role to guide your responses, maintaining the specified tone, style, an
                           researchProgress: {
                             phase: parsed.phase,
                             message: parsed.message,
-                            subQuestions: parsed.subQuestions || (lastMessage as any).researchProgress?.subQuestions,
+                            subQuestions: parsed.subQuestions || lastMessage.researchProgress?.subQuestions,
                             sourcesFound: parsed.sourcesFound,
                             currentQuery: parsed.currentQuery,
                             iteration: parsed.iteration,
                           },
-                        } as any;
+                        };
                       }
                       return updated;
                     });
@@ -473,7 +519,7 @@ Use this role to guide your responses, maintaining the specified tone, style, an
                             approved: false,
                             rejected: false,
                           },
-                        } as any;
+                        };
                       }
                       return updated;
                     });
@@ -495,7 +541,7 @@ Use this role to guide your responses, maintaining the specified tone, style, an
                             timeout: parsed.timeout,
                             args: parsed.args,
                           },
-                        } as any;
+                        };
                       }
                       return updated;
                     });
@@ -513,7 +559,7 @@ Use this role to guide your responses, maintaining the specified tone, style, an
                             requestId: parsed.requestId,
                             decision: parsed.decision,
                           },
-                        } as any;
+                        };
                       }
                       return updated;
                     });
@@ -633,7 +679,7 @@ Use this role to guide your responses, maintaining the specified tone, style, an
                   const toolName = tc.function?.name;
                   if (!toolCallId || !toolName) continue;
 
-                  let args: any;
+                  let args: Record<string, unknown> | undefined;
                   if (tc.function?.arguments) {
                     try {
                       args = JSON.parse(tc.function.arguments);
@@ -843,26 +889,20 @@ Use this role to guide your responses, maintaining the specified tone, style, an
   const clearError = useCallback(() => setError(null), []);
 
   const approvePlan = useCallback((planId: string) => {
-    setMessages((prev) => {
-      const updated = [...prev];
-      const msg = updated.find((m) => (m as any).pendingPlan?.planId === planId);
-      if (msg) {
-        (msg as any).pendingPlan = { ...(msg as any).pendingPlan, approved: true };
-      }
-      return [...updated];
-    });
+    setMessages((prev) => prev.map((m) => {
+      const plan = m.pendingPlan;
+      if (!plan || plan.planId !== planId) return m;
+      return { ...m, pendingPlan: { ...plan, approved: true } };
+    }));
     // Backend integration: POST plan approval (follow-up task)
   }, []);
 
   const rejectPlan = useCallback((planId: string) => {
-    setMessages((prev) => {
-      const updated = [...prev];
-      const msg = updated.find((m) => (m as any).pendingPlan?.planId === planId);
-      if (msg) {
-        (msg as any).pendingPlan = { ...(msg as any).pendingPlan, rejected: true };
-      }
-      return [...updated];
-    });
+    setMessages((prev) => prev.map((m) => {
+      const plan = m.pendingPlan;
+      if (!plan || plan.planId !== planId) return m;
+      return { ...m, pendingPlan: { ...plan, rejected: true } };
+    }));
     stop();
   }, [stop]);
 

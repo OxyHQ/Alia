@@ -4,7 +4,7 @@ import { Text } from '@/components/ui/text';
 import { PromptInput } from '@/components/ui/prompt-input/prompt-input';
 import { useRouter } from 'expo-router';
 import { useSkillsStore } from '@/lib/stores/skills-store';
-import { useTranslation } from '@/hooks/useTranslation';
+import { useTranslation } from '@/lib/hooks/use-translation';
 import { useI18nStore } from '@/lib/stores/i18n-store';
 import { toast } from '@/components/sonner';
 import apiClient from '@/lib/api/client';
@@ -41,7 +41,7 @@ export default function CreateSkillScreen() {
 
       if (skill) {
         toast.success(t('skills.created'));
-        router.replace(`/(app)/skills/edit/${skill.skillId}` as any);
+        router.replace({ pathname: "/(app)/skills/edit/[id]", params: { id: skill.skillId } });
       } else {
         toast.error(t('skills.createError'));
       }

@@ -14,10 +14,10 @@ import {
   ChevronDown,
 } from "lucide-react-native";
 import { PersonalityStylePicker } from "./personality-style-picker";
-import { useUserData } from "@/hooks/useUserData";
+import { useUserData } from "@/lib/hooks/use-user-data";
 import { useUserDataStore } from "@/lib/stores/user-data-store";
 import * as DropdownMenu from "@/components/ui/dropdown-menu";
-import { useTranslation } from "@/hooks/useTranslation";
+import { useTranslation } from "@/lib/hooks/use-translation";
 import { toast } from "@/components/sonner";
 import { useTheme } from "@oxyhq/bloom/theme";
 

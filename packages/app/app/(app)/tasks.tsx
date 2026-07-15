@@ -42,7 +42,7 @@ export default function TasksPage() {
 
   const handleTaskPress = useCallback((task: TaskSession) => {
     if (task.agentId?._id) {
-      router.push(`/(app)/agents/${task.agentId._id}` as any);
+      router.push({ pathname: "/(app)/agents/[id]", params: { id: task.agentId._id } });
     }
   }, [router]);
 

@@ -11,7 +11,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { cn } from "@/lib/utils";
 import { useTheme } from "@oxyhq/bloom/theme";
-import { MD_BREAKPOINT } from "@/hooks/useIsLargeScreen";
+import { MD_BREAKPOINT } from "@/lib/hooks/use-is-large-screen";
 
 const USE_NATIVE_DRIVER = Platform.OS !== "web";
 

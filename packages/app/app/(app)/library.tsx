@@ -6,13 +6,13 @@ import { Button } from '@/components/ui/button';
 import { Plus, Search } from 'lucide-react-native';
 import * as DropdownMenu from '@/components/ui/dropdown-menu';
 import { useLibraryStore, FileCategory } from '@/lib/stores/library-store';
-import { useImagePicker } from '@/hooks/useImagePicker';
-import { useDocumentPicker } from '@/hooks/useDocumentPicker';
+import { useImagePicker } from '@/lib/hooks/use-image-picker';
+import { useDocumentPicker } from '@/lib/hooks/use-document-picker';
 import { FileCard } from '@/components/file-card';
 import { cn } from '@/lib/utils';
 import { toast } from '@/components/sonner';
 import { useColorScheme } from '@/lib/useColorScheme';
-import { useTranslation } from '@/hooks/useTranslation';
+import { useTranslation } from '@/lib/hooks/use-translation';
 import { Skeleton } from '@/components/ui/skeleton';
 
 export default function LibraryScreen() {
@@ -68,18 +68,17 @@ export default function LibraryScreen() {
 
   const handleUploadImage = async () => {
     try {
-      const uris = await pickImage();
-      if (uris && uris.length > 0) {
-        for (const uri of uris) {
-          const fileName = uri.split('/').pop() || 'image.jpg';
+      const assets = await pickImage();
+      if (assets && assets.length > 0) {
+        for (const asset of assets) {
           await addFile({
-            name: fileName,
-            uri,
-            type: 'image/jpeg',
-            size: 0,
+            name: asset.name,
+            uri: asset.uri,
+            type: asset.mimeType,
+            size: asset.size,
           });
         }
-        toast.success(t('library.imagesUploaded', { count: uris.length }));
+        toast.success(t('library.imagesUploaded', { count: assets.length }));
       }
     } catch (error) {
       toast.error(t('library.failedUploadImages'));

@@ -19,6 +19,8 @@ type WebOnlyStyleProps = {
   resize?: 'none' | 'both' | 'horizontal' | 'vertical';
   backdropFilter?: string;
   transition?: string;
+  overflow?: 'visible' | 'hidden' | 'scroll' | 'auto';
+  fieldSizing?: 'content' | 'fixed';
 };
 
 /** Keys `WebOnlyStyleProps` redefines — omit them from the base before intersecting. */

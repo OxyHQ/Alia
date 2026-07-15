@@ -1,5 +1,5 @@
 import { View, ScrollView } from "react-native";
-import { useTranslation } from "@/hooks/useTranslation";
+import { useTranslation } from "@/lib/hooks/use-translation";
 import { SecuritySection } from "@/components/settings/security-section";
 import { SettingsHeader } from "@/components/settings/settings-header";
 

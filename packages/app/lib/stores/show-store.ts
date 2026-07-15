@@ -160,7 +160,11 @@ export const useShowStore = create<ShowStore>((set, get) => ({
     try {
       const res = await apiClient.get(API_ROUTES.v1.shows.voices);
       set({ voices: res.data.voices });
-    } catch {}
+    } catch (err: unknown) {
+      // Voices are an optional enhancement; keep any previously loaded list and
+      // surface the failure to logs rather than blocking the UI with an error state.
+      console.warn('Failed to load show voices:', getErrorMessage(err));
+    }
   },
 
   updateProgress: (progress) => {
