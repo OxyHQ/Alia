@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react';
-import type { AudioPlayer, AudioPlaybackStatus } from 'expo-audio';
+import type { AudioPlayer, AudioStatus } from 'expo-audio';
 import {
   useSharedValue,
   withRepeat,
@@ -129,7 +129,7 @@ export function useTTS(options: UseTTSOptions = {}) {
         const player = createAudioPlayer({ uri: audioUrl });
         playerRef.current = player;
 
-        player.addListener('playbackStatusUpdate', (status: AudioPlaybackStatus) => {
+        player.addListener('playbackStatusUpdate', (status: AudioStatus) => {
           if (status.didJustFinish) {
             releasePlayer();
             reset();

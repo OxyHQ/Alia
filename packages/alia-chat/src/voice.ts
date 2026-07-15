@@ -1,4 +1,3 @@
-/// <reference path="./optional-deps.d.ts" />
 // @alia.onl/sdk/voice — Alia voice surface
 // LiveKit-backed voice room, audio visualisation, ambient wave, and sound effects.
 // Split out of the root entry so text-chat consumers never pull livekit-client
