@@ -109,22 +109,25 @@ function isAliaOwnedMessage(m: Message): boolean {
   );
 }
 
-// Helper function to extract and process text content for the app
-function getMessageText(message: Message): string {
-  let rawText = '';
-
-  // Extract raw text from message
+// Raw text extraction without the tag-stripping regex passes — cheap enough
+// for per-flush presence/length checks during streaming.
+function getRawMessageText(message: Message): string {
   if (message.content) {
-    rawText = getTextFromContent(message.content);
-  } else if (message.parts && Array.isArray(message.parts)) {
-    rawText = message.parts
+    return getTextFromContent(message.content);
+  }
+  if (message.parts && Array.isArray(message.parts)) {
+    return message.parts
       .filter((part) => part.type === "text")
       .map((part) => part.text || "")
       .join("");
   }
+  return '';
+}
 
+// Helper function to extract and process text content for the app
+function getMessageText(message: Message): string {
   // Process message for app platform (removes Telegram tags, keeps app components)
-  const processed = processMessage(rawText, 'app');
+  const processed = processMessage(getRawMessageText(message), 'app');
   return processed.text;
 }
 
@@ -538,7 +541,11 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
       }
       if (lastAliaIndex < 0) return 'idle';
       const m = filteredMessages[lastAliaIndex];
-      const text = getMessageText(m);
+      // Raw text is enough for the presence check — running the full
+      // tag-stripping pipeline here doubled the regex work on every
+      // streaming flush. Worst case a tag-only chunk briefly reads
+      // 'writing' instead of 'thinking'.
+      const text = getRawMessageText(m).trim();
       const hasActiveTools = m.toolInvocations?.some(
         (t: ToolInvocation) => t.state === 'call' || t.state === 'partial-call'
       );

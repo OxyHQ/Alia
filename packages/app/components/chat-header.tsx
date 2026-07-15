@@ -1,3 +1,4 @@
+import React from "react";
 import { View, Platform } from "react-native";
 import { Text } from "@/components/ui/text";
 import { Search, MoreHorizontal, Menu, Mic } from "lucide-react-native";
@@ -26,7 +27,9 @@ interface ChatHeaderProps {
   isVoiceActive?: boolean;
 }
 
-export function ChatHeader({
+// Memoized: the chat screen re-renders ~20×/s while streaming and none of
+// these props change per token.
+export const ChatHeader = React.memo(function ChatHeader({
   title,
   selectedModel,
   onModelChange,
@@ -174,4 +177,4 @@ export function ChatHeader({
       </View>
     </View>
   );
-}
+});

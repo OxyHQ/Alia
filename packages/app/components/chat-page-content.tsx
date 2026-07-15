@@ -208,6 +208,10 @@ export const ChatPageContent = ({
     });
   }, [entitlements, t, router]);
 
+  // Stable identity so the memoized ChatHeader isn't re-rendered per
+  // streaming flush by a fresh inline closure.
+  const handleGhostModeToggle = useCallback(() => toggleMode('ghost'), [toggleMode]);
+
   const handleStartEdit = useCallback((messageId: string, content: string) => {
     setEditingMessageId(messageId);
     setInputValue(content);
@@ -376,7 +380,7 @@ export const ChatPageContent = ({
             title="Alia"
             selectedModel={selectedModel}
             onModelChange={onModelChange}
-            onGhostModePress={() => toggleMode('ghost')}
+            onGhostModePress={handleGhostModeToggle}
             ghostModeActive={activeModes.has('ghost')}
             onClear={onClear}
             isConversation={messages.length > 0}

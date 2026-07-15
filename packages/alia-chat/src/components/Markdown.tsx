@@ -240,6 +240,72 @@ export interface AliaMarkdownProps {
   colors?: Partial<AliaColors>;
 }
 
+const FENCE_RE = /^\s*(?:```|~~~)/;
+const LIST_OR_TABLE_RE = /^\s*(?:[-*+]\s|\d+[.)]\s|\|)/;
+// Link reference definitions ([1]: https://…) resolve per-parse, so a document
+// using them cannot be split into independently parsed blocks.
+const LINK_REF_DEF_RE = /^\s*\[[^\]]+\]:\s/m;
+
+/**
+ * Split markdown into top-level blocks at blank-line boundaries, keeping
+ * fenced code, list runs, and tables intact. During streaming only the last
+ * block's text changes, so every completed block hits React.memo and skips
+ * its markdown-it re-parse — the per-flush cost drops from O(document) to
+ * O(trailing block).
+ */
+function splitMarkdownBlocks(content: string): string[] {
+  if (LINK_REF_DEF_RE.test(content)) return [content];
+
+  const lines = content.split('\n');
+  const blocks: string[] = [];
+  let current: string[] = [];
+  let lastNonBlank = '';
+  let inFence = false;
+  let i = 0;
+
+  while (i < lines.length) {
+    const line = lines[i];
+    if (FENCE_RE.test(line)) {
+      inFence = !inFence;
+      current.push(line);
+      lastNonBlank = line;
+      i += 1;
+      continue;
+    }
+    if (!inFence && line.trim() === '') {
+      let j = i;
+      while (j < lines.length && lines[j].trim() === '') j += 1;
+      const next = j < lines.length ? lines[j] : '';
+      // Splitting a list or table at a blank line would restart ordered-list
+      // numbering and break table parsing — keep those runs in one block.
+      const keepTogether = LIST_OR_TABLE_RE.test(lastNonBlank) || LIST_OR_TABLE_RE.test(next);
+      if (keepTogether || current.length === 0) {
+        for (; i < j; i += 1) current.push(lines[i]);
+      } else {
+        blocks.push(current.join('\n'));
+        current = [];
+        i = j;
+      }
+      continue;
+    }
+    current.push(line);
+    lastNonBlank = line;
+    i += 1;
+  }
+  if (current.length > 0) blocks.push(current.join('\n'));
+  return blocks.length > 0 ? blocks : [content];
+}
+
+type MarkdownBlockProps = {
+  content: string;
+  rules: ReturnType<typeof createRules>;
+  styles: ReturnType<typeof createStyles>;
+};
+
+const MarkdownBlock = React.memo(function MarkdownBlock({ content, rules, styles }: MarkdownBlockProps) {
+  return <Markdown rules={rules} style={styles}>{content}</Markdown>;
+});
+
 export function AliaMarkdown({ content, colors: colorOverrides }: AliaMarkdownProps) {
   const scheme = useColorScheme();
   const fallback = scheme === 'dark' ? FALLBACK_DARK : FALLBACK_LIGHT;
@@ -247,6 +313,20 @@ export function AliaMarkdown({ content, colors: colorOverrides }: AliaMarkdownPr
 
   const customRules = useMemo(() => createRules(colors), [colors.text, colors.muted, colors.border, colors.primary, colors.mutedForeground]);
   const markdownStyles = useMemo(() => createStyles(colors), [colors.text, colors.muted, colors.border, colors.primary, colors.mutedForeground]);
+  const blocks = useMemo(() => splitMarkdownBlocks(content), [content]);
 
-  return <Markdown rules={customRules} style={markdownStyles}>{content}</Markdown>;
+  if (blocks.length === 1) {
+    return <Markdown rules={customRules} style={markdownStyles}>{blocks[0]}</Markdown>;
+  }
+
+  // Each block's `body` rule cancels its own trailing paragraph margin
+  // (marginBottom: -8), so rowGap restores the exact inter-paragraph spacing
+  // a single continuous parse would produce.
+  return (
+    <View style={{ rowGap: 8 }}>
+      {blocks.map((block, i) => (
+        <MarkdownBlock key={i} content={block} rules={customRules} styles={markdownStyles} />
+      ))}
+    </View>
+  );
 }

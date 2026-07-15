@@ -273,7 +273,7 @@ Use this role to guide your responses, maintaining the specified tone, style, an
       const decoder = new TextDecoder();
       let buffer = '';
       let fullContent = '';
-      let charCount = 0;
+      let lastHapticAt = 0;
       let hasToolInvocations = false;
 
       while (true) {
@@ -589,10 +589,12 @@ Use this role to guide your responses, maintaining the specified tone, style, an
               if (delta.content) {
                 fullContent += delta.content;
 
-                // Subtle haptic feedback every 15 characters
-                charCount += delta.content.length;
-                if (charCount >= 15) {
-                  charCount = 0;
+                // Subtle streaming haptic, throttled by time — per-character
+                // counting fired dozens of native bridge calls per second on
+                // fast streams.
+                const now = Date.now();
+                if (now - lastHapticAt >= 150) {
+                  lastHapticAt = now;
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
                 }
 
