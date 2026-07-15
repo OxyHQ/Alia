@@ -24,38 +24,19 @@ import { wrapToolsWithTruncation, getToolResultBudget } from '../../lib/tools/re
 import { log } from '../../lib/logger.js';
 import { recordEvent } from '../../lib/observability/index.js';
 import { classifyError, getRetryAfterHeader } from '../../lib/errors/index.js';
-import { writeTextChunk, writeStopChunk, writeContentChunk, makeChunk } from '../../lib/streaming-helpers.js';
+import { writeStopChunk, writeContentChunk, makeChunk } from '../../lib/streaming-helpers.js';
 import { buildCompletionResponse } from '../../lib/chat/response-shapes.js';
 import { SSEWriter } from '../../lib/chat/sse-writer.js';
 import { buildChatRequestContext } from '../../lib/chat/request-context.js';
+import { runStream, type AgentMessage } from '../../lib/chat/stream-runner.js';
+import { runTextToolFallback } from '../../lib/chat/text-tool-fallback.js';
 import type { FailoverReason } from '../../lib/errors/error-codes.js';
 import type { IAgent } from '../../models/agent.js';
 
 const router = Router();
 
-/** Extended stream chunk types not yet exported by AI SDK */
-type ExtendedChunk = { type: string; text?: string; thoughtDelta?: string; reasoningDelta?: string; toolName?: string; error?: Error & { message: string }; [key: string]: unknown };
-
 /** Errors that should NOT be retried on a different provider (model-level issues, not provider-level) */
 const NON_RETRYABLE_STREAM: Set<FailoverReason> = new Set(['format', 'content_filter']);
-
-/** Max characters of a tool arg/result payload to include in debug logs (prevents log bloat) */
-const LOG_PREVIEW_MAX_CHARS = 500;
-
-/** Compact, size-capped string preview of an arbitrary value for debug logging */
-function previewForLog(value: unknown): string {
-  let str: string | undefined;
-  try {
-    str = typeof value === 'string' ? value : JSON.stringify(value);
-  } catch {
-    // Circular or non-serializable payload — fall back to a coarse string form.
-    str = String(value);
-  }
-  if (str === undefined) str = String(value);
-  return str.length > LOG_PREVIEW_MAX_CHARS
-    ? `${str.slice(0, LOG_PREVIEW_MAX_CHARS)}... [${str.length} chars total]`
-    : str;
-}
 
 /**
  * POST /v1/chat/completions
@@ -140,7 +121,7 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
     });
 
     // Agent mode: full agent escalation for linked conversations
-    const agentMessages: Array<{ role: 'assistant'; content: string; agentInfo: { id: string; name: string; avatar: string | null; handle: string } }> = [];
+    const agentMessages: AgentMessage[] = [];
     if (agentMode && isDirectUserSession) {
 
       // Check if this conversation is linked to a specific agent — enable full agent execution
@@ -271,9 +252,7 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
     });
 
     // Tool tracking for observability
-    const toolTimers = new Map<string, number>();
     let toolCallCount = 0;
-    const MAX_TOOL_CALLS = 15;
 
     // Provider fallback retry loop
     // Dynamic retry budget: try every configured provider in the tier, minimum 5
@@ -373,18 +352,21 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
       }, 'AI SDK config');
     }
 
-    let hasStreamedContent = false;
+    // Shared with the stream runner + provider-retry catch: reflects writes made
+    // inside runStream even when the stream throws mid-flight.
+    const streamState = { hasStreamedContent: false };
 
     // Per-provider first-byte timeout — abort if no response within 20s
     const FIRST_BYTE_TIMEOUT_MS = 20_000;
     const providerAbort = new AbortController();
     let firstByteTimer: NodeJS.Timeout | null = setTimeout(() => {
-      if (!hasStreamedContent) {
+      if (!streamState.hasStreamedContent) {
         log.v1.warn({ provider: resolved!.provider, modelId: resolved!.modelId, timeoutMs: FIRST_BYTE_TIMEOUT_MS }, 'Provider first-byte timeout');
         providerAbort.abort(new Error('Provider first-byte timeout'));
       }
     }, FIRST_BYTE_TIMEOUT_MS);
     baseConfig.abortSignal = providerAbort.signal;
+    const clearFirstByteTimer = () => { if (firstByteTimer) { clearTimeout(firstByteTimer); firstByteTimer = null; } };
 
     try { // Provider attempt try block
 
@@ -393,7 +375,7 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
       log.v1.info('Non-streaming request, using generateText');
 
       const result = await generateText(baseConfig);
-      if (firstByteTimer) { clearTimeout(firstByteTimer); firstByteTimer = null; }
+      clearFirstByteTimer();
 
       // Capture token usage (AI SDK uses inputTokens/outputTokens)
       if (result.usage) {
@@ -499,334 +481,43 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
     req.on('close', onClientClose);
 
     // Stream OpenAI-compatible chunks
-    log.v1.info('Starting to process AI SDK stream');
-    let chunkCount = 0;
-    let assistantResponse = ''; // Track assistant's response for conversation save
-    let hasStreamedText = false; // Track whether actual text (not just tool calls) was streamed
-    const toolInvocations: Array<{ toolCallId: string; toolName: string; state: 'call' | 'result'; args?: unknown; result?: unknown }> = [];
-    for await (const chunk of result.fullStream) {
-      chunkCount++;
-      // Clear first-byte timer on first chunk (provider responded)
-      if (firstByteTimer) { clearTimeout(firstByteTimer); firstByteTimer = null; }
-      // Log chunk type (skip high-frequency text-delta to reduce noise)
-      if (chunk.type !== 'text-delta') {
-        log.v1.debug({ chunkCount, chunkType: chunk.type }, 'Stream chunk');
-      }
-
-      if (chunk.type === 'text-delta' && chunk.text) {
-        sse.ensureHeaders();
-        hasStreamedContent = true;
-        hasStreamedText = true;
-
-        // Extract <thinking> tags for chain-of-thought (Anthropic, DeepSeek, etc.)
-        const thinkingMatch = chunk.text.match(/<thinking>([\s\S]*?)<\/thinking>/g);
-        if (thinkingMatch) {
-          // Send thinking content as named SSE event (non-standard, Alia extension)
-          thinkingMatch.forEach(match => {
-            const content = match.replace(/<\/?thinking>/g, '').trim();
-            if (content) {
-              res.write(`event: alia.reasoning\ndata: ${JSON.stringify({ eventVersion: 1, content })}\n\n`);
-              log.v1.debug({ reasoning: content.slice(0, 100) }, 'Reasoning chunk (thinking tag)');
-            }
-          });
-        }
-
-        // Filter out thinking tags and stream as OpenAI-compatible chunk
-        const filtered = writeTextChunk(res, requestId, aliasModelId, chunk.text);
-        if (filtered) {
-          assistantResponse += filtered;
-        }
-      } else if ((chunk as ExtendedChunk).type === 'thought-delta' || (chunk as ExtendedChunk).type === 'reasoning-delta') {
-        sse.ensureHeaders();
-        hasStreamedContent = true;
-
-        // Handle Gemini thought summaries and other reasoning tokens
-        const reasoningText = (chunk as ExtendedChunk).text || (chunk as ExtendedChunk).thoughtDelta || (chunk as ExtendedChunk).reasoningDelta;
-        if (reasoningText && typeof reasoningText === 'string' && reasoningText.trim()) {
-          res.write(`event: alia.reasoning\ndata: ${JSON.stringify({ eventVersion: 1, content: reasoningText.trim() })}\n\n`);
-          log.v1.debug({ reasoning: reasoningText.slice(0, 100) }, 'Reasoning chunk (provider)');
-        }
-      } else if (chunk.type === 'tool-call') {
-        sse.ensureHeaders();
-        hasStreamedContent = true;
-
-        // Restore original tool name if it was sanitized
-        const originalToolName = toolNameMapping.get(chunk.toolName) || chunk.toolName;
-
-        // Log the tool call arguments being sent to the client
-        log.v1.debug({ toolName: originalToolName, args: previewForLog(chunk.input) }, 'Streaming tool call');
-
-        res.write(`data: ${JSON.stringify(makeChunk(requestId, aliasModelId, [{
-          index: 0,
-          delta: { tool_calls: [{ index: 0, id: chunk.toolCallId, type: 'function', function: { name: originalToolName, arguments: JSON.stringify(chunk.input || {}) } }] },
-          finish_reason: null,
-        }]))}\n\n`);
-
-        // Track tool invocation for conversation save
-        toolInvocations.push({
-          toolCallId: chunk.toolCallId,
-          toolName: originalToolName,
-          state: 'call',
-          args: chunk.input,
-        });
-
-        // Track tool call timing (start)
-        toolTimers.set(chunk.toolCallId, Date.now());
-        toolCallCount++;
-
-        // Tool iteration guard
-        if (toolCallCount > MAX_TOOL_CALLS) {
-          log.v1.warn({ toolCallCount, MAX_TOOL_CALLS }, 'Tool call limit exceeded, breaking stream');
-          recordEvent({ type: 'error', timestamp: Date.now(), code: 'TOOL_LIMIT_EXCEEDED', message: `Exceeded ${MAX_TOOL_CALLS} tool calls` });
-          break;
-        }
-      } else if (chunk.type === 'tool-result') {
-        sse.ensureHeaders();
-        hasStreamedContent = true;
-
-        const originalToolName = toolNameMapping.get(chunk.toolName) || chunk.toolName;
-        log.v1.debug({ toolName: originalToolName, output: previewForLog(chunk.output) }, 'Tool result');
-
-        // Record tool.call observability event
-        const toolStart = toolTimers.get(chunk.toolCallId);
-        if (toolStart) {
-          recordEvent({ type: 'tool.call', timestamp: Date.now(), toolName: originalToolName, durationMs: Date.now() - toolStart, success: true });
-          toolTimers.delete(chunk.toolCallId);
-        }
-
-        // Stream tool result as named SSE event (non-standard, Alia extension)
-        res.write(`event: alia.tool_result\ndata: ${JSON.stringify({
-          eventVersion: 1,
-          tool_call_id: chunk.toolCallId,
-          name: originalToolName,
-          output: chunk.output,
-        })}\n\n`);
-
-        // Update tool invocation state for conversation save
-        const existingIdx = toolInvocations.findIndex(t => t.toolCallId === chunk.toolCallId);
-        if (existingIdx >= 0) {
-          toolInvocations[existingIdx].state = 'result';
-          toolInvocations[existingIdx].result = chunk.output;
-        } else {
-          toolInvocations.push({
-            toolCallId: chunk.toolCallId,
-            toolName: originalToolName,
-            state: 'result',
-            result: chunk.output,
-          });
-        }
-
-        // Emit agent message as named SSE event (non-standard, Alia extension)
-        if (originalToolName === 'delegateToAgent' && chunk.output && !chunk.output.error) {
-          const ar = chunk.output;
-          res.write(`event: alia.agent\ndata: ${JSON.stringify({
-            eventVersion: 1,
-            agentId: ar.agentId,
-            agentName: ar.agentName,
-            agentHandle: ar.agentHandle,
-            agentAvatar: ar.agentAvatar,
-            content: ar.response,
-          })}\n\n`);
-          agentMessages.push({
-            role: 'assistant',
-            content: ar.response,
-            agentInfo: { id: ar.agentId, name: ar.agentName, avatar: ar.agentAvatar, handle: ar.agentHandle },
-          });
-        }
-      } else if (chunk.type === 'tool-error') {
-        // Handle tool execution errors
-        sse.ensureHeaders();
-        hasStreamedContent = true;
-
-        const originalToolName = toolNameMapping.get((chunk as ExtendedChunk).toolName ?? '') || (chunk as ExtendedChunk).toolName;
-        log.v1.error({ err: (chunk as ExtendedChunk).error, toolName: originalToolName }, 'Tool error');
-
-        // Send tool error as text content so the user sees what happened
-        const errorMessage = (chunk as ExtendedChunk).error?.message || 'Tool execution failed';
-        const toolErrorContent = `\n\nTool error (${originalToolName}): ${errorMessage}`;
-        writeContentChunk(res, requestId, aliasModelId, toolErrorContent);
-        assistantResponse += toolErrorContent;
-      } else if (chunk.type === 'start') {
-        log.v1.debug('Stream started');
-      } else if (chunk.type === 'start-step') {
-        log.v1.debug('Step started');
-      } else if (chunk.type === 'text-start' || chunk.type === 'text-end') {
-        // Text generation lifecycle events - no action needed
-      } else if (chunk.type === 'tool-input-start' || chunk.type === 'tool-input-end' || chunk.type === 'tool-input-delta') {
-        // Tool input streaming events - no action needed
-      } else if (chunk.type === 'source' || chunk.type === 'file' || chunk.type === 'raw') {
-        // Source/file/raw events - no action needed
-      } else if (chunk.type === 'finish-step') {
-        log.v1.debug('Step finished');
-      } else if (chunk.type === 'error') {
-        log.v1.error({ err: (chunk as ExtendedChunk).error }, 'Error chunk received');
-
-        // Record failure for circuit breaker - classify error for accurate reporting
-        const streamErrorReason = classifyError((chunk as ExtendedChunk).error);
-        const streamRetryAfterSec = getRetryAfterHeader((chunk as ExtendedChunk).error);
-        const streamRetryAfterMs = streamRetryAfterSec ? streamRetryAfterSec * 1000 : undefined;
-        await reportModelUsage(resolved!.keyConfig?.keyId, resolved!.provider, resolved!.modelId, false, 0, streamErrorReason, streamRetryAfterMs);
-
-        const rawError = (chunk as ExtendedChunk).error;
-
-        // If no content streamed yet, throw to trigger provider fallback
-        if (!hasStreamedContent) {
-          log.v1.info({ provider: resolved!.provider, modelId: resolved!.modelId }, 'Stream error (no content sent), trying next provider');
-          throw rawError;
-        }
-
-        // If only tool content was streamed (no text), retry synthesis with collected tool results
-        if (!hasStreamedText && toolInvocations.some(t => t.state === 'result')) {
-          log.v1.info({ provider: resolved!.provider, modelId: resolved!.modelId }, 'Synthesis failed after tool results, retrying without tools');
-          try {
-            const followUpMessages = [
-              ...convertedMessages,
-              ...toolInvocations
-                .filter(t => t.state === 'result')
-                .flatMap(t => [
-                  { role: 'assistant' as const, content: '', toolCalls: [{ toolCallId: t.toolCallId, toolName: t.toolName, args: t.args }] },
-                  { role: 'tool' as const, content: [{ type: 'tool-result' as const, toolCallId: t.toolCallId, toolName: t.toolName, output: { type: 'text' as const, value: typeof t.result === 'string' ? t.result : JSON.stringify(t.result) } }] },
-                ]),
-            ];
-
-            // Fresh abort controller — the original may already be aborted
-            const retryAbort = new AbortController();
-            const retryTimer = setTimeout(() => retryAbort.abort(), 30_000);
-
-            try {
-              const retryResult = streamText({ ...baseConfig, abortSignal: retryAbort.signal, messages: followUpMessages, tools: undefined, stopWhen: undefined });
-
-              for await (const retryChunk of retryResult.fullStream) {
-                if (res.writableEnded) break;
-                if (retryChunk.type === 'text-delta' && retryChunk.text) {
-                  const filtered = writeTextChunk(res, requestId, aliasModelId, retryChunk.text);
-                  if (filtered) {
-                    hasStreamedText = true;
-                    assistantResponse += filtered;
-                  }
-                }
-              }
-            } finally {
-              clearTimeout(retryTimer);
-            }
-
-            if (hasStreamedText && !res.writableEnded) {
-              writeStopChunk(res, requestId, aliasModelId);
-              break; // Exit main stream loop — synthesis retry succeeded
-            }
-          } catch (retryErr) {
-            log.v1.error({ err: retryErr }, 'Synthesis retry also failed');
-          }
-        }
-
-        // Mid-stream graceful recovery: send a friendly message instead of raw error
-        if (!hasStreamedText && !res.writableEnded) {
-          sse.ensureHeaders();
-          const midStreamMsg = isSpanish
-            ? '\n\nHubo una breve interrupción. Por favor, envía tu mensaje de nuevo y completaré mi respuesta.'
-            : '\n\nI encountered a brief interruption. Please send your message again and I\'ll complete my response.';
-          writeContentChunk(res, requestId, aliasModelId, midStreamMsg);
-          writeStopChunk(res, requestId, aliasModelId);
-        }
-      } else if (chunk.type === 'finish') {
-        log.v1.debug('Finish chunk received');
-        sse.ensureHeaders();
-        writeStopChunk(res, requestId, aliasModelId, chunk.finishReason || 'stop');
-      } else {
-        log.v1.warn({ chunkType: chunk.type, chunk }, 'Unhandled chunk type');
-      }
-    }
+    const streamResult = await runStream({
+      result,
+      res,
+      sse,
+      requestId,
+      aliasModelId,
+      resolved: resolved!,
+      baseConfig,
+      convertedMessages,
+      toolNameMapping,
+      agentMessages,
+      isSpanish,
+      toolCallCount,
+      state: streamState,
+      onFirstChunk: clearFirstByteTimer,
+    });
+    let assistantResponse = streamResult.assistantResponse;
+    const toolInvocations = streamResult.toolInvocations;
+    toolCallCount = streamResult.toolCallCount;
 
     sse.stopKeepAlive();
-    log.v1.info({ totalChunks: chunkCount }, 'Stream processing complete');
+    log.v1.info({ totalChunks: streamResult.chunkCount }, 'Stream processing complete');
 
     // ── Text-based tool call fallback ──
     // Some models (Gemini 3 preview, Minimax, etc.) output tool calls as text
     // instead of using the native tool calling API. Detect and execute them.
-
-    let textToolCallIdx = 0;
-    async function executeTextToolCall(toolName: string, args: unknown): Promise<boolean> {
-      const toolFn = truncatedTools[toolName];
-      if (!toolFn?.execute) {
-        log.v1.warn({ toolName }, 'Text tool call references unknown tool, skipping');
-        return false;
-      }
-
-      const toolCallId = `text-fallback-${Date.now()}-${textToolCallIdx++}-${toolName}`;
-
-      // Emit tool-call event to client
-      res.write(`data: ${JSON.stringify(makeChunk(requestId, aliasModelId, [{
-        index: 0,
-        delta: { tool_calls: [{ index: 0, id: toolCallId, type: 'function', function: { name: toolName, arguments: JSON.stringify(args) } }] },
-        finish_reason: null,
-      }]))}\n\n`);
-
-      try {
-        const toolOutput = await (toolFn.execute as (...args: unknown[]) => unknown)(args);
-
-        res.write(`event: alia.tool_result\ndata: ${JSON.stringify({
-          eventVersion: 1,
-          tool_call_id: toolCallId,
-          name: toolName,
-          output: toolOutput,
-        })}\n\n`);
-
-        toolInvocations.push({ toolCallId, toolName, state: 'result', args, result: toolOutput });
-
-        // Follow-up LLM call so the model generates a natural response
-        try {
-          const followUpMessages = [
-            ...convertedMessages,
-            { role: 'assistant', content: '', toolCalls: [{ toolCallId, toolName, args }] },
-            { role: 'tool', content: [{ type: 'tool-result', toolCallId, toolName, output: { type: 'text', value: typeof toolOutput === 'string' ? toolOutput : JSON.stringify(toolOutput) } }] },
-          ];
-          const followUpResult = streamText({ ...baseConfig, messages: followUpMessages, tools: undefined, stopWhen: undefined, onFinish: undefined });
-
-          for await (const followUpChunk of followUpResult.fullStream) {
-            if (followUpChunk.type === 'text-delta' && followUpChunk.text) {
-              const followUpText = writeTextChunk(res, requestId, aliasModelId, followUpChunk.text);
-              if (followUpText) {
-                assistantResponse = followUpText;
-              }
-            }
-          }
-        } catch (followUpErr) {
-          log.v1.error({ err: followUpErr }, 'Error in text-tool-call follow-up LLM call');
-        }
-      } catch (toolErr) {
-        log.v1.error({ err: toolErr, toolName }, 'Error executing text-based tool call');
-        return false;
-      }
-      return true;
-    }
-
-    const TEXT_TOOL_CALL_RE = /<function\((\w+)\)>\s*<?\s*(\{[\s\S]*?\})\s*>?\s*<\/function>/g;
-
-    if (assistantResponse && toolInvocations.length === 0) {
-      // Format 1: <function(name)>{json}</function>
-      const textToolMatches = [...assistantResponse.matchAll(TEXT_TOOL_CALL_RE)];
-      if (textToolMatches.length > 0) {
-        log.v1.warn({ matchCount: textToolMatches.length, format: 'xml', provider: resolved!.provider, modelId: resolved!.modelId }, 'Detected text-based tool calls — executing fallback');
-        for (const match of textToolMatches) {
-          let args: unknown;
-          try { args = JSON.parse(match[2]); } catch { continue; }
-          await executeTextToolCall(match[1], args);
-        }
-        assistantResponse = assistantResponse.replace(TEXT_TOOL_CALL_RE, '').trim();
-      }
-
-      // Format 2: entire response is a JSON tool call (OpenAI format)
-      if (toolInvocations.length === 0) {
-        try {
-          const parsed = JSON.parse(assistantResponse.trim());
-          if (parsed?.type === 'function' && typeof parsed.name === 'string' && parsed.parameters) {
-            log.v1.warn({ format: 'openai-json', toolName: parsed.name, provider: resolved!.provider, modelId: resolved!.modelId }, 'Detected JSON tool call in text response — executing fallback');
-            await executeTextToolCall(parsed.name, parsed.parameters);
-            assistantResponse = '';
-          }
-        } catch { /* not JSON — no action needed */ }
-      }
-    }
+    assistantResponse = (await runTextToolFallback({
+      assistantResponse,
+      toolInvocations,
+      tools: truncatedTools,
+      convertedMessages,
+      baseConfig,
+      res,
+      requestId,
+      aliasModelId,
+      resolved: resolved!,
+    })).assistantResponse;
 
     // Build lifecycle context for post-stream operations
     const lifecycleCtx: LifecycleContext = {
@@ -920,7 +611,7 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
     } catch (providerError: unknown) {
       // Clean up timers on provider failure
       sse.stopKeepAlive();
-      if (firstByteTimer) { clearTimeout(firstByteTimer); firstByteTimer = null; }
+      clearFirstByteTimer();
       // Provider attempt failed — classify with shared error classifier
       log.v1.error({ err: providerError, provider: resolved!.provider, modelId: resolved!.modelId }, 'Provider failed');
       const errorReason = classifyError(providerError);
@@ -930,12 +621,12 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
 
       // Non-retryable errors: stop immediately (would fail on any provider)
       if (NON_RETRYABLE_STREAM.has(errorReason)) {
-        if (hasStreamedContent) throw providerError;
+        if (streamState.hasStreamedContent) throw providerError;
         break; // Fall through to last-resort response
       }
 
       // If content already streamed, can't retry — fall to outer handler
-      if (hasStreamedContent) {
+      if (streamState.hasStreamedContent) {
         throw providerError;
       }
 
