@@ -1,6 +1,6 @@
 import { tool } from "ai";
 import { z } from "zod";
-import { getMemoryLimit } from "../../models/user-memory.js";
+import { getMemoryLimit, MEMORY_TYPES } from "../../models/user-memory.js";
 import { Subscription } from "../../models/subscription.js";
 import { getOrCreateUserMemory } from "../memory/user-memory-service.js";
 import { log } from '../logger.js';
@@ -15,22 +15,33 @@ export const saveUserMemoryTool = (oxyUserId: string) => tool({
   description: 'Save important user information for future conversations. Use ALWAYS when user shares: preferences, personal info, goals, experiences, or anything they want remembered.',
 
   inputSchema: z.object({
-    key: z.string().describe('Short descriptive key (e.g., "favorite_fruit", "occupation", "pet")'),
-    value: z.string().describe('Memory value/description (e.g., "strawberries", "software engineer", "dog named Max")'),
-    category: z.string().optional().describe('Optional category: "preference", "personal", "goal", "experience"'),
+    title: z.string().describe('Short, human-readable label (e.g. "Food", "Occupation", a person\'s name) — NOT a snake_case key'),
+    summary: z.string().describe('1-2 sentence description of what to remember'),
+    type: z.enum(MEMORY_TYPES).describe(
+      'profile = a fact about the user themself; topic = a subject/interest/project; person = someone in the user\'s life'
+    ),
   }),
 
-  execute: async ({ key, value, category }) => {
+  execute: async ({ title, summary, type }) => {
     try {
       const memory = await getOrCreateUserMemory(oxyUserId);
 
-      // Check if a memory with this key already exists
-      const existingMemoryIndex = memory.memories.findIndex(m => m.key === key);
+      if (memory.settings?.autoSaveEnabled === false) {
+        return {
+          success: false,
+          message: 'Memory auto-save is disabled in the user\'s settings — do not attempt to save this.',
+          disabled: true,
+        };
+      }
+
+      // Check if a memory with this title already exists (case-insensitive, trimmed)
+      const normalizedTitle = title.trim().toLowerCase();
+      const existingMemoryIndex = memory.memories.findIndex(m => m.title.trim().toLowerCase() === normalizedTitle);
 
       if (existingMemoryIndex !== -1) {
         // Update existing memory
-        memory.memories[existingMemoryIndex].value = value;
-        memory.memories[existingMemoryIndex].category = category;
+        memory.memories[existingMemoryIndex].summary = summary;
+        memory.memories[existingMemoryIndex].type = type;
         memory.memories[existingMemoryIndex].updatedAt = new Date();
       } else {
         // Check memory limit before adding new memory
@@ -53,9 +64,9 @@ export const saveUserMemoryTool = (oxyUserId: string) => tool({
 
         // Add new memory
         memory.memories.push({
-          key,
-          value,
-          category,
+          title,
+          summary,
+          type,
           createdAt: new Date(),
           updatedAt: new Date()
         });
@@ -66,9 +77,9 @@ export const saveUserMemoryTool = (oxyUserId: string) => tool({
 
       // Generate embedding in background (fire-and-forget)
       import('../memory/index.js').then(async ({ generateEmbedding, upsertMemoryEmbedding }) => {
-        const embedding = await generateEmbedding(`${key}: ${value}`);
+        const embedding = await generateEmbedding(`${title}: ${summary}`);
         if (embedding) {
-          await upsertMemoryEmbedding(oxyUserId, key, embedding);
+          await upsertMemoryEmbedding(oxyUserId, title, embedding);
         }
         // Invalidate vector search cache so next recall picks up the new memory
         const { invalidateUserEmbeddingCache } = await import('../memory/vector-search.js');
@@ -77,7 +88,7 @@ export const saveUserMemoryTool = (oxyUserId: string) => tool({
 
       return {
         success: true,
-        message: `Recuerdo guardado exitosamente: ${key} = ${value}`,
+        message: `Recuerdo guardado exitosamente: ${title} = ${summary}`,
         totalMemories: memory.memories.length
       };
     } catch (error: unknown) {
