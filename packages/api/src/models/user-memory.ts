@@ -4,15 +4,18 @@ import mongoose, { Schema, Model, Document } from 'mongoose';
 export const MAX_MEMORIES_FREE = 100;
 export const MAX_MEMORIES_PRO = 1000;
 export const MAX_MEMORIES_BUSINESS = -1; // Unlimited
-export const MAX_MEMORY_VALUE_LENGTH = 10000;
-export const MAX_MEMORY_KEY_LENGTH = 200;
-export const MAX_CATEGORY_LENGTH = 50;
+export const MAX_MEMORY_TITLE_LENGTH = 200;
+export const MAX_MEMORY_SUMMARY_LENGTH = 10000;
 
 // Writing style constants
 export const STYLE_MIN_MESSAGES = 15;
 export const STYLE_LLM_REFINE_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 export const STYLE_LLM_REFINE_MIN_MESSAGES = 50;
 export const STYLE_RAW_ROLLING_WINDOW = 200;
+
+// Memory grouping shown in the settings UI (You / Topics / People)
+export const MEMORY_TYPES = ['profile', 'topic', 'person'] as const;
+export type MemoryType = typeof MEMORY_TYPES[number];
 
 // Writing style profile interface
 export interface IWritingStyleRaw {
@@ -98,12 +101,16 @@ export const getMemoryLimit = (planName?: string): number => {
 export interface IUserMemory extends Document {
   oxyUserId: mongoose.Types.ObjectId;
   memories: {
-    key: string;
-    value: string;
-    category?: string;
+    title: string;
+    summary: string;
+    type: MemoryType;
     createdAt: Date;
     updatedAt: Date;
   }[];
+  settings: {
+    autoSaveEnabled: boolean;
+    recallEnabled: boolean;
+  };
   preferences: {
     language?: string;
     tone?: string;
@@ -126,12 +133,16 @@ export interface IUserMemory extends Document {
 const UserMemorySchema = new Schema<IUserMemory>({
   oxyUserId: { type: Schema.Types.ObjectId, ref: 'User', required: true, unique: true },
   memories: [{
-    key: { type: String, required: true },
-    value: { type: String, required: true },
-    category: { type: String },
+    title: { type: String, required: true },
+    summary: { type: String, required: true },
+    type: { type: String, enum: MEMORY_TYPES, required: true, default: 'topic' },
     createdAt: { type: Date, default: Date.now },
     updatedAt: { type: Date, default: Date.now }
   }],
+  settings: {
+    autoSaveEnabled: { type: Boolean, default: true },
+    recallEnabled: { type: Boolean, default: true },
+  },
   preferences: {
     language: { type: String },
     tone: { type: String },
@@ -153,11 +164,11 @@ const UserMemorySchema = new Schema<IUserMemory>({
 });
 
 // Performance indexes
-// Text index for full-text search on memory keys and values
-UserMemorySchema.index({ 'memories.key': 'text', 'memories.value': 'text' });
+// Text index for full-text search on memory titles and summaries
+UserMemorySchema.index({ 'memories.title': 'text', 'memories.summary': 'text' });
 
-// Category index for filtering
-UserMemorySchema.index({ 'memories.category': 1 });
+// Type index for filtering
+UserMemorySchema.index({ 'memories.type': 1 });
 
 // Timestamp index for sorting
 UserMemorySchema.index({ 'memories.updatedAt': -1 });

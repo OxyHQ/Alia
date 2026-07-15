@@ -1,22 +1,19 @@
 import { z } from 'zod';
 import {
-  MAX_MEMORY_KEY_LENGTH,
-  MAX_MEMORY_VALUE_LENGTH,
-  MAX_CATEGORY_LENGTH,
+  MAX_MEMORY_TITLE_LENGTH,
+  MAX_MEMORY_SUMMARY_LENGTH,
+  MEMORY_TYPES,
 } from '../../models/user-memory';
 
 // Schema for individual memory item
 export const MemoryItemSchema = z.object({
-  key: z.string()
-    .min(1, 'Key is required')
-    .max(MAX_MEMORY_KEY_LENGTH, `Key must be less than ${MAX_MEMORY_KEY_LENGTH} characters`)
-    .regex(/^[a-zA-Z0-9_-]+$/, 'Key must be alphanumeric with underscores or hyphens only'),
-  value: z.string()
-    .min(1, 'Value is required')
-    .max(MAX_MEMORY_VALUE_LENGTH, `Value must be less than ${MAX_MEMORY_VALUE_LENGTH} characters`),
-  category: z.string()
-    .max(MAX_CATEGORY_LENGTH, `Category must be less than ${MAX_CATEGORY_LENGTH} characters`)
-    .optional(),
+  title: z.string()
+    .min(1, 'Title is required')
+    .max(MAX_MEMORY_TITLE_LENGTH, `Title must be less than ${MAX_MEMORY_TITLE_LENGTH} characters`),
+  summary: z.string()
+    .min(1, 'Summary is required')
+    .max(MAX_MEMORY_SUMMARY_LENGTH, `Summary must be less than ${MAX_MEMORY_SUMMARY_LENGTH} characters`),
+  type: z.enum(MEMORY_TYPES),
   createdAt: z.coerce.date().optional(),
   updatedAt: z.coerce.date().optional(),
 });
@@ -54,24 +51,25 @@ export const MergeStrategySchema = z.enum(['replace', 'merge', 'skip-duplicates'
 
 // Memory update schema for API endpoints
 export const UpdateMemorySchema = z.object({
-  value: z.string()
-    .min(1, 'Value is required')
-    .max(MAX_MEMORY_VALUE_LENGTH, `Value must be less than ${MAX_MEMORY_VALUE_LENGTH} characters`),
-  category: z.string()
-    .max(MAX_CATEGORY_LENGTH, `Category must be less than ${MAX_CATEGORY_LENGTH} characters`)
-    .optional(),
+  summary: z.string()
+    .min(1, 'Summary is required')
+    .max(MAX_MEMORY_SUMMARY_LENGTH, `Summary must be less than ${MAX_MEMORY_SUMMARY_LENGTH} characters`),
+  type: z.enum(MEMORY_TYPES).optional(),
+});
+
+// Settings update schema
+export const MemorySettingsSchema = z.object({
+  autoSaveEnabled: z.boolean().optional(),
+  recallEnabled: z.boolean().optional(),
 });
 
 // Add memory schema for API endpoints
 export const AddMemorySchema = z.object({
-  key: z.string()
-    .min(1, 'Key is required')
-    .max(MAX_MEMORY_KEY_LENGTH, `Key must be less than ${MAX_MEMORY_KEY_LENGTH} characters`)
-    .regex(/^[a-zA-Z0-9_-]+$/, 'Key must be alphanumeric with underscores or hyphens only'),
-  value: z.string()
-    .min(1, 'Value is required')
-    .max(MAX_MEMORY_VALUE_LENGTH, `Value must be less than ${MAX_MEMORY_VALUE_LENGTH} characters`),
-  category: z.string()
-    .max(MAX_CATEGORY_LENGTH, `Category must be less than ${MAX_CATEGORY_LENGTH} characters`)
-    .optional(),
+  title: z.string()
+    .min(1, 'Title is required')
+    .max(MAX_MEMORY_TITLE_LENGTH, `Title must be less than ${MAX_MEMORY_TITLE_LENGTH} characters`),
+  summary: z.string()
+    .min(1, 'Summary is required')
+    .max(MAX_MEMORY_SUMMARY_LENGTH, `Summary must be less than ${MAX_MEMORY_SUMMARY_LENGTH} characters`),
+  type: z.enum(MEMORY_TYPES),
 });

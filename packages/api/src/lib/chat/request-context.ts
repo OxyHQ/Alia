@@ -59,7 +59,7 @@ export interface ChatRequestContext {
   resolved: Awaited<ReturnType<typeof resolveModel>>;
   aliasModelId: string;
   autonomyRuntime: AutonomyRuntimeContext | null;
-  recalledMemories: Array<{ key: string; value: string }> | undefined;
+  recalledMemories: Array<{ title: string; summary: string }> | undefined;
 }
 
 export async function buildChatRequestContext(
@@ -253,7 +253,7 @@ export async function buildChatRequestContext(
     }
   }
 
-  let recalledMemories: Array<{ key: string; value: string }> | undefined;
+  let recalledMemories: Array<{ title: string; summary: string }> | undefined;
   if (req.user?.id) {
     const hookResult = await runBeforeChatHooks({
       userId: req.user.id,
@@ -264,7 +264,7 @@ export async function buildChatRequestContext(
       platform: req.apiKey ? 'telegram' as const : 'app' as const,
       metadata: {},
     }).catch(() => null);
-    recalledMemories = hookResult?.metadata?.recalledMemories as Array<{ key: string; value: string }> | undefined;
+    recalledMemories = hookResult?.metadata?.recalledMemories as Array<{ title: string; summary: string }> | undefined;
   }
 
   return {
