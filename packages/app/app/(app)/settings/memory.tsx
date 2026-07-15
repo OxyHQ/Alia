@@ -22,9 +22,6 @@ import {
   Brain,
   Plus,
   Search,
-  User,
-  Tag,
-  Users,
   Download,
   Upload,
   FileJson,
@@ -83,10 +80,10 @@ interface DuplicatePair {
   memory2?: { _id: string; title: string; summary: string };
 }
 
-const TYPE_SECTIONS: { type: MemoryType; headingKey: string; icon: typeof User; emptyKey: string }[] = [
-  { type: 'profile', headingKey: 'memory.sectionYou', icon: User, emptyKey: 'memory.sectionYouEmpty' },
-  { type: 'topic', headingKey: 'memory.sectionTopics', icon: Tag, emptyKey: 'memory.sectionTopicsEmpty' },
-  { type: 'person', headingKey: 'memory.sectionPeople', icon: Users, emptyKey: 'memory.sectionPeopleEmpty' },
+const TYPE_SECTIONS: { type: MemoryType; headingKey: string; emptyKey: string }[] = [
+  { type: 'profile', headingKey: 'memory.sectionYou', emptyKey: 'memory.sectionYouEmpty' },
+  { type: 'topic', headingKey: 'memory.sectionTopics', emptyKey: 'memory.sectionTopicsEmpty' },
+  { type: 'person', headingKey: 'memory.sectionPeople', emptyKey: 'memory.sectionPeopleEmpty' },
 ];
 
 export default function MemoryScreen() {
@@ -579,11 +576,11 @@ export default function MemoryScreen() {
       <SettingsHeader title={t("memory.title")} />
       <ScrollView className="flex-1" contentContainerClassName="max-w-2xl">
         {/* Settings toggles */}
-        <View className="px-4 pt-3 pb-2 gap-3">
-          <View className="flex-row items-center justify-between gap-3">
-            <View className="flex-1 min-w-0">
+        <View className="px-4 pt-2 pb-1">
+          <View className="flex-row items-center justify-between gap-4 py-3 border-b border-border">
+            <View className="flex-1 min-w-0 gap-0.5">
               <Text className="text-sm text-foreground">{t('memory.recallToggleLabel')}</Text>
-              <Text className="text-xs text-muted-foreground">{t('memory.recallToggleDescription')}</Text>
+              <Text className="text-sm text-muted-foreground">{t('memory.recallToggleDescription')}</Text>
             </View>
             <Switch
               value={memory?.settings?.recallEnabled ?? true}
@@ -591,10 +588,10 @@ export default function MemoryScreen() {
               disabled={updatingSettings}
             />
           </View>
-          <View className="flex-row items-center justify-between gap-3">
-            <View className="flex-1 min-w-0">
+          <View className="flex-row items-center justify-between gap-4 py-3 border-b border-border">
+            <View className="flex-1 min-w-0 gap-0.5">
               <Text className="text-sm text-foreground">{t('memory.autoSaveToggleLabel')}</Text>
-              <Text className="text-xs text-muted-foreground">{t('memory.autoSaveToggleDescription')}</Text>
+              <Text className="text-sm text-muted-foreground">{t('memory.autoSaveToggleDescription')}</Text>
             </View>
             <Switch
               value={memory?.settings?.autoSaveEnabled ?? true}
@@ -602,15 +599,19 @@ export default function MemoryScreen() {
               disabled={updatingSettings}
             />
           </View>
-
-          <Button
-            variant="outline"
-            size="sm"
-            className="self-start"
-            onPress={() => setShowProviderImportDialog(true)}
-          >
-            <Text className="text-xs">{t('memory.importFromProvider')}</Text>
-          </Button>
+          <View className="flex-row items-center justify-between gap-4 py-3">
+            <View className="flex-1 min-w-0 gap-0.5">
+              <Text className="text-sm text-foreground">{t('memory.importFromProvider')}</Text>
+              <Text className="text-sm text-muted-foreground">{t('memory.providerImportRowDescription')}</Text>
+            </View>
+            <Button
+              variant="secondary"
+              size="sm"
+              onPress={() => setShowProviderImportDialog(true)}
+            >
+              <Text className="text-sm">{t('memory.startImport')}</Text>
+            </Button>
+          </View>
         </View>
 
         {/* Compact Toolbar */}
@@ -715,7 +716,6 @@ export default function MemoryScreen() {
                 <MemoryTable
                   key={section.type}
                   heading={t(section.headingKey)}
-                  icon={section.icon}
                   rows={groupedByType[section.type]}
                   emptyLabel={t(section.emptyKey)}
                   onRowPress={(id) => {

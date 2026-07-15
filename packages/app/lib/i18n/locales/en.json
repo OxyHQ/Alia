@@ -817,6 +817,8 @@
     "autoSaveToggleDescription": "Automatically save information I mention",
     "failedToSaveSettings": "Failed to save settings",
     "importFromProvider": "Import from other AI providers",
+    "providerImportRowDescription": "Bring context from another AI assistant into Alia.",
+    "startImport": "Start import",
     "providerImportStepPromptDescription": "Copy this prompt, ask another AI provider to list what they know about you, then paste the response below.",
     "providerImportStepPasteDescription": "Paste the response from another AI provider here. We'll parse it and add the memories to your profile.",
     "promptCopied": "Prompt copied to clipboard",
