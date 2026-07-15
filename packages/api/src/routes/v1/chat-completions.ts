@@ -46,6 +46,24 @@ type ExtendedChunk = { type: string; text?: string; thoughtDelta?: string; reaso
 /** Errors that should NOT be retried on a different provider (model-level issues, not provider-level) */
 const NON_RETRYABLE_STREAM: Set<FailoverReason> = new Set(['format', 'content_filter']);
 
+/** Max characters of a tool arg/result payload to include in debug logs (prevents log bloat) */
+const LOG_PREVIEW_MAX_CHARS = 500;
+
+/** Compact, size-capped string preview of an arbitrary value for debug logging */
+function previewForLog(value: unknown): string {
+  let str: string | undefined;
+  try {
+    str = typeof value === 'string' ? value : JSON.stringify(value);
+  } catch {
+    // Circular or non-serializable payload — fall back to a coarse string form.
+    str = String(value);
+  }
+  if (str === undefined) str = String(value);
+  return str.length > LOG_PREVIEW_MAX_CHARS
+    ? `${str.slice(0, LOG_PREVIEW_MAX_CHARS)}... [${str.length} chars total]`
+    : str;
+}
+
 /**
  * POST /v1/chat/completions
  * OpenAI-compatible chat completions endpoint with streaming support
@@ -802,7 +820,7 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
         const originalToolName = toolNameMapping.get(chunk.toolName) || chunk.toolName;
 
         // Log the tool call arguments being sent to the client
-        log.v1.info({ toolName: originalToolName, args: chunk.input }, 'Streaming tool call');
+        log.v1.debug({ toolName: originalToolName, args: previewForLog(chunk.input) }, 'Streaming tool call');
 
         res.write(`data: ${JSON.stringify(makeChunk(requestId, aliasModelId, [{
           index: 0,
@@ -833,7 +851,7 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
         hasStreamedContent = true;
 
         const originalToolName = toolNameMapping.get(chunk.toolName) || chunk.toolName;
-        log.v1.info({ toolName: originalToolName, output: chunk.output }, 'Tool result');
+        log.v1.debug({ toolName: originalToolName, output: previewForLog(chunk.output) }, 'Tool result');
 
         // Record tool.call observability event
         const toolStart = toolTimers.get(chunk.toolCallId);
