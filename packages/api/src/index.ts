@@ -56,7 +56,7 @@ import { syncZeroEval } from './scripts/sync-zeroeval.js';
 import { seedSkills } from './lib/seed-skills.js';
 import { seedSuggestions } from './lib/seed-suggestions.js';
 import { seedBots } from './lib/seed-bots.js';
-import { startTriggerScheduler } from './lib/trigger-engine.js';
+import { startTriggerEngine, stopTriggerEngine } from './lib/trigger-engine.js';
 import { warmupProviders } from './lib/provider-warmup.js';
 import { warmupGatewayClient } from './lib/gateway-client.js';
 import { initChannels } from './lib/channels/index.js';
@@ -326,8 +326,9 @@ function startBackgroundServices(): void {
   seedBots().catch((err) => log.general.error({ err }, '[Bots] Seed error'));
   // Sync external models in background (non-blocking)
   syncZeroEval().catch((err) => log.general.error({ err }, '[ZeroEval] Background sync error'));
-  // Start trigger scheduler (non-blocking)
-  startTriggerScheduler().catch((err) => log.general.error({ err }, '[Triggers] Scheduler startup error'));
+  // Start trigger engine under leader election (non-blocking) — only the
+  // elected instance runs the scheduler, so triggers fire once across tasks.
+  startTriggerEngine();
   // Initialize task queue for async agent sessions (non-blocking)
   initTaskQueue()
     .then(() => startWorker())
@@ -412,6 +413,10 @@ const shutdown = async (signal: string) => {
       await new Promise<void>((resolve) => io.close(() => resolve()));
       log.general.info('Socket.IO closed');
     }
+
+    // Release the trigger-engine leadership lease and stop scheduled tasks
+    await stopTriggerEngine();
+    log.general.info('Trigger engine stopped');
 
     // Close task queue (drains in-flight jobs)
     await shutdownTaskQueue();

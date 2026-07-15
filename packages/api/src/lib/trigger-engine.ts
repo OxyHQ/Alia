@@ -33,11 +33,19 @@ import { getErrorMessage } from './errors/index.js';
 import { sendNotification } from './notification-service.js';
 import { buildArchetypeSystemPrompt } from './agent/archetype-prompts.js';
 import { handleRoutingDecision } from './agent/routing-handler.js';
+import { startLeaderElection, type LeaderElectionHandle, type LeaderElectionOptions } from './leader-election.js';
 import type { User as OxyUser } from '@oxyhq/core';
 
 // ── Scheduled task registry ────────────────────────────────────────
 
 const scheduledTasks = new Map<string, ScheduledTask>();
+// Tracks the updatedAt (epoch ms) of each currently scheduled trigger so the
+// reconcile loop can detect edits made by (and cron tasks removed on) instances
+// other than the leader — standalone Mongo has no change streams.
+const scheduledUpdatedAt = new Map<string, number>();
+const RECONCILE_INTERVAL_MS = 30_000;
+let reconcileTimer: ReturnType<typeof setInterval> | null = null;
+let electionHandle: LeaderElectionHandle | null = null;
 let legacyMigrationDone = false;
 
 // ── Cron helpers ───────────────────────────────────────────────────
@@ -373,15 +381,20 @@ export async function executeTrigger(
 
 // ── Schedule management ────────────────────────────────────────────
 
-function scheduleTrigger(trigger: ITrigger): void {
-  const triggerId = trigger._id.toString();
-
-  // Remove existing schedule
+function unscheduleTrigger(triggerId: string): void {
   const existing = scheduledTasks.get(triggerId);
   if (existing) {
     Promise.resolve(existing.stop()).catch((err) => log.triggers.error({ err, triggerId }, 'Failed to stop scheduled task'));
     scheduledTasks.delete(triggerId);
+    scheduledUpdatedAt.delete(triggerId);
   }
+}
+
+function scheduleTrigger(trigger: ITrigger): void {
+  const triggerId = trigger._id.toString();
+
+  // Remove existing schedule before (re)scheduling in place
+  unscheduleTrigger(triggerId);
 
   if (!trigger.enabled || (trigger.type !== 'schedule' && trigger.type !== 'agent_heartbeat') || !trigger.schedule) return;
 
@@ -409,6 +422,7 @@ function scheduleTrigger(trigger: ITrigger): void {
   });
 
   scheduledTasks.set(triggerId, task);
+  scheduledUpdatedAt.set(triggerId, trigger.updatedAt?.getTime() ?? 0);
   log.triggers.info({ name: trigger.name, cronExpression, timezone: trigger.schedule.timezone }, 'Scheduled trigger');
 }
 
@@ -469,8 +483,42 @@ export async function findTriggersForIntegrationEvent(
 // ── Public API ─────────────────────────────────────────────────────
 
 /**
+ * Start the trigger engine under Mongo-lease leader election. The elected
+ * instance runs the scheduler; every other instance stays idle so a scheduled
+ * trigger fires exactly once across a cluster of ECS tasks. Idempotent.
+ */
+export function startTriggerEngine(opts?: LeaderElectionOptions): LeaderElectionHandle {
+  if (electionHandle) return electionHandle;
+  electionHandle = startLeaderElection(
+    'trigger-engine',
+    {
+      onElected: () => startTriggerScheduler(),
+      onDemoted: () => { stopAllScheduledTasks(); },
+    },
+    opts
+  );
+  return electionHandle;
+}
+
+/**
+ * Stop the trigger engine: releases the leadership lease (demoting this instance,
+ * which stops all scheduled tasks) and clears the election handle. For shutdown.
+ */
+export async function stopTriggerEngine(): Promise<void> {
+  if (!electionHandle) return;
+  const handle = electionHandle;
+  electionHandle = null;
+  await handle.stop();
+}
+
+/** Whether this instance currently holds the trigger-engine leadership lease. */
+export function isTriggerLeader(): boolean {
+  return electionHandle?.isLeader() ?? false;
+}
+
+/**
  * Start the trigger scheduler. Loads all enabled schedule triggers and sets up cron jobs.
- * Also starts the agent heartbeat scheduler.
+ * Also starts the agent heartbeat scheduler and the reconcile loop. Runs on the leader.
  */
 export async function startTriggerScheduler(): Promise<void> {
   log.triggers.info('Starting trigger scheduler...');
@@ -491,9 +539,65 @@ export async function startTriggerScheduler(): Promise<void> {
     // Start agent heartbeat scheduler
     await startAgentHeartbeatScheduler();
 
+    // Reconcile loop: pick up trigger edits/deletes served by follower instances
+    // (which no-op reloadTrigger) since standalone Mongo has no change streams.
+    if (!reconcileTimer) {
+      reconcileTimer = setInterval(() => { void reconcileScheduledTriggers(); }, RECONCILE_INTERVAL_MS);
+      reconcileTimer.unref?.();
+    }
+
     log.triggers.info('Trigger scheduler started');
   } catch (error) {
     log.triggers.error({ err: error }, 'Failed to start trigger scheduler');
+  }
+}
+
+/**
+ * Stop every scheduled cron task, clear the registry, and stop the reconcile
+ * loop. Called when this instance is demoted from leadership or on shutdown.
+ */
+export function stopAllScheduledTasks(): void {
+  for (const [triggerId, task] of scheduledTasks) {
+    Promise.resolve(task.stop()).catch((err) => log.triggers.error({ err, triggerId }, 'Failed to stop scheduled task'));
+  }
+  scheduledTasks.clear();
+  scheduledUpdatedAt.clear();
+  if (reconcileTimer) {
+    clearInterval(reconcileTimer);
+    reconcileTimer = null;
+  }
+  log.triggers.info('Stopped all scheduled tasks');
+}
+
+/**
+ * Diff the DB's enabled schedule/heartbeat triggers against the in-memory
+ * registry: (re)schedule new or edited triggers, drop disappeared ones.
+ */
+async function reconcileScheduledTriggers(): Promise<void> {
+  try {
+    const rows = await Trigger.find({
+      type: { $in: ['schedule', 'agent_heartbeat'] },
+      enabled: true,
+    }).select('_id updatedAt').lean();
+
+    const seen = new Set<string>();
+    for (const row of rows) {
+      const triggerId = row._id.toString();
+      seen.add(triggerId);
+      const updatedAtMs = row.updatedAt ? new Date(row.updatedAt).getTime() : 0;
+      if (scheduledUpdatedAt.get(triggerId) === updatedAtMs) continue;
+
+      // New or changed since we last scheduled it — reschedule in place.
+      const full = await Trigger.findById(triggerId);
+      if (full) scheduleTrigger(full);
+    }
+
+    // Triggers that were scheduled but no longer match (deleted/disabled/retyped).
+    for (const triggerId of [...scheduledUpdatedAt.keys()]) {
+      if (!seen.has(triggerId)) unscheduleTrigger(triggerId);
+    }
+  } catch (error) {
+    log.triggers.error({ err: error }, 'Trigger reconcile failed');
   }
 }
 
@@ -567,18 +671,18 @@ async function migrateLegacyAutomations(): Promise<void> {
 
 /**
  * Reload a single trigger's schedule (called on create/update/delete).
+ * No-op on follower instances — only the leader owns the cron registry; edits
+ * served by followers are picked up by the leader's reconcile loop.
  */
 export async function reloadTrigger(triggerId: string): Promise<void> {
+  if (!isTriggerLeader()) return;
+
   const trigger = await Trigger.findById(triggerId);
-  if (trigger && trigger.type === 'schedule') {
+  if (trigger && (trigger.type === 'schedule' || trigger.type === 'agent_heartbeat')) {
     scheduleTrigger(trigger);
   } else {
-    // Trigger deleted or type changed — stop its schedule
-    const existing = scheduledTasks.get(triggerId);
-    if (existing) {
-      Promise.resolve(existing.stop()).catch((err) => log.triggers.error({ err, triggerId }, 'Failed to stop scheduled task'));
-      scheduledTasks.delete(triggerId);
-    }
+    // Trigger deleted, disabled, or type changed — stop its schedule
+    unscheduleTrigger(triggerId);
   }
 }
 
