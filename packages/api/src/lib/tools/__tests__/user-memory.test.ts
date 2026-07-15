@@ -63,6 +63,21 @@ describe('saveUserMemoryTool', () => {
     expect(doc.save).not.toHaveBeenCalled();
   });
 
+  it('saves even when autoSaveEnabled is false, if bypassAutoSaveGate is set', async () => {
+    const doc = makeMemoryDoc({ settings: { autoSaveEnabled: false, recallEnabled: true } });
+    mockGetOrCreate.mockResolvedValue(doc);
+
+    const toolInstance = saveUserMemoryTool('user-1', { bypassAutoSaveGate: true });
+    const result: any = await toolInstance.execute!(
+      { title: 'Food', summary: 'Loves strawberries', type: 'topic' },
+      { toolCallId: 't4', messages: [] }
+    );
+
+    expect(result.success).toBe(true);
+    expect(doc.memories).toHaveLength(1);
+    expect(doc.save).toHaveBeenCalled();
+  });
+
   it('updates an existing memory matched by case-insensitive title', async () => {
     const doc = makeMemoryDoc({
       memories: [{ title: 'Food', summary: 'old', type: 'topic', createdAt: new Date(), updatedAt: new Date() }],

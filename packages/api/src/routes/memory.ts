@@ -860,7 +860,7 @@ router.post('/import/from-text', async (req, res) => {
     }
 
     const model = getAIModel(resolved.keyConfig);
-    const saveTool = saveUserMemoryTool(userId);
+    const saveTool = saveUserMemoryTool(userId, { bypassAutoSaveGate: true });
 
     const systemPrompt = `You are extracting memories from a block of text pasted by the user — typically a memory/context summary exported from another AI assistant. Read the text and call the saveUserMemory tool once for EACH distinct fact worth remembering. Choose type per fact: "profile" for facts about the user themself, "topic" for a subject/interest/project, "person" for someone in the user's life. Give each memory a short, human-readable title (2-4 words) and a 1-2 sentence summary. Do not invent facts that aren't in the text. If the text contains no memorable facts, don't call the tool at all.`;
 

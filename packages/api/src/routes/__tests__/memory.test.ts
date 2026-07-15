@@ -161,4 +161,20 @@ describe('POST /memory/import/from-text', () => {
     expect(res.statusCode).toBe(400);
     expect(mockGenerateText).not.toHaveBeenCalled();
   });
+
+  it('constructs saveUserMemoryTool with bypassAutoSaveGate: true', async () => {
+    const { saveUserMemoryTool } = await import('../../lib/tools/index.js');
+    const mockSaveUserMemoryTool = saveUserMemoryTool as unknown as ReturnType<typeof vi.fn>;
+    mockSaveUserMemoryTool.mockClear();
+
+    (generateText as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({ toolResults: [] });
+
+    const handler = getRouteHandler('post', '/import/from-text');
+    const req: any = { user: { id: 'user-1' }, body: { text: 'some memory text' } };
+    const res = makeMockRes();
+
+    await handler(req, res);
+
+    expect(mockSaveUserMemoryTool).toHaveBeenCalledWith('user-1', { bypassAutoSaveGate: true });
+  });
 });
