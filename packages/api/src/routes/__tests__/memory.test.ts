@@ -25,7 +25,6 @@ vi.mock('../../lib/memory/user-memory-service.js', () => ({
   getOrCreateUserMemory: vi.fn(),
 }));
 
-import { UserMemory } from '../../models/user-memory.js';
 import { getOrCreateUserMemory } from '../../lib/memory/user-memory-service.js';
 import { AddMemorySchema, MemorySettingsSchema } from '../../lib/validators/memory-validators.js';
 import router from '../memory.js';
