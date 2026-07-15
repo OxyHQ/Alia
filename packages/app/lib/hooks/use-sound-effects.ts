@@ -9,8 +9,8 @@ import {
   useSoundEffects as useSoundEffectsSDK,
   useVoiceSoundEffects as useVoiceSoundEffectsSDK,
   type SoundSources,
-} from '@alia.onl/sdk';
-import type { AgentState } from '@alia.onl/sdk';
+  type AgentState,
+} from '@alia.onl/sdk/voice';
 
 // Static require() calls — Metro needs these to be static literals
 const APP_SOUNDS: SoundSources = {

@@ -9,7 +9,7 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/hooks/query-keys';
 import { useVoiceRoom, type VoiceMessage, type RoomState, type AgentState } from '@/lib/hooks/use-voice-room';
-import { useAudioLevelMonitor, useAudioLevels } from '@alia.onl/sdk';
+import { useAudioLevelMonitor, useAudioLevels } from '@alia.onl/sdk/voice';
 import { toast } from '@/components/sonner';
 import type { Message } from '@/lib/hooks/use-conversations';
 

@@ -19,27 +19,15 @@ export { AliaWelcomeMessage } from './components/AliaWelcomeMessage';
 export { ResearchProgressCard } from './components/ResearchProgressCard';
 export { PlanPreviewCard } from './components/PlanPreviewCard';
 
-// ── Voice components ──
-export { AudioWaveVisualizer } from './components/voice/AudioWaveVisualizer';
-export { VoiceOverlay } from './components/voice/VoiceOverlay';
-export { VoiceControls } from './components/voice/VoiceControls';
-
 // ── Chat hook ──
 export { useAliaChat } from './hooks/useAliaChat';
 export type { UseAliaChatOptions, UseAliaChatReturn } from './hooks/useAliaChat';
 
-// ── Voice hooks ──
-export { useVoiceRoom } from './hooks/useVoiceRoom';
-export { useAudioLevelMonitor } from './hooks/useAudioLevelMonitor';
-export { useAudioLevels } from './hooks/useAudioLevels';
+// ── Text-to-speech / speech-to-text (no livekit) ──
 export { useTTS } from './hooks/useTTS';
 export type { UseTTSOptions } from './hooks/useTTS';
 export { useSpeechToText, useSTTStore } from './hooks/useSpeechToText';
 export type { UseSTTOptions } from './hooks/useSpeechToText';
-export { useAmbientWave } from './hooks/useAmbientWave';
-export type { UseAmbientWaveOptions, UseAmbientWaveResult, AmbientWaveVoice, AmbientWaveMode } from './hooks/useAmbientWave';
-export { useSoundEffects, useVoiceSoundEffects } from './hooks/useSoundEffects';
-export type { SoundName, SoundSources } from './hooks/useSoundEffects';
 
 // ── Types ──
 export type {
@@ -50,10 +38,6 @@ export type {
   ResearchSource,
   PendingPlan,
   PlanStep,
-  RoomState,
-  AgentState,
-  VoiceMessage,
-  VoiceToolInvocation,
 } from './types';
 
 // ── UI Primitives (NativeWind) ──

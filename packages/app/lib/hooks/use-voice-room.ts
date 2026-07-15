@@ -5,11 +5,11 @@
  * from the user data store, then re-exports the types for convenience.
  */
 
-import { useVoiceRoom as useVoiceRoomSDK } from '@alia.onl/sdk';
+import { useVoiceRoom as useVoiceRoomSDK } from '@alia.onl/sdk/voice';
 import config from '../config';
 import { useUserDataStore } from '../stores/user-data-store';
 
-export type { RoomState, AgentState, VoiceMessage, VoiceToolInvocation } from '@alia.onl/sdk';
+export type { RoomState, AgentState, VoiceMessage, VoiceToolInvocation } from '@alia.onl/sdk/voice';
 
 export function useVoiceRoom() {
   const voicePref = useUserDataStore(s => s.memory?.preferences?.voice);

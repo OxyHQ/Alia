@@ -99,7 +99,7 @@ function ToolBullet({ isRunning }: { isRunning: boolean }) {
 
 // ── User Bubble ──
 
-function UserBubble({
+const UserBubble = React.memo(function UserBubble({
   message,
   text,
   isEditing,
@@ -117,10 +117,10 @@ function UserBubble({
   isEditing: boolean;
   editedContent: string;
   onEditedContentChange: (text: string) => void;
-  onSaveEdit: () => void;
+  onSaveEdit: (messageId: string) => void;
   onCancelEdit: () => void;
-  onStartEdit: () => void;
-  onCopy: () => void;
+  onStartEdit: (messageId: string, content: string) => void;
+  onCopy: (text: string, messageId: string) => void;
   copiedMessageId: string | null;
   showEditButton: boolean;
 }) {
@@ -142,7 +142,7 @@ function UserBubble({
             <View className="flex-row gap-2 mt-2">
               <Pressable
                 className="px-3 py-1.5 rounded-lg bg-primary"
-                onPress={onSaveEdit}
+                onPress={() => onSaveEdit(message.id)}
               >
                 <Text className="text-xs text-primary-foreground">Save</Text>
               </Pressable>
@@ -185,7 +185,7 @@ function UserBubble({
         <View className="flex-row gap-1">
           <Pressable
             className="p-1.5 rounded-lg active:bg-muted"
-            onPress={onCopy}
+            onPress={() => onCopy(text, message.id)}
           >
             {copiedMessageId === message.id ? (
               <Check size={14} className="text-green-500" />
@@ -196,7 +196,7 @@ function UserBubble({
           {showEditButton && (
             <Pressable
               className="p-1.5 rounded-lg active:bg-muted"
-              onPress={onStartEdit}
+              onPress={() => onStartEdit(message.id, text)}
             >
               <Pencil size={14} className="text-muted-foreground" />
             </Pressable>
@@ -205,11 +205,11 @@ function UserBubble({
       )}
     </View>
   );
-}
+});
 
 // ── Assistant Message ──
 
-function AssistantMessage({
+const AssistantMessage = React.memo(function AssistantMessage({
   message,
   messageText,
   isStreamingThis,
@@ -235,7 +235,7 @@ function AssistantMessage({
   onReadAloud?: (messageId: string, text: string) => void;
   ttsActiveMessageId?: string | null;
   ttsPlaybackState?: PlaybackState;
-  onCopy: () => void;
+  onCopy: (text: string, messageId: string) => void;
   copiedMessageId: string | null;
   onThumbsUp?: (messageId: string) => void;
   onThumbsDown?: (messageId: string) => void;
@@ -383,7 +383,7 @@ function AssistantMessage({
               )}
               <Pressable
                 className="p-1.5 rounded-lg active:bg-muted"
-                onPress={onCopy}
+                onPress={() => onCopy(messageText, message.id)}
               >
                 {copiedMessageId === message.id ? (
                   <Check size={14} className="text-green-500" />
@@ -409,7 +409,7 @@ function AssistantMessage({
       {thinkingIndicator}
     </View>
   );
-}
+});
 
 // ── List ──
 
@@ -528,12 +528,12 @@ export function AliaChatMessageList({
                     message={msg}
                     text={messageText}
                     isEditing={editingMessageId === msg.id}
-                    editedContent={editedContent}
+                    editedContent={editingMessageId === msg.id ? editedContent : ''}
                     onEditedContentChange={setEditedContent}
-                    onSaveEdit={() => handleSaveEdit(msg.id)}
+                    onSaveEdit={handleSaveEdit}
                     onCancelEdit={handleCancelEdit}
-                    onStartEdit={() => handleStartEdit(msg.id, messageText)}
-                    onCopy={() => handleCopy(messageText, msg.id)}
+                    onStartEdit={handleStartEdit}
+                    onCopy={handleCopy}
                     copiedMessageId={copiedMessageId}
                     showEditButton={!!onEditMessage}
                   />
@@ -547,7 +547,7 @@ export function AliaChatMessageList({
                     onReadAloud={onReadAloud}
                     ttsActiveMessageId={ttsActiveMessageId}
                     ttsPlaybackState={ttsPlaybackState}
-                    onCopy={() => handleCopy(messageText, msg.id)}
+                    onCopy={handleCopy}
                     copiedMessageId={copiedMessageId}
                     onThumbsUp={onThumbsUp}
                     onThumbsDown={onThumbsDown}
