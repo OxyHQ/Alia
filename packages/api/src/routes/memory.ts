@@ -12,6 +12,7 @@ import { getOrCreateUserMemory } from '../lib/memory/user-memory-service.js';
 import { log } from '../lib/logger.js';
 import { generateText, stepCountIs } from 'ai';
 import { resolveModel, getAIModel, getDefaultAliaModel } from '../lib/chat-core.js';
+import { classifyError } from '../lib/errors/index.js';
 import { saveUserMemoryTool } from '../lib/tools/index.js';
 
 const router = Router();
@@ -852,39 +853,57 @@ router.post('/import/from-text', async (req, res) => {
     }
 
     const userId = req.user!.id;
-
-    const resolved = await resolveModel(getDefaultAliaModel());
-    if (!resolved) {
-      res.status(503).json({ error: 'No AI models available. Please try again later.' });
-      return;
-    }
-
-    const model = getAIModel(resolved.keyConfig);
     const saveTool = saveUserMemoryTool(userId, { bypassAutoSaveGate: true });
 
     const systemPrompt = `You are extracting memories from a block of text pasted by the user — typically a memory/context summary exported from another AI assistant. Read the text and call the saveUserMemory tool once for EACH distinct fact worth remembering. Choose type per fact: "profile" for facts about the user themself, "topic" for a subject/interest/project, "person" for someone in the user's life. Give each memory a short, human-readable title (2-4 words) and a 1-2 sentence summary. Do not invent facts that aren't in the text. If the text contains no memorable facts, don't call the tool at all.`;
 
-    const result = await generateText({
-      model,
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: text },
-      ],
-      tools: { saveUserMemory: saveTool },
-      temperature: 0.2,
-      maxRetries: 0,
-      stopWhen: stepCountIs(20),
-    });
+    const MAX_ATTEMPTS = 3;
+    const skipProviders = new Set<string>();
+    const skipKeyIds = new Set<string>();
+    let lastError: unknown = null;
 
-    const saved = (result.toolResults || [])
-      .filter((tr: any) => tr.toolName === 'saveUserMemory' && tr.output?.success)
-      .map((tr: any) => ({
-        title: tr.input?.title,
-        summary: tr.input?.summary,
-        type: tr.input?.type,
-      }));
+    for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+      const resolved = await resolveModel(getDefaultAliaModel(), skipProviders, skipKeyIds);
+      if (!resolved) break;
 
-    res.json({ saved });
+      const model = getAIModel(resolved.keyConfig);
+      try {
+        const result = await generateText({
+          model,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: text },
+          ],
+          tools: { saveUserMemory: saveTool },
+          temperature: 0.2,
+          maxRetries: 0,
+          stopWhen: stepCountIs(20),
+        });
+
+        const saved = (result.toolResults || [])
+          .filter((tr: any) => tr.toolName === 'saveUserMemory' && tr.output?.success)
+          .map((tr: any) => ({
+            title: tr.input?.title,
+            summary: tr.input?.summary,
+            type: tr.input?.type,
+          }));
+
+        res.json({ saved });
+        return;
+      } catch (attemptError: unknown) {
+        lastError = attemptError;
+        const reason = classifyError(attemptError);
+        if (reason === 'rate_limit' && resolved.keyConfig?.keyId) {
+          skipKeyIds.add(resolved.keyConfig.keyId);
+        } else {
+          skipProviders.add(resolved.provider);
+        }
+        log.memory.warn({ err: attemptError, provider: resolved.provider, attempt }, 'Import-from-text provider attempt failed, retrying with a different provider');
+      }
+    }
+
+    log.memory.error({ err: lastError }, 'Import-from-text error: all providers exhausted');
+    res.status(503).json({ error: 'AI service is temporarily unavailable. Please try again in a moment.' });
   } catch (error: unknown) {
     log.memory.error({ err: error }, 'Import-from-text error');
     res.status(500).json({ error: 'Failed to import from text' });

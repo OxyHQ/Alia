@@ -128,6 +128,7 @@ vi.mock('../../lib/tools/index.js', () => ({
 }));
 
 import { generateText } from 'ai';
+import { resolveModel } from '../../lib/chat-core.js';
 
 describe('POST /memory/import/from-text', () => {
   it('extracts and returns saved memories via the real route handler', async () => {
@@ -176,5 +177,34 @@ describe('POST /memory/import/from-text', () => {
     await handler(req, res);
 
     expect(mockSaveUserMemoryTool).toHaveBeenCalledWith('user-1', { bypassAutoSaveGate: true });
+  });
+
+  it('retries with a different provider when the first one fails, and succeeds', async () => {
+    const mockResolveModel = resolveModel as unknown as ReturnType<typeof vi.fn>;
+    const mockGenerateText = generateText as unknown as ReturnType<typeof vi.fn>;
+    mockResolveModel.mockClear();
+    mockGenerateText.mockClear();
+
+    mockResolveModel
+      .mockResolvedValueOnce({ provider: 'google', modelId: 'gemini-2.5-flash', keyConfig: { keyId: 'key-1' } })
+      .mockResolvedValueOnce({ provider: 'openrouter', modelId: 'some-model', keyConfig: { keyId: 'key-2' } });
+
+    mockGenerateText
+      .mockRejectedValueOnce(Object.assign(new Error('quota exceeded'), { statusCode: 429 }))
+      .mockResolvedValueOnce({
+        toolResults: [
+          { toolName: 'saveUserMemory', input: { title: 'Food', summary: 'Loves strawberries', type: 'topic' }, output: { success: true } },
+        ],
+      });
+
+    const handler = getRouteHandler('post', '/import/from-text');
+    const req: any = { user: { id: 'user-1' }, body: { text: 'The user loves strawberries.' } };
+    const res = makeMockRes();
+
+    await handler(req, res);
+
+    expect(mockGenerateText).toHaveBeenCalledTimes(2);
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toEqual({ saved: [{ title: 'Food', summary: 'Loves strawberries', type: 'topic' }] });
   });
 });
