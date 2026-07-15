@@ -151,7 +151,7 @@ function buildTriggerSystemPrompt(
     if (memory.preferences?.language) userContext.push(`Preferred language: ${memory.preferences.language}.`);
     if (memory.context?.occupation) userContext.push(`Occupation: ${memory.context.occupation}.`);
     if (memory.memories?.length) {
-      const items = memory.memories.map(m => `- ${m.key}: ${m.value}`).join('\n');
+      const items = memory.memories.map(m => `- ${m.title}: ${m.summary}`).join('\n');
       userContext.push(`\nThings to remember:\n${items}`);
     }
   }

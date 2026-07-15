@@ -74,7 +74,7 @@ function buildTriggerSystemPrompt(
       userContext.push(`The user prefers a ${memory.preferences.tone} tone.`);
     }
     if (memory.memories?.length) {
-      const memoryItems = memory.memories.map(m => `- ${m.key}: ${m.value}`).join('\n');
+      const memoryItems = memory.memories.map(m => `- ${m.title}: ${m.summary}`).join('\n');
       userContext.push(`\nThings to remember about the user:\n${memoryItems}`);
     }
   }

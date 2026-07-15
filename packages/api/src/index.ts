@@ -59,6 +59,7 @@ import { seedBots } from './lib/seed-bots.js';
 import { startTriggerEngine, stopTriggerEngine } from './lib/trigger-engine.js';
 import { warmupProviders } from './lib/provider-warmup.js';
 import { warmupGatewayClient } from './lib/gateway-client.js';
+import { runPendingMigrations } from './lib/migrations/runner.js';
 import { initChannels } from './lib/channels/index.js';
 // Socket.io
 import { initSocket } from './socket.js';
@@ -317,6 +318,9 @@ let backgroundServicesStarted = false;
 function startBackgroundServices(): void {
   if (backgroundServicesStarted) return;
   backgroundServicesStarted = true;
+
+  // Run pending data migrations first — idempotent, safe on every boot.
+  runPendingMigrations().catch((err) => log.general.error({ err }, '[Migrations] Runner error'));
 
   // Warm up gateway client cache (non-blocking)
   warmupGatewayClient().catch((err) => log.general.error({ err }, '[Gateway] Client warmup error'));

@@ -60,8 +60,7 @@ async function recordMigration(name: string, description: string): Promise<void>
  * Add new migrations here. Order matters — they run sequentially.
  */
 const MIGRATIONS: Array<{ name: string; load: () => Promise<Migration> }> = [
-  // Example:
-  // { name: '001-add-user-preferences-index', load: () => import('./001-add-user-preferences-index.js') },
+  { name: '001-restructure-memories-title-summary-type', load: () => import('./001-restructure-memories-title-summary-type.js') },
 ];
 
 /**
