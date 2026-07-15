@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import {
   Dialog,
   DialogContent,
@@ -20,14 +21,10 @@ import { generateAPIUrl } from "@/lib/generate-api-url";
 import {
   Brain,
   Plus,
-  Trash2,
   Search,
-  Heart,
-  Briefcase,
-  Target,
-  Star,
   User,
-  Sparkles,
+  Tag,
+  Users,
   Download,
   Upload,
   FileJson,
@@ -42,36 +39,39 @@ import { cn } from "@/lib/utils";
 import { toast } from "@/components/sonner";
 import { useColorScheme } from "@/lib/useColorScheme";
 import { SettingsHeader } from "@/components/settings/settings-header";
+import { MemoryTable } from "@/components/settings/memory-table";
+
+type MemoryType = 'profile' | 'topic' | 'person';
 
 interface Memory {
   _id: string;
-  key: string;
-  value: string;
-  category?: string;
+  title: string;
+  summary: string;
+  type: MemoryType;
   createdAt: string;
   updatedAt: string;
 }
 
 /** A single hit from semantic memory search (maps back onto a {@link Memory}). */
 interface SemanticResult {
-  key: string;
-  value: string;
-  category?: string;
+  title: string;
+  summary: string;
+  type?: MemoryType;
   score?: number;
 }
 
 /** Aggregate counts returned by the export-preview endpoint. */
 interface ExportStats {
   totalMemories: number;
-  totalCategories: number;
+  totalTypes: number;
   estimatedSizeJSON: number;
 }
 
 /** Summary returned by the import-validate endpoint before committing an import. */
 interface ImportPreview {
   totalToImport: number;
-  newKeys: number;
-  duplicateKeys: number;
+  newTitles: number;
+  duplicateTitles: number;
   estimatedFinalTotal: number;
   memoryLimit: number;
 }
@@ -79,31 +79,15 @@ interface ImportPreview {
 /** A pair of memories flagged as duplicates by the dedupe endpoint. */
 interface DuplicatePair {
   reason: string;
-  memory1?: { _id: string; key: string; value: string };
-  memory2?: { _id: string; key: string; value: string };
+  memory1?: { _id: string; title: string; summary: string };
+  memory2?: { _id: string; title: string; summary: string };
 }
 
-/** Icon component shared by the category config (lucide-react-native icons). */
-type CategoryIcon = React.ComponentType<{ size?: number; color?: string; className?: string }>;
-
-interface UserMemory {
-  memories: Memory[];
-}
-
-const CATEGORY_CONFIG: Record<string, { icon: CategoryIcon; color: string; bgColor: string }> = {
-  'preferencia': { icon: Heart, color: 'text-pink-600', bgColor: 'bg-pink-500/10' },
-  'preference': { icon: Heart, color: 'text-pink-600', bgColor: 'bg-pink-500/10' },
-  'personal': { icon: User, color: 'text-blue-600', bgColor: 'bg-blue-500/10' },
-  'trabajo': { icon: Briefcase, color: 'text-orange-600', bgColor: 'bg-orange-500/10' },
-  'work': { icon: Briefcase, color: 'text-orange-600', bgColor: 'bg-orange-500/10' },
-  'objetivo': { icon: Target, color: 'text-green-600', bgColor: 'bg-green-500/10' },
-  'goal': { icon: Target, color: 'text-green-600', bgColor: 'bg-green-500/10' },
-  'experiencia': { icon: Sparkles, color: 'text-purple-600', bgColor: 'bg-purple-500/10' },
-  'experience': { icon: Sparkles, color: 'text-purple-600', bgColor: 'bg-purple-500/10' },
-  'default': { icon: Star, color: 'text-primary', bgColor: 'bg-primary/10' }
-};
-
-const SUGGESTED_CATEGORIES = ['preferencia', 'personal', 'trabajo', 'objetivo', 'experiencia'];
+const TYPE_SECTIONS: { type: MemoryType; headingKey: string; icon: typeof User; emptyKey: string }[] = [
+  { type: 'profile', headingKey: 'memory.sectionYou', icon: User, emptyKey: 'memory.sectionYouEmpty' },
+  { type: 'topic', headingKey: 'memory.sectionTopics', icon: Tag, emptyKey: 'memory.sectionTopicsEmpty' },
+  { type: 'person', headingKey: 'memory.sectionPeople', icon: Users, emptyKey: 'memory.sectionPeopleEmpty' },
+];
 
 export default function MemoryScreen() {
   const { isAuthenticated, oxyServices } = useOxy();
@@ -115,13 +99,15 @@ export default function MemoryScreen() {
   const [showDialog, setShowDialog] = useState(false);
   const [editingMemory, setEditingMemory] = useState<Memory | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [saving, setSaving] = useState(false);
 
   // Form state
-  const [formKey, setFormKey] = useState("");
-  const [formValue, setFormValue] = useState("");
-  const [formCategory, setFormCategory] = useState("");
+  const [formTitle, setFormTitle] = useState("");
+  const [formSummary, setFormSummary] = useState("");
+  const [formType, setFormType] = useState<MemoryType>('topic');
+
+  // Settings toggles
+  const [updatingSettings, setUpdatingSettings] = useState(false);
 
   // Export/Import state
   const [showExportDialog, setShowExportDialog] = useState(false);
@@ -152,45 +138,27 @@ export default function MemoryScreen() {
     }
   }, [isAuthenticated, signIn]);
 
-  // Get unique categories
-  const categories = useMemo(() => {
-    const cats = new Set(memories.map(m => m.category || 'uncategorized'));
-    return ['All', ...Array.from(cats).sort()];
-  }, [memories]);
-
-  // Filter memories
+  // Filter memories by search query
   const filteredMemories = useMemo(() => {
-    let filtered = memories;
+    if (!searchQuery.trim()) return memories;
+    const query = searchQuery.toLowerCase();
+    return memories.filter(m =>
+      m.title.toLowerCase().includes(query) ||
+      m.summary.toLowerCase().includes(query)
+    );
+  }, [memories, searchQuery]);
 
-    // Filter by category
-    if (selectedCategory && selectedCategory !== 'All') {
-      filtered = filtered.filter(m => (m.category || 'uncategorized') === selectedCategory);
-    }
-
-    // Filter by search query
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(m =>
-        m.key.toLowerCase().includes(query) ||
-        m.value.toLowerCase().includes(query) ||
-        (m.category && m.category.toLowerCase().includes(query))
-      );
-    }
-
-    return filtered;
-  }, [memories, searchQuery, selectedCategory]);
-
-  const handleOpenDialog = (memory?: Memory) => {
+  const handleOpenDialog = (memory?: Memory, defaultType: MemoryType = 'topic') => {
     if (memory) {
       setEditingMemory(memory);
-      setFormKey(memory.key);
-      setFormValue(memory.value);
-      setFormCategory(memory.category || "");
+      setFormTitle(memory.title);
+      setFormSummary(memory.summary);
+      setFormType(memory.type);
     } else {
       setEditingMemory(null);
-      setFormKey("");
-      setFormValue("");
-      setFormCategory("");
+      setFormTitle("");
+      setFormSummary("");
+      setFormType(defaultType);
     }
     setShowDialog(true);
   };
@@ -198,9 +166,9 @@ export default function MemoryScreen() {
   const handleCloseDialog = () => {
     setShowDialog(false);
     setEditingMemory(null);
-    setFormKey("");
-    setFormValue("");
-    setFormCategory("");
+    setFormTitle("");
+    setFormSummary("");
+    setFormType('topic');
   };
 
   const getAuthHeaders = (contentType?: boolean): Record<string, string> => {
@@ -212,23 +180,22 @@ export default function MemoryScreen() {
   };
 
   const handleSaveMemory = async () => {
-    if (!isAuthenticated || !formKey.trim() || !formValue.trim()) {
-      toast.error(t("memory.keyValueRequired"));
+    if (!isAuthenticated || !formTitle.trim() || !formSummary.trim()) {
+      toast.error(t("memory.titleSummaryRequired"));
       return;
     }
 
     setSaving(true);
     try {
       if (editingMemory) {
-        // Update existing memory
         const apiUrl = generateAPIUrl(`/memory/${editingMemory._id}`);
         const response = await fetch(apiUrl, {
           method: 'PUT',
           headers: getAuthHeaders(true),
           body: JSON.stringify({
-            key: formKey,
-            value: formValue,
-            category: formCategory || undefined,
+            title: formTitle,
+            summary: formSummary,
+            type: formType,
           }),
         });
 
@@ -239,15 +206,14 @@ export default function MemoryScreen() {
           toast.success(t("memory.memoryUpdated"));
         }
       } else {
-        // Add new memory
         const apiUrl = generateAPIUrl('/memory/add');
         const response = await fetch(apiUrl, {
           method: 'POST',
           headers: getAuthHeaders(true),
           body: JSON.stringify({
-            key: formKey,
-            value: formValue,
-            category: formCategory || undefined,
+            title: formTitle,
+            summary: formSummary,
+            type: formType,
           }),
         });
 
@@ -296,9 +262,30 @@ export default function MemoryScreen() {
     }
   };
 
-  const getCategoryConfig = (category?: string) => {
-    const cat = (category || 'default').toLowerCase();
-    return CATEGORY_CONFIG[cat] || CATEGORY_CONFIG.default;
+  const handleToggleSetting = async (key: 'autoSaveEnabled' | 'recallEnabled', value: boolean) => {
+    if (!isAuthenticated || !memory) return;
+
+    setUpdatingSettings(true);
+    try {
+      const apiUrl = generateAPIUrl('/memory/settings');
+      const response = await fetch(apiUrl, {
+        method: 'PUT',
+        headers: getAuthHeaders(true),
+        body: JSON.stringify({ [key]: value }),
+      });
+
+      if (response.ok) {
+        const settings = await response.json();
+        setMemory({ ...memory, settings });
+      } else {
+        toast.error(t('memory.failedToSaveSettings'));
+      }
+    } catch (error) {
+      console.error("Error updating memory settings:", error);
+      toast.error(t('memory.failedToSaveSettings'));
+    } finally {
+      setUpdatingSettings(false);
+    }
   };
 
   // Semantic search handler
@@ -320,7 +307,6 @@ export default function MemoryScreen() {
         const data = await response.json();
         setSemanticResults(data.results || []);
       } else {
-        // Fallback to text search silently
         setSemanticResults(null);
         toast.error(t("memory.semanticUnavailable"));
         setSemanticMode(false);
@@ -375,17 +361,24 @@ export default function MemoryScreen() {
     }
   };
 
-  // Determine which memories to show
+  // Determine which memories to show (search or semantic overlay), before grouping
   const displayMemories = useMemo(() => {
     if (semanticMode && semanticResults) {
-      // Map semantic results back to memory objects
       return semanticResults.map((r) => {
-        const found = memories.find(m => m.key === r.key && m.value === r.value);
-        return found || { _id: r.key, key: r.key, value: r.value, category: r.category, score: r.score, createdAt: '', updatedAt: '' };
+        const found = memories.find(m => m.title === r.title && m.summary === r.summary);
+        return found || { _id: r.title, title: r.title, summary: r.summary, type: r.type || 'topic', score: r.score, createdAt: '', updatedAt: '' };
       });
     }
     return filteredMemories;
   }, [semanticMode, semanticResults, filteredMemories, memories]);
+
+  const groupedByType = useMemo(() => {
+    return {
+      profile: displayMemories.filter(m => m.type === 'profile'),
+      topic: displayMemories.filter(m => m.type === 'topic'),
+      person: displayMemories.filter(m => m.type === 'person'),
+    };
+  }, [displayMemories]);
 
   // Export handlers
   const loadExportStats = async () => {
@@ -455,7 +448,6 @@ export default function MemoryScreen() {
       const text = await file.text();
       const data = JSON.parse(text);
 
-      // Validate format
       const response = await fetch(generateAPIUrl('/memory/import/validate'), {
         method: 'POST',
         headers: getAuthHeaders(true),
@@ -494,7 +486,6 @@ export default function MemoryScreen() {
       if (response.ok) {
         const result = await response.json();
 
-        // Refresh memory data
         const memResponse = await fetch(generateAPIUrl('/memory'), {
           headers: getAuthHeaders(),
         });
@@ -537,9 +528,34 @@ export default function MemoryScreen() {
     <View className="flex-1 bg-background">
       <SettingsHeader title={t("memory.title")} />
       <ScrollView className="flex-1" contentContainerClassName="max-w-2xl">
+        {/* Settings toggles */}
+        <View className="px-4 pt-3 pb-2 gap-3">
+          <View className="flex-row items-center justify-between gap-3">
+            <View className="flex-1 min-w-0">
+              <Text className="text-sm text-foreground">{t('memory.recallToggleLabel')}</Text>
+              <Text className="text-xs text-muted-foreground">{t('memory.recallToggleDescription')}</Text>
+            </View>
+            <Switch
+              value={memory?.settings?.recallEnabled ?? true}
+              onValueChange={(v) => handleToggleSetting('recallEnabled', v)}
+              disabled={updatingSettings}
+            />
+          </View>
+          <View className="flex-row items-center justify-between gap-3">
+            <View className="flex-1 min-w-0">
+              <Text className="text-sm text-foreground">{t('memory.autoSaveToggleLabel')}</Text>
+              <Text className="text-xs text-muted-foreground">{t('memory.autoSaveToggleDescription')}</Text>
+            </View>
+            <Switch
+              value={memory?.settings?.autoSaveEnabled ?? true}
+              onValueChange={(v) => handleToggleSetting('autoSaveEnabled', v)}
+              disabled={updatingSettings}
+            />
+          </View>
+        </View>
+
         {/* Compact Toolbar */}
-        <View className="px-4 pt-3 pb-2 gap-2">
-          {/* Row 1: Search + Add */}
+        <View className="px-4 pt-1 pb-2 gap-2">
           <View className="flex-row items-center gap-2">
             <View className="flex-1 flex-row items-center gap-2 bg-muted rounded-lg px-3 h-9">
               <Search size={15} className="text-muted-foreground" />
@@ -585,7 +601,6 @@ export default function MemoryScreen() {
             </Button>
           </View>
 
-          {/* Row 2: Count + actions */}
           <View className="flex-row items-center justify-between">
             <Text className="text-xs text-muted-foreground">
               {displayMemories.length} {displayMemories.length === 1 ? 'memoria' : 'memorias'}
@@ -623,54 +638,35 @@ export default function MemoryScreen() {
           </View>
         </View>
 
-        {/* Category Toggle Group */}
-        {memories.length > 0 && (
-          <View className="px-4 pb-2">
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              <ToggleGroup
-                type="single"
-                value={selectedCategory}
-                onValueChange={(value) => setSelectedCategory(value as string)}
-              >
-                {categories.map((category) => (
-                  <ToggleGroupItem key={category} value={category}>
-                    {category}
-                  </ToggleGroupItem>
-                ))}
-              </ToggleGroup>
-            </ScrollView>
-          </View>
-        )}
-
-        {/* Memory List */}
+        {/* Grouped sections */}
         <View className="px-4 pb-4">
-          {displayMemories.length === 0 ? (
+          {memories.length === 0 ? (
             <View className="items-center justify-center py-12">
               <Brain size={32} className="text-muted-foreground opacity-40" />
               <Text className="text-sm font-medium text-muted-foreground mt-3">
-                {memories.length === 0 ? t('memory.noMemories') : t('memory.noMemoriesFound')}
+                {t('memory.noMemories')}
               </Text>
               <Text className="text-xs text-muted-foreground text-center mt-1 max-w-xs">
-                {searchQuery
-                  ? semanticMode ? t('memory.noSemanticResults') : t('memory.noMemoriesFound')
-                  : t('memory.shareInfo')
-                }
+                {t('memory.shareInfo')}
               </Text>
             </View>
           ) : (
-            <View className="border border-border rounded-xl overflow-hidden bg-surface">
-              {displayMemories.map((memory, index) => (
-                <MemoryRow
-                  key={memory._id}
-                  memory={memory}
-                  onEdit={() => handleOpenDialog(memory)}
-                  onDelete={() => handleDeleteMemory(memory._id)}
-                  getCategoryConfig={getCategoryConfig}
-                  t={t}
-                  isLast={index === displayMemories.length - 1}
+            <>
+              {TYPE_SECTIONS.map((section) => (
+                <MemoryTable
+                  key={section.type}
+                  heading={t(section.headingKey)}
+                  icon={section.icon}
+                  rows={groupedByType[section.type]}
+                  emptyLabel={t(section.emptyKey)}
+                  onRowPress={(id) => {
+                    const found = memories.find(m => m._id === id);
+                    if (found) handleOpenDialog(found);
+                  }}
+                  onDelete={handleDeleteMemory}
                 />
               ))}
-            </View>
+            </>
           )}
         </View>
       </ScrollView>
@@ -690,61 +686,49 @@ export default function MemoryScreen() {
           </DialogHeader>
 
           <View className="gap-4">
-            {/* Key Field */}
             <View className="gap-2">
-              <Label nativeID="key">{t('memory.keyLabel')}</Label>
+              <Label nativeID="title">{t('memory.titleLabel')}</Label>
               <Input
-                aria-labelledby="key"
-                value={formKey}
-                onChangeText={setFormKey}
-                placeholder={t('memory.keyPlaceholder')}
+                aria-labelledby="title"
+                value={formTitle}
+                onChangeText={setFormTitle}
+                placeholder={t('memory.titlePlaceholder')}
                 editable={!saving}
               />
             </View>
 
-            {/* Value Field */}
             <View className="gap-2">
-              <Label nativeID="value">{t('memory.valueLabel')}</Label>
+              <Label nativeID="summary">{t('memory.summaryLabel')}</Label>
               <Textarea
-                aria-labelledby="value"
-                value={formValue}
-                onChangeText={setFormValue}
-                placeholder={t('memory.valuePlaceholder')}
+                aria-labelledby="summary"
+                value={formSummary}
+                onChangeText={setFormSummary}
+                placeholder={t('memory.summaryPlaceholder')}
                 editable={!saving}
               />
             </View>
 
-            {/* Category Field */}
             <View className="gap-2">
-              <Label nativeID="category">{t('memory.categoryLabel')}</Label>
-              <Input
-                aria-labelledby="category"
-                value={formCategory}
-                onChangeText={setFormCategory}
-                placeholder={t('memory.categoryPlaceholder')}
-                editable={!saving}
-              />
-
-              {/* Suggested Categories */}
-              <View className="flex-row flex-wrap gap-2 mt-1">
-                {SUGGESTED_CATEGORIES.map((cat) => (
-                  <Pressable
-                    key={cat}
-                    onPress={() => setFormCategory(cat)}
-                    className={cn(
-                      "px-2 py-1 rounded-md border border-border active:opacity-70",
-                      formCategory === cat && "bg-primary/10 border-primary"
-                    )}
-                  >
-                    <Text className={cn(
-                      "text-xs",
-                      formCategory === cat ? "text-primary" : "text-muted-foreground"
-                    )}>
-                      {cat}
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
+              <Label>{t('memory.typeLabel')}</Label>
+              <ToggleGroup
+                type="single"
+                value={formType}
+                onValueChange={(val) => {
+                  if (val === 'profile' || val === 'topic' || val === 'person') {
+                    setFormType(val);
+                  }
+                }}
+              >
+                <ToggleGroupItem value="profile">
+                  <Text>{t('memory.sectionYou')}</Text>
+                </ToggleGroupItem>
+                <ToggleGroupItem value="topic">
+                  <Text>{t('memory.sectionTopics')}</Text>
+                </ToggleGroupItem>
+                <ToggleGroupItem value="person">
+                  <Text>{t('memory.sectionPeople')}</Text>
+                </ToggleGroupItem>
+              </ToggleGroup>
             </View>
           </View>
 
@@ -783,7 +767,7 @@ export default function MemoryScreen() {
               <View className="bg-muted rounded-lg p-3">
                 <Text className="text-sm text-muted-foreground mb-2">{t('memory.exportStatistics')}</Text>
                 <Text className="text-sm">{t('memory.totalMemories')}: {exportStats.totalMemories}</Text>
-                <Text className="text-sm">{t('memory.categories')}: {exportStats.totalCategories}</Text>
+                <Text className="text-sm">{t('memory.types')}: {exportStats.totalTypes}</Text>
                 <Text className="text-sm">
                   {t('memory.sizeJSON')}: ~{(exportStats.estimatedSizeJSON / 1024).toFixed(1)} KB
                 </Text>
@@ -840,7 +824,7 @@ export default function MemoryScreen() {
         </DialogContent>
       </Dialog>
 
-      {/* Import Dialog */}
+      {/* Import Dialog (file-based) */}
       <Dialog open={showImportDialog} onOpenChange={setShowImportDialog}>
         <DialogContent closeButton={true}>
           <DialogHeader>
@@ -851,7 +835,6 @@ export default function MemoryScreen() {
           </DialogHeader>
 
           <View className="gap-4">
-            {/* File Input */}
             <View className="gap-2">
               <Label>{t('memory.selectFile')}</Label>
               <input
@@ -862,13 +845,12 @@ export default function MemoryScreen() {
               />
             </View>
 
-            {/* Preview */}
             {importPreview && (
               <View className="bg-muted rounded-lg p-3 gap-2">
                 <Text className="text-sm font-medium">{t('memory.preview')}</Text>
                 <Text className="text-xs">{t('memory.totalToImport')}: {importPreview.totalToImport}</Text>
-                <Text className="text-xs">{t('memory.newMemoriesCount')}: {importPreview.newKeys}</Text>
-                <Text className="text-xs">{t('memory.duplicatesCount')}: {importPreview.duplicateKeys}</Text>
+                <Text className="text-xs">{t('memory.newMemoriesCount')}: {importPreview.newTitles}</Text>
+                <Text className="text-xs">{t('memory.duplicatesCount')}: {importPreview.duplicateTitles}</Text>
                 <Text className="text-xs">{t('memory.finalTotal')}: {importPreview.estimatedFinalTotal}</Text>
                 {importPreview.memoryLimit !== -1 && (
                   <Text className="text-xs">{t('memory.memoryLimit')}: {importPreview.memoryLimit}</Text>
@@ -876,7 +858,6 @@ export default function MemoryScreen() {
               </View>
             )}
 
-            {/* Strategy Selection */}
             {importFile && (
               <View className="gap-2">
                 <Label>{t('memory.importStrategy')}</Label>
@@ -948,24 +929,24 @@ export default function MemoryScreen() {
                   <View key={i} className="border border-border rounded-lg p-3 gap-2">
                     <View className="bg-muted rounded-md px-2 py-1 self-start">
                       <Text className="text-[10px] text-muted-foreground font-medium">
-                        {dup.reason === 'identical_value' ? t('memory.identicalValue') : t('memory.similarKey')}
+                        {dup.reason === 'identical_summary' ? t('memory.identicalValue') : t('memory.similarKey')}
                       </Text>
                     </View>
                     <View className="gap-1">
                       <Text className="text-xs font-semibold text-foreground">
-                        {dup.memory1?.key}
+                        {dup.memory1?.title}
                       </Text>
                       <Text className="text-xs text-muted-foreground" numberOfLines={2}>
-                        {dup.memory1?.value}
+                        {dup.memory1?.summary}
                       </Text>
                     </View>
                     <View className="h-px bg-border" />
                     <View className="gap-1">
                       <Text className="text-xs font-semibold text-foreground">
-                        {dup.memory2?.key}
+                        {dup.memory2?.title}
                       </Text>
                       <Text className="text-xs text-muted-foreground" numberOfLines={2}>
-                        {dup.memory2?.value}
+                        {dup.memory2?.summary}
                       </Text>
                     </View>
                     <View className="flex-row gap-2 mt-1">
@@ -1008,65 +989,5 @@ export default function MemoryScreen() {
         </DialogContent>
       </Dialog>
     </View>
-  );
-}
-
-function MemoryRow({
-  memory,
-  onEdit,
-  onDelete,
-  getCategoryConfig,
-  t,
-  isLast,
-}: {
-  memory: Memory;
-  onEdit: () => void;
-  onDelete: () => void;
-  getCategoryConfig: (category?: string) => { icon: CategoryIcon; color: string; bgColor: string };
-  t: (key: string, params?: Record<string, unknown>) => string;
-  isLast: boolean;
-}) {
-  const config = getCategoryConfig(memory.category);
-  const CategoryIcon = config.icon;
-
-  return (
-    <Pressable
-      onPress={onEdit}
-      className={cn(
-        "flex-row items-center px-3 py-2.5 active:bg-accent/50",
-        !isLast && "border-b border-border"
-      )}
-    >
-      {/* Category icon */}
-      <View className={cn("w-7 h-7 rounded-lg items-center justify-center mr-3", config.bgColor)}>
-        <CategoryIcon size={14} className={config.color} />
-      </View>
-
-      {/* Content */}
-      <View className="flex-1 mr-2">
-        <View className="flex-row items-center gap-1.5">
-          <Text className="text-sm font-medium text-foreground flex-1" numberOfLines={1}>
-            {memory.key}
-          </Text>
-          <Text className="text-[10px] text-muted-foreground/60">
-            {new Date(memory.updatedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
-          </Text>
-        </View>
-        <Text className="text-xs text-muted-foreground" numberOfLines={1}>
-          {memory.value}
-        </Text>
-      </View>
-
-      {/* Delete */}
-      <Pressable
-        onPress={(e) => {
-          e.stopPropagation();
-          onDelete();
-        }}
-        className="w-7 h-7 items-center justify-center rounded-md active:bg-destructive/10"
-      >
-        <Trash2 size={14} className="text-muted-foreground" />
-      </Pressable>
-    </Pressable>
   );
 }
