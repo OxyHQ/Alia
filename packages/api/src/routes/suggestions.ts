@@ -5,6 +5,7 @@ import { Suggestion } from '../models/suggestion.js';
 import { UserMemory } from '../models/user-memory.js';
 import { authenticateToken, optionalAuth } from '../middleware/auth.js';
 import { resolveModel, getAIModel } from '../lib/chat-core.js';
+import { getUserLanguage } from '../lib/memory/user-memory-service.js';
 import { log } from '../lib/logger.js';
 
 const aiSuggestionSchema = z.object({
@@ -54,21 +55,6 @@ setInterval(() => {
     if (entry.expiresAt < now) cache.delete(key);
   }
 }, 2 * 60 * 1000).unref?.();
-
-/**
- * Helper: resolve user language from memory preferences, fallback to 'en-US'
- */
-async function getUserLanguage(userId?: string): Promise<string> {
-  if (!userId) return 'en-US';
-  try {
-    const memory = await UserMemory.findOne({ oxyUserId: userId })
-      .select('preferences.language')
-      .lean();
-    return memory?.preferences?.language || 'en-US';
-  } catch {
-    return 'en-US';
-  }
-}
 
 /** Filter condition to exclude expired suggestions */
 function notExpiredFilter() {

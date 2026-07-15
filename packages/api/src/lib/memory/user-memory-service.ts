@@ -21,3 +21,19 @@ export async function getOrCreateUserMemory(oxyUserId: string): Promise<IUserMem
   }
   return memory;
 }
+
+/**
+ * Resolve a user's preferred language from their UserMemory preferences.
+ * Falls back to 'en-US' when the user is unknown or has no stored preference.
+ */
+export async function getUserLanguage(userId?: string): Promise<string> {
+  if (!userId) return 'en-US';
+  try {
+    const memory = await UserMemory.findOne({ oxyUserId: userId })
+      .select('preferences.language')
+      .lean();
+    return memory?.preferences?.language || 'en-US';
+  } catch {
+    return 'en-US';
+  }
+}
