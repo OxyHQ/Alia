@@ -1,4 +1,4 @@
-/// <reference path="./optional-deps.d.ts" />
+/// <reference types="nativewind/types" />
 // @alia.onl/sdk — Alia AI Chat SDK
 // Reusable chat UI, voice, and streaming components for Oxy apps
 
