@@ -6,6 +6,7 @@ import {
   AddMemorySchema,
   ImportMemorySchema,
   MergeStrategySchema,
+  MemorySettingsSchema,
 } from '../lib/validators/memory-validators.js';
 import { getOrCreateUserMemory } from '../lib/memory/user-memory-service.js';
 import { log } from '../lib/logger.js';
@@ -26,23 +27,22 @@ router.get('/stats', async (req, res) => {
     if (!memory) {
       res.json({
         totalMemories: 0,
-        categories: {},
+        types: {},
         hasPreferences: false,
         hasContext: false
       });
       return;
     }
 
-    // Group memories by category
-    const categories: Record<string, number> = {};
+    // Group memories by type
+    const types: Record<string, number> = {};
     memory.memories.forEach(m => {
-      const cat = m.category || 'uncategorized';
-      categories[cat] = (categories[cat] || 0) + 1;
+      types[m.type] = (types[m.type] || 0) + 1;
     });
 
     res.json({
       totalMemories: memory.memories.length,
-      categories,
+      types,
       hasPreferences: Object.keys(memory.preferences || {}).length > 0,
       hasContext: Object.keys(memory.context || {}).length > 0
     });
@@ -116,15 +116,47 @@ router.put('/preferences', async (req, res) => {
 });
 
 /**
+ * PUT /api/memory/settings
+ * Update memory auto-save / recall toggles
+ */
+router.put('/settings', async (req, res) => {
+  try {
+    const validation = MemorySettingsSchema.safeParse(req.body);
+    if (!validation.success) {
+      res.status(400).json({
+        error: 'Invalid settings data',
+        details: validation.error.issues
+      });
+      return;
+    }
+
+    const memory = await getOrCreateUserMemory(req.user!.id);
+
+    if (validation.data.autoSaveEnabled !== undefined) {
+      memory.settings.autoSaveEnabled = validation.data.autoSaveEnabled;
+    }
+    if (validation.data.recallEnabled !== undefined) {
+      memory.settings.recallEnabled = validation.data.recallEnabled;
+    }
+
+    await memory.save();
+    res.json(memory.settings);
+  } catch (error: unknown) {
+    log.memory.error({ err: error }, 'Error updating memory settings');
+    res.status(500).json({ error: 'Failed to update memory settings' });
+  }
+});
+
+/**
  * POST /api/memory/add
- * Add a new memory or update if key exists
+ * Add a new memory or update if title exists
  */
 router.post('/add', async (req, res) => {
   try {
-    const { key, value, category } = req.body;
+    const { title, summary, type } = req.body;
 
     // Validate input
-    const validation = AddMemorySchema.safeParse({ key, value, category });
+    const validation = AddMemorySchema.safeParse({ title, summary, type });
     if (!validation.success) {
       res.status(400).json({
         error: 'Invalid memory data',
@@ -135,13 +167,13 @@ router.post('/add', async (req, res) => {
 
     const userMemory = await getOrCreateUserMemory(req.user!.id);
 
-    // Check if memory with this key exists
-    const existingMemoryIndex = userMemory.memories.findIndex(m => m.key === key);
+    // Check if memory with this title exists
+    const existingMemoryIndex = userMemory.memories.findIndex(m => m.title === title);
 
     if (existingMemoryIndex !== -1) {
       // Update existing memory
-      userMemory.memories[existingMemoryIndex].value = value;
-      if (category) userMemory.memories[existingMemoryIndex].category = category;
+      userMemory.memories[existingMemoryIndex].summary = summary;
+      userMemory.memories[existingMemoryIndex].type = type;
       userMemory.memories[existingMemoryIndex].updatedAt = new Date();
     } else {
       // Get user's subscription to check memory limit
@@ -167,9 +199,9 @@ router.post('/add', async (req, res) => {
 
       // Add new memory
       userMemory.memories.push({
-        key,
-        value,
-        category,
+        title,
+        summary,
+        type,
         createdAt: new Date(),
         updatedAt: new Date()
       });
@@ -215,9 +247,9 @@ router.get('/semantic-search', async (req, res) => {
     const queryLower = q.toLowerCase();
     const textResults = memory.memories
       .map(m => {
-        const keyScore = m.key.toLowerCase().includes(queryLower) ? 0.8 : 0;
-        const valueScore = m.value.toLowerCase().includes(queryLower) ? 0.6 : 0;
-        return { memoryKey: m.key, score: Math.max(keyScore, valueScore) };
+        const titleScore = m.title.toLowerCase().includes(queryLower) ? 0.8 : 0;
+        const summaryScore = m.summary.toLowerCase().includes(queryLower) ? 0.6 : 0;
+        return { memoryKey: m.title, score: Math.max(titleScore, summaryScore) };
       })
       .filter(r => r.score > 0);
 
@@ -235,9 +267,9 @@ router.get('/semantic-search', async (req, res) => {
       .sort((a, b) => b[1] - a[1])
       .slice(0, topK);
 
-    const results = sorted.map(([key, score]) => {
-      const mem = memory.memories.find(m => m.key === key);
-      return mem ? { key: mem.key, value: mem.value, category: mem.category, score: Math.round(score * 1000) / 1000 } : null;
+    const results = sorted.map(([title, score]) => {
+      const mem = memory.memories.find(m => m.title === title);
+      return mem ? { title: mem.title, summary: mem.summary, type: mem.type, score: Math.round(score * 1000) / 1000 } : null;
     }).filter(Boolean);
 
     res.json({
@@ -257,10 +289,10 @@ router.get('/semantic-search', async (req, res) => {
  */
 router.put('/:memoryId', async (req, res) => {
   try {
-    const { key, value, category } = req.body;
+    const { title, summary, type } = req.body;
 
-    if (!key || !value) {
-      res.status(400).json({ error: 'Key and value are required' });
+    if (!title || !summary || !type) {
+      res.status(400).json({ error: 'Title, summary, and type are required' });
       return;
     }
 
@@ -271,9 +303,9 @@ router.put('/:memoryId', async (req, res) => {
       },
       {
         $set: {
-          'memories.$.key': key,
-          'memories.$.value': value,
-          'memories.$.category': category,
+          'memories.$.title': title,
+          'memories.$.summary': summary,
+          'memories.$.type': type,
           'memories.$.updatedAt': new Date()
         }
       },
@@ -326,7 +358,7 @@ router.delete('/:memoryId', async (req, res) => {
  */
 router.get('/search', async (req, res) => {
   try {
-    const { q, category, limit = '50', offset = '0', sortBy = 'updatedAt' } = req.query;
+    const { q, type, limit = '50', offset = '0', sortBy = 'updatedAt' } = req.query;
 
     const memory = await UserMemory.findOne({ oxyUserId: req.user!.id });
     if (!memory) {
@@ -336,27 +368,25 @@ router.get('/search', async (req, res) => {
 
     let filtered = [...memory.memories];
 
-    // Text search across key and value
+    // Text search across title and summary
     if (q && typeof q === 'string') {
       const query = q.toLowerCase();
       filtered = filtered.filter(m =>
-        m.key.toLowerCase().includes(query) ||
-        m.value.toLowerCase().includes(query)
+        m.title.toLowerCase().includes(query) ||
+        m.summary.toLowerCase().includes(query)
       );
     }
 
-    // Category filter
-    if (category && typeof category === 'string') {
-      filtered = filtered.filter(m =>
-        (m.category || 'uncategorized') === category
-      );
+    // Type filter
+    if (type && typeof type === 'string') {
+      filtered = filtered.filter(m => m.type === type);
     }
 
     // Sort
     filtered.sort((a, b) => {
       if (sortBy === 'updatedAt') return b.updatedAt.getTime() - a.updatedAt.getTime();
       if (sortBy === 'createdAt') return b.createdAt.getTime() - a.createdAt.getTime();
-      if (sortBy === 'key') return a.key.localeCompare(b.key);
+      if (sortBy === 'title') return a.title.localeCompare(b.title);
       return 0;
     });
 
@@ -396,13 +426,13 @@ router.get('/duplicates', async (req, res) => {
         const m1 = memory.memories[i];
         const m2 = memory.memories[j];
 
-        // Exact value match with different keys
-        if (m1.value.toLowerCase() === m2.value.toLowerCase()) {
-          duplicates.push({ memory1: m1, memory2: m2, reason: 'identical_value' });
+        // Exact summary match with different titles
+        if (m1.summary.toLowerCase() === m2.summary.toLowerCase()) {
+          duplicates.push({ memory1: m1, memory2: m2, reason: 'identical_summary' });
         }
-        // Similar keys (case-insensitive match)
-        else if (m1.key.toLowerCase() === m2.key.toLowerCase() && m1.key !== m2.key) {
-          duplicates.push({ memory1: m1, memory2: m2, reason: 'similar_key' });
+        // Similar titles (case-insensitive match)
+        else if (m1.title.toLowerCase() === m2.title.toLowerCase() && m1.title !== m2.title) {
+          duplicates.push({ memory1: m1, memory2: m2, reason: 'similar_title' });
         }
       }
     }
@@ -425,24 +455,24 @@ router.get('/export/preview', async (req, res) => {
     if (!memory) {
       res.json({
         totalMemories: 0,
-        totalCategories: 0,
+        totalTypes: 0,
         hasPreferences: false,
         hasContext: false,
         estimatedSizeJSON: 0,
         estimatedSizeCSV: 0,
-        categories: [],
+        types: [],
         oldestMemory: null,
         newestMemory: null,
       });
       return;
     }
 
-    const categories = new Set(memory.memories.map(m => m.category || 'uncategorized'));
+    const types = new Set(memory.memories.map(m => m.type));
 
     // Rough size estimates
     const jsonStr = JSON.stringify(memory);
     const csvSize = memory.memories.reduce((acc, m) =>
-      acc + m.key.length + m.value.length + 50, 0
+      acc + m.title.length + m.summary.length + 50, 0
     );
 
     const oldestMemory = memory.memories.reduce((oldest: Date | null, m) =>
@@ -455,8 +485,8 @@ router.get('/export/preview', async (req, res) => {
 
     res.json({
       totalMemories: memory.memories.length,
-      totalCategories: categories.size,
-      categories: Array.from(categories),
+      totalTypes: types.size,
+      types: Array.from(types),
       hasPreferences: Object.keys(memory.preferences || {}).length > 0,
       hasContext: Object.keys(memory.context || {}).length > 0,
       estimatedSizeJSON: jsonStr.length,
@@ -485,12 +515,12 @@ router.get('/export/json', async (req, res) => {
 
     // Create export object with metadata
     const exportData = {
-      version: '1.0',
+      version: '2.0',
       exportedAt: new Date().toISOString(),
       memories: memory.memories.map(m => ({
-        key: m.key,
-        value: m.value,
-        category: m.category,
+        title: m.title,
+        summary: m.summary,
+        type: m.type,
         createdAt: m.createdAt,
         updatedAt: m.updatedAt,
       })),
@@ -535,11 +565,11 @@ router.get('/export/csv', async (req, res) => {
     }
 
     // Generate CSV
-    const headers = ['Key', 'Value', 'Category', 'Created At', 'Updated At'];
+    const headers = ['Title', 'Summary', 'Type', 'Created At', 'Updated At'];
     const rows = memory.memories.map(m => [
-      escapeCSV(m.key),
-      escapeCSV(m.value),
-      escapeCSV(m.category || ''),
+      escapeCSV(m.title),
+      escapeCSV(m.summary),
+      escapeCSV(m.type),
       m.createdAt.toISOString(),
       m.updatedAt.toISOString(),
     ]);
@@ -596,21 +626,21 @@ router.post('/import/validate', async (req, res) => {
     const analysis = {
       valid: true,
       totalToImport: importData.memories.length,
-      duplicateKeys: 0,
-      newKeys: 0,
-      categories: new Set(importData.memories.map(m => m.category || 'uncategorized')),
+      duplicateTitles: 0,
+      newTitles: 0,
+      types: new Set(importData.memories.map(m => m.type)),
       estimatedFinalTotal: (memory?.memories.length || 0),
       memoryLimit,
       isUnlimited: memoryLimit === -1,
     };
 
     if (memory) {
-      const existingKeys = new Set(memory.memories.map(m => m.key));
-      analysis.duplicateKeys = importData.memories.filter(m => existingKeys.has(m.key)).length;
-      analysis.newKeys = importData.memories.filter(m => !existingKeys.has(m.key)).length;
-      analysis.estimatedFinalTotal = memory.memories.length + analysis.newKeys;
+      const existingTitles = new Set(memory.memories.map(m => m.title));
+      analysis.duplicateTitles = importData.memories.filter(m => existingTitles.has(m.title)).length;
+      analysis.newTitles = importData.memories.filter(m => !existingTitles.has(m.title)).length;
+      analysis.estimatedFinalTotal = memory.memories.length + analysis.newTitles;
     } else {
-      analysis.newKeys = importData.memories.length;
+      analysis.newTitles = importData.memories.length;
       analysis.estimatedFinalTotal = importData.memories.length;
     }
 
@@ -623,7 +653,7 @@ router.post('/import/validate', async (req, res) => {
         }],
         analysis: {
           ...analysis,
-          categories: Array.from(analysis.categories),
+          types: Array.from(analysis.types),
         },
       });
       return;
@@ -633,7 +663,7 @@ router.post('/import/validate', async (req, res) => {
       valid: true,
       analysis: {
         ...analysis,
-        categories: Array.from(analysis.categories),
+        types: Array.from(analysis.types),
       },
     });
 
@@ -708,9 +738,9 @@ router.post('/import', async (req, res) => {
     if (strategy === 'replace') {
       // Replace all memories
       memory.memories = importData.memories.map(m => ({
-        key: m.key,
-        value: m.value,
-        category: m.category,
+        title: m.title,
+        summary: m.summary,
+        type: m.type,
         createdAt: new Date(),
         updatedAt: new Date(),
       }));
@@ -722,18 +752,18 @@ router.post('/import', async (req, res) => {
     } else if (strategy === 'merge') {
       // Merge: update existing, add new
       for (const importMemory of importData.memories) {
-        const existingIndex = memory.memories.findIndex(m => m.key === importMemory.key);
+        const existingIndex = memory.memories.findIndex(m => m.title === importMemory.title);
 
         if (existingIndex !== -1) {
-          memory.memories[existingIndex].value = importMemory.value;
-          memory.memories[existingIndex].category = importMemory.category;
+          memory.memories[existingIndex].summary = importMemory.summary;
+          memory.memories[existingIndex].type = importMemory.type;
           memory.memories[existingIndex].updatedAt = new Date();
           stats.updated++;
         } else {
           memory.memories.push({
-            key: importMemory.key,
-            value: importMemory.value,
-            category: importMemory.category,
+            title: importMemory.title,
+            summary: importMemory.summary,
+            type: importMemory.type,
             createdAt: new Date(),
             updatedAt: new Date(),
           });
@@ -752,15 +782,15 @@ router.post('/import', async (req, res) => {
     } else if (strategy === 'skip-duplicates') {
       // Only add memories that don't exist
       for (const importMemory of importData.memories) {
-        const exists = memory.memories.some(m => m.key === importMemory.key);
+        const exists = memory.memories.some(m => m.title === importMemory.title);
 
         if (exists) {
           stats.skipped++;
         } else {
           memory.memories.push({
-            key: importMemory.key,
-            value: importMemory.value,
-            category: importMemory.category,
+            title: importMemory.title,
+            summary: importMemory.summary,
+            type: importMemory.type,
             createdAt: new Date(),
             updatedAt: new Date(),
           });
