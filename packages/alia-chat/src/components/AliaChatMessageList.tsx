@@ -37,8 +37,14 @@ type ExpoImageProps = {
   className?: string;
   contentFit?: string;
 };
+// expo-image is an optional peer dependency: SDK-only consumers that never render
+// inline images may not install it. Degrade to skipping images when it can't be required.
 let ExpoImage: React.ComponentType<ExpoImageProps> | null = null;
-try { ExpoImage = require('expo-image').Image; } catch {}
+try {
+  ExpoImage = require('expo-image').Image;
+} catch {
+  // Optional peer dependency absent — inline images are simply not rendered.
+}
 
 type PlaybackState = 'idle' | 'loading' | 'playing' | 'paused' | 'error';
 
@@ -460,7 +466,9 @@ export function AliaChatMessageList({
       }
       setCopiedMessageId(messageId);
       setTimeout(() => setCopiedMessageId(null), 2000);
-    } catch {}
+    } catch (err) {
+      console.warn('[AliaChat] Failed to copy message to clipboard:', err);
+    }
   }, []);
 
   const handleStartEdit = useCallback((messageId: string, content: string) => {

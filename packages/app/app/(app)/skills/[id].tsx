@@ -21,7 +21,8 @@ export default function SkillDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { t } = useTranslation();
-  const { skills, getSkill } = useSkillsStore();
+  const skills = useSkillsStore((s) => s.skills);
+  const getSkill = useSkillsStore((s) => s.getSkill);
 
   const [skill, setSkill] = useState<Skill | null>(null);
   const [loading, setLoading] = useState(true);

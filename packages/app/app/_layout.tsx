@@ -1,6 +1,6 @@
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { OxyProvider, useOxy } from '@oxyhq/services';
 import { BloomThemeProvider } from '@oxyhq/bloom/theme';
 import { ImageResolverProvider } from '@oxyhq/bloom/image-resolver';
@@ -35,7 +35,14 @@ const AUTH_REDIRECT_URI = Linking.createURL('/');
 function AuthSetup({ children }: { children: React.ReactNode }) {
   const { oxyServices } = useOxy();
 
-  setTokenGetter(() => oxyServices.getAccessToken() || null);
+  // Registered during render (not an effect) because children's mount effects
+  // fire API calls before a parent effect would run; guarded so it only re-runs
+  // if the SDK instance ever changes instead of on every render.
+  const registeredServicesRef = useRef<typeof oxyServices | null>(null);
+  if (registeredServicesRef.current !== oxyServices) {
+    registeredServicesRef.current = oxyServices;
+    setTokenGetter(() => oxyServices.getAccessToken() || null);
+  }
 
   // Resolve bare Oxy file IDs to loadable URLs for Bloom components (avatars in
   // ProfileButton, etc.). Single chokepoint: getFileDownloadUrl builds the

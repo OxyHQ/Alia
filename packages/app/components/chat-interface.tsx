@@ -176,8 +176,10 @@ type MessageRowProps = {
   isLastMessage: boolean;
   isCopied: boolean;
   myVote: 'up' | 'down' | null;
-  ttsActiveMessageId: string | null | undefined;
-  ttsPlaybackState: string;
+  // Per-row TTS state: 'idle' unless this row is the active one. Passing the
+  // raw activeMessageId + playbackState to every row re-renders all rows on a
+  // playback transition; deriving per row keeps the memo for inactive rows.
+  ttsState: string;
   chatId: ChatIdState;
   voiceAgentState?: 'idle' | 'listening' | 'thinking' | 'speaking';
   handleMarkLayout: (e: LayoutChangeEvent) => void;
@@ -185,8 +187,9 @@ type MessageRowProps = {
   handleVote: (messageId: string, vote: 'up' | 'down') => void;
   readAloud: (id: string, text: string, chatId?: string, audioUrl?: string) => void;
   generateAudio: (messageId: string, prompt: string, conversationId?: string) => void;
-  audioGenActiveMessageId: string | null;
-  audioGenState: string;
+  // Per-row audio-gen state: 'idle' unless this row is the active one (same
+  // rationale as ttsState above).
+  audioGenRowState: string;
   openThoughtPanel: (messageId: string) => void;
   onStartEdit?: (messageId: string, content: string) => void;
   onApprovePlan?: (planId: string) => void;
@@ -196,9 +199,9 @@ type MessageRowProps = {
 const MessageRow = React.memo(function MessageRow({
   m, index, isNewMessage, isAliaMessage, isLastAlia,
   isLoading, isLastMessage, isCopied, myVote,
-  ttsActiveMessageId, ttsPlaybackState, chatId, voiceAgentState,
+  ttsState, chatId, voiceAgentState,
   handleMarkLayout, handleCopyMessage, handleVote, readAloud,
-  generateAudio, audioGenActiveMessageId, audioGenState,
+  generateAudio, audioGenRowState,
   openThoughtPanel, onStartEdit, onApprovePlan, onRejectPlan,
 }: MessageRowProps) {
   const messageText = getMessageText(m);
@@ -332,10 +335,10 @@ const MessageRow = React.memo(function MessageRow({
                   className="p-1.5 rounded-lg hover:bg-muted active:bg-muted"
                   onPress={() => readAloud(m.id, messageText, chatId?.id, m.audioUrl)}
                 >
-                  {ttsActiveMessageId === m.id && (ttsPlaybackState === 'playing' || ttsPlaybackState === 'paused') ? (
-                    <Square size={14} className={ttsPlaybackState === 'playing' ? "text-primary" : "text-muted-foreground"} />
+                  {ttsState === 'playing' || ttsState === 'paused' ? (
+                    <Square size={14} className={ttsState === 'playing' ? "text-primary" : "text-muted-foreground"} />
                   ) : (
-                    <Volume2 size={14} className={ttsActiveMessageId === m.id && ttsPlaybackState === 'loading' ? "text-primary opacity-50" : "text-muted-foreground"} />
+                    <Volume2 size={14} className={ttsState === 'loading' ? "text-primary opacity-50" : "text-muted-foreground"} />
                   )}
                 </Pressable>
                 <Pressable
@@ -343,10 +346,10 @@ const MessageRow = React.memo(function MessageRow({
                   className="p-1.5 rounded-lg hover:bg-muted active:bg-muted"
                   onPress={() => generateAudio(m.id, messageText, chatId?.id)}
                 >
-                  {audioGenActiveMessageId === m.id && audioGenState === 'playing' ? (
+                  {audioGenRowState === 'playing' ? (
                     <Square size={14} className="text-primary" />
                   ) : (
-                    <Music size={14} className={audioGenActiveMessageId === m.id && audioGenState === 'generating' ? "text-primary opacity-50" : "text-muted-foreground"} />
+                    <Music size={14} className={audioGenRowState === 'generating' ? "text-primary opacity-50" : "text-muted-foreground"} />
                   )}
                 </Pressable>
                 <Pressable
@@ -677,8 +680,7 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
                   isLastMessage={index === filteredMessages.length - 1}
                   isCopied={copiedMessageId === m.id}
                   myVote={votedMessages[m.id] ?? null}
-                  ttsActiveMessageId={ttsActiveMessageId}
-                  ttsPlaybackState={ttsPlaybackState}
+                  ttsState={ttsActiveMessageId === m.id ? ttsPlaybackState : 'idle'}
                   chatId={chatId}
                   voiceAgentState={voiceAgentState}
                   handleMarkLayout={handleMarkLayout}
@@ -686,8 +688,7 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
                   handleVote={handleVote}
                   readAloud={readAloud}
                   generateAudio={generateAudio}
-                  audioGenActiveMessageId={audioGenActiveMessageId}
-                  audioGenState={audioGenState}
+                  audioGenRowState={audioGenActiveMessageId === m.id ? audioGenState : 'idle'}
                   openThoughtPanel={openThoughtPanel}
                   onStartEdit={onStartEdit}
                   onApprovePlan={onApprovePlan}

@@ -55,15 +55,16 @@ export function useTTS(options: UseTTSOptions = {}) {
   const tonePref = options.tone ?? 'default';
 
   const { oxyServices } = useOxy();
-  const {
-    activeMessageId,
-    playbackState,
-    error,
-    setActiveMessage,
-    setPlaybackState,
-    setError,
-    reset,
-  } = useTTSStore();
+  // Per-field selectors: subscribing to the whole store re-renders every
+  // consumer on any playback transition. Actions are static store refs, so
+  // selecting them individually never triggers a re-render.
+  const activeMessageId = useTTSStore((s) => s.activeMessageId);
+  const playbackState = useTTSStore((s) => s.playbackState);
+  const error = useTTSStore((s) => s.error);
+  const setActiveMessage = useTTSStore((s) => s.setActiveMessage);
+  const setPlaybackState = useTTSStore((s) => s.setPlaybackState);
+  const setError = useTTSStore((s) => s.setError);
+  const reset = useTTSStore((s) => s.reset);
 
   const playerRef = useRef<AudioPlayer | null>(null);
 
@@ -108,7 +109,9 @@ export function useTTS(options: UseTTSOptions = {}) {
   const releasePlayer = useCallback(() => {
     try {
       playerRef.current?.remove();
-    } catch {}
+    } catch {
+      // Best-effort teardown — the player may already be removed.
+    }
     playerRef.current = null;
   }, []);
 
@@ -147,6 +150,11 @@ export function useTTS(options: UseTTSOptions = {}) {
     conversationId?: string,
     audioUrl?: string,
   ) => {
+    // Read volatile playback state at call time (not via closure) so this
+    // callback's identity survives every playback transition. It is passed to
+    // memoized message rows — an unstable identity re-renders all of them.
+    const { activeMessageId, playbackState } = useTTSStore.getState();
+
     // If same message is playing, toggle pause/play
     if (activeMessageId === messageId) {
       if (playbackState === 'playing') {
@@ -212,7 +220,7 @@ export function useTTS(options: UseTTSOptions = {}) {
       console.error('[TTS] Error:', e);
       setError(errorMessage(e, 'Failed to read aloud'));
     }
-  }, [activeMessageId, playbackState, getToken, apiUrl, getTTSVoice, getTTSSpeed, stop, playFromUrl, setActiveMessage, setPlaybackState, setError]);
+  }, [getToken, apiUrl, getTTSVoice, getTTSSpeed, stop, playFromUrl, setActiveMessage, setPlaybackState, setError]);
 
   // Cleanup on unmount
   useEffect(() => {

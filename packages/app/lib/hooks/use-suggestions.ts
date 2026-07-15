@@ -30,12 +30,15 @@ export interface Suggestion {
  * Backend returns random/personalized suggestions from the pool.
  */
 export function useWelcomeSuggestions() {
+  const { isAuthenticated } = useAuth();
   return useQuery<Suggestion[]>({
     queryKey: queryKeys.suggestions.welcome,
     queryFn: async () => {
       const res = await apiClient.post(API_ROUTES.suggestions.welcome, { count: 4 });
       return res.data.suggestions;
     },
+    // Suggestions are personalized — an unauthenticated request is a wasted 401.
+    enabled: isAuthenticated,
     staleTime: 1000 * 60 * 15, // 15 minutes
     placeholderData: (prev: Suggestion[] | undefined) => prev,
     retry: 1,
@@ -91,6 +94,8 @@ export function useGenerateSuggestions() {
  * Auto-generate personalized suggestions once per app session.
  * Call from the app layout so it fires as soon as auth is ready.
  */
+const SESSION_GENERATION_DELAY_MS = 10_000;
+
 export function useSessionSuggestionGeneration() {
   const { isAuthenticated } = useAuth();
   const { mutate } = useGenerateSuggestions();
@@ -100,7 +105,13 @@ export function useSessionSuggestionGeneration() {
 
   useEffect(() => {
     if (!isAuthenticated || hasGenerated.current) return;
-    hasGenerated.current = true;
-    mutateRef.current({ count: 8, types: ['welcome', 'autocomplete'] });
+    // Defer the expensive AI generation off the boot critical path: it competes
+    // with first-paint queries for network and backend capacity, and its result
+    // (a refreshed suggestion pool) is only consumed on later visits anyway.
+    const timer = setTimeout(() => {
+      hasGenerated.current = true;
+      mutateRef.current({ count: 8, types: ['welcome', 'autocomplete'] });
+    }, SESSION_GENERATION_DELAY_MS);
+    return () => clearTimeout(timer);
   }, [isAuthenticated]);
 }

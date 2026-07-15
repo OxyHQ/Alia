@@ -11,6 +11,15 @@ import {
 } from "react-native";
 import { cn } from "../../lib/utils";
 
+// react-native-web forwards the DOM KeyboardEvent modifier flags on the key-press
+// nativeEvent, but React Native's `TextInputKeyPressEventData` only declares `key`.
+// Augment the type (web-only field, hence optional) so `shiftKey` is readable without a cast.
+declare module "react-native" {
+  interface TextInputKeyPressEventData {
+    shiftKey?: boolean;
+  }
+}
+
 type ChatTextInputProps = React.ComponentPropsWithoutRef<typeof TextInput> & {
   noFocus?: boolean;
   onEnterPress?: () => void;
@@ -54,13 +63,11 @@ const ChatTextInput = React.forwardRef<TextInput, ChatTextInputProps>(
       const handlePaste = (e: Event) => {
         const clipboardEvent = e as ClipboardEvent;
 
-        // @ts-ignore - web-specific API
         const activeElement = document.activeElement;
-        // @ts-ignore - web-specific API
         const wrapper = wrapperRef.current;
-
-        // @ts-ignore - web-specific API
-        const isContained = wrapper && wrapper.contains(activeElement);
+        // On web the wrapper ref resolves to its underlying DOM node — only react to
+        // pastes whose focused element lives inside this input.
+        const isContained = wrapper instanceof HTMLElement && wrapper.contains(activeElement);
 
         if (!isContained) return;
 
@@ -84,11 +91,9 @@ const ChatTextInput = React.forwardRef<TextInput, ChatTextInputProps>(
         }
       };
 
-      // @ts-ignore - web-specific API
       document.addEventListener('paste', handlePaste);
 
       return () => {
-        // @ts-ignore - web-specific API
         document.removeEventListener('paste', handlePaste);
       };
     }, [onImagePaste]);
@@ -108,7 +113,6 @@ const ChatTextInput = React.forwardRef<TextInput, ChatTextInputProps>(
       }
 
       if (key === "Enter" && !disableEnterToSubmit) {
-        // @ts-ignore - shiftKey exists on web
         if (Platform.OS !== 'web' || !e.nativeEvent.shiftKey) {
           e.preventDefault();
           onEnterPress?.();

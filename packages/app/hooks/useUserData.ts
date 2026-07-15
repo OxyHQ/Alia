@@ -5,7 +5,12 @@ import apiClient from '@/lib/api/client';
 
 export function useUserData() {
   const { isAuthenticated } = useAuth();
-  const { memory, loading, setMemory, setLoading, shouldRefetch, clearMemory } = useUserDataStore();
+  const memory = useUserDataStore((s) => s.memory);
+  const loading = useUserDataStore((s) => s.loading);
+  const setMemory = useUserDataStore((s) => s.setMemory);
+  const setLoading = useUserDataStore((s) => s.setLoading);
+  const shouldRefetch = useUserDataStore((s) => s.shouldRefetch);
+  const clearMemory = useUserDataStore((s) => s.clearMemory);
 
   useEffect(() => {
     // Clear data if not authenticated

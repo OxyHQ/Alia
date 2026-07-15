@@ -59,7 +59,11 @@ export function useSoundEffects(enabled: boolean = false, sounds: SoundSources =
     return () => {
       mounted = false;
       for (const player of playersRef.current.values()) {
-        try { player.release(); } catch {}
+        try {
+          player.release();
+        } catch {
+          // Best-effort cleanup — a player already released/unloaded is safe to ignore.
+        }
       }
       playersRef.current.clear();
       loadedRef.current = false;
