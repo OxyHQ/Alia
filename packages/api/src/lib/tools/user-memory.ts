@@ -11,7 +11,7 @@ import { PERSONALITY_STYLES, isPersonalityStyle, type PersonalityStyleId } from 
  * Tool to save user memories
  * Allows the AI to remember important information about the user
  */
-export const saveUserMemoryTool = (oxyUserId: string) => tool({
+export const saveUserMemoryTool = (oxyUserId: string, opts?: { bypassAutoSaveGate?: boolean }) => tool({
   description: 'Save important user information for future conversations. Use ALWAYS when user shares: preferences, personal info, goals, experiences, or anything they want remembered.',
 
   inputSchema: z.object({
@@ -26,7 +26,7 @@ export const saveUserMemoryTool = (oxyUserId: string) => tool({
     try {
       const memory = await getOrCreateUserMemory(oxyUserId);
 
-      if (memory.settings?.autoSaveEnabled === false) {
+      if (!opts?.bypassAutoSaveGate && memory.settings?.autoSaveEnabled === false) {
         return {
           success: false,
           message: 'Memory auto-save is disabled in the user\'s settings — do not attempt to save this.',
