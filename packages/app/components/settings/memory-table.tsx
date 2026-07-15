@@ -46,7 +46,7 @@ export function MemoryTable({ heading, rows, emptyLabel, onRowPress, onDelete }:
               key={row._id}
               onPress={() => onRowPress(row._id)}
               className={cn(
-                "flex-row items-center h-9 gap-4 px-3 group active:bg-accent/50 active:rounded-md web:hover:bg-accent/40 web:hover:rounded-md",
+                "flex-row items-center h-9 gap-4 px-3 group active:bg-accent/50 web:hover:bg-accent/40",
                 "border-b border-border",
                 index === 0 && "border-t border-border"
               )}
