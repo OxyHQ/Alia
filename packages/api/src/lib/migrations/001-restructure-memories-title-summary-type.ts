@@ -41,7 +41,7 @@ export async function up(): Promise<void> {
   if (!db) throw new Error('MongoDB not connected');
 
   const collection = db.collection<LegacyUserMemoryDoc>('usermemories');
-  const cursor = collection.find({}, { batchSize: 200 });
+  const cursor = collection.find({ 'memories.key': { $exists: true } }, { batchSize: 200 });
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let ops: any[] = [];
@@ -81,7 +81,6 @@ export async function up(): Promise<void> {
     migrated += ops.length;
   }
 
-  // eslint-disable-next-line no-console
   console.log(`[migration 001] restructured ${migrated} UserMemory documents`);
 }
 
