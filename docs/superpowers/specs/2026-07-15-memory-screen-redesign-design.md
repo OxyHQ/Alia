@@ -60,7 +60,7 @@ inputSchema: z.object({
 
 `updateUserPreferencesTool` / `updateUserContextTool` are untouched (different fields, out of scope).
 
-**Settings gating** — all 6 `saveUserMemoryTool` registration call sites read `memory.settings?.autoSaveEnabled ?? true` and omit the tool entirely when `false` (AI SDK tool sets accept a conditionally-omitted key, matching the existing `opts.userId ? {...} : {}` pattern already used in `chat.service.ts:240`). `memory-recall-hook.ts` checks `settings?.recallEnabled ?? true` before calling `recallRelevantMemories()`.
+**Settings gating** — corrected after deeper research: `saveUserMemoryTool` is registered at 6 call sites, but 3 of them (`chat.service.ts:buildChatTools`, `agent/tools.ts:buildAgentTools`, `tools/index.ts` registry) don't have an `IUserMemory` doc in scope at registration time — threading one through would mean changing multiple builder-function signatures across the codebase for no real benefit. Instead: `saveUserMemoryTool.execute()` (`user-memory.ts`) already calls `getOrCreateUserMemory(oxyUserId)` as its first line — the gate goes there: if `memory.settings?.autoSaveEnabled === false`, return `{success: false, message: '...', disabled: true}` without writing. Zero changes to any of the 6 registration sites. Same pattern for recall: `recallRelevantMemories()` (`lib/memory/recall.ts`) already does `UserMemory.findOne(...)` as its first line — check `memory.settings?.recallEnabled === false` there and return `[]` early. Zero changes to `memory-recall-hook.ts`.
 
 **New route**: `PUT /memory/settings` — body `{ autoSaveEnabled?: boolean, recallEnabled?: boolean }`, partial update, returns the full settings object.
 
