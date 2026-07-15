@@ -39,7 +39,7 @@ export async function buildUserContext(userId: string): Promise<UserContext> {
     const userMemory = await UserMemory.findOne({ oxyUserId: userId });
     if (userMemory) {
       if (userMemory.memories?.length > 0) {
-        contextString += '\n\n## Known Facts:\n' + userMemory.memories.map((m: any) => `- ${m.key}: ${m.value}`).join('\n');
+        contextString += '\n\n## Known Facts:\n' + userMemory.memories.map((m: any) => `- ${m.title}: ${m.summary}`).join('\n');
       }
       if (userMemory.preferences && Object.keys(userMemory.preferences).length > 0) {
         const prefs = Object.entries(userMemory.preferences)
