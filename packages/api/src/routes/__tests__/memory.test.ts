@@ -111,3 +111,38 @@ describe('memory routes — validators and core logic', () => {
     expect(res.body).toEqual(doc.settings);
   });
 });
+
+vi.mock('ai', async () => {
+  const actual = await vi.importActual<typeof import('ai')>('ai');
+  return { ...actual, generateText: vi.fn() };
+});
+
+vi.mock('../../lib/chat-core.js', () => ({
+  resolveModel: vi.fn().mockResolvedValue({ keyConfig: {}, provider: 'test', modelId: 'test' }),
+  getAIModel: vi.fn().mockReturnValue({}),
+  getDefaultAliaModel: vi.fn().mockReturnValue('alia-v1'),
+}));
+
+vi.mock('../../lib/tools/index.js', () => ({
+  saveUserMemoryTool: vi.fn().mockReturnValue({ execute: vi.fn() }),
+}));
+
+import { generateText } from 'ai';
+
+describe('POST /memory/import/from-text — extraction shape', () => {
+  it('extracts saved memories from generateText tool results', async () => {
+    (generateText as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
+      toolResults: [
+        { toolName: 'saveUserMemory', input: { title: 'Food', summary: 'Loves strawberries', type: 'topic' }, output: { success: true } },
+        { toolName: 'saveUserMemory', input: { title: 'Bad', summary: 'x', type: 'topic' }, output: { success: false } },
+      ],
+    });
+
+    const result = await generateText({} as any);
+    const saved = (result.toolResults || [])
+      .filter((tr: any) => tr.toolName === 'saveUserMemory' && tr.output?.success)
+      .map((tr: any) => ({ title: tr.input?.title, summary: tr.input?.summary, type: tr.input?.type }));
+
+    expect(saved).toEqual([{ title: 'Food', summary: 'Loves strawberries', type: 'topic' }]);
+  });
+});

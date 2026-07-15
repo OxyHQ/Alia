@@ -10,6 +10,9 @@ import {
 } from '../lib/validators/memory-validators.js';
 import { getOrCreateUserMemory } from '../lib/memory/user-memory-service.js';
 import { log } from '../lib/logger.js';
+import { generateText, stepCountIs } from 'ai';
+import { resolveModel, getAIModel, getDefaultAliaModel } from '../lib/chat-core.js';
+import { saveUserMemoryTool } from '../lib/tools/index.js';
 
 const router = Router();
 
@@ -824,6 +827,67 @@ router.post('/import', async (req, res) => {
   } catch (error: unknown) {
     log.memory.error({ err: error }, 'Import error');
     res.status(500).json({ error: 'Failed to import memories' });
+  }
+});
+
+/**
+ * POST /api/memory/import/from-text
+ * Import memories from pasted text (e.g. a memory summary exported from
+ * another AI assistant). Reuses saveUserMemoryTool via a single scoped
+ * generateText call — no bespoke parsing logic. Runs regardless of
+ * settings.autoSaveEnabled: this is an explicit user-initiated action.
+ */
+router.post('/import/from-text', async (req, res) => {
+  try {
+    const { text } = req.body as { text?: string };
+
+    if (!text || typeof text !== 'string' || !text.trim()) {
+      res.status(400).json({ error: 'text is required' });
+      return;
+    }
+
+    if (text.length > 50_000) {
+      res.status(400).json({ error: 'Text is too long (max 50,000 characters)' });
+      return;
+    }
+
+    const userId = req.user!.id;
+
+    const resolved = await resolveModel(getDefaultAliaModel());
+    if (!resolved) {
+      res.status(503).json({ error: 'No AI models available. Please try again later.' });
+      return;
+    }
+
+    const model = getAIModel(resolved.keyConfig);
+    const saveTool = saveUserMemoryTool(userId);
+
+    const systemPrompt = `You are extracting memories from a block of text pasted by the user — typically a memory/context summary exported from another AI assistant. Read the text and call the saveUserMemory tool once for EACH distinct fact worth remembering. Choose type per fact: "profile" for facts about the user themself, "topic" for a subject/interest/project, "person" for someone in the user's life. Give each memory a short, human-readable title (2-4 words) and a 1-2 sentence summary. Do not invent facts that aren't in the text. If the text contains no memorable facts, don't call the tool at all.`;
+
+    const result = await generateText({
+      model,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: text },
+      ],
+      tools: { saveUserMemory: saveTool },
+      temperature: 0.2,
+      maxRetries: 0,
+      stopWhen: stepCountIs(20),
+    });
+
+    const saved = (result.toolResults || [])
+      .filter((tr: any) => tr.toolName === 'saveUserMemory' && tr.output?.success)
+      .map((tr: any) => ({
+        title: tr.input?.title,
+        summary: tr.input?.summary,
+        type: tr.input?.type,
+      }));
+
+    res.json({ saved });
+  } catch (error: unknown) {
+    log.memory.error({ err: error }, 'Import-from-text error');
+    res.status(500).json({ error: 'Failed to import from text' });
   }
 });
 
