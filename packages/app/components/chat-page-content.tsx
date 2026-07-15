@@ -21,7 +21,7 @@ import { ChatHeader } from "@/components/chat-header";
 import { useAuth } from "@oxyhq/services";
 import type { Message } from "@/types/chat";
 import { toast } from "@/components/sonner";
-import { VoiceOverlay, VoiceControls, useAmbientWave } from "@alia.onl/sdk";
+import { VoiceOverlay, VoiceControls, useAmbientWave } from "@alia.onl/sdk/voice";
 import { AlertTriangle, Pencil } from "lucide-react-native";
 import { CreditWarningBanner } from "@/components/credit-warning-banner";
 import { getThinkingModelId, isThinkingModel } from "@/components/model-selector";
