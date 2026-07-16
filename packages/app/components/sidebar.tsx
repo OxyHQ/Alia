@@ -2,6 +2,7 @@ import React from "react";
 import { View, Pressable, Platform, NativeSyntheticEvent, NativeScrollEvent, Linking } from "react-native";
 import { AliaLogo } from "@/components/ui/alia-logo";
 import { AliaMark } from "@alia.onl/sdk";
+import { useColorScheme } from "@/lib/useColorScheme";
 import { Text } from "@/components/ui/text";
 import { BaseSidebar } from "@/components/base-sidebar";
 import {
@@ -112,6 +113,7 @@ const ChatSidebar = React.memo(function ChatSidebar() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { t } = useTranslation();
+  const { colors } = useColorScheme();
   const { data: unreadData } = useUnreadCount();
   // Use selectors to avoid worklet serialization issues
   const chatId = useStore((state) => state.chatId);
@@ -482,7 +484,7 @@ const ChatSidebar = React.memo(function ChatSidebar() {
     <View className={cn("flex-row items-center", collapsed && "justify-center")}>
       {collapsed ? (
         <View className="p-1.5 mx-0.5 rounded-xl hover:bg-muted active:bg-muted">
-          <AliaMark size={24} onPress={handleLogoPress} accessibilityLabel="Home" spinOnMount />
+          <AliaMark size={24} color={colors.primary} onPress={handleLogoPress} accessibilityLabel="Home" spinOnMount />
         </View>
       ) : (
         <Pressable

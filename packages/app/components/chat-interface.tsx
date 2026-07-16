@@ -11,6 +11,7 @@ import type { ScrollView as GHScrollView } from "react-native-gesture-handler";
 import { processMessage } from "@/lib/message-processor";
 import { cn } from "@/lib/utils";
 import { ThinkingIndicator, AliaMark, type AliaMarkState } from '@alia.onl/sdk';
+import { useColorScheme } from "@/lib/useColorScheme";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Copy, ThumbsUp, ThumbsDown, Pencil, Check, Volume2, Square, Music } from "lucide-react-native";
 import * as DropdownMenu from "@/components/ui/dropdown-menu";
@@ -512,6 +513,7 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
     const { readAloud, activeMessageId: ttsActiveMessageId, playbackState: ttsPlaybackState } = useTTS();
     const { generateAudio, activeMessageId: audioGenActiveMessageId, state: audioGenState } = useAudioGen();
     const chatId = useStore(s => s.chatId);
+    const { colors } = useColorScheme();
 
     const { isAtBottom, onScroll, onContentSizeChange } = useScrollToBottom(scrollViewRef);
 
@@ -667,7 +669,7 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
             {/* Single flying AliaMark */}
             {lastAliaIndex >= 0 && (
               <Animated.View style={markAnimatedStyle}>
-                <AliaMark size={28} state={markState} />
+                <AliaMark size={28} color={colors.primary} state={markState} />
               </Animated.View>
             )}
 
