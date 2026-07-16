@@ -39,11 +39,37 @@ Respond with ONLY a JSON object:
   }
 }
 
-The "title" and "description" are shown to the user as a suggestion chip and are sent VERBATIM as the user's own chat message when tapped, so they MUST read as the user speaking to Alia, never as Alia speaking to the user.
-- Good: "Remind me about the Pixel 11 Pro release date"
-- Bad: "I will remind you of the Pixel 11 Pro release date"
+The "title" and "description" are shown to the user as a suggestion chip and are sent VERBATIM as the user's own chat message when tapped, so they MUST read as the user speaking to Alia, never as Alia speaking to the user. This rule applies in EVERY language you respond in — match the language the user wrote in, but always keep the user's own voice, never the assistant's.
+- Good (English): "Remind me about the Pixel 11 Pro release date"
+- Bad (English): "I will remind you of the Pixel 11 Pro release date"
+- Good (Spanish): "Recuérdame la fecha de lanzamiento del Pixel 11 Pro"
+- Bad (Spanish): "Te recordaré la fecha de lanzamiento del Pixel 11 Pro"
 
 Only suggest actions that would genuinely help. Be conservative — only classify as non-"none" when the opportunity is clear and actionable.`;
+
+/**
+ * Heuristic check for assistant-voice phrasing (first-person offers/promises)
+ * in text that's supposed to read as the user speaking to Alia. Covers the
+ * two languages this app actually ships (English/Spanish) — not exhaustive,
+ * but catches the concrete failure modes seen in production.
+ */
+const ASSISTANT_VOICE_PATTERNS: RegExp[] = [
+  // English: "I'll...", "I will...", "I can...", "Let me...", "I'd be happy to..."
+  /^(i'll|i will|i can|i'm going to|i am going to|let me|i'd be happy to|i would be happy to)\b/i,
+  // Spanish: "Te recordaré...", "Te avisaré..." (first-person future verb after "te").
+  // Uses \S*/lookahead instead of \w+/\b because JS's non-unicode \w and \b
+  // exclude accented letters (é) — \w+ could never consume the "é" in
+  // "recordaré", so \b would never find a boundary right after the suffix.
+  /^te\s+\S*(ré|aré|eré|iré)(?=[\s.,!?;:]|$)/i,
+  // Spanish: "Recordarte...", "Avisarte...", "Notificarte..." (infinitive+te offer framing)
+  /^(recordarte|avisarte|notificarte|informarte|ayudarte)\b/i,
+  // Spanish: "Voy a...", "Puedo..." (assistant offering to do something)
+  /^(voy a|puedo)\s+\w+/i,
+];
+
+function looksLikeAssistantVoice(text: string): boolean {
+  return ASSISTANT_VOICE_PATTERNS.some((pattern) => pattern.test(text.trim()));
+}
 
 registerHook({
   name: 'proactive-insights',
@@ -94,6 +120,15 @@ registerHook({
 
       const classification = JSON.parse(jsonMatch[0]);
       if (classification.category === 'none' || !classification.title) return;
+
+      const suggestionDescription = classification.description || classification.title;
+      if (looksLikeAssistantVoice(classification.title) || looksLikeAssistantVoice(suggestionDescription)) {
+        log.chat.warn(
+          { userId: ctx.userId, title: classification.title, description: suggestionDescription },
+          'Proactive suggestion discarded — phrased in assistant voice instead of user voice',
+        );
+        return;
+      }
 
       // Create a personal suggestion for the user
       const suggestionId = `proactive-${crypto.randomBytes(8).toString('hex')}`;
