@@ -30,7 +30,7 @@ const workingPhrases = [
   "Doing the thing...",
 ];
 
-export function ThinkingIndicator({ isWorking = false, statusText }: { isWorking?: boolean; statusText?: string }) {
+export function ThinkingIndicator({ isWorking = false, statusText, color }: { isWorking?: boolean; statusText?: string; color?: string }) {
   const phrases = isWorking ? workingPhrases : thinkingPhrases;
   const [phraseIndex, setPhraseIndex] = useState(() =>
     Math.floor(Math.random() * phrases.length)
@@ -84,7 +84,7 @@ export function ThinkingIndicator({ isWorking = false, statusText }: { isWorking
 
   return (
     <View className="flex-row items-center gap-2 py-2">
-      <AliaMark size={16} state={isWorking ? 'working' : 'thinking'} className="text-muted-foreground" />
+      <AliaMark size={16} state={isWorking ? 'working' : 'thinking'} color={color} />
       <View className="flex-row items-center">
         <Text className="text-base text-muted-foreground">{shownText}</Text>
         {(statusText || isTyping) && (
