@@ -4,16 +4,13 @@ import { useColorScheme } from "@/lib/useColorScheme";
 export interface AliaLogoProps {
   width?: number;
   height?: number;
-  /** Wordmark fill override. Defaults to the theme foreground; the flower keeps its brand color. */
+  /** Wordmark fill override. Defaults to the theme foreground. The flower follows the theme primary color. */
   color?: string;
 }
 
 /** Tight bounds of the lockup (flower + wordmark), sampled from the curves. */
 const VIEWBOX = "18.16 14.40 306.85 135.18";
 const ASPECT = 306.85 / 135.18;
-
-/** Brand flower color — part of the mark, never themed. */
-const BRAND_FILL = "#d269e6";
 
 const FLOWER_TRANSFORM = "matrix(1.1553513, 0, 0, 1.1553513, -27.752501, -15.435729)";
 const FLOWER_PATH =
@@ -27,9 +24,9 @@ const WORD_PATH_2 =
   "m 2176,1259 c -58,-45 -72,-114 -31,-154 51,-52 149,-19 175,59 28,86 -71,152 -144,95 z";
 
 /**
- * Alia logo lockup — brand flower + "Alia" script wordmark. The wordmark
- * follows the Bloom theme foreground (white on dark, black on light); the
- * flower keeps the brand purple.
+ * Alia logo lockup — brand flower + "Alia" script wordmark. Both follow the
+ * Bloom theme: the flower uses primary, the wordmark uses foreground (white
+ * on dark, black on light).
  */
 export function AliaLogo({ width, height, color }: AliaLogoProps) {
   const { colors } = useColorScheme();
@@ -54,7 +51,7 @@ export function AliaLogo({ width, height, color }: AliaLogoProps) {
 
   return (
     <Svg width={w} height={h} viewBox={VIEWBOX}>
-      <Path d={FLOWER_PATH} fill={BRAND_FILL} transform={FLOWER_TRANSFORM} />
+      <Path d={FLOWER_PATH} fill={colors.primary} transform={FLOWER_TRANSFORM} />
       <G transform={WORD_TRANSFORM} fill={wordFill}>
         <Path d={WORD_PATH_1} />
         <Path d={WORD_PATH_2} />
