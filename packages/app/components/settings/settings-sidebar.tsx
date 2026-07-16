@@ -2,6 +2,7 @@ import React from "react";
 import { View, Pressable } from "react-native";
 import { AliaLogo } from "@/components/ui/alia-logo";
 import { AliaMark } from "@alia.onl/sdk";
+import { useColorScheme } from "@/lib/useColorScheme";
 import { Text } from "@/components/ui/text";
 import { BaseSidebar } from "@/components/base-sidebar";
 import {
@@ -59,6 +60,7 @@ export const SettingsSidebar = React.memo(function SettingsSidebar() {
   const router = useRouter();
   const pathname = usePathname();
   const { t } = useTranslation();
+  const { colors } = useColorScheme();
   const { collapsed, collapse, expand } = useSidebarCollapse();
   const expandTooltip = useRailTooltip(t("sidebar.expand"));
 
@@ -81,7 +83,7 @@ export const SettingsSidebar = React.memo(function SettingsSidebar() {
     <View className={collapsed ? "flex-row items-center justify-center" : "flex-row items-center"}>
       {collapsed ? (
         <View className="p-1.5 mx-0.5 rounded-xl hover:bg-muted active:bg-muted">
-          <AliaMark size={24} onPress={handleBack} accessibilityLabel="Home" spinOnMount />
+          <AliaMark size={24} color={colors.primary} onPress={handleBack} accessibilityLabel="Home" spinOnMount />
         </View>
       ) : (
         <Pressable

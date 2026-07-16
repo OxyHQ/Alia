@@ -2,6 +2,7 @@ import React from "react";
 import { View, Pressable, Platform, NativeSyntheticEvent, NativeScrollEvent, Linking } from "react-native";
 import { AliaLogo } from "@/components/ui/alia-logo";
 import { AliaMark } from "@alia.onl/sdk";
+import { useColorScheme } from "@/lib/useColorScheme";
 import { Text } from "@/components/ui/text";
 import { BaseSidebar } from "@/components/base-sidebar";
 import {
@@ -112,6 +113,7 @@ const ChatSidebar = React.memo(function ChatSidebar() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { t } = useTranslation();
+  const { colors } = useColorScheme();
   const { data: unreadData } = useUnreadCount();
   // Use selectors to avoid worklet serialization issues
   const chatId = useStore((state) => state.chatId);
@@ -482,7 +484,7 @@ const ChatSidebar = React.memo(function ChatSidebar() {
     <View className={cn("flex-row items-center", collapsed && "justify-center")}>
       {collapsed ? (
         <View className="p-1.5 mx-0.5 rounded-xl hover:bg-muted active:bg-muted">
-          <AliaMark size={24} onPress={handleLogoPress} accessibilityLabel="Home" spinOnMount />
+          <AliaMark size={24} color={colors.primary} onPress={handleLogoPress} accessibilityLabel="Home" spinOnMount />
         </View>
       ) : (
         <Pressable
@@ -530,9 +532,16 @@ const ChatSidebar = React.memo(function ChatSidebar() {
   );
 
   const topSection = (
-    <View className="gap-px">
-      {newChatRow}
-      {collapsed && newChatTooltip.tooltip}
+    <View className="gap-2">
+      <ProfileButton
+        expanded={!collapsed}
+        onNavigateManage={handleManageAccount}
+        onAddAccount={handleAddAccount}
+      />
+      <View className="gap-px">
+        {newChatRow}
+        {collapsed && newChatTooltip.tooltip}
+      </View>
     </View>
   );
 
@@ -853,10 +862,8 @@ const ChatSidebar = React.memo(function ChatSidebar() {
     </Pressable>
   ) : null;
 
-  // Footer: ProfileButton owns all three auth states (undetermined skeleton,
-  // signed-in row + account switcher, signed-out "Sign in" → SDK dialog), so it
-  // renders unconditionally — same pattern as Mention's sidebar. Only the
-  // account-scoped icon bar is gated on auth.
+  // Footer: icon-button bar + legal links. ProfileButton now lives in
+  // topSection (right after the logo, before New Chat).
   const footer = collapsed ? (
     <View className="gap-2 items-center">
       <GhostIconButton
@@ -866,20 +873,9 @@ const ChatSidebar = React.memo(function ChatSidebar() {
         anchorProps={expandTooltip.anchorProps}
       />
       {expandTooltip.tooltip}
-      <ProfileButton
-        expanded={false}
-        onNavigateManage={handleManageAccount}
-        onAddAccount={handleAddAccount}
-      />
     </View>
   ) : (
     <View className="gap-2">
-            <ProfileButton
-              expanded
-              onNavigateManage={handleManageAccount}
-              onAddAccount={handleAddAccount}
-            />
-
             {/* Icon Button Bar */}
             {isAuthenticated && (
             <View className="flex-row items-center">
