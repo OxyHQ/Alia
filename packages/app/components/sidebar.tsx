@@ -532,9 +532,16 @@ const ChatSidebar = React.memo(function ChatSidebar() {
   );
 
   const topSection = (
-    <View className="gap-px">
-      {newChatRow}
-      {collapsed && newChatTooltip.tooltip}
+    <View className="gap-2">
+      <ProfileButton
+        expanded={!collapsed}
+        onNavigateManage={handleManageAccount}
+        onAddAccount={handleAddAccount}
+      />
+      <View className="gap-px">
+        {newChatRow}
+        {collapsed && newChatTooltip.tooltip}
+      </View>
     </View>
   );
 
@@ -855,10 +862,8 @@ const ChatSidebar = React.memo(function ChatSidebar() {
     </Pressable>
   ) : null;
 
-  // Footer: ProfileButton owns all three auth states (undetermined skeleton,
-  // signed-in row + account switcher, signed-out "Sign in" → SDK dialog), so it
-  // renders unconditionally — same pattern as Mention's sidebar. Only the
-  // account-scoped icon bar is gated on auth.
+  // Footer: icon-button bar + legal links. ProfileButton now lives in
+  // topSection (right after the logo, before New Chat).
   const footer = collapsed ? (
     <View className="gap-2 items-center">
       <GhostIconButton
@@ -868,20 +873,9 @@ const ChatSidebar = React.memo(function ChatSidebar() {
         anchorProps={expandTooltip.anchorProps}
       />
       {expandTooltip.tooltip}
-      <ProfileButton
-        expanded={false}
-        onNavigateManage={handleManageAccount}
-        onAddAccount={handleAddAccount}
-      />
     </View>
   ) : (
     <View className="gap-2">
-            <ProfileButton
-              expanded
-              onNavigateManage={handleManageAccount}
-              onAddAccount={handleAddAccount}
-            />
-
             {/* Icon Button Bar */}
             {isAuthenticated && (
             <View className="flex-row items-center">
