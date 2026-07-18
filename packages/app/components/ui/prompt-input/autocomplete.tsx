@@ -86,26 +86,22 @@ export function PromptInputAutocomplete({
       return results;
     }
 
-    if (showDefaultSuggestions) {
-      const results: Completion[] = [];
-      const seen = new Set<string>();
-      for (const s of welcomeResults ?? []) {
-        if (results.length >= 6) break;
-        const textLower = s.text.toLowerCase();
-        if (seen.has(textLower)) continue;
-        seen.add(textLower);
-        results.push({
-          text: s.text,
-          matchStart: 0,
-          matchEnd: 0,
-          suggestionId: s.suggestionId,
-          isTemplate: s.isTemplate || (s.templateVariables?.length ?? 0) > 0,
-        });
-      }
-      return results;
+    const results: Completion[] = [];
+    const seen = new Set<string>();
+    for (const s of welcomeResults ?? []) {
+      if (results.length >= 6) break;
+      const textLower = s.text.toLowerCase();
+      if (seen.has(textLower)) continue;
+      seen.add(textLower);
+      results.push({
+        text: s.text,
+        matchStart: 0,
+        matchEnd: 0,
+        suggestionId: s.suggestionId,
+        isTemplate: s.isTemplate || (s.templateVariables?.length ?? 0) > 0,
+      });
     }
-
-    return [];
+    return results;
   }, [apiResults, welcomeResults, value, showDefaultSuggestions]);
 
   // Keep refs in sync

@@ -186,7 +186,6 @@ type MessageRowProps = {
   ttsState: string;
   chatId: ChatIdState;
   voiceAgentState?: 'idle' | 'listening' | 'thinking' | 'speaking';
-  primaryColor: string;
   handleMarkLayout: (e: LayoutChangeEvent) => void;
   handleCopyMessage: (messageId: string, content: string) => void;
   handleVote: (messageId: string, vote: 'up' | 'down') => void;
@@ -204,11 +203,12 @@ type MessageRowProps = {
 const MessageRow = React.memo(function MessageRow({
   m, index, isNewMessage, isAliaMessage, isLastAlia,
   isLoading, isLastMessage, isCopied, myVote,
-  ttsState, chatId, voiceAgentState, primaryColor,
+  ttsState, chatId, voiceAgentState,
   handleMarkLayout, handleCopyMessage, handleVote, readAloud,
   generateAudio, audioGenRowState,
   openThoughtPanel, onStartEdit, onApprovePlan, onRejectPlan,
 }: MessageRowProps) {
+  const { colors } = useColorScheme();
   const messageText = getMessageText(m);
   const messageImages = getMessageImages(m);
 
@@ -495,7 +495,7 @@ const MessageRow = React.memo(function MessageRow({
             <ThinkingIndicator
               isWorking={(m.toolInvocations?.length ?? 0) > 0}
               statusText={activeStatus}
-              color={primaryColor}
+              color={colors.primary}
             />
           );
         })()}
@@ -694,7 +694,6 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
                   ttsState={ttsActiveMessageId === m.id ? ttsPlaybackState : 'idle'}
                   chatId={chatId}
                   voiceAgentState={voiceAgentState}
-                  primaryColor={colors.primary}
                   handleMarkLayout={handleMarkLayout}
                   handleCopyMessage={handleCopyMessage}
                   handleVote={handleVote}
