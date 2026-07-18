@@ -532,7 +532,7 @@ const ChatSidebar = React.memo(function ChatSidebar() {
   );
 
   const topSection = (
-    <View className="gap-2">
+    <View className={cn("gap-2", collapsed && "items-center")}>
       <ProfileButton
         expanded={!collapsed}
         onNavigateManage={handleManageAccount}
