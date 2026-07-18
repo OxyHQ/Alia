@@ -119,7 +119,7 @@ See [CHANGELOG.md](CHANGELOG.md) for version history and release notes.
 
 ## License
 
-MIT - [The Oxy Collective, Inc.](https://oxy.so)
+MIT - [The Oxy Foundation, Inc.](https://oxy.so)
 
 ---
 
