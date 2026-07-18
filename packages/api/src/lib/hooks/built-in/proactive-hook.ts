@@ -90,6 +90,10 @@ registerHook({
 
     const lastUserMessage = userMessages[userMessages.length - 1];
     const assistantResponse = ctx.response?.slice(0, 500) || '';
+    // Kicked off now so it overlaps the LLM round-trip below instead of adding
+    // its own latency after — getUserLanguage never throws, so it's safe to
+    // leave unawaited on the early-return paths above/below.
+    const languagePromise = getUserLanguage(ctx.userId);
 
     try {
       const resolved = await resolveModel(getDefaultAliaModel());
@@ -141,7 +145,7 @@ registerHook({
         type: 'welcome',
         scope: 'personal',
         oxyUserId: ctx.userId,
-        language: await getUserLanguage(ctx.userId),
+        language: await languagePromise,
         priority: 10, // Higher priority than regular suggestions
         isAIGenerated: true,
         tags: ['proactive', classification.category],
