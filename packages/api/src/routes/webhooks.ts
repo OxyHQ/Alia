@@ -1,13 +1,16 @@
 import express from 'express';
 import crypto from 'crypto';
 import { verifySecret } from '@oxyhq/core/server';
-import { generateText } from 'ai';
+import { generateText, stepCountIs } from 'ai';
 import { getChannel } from '../lib/channels/registry.js';
-import { resolveModel, getAIModel, reportModelUsage } from '../lib/chat-core.js';
+import { resolveModel, getAIModel, reportModelUsage, getDefaultAliaModel } from '../lib/chat-core.js';
 import { sendChannelMessage } from '../lib/channels/outbound.js';
+import { buildChatTools } from '../services/chat.service.js';
 import { loadPrompt } from '../lib/prompt-loader.js';
-import { BotUser } from '../models/bot-user.js';
-import { Bot } from '../models/bot.js';
+import type { HydratedDocument } from 'mongoose';
+import { BotUser, type IBotUser } from '../models/bot-user.js';
+import { Bot, type IBot } from '../models/bot.js';
+import { Agent } from '../models/agent.js';
 import { Conversation } from '../models/conversation.js';
 import { Message } from '../models/message.js';
 import { getOrCreateUserCredits } from '../lib/user-credits-helpers.js';
@@ -233,6 +236,152 @@ async function processChannelMessage(
   }
 }
 
+/**
+ * NEW per-bot inbound path. Runs ONLY when an inbound update matched a user-registered
+ * bot by its per-bot webhook secret (the secret match IS the verification). Uses the
+ * bound Agent's configuration (system prompt + allowed models) and the bot OWNER's real
+ * tool pipeline, bills the owner, and replies with the bot's OWN token. Conversation
+ * continuity is tracked per Telegram end-user (the BotUser row), while Conversation and
+ * Message docs are owned by the bot owner. The existing global-bot path is untouched.
+ */
+async function processAgentBotMessage(
+  bot: IBot,
+  botUser: HydratedDocument<IBotUser>,
+  message: ChannelInboundMessage,
+  channelType: ChannelId,
+): Promise<void> {
+  const ownerUserId = bot.userId?.toString();
+  const outboundOpts = {
+    replyToId: message.replyToId,
+    threadId: message.threadId,
+    botToken: bot.botToken,
+  };
+
+  try {
+    // Defensive: user-owned bots always carry an owner.
+    if (!ownerUserId) return;
+
+    // Bill the bot owner (not the Telegram end-user).
+    await getOrCreateUserCredits(ownerUserId);
+    const creditReservation = await reserveCredits(ownerUserId);
+    if (!creditReservation) {
+      const appUrl = process.env.APP_URL || process.env.WEB_URL || 'https://alia.onl';
+      await sendChannelMessage(
+        channelType,
+        message.chatId,
+        `This assistant is temporarily unavailable (its owner is out of credits). More at ${appUrl}.`,
+        outboundOpts,
+      );
+      return;
+    }
+
+    // Per-end-user conversation id lives on the BotUser row.
+    let conversationId = botUser.conversationId;
+    if (!conversationId) {
+      conversationId = crypto.randomUUID();
+      botUser.conversationId = conversationId;
+      await botUser.save();
+    }
+
+    // Load recent history (owned by the bot owner, keyed by conversation id).
+    let messages: Array<{ role: string; content: string }> = [];
+    try {
+      const recentMessages = await Message.find({ oxyUserId: bot.userId, conversationId })
+        .sort({ createdAt: -1 })
+        .limit(20)
+        .lean();
+      if (recentMessages.length > 0) {
+        messages = recentMessages.reverse().map((m) => ({
+          role: m.role,
+          content: typeof m.content === 'string' ? m.content : '',
+        }));
+      }
+    } catch (error: unknown) {
+      log.webhook.error({ err: error, channelType }, 'Failed to load agent-bot conversation history');
+    }
+
+    messages.push({ role: 'user', content: message.text });
+
+    // Resolve the bound agent's configuration (prompt + preferred model).
+    const agent = bot.agentId
+      ? await Agent.findById(bot.agentId).select('systemPrompt allowedModels').lean()
+      : null;
+
+    const aliasModelId = agent?.allowedModels?.[0] || getDefaultAliaModel();
+    const resolved = await resolveModel(aliasModelId);
+    if (!resolved) {
+      await sendChannelMessage(channelType, message.chatId, 'Sorry, no AI models are available right now.', outboundOpts);
+      return;
+    }
+    const model = getAIModel(resolved.keyConfig);
+
+    const systemPrompt = agent?.systemPrompt || (await getChannelSystemPrompt(channelType));
+
+    // Wire the bot owner's REAL tool pipeline (memory, integrations, MCP, triggers, …).
+    // buildChatTools is the same assembly the internal chat uses; it runs on behalf of a
+    // user without a live JWT, which is exactly this background context.
+    const tools = await buildChatTools({ userId: ownerUserId });
+
+    const startTime = Date.now();
+    const result = await generateText({
+      model,
+      system: systemPrompt,
+      messages: messages.map(m => ({ role: m.role as 'user' | 'assistant', content: m.content })),
+      tools,
+      temperature: 0.7,
+      maxOutputTokens: 2048,
+      stopWhen: stepCountIs(5),
+    });
+
+    const latencyMs = Date.now() - startTime;
+    const fullResponse = result.text;
+
+    const tokenUsage: CreditUsage = {
+      promptTokens: result.usage?.inputTokens || 0,
+      completionTokens: result.usage?.outputTokens || 0,
+      totalTokens: (result.usage?.inputTokens || 0) + (result.usage?.outputTokens || 0),
+    };
+    try {
+      await finalizeCredits(creditReservation, tokenUsage, aliasModelId);
+    } catch (error: unknown) {
+      log.webhook.error({ err: error, channelType }, 'Error finalizing agent-bot credits');
+    }
+
+    if (fullResponse) {
+      await sendChannelMessage(channelType, message.chatId, fullResponse, outboundOpts);
+    }
+
+    await reportModelUsage(resolved.keyConfig.keyId, resolved.provider, resolved.modelId, true, latencyMs);
+
+    if (fullResponse) {
+      await Conversation.findOneAndUpdate(
+        { oxyUserId: bot.userId, conversationId },
+        {
+          $set: { lastMessage: fullResponse.slice(0, 100), updatedAt: new Date() },
+          $setOnInsert: {
+            oxyUserId: bot.userId,
+            conversationId,
+            source: channelType,
+            title: message.text.slice(0, 50),
+            createdAt: new Date(),
+          },
+        },
+        { upsert: true },
+      );
+
+      await Message.insertMany([
+        { conversationId, oxyUserId: bot.userId, role: 'user', content: message.text, createdAt: new Date() },
+        { conversationId, oxyUserId: bot.userId, role: 'assistant', content: fullResponse, createdAt: new Date() },
+      ], { ordered: false });
+    }
+  } catch (error: unknown) {
+    log.webhook.error({ err: error, channelType }, 'Agent-bot processing error');
+    try {
+      await sendChannelMessage(channelType, message.chatId, 'Sorry, an error occurred. Please try again.', outboundOpts);
+    } catch { /* ignore send errors */ }
+  }
+}
+
 const router = express.Router();
 
 // WhatsApp GET verification (hub.challenge)
@@ -265,6 +414,63 @@ router.post('/:type', async (req, res) => {
   if (!channel.webhook) {
     log.webhook.warn({ channelType }, 'Channel has no webhook adapter');
     return res.sendStatus(404);
+  }
+
+  // ── NEW: per-bot inbound routing (user-registered bots) ─────────────────────
+  // A user-registered bot echoes ITS OWN webhook secret in this header. When it
+  // matches an active user-owned bot, the update belongs to that bot and the secret
+  // match IS the signature verification, so we handle it here with the bound agent +
+  // owner's tools + the bot's own token, then return. When nothing matches (header
+  // absent, or it carries the global bot's secret), we fall straight through to the
+  // UNCHANGED global-bot code path below.
+  const perBotSecret = req.headers['x-telegram-bot-api-secret-token'] as string | undefined;
+  if (perBotSecret) {
+    const userBot = await Bot.findOne({
+      webhookSecret: perBotSecret,
+      platform: channelType,
+      status: 'active',
+      userId: { $exists: true },
+    }).select('+botToken +webhookSecret');
+
+    if (userBot && userBot.userId) {
+      const message = channel.webhook.parseMessage(req.body);
+      if (!message) {
+        return res.sendStatus(200);
+      }
+
+      if (isDuplicate(channelType, message)) {
+        log.webhook.info({ channelType, platformUserId: message.platformUserId }, 'Duplicate per-bot message skipped');
+        return res.sendStatus(200);
+      }
+
+      let botUser = await BotUser.findOne({ botId: userBot._id, platformUserId: message.platformUserId });
+      if (!botUser) {
+        botUser = new BotUser({
+          botId: userBot._id,
+          platform: channelType,
+          platformUserId: message.platformUserId,
+          chatId: message.chatId,
+          username: message.username,
+          displayName: message.displayName,
+          metadata: {},
+        });
+        await botUser.save();
+      } else {
+        let updated = false;
+        if (message.chatId && botUser.chatId !== message.chatId) { botUser.chatId = message.chatId; updated = true; }
+        if (message.username && botUser.username !== message.username) { botUser.username = message.username; updated = true; }
+        if (message.displayName && botUser.displayName !== message.displayName) { botUser.displayName = message.displayName; updated = true; }
+        if (updated) await botUser.save();
+      }
+
+      // Ack immediately (Telegram retries on non-2xx), then process asynchronously.
+      res.sendStatus(200);
+      processAgentBotMessage(userBot, botUser, message, channelType).catch((error: unknown) => {
+        log.webhook.error({ err: error, channelType }, 'Async per-bot processing error');
+      });
+      return;
+    }
+    // No user-owned bot matched — fall through to the global-bot path unchanged.
   }
 
   // Slack URL verification challenge
@@ -304,8 +510,11 @@ router.post('/:type', async (req, res) => {
   }, 'Inbound message');
 
   try {
-    // Find the system bot for this channel type
-    const bot = await Bot.findOne({ platform: channelType, status: 'active' });
+    // Find the system bot for this channel type. Scoped to `userId: { $exists: false }`
+    // so a legitimate global-bot update never binds to a user-registered bot now that
+    // both live in the same collection — this selects the exact same (system) document
+    // the query returned before per-bot support existed.
+    const bot = await Bot.findOne({ platform: channelType, status: 'active', userId: { $exists: false } });
     if (!bot) {
       log.webhook.warn({ channelType }, 'No active bot found for channel type');
       return res.sendStatus(200);

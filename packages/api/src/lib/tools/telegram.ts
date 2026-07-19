@@ -20,8 +20,8 @@ export function createSendTelegramTool(userId: string) {
     }),
     execute: async ({ message }) => {
       try {
-        // Find the system Telegram bot, then the user's linked account
-        const bot = await Bot.findOne({ platform: 'telegram', status: 'active' });
+        // Find the system Telegram bot (never a user-registered one), then the user's linked account
+        const bot = await Bot.findOne({ platform: 'telegram', status: 'active', userId: { $exists: false } });
         if (!bot) {
           return { success: false, message: 'Telegram bot not configured' };
         }
