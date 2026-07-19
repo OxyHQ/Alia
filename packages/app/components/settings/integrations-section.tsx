@@ -1,4 +1,5 @@
 import { View, ActivityIndicator, Linking } from "react-native";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
 import { useState, useEffect, useRef } from "react";
@@ -97,25 +98,41 @@ function AvailableCard({
   );
 }
 
-export function IntegrationsSection({
-  connectedService,
-  onConnectedHandled,
-}: {
-  connectedService?: string;
-  onConnectedHandled?: () => void;
-}) {
-  const { available, connected, loading, getOAuthUrl, disconnect, refresh } = useIntegrations();
+export function IntegrationsSection() {
+  const { available, connected, loading, getOAuthUrl, completeOAuth, disconnect } = useIntegrations();
   const [connectingService, setConnectingService] = useState<string | null>(null);
-  const handledRef = useRef(false);
+  const router = useRouter();
+  const params = useLocalSearchParams<{
+    service?: string;
+    int_oauth_state?: string;
+    int_oauth_code?: string;
+    error?: string;
+  }>();
+
+  // Guards against re-processing the same OAuth callback (keyed on the unique
+  // state so sequential connects each finalize exactly once).
+  const handledOAuthRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (connectedService && !loading && !handledRef.current) {
-      handledRef.current = true;
-      refresh();
-      toast.success(`${connectedService} connected successfully`);
-      onConnectedHandled?.();
+    const { service, int_oauth_state: state, int_oauth_code: code, error } = params;
+
+    if (error) {
+      if (handledOAuthRef.current === `err:${error}`) return;
+      handledOAuthRef.current = `err:${error}`;
+      toast.error("Connection was cancelled or failed");
+      router.replace("/(app)/settings/integrations");
+      return;
     }
-  }, [connectedService, loading]);
+
+    if (service && state && code) {
+      if (handledOAuthRef.current === state) return;
+      handledOAuthRef.current = state;
+      completeOAuth(service, state, code)
+        .then(() => toast.success(`${service} connected successfully`))
+        .catch(() => toast.error("Failed to finish connection"))
+        .finally(() => router.replace("/(app)/settings/integrations"));
+    }
+  }, [params.service, params.int_oauth_state, params.int_oauth_code, params.error]);
 
   const connectedServices = new Set(connected.map((c) => c.service));
   const availableNotConnected = available.filter((a) => !connectedServices.has(a.service));

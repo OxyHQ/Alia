@@ -2,8 +2,9 @@
  * Integration Tools — Dynamic tools from user's connected OAuth integrations
  *
  * Queries the user's active Integration documents and creates AI SDK tool()
- * wrappers so the AI can interact with GitHub, Notion, Google Calendar,
- * Linear, and Google Drive on the user's behalf.
+ * wrappers so the AI can interact with Google Calendar and Google Drive on the
+ * user's behalf. GitHub, Notion, and Linear are now hosted MCP connectors and
+ * are no longer served by the legacy Integrations system.
  */
 
 import type { ToolSet } from 'ai';
@@ -11,10 +12,7 @@ import mongoose from 'mongoose';
 import { Integration } from '../../../models/integration.js';
 import { log } from '../../logger.js';
 import { TTLCache } from '../../ttl-cache.js';
-import { buildGitHubTools } from './github.js';
-import { buildNotionTools } from './notion.js';
 import { buildGoogleCalendarTools } from './google-calendar.js';
-import { buildLinearTools } from './linear.js';
 import { buildGoogleDriveTools } from './google-drive.js';
 
 // Short-lived per-user cache (same pattern as MCP tools). Tool closures capture
@@ -43,17 +41,8 @@ export async function buildIntegrationTools(oxyUserId: string): Promise<ToolSet>
 
     const connectedServices = new Set(integrations.map(i => i.service));
 
-    if (connectedServices.has('github')) {
-      Object.assign(tools, buildGitHubTools(oxyUserId));
-    }
-    if (connectedServices.has('notion')) {
-      Object.assign(tools, buildNotionTools(oxyUserId));
-    }
     if (connectedServices.has('google-calendar')) {
       Object.assign(tools, buildGoogleCalendarTools(oxyUserId));
-    }
-    if (connectedServices.has('linear')) {
-      Object.assign(tools, buildLinearTools(oxyUserId));
     }
     if (connectedServices.has('google-drive')) {
       Object.assign(tools, buildGoogleDriveTools(oxyUserId));
@@ -74,8 +63,5 @@ export async function buildIntegrationTools(oxyUserId: string): Promise<ToolSet>
 }
 
 // Re-export service builders for direct use
-export { buildGitHubTools } from './github.js';
-export { buildNotionTools } from './notion.js';
 export { buildGoogleCalendarTools } from './google-calendar.js';
-export { buildLinearTools } from './linear.js';
 export { buildGoogleDriveTools } from './google-drive.js';

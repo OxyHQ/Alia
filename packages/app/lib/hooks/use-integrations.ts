@@ -64,6 +64,14 @@ export function useIntegrations() {
     return response.data.authUrl;
   };
 
+  // Finalize the OAuth link once the browser returns to the app with the
+  // state + code delivered by the (now non-linking) callback. Authenticated,
+  // so the Integration binds to this session — see integrations-oauth.ts.
+  const completeOAuth = async (service: string, state: string, code: string): Promise<void> => {
+    await apiClient.post(`/integrations/${service}/complete`, { state, code });
+    await fetchAll();
+  };
+
   const disconnect = async (integrationId: string) => {
     await apiClient.delete(`/integrations/${integrationId}`);
     await fetchAll();
@@ -75,6 +83,7 @@ export function useIntegrations() {
     loading,
     error,
     getOAuthUrl,
+    completeOAuth,
     disconnect,
     refresh: fetchAll,
   };
