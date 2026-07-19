@@ -1,4 +1,5 @@
 import mongoose, { Schema, Model, Document } from 'mongoose';
+import { encrypt, decrypt } from '../lib/crypto-utils.js';
 
 export interface IBot extends Document {
   platform: string;
@@ -7,6 +8,12 @@ export interface IBot extends Document {
   username?: string;
   avatarUrl?: string;
   status: 'active' | 'inactive' | 'error';
+  /** Owner of a user-registered bot. Absent for the system/global env-based bot. */
+  userId?: mongoose.Types.ObjectId;
+  /** The bot's platform token (e.g. Telegram bot token), encrypted at rest. `select: false`. */
+  botToken?: string;
+  /** Per-bot routing secret the platform echoes on inbound updates. Plaintext, `select: false`. */
+  webhookSecret?: string;
   agentId?: mongoose.Types.ObjectId;
   defaultModel?: string;
   platformConfig: {
@@ -39,6 +46,20 @@ const BotSchema = new Schema<IBot>(
       enum: ['active', 'inactive', 'error'],
       default: 'active',
     },
+    userId: {
+      type: Schema.Types.ObjectId,
+      ref: 'User',
+    },
+    botToken: {
+      type: String,
+      select: false,
+      set: (v: string | undefined) => (v ? encrypt(v) : v),
+      get: (v: string | undefined) => (v ? decrypt(v) : v),
+    },
+    webhookSecret: {
+      type: String,
+      select: false,
+    },
     agentId: {
       type: Schema.Types.ObjectId,
       ref: 'Agent',
@@ -70,5 +91,7 @@ const BotSchema = new Schema<IBot>(
 );
 
 BotSchema.index({ platform: 1, botId: 1 }, { unique: true });
+BotSchema.index({ webhookSecret: 1 }, { sparse: true });
+BotSchema.index({ userId: 1 }, { sparse: true });
 
 export const Bot: Model<IBot> = mongoose.model<IBot>('Bot', BotSchema);
