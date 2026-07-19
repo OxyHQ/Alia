@@ -49,7 +49,7 @@ const SECTIONS: SettingsSection[] = [
   { id: "writing-style", route: "/(app)/settings/writing-style", icon: PenTool, labelKey: "settings.sections.writingStyle" },
   { id: "accounts", route: "/(app)/settings/accounts", icon: Smartphone, labelKey: "settings.sections.accounts" },
   { id: "bots", route: "/(app)/settings/bots", icon: Bot, labelKey: "settings.sections.bots" },
-  { id: "mcp", route: "/(app)/settings/mcp", icon: Blocks, labelKey: "settings.sections.mcp" },
+  { id: "connectors", route: "/(app)/settings/connectors", icon: Blocks, labelKey: "settings.sections.connectors" },
   { id: "integrations", route: "/(app)/settings/integrations", icon: Plug, labelKey: "settings.sections.integrations" },
   { id: "skills", route: "/(app)/settings/skills", icon: Zap, labelKey: "settings.sections.skills" },
   { id: "security", route: "/(app)/settings/security", icon: Shield, labelKey: "settings.sections.security" },

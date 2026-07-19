@@ -8,7 +8,9 @@ export interface McpRegistryEntry {
   args?: string[];
   url?: string;
   requiredEnv: string[];
-  category: 'data' | 'development' | 'productivity' | 'search' | 'communication' | 'filesystem';
+  requiresOAuth?: boolean;
+  featured?: boolean;
+  category: 'data' | 'development' | 'productivity' | 'search' | 'communication' | 'filesystem' | 'featured';
 }
 
 export const MCP_REGISTRY: McpRegistryEntry[] = [
@@ -98,6 +100,44 @@ export const MCP_REGISTRY: McpRegistryEntry[] = [
     command: 'npx',
     args: ['-y', '@modelcontextprotocol/server-memory'],
     requiredEnv: [],
+    category: 'productivity',
+  },
+  // Hosted remote OAuth connectors. These have no local command/args — they
+  // connect to a provider-hosted MCP endpoint and authenticate interactively
+  // via the OAuth flow (POST /mcp/:id/oauth/start → provider consent → complete).
+  {
+    id: 'notion',
+    name: 'Notion',
+    description: 'Search, read, and update your Notion pages and databases',
+    icon: 'notion',
+    transport: 'streamable-http',
+    url: 'https://mcp.notion.com/mcp',
+    requiredEnv: [],
+    requiresOAuth: true,
+    featured: true,
+    category: 'productivity',
+  },
+  {
+    id: 'github-remote',
+    name: 'GitHub',
+    description: 'Manage repositories, issues, and pull requests over the hosted GitHub MCP',
+    icon: 'github',
+    transport: 'streamable-http',
+    url: 'https://api.githubcopilot.com/mcp/',
+    requiredEnv: [],
+    requiresOAuth: true,
+    featured: true,
+    category: 'development',
+  },
+  {
+    id: 'linear',
+    name: 'Linear',
+    description: 'Track issues, projects, and cycles in your Linear workspace',
+    icon: 'linear',
+    transport: 'streamable-http',
+    url: 'https://mcp.linear.app/mcp',
+    requiredEnv: [],
+    requiresOAuth: true,
     category: 'productivity',
   },
 ];

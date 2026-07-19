@@ -8,7 +8,10 @@ export interface McpRegistryEntry {
   description: string;
   icon: string;
   transport: 'stdio' | 'sse' | 'streamable-http';
+  url?: string;
   requiredEnv: string[];
+  requiresOAuth?: boolean;
+  featured?: boolean;
   category: string;
 }
 
@@ -34,6 +37,7 @@ export interface InstalledMcpServer {
     url?: string;
     headers?: Record<string, string>;
     env?: Record<string, string>;
+    requiresOAuth?: boolean;
   };
   status: 'installed' | 'running' | 'stopped' | 'error';
   statusMessage?: string;
@@ -59,7 +63,7 @@ export function useMcpServers() {
         apiClient.get('/mcp/registry'),
         apiClient.get('/mcp/installed'),
       ]);
-      setRegistry(registryRes.data.registry || []);
+      setRegistry(registryRes.data.servers || []);
       setInstalled(installedRes.data.servers || []);
       setError(null);
     } catch (err: unknown) {
@@ -73,9 +77,13 @@ export function useMcpServers() {
     fetchAll();
   }, [fetchAll]);
 
-  const install = async (registryId: string, env?: Record<string, string>) => {
-    await apiClient.post('/mcp/install', { registryId, env });
+  const install = async (
+    registryId: string,
+    env?: Record<string, string>,
+  ): Promise<InstalledMcpServer> => {
+    const res = await apiClient.post('/mcp/install', { registryId, env });
     await fetchAll();
+    return res.data.server as InstalledMcpServer;
   };
 
   const installCustom = async (params: {
@@ -108,6 +116,20 @@ export function useMcpServers() {
     await fetchAll();
   };
 
+  // Begin the interactive OAuth flow for a remote connector. Returns the
+  // authorization URL the client opens; the provider redirects back to the
+  // Connectors screen with ?mcp_oauth_state=&mcp_oauth_code= for completeOAuth.
+  const startOAuth = async (serverId: string): Promise<string> => {
+    const res = await apiClient.post(`/mcp/${serverId}/oauth/start`);
+    return res.data.authorizationUrl;
+  };
+
+  // Finalize the OAuth link once the browser returns with state + code.
+  const completeOAuth = async (state: string, code: string): Promise<void> => {
+    await apiClient.post('/mcp/oauth/complete', { state, code });
+    await fetchAll();
+  };
+
   return {
     registry,
     installed,
@@ -119,6 +141,8 @@ export function useMcpServers() {
     start,
     stop,
     updateConfig,
+    startOAuth,
+    completeOAuth,
     refresh: fetchAll,
   };
 }
