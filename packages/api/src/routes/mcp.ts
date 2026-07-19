@@ -276,6 +276,21 @@ router.post('/install', authenticateToken, async (req, res) => {
     res.status(201).json({ server });
   } catch (error: unknown) {
     if (isDuplicateKeyError(error)) {
+      // Registry installs are idempotent: the Connect flow calls /install to
+      // "ensure the connector exists" before starting OAuth, so an already-
+      // installed registry connector must return the existing server (200)
+      // rather than 409 — otherwise Connect fails with a duplicate-key 409.
+      // Custom installs keep the 409 (the user explicitly named a new server).
+      const rid = req.body.registryId;
+      if (rid) {
+        const existing = await McpServer.findOne({
+          oxyUserId: new mongoose.Types.ObjectId(req.userId),
+          name: rid,
+        });
+        if (existing) {
+          return res.status(200).json({ server: existing });
+        }
+      }
       return res.status(409).json({ error: 'MCP server with this name is already installed' });
     }
     log.general.error({ err: error }, 'Install MCP server error');
