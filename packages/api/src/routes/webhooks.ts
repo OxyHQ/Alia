@@ -47,13 +47,20 @@ async function getChannelSystemPrompt(channelType: ChannelId): Promise<string> {
  */
 const processedWebhookMessages = new Set<string>();
 
-function getDeduplicationKey(channelType: ChannelId, message: ChannelInboundMessage): string {
+function getDeduplicationKey(
+  channelType: ChannelId,
+  message: ChannelInboundMessage,
+  scope?: string,
+): string {
   const contentHash = crypto.createHash('md5').update(message.text).digest('hex').slice(0, 12);
-  return `${channelType}:${message.platformUserId}:${contentHash}`;
+  // `scope` isolates per-bot dedup: platformUserId is the same Telegram user id
+  // across all bots, so without the receiving bot's id in the key, one person
+  // texting two different bots the same thing within 60s would drop the second.
+  return `${channelType}:${scope ? `${scope}:` : ''}${message.platformUserId}:${contentHash}`;
 }
 
-function isDuplicate(channelType: ChannelId, message: ChannelInboundMessage): boolean {
-  const key = getDeduplicationKey(channelType, message);
+function isDuplicate(channelType: ChannelId, message: ChannelInboundMessage, scope?: string): boolean {
+  const key = getDeduplicationKey(channelType, message, scope);
   if (processedWebhookMessages.has(key)) return true;
   processedWebhookMessages.add(key);
   setTimeout(() => processedWebhookMessages.delete(key), 60000);
@@ -425,52 +432,62 @@ router.post('/:type', async (req, res) => {
   // UNCHANGED global-bot code path below.
   const perBotSecret = req.headers['x-telegram-bot-api-secret-token'] as string | undefined;
   if (perBotSecret) {
-    const userBot = await Bot.findOne({
-      webhookSecret: perBotSecret,
-      platform: channelType,
-      status: 'active',
-      userId: { $exists: true },
-    }).select('+botToken +webhookSecret');
+    try {
+      const userBot = await Bot.findOne({
+        webhookSecret: perBotSecret,
+        platform: channelType,
+        status: 'active',
+        userId: { $exists: true },
+      }).select('+botToken +webhookSecret');
 
-    if (userBot && userBot.userId) {
-      const message = channel.webhook.parseMessage(req.body);
-      if (!message) {
-        return res.sendStatus(200);
-      }
+      if (userBot && userBot.userId) {
+        const message = channel.webhook.parseMessage(req.body);
+        if (!message) {
+          return res.sendStatus(200);
+        }
 
-      if (isDuplicate(channelType, message)) {
-        log.webhook.info({ channelType, platformUserId: message.platformUserId }, 'Duplicate per-bot message skipped');
-        return res.sendStatus(200);
-      }
+        // Scope dedup by the receiving bot so the same Telegram user texting two
+        // different bots the same thing is not collapsed to one.
+        if (isDuplicate(channelType, message, userBot._id.toString())) {
+          log.webhook.info({ channelType, platformUserId: message.platformUserId }, 'Duplicate per-bot message skipped');
+          return res.sendStatus(200);
+        }
 
-      let botUser = await BotUser.findOne({ botId: userBot._id, platformUserId: message.platformUserId });
-      if (!botUser) {
-        botUser = new BotUser({
-          botId: userBot._id,
-          platform: channelType,
-          platformUserId: message.platformUserId,
-          chatId: message.chatId,
-          username: message.username,
-          displayName: message.displayName,
-          metadata: {},
+        let botUser = await BotUser.findOne({ botId: userBot._id, platformUserId: message.platformUserId });
+        if (!botUser) {
+          botUser = new BotUser({
+            botId: userBot._id,
+            platform: channelType,
+            platformUserId: message.platformUserId,
+            chatId: message.chatId,
+            username: message.username,
+            displayName: message.displayName,
+            metadata: {},
+          });
+          await botUser.save();
+        } else {
+          let updated = false;
+          if (message.chatId && botUser.chatId !== message.chatId) { botUser.chatId = message.chatId; updated = true; }
+          if (message.username && botUser.username !== message.username) { botUser.username = message.username; updated = true; }
+          if (message.displayName && botUser.displayName !== message.displayName) { botUser.displayName = message.displayName; updated = true; }
+          if (updated) await botUser.save();
+        }
+
+        // Ack immediately (Telegram retries on non-2xx), then process asynchronously.
+        res.sendStatus(200);
+        processAgentBotMessage(userBot, botUser, message, channelType).catch((error: unknown) => {
+          log.webhook.error({ err: error, channelType }, 'Async per-bot processing error');
         });
-        await botUser.save();
-      } else {
-        let updated = false;
-        if (message.chatId && botUser.chatId !== message.chatId) { botUser.chatId = message.chatId; updated = true; }
-        if (message.username && botUser.username !== message.username) { botUser.username = message.username; updated = true; }
-        if (message.displayName && botUser.displayName !== message.displayName) { botUser.displayName = message.displayName; updated = true; }
-        if (updated) await botUser.save();
+        return;
       }
-
-      // Ack immediately (Telegram retries on non-2xx), then process asynchronously.
-      res.sendStatus(200);
-      processAgentBotMessage(userBot, botUser, message, channelType).catch((error: unknown) => {
-        log.webhook.error({ err: error, channelType }, 'Async per-bot processing error');
-      });
-      return;
+      // No user-owned bot matched — fall through to the global-bot path unchanged.
+    } catch (error: unknown) {
+      // A DB error here must not leave the request hanging (Telegram would retry
+      // forever). Respond 500 so the platform retries cleanly; never fall through
+      // to the global path on an error, since we don't know if this was a user bot.
+      log.webhook.error({ err: error, channelType }, 'Per-bot inbound routing error');
+      return res.sendStatus(500);
     }
-    // No user-owned bot matched — fall through to the global-bot path unchanged.
   }
 
   // Slack URL verification challenge
