@@ -127,17 +127,19 @@ async function refreshAndPersist(integration: IIntegration): Promise<string> {
       throw new Error(`Failed to refresh ${integration.service} token — please reconnect`);
     }
 
-    await Integration.updateOne(
-      { _id: integration._id },
-      {
-        'oauthTokens.accessToken': data.access_token,
-        ...(data.refresh_token && { 'oauthTokens.refreshToken': data.refresh_token }),
-        ...(data.expires_in && {
-          'oauthTokens.expiresAt': new Date(Date.now() + data.expires_in * 1000),
-        }),
-        status: 'active',
-      },
-    );
+    // Persist via document assignment + save() so the schema's `set: encrypt`
+    // setters run — a dotted-path updateOne() bypasses setters (verified on
+    // mongoose 9), which would store the refreshed token in PLAINTEXT and then
+    // break the read-path `get: decrypt` getter on the next access.
+    integration.oauthTokens.accessToken = data.access_token;
+    if (data.refresh_token) {
+      integration.oauthTokens.refreshToken = data.refresh_token;
+    }
+    if (data.expires_in) {
+      integration.oauthTokens.expiresAt = new Date(Date.now() + data.expires_in * 1000);
+    }
+    integration.status = 'active';
+    await integration.save();
 
     log.general.info({ service: integration.service }, 'Token refreshed successfully');
     return data.access_token;
