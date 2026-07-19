@@ -1,6 +1,7 @@
 import { View, ScrollView, Pressable, Platform } from "react-native";
 import { Switch } from "@/components/ui/switch";
 import { Text } from "@/components/ui/text";
+import { BellIcon } from "@/components/ui/bell-icon";
 import { useRouter } from "expo-router";
 import { ArrowLeft, Bell, BellOff, CheckCheck, Zap, Clock, Eye, AlertTriangle, MessageSquare, X } from "lucide-react-native";
 import { useState, useEffect, useCallback } from "react";
@@ -122,7 +123,7 @@ export default function NotificationsScreen() {
             <Text className="text-sm text-muted-foreground">{t('common.back')}</Text>
           </Pressable>
           <Pressable onPress={() => setShowSettings(s => !s)} className="p-2">
-            <Bell size={18} className="text-muted-foreground" />
+            <BellIcon size={18} />
           </Pressable>
         </View>
         <View className="flex-row items-center justify-between">
@@ -184,7 +185,9 @@ export default function NotificationsScreen() {
         </View>
       ) : notifications.length === 0 ? (
         <View className="items-center justify-center py-16 px-6">
-          <Bell size={32} className="text-muted-foreground mb-3" />
+          <View className="mb-3">
+            <BellIcon size={32} />
+          </View>
           <Text className="text-base font-medium text-foreground mb-1">No notifications yet</Text>
           <Text className="text-sm text-muted-foreground text-center">
             Set up triggers and routines to get proactive updates from Alia.

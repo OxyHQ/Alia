@@ -199,7 +199,7 @@ export function GhostIconButton({
       accessibilityRole="button"
       accessibilityLabel={label}
       onPress={onPress}
-      className="h-9 w-9 items-center justify-center rounded-xl hover:bg-muted active:bg-muted"
+      className="h-8 w-8 items-center justify-center rounded-xl hover:bg-muted active:bg-muted"
     >
       <Icon size={18} className="text-muted-foreground" />
       {badge && (

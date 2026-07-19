@@ -864,7 +864,7 @@ const ChatSidebar = React.memo(function ChatSidebar() {
     <View className="gap-2">
             {/* Icon Button Bar */}
             {isAuthenticated && (
-            <View className="flex-row items-center">
+            <View className="flex-row items-center gap-1">
               <GhostIconButton icon={PremiumSparkIcon} label={t('sidebar.upgradeToPro')} onPress={handleUpgrade} />
               <GhostIconButton
                 icon={BellIcon}
