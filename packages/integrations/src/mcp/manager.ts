@@ -8,13 +8,16 @@
  * and the JSON-RPC framing + initialize handshake.
  */
 
+import { randomUUID } from 'node:crypto';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport, getDefaultEnvironment } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
+import { auth, type OAuthClientProvider } from '@modelcontextprotocol/sdk/client/auth.js';
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import { errorMessage } from '../shared/utils';
 import { createLogger } from '../shared/logger';
+import { AliaOAuthProvider } from './oauth-provider';
 import type {
   McpServerSession,
   McpServerConfig,
@@ -41,9 +44,22 @@ export async function startServer(
     await stopServer(serverId);
   }
 
+  // For a previously-authorized OAuth connector, attach a provider so the SDK
+  // reconnects with the stored tokens (and auto-refreshes). No interactive
+  // state is needed for a plain reconnect — the callback→(user,server) mapping
+  // only matters during the initial authorize.
+  const authProvider = config.requiresOAuth
+    ? new AliaOAuthProvider({
+        oxyUserId,
+        serverId,
+        stateToken: randomUUID(),
+        callbackUrl: defaultCallbackUrl(),
+      })
+    : undefined;
+
   // Build the transport first — this validates required config (command/url)
   // and constructs the transport WITHOUT spawning/connecting yet.
-  const clientTransport = createTransport(transport, config);
+  const clientTransport = createTransport(transport, config, authProvider);
   const client = new Client({ name: 'alia-integrations', version: '1.0.0' }, { capabilities: {} });
 
   const session: McpServerSession = {
@@ -74,6 +90,119 @@ export async function startServer(
     session.status = 'running';
 
     logger.info(`[${serverId}] Started via ${transport} (${tools.length} tools, ${resources.length} resources)`);
+    return { tools, resources };
+  } catch (err: unknown) {
+    session.status = 'error';
+    session.statusMessage = errorMessage(err);
+    sessions.delete(serverId);
+    await closeClient(client);
+    throw err;
+  }
+}
+
+/**
+ * Begin the interactive OAuth flow for a remote MCP connector.
+ *
+ * Runs the SDK's discovery + Dynamic Client Registration + PKCE, which triggers
+ * the provider's `redirectToAuthorization`. Returns the authorization URL the
+ * user must visit. No session is registered yet — that happens in `finishOAuth`
+ * once the callback code is exchanged for tokens.
+ */
+export async function startOAuth(
+  serverId: string,
+  oxyUserId: string,
+  transport: 'stdio' | 'sse' | 'streamable-http',
+  config: McpServerConfig,
+  stateToken: string,
+  callbackUrl: string,
+): Promise<{ authorizationUrl: string }> {
+  if (!config.url) {
+    throw new Error(`${transport} transport requires a url for OAuth`);
+  }
+
+  const provider = new AliaOAuthProvider({ oxyUserId, serverId, stateToken, callbackUrl });
+  const result = await auth(provider, { serverUrl: config.url });
+
+  if (result !== 'REDIRECT') {
+    throw new Error(`Expected an OAuth redirect but the flow returned '${result}'`);
+  }
+  if (!provider.lastAuthorizationUrl) {
+    throw new Error('OAuth flow did not produce an authorization URL');
+  }
+
+  logger.info(`[${serverId}] OAuth authorization started for user ${oxyUserId}`);
+  return { authorizationUrl: provider.lastAuthorizationUrl };
+}
+
+/**
+ * Complete the interactive OAuth flow: exchange the authorization code for
+ * tokens (persisted encrypted by the provider), then connect the transport with
+ * the provider attached, discover tools/resources, and register the session —
+ * exactly as `startServer` does for the non-OAuth path.
+ */
+export async function finishOAuth(
+  serverId: string,
+  oxyUserId: string,
+  transport: 'stdio' | 'sse' | 'streamable-http',
+  config: McpServerConfig,
+  code: string,
+  callbackUrl: string,
+): Promise<{ tools: McpToolDefinition[]; resources: McpResourceDefinition[] }> {
+  if (!config.url) {
+    throw new Error(`${transport} transport requires a url for OAuth`);
+  }
+
+  // A fresh provider reads the persisted DCR client info + PKCE verifier from
+  // Mongo. The state token is irrelevant here (the callback→(user,server)
+  // mapping already happened at the API), so a throwaway value is fine.
+  const provider = new AliaOAuthProvider({
+    oxyUserId,
+    serverId,
+    stateToken: randomUUID(),
+    callbackUrl,
+  });
+
+  const result = await auth(provider, { serverUrl: config.url, authorizationCode: code });
+  if (result !== 'AUTHORIZED') {
+    throw new Error(`Expected OAuth authorization to complete but the flow returned '${result}'`);
+  }
+
+  if (sessions.has(serverId)) {
+    await stopServer(serverId);
+  }
+
+  // Tokens are persisted; connect WITH the provider so the SDK attaches the
+  // access token and auto-refreshes on expiry.
+  const oauthConfig: McpServerConfig = { ...config, requiresOAuth: true };
+  const clientTransport = createTransport(transport, oauthConfig, provider);
+  const client = new Client({ name: 'alia-integrations', version: '1.0.0' }, { capabilities: {} });
+
+  const session: McpServerSession = {
+    id: serverId,
+    oxyUserId,
+    transport,
+    config: oauthConfig,
+    status: 'starting',
+    tools: [],
+    resources: [],
+    startedAt: new Date(),
+    client,
+    clientTransport,
+  };
+
+  sessions.set(serverId, session);
+
+  try {
+    await client.connect(clientTransport);
+
+    const tools = await discoverTools(client);
+    const resources = await discoverResources(client);
+
+    session.tools = tools;
+    session.resources = resources;
+    session.status = 'running';
+
+    logger.info(`[${serverId}] OAuth connected via ${transport} (${tools.length} tools, ${resources.length} resources)`);
     return { tools, resources };
   } catch (err: unknown) {
     session.status = 'error';
@@ -150,6 +279,7 @@ export async function shutdownAll(): Promise<void> {
 function createTransport(
   transport: 'stdio' | 'sse' | 'streamable-http',
   config: McpServerConfig,
+  authProvider?: OAuthClientProvider,
 ): Transport {
   if (transport === 'stdio') {
     if (!config.command) {
@@ -164,12 +294,17 @@ function createTransport(
     });
   }
 
+  // For OAuth connectors the SDK provider drives auth: it attaches the stored
+  // access token, refreshes it on 401, and (on the interactive path) triggers
+  // discovery + DCR + PKCE.
+  const oauth = config.requiresOAuth && authProvider ? { authProvider } : {};
+
   if (transport === 'streamable-http') {
     if (!config.url) {
       throw new Error('streamable-http transport requires a url');
     }
-    // Phase 1: OAuthClientProvider will be injected here for per-user OAuth
     return new StreamableHTTPClientTransport(new URL(config.url), {
+      ...oauth,
       requestInit: { headers: config.headers ?? {} },
     });
   }
@@ -179,11 +314,21 @@ function createTransport(
       throw new Error('sse transport requires a url');
     }
     return new SSEClientTransport(new URL(config.url), {
+      ...oauth,
       requestInit: { headers: config.headers ?? {} },
     });
   }
 
   throw new Error(`Unsupported transport: ${transport}`);
+}
+
+/**
+ * The fixed public API callback URL the OAuth Authorization Server redirects to
+ * (`GET /mcp/oauth/callback` on the API). Mirrors the same env + dev fallback
+ * the API uses so the DCR `redirect_uris` match across processes.
+ */
+function defaultCallbackUrl(): string {
+  return `${process.env.API_BASE_URL || 'http://localhost:3001'}/mcp/oauth/callback`;
 }
 
 // ---------------------------------------------------------------------------

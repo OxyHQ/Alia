@@ -46,6 +46,66 @@ router.post('/servers/:id/start', async (req, res) => {
   }
 });
 
+/** POST /mcp/servers/:id/oauth/start */
+router.post('/servers/:id/oauth/start', async (req, res) => {
+  const serverId = req.params.id;
+  const { oxyUserId, config, transport, stateToken, callbackUrl } = req.body;
+
+  if (!oxyUserId || typeof oxyUserId !== 'string') {
+    return res.status(400).json({ error: 'oxyUserId must be a non-empty string' });
+  }
+  if (transport !== 'sse' && transport !== 'streamable-http') {
+    return res.status(400).json({ error: 'OAuth requires an sse or streamable-http transport' });
+  }
+  if (!config || typeof config !== 'object' || Array.isArray(config) || typeof config.url !== 'string') {
+    return res.status(400).json({ error: 'config must be an object with a url string' });
+  }
+  if (!stateToken || typeof stateToken !== 'string') {
+    return res.status(400).json({ error: 'stateToken must be a non-empty string' });
+  }
+  if (!callbackUrl || typeof callbackUrl !== 'string') {
+    return res.status(400).json({ error: 'callbackUrl must be a non-empty string' });
+  }
+
+  try {
+    const result = await manager.startOAuth(serverId, oxyUserId, transport, config, stateToken, callbackUrl);
+    res.json({ authorizationUrl: result.authorizationUrl });
+  } catch (err: unknown) {
+    logger.error(`Failed to start OAuth for server ${serverId}:`, errorMessage(err));
+    res.status(500).json({ error: errorMessage(err) });
+  }
+});
+
+/** POST /mcp/servers/:id/oauth/finish */
+router.post('/servers/:id/oauth/finish', async (req, res) => {
+  const serverId = req.params.id;
+  const { oxyUserId, config, transport, code, callbackUrl } = req.body;
+
+  if (!oxyUserId || typeof oxyUserId !== 'string') {
+    return res.status(400).json({ error: 'oxyUserId must be a non-empty string' });
+  }
+  if (transport !== 'sse' && transport !== 'streamable-http') {
+    return res.status(400).json({ error: 'OAuth requires an sse or streamable-http transport' });
+  }
+  if (!config || typeof config !== 'object' || Array.isArray(config) || typeof config.url !== 'string') {
+    return res.status(400).json({ error: 'config must be an object with a url string' });
+  }
+  if (!code || typeof code !== 'string') {
+    return res.status(400).json({ error: 'code must be a non-empty string' });
+  }
+  if (!callbackUrl || typeof callbackUrl !== 'string') {
+    return res.status(400).json({ error: 'callbackUrl must be a non-empty string' });
+  }
+
+  try {
+    const result = await manager.finishOAuth(serverId, oxyUserId, transport, config, code, callbackUrl);
+    res.json({ success: true, tools: result.tools, resources: result.resources });
+  } catch (err: unknown) {
+    logger.error(`Failed to finish OAuth for server ${serverId}:`, errorMessage(err));
+    res.status(500).json({ error: errorMessage(err) });
+  }
+});
+
 /** POST /mcp/servers/:id/stop */
 router.post('/servers/:id/stop', async (req, res) => {
   try {
