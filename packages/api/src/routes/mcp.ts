@@ -251,6 +251,10 @@ router.post('/install', authenticateToken, async (req, res) => {
         config: {
           command: registryEntry.command,
           args: registryEntry.args,
+          // Remote connectors carry their hosted endpoint + OAuth requirement;
+          // stdio entries leave these undefined (Mongoose omits them).
+          url: registryEntry.url,
+          requiresOAuth: registryEntry.requiresOAuth,
           ...config,
         },
       };
