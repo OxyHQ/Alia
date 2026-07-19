@@ -96,18 +96,78 @@ router.get('/:service/oauth-url', authenticateToken, async (req: express.Request
   res.json({ authUrl });
 });
 
-// OAuth callback
-router.get('/:service/callback', async (req, res) => {
+// Public OAuth callback — the provider redirects the browser here after consent.
+// It does NOT finalize the link: identity from the `state` alone is NOT trusted
+// for linking (that would be account-linking CSRF — an attacker who initiates
+// the flow could have a victim consent at the provider and get the victim's
+// external tokens linked under the attacker's account). Instead this validates
+// the state exists+unexpired WITHOUT consuming it, then hands `state`+`code` to
+// the app (delivered only to the browser that received the callback). The
+// frontend reads int_oauth_state/int_oauth_code on /settings/integrations and
+// finalizes via the authenticated POST /:service/complete below, which binds the
+// link to the initiating session.
+router.get('/:service/callback', async (req: express.Request<{ service: string }>, res) => {
+  const appUrl = process.env.APP_URL || process.env.WEB_URL || 'http://localhost:3000';
   const { service } = req.params;
   const { code, state } = req.query;
 
   if (!code || !state || typeof code !== 'string' || typeof state !== 'string') {
-    return res.status(400).json({ error: 'Missing code or state' });
+    return res.redirect(
+      `${appUrl}/settings/integrations?service=${encodeURIComponent(service)}&error=oauth_invalid`,
+    );
   }
 
-  // Atomically find-and-delete to prevent replay attacks
-  const stateData = await OAuthState.findOneAndDelete({ _id: state });
+  // Validate the state exists, matches the service, and is unexpired WITHOUT
+  // consuming it — the authenticated /complete call consumes it after verifying
+  // the caller owns it.
+  const stateData = await OAuthState.findOne({ _id: state });
   if (!stateData || stateData.service !== service || stateData.expiresAt < new Date()) {
+    return res.redirect(
+      `${appUrl}/settings/integrations?service=${encodeURIComponent(service)}&error=oauth_expired`,
+    );
+  }
+
+  // Deliver state+code to the app (this browser only). The exchange still
+  // happens server-side in POST /:service/complete, scoped to the caller.
+  const params = new URLSearchParams({
+    service,
+    int_oauth_state: state,
+    int_oauth_code: code,
+  });
+  res.redirect(`${appUrl}/settings/integrations?${params.toString()}`);
+});
+
+// Finalize the OAuth link — AUTHENTICATED, so the linked Integration is bound to
+// the caller's session, never an identity smuggled in via `state`. Verifies the
+// state was issued to THIS user before exchanging the code, defeating
+// account-linking CSRF. The frontend calls this with the int_oauth_state/
+// int_oauth_code it received on the /settings/integrations screen.
+router.post('/:service/complete', authenticateToken, async (req: express.Request<{ service: string }>, res) => {
+  const { service } = req.params;
+  const { state, code } = req.body;
+
+  if (!state || !code || typeof state !== 'string' || typeof code !== 'string') {
+    return res.status(400).json({ error: 'state and code are required' });
+  }
+
+  // Load and validate the state WITHOUT consuming it, so a mismatched caller
+  // cannot burn the initiating user's state.
+  const stateData = await OAuthState.findOne({ _id: state });
+  if (!stateData || stateData.service !== service || stateData.expiresAt < new Date()) {
+    return res.status(400).json({ error: 'Invalid or expired state' });
+  }
+
+  // CSRF binding: the state must have been issued to the authenticated caller.
+  // Whoever holds the code (the browser that got the callback) can only finish
+  // the link into their OWN account, never someone else's.
+  if (stateData.userId !== req.userId) {
+    return res.status(403).json({ error: 'State was not issued to this account' });
+  }
+
+  // Consume the state (single-use) now that the caller is verified. The atomic
+  // delete also guards against replay/race between the load above and here.
+  const consumed = await OAuthState.findOneAndDelete({ _id: state });
+  if (!consumed) {
     return res.status(400).json({ error: 'Invalid or expired state' });
   }
 
@@ -185,9 +245,10 @@ router.get('/:service/callback', async (req, res) => {
       }
     }
 
-    // Create or update integration
+    // Create the integration bound to the authenticated caller (never stateData
+    // identity — that is the CSRF fix).
     const integration = new Integration({
-      oxyUserId: new mongoose.Types.ObjectId(stateData.userId),
+      oxyUserId: new mongoose.Types.ObjectId(req.userId),
       service,
       displayName: entry.name,
       oauthTokens: {
@@ -208,11 +269,11 @@ router.get('/:service/callback', async (req, res) => {
 
     await integration.save();
 
-    // Redirect to frontend
-    const appUrl = process.env.APP_URL || process.env.WEB_URL || 'http://localhost:3000';
-    res.redirect(`${appUrl}/settings/integrations?connected=${service}`);
+    // Return the integration without the encrypted OAuth tokens.
+    const integrationSafe = await Integration.findById(integration._id).select('-oauthTokens');
+    res.json({ integration: integrationSafe });
   } catch (error: unknown) {
-    log.general.error({ err: error }, 'OAuth callback error');
+    log.general.error({ err: error }, 'OAuth complete error');
     res.status(500).json({ error: 'Internal server error' });
   }
 });
