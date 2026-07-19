@@ -1,25 +1,26 @@
 /**
  * MCP Server Manager
  *
- * Manages MCP server lifecycle: spawning child processes (stdio),
- * connecting to remote servers (HTTP), discovering tools,
- * and executing tool calls via JSON-RPC 2.0.
+ * Manages MCP server lifecycle via the official `@modelcontextprotocol/sdk`
+ * client: spawning child processes (stdio), connecting to remote servers
+ * (SSE / streamable-http), discovering tools and resources, and executing
+ * tool calls. The SDK client + transport own the process/connection lifecycle
+ * and the JSON-RPC framing + initialize handshake.
  */
 
-import { spawn } from 'child_process';
-import { errorMessage, errorCode } from '../shared/utils';
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { StdioClientTransport, getDefaultEnvironment } from '@modelcontextprotocol/sdk/client/stdio.js';
+import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
+import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
+import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
+import { errorMessage } from '../shared/utils';
 import { createLogger } from '../shared/logger';
 import type {
   McpServerSession,
   McpServerConfig,
   McpToolDefinition,
   McpResourceDefinition,
-  JsonRpcRequest,
-  JsonRpcResponse,
 } from './types';
-
-const RPC_TIMEOUT_MS = 30_000;
-const MAX_STDOUT_BUFFER_BYTES = 1_024 * 1_024; // 1 MiB
 
 const logger = createLogger('MCP');
 
@@ -40,15 +41,47 @@ export async function startServer(
     await stopServer(serverId);
   }
 
-  if (transport === 'stdio') {
-    return startStdioServer(serverId, oxyUserId, config);
-  }
+  // Build the transport first — this validates required config (command/url)
+  // and constructs the transport WITHOUT spawning/connecting yet.
+  const clientTransport = createTransport(transport, config);
+  const client = new Client({ name: 'alia-integrations', version: '1.0.0' }, { capabilities: {} });
 
-  if (transport === 'streamable-http') {
-    return startHttpServer(serverId, oxyUserId, config);
-  }
+  const session: McpServerSession = {
+    id: serverId,
+    oxyUserId,
+    transport,
+    config,
+    status: 'starting',
+    tools: [],
+    resources: [],
+    startedAt: new Date(),
+    client,
+    clientTransport,
+  };
 
-  throw new Error(`Unsupported transport: ${transport}`);
+  sessions.set(serverId, session);
+
+  try {
+    // connect() spawns the process (stdio) / opens the connection and performs
+    // the MCP initialize handshake + notifications/initialized automatically.
+    await client.connect(clientTransport);
+
+    const tools = await discoverTools(client);
+    const resources = await discoverResources(client);
+
+    session.tools = tools;
+    session.resources = resources;
+    session.status = 'running';
+
+    logger.info(`[${serverId}] Started via ${transport} (${tools.length} tools, ${resources.length} resources)`);
+    return { tools, resources };
+  } catch (err: unknown) {
+    session.status = 'error';
+    session.statusMessage = errorMessage(err);
+    sessions.delete(serverId);
+    await closeClient(client);
+    throw err;
+  }
 }
 
 export async function stopServer(serverId: string): Promise<void> {
@@ -56,30 +89,7 @@ export async function stopServer(serverId: string): Promise<void> {
   if (!session) return;
 
   sessions.delete(serverId);
-
-  // Clear kill timer if set from a previous stop
-  if (session.killTimer) {
-    clearTimeout(session.killTimer);
-    session.killTimer = undefined;
-  }
-
-  // Reject all pending requests
-  for (const [, pending] of session.pendingRequests) {
-    clearTimeout(pending.timer);
-    pending.reject(new Error('Server stopped'));
-  }
-  session.pendingRequests.clear();
-
-  // Kill child process with graceful fallback
-  if (session.process && !session.process.killed) {
-    session.process.kill('SIGTERM');
-    session.killTimer = setTimeout(() => {
-      if (session.process && !session.process.killed) {
-        session.process.kill('SIGKILL');
-      }
-    }, 5_000);
-  }
-
+  await closeClient(session.client);
   session.status = 'stopped';
 }
 
@@ -92,17 +102,14 @@ export async function callTool(
   if (!session) throw new Error('MCP server not running');
   if (session.status !== 'running') throw new Error(`MCP server is ${session.status}`);
 
-  const result = await sendRequest(session, 'tools/call', {
-    name: toolName,
-    arguments: args,
-  });
+  const result = await session.client.callTool({ name: toolName, arguments: args });
 
   // MCP tool results: { content: [{ type: 'text', text: '...' }] }
-  const content = (result as { content?: Array<{ type: string; text?: string }> } | null)?.content;
-  if (content && Array.isArray(content)) {
+  const content = result.content;
+  if (Array.isArray(content)) {
     return content
       .filter((c) => c.type === 'text')
-      .map((c) => c.text ?? '')
+      .map((c) => ('text' in c ? c.text : ''))
       .join('\n');
   }
 
@@ -137,357 +144,90 @@ export async function shutdownAll(): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
-// Stdio Transport
+// Transport construction
 // ---------------------------------------------------------------------------
 
-async function startStdioServer(
-  serverId: string,
-  oxyUserId: string,
+function createTransport(
+  transport: 'stdio' | 'sse' | 'streamable-http',
   config: McpServerConfig,
-): Promise<{ tools: McpToolDefinition[]; resources: McpResourceDefinition[] }> {
-  if (!config.command) {
-    throw new Error('stdio transport requires a command');
-  }
-
-  const session: McpServerSession = {
-    id: serverId,
-    oxyUserId,
-    transport: 'stdio',
-    config,
-    status: 'starting',
-    tools: [],
-    resources: [],
-    startedAt: new Date(),
-    pendingRequests: new Map(),
-    nextRequestId: 1,
-    stdoutBuffer: '',
-  };
-
-  sessions.set(serverId, session);
-
-  try {
-    const childEnv = { ...process.env, ...(config.env || {}) };
-
-    const child = spawn(config.command, config.args || [], {
-      stdio: ['pipe', 'pipe', 'pipe'],
-      env: childEnv,
-    });
-
-    session.process = child;
-
-    child.stdout!.on('data', (data: Buffer) => {
-      session.stdoutBuffer += data.toString();
-
-      if (session.stdoutBuffer.length > MAX_STDOUT_BUFFER_BYTES) {
-        logger.error(`[${serverId}] stdout buffer overflow, killing server`);
-        session.status = 'error';
-        session.statusMessage = 'stdout buffer overflow';
-        child.kill('SIGTERM');
-        return;
-      }
-
-      processStdoutBuffer(session);
-    });
-
-    child.stderr!.on('data', (data: Buffer) => {
-      const msg = data.toString().trim();
-      if (msg) logger.warn(`[${serverId}] stderr: ${msg}`);
-    });
-
-    child.on('error', (err) => {
-      logger.error(`[${serverId}] Process error:`, errorMessage(err));
-      session.status = 'error';
-      session.statusMessage = errorMessage(err);
-    });
-
-    child.on('exit', (code, signal) => {
-      logger.info(`[${serverId}] Process exited (code=${code}, signal=${signal})`);
-      if (session.status === 'running') {
-        session.status = 'error';
-        session.statusMessage = `Process exited unexpectedly (code=${code})`;
-      }
-      for (const [, pending] of session.pendingRequests) {
-        clearTimeout(pending.timer);
-        pending.reject(new Error('MCP server process exited'));
-      }
-      session.pendingRequests.clear();
-    });
-
-    // MCP protocol handshake + tool discovery
-    await performHandshake(session);
-    const [tools, resources] = await Promise.all([
-      discoverTools(session),
-      discoverResources(session),
-    ]);
-
-    session.tools = tools;
-    session.resources = resources;
-    session.status = 'running';
-
-    logger.info(`[${serverId}] Started (${tools.length} tools, ${resources.length} resources)`);
-    return { tools, resources };
-  } catch (err: unknown) {
-    cleanupFailedSession(serverId, session, err);
-    throw err;
-  }
-}
-
-// ---------------------------------------------------------------------------
-// HTTP Transport (streamable-http)
-// ---------------------------------------------------------------------------
-
-async function startHttpServer(
-  serverId: string,
-  oxyUserId: string,
-  config: McpServerConfig,
-): Promise<{ tools: McpToolDefinition[]; resources: McpResourceDefinition[] }> {
-  if (!config.url) {
-    throw new Error('streamable-http transport requires a url');
-  }
-
-  const session: McpServerSession = {
-    id: serverId,
-    oxyUserId,
-    transport: 'streamable-http',
-    config,
-    status: 'starting',
-    tools: [],
-    resources: [],
-    startedAt: new Date(),
-    pendingRequests: new Map(),
-    nextRequestId: 1,
-    stdoutBuffer: '',
-  };
-
-  sessions.set(serverId, session);
-
-  try {
-    // Reuse the shared helpers — sendRequest dispatches to HTTP automatically
-    await performHandshake(session);
-    const [tools, resources] = await Promise.all([
-      discoverTools(session),
-      discoverResources(session),
-    ]);
-
-    session.tools = tools;
-    session.resources = resources;
-    session.status = 'running';
-
-    logger.info(`[${serverId}] Connected via streamable-http (${tools.length} tools)`);
-    return { tools, resources };
-  } catch (err: unknown) {
-    cleanupFailedSession(serverId, session, err);
-    throw err;
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Session cleanup on failure
-// ---------------------------------------------------------------------------
-
-function cleanupFailedSession(serverId: string, session: McpServerSession, err: unknown): void {
-  session.status = 'error';
-  session.statusMessage = errorMessage(err);
-  sessions.delete(serverId);
-
-  if (session.process && !session.process.killed) {
-    session.process.kill('SIGTERM');
-  }
-
-  for (const [, pending] of session.pendingRequests) {
-    clearTimeout(pending.timer);
-    pending.reject(err);
-  }
-  session.pendingRequests.clear();
-}
-
-// ---------------------------------------------------------------------------
-// JSON-RPC Communication
-// ---------------------------------------------------------------------------
-
-function processStdoutBuffer(session: McpServerSession): void {
-  const lines = session.stdoutBuffer.split('\n');
-  session.stdoutBuffer = lines.pop() || '';
-
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (!trimmed) continue;
-
-    try {
-      const msg = JSON.parse(trimmed);
-      handleJsonRpcMessage(session, msg);
-    } catch {
-      // Not JSON — server logging, ignore
+): Transport {
+  if (transport === 'stdio') {
+    if (!config.command) {
+      throw new Error('stdio transport requires a command');
     }
-  }
-}
-
-function handleJsonRpcMessage(session: McpServerSession, msg: JsonRpcResponse): void {
-  if (msg.id !== undefined && msg.id !== null) {
-    const pending = session.pendingRequests.get(msg.id);
-    if (!pending) return;
-
-    clearTimeout(pending.timer);
-    session.pendingRequests.delete(msg.id);
-
-    if (msg.error) {
-      const rpcError = new Error(msg.error.message || 'JSON-RPC error') as Error & { code?: number; data?: unknown };
-      rpcError.code = msg.error.code;
-      rpcError.data = msg.error.data;
-      pending.reject(rpcError);
-    } else {
-      pending.resolve(msg.result);
-    }
-    return;
-  }
-
-  // Server notification — no action needed
-}
-
-function sendRequest(session: McpServerSession, method: string, params?: Record<string, unknown>): Promise<unknown> {
-  if (session.transport === 'streamable-http') {
-    return sendHttpRequest(session, method, params);
-  }
-
-  return new Promise((resolve, reject) => {
-    const stdin = session.process?.stdin;
-    if (!stdin?.writable) {
-      return reject(new Error('MCP server stdin not writable'));
-    }
-
-    const id = session.nextRequestId++;
-    const request: JsonRpcRequest = {
-      jsonrpc: '2.0',
-      id,
-      method,
-      ...(params !== undefined ? { params } : {}),
-    };
-
-    const timer = setTimeout(() => {
-      session.pendingRequests.delete(id);
-      reject(new Error(`JSON-RPC request timed out: ${method}`));
-    }, RPC_TIMEOUT_MS);
-
-    session.pendingRequests.set(id, { resolve, reject, timer });
-
-    stdin.write(JSON.stringify(request) + '\n', (err) => {
-      if (err) {
-        clearTimeout(timer);
-        session.pendingRequests.delete(id);
-        reject(err);
-      }
+    return new StdioClientTransport({
+      command: config.command,
+      args: config.args ?? [],
+      // getDefaultEnvironment() is the SDK's safe inherited-env subset (PATH/HOME/…),
+      // overlaid with any explicitly configured vars.
+      env: { ...getDefaultEnvironment(), ...(config.env ?? {}) },
     });
-  });
-}
-
-async function sendHttpRequest(session: McpServerSession, method: string, params?: Record<string, unknown>): Promise<unknown> {
-  if (!session.config.url) {
-    throw new Error('No URL configured for HTTP transport');
   }
 
-  const id = session.nextRequestId++;
-  const response = await fetch(session.config.url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Accept': 'application/json, text/event-stream',
-      ...(session.config.headers || {}),
-    },
-    body: JSON.stringify({
-      jsonrpc: '2.0',
-      id,
-      method,
-      ...(params !== undefined ? { params } : {}),
-    }),
-    signal: AbortSignal.timeout(RPC_TIMEOUT_MS),
-  });
-
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status}: ${await response.text()}`);
+  if (transport === 'streamable-http') {
+    if (!config.url) {
+      throw new Error('streamable-http transport requires a url');
+    }
+    // Phase 1: OAuthClientProvider will be injected here for per-user OAuth
+    return new StreamableHTTPClientTransport(new URL(config.url), {
+      requestInit: { headers: config.headers ?? {} },
+    });
   }
 
-  const result = await response.json() as JsonRpcResponse;
-  if (result.error) {
-    const rpcError = new Error(result.error.message || 'JSON-RPC error') as Error & { code?: number; data?: unknown };
-    rpcError.code = result.error.code;
-    rpcError.data = result.error.data;
-    throw rpcError;
-  }
-  return result.result;
-}
-
-function sendNotification(session: McpServerSession, method: string, params?: Record<string, unknown>): void {
-  const body = JSON.stringify({
-    jsonrpc: '2.0',
-    method,
-    ...(params !== undefined ? { params } : {}),
-  });
-
-  if (session.transport === 'streamable-http' && session.config.url) {
-    // Fire-and-forget for HTTP notifications
-    fetch(session.config.url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json, text/event-stream', ...(session.config.headers || {}) },
-      body,
-      signal: AbortSignal.timeout(5_000),
-    }).catch(() => {});
-    return;
+  if (transport === 'sse') {
+    if (!config.url) {
+      throw new Error('sse transport requires a url');
+    }
+    return new SSEClientTransport(new URL(config.url), {
+      requestInit: { headers: config.headers ?? {} },
+    });
   }
 
-  const stdin = session.process?.stdin;
-  if (!stdin?.writable) return;
-  stdin.write(body + '\n');
+  throw new Error(`Unsupported transport: ${transport}`);
 }
 
 // ---------------------------------------------------------------------------
-// MCP Protocol
+// Discovery
 // ---------------------------------------------------------------------------
 
-async function performHandshake(session: McpServerSession): Promise<void> {
-  const result = await sendRequest(session, 'initialize', {
-    protocolVersion: '2024-11-05',
-    capabilities: {},
-    clientInfo: { name: 'alia-integrations', version: '1.0.0' },
-  });
-
-  if (!result) {
-    throw new Error('No response from MCP server initialize');
-  }
-
-  sendNotification(session, 'notifications/initialized');
+async function discoverTools(client: Client): Promise<McpToolDefinition[]> {
+  const { tools } = await client.listTools();
+  return tools.map((t) => ({
+    name: t.name,
+    description: t.description ?? '',
+    inputSchema: t.inputSchema ?? {},
+  }));
 }
 
-async function discoverTools(session: McpServerSession): Promise<McpToolDefinition[]> {
-  try {
-    const result = await sendRequest(session, 'tools/list') as {
-      tools?: Array<{ name: string; description?: string; inputSchema?: Record<string, unknown> }>;
-    } | null;
-    if (!result?.tools || !Array.isArray(result.tools)) return [];
-
-    return result.tools.map((t) => ({
-      name: t.name,
-      description: t.description || '',
-      inputSchema: t.inputSchema || {},
-    }));
-  } catch {
+async function discoverResources(client: Client): Promise<McpResourceDefinition[]> {
+  // listResources() throws if the server doesn't advertise the resources
+  // capability — gate on the capability, and still tolerate a failing call.
+  if (!client.getServerCapabilities()?.resources) {
     return [];
   }
-}
 
-async function discoverResources(session: McpServerSession): Promise<McpResourceDefinition[]> {
   try {
-    const result = await sendRequest(session, 'resources/list') as {
-      resources?: Array<{ uri: string; name: string; description?: string; mimeType?: string }>;
-    } | null;
-    if (!result?.resources || !Array.isArray(result.resources)) return [];
-
-    return result.resources.map((r) => ({
+    const { resources } = await client.listResources();
+    return resources.map((r) => ({
       uri: r.uri,
       name: r.name,
       description: r.description,
       mimeType: r.mimeType,
     }));
-  } catch {
+  } catch (err: unknown) {
+    logger.warn(`Resource discovery failed: ${errorMessage(err)}`);
     return [];
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Cleanup
+// ---------------------------------------------------------------------------
+
+async function closeClient(client: Client): Promise<void> {
+  try {
+    await client.close();
+  } catch (err: unknown) {
+    logger.warn(`Error closing MCP client: ${errorMessage(err)}`);
   }
 }

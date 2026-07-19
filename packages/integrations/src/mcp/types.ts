@@ -1,9 +1,13 @@
 /**
  * MCP Server Manager Types
  *
- * Types for managing MCP server processes and connections.
- * Supports stdio (child process) and HTTP (remote) transports.
+ * Types for managing MCP server connections via the official
+ * `@modelcontextprotocol/sdk` client. Supports stdio (child process),
+ * SSE, and streamable-http transports.
  */
+
+import type { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 
 export interface McpToolDefinition {
   name: string;
@@ -21,22 +25,15 @@ export interface McpResourceDefinition {
 export interface McpServerSession {
   id: string;
   oxyUserId: string;
-  transport: 'stdio' | 'streamable-http';
+  transport: 'stdio' | 'sse' | 'streamable-http';
   config: McpServerConfig;
   status: 'starting' | 'running' | 'stopped' | 'error';
   statusMessage?: string;
   tools: McpToolDefinition[];
   resources: McpResourceDefinition[];
   startedAt: Date;
-  process?: import('child_process').ChildProcess;
-  killTimer?: NodeJS.Timeout;
-  pendingRequests: Map<number, {
-    resolve: (value: unknown) => void;
-    reject: (reason: unknown) => void;
-    timer: NodeJS.Timeout;
-  }>;
-  nextRequestId: number;
-  stdoutBuffer: string;
+  client: Client;
+  clientTransport: Transport;
 }
 
 export interface McpServerConfig {
@@ -45,22 +42,4 @@ export interface McpServerConfig {
   url?: string;
   headers?: Record<string, string>;
   env?: Record<string, string>;
-}
-
-export interface JsonRpcRequest {
-  jsonrpc: '2.0';
-  id: number;
-  method: string;
-  params?: Record<string, unknown>;
-}
-
-export interface JsonRpcResponse {
-  jsonrpc: '2.0';
-  id: number;
-  result?: unknown;
-  error?: {
-    code: number;
-    message: string;
-    data?: unknown;
-  };
 }
