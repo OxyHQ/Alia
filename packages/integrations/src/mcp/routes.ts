@@ -12,7 +12,7 @@ import * as manager from './manager';
 
 const logger = createLogger('MCP');
 
-const VALID_TRANSPORTS = new Set(['stdio', 'streamable-http']);
+const VALID_TRANSPORTS = new Set(['stdio', 'sse', 'streamable-http']);
 
 const router: RouterType = Router();
 
@@ -33,8 +33,8 @@ router.post('/servers/:id/start', async (req, res) => {
   if (transport === 'stdio' && (!config.command || typeof config.command !== 'string')) {
     return res.status(400).json({ error: 'stdio transport requires config.command as a string' });
   }
-  if (transport === 'streamable-http' && (!config.url || typeof config.url !== 'string')) {
-    return res.status(400).json({ error: 'streamable-http transport requires config.url as a string' });
+  if ((transport === 'streamable-http' || transport === 'sse') && (!config.url || typeof config.url !== 'string')) {
+    return res.status(400).json({ error: `${transport} transport requires config.url as a string` });
   }
 
   try {
