@@ -67,7 +67,7 @@ export const BaseSidebar = React.memo(function BaseSidebar({
   }, [onScroll]);
 
   return (
-    <View className={`flex-1 ${backgroundColor} border-r border-border`}>
+    <View className={`flex-1 ${backgroundColor}`}>
       {/* Header */}
       <View
         className={cn("px-2 pb-2", collapsed && "items-center")}
