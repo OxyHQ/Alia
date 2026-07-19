@@ -101,48 +101,84 @@ router.post('/:id/oauth/start', authenticateToken, async (req, res) => {
 });
 
 // Public OAuth callback — the Authorization Server redirects the browser here.
-// No authenticateToken: identity is recovered from the single-use state.
+// It does NOT finalize the link: identity from the `state` alone is NOT
+// trusted for linking (that would be account-linking CSRF — an attacker who
+// initiates the flow could have a victim consent at the provider and get the
+// victim's external tokens linked under the attacker's account). Instead this
+// hands `state`+`code` to the app (delivered only to the browser that received
+// the callback), and finalization happens via the authenticated
+// POST /oauth/complete below, which binds the link to the initiating session.
 router.get('/oauth/callback', async (req, res) => {
   const appUrl = process.env.APP_URL || process.env.WEB_URL || 'http://localhost:3000';
   const { code, state } = req.query;
 
   if (!code || !state || typeof code !== 'string' || typeof state !== 'string') {
-    return res.status(400).json({ error: 'Missing code or state' });
+    return res.redirect(`${appUrl}/settings/connectors?error=oauth_invalid`);
   }
 
-  // Atomically consume the state to prevent replay.
-  const stateDoc = await McpOAuthState.findOneAndDelete({ state });
+  // Validate the state exists and is unexpired WITHOUT consuming it — the
+  // authenticated /oauth/complete call consumes it after verifying the caller.
+  const stateDoc = await McpOAuthState.findOne({ state });
   if (!stateDoc || Date.now() - stateDoc.createdAt.getTime() > MCP_OAUTH_STATE_TTL_SECONDS * 1000) {
-    return res.status(400).json({ error: 'Invalid or expired state' });
+    return res.redirect(`${appUrl}/settings/connectors?error=oauth_expired`);
   }
 
-  const { oxyUserId, serverId } = stateDoc;
+  // Deliver state+code to the app (this browser only). The raw provider code is
+  // useless without the server-side PKCE verifier held in the integrations
+  // process, so exposing it to the initiating client is safe for a public
+  // client; the exchange still happens server-side in /oauth/complete.
+  const params = new URLSearchParams({ mcp_oauth_state: state, mcp_oauth_code: code });
+  res.redirect(`${appUrl}/settings/connectors?${params.toString()}`);
+});
 
-  if (!INTEGRATIONS_URL || !INTEGRATIONS_SECRET) {
-    return res.redirect(`${appUrl}/settings/connectors?error=not_configured&server=${serverId}`);
-  }
-
+// Finalize the OAuth link — AUTHENTICATED, so the linked account is the caller's
+// session, never an identity smuggled in via `state`. Verifies the state was
+// issued to THIS user before exchanging the code, defeating account-linking CSRF.
+router.post('/oauth/complete', authenticateToken, async (req, res) => {
   try {
-    const server = await McpServer.findOne({
-      _id: serverId,
-      oxyUserId: new mongoose.Types.ObjectId(oxyUserId),
-    });
+    const { state, code } = req.body;
+    if (!state || !code || typeof state !== 'string' || typeof code !== 'string') {
+      return res.status(400).json({ error: 'state and code are required' });
+    }
 
+    const stateDoc = await McpOAuthState.findOne({ state });
+    if (!stateDoc || Date.now() - stateDoc.createdAt.getTime() > MCP_OAUTH_STATE_TTL_SECONDS * 1000) {
+      return res.status(400).json({ error: 'Invalid or expired state' });
+    }
+
+    // CSRF binding: the state must have been issued to the authenticated caller.
+    // Whoever holds the code (the browser that got the callback) can only finish
+    // the link into their OWN account, never someone else's.
+    if (stateDoc.oxyUserId !== req.userId) {
+      return res.status(403).json({ error: 'State was not issued to this account' });
+    }
+
+    // Consume the state (single-use) now that the caller is verified.
+    await McpOAuthState.deleteOne({ _id: stateDoc._id });
+
+    if (!INTEGRATIONS_URL || !INTEGRATIONS_SECRET) {
+      return res.status(503).json({ error: 'Integrations service not configured' });
+    }
+
+    const server = await McpServer.findOne({
+      _id: stateDoc.serverId,
+      oxyUserId: new mongoose.Types.ObjectId(req.userId),
+    });
     if (!server) {
-      return res.redirect(`${appUrl}/settings/connectors?error=server_not_found`);
+      return res.status(404).json({ error: 'Server not found' });
     }
 
     const apiBaseUrl = process.env.API_BASE_URL || 'http://localhost:3001';
     const callbackUrl = `${apiBaseUrl}/mcp/oauth/callback`;
 
-    const response = await fetch(`${INTEGRATIONS_URL}/mcp/servers/${serverId}/oauth/finish`, {
+    const response = await fetch(`${INTEGRATIONS_URL}/mcp/servers/${server._id}/oauth/finish`, {
       method: 'POST',
       headers: {
         'X-Gateway-Secret': INTEGRATIONS_SECRET,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        oxyUserId,
+        oxyUserId: req.userId,
         config: server.config,
         transport: server.transport,
         code,
@@ -157,7 +193,9 @@ router.get('/oauth/callback', async (req, res) => {
       server.status = 'error';
       server.statusMessage = data.error || 'OAuth connection failed';
       await server.save();
-      return res.redirect(`${appUrl}/settings/connectors?error=oauth_failed&server=${serverId}`);
+      return res.status(response.status === 200 ? 502 : response.status).json({
+        error: data.error || 'OAuth connection failed',
+      });
     }
 
     server.status = 'running';
@@ -169,10 +207,10 @@ router.get('/oauth/callback', async (req, res) => {
     if (data.resources) server.resources = data.resources;
     await server.save();
 
-    res.redirect(`${appUrl}/settings/connectors?connected=${serverId}`);
+    res.json({ server });
   } catch (error: unknown) {
-    log.general.error({ err: error }, 'MCP OAuth callback error');
-    res.redirect(`${appUrl}/settings/connectors?error=internal&server=${serverId}`);
+    log.general.error({ err: error }, 'MCP OAuth complete error');
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
