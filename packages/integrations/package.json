@@ -10,6 +10,7 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "@oxyhq/core": "^12.2.1",
     "@whiskeysockets/baileys": "~6.7.23",
     "telegram": "^2.26.22",
