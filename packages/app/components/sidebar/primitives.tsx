@@ -176,7 +176,8 @@ export function SectionHeader({
 }
 
 export interface GhostIconButtonProps {
-  icon: LucideIcon;
+  /** Accepts lucide icons and the app's custom `react-native-svg` icons (size + theme color). */
+  icon: React.ComponentType<{ size?: number; className?: string }>;
   label: string;
   onPress: () => void;
   badge?: boolean;

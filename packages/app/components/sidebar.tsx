@@ -1,6 +1,10 @@
 import React from "react";
 import { View, Pressable, Platform, NativeSyntheticEvent, NativeScrollEvent, Linking } from "react-native";
 import { AliaLogo } from "@/components/ui/alia-logo";
+import { PremiumSparkIcon } from "@/components/ui/premium-spark-icon";
+import { BellIcon } from "@/components/ui/bell-icon";
+import { GetAppIcon } from "@/components/ui/get-app-icon";
+import { CommandKeyIcon } from "@/components/ui/command-key-icon";
 import { AliaMark } from "@alia.onl/sdk";
 import { useColorScheme } from "@/lib/useColorScheme";
 import { Text } from "@/components/ui/text";
@@ -12,7 +16,6 @@ import {
   FolderOpen,
   Plus,
   BrainCircuit,
-  Code,
   BookOpen,
   CloudCog,
   MoreHorizontal,
@@ -36,13 +39,8 @@ import {
   BookMarked,
   FolderClosed,
   Gift,
-  Smartphone,
-  Keyboard,
   ListTodo,
   Mic,
-  Bell,
-  CreditCard,
-  Sparkles,
   type LucideIcon,
 } from "lucide-react-native";
 import { cn } from "@/lib/utils";
@@ -270,24 +268,12 @@ const ChatSidebar = React.memo(function ChatSidebar() {
     setAgentsExpanded((prev) => !prev);
   }, []);
 
-  const handleConsole = React.useCallback(() => {
-    Linking.openURL("https://console.alia.onl");
-  }, []);
-
   const handleAppDownload = React.useCallback(() => {
     setAppDownloadDialogOpen(true);
   }, []);
 
-  const handleDocs = React.useCallback(() => {
-    Linking.openURL("https://console.alia.onl/documentation");
-  }, []);
-
   const handleUpgrade = React.useCallback(() => {
     router.push("/(biglayout)/subscribe");
-  }, [router]);
-
-  const handleBilling = React.useCallback(() => {
-    router.push("/(app)/settings/usage");
   }, [router]);
 
   const handleNotifications = React.useCallback(() => {
@@ -879,28 +865,24 @@ const ChatSidebar = React.memo(function ChatSidebar() {
             {/* Icon Button Bar */}
             {isAuthenticated && (
             <View className="flex-row items-center">
-              <GhostIconButton icon={Sparkles} label={t('sidebar.upgradeToPro')} onPress={handleUpgrade} />
+              <GhostIconButton icon={PremiumSparkIcon} label={t('sidebar.upgradeToPro')} onPress={handleUpgrade} />
               <GhostIconButton
-                icon={Bell}
+                icon={BellIcon}
                 label={t('sidebar.notifications')}
                 onPress={handleNotifications}
                 badge={(unreadData?.count ?? 0) > 0}
               />
-              <GhostIconButton icon={CreditCard} label={t('sidebar.billing')} onPress={handleBilling} />
               <GhostIconButton icon={Settings2} label="Settings" onPress={handleSettings} />
               {Platform.OS === "web" && (
                 <>
-                  <GhostIconButton icon={Smartphone} label="App download" onPress={handleAppDownload} />
-                  <GhostIconButton icon={Code} label="Console" onPress={handleConsole} />
+                  <GhostIconButton icon={GetAppIcon} label="App download" onPress={handleAppDownload} />
                   <GhostIconButton
-                    icon={Keyboard}
+                    icon={CommandKeyIcon}
                     label="Keyboard shortcuts"
                     onPress={() => setShortcutsDialogOpen(true)}
                   />
                 </>
               )}
-              <View className="flex-1" />
-              <GhostIconButton icon={BookOpen} label="Docs" onPress={handleDocs} />
             </View>
             )}
 
