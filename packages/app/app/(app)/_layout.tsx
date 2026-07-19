@@ -1,6 +1,7 @@
 import { Drawer } from 'expo-router/drawer';
 import { Sidebar } from '@/components/sidebar';
 import { RightPanel } from '@/components/right-panel';
+import { ScreenShell } from '@/components/screen-shell';
 import { AppErrorBoundary } from '@/components/error-boundary';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Platform, View } from 'react-native';
@@ -11,7 +12,7 @@ import { useFoldersStore } from '@/lib/stores/folders-store';
 import { useFavoritesStore } from '@/lib/stores/favorites-store';
 import { usePinnedStore } from '@/lib/stores/pinned-store';
 import { useUIStore } from '@/lib/stores/ui-store';
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, type ReactElement } from 'react';
 import { useColorScheme } from '@/lib/useColorScheme';
 import { useTheme } from '@oxyhq/bloom/theme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -63,6 +64,16 @@ export default function AppLayout() {
 
   const renderDrawerContent = useCallback(() => <Sidebar />, []);
 
+  // Frame every drawer scene in the shared Bloom `ContentPanel` (full-bleed
+  // below `md`, rounded/bordered at `md`+). `screenLayout` wraps each routed
+  // scene's content — not the sidebar (`drawerContent`) or the `RightPanel` —
+  // so all 40+ screens get the app shell from one place, inside the existing
+  // safe-area `sceneContainerStyle` padding.
+  const renderScreenLayout = useCallback(
+    ({ children }: { children: ReactElement }) => <ScreenShell>{children}</ScreenShell>,
+    [],
+  );
+
   const screenOptions = useCallback(({ route }: { route: { name: string } }) => ({
     headerShown: false,
     sceneContainerStyle: {
@@ -95,6 +106,7 @@ export default function AppLayout() {
           <Drawer
             drawerContent={renderDrawerContent}
             screenOptions={screenOptions}
+            screenLayout={renderScreenLayout}
           >
             <Drawer.Screen
               name="c/[id]/index"
