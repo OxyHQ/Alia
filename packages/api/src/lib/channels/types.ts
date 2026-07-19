@@ -40,6 +40,12 @@ export interface OutboundContext {
   to: string;
   text: string;
   accountId?: string;
+  /**
+   * Optional per-bot outbound token. When set, the channel plugin sends using this
+   * bot's own credentials (a user-registered bot) instead of the global env token.
+   * Absent = use the platform's default env-based system bot.
+   */
+  botToken?: string;
   replyToId?: string;
   threadId?: string;
   metadata?: Record<string, any>;

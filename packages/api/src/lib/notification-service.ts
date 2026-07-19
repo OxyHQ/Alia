@@ -78,7 +78,7 @@ async function resolveChannels(userId: string, explicit?: NotificationChannel[])
     // Telegram: check if user has a linked Telegram bot account
     (async () => {
       try {
-        const bot = await Bot.findOne({ platform: 'telegram', status: 'active' });
+        const bot = await Bot.findOne({ platform: 'telegram', status: 'active', userId: { $exists: false } });
         if (!bot) return null;
         return BotUser.findOne({
           botId: bot._id,
@@ -122,7 +122,7 @@ async function deliverInApp(notification: INotification): Promise<boolean> {
 }
 
 async function deliverTelegram(userId: string, notification: INotification): Promise<boolean> {
-  const bot = await Bot.findOne({ platform: 'telegram', status: 'active' });
+  const bot = await Bot.findOne({ platform: 'telegram', status: 'active', userId: { $exists: false } });
   if (!bot) return false;
 
   const botUser = await BotUser.findOne({

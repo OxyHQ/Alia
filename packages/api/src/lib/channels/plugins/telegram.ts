@@ -34,7 +34,8 @@ export const telegramPlugin: ChannelPlugin = {
     deliveryMode: 'direct',
 
     async sendText(ctx: OutboundContext): Promise<OutboundResult> {
-      const token = process.env.TELEGRAM_BOT_TOKEN;
+      // Prefer a per-bot token (user-registered bot); fall back to the global env bot.
+      const token = ctx.botToken || process.env.TELEGRAM_BOT_TOKEN;
       if (!token) {
         return { channel: 'telegram', ok: false, error: 'TELEGRAM_BOT_TOKEN not configured' };
       }
