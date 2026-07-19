@@ -28,6 +28,7 @@ export interface IMcpServer extends Document {
     url?: string;
     headers?: Record<string, string>;
     env?: Record<string, string>;
+    requiresOAuth?: boolean;
   };
   status: 'installed' | 'running' | 'stopped' | 'error';
   statusMessage?: string;
@@ -95,6 +96,9 @@ const McpServerSchema = new Schema<IMcpServer>(
           url: String,
           headers: { type: Map, of: String },
           env: { type: Map, of: String },
+          // Marks a remote connector as OAuth-authenticated so start/reconnect
+          // reattaches the SDK OAuthClientProvider (set on successful OAuth connect).
+          requiresOAuth: Boolean,
         },
         { _id: false },
       ),

@@ -42,4 +42,6 @@ export interface McpServerConfig {
   url?: string;
   headers?: Record<string, string>;
   env?: Record<string, string>;
+  /** When true, remote (sse/streamable-http) transports authenticate via the MCP OAuth flow. */
+  requiresOAuth?: boolean;
 }
