@@ -64,13 +64,24 @@ function ConnectorIcon({ icon, size = 20 }: { icon?: string; size?: number }) {
   return <Plug size={size} className="text-muted-foreground" />;
 }
 
-function InstalledTile({ server }: { server: InstalledMcpServer }) {
+function InstalledTile({
+  server,
+  onOpen,
+}: {
+  server: InstalledMcpServer;
+  onOpen?: () => void;
+}) {
   // Ref: catalog "Installed" row — size-12 tile, size-10 rounded-xl icon,
   // hover-revealed label on web (always visible on native).
   return (
     <View className="w-14 items-center group">
-      {/* Detail page is a follow-up — tapping is intentionally a no-op for now. */}
-      <Pressable className="size-12 items-center justify-center rounded-[14px] p-1 active:opacity-70 web:hover:bg-accent/40">
+      {/* Registry-backed tiles open the detail page; custom servers have no
+          registry entry to route to, so their tile is inert. */}
+      <Pressable
+        onPress={onOpen}
+        disabled={!onOpen}
+        className="size-12 items-center justify-center rounded-[14px] p-1 active:opacity-70 web:hover:bg-accent/40"
+      >
         <View className="size-10 rounded-xl bg-background border border-border items-center justify-center overflow-hidden shadow-sm">
           <ConnectorIcon icon={server.icon} size={22} />
         </View>
@@ -89,12 +100,14 @@ function ConnectorRow({
   entry,
   installed,
   pending,
+  onOpen,
   onConnect,
   onInstall,
 }: {
   entry: McpRegistryEntry;
   installed: boolean;
   pending: boolean;
+  onOpen: (entry: McpRegistryEntry) => void;
   onConnect: (entry: McpRegistryEntry) => void;
   onInstall: (entry: McpRegistryEntry) => void;
 }) {
@@ -102,18 +115,8 @@ function ConnectorRow({
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={
-        installed
-          ? entry.name
-          : entry.requiresOAuth
-            ? `${t("connectors.connect")} ${entry.name}`
-            : `${t("connectors.install")} ${entry.name}`
-      }
-      onPress={() => {
-        if (installed) return;
-        entry.requiresOAuth ? onConnect(entry) : onInstall(entry);
-      }}
-      disabled={pending}
+      accessibilityLabel={entry.name}
+      onPress={() => onOpen(entry)}
       className="flex-row items-center rounded-2xl px-2 py-2 web:hover:bg-accent/40 active:bg-accent/50"
     >
       {/* Icon tile — bordered white square, ref: size-10 rounded-xl border */}
@@ -129,8 +132,28 @@ function ConnectorRow({
           {entry.description}
         </Text>
       </View>
-      {/* Trailing circular action — ref size-8 rounded-full */}
-      <View className="size-8 rounded-full items-center justify-center shrink-0">
+      {/* Trailing circular quick-action — its own Pressable so the tap runs
+          connect/install instead of opening the detail page. stopPropagation
+          keeps the click from bubbling to the row's onPress on web (native's
+          nested-responder capture already isolates the inner press). */}
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={
+          installed
+            ? entry.name
+            : entry.requiresOAuth
+              ? `${t("connectors.connect")} ${entry.name}`
+              : `${t("connectors.install")} ${entry.name}`
+        }
+        onPress={(e) => {
+          e.stopPropagation();
+          if (installed) return;
+          entry.requiresOAuth ? onConnect(entry) : onInstall(entry);
+        }}
+        disabled={pending || installed}
+        hitSlop={8}
+        className="size-8 rounded-full items-center justify-center shrink-0 web:hover:bg-accent active:bg-accent"
+      >
         {installed ? (
           <Check size={16} className="text-muted-foreground" />
         ) : pending ? (
@@ -138,7 +161,7 @@ function ConnectorRow({
         ) : (
           <Plus size={18} className="text-foreground" />
         )}
-      </View>
+      </Pressable>
     </Pressable>
   );
 }
@@ -148,6 +171,7 @@ function CategorySection({
   entries,
   installedRegistryIds,
   pendingId,
+  onOpen,
   onConnect,
   onInstall,
 }: {
@@ -155,6 +179,7 @@ function CategorySection({
   entries: McpRegistryEntry[];
   installedRegistryIds: Set<string>;
   pendingId: string | null;
+  onOpen: (entry: McpRegistryEntry) => void;
   onConnect: (entry: McpRegistryEntry) => void;
   onInstall: (entry: McpRegistryEntry) => void;
 }) {
@@ -168,6 +193,7 @@ function CategorySection({
               entry={entry}
               installed={installedRegistryIds.has(entry.id)}
               pending={pendingId === entry.id}
+              onOpen={onOpen}
               onConnect={onConnect}
               onInstall={onInstall}
             />
@@ -291,6 +317,9 @@ export function ConnectorsSection() {
     );
     return [...known, ...extras].map((slug) => ({ slug, entries: map.get(slug) ?? [] }));
   }, [filteredRegistry]);
+
+  const handleOpen = (entry: McpRegistryEntry) =>
+    router.push(`/(app)/settings/connectors/${entry.id}`);
 
   const handleConnect = async (entry: McpRegistryEntry) => {
     setPendingId(entry.id);
@@ -444,9 +473,20 @@ export function ConnectorsSection() {
           </Text>
         ) : (
           <View className="flex-row flex-wrap gap-3">
-            {installed.map((server) => (
-              <InstalledTile key={server._id} server={server} />
-            ))}
+            {installed.map((server) => {
+              const rid = server.registryId;
+              return (
+                <InstalledTile
+                  key={server._id}
+                  server={server}
+                  onOpen={
+                    rid
+                      ? () => router.push(`/(app)/settings/connectors/${rid}`)
+                      : undefined
+                  }
+                />
+              );
+            })}
           </View>
         )}
       </View>
@@ -488,6 +528,7 @@ export function ConnectorsSection() {
               entries={featured}
               installedRegistryIds={installedRegistryIds}
               pendingId={pendingId}
+              onOpen={handleOpen}
               onConnect={handleConnect}
               onInstall={handleInstall}
             />
@@ -502,6 +543,7 @@ export function ConnectorsSection() {
                 entries={entries}
                 installedRegistryIds={installedRegistryIds}
                 pendingId={pendingId}
+                onOpen={handleOpen}
                 onConnect={handleConnect}
                 onInstall={handleInstall}
               />
