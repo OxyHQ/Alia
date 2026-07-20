@@ -639,7 +639,24 @@
     "createTeamSubtitle": "Describe el propósito de tu equipo",
     "createTeamPlaceholder": "Describe tu equipo...",
     "agents": "Agentes",
-    "addAgentToTeam": "Añadir agente"
+    "addAgentToTeam": "Añadir agente",
+    "telegramBot": {
+      "title": "Bot de Telegram",
+      "connect": "Conectar un bot de Telegram",
+      "dialogTitle": "Conectar un bot de Telegram",
+      "dialogDescription": "Crea un bot con @BotFather en Telegram y pega su token aquí.",
+      "tokenLabel": "Token del bot",
+      "tokenPlaceholder": "123456:ABC-DEF...",
+      "empty": "No hay ningún bot de Telegram conectado. Los mensajes a un bot conectado los responde este agente.",
+      "remove": "Eliminar",
+      "removeTitle": "Eliminar bot de Telegram",
+      "removeDescription": "Este agente dejará de responder los mensajes enviados a este bot.",
+      "connected": "Bot de Telegram conectado",
+      "removed": "Bot de Telegram eliminado",
+      "errorAlreadyRegistered": "Este bot de Telegram ya está registrado",
+      "errorInvalidToken": "Token del bot no válido",
+      "errorGeneric": "Algo salió mal. Inténtalo de nuevo."
+    }
   },
   "authorize": {
     "sendMessages": "Enviar mensajes a modelos de IA",

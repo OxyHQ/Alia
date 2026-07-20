@@ -20,6 +20,8 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import {
   ArrowLeft,
@@ -40,6 +42,8 @@ import {
   Image,
   Brain,
   Users,
+  Send,
+  Trash2,
 } from "lucide-react-native";
 import { AGENT_TOOLS } from "@/lib/constants/agent-tools";
 import * as DropdownMenu from "@/components/ui/dropdown-menu";
@@ -58,6 +62,8 @@ import { API_ROUTES } from "@/lib/api/routes";
 import { useLibraryStore, type LibraryFile } from "@/lib/stores/library-store";
 import { AgentPermissionToggles, DEFAULT_PERMISSIONS } from "@/components/agent-permission-toggles";
 import type { AgentPermissions } from "@/lib/stores/agents-store";
+import { useAgentBots, type AgentBot } from "@/lib/hooks/use-agent-bots";
+import { errorStatus } from "@/lib/errors/error-utils";
 
 const TOOL_ICONS: Record<string, React.ComponentType<{ size?: number; color?: string; className?: string }>> = {
   Globe, Terminal, Search, FileDown, FolderOpen, Image, Brain, Users,
@@ -124,6 +130,12 @@ export default function EditAgentScreen() {
   const [saving, setSaving] = useState(false);
   const [showPanel, setShowPanel] = useState(isLargeScreen);
   const [sidebarTab, setSidebarTab] = useState<SidebarTab>("resources");
+
+  // Telegram bot binding for this agent
+  const { bots: agentBots, registerBot, removeBot } = useAgentBots(id);
+  const [showBotDialog, setShowBotDialog] = useState(false);
+  const [botToken, setBotToken] = useState("");
+  const [connectingBot, setConnectingBot] = useState(false);
 
   // Auto-save debounce
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -298,6 +310,49 @@ export default function EditAgentScreen() {
   const removeLinkedKnowledge = useCallback((fileId: string) => {
     setLinkedKnowledge((prev) => prev.filter((k) => k._id !== fileId));
   }, []);
+
+  const handleConnectBot = useCallback(async () => {
+    const token = botToken.trim();
+    if (!token || connectingBot) return;
+    setConnectingBot(true);
+    try {
+      await registerBot(token);
+      toast.success(t("agents.telegramBot.connected"));
+      setBotToken("");
+      setShowBotDialog(false);
+    } catch (err) {
+      const status = errorStatus(err);
+      if (status === 409) {
+        toast.error(t("agents.telegramBot.errorAlreadyRegistered"));
+      } else if (status === 400) {
+        toast.error(t("agents.telegramBot.errorInvalidToken"));
+      } else {
+        toast.error(t("agents.telegramBot.errorGeneric"));
+      }
+    } finally {
+      setConnectingBot(false);
+    }
+  }, [botToken, connectingBot, registerBot, t]);
+
+  const handleRemoveBot = useCallback(
+    async (bot: AgentBot) => {
+      const ok = await confirm({
+        title: t("agents.telegramBot.removeTitle"),
+        description: t("agents.telegramBot.removeDescription"),
+        confirmLabel: t("agents.telegramBot.remove"),
+        cancelLabel: t("common.cancel"),
+        destructive: true,
+      });
+      if (!ok) return;
+      try {
+        await removeBot(bot._id);
+        toast.success(t("agents.telegramBot.removed"));
+      } catch {
+        toast.error(t("agents.telegramBot.errorGeneric"));
+      }
+    },
+    [removeBot, t]
+  );
 
   if (loading) {
     return (
@@ -664,9 +719,120 @@ export default function EditAgentScreen() {
                 onValueChange={setAllowHiring}
               />
             </View>
+
+            {/* Telegram bot */}
+            <View className="gap-2 pt-2 border-t border-border">
+              <View className="flex-row items-center gap-2 pt-2">
+                <Send size={16} className="text-foreground" />
+                <Text className="text-sm font-semibold text-foreground">
+                  {t("agents.telegramBot.title")}
+                </Text>
+              </View>
+
+              {agentBots.length === 0 ? (
+                <Text className="text-xs text-muted-foreground">
+                  {t("agents.telegramBot.empty")}
+                </Text>
+              ) : (
+                <View className="gap-1">
+                  {agentBots.map((bot) => (
+                    <View
+                      key={bot._id}
+                      className="flex-row items-center gap-2 py-1.5"
+                    >
+                      <View
+                        className="p-1.5 rounded-lg"
+                        style={{ backgroundColor: "#0088CC15" }}
+                      >
+                        <Send size={14} color="#0088CC" />
+                      </View>
+                      <View className="flex-1 flex-row items-center gap-2">
+                        <Text
+                          className="text-sm text-foreground"
+                          numberOfLines={1}
+                        >
+                          {bot.username ? `@${bot.username}` : bot.name}
+                        </Text>
+                        <View
+                          className={cn(
+                            "w-2 h-2 rounded-full",
+                            bot.status === "active"
+                              ? "bg-green-500"
+                              : bot.status === "error"
+                                ? "bg-red-500"
+                                : "bg-gray-400"
+                          )}
+                        />
+                      </View>
+                      <Pressable
+                        onPress={() => handleRemoveBot(bot)}
+                        className="active:opacity-70 p-1"
+                      >
+                        <Trash2 size={14} className="text-muted-foreground" />
+                      </Pressable>
+                    </View>
+                  ))}
+                </View>
+              )}
+
+              <Button
+                variant="outline"
+                size="sm"
+                className="self-start"
+                onPress={() => setShowBotDialog(true)}
+              >
+                <View className="flex-row items-center gap-2">
+                  <Plus size={14} className="text-foreground" />
+                  <Text className="text-sm text-foreground">
+                    {t("agents.telegramBot.connect")}
+                  </Text>
+                </View>
+              </Button>
+            </View>
           </View>
         )}
       </ScrollView>
+
+      {/* Connect Telegram bot dialog */}
+      <Dialog open={showBotDialog} onOpenChange={setShowBotDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t("agents.telegramBot.dialogTitle")}</DialogTitle>
+            <DialogDescription>
+              {t("agents.telegramBot.dialogDescription")}
+            </DialogDescription>
+          </DialogHeader>
+          <View className="gap-1.5">
+            <Label>{t("agents.telegramBot.tokenLabel")}</Label>
+            <Input
+              value={botToken}
+              onChangeText={setBotToken}
+              placeholder={t("agents.telegramBot.tokenPlaceholder")}
+              placeholderTextColor={colors.mutedForeground}
+              secureTextEntry
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+          </View>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onPress={() => setShowBotDialog(false)}
+              disabled={connectingBot}
+            >
+              <Text className="text-foreground">{t("common.cancel")}</Text>
+            </Button>
+            <Button
+              onPress={handleConnectBot}
+              disabled={connectingBot || !botToken.trim()}
+            >
+              <Text className="text-primary-foreground">
+                {t("agents.telegramBot.connect")}
+              </Text>
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </View>
   );
 
