@@ -677,7 +677,24 @@
     "createTeamSubtitle": "Describe the purpose of your team",
     "createTeamPlaceholder": "Describe your team...",
     "agents": "Agents",
-    "addAgentToTeam": "Add agent"
+    "addAgentToTeam": "Add agent",
+    "telegramBot": {
+      "title": "Telegram bot",
+      "connect": "Connect a Telegram bot",
+      "dialogTitle": "Connect a Telegram bot",
+      "dialogDescription": "Create a bot with @BotFather on Telegram and paste its token below.",
+      "tokenLabel": "Bot token",
+      "tokenPlaceholder": "123456:ABC-DEF...",
+      "empty": "No Telegram bot connected. Messages to a connected bot are answered by this agent.",
+      "remove": "Remove",
+      "removeTitle": "Remove Telegram bot",
+      "removeDescription": "This agent will stop answering messages sent to this bot.",
+      "connected": "Telegram bot connected",
+      "removed": "Telegram bot removed",
+      "errorAlreadyRegistered": "This Telegram bot is already registered",
+      "errorInvalidToken": "Invalid bot token",
+      "errorGeneric": "Something went wrong. Please try again."
+    }
   },
   "authorize": {
     "sendMessages": "Send messages to AI models",
