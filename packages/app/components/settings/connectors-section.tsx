@@ -96,22 +96,32 @@ function InstalledTile({
   );
 }
 
+// A connector is "connected" only when it's genuinely usable: an OAuth
+// connector must have completed the flow (server running) — merely having an
+// installed McpServer (created before the OAuth redirect) is NOT connected.
+// A non-OAuth (stdio) connector is done once installed.
+function isServerConnected(server: InstalledMcpServer | undefined): boolean {
+  if (!server) return false;
+  return server.config?.requiresOAuth ? server.status === "running" : true;
+}
+
 function ConnectorRow({
   entry,
-  installed,
+  server,
   pending,
   onOpen,
   onConnect,
   onInstall,
 }: {
   entry: McpRegistryEntry;
-  installed: boolean;
+  server: InstalledMcpServer | undefined;
   pending: boolean;
   onOpen: (entry: McpRegistryEntry) => void;
   onConnect: (entry: McpRegistryEntry) => void;
   onInstall: (entry: McpRegistryEntry) => void;
 }) {
   const { t } = useTranslation();
+  const connected = isServerConnected(server);
   return (
     <Pressable
       accessibilityRole="button"
@@ -139,7 +149,7 @@ function ConnectorRow({
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={
-          installed
+          connected
             ? entry.name
             : entry.requiresOAuth
               ? `${t("connectors.connect")} ${entry.name}`
@@ -147,14 +157,14 @@ function ConnectorRow({
         }
         onPress={(e) => {
           e.stopPropagation();
-          if (installed) return;
+          if (connected) return;
           entry.requiresOAuth ? onConnect(entry) : onInstall(entry);
         }}
-        disabled={pending || installed}
+        disabled={pending || connected}
         hitSlop={8}
         className="size-8 rounded-full items-center justify-center shrink-0 web:hover:bg-accent active:bg-accent"
       >
-        {installed ? (
+        {connected ? (
           <Check size={16} className="text-muted-foreground" />
         ) : pending ? (
           <ActivityIndicator size="small" />
@@ -169,7 +179,7 @@ function ConnectorRow({
 function CategorySection({
   title,
   entries,
-  installedRegistryIds,
+  installedByRegistry,
   pendingId,
   onOpen,
   onConnect,
@@ -177,7 +187,7 @@ function CategorySection({
 }: {
   title: string;
   entries: McpRegistryEntry[];
-  installedRegistryIds: Set<string>;
+  installedByRegistry: Map<string, InstalledMcpServer>;
   pendingId: string | null;
   onOpen: (entry: McpRegistryEntry) => void;
   onConnect: (entry: McpRegistryEntry) => void;
@@ -191,7 +201,7 @@ function CategorySection({
           <View key={entry.id} className="w-full md:w-1/2 md:px-1 mb-4">
             <ConnectorRow
               entry={entry}
-              installed={installedRegistryIds.has(entry.id)}
+              server={installedByRegistry.get(entry.id)}
               pending={pendingId === entry.id}
               onOpen={onOpen}
               onConnect={onConnect}
@@ -271,8 +281,19 @@ export function ConnectorsSection() {
     // the callback param values arriving on this screen.
   }, [searchParams.mcp_oauth_state, searchParams.mcp_oauth_code, searchParams.error]);
 
-  const installedRegistryIds = useMemo(
-    () => new Set(installed.map((s) => s.registryId).filter((v): v is string => !!v)),
+  const installedByRegistry = useMemo(() => {
+    const map = new Map<string, InstalledMcpServer>();
+    for (const s of installed) {
+      if (s.registryId) map.set(s.registryId, s);
+    }
+    return map;
+  }, [installed]);
+
+  // Only surface genuinely-connected connectors in the Installed grid — an
+  // OAuth connector whose flow hasn't completed (installed but not running) is
+  // not yet connected.
+  const connectedServers = useMemo(
+    () => installed.filter((s) => isServerConnected(s)),
     [installed],
   );
 
@@ -467,13 +488,13 @@ export function ConnectorsSection() {
         <Text className="text-sm font-medium text-foreground">
           {t("connectors.installed")}
         </Text>
-        {installed.length === 0 ? (
+        {connectedServers.length === 0 ? (
           <Text className="text-[13px] text-muted-foreground">
             {t("connectors.installedEmpty")}
           </Text>
         ) : (
           <View className="flex-row flex-wrap gap-3">
-            {installed.map((server) => {
+            {connectedServers.map((server) => {
               const rid = server.registryId;
               return (
                 <InstalledTile
@@ -526,7 +547,7 @@ export function ConnectorsSection() {
             <CategorySection
               title={t("connectors.category.featured")}
               entries={featured}
-              installedRegistryIds={installedRegistryIds}
+              installedByRegistry={installedByRegistry}
               pendingId={pendingId}
               onOpen={handleOpen}
               onConnect={handleConnect}
@@ -541,7 +562,7 @@ export function ConnectorsSection() {
                 key={slug}
                 title={t(`connectors.category.${slug}`)}
                 entries={entries}
-                installedRegistryIds={installedRegistryIds}
+                installedByRegistry={installedByRegistry}
                 pendingId={pendingId}
                 onOpen={handleOpen}
                 onConnect={handleConnect}
