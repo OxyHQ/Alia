@@ -71,6 +71,27 @@ Key files:
 - `packages/api/src/routes/oxy-service-events.ts`
 - `packages/api/src/routes/v1/chat-completions.ts` (~line 615)
 
+## Connectors (MCP + OAuth) — third-party tools for the AI
+
+"Connectors" are **MCP servers** that give the AI tools, surfaced in a ChatGPT-plugins-style catalog at `/settings/connectors`. This is the sanctioned substrate for third-party tools; do NOT add bespoke per-service tool code (the old hand-written OAuth "Integrations" were retired — only Google Calendar/Drive remain there, because they have no hosted MCP).
+
+- **MCP client is the official `@modelcontextprotocol/sdk`**, living in the `packages/integrations` service (`src/mcp/manager.ts`) — NOT hand-rolled JSON-RPC. `packages/api` never imports the SDK; it proxies over HTTP (`INTEGRATIONS_URL` + `X-Gateway-Secret`). Supports stdio / streamable-http / sse.
+- **Registry**: `packages/api/src/lib/mcp-registry.ts` — curated connectors. Hosted remote OAuth connectors (Notion `mcp.notion.com`, GitHub, Linear) set `requiresOAuth: true` + `url`; `featured` drives the Featured section. Adding a connector = one registry entry.
+- **OAuth is SDK-native**: the SDK owns discovery / Dynamic Client Registration / PKCE / token use / **auto-refresh** via an `OAuthClientProvider` (`packages/integrations/src/mcp/oauth-provider.ts`), backed by an encrypted Mongo store (`oauth-store.ts`, `McpConnectorAuth`, tokens `select:false` + encrypted). The per-tool-call hop carries no user token — the SDK refreshes in-process.
+- **OAuth flow is CSRF-safe by construction** (Alia is cookie-less): the public callback `GET /mcp/oauth/callback` does NOT link — it validates the `state` (without consuming) and hands `state`+`code` to the app; finalization is an AUTHENTICATED `POST /mcp/oauth/complete` that enforces `state.oxyUserId === req.userId`. NEVER move linking back into an unauthenticated callback (account-linking CSRF). The legacy `integrations-oauth.ts` uses the identical callback→complete pattern (`int_oauth_state`/`int_oauth_code`). Frontends read those return params and POST complete (see `ConnectorsSection` / `IntegrationsSection`).
+- `POST /mcp/install` is **idempotent for registry connectors** (duplicate-key → returns existing 200) so the Connect flow can "ensure installed" before OAuth; custom installs keep 409.
+- **Deploy prereqs (oxy-infra):** the `integrations` service env needs `TOKEN_ENCRYPTION_KEY` (same value as the API — encrypted tokens are cross-process) and `API_BASE_URL` (the OAuth callback + per-bot webhook base). Missing `TOKEN_ENCRYPTION_KEY` degrades gracefully (only OAuth-connect calls error).
+- The `lib/mcp/` governance layer (McpManager/permissions/health) was deleted as dead code — `buildMcpTools` is called directly; if reintroducing governance, wire it into that path, don't re-add orphaned.
+
+## Agent Bots (multi-bot) — an Agent's own Telegram presence
+
+Users register their OWN Telegram bot (via @BotFather token) bound to one of their Agents, so inbound DMs run that agent's prompt + the owner's real tool pipeline. This is SEPARATE from the shared system bot (env `TELEGRAM_BOT_TOKEN`, `/settings/bots` account-linking) — both coexist in the `Bot` collection.
+
+- `Bot` model: `userId` (owner; absent = system bot), `botToken` (encrypted, `select:false`), `webhookSecret` (`select:false`, sparse-indexed), `agentId`. Registered/managed in the **Agent editor** ("Telegram bot" section), not `/settings/bots`.
+- **Inbound routing** (`routes/webhooks.ts`): a user bot echoes its per-bot secret in `X-Telegram-Bot-Api-Secret-Token`; matching an active user-owned bot IS the verification → run the bound agent via `buildChatTools(owner)`, bill the owner, reply with the bot's own token. No match → fall through to the UNCHANGED global-bot path.
+- **CRITICAL invariant:** every "find the system bot" lookup MUST be scoped `userId: { $exists: false }` (webhooks, `tools/telegram`, `notification-service`, the internal linking routes) — user bots share the collection, so an unscoped `Bot.findOne({ platform })` could bind a global flow to a user bot. `GET /bots` returns system + the caller's own bots; the system-bots screen filters to `!userId`.
+- Per-`(bot, end-user)` inbound rate-limit (15/min, silently dropped) guards against a stranger draining the owner's credits; credits are the hard cap.
+
 ## Gateway & provider keys
 
 `alia-gateway` is NOT deployed in production. The API runs the `gateway-client` LOCAL fallback (in-process `internal/providers` + the same MongoDB). HTTP gateway mode requires BOTH `SERVICE_SECRET` and `GATEWAY_API_URL` env vars (explicit opt-in) — see `packages/api/src/lib/gateway-client.ts`.
