@@ -126,7 +126,8 @@ export function BotsSection() {
     <View className="gap-4">
       <Text className="text-xs text-muted-foreground">
         System bots allow others to interact with Alia and enable Alia to send messages on your
-        behalf.
+        behalf. To give one of your own agents a dedicated Telegram bot, open the agent and use
+        its Telegram bot section.
       </Text>
 
       {bots.length === 0 ? (
