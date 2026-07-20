@@ -138,6 +138,10 @@ export default function ConnectorDetailScreen() {
 
   const requiresOAuth = !!entry.requiresOAuth;
   const needsEnv = entry.requiredEnv.length > 0;
+  // "Connected" requires the OAuth flow to have completed (server running) —
+  // an installed-but-not-yet-authorized OAuth connector is NOT connected. A
+  // non-OAuth (stdio) connector is done once installed.
+  const connected = !!server && (requiresOAuth ? server.status === "running" : true);
   const tools = server?.tools ?? [];
   const hasWriteTool = tools.some((tl) => WRITE_VERB.test(tl.name));
   const capabilities = hasWriteTool ? "Read, Write" : "Read";
@@ -193,7 +197,7 @@ export default function ConnectorDetailScreen() {
               </Text>
             </View>
             {/* Primary action */}
-            {server ? (
+            {connected ? (
               <View className="flex-row items-center gap-2 shrink-0">
                 <View className="flex-row items-center gap-1.5 h-9 px-3 rounded-full bg-muted">
                   <Check size={15} className="text-foreground" />
@@ -208,6 +212,17 @@ export default function ConnectorDetailScreen() {
                   onPress={handleUninstall}
                   disabled={pending}
                 >
+                  <Text className="text-sm">{t("connectors.uninstall")}</Text>
+                </Button>
+              </View>
+            ) : server && requiresOAuth ? (
+              // Installed but the OAuth flow hasn't completed — let the user
+              // finish/retry it, or remove the pending connector.
+              <View className="flex-row items-center gap-2 shrink-0">
+                <Button onPress={handleConnect} isLoading={pending}>
+                  <Text className="text-sm">{t("connectors.connect")}</Text>
+                </Button>
+                <Button variant="outline" size="sm" className="h-9" onPress={handleUninstall} disabled={pending}>
                   <Text className="text-sm">{t("connectors.uninstall")}</Text>
                 </Button>
               </View>
