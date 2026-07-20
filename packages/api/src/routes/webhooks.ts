@@ -67,6 +67,46 @@ function isDuplicate(channelType: ChannelId, message: ChannelInboundMessage, sco
   return false;
 }
 
+/**
+ * Per-(bot, end-user) inbound rate limit for user-registered agent bots.
+ *
+ * A user's agent bot is public: anyone on Telegram can message it, and every
+ * reply is billed to the bot OWNER. Credits already bound total spend, but this
+ * stops a single sender from rapidly burning the owner's balance. Excess is
+ * dropped silently (acked, never processed → no credit spend). In-memory /
+ * per-instance (an owner's bot across ECS tasks gets N× this); a Redis-backed
+ * limiter would make it exact — a fine future upgrade, but credits are the hard
+ * cap either way.
+ */
+const BOT_RL_WINDOW_MS = 60_000;
+const BOT_RL_MAX_PER_USER = 15;
+const botUserHits = new Map<string, number[]>();
+
+function isBotUserRateLimited(botId: string, platformUserId: string): boolean {
+  const key = `${botId}:${platformUserId}`;
+  const now = Date.now();
+  const recent = (botUserHits.get(key) ?? []).filter((t) => t > now - BOT_RL_WINDOW_MS);
+  if (recent.length >= BOT_RL_MAX_PER_USER) {
+    botUserHits.set(key, recent);
+    return true;
+  }
+  recent.push(now);
+  botUserHits.set(key, recent);
+  return false;
+}
+
+// Sweep stale keys so the map can't grow unbounded. unref() so this housekeeping
+// timer never keeps the process (or jest) alive.
+const botRlSweep = setInterval(() => {
+  const cutoff = Date.now() - BOT_RL_WINDOW_MS;
+  for (const [key, hits] of botUserHits) {
+    const recent = hits.filter((t) => t > cutoff);
+    if (recent.length === 0) botUserHits.delete(key);
+    else botUserHits.set(key, recent);
+  }
+}, BOT_RL_WINDOW_MS);
+botRlSweep.unref?.();
+
 function generateAuthToken(): string {
   return crypto.randomBytes(32).toString('hex');
 }
@@ -450,6 +490,13 @@ router.post('/:type', async (req, res) => {
         // different bots the same thing is not collapsed to one.
         if (isDuplicate(channelType, message, userBot._id.toString())) {
           log.webhook.info({ channelType, platformUserId: message.platformUserId }, 'Duplicate per-bot message skipped');
+          return res.sendStatus(200);
+        }
+
+        // Drop (silently, no credit spend) when a single sender floods the bot,
+        // so a stranger can't rapidly burn the owner's credits.
+        if (isBotUserRateLimited(userBot._id.toString(), message.platformUserId)) {
+          log.webhook.info({ channelType, platformUserId: message.platformUserId }, 'Per-bot message rate-limited');
           return res.sendStatus(200);
         }
 
