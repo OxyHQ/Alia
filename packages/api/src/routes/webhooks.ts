@@ -47,7 +47,7 @@ async function getChannelSystemPrompt(channelType: ChannelId): Promise<string> {
  */
 const processedWebhookMessages = new Set<string>();
 
-function getDeduplicationKey(
+export function getDeduplicationKey(
   channelType: ChannelId,
   message: ChannelInboundMessage,
   scope?: string,
@@ -82,7 +82,7 @@ const BOT_RL_WINDOW_MS = 60_000;
 const BOT_RL_MAX_PER_USER = 15;
 const botUserHits = new Map<string, number[]>();
 
-function isBotUserRateLimited(botId: string, platformUserId: string): boolean {
+export function isBotUserRateLimited(botId: string, platformUserId: string): boolean {
   const key = `${botId}:${platformUserId}`;
   const now = Date.now();
   const recent = (botUserHits.get(key) ?? []).filter((t) => t > now - BOT_RL_WINDOW_MS);
