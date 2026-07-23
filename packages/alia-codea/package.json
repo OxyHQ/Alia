@@ -248,7 +248,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@oxyhq/core": "^12.2.1",
+    "@oxyhq/core": "^12.10.2",
     "openai": "^6.46.0"
   },
   "devDependencies": {

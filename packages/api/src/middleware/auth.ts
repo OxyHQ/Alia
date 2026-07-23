@@ -225,6 +225,7 @@ export function authenticateTokenOrApiKey(
       appName: 'internal',
       credentialId: 'service-secret',
       scopes: ['internal'],
+      environment: 'production',
     };
     return next();
   }
