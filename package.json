@@ -68,9 +68,9 @@
     "typescript": "^5.9.3"
   },
   "dependencies": {
-    "@oxyhq/bloom": "^0.35.7",
-    "@oxyhq/core": "^12.2.1",
-    "@oxyhq/services": "^22.2.0",
+    "@oxyhq/bloom": "^0.49.0",
+    "@oxyhq/core": "^12.10.2",
+    "@oxyhq/services": "^22.11.0",
     "@tanstack/query-sync-storage-persister": "^5.101.2",
     "@tanstack/react-query": "^5.101.2",
     "@tanstack/react-query-persist-client": "^5.101.2",
