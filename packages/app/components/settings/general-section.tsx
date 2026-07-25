@@ -3,14 +3,14 @@ import { View, Pressable } from "react-native";
 import { vars } from "nativewind";
 import { Text } from "@/components/ui/text";
 import { useColorScheme } from "@/lib/useColorScheme";
-import { useBloomTheme, APP_COLOR_PRESETS, APP_COLOR_NAMES, type AppColorPreset } from "@oxyhq/bloom/theme";
+import { useBloomTheme, APP_COLOR_PRESETS, APP_COLOR_NAMES, getPresetVars, type AppColorName } from "@oxyhq/bloom/theme";
 import { useTranslation } from "@/lib/hooks/use-translation";
 import { LanguageSelector } from "@/components/language-selector";
 import { cn } from "@/lib/utils";
 
 /** Miniature app layout using real theme tokens via NativeWind vars() */
-const AppMiniature = React.memo(function AppMiniature({ variant, preset }: { variant: "light" | "dark"; preset: AppColorPreset }) {
-  const themeVars = vars(variant === "light" ? preset.light : preset.dark);
+const AppMiniature = React.memo(function AppMiniature({ variant, presetName }: { variant: "light" | "dark"; presetName: AppColorName }) {
+  const themeVars = vars(getPresetVars(presetName, variant));
 
   return (
     <View className="flex-row flex-1 rounded overflow-hidden" style={themeVars}>
@@ -67,7 +67,6 @@ const AppMiniature = React.memo(function AppMiniature({ variant, preset }: { var
 export function GeneralSection() {
   const { mode, setColorScheme } = useColorScheme();
   const { colorPreset, setColorPreset } = useBloomTheme();
-  const preset = APP_COLOR_PRESETS[colorPreset];
   const { t } = useTranslation();
 
   return (
@@ -90,7 +89,7 @@ export function GeneralSection() {
               }`}
             >
               <View className="mb-1.5 aspect-[5/3]">
-                <AppMiniature variant="light" preset={preset} />
+                <AppMiniature variant="light" presetName={colorPreset} />
               </View>
               <Text className="text-center text-xs font-medium text-foreground">
                 {t("settings.appearance.light")}
@@ -108,10 +107,10 @@ export function GeneralSection() {
               <View className="rounded overflow-hidden mb-1.5 aspect-[5/3]">
                 <View className="flex-row flex-1">
                   <View className="flex-1 overflow-hidden">
-                    <AppMiniature variant="light" preset={preset} />
+                    <AppMiniature variant="light" presetName={colorPreset} />
                   </View>
                   <View className="flex-1 overflow-hidden">
-                    <AppMiniature variant="dark" preset={preset} />
+                    <AppMiniature variant="dark" presetName={colorPreset} />
                   </View>
                 </View>
               </View>
@@ -129,7 +128,7 @@ export function GeneralSection() {
               }`}
             >
               <View className="mb-1.5 aspect-[5/3]">
-                <AppMiniature variant="dark" preset={preset} />
+                <AppMiniature variant="dark" presetName={colorPreset} />
               </View>
               <Text className="text-center text-xs font-medium text-foreground">
                 {t("settings.appearance.dark")}

@@ -20,6 +20,20 @@ vi.mock('../../models/mcp-oauth-state.js', () => ({
   MCP_OAUTH_STATE_TTL_SECONDS: 600,
 }));
 
+vi.mock('mongoose', () => {
+  function ObjectId(this: { value?: string }, value: string) {
+    this.value = value;
+  }
+  ObjectId.prototype.toString = function toString() {
+    return this.value;
+  };
+
+  return {
+    default: { Types: { ObjectId } },
+    Types: { ObjectId },
+  };
+});
+
 vi.mock('@oxyhq/core/server', () => ({
   createOxyAuthMiddleware: vi.fn(() => (_req: any, _res: any, next: any) => next()),
   createOptionalOxyAuth: vi.fn(() => (_req: any, _res: any, next: any) => next()),
