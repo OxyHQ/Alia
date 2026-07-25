@@ -122,6 +122,7 @@ function getStepIcon(event: AgentActivityEvent, colors: ThemeColors) {
     case "complete":
       return <CheckCircle2 size={14} color={colors.success} />;
     case "error":
+    case "threat":
       return <AlertCircle size={14} color={colors.error} />;
     case "tool_call":
       if (toolName === "shell") return <Terminal size={14} className="text-foreground" />;
@@ -150,6 +151,8 @@ function getStepLabel(event: AgentActivityEvent): string {
       return "Task completed";
     case "error":
       return "Error occurred";
+    case "threat":
+      return event.content.slice(0, 80) || "Threat detected";
     case "system":
       return event.content.slice(0, 60);
     case "tool_call": {
@@ -181,6 +184,7 @@ function StepsTab({ events, isActive }: { events: AgentActivityEvent[]; isActive
         e.type === "tool_call" ||
         e.type === "tool_result" ||
         e.type === "error" ||
+        e.type === "threat" ||
         e.type === "complete" ||
         e.type === "thinking" ||
         e.type === "source_found" ||
@@ -240,7 +244,7 @@ function StepsTab({ events, isActive }: { events: AgentActivityEvent[]; isActive
                 className={`text-sm ${
                   step.type === "complete"
                     ? "text-green-500 font-medium"
-                    : step.type === "error"
+                    : step.type === "error" || step.type === "threat"
                     ? "text-red-400"
                     : isStepActive
                     ? "text-foreground font-medium"

@@ -20,22 +20,49 @@ const DEFAULT_TIMEOUT = 30;
 const MAX_TIMEOUT = 300;
 const MAX_OUTPUT_CHARS = 16_000;
 
+export const AGENT_ALLOWED_IMAGES = [
+  'node:22',
+  'node:20',
+  'node:18',
+  'python:3.12',
+  'python:3.11',
+  'ubuntu:24.04',
+  'ubuntu:22.04',
+  'golang:1.22',
+  'ruby:3.3',
+  'rust:1.77',
+  'eclipse-temurin:21',
+] as const;
+
+export type AgentImage = (typeof AGENT_ALLOWED_IMAGES)[number];
+
+const ALLOWED_IMAGE_SET = new Set<string>(AGENT_ALLOWED_IMAGES);
+
 /** Map of task keyword patterns to preferred Docker images */
 const IMAGE_HINTS: Array<{ pattern: RegExp; image: string }> = [
   { pattern: /\b(node|npm|yarn|bun|javascript|typescript|react|next\.?js)\b/i, image: 'node:20' },
-  { pattern: /\b(rust|cargo)\b/i, image: 'rust:latest' },
-  { pattern: /\b(go|golang)\b/i, image: 'golang:latest' },
+  { pattern: /\b(rust|cargo)\b/i, image: 'rust:1.77' },
+  { pattern: /\b(go|golang)\b/i, image: 'golang:1.22' },
   { pattern: /\b(java|maven|gradle|spring)\b/i, image: 'eclipse-temurin:21' },
-  { pattern: /\b(ruby|rails|gem)\b/i, image: 'ruby:latest' },
+  { pattern: /\b(ruby|rails|gem)\b/i, image: 'ruby:3.3' },
 ];
 
-/** Infer Docker image from task description */
-export function inferImage(task: string, preferredImage?: string): string {
-  if (preferredImage) return preferredImage;
-  for (const { pattern, image } of IMAGE_HINTS) {
-    if (pattern.test(task)) return image;
+export function normalizeAgentImage(image: string | undefined): AgentImage {
+  if (image && ALLOWED_IMAGE_SET.has(image)) {
+    return image as AgentImage;
   }
   return DEFAULT_IMAGE;
+}
+
+/** Infer Docker image from task description */
+export function inferImage(task: string, preferredImage?: string): AgentImage {
+  const normalizedPreferred = normalizeAgentImage(preferredImage);
+  if (preferredImage && normalizedPreferred === preferredImage) return normalizedPreferred;
+
+  for (const { pattern, image } of IMAGE_HINTS) {
+    if (pattern.test(task)) return normalizeAgentImage(image);
+  }
+  return normalizedPreferred;
 }
 
 export class TerminalSession {
@@ -72,12 +99,10 @@ export class TerminalSession {
     if (this.containerId) return this.containerId;
 
     const pool = getContainerPool();
-    // Claim from pool WITHOUT persistent flag so we can reuse warm containers.
-    // The container is marked persistent in the DB record below, which controls
-    // TTL/cleanup behavior without bypassing the warm pool.
     const info = await pool.claim({
       image: this.image,
       size: 'small',
+      persistent: true,
       labels: {
         'alia.session': this.sessionId,
         'alia.agent': this.agentId,

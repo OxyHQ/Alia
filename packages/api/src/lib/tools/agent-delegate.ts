@@ -7,7 +7,7 @@
  * - Runs generateText with a lightweight tool set
  * - Returns the agent's response with identity metadata
  *
- * Efficiency: uses alia-flash by default, 45s timeout, max 5 steps, 4096 output tokens.
+ * Efficiency: uses a lightweight Alia model by default, 45s timeout, max 5 steps, 4096 output tokens.
  */
 
 import { tool, generateText, stepCountIs } from 'ai';
@@ -64,13 +64,12 @@ export const createDelegateToAgentTool = () => tool({
       const systemPrompt = agent.systemPrompt
         || `You are ${agent.name}, an AI agent. ${agent.tagline}. ${agent.description}\n\nCapabilities: ${(agent.capabilities || []).join(', ')}`;
 
-      // Resolve model (prefer agent's first allowed model, fallback to alia-flash)
-      const preferredModel = agent.allowedModels?.[0] || 'alia-flash';
-      const resolved = await resolveModel(preferredModel);
+      // Resolve model (prefer agent's first allowed model, fallback to alia-lite)
+      const preferredModel = agent.allowedModels?.[0] || 'alia-lite';
+      let resolved = await resolveModel(preferredModel);
       if (!resolved) {
-        // Fallback to alia-flash if preferred model is unavailable
-        const fallback = await resolveModel('alia-flash');
-        if (!fallback) {
+        resolved = await resolveModel('alia-lite');
+        if (!resolved) {
           return {
             agentId,
             agentName: agent.name,
@@ -81,10 +80,9 @@ export const createDelegateToAgentTool = () => tool({
             error: 'No model available for agent execution',
           };
         }
-        Object.assign(resolved || {}, fallback);
       }
 
-      const model = getAIModel(resolved!.keyConfig);
+      const model = getAIModel(resolved.keyConfig);
 
       // Lightweight tool set for the agent
       const agentTools = {

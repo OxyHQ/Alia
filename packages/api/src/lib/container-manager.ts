@@ -15,6 +15,23 @@ export function isContainerSystemAvailable(): boolean {
   return Boolean(DOCKER_HOST_URL && DOCKER_HOST_SECRET);
 }
 
+export async function checkContainerSystemHealth(timeout = 3_000): Promise<boolean> {
+  if (!DOCKER_HOST_URL || !DOCKER_HOST_SECRET) return false;
+
+  try {
+    const res = await fetch(`${DOCKER_HOST_URL}/health`, {
+      headers: {
+        'Authorization': `Bearer ${DOCKER_HOST_SECRET}`,
+      },
+      signal: AbortSignal.timeout(timeout),
+    });
+    return res.ok;
+  } catch (err) {
+    log.agents.warn({ err }, 'Container system health check failed');
+    return false;
+  }
+}
+
 async function request<T>(
   method: string,
   path: string,

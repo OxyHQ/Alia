@@ -75,6 +75,7 @@ const ALLOWED_IMAGES = [
   'golang:1.22',
   'ruby:3.3',
   'rust:1.77',
+  'eclipse-temurin:21',
 ];
 
 export interface CreateContainerOpts {

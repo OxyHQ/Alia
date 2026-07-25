@@ -90,7 +90,13 @@ router.post('/:id/oauth/start', authenticateToken, async (req, res) => {
 
     if (!response.ok) {
       // The state row is short-lived (TTL), so a failed start self-cleans.
+      await McpOAuthState.deleteOne({ state });
       return res.status(response.status).json({ error: data.error || 'Failed to start OAuth' });
+    }
+
+    if (!data.authorizationUrl || typeof data.authorizationUrl !== 'string') {
+      await McpOAuthState.deleteOne({ state });
+      return res.status(502).json({ error: 'OAuth authorization URL was not returned' });
     }
 
     res.json({ authorizationUrl: data.authorizationUrl });
@@ -230,7 +236,7 @@ router.get('/installed', authenticateToken, async (req, res) => {
 // Install MCP server
 router.post('/install', authenticateToken, async (req, res) => {
   try {
-    const { registryId, name, displayName, description, icon, transport, runtime, config } = req.body;
+    const { registryId, name, displayName, description, icon, transport, runtime, config, env } = req.body;
 
     let serverConfig = { name, displayName, description, icon, transport, runtime, config };
 
@@ -255,6 +261,7 @@ router.post('/install', authenticateToken, async (req, res) => {
           // stdio entries leave these undefined (Mongoose omits them).
           url: registryEntry.url,
           requiresOAuth: registryEntry.requiresOAuth,
+          ...(env && typeof env === 'object' && !Array.isArray(env) ? { env } : {}),
           ...config,
         },
       };

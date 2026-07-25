@@ -68,6 +68,7 @@ import { initMcpRelay, shutdownMcpRelay } from './lib/mcp-relay.js';
 // Task queue for async agent sessions (BullMQ + Redis)
 import { initTaskQueue, startWorker, shutdownTaskQueue } from './lib/task-queue.js';
 import { initShowQueue, startShowWorker, shutdownShowQueue } from './lib/show/show-queue.js';
+import { getContainerPool, shutdownContainerPool } from './lib/sandbox/container-pool.js';
 
 // Fix for ES Modules __dirname
 const __filename = fileURLToPath(import.meta.url);
@@ -337,6 +338,10 @@ function startBackgroundServices(): void {
   initTaskQueue()
     .then(() => startWorker())
     .catch((err) => log.general.error({ err }, '[TaskQueue] Startup error'));
+  // Pre-warm agent containers when the Docker host is configured.
+  getContainerPool()
+    .initialize()
+    .catch((err) => log.general.error({ err }, '[ContainerPool] Startup error'));
   // Clean up orphaned audio jobs from previous process crashes (non-blocking)
   import('./models/audio-job.js').then(({ AudioJob }) =>
     AudioJob.cleanupOrphanedJobs()
@@ -425,6 +430,7 @@ const shutdown = async (signal: string) => {
     // Close task queue (drains in-flight jobs)
     await shutdownTaskQueue();
     await shutdownShowQueue();
+    await shutdownContainerPool();
     log.general.info('Task queues shut down');
 
     // Close Redis connections

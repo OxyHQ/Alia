@@ -9,6 +9,7 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { io as socketIO, type Socket } from 'socket.io-client';
 import config from '@/lib/config';
 import { getSocketToken } from '@/lib/api/client';
+import apiClient from '@/lib/api/client';
 
 export interface PlanItem {
   id: number;
@@ -29,7 +30,7 @@ export interface AgentScreenshot {
 }
 
 export interface AgentActivityEvent {
-  type: 'system' | 'thinking' | 'response' | 'tool_call' | 'tool_result' | 'error' | 'complete' | 'screenshot' | 'plan_progress' | 'file_change' | 'source_found' | 'approval_request' | 'approval_result';
+  type: 'system' | 'thinking' | 'response' | 'tool_call' | 'tool_result' | 'error' | 'complete' | 'screenshot' | 'plan_progress' | 'file_change' | 'source_found' | 'threat' | 'approval_request' | 'approval_result';
   content: string;
   timestamp: number;
   sessionId: string;
@@ -136,6 +137,46 @@ const INITIAL_STATE: AgentActivityState = {
 
 const MAX_SCREENSHOTS = 5;
 const MAX_EVENTS = 50;
+
+type PersistedAgentEvent = {
+  type: string;
+  content: string;
+  timestamp: number;
+  metadata?: AgentActivityEvent['metadata'];
+};
+
+function mapPersistedEventType(type: string): AgentActivityEvent['type'] {
+  switch (type) {
+    case 'action': return 'tool_call';
+    case 'observation': return 'tool_result';
+    case 'threat_detected': return 'threat';
+    case 'user_message':
+    case 'system_message':
+    case 'plan_update':
+      return 'system';
+    case 'thinking':
+    case 'response':
+    case 'error':
+    case 'complete':
+    case 'screenshot':
+    case 'plan_progress':
+    case 'file_change':
+    case 'source_found':
+      return type;
+    default:
+      return 'system';
+  }
+}
+
+function eventFromPersisted(entry: PersistedAgentEvent, sessionId: string): AgentActivityEvent {
+  return {
+    type: mapPersistedEventType(entry.type),
+    content: entry.content,
+    timestamp: entry.timestamp,
+    sessionId,
+    metadata: entry.metadata,
+  };
+}
 
 /**
  * Hook to subscribe to real-time agent activity via Socket.IO.
@@ -258,6 +299,45 @@ export function useAgentActivity(sessionId: string | null, agentId?: string | nu
 
     // Reset state for new session
     setState(INITIAL_STATE);
+    let cancelled = false;
+
+    apiClient.get(`/agents/sessions/${sessionId}/status`)
+      .then((res) => {
+        if (cancelled) return;
+
+        const recentEvents = Array.isArray(res.data?.recentEvents)
+          ? res.data.recentEvents as PersistedAgentEvent[]
+          : [];
+        const sessionPlan = res.data?.session?.plan;
+        const sessionStatus = res.data?.session?.status;
+        const creditsCharged = res.data?.session?.stats?.creditsCharged;
+
+        setState(prev => {
+          const hydratedEvents = recentEvents
+            .map((entry) => eventFromPersisted(entry, sessionId))
+            .slice(-MAX_EVENTS);
+          const planItems = Array.isArray(sessionPlan?.items) ? sessionPlan.items : [];
+          const completed = planItems.filter((item: PlanItem) => item.status === 'completed').length;
+
+          return {
+            ...prev,
+            events: hydratedEvents,
+            eventCount: hydratedEvents.length,
+            startedAt: hydratedEvents[0]?.timestamp || prev.startedAt,
+            plan: planItems.length > 0
+              ? { items: planItems, completed, total: planItems.length }
+              : prev.plan,
+            isComplete: sessionStatus === 'completed' || sessionStatus === 'cancelled',
+            hasError: sessionStatus === 'failed',
+            lastError: sessionStatus === 'failed' ? res.data?.session?.result || prev.lastError : prev.lastError,
+            latestResponse: res.data?.session?.result || prev.latestResponse,
+            creditsCharged: typeof creditsCharged === 'number' ? creditsCharged : prev.creditsCharged,
+          };
+        });
+      })
+      .catch(() => {
+        // Socket updates still provide live progress; hydration is best-effort.
+      });
 
     const socket = socketIO(config.apiUrl, {
       transports: ['websocket'],
@@ -320,6 +400,7 @@ export function useAgentActivity(sessionId: string | null, agentId?: string | nu
     });
 
     return () => {
+      cancelled = true;
       socket.disconnect();
       socketRef.current = null;
     };
