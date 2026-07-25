@@ -20,6 +20,11 @@ vi.mock('../../models/mcp-oauth-state.js', () => ({
   MCP_OAUTH_STATE_TTL_SECONDS: 600,
 }));
 
+vi.mock('@oxyhq/core/server', () => ({
+  createOxyAuthMiddleware: vi.fn(() => (_req: any, _res: any, next: any) => next()),
+  createOptionalOxyAuth: vi.fn(() => (_req: any, _res: any, next: any) => next()),
+}));
+
 vi.mock('../../middleware/auth.js', () => ({
   authenticateToken: vi.fn((_req: any, _res: any, next: any) => next()),
 }));
@@ -150,6 +155,65 @@ describe('mcp.ts — OAuth CSRF binding + idempotent install', () => {
     });
   });
 
+  describe('POST /:id/oauth/start — authorization URL contract', () => {
+    it('returns the authorization URL from integrations and creates state', async () => {
+      const server: any = {
+        _id: 'srv-1',
+        runtime: 'server',
+        transport: 'streamable-http',
+        config: { url: 'https://mcp.github.test', requiresOAuth: true },
+      };
+      mockMcpServer.findOne.mockResolvedValue(server);
+      mockMcpOAuthState.create.mockResolvedValue({ state: 'created' });
+      mockFetch.mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({ authorizationUrl: 'https://auth.example/authorize' }),
+      });
+
+      const handler = getRouteHandler('post', '/:id/oauth/start');
+      const req: any = { userId: USER_A, params: { id: 'srv-1' } };
+      const res = makeMockRes();
+
+      await handler(req, res);
+
+      expect(res.statusCode).toBe(200);
+      expect(res.body).toEqual({ authorizationUrl: 'https://auth.example/authorize' });
+      expect(mockMcpOAuthState.create).toHaveBeenCalledWith(expect.objectContaining({
+        oxyUserId: USER_A,
+        serverId: 'srv-1',
+      }));
+    });
+
+    it('fails and removes the state when integrations does not return an authorization URL', async () => {
+      const server: any = {
+        _id: 'srv-1',
+        runtime: 'server',
+        transport: 'streamable-http',
+        config: { url: 'https://mcp.github.test', requiresOAuth: true },
+      };
+      mockMcpServer.findOne.mockResolvedValue(server);
+      mockMcpOAuthState.create.mockResolvedValue({ state: 'created' });
+      mockFetch.mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({ success: true }),
+      });
+
+      const handler = getRouteHandler('post', '/:id/oauth/start');
+      const req: any = { userId: USER_A, params: { id: 'srv-1' } };
+      const res = makeMockRes();
+
+      await handler(req, res);
+
+      expect(res.statusCode).toBe(502);
+      expect(res.body).toEqual({ error: 'OAuth authorization URL was not returned' });
+      expect(mockMcpOAuthState.deleteOne).toHaveBeenCalledWith({
+        state: expect.any(String),
+      });
+    });
+  });
+
   describe('GET /oauth/callback — public, does not link', () => {
     it('redirects with mcp_oauth_state + mcp_oauth_code and never exchanges', async () => {
       mockMcpOAuthState.findOne.mockResolvedValue({
@@ -189,6 +253,31 @@ describe('mcp.ts — OAuth CSRF binding + idempotent install', () => {
   });
 
   describe('POST /install — idempotency on duplicate key', () => {
+    it('persists registry env values under config.env', async () => {
+      let savedServer: any;
+      mockMcpServer.mockImplementation(function (this: any, data: any) {
+        Object.assign(this, data);
+        savedServer = this;
+        this.save = vi.fn().mockResolvedValue(undefined);
+      });
+
+      const handler = getRouteHandler('post', '/install');
+      const req: any = {
+        userId: USER_A,
+        body: {
+          registryId: 'github',
+          env: { GITHUB_PERSONAL_ACCESS_TOKEN: 'token' },
+        },
+      };
+      const res = makeMockRes();
+
+      await handler(req, res);
+
+      expect(res.statusCode).toBe(201);
+      expect(savedServer.config.env).toEqual({ GITHUB_PERSONAL_ACCESS_TOKEN: 'token' });
+      expect(res.body.server).toBe(savedServer);
+    });
+
     it('returns 200 with the existing server on a duplicate registry install', async () => {
       // Regular function so `new McpServer(...)` can construct it (arrow fns throw).
       mockMcpServer.mockImplementation(function (this: any, data: any) {

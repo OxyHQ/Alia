@@ -49,6 +49,7 @@ export class ContainerPool {
   private config: PoolConfig;
   private healthCheckTimer: ReturnType<typeof setInterval> | null = null;
   private replenishing = false;
+  private initialized = false;
 
   constructor(config?: Partial<PoolConfig>) {
     this.config = { ...DEFAULT_CONFIG, ...config };
@@ -59,6 +60,9 @@ export class ContainerPool {
    * Call once at server startup.
    */
   async initialize(): Promise<void> {
+    if (this.initialized) return;
+    this.initialized = true;
+
     const sandbox = getSandboxProvider();
     if (!sandbox.isAvailable()) {
       log.agents.info('ContainerPool: sandbox not available, skipping initialization');
@@ -181,6 +185,7 @@ export class ContainerPool {
       this.pool.map(c => sandbox.destroy(c.info.id).catch((err) => log.agents.warn({ err, sandboxId: c.info.id }, 'ContainerPool: destroy failed during shutdown'))),
     );
     this.pool = [];
+    this.initialized = false;
 
     log.agents.info('ContainerPool: shut down');
   }
@@ -273,4 +278,10 @@ export function getContainerPool(config?: Partial<PoolConfig>): ContainerPool {
     globalPool = new ContainerPool(config);
   }
   return globalPool;
+}
+
+export async function shutdownContainerPool(): Promise<void> {
+  if (!globalPool) return;
+  await globalPool.shutdown();
+  globalPool = null;
 }

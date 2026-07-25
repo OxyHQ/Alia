@@ -6,6 +6,7 @@ import {
   Platform,
   Linking,
   StyleSheet,
+  TextInput,
 } from "react-native";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
@@ -22,6 +23,14 @@ import { confirm } from "@oxyhq/bloom/alert-dialog";
 import { withAlpha } from "@oxyhq/bloom/theme";
 import { Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { SettingsHeader } from "@/components/settings/settings-header";
 import { useMcpServers } from "@/lib/hooks/use-mcp-servers";
 import { toast } from "@/components/sonner";
@@ -45,6 +54,8 @@ export default function ConnectorDetailScreen() {
     useMcpServers();
 
   const [pending, setPending] = useState(false);
+  const [envDialogOpen, setEnvDialogOpen] = useState(false);
+  const [envValues, setEnvValues] = useState<Record<string, string>>({});
 
   const entry = registry.find((e) => e.id === id);
   const server = installed.find((s) => s.registryId === id);
@@ -77,10 +88,30 @@ export default function ConnectorDetailScreen() {
 
   const handleInstall = async () => {
     if (!entry) return;
+    if (entry.requiredEnv.length > 0) {
+      setEnvValues({});
+      setEnvDialogOpen(true);
+      return;
+    }
     setPending(true);
     try {
       await install(entry.id);
       toast.success(t("connectors.installedToast", { name: entry.name }));
+    } catch {
+      toast.error(t("connectors.installFailed"));
+    } finally {
+      setPending(false);
+    }
+  };
+
+  const handleInstallWithEnv = async () => {
+    if (!entry) return;
+    setPending(true);
+    try {
+      await install(entry.id, envValues);
+      toast.success(t("connectors.installedToast", { name: entry.name }));
+      setEnvDialogOpen(false);
+      setEnvValues({});
     } catch {
       toast.error(t("connectors.installFailed"));
     } finally {
@@ -146,6 +177,8 @@ export default function ConnectorDetailScreen() {
   const hasWriteTool = tools.some((tl) => WRITE_VERB.test(tl.name));
   const capabilities = hasWriteTool ? "Read, Write" : "Read";
   const authValue = requiresOAuth ? "OAuth" : needsEnv ? "API key" : "None";
+  const inputClass =
+    "border border-border rounded-lg px-3 py-2 bg-background text-foreground text-sm";
 
   const websiteUrl = entry.url;
   let websiteHost: string | null = null;
@@ -231,9 +264,9 @@ export default function ConnectorDetailScreen() {
                 <Text className="text-sm">{t("connectors.connect")}</Text>
               </Button>
             ) : needsEnv ? (
-              <Text className="text-[13px] text-muted-foreground max-w-[160px] text-right shrink-0">
-                {t("connectors.installFromList")}
-              </Text>
+              <Button className="shrink-0" onPress={handleInstall} isLoading={pending}>
+                <Text className="text-sm">{t("connectors.install")}</Text>
+              </Button>
             ) : (
               <Button className="shrink-0" onPress={handleInstall} isLoading={pending}>
                 <Text className="text-sm">{t("connectors.install")}</Text>
@@ -356,6 +389,59 @@ export default function ConnectorDetailScreen() {
           </View>
         </View>
       </ScrollView>
+
+      <Dialog open={envDialogOpen} onOpenChange={(open) => !open && setEnvDialogOpen(false)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader className="gap-1">
+            <DialogTitle className="text-lg">
+              {t("connectors.installName", { name: entry.name })}
+            </DialogTitle>
+            <DialogDescription className="text-sm">
+              {t("connectors.installEnvDescription")}
+            </DialogDescription>
+          </DialogHeader>
+          <View className="gap-3">
+            {entry.requiredEnv.map((envKey) => (
+              <View key={envKey} className="gap-1">
+                <Text className="text-xs font-medium text-muted-foreground">{envKey}</Text>
+                <TextInput
+                  className={inputClass}
+                  placeholder={t("connectors.enterValue", { name: envKey })}
+                  placeholderTextColor={colors.mutedForeground}
+                  value={envValues[envKey] || ""}
+                  onChangeText={(val) => setEnvValues((prev) => ({ ...prev, [envKey]: val }))}
+                  secureTextEntry={
+                    envKey.toLowerCase().includes("secret") ||
+                    envKey.toLowerCase().includes("key") ||
+                    envKey.toLowerCase().includes("token")
+                  }
+                />
+              </View>
+            ))}
+          </View>
+          <DialogFooter className="gap-2 mt-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="flex-1 h-9"
+              onPress={() => setEnvDialogOpen(false)}
+              disabled={pending}
+            >
+              <Text className="text-sm">{t("common.cancel")}</Text>
+            </Button>
+            <Button
+              size="sm"
+              className="flex-1 h-9"
+              onPress={handleInstallWithEnv}
+              disabled={pending}
+            >
+              <Text className="text-sm">
+                {pending ? t("connectors.installing") : t("connectors.install")}
+              </Text>
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </View>
   );
 }

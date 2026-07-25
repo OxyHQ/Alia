@@ -6,6 +6,7 @@
  */
 
 import { isSandboxAvailable } from '../sandbox/index.js';
+import { checkContainerSystemHealth } from '../container-manager.js';
 import { log } from '../logger.js';
 
 export interface AgentCapabilities {
@@ -36,7 +37,7 @@ export async function getAgentCapabilities(): Promise<AgentCapabilities> {
 
   // Check sandbox (Docker)
   try {
-    capabilities.shell = isSandboxAvailable();
+    capabilities.shell = isSandboxAvailable() && await checkContainerSystemHealth();
   } catch {
     capabilities.shell = false;
   }
