@@ -269,10 +269,12 @@ describe('mcp.ts — OAuth CSRF binding + idempotent install', () => {
   describe('POST /install — idempotency on duplicate key', () => {
     it('persists registry env values under config.env', async () => {
       let savedServer: any;
-      mockMcpServer.mockImplementation(function (this: any, data: any) {
-        Object.assign(this, data);
-        savedServer = this;
-        this.save = vi.fn().mockResolvedValue(undefined);
+      mockMcpServer.mockImplementation(function (data: any) {
+        savedServer = {
+          ...data,
+          save: vi.fn().mockResolvedValue(undefined),
+        };
+        return savedServer;
       });
 
       const handler = getRouteHandler('post', '/install');
