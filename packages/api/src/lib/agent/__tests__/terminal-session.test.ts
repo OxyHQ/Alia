@@ -1,4 +1,32 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+
+vi.mock('../../sandbox/index.js', () => ({
+  getSandboxProvider: vi.fn(),
+}));
+
+vi.mock('../../sandbox/container-pool.js', () => ({
+  getContainerPool: vi.fn(),
+}));
+
+vi.mock('../../../models/container.js', () => ({
+  Container: {},
+}));
+
+vi.mock('../workspace-memory.js', () => ({
+  WorkspaceMemory: vi.fn(),
+}));
+
+vi.mock('../../logger.js', () => ({
+  log: {
+    agents: {
+      debug: vi.fn(),
+      error: vi.fn(),
+      info: vi.fn(),
+      warn: vi.fn(),
+    },
+  },
+}));
+
 import {
   AGENT_ALLOWED_IMAGES,
   inferImage,
