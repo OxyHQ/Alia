@@ -11,15 +11,13 @@ import Animated, {
   cancelAnimation,
   type SharedValue,
 } from 'react-native-reanimated';
-import {
-  Copy,
-  Check,
-  Volume2,
-  Square,
-  ThumbsUp,
-  ThumbsDown,
-  Pencil,
-} from 'lucide-react-native';
+import Copy from 'lucide-react-native/icons/copy';
+import Check from 'lucide-react-native/icons/check';
+import Volume2 from 'lucide-react-native/icons/volume-2';
+import Square from 'lucide-react-native/icons/square';
+import ThumbsUp from 'lucide-react-native/icons/thumbs-up';
+import ThumbsDown from 'lucide-react-native/icons/thumbs-down';
+import Pencil from 'lucide-react-native/icons/pencil';
 import { Text } from './ui/text';
 import { AliaMarkdown } from './Markdown';
 import { ThinkingIndicator } from './ThinkingIndicator';
