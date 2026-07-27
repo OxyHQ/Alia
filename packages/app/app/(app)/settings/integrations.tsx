@@ -8,7 +8,7 @@ export default function SettingsIntegrationsScreen() {
 
   return (
     <View className="flex-1 bg-background">
-      <SettingsHeader title={t("settings.sections.integrations")} />
+      <SettingsHeader title={t("settings.sections.integrations")} showBack />
       <ScrollView className="flex-1" contentContainerClassName="p-5 max-w-2xl">
         {/* The OAuth callback return (int_oauth_state/int_oauth_code) is
             handled inside IntegrationsSection, mirroring ConnectorsSection. */}

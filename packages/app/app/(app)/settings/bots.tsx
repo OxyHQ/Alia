@@ -8,7 +8,7 @@ export default function SettingsBotsScreen() {
 
   return (
     <View className="flex-1 bg-background">
-      <SettingsHeader title={t("settings.sections.bots")} />
+      <SettingsHeader title={t("settings.sections.bots")} showBack />
       <ScrollView className="flex-1" contentContainerClassName="p-5 max-w-2xl">
         <BotsSection />
       </ScrollView>

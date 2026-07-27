@@ -8,7 +8,7 @@ export default function SettingsPersonalizationScreen() {
 
   return (
     <View className="flex-1 bg-background">
-      <SettingsHeader title={t("settings.sections.personalization")} />
+      <SettingsHeader title={t("settings.sections.personalization")} showBack />
       <ScrollView className="flex-1" contentContainerClassName="p-5 max-w-2xl">
         <PersonalizationSection />
       </ScrollView>

@@ -47,7 +47,6 @@ import { cn } from "@/lib/utils";
 import { useTranslation } from "@/lib/hooks/use-translation";
 import { useStore } from "@/lib/stores/global-store";
 import { useRouter, usePathname } from "expo-router";
-import { SettingsSidebar } from "@/components/settings/settings-sidebar";
 import { useOxy, useAuth, ProfileButton } from "@oxyhq/services";
 import { useProjectsStore } from "@/lib/stores/projects-store";
 import { useFoldersStore } from "@/lib/stores/folders-store";
@@ -96,18 +95,7 @@ const ICON_MAP: Record<string, LucideIcon> = {
   FolderClosed,
 };
 
-export function Sidebar() {
-  const pathname = usePathname();
-  const isSettingsRoute = pathname.startsWith("/settings");
-
-  if (isSettingsRoute) {
-    return <SettingsSidebar />;
-  }
-
-  return <ChatSidebar />;
-}
-
-const ChatSidebar = React.memo(function ChatSidebar() {
+export const Sidebar = React.memo(function Sidebar() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { t } = useTranslation();

@@ -8,7 +8,7 @@ export default function SettingsConnectorsScreen() {
 
   return (
     <View className="flex-1 bg-background">
-      <SettingsHeader title={t("connectors.title")} subtitle={t("connectors.subtitle")} />
+      <SettingsHeader title={t("connectors.title")} subtitle={t("connectors.subtitle")} showBack />
       <ScrollView className="flex-1" contentContainerClassName="p-5 max-w-2xl">
         <ConnectorsSection />
       </ScrollView>

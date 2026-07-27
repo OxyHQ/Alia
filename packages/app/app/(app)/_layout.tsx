@@ -25,10 +25,9 @@ import { asViewStyle } from '@/lib/types/webStyles';
 import { useIsLargeScreen } from '@/lib/hooks/use-is-large-screen';
 
 // Routes visible in the drawer sidebar
-const VISIBLE_ROUTES = new Set(['c/[id]/index', 'settings/index']);
+const VISIBLE_ROUTES = new Set(['c/[id]/index', 'settings']);
 
 // Routes that handle their own top safe area insets
-// All settings/* routes are covered by the startsWith('settings/') check in screenOptions
 const SELF_INSET_ROUTES = new Set(['index', 'c/[id]/index', 'settings']);
 
 export default function AppLayout() {
@@ -79,7 +78,7 @@ export default function AppLayout() {
   const screenOptions = useCallback(({ route }: { route: { name: string } }) => ({
     headerShown: false,
     sceneContainerStyle: {
-      paddingTop: SELF_INSET_ROUTES.has(route.name) || route.name.startsWith('settings/') ? 0 : insets.top,
+      paddingTop: SELF_INSET_ROUTES.has(route.name) ? 0 : insets.top,
     },
     drawerStyle: {
       // Desktop collapse: the permanent drawer narrows to an icon rail
@@ -118,7 +117,7 @@ export default function AppLayout() {
               }}
             />
             <Drawer.Screen
-              name="settings/index"
+              name="settings"
               options={{
                 drawerLabel: i18n.t('nav.settings'),
                 title: i18n.t('nav.settings'),
