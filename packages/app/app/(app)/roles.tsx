@@ -1,12 +1,12 @@
 import React, { useEffect, useState, useMemo, useCallback, memo } from 'react';
-import { View, ScrollView, Pressable, TextInput, RefreshControl } from 'react-native';
+import { View, ScrollView, Pressable, RefreshControl } from 'react-native';
+import { Search } from '@oxyhq/bloom/search';
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
 import {
   Plus,
   Star,
   CheckCircle2,
-  Search,
   ArrowRight,
 } from 'lucide-react-native';
 import { useRolesStore } from '@/lib/stores/roles-store';
@@ -14,7 +14,6 @@ import { useRouter } from 'expo-router';
 import { useTranslation } from '@/lib/hooks/use-translation';
 import { toast } from '@/components/sonner';
 import { cn } from '@/lib/utils';
-import { useColorScheme } from '@/lib/useColorScheme';
 import { Skeleton } from '@/components/ui/skeleton';
 
 export default function RolesScreen() {
@@ -25,7 +24,6 @@ export default function RolesScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const router = useRouter();
-  const { colors } = useColorScheme();
 
   useEffect(() => {
     loadRoles();
@@ -99,16 +97,12 @@ export default function RolesScreen() {
 
         {/* Search */}
         <View className="px-5 pt-3 pb-2">
-          <View className="flex-row items-center gap-2 bg-muted/70 rounded-lg px-3 py-2">
-            <Search size={15} className="text-muted-foreground" />
-            <TextInput
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              placeholder={t('roles.searchPlaceholder')}
-              placeholderTextColor={colors.mutedForeground}
-              className="flex-1 text-[13px] text-foreground"
-            />
-          </View>
+          <Search
+            label={t('roles.searchPlaceholder')}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            onClearText={() => setSearchQuery('')}
+          />
         </View>
 
         {/* Category Chips */}

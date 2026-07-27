@@ -1,9 +1,10 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
-import { View, ScrollView, Pressable, TextInput, RefreshControl } from 'react-native';
+import { View, ScrollView, Pressable, RefreshControl } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
+import { Search } from '@oxyhq/bloom/search';
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
-import { Plus, Search } from 'lucide-react-native';
+import { Plus } from 'lucide-react-native';
 import * as DropdownMenu from '@/components/ui/dropdown-menu';
 import { useLibraryStore, FileCategory } from '@/lib/stores/library-store';
 import { useImagePicker } from '@/lib/hooks/use-image-picker';
@@ -11,7 +12,6 @@ import { useDocumentPicker } from '@/lib/hooks/use-document-picker';
 import { FileCard } from '@/components/file-card';
 import { cn } from '@/lib/utils';
 import { toast } from '@/components/sonner';
-import { useColorScheme } from '@/lib/useColorScheme';
 import { useTranslation } from '@/lib/hooks/use-translation';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -24,7 +24,6 @@ export default function LibraryScreen() {
 
   const { pickImage } = useImagePicker();
   const { pickDocument } = useDocumentPicker();
-  const { colors } = useColorScheme();
   const { t } = useTranslation();
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -153,16 +152,12 @@ export default function LibraryScreen() {
 
       {/* Search */}
       <View className="px-5 pt-3 pb-2">
-        <View className="flex-row items-center gap-2 bg-muted/70 rounded-lg px-3 py-2">
-          <Search size={15} className="text-muted-foreground" />
-          <TextInput
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            placeholder={t('library.searchPlaceholder')}
-            placeholderTextColor={colors.mutedForeground}
-            className="flex-1 text-[13px] text-foreground"
-          />
-        </View>
+        <Search
+          label={t('library.searchPlaceholder')}
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          onClearText={() => setSearchQuery('')}
+        />
       </View>
 
       {/* Category Chips */}
@@ -232,7 +227,7 @@ export default function LibraryScreen() {
         </View>
       )}
     </>
-  ), [t, searchQuery, selectedCategory, categories, filteredFiles, loading, files, colors, handleUploadImage, handleUploadDocument]);
+  ), [t, searchQuery, selectedCategory, categories, filteredFiles, loading, files, handleUploadImage, handleUploadDocument]);
 
   const listEmpty = useMemo(() => {
     if (loading) return null;

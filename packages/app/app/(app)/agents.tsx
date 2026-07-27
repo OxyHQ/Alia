@@ -1,17 +1,17 @@
 import React, { useEffect, useState, useMemo, useCallback } from "react";
-import { View, ScrollView, Pressable, TextInput, RefreshControl } from "react-native";
+import { View, ScrollView, Pressable, RefreshControl } from "react-native";
 import { useIsLargeScreen } from "@/lib/hooks/use-is-large-screen";
 import { FlashList } from "@shopify/flash-list";
+import { Search } from "@oxyhq/bloom/search";
 import { Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
-import { Plus, Search } from "lucide-react-native";
+import { Plus } from "lucide-react-native";
 import { useAgentsStore } from "@/lib/stores/agents-store";
 import { AgentCard } from "@/components/agent-card";
 import { useRouter } from "expo-router";
 import { useTranslation } from "@/lib/hooks/use-translation";
 import { toast } from "@/components/sonner";
 import { cn } from "@/lib/utils";
-import { useColorScheme } from "@/lib/useColorScheme";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export default function AgentsScreen() {
@@ -22,7 +22,6 @@ export default function AgentsScreen() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const router = useRouter();
-  const { colors } = useColorScheme();
   const isLargeScreen = useIsLargeScreen();
   const numColumns = isLargeScreen ? 3 : 2;
 
@@ -115,16 +114,12 @@ export default function AgentsScreen() {
 
   const searchBar = (
     <View className="px-5 pt-3 pb-2">
-      <View className="flex-row items-center gap-2 bg-muted/70 rounded-lg px-3 py-2">
-        <Search size={15} className="text-muted-foreground" />
-        <TextInput
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-          placeholder={t("agents.searchPlaceholder")}
-          placeholderTextColor={colors.mutedForeground}
-          className="flex-1 text-[13px] text-foreground"
-        />
-      </View>
+      <Search
+        label={t("agents.searchPlaceholder")}
+        value={searchQuery}
+        onChangeText={setSearchQuery}
+        onClearText={() => setSearchQuery("")}
+      />
     </View>
   );
 
