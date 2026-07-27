@@ -13,6 +13,7 @@ import { useTranslation } from "@/lib/hooks/use-translation";
 import { toast } from "@oxyhq/bloom/toast";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ContentPanel } from "@oxyhq/bloom/content-panel";
 
 export default function AgentsScreen() {
   const { t } = useTranslation();
@@ -272,18 +273,20 @@ export default function AgentsScreen() {
   }, [loading, t, searchQuery]);
 
   return (
-    <View className="flex-1 bg-background">
-      <FlashList
-        key={numColumns}
-        data={loading && agents.length === 0 ? [] : filteredAgents}
-        numColumns={numColumns}
-        renderItem={renderItem}
-        ListHeaderComponent={listHeader}
-        ListEmptyComponent={listEmpty}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingHorizontal: 14, paddingBottom: 24 }}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-      />
-    </View>
+    <ContentPanel surfaceClassName="bg-background">
+      <View className="flex-1 bg-background">
+        <FlashList
+          key={numColumns}
+          data={loading && agents.length === 0 ? [] : filteredAgents}
+          numColumns={numColumns}
+          renderItem={renderItem}
+          ListHeaderComponent={listHeader}
+          ListEmptyComponent={listEmpty}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingHorizontal: 14, paddingBottom: 24 }}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+        />
+      </View>
+    </ContentPanel>
   );
 }

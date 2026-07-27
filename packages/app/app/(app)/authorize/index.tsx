@@ -15,6 +15,7 @@ import { io as socketIO } from 'socket.io-client';
 import { useTranslation } from '@/lib/hooks/use-translation';
 import { useColorScheme } from '@/lib/useColorScheme';
 import { errorMessage as getErrorMessage } from '@/lib/errors/error-utils';
+import { ContentPanel } from "@oxyhq/bloom/content-panel";
 
 type AppType = string;
 type Status = 'loading' | 'authorize' | 'authorizing' | 'success' | 'error' | 'needLogin';
@@ -263,182 +264,184 @@ export default function AuthorizeScreen() {
   }
 
   return (
-    <>
-      <Head>
-        <title>{t('authorize.authorizeApp', { app: appConfig.displayName })}</title>
-        <meta name="description" content={t('authorize.appWantsAccess', { app: appConfig.displayName })} />
-        <meta name="robots" content="noindex, nofollow" />
-      </Head>
-      <AuthContainer>
-        <AuthLogo />
+    <ContentPanel surfaceClassName="bg-background">
+      <>
+        <Head>
+          <title>{t('authorize.authorizeApp', { app: appConfig.displayName })}</title>
+          <meta name="description" content={t('authorize.appWantsAccess', { app: appConfig.displayName })} />
+          <meta name="robots" content="noindex, nofollow" />
+        </Head>
+        <AuthContainer>
+          <AuthLogo />
 
-        {status === 'authorize' && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-center">{t('authorize.authorizeApp', { app: appConfig.displayName })}</CardTitle>
-              <CardDescription className="text-center">
-                {t('authorize.appWantsAccess', { app: appConfig.displayName })}
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <View className="gap-4">
-                <View className="gap-2">
-                  <Text className="text-sm text-muted-foreground font-medium">
-                    {t('authorize.willAllow', { app: appConfig.displayName })}
-                  </Text>
-                  <View className="gap-2 pl-1">
-                    {appConfig.permissionKeys.map((key, index) => (
-                      <Text key={index} className="text-sm">
-                        • {t(`authorize.${key}`, { app: appConfig.displayName })}
-                      </Text>
-                    ))}
+          {status === 'authorize' && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-center">{t('authorize.authorizeApp', { app: appConfig.displayName })}</CardTitle>
+                <CardDescription className="text-center">
+                  {t('authorize.appWantsAccess', { app: appConfig.displayName })}
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <View className="gap-4">
+                  <View className="gap-2">
+                    <Text className="text-sm text-muted-foreground font-medium">
+                      {t('authorize.willAllow', { app: appConfig.displayName })}
+                    </Text>
+                    <View className="gap-2 pl-1">
+                      {appConfig.permissionKeys.map((key, index) => (
+                        <Text key={index} className="text-sm">
+                          • {t(`authorize.${key}`, { app: appConfig.displayName })}
+                        </Text>
+                      ))}
+                    </View>
+                  </View>
+
+                  <Separator className="my-2" />
+
+                  <View className="gap-3">
+                    <Button onPress={handleOAuthAuthorize} size="lg">
+                      <Text>{t('common.authorize')}</Text>
+                    </Button>
+
+                    <Button onPress={handleCancel} variant="outline" size="lg">
+                      <Text>{t('common.cancel')}</Text>
+                    </Button>
                   </View>
                 </View>
+              </CardContent>
+            </Card>
+          )}
 
-                <Separator className="my-2" />
-
-                <View className="gap-3">
-                  <Button onPress={handleOAuthAuthorize} size="lg">
-                    <Text>{t('common.authorize')}</Text>
-                  </Button>
-
-                  <Button onPress={handleCancel} variant="outline" size="lg">
-                    <Text>{t('common.cancel')}</Text>
-                  </Button>
-                </View>
-              </View>
-            </CardContent>
-          </Card>
-        )}
-
-        {status === 'authorizing' && (
-          <Card>
-            <CardContent>
-              <View className="items-center py-4 gap-3">
-                <ActivityIndicator size="large" color={colors.primary} />
-                <Text className="text-xl font-semibold text-foreground">
-                  {appConfig.isChannel ? t('authorize.linkingAccount') : t('authorize.authorizing')}
-                </Text>
-                <Text className="text-muted-foreground text-center">
-                  {t('authorize.pleaseWait')}
-                </Text>
-              </View>
-            </CardContent>
-          </Card>
-        )}
-
-        {status === 'needLogin' && (
-          <Card>
-            <CardContent>
-              <View className="items-center py-4 gap-3">
-                <Text className="text-4xl">🔐</Text>
-                <View className="gap-2 items-center">
+          {status === 'authorizing' && (
+            <Card>
+              <CardContent>
+                <View className="items-center py-4 gap-3">
+                  <ActivityIndicator size="large" color={colors.primary} />
                   <Text className="text-xl font-semibold text-foreground">
-                    {t('authorize.authRequired')}
+                    {appConfig.isChannel ? t('authorize.linkingAccount') : t('authorize.authorizing')}
                   </Text>
                   <Text className="text-muted-foreground text-center">
-                    {message}
+                    {t('authorize.pleaseWait')}
                   </Text>
                 </View>
-              </View>
-            </CardContent>
-          </Card>
-        )}
+              </CardContent>
+            </Card>
+          )}
 
-        {status === 'success' && (
-          <Card>
-            <CardContent>
-              <View className="items-center py-4 gap-4">
-                <Text className="text-4xl">✅</Text>
-                <View className="gap-2 items-center">
-                  <Text className="text-xl font-semibold text-foreground">
-                    {appConfig.isChannel ? t('authorize.linked') : t('authorize.authorized')}
-                  </Text>
-                  <Text className="text-muted-foreground text-center">
-                    {message}
-                  </Text>
+          {status === 'needLogin' && (
+            <Card>
+              <CardContent>
+                <View className="items-center py-4 gap-3">
+                  <Text className="text-4xl">🔐</Text>
+                  <View className="gap-2 items-center">
+                    <Text className="text-xl font-semibold text-foreground">
+                      {t('authorize.authRequired')}
+                    </Text>
+                    <Text className="text-muted-foreground text-center">
+                      {message}
+                    </Text>
+                  </View>
                 </View>
-                {redirectUrl ? (
-                  <>
+              </CardContent>
+            </Card>
+          )}
+
+          {status === 'success' && (
+            <Card>
+              <CardContent>
+                <View className="items-center py-4 gap-4">
+                  <Text className="text-4xl">✅</Text>
+                  <View className="gap-2 items-center">
+                    <Text className="text-xl font-semibold text-foreground">
+                      {appConfig.isChannel ? t('authorize.linked') : t('authorize.authorized')}
+                    </Text>
+                    <Text className="text-muted-foreground text-center">
+                      {message}
+                    </Text>
+                  </View>
+                  {redirectUrl ? (
+                    <>
+                      <Button
+                        onPress={() => {
+                          if (Platform.OS === 'web') {
+                            const link = document.createElement('a');
+                            link.href = redirectUrl;
+                            link.click();
+                          } else {
+                            Linking.openURL(redirectUrl);
+                          }
+                        }}
+                        size="lg"
+                      >
+                        <Text>{t('authorize.openAppManually')}</Text>
+                      </Button>
+                      <Text className="text-xs text-muted-foreground text-center select-all">
+                        {redirectUrl}
+                      </Text>
+                    </>
+                  ) : appConfig.isChannel ? (
+                    <Text className="text-xs text-muted-foreground text-center">
+                      You can now return to {appConfig.displayName} and start chatting with Alia!
+                    </Text>
+                  ) : (
+                    <Text className="text-xs text-muted-foreground text-center">
+                      If not redirected automatically, you can close this window.
+                    </Text>
+                  )}
+                </View>
+              </CardContent>
+            </Card>
+          )}
+
+          {status === 'error' && (
+            <Card>
+              <CardContent>
+                <View className="items-center py-4 gap-4">
+                  <Text className="text-4xl">❌</Text>
+                  <View className="gap-2 items-center">
+                    <Text className="text-xl font-semibold text-foreground">
+                      {appConfig.isChannel ? 'Link Failed' : 'Authorization Failed'}
+                    </Text>
+                    <Text className="text-muted-foreground text-center">
+                      {message}
+                    </Text>
+                  </View>
+                  {message.includes('expired') ? (
                     <Button
                       onPress={() => {
+                        const botUsername = process.env.EXPO_PUBLIC_TELEGRAM_BOT_USERNAME || 'alia_onlbot';
+                        const botUrl = `https://t.me/${botUsername}?start=link`;
                         if (Platform.OS === 'web') {
-                          const link = document.createElement('a');
-                          link.href = redirectUrl;
-                          link.click();
+                          window.open(botUrl, '_blank');
                         } else {
-                          Linking.openURL(redirectUrl);
+                          Linking.openURL(botUrl);
                         }
                       }}
                       size="lg"
                     >
-                      <Text>{t('authorize.openAppManually')}</Text>
+                      <Text>Request New Link</Text>
                     </Button>
-                    <Text className="text-xs text-muted-foreground text-center select-all">
-                      {redirectUrl}
-                    </Text>
-                  </>
-                ) : appConfig.isChannel ? (
-                  <Text className="text-xs text-muted-foreground text-center">
-                    You can now return to {appConfig.displayName} and start chatting with Alia!
-                  </Text>
-                ) : (
-                  <Text className="text-xs text-muted-foreground text-center">
-                    If not redirected automatically, you can close this window.
-                  </Text>
-                )}
-              </View>
-            </CardContent>
-          </Card>
-        )}
-
-        {status === 'error' && (
-          <Card>
-            <CardContent>
-              <View className="items-center py-4 gap-4">
-                <Text className="text-4xl">❌</Text>
-                <View className="gap-2 items-center">
-                  <Text className="text-xl font-semibold text-foreground">
-                    {appConfig.isChannel ? 'Link Failed' : 'Authorization Failed'}
-                  </Text>
-                  <Text className="text-muted-foreground text-center">
-                    {message}
-                  </Text>
+                  ) : (
+                    <Button
+                      onPress={() => {
+                        if (appConfig.isChannel || channel) {
+                          handleChannelAuth();
+                        } else {
+                          setStatus('authorize');
+                        }
+                      }}
+                      size="lg"
+                    >
+                      <Text>Try Again</Text>
+                    </Button>
+                  )}
                 </View>
-                {message.includes('expired') ? (
-                  <Button
-                    onPress={() => {
-                      const botUsername = process.env.EXPO_PUBLIC_TELEGRAM_BOT_USERNAME || 'alia_onlbot';
-                      const botUrl = `https://t.me/${botUsername}?start=link`;
-                      if (Platform.OS === 'web') {
-                        window.open(botUrl, '_blank');
-                      } else {
-                        Linking.openURL(botUrl);
-                      }
-                    }}
-                    size="lg"
-                  >
-                    <Text>Request New Link</Text>
-                  </Button>
-                ) : (
-                  <Button
-                    onPress={() => {
-                      if (appConfig.isChannel || channel) {
-                        handleChannelAuth();
-                      } else {
-                        setStatus('authorize');
-                      }
-                    }}
-                    size="lg"
-                  >
-                    <Text>Try Again</Text>
-                  </Button>
-                )}
-              </View>
-            </CardContent>
-          </Card>
-        )}
-      </AuthContainer>
-    </>
+              </CardContent>
+            </Card>
+          )}
+        </AuthContainer>
+      </>
+    </ContentPanel>
   );
 }

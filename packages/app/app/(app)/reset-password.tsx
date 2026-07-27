@@ -11,6 +11,7 @@ import apiClient from '@/lib/api/client';
 import { toast } from '@oxyhq/bloom/toast';
 import { useTranslation } from '@/lib/hooks/use-translation';
 import { errorMessage as getErrorMessage } from '@/lib/errors/error-utils';
+import { ContentPanel } from "@oxyhq/bloom/content-panel";
 
 export default function ResetPasswordScreen() {
   const { t } = useTranslation();
@@ -75,56 +76,58 @@ export default function ResetPasswordScreen() {
   };
 
   return (
-    <AuthContainer>
-      <AuthLogo />
+    <ContentPanel surfaceClassName="bg-background">
+      <AuthContainer>
+        <AuthLogo />
 
-      {/* Header */}
-      <View className="space-y-2 mb-6">
-        <Text className="text-3xl font-bold text-foreground tracking-tight">
-          {t('resetPassword.title')}
-        </Text>
-        <Text className="text-base text-muted-foreground">
-          {t('resetPassword.subtitle')}
-        </Text>
-      </View>
+        {/* Header */}
+        <View className="space-y-2 mb-6">
+          <Text className="text-3xl font-bold text-foreground tracking-tight">
+            {t('resetPassword.title')}
+          </Text>
+          <Text className="text-base text-muted-foreground">
+            {t('resetPassword.subtitle')}
+          </Text>
+        </View>
 
-      {/* Form */}
-      <View className="gap-3">
-        <AuthError message={error} />
+        {/* Form */}
+        <View className="gap-3">
+          <AuthError message={error} />
 
-        <AuthInput
-          placeholder={t('resetPassword.newPasswordPlaceholder')}
-          value={password}
-          onChangeText={(text) => {
-            setPassword(text);
-            setError('');
-          }}
-          secureTextEntry
-          editable={!loading && !!token}
-        />
+          <AuthInput
+            placeholder={t('resetPassword.newPasswordPlaceholder')}
+            value={password}
+            onChangeText={(text) => {
+              setPassword(text);
+              setError('');
+            }}
+            secureTextEntry
+            editable={!loading && !!token}
+          />
 
-        <AuthInput
-          placeholder={t('resetPassword.confirmPasswordPlaceholder')}
-          value={confirmPassword}
-          onChangeText={(text) => {
-            setConfirmPassword(text);
-            setError('');
-          }}
-          secureTextEntry
-          editable={!loading && !!token}
-          onSubmitEditing={handleResetPassword}
-        />
+          <AuthInput
+            placeholder={t('resetPassword.confirmPasswordPlaceholder')}
+            value={confirmPassword}
+            onChangeText={(text) => {
+              setConfirmPassword(text);
+              setError('');
+            }}
+            secureTextEntry
+            editable={!loading && !!token}
+            onSubmitEditing={handleResetPassword}
+          />
 
-        <AuthButton
-          onPress={handleResetPassword}
-          disabled={loading || !password || !confirmPassword || !token}
-          isLoading={loading}
-          loadingText={t('resetPassword.resetting')}
-          className="mt-3"
-        >
-          {t('resetPassword.resetButton')}
-        </AuthButton>
-      </View>
-    </AuthContainer>
+          <AuthButton
+            onPress={handleResetPassword}
+            disabled={loading || !password || !confirmPassword || !token}
+            isLoading={loading}
+            loadingText={t('resetPassword.resetting')}
+            className="mt-3"
+          >
+            {t('resetPassword.resetButton')}
+          </AuthButton>
+        </View>
+      </AuthContainer>
+    </ContentPanel>
   );
 }

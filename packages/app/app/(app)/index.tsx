@@ -8,6 +8,7 @@ import { useChatConversation } from "@/lib/hooks/use-chat-conversation";
 import { useCreateConversation } from "@/lib/hooks/use-conversations";
 import { ChatPageContent } from "@/components/chat-page-content";
 import { toast } from "@oxyhq/bloom/toast";
+import { ContentPanel } from "@oxyhq/bloom/content-panel";
 
 const ChatPage = () => {
   const router = useRouter();
@@ -53,30 +54,32 @@ const ChatPage = () => {
   }, [createConversationMutation, router]);
 
   return (
-    <>
-      <Head>
-        <title>Alia \ Oxy</title>
-        <meta name="description" content="Meet Alia, your intelligent AI assistant. Chat naturally, remember everything, and switch between the best AI models seamlessly." />
-        <link rel="canonical" href="https://alia.onl/" />
-        <meta property="og:title" content="Alia \ Oxy" />
-        <meta property="og:description" content="Meet Alia, your intelligent AI assistant. Chat naturally, remember everything, and switch between the best AI models seamlessly." />
-        <meta property="og:image" content="https://alia.onl/og-image-default.png" />
-      </Head>
-      <ChatPageContent
-        messages={messages}
-        scrollViewRef={scrollViewRef}
-        isLoading={isLoading}
-        onSubmit={handleSubmit}
-        onEditMessage={editMessage}
-        onClear={clearConversation}
-        selectedModel={selectedModel}
-        onModelChange={setSelectedModel}
-        activeRole={activeRole}
-        onRemoveRole={() => setActiveRoleId(undefined)}
-        onVoiceStart={handleVoiceStart}
-        acceptsComposerDraft
-      />
-    </>
+    <ContentPanel surfaceClassName="bg-background">
+      <>
+        <Head>
+          <title>Alia \ Oxy</title>
+          <meta name="description" content="Meet Alia, your intelligent AI assistant. Chat naturally, remember everything, and switch between the best AI models seamlessly." />
+          <link rel="canonical" href="https://alia.onl/" />
+          <meta property="og:title" content="Alia \ Oxy" />
+          <meta property="og:description" content="Meet Alia, your intelligent AI assistant. Chat naturally, remember everything, and switch between the best AI models seamlessly." />
+          <meta property="og:image" content="https://alia.onl/og-image-default.png" />
+        </Head>
+        <ChatPageContent
+          messages={messages}
+          scrollViewRef={scrollViewRef}
+          isLoading={isLoading}
+          onSubmit={handleSubmit}
+          onEditMessage={editMessage}
+          onClear={clearConversation}
+          selectedModel={selectedModel}
+          onModelChange={setSelectedModel}
+          activeRole={activeRole}
+          onRemoveRole={() => setActiveRoleId(undefined)}
+          onVoiceStart={handleVoiceStart}
+          acceptsComposerDraft
+        />
+      </>
+    </ContentPanel>
   );
 };
 

@@ -1,43 +1,35 @@
 import React from "react";
-import { View, ScrollView } from "react-native";
+import { ScrollView } from "react-native";
 import { Text } from "@/components/ui/text";
-import { SidebarRow } from "@/components/sidebar/primitives";
-import { useRouter, usePathname } from "expo-router";
+import { SettingsListGroup, SettingsListItem } from "@oxyhq/bloom/settings-list";
+import { useRouter } from "expo-router";
 import { useTranslation } from "@/lib/hooks/use-translation";
-import { SETTINGS_GROUPS, activeSettingsSection } from "@/components/settings/sections";
+import { useColorScheme } from "@/lib/useColorScheme";
+import { SETTINGS_GROUPS } from "@/components/settings/sections";
 
 /** Section column of the two-pane settings layout. Only mounted at `md`+. */
 export const SettingsSidebar = React.memo(function SettingsSidebar() {
   const router = useRouter();
-  const pathname = usePathname();
   const { t } = useTranslation();
-
-  const activeId = React.useMemo(() => activeSettingsSection(pathname), [pathname]);
+  const { colors } = useColorScheme();
 
   return (
-    <ScrollView
-      className="w-60 shrink-0 border-r border-border"
-      contentContainerClassName="p-2 gap-3"
-    >
-      <Text className="text-lg font-bold text-foreground px-2 pt-2">
+    <ScrollView className="flex-1" contentContainerClassName="p-2">
+      <Text className="text-lg font-bold text-foreground px-2 py-2">
         {t("settings.title")}
       </Text>
 
       {SETTINGS_GROUPS.map((group) => (
-        <View key={group.titleKey} className="gap-px">
-          <Text className="text-[11px] font-semibold text-muted-foreground tracking-wider uppercase px-2 pb-1">
-            {t(group.titleKey)}
-          </Text>
-          {group.sections.map((section) => (
-            <SidebarRow
-              key={section.id}
-              icon={section.icon}
-              label={t(section.labelKey)}
-              onPress={() => router.replace(section.route)}
-              active={activeId === section.id}
+        <SettingsListGroup key={group.titleKey} title={t(group.titleKey)}>
+          {group.sections.map(({ id, route, icon: Icon, labelKey }) => (
+            <SettingsListItem
+              key={id}
+              icon={<Icon size={18} color={colors.mutedForeground} />}
+              title={t(labelKey)}
+              onPress={() => router.replace(route)}
             />
           ))}
-        </View>
+        </SettingsListGroup>
       ))}
     </ScrollView>
   );

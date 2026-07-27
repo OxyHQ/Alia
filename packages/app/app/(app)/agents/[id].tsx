@@ -33,6 +33,7 @@ import { cn } from "@/lib/utils";
 import { useCreateConversation } from "@/lib/hooks/use-conversations";
 import { useAgentFavoritesStore } from "@/lib/stores/agent-favorites-store";
 import { errorMessage as getErrorMessage, errorStatus, errorResponseData } from "@/lib/errors/error-utils";
+import { ContentPanel } from "@oxyhq/bloom/content-panel";
 
 const STATUS_COLORS: Record<string, string> = {
   active: "bg-green-500",
@@ -53,17 +54,19 @@ function formatCount(n: number): string {
 
 function StarRatingInput({ value, onChange }: { value: number; onChange: (v: number) => void }) {
   return (
-    <View className="flex-row gap-1">
-      {[1, 2, 3, 4, 5].map((star) => (
-        <Pressable key={star} onPress={() => onChange(star)} className="p-0.5">
-          <Star
-            size={20}
-            className={star <= value ? "text-amber-500" : "text-muted-foreground/30"}
-            fill={star <= value ? "#f59e0b" : "transparent"}
-          />
-        </Pressable>
-      ))}
-    </View>
+    <ContentPanel surfaceClassName="bg-background">
+      <View className="flex-row gap-1">
+        {[1, 2, 3, 4, 5].map((star) => (
+          <Pressable key={star} onPress={() => onChange(star)} className="p-0.5">
+            <Star
+              size={20}
+              className={star <= value ? "text-amber-500" : "text-muted-foreground/30"}
+              fill={star <= value ? "#f59e0b" : "transparent"}
+            />
+          </Pressable>
+        ))}
+      </View>
+    </ContentPanel>
   );
 }
 

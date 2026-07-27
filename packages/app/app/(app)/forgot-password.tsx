@@ -10,6 +10,7 @@ import apiClient from '@/lib/api/client';
 import { toast } from '@oxyhq/bloom/toast';
 import { useTranslation } from '@/lib/hooks/use-translation';
 import { errorMessage as getErrorMessage } from '@/lib/errors/error-utils';
+import { ContentPanel } from "@oxyhq/bloom/content-panel";
 
 export default function ForgotPasswordScreen() {
   const { t } = useTranslation();
@@ -49,78 +50,80 @@ export default function ForgotPasswordScreen() {
   };
 
   return (
-    <AuthContainer>
-      <AuthLogo />
+    <ContentPanel surfaceClassName="bg-background">
+      <AuthContainer>
+        <AuthLogo />
 
-      {sent ? (
-            // Success State
-            <View className="items-center">
-              <Text className="text-2xl font-bold text-foreground tracking-tight mb-2 text-center">
-                {t('forgotPassword.checkEmail')}
-              </Text>
-              <Text className="text-sm text-muted-foreground text-center mb-6 leading-5">
-                {t('forgotPassword.sentInstructions')}{'\n'}
-                <Text className="font-medium text-foreground">{email}</Text>
-              </Text>
-              <AuthButton
-                onPress={() => router.back()}
-                className="w-full"
-              >
-                {t('forgotPassword.returnToSignIn')}
-              </AuthButton>
-              <Pressable
-                onPress={() => {
-                  setSent(false);
-                  setEmail('');
-                }}
-                className="mt-4"
-              >
-                <Text className="text-primary text-sm font-medium">
-                  {t('forgotPassword.tryAnotherEmail')}
+        {sent ? (
+              // Success State
+              <View className="items-center">
+                <Text className="text-2xl font-bold text-foreground tracking-tight mb-2 text-center">
+                  {t('forgotPassword.checkEmail')}
                 </Text>
-              </Pressable>
+                <Text className="text-sm text-muted-foreground text-center mb-6 leading-5">
+                  {t('forgotPassword.sentInstructions')}{'\n'}
+                  <Text className="font-medium text-foreground">{email}</Text>
+                </Text>
+                <AuthButton
+                  onPress={() => router.back()}
+                  className="w-full"
+                >
+                  {t('forgotPassword.returnToSignIn')}
+                </AuthButton>
+                <Pressable
+                  onPress={() => {
+                    setSent(false);
+                    setEmail('');
+                  }}
+                  className="mt-4"
+                >
+                  <Text className="text-primary text-sm font-medium">
+                    {t('forgotPassword.tryAnotherEmail')}
+                  </Text>
+                </Pressable>
+              </View>
+        ) : (
+          // Form State
+          <>
+            <View className="space-y-2 mb-6">
+              <Text className="text-3xl font-bold text-foreground tracking-tight">
+                {t('forgotPassword.title')}
+              </Text>
+              <Text className="text-base text-muted-foreground">
+                {t('forgotPassword.subtitle')}
+              </Text>
             </View>
-      ) : (
-        // Form State
-        <>
-          <View className="space-y-2 mb-6">
-            <Text className="text-3xl font-bold text-foreground tracking-tight">
-              {t('forgotPassword.title')}
-            </Text>
-            <Text className="text-base text-muted-foreground">
-              {t('forgotPassword.subtitle')}
-            </Text>
-          </View>
 
-          <View className="gap-3">
-            <AuthError message={error} />
+            <View className="gap-3">
+              <AuthError message={error} />
 
-            <AuthInput
-              placeholder={t('forgotPassword.emailPlaceholder')}
-              value={email}
-              onChangeText={(text) => {
-                setEmail(text);
-                setError('');
-              }}
-              autoCapitalize="none"
-              keyboardType="email-address"
-              editable={!loading}
-              onSubmitEditing={handleResetPassword}
-            />
+              <AuthInput
+                placeholder={t('forgotPassword.emailPlaceholder')}
+                value={email}
+                onChangeText={(text) => {
+                  setEmail(text);
+                  setError('');
+                }}
+                autoCapitalize="none"
+                keyboardType="email-address"
+                editable={!loading}
+                onSubmitEditing={handleResetPassword}
+              />
 
-            <AuthButton
-              onPress={handleResetPassword}
-              disabled={loading || !email}
-              isLoading={loading}
-              loadingText={t('forgotPassword.sending')}
-              className="mt-3"
-            >
-              {t('common.continue')}
-            </AuthButton>
-          </View>
-        </>
-      )}
+              <AuthButton
+                onPress={handleResetPassword}
+                disabled={loading || !email}
+                isLoading={loading}
+                loadingText={t('forgotPassword.sending')}
+                className="mt-3"
+              >
+                {t('common.continue')}
+              </AuthButton>
+            </View>
+          </>
+        )}
 
-    </AuthContainer>
+      </AuthContainer>
+    </ContentPanel>
   );
 }

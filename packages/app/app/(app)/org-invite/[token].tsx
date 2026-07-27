@@ -9,6 +9,7 @@ import { AuthLogo } from '@/components/auth/auth-logo';
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
 import { useOrgInviteInfo, useAcceptOrgInvite } from '@/lib/hooks/use-organization-invites';
+import { ContentPanel } from "@oxyhq/bloom/content-panel";
 
 export default function OrgInviteScreen() {
   const { token } = useLocalSearchParams<{ token: string }>();
@@ -162,52 +163,54 @@ export default function OrgInviteScreen() {
 
   // Not authenticated: prompt to sign in
   return (
-    <>
-      <Head>
-        <title>Join {orgName} - Alia</title>
-        <meta name="description" content={`Sign in to join ${orgName} on Alia.`} />
-      </Head>
-      <AuthContainer>
-        <View className="items-center gap-6">
-          <View className="h-20 w-20 items-center justify-center rounded-full bg-primary/10">
-            <Users size={40} className="text-primary" />
+    <ContentPanel surfaceClassName="bg-background">
+      <>
+        <Head>
+          <title>Join {orgName} - Alia</title>
+          <meta name="description" content={`Sign in to join ${orgName} on Alia.`} />
+        </Head>
+        <AuthContainer>
+          <View className="items-center gap-6">
+            <View className="h-20 w-20 items-center justify-center rounded-full bg-primary/10">
+              <Users size={40} className="text-primary" />
+            </View>
+
+            <Text className="text-2xl font-bold text-foreground text-center">
+              Join {orgName}
+            </Text>
+            <Text className="text-base text-muted-foreground text-center">
+              Sign in or create an account to join {orgName} as a {role}.
+            </Text>
+
+            <View className="w-full gap-3">
+              <Button
+                onPress={() => signIn().catch(() => {})}
+                className="w-full h-12 rounded-full"
+              >
+                <View className="flex-row items-center gap-2">
+                  <Text className="text-base font-semibold text-primary-foreground">
+                    Sign up & join
+                  </Text>
+                  <Users size={18} className="text-primary-foreground" />
+                </View>
+              </Button>
+
+              <Button
+                variant="outline"
+                onPress={() => signIn().catch(() => {})}
+                className="w-full h-12 rounded-full"
+              >
+                <View className="flex-row items-center gap-2">
+                  <LogIn size={18} className="text-foreground" />
+                  <Text className="text-base font-medium text-foreground">
+                    Already have an account? Sign in
+                  </Text>
+                </View>
+              </Button>
+            </View>
           </View>
-
-          <Text className="text-2xl font-bold text-foreground text-center">
-            Join {orgName}
-          </Text>
-          <Text className="text-base text-muted-foreground text-center">
-            Sign in or create an account to join {orgName} as a {role}.
-          </Text>
-
-          <View className="w-full gap-3">
-            <Button
-              onPress={() => signIn().catch(() => {})}
-              className="w-full h-12 rounded-full"
-            >
-              <View className="flex-row items-center gap-2">
-                <Text className="text-base font-semibold text-primary-foreground">
-                  Sign up & join
-                </Text>
-                <Users size={18} className="text-primary-foreground" />
-              </View>
-            </Button>
-
-            <Button
-              variant="outline"
-              onPress={() => signIn().catch(() => {})}
-              className="w-full h-12 rounded-full"
-            >
-              <View className="flex-row items-center gap-2">
-                <LogIn size={18} className="text-foreground" />
-                <Text className="text-base font-medium text-foreground">
-                  Already have an account? Sign in
-                </Text>
-              </View>
-            </Button>
-          </View>
-        </View>
-      </AuthContainer>
-    </>
+        </AuthContainer>
+      </>
+    </ContentPanel>
   );
 }

@@ -8,6 +8,7 @@ import { useActiveTasks, useTaskHistory, type TaskSession } from '@/lib/hooks/us
 import { useAgentActivity } from '@/lib/hooks/use-agent-activity';
 import { TaskCard } from '@/components/tasks/task-card';
 import { useRouter } from 'expo-router';
+import { ContentPanel } from "@oxyhq/bloom/content-panel";
 
 type Tab = 'active' | 'history';
 
@@ -89,59 +90,61 @@ export default function TasksPage() {
   ) : null;
 
   return (
-    <View className="flex-1 bg-background">
-      {/* Header */}
-      <View className="px-5 pt-4 pb-2 border-b border-border">
-        <View className="flex-row items-center gap-2 mb-3">
-          <ListTodo size={20} color={colors.foreground} />
-          <Text className="text-lg font-semibold text-foreground">Tasks</Text>
-          {activeCount > 0 && (
-            <View className="bg-primary rounded-full px-2 py-0.5 ml-1">
-              <Text className="text-[10px] font-medium text-primary-foreground">
-                {activeCount} active
+    <ContentPanel surfaceClassName="bg-background">
+      <View className="flex-1 bg-background">
+        {/* Header */}
+        <View className="px-5 pt-4 pb-2 border-b border-border">
+          <View className="flex-row items-center gap-2 mb-3">
+            <ListTodo size={20} color={colors.foreground} />
+            <Text className="text-lg font-semibold text-foreground">Tasks</Text>
+            {activeCount > 0 && (
+              <View className="bg-primary rounded-full px-2 py-0.5 ml-1">
+                <Text className="text-[10px] font-medium text-primary-foreground">
+                  {activeCount} active
+                </Text>
+              </View>
+            )}
+          </View>
+
+          {/* Tabs */}
+          <View className="flex-row gap-2">
+            <Button
+              variant={tab === 'active' ? 'default' : 'outline'}
+              size="sm"
+              className="rounded-full"
+              onPress={() => setTab('active')}
+            >
+              <Text className={tab === 'active' ? 'text-primary-foreground text-xs' : 'text-foreground text-xs'}>
+                Active
               </Text>
-            </View>
-          )}
+            </Button>
+            <Button
+              variant={tab === 'history' ? 'default' : 'outline'}
+              size="sm"
+              className="rounded-full"
+              onPress={() => setTab('history')}
+            >
+              <Text className={tab === 'history' ? 'text-primary-foreground text-xs' : 'text-foreground text-xs'}>
+                History
+              </Text>
+            </Button>
+          </View>
         </View>
 
-        {/* Tabs */}
-        <View className="flex-row gap-2">
-          <Button
-            variant={tab === 'active' ? 'default' : 'outline'}
-            size="sm"
-            className="rounded-full"
-            onPress={() => setTab('active')}
-          >
-            <Text className={tab === 'active' ? 'text-primary-foreground text-xs' : 'text-foreground text-xs'}>
-              Active
-            </Text>
-          </Button>
-          <Button
-            variant={tab === 'history' ? 'default' : 'outline'}
-            size="sm"
-            className="rounded-full"
-            onPress={() => setTab('history')}
-          >
-            <Text className={tab === 'history' ? 'text-primary-foreground text-xs' : 'text-foreground text-xs'}>
-              History
-            </Text>
-          </Button>
-        </View>
+        {/* Task Timeline */}
+        <FlatList
+          data={sessions}
+          keyExtractor={keyExtractor}
+          renderItem={tab === 'active' ? renderActiveItem : renderHistoryItem}
+          ItemSeparatorComponent={TaskSeparator}
+          contentContainerStyle={{ paddingHorizontal: 20, paddingVertical: 24 }}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          }
+          ListEmptyComponent={ListEmpty}
+          ListFooterComponent={ListFooter}
+        />
       </View>
-
-      {/* Task Timeline */}
-      <FlatList
-        data={sessions}
-        keyExtractor={keyExtractor}
-        renderItem={tab === 'active' ? renderActiveItem : renderHistoryItem}
-        ItemSeparatorComponent={TaskSeparator}
-        contentContainerStyle={{ paddingHorizontal: 20, paddingVertical: 24 }}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
-        ListEmptyComponent={ListEmpty}
-        ListFooterComponent={ListFooter}
-      />
-    </View>
+    </ContentPanel>
   );
 }

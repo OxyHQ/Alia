@@ -21,6 +21,7 @@ import { useTranslation } from '@/lib/hooks/use-translation';
 import apiClient from '@/lib/api/client';
 import { API_ROUTES } from '@/lib/api/routes';
 import { errorMessage as getErrorMessage } from '@/lib/errors/error-utils';
+import { ContentPanel } from "@oxyhq/bloom/content-panel";
 
 interface TriggerRecord {
   _id: string;
@@ -344,317 +345,319 @@ export default function AutomationsScreen() {
   const hasAutomations = automations.length > 0;
 
   return (
-    <View className="flex-1 bg-background">
-      <ScrollView className="flex-1">
-        {/* Hero Section */}
-        <View className="items-center px-6 py-16">
-          <CloudCog size={48} className="text-foreground mb-4" />
-          <Text className="text-3xl font-bold text-foreground mb-2 text-center">
-            {t('automations.title')}
-          </Text>
-          <Text className="text-base text-muted-foreground text-center max-w-md">
-            {t('automations.subtitle')}
-          </Text>
-        </View>
-
-        {/* User's Automations */}
-        {loading ? (
-          <View className="items-center py-8">
-            <ActivityIndicator size="small" color={colors.mutedForeground} />
+    <ContentPanel surfaceClassName="bg-background">
+      <View className="flex-1 bg-background">
+        <ScrollView className="flex-1">
+          {/* Hero Section */}
+          <View className="items-center px-6 py-16">
+            <CloudCog size={48} className="text-foreground mb-4" />
+            <Text className="text-3xl font-bold text-foreground mb-2 text-center">
+              {t('automations.title')}
+            </Text>
+            <Text className="text-base text-muted-foreground text-center max-w-md">
+              {t('automations.subtitle')}
+            </Text>
           </View>
-        ) : hasAutomations ? (
-          <View className="px-6 pb-6">
-            <View className="flex-row items-center justify-between mb-4">
-              <Text className="text-lg font-semibold text-foreground">
-                Your Automations
-              </Text>
-              <Text className="text-sm text-muted-foreground">
-                {automations.length} total
-              </Text>
+
+          {/* User's Automations */}
+          {loading ? (
+            <View className="items-center py-8">
+              <ActivityIndicator size="small" color={colors.mutedForeground} />
             </View>
+          ) : hasAutomations ? (
+            <View className="px-6 pb-6">
+              <View className="flex-row items-center justify-between mb-4">
+                <Text className="text-lg font-semibold text-foreground">
+                  Your Automations
+                </Text>
+                <Text className="text-sm text-muted-foreground">
+                  {automations.length} total
+                </Text>
+              </View>
 
-            <View className="gap-3 max-w-3xl mx-auto">
-              {automations.map((automation) => {
-                const isRunning = runningIds.has(automation._id);
-                return (
-                  <View
-                    key={automation._id}
-                    className="rounded-2xl bg-surface border border-border p-4"
-                  >
-                    {/* Header row: name + enabled toggle */}
-                    <View className="flex-row items-center justify-between mb-2">
-                      <View className="flex-1 mr-3">
-                        <Text className="text-base font-semibold text-foreground" numberOfLines={1}>
-                          {automation.name}
-                        </Text>
+              <View className="gap-3 max-w-3xl mx-auto">
+                {automations.map((automation) => {
+                  const isRunning = runningIds.has(automation._id);
+                  return (
+                    <View
+                      key={automation._id}
+                      className="rounded-2xl bg-surface border border-border p-4"
+                    >
+                      {/* Header row: name + enabled toggle */}
+                      <View className="flex-row items-center justify-between mb-2">
+                        <View className="flex-1 mr-3">
+                          <Text className="text-base font-semibold text-foreground" numberOfLines={1}>
+                            {automation.name}
+                          </Text>
+                        </View>
+                        <Switch
+                          value={automation.enabled}
+                          onValueChange={() => handleToggleEnabled(automation)}
+                        />
                       </View>
-                      <Switch
-                        value={automation.enabled}
-                        onValueChange={() => handleToggleEnabled(automation)}
-                      />
-                    </View>
 
-                    {/* Prompt snippet */}
-                    <Text className="text-sm text-muted-foreground mb-3" numberOfLines={2}>
-                      {automation.prompt}
-                    </Text>
-
-                    {/* Schedule info */}
-                    <View className="flex-row items-center mb-3">
-                      <Clock size={14} className="text-muted-foreground mr-1.5" />
-                      <Text className="text-xs text-muted-foreground">
-                        {formatSchedule(automation.schedule)}
+                      {/* Prompt snippet */}
+                      <Text className="text-sm text-muted-foreground mb-3" numberOfLines={2}>
+                        {automation.prompt}
                       </Text>
-                      {automation.runCount > 0 && (
-                        <Text className="text-xs text-muted-foreground ml-3">
-                          {automation.runCount} runs
+
+                      {/* Schedule info */}
+                      <View className="flex-row items-center mb-3">
+                        <Clock size={14} className="text-muted-foreground mr-1.5" />
+                        <Text className="text-xs text-muted-foreground">
+                          {formatSchedule(automation.schedule)}
                         </Text>
-                      )}
-                      {automation.lastRunStatus && (
-                        <View
-                          className={`ml-3 px-2 py-0.5 rounded-full ${
-                            automation.lastRunStatus === 'success'
-                              ? 'bg-green-500/10'
-                              : automation.lastRunStatus === 'failed'
-                              ? 'bg-red-500/10'
-                              : 'bg-yellow-500/10'
-                          }`}
-                        >
-                          <Text
-                            className={`text-xs ${
+                        {automation.runCount > 0 && (
+                          <Text className="text-xs text-muted-foreground ml-3">
+                            {automation.runCount} runs
+                          </Text>
+                        )}
+                        {automation.lastRunStatus && (
+                          <View
+                            className={`ml-3 px-2 py-0.5 rounded-full ${
                               automation.lastRunStatus === 'success'
-                                ? 'text-green-600'
+                                ? 'bg-green-500/10'
                                 : automation.lastRunStatus === 'failed'
-                                ? 'text-red-600'
-                                : 'text-yellow-600'
+                                ? 'bg-red-500/10'
+                                : 'bg-yellow-500/10'
                             }`}
                           >
-                            {automation.lastRunStatus}
+                            <Text
+                              className={`text-xs ${
+                                automation.lastRunStatus === 'success'
+                                  ? 'text-green-600'
+                                  : automation.lastRunStatus === 'failed'
+                                  ? 'text-red-600'
+                                  : 'text-yellow-600'
+                              }`}
+                            >
+                              {automation.lastRunStatus}
+                            </Text>
+                          </View>
+                        )}
+                      </View>
+
+                      {/* Action buttons */}
+                      <View className="flex-row items-center gap-2">
+                        <Pressable
+                          onPress={() => handleRunNow(automation)}
+                          disabled={isRunning}
+                          className="flex-row items-center px-3 py-1.5 rounded-lg bg-primary/10 active:bg-primary/20"
+                        >
+                          {isRunning ? (
+                            <ActivityIndicator size="small" color={colors.primary} />
+                          ) : (
+                            <Play size={14} className="text-primary mr-1.5" />
+                          )}
+                          <Text className="text-xs font-medium text-primary">
+                            {isRunning ? 'Running...' : 'Run Now'}
+                          </Text>
+                        </Pressable>
+
+                        <Pressable
+                          onPress={() => handleDelete(automation)}
+                          className="flex-row items-center px-3 py-1.5 rounded-lg active:bg-destructive/10"
+                        >
+                          <Trash2 size={14} className="text-destructive" />
+                        </Pressable>
+                      </View>
+
+                      {/* Last run result (if available) */}
+                      {automation.lastRunResult && (
+                        <View className="mt-3 p-3 rounded-lg bg-muted">
+                          <Text className="text-xs text-muted-foreground mb-1">Last result:</Text>
+                          <Text className="text-xs text-foreground" numberOfLines={3}>
+                            {automation.lastRunResult}
                           </Text>
                         </View>
                       )}
                     </View>
-
-                    {/* Action buttons */}
-                    <View className="flex-row items-center gap-2">
-                      <Pressable
-                        onPress={() => handleRunNow(automation)}
-                        disabled={isRunning}
-                        className="flex-row items-center px-3 py-1.5 rounded-lg bg-primary/10 active:bg-primary/20"
-                      >
-                        {isRunning ? (
-                          <ActivityIndicator size="small" color={colors.primary} />
-                        ) : (
-                          <Play size={14} className="text-primary mr-1.5" />
-                        )}
-                        <Text className="text-xs font-medium text-primary">
-                          {isRunning ? 'Running...' : 'Run Now'}
-                        </Text>
-                      </Pressable>
-
-                      <Pressable
-                        onPress={() => handleDelete(automation)}
-                        className="flex-row items-center px-3 py-1.5 rounded-lg active:bg-destructive/10"
-                      >
-                        <Trash2 size={14} className="text-destructive" />
-                      </Pressable>
-                    </View>
-
-                    {/* Last run result (if available) */}
-                    {automation.lastRunResult && (
-                      <View className="mt-3 p-3 rounded-lg bg-muted">
-                        <Text className="text-xs text-muted-foreground mb-1">Last result:</Text>
-                        <Text className="text-xs text-foreground" numberOfLines={3}>
-                          {automation.lastRunResult}
-                        </Text>
-                      </View>
-                    )}
-                  </View>
-                );
-              })}
-            </View>
-
-            {/* Suggestions header when user has automations */}
-            <View className="mt-8 mb-4">
-              <Text className="text-lg font-semibold text-foreground">
-                Suggestions
-              </Text>
-            </View>
-          </View>
-        ) : null}
-
-        {/* Automation Cards Grid (Suggestions) */}
-        <View className="px-6 pb-6">
-          <View className="flex-row flex-wrap gap-3 max-w-3xl mx-auto">
-            {(expanded ? [...INITIAL_SUGGESTIONS, ...MORE_SUGGESTIONS] : INITIAL_SUGGESTIONS).map((item, index) => (
-              <Pressable
-                key={index}
-                onPress={() => handleCardPress(item.description)}
-                className="w-[48%] md:w-[31%] rounded-2xl bg-surface border border-border p-4 active:bg-muted/50"
-              >
-                <Text className="text-2xl mb-3">{item.emoji}</Text>
-                <Text className="text-sm text-foreground leading-5">
-                  {item.description}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
-
-          {/* Explore More */}
-          {!expanded && (
-            <View className="items-center mt-6">
-              <Pressable className="active:opacity-70" onPress={() => setExpanded(true)}>
-                <Text className="text-sm text-muted-foreground">
-                  {t('automations.exploreMore')}
-                </Text>
-              </Pressable>
-            </View>
-          )}
-        </View>
-      </ScrollView>
-
-      {/* Floating Add Button */}
-      <View className="absolute top-4 right-4">
-        <Button
-          variant="default"
-          size="icon"
-          className="rounded-full h-10 w-10"
-          onPress={handleCreatePress}
-        >
-          <Plus size={20} className="text-primary-foreground" />
-        </Button>
-      </View>
-
-      {/* Create Automation Dialog */}
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent closeButton={false}>
-          <DialogHeader>
-            <DialogTitle>{t('automations.createAutomation')}</DialogTitle>
-          </DialogHeader>
-
-          <View className="gap-5">
-            {/* Name Field */}
-            <View className="gap-2">
-              <Label>{t('automations.name')}</Label>
-              <Input
-                value={name}
-                onChangeText={setName}
-                placeholder={t('automations.namePlaceholder')}
-                placeholderTextColor={colors.mutedForeground}
-              />
-            </View>
-
-
-            {/* Prompt Field */}
-            <View className="gap-2">
-              <Label>{t('automations.prompt')}</Label>
-              <Textarea
-                value={prompt}
-                onChangeText={setPrompt}
-                placeholder={t('automations.promptPlaceholder')}
-                placeholderTextColor={colors.mutedForeground}
-              />
-            </View>
-
-            {/* Schedule Section */}
-            <View className="gap-3">
-              <View className="flex-row items-center justify-between">
-                <Label>{t('automations.schedule')}</Label>
-                <ToggleGroup
-                  type="single"
-                  value={scheduleType}
-                  onValueChange={(val) => {
-                    if (typeof val === 'string' && val) setScheduleType(val);
-                  }}
-                  className="gap-0 rounded-lg border border-border overflow-hidden"
-                >
-                  <ToggleGroupItem
-                    value="daily"
-                    className="rounded-none border-0 px-3 py-1.5"
-                    activeClassName="bg-foreground"
-                    activeTextClassName="text-background"
-                  >
-                    {t('automations.daily')}
-                  </ToggleGroupItem>
-                  <ToggleGroupItem
-                    value="interval"
-                    className="rounded-none border-0 px-3 py-1.5"
-                    activeClassName="bg-foreground"
-                    activeTextClassName="text-background"
-                  >
-                    {t('automations.interval')}
-                  </ToggleGroupItem>
-                </ToggleGroup>
+                  );
+                })}
               </View>
 
-              {/* Time & Days Row */}
-              <View className="rounded-xl bg-muted p-4 gap-3">
-                <View className="flex-row items-center gap-3">
-                  {/* Time Input */}
-                  <View className="flex-1 flex-row items-center rounded-xl bg-background border border-input px-3.5 h-11">
-                    <Text className="flex-1 text-sm text-foreground">
-                      {time}
-                    </Text>
-                    <Clock size={16} className="text-muted-foreground" />
-                  </View>
+              {/* Suggestions header when user has automations */}
+              <View className="mt-8 mb-4">
+                <Text className="text-lg font-semibold text-foreground">
+                  Suggestions
+                </Text>
+              </View>
+            </View>
+          ) : null}
 
-                  {/* Days of Week */}
-                  <View className="flex-row gap-1.5">
-                    {DAYS_OF_WEEK.map((day) => {
-                      const isSelected = selectedDays.includes(day.value);
-                      return (
-                        <Pressable
-                          key={day.value}
-                          onPress={() => {
-                            setSelectedDays((prev) =>
-                              prev.includes(day.value)
-                                ? prev.filter((d) => d !== day.value)
-                                : [...prev, day.value]
-                            );
-                          }}
-                          className="active:opacity-70"
-                        >
-                          <View
-                            className={`w-9 h-9 rounded-full items-center justify-center ${
-                              isSelected
-                                ? 'bg-foreground'
-                                : 'bg-background border border-border'
-                            }`}
+          {/* Automation Cards Grid (Suggestions) */}
+          <View className="px-6 pb-6">
+            <View className="flex-row flex-wrap gap-3 max-w-3xl mx-auto">
+              {(expanded ? [...INITIAL_SUGGESTIONS, ...MORE_SUGGESTIONS] : INITIAL_SUGGESTIONS).map((item, index) => (
+                <Pressable
+                  key={index}
+                  onPress={() => handleCardPress(item.description)}
+                  className="w-[48%] md:w-[31%] rounded-2xl bg-surface border border-border p-4 active:bg-muted/50"
+                >
+                  <Text className="text-2xl mb-3">{item.emoji}</Text>
+                  <Text className="text-sm text-foreground leading-5">
+                    {item.description}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+
+            {/* Explore More */}
+            {!expanded && (
+              <View className="items-center mt-6">
+                <Pressable className="active:opacity-70" onPress={() => setExpanded(true)}>
+                  <Text className="text-sm text-muted-foreground">
+                    {t('automations.exploreMore')}
+                  </Text>
+                </Pressable>
+              </View>
+            )}
+          </View>
+        </ScrollView>
+
+        {/* Floating Add Button */}
+        <View className="absolute top-4 right-4">
+          <Button
+            variant="default"
+            size="icon"
+            className="rounded-full h-10 w-10"
+            onPress={handleCreatePress}
+          >
+            <Plus size={20} className="text-primary-foreground" />
+          </Button>
+        </View>
+
+        {/* Create Automation Dialog */}
+        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+          <DialogContent closeButton={false}>
+            <DialogHeader>
+              <DialogTitle>{t('automations.createAutomation')}</DialogTitle>
+            </DialogHeader>
+
+            <View className="gap-5">
+              {/* Name Field */}
+              <View className="gap-2">
+                <Label>{t('automations.name')}</Label>
+                <Input
+                  value={name}
+                  onChangeText={setName}
+                  placeholder={t('automations.namePlaceholder')}
+                  placeholderTextColor={colors.mutedForeground}
+                />
+              </View>
+
+
+              {/* Prompt Field */}
+              <View className="gap-2">
+                <Label>{t('automations.prompt')}</Label>
+                <Textarea
+                  value={prompt}
+                  onChangeText={setPrompt}
+                  placeholder={t('automations.promptPlaceholder')}
+                  placeholderTextColor={colors.mutedForeground}
+                />
+              </View>
+
+              {/* Schedule Section */}
+              <View className="gap-3">
+                <View className="flex-row items-center justify-between">
+                  <Label>{t('automations.schedule')}</Label>
+                  <ToggleGroup
+                    type="single"
+                    value={scheduleType}
+                    onValueChange={(val) => {
+                      if (typeof val === 'string' && val) setScheduleType(val);
+                    }}
+                    className="gap-0 rounded-lg border border-border overflow-hidden"
+                  >
+                    <ToggleGroupItem
+                      value="daily"
+                      className="rounded-none border-0 px-3 py-1.5"
+                      activeClassName="bg-foreground"
+                      activeTextClassName="text-background"
+                    >
+                      {t('automations.daily')}
+                    </ToggleGroupItem>
+                    <ToggleGroupItem
+                      value="interval"
+                      className="rounded-none border-0 px-3 py-1.5"
+                      activeClassName="bg-foreground"
+                      activeTextClassName="text-background"
+                    >
+                      {t('automations.interval')}
+                    </ToggleGroupItem>
+                  </ToggleGroup>
+                </View>
+
+                {/* Time & Days Row */}
+                <View className="rounded-xl bg-muted p-4 gap-3">
+                  <View className="flex-row items-center gap-3">
+                    {/* Time Input */}
+                    <View className="flex-1 flex-row items-center rounded-xl bg-background border border-input px-3.5 h-11">
+                      <Text className="flex-1 text-sm text-foreground">
+                        {time}
+                      </Text>
+                      <Clock size={16} className="text-muted-foreground" />
+                    </View>
+
+                    {/* Days of Week */}
+                    <View className="flex-row gap-1.5">
+                      {DAYS_OF_WEEK.map((day) => {
+                        const isSelected = selectedDays.includes(day.value);
+                        return (
+                          <Pressable
+                            key={day.value}
+                            onPress={() => {
+                              setSelectedDays((prev) =>
+                                prev.includes(day.value)
+                                  ? prev.filter((d) => d !== day.value)
+                                  : [...prev, day.value]
+                              );
+                            }}
+                            className="active:opacity-70"
                           >
-                            <Text
-                              className={`text-xs font-medium ${
+                            <View
+                              className={`w-9 h-9 rounded-full items-center justify-center ${
                                 isSelected
-                                  ? 'text-background'
-                                  : 'text-foreground'
+                                  ? 'bg-foreground'
+                                  : 'bg-background border border-border'
                               }`}
                             >
-                              {day.label}
-                            </Text>
-                          </View>
-                        </Pressable>
-                      );
-                    })}
+                              <Text
+                                className={`text-xs font-medium ${
+                                  isSelected
+                                    ? 'text-background'
+                                    : 'text-foreground'
+                                }`}
+                              >
+                                {day.label}
+                              </Text>
+                            </View>
+                          </Pressable>
+                        );
+                      })}
+                    </View>
                   </View>
                 </View>
               </View>
             </View>
-          </View>
 
-          <DialogFooter className="justify-end">
-            <Button
-              variant="ghost"
-              onPress={() => setDialogOpen(false)}
-            >
-              <Text className="text-sm text-muted-foreground">{t('common.cancel')}</Text>
-            </Button>
-            <Button onPress={handleCreate} disabled={creating}>
-              <Text className="text-sm font-medium text-primary-foreground">
-                {creating ? 'Creating...' : t('common.create')}
-              </Text>
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </View>
+            <DialogFooter className="justify-end">
+              <Button
+                variant="ghost"
+                onPress={() => setDialogOpen(false)}
+              >
+                <Text className="text-sm text-muted-foreground">{t('common.cancel')}</Text>
+              </Button>
+              <Button onPress={handleCreate} disabled={creating}>
+                <Text className="text-sm font-medium text-primary-foreground">
+                  {creating ? 'Creating...' : t('common.create')}
+                </Text>
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </View>
+    </ContentPanel>
   );
 }

@@ -10,6 +10,7 @@ import { toast } from '@oxyhq/bloom/toast';
 import apiClient from '@/lib/api/client';
 import { API_ROUTES } from '@/lib/api/routes';
 import { errorMessage as getErrorMessage } from '@/lib/errors/error-utils';
+import { ContentPanel } from "@oxyhq/bloom/content-panel";
 
 export default function CreateSkillScreen() {
   const router = useRouter();
@@ -65,23 +66,25 @@ export default function CreateSkillScreen() {
   }
 
   return (
-    <View className="flex-1 bg-background items-center justify-center px-5">
-      <View className="w-full max-w-2xl gap-6">
-        <Text className="text-2xl font-semibold text-foreground text-center">
-          {t('skills.createTitle')}
-        </Text>
+    <ContentPanel surfaceClassName="bg-background">
+      <View className="flex-1 bg-background items-center justify-center px-5">
+        <View className="w-full max-w-2xl gap-6">
+          <Text className="text-2xl font-semibold text-foreground text-center">
+            {t('skills.createTitle')}
+          </Text>
 
-        <PromptInput
-          value={inputValue}
-          onValueChange={setInputValue}
-          onSubmit={handleGenerate}
-          isLoading={generating}
-          disabled={generating}
-          placeholder={t('skills.createPlaceholder')}
-          autocomplete
-          autocompletePosition="bottom"
-        />
+          <PromptInput
+            value={inputValue}
+            onValueChange={setInputValue}
+            onSubmit={handleGenerate}
+            isLoading={generating}
+            disabled={generating}
+            placeholder={t('skills.createPlaceholder')}
+            autocomplete
+            autocompletePosition="bottom"
+          />
+        </View>
       </View>
-    </View>
+    </ContentPanel>
   );
 }

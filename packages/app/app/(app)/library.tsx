@@ -14,6 +14,7 @@ import { cn } from '@/lib/utils';
 import { toast } from '@oxyhq/bloom/toast';
 import { useTranslation } from '@/lib/hooks/use-translation';
 import { Skeleton } from '@/components/ui/skeleton';
+import { ContentPanel } from "@oxyhq/bloom/content-panel";
 
 export default function LibraryScreen() {
   const files = useLibraryStore((state) => state.files);
@@ -246,16 +247,18 @@ export default function LibraryScreen() {
   }, [loading, t, searchQuery]);
 
   return (
-    <View className="flex-1 bg-background">
-      <FlashList
-        data={loading && files.length === 0 ? [] : filteredFiles}
-        renderItem={renderItem}
-        ListHeaderComponent={listHeader}
-        ListEmptyComponent={listEmpty}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 24 }}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-      />
-    </View>
+    <ContentPanel surfaceClassName="bg-background">
+      <View className="flex-1 bg-background">
+        <FlashList
+          data={loading && files.length === 0 ? [] : filteredFiles}
+          renderItem={renderItem}
+          ListHeaderComponent={listHeader}
+          ListEmptyComponent={listEmpty}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 24 }}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+        />
+      </View>
+    </ContentPanel>
   );
 }
