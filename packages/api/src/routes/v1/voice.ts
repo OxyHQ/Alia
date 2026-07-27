@@ -146,15 +146,33 @@ router.post('/token', async (req: Request, res: Response) => {
         type: 'function',
         function: {
           name: 'saveUserMemory',
-          description: 'Save important user information for future conversations. Use when user shares preferences, personal info, goals, or anything they want remembered.',
+          description: 'Save NEW user information for future conversations. Use when user shares preferences, personal info, goals, or anything they want remembered. To change something already remembered — especially to rename it — use updateUserMemory instead.',
           parameters: {
             type: 'object',
             properties: {
-              key: { type: 'string', description: 'Short descriptive key (e.g., "favorite_fruit", "occupation", "pet")' },
-              value: { type: 'string', description: 'Memory value (e.g., "strawberries", "software engineer", "dog named Max")' },
-              category: { type: 'string', description: 'Optional category: preference, personal, goal, experience' },
+              title: { type: 'string', description: 'Short, human-readable label (e.g. "Food", "Occupation", a person\'s name) — NOT a snake_case key' },
+              summary: { type: 'string', description: '1-2 sentence description of what to remember' },
+              type: { type: 'string', enum: ['profile', 'topic', 'person'], description: 'profile = a fact about the user themself; topic = a subject/interest/project; person = someone in the user\'s life' },
+              initiatedBy: { type: 'string', enum: ['user', 'assistant'], description: '"user" when the user explicitly asked you to remember this; "assistant" when you decided to capture it yourself' },
             },
-            required: ['key', 'value'],
+            required: ['title', 'summary', 'type', 'initiatedBy'],
+          },
+        },
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'updateUserMemory',
+          description: 'Change a memory that already exists: correct it, reword it, re-classify it, or rename its title. Use this — never saveUserMemory — whenever the user refers to something you already remember.',
+          parameters: {
+            type: 'object',
+            properties: {
+              currentTitle: { type: 'string', description: 'The title of the memory to change, exactly as it is stored today' },
+              title: { type: 'string', description: 'New title. Omit to keep the current one' },
+              summary: { type: 'string', description: 'New 1-2 sentence description. Omit to keep the current one' },
+              type: { type: 'string', enum: ['profile', 'topic', 'person'], description: 'New grouping. Omit to keep the current one' },
+            },
+            required: ['currentTitle'],
           },
         },
       },

@@ -1,7 +1,7 @@
 import { Drawer } from 'expo-router/drawer';
 import { Sidebar } from '@/components/sidebar';
 import { RightPanel } from '@/components/right-panel';
-import { ScreenShell } from '@/components/screen-shell';
+import { ContentPanel } from '@oxyhq/bloom/content-panel';
 import { AppErrorBoundary } from '@/components/error-boundary';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Platform, View } from 'react-native';
@@ -64,13 +64,15 @@ export default function AppLayout() {
 
   const renderDrawerContent = useCallback(() => <Sidebar />, []);
 
-  // Frame every drawer scene in the shared Bloom `ContentPanel` (full-bleed
-  // below `md`, rounded/bordered at `md`+). `screenLayout` wraps each routed
-  // scene's content — not the sidebar (`drawerContent`) or the `RightPanel` —
-  // so all 40+ screens get the app shell from one place, inside the existing
-  // safe-area `sceneContainerStyle` padding.
+  // `ContentPanel` draws its surface and frame but no outer spacing, so the
+  // gutter is the shell's job — without it the panel sits flush against the
+  // drawer rail and the right panel. `pl-0` keeps it meeting the rail.
   const renderScreenLayout = useCallback(
-    ({ children }: { children: ReactElement }) => <ScreenShell>{children}</ScreenShell>,
+    ({ children }: { children: ReactElement }) => (
+      <View className="flex-1 bg-background md:p-2 md:pl-0">
+        <ContentPanel surfaceClassName="bg-background">{children}</ContentPanel>
+      </View>
+    ),
     [],
   );
 

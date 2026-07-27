@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { View, ScrollView, Pressable } from "react-native";
+import { View, ScrollView } from "react-native";
 import { Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -17,6 +16,7 @@ import {
 import { confirm } from "@oxyhq/bloom/alert-dialog";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useOxy, useAuth } from "@oxyhq/services";
+import { useRouter } from "expo-router";
 import { generateAPIUrl } from "@/lib/generate-api-url";
 import {
   Brain,
@@ -25,13 +25,13 @@ import {
   Upload,
   FileJson,
   FileText,
-  Wand2,
   Copy,
 } from "lucide-react-native";
 import { Search } from "@oxyhq/bloom/search";
 import { useTranslation } from "@/lib/hooks/use-translation";
 import { useUserData } from "@/lib/hooks/use-user-data";
 import { useUserDataStore } from "@/lib/stores/user-data-store";
+import { useStore } from "@/lib/stores/global-store";
 import { cn } from "@/lib/utils";
 import { toast } from "@/components/sonner";
 import { SettingsHeader } from "@/components/settings/settings-header";
@@ -46,14 +46,6 @@ interface Memory {
   type: MemoryType;
   createdAt: string;
   updatedAt: string;
-}
-
-/** A single hit from semantic memory search (maps back onto a {@link Memory}). */
-interface SemanticResult {
-  title: string;
-  summary: string;
-  type?: MemoryType;
-  score?: number;
 }
 
 /** Aggregate counts returned by the export-preview endpoint. */
@@ -91,15 +83,8 @@ export default function MemoryScreen() {
   const { memory, loading } = useUserData();
   const setMemory = useUserDataStore((state) => state.setMemory);
   const { t } = useTranslation();
-  const [showDialog, setShowDialog] = useState(false);
-  const [editingMemory, setEditingMemory] = useState<Memory | null>(null);
+  const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
-  const [saving, setSaving] = useState(false);
-
-  // Form state
-  const [formTitle, setFormTitle] = useState("");
-  const [formSummary, setFormSummary] = useState("");
-  const [formType, setFormType] = useState<MemoryType>('topic');
 
   // Settings toggles
   const [updatingSettings, setUpdatingSettings] = useState(false);
@@ -113,11 +98,6 @@ export default function MemoryScreen() {
   const [importStrategy, setImportStrategy] = useState<'merge' | 'replace' | 'skip-duplicates'>('merge');
   const [importPreview, setImportPreview] = useState<ImportPreview | null>(null);
   const [importing, setImporting] = useState(false);
-
-  // Semantic search state
-  const [semanticMode, setSemanticMode] = useState(false);
-  const [semanticResults, setSemanticResults] = useState<SemanticResult[] | null>(null);
-  const [semanticLoading, setSemanticLoading] = useState(false);
 
   // Duplicate detection state
   const [showDuplicatesDialog, setShowDuplicatesDialog] = useState(false);
@@ -152,27 +132,14 @@ export default function MemoryScreen() {
     );
   }, [memories, searchQuery]);
 
-  const handleOpenDialog = (memory?: Memory, defaultType: MemoryType = 'topic') => {
-    if (memory) {
-      setEditingMemory(memory);
-      setFormTitle(memory.title);
-      setFormSummary(memory.summary);
-      setFormType(memory.type);
-    } else {
-      setEditingMemory(null);
-      setFormTitle("");
-      setFormSummary("");
-      setFormType(defaultType);
-    }
-    setShowDialog(true);
-  };
-
-  const handleCloseDialog = () => {
-    setShowDialog(false);
-    setEditingMemory(null);
-    setFormTitle("");
-    setFormSummary("");
-    setFormType('topic');
+  /**
+   * Memories are written by talking to Alia, not by filling in a form: hand the
+   * new-chat composer a half-written instruction and let the user finish it.
+   * The model applies it through its own `saveUserMemory` tool.
+   */
+  const startMemoryChat = (draft: string) => {
+    useStore.getState().setComposerDraft(draft);
+    router.replace('/(app)');
   };
 
   const getAuthHeaders = (contentType?: boolean): Record<string, string> => {
@@ -181,59 +148,6 @@ export default function MemoryScreen() {
     if (token) headers['Authorization'] = `Bearer ${token}`;
     if (contentType) headers['Content-Type'] = 'application/json';
     return headers;
-  };
-
-  const handleSaveMemory = async () => {
-    if (!isAuthenticated || !formTitle.trim() || !formSummary.trim()) {
-      toast.error(t("memory.titleSummaryRequired"));
-      return;
-    }
-
-    setSaving(true);
-    try {
-      if (editingMemory) {
-        const apiUrl = generateAPIUrl(`/memory/${editingMemory._id}`);
-        const response = await fetch(apiUrl, {
-          method: 'PUT',
-          headers: getAuthHeaders(true),
-          body: JSON.stringify({
-            title: formTitle,
-            summary: formSummary,
-            type: formType,
-          }),
-        });
-
-        if (response.ok) {
-          const updatedMemory = await response.json();
-          setMemory(updatedMemory);
-          handleCloseDialog();
-          toast.success(t("memory.memoryUpdated"));
-        }
-      } else {
-        const apiUrl = generateAPIUrl('/memory/add');
-        const response = await fetch(apiUrl, {
-          method: 'POST',
-          headers: getAuthHeaders(true),
-          body: JSON.stringify({
-            title: formTitle,
-            summary: formSummary,
-            type: formType,
-          }),
-        });
-
-        if (response.ok) {
-          const updatedMemory = await response.json();
-          setMemory(updatedMemory);
-          handleCloseDialog();
-          toast.success(t("memory.memoryAdded"));
-        }
-      }
-    } catch (error) {
-      console.error("Error saving memory:", error);
-      toast.error(t("memory.failedToSave"));
-    } finally {
-      setSaving(false);
-    }
   };
 
   const handleDeleteMemory = async (memoryId: string) => {
@@ -292,52 +206,6 @@ export default function MemoryScreen() {
     }
   };
 
-  // Semantic search handler
-  const performSemanticSearch = async (query: string) => {
-    if (!isAuthenticated || !query.trim()) {
-      setSemanticResults(null);
-      return;
-    }
-
-    setSemanticLoading(true);
-    try {
-      const apiUrl = generateAPIUrl(`/memory/semantic-search?q=${encodeURIComponent(query)}&limit=20`);
-      const response = await fetch(apiUrl, {
-        method: 'GET',
-        headers: getAuthHeaders(),
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setSemanticResults(data.results || []);
-      } else {
-        setSemanticResults(null);
-        toast.error(t("memory.semanticUnavailable"));
-        setSemanticMode(false);
-      }
-    } catch (error) {
-      console.error("Semantic search error:", error);
-      setSemanticResults(null);
-      setSemanticMode(false);
-    } finally {
-      setSemanticLoading(false);
-    }
-  };
-
-  // Debounced semantic search
-  useEffect(() => {
-    if (!semanticMode || !searchQuery.trim()) {
-      setSemanticResults(null);
-      return;
-    }
-
-    const timer = setTimeout(() => {
-      performSemanticSearch(searchQuery);
-    }, 500);
-
-    return () => clearTimeout(timer);
-  }, [searchQuery, semanticMode]);
-
   // Duplicate detection handler
   const loadDuplicates = async () => {
     if (!isAuthenticated) return;
@@ -365,24 +233,14 @@ export default function MemoryScreen() {
     }
   };
 
-  // Determine which memories to show (search or semantic overlay), before grouping
-  const displayMemories = useMemo(() => {
-    if (semanticMode && semanticResults) {
-      return semanticResults.map((r) => {
-        const found = memories.find(m => m.title === r.title && m.summary === r.summary);
-        return found || { _id: r.title, title: r.title, summary: r.summary, type: r.type || 'topic', score: r.score, createdAt: '', updatedAt: '' };
-      });
-    }
-    return filteredMemories;
-  }, [semanticMode, semanticResults, filteredMemories, memories]);
 
   const groupedByType = useMemo(() => {
     return {
-      profile: displayMemories.filter(m => m.type === 'profile'),
-      topic: displayMemories.filter(m => m.type === 'topic'),
-      person: displayMemories.filter(m => m.type === 'person'),
+      profile: filteredMemories.filter(m => m.type === 'profile'),
+      topic: filteredMemories.filter(m => m.type === 'topic'),
+      person: filteredMemories.filter(m => m.type === 'person'),
     };
-  }, [displayMemories]);
+  }, [filteredMemories]);
 
   // Export handlers
   const loadExportStats = async () => {
@@ -617,40 +475,18 @@ export default function MemoryScreen() {
           <View className="flex-row items-center gap-2">
             <View className="flex-1">
               <Search
-                label={semanticMode ? t("memory.aiSearchPlaceholder") : t("memory.searchPlaceholder")}
+                label={t("memory.searchPlaceholder")}
                 value={searchQuery}
                 onChangeText={setSearchQuery}
                 onClearText={() => setSearchQuery("")}
               />
             </View>
 
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => {
-                setSemanticMode(!semanticMode);
-                if (!semanticMode) {
-                  toast.info(t("memory.aiSearchEnabled"));
-                }
-              }}
-              className={cn(
-                "h-11 px-3 rounded-full flex-row items-center gap-1.5",
-                semanticMode ? "bg-primary/15" : "bg-muted"
-              )}
-            >
-              {semanticLoading ? (
-                <Text className="text-[11px] text-muted-foreground">...</Text>
-              ) : (
-                <Wand2 size={12} className={semanticMode ? "text-primary" : "text-muted-foreground"} />
-              )}
-              <Text className={cn("text-[11px] font-medium", semanticMode ? "text-primary" : "text-muted-foreground")}>
-                AI
-              </Text>
-            </Pressable>
-
             <Button
-              onPress={() => handleOpenDialog()}
+              onPress={() => startMemoryChat(t('memory.chatAddPrompt'))}
               size="sm"
               className="h-11 px-3 rounded-lg"
+              accessibilityLabel={t('memory.newMemory')}
             >
               <View className="flex-row items-center gap-1.5">
                 <Plus size={16} className="text-primary-foreground" />
@@ -660,7 +496,7 @@ export default function MemoryScreen() {
 
           <View className="flex-row items-center justify-between">
             <Text className="text-xs text-muted-foreground">
-              {displayMemories.length} {displayMemories.length === 1 ? 'memoria' : 'memorias'}
+              {filteredMemories.length} {filteredMemories.length === 1 ? 'memoria' : 'memorias'}
             </Text>
             <View className="flex-row items-center gap-1">
               <Button
@@ -717,7 +553,9 @@ export default function MemoryScreen() {
                   emptyLabel={t(section.emptyKey)}
                   onRowPress={(id) => {
                     const found = memories.find(m => m._id === id);
-                    if (found) handleOpenDialog(found);
+                    if (found) {
+                      startMemoryChat(t('memory.chatEditPrompt', { title: found.title, summary: found.summary }));
+                    }
                   }}
                   onDelete={handleDeleteMemory}
                 />
@@ -726,87 +564,6 @@ export default function MemoryScreen() {
           )}
         </View>
       </ScrollView>
-
-      {/* Add/Edit Dialog */}
-      <Dialog open={showDialog} onOpenChange={setShowDialog}>
-        <DialogContent closeButton={true}>
-          <DialogHeader>
-            <DialogTitle>
-              {editingMemory ? t('memory.editMemory') : t('memory.newMemory')}
-            </DialogTitle>
-            <DialogDescription>
-              {editingMemory
-                ? t('memory.updateDetails')
-                : t('memory.addForAlia')}
-            </DialogDescription>
-          </DialogHeader>
-
-          <View className="gap-4">
-            <View className="gap-2">
-              <Label nativeID="title">{t('memory.titleLabel')}</Label>
-              <Input
-                aria-labelledby="title"
-                value={formTitle}
-                onChangeText={setFormTitle}
-                placeholder={t('memory.titlePlaceholder')}
-                editable={!saving}
-              />
-            </View>
-
-            <View className="gap-2">
-              <Label nativeID="summary">{t('memory.summaryLabel')}</Label>
-              <Textarea
-                aria-labelledby="summary"
-                value={formSummary}
-                onChangeText={setFormSummary}
-                placeholder={t('memory.summaryPlaceholder')}
-                editable={!saving}
-              />
-            </View>
-
-            <View className="gap-2">
-              <Label>{t('memory.typeLabel')}</Label>
-              <ToggleGroup
-                type="single"
-                value={formType}
-                onValueChange={(val) => {
-                  if (val === 'profile' || val === 'topic' || val === 'person') {
-                    setFormType(val);
-                  }
-                }}
-              >
-                <ToggleGroupItem value="profile">
-                  <Text>{t('memory.sectionYou')}</Text>
-                </ToggleGroupItem>
-                <ToggleGroupItem value="topic">
-                  <Text>{t('memory.sectionTopics')}</Text>
-                </ToggleGroupItem>
-                <ToggleGroupItem value="person">
-                  <Text>{t('memory.sectionPeople')}</Text>
-                </ToggleGroupItem>
-              </ToggleGroup>
-            </View>
-          </View>
-
-          <DialogFooter>
-            <Button
-              variant="outline"
-              className="flex-1"
-              onPress={handleCloseDialog}
-              disabled={saving}
-            >
-              <Text>{t('common.cancel')}</Text>
-            </Button>
-            <Button
-              className="flex-1"
-              onPress={handleSaveMemory}
-              disabled={saving}
-            >
-              <Text>{saving ? t('memory.saving') : editingMemory ? t('memory.update') : t('memory.add')}</Text>
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* Export Dialog */}
       <Dialog open={showExportDialog} onOpenChange={setShowExportDialog}>

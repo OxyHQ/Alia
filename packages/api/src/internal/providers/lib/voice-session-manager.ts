@@ -62,10 +62,17 @@ function buildVoiceToolExecutors(userId: string): Map<string, (args: any) => Pro
     return await toolInstance.execute(args, { toolCallId: randomUUID(), messages: [] });
   });
 
-  executors.set('saveUserMemory', async (args: { title: string; summary: string; type: 'profile' | 'topic' | 'person' }) => {
+  executors.set('saveUserMemory', async (args: { title: string; summary: string; type: 'profile' | 'topic' | 'person'; initiatedBy: 'user' | 'assistant' }) => {
     const { saveUserMemoryTool } = await import('../../../lib/tools/user-memory.js');
     const toolInstance = saveUserMemoryTool(userId);
     if (!toolInstance.execute) throw new Error('saveUserMemory tool has no executor');
+    return await toolInstance.execute(args, { toolCallId: randomUUID(), messages: [] });
+  });
+
+  executors.set('updateUserMemory', async (args: { currentTitle: string; title?: string; summary?: string; type?: 'profile' | 'topic' | 'person' }) => {
+    const { updateUserMemoryTool } = await import('../../../lib/tools/user-memory.js');
+    const toolInstance = updateUserMemoryTool(userId);
+    if (!toolInstance.execute) throw new Error('updateUserMemory tool has no executor');
     return await toolInstance.execute(args, { toolCallId: randomUUID(), messages: [] });
   });
 

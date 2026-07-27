@@ -20,6 +20,7 @@ import * as DropdownMenu from "@/components/ui/dropdown-menu";
 import { useTranslation } from "@/lib/hooks/use-translation";
 import { toast } from "@/components/sonner";
 import { useTheme } from "@oxyhq/bloom/theme";
+import { SettingsListGroup, SettingsListItem } from "@oxyhq/bloom/settings-list";
 
 const LANGUAGES = [
   { value: "en-US", label: "English" },
@@ -34,6 +35,22 @@ const LANGUAGES = [
   { value: "ru-RU", label: "Русский" },
   { value: "ar-SA", label: "العربية" },
   { value: "hi-IN", label: "हिन्दी" },
+];
+
+type FieldKey = "occupation" | "location" | "bio" | "interests";
+
+const FIELDS: {
+  key: FieldKey;
+  icon: typeof Globe;
+  titleKey: string;
+  descriptionKey: string;
+  placeholderKey: string;
+  multiline?: boolean;
+}[] = [
+  { key: "occupation", icon: Briefcase, titleKey: "settings.occupation.title", descriptionKey: "settings.occupation.description", placeholderKey: "settings.occupation.placeholder" },
+  { key: "location", icon: MapPin, titleKey: "settings.location.title", descriptionKey: "settings.location.description", placeholderKey: "settings.location.placeholder" },
+  { key: "bio", icon: UserIcon, titleKey: "settings.aboutYou.title", descriptionKey: "settings.aboutYou.description", placeholderKey: "settings.aboutYou.placeholder", multiline: true },
+  { key: "interests", icon: Globe, titleKey: "settings.interests.title", descriptionKey: "settings.interests.description", placeholderKey: "settings.interests.placeholder", multiline: true },
 ];
 
 export function PersonalizationSection() {
@@ -51,6 +68,14 @@ export function PersonalizationSection() {
   const [location, setLocation] = useState("");
   const [bio, setBio] = useState("");
   const [interests, setInterests] = useState("");
+
+  const fieldValues: Record<FieldKey, string> = { occupation, location, bio, interests };
+  const fieldSetters: Record<FieldKey, (value: string) => void> = {
+    occupation: setOccupation,
+    location: setLocation,
+    bio: setBio,
+    interests: setInterests,
+  };
 
   useEffect(() => {
     if (memory) {
@@ -127,161 +152,95 @@ export function PersonalizationSection() {
 
   return (
     <View className="gap-5">
-      {/* Alia's Language */}
-      <View className="gap-1.5">
-        <View className="flex-row items-center gap-2">
-          <Languages size={18} className="text-primary" />
-          <Text className="text-sm font-semibold">{t("settings.aliaLanguage.title")}</Text>
-        </View>
-        <Text className="text-xs text-muted-foreground">
-          {t("settings.aliaLanguage.description")}
-        </Text>
-        <DropdownMenu.Root>
-          <DropdownMenu.Trigger>
-            <Pressable className={`${inputClass} flex-row items-center justify-between`}>
-              <Text className="text-foreground text-sm">
-                {LANGUAGES.find(l => l.value === language)?.label || language || t("settings.aliaLanguage.selectPlaceholder")}
-              </Text>
-              <ChevronDown size={16} className="text-muted-foreground" />
-            </Pressable>
-          </DropdownMenu.Trigger>
-          <DropdownMenu.Content>
-            {LANGUAGES.map((lang) => (
-              <DropdownMenu.CheckboxItem
-                key={lang.value}
-                value={language === lang.value ? 'on' : 'off'}
-                onValueChange={() => setLanguage(lang.value)}
-              >
-                <DropdownMenu.ItemIndicator />
-                <DropdownMenu.ItemTitle>{lang.label}</DropdownMenu.ItemTitle>
-              </DropdownMenu.CheckboxItem>
-            ))}
-          </DropdownMenu.Content>
-        </DropdownMenu.Root>
-      </View>
+      <SettingsListGroup title={t("settings.sections.personalization")}>
+        <SettingsListItem
+          icon={<Languages size={18} color={colors.textSecondary} />}
+          title={t("settings.aliaLanguage.title")}
+          description={t("settings.aliaLanguage.description")}
+          rightElement={
+            <DropdownMenu.Root>
+              <DropdownMenu.Trigger>
+                <Pressable className={`${inputClass} flex-row items-center gap-1`}>
+                  <Text className="text-foreground text-sm">
+                    {LANGUAGES.find(l => l.value === language)?.label || language || t("settings.aliaLanguage.selectPlaceholder")}
+                  </Text>
+                  <ChevronDown size={16} className="text-muted-foreground" />
+                </Pressable>
+              </DropdownMenu.Trigger>
+              <DropdownMenu.Content>
+                {LANGUAGES.map((lang) => (
+                  <DropdownMenu.CheckboxItem
+                    key={lang.value}
+                    value={language === lang.value ? 'on' : 'off'}
+                    onValueChange={() => setLanguage(lang.value)}
+                  >
+                    <DropdownMenu.ItemIndicator />
+                    <DropdownMenu.ItemTitle>{lang.label}</DropdownMenu.ItemTitle>
+                  </DropdownMenu.CheckboxItem>
+                ))}
+              </DropdownMenu.Content>
+            </DropdownMenu.Root>
+          }
+        />
+        <SettingsListItem
+          icon={<Mic size={18} color={colors.textSecondary} />}
+          title={t("settings.voicePreference.title")}
+          description={t("settings.voicePreference.description")}
+          rightElement={
+            <DropdownMenu.Root>
+              <DropdownMenu.Trigger>
+                <Pressable className={`${inputClass} flex-row items-center gap-1`}>
+                  <Text className="text-foreground text-sm">
+                    {voice === "male"
+                      ? t("settings.voicePreference.male")
+                      : t("settings.voicePreference.female")}
+                  </Text>
+                  <ChevronDown size={16} className="text-muted-foreground" />
+                </Pressable>
+              </DropdownMenu.Trigger>
+              <DropdownMenu.Content>
+                <DropdownMenu.CheckboxItem
+                  key="female"
+                  value={(!voice || voice === "female") ? "on" : "off"}
+                  onValueChange={() => setVoice("female")}
+                >
+                  <DropdownMenu.ItemIndicator />
+                  <DropdownMenu.ItemTitle>{t("settings.voicePreference.female")}</DropdownMenu.ItemTitle>
+                </DropdownMenu.CheckboxItem>
+                <DropdownMenu.CheckboxItem
+                  key="male"
+                  value={voice === "male" ? "on" : "off"}
+                  onValueChange={() => setVoice("male")}
+                >
+                  <DropdownMenu.ItemIndicator />
+                  <DropdownMenu.ItemTitle>{t("settings.voicePreference.male")}</DropdownMenu.ItemTitle>
+                </DropdownMenu.CheckboxItem>
+              </DropdownMenu.Content>
+            </DropdownMenu.Root>
+          }
+        />
+      </SettingsListGroup>
 
-      {/* Personality Style */}
       <PersonalityStylePicker selectedStyle={tone} onSelectStyle={setTone} />
 
-      {/* Voice Preference */}
-      <View className="gap-1.5">
-        <View className="flex-row items-center gap-2">
-          <Mic size={18} className="text-primary" />
-          <Text className="text-sm font-semibold">{t("settings.voicePreference.title")}</Text>
+      {FIELDS.map(({ key, icon: Icon, titleKey, descriptionKey, placeholderKey, multiline }) => (
+        <View key={key} className="gap-1.5">
+          <View className="flex-row items-center gap-2">
+            <Icon size={18} className="text-primary" />
+            <Text className="text-sm font-semibold">{t(titleKey)}</Text>
+          </View>
+          <Text className="text-xs text-muted-foreground">{t(descriptionKey)}</Text>
+          <RNTextInput
+            className={inputClass}
+            placeholder={t(placeholderKey)}
+            placeholderTextColor={colors.textSecondary}
+            value={fieldValues[key]}
+            onChangeText={fieldSetters[key]}
+            multiline={multiline}
+          />
         </View>
-        <Text className="text-xs text-muted-foreground">
-          {t("settings.voicePreference.description")}
-        </Text>
-        <DropdownMenu.Root>
-          <DropdownMenu.Trigger>
-            <Pressable className={`${inputClass} flex-row items-center justify-between`}>
-              <Text className="text-foreground text-sm">
-                {voice === "male"
-                  ? t("settings.voicePreference.male")
-                  : voice === "female"
-                    ? t("settings.voicePreference.female")
-                    : t("settings.voicePreference.female")}
-              </Text>
-              <ChevronDown size={16} className="text-muted-foreground" />
-            </Pressable>
-          </DropdownMenu.Trigger>
-          <DropdownMenu.Content>
-            <DropdownMenu.CheckboxItem
-              key="female"
-              value={(!voice || voice === "female") ? "on" : "off"}
-              onValueChange={() => setVoice("female")}
-            >
-              <DropdownMenu.ItemIndicator />
-              <DropdownMenu.ItemTitle>{t("settings.voicePreference.female")}</DropdownMenu.ItemTitle>
-            </DropdownMenu.CheckboxItem>
-            <DropdownMenu.CheckboxItem
-              key="male"
-              value={voice === "male" ? "on" : "off"}
-              onValueChange={() => setVoice("male")}
-            >
-              <DropdownMenu.ItemIndicator />
-              <DropdownMenu.ItemTitle>{t("settings.voicePreference.male")}</DropdownMenu.ItemTitle>
-            </DropdownMenu.CheckboxItem>
-          </DropdownMenu.Content>
-        </DropdownMenu.Root>
-      </View>
+      ))}
 
-      {/* Occupation */}
-      <View className="gap-1.5">
-        <View className="flex-row items-center gap-2">
-          <Briefcase size={18} className="text-primary" />
-          <Text className="text-sm font-semibold">{t("settings.occupation.title")}</Text>
-        </View>
-        <Text className="text-xs text-muted-foreground">
-          {t("settings.occupation.description")}
-        </Text>
-        <RNTextInput
-          className={inputClass}
-          placeholder={t("settings.occupation.placeholder")}
-          placeholderTextColor={colors.textSecondary}
-          value={occupation}
-          onChangeText={setOccupation}
-        />
-      </View>
-
-      {/* Location */}
-      <View className="gap-1.5">
-        <View className="flex-row items-center gap-2">
-          <MapPin size={18} className="text-primary" />
-          <Text className="text-sm font-semibold">{t("settings.location.title")}</Text>
-        </View>
-        <Text className="text-xs text-muted-foreground">
-          {t("settings.location.description")}
-        </Text>
-        <RNTextInput
-          className={inputClass}
-          placeholder={t("settings.location.placeholder")}
-          placeholderTextColor={colors.textSecondary}
-          value={location}
-          onChangeText={setLocation}
-        />
-      </View>
-
-      {/* Bio */}
-      <View className="gap-1.5">
-        <View className="flex-row items-center gap-2">
-          <UserIcon size={18} className="text-primary" />
-          <Text className="text-sm font-semibold">{t("settings.aboutYou.title")}</Text>
-        </View>
-        <Text className="text-xs text-muted-foreground">
-          {t("settings.aboutYou.description")}
-        </Text>
-        <RNTextInput
-          className={inputClass}
-          placeholder={t("settings.aboutYou.placeholder")}
-          placeholderTextColor={colors.textSecondary}
-          value={bio}
-          onChangeText={setBio}
-          multiline
-          numberOfLines={3}
-        />
-      </View>
-
-      {/* Interests */}
-      <View className="gap-1.5">
-        <View className="flex-row items-center gap-2">
-          <Globe size={18} className="text-primary" />
-          <Text className="text-sm font-semibold">{t("settings.interests.title")}</Text>
-        </View>
-        <Text className="text-xs text-muted-foreground">
-          {t("settings.interests.description")}
-        </Text>
-        <RNTextInput
-          className={inputClass}
-          placeholder={t("settings.interests.placeholder")}
-          placeholderTextColor={colors.textSecondary}
-          value={interests}
-          onChangeText={setInterests}
-          multiline
-        />
-      </View>
-
-      {/* Save / Cancel */}
       <View className="flex-row gap-2 mt-2">
         <Button variant="outline" className="flex-1" onPress={handleCancel} disabled={saving}>
           <Text>{t("common.cancel")}</Text>

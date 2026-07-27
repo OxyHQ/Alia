@@ -27,7 +27,6 @@ import developerRouter from './routes/developer.js';
 import billingRouter from './routes/billing.js';
 import organizationRouter from './routes/organization.js';
 import canvasRouter from './routes/canvas/index.js';
-import feedbackRouter from './routes/feedback.js';
 import codeaRouter from './routes/codea.js';
 import modelsStatsRouter from './routes/models-stats.js';
 import externalModelsRouter from './routes/external-models.js';
@@ -213,7 +212,6 @@ app.use('/tools', toolsProxyRouter);
 app.use('/developer', authenticateToken, resolveWorkspace, developerRouter);
 app.use('/billing', billingRouter);
 app.use('/organization', organizationRouter);
-app.use('/feedback', feedbackRouter);
 app.use('/api', canvasRouter);
 app.use('/codea', codeaRouter);
 app.use('/models', modelsStatsRouter);
@@ -256,7 +254,6 @@ app.get('/', (_req, res) => {
       '/developer',
       '/billing',
       '/organization',
-      '/feedback',
       '/codea',
       '/models',
       '/external-models',

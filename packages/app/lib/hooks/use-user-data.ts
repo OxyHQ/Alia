@@ -1,52 +1,37 @@
-import { useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@oxyhq/services';
 import { useUserDataStore } from '@/lib/stores/user-data-store';
 import apiClient from '@/lib/api/client';
 
+export const USER_MEMORY_QUERY_KEY = ['user-memory'] as const;
+
+/**
+ * React Query owns when to read; the zustand store stays the shared read surface
+ * the rest of the app subscribes to, so the query function writes through to it.
+ */
 export function useUserData() {
   const { isAuthenticated } = useAuth();
-  const memory = useUserDataStore((s) => s.memory);
-  const loading = useUserDataStore((s) => s.loading);
-  const setMemory = useUserDataStore((s) => s.setMemory);
-  const setLoading = useUserDataStore((s) => s.setLoading);
-  const shouldRefetch = useUserDataStore((s) => s.shouldRefetch);
-  const clearMemory = useUserDataStore((s) => s.clearMemory);
+  const stored = useUserDataStore((s) => s.memory);
+  // Signing out must not leave the previous account's memories on screen.
+  const memory = isAuthenticated ? stored : null;
 
-  useEffect(() => {
-    // Clear data if not authenticated
-    if (!isAuthenticated) {
-      clearMemory();
-      return;
-    }
-
-    // Only fetch if we should refetch (cache expired or no data)
-    if (!shouldRefetch() && memory) {
-      return;
-    }
-
-    const fetchUserData = async () => {
-      setLoading(true);
-      try {
-        const response = await apiClient.get('/memory');
-        if (response.data) {
-          setMemory(response.data);
-        }
-      } catch (error) {
-        console.error('Error fetching user data:', error);
-      } finally {
-        setLoading(false);
+  const { isFetching, refetch } = useQuery({
+    queryKey: USER_MEMORY_QUERY_KEY,
+    enabled: isAuthenticated,
+    // The document is written by the assistant mid-conversation, so a cached
+    // copy is stale the moment anything else in the app talks to Alia.
+    staleTime: 0,
+    queryFn: async () => {
+      const response = await apiClient.get('/memory');
+      if (response.data) {
+        useUserDataStore.getState().setMemory(response.data);
       }
-    };
-
-    fetchUserData();
-  }, [isAuthenticated, shouldRefetch]);
-
-  return {
-    memory,
-    loading,
-    refetch: () => {
-      clearMemory();
-      // This will trigger the useEffect to fetch again
+      return response.data;
     },
-  };
+  });
+
+  // Only a cold read is "loading" — a background refresh (the chat just wrote a
+  // memory and invalidated this query) must not blank a screen that already has
+  // something to show.
+  return { memory, loading: isFetching && !memory, refetch };
 }

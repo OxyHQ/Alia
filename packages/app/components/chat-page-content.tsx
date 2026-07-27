@@ -80,6 +80,12 @@ interface ChatPageContentProps {
   agentSessionId?: string | null;
   onApprovePlan?: (planId: string) => void;
   onRejectPlan?: (planId: string) => void;
+  /**
+   * Opt in to consuming `composerDraft`. Only the new-chat screen sets this: the
+   * drawer keeps every visited chat mounted, so an ungated consumer would race
+   * the other instances and the draft could land in whichever one wins.
+   */
+  acceptsComposerDraft?: boolean;
 }
 
 
@@ -119,6 +125,7 @@ export const ChatPageContent = ({
   agentSessionId,
   onApprovePlan,
   onRejectPlan,
+  acceptsComposerDraft = false,
 }: ChatPageContentProps) => {
   const attachments = useStore((state) => state.attachments);
   const addAttachment = useStore((state) => state.addAttachment);
@@ -162,6 +169,17 @@ export const ChatPageContent = ({
 
   const [inputValue, setInputValue] = useState("");
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+
+  // Draft handed over by another route. The seq marks it consumed, so this
+  // needs no effect and no write back to the store.
+  const composerDraft = useStore((state) => state.composerDraft);
+  const composerDraftSeq = useStore((state) => state.composerDraftSeq);
+  const [appliedDraftSeq, setAppliedDraftSeq] = useState(0);
+  if (acceptsComposerDraft && composerDraftSeq !== appliedDraftSeq) {
+    setAppliedDraftSeq(composerDraftSeq);
+    setInputValue(composerDraft);
+  }
+
   const [showTerminal, setShowTerminal] = useState(false);
   const { colors, isDarkColorScheme: isDarkMode } = useColorScheme();
   const insets = useSafeAreaInsets();

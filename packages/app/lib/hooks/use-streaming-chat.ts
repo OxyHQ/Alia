@@ -8,6 +8,7 @@ import type { CreditsInfo } from '@/lib/hooks/use-credits';
 import { collectDeviceInfo } from '@/lib/device-info';
 import { UsageLimitError } from '@/lib/errors/usage-limit-error';
 import { queryKeys } from '@/lib/hooks/query-keys';
+import { USER_MEMORY_QUERY_KEY } from '@/lib/hooks/use-user-data';
 import { useStore } from '@/lib/stores/global-store';
 import { useModelStore } from '@/lib/stores/model-store';
 import { useUIStore } from '@/lib/stores/ui-store';
@@ -19,6 +20,14 @@ import type { Conversation } from '@/lib/hooks/use-conversations';
 import type { ToolInvocation } from '@/lib/types/messages';
 import { errorMessage as getErrorMessage, errorStatus, errorCode, errorName } from '../errors/error-utils';
 export type { ToolInvocation };
+
+/** Server tools that mutate the user's memory document (see packages/api `lib/tools/user-memory.ts`). */
+const MEMORY_WRITING_TOOLS = new Set([
+  'saveUserMemory',
+  'updateUserMemory',
+  'updateUserPreferences',
+  'updateUserContext',
+]);
 
 /** Shape of an error body thrown by the streaming fetch (rate-limit / credit info). */
 interface ThrownErrorBody {
@@ -408,6 +417,11 @@ Use this role to guide your responses, maintaining the specified tone, style, an
                         }
                         return updated;
                       });
+                      // The assistant just rewrote the memory document, so any
+                      // screen showing it (settings/memory) is now out of date.
+                      if (name && MEMORY_WRITING_TOOLS.has(name)) {
+                        queryClient.invalidateQueries({ queryKey: USER_MEMORY_QUERY_KEY });
+                      }
                       // Detect artifact-like results
                       if (name === 'generateFile' && output && typeof output === 'object') {
                         const artifactType = output.language ? 'code' : 'markdown';

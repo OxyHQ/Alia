@@ -22,7 +22,7 @@ import { getCurrentDateTool } from '../tools/date.js';
 import { webSearchTool } from '../tools/web-search.js';
 import { browseTool } from '../tools/browse.js';
 import { webScraperTool } from '../tools/web-scraper.js';
-import { saveUserMemoryTool } from '../tools/user-memory.js';
+import { saveUserMemoryTool, updateUserMemoryTool } from '../tools/user-memory.js';
 import { createSendTelegramTool } from '../tools/telegram.js';
 import { buildIntegrationTools } from '../tools/integrations.js';
 import { buildMcpTools } from '../tools/mcp.js';
@@ -65,6 +65,7 @@ export async function buildAgentTools(ctx: BuildToolsContext) {
   // ── Memory tools ──
 
   tools.memory_save = saveUserMemoryTool(userId);
+  tools.memory_update = updateUserMemoryTool(userId);
 
   // ── Communication tools ──
 

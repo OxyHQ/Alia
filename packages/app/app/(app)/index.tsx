@@ -74,6 +74,7 @@ const ChatPage = () => {
         activeRole={activeRole}
         onRemoveRole={() => setActiveRoleId(undefined)}
         onVoiceStart={handleVoiceStart}
+        acceptsComposerDraft
       />
     </>
   );
