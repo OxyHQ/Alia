@@ -4,7 +4,7 @@ import { Switch } from "@/components/ui/switch";
 import { useState, useEffect, useCallback } from "react";
 import { useOxy } from "@oxyhq/services";
 import apiClient from "@/lib/api/client";
-import { toast } from "@/components/sonner";
+import { toast } from "@oxyhq/bloom/toast";
 import { Sparkles } from "lucide-react-native";
 
 interface Skill {

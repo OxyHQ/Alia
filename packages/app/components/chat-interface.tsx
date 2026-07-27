@@ -1,5 +1,5 @@
 import { View, Pressable, StyleSheet, Platform, type LayoutChangeEvent } from "react-native";
-import { toast } from "@/components/sonner";
+import { toast } from "@oxyhq/bloom/toast";
 import { BlurView } from "expo-blur";
 import { KeyboardAwareScrollView } from "@/lib/keyboard";
 import { Image } from "expo-image";

@@ -33,7 +33,7 @@ import {
 } from "@/components/ui/dialog";
 import { SettingsHeader } from "@/components/settings/settings-header";
 import { useMcpServers } from "@/lib/hooks/use-mcp-servers";
-import { toast } from "@/components/sonner";
+import { toast } from "@oxyhq/bloom/toast";
 import { useColorScheme } from "@/lib/useColorScheme";
 import { useTranslation } from "@/lib/hooks/use-translation";
 

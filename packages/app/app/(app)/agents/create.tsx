@@ -5,7 +5,7 @@ import { PromptInput } from "@/components/ui/prompt-input/prompt-input";
 import { useRouter } from "expo-router";
 import { useAgentsStore } from "@/lib/stores/agents-store";
 import { useTranslation } from "@/lib/hooks/use-translation";
-import { toast } from "@/components/sonner";
+import { toast } from "@oxyhq/bloom/toast";
 import apiClient from "@/lib/api/client";
 import { API_ROUTES } from "@/lib/api/routes";
 import { Sparkles, MessageCircleQuestion, GitBranch, BarChart3 } from "lucide-react-native";

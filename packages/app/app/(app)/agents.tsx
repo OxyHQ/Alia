@@ -10,7 +10,7 @@ import { useAgentsStore } from "@/lib/stores/agents-store";
 import { AgentCard } from "@/components/agent-card";
 import { useRouter } from "expo-router";
 import { useTranslation } from "@/lib/hooks/use-translation";
-import { toast } from "@/components/sonner";
+import { toast } from "@oxyhq/bloom/toast";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 

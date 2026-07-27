@@ -16,7 +16,7 @@ import {
   type InstalledMcpServer,
   type McpRegistryEntry,
 } from "@/lib/hooks/use-mcp-servers";
-import { toast } from "@/components/sonner";
+import { toast } from "@oxyhq/bloom/toast";
 import {
   Dialog,
   DialogContent,

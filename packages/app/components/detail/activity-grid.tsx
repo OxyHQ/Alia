@@ -9,7 +9,7 @@ import { Text } from "@/components/ui/text";
 import { useColorScheme } from "@/lib/useColorScheme";
 import { withAlpha } from "@oxyhq/bloom/theme";
 import { useActivityGrid, type ActivityGridDay } from "@/lib/hooks/use-activity-grid";
-import { toast } from "@/components/sonner";
+import { toast } from "@oxyhq/bloom/toast";
 
 const CELL_SIZE = 11;
 const CELL_GAP = 2;

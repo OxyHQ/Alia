@@ -20,7 +20,7 @@ import { useAgentsStore, type Agent } from "@/lib/stores/agents-store";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useTranslation } from "@/lib/hooks/use-translation";
 import { useOxy } from "@oxyhq/services";
-import { toast } from "@/components/sonner";
+import { toast } from "@oxyhq/bloom/toast";
 import { confirm } from "@oxyhq/bloom/alert-dialog";
 import { alert } from "@oxyhq/bloom/dialog";
 import { SectionLabel } from "@/components/detail/section-label";

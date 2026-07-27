@@ -10,7 +10,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/hooks/query-keys';
 import { useVoiceRoom, type VoiceMessage, type RoomState, type AgentState } from '@/lib/hooks/use-voice-room';
 import { useAudioLevelMonitor, useAudioLevels } from '@alia.onl/sdk/voice';
-import { toast } from '@/components/sonner';
+import { toast } from '@oxyhq/bloom/toast';
 import type { Message } from '@/lib/hooks/use-conversations';
 
 interface UseVoiceModeOptions {

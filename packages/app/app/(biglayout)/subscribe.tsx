@@ -14,7 +14,7 @@ import {
 } from '@/lib/hooks/use-billing';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@oxyhq/services';
-import { toast } from '@/components/sonner';
+import { toast } from '@oxyhq/bloom/toast';
 import { useTranslation } from '@/lib/hooks/use-translation';
 import { queryKeys } from '@/lib/hooks/query-keys';
 import { confirm } from '@oxyhq/bloom/alert-dialog';

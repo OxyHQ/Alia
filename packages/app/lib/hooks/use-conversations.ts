@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient, useInfiniteQuery, type QueryClient } from '@tanstack/react-query';
 import { useOxy } from '@oxyhq/services';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { toast } from '@/components/sonner';
+import { toast } from '@oxyhq/bloom/toast';
 import apiClient from '../api/client';
 import { queryKeys } from './query-keys';
 import type { ToolInvocation } from '../types/messages';

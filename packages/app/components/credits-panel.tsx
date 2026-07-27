@@ -10,7 +10,7 @@ import { useSubscription, useCreditPackages, useCreateCheckout } from "@/lib/hoo
 import { useRouter, type Href } from "expo-router";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { useTranslation } from "@/lib/hooks/use-translation";
-import { toast } from "@/components/sonner";
+import { toast } from "@oxyhq/bloom/toast";
 import { errorMessage as getErrorMessage } from '../lib/errors/error-utils';
 
 function PeriodToggle({ value, onChange }: { value: UsagePeriod; onChange: (p: UsagePeriod) => void }) {

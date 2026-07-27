@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 import { useColorScheme } from "@/lib/useColorScheme";
 import { useTheme } from "@oxyhq/bloom/theme";
 import { useSpeechToText } from "@/lib/hooks/use-speech-to-text";
-import { toast } from "@/components/sonner";
+import { toast } from "@oxyhq/bloom/toast";
 import { usePromptInput } from "./context";
 
 export type PromptInputMicButtonProps = {

@@ -13,7 +13,7 @@ import {
   type SubscriptionPlan,
 } from '@/lib/hooks/use-billing';
 import { useAuth } from '@oxyhq/services';
-import { toast } from '@/components/sonner';
+import { toast } from '@oxyhq/bloom/toast';
 import { useTranslation } from '@/lib/hooks/use-translation';
 import { confirm } from '@oxyhq/bloom/alert-dialog';
 import { useColorScheme } from '@/lib/useColorScheme';

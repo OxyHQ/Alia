@@ -2,7 +2,7 @@ import { View, Pressable, ActivityIndicator, Linking } from "react-native";
 import { Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
 import { useBots, type SystemBot, type BotLinkStatus } from "@/lib/hooks/use-bots";
-import { toast } from "@/components/sonner";
+import { toast } from "@oxyhq/bloom/toast";
 import { Bot, ExternalLink } from "lucide-react-native";
 
 const PLATFORM_COLORS: Record<string, string> = {

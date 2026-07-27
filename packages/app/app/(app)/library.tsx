@@ -11,7 +11,7 @@ import { useImagePicker } from '@/lib/hooks/use-image-picker';
 import { useDocumentPicker } from '@/lib/hooks/use-document-picker';
 import { FileCard } from '@/components/file-card';
 import { cn } from '@/lib/utils';
-import { toast } from '@/components/sonner';
+import { toast } from '@oxyhq/bloom/toast';
 import { useTranslation } from '@/lib/hooks/use-translation';
 import { Skeleton } from '@/components/ui/skeleton';
 

@@ -3,7 +3,7 @@ import { Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import { useConnectedAccounts, type ConnectedAccount } from "@/lib/hooks/use-connected-accounts";
-import { toast } from "@/components/sonner";
+import { toast } from "@oxyhq/bloom/toast";
 import { confirm } from "@oxyhq/bloom/alert-dialog";
 import * as DropdownMenu from "@/components/ui/dropdown-menu";
 import {

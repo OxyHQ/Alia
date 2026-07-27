@@ -18,7 +18,7 @@ import { useUserData } from "@/lib/hooks/use-user-data";
 import { useUserDataStore } from "@/lib/stores/user-data-store";
 import * as DropdownMenu from "@/components/ui/dropdown-menu";
 import { useTranslation } from "@/lib/hooks/use-translation";
-import { toast } from "@/components/sonner";
+import { toast } from "@oxyhq/bloom/toast";
 import { useTheme } from "@oxyhq/bloom/theme";
 import { SettingsListGroup, SettingsListItem } from "@oxyhq/bloom/settings-list";
 
