@@ -16,6 +16,7 @@ import {
   useMarkAllAsRead,
   useDismissNotification,
 } from "@/lib/hooks/use-notifications";
+import { ContentPanel } from "@oxyhq/bloom/content-panel";
 
 const TYPE_ICONS: Record<string, typeof Zap> = {
   trigger_result: Zap,
@@ -114,133 +115,135 @@ export default function NotificationsScreen() {
   const StatusIcon = pushEnabled ? Bell : BellOff;
 
   return (
-    <ScrollView className="flex-1 bg-background">
-      {/* Header */}
-      <View className="px-6 py-6 border-b border-border">
-        <View className="flex-row items-center justify-between mb-4">
-          <Pressable onPress={() => router.back()} className="flex-row items-center">
-            <ArrowLeft size={16} className="text-muted-foreground mr-2" />
-            <Text className="text-sm text-muted-foreground">{t('common.back')}</Text>
-          </Pressable>
-          <Pressable onPress={() => setShowSettings(s => !s)} className="p-2">
-            <BellIcon size={18} />
-          </Pressable>
-        </View>
-        <View className="flex-row items-center justify-between">
-          <View>
-            <Text className="text-2xl font-semibold text-foreground">{t('notifications.title')}</Text>
-            {unreadCount > 0 && (
-              <Text className="text-sm text-muted-foreground mt-1">
-                {unreadCount} unread
-              </Text>
-            )}
-          </View>
-          {unreadCount > 0 && (
-            <Pressable
-              onPress={() => markAllAsRead.mutate()}
-              className="flex-row items-center gap-1.5 px-3 py-1.5 rounded-full bg-muted active:bg-muted/80"
-            >
-              <CheckCheck size={14} className="text-muted-foreground" />
-              <Text className="text-xs text-muted-foreground">Mark all read</Text>
+    <ContentPanel surfaceClassName="bg-background">
+      <ScrollView className="flex-1 bg-background">
+        {/* Header */}
+        <View className="px-6 py-6 border-b border-border">
+          <View className="flex-row items-center justify-between mb-4">
+            <Pressable onPress={() => router.back()} className="flex-row items-center">
+              <ArrowLeft size={16} className="text-muted-foreground mr-2" />
+              <Text className="text-sm text-muted-foreground">{t('common.back')}</Text>
             </Pressable>
-          )}
-        </View>
-      </View>
-
-      {/* Push Settings (collapsible) */}
-      {showSettings && (
-        <Animated.View entering={FadeIn.duration(200)} exiting={FadeOut.duration(150)}>
-          <View className="px-6 py-4 border-b border-border bg-muted/30">
-            <View className="flex-row items-center justify-between">
-              <View className="flex-row items-center gap-3 flex-1">
-                <StatusIcon size={20} className="text-muted-foreground" />
-                <View className="flex-1">
-                  <Text className="text-sm font-medium text-foreground">{t('notifications.pushNotifications')}</Text>
-                  <Text className="text-xs text-muted-foreground mt-0.5">
-                    {t('notifications.pushDescription')}
-                  </Text>
-                </View>
-              </View>
-              <Switch
-                value={pushEnabled}
-                onValueChange={handleTogglePush}
-                disabled={pushLoading}
-              />
-            </View>
-            {permissionStatus === "denied" && (
-              <View className="mt-3 p-3 rounded-lg bg-muted">
-                <Text className="text-xs text-muted-foreground">
-                  {t('notifications.permissionDenied')}
+            <Pressable onPress={() => setShowSettings(s => !s)} className="p-2">
+              <BellIcon size={18} />
+            </Pressable>
+          </View>
+          <View className="flex-row items-center justify-between">
+            <View>
+              <Text className="text-2xl font-semibold text-foreground">{t('notifications.title')}</Text>
+              {unreadCount > 0 && (
+                <Text className="text-sm text-muted-foreground mt-1">
+                  {unreadCount} unread
                 </Text>
-              </View>
+              )}
+            </View>
+            {unreadCount > 0 && (
+              <Pressable
+                onPress={() => markAllAsRead.mutate()}
+                className="flex-row items-center gap-1.5 px-3 py-1.5 rounded-full bg-muted active:bg-muted/80"
+              >
+                <CheckCheck size={14} className="text-muted-foreground" />
+                <Text className="text-xs text-muted-foreground">Mark all read</Text>
+              </Pressable>
             )}
           </View>
-        </Animated.View>
-      )}
-
-      {/* Notification Feed */}
-      {isLoading ? (
-        <View className="items-center justify-center py-12">
-          <Text className="text-sm text-muted-foreground">Loading...</Text>
         </View>
-      ) : notifications.length === 0 ? (
-        <View className="items-center justify-center py-16 px-6">
-          <View className="mb-3">
-            <BellIcon size={32} />
-          </View>
-          <Text className="text-base font-medium text-foreground mb-1">No notifications yet</Text>
-          <Text className="text-sm text-muted-foreground text-center">
-            Set up triggers and routines to get proactive updates from Alia.
-          </Text>
-        </View>
-      ) : (
-        <View className="py-2">
-          {notifications.map((notification: any) => {
-            const Icon = TYPE_ICONS[notification.type] || Bell;
-            const isUnread = notification.status !== 'read' && notification.status !== 'dismissed';
-            const priorityBorder = PRIORITY_COLORS[notification.priority] || PRIORITY_COLORS.normal;
 
-            return (
-              <Pressable
-                key={notification._id}
-                onPress={() => handleNotificationPress(notification)}
-                className={`px-6 py-4 border-b border-border border-l-2 ${priorityBorder} ${isUnread ? 'bg-muted/20' : ''} active:bg-muted/40`}
-              >
-                <View className="flex-row items-start gap-3">
-                  <View className={`mt-0.5 ${isUnread ? 'opacity-100' : 'opacity-50'}`}>
-                    <Icon size={16} className="text-muted-foreground" />
-                  </View>
+        {/* Push Settings (collapsible) */}
+        {showSettings && (
+          <Animated.View entering={FadeIn.duration(200)} exiting={FadeOut.duration(150)}>
+            <View className="px-6 py-4 border-b border-border bg-muted/30">
+              <View className="flex-row items-center justify-between">
+                <View className="flex-row items-center gap-3 flex-1">
+                  <StatusIcon size={20} className="text-muted-foreground" />
                   <View className="flex-1">
-                    <View className="flex-row items-center justify-between mb-1">
-                      <Text className={`text-sm ${isUnread ? 'font-semibold text-foreground' : 'font-medium text-muted-foreground'}`} numberOfLines={1}>
-                        {notification.title}
-                      </Text>
-                      <View className="flex-row items-center gap-2">
-                        <Text className="text-xs text-muted-foreground">
-                          {timeAgo(notification.createdAt)}
-                        </Text>
-                        <Pressable
-                          onPress={(e) => {
-                            e.stopPropagation();
-                            dismiss.mutate(notification._id);
-                          }}
-                          className="p-1"
-                          hitSlop={8}
-                        >
-                          <X size={12} className="text-muted-foreground" />
-                        </Pressable>
-                      </View>
-                    </View>
-                    <Text className="text-xs text-muted-foreground" numberOfLines={3}>
-                      {notification.body}
+                    <Text className="text-sm font-medium text-foreground">{t('notifications.pushNotifications')}</Text>
+                    <Text className="text-xs text-muted-foreground mt-0.5">
+                      {t('notifications.pushDescription')}
                     </Text>
                   </View>
                 </View>
-              </Pressable>
-            );
-          })}
-        </View>
-      )}
-    </ScrollView>
+                <Switch
+                  value={pushEnabled}
+                  onValueChange={handleTogglePush}
+                  disabled={pushLoading}
+                />
+              </View>
+              {permissionStatus === "denied" && (
+                <View className="mt-3 p-3 rounded-lg bg-muted">
+                  <Text className="text-xs text-muted-foreground">
+                    {t('notifications.permissionDenied')}
+                  </Text>
+                </View>
+              )}
+            </View>
+          </Animated.View>
+        )}
+
+        {/* Notification Feed */}
+        {isLoading ? (
+          <View className="items-center justify-center py-12">
+            <Text className="text-sm text-muted-foreground">Loading...</Text>
+          </View>
+        ) : notifications.length === 0 ? (
+          <View className="items-center justify-center py-16 px-6">
+            <View className="mb-3">
+              <BellIcon size={32} />
+            </View>
+            <Text className="text-base font-medium text-foreground mb-1">No notifications yet</Text>
+            <Text className="text-sm text-muted-foreground text-center">
+              Set up triggers and routines to get proactive updates from Alia.
+            </Text>
+          </View>
+        ) : (
+          <View className="py-2">
+            {notifications.map((notification: any) => {
+              const Icon = TYPE_ICONS[notification.type] || Bell;
+              const isUnread = notification.status !== 'read' && notification.status !== 'dismissed';
+              const priorityBorder = PRIORITY_COLORS[notification.priority] || PRIORITY_COLORS.normal;
+
+              return (
+                <Pressable
+                  key={notification._id}
+                  onPress={() => handleNotificationPress(notification)}
+                  className={`px-6 py-4 border-b border-border border-l-2 ${priorityBorder} ${isUnread ? 'bg-muted/20' : ''} active:bg-muted/40`}
+                >
+                  <View className="flex-row items-start gap-3">
+                    <View className={`mt-0.5 ${isUnread ? 'opacity-100' : 'opacity-50'}`}>
+                      <Icon size={16} className="text-muted-foreground" />
+                    </View>
+                    <View className="flex-1">
+                      <View className="flex-row items-center justify-between mb-1">
+                        <Text className={`text-sm ${isUnread ? 'font-semibold text-foreground' : 'font-medium text-muted-foreground'}`} numberOfLines={1}>
+                          {notification.title}
+                        </Text>
+                        <View className="flex-row items-center gap-2">
+                          <Text className="text-xs text-muted-foreground">
+                            {timeAgo(notification.createdAt)}
+                          </Text>
+                          <Pressable
+                            onPress={(e) => {
+                              e.stopPropagation();
+                              dismiss.mutate(notification._id);
+                            }}
+                            className="p-1"
+                            hitSlop={8}
+                          >
+                            <X size={12} className="text-muted-foreground" />
+                          </Pressable>
+                        </View>
+                      </View>
+                      <Text className="text-xs text-muted-foreground" numberOfLines={3}>
+                        {notification.body}
+                      </Text>
+                    </View>
+                  </View>
+                </Pressable>
+              );
+            })}
+          </View>
+        )}
+      </ScrollView>
+    </ContentPanel>
   );
 }

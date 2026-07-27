@@ -9,6 +9,7 @@ import { useSkillsStore, type Skill } from '@/lib/stores/skills-store';
 import { useI18nStore } from '@/lib/stores/i18n-store';
 import { SkillCover } from '@/components/ui/skill-cover';
 import { Skeleton } from '@/components/ui/skeleton';
+import { ContentPanel } from "@oxyhq/bloom/content-panel";
 
 function SkillBook({ skill, onPress }: { skill: Skill; onPress: () => void }) {
   return (
@@ -21,20 +22,22 @@ function SkillBook({ skill, onPress }: { skill: Skill; onPress: () => void }) {
 function ShelfSection({ title, skills, onPressSkill }: { title: string; skills: Skill[]; onPressSkill: (id: string) => void }) {
   if (skills.length === 0) return null;
   return (
-    <View className="mb-5">
-      <View className="px-5 mb-2">
-        <Text className="text-[11px] font-semibold text-muted-foreground tracking-wider uppercase">{title}</Text>
+    <ContentPanel surfaceClassName="bg-background">
+      <View className="mb-5">
+        <View className="px-5 mb-2">
+          <Text className="text-[11px] font-semibold text-muted-foreground tracking-wider uppercase">{title}</Text>
+        </View>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ paddingHorizontal: 20 }}
+        >
+          {skills.map((skill) => (
+            <SkillBook key={skill.skillId} skill={skill} onPress={() => onPressSkill(skill.skillId)} />
+          ))}
+        </ScrollView>
       </View>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={{ paddingHorizontal: 20 }}
-      >
-        {skills.map((skill) => (
-          <SkillBook key={skill.skillId} skill={skill} onPress={() => onPressSkill(skill.skillId)} />
-        ))}
-      </ScrollView>
-    </View>
+    </ContentPanel>
   );
 }
 

@@ -15,6 +15,7 @@ import { useTranslation } from '@/lib/hooks/use-translation';
 import { toast } from '@oxyhq/bloom/toast';
 import { cn } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
+import { ContentPanel } from "@oxyhq/bloom/content-panel";
 
 export default function RolesScreen() {
   const { t } = useTranslation();
@@ -69,138 +70,140 @@ export default function RolesScreen() {
   const featuredRoles = useMemo(() => roles.filter(r => r.isFeatured), [roles]);
 
   return (
-    <View className="flex-1 bg-background">
-      <ScrollView
-        className="flex-1"
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-      >
-        {/* Header */}
-        <View className="px-5 pt-6 pb-1">
-          <View className="flex-row items-center justify-between">
-            <Text className="text-2xl font-bold text-foreground">
-              {t('roles.title')}
-            </Text>
-            <Button
-              onPress={handleCreateRole}
-              size="icon"
-              className="rounded-full h-8 w-8"
-            >
-              <Plus size={16} className="text-primary-foreground" />
-            </Button>
-          </View>
-          <Text className="text-[13px] text-muted-foreground mt-0.5">
-            {t('roles.subtitle')}
-          </Text>
-        </View>
-
-        {/* Search */}
-        <View className="px-5 pt-3 pb-2">
-          <Search
-            label={t('roles.searchPlaceholder')}
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            onClearText={() => setSearchQuery('')}
-          />
-        </View>
-
-        {/* Category Chips */}
-        <View className="py-2">
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20 }}>
-            <View className="flex-row gap-1.5">
-              {categories.map((category) => {
-                const isActive = selectedCategory === category || (!selectedCategory && category === t('common.all'));
-                return (
-                  <Pressable
-                    key={category}
-                    onPress={() => setSelectedCategory(category === t('common.all') ? null : category)}
-                    className="active:opacity-70"
-                  >
-                    <View className={cn(
-                      "px-3 py-1 rounded-full",
-                      isActive ? "bg-foreground" : "bg-muted/70"
-                    )}>
-                      <Text className={cn(
-                        "text-xs font-medium",
-                        isActive ? "text-background" : "text-muted-foreground"
-                      )}>
-                        {category}
-                      </Text>
-                    </View>
-                  </Pressable>
-                );
-              })}
-            </View>
-          </ScrollView>
-        </View>
-
-        {/* Featured Section */}
-        {!searchQuery && !selectedCategory && featuredRoles.length > 0 && (
-          <View className="mt-2 mb-4">
-            <View className="px-5 mb-2">
-              <Text className="text-[11px] font-semibold text-muted-foreground tracking-wider uppercase">
-                {t('roles.featured')}
+    <ContentPanel surfaceClassName="bg-background">
+      <View className="flex-1 bg-background">
+        <ScrollView
+          className="flex-1"
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+        >
+          {/* Header */}
+          <View className="px-5 pt-6 pb-1">
+            <View className="flex-row items-center justify-between">
+              <Text className="text-2xl font-bold text-foreground">
+                {t('roles.title')}
               </Text>
+              <Button
+                onPress={handleCreateRole}
+                size="icon"
+                className="rounded-full h-8 w-8"
+              >
+                <Plus size={16} className="text-primary-foreground" />
+              </Button>
             </View>
+            <Text className="text-[13px] text-muted-foreground mt-0.5">
+              {t('roles.subtitle')}
+            </Text>
+          </View>
+
+          {/* Search */}
+          <View className="px-5 pt-3 pb-2">
+            <Search
+              label={t('roles.searchPlaceholder')}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              onClearText={() => setSearchQuery('')}
+            />
+          </View>
+
+          {/* Category Chips */}
+          <View className="py-2">
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20 }}>
-              {featuredRoles.map((role) => (
-                <FeaturedRoleCard key={role.id} role={role} onPress={handleSelectRole} />
-              ))}
+              <View className="flex-row gap-1.5">
+                {categories.map((category) => {
+                  const isActive = selectedCategory === category || (!selectedCategory && category === t('common.all'));
+                  return (
+                    <Pressable
+                      key={category}
+                      onPress={() => setSelectedCategory(category === t('common.all') ? null : category)}
+                      className="active:opacity-70"
+                    >
+                      <View className={cn(
+                        "px-3 py-1 rounded-full",
+                        isActive ? "bg-foreground" : "bg-muted/70"
+                      )}>
+                        <Text className={cn(
+                          "text-xs font-medium",
+                          isActive ? "text-background" : "text-muted-foreground"
+                        )}>
+                          {category}
+                        </Text>
+                      </View>
+                    </Pressable>
+                  );
+                })}
+              </View>
             </ScrollView>
           </View>
-        )}
 
-        {/* All Roles List */}
-        <View className="px-5 pb-6">
-          {(searchQuery || selectedCategory) && (
-            <View className="mb-2">
-              <Text className="text-[11px] font-semibold text-muted-foreground tracking-wider uppercase">
-                {filteredRoles.length} {filteredRoles.length === 1 ? 'role' : 'roles'}
-              </Text>
+          {/* Featured Section */}
+          {!searchQuery && !selectedCategory && featuredRoles.length > 0 && (
+            <View className="mt-2 mb-4">
+              <View className="px-5 mb-2">
+                <Text className="text-[11px] font-semibold text-muted-foreground tracking-wider uppercase">
+                  {t('roles.featured')}
+                </Text>
+              </View>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20 }}>
+                {featuredRoles.map((role) => (
+                  <FeaturedRoleCard key={role.id} role={role} onPress={handleSelectRole} />
+                ))}
+              </ScrollView>
             </View>
           )}
-          {!searchQuery && !selectedCategory && (
-            <View className="mb-2">
-              <Text className="text-[11px] font-semibold text-muted-foreground tracking-wider uppercase">
-                {t('common.all')}
-              </Text>
-            </View>
-          )}
-          {isInitialLoad ? (
-            <View className="gap-0.5">
-              {Array.from({ length: 5 }).map((_, i) => (
-                <View key={i} className="flex-row items-center py-2.5 gap-3">
-                  <Skeleton style={{ width: 36, height: 36, borderRadius: 18 }} />
-                  <View className="flex-1 gap-1.5">
-                    <Skeleton style={{ width: '50%', height: 14, borderRadius: 8 }} />
-                    <Skeleton style={{ width: '70%', height: 10, borderRadius: 6 }} />
+
+          {/* All Roles List */}
+          <View className="px-5 pb-6">
+            {(searchQuery || selectedCategory) && (
+              <View className="mb-2">
+                <Text className="text-[11px] font-semibold text-muted-foreground tracking-wider uppercase">
+                  {filteredRoles.length} {filteredRoles.length === 1 ? 'role' : 'roles'}
+                </Text>
+              </View>
+            )}
+            {!searchQuery && !selectedCategory && (
+              <View className="mb-2">
+                <Text className="text-[11px] font-semibold text-muted-foreground tracking-wider uppercase">
+                  {t('common.all')}
+                </Text>
+              </View>
+            )}
+            {isInitialLoad ? (
+              <View className="gap-0.5">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <View key={i} className="flex-row items-center py-2.5 gap-3">
+                    <Skeleton style={{ width: 36, height: 36, borderRadius: 18 }} />
+                    <View className="flex-1 gap-1.5">
+                      <Skeleton style={{ width: '50%', height: 14, borderRadius: 8 }} />
+                      <Skeleton style={{ width: '70%', height: 10, borderRadius: 6 }} />
+                    </View>
+                    <Skeleton style={{ width: 30, height: 12, borderRadius: 6 }} />
                   </View>
-                  <Skeleton style={{ width: 30, height: 12, borderRadius: 6 }} />
-                </View>
-              ))}
-            </View>
-          ) : (
-            <View>
-              {filteredRoles.map((role) => (
-                <RoleListItem key={role.id} role={role} onPress={handleSelectRole} />
-              ))}
-            </View>
-          )}
+                ))}
+              </View>
+            ) : (
+              <View>
+                {filteredRoles.map((role) => (
+                  <RoleListItem key={role.id} role={role} onPress={handleSelectRole} />
+                ))}
+              </View>
+            )}
 
-          {filteredRoles.length === 0 && !isInitialLoad && (
-            <View className="items-center justify-center py-16">
-              <Text className="text-sm font-medium text-foreground">
-                {t('roles.noRoles')}
-              </Text>
-              <Text className="text-xs text-muted-foreground text-center mt-1">
-                {searchQuery ? t('common.tryDifferentSearch') : t('roles.createToStart')}
-              </Text>
-            </View>
-          )}
-        </View>
-      </ScrollView>
-    </View>
+            {filteredRoles.length === 0 && !isInitialLoad && (
+              <View className="items-center justify-center py-16">
+                <Text className="text-sm font-medium text-foreground">
+                  {t('roles.noRoles')}
+                </Text>
+                <Text className="text-xs text-muted-foreground text-center mt-1">
+                  {searchQuery ? t('common.tryDifferentSearch') : t('roles.createToStart')}
+                </Text>
+              </View>
+            )}
+          </View>
+        </ScrollView>
+      </View>
+    </ContentPanel>
   );
 }
 

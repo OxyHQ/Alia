@@ -10,6 +10,7 @@ import apiClient from "@/lib/api/client";
 import { API_ROUTES } from "@/lib/api/routes";
 import { Sparkles, MessageCircleQuestion, GitBranch, BarChart3 } from "lucide-react-native";
 import { errorMessage as getErrorMessage } from '@/lib/errors/error-utils';
+import { ContentPanel } from "@oxyhq/bloom/content-panel";
 
 type Archetype = 'general' | 'qa' | 'task_router' | 'status_update';
 
@@ -115,66 +116,69 @@ export default function CreateAgentScreen() {
   }
 
   return (
-    <ScrollView
-      className="flex-1 bg-background"
-      contentContainerClassName="items-center justify-center px-5 py-10 min-h-full"
-      keyboardShouldPersistTaps="handled"
-    >
-      <View className="w-full max-w-2xl gap-6">
-        {/* Title */}
-        <Text className="text-2xl font-semibold text-foreground text-center">
-          {t("agents.createTitle")}
-        </Text>
-
-        {/* Archetype Picker */}
-        <View className="gap-2">
-          <Text className="text-sm font-medium text-muted-foreground">
-            Agent type
+    <ContentPanel surfaceClassName="bg-background">
+      <ScrollView
+        className="flex-1 bg-background"
+        contentContainerClassName="items-center justify-center px-5 py-10 min-h-full"
+        keyboardShouldPersistTaps="handled"
+      >
+        <View className="w-full max-w-2xl gap-6">
+          {/* Title */}
+          <Text className="text-2xl font-semibold text-foreground text-center">
+            {t("agents.createTitle")}
           </Text>
-          <View className="flex-row flex-wrap gap-3">
-            {ARCHETYPE_OPTIONS.map((option) => {
-              const isSelected = selectedArchetype === option.value;
-              return (
-                <Pressable
-                  key={option.value}
-                  onPress={() => setSelectedArchetype(option.value)}
-                  className={`flex-1 min-w-[45%] rounded-xl border p-4 gap-2 ${
-                    isSelected
-                      ? "bg-primary/10 border-primary"
-                      : "bg-card border-border"
-                  }`}
-                >
-                  <option.Icon
-                    size={20}
-                    className={isSelected ? "text-primary" : "text-muted-foreground"}
-                  />
-                  <Text
-                    className={`text-sm font-semibold ${
-                      isSelected ? "text-primary" : "text-foreground"
+
+          {/* Archetype Picker */}
+          <View className="gap-2">
+            <Text className="text-sm font-medium text-muted-foreground">
+              Agent type
+            </Text>
+            <View className="flex-row flex-wrap gap-3">
+              {ARCHETYPE_OPTIONS.map((option) => {
+                const isSelected = selectedArchetype === option.value;
+                return (
+                  <Pressable
+                    key={option.value}
+                    onPress={() => setSelectedArchetype(option.value)}
+                    className={`flex-1 min-w-[45%] rounded-xl border p-4 gap-2 ${
+                      isSelected
+                        ? "bg-primary/10 border-primary"
+                        : "bg-card border-border"
                     }`}
                   >
-                    {option.label}
-                  </Text>
-                  <Text className="text-xs text-muted-foreground leading-4">
-                    {option.description}
-                  </Text>
-                </Pressable>
-              );
-            })}
+                    <option.Icon
+                      size={20}
+                      className={isSelected ? "text-primary" : "text-muted-foreground"}
+                    />
+                    <Text
+                      className={`text-sm font-semibold ${
+                        isSelected ? "text-primary" : "text-foreground"
+                      }`}
+                    >
+                      {option.label}
+                    </Text>
+                    <Text className="text-xs text-muted-foreground leading-4">
+                      {option.description}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
           </View>
-        </View>
 
-        <PromptInput
-          value={inputValue}
-          onValueChange={setInputValue}
-          onSubmit={handleGenerate}
-          isLoading={generating}
-          disabled={generating}
-          placeholder={t("agents.createPlaceholder")}
-          autocomplete
-          autocompletePosition="bottom"
-        />
-      </View>
-    </ScrollView>
+          <PromptInput
+            value={inputValue}
+            onValueChange={setInputValue}
+            onSubmit={handleGenerate}
+            isLoading={generating}
+            disabled={generating}
+            placeholder={t("agents.createPlaceholder")}
+            autocomplete
+            autocompletePosition="bottom"
+          />
+        </View>
+      </ScrollView>
+    </ContentPanel>
+
   );
 }

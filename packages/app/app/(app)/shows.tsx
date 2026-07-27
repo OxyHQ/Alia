@@ -13,6 +13,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from '@oxyhq/bloom/toast';
 import { cn } from '@/lib/utils';
 import { useShowProgress } from '@/lib/hooks/use-show-progress';
+import { ContentPanel } from "@oxyhq/bloom/content-panel";
 
 const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
   queued: { label: 'Queued', color: 'text-muted-foreground' },
@@ -37,72 +38,74 @@ function ShowCard({ show, onDelete }: {
   const statusConfig = STATUS_CONFIG[show.status] || STATUS_CONFIG.queued;
 
   return (
-    <View className="bg-card rounded-xl border border-border p-4 gap-3">
-      {/* Header */}
-      <View className="flex-row items-start justify-between">
-        <View className="flex-1 gap-1">
-          <Text className="text-base font-semibold text-foreground" numberOfLines={2}>
-            {show.title}
-          </Text>
-          {show.description && (
-            <Text className="text-xs text-muted-foreground" numberOfLines={2}>
-              {show.description}
+    <ContentPanel surfaceClassName="bg-background">
+      <View className="bg-card rounded-xl border border-border p-4 gap-3">
+        {/* Header */}
+        <View className="flex-row items-start justify-between">
+          <View className="flex-1 gap-1">
+            <Text className="text-base font-semibold text-foreground" numberOfLines={2}>
+              {show.title}
+            </Text>
+            {show.description && (
+              <Text className="text-xs text-muted-foreground" numberOfLines={2}>
+                {show.description}
+              </Text>
+            )}
+          </View>
+          <View className="flex-row items-center gap-1.5 ml-2">
+            {show.status === 'completed' && <CheckCircle size={14} className="text-green-500" />}
+            {show.status === 'failed' && <AlertCircle size={14} className="text-red-500" />}
+            <Text className={cn('text-xs font-medium', statusConfig.color)}>
+              {statusConfig.label}
+            </Text>
+          </View>
+        </View>
+
+        {/* Format + Date */}
+        <View className="flex-row items-center gap-2">
+          <View className="px-2 py-0.5 bg-muted rounded-full">
+            <Text className="text-[10px] uppercase font-medium text-muted-foreground">
+              {show.format}
+            </Text>
+          </View>
+          <Text className="text-xs text-muted-foreground">{formatDate(show.createdAt)}</Text>
+          {show.speakers?.length > 0 && (
+            <Text className="text-xs text-muted-foreground">
+              {show.speakers.map(s => s.name).join(', ')}
             </Text>
           )}
         </View>
-        <View className="flex-row items-center gap-1.5 ml-2">
-          {show.status === 'completed' && <CheckCircle size={14} className="text-green-500" />}
-          {show.status === 'failed' && <AlertCircle size={14} className="text-red-500" />}
-          <Text className={cn('text-xs font-medium', statusConfig.color)}>
-            {statusConfig.label}
-          </Text>
-        </View>
-      </View>
 
-      {/* Format + Date */}
-      <View className="flex-row items-center gap-2">
-        <View className="px-2 py-0.5 bg-muted rounded-full">
-          <Text className="text-[10px] uppercase font-medium text-muted-foreground">
-            {show.format}
-          </Text>
-        </View>
-        <Text className="text-xs text-muted-foreground">{formatDate(show.createdAt)}</Text>
-        {show.speakers?.length > 0 && (
-          <Text className="text-xs text-muted-foreground">
-            {show.speakers.map(s => s.name).join(', ')}
-          </Text>
+        {/* Progress or Player */}
+        {isActive && progress && (
+          <ShowProgressCard progress={progress} />
         )}
-      </View>
 
-      {/* Progress or Player */}
-      {isActive && progress && (
-        <ShowProgressCard progress={progress} />
-      )}
+        {show.status === 'completed' && show.audioUrl && (
+          <ShowPlayer
+            audioUrl={show.audioUrl}
+            title={show.title}
+            durationMs={show.durationMs}
+          />
+        )}
 
-      {show.status === 'completed' && show.audioUrl && (
-        <ShowPlayer
-          audioUrl={show.audioUrl}
-          title={show.title}
-          durationMs={show.durationMs}
-        />
-      )}
+        {show.status === 'failed' && show.error && (
+          <View className="p-2 bg-destructive/10 rounded-lg">
+            <Text className="text-xs text-destructive">{show.error}</Text>
+          </View>
+        )}
 
-      {show.status === 'failed' && show.error && (
-        <View className="p-2 bg-destructive/10 rounded-lg">
-          <Text className="text-xs text-destructive">{show.error}</Text>
+        {/* Actions */}
+        <View className="flex-row justify-end">
+          <Pressable
+            onPress={() => onDelete(show._id)}
+            className="p-2 active:opacity-70"
+          >
+            <Trash2 size={14} className="text-muted-foreground" />
+          </Pressable>
         </View>
-      )}
-
-      {/* Actions */}
-      <View className="flex-row justify-end">
-        <Pressable
-          onPress={() => onDelete(show._id)}
-          className="p-2 active:opacity-70"
-        >
-          <Trash2 size={14} className="text-muted-foreground" />
-        </Pressable>
       </View>
-    </View>
+    </ContentPanel>
   );
 }
 

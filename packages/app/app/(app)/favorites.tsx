@@ -8,6 +8,7 @@ import { useConversations } from '@/lib/hooks/use-conversations';
 import { useRouter } from 'expo-router';
 import { cn } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
+import { ContentPanel } from "@oxyhq/bloom/content-panel";
 
 export default function FavoritesScreen() {
   const router = useRouter();
@@ -61,95 +62,97 @@ export default function FavoritesScreen() {
   };
 
   return (
-    <View className="flex-1 bg-background">
-      <ScrollView
-        className="flex-1"
-        showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-      >
-        {/* Header */}
-        <View className="px-5 pt-6 pb-1">
-          <Text className="text-2xl font-bold text-foreground">
-            Favorites
-          </Text>
-          <Text className="text-[13px] text-muted-foreground mt-0.5">
-            Your saved conversations
-          </Text>
-        </View>
+    <ContentPanel surfaceClassName="bg-background">
+      <View className="flex-1 bg-background">
+        <ScrollView
+          className="flex-1"
+          showsVerticalScrollIndicator={false}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+        >
+          {/* Header */}
+          <View className="px-5 pt-6 pb-1">
+            <Text className="text-2xl font-bold text-foreground">
+              Favorites
+            </Text>
+            <Text className="text-[13px] text-muted-foreground mt-0.5">
+              Your saved conversations
+            </Text>
+          </View>
 
-        {/* Search */}
-        <View className="px-5 pt-3 pb-2">
-          <Search
-            label="Search favorites..."
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            onClearText={() => setSearchQuery('')}
-          />
-        </View>
+          {/* Search */}
+          <View className="px-5 pt-3 pb-2">
+            <Search
+              label="Search favorites..."
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              onClearText={() => setSearchQuery('')}
+            />
+          </View>
 
-        {/* Count */}
-        <View className="px-5 py-2">
-          <Text className="text-[11px] font-semibold text-muted-foreground tracking-wider uppercase">
-            {favoriteConversations.length} {favoriteConversations.length === 1 ? 'favorite' : 'favorites'}
-          </Text>
-        </View>
+          {/* Count */}
+          <View className="px-5 py-2">
+            <Text className="text-[11px] font-semibold text-muted-foreground tracking-wider uppercase">
+              {favoriteConversations.length} {favoriteConversations.length === 1 ? 'favorite' : 'favorites'}
+            </Text>
+          </View>
 
-        {/* List */}
-        <View className="px-5 pb-6">
-          {isLoading && allConversations.length === 0 ? (
-            <View className="gap-0.5">
-              {Array.from({ length: 4 }).map((_, i) => (
-                <View key={i} className="flex-row items-center py-2.5 gap-3">
-                  <View className="flex-1 gap-1.5">
-                    <Skeleton style={{ width: '55%', height: 14, borderRadius: 8 }} />
-                    <Skeleton style={{ width: '30%', height: 10, borderRadius: 6 }} />
+          {/* List */}
+          <View className="px-5 pb-6">
+            {isLoading && allConversations.length === 0 ? (
+              <View className="gap-0.5">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <View key={i} className="flex-row items-center py-2.5 gap-3">
+                    <View className="flex-1 gap-1.5">
+                      <Skeleton style={{ width: '55%', height: 14, borderRadius: 8 }} />
+                      <Skeleton style={{ width: '30%', height: 10, borderRadius: 6 }} />
+                    </View>
+                    <Skeleton style={{ width: 28, height: 28, borderRadius: 14 }} />
                   </View>
-                  <Skeleton style={{ width: 28, height: 28, borderRadius: 14 }} />
-                </View>
-              ))}
-            </View>
-          ) : (
-            <>
-          {favoriteConversations.map((conv) => (
-            <Pressable
-              key={conv.id}
-              onPress={() => handleSelect(conv.id)}
-              className="active:opacity-70"
-            >
-              <View className="flex-row items-center py-2.5 gap-3">
-                <View className="flex-1">
-                  <Text className="text-[14px] font-semibold text-foreground" numberOfLines={1}>
-                    {conv.title || 'New conversation'}
-                  </Text>
-                  <Text className="text-xs text-muted-foreground" numberOfLines={1}>
-                    {formatDate(conv.updatedAt)}
-                  </Text>
-                </View>
-                <Pressable
-                  onPress={() => handleUnfavorite(conv.id)}
-                  className="h-8 w-8 items-center justify-center rounded-full active:bg-muted/70"
-                >
-                  <Star size={14} className="text-amber-500" fill="#f59e0b" />
-                </Pressable>
+                ))}
               </View>
-            </Pressable>
-          ))}
+            ) : (
+              <>
+            {favoriteConversations.map((conv) => (
+              <Pressable
+                key={conv.id}
+                onPress={() => handleSelect(conv.id)}
+                className="active:opacity-70"
+              >
+                <View className="flex-row items-center py-2.5 gap-3">
+                  <View className="flex-1">
+                    <Text className="text-[14px] font-semibold text-foreground" numberOfLines={1}>
+                      {conv.title || 'New conversation'}
+                    </Text>
+                    <Text className="text-xs text-muted-foreground" numberOfLines={1}>
+                      {formatDate(conv.updatedAt)}
+                    </Text>
+                  </View>
+                  <Pressable
+                    onPress={() => handleUnfavorite(conv.id)}
+                    className="h-8 w-8 items-center justify-center rounded-full active:bg-muted/70"
+                  >
+                    <Star size={14} className="text-amber-500" fill="#f59e0b" />
+                  </Pressable>
+                </View>
+              </Pressable>
+            ))}
 
-          {favoriteConversations.length === 0 && (
-            <View className="items-center justify-center py-16">
-              <Star size={32} className="text-muted-foreground/30 mb-3" />
-              <Text className="text-sm font-medium text-foreground">
-                No favorites yet
-              </Text>
-              <Text className="text-xs text-muted-foreground text-center mt-1">
-                {searchQuery ? 'Try a different search' : 'Star conversations to save them here'}
-              </Text>
-            </View>
-          )}
-            </>
-          )}
-        </View>
-      </ScrollView>
-    </View>
+            {favoriteConversations.length === 0 && (
+              <View className="items-center justify-center py-16">
+                <Star size={32} className="text-muted-foreground/30 mb-3" />
+                <Text className="text-sm font-medium text-foreground">
+                  No favorites yet
+                </Text>
+                <Text className="text-xs text-muted-foreground text-center mt-1">
+                  {searchQuery ? 'Try a different search' : 'Star conversations to save them here'}
+                </Text>
+              </View>
+            )}
+              </>
+            )}
+          </View>
+        </ScrollView>
+      </View>
+    </ContentPanel>
   );
 }

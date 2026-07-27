@@ -34,6 +34,7 @@ import { useSkillsStore } from '@/lib/stores/skills-store';
 import { toast } from '@oxyhq/bloom/toast';
 import { confirm } from '@oxyhq/bloom/alert-dialog';
 import { cn } from '@/lib/utils';
+import { ContentPanel } from "@oxyhq/bloom/content-panel";
 
 const SKILL_COLORS = [
   '#6366f1', '#ec4899', '#14b8a6', '#f59e0b', '#8b5cf6',
@@ -441,106 +442,108 @@ export default function EditSkillScreen() {
   );
 
   return (
-    <View className="flex-1 bg-background flex-row">
-      {/* Main Content */}
-      <View className="flex-1">
-        {/* Header */}
-        <View className="flex-row items-center justify-between px-4 py-3 border-b border-border">
-          <View className="flex-row items-center gap-3">
-            <Pressable onPress={() => router.back()} className="active:opacity-70">
-              <ArrowLeft size={20} className="text-foreground" />
-            </Pressable>
-            <Text className="text-sm font-medium text-foreground">
-              {t('skills.instructions')}
-            </Text>
-            <ChevronRight size={14} className="text-muted-foreground" />
-            <View className={cn('px-2 py-0.5 rounded-full', isPublished ? 'bg-green-500/15' : 'bg-muted')}>
-              <Text className={cn('text-xs font-medium', isPublished ? 'text-green-500' : 'text-muted-foreground')}>
-                {isPublished ? t('skills.published') : t('skills.draft')}
-              </Text>
-            </View>
-            {saving && (
-              <Text className="text-xs text-muted-foreground ml-2">
-                {t('common.saving')}
-              </Text>
-            )}
-          </View>
-          <View className="flex-row items-center gap-2">
-            {!isLargeScreen && (
-              <Pressable onPress={() => setShowPanel(true)} className="p-2 active:opacity-70">
-                <Settings size={18} className="text-foreground" />
+    <ContentPanel surfaceClassName="bg-background">
+      <View className="flex-1 bg-background flex-row">
+        {/* Main Content */}
+        <View className="flex-1">
+          {/* Header */}
+          <View className="flex-row items-center justify-between px-4 py-3 border-b border-border">
+            <View className="flex-row items-center gap-3">
+              <Pressable onPress={() => router.back()} className="active:opacity-70">
+                <ArrowLeft size={20} className="text-foreground" />
               </Pressable>
-            )}
-            <DropdownMenu.Root>
-              <DropdownMenu.Trigger>
-                <Pressable className="p-2">
-                  <Ellipsis size={18} className="text-foreground" />
-                </Pressable>
-              </DropdownMenu.Trigger>
-              <DropdownMenu.Content>
-                <DropdownMenu.Item key="delete" onSelect={handleDelete}>
-                  <DropdownMenu.ItemIcon ios={{ name: 'trash' }} />
-                  <DropdownMenu.ItemTitle>
-                    {t('skills.deleteSkill')}
-                  </DropdownMenu.ItemTitle>
-                </DropdownMenu.Item>
-              </DropdownMenu.Content>
-            </DropdownMenu.Root>
-            <Button onPress={handlePublishToggle} className="h-8 px-4 rounded-full">
-              <Text className="text-sm font-medium text-primary-foreground">
-                {isPublished ? t('skills.unpublish') : t('skills.publish')}
+              <Text className="text-sm font-medium text-foreground">
+                {t('skills.instructions')}
               </Text>
-            </Button>
+              <ChevronRight size={14} className="text-muted-foreground" />
+              <View className={cn('px-2 py-0.5 rounded-full', isPublished ? 'bg-green-500/15' : 'bg-muted')}>
+                <Text className={cn('text-xs font-medium', isPublished ? 'text-green-500' : 'text-muted-foreground')}>
+                  {isPublished ? t('skills.published') : t('skills.draft')}
+                </Text>
+              </View>
+              {saving && (
+                <Text className="text-xs text-muted-foreground ml-2">
+                  {t('common.saving')}
+                </Text>
+              )}
+            </View>
+            <View className="flex-row items-center gap-2">
+              {!isLargeScreen && (
+                <Pressable onPress={() => setShowPanel(true)} className="p-2 active:opacity-70">
+                  <Settings size={18} className="text-foreground" />
+                </Pressable>
+              )}
+              <DropdownMenu.Root>
+                <DropdownMenu.Trigger>
+                  <Pressable className="p-2">
+                    <Ellipsis size={18} className="text-foreground" />
+                  </Pressable>
+                </DropdownMenu.Trigger>
+                <DropdownMenu.Content>
+                  <DropdownMenu.Item key="delete" onSelect={handleDelete}>
+                    <DropdownMenu.ItemIcon ios={{ name: 'trash' }} />
+                    <DropdownMenu.ItemTitle>
+                      {t('skills.deleteSkill')}
+                    </DropdownMenu.ItemTitle>
+                  </DropdownMenu.Item>
+                </DropdownMenu.Content>
+              </DropdownMenu.Root>
+              <Button onPress={handlePublishToggle} className="h-8 px-4 rounded-full">
+                <Text className="text-sm font-medium text-primary-foreground">
+                  {isPublished ? t('skills.unpublish') : t('skills.publish')}
+                </Text>
+              </Button>
+            </View>
           </View>
-        </View>
 
-        {/* Main Editor */}
-        <ScrollView
-          className="flex-1"
-          contentContainerStyle={{ padding: 20, paddingBottom: 60 }}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-        >
-          {/* Cover + Title */}
-          <View className="flex-row items-center gap-3 mb-6">
-            <SkillCover seed={title || 'default'} width={48} animated={false} />
-            <TextInput
-              value={title}
-              onChangeText={setTitle}
-              placeholder={t('skills.titlePlaceholder')}
+          {/* Main Editor */}
+          <ScrollView
+            className="flex-1"
+            contentContainerStyle={{ padding: 20, paddingBottom: 60 }}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+          >
+            {/* Cover + Title */}
+            <View className="flex-row items-center gap-3 mb-6">
+              <SkillCover seed={title || 'default'} width={48} animated={false} />
+              <TextInput
+                value={title}
+                onChangeText={setTitle}
+                placeholder={t('skills.titlePlaceholder')}
+                placeholderTextColor={colors.mutedForeground}
+                className="text-foreground"
+                style={{
+                  fontSize: 24,
+                  fontWeight: '700',
+                  flex: 1,
+                  padding: 0,
+                }}
+              />
+            </View>
+
+            {/* System Prompt */}
+            <Textarea
+              variant="ghost"
+              value={systemPrompt}
+              onChangeText={setSystemPrompt}
+              placeholder={t('skills.systemPromptPlaceholder')}
               placeholderTextColor={colors.mutedForeground}
-              className="text-foreground"
-              style={{
-                fontSize: 24,
-                fontWeight: '700',
-                flex: 1,
-                padding: 0,
-              }}
+              style={{ fontSize: 15, lineHeight: 22, minHeight: 300 }}
             />
-          </View>
-
-          {/* System Prompt */}
-          <Textarea
-            variant="ghost"
-            value={systemPrompt}
-            onChangeText={setSystemPrompt}
-            placeholder={t('skills.systemPromptPlaceholder')}
-            placeholderTextColor={colors.mutedForeground}
-            style={{ fontSize: 15, lineHeight: 22, minHeight: 300 }}
-          />
-        </ScrollView>
-      </View>
-
-      {/* Right Sidebar — Desktop: inline, Mobile: Panel modal */}
-      {isLargeScreen ? (
-        <View style={{ width: 320 }} className="border-l border-border bg-background">
-          {sidebarContent}
+          </ScrollView>
         </View>
-      ) : (
-        <Panel open={showPanel} onClose={() => setShowPanel(false)} side="right" width={320}>
-          {sidebarContent}
-        </Panel>
-      )}
-    </View>
+
+        {/* Right Sidebar — Desktop: inline, Mobile: Panel modal */}
+        {isLargeScreen ? (
+          <View style={{ width: 320 }} className="border-l border-border bg-background">
+            {sidebarContent}
+          </View>
+        ) : (
+          <Panel open={showPanel} onClose={() => setShowPanel(false)} side="right" width={320}>
+            {sidebarContent}
+          </Panel>
+        )}
+      </View>
+    </ContentPanel>
   );
 }

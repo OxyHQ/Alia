@@ -9,6 +9,7 @@ import { AuthLogo } from "@/components/auth/auth-logo";
 import { Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
 import { useRedeemInviteCode } from "@/lib/hooks/use-referrals";
+import { ContentPanel } from "@oxyhq/bloom/content-panel";
 
 export default function InviteScreen() {
   const { code } = useLocalSearchParams<{ code: string }>();
@@ -133,57 +134,59 @@ export default function InviteScreen() {
 
   // Not authenticated: show signup prompt
   return (
-    <>
-      <Head>
-        <title>You're Invited to Alia</title>
-        <meta
-          name="description"
-          content="Join Alia and get 500 free credits with this invitation link."
-        />
-      </Head>
-      <AuthContainer>
-        <View className="items-center gap-6">
-          {/* Icon */}
-          <View className="h-20 w-20 items-center justify-center rounded-full bg-primary/10">
-            <HeartHandshake size={40} className="text-primary" />
+    <ContentPanel surfaceClassName="bg-background">
+      <>
+        <Head>
+          <title>You're Invited to Alia</title>
+          <meta
+            name="description"
+            content="Join Alia and get 500 free credits with this invitation link."
+          />
+        </Head>
+        <AuthContainer>
+          <View className="items-center gap-6">
+            {/* Icon */}
+            <View className="h-20 w-20 items-center justify-center rounded-full bg-primary/10">
+              <HeartHandshake size={40} className="text-primary" />
+            </View>
+
+            <Text className="text-2xl font-bold text-foreground text-center">
+              You've been invited to Alia
+            </Text>
+            <Text className="text-base text-muted-foreground text-center">
+              Sign up now and you'll both get 500 credits to use with Alia's AI
+              assistant.
+            </Text>
+
+            <View className="w-full gap-3">
+              <Button
+                onPress={() => signIn().catch(() => {})}
+                className="w-full h-12 rounded-full"
+              >
+                <View className="flex-row items-center gap-2">
+                  <Text className="text-base font-semibold text-primary-foreground">
+                    Sign up & claim credits
+                  </Text>
+                  <Gift size={18} className="text-primary-foreground" />
+                </View>
+              </Button>
+
+              <Button
+                variant="outline"
+                onPress={() => signIn().catch(() => {})}
+                className="w-full h-12 rounded-full"
+              >
+                <View className="flex-row items-center gap-2">
+                  <LogIn size={18} className="text-foreground" />
+                  <Text className="text-base font-medium text-foreground">
+                    Already have an account? Sign in
+                  </Text>
+                </View>
+              </Button>
+            </View>
           </View>
-
-          <Text className="text-2xl font-bold text-foreground text-center">
-            You've been invited to Alia
-          </Text>
-          <Text className="text-base text-muted-foreground text-center">
-            Sign up now and you'll both get 500 credits to use with Alia's AI
-            assistant.
-          </Text>
-
-          <View className="w-full gap-3">
-            <Button
-              onPress={() => signIn().catch(() => {})}
-              className="w-full h-12 rounded-full"
-            >
-              <View className="flex-row items-center gap-2">
-                <Text className="text-base font-semibold text-primary-foreground">
-                  Sign up & claim credits
-                </Text>
-                <Gift size={18} className="text-primary-foreground" />
-              </View>
-            </Button>
-
-            <Button
-              variant="outline"
-              onPress={() => signIn().catch(() => {})}
-              className="w-full h-12 rounded-full"
-            >
-              <View className="flex-row items-center gap-2">
-                <LogIn size={18} className="text-foreground" />
-                <Text className="text-base font-medium text-foreground">
-                  Already have an account? Sign in
-                </Text>
-              </View>
-            </Button>
-          </View>
-        </View>
-      </AuthContainer>
-    </>
+        </AuthContainer>
+      </>
+    </ContentPanel>
   );
 }

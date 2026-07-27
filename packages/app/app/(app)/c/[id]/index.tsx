@@ -10,6 +10,7 @@ import { UsageLimitError } from "@/lib/errors/usage-limit-error";
 import { isThinkingModel } from "@/components/model-selector";
 import { useVoiceMode } from "@/lib/hooks/use-voice-mode";
 import { useVoiceSoundEffects } from "@/lib/hooks/use-sound-effects";
+import { ContentPanel } from "@oxyhq/bloom/content-panel";
 
 const ChatConversationPage = () => {
   const { id, roleId, agentId, startVoice } = useLocalSearchParams<{ id: string; roleId?: string; agentId?: string; startVoice?: string }>();
@@ -70,28 +71,30 @@ const ChatConversationPage = () => {
     : null;
 
   return (
-    <>
-      <ChatPageContent
-        messages={messages}
-        scrollViewRef={scrollViewRef}
-        isLoading={isLoading}
-        conversationLoading={conversationLoading}
-        onSubmit={sendMessage}
-        onEditMessage={editMessage}
-        onStop={stopGeneration}
-        onClear={clearConversation}
-        selectedModel={selectedModel}
-        onModelChange={setSelectedModel}
-        activeRole={activeRole}
-        onRemoveRole={() => setActiveRoleId(undefined)}
-        disabled={!!usageLimitError}
-        voice={voice}
-        agentId={agentId}
-        onApprovePlan={approvePlan}
-        onRejectPlan={rejectPlan}
-      />
-      <UsageLimitDialog error={usageLimitError} onDismiss={clearError} />
-    </>
+    <ContentPanel surfaceClassName="bg-background">
+      <>
+        <ChatPageContent
+          messages={messages}
+          scrollViewRef={scrollViewRef}
+          isLoading={isLoading}
+          conversationLoading={conversationLoading}
+          onSubmit={sendMessage}
+          onEditMessage={editMessage}
+          onStop={stopGeneration}
+          onClear={clearConversation}
+          selectedModel={selectedModel}
+          onModelChange={setSelectedModel}
+          activeRole={activeRole}
+          onRemoveRole={() => setActiveRoleId(undefined)}
+          disabled={!!usageLimitError}
+          voice={voice}
+          agentId={agentId}
+          onApprovePlan={approvePlan}
+          onRejectPlan={rejectPlan}
+        />
+        <UsageLimitDialog error={usageLimitError} onDismiss={clearError} />
+      </>
+    </ContentPanel>
   );
 };
 

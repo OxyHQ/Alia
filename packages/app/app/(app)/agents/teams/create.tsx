@@ -6,6 +6,7 @@ import { useRouter } from "expo-router";
 import { useCreateAgentTeam } from "@/lib/hooks/use-agent-teams";
 import { useTranslation } from "@/lib/hooks/use-translation";
 import { toast } from "@oxyhq/bloom/toast";
+import { ContentPanel } from "@oxyhq/bloom/content-panel";
 
 export default function CreateTeamScreen() {
   const router = useRouter();
@@ -57,24 +58,26 @@ export default function CreateTeamScreen() {
   }
 
   return (
-    <View className="flex-1 bg-background items-center justify-center px-5">
-      <View className="w-full max-w-2xl gap-6">
-        {/* Title */}
-        <Text className="text-2xl font-semibold text-foreground text-center">
-          {t("agents.createTeamTitle")}
-        </Text>
+    <ContentPanel surfaceClassName="bg-background">
+      <View className="flex-1 bg-background items-center justify-center px-5">
+        <View className="w-full max-w-2xl gap-6">
+          {/* Title */}
+          <Text className="text-2xl font-semibold text-foreground text-center">
+            {t("agents.createTeamTitle")}
+          </Text>
 
-        <PromptInput
-          value={inputValue}
-          onValueChange={setInputValue}
-          onSubmit={handleCreate}
-          isLoading={creating}
-          disabled={creating}
-          placeholder={t("agents.createTeamPlaceholder")}
-          autocomplete
-          autocompletePosition="bottom"
-        />
+          <PromptInput
+            value={inputValue}
+            onValueChange={setInputValue}
+            onSubmit={handleCreate}
+            isLoading={creating}
+            disabled={creating}
+            placeholder={t("agents.createTeamPlaceholder")}
+            autocomplete
+            autocompletePosition="bottom"
+          />
+        </View>
       </View>
-    </View>
+    </ContentPanel>
   );
 }

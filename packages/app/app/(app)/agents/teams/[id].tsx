@@ -48,6 +48,7 @@ import { cn } from "@/lib/utils";
 import apiClient from "@/lib/api/client";
 import { API_ROUTES } from "@/lib/api/routes";
 import { useLibraryStore } from "@/lib/stores/library-store";
+import { ContentPanel } from "@oxyhq/bloom/content-panel";
 
 type LinkedSkill = { _id: string; skillId: string; title: string; icon: string; color: string };
 type LinkedFile = { _id: string; name: string; type: string; category: string; url: string };
@@ -481,154 +482,156 @@ export default function TeamDetailScreen() {
   );
 
   return (
-    <View className="flex-1 bg-background flex-row">
-      {/* Main Content */}
-      <View className="flex-1">
-        {/* Header */}
-        <View className="flex-row items-center justify-between px-4 py-3 border-b border-border">
-          <View className="flex-row items-center gap-3 flex-1">
-            <Pressable
-              onPress={() => router.back()}
-              className="active:opacity-70"
-            >
-              <ArrowLeft size={20} className="text-foreground" />
-            </Pressable>
-            <Text className="text-sm font-medium text-foreground">
-              {t("agents.teams")}
-            </Text>
-            <ChevronRight size={14} className="text-muted-foreground" />
-            <Text
-              className="text-sm font-medium text-foreground flex-1"
-              numberOfLines={1}
-            >
-              {team.name}
-            </Text>
-            {saving && (
-              <Text className="text-xs text-muted-foreground">
-                {t("agents.saving")}
-              </Text>
-            )}
-          </View>
-          <View className="flex-row items-center gap-2">
-            {!isLargeScreen && (
+    <ContentPanel surfaceClassName="bg-background">
+      <View className="flex-1 bg-background flex-row">
+        {/* Main Content */}
+        <View className="flex-1">
+          {/* Header */}
+          <View className="flex-row items-center justify-between px-4 py-3 border-b border-border">
+            <View className="flex-row items-center gap-3 flex-1">
               <Pressable
-                onPress={() => setShowPanel(true)}
-                className="p-2 active:opacity-70"
+                onPress={() => router.back()}
+                className="active:opacity-70"
               >
-                <Settings size={18} className="text-foreground" />
+                <ArrowLeft size={20} className="text-foreground" />
               </Pressable>
-            )}
-            <DropdownMenu.Root>
-              <DropdownMenu.Trigger>
-                <Pressable className="p-2">
-                  <Ellipsis size={18} className="text-foreground" />
-                </Pressable>
-              </DropdownMenu.Trigger>
-              <DropdownMenu.Content>
-                <DropdownMenu.Item key="delete" onSelect={handleDeleteTeam}>
-                  <DropdownMenu.ItemIcon ios={{ name: "trash" }} />
-                  <DropdownMenu.ItemTitle>
-                    {t("agents.deleteTeam")}
-                  </DropdownMenu.ItemTitle>
-                </DropdownMenu.Item>
-              </DropdownMenu.Content>
-            </DropdownMenu.Root>
-          </View>
-        </View>
-
-        {/* Main Editor */}
-        <ScrollView
-          className="flex-1"
-          contentContainerStyle={{ padding: 20, paddingBottom: 60 }}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-        >
-          {/* Editable Name */}
-          <TextInput
-            value={name}
-            onChangeText={setName}
-            placeholder="Team name"
-            placeholderTextColor={colors.mutedForeground}
-            className="text-foreground"
-            style={{
-              fontSize: 24,
-              fontWeight: "700",
-              padding: 0,
-              marginBottom: 12,
-            }}
-          />
-
-          {/* Editable Description */}
-          <Textarea
-            variant="ghost"
-            value={description}
-            onChangeText={setDescription}
-            placeholder="Describe this team's purpose..."
-            placeholderTextColor={colors.mutedForeground}
-            style={{ fontSize: 15, lineHeight: 22, minHeight: 100, marginBottom: 24 }}
-          />
-
-          {/* Agents Grid */}
-          {agents.length === 0 ? (
-            <View className="items-center justify-center py-12">
-              <Users size={40} className="text-muted-foreground mb-3" />
-              <Text className="text-muted-foreground text-center mb-4">
-                {t("agents.noAgentsInTeam")}
+              <Text className="text-sm font-medium text-foreground">
+                {t("agents.teams")}
               </Text>
-              <Pressable
-                onPress={handleAddAgent}
-                className="flex-row items-center gap-1.5 px-4 py-2 rounded-full border border-border active:opacity-70"
+              <ChevronRight size={14} className="text-muted-foreground" />
+              <Text
+                className="text-sm font-medium text-foreground flex-1"
+                numberOfLines={1}
               >
-                <Plus size={14} className="text-foreground" />
-                <Text className="text-[13px] font-medium text-foreground">
-                  {t("agents.addAgent")}
+                {team.name}
+              </Text>
+              {saving && (
+                <Text className="text-xs text-muted-foreground">
+                  {t("agents.saving")}
                 </Text>
-              </Pressable>
+              )}
             </View>
-          ) : (
-            <View className="flex-row flex-wrap" style={{ margin: -6 }}>
-              {agents.map((agent: any) => (
-                <View
-                  key={agent._id}
-                  style={{
-                    width: isLargeScreen ? "33.33%" : "50%",
-                    padding: 6,
-                  }}
+            <View className="flex-row items-center gap-2">
+              {!isLargeScreen && (
+                <Pressable
+                  onPress={() => setShowPanel(true)}
+                  className="p-2 active:opacity-70"
                 >
-                  <Pressable
-                    onLongPress={() => handleRemoveAgent(agent._id)}
-                  >
-                    <AgentCard
-                      agent={agent}
-                      variant="grid"
-                      onPress={handleAgentPress}
-                    />
+                  <Settings size={18} className="text-foreground" />
+                </Pressable>
+              )}
+              <DropdownMenu.Root>
+                <DropdownMenu.Trigger>
+                  <Pressable className="p-2">
+                    <Ellipsis size={18} className="text-foreground" />
                   </Pressable>
-                </View>
-              ))}
+                </DropdownMenu.Trigger>
+                <DropdownMenu.Content>
+                  <DropdownMenu.Item key="delete" onSelect={handleDeleteTeam}>
+                    <DropdownMenu.ItemIcon ios={{ name: "trash" }} />
+                    <DropdownMenu.ItemTitle>
+                      {t("agents.deleteTeam")}
+                    </DropdownMenu.ItemTitle>
+                  </DropdownMenu.Item>
+                </DropdownMenu.Content>
+              </DropdownMenu.Root>
             </View>
-          )}
-        </ScrollView>
-      </View>
+          </View>
 
-      {/* Right Sidebar */}
-      {isLargeScreen ? (
-        <View
-          style={{ width: 320 }}
-          className="border-l border-border bg-background"
-        >
-          {panelContent}
+          {/* Main Editor */}
+          <ScrollView
+            className="flex-1"
+            contentContainerStyle={{ padding: 20, paddingBottom: 60 }}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+          >
+            {/* Editable Name */}
+            <TextInput
+              value={name}
+              onChangeText={setName}
+              placeholder="Team name"
+              placeholderTextColor={colors.mutedForeground}
+              className="text-foreground"
+              style={{
+                fontSize: 24,
+                fontWeight: "700",
+                padding: 0,
+                marginBottom: 12,
+              }}
+            />
+
+            {/* Editable Description */}
+            <Textarea
+              variant="ghost"
+              value={description}
+              onChangeText={setDescription}
+              placeholder="Describe this team's purpose..."
+              placeholderTextColor={colors.mutedForeground}
+              style={{ fontSize: 15, lineHeight: 22, minHeight: 100, marginBottom: 24 }}
+            />
+
+            {/* Agents Grid */}
+            {agents.length === 0 ? (
+              <View className="items-center justify-center py-12">
+                <Users size={40} className="text-muted-foreground mb-3" />
+                <Text className="text-muted-foreground text-center mb-4">
+                  {t("agents.noAgentsInTeam")}
+                </Text>
+                <Pressable
+                  onPress={handleAddAgent}
+                  className="flex-row items-center gap-1.5 px-4 py-2 rounded-full border border-border active:opacity-70"
+                >
+                  <Plus size={14} className="text-foreground" />
+                  <Text className="text-[13px] font-medium text-foreground">
+                    {t("agents.addAgent")}
+                  </Text>
+                </Pressable>
+              </View>
+            ) : (
+              <View className="flex-row flex-wrap" style={{ margin: -6 }}>
+                {agents.map((agent: any) => (
+                  <View
+                    key={agent._id}
+                    style={{
+                      width: isLargeScreen ? "33.33%" : "50%",
+                      padding: 6,
+                    }}
+                  >
+                    <Pressable
+                      onLongPress={() => handleRemoveAgent(agent._id)}
+                    >
+                      <AgentCard
+                        agent={agent}
+                        variant="grid"
+                        onPress={handleAgentPress}
+                      />
+                    </Pressable>
+                  </View>
+                ))}
+              </View>
+            )}
+          </ScrollView>
         </View>
-      ) : (
-        <Panel
-          open={showPanel}
-          onClose={() => setShowPanel(false)}
-          side="right"
-          width={320}
-        >
-          {panelContent}
-        </Panel>
-      )}
-    </View>
+
+        {/* Right Sidebar */}
+        {isLargeScreen ? (
+          <View
+            style={{ width: 320 }}
+            className="border-l border-border bg-background"
+          >
+            {panelContent}
+          </View>
+        ) : (
+          <Panel
+            open={showPanel}
+            onClose={() => setShowPanel(false)}
+            side="right"
+            width={320}
+          >
+            {panelContent}
+          </Panel>
+        )}
+      </View>
+    </ContentPanel>
   );
 }

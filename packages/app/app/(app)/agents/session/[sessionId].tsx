@@ -35,6 +35,7 @@ import { useRouter, useLocalSearchParams } from "expo-router";
 import { useColorScheme } from "@/lib/useColorScheme";
 import { cn } from "@/lib/utils";
 import apiClient from "@/lib/api/client";
+import { ContentPanel } from "@oxyhq/bloom/content-panel";
 
 interface EventEntry {
   _id: string;
@@ -219,81 +220,83 @@ export default function SessionActivityScreen() {
   const errorCount = entries.filter((e) => e.type === "error").length;
 
   return (
-    <View className="flex-1 bg-background">
-      {/* Header */}
-      <View className="flex-row items-center gap-3 px-4 py-3 border-b border-border">
-        <Pressable onPress={() => router.back()} className="active:opacity-70">
-          <ArrowLeft size={20} className="text-foreground" />
-        </Pressable>
-        <View className="flex-1">
-          <Text className="text-base font-semibold text-foreground">
-            Session Activity
-          </Text>
+    <ContentPanel surfaceClassName="bg-background">
+      <View className="flex-1 bg-background">
+        {/* Header */}
+        <View className="flex-row items-center gap-3 px-4 py-3 border-b border-border">
+          <Pressable onPress={() => router.back()} className="active:opacity-70">
+            <ArrowLeft size={20} className="text-foreground" />
+          </Pressable>
+          <View className="flex-1">
+            <Text className="text-base font-semibold text-foreground">
+              Session Activity
+            </Text>
+            {session && (
+              <Text className="text-xs text-muted-foreground" numberOfLines={1}>
+                {session.task}
+              </Text>
+            )}
+          </View>
           {session && (
-            <Text className="text-xs text-muted-foreground" numberOfLines={1}>
-              {session.task}
+            <Text className={cn("text-xs font-semibold uppercase", statusColor)}>
+              {session.status}
             </Text>
           )}
         </View>
+
+        {/* Stats bar */}
         {session && (
-          <Text className={cn("text-xs font-semibold uppercase", statusColor)}>
-            {session.status}
-          </Text>
+          <View className="flex-row items-center gap-4 px-4 py-2 border-b border-border">
+            <View className="flex-row items-center gap-1">
+              <Clock size={12} className="text-muted-foreground" />
+              <Text className="text-xs text-muted-foreground">
+                {session.stats.totalSteps} steps
+              </Text>
+            </View>
+            <Text className="text-xs text-muted-foreground">
+              {entries.length} events
+            </Text>
+            {threatCount > 0 && (
+              <View className="flex-row items-center gap-1">
+                <ShieldX size={12} className="text-red-500" />
+                <Text className="text-xs text-red-500">
+                  {threatCount} threats
+                </Text>
+              </View>
+            )}
+            {errorCount > 0 && (
+              <View className="flex-row items-center gap-1">
+                <XCircle size={12} className="text-red-500" />
+                <Text className="text-xs text-red-500">
+                  {errorCount} errors
+                </Text>
+              </View>
+            )}
+          </View>
+        )}
+
+        {/* Activity timeline */}
+        {loading ? (
+          <View className="flex-1 items-center justify-center">
+            <ActivityIndicator color={colors.foreground} />
+          </View>
+        ) : (
+          <FlatList
+            data={entries}
+            keyExtractor={(item) => item._id || String(item.seq)}
+            renderItem={({ item }) => <EventCard entry={item} />}
+            contentContainerStyle={{ paddingVertical: 12 }}
+            refreshControl={
+              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+            }
+            ListEmptyComponent={
+              <View className="flex-1 items-center justify-center py-20">
+                <Text className="text-muted-foreground">No activity recorded</Text>
+              </View>
+            }
+          />
         )}
       </View>
-
-      {/* Stats bar */}
-      {session && (
-        <View className="flex-row items-center gap-4 px-4 py-2 border-b border-border">
-          <View className="flex-row items-center gap-1">
-            <Clock size={12} className="text-muted-foreground" />
-            <Text className="text-xs text-muted-foreground">
-              {session.stats.totalSteps} steps
-            </Text>
-          </View>
-          <Text className="text-xs text-muted-foreground">
-            {entries.length} events
-          </Text>
-          {threatCount > 0 && (
-            <View className="flex-row items-center gap-1">
-              <ShieldX size={12} className="text-red-500" />
-              <Text className="text-xs text-red-500">
-                {threatCount} threats
-              </Text>
-            </View>
-          )}
-          {errorCount > 0 && (
-            <View className="flex-row items-center gap-1">
-              <XCircle size={12} className="text-red-500" />
-              <Text className="text-xs text-red-500">
-                {errorCount} errors
-              </Text>
-            </View>
-          )}
-        </View>
-      )}
-
-      {/* Activity timeline */}
-      {loading ? (
-        <View className="flex-1 items-center justify-center">
-          <ActivityIndicator color={colors.foreground} />
-        </View>
-      ) : (
-        <FlatList
-          data={entries}
-          keyExtractor={(item) => item._id || String(item.seq)}
-          renderItem={({ item }) => <EventCard entry={item} />}
-          contentContainerStyle={{ paddingVertical: 12 }}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-          }
-          ListEmptyComponent={
-            <View className="flex-1 items-center justify-center py-20">
-              <Text className="text-muted-foreground">No activity recorded</Text>
-            </View>
-          }
-        />
-      )}
-    </View>
+    </ContentPanel>
   );
 }
