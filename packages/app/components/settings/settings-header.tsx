@@ -22,8 +22,11 @@ export function SettingsHeader({ title, subtitle, showBack = false, onBack }: Se
   const handleBack = () => {
     if (onBack) {
       onBack();
-    } else {
+    } else if (router.canGoBack()) {
       router.back();
+    } else {
+      // Opened straight from a link: there is no menu to pop back to yet.
+      router.replace("/(app)/settings");
     }
   };
 
@@ -42,7 +45,7 @@ export function SettingsHeader({ title, subtitle, showBack = false, onBack }: Se
           variant="ghost"
           size="icon"
           onPress={handleBack}
-          className="h-9 w-9 rounded-full"
+          className="h-9 w-9 rounded-full md:hidden"
         >
           <ArrowLeft size={20} className="text-muted-foreground" />
         </Button>

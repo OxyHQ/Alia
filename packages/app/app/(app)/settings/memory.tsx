@@ -429,7 +429,7 @@ export default function MemoryScreen() {
 
   return (
     <View className="flex-1 bg-background">
-      <SettingsHeader title={t("memory.title")} />
+      <SettingsHeader title={t("memory.title")} showBack />
       <ScrollView className="flex-1" contentContainerClassName="max-w-2xl">
         {/* Settings toggles */}
         <View className="px-4 pt-2 pb-1">

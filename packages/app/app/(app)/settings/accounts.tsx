@@ -8,7 +8,7 @@ export default function SettingsAccountsScreen() {
 
   return (
     <View className="flex-1 bg-background">
-      <SettingsHeader title={t("settings.sections.accounts")} />
+      <SettingsHeader title={t("settings.sections.accounts")} showBack />
       <ScrollView className="flex-1" contentContainerClassName="p-5 max-w-2xl">
         <AccountsSection />
       </ScrollView>

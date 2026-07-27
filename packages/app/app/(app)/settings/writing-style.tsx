@@ -264,7 +264,7 @@ export default function WritingStyleScreen() {
 
   return (
     <View className="flex-1 bg-background">
-      <SettingsHeader title={t('settings.sections.writingStyle') || 'Writing Style'} />
+      <SettingsHeader title={t('settings.sections.writingStyle') || 'Writing Style'} showBack />
       <ScrollView className="flex-1" contentContainerClassName="p-5 max-w-2xl gap-5">
         {/* Header */}
         <View className="gap-1">

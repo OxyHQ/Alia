@@ -8,7 +8,7 @@ export default function SettingsSecurityScreen() {
 
   return (
     <View className="flex-1 bg-background">
-      <SettingsHeader title={t("settings.sections.security")} />
+      <SettingsHeader title={t("settings.sections.security")} showBack />
       <ScrollView className="flex-1" contentContainerClassName="p-5 max-w-2xl">
         <SecuritySection />
       </ScrollView>
