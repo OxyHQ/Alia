@@ -5,27 +5,54 @@ import * as DropdownMenuPrimitive from "@radix-ui/react-dropdown-menu";
 import { CheckIcon, ChevronRightIcon } from "@radix-ui/react-icons";
 import * as React from "react";
 import type { LucideIcon } from "lucide-react-native";
-import {
-  Star, Pencil, Trash2, Share2, Download, Settings, HelpCircle,
-  Image, FileText, Search, ShoppingBag, MoreHorizontal, ExternalLink,
-  BookOpen, Globe, PenTool, Sparkles, User, CreditCard, Bell, LogOut,
-  Folder, Check, Brain, Ghost, Bot, Bookmark, AlertTriangle, Pin,
-} from "lucide-react-native";
+// Per-icon subpaths, never the `lucide-react-native` barrel: the barrel
+// statically re-exports all ~1500 icons, and Metro has no tree shaking, so a
+// single named import pulls ~1.3 MB of unused icon modules into every consumer
+// bundle.
+import Star from "lucide-react-native/icons/star";
+import Pencil from "lucide-react-native/icons/pencil";
+import Trash2 from "lucide-react-native/icons/trash-2";
+import Share2 from "lucide-react-native/icons/share-2";
+import Download from "lucide-react-native/icons/download";
+import Settings from "lucide-react-native/icons/settings";
+import CircleQuestionMark from "lucide-react-native/icons/circle-question-mark";
+import Image from "lucide-react-native/icons/image";
+import FileText from "lucide-react-native/icons/file-text";
+import Search from "lucide-react-native/icons/search";
+import ShoppingBag from "lucide-react-native/icons/shopping-bag";
+import Ellipsis from "lucide-react-native/icons/ellipsis";
+import ExternalLink from "lucide-react-native/icons/external-link";
+import BookOpen from "lucide-react-native/icons/book-open";
+import Globe from "lucide-react-native/icons/globe";
+import PenTool from "lucide-react-native/icons/pen-tool";
+import Sparkles from "lucide-react-native/icons/sparkles";
+import User from "lucide-react-native/icons/user";
+import CreditCard from "lucide-react-native/icons/credit-card";
+import Bell from "lucide-react-native/icons/bell";
+import LogOut from "lucide-react-native/icons/log-out";
+import Folder from "lucide-react-native/icons/folder";
+import Check from "lucide-react-native/icons/check";
+import Brain from "lucide-react-native/icons/brain";
+import Ghost from "lucide-react-native/icons/ghost";
+import Bot from "lucide-react-native/icons/bot";
+import Bookmark from "lucide-react-native/icons/bookmark";
+import TriangleAlert from "lucide-react-native/icons/triangle-alert";
+import Pin from "lucide-react-native/icons/pin";
 
 // Map iOS SF Symbol names to Lucide icons for web rendering
 const SF_SYMBOL_MAP: Record<string, LucideIcon> = {
   "star": Star, "star.fill": Star, "pencil": Pencil, "trash": Trash2,
   "square.and.arrow.up": Share2, "arrow.down.doc": Download,
-  "gearshape": Settings, "questionmark.circle": HelpCircle,
+  "gearshape": Settings, "questionmark.circle": CircleQuestionMark,
   "photo": Image, "doc": FileText, "magnifyingglass": Search,
-  "bag": ShoppingBag, "ellipsis": MoreHorizontal, "link": ExternalLink,
+  "bag": ShoppingBag, "ellipsis": Ellipsis, "link": ExternalLink,
   "book": BookOpen, "globe": Globe, "pencil.tip": PenTool,
   "sparkle": Sparkles, "person.circle": User, "creditcard": CreditCard,
   "bell": Bell, "rectangle.portrait.and.arrow.right": LogOut,
   "folder": Folder, "checkmark": Check, "brain": Brain,
   "eye.slash": Ghost, "cpu": Bot,
   "bookmark": Bookmark, "bookmark.fill": Bookmark,
-  "exclamationmark.triangle": AlertTriangle,
+  "exclamationmark.triangle": TriangleAlert,
   "pin": Pin, "pin.fill": Pin,
 };
 

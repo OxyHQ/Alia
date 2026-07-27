@@ -1,5 +1,6 @@
 import React from "react";
-import { ArrowUp, Square } from "lucide-react-native";
+import ArrowUp from "lucide-react-native/icons/arrow-up";
+import Square from "lucide-react-native/icons/square";
 import { cn } from "../../../lib/utils";
 import { Button } from "../button";
 import { usePromptInput } from "./context";

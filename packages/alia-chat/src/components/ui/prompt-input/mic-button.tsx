@@ -1,6 +1,7 @@
 import React, { useEffect } from "react";
 import { Pressable, ActivityIndicator } from "react-native";
-import { Mic, MicOff } from "lucide-react-native";
+import Mic from "lucide-react-native/icons/mic";
+import MicOff from "lucide-react-native/icons/mic-off";
 import { cn } from "../../../lib/utils";
 import { useSpeechToText } from "../../../hooks/useSpeechToText";
 import { usePromptInput } from "./context";

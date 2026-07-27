@@ -1,7 +1,9 @@
 import { View, Pressable } from 'react-native';
 import { Text } from './ui/text';
 import { Button } from './ui/button';
-import { Check, X, ListChecks } from 'lucide-react-native';
+import Check from 'lucide-react-native/icons/check';
+import X from 'lucide-react-native/icons/x';
+import ListChecks from 'lucide-react-native/icons/list-checks';
 import Animated from 'react-native-reanimated';
 import { planPreviewEnter } from '../animations';
 import type { PlanStep } from '../types';
