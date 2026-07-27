@@ -5,6 +5,7 @@ import { useState } from "react";
 import { useConnectedAccounts, type ConnectedAccount } from "@/lib/hooks/use-connected-accounts";
 import { toast } from "@oxyhq/bloom/toast";
 import { confirm } from "@oxyhq/bloom/alert-dialog";
+import { SettingsListGroup, SettingsListItem } from "@oxyhq/bloom/settings-list";
 import * as DropdownMenu from "@/components/ui/dropdown-menu";
 import {
   Smartphone,
@@ -13,7 +14,6 @@ import {
   WifiOff,
   AlertCircle,
   Trash2,
-  Settings2,
 } from "lucide-react-native";
 
 const PLATFORM_CONFIG: Record<string, { label: string; color: string }> = {
@@ -59,36 +59,26 @@ function AccountRow({
   const identifier = account.phoneNumber || account.email || account.accountId;
 
   return (
-    <View className="flex-row items-center py-3 px-1 border-b border-border">
-      <View className="p-1.5 rounded-lg mr-3" style={{ backgroundColor: `${color}15` }}>
-        <Smartphone size={18} color={color} />
-      </View>
-      <View className="flex-1 gap-0.5">
-        <View className="flex-row items-center gap-2">
-          <Text className="text-sm font-medium">{label}</Text>
+    <SettingsListItem
+      icon={<Smartphone size={18} color={color} />}
+      title={label}
+      description={identifier}
+      showChevron={false}
+      rightElement={
+        <View className="flex-row items-center gap-1">
           <StatusBadge status={account.status} />
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            accessibilityLabel={`Disconnect ${label}`}
+            onPress={() => onDisconnect(account._id)}
+          >
+            <Trash2 size={15} className="text-destructive" />
+          </Button>
         </View>
-        <Text className="text-xs text-muted-foreground">{identifier}</Text>
-      </View>
-      <View className="flex-row items-center gap-1">
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8"
-          onPress={() => {}}
-        >
-          <Settings2 size={15} className="text-muted-foreground" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8"
-          onPress={() => onDisconnect(account._id)}
-        >
-          <Trash2 size={15} className="text-destructive" />
-        </Button>
-      </View>
-    </View>
+      }
+    />
   );
 }
 
@@ -173,7 +163,7 @@ export function AccountsSection() {
           </Text>
         </View>
       ) : (
-        <View>
+        <SettingsListGroup>
           {accounts.map((account) => (
             <AccountRow
               key={account._id}
@@ -181,7 +171,7 @@ export function AccountsSection() {
               onDisconnect={handleDisconnect}
             />
           ))}
-        </View>
+        </SettingsListGroup>
       )}
     </View>
   );

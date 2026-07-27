@@ -7,6 +7,7 @@ import { useBloomTheme, APP_COLOR_PRESETS, APP_COLOR_NAMES, getPresetVars, type 
 import { useTranslation } from "@/lib/hooks/use-translation";
 import { LanguageSelector } from "@/components/language-selector";
 import { cn } from "@/lib/utils";
+import { SettingsListGroup } from "@oxyhq/bloom/settings-list";
 
 /** Miniature app layout using real theme tokens via NativeWind vars() */
 const AppMiniature = React.memo(function AppMiniature({ variant, presetName }: { variant: "light" | "dark"; presetName: AppColorName }) {
@@ -74,13 +75,8 @@ export function GeneralSection() {
       {/* App Language */}
       <LanguageSelector />
 
-      {/* Appearance */}
-      <View className="gap-2">
-        <Text className="text-[11px] font-semibold text-muted-foreground tracking-wider uppercase">
-          {t("settings.appearance.title")}
-        </Text>
-
-        <View className="flex-row gap-2">
+      <SettingsListGroup title={t("settings.appearance.title")}>
+        <View className="flex-row gap-2 p-3">
           {/* Light */}
           <Pressable onPress={() => setColorScheme("light")} className="flex-1">
             <View
@@ -136,15 +132,10 @@ export function GeneralSection() {
             </View>
           </Pressable>
         </View>
-      </View>
+      </SettingsListGroup>
 
-      {/* App Color */}
-      <View className="gap-2">
-        <Text className="text-[11px] font-semibold text-muted-foreground tracking-wider uppercase">
-          {t("settings.accentColor.title")}
-        </Text>
-
-        <View className="flex-row gap-3 flex-wrap">
+      <SettingsListGroup title={t("settings.accentColor.title")}>
+        <View className="flex-row gap-3 flex-wrap p-3">
           {APP_COLOR_NAMES.map((key) => {
             const p = APP_COLOR_PRESETS[key];
             const isSelected = colorPreset === key;
@@ -174,7 +165,7 @@ export function GeneralSection() {
             );
           })}
         </View>
-      </View>
+      </SettingsListGroup>
     </View>
   );
 }

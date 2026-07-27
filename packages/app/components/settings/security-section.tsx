@@ -1,11 +1,3 @@
-/**
- * SecuritySection — Security & Privacy settings with 4 sub-sections:
- *   A) Default Agent Permissions
- *   B) Approval Preferences
- *   C) Threat Activity Log
- *   D) Audit Export
- */
-
 import { View, Pressable, TextInput as RNTextInput, FlatList, Share, Platform } from "react-native";
 import { Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
@@ -14,12 +6,10 @@ import { useState, useEffect, useCallback } from "react";
 import { useOxy } from "@oxyhq/services";
 import { generateAPIUrl } from "@/lib/generate-api-url";
 import {
-  Shield,
   ShieldAlert,
   ShieldX,
   ShieldCheck,
   Clock,
-  Download,
   ChevronDown,
   AlertTriangle,
   Info,
@@ -88,19 +78,15 @@ export function SecuritySection() {
   const { colors } = useTheme();
   const [saving, setSaving] = useState(false);
 
-  // Section A: Default permissions
   const [permissions, setPermissions] = useState<AgentPermissions>({ ...DEFAULT_PERMISSIONS });
 
-  // Section B: Approval preferences
   const [requireApproval, setRequireApproval] = useState(true);
   const [approvalTimeout, setApprovalTimeout] = useState(60);
   const [autoDenyOnTimeout, setAutoDenyOnTimeout] = useState(true);
 
-  // Section C: Threat log
   const [threats, setThreats] = useState<ThreatEntry[]>([]);
   const [threatsLoading, setThreatsLoading] = useState(true);
 
-  // Section D: Audit export
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [exportFormat, setExportFormat] = useState<"json" | "csv">("json");
@@ -222,19 +208,14 @@ export function SecuritySection() {
 
   return (
     <View className="gap-8">
-      {/* Section A: Default Agent Permissions */}
-      <View className="gap-3">
-        <View className="flex-row items-center gap-2">
-          <Shield size={18} className="text-primary" />
-          <Text className="text-sm font-semibold">{t("settings.security.defaultPermissions")}</Text>
-        </View>
-        <Text className="text-xs text-muted-foreground">
-          {t("settings.security.defaultPermissionsDesc")}
-        </Text>
-        <View className="border border-border rounded-lg p-3">
+      <SettingsListGroup
+        title={t("settings.security.defaultPermissions")}
+        footer={t("settings.security.defaultPermissionsDesc")}
+      >
+        <View className="p-3">
           <AgentPermissionToggles permissions={permissions} onChange={setPermissions} />
         </View>
-      </View>
+      </SettingsListGroup>
 
       {/* Section B: Approval Preferences */}
       <SettingsListGroup title={t("settings.security.approvalPreferences")}>
@@ -280,16 +261,10 @@ export function SecuritySection() {
         />
       </SettingsListGroup>
 
-      {/* Section C: Threat Activity Log */}
-      <View className="gap-3">
-        <View className="flex-row items-center gap-2">
-          <ShieldX size={18} className="text-primary" />
-          <Text className="text-sm font-semibold">{t("settings.security.threatLog")}</Text>
-        </View>
-        <Text className="text-xs text-muted-foreground">
-          {t("settings.security.threatLogDesc")}
-        </Text>
-
+      <SettingsListGroup
+        title={t("settings.security.threatLog")}
+        footer={t("settings.security.threatLogDesc")}
+      >
         {threats.length === 0 ? (
           <View className="items-center py-8 gap-2">
             <ShieldCheck size={32} className="text-muted-foreground" />
@@ -328,17 +303,13 @@ export function SecuritySection() {
             })}
           </View>
         )}
-      </View>
+      </SettingsListGroup>
 
-      {/* Section D: Audit Export */}
-      <View className="gap-3">
-        <View className="flex-row items-center gap-2">
-          <Download size={18} className="text-primary" />
-          <Text className="text-sm font-semibold">{t("settings.security.auditExport")}</Text>
-        </View>
-        <Text className="text-xs text-muted-foreground">
-          {t("settings.security.auditExportDesc")}
-        </Text>
+      <SettingsListGroup
+        title={t("settings.security.auditExport")}
+        footer={t("settings.security.auditExportDesc")}
+      >
+       <View className="p-3 gap-3">
 
         {summary && (
           <View className="flex-row gap-4 py-2">
@@ -403,7 +374,8 @@ export function SecuritySection() {
         <Button onPress={handleExport} disabled={exporting}>
           <Text>{exporting ? t("settings.security.exporting") : t("settings.security.exportButton")}</Text>
         </Button>
-      </View>
+       </View>
+      </SettingsListGroup>
 
       {/* Save / Cancel */}
       <View className="flex-row gap-2 mt-2">

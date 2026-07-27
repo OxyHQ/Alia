@@ -6,6 +6,8 @@ import { useOxy } from "@oxyhq/services";
 import apiClient from "@/lib/api/client";
 import { toast } from "@oxyhq/bloom/toast";
 import { Sparkles } from "lucide-react-native";
+import { SettingsListGroup, SettingsListItem } from "@oxyhq/bloom/settings-list";
+import { useTheme } from "@oxyhq/bloom/theme";
 
 interface Skill {
   _id: string;
@@ -21,25 +23,20 @@ function SkillRow({
   skill: Skill;
   onToggle: (id: string, enabled: boolean) => void;
 }) {
+  const { colors } = useTheme();
   return (
-    <View className="flex-row items-center py-3 px-1 border-b border-border">
-      <View className="bg-primary/10 p-1.5 rounded-lg mr-3">
-        <Sparkles size={18} className="text-primary" />
-      </View>
-      <View className="flex-1 gap-0.5">
-        <Text className="text-sm font-medium">{skill.name}</Text>
-        {skill.description ? (
-          <Text className="text-xs text-muted-foreground" numberOfLines={2}>
-            {skill.description}
-          </Text>
-        ) : null}
-      </View>
-      <Switch
-        value={skill.enabled}
-        onValueChange={(val) => onToggle(skill._id, val)}
-        size="sm"
-      />
-    </View>
+    <SettingsListItem
+      icon={<Sparkles size={18} color={colors.primary} />}
+      title={skill.name}
+      description={skill.description}
+      rightElement={
+        <Switch
+          value={skill.enabled}
+          onValueChange={(val) => onToggle(skill._id, val)}
+          size="sm"
+        />
+      }
+    />
   );
 }
 
@@ -109,11 +106,11 @@ export function SkillsSection() {
           </Text>
         </View>
       ) : (
-        <View>
+        <SettingsListGroup>
           {skills.map((skill) => (
             <SkillRow key={skill._id} skill={skill} onToggle={handleToggle} />
           ))}
-        </View>
+        </SettingsListGroup>
       )}
     </View>
   );
