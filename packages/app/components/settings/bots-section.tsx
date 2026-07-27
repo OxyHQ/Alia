@@ -3,6 +3,7 @@ import { Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
 import { useBots, type SystemBot, type BotLinkStatus } from "@/lib/hooks/use-bots";
 import { toast } from "@oxyhq/bloom/toast";
+import { SettingsListGroup, SettingsListItem } from "@oxyhq/bloom/settings-list";
 import { Bot, ExternalLink } from "lucide-react-native";
 
 const PLATFORM_COLORS: Record<string, string> = {
@@ -35,45 +36,44 @@ function BotRow({
   const color = PLATFORM_COLORS[bot.platform] ?? "#6b7280";
   const isLinked = linkStatus?.linked ?? false;
 
+  const detail =
+    `${bot.platform}${bot.username ? ` @${bot.username}` : ""}` +
+    (isLinked && linkStatus?.username ? ` \u2022 Linked as @${linkStatus.username}` : "");
+
   return (
-    <View className="flex-row items-center py-3 px-1 border-b border-border">
-      <View className="p-1.5 rounded-lg mr-3" style={{ backgroundColor: `${color}15` }}>
-        <Bot size={18} color={color} />
-      </View>
-      <View className="flex-1 gap-0.5">
+    <SettingsListItem
+      icon={<Bot size={18} color={color} />}
+      title={bot.name}
+      description={detail}
+      showChevron={false}
+      rightElement={
         <View className="flex-row items-center gap-2">
-          <Text className="text-sm font-medium">{bot.name}</Text>
           <StatusDot status={bot.status} />
+          {isLinked ? (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 px-2.5"
+              onPress={() => onUnlink(bot._id)}
+            >
+              <Text className="text-xs text-destructive">Unlink</Text>
+            </Button>
+          ) : (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 px-2.5"
+              onPress={() => onLink(bot)}
+            >
+              <View className="flex-row items-center gap-1">
+                <ExternalLink size={12} className="text-foreground" />
+                <Text className="text-xs">Link</Text>
+              </View>
+            </Button>
+          )}
         </View>
-        <Text className="text-xs text-muted-foreground">
-          {bot.platform}
-          {bot.username ? ` @${bot.username}` : ""}
-          {isLinked && linkStatus?.username ? ` \u2022 Linked as @${linkStatus.username}` : ""}
-        </Text>
-      </View>
-      {isLinked ? (
-        <Button
-          variant="outline"
-          size="sm"
-          className="h-7 px-2.5"
-          onPress={() => onUnlink(bot._id)}
-        >
-          <Text className="text-xs text-destructive">Unlink</Text>
-        </Button>
-      ) : (
-        <Button
-          variant="outline"
-          size="sm"
-          className="h-7 px-2.5"
-          onPress={() => onLink(bot)}
-        >
-          <View className="flex-row items-center gap-1">
-            <ExternalLink size={12} className="text-foreground" />
-            <Text className="text-xs">Link</Text>
-          </View>
-        </Button>
-      )}
-    </View>
+      }
+    />
   );
 }
 
@@ -140,7 +140,7 @@ export function BotsSection() {
           </Text>
         </View>
       ) : (
-        <View>
+        <SettingsListGroup>
           {bots.map((bot) => (
             <BotRow
               key={bot._id}
@@ -150,7 +150,7 @@ export function BotsSection() {
               onUnlink={handleUnlink}
             />
           ))}
-        </View>
+        </SettingsListGroup>
       )}
     </View>
   );

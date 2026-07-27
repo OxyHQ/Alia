@@ -10,6 +10,8 @@ import {
 } from "@/lib/hooks/use-integrations";
 import { toast } from "@oxyhq/bloom/toast";
 import { confirm } from "@oxyhq/bloom/alert-dialog";
+import { SettingsListGroup, SettingsListItem } from "@oxyhq/bloom/settings-list";
+import { useTheme } from "@oxyhq/bloom/theme";
 import { Link2, Unlink, ExternalLink, Plug } from "lucide-react-native";
 
 function IntegrationStatusBadge({ status }: { status: ConnectedIntegration["status"] }) {
@@ -34,29 +36,28 @@ function ConnectedRow({
   integration: ConnectedIntegration;
   onDisconnect: (id: string) => void;
 }) {
+  const { colors } = useTheme();
   return (
-    <View className="flex-row items-center py-3 px-1 border-b border-border">
-      <View className="bg-primary/10 p-1.5 rounded-lg mr-3">
-        <Link2 size={18} className="text-primary" />
-      </View>
-      <View className="flex-1 gap-0.5">
+    <SettingsListItem
+      icon={<Link2 size={18} color={colors.primary} />}
+      title={integration.displayName}
+      description={integration.accountName || integration.accountId || integration.service}
+      showChevron={false}
+      rightElement={
         <View className="flex-row items-center gap-2">
-          <Text className="text-sm font-medium">{integration.displayName}</Text>
           <IntegrationStatusBadge status={integration.status} />
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 px-2"
+            accessibilityLabel={`Disconnect ${integration.displayName}`}
+            onPress={() => onDisconnect(integration._id)}
+          >
+            <Unlink size={14} className="text-destructive" />
+          </Button>
         </View>
-        <Text className="text-xs text-muted-foreground">
-          {integration.accountName || integration.accountId || integration.service}
-        </Text>
-      </View>
-      <Button
-        variant="ghost"
-        size="sm"
-        className="h-7 px-2"
-        onPress={() => onDisconnect(integration._id)}
-      >
-        <Unlink size={14} className="text-destructive" />
-      </Button>
-    </View>
+      }
+    />
   );
 }
 
@@ -69,32 +70,28 @@ function AvailableCard({
   onConnect: (service: string) => void;
   connecting: boolean;
 }) {
+  const { colors } = useTheme();
   return (
-    <View className="border border-border rounded-lg p-3 gap-2">
-      <View className="flex-row items-start gap-2.5">
-        <View className="bg-muted p-1.5 rounded-lg">
-          <Plug size={16} className="text-muted-foreground" />
-        </View>
-        <View className="flex-1 gap-0.5">
-          <Text className="text-sm font-medium">{entry.name}</Text>
-          <Text className="text-xs text-muted-foreground" numberOfLines={2}>
-            {entry.description}
-          </Text>
-        </View>
-      </View>
-      <Button
-        variant="outline"
-        size="sm"
-        className="h-7 self-end"
-        onPress={() => onConnect(entry.service)}
-        disabled={connecting}
-      >
-        <View className="flex-row items-center gap-1">
-          <ExternalLink size={12} className="text-foreground" />
-          <Text className="text-xs">Connect</Text>
-        </View>
-      </Button>
-    </View>
+    <SettingsListItem
+      icon={<Plug size={18} color={colors.textSecondary} />}
+      title={entry.name}
+      description={entry.description}
+      showChevron={false}
+      rightElement={
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-7"
+          onPress={() => onConnect(entry.service)}
+          disabled={connecting}
+        >
+          <View className="flex-row items-center gap-1">
+            <ExternalLink size={12} className="text-foreground" />
+            <Text className="text-xs">Connect</Text>
+          </View>
+        </Button>
+      }
+    />
   );
 }
 
@@ -177,44 +174,34 @@ export function IntegrationsSection() {
   }
 
   return (
-    <View className="gap-6">
-      <View className="gap-3">
-        <Text className="text-[11px] font-semibold text-muted-foreground tracking-wider uppercase">
-          Connected
-        </Text>
-        {connected.length === 0 ? (
-          <View className="items-center py-6">
-            <Text className="text-sm text-muted-foreground">No integrations connected yet.</Text>
-          </View>
-        ) : (
-          <View>
-            {connected.map((integration) => (
-              <ConnectedRow
-                key={integration._id}
-                integration={integration}
-                onDisconnect={handleDisconnect}
-              />
-            ))}
-          </View>
-        )}
-      </View>
+    <View>
+      {connected.length === 0 ? (
+        <View className="items-center py-6">
+          <Text className="text-sm text-muted-foreground">No integrations connected yet.</Text>
+        </View>
+      ) : (
+        <SettingsListGroup title="Connected">
+          {connected.map((integration) => (
+            <ConnectedRow
+              key={integration._id}
+              integration={integration}
+              onDisconnect={handleDisconnect}
+            />
+          ))}
+        </SettingsListGroup>
+      )}
 
       {availableNotConnected.length > 0 && (
-        <View className="gap-3">
-          <Text className="text-[11px] font-semibold text-muted-foreground tracking-wider uppercase">
-            Available
-          </Text>
-          <View className="gap-2">
-            {availableNotConnected.map((entry) => (
-              <AvailableCard
-                key={entry.service}
-                entry={entry}
-                onConnect={handleConnect}
-                connecting={connectingService === entry.service}
-              />
-            ))}
-          </View>
-        </View>
+        <SettingsListGroup title="Available">
+          {availableNotConnected.map((entry) => (
+            <AvailableCard
+              key={entry.service}
+              entry={entry}
+              onConnect={handleConnect}
+              connecting={connectingService === entry.service}
+            />
+          ))}
+        </SettingsListGroup>
       )}
     </View>
   );
