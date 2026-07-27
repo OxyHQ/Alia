@@ -21,7 +21,6 @@ import { generateAPIUrl } from "@/lib/generate-api-url";
 import {
   Brain,
   Plus,
-  Search,
   Download,
   Upload,
   FileJson,
@@ -29,12 +28,12 @@ import {
   Wand2,
   Copy,
 } from "lucide-react-native";
+import { Search } from "@oxyhq/bloom/search";
 import { useTranslation } from "@/lib/hooks/use-translation";
 import { useUserData } from "@/lib/hooks/use-user-data";
 import { useUserDataStore } from "@/lib/stores/user-data-store";
 import { cn } from "@/lib/utils";
 import { toast } from "@/components/sonner";
-import { useColorScheme } from "@/lib/useColorScheme";
 import { SettingsHeader } from "@/components/settings/settings-header";
 import { MemoryTable } from "@/components/settings/memory-table";
 
@@ -91,7 +90,6 @@ export default function MemoryScreen() {
   const { signIn } = useAuth();
   const { memory, loading } = useUserData();
   const setMemory = useUserDataStore((state) => state.setMemory);
-  const { colors } = useColorScheme();
   const { t } = useTranslation();
   const [showDialog, setShowDialog] = useState(false);
   const [editingMemory, setEditingMemory] = useState<Memory | null>(null);
@@ -617,43 +615,42 @@ export default function MemoryScreen() {
         {/* Compact Toolbar */}
         <View className="px-4 pt-1 pb-2 gap-2">
           <View className="flex-row items-center gap-2">
-            <View className="flex-1 flex-row items-center gap-2 bg-muted rounded-lg px-3 h-9">
-              <Search size={15} className="text-muted-foreground" />
-              <Input
+            <View className="flex-1">
+              <Search
+                label={semanticMode ? t("memory.aiSearchPlaceholder") : t("memory.searchPlaceholder")}
                 value={searchQuery}
                 onChangeText={setSearchQuery}
-                placeholder={semanticMode ? t("memory.aiSearchPlaceholder") : t("memory.searchPlaceholder")}
-                className="flex-1 border-0 bg-transparent h-auto p-0 text-sm web:focus-visible:ring-0"
-                placeholderTextColor={colors.mutedForeground}
+                onClearText={() => setSearchQuery("")}
               />
-              {semanticLoading && (
-                <Text className="text-xs text-muted-foreground">...</Text>
-              )}
-              <Pressable
-                onPress={() => {
-                  setSemanticMode(!semanticMode);
-                  if (!semanticMode) {
-                    toast.info(t("memory.aiSearchEnabled"));
-                  }
-                }}
-                className={cn(
-                  "px-2 py-0.5 rounded-md",
-                  semanticMode ? "bg-primary/15" : ""
-                )}
-              >
-                <View className="flex-row items-center gap-1">
-                  <Wand2 size={11} className={semanticMode ? "text-primary" : "text-muted-foreground"} />
-                  <Text className={cn("text-[11px] font-medium", semanticMode ? "text-primary" : "text-muted-foreground")}>
-                    AI
-                  </Text>
-                </View>
-              </Pressable>
             </View>
+
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => {
+                setSemanticMode(!semanticMode);
+                if (!semanticMode) {
+                  toast.info(t("memory.aiSearchEnabled"));
+                }
+              }}
+              className={cn(
+                "h-11 px-3 rounded-full flex-row items-center gap-1.5",
+                semanticMode ? "bg-primary/15" : "bg-muted"
+              )}
+            >
+              {semanticLoading ? (
+                <Text className="text-[11px] text-muted-foreground">...</Text>
+              ) : (
+                <Wand2 size={12} className={semanticMode ? "text-primary" : "text-muted-foreground"} />
+              )}
+              <Text className={cn("text-[11px] font-medium", semanticMode ? "text-primary" : "text-muted-foreground")}>
+                AI
+              </Text>
+            </Pressable>
 
             <Button
               onPress={() => handleOpenDialog()}
               size="sm"
-              className="h-9 px-3 rounded-lg"
+              className="h-11 px-3 rounded-lg"
             >
               <View className="flex-row items-center gap-1.5">
                 <Plus size={16} className="text-primary-foreground" />

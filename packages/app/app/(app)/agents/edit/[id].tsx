@@ -32,7 +32,6 @@ import {
   ChevronRight,
   Zap,
   FileText,
-  Search,
   BookOpen,
   Wrench,
   Globe,
@@ -45,6 +44,7 @@ import {
   Send,
   Trash2,
 } from "lucide-react-native";
+import { Search } from "@oxyhq/bloom/search";
 import { AGENT_TOOLS } from "@/lib/constants/agent-tools";
 import * as DropdownMenu from "@/components/ui/dropdown-menu";
 
@@ -479,14 +479,12 @@ export default function EditAgentScreen() {
                   <DialogHeader className="px-4 pt-4 pb-2">
                     <DialogTitle>{t("agents.skills")}</DialogTitle>
                   </DialogHeader>
-                  <View className="mx-4 mb-2 flex-row items-center gap-2 px-3 py-1.5 border border-border rounded-md">
-                    <Search size={14} className="text-muted-foreground" />
-                    <TextInput
+                  <View className="mx-4 mb-2">
+                    <Search
+                      label="Search skills..."
                       value={skillSearch}
                       onChangeText={setSkillSearch}
-                      placeholder="Search skills..."
-                      placeholderTextColor={colors.mutedForeground}
-                      className="flex-1 text-sm text-foreground"
+                      onClearText={() => setSkillSearch("")}
                       autoFocus
                     />
                   </View>
@@ -614,14 +612,12 @@ export default function EditAgentScreen() {
                   <DialogHeader className="px-4 pt-4 pb-2">
                     <DialogTitle>{t("agents.knowledge")}</DialogTitle>
                   </DialogHeader>
-                  <View className="mx-4 mb-2 flex-row items-center gap-2 px-3 py-1.5 border border-border rounded-md">
-                    <Search size={14} className="text-muted-foreground" />
-                    <TextInput
+                  <View className="mx-4 mb-2">
+                    <Search
+                      label="Search library..."
                       value={knowledgeSearch}
                       onChangeText={setKnowledgeSearch}
-                      placeholder="Search library..."
-                      placeholderTextColor={colors.mutedForeground}
-                      className="flex-1 text-sm text-foreground"
+                      onClearText={() => setKnowledgeSearch("")}
                       autoFocus
                     />
                   </View>

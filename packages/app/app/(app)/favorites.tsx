@@ -1,16 +1,15 @@
 import React, { useState, useMemo, useCallback } from 'react';
-import { View, ScrollView, Pressable, TextInput, RefreshControl } from 'react-native';
+import { View, ScrollView, Pressable, RefreshControl } from 'react-native';
+import { Search } from '@oxyhq/bloom/search';
 import { Text } from '@/components/ui/text';
-import { Search, Star, X } from 'lucide-react-native';
+import { Star } from 'lucide-react-native';
 import { useFavoritesStore } from '@/lib/stores/favorites-store';
 import { useConversations } from '@/lib/hooks/use-conversations';
 import { useRouter } from 'expo-router';
-import { useColorScheme } from '@/lib/useColorScheme';
 import { cn } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
 
 export default function FavoritesScreen() {
-  const { colors } = useColorScheme();
   const router = useRouter();
   const favoriteIds = useFavoritesStore((state) => state.favoriteConversationIds);
   const toggleFavorite = useFavoritesStore((state) => state.toggleFavorite);
@@ -80,16 +79,12 @@ export default function FavoritesScreen() {
 
         {/* Search */}
         <View className="px-5 pt-3 pb-2">
-          <View className="flex-row items-center gap-2 bg-muted/70 rounded-lg px-3 py-2">
-            <Search size={15} className="text-muted-foreground" />
-            <TextInput
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              placeholder="Search favorites..."
-              placeholderTextColor={colors.mutedForeground}
-              className="flex-1 text-[13px] text-foreground"
-            />
-          </View>
+          <Search
+            label="Search favorites..."
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            onClearText={() => setSearchQuery('')}
+          />
         </View>
 
         {/* Count */}

@@ -30,7 +30,8 @@ import {
   CollapsibleTrigger,
   CollapsibleContent,
 } from "@/components/ui/collapsible";
-import { Search, Plus, Plug, ChevronDown, Check } from "lucide-react-native";
+import { Plus, Plug, ChevronDown, Check } from "lucide-react-native";
+import { Search } from "@oxyhq/bloom/search";
 import { errorStatus } from "@/lib/errors/error-utils";
 import { useColorScheme } from "@/lib/useColorScheme";
 import { useTranslation } from "@/lib/hooks/use-translation";
@@ -461,23 +462,19 @@ export function ConnectorsSection() {
     <View className="gap-6">
       {/* Search + Add custom */}
       <View className="flex-row items-center gap-2">
-        <View className="flex-1 flex-row items-center gap-2 h-9 rounded-full bg-muted/70 px-3">
-          <Search size={15} className="text-muted-foreground" />
-          <TextInput
+        <View className="flex-1">
+          <Search
+            label={t("connectors.searchPlaceholder")}
             value={search}
             onChangeText={setSearch}
-            placeholder={t("connectors.searchPlaceholder")}
-            placeholderTextColor={colors.mutedForeground}
-            className="flex-1 text-[13px] text-foreground"
-            autoCapitalize="none"
-            autoCorrect={false}
+            onClearText={() => setSearch("")}
           />
         </View>
         <Pressable
           onPress={() => setCustomDialogOpen(true)}
           accessibilityRole="button"
           accessibilityLabel={t("connectors.addCustom")}
-          className="h-9 w-9 rounded-full border border-border items-center justify-center active:bg-accent web:hover:bg-accent"
+          className="h-11 w-11 rounded-full border border-border items-center justify-center active:bg-accent web:hover:bg-accent"
         >
           <Plus size={16} className="text-foreground" />
         </Pressable>
