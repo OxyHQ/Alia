@@ -28,6 +28,7 @@ const REVERSIBLE_WRITE_TOOLS = new Set([
   'createTrigger',
   'updateTrigger',
   'saveUserMemory',
+  'updateUserMemory',
   'updateUserPreferences',
   'updateUserContext',
 ]);

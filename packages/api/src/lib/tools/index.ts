@@ -5,7 +5,7 @@
 import { registerTool } from './registry.js';
 import { getCurrentDateTool } from './date.js';
 import { webSearchTool } from './web-search.js';
-import { saveUserMemoryTool, updateUserPreferencesTool, updateUserContextTool } from './user-memory.js';
+import { saveUserMemoryTool, updateUserMemoryTool, updateUserPreferencesTool, updateUserContextTool } from './user-memory.js';
 import { createGetDeviceInfoTool } from './device-info.js';
 import { createSendTelegramTool } from './telegram.js';
 import { createGatewayAdminTool } from './gateway-admin.js';
@@ -132,6 +132,14 @@ registerTool({
 });
 
 registerTool({
+  name: 'updateUserMemory',
+  description: 'Change or rename a memory that already exists',
+  tool: updateUserMemoryTool,      // factory: (oxyUserId) => Tool
+  enabledByDefault: true,
+  category: 'memory',
+});
+
+registerTool({
   name: 'updateUserPreferences',
   description: 'Update user communication preferences',
   tool: updateUserPreferencesTool,  // factory: (oxyUserId) => Tool
@@ -227,7 +235,7 @@ registerTool({
 
 export { getCurrentDateTool } from './date.js';
 export { webSearchTool, type WebSearchResult, type WebSearchResponse } from './web-search.js';
-export { saveUserMemoryTool, updateUserPreferencesTool, updateUserContextTool } from './user-memory.js';
+export { saveUserMemoryTool, updateUserMemoryTool, updateUserPreferencesTool, updateUserContextTool } from './user-memory.js';
 export { createGetDeviceInfoTool, type DeviceInfo } from './device-info.js';
 export { createSendTelegramTool } from './telegram.js';
 export { createGetWhatsAppChatsTool, createGetWhatsAppMessagesTool, createSendWhatsAppMessageTool } from './whatsapp.js';

@@ -163,7 +163,7 @@ describe('POST /memory/import/from-text', () => {
     expect(mockGenerateText).not.toHaveBeenCalled();
   });
 
-  it('constructs saveUserMemoryTool with bypassAutoSaveGate: true', async () => {
+  it('constructs saveUserMemoryTool with the initiator asserted server-side', async () => {
     const { saveUserMemoryTool } = await import('../../lib/tools/index.js');
     const mockSaveUserMemoryTool = saveUserMemoryTool as unknown as ReturnType<typeof vi.fn>;
     mockSaveUserMemoryTool.mockClear();
@@ -176,7 +176,7 @@ describe('POST /memory/import/from-text', () => {
 
     await handler(req, res);
 
-    expect(mockSaveUserMemoryTool).toHaveBeenCalledWith('user-1', { bypassAutoSaveGate: true });
+    expect(mockSaveUserMemoryTool).toHaveBeenCalledWith('user-1', { initiatedBy: 'user' });
   });
 
   it('retries with a different provider when the first one fails, and succeeds', async () => {

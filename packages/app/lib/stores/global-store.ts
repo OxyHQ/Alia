@@ -34,6 +34,16 @@ interface StoreState {
   setPendingInitialMessage: (message: string | Array<{ type: string; [key: string]: any }>) => void;
   clearPendingInitialMessage: () => void;
 
+  /**
+   * A composer draft handed to the new-chat screen by another route. Unlike
+   * {@link pendingInitialMessage} it is NOT sent — it lands in the input for the
+   * user to finish. `composerDraftSeq` counts hand-offs so the chat can tell a
+   * fresh one from the copy it already applied.
+   */
+  composerDraft: string;
+  composerDraftSeq: number;
+  setComposerDraft: (draft: string) => void;
+
   activeSkillId: string | null;
   setActiveSkillId: (skillId: string | null) => void;
 
@@ -80,6 +90,11 @@ export const useStore = create<StoreState>((set, get) => ({
   pendingInitialMessage: null,
   setPendingInitialMessage: (message: string | Array<{ type: string; [key: string]: any }>) => set({ pendingInitialMessage: message }),
   clearPendingInitialMessage: () => set({ pendingInitialMessage: null }),
+
+  composerDraft: '',
+  composerDraftSeq: 0,
+  setComposerDraft: (draft: string) =>
+    set((state) => ({ composerDraft: draft, composerDraftSeq: state.composerDraftSeq + 1 })),
 
   activeSkillId: null,
   setActiveSkillId: (skillId: string | null) => set({ activeSkillId: skillId }),

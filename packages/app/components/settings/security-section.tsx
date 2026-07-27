@@ -37,6 +37,7 @@ import { toast } from "@/components/sonner";
 import apiClient from "@/lib/api/client";
 import { API_ROUTES } from "@/lib/api/routes";
 import { useTheme } from "@oxyhq/bloom/theme";
+import { SettingsListGroup, SettingsListItem } from "@oxyhq/bloom/settings-list";
 
 interface ThreatEntry {
   id: string;
@@ -236,61 +237,48 @@ export function SecuritySection() {
       </View>
 
       {/* Section B: Approval Preferences */}
-      <View className="gap-3">
-        <View className="flex-row items-center gap-2">
-          <ShieldAlert size={18} className="text-primary" />
-          <Text className="text-sm font-semibold">{t("settings.security.approvalPreferences")}</Text>
-        </View>
-
-        <View className="flex-row items-center justify-between py-2">
-          <View className="flex-1 mr-3">
-            <Text className="text-sm">{t("settings.security.requireApproval")}</Text>
-            <Text className="text-xs text-muted-foreground">
-              {t("settings.security.requireApprovalDesc")}
-            </Text>
-          </View>
-          <Switch value={requireApproval} onValueChange={setRequireApproval} />
-        </View>
-
-        <View className="flex-row items-center justify-between py-2">
-          <View className="flex-row items-center gap-2 flex-1 mr-3">
-            <Clock size={14} className="text-muted-foreground" />
-            <Text className="text-sm">{t("settings.security.approvalTimeout")}</Text>
-          </View>
-          <DropdownMenu.Root>
-            <DropdownMenu.Trigger>
-              <Pressable className="flex-row items-center gap-1 border border-border rounded-lg px-3 py-1.5">
-                <Text className="text-sm text-foreground">
-                  {TIMEOUT_OPTIONS.find(o => o.value === approvalTimeout)?.label || "60s"}
-                </Text>
-                <ChevronDown size={14} className="text-muted-foreground" />
-              </Pressable>
-            </DropdownMenu.Trigger>
-            <DropdownMenu.Content>
-              {TIMEOUT_OPTIONS.map((opt) => (
-                <DropdownMenu.CheckboxItem
-                  key={String(opt.value)}
-                  value={approvalTimeout === opt.value ? "on" : "off"}
-                  onValueChange={() => setApprovalTimeout(opt.value)}
-                >
-                  <DropdownMenu.ItemIndicator />
-                  <DropdownMenu.ItemTitle>{opt.label}</DropdownMenu.ItemTitle>
-                </DropdownMenu.CheckboxItem>
-              ))}
-            </DropdownMenu.Content>
-          </DropdownMenu.Root>
-        </View>
-
-        <View className="flex-row items-center justify-between py-2">
-          <View className="flex-1 mr-3">
-            <Text className="text-sm">{t("settings.security.autoDenyOnTimeout")}</Text>
-            <Text className="text-xs text-muted-foreground">
-              {t("settings.security.autoDenyOnTimeoutDesc")}
-            </Text>
-          </View>
-          <Switch value={autoDenyOnTimeout} onValueChange={setAutoDenyOnTimeout} />
-        </View>
-      </View>
+      <SettingsListGroup title={t("settings.security.approvalPreferences")}>
+        <SettingsListItem
+          icon={<ShieldAlert size={18} color={colors.textSecondary} />}
+          title={t("settings.security.requireApproval")}
+          description={t("settings.security.requireApprovalDesc")}
+          rightElement={<Switch value={requireApproval} onValueChange={setRequireApproval} />}
+        />
+        <SettingsListItem
+          icon={<Clock size={18} color={colors.textSecondary} />}
+          title={t("settings.security.approvalTimeout")}
+          rightElement={
+            <DropdownMenu.Root>
+              <DropdownMenu.Trigger>
+                <Pressable className="flex-row items-center gap-1 border border-border rounded-lg px-3 py-1.5">
+                  <Text className="text-sm text-foreground">
+                    {TIMEOUT_OPTIONS.find(o => o.value === approvalTimeout)?.label || "60s"}
+                  </Text>
+                  <ChevronDown size={14} className="text-muted-foreground" />
+                </Pressable>
+              </DropdownMenu.Trigger>
+              <DropdownMenu.Content>
+                {TIMEOUT_OPTIONS.map((opt) => (
+                  <DropdownMenu.CheckboxItem
+                    key={String(opt.value)}
+                    value={approvalTimeout === opt.value ? "on" : "off"}
+                    onValueChange={() => setApprovalTimeout(opt.value)}
+                  >
+                    <DropdownMenu.ItemIndicator />
+                    <DropdownMenu.ItemTitle>{opt.label}</DropdownMenu.ItemTitle>
+                  </DropdownMenu.CheckboxItem>
+                ))}
+              </DropdownMenu.Content>
+            </DropdownMenu.Root>
+          }
+        />
+        <SettingsListItem
+          icon={<ShieldX size={18} color={colors.textSecondary} />}
+          title={t("settings.security.autoDenyOnTimeout")}
+          description={t("settings.security.autoDenyOnTimeoutDesc")}
+          rightElement={<Switch value={autoDenyOnTimeout} onValueChange={setAutoDenyOnTimeout} />}
+        />
+      </SettingsListGroup>
 
       {/* Section C: Threat Activity Log */}
       <View className="gap-3">

@@ -14,7 +14,6 @@ import {
 import { useRouter, usePathname, type Href } from "expo-router";
 import { useTranslation } from "@/lib/hooks/use-translation";
 import {
-  User,
   Settings2,
   CreditCard,
   Palette,
@@ -25,7 +24,6 @@ import {
   Blocks,
   Plug,
   Zap,
-  MessageSquarePlus,
   Shield,
   ArrowLeft,
   ChevronsLeft,
@@ -41,7 +39,6 @@ interface SettingsSection {
 }
 
 const SECTIONS: SettingsSection[] = [
-  { id: "account", route: "/(app)/settings", icon: User, labelKey: "settings.sections.account" },
   { id: "general", route: "/(app)/settings/general", icon: Settings2, labelKey: "settings.sections.general" },
   { id: "usage", route: "/(app)/settings/usage", icon: CreditCard, labelKey: "settings.sections.billing" },
   { id: "personalization", route: "/(app)/settings/personalization", icon: Palette, labelKey: "settings.sections.personalization" },
@@ -53,7 +50,6 @@ const SECTIONS: SettingsSection[] = [
   { id: "integrations", route: "/(app)/settings/integrations", icon: Plug, labelKey: "settings.sections.integrations" },
   { id: "skills", route: "/(app)/settings/skills", icon: Zap, labelKey: "settings.sections.skills" },
   { id: "security", route: "/(app)/settings/security", icon: Shield, labelKey: "settings.sections.security" },
-  { id: "feedback", route: "/(app)/settings/feedback", icon: MessageSquarePlus, labelKey: "settings.sections.feedback" },
 ];
 
 export const SettingsSidebar = React.memo(function SettingsSidebar() {
@@ -64,16 +60,15 @@ export const SettingsSidebar = React.memo(function SettingsSidebar() {
   const { collapsed, collapse, expand } = useSidebarCollapse();
   const expandTooltip = useRailTooltip(t("sidebar.expand"));
 
-  // Longest-prefix match against the section routes (group segment stripped);
-  // "account" lives at the /settings root, so it's the fallback.
-  const activeId = React.useMemo(() => {
-    const match = SECTIONS.find(
-      (section) =>
-        section.id !== "account" &&
+  // Longest-prefix match against the section routes (group segment stripped).
+  // The /settings root is the menu itself, so it matches nothing here.
+  const activeId = React.useMemo(
+    () =>
+      SECTIONS.find((section) =>
         pathname.startsWith(String(section.route).replace("/(app)", "")),
-    );
-    return match?.id ?? "account";
-  }, [pathname]);
+      )?.id,
+    [pathname],
+  );
 
   const handleBack = React.useCallback(() => {
     router.replace("/(app)");

@@ -12,7 +12,7 @@
 import { type ToolSet } from 'ai';
 import { resolveModel, getDefaultAliaModel } from '../lib/chat-core.js';
 import { markKeyCreditExhausted, getAliaModel, getModelMappingsForTier } from '../lib/gateway-client.js';
-import { getCurrentDateTool, webSearchTool, browseTool, saveUserMemoryTool, updateUserPreferencesTool, updateUserContextTool, createGetDeviceInfoTool, createSendTelegramTool, createGatewayAdminTool, webScraperTool, generateFileTool, canvasTool, createTriggerTool, listTriggersTool, updateTriggerTool, deleteTriggerTool, createDeepResearchTool, type DeviceInfo } from '../lib/tools/index.js';
+import { getCurrentDateTool, webSearchTool, browseTool, saveUserMemoryTool, updateUserMemoryTool, updateUserPreferencesTool, updateUserContextTool, createGetDeviceInfoTool, createSendTelegramTool, createGatewayAdminTool, webScraperTool, generateFileTool, canvasTool, createTriggerTool, listTriggersTool, updateTriggerTool, deleteTriggerTool, createDeepResearchTool, type DeviceInfo } from '../lib/tools/index.js';
 import { buildMcpTools } from '../lib/tools/mcp.js';
 import { buildIntegrationTools } from '../lib/tools/integrations.js';
 import { oxyClient } from '../middleware/auth.js';
@@ -238,6 +238,7 @@ export async function buildChatTools(opts: BuildToolsOptions): Promise<ToolSet> 
     ...(opts.deviceInfo ? { getDeviceInfo: createGetDeviceInfoTool(opts.deviceInfo) } : {}),
     ...(opts.userId ? {
       saveUserMemory: saveUserMemoryTool(opts.userId),
+      updateUserMemory: updateUserMemoryTool(opts.userId),
       updateUserPreferences: updateUserPreferencesTool(opts.userId),
       updateUserContext: updateUserContextTool(opts.userId),
       sendTelegramMessage: createSendTelegramTool(opts.userId),
