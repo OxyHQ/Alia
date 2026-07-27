@@ -42,7 +42,7 @@ import {
   useUpdateAgentTeam,
 } from "@/lib/hooks/use-agent-teams";
 import { AgentCard } from "@/components/agent-card";
-import { toast } from "@/components/sonner";
+import { toast } from "@oxyhq/bloom/toast";
 import { confirm } from "@oxyhq/bloom/alert-dialog";
 import { cn } from "@/lib/utils";
 import apiClient from "@/lib/api/client";

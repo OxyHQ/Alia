@@ -7,7 +7,7 @@ import { AuthInput } from '@/components/auth/auth-input';
 import { AuthButton } from '@/components/auth/auth-button';
 import { AuthError } from '@/components/auth/auth-error';
 import apiClient from '@/lib/api/client';
-import { toast } from '@/components/sonner';
+import { toast } from '@oxyhq/bloom/toast';
 import { useTranslation } from '@/lib/hooks/use-translation';
 import { errorMessage as getErrorMessage } from '@/lib/errors/error-utils';
 

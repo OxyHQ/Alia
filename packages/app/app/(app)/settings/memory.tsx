@@ -33,7 +33,7 @@ import { useUserData } from "@/lib/hooks/use-user-data";
 import { useUserDataStore } from "@/lib/stores/user-data-store";
 import { useStore } from "@/lib/stores/global-store";
 import { cn } from "@/lib/utils";
-import { toast } from "@/components/sonner";
+import { toast } from "@oxyhq/bloom/toast";
 import { SettingsHeader } from "@/components/settings/settings-header";
 import { MemoryTable } from "@/components/settings/memory-table";
 

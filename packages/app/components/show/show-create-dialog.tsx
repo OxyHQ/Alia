@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useShowStore, type ShowFormat } from '@/lib/stores/show-store';
-import { toast } from '@/components/sonner';
+import { toast } from '@oxyhq/bloom/toast';
 import { Mic, Newspaper, MessageSquare, HelpCircle, BookOpen } from 'lucide-react-native';
 import { cn } from '@/lib/utils';
 

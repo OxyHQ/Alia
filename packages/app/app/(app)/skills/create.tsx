@@ -6,7 +6,7 @@ import { useRouter } from 'expo-router';
 import { useSkillsStore } from '@/lib/stores/skills-store';
 import { useTranslation } from '@/lib/hooks/use-translation';
 import { useI18nStore } from '@/lib/stores/i18n-store';
-import { toast } from '@/components/sonner';
+import { toast } from '@oxyhq/bloom/toast';
 import apiClient from '@/lib/api/client';
 import { API_ROUTES } from '@/lib/api/routes';
 import { errorMessage as getErrorMessage } from '@/lib/errors/error-utils';

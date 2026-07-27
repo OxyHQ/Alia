@@ -5,7 +5,7 @@ import { PromptInput } from "@/components/ui/prompt-input/prompt-input";
 import { useRouter } from "expo-router";
 import { useCreateAgentTeam } from "@/lib/hooks/use-agent-teams";
 import { useTranslation } from "@/lib/hooks/use-translation";
-import { toast } from "@/components/sonner";
+import { toast } from "@oxyhq/bloom/toast";
 
 export default function CreateTeamScreen() {
   const router = useRouter();

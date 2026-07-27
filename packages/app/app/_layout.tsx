@@ -8,7 +8,6 @@ import * as Linking from 'expo-linking';
 import { Platform } from 'react-native';
 
 import { AppErrorBoundary } from '@/components/error-boundary';
-import { Toaster } from '@/components/sonner';
 import { AlertDialogHost } from '@oxyhq/bloom/alert-dialog';
 import { BloomDialogProvider } from '@oxyhq/bloom/dialog';
 import { KeyboardProvider } from '@/lib/keyboard';
@@ -80,7 +79,8 @@ function AppContent() {
             <Stack.Screen name="(biglayout)" options={{ headerShown: false }} />
           </Stack>
         </KeyboardProvider>
-        <Toaster />
+        {/* No <ToastOutlet /> here on purpose: OxyProvider mounts one already,
+            and a second outlet renders every toast twice. */}
         <AlertDialogHost />
       </BloomDialogProvider>
     </AuthSetup>

@@ -12,7 +12,7 @@ import { USER_MEMORY_QUERY_KEY } from '@/lib/hooks/use-user-data';
 import { useStore } from '@/lib/stores/global-store';
 import { useModelStore } from '@/lib/stores/model-store';
 import { useUIStore } from '@/lib/stores/ui-store';
-import { toast } from '@/components/sonner';
+import { toast } from '@oxyhq/bloom/toast';
 import i18n from '@/lib/i18n';
 import type { Role } from '@/lib/stores/roles-store';
 import type { Conversation } from '@/lib/hooks/use-conversations';

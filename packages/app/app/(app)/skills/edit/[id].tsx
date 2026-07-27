@@ -31,7 +31,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useTranslation } from '@/lib/hooks/use-translation';
 import { useColorScheme } from '@/lib/useColorScheme';
 import { useSkillsStore } from '@/lib/stores/skills-store';
-import { toast } from '@/components/sonner';
+import { toast } from '@oxyhq/bloom/toast';
 import { confirm } from '@oxyhq/bloom/alert-dialog';
 import { cn } from '@/lib/utils';
 

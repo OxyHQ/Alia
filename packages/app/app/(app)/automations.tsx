@@ -16,7 +16,7 @@ import {
 } from '@/components/ui/dialog';
 import { CloudCog, Plus, Clock, Trash2, Play } from 'lucide-react-native';
 import { useColorScheme } from '@/lib/useColorScheme';
-import { toast } from '@/components/sonner';
+import { toast } from '@oxyhq/bloom/toast';
 import { useTranslation } from '@/lib/hooks/use-translation';
 import apiClient from '@/lib/api/client';
 import { API_ROUTES } from '@/lib/api/routes';

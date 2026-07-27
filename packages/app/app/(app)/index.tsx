@@ -7,7 +7,7 @@ import { useModelStore } from "@/lib/stores/model-store";
 import { useChatConversation } from "@/lib/hooks/use-chat-conversation";
 import { useCreateConversation } from "@/lib/hooks/use-conversations";
 import { ChatPageContent } from "@/components/chat-page-content";
-import { toast } from "@/components/sonner";
+import { toast } from "@oxyhq/bloom/toast";
 
 const ChatPage = () => {
   const router = useRouter();

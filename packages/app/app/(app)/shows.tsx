@@ -10,7 +10,7 @@ import { ShowProgressCard } from '@/components/show/show-progress';
 import { ShowCreateDialog } from '@/components/show/show-create-dialog';
 import { useColorScheme } from '@/lib/useColorScheme';
 import { Skeleton } from '@/components/ui/skeleton';
-import { toast } from '@/components/sonner';
+import { toast } from '@oxyhq/bloom/toast';
 import { cn } from '@/lib/utils';
 import { useShowProgress } from '@/lib/hooks/use-show-progress';
 
