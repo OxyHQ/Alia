@@ -2,7 +2,7 @@ import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect, useMemo, useRef } from 'react';
 import { OxyProvider, useOxy } from '@oxyhq/services';
-import { BloomThemeProvider } from '@oxyhq/bloom/theme';
+import { BloomProvider } from '@oxyhq/bloom/provider';
 import { ImageResolverProvider } from '@oxyhq/bloom/image-resolver';
 import * as Linking from 'expo-linking';
 import { Platform } from 'react-native';
@@ -58,7 +58,7 @@ function AuthSetup({ children }: { children: React.ReactNode }) {
 function AppContent() {
   const { colors } = useColorScheme();
 
-  // Mounted only after BloomThemeProvider's FontLoader resolves the default
+  // Mounted only after BloomProvider's FontLoader resolves the default
   // Bloom fonts, so hiding the OS splash here leaves no unstyled-text flash.
   useEffect(() => {
     SplashScreen.hideAsync();
@@ -89,10 +89,11 @@ function AppContent() {
 
 function RootLayout() {
   return (
-    // BloomThemeProvider must sit ABOVE the error boundary: the boundary's
+    // The single Bloom root (theme, haptics, scroll restoration, tab-bar
+    // minimize progress). It must sit ABOVE the error boundary: the boundary's
     // fallback screen reads useTheme(), so with the provider inside it any
     // caught error would crash the boundary itself.
-    <BloomThemeProvider
+    <BloomProvider
       defaultMode="system"
       defaultColorPreset="purple"
       persistKey={BLOOM_THEME_PERSIST_KEY}
@@ -107,7 +108,7 @@ function RootLayout() {
           <AppContent />
         </OxyProvider>
       </AppErrorBoundary>
-    </BloomThemeProvider>
+    </BloomProvider>
   );
 }
 
