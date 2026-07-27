@@ -4,7 +4,10 @@
  */
 
 import { View, Text, Pressable, ActivityIndicator, StyleSheet } from 'react-native';
-import { Mic, MicOff, PhoneOff, Users } from 'lucide-react-native';
+import Mic from 'lucide-react-native/icons/mic';
+import MicOff from 'lucide-react-native/icons/mic-off';
+import PhoneOff from 'lucide-react-native/icons/phone-off';
+import Users from 'lucide-react-native/icons/users';
 import type { RoomState, AgentState } from '../../types';
 
 interface VoiceControlsProps {

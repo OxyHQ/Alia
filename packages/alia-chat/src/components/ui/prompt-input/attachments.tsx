@@ -1,15 +1,13 @@
 import React from "react";
 import { View, Pressable, ScrollView, ActivityIndicator } from "react-native";
 import { Image } from "expo-image";
-import {
-  FileText,
-  FileSpreadsheet,
-  FileCode,
-  FileArchive,
-  FileAudio,
-  File,
-  X,
-} from "lucide-react-native";
+import FileText from "lucide-react-native/icons/file-text";
+import FileSpreadsheet from "lucide-react-native/icons/file-spreadsheet";
+import FileCode from "lucide-react-native/icons/file-code";
+import FileArchive from "lucide-react-native/icons/file-archive";
+import FileHeadphone from "lucide-react-native/icons/file-headphone";
+import File from "lucide-react-native/icons/file";
+import X from "lucide-react-native/icons/x";
 import { Text } from "../text";
 import { formatFileSize } from "../../../lib/utils";
 import { usePromptInput, type Attachment } from "./context";
@@ -48,7 +46,7 @@ function getDocumentIcon(mimeType: string, name: string) {
     mimeType.startsWith("audio/") ||
     ["mp3", "wav", "ogg", "flac", "aac"].includes(ext)
   )
-    return { Icon: FileAudio, color: "#EC4899", bgColor: "#EC489918" };
+    return { Icon: FileHeadphone, color: "#EC4899", bgColor: "#EC489918" };
   if (
     mimeType === "text/plain" ||
     ["txt", "md", "rtf"].includes(ext)

@@ -6,7 +6,8 @@ import {
   type ViewStyle,
 } from "react-native";
 import { KeyboardAvoidingView } from "../../../lib/keyboard";
-import { Maximize2, Minimize2 } from "lucide-react-native";
+import Maximize2 from "lucide-react-native/icons/maximize-2";
+import Minimize2 from "lucide-react-native/icons/minimize-2";
 import { cn } from "../../../lib/utils";
 import { PromptInputContext, type Attachment, type Completion } from "./context";
 import { PromptInputTextarea } from "./textarea";

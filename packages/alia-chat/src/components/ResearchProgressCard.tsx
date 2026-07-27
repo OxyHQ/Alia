@@ -2,15 +2,13 @@ import { useState } from 'react';
 import { View, Pressable } from 'react-native';
 import { Text } from './ui/text';
 import { cn } from '../lib/utils';
-import {
-  Search,
-  BookOpen,
-  CheckCircle,
-  ChevronDown,
-  ChevronUp,
-  ExternalLink,
-  Loader2,
-} from 'lucide-react-native';
+import Search from 'lucide-react-native/icons/search';
+import BookOpen from 'lucide-react-native/icons/book-open';
+import CircleCheckBig from 'lucide-react-native/icons/circle-check-big';
+import ChevronDown from 'lucide-react-native/icons/chevron-down';
+import ChevronUp from 'lucide-react-native/icons/chevron-up';
+import ExternalLink from 'lucide-react-native/icons/external-link';
+import LoaderCircle from 'lucide-react-native/icons/loader-circle';
 import type { ResearchProgress } from '../types';
 
 interface ResearchProgressCardProps {
@@ -42,7 +40,7 @@ export function ResearchProgressCard({ progress }: ResearchProgressCardProps) {
       <View className="flex-row items-center gap-2">
         <View className="w-8 h-8 rounded-full bg-primary/10 items-center justify-center">
           {isComplete ? (
-            <CheckCircle size={16} className="text-green-500" />
+            <CircleCheckBig size={16} className="text-green-500" />
           ) : (
             <Search size={16} className="text-primary" />
           )}
@@ -111,7 +109,7 @@ export function ResearchProgressCard({ progress }: ResearchProgressCardProps) {
       {/* Current search query indicator */}
       {progress.currentQuery && !isComplete && (
         <View className="flex-row items-center gap-2 bg-muted/50 rounded-lg px-3 py-1.5">
-          <Loader2 size={12} className="text-muted-foreground" />
+          <LoaderCircle size={12} className="text-muted-foreground" />
           <Text className="text-xs text-muted-foreground flex-1" numberOfLines={1}>
             {progress.currentQuery}
           </Text>

@@ -16,7 +16,7 @@ import React, {
 import { View, StyleSheet } from 'react-native';
 import { useSharedValue } from 'react-native-reanimated';
 import type { SharedValue } from 'react-native-reanimated';
-import { Volume2 } from 'lucide-react-native';
+import Volume2 from 'lucide-react-native/icons/volume-2';
 import { useAliaChat, type UseAliaChatOptions } from '../hooks/useAliaChat';
 import { useVoiceRoom } from '../hooks/useVoiceRoom';
 import { useAudioLevelMonitor } from '../hooks/useAudioLevelMonitor';
