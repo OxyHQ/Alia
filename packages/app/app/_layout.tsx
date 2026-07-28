@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef } from 'react';
 import { OxyProvider, useOxy } from '@oxyhq/services';
 import { BloomProvider } from '@oxyhq/bloom/provider';
 import { ImageResolverProvider } from '@oxyhq/bloom/image-resolver';
+import { ConnectionStatusToasts } from '@oxyhq/bloom/connection-status';
 import * as Linking from 'expo-linking';
 import { Platform } from 'react-native';
 
@@ -81,6 +82,7 @@ function AppContent() {
         </KeyboardProvider>
         {/* No <ToastOutlet /> here on purpose: OxyProvider mounts one already,
             and a second outlet renders every toast twice. */}
+        <ConnectionStatusToasts />
         <AlertDialogHost />
       </BloomDialogProvider>
     </AuthSetup>
