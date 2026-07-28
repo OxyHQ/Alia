@@ -3,6 +3,7 @@ import { Suspense, lazy } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { OxyProvider } from '@oxyhq/services';
 import { BloomThemeProvider } from '@oxyhq/bloom/theme';
+import { ConnectionStatusToasts } from '@oxyhq/bloom/connection-status';
 import appCss from '../styles.css?url';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { Toaster } from '@/components/ui/sonner';
@@ -77,6 +78,7 @@ function RootComponent() {
               <TooltipProvider delayDuration={300}>
                 <Outlet />
                 <Toaster position="bottom-right" richColors closeButton />
+                <ConnectionStatusToasts />
               </TooltipProvider>
             </OxyProvider>
           </BloomThemeProvider>

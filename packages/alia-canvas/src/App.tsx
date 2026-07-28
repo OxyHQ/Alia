@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { OxyProvider } from "@oxyhq/services";
 import { BloomThemeProvider } from "@oxyhq/bloom/theme";
+import { ConnectionStatusToasts } from "@oxyhq/bloom/connection-status";
 import { ThemeProvider } from "@/components/theme-provider";
 import { AuthGuard } from "@/components/auth-guard";
 import { DesktopOnlyGuard } from "@/components/desktop-only-guard";
@@ -35,6 +36,7 @@ export default function App() {
                 <WorkflowEditor />
               </DesktopOnlyGuard>
             </AuthGuard>
+            <ConnectionStatusToasts />
           </OxyProvider>
         </ThemeProvider>
       </BloomThemeProvider>

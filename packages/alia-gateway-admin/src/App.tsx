@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { OxyProvider, useAuth } from '@oxyhq/services';
 import { BloomThemeProvider } from '@oxyhq/bloom/theme';
+import { ConnectionStatusToasts } from '@oxyhq/bloom/connection-status';
 import { DashboardLayout } from './components/layouts/DashboardLayout';
 import { DashboardPage } from './pages/Dashboard';
 import { KeysPage } from './pages/Keys';
@@ -54,6 +55,7 @@ function App() {
               </BrowserRouter>
             </RealtimeProvider>
           </ApiAuthSetup>
+          <ConnectionStatusToasts />
         </OxyProvider>
       </BloomThemeProvider>
     </QueryClientProvider>
