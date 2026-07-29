@@ -55,7 +55,9 @@
       "expo-web-browser",
       "expo-asset",
       "expo-notifications",
-      "expo-status-bar"
+      "expo-status-bar",
+      "./plugins/withSharedUserId",
+      "@oxyhq/services/plugins/withSharedIdentityReader"
     ],
     "experiments": {
       "typedRoutes": true
