@@ -43,6 +43,15 @@ jobs:
       - name: Run API tests
         run: bun run --filter @alia/api test
 
+      - name: Typecheck SDK
+        run: bun run --filter @alia.onl/sdk typecheck
+
+      # @alia.onl/sdk ships raw source, so anything the root entry can reach is
+      # compiled into every text-chat consumer's bundle. Keeps livekit-client
+      # behind the ./voice entry.
+      - name: Check SDK entry isolation
+        run: bun run --filter @alia.onl/sdk check:entries
+
   build-api:
     name: Build API
     runs-on: ubuntu-latest
