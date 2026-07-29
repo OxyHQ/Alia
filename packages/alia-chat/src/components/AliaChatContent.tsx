@@ -1,12 +1,14 @@
 /**
  * Shared chat content component used by both AliaChatSheet and AliaChatScreen.
  *
- * Owns all chat + voice state internally. Containers only handle
- * layout chrome (sheet modal, full-screen SafeAreaView) and pass a `header`
- * render prop that receives the live mark state.
+ * Owns the text chat; voice is an injected capability (`voiceSession`) so that
+ * nothing here reaches `livekit-client` at module-evaluation time. Containers
+ * only handle layout chrome (sheet modal, full-screen SafeAreaView) and pass a
+ * `header` render prop that receives the live mark state.
  */
 
 import React, {
+  Suspense,
   useState,
   useCallback,
   useEffect,
@@ -18,19 +20,20 @@ import { useSharedValue } from 'react-native-reanimated';
 import type { SharedValue } from 'react-native-reanimated';
 import Volume2 from 'lucide-react-native/icons/volume-2';
 import { useAliaChat, type UseAliaChatOptions } from '../hooks/useAliaChat';
-import { useVoiceRoom } from '../hooks/useVoiceRoom';
-import { useAudioLevelMonitor } from '../hooks/useAudioLevelMonitor';
-import { useAudioLevels } from '../hooks/useAudioLevels';
 import { useTTS } from '../hooks/useTTS';
 import { useAmbientWave } from '../hooks/useAmbientWave';
 import { VoiceOverlay } from './voice/VoiceOverlay';
-import { VoiceControls } from './voice/VoiceControls';
 import { AliaChatMessageList } from './AliaChatMessageList';
 import { AliaWelcomeMessage, type WelcomeSuggestion } from './AliaWelcomeMessage';
 import { PromptInput } from './ui/prompt-input/prompt-input';
 import { Button } from './ui/button';
 import type { AliaMarkState } from './AliaMark';
-import type { ChatMessage, VoiceMessage } from '../types';
+import type {
+  ChatMessage,
+  VoiceMessage,
+  VoiceSessionComponent,
+  VoiceSessionState,
+} from '../types';
 import type { Completion } from './ui/prompt-input/context';
 
 export interface AliaChatContentProps {
@@ -64,6 +67,12 @@ export interface AliaChatContentProps {
   primaryColor?: string;
   /** Dark-mode flag — forwarded to the ambient wave overlay. */
   isDarkMode?: boolean;
+  /**
+   * Voice capability — pass `VoiceSession` from `@alia.onl/sdk/voice` to offer
+   * voice calls. Omitted, the chat is text-only and no LiveKit code is reachable
+   * from this module. May be a `React.lazy` component.
+   */
+  voiceSession?: VoiceSessionComponent;
 }
 
 /** Adapt a voice message into the chat message format. */
@@ -100,6 +109,7 @@ export function AliaChatContent({
   header,
   primaryColor,
   isDarkMode,
+  voiceSession: VoiceSession,
 }: AliaChatContentProps) {
   // ── Chat ──
   const chatOptions: UseAliaChatOptions = { apiUrl, model, clientContext };
@@ -119,60 +129,36 @@ export function AliaChatContent({
   const internalScrollOffsetY = useSharedValue(0);
   const scrollOffsetY = externalScrollOffsetY ?? internalScrollOffsetY;
 
-  // ── Voice room ──
-  const voiceRoom = useVoiceRoom({ apiUrl });
-  const { captureLevel, playbackLevel } = useAudioLevelMonitor(voiceRoom.room, voiceRoom.isConnected);
-  const { waveAmplitude } = useAudioLevels({
-    captureLevel,
-    playbackLevel,
-    agentState: voiceRoom.agentState,
-    isConnected: voiceRoom.isConnected,
-  });
-
   // ── TTS ──
   const tts = useTTS({ apiUrl });
 
   // ── Voice mode state ──
+  // `isVoiceActive` mounts the session; `voiceState` is what the session reports
+  // back, and stays null until the call is under way.
   const [isVoiceActive, setIsVoiceActive] = useState(false);
+  const [voiceState, setVoiceState] = useState<VoiceSessionState | null>(null);
   const textSnapshotRef = useRef<ChatMessage[]>([]);
 
   // Merge voice messages into chat messages
+  const voiceMessages = voiceState?.messages;
   useEffect(() => {
-    if (!isVoiceActive) return;
-    const adapted = voiceRoom.messages.map(adaptVoiceMessage);
-    setMessages([...textSnapshotRef.current, ...adapted]);
-  }, [voiceRoom.messages, isVoiceActive, setMessages]);
-
-  // Auto-deactivate on error
-  useEffect(() => {
-    if (!isVoiceActive) return;
-    if (voiceRoom.error) {
-      deactivateVoice();
-    } else if (voiceRoom.roomState === 'error') {
-      deactivateVoice();
-    }
-  }, [voiceRoom.error, voiceRoom.roomState, isVoiceActive]);
-
-  // Auto-deactivate on unexpected disconnection
-  useEffect(() => {
-    if (!isVoiceActive) return;
-    if (voiceRoom.roomState === 'disconnected' && textSnapshotRef.current.length > 0) {
-      deactivateVoice();
-    }
-  }, [voiceRoom.roomState, isVoiceActive]);
+    if (!voiceMessages) return;
+    setMessages([...textSnapshotRef.current, ...voiceMessages.map(adaptVoiceMessage)]);
+  }, [voiceMessages, setMessages]);
 
   const activateVoice = useCallback(() => {
-    if (isVoiceActive || voiceRoom.roomState === 'connecting') return;
+    if (isVoiceActive) return;
     textSnapshotRef.current = [...messages];
     setIsVoiceActive(true);
-    voiceRoom.connect();
-  }, [isVoiceActive, voiceRoom, messages]);
+  }, [isVoiceActive, messages]);
 
+  // Unmounting the session disconnects the room; the transcript merged above
+  // stays in the chat.
   const deactivateVoice = useCallback(() => {
-    voiceRoom.disconnect();
     setIsVoiceActive(false);
+    setVoiceState(null);
     textSnapshotRef.current = [];
-  }, [voiceRoom]);
+  }, []);
 
   // ── TTS read aloud handler ──
   const handleReadAloud = useCallback(
@@ -183,10 +169,11 @@ export function AliaChatContent({
   );
 
   // ── Mark state (drives the header brand mark) ──
+  const voiceAgentState = voiceState?.agentState;
   const markState = useMemo<AliaMarkState>(() => {
     if (isVoiceActive) {
-      if (voiceRoom.agentState === 'speaking') return 'writing';
-      if (voiceRoom.agentState === 'thinking') return 'thinking';
+      if (voiceAgentState === 'speaking') return 'writing';
+      if (voiceAgentState === 'thinking') return 'thinking';
       return 'idle';
     }
     if (!isStreaming) return 'idle';
@@ -195,7 +182,7 @@ export function AliaChatContent({
       return 'working';
     if (lastMsg?.thinking) return 'thinking';
     return 'writing';
-  }, [messages, isStreaming, isVoiceActive, voiceRoom.agentState]);
+  }, [messages, isStreaming, isVoiceActive, voiceAgentState]);
 
   const welcomeComponent = useMemo(() => {
     if (!welcomeGreeting || messages.length > 0) return undefined;
@@ -211,29 +198,32 @@ export function AliaChatContent({
 
   // ── Ambient wave — one persistent overlay across idle/voice/TTS/STT ──
   const wave = useAmbientWave({
-    voice: {
-      isActive: isVoiceActive,
-      isConnected: voiceRoom.isConnected,
-      agentState: voiceRoom.agentState,
-      waveAmplitude,
-    },
+    voice: voiceState
+      ? {
+          isActive: isVoiceActive,
+          isConnected: voiceState.isConnected,
+          agentState: voiceState.agentState,
+          waveAmplitude: voiceState.waveAmplitude,
+        }
+      : undefined,
     isTTSPlaying: tts.playbackState === 'playing',
     ttsWaveAmplitude: tts.ttsWaveAmplitude,
     isGenerating: isStreaming,
   });
 
-  // ── Voice activate button for empty submit ──
+  // ── Voice activate button for empty submit (only if voice was provided) ──
   const voiceActivateButton = useMemo(
-    () => (
-      <Button
-        size="icon"
-        onPress={activateVoice}
-        className="h-8 w-8 rounded-full"
-      >
-        <Volume2 size={16} color="white" />
-      </Button>
-    ),
-    [activateVoice],
+    () =>
+      VoiceSession ? (
+        <Button
+          size="icon"
+          onPress={activateVoice}
+          className="h-8 w-8 rounded-full"
+        >
+          <Volume2 size={16} color="white" />
+        </Button>
+      ) : undefined,
+    [VoiceSession, activateVoice],
   );
 
   return (
@@ -269,20 +259,15 @@ export function AliaChatContent({
       />
 
       {/* Input or Voice Controls */}
-      {isVoiceActive ? (
-        <VoiceControls
-          roomState={voiceRoom.roomState}
-          agentState={voiceRoom.agentState}
-          isMuted={voiceRoom.isMuted}
-          cohostActive={voiceRoom.cohostActive}
-          currentSpeaker={voiceRoom.currentSpeaker}
-          roundComplete={voiceRoom.roundComplete}
-          onToggleMute={voiceRoom.toggleMute}
-          onEnableCohost={voiceRoom.enableCohost}
-          onDisableCohost={voiceRoom.disableCohost}
-          onContinueCohost={voiceRoom.continueCohost}
-          onEnd={deactivateVoice}
-        />
+      {VoiceSession && isVoiceActive ? (
+        /* Suspense so the session may be handed to us as a React.lazy import. */
+        <Suspense fallback={null}>
+          <VoiceSession
+            apiUrl={apiUrl}
+            onStateChange={setVoiceState}
+            onEnd={deactivateVoice}
+          />
+        </Suspense>
       ) : (
         <View style={styles.inputContainer}>
           <PromptInput

@@ -40,6 +40,13 @@ export type {
   PlanStep,
 } from './types';
 
+// ── Voice capability contract (the implementation lives in `./voice`) ──
+export type {
+  VoiceSessionComponent,
+  VoiceSessionProps,
+  VoiceSessionState,
+} from './types';
+
 // ── UI Primitives (NativeWind) ──
 export { Button, buttonVariants, buttonTextVariants } from './components/ui/button';
 export type { ButtonProps } from './components/ui/button';

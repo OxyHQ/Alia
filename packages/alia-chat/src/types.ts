@@ -1,3 +1,6 @@
+import type { ComponentType } from 'react';
+import type { SharedValue } from 'react-native-reanimated';
+
 // ── Welcome / Suggestion Types ──
 
 export interface WelcomeSuggestion {
@@ -93,3 +96,32 @@ export interface VoiceMessage {
   isStreaming: boolean;
   toolInvocations?: VoiceToolInvocation[];
 }
+
+// ── Voice Session (injected capability) ──
+
+/** Everything a live call reports back to the chat shell. */
+export interface VoiceSessionState {
+  /** The room is up and the agent is live. */
+  isConnected: boolean;
+  agentState: AgentState;
+  /** Audio amplitude channel that drives the ambient wave overlay. */
+  waveAmplitude: SharedValue<number>;
+  /** Transcript so far; the shell adapts it into the chat message list. */
+  messages: VoiceMessage[];
+}
+
+export interface VoiceSessionProps {
+  /** Alia API base URL. */
+  apiUrl?: string;
+  /** Called on every room, agent, or transcript change. */
+  onStateChange: (state: VoiceSessionState) => void;
+  /** The call is over — the user ended it, it errored, or the room dropped. */
+  onEnd: () => void;
+}
+
+/**
+ * The voice capability handed to `AliaChatScreen` / `AliaChatSheet`. Pass
+ * `VoiceSession` from `@alia.onl/sdk/voice` to enable voice calls; leave it out
+ * and the chat is text-only, with `livekit-client` absent from the module graph.
+ */
+export type VoiceSessionComponent = ComponentType<VoiceSessionProps>;

@@ -11,6 +11,10 @@
  *   headerLeft={<BackButton />}
  * />
  * ```
+ *
+ * Voice is opt-in — pass `voiceSession={VoiceSession}` from
+ * `@alia.onl/sdk/voice` to offer calls. Without it the screen is text-only and
+ * `livekit-client` never enters the bundle.
  */
 
 import React from 'react';
@@ -19,6 +23,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AliaChatContent } from './AliaChatContent';
 import { AliaMark } from './AliaMark';
 import type { WelcomeSuggestion } from './AliaWelcomeMessage';
+import type { VoiceSessionComponent } from '../types';
 
 export interface AliaChatScreenProps {
   /** App context injected into system prompt */
@@ -41,6 +46,8 @@ export interface AliaChatScreenProps {
   primaryColor?: string;
   /** Dark-mode flag — forwarded to the ambient wave overlay. */
   isDarkMode?: boolean;
+  /** Voice capability — `VoiceSession` from `@alia.onl/sdk/voice`. */
+  voiceSession?: VoiceSessionComponent;
 }
 
 export function AliaChatScreen({
@@ -54,6 +61,7 @@ export function AliaChatScreen({
   welcomeSuggestions,
   primaryColor,
   isDarkMode,
+  voiceSession,
 }: AliaChatScreenProps) {
   const insets = useSafeAreaInsets();
 
@@ -68,6 +76,7 @@ export function AliaChatScreen({
         welcomeSuggestions={welcomeSuggestions}
         primaryColor={primaryColor}
         isDarkMode={isDarkMode}
+        voiceSession={voiceSession}
         header={({ markState, hasMessages, clear }) => (
           <View className="flex-row items-center justify-between px-4 py-3">
             <View className="flex-row items-center gap-2.5">

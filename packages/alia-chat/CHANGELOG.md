@@ -1,5 +1,53 @@
 # @alia.onl/sdk
 
+## 5.0.0
+
+### Breaking
+
+- **Voice is now an injected capability on `AliaChatScreen` and
+  `AliaChatSheet`.** Pass `voiceSession={VoiceSession}` (from
+  `@alia.onl/sdk/voice`) to offer voice calls; without it the chat is text-only
+  and the microphone button is not rendered.
+
+  ```tsx
+  import { AliaChatScreen } from '@alia.onl/sdk';
+  import { VoiceSession } from '@alia.onl/sdk/voice';
+
+  <AliaChatScreen voiceSession={VoiceSession} />;
+  ```
+
+  `voiceSession` may be a `React.lazy` component — the chat renders it inside
+  its own `Suspense` boundary.
+
+  v4.0.0 moved the voice exports out of the root barrel so that text-chat
+  consumers would stop compiling `livekit-client`, but `AliaChatContent` still
+  imported `useVoiceRoom` and `useAudioLevelMonitor` directly from their
+  modules, and `AliaChatScreen`/`AliaChatSheet` reach it. Since this package
+  ships raw source, that put the whole LiveKit client (1,204,825 bytes raw,
+  ~250 KiB gzip) back into every text-chat consumer's module graph. The split
+  could not be made real while the shell owned voice, so it no longer does.
+
+### Added
+
+- `VoiceSession` (`@alia.onl/sdk/voice`) — the LiveKit half of the chat as one
+  component. It dials on mount, ends the call on unmount, renders
+  `VoiceControls`, and reports room state, agent state, audio amplitude, and the
+  transcript back to the chat shell.
+- `VoiceSessionComponent`, `VoiceSessionProps`, and `VoiceSessionState` types,
+  exported from both entries.
+
+### Fixed
+
+- An unexpected room drop now always ends voice mode. It previously required a
+  non-empty pre-call transcript, so a dropped call in a fresh chat left the
+  voice UI up with no room behind it.
+
+### Internal
+
+- `bun run --filter @alia.onl/sdk check:entries` walks the real import graph and
+  fails if the root entry can reach `livekit-client` (or if the voice entry
+  cannot). Wired into CI alongside a new SDK typecheck step.
+
 ## 4.1.0
 
 ### Changed
