@@ -121,13 +121,27 @@ export async function enqueueModerationOutboxEvent(
   }
 
   /**
-   * `createdAt` and `updatedAt` are deliberately NOT in `$setOnInsert`.
+   * `timestamps: false`, with `createdAt` and `updatedAt` supplied by hand.
+   *
+   * Two bugs live here and the obvious fix only cures the first.
    *
    * The schema sets `timestamps: true`, so Mongoose adds `updatedAt` to `$set` on
-   * every upsert. Naming it in `$setOnInsert` too makes MongoDB refuse the whole
-   * write with "Updating the path 'updatedAt' would create a conflict at
-   * 'updatedAt'" (code 40) — which, inside the intake transaction, aborts the
-   * report as well. Mongoose already fills `createdAt` on insert.
+   * every upsert. Naming it in `$setOnInsert` TOO puts one path in two operators
+   * and MongoDB refuses the whole write — "Updating the path 'updatedAt' would
+   * create a conflict at 'updatedAt'" (code 40) — which, inside the intake
+   * transaction, aborts the report with it. Every report would fail.
+   *
+   * Dropping the two fields stops the conflict but leaves Mongoose's own
+   * `$set: { updatedAt }` in place, so a REPEATED enqueue still modifies a row
+   * that `$setOnInsert` says it should leave alone. Measured: the second call
+   * reports `modifiedCount: 1` and moves `updatedAt`. That is a write this
+   * function has no business making, and a transaction retry that touches a row
+   * the dispatcher is concurrently claiming is a write conflict that aborts the
+   * intake.
+   *
+   * Turning timestamps off for this ONE call removes both. Mongoose then fills
+   * neither field, so both are supplied here — on insert only, which is what the
+   * operator promised. `claim`'s `sort: { createdAt: 1 }` still works.
    */
   const now = new Date();
   await ModerationOutbox.updateOne(
@@ -141,9 +155,12 @@ export async function enqueueModerationOutboxEvent(
         attempts: 0,
         availableAt: now,
         expiresAt: new Date(now.getTime() + MODERATION_OUTBOX_RETENTION_SECONDS * 1_000),
+        createdAt: now,
+        updatedAt: now,
       },
     },
-    { upsert: true, session },
+    // `timestamps: false` is what makes `$setOnInsert` mean what it says.
+    { upsert: true, session, timestamps: false },
   );
   return input.eventId;
 }
