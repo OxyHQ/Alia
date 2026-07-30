@@ -16,7 +16,9 @@ export default defineConfig({
       include: ['src/**/*.ts'],
       exclude: ['src/**/__tests__/**', 'src/**/*.test.ts', 'src/index.ts'],
     },
-    // Increase timeout for tests that mock MongoDB
-    testTimeout: 10000,
+    globalSetup: [fileURLToPath(new URL('./vitest.globalSetup.ts', import.meta.url))],
+    // The replica set takes a while to come up on a cold cache.
+    testTimeout: 30_000,
+    hookTimeout: 60_000,
   },
 });
