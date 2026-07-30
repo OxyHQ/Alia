@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { Agent } from '../../models/agent.js';
 import { AgentReview } from '../../models/agent-review.js';
 import { authenticateToken, optionalAuth } from '../../middleware/auth.js';
+import { recalculateAgentRating, VISIBLE_REVIEW_MATCH } from '../../lib/agent-rating.js';
 import { log } from '../../lib/logger.js';
 import type { Request, Response } from 'express';
 
@@ -14,16 +15,23 @@ router.get('/:id/reviews', optionalAuth, async (req: Request, res: Response) => 
     const pageNum = Math.max(1, parseInt(page as string, 10));
     const limitNum = Math.min(50, Math.max(1, parseInt(limit as string, 10)));
 
-    const reviews = await AgentReview.find({ agentId: req.params.id })
+    const reviews = await AgentReview.find({
+      agentId: req.params.id,
+      ...VISIBLE_REVIEW_MATCH,
+    })
       .sort({ createdAt: -1 })
       .skip((pageNum - 1) * limitNum)
       .limit(limitNum)
       .populate('userId', 'username avatar')
       .lean();
 
-    const total = await AgentReview.countDocuments({ agentId: req.params.id });
+    const total = await AgentReview.countDocuments({
+      agentId: req.params.id,
+      ...VISIBLE_REVIEW_MATCH,
+    });
 
-    // Check if current user has reviewed
+    // The author of a withheld review still sees it — a moderation decision must
+    // not make somebody's own words vanish without a trace from their side.
     let userReview = null;
     if (req.user?.id) {
       userReview = await AgentReview.findOne({
@@ -69,19 +77,13 @@ router.post('/:id/reviews', authenticateToken, async (req: Request, res: Respons
       { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true },
     );
 
-    // Recalculate agent rating
-    const stats = await AgentReview.aggregate([
-      { $match: { agentId: agent._id } },
-      { $group: { _id: null, avg: { $avg: '$rating' }, count: { $sum: 1 } } },
-    ]);
+    const stats = await recalculateAgentRating(agent._id);
 
-    if (stats.length > 0) {
-      agent.rating = Math.round(stats[0].avg * 10) / 10;
-      agent.reviewCount = stats[0].count;
-      await agent.save();
-    }
-
-    res.json({ review, rating: agent.rating, reviewCount: agent.reviewCount });
+    res.json({
+      review,
+      rating: stats?.avg ?? agent.rating,
+      reviewCount: stats?.count ?? agent.reviewCount,
+    });
   } catch (error: unknown) {
     log.agents.error({ err: error }, 'Error creating review');
     res.status(500).json({ error: 'Failed to create review' });
@@ -104,23 +106,10 @@ router.delete('/:id/reviews', authenticateToken, async (req: Request, res: Respo
       return res.status(404).json({ error: 'Review not found' });
     }
 
-    // Recalculate agent rating
-    const agent = await Agent.findById(req.params.id);
-    if (agent) {
-      const stats = await AgentReview.aggregate([
-        { $match: { agentId: agent._id } },
-        { $group: { _id: null, avg: { $avg: '$rating' }, count: { $sum: 1 } } },
-      ]);
-
-      if (stats.length > 0) {
-        agent.rating = Math.round(stats[0].avg * 10) / 10;
-        agent.reviewCount = stats[0].count;
-      } else {
-        agent.rating = 0;
-        agent.reviewCount = 0;
-      }
-      await agent.save();
-    }
+    // The deleted review's own `agentId`, not the path parameter — it is already
+    // an ObjectId, so the rating is recomputed for the agent the review actually
+    // belonged to rather than for whatever the URL claimed.
+    await recalculateAgentRating(result.agentId);
 
     res.json({ deleted: true });
   } catch (error: unknown) {

@@ -29,6 +29,9 @@
     "@livekit/rtc-node": "^0.13.31",
     "@mozilla/readability": "^0.6.0",
     "@oxyhq/core": "^13.0.0",
+    "@oxyhq/crowdsource": "0.3.0",
+    "@oxyhq/crowdsource-contracts": "0.3.0",
+    "@oxyhq/crowdsource-express": "0.3.0",
     "@socket.io/redis-adapter": "^8.3.0",
     "ai": "^6.0.225",
     "bullmq": "^5.80.2",
@@ -55,6 +58,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@oxyhq/crowdsource-testing": "0.3.0",
     "@swc/cli": "^0.8.1",
     "@swc/core": "^1.15.43",
     "@types/cors": "^2.8.19",
