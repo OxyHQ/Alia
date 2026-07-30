@@ -20,7 +20,7 @@ bun run preview
 
 | Variable              | Purpose                                        | Default                 |
 | --------------------- | ---------------------------------------------- | ----------------------- |
-| `VITE_API_URL`        | Alia workflow API base (workflows/execute)     | `http://localhost:3001` |
+| `VITE_API_URL`        | Alia workflow API base (workflows/execute)     | `http://localhost:4150` |
 | `VITE_OXY_URL`        | Oxy API base used by `OxyProvider` for auth    | `https://api.oxy.so`    |
 | `VITE_OXY_CLIENT_ID`  | Registered Oxy application client id           | built-in default        |
 

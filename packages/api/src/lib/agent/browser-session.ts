@@ -395,7 +395,7 @@ export class BrowserSession {
     if (this.stagehand) return;
 
     const serviceSecret = process.env.SERVICE_SECRET;
-    const aliaApiUrl = process.env.ALIA_API_URL || 'http://localhost:3001';
+    const aliaApiUrl = process.env.ALIA_API_URL || 'http://localhost:4150';
 
     const sh = new Stagehand({
       env: 'LOCAL',

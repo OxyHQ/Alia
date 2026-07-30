@@ -61,7 +61,7 @@ export class APIClient {
   constructor(platform: string, secret: string) {
     this.platform = platform;
     this.secret = secret;
-    const baseURL = process.env.API_BASE_URL || 'http://localhost:3001';
+    const baseURL = process.env.API_BASE_URL || 'http://localhost:4150';
     this.client = axios.create({
       baseURL,
       timeout: 30000,
@@ -184,7 +184,7 @@ export class APIClient {
   // ---------------------------------------------------------------------------
 
   private get baseURL(): string {
-    return process.env.API_BASE_URL || 'http://localhost:3001';
+    return process.env.API_BASE_URL || 'http://localhost:4150';
   }
 
   /**

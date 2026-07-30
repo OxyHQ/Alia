@@ -31,7 +31,7 @@ export class RealtimeClient {
 
   constructor(apiUrl?: string) {
     // Convert HTTP URL to WebSocket URL
-    const baseUrl = apiUrl || import.meta.env.VITE_GATEWAY_API_URL || 'http://localhost:3001/internal/gateway';
+    const baseUrl = apiUrl || import.meta.env.VITE_GATEWAY_API_URL || 'http://localhost:4150/internal/gateway';
     this.baseWsUrl = baseUrl.replace(/^http/, 'ws') + '/ws';
   }
 

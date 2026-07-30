@@ -47,11 +47,15 @@ process.on('uncaughtException', (error) => {
 });
 
 const app = express();
-const PORT = parseInt(process.env.PORT || '9091', 10);
+// Local dev default only — DigitalOcean sets PORT explicitly to 9091 for this
+// service (.do/app.yaml), which is also the internal address the API reaches it
+// at. 4151 is the gateway's slot in Alia's 4150-4159 block of the per-app port
+// map, so several Oxy backends can run side by side on one machine.
+const PORT = parseInt(process.env.PORT || '4151', 10);
 
 const allowedOrigins = process.env.CORS_ORIGINS
   ? process.env.CORS_ORIGINS.split(',')
-  : ['https://gateway.alia.onl', 'http://localhost:5173', 'http://localhost:3001'];
+  : ['https://gateway.alia.onl', 'http://localhost:5173', 'http://localhost:4150'];
 
 app.use(helmet());
 app.use(cors({ origin: allowedOrigins, credentials: true }));

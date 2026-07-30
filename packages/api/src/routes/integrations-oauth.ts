@@ -80,7 +80,7 @@ router.get('/:service/oauth-url', authenticateToken, async (req: express.Request
     expiresAt: new Date(Date.now() + 10 * 60 * 1000), // 10 minutes
   });
 
-  const apiBaseUrl = process.env.API_BASE_URL || 'http://localhost:3001';
+  const apiBaseUrl = process.env.API_BASE_URL || 'http://localhost:4150';
   const redirectUri = `${apiBaseUrl}/integrations/${service}/callback`;
 
   const params = new URLSearchParams({
@@ -107,7 +107,7 @@ router.get('/:service/oauth-url', authenticateToken, async (req: express.Request
 // finalizes via the authenticated POST /:service/complete below, which binds the
 // link to the initiating session.
 router.get('/:service/callback', async (req: express.Request<{ service: string }>, res) => {
-  const appUrl = process.env.APP_URL || process.env.WEB_URL || 'http://localhost:3000';
+  const appUrl = process.env.APP_URL || process.env.WEB_URL || 'http://localhost:4150';
   const { service } = req.params;
   const { code, state } = req.query;
 
@@ -182,7 +182,7 @@ router.post('/:service/complete', authenticateToken, async (req: express.Request
   }
 
   try {
-    const apiBaseUrl = process.env.API_BASE_URL || 'http://localhost:3001';
+    const apiBaseUrl = process.env.API_BASE_URL || 'http://localhost:4150';
     const redirectUri = `${apiBaseUrl}/integrations/${service}/callback`;
 
     // Build token exchange request (provider-specific auth method)

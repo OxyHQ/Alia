@@ -4,7 +4,7 @@ Modern admin panel for managing the Alia Gateway module (internal to the main AP
 
 ## Architecture
 
-The providers module lives inside the main API at `packages/api/src/internal/gateway/`. It is **not** a separate microservice. The admin panel connects to `http://localhost:3001/internal/gateway` (or the configured `VITE_GATEWAY_API_URL`).
+The providers module lives inside the main API at `packages/api/src/internal/gateway/`. It is **not** a separate microservice. The admin panel connects to `http://localhost:4150/internal/gateway` (or the configured `VITE_GATEWAY_API_URL`).
 
 ```
 Admin Panel (this app)
@@ -110,7 +110,7 @@ cp .env.example .env
 
 **Development:**
 ```env
-VITE_GATEWAY_API_URL=http://localhost:3001/internal/gateway
+VITE_GATEWAY_API_URL=http://localhost:4150/internal/gateway
 VITE_OAUTH_CLIENT_ID=your-oxyauth-client-id
 VITE_OAUTH_AUTHORITY=https://auth.oxy.com
 VITE_OAUTH_REDIRECT_URI=http://localhost:5173/auth/callback

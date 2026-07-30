@@ -147,7 +147,7 @@ router.post('/gmail/connect', authenticateToken, (req, res) => {
     expiresAt: Date.now() + 10 * 60 * 1000,
   });
 
-  const apiBaseUrl = process.env.API_BASE_URL || 'http://localhost:3001';
+  const apiBaseUrl = process.env.API_BASE_URL || 'http://localhost:4150';
   const redirectUri = `${apiBaseUrl}/accounts/gmail/callback`;
 
   const params = new URLSearchParams({
@@ -183,7 +183,7 @@ router.get('/gmail/callback', async (req, res) => {
   }
 
   try {
-    const apiBaseUrl = process.env.API_BASE_URL || 'http://localhost:3001';
+    const apiBaseUrl = process.env.API_BASE_URL || 'http://localhost:4150';
     const redirectUri = `${apiBaseUrl}/accounts/gmail/callback`;
 
     // Exchange code for tokens
@@ -276,7 +276,7 @@ router.get('/gmail/callback', async (req, res) => {
     }
 
     // Redirect to frontend
-    const appUrl = process.env.APP_URL || process.env.WEB_URL || 'http://localhost:3000';
+    const appUrl = process.env.APP_URL || process.env.WEB_URL || 'http://localhost:4150';
     res.redirect(`${appUrl}/settings/accounts?connected=gmail`);
   } catch (error: unknown) {
     log.channels.error({ err: error }, 'Gmail callback error');

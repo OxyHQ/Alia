@@ -17,7 +17,7 @@ import { NodeEditPanel } from "./node-edit-panel";
 import { RunHistoryDialog } from "./run-history-dialog";
 
 // Alia workflow API base (workflows, execute). Overridable at build time.
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001";
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:4150";
 
 // Default README Generator template
 const initialNodes: WorkflowNode[] = [

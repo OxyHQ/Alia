@@ -68,7 +68,7 @@ export const browseTool = tool({
         return { action, error: 'SERVICE_SECRET not configured for browse tool' };
       }
 
-      const aliaApiUrl = process.env.ALIA_API_URL || 'http://localhost:3001';
+      const aliaApiUrl = process.env.ALIA_API_URL || 'http://localhost:4150';
 
       log.tools.info({ action, query, url }, 'Browse tool starting');
 

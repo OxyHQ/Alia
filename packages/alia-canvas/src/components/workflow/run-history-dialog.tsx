@@ -27,7 +27,7 @@ export function RunHistoryDialog({
     enabled: isOpen && Boolean(workflowId),
     queryFn: async (): Promise<WorkflowExecution[]> => {
       if (!workflowId) return [];
-      const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001";
+      const API_URL = import.meta.env.VITE_API_URL || "http://localhost:4150";
       const response = await fetch(`${API_URL}/api/workflows/${workflowId}/executions`);
       if (!response.ok) {
         throw new Error(`Failed to load execution history: HTTP ${response.status}`);
