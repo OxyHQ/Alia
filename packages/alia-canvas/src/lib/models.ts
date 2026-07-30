@@ -9,7 +9,7 @@ export const DEFAULT_MODELS: Model[] = [
   { id: "alia-lite", name: "Alia Lite", description: "Fast responses for simple tasks" },
 ];
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4150';
 
 interface ModelApiEntry {
   id: string;

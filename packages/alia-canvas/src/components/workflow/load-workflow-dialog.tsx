@@ -20,7 +20,7 @@ export function LoadWorkflowDialog({ isOpen, onClose, onLoad }: LoadWorkflowDial
     queryKey: ["canvas", "workflows"],
     enabled: isOpen,
     queryFn: async (): Promise<Workflow[]> => {
-      const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001";
+      const API_URL = import.meta.env.VITE_API_URL || "http://localhost:4150";
       const response = await fetch(`${API_URL}/api/workflows`);
       if (!response.ok) {
         throw new Error(`Failed to load workflows: HTTP ${response.status}`);

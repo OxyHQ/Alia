@@ -83,7 +83,12 @@ dotenv.config({ path: join(__dirname, '../.env') });
 initChannels();
 
 const app = express();
-const PORT = parseInt(process.env.PORT || '3001', 10);
+// Local dev default only — ECS injects PORT explicitly (oxy-infra
+// terraform-uswest2/app-services-realtime.tf sets it to 3001) and DigitalOcean
+// App Platform injects it from http_port. 4150 is the main API's slot in Alia's
+// 4150-4159 block of the per-app port map, so several Oxy backends can run side
+// by side on one machine.
+const PORT = parseInt(process.env.PORT || '4150', 10);
 
 // Create HTTP server with optimized settings for streaming
 const server = http.createServer({
@@ -138,11 +143,11 @@ const PRODUCTION_ORIGINS = [
 ];
 
 const DEV_ORIGINS = [
-  'http://localhost:3000',
+  'http://localhost:4150',
   'http://localhost:5173',
-  'http://localhost:8081',
-  'exp://localhost:8081',
-  'http://10.0.2.2:8081',
+  'http://localhost:8150',
+  'exp://localhost:8150',
+  'http://10.0.2.2:8150',
 ];
 
 const allowedOrigins = [

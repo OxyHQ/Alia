@@ -328,7 +328,7 @@ function createTransport(
  * the API uses so the DCR `redirect_uris` match across processes.
  */
 function defaultCallbackUrl(): string {
-  return `${process.env.API_BASE_URL || 'http://localhost:3001'}/mcp/oauth/callback`;
+  return `${process.env.API_BASE_URL || 'http://localhost:4150'}/mcp/oauth/callback`;
 }
 
 // ---------------------------------------------------------------------------

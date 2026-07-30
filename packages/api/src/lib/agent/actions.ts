@@ -220,7 +220,7 @@ export async function buildActions(ctx: ActionContext) {
         try {
           const container = terminalSession.getContainerId();
           if (container) {
-            const apiUrl = process.env.ALIA_API_URL || 'http://localhost:3001';
+            const apiUrl = process.env.ALIA_API_URL || 'http://localhost:4150';
             filesNote = `\n\nWorkspace files are available for download at: ${apiUrl}/agents/sessions/${session._id}/files`;
           }
         } catch {

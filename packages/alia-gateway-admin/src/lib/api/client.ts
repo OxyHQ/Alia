@@ -3,7 +3,7 @@
  * Uses OxyHQ authentication for admin access
  */
 
-const API_BASE_URL = import.meta.env.VITE_GATEWAY_API_URL || 'http://localhost:3001/internal/gateway';
+const API_BASE_URL = import.meta.env.VITE_GATEWAY_API_URL || 'http://localhost:4150/internal/gateway';
 
 class GatewayAPIClient {
   private baseUrl: string;
