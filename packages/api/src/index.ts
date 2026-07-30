@@ -46,6 +46,9 @@ import writingStyleRouter from './routes/writing-style.js';
 import notificationsRouter from './routes/notifications.js';
 import auditRouter from './routes/audit.js';
 import oxyServiceEventsRouter from './routes/oxy-service-events.js';
+import reportsRouter from './routes/reports.js';
+import { createCrowdSourceWebhookRoutes } from './routes/crowdsource-webhook.js';
+import { moderationOutboxDispatcher } from './lib/crowdsource/dispatcher.js';
 
 // Register hooks (side-effect import)
 import './lib/hooks/index.js';
@@ -171,6 +174,20 @@ app.use((_req, res, next) => {
 // Stripe webhook needs raw body for signature verification
 app.use('/billing/webhook', express.raw({ type: 'application/json' }));
 
+/**
+ * The CrowdSource webhook receiver MUST stay above `express.json()`.
+ *
+ * Its HMAC covers the exact bytes that arrived, and it reads the request stream
+ * itself. Mounting it below the parser would leave it verifying a signature over a
+ * re-serialisation — the route refuses outright if that ever happens
+ * (`assertRawBody`), and `crowdsource-webhook-mount.test.ts` asserts the refusal,
+ * because a mount order is not something a type can hold.
+ *
+ * This router only answers `POST /crowdsource`; every other `/webhooks/*` path
+ * falls through to `webhooksRouter` below, which still gets a parsed body.
+ */
+app.use('/webhooks', createCrowdSourceWebhookRoutes());
+
 // Increase body size limit for large chat contexts. Capture the raw body so the
 // service-to-service HMAC (providers middleware) can bind a body hash.
 app.use(express.json({
@@ -231,6 +248,7 @@ app.use('/suggestions', suggestionsRouter);
 app.use('/writing-style', writingStyleRouter);
 app.use('/notifications', notificationsRouter);
 app.use('/audit', auditRouter);
+app.use('/reports', reportsRouter);
 app.use('/internal', internalRouter);
 
 // Root route
@@ -331,6 +349,11 @@ function startBackgroundServices(): void {
   // Start trigger engine under leader election (non-blocking) — only the
   // elected instance runs the scheduler, so triggers fire once across tasks.
   startTriggerEngine();
+  // Drain the moderation outbox. Deliberately NOT leader-gated: every event is
+  // claimed under a lease with an owner check, so N tasks share the work and a
+  // dead task's lease is reclaimed rather than stranding a report. No-ops when
+  // the integration is disabled — the loop is gated, never the durable record.
+  moderationOutboxDispatcher.start();
   // Initialize task queue for async agent sessions (non-blocking)
   initTaskQueue()
     .then(() => startWorker())
@@ -423,6 +446,11 @@ const shutdown = async (signal: string) => {
     // Release the trigger-engine leadership lease and stop scheduled tasks
     await stopTriggerEngine();
     log.general.info('Trigger engine stopped');
+
+    // Stop claiming moderation work, but let the event already in flight reach a
+    // durable state — an abandoned claim is reclaimable, a half-applied one is not.
+    await moderationOutboxDispatcher.stop();
+    log.general.info('Moderation outbox dispatcher stopped');
 
     // Close task queue (drains in-flight jobs)
     await shutdownTaskQueue();
