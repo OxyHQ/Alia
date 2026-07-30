@@ -5,6 +5,17 @@ export interface IAgentReview extends Document {
   userId: mongoose.Types.ObjectId;
   rating: number;
   comment: string;
+  /**
+   * Withheld from the public listing and from the agent's rating by a moderation
+   * decision.
+   *
+   * A separate field rather than a delete, because every moderation effect has to
+   * be reversible: an appeal that succeeds must be able to put the review back,
+   * and a row that was deleted cannot be. It is also why the rating aggregate
+   * excludes hidden reviews — a review withheld for being abusive or fake should
+   * not keep moving the number it was filed to move.
+   */
+  hiddenByModeration: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -31,6 +42,10 @@ const AgentReviewSchema = new Schema<IAgentReview>({
     type: String,
     default: '',
     maxlength: 1000,
+  },
+  hiddenByModeration: {
+    type: Boolean,
+    default: false,
   },
 }, {
   timestamps: true,
