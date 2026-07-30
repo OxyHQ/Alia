@@ -484,6 +484,7 @@
       },
       "devDependencies": {
         "@eslint/js": "^10.0.1",
+        "@oxyhq/crowdsource-testing": "0.3.0",
         "@swc/cli": "^0.8.1",
         "@swc/core": "^1.15.43",
         "@types/cors": "^2.8.19",
@@ -1593,6 +1594,8 @@
     "@oxyhq/crowdsource-contracts": ["@oxyhq/crowdsource-contracts@0.3.0", "", { "dependencies": { "zod": "^4.4.3" } }, "sha512-pYCjVFzykva0xuAdbKrmtTuhVV+Xx8Ir6WX3UodIWZCujus9SQ5zfHjCAFFQZUs0D+bkWab9CAuQa2Nl95bpaQ=="],
 
     "@oxyhq/crowdsource-express": ["@oxyhq/crowdsource-express@0.3.0", "", { "peerDependencies": { "@oxyhq/crowdsource-contracts": "^0.3.0", "express": ">=4" } }, "sha512-sMYvLaNli3yLZVLzYWeazcEUygvV4lo0hzdp9KEdLi1PY5HYyY3nJCwGlGaY0+0V4ByO7mEIEcuclhOvt0ZWbg=="],
+
+    "@oxyhq/crowdsource-testing": ["@oxyhq/crowdsource-testing@0.3.0", "", { "peerDependencies": { "@oxyhq/crowdsource-contracts": "^0.3.0" } }, "sha512-Yd/cStpexe+Pl7rrSKJFkBJ8SAuid9uLBCj6VmQ30YvEB4WY2ravJUzpoTI/UTQy11gwXBuMAImzoaYxIlO4cA=="],
 
     "@oxyhq/protocol": ["@oxyhq/protocol@0.1.6", "", { "dependencies": { "@oxyhq/contracts": "^0.18.0", "elliptic": "^6.6.1", "zod": "^3.25.64" }, "peerDependencies": { "@react-native-async-storage/async-storage": "*", "expo-crypto": "*", "expo-modules-core": "*", "expo-secure-store": "*", "express": "^4.18.0 || ^5.0.0" }, "optionalPeers": ["@react-native-async-storage/async-storage", "expo-crypto", "expo-secure-store", "express"] }, "sha512-/27AFpvOwxt19XWdZYJy0W4TnIQbK+IhPOfQVlod4s/kEuzIzMXo0zi9MSystegFu1RhZHKGjaxOTo+83Sx3Sw=="],
 

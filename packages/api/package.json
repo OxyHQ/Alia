@@ -58,6 +58,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@oxyhq/crowdsource-testing": "0.3.0",
     "@swc/cli": "^0.8.1",
     "@swc/core": "^1.15.43",
     "@types/cors": "^2.8.19",
