@@ -120,6 +120,15 @@ export async function enqueueModerationOutboxEvent(
     throw new ModerationOutboxTransactionError(input.eventId);
   }
 
+  /**
+   * `createdAt` and `updatedAt` are deliberately NOT in `$setOnInsert`.
+   *
+   * The schema sets `timestamps: true`, so Mongoose adds `updatedAt` to `$set` on
+   * every upsert. Naming it in `$setOnInsert` too makes MongoDB refuse the whole
+   * write with "Updating the path 'updatedAt' would create a conflict at
+   * 'updatedAt'" (code 40) — which, inside the intake transaction, aborts the
+   * report as well. Mongoose already fills `createdAt` on insert.
+   */
   const now = new Date();
   await ModerationOutbox.updateOne(
     { _id: input.eventId },
@@ -132,8 +141,6 @@ export async function enqueueModerationOutboxEvent(
         attempts: 0,
         availableAt: now,
         expiresAt: new Date(now.getTime() + MODERATION_OUTBOX_RETENTION_SECONDS * 1_000),
-        createdAt: now,
-        updatedAt: now,
       },
     },
     { upsert: true, session },
