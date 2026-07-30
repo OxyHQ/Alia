@@ -67,7 +67,7 @@ router.post('/:id/oauth/start', authenticateToken, async (req, res) => {
       serverId: String(server._id),
     });
 
-    const apiBaseUrl = process.env.API_BASE_URL || 'http://localhost:3001';
+    const apiBaseUrl = process.env.API_BASE_URL || 'http://localhost:4150';
     const callbackUrl = `${apiBaseUrl}/mcp/oauth/callback`;
 
     const response = await fetch(`${INTEGRATIONS_URL}/mcp/servers/${server._id}/oauth/start`, {
@@ -115,7 +115,7 @@ router.post('/:id/oauth/start', authenticateToken, async (req, res) => {
 // the callback), and finalization happens via the authenticated
 // POST /oauth/complete below, which binds the link to the initiating session.
 router.get('/oauth/callback', async (req, res) => {
-  const appUrl = process.env.APP_URL || process.env.WEB_URL || 'http://localhost:3000';
+  const appUrl = process.env.APP_URL || process.env.WEB_URL || 'http://localhost:4150';
   const { code, state } = req.query;
 
   if (!code || !state || typeof code !== 'string' || typeof state !== 'string') {
@@ -174,7 +174,7 @@ router.post('/oauth/complete', authenticateToken, async (req, res) => {
       return res.status(404).json({ error: 'Server not found' });
     }
 
-    const apiBaseUrl = process.env.API_BASE_URL || 'http://localhost:3001';
+    const apiBaseUrl = process.env.API_BASE_URL || 'http://localhost:4150';
     const callbackUrl = `${apiBaseUrl}/mcp/oauth/callback`;
 
     const response = await fetch(`${INTEGRATIONS_URL}/mcp/servers/${server._id}/oauth/finish`, {

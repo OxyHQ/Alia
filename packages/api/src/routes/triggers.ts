@@ -127,7 +127,7 @@ authRouter.post('/', async (req: Request, res: Response) => {
     // Build webhook URL for response
     const triggerResponse: any = trigger.toObject();
     if (type === 'webhook' && trigger.webhook?.token) {
-      const baseUrl = process.env.API_BASE_URL || 'http://localhost:3001';
+      const baseUrl = process.env.API_BASE_URL || 'http://localhost:4150';
       triggerResponse.webhookUrl = `${baseUrl}/triggers/webhook/${trigger.webhook.token}`;
     }
 
@@ -247,7 +247,7 @@ authRouter.post('/:id/regenerate-token', async (req: Request, res: Response) => 
     trigger.set('webhook', { ...trigger.webhook, token: newToken });
     await trigger.save();
 
-    const baseUrl = process.env.API_BASE_URL || 'http://localhost:3001';
+    const baseUrl = process.env.API_BASE_URL || 'http://localhost:4150';
     res.json({
       trigger,
       webhookUrl: `${baseUrl}/triggers/webhook/${newToken}`,

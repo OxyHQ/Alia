@@ -113,7 +113,7 @@ router.post('/telegram', authenticateToken, async (req, res) => {
     }
 
     const webhookSecret = crypto.randomBytes(32).toString('hex');
-    const apiBaseUrl = process.env.API_BASE_URL || 'http://localhost:3001';
+    const apiBaseUrl = process.env.API_BASE_URL || 'http://localhost:4150';
     const webhookUrl = `${apiBaseUrl}/webhooks/telegram`;
 
     const bot = new Bot({
@@ -521,7 +521,7 @@ router.post('/internal/:platform/auth-request', botAuth, async (req, res) => {
     botUser.authTokenExpiry = new Date(Date.now() + 15 * 60 * 1000);
     await botUser.save();
 
-    const apiBaseUrl = process.env.API_BASE_URL || 'http://localhost:3001';
+    const apiBaseUrl = process.env.API_BASE_URL || 'http://localhost:4150';
     const authUrl = `${apiBaseUrl}/bots/internal/${platform}/verify?token=${authToken}`;
 
     res.json({
@@ -564,7 +564,7 @@ router.get('/internal/:platform/verify', async (req, res) => {
     // never sent to servers, so the short-lived auth token does not leak into
     // access logs, proxies, or the Referer header on the next navigation. The
     // channel-auth screen reads it from `window.location.hash` client-side.
-    const appUrl = process.env.APP_URL || process.env.WEB_URL || 'http://localhost:3000';
+    const appUrl = process.env.APP_URL || process.env.WEB_URL || 'http://localhost:4150';
     const fragment = `token=${encodeURIComponent(token)}&channel=${encodeURIComponent(platform)}`;
     res.redirect(`${appUrl}/channel-auth#${fragment}`);
   } catch (error: unknown) {

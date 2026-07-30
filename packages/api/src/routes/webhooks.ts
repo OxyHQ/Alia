@@ -125,7 +125,7 @@ async function processChannelMessage(
       botUser.authTokenExpiry = new Date(Date.now() + 15 * 60 * 1000);
       await botUser.save();
 
-      const apiBaseUrl = process.env.API_BASE_URL || 'http://localhost:3001';
+      const apiBaseUrl = process.env.API_BASE_URL || 'http://localhost:4150';
       const authUrl = `${apiBaseUrl}/bots/internal/${channelType}/verify?token=${authToken}`;
 
       await sendChannelMessage(

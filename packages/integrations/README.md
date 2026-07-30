@@ -46,7 +46,7 @@ Bot adapters authenticate with the API using per-channel secrets (`X-Channel-Bot
 # Required
 MONGODB_URI=mongodb+srv://...        # Shared cluster (DB: integrations-{NODE_ENV})
 INTEGRATIONS_SECRET=<hex-32>         # Internal auth for gateway REST endpoints
-API_BASE_URL=http://localhost:3001   # Main API URL
+API_BASE_URL=http://localhost:4150   # Main API URL
 
 # Telegram Bot
 TELEGRAM_BOT_TOKEN=<from-botfather>
