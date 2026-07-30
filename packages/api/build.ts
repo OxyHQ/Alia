@@ -1,17 +1,39 @@
 import * as esbuild from 'esbuild';
 import { cp } from 'fs/promises';
 
-// Keep node_modules external except @oxyhq/* (their ESM builds have broken imports).
-const externalizeExceptOxyhq: esbuild.Plugin = {
-  name: 'externalize-except-oxyhq',
+// Keep every node_modules dependency external, @oxyhq/* included.
+//
+// @oxyhq/* used to be exempted and bundled, on the rationale that its ESM
+// builds omitted the .js extension on relative imports (which Node's ESM loader
+// requires). Re-measured 2026-07-31 against @oxyhq/core 13.0.0 — the only
+// @oxyhq/* dependency this package declares: 225 of 225 executable relative
+// specifiers in dist/esm (99 files, incl. dist/esm/server) carry an extension,
+// 0 are extensionless. Node imports '@oxyhq/core', '@oxyhq/core/server' and its
+// transitive '@oxyhq/protocol' as ESM without complaint. The rationale is
+// obsolete.
+//
+// The exemption was also actively dangerous. @oxyhq packages published as
+// CommonJS (every @oxyhq/crowdsource* package today) get each internal
+// require() rewritten into an esbuild shim when inlined into this ESM bundle,
+// which throws the moment it runs:
+//   Error: Dynamic require of "zod" is not supported
+// That killed Moovo's backend at container start (2026-07-30) — tests,
+// typecheck and image build were all green, because the failure is at startup.
+// Node's own ESM loader imports CJS packages correctly, so leave the resolution
+// to Node; the runtime image ships the hoisted node_modules for the
+// externalized bundle to resolve against (see Dockerfile).
+//
+// What would invalidate this: an @oxyhq/* package entering this package's
+// dependency graph whose ESM build DOES use extensionless relative imports.
+// That is not hypothetical and the property is per-package, not ecosystem-wide
+// — @oxyhq/bloom 0.67.0 measured 81 of 81 extensionless in lib/ on the same
+// date. This package does not depend on it; if that ever changes, re-measure
+// the ESM dist of the packages package.json actually declares rather than
+// trusting the numbers above to still hold.
+const externalizeNodeModules: esbuild.Plugin = {
+  name: 'externalize-node-modules',
   setup(build) {
-    // Let @oxyhq/* packages be bundled (their ESM has missing .js extensions)
-    build.onResolve({ filter: /^@oxyhq\// }, () => undefined);
-    // Externalize all other bare imports (node_modules)
-    build.onResolve({ filter: /^[^./]/ }, args => {
-      if (args.path.startsWith('@oxyhq/')) return undefined;
-      return { path: args.path, external: true };
-    });
+    build.onResolve({ filter: /^[^./]/ }, args => ({ path: args.path, external: true }));
   },
 };
 
@@ -22,7 +44,7 @@ await esbuild.build({
   target: 'node20',
   format: 'esm',
   outfile: 'dist/index.js',
-  plugins: [externalizeExceptOxyhq],
+  plugins: [externalizeNodeModules],
   sourcemap: false,
   minify: false,
   logLevel: 'info',
@@ -37,7 +59,7 @@ await esbuild.build({
   target: 'node20',
   format: 'esm',
   outfile: 'dist/scripts/purge-ip-fields.js',
-  plugins: [externalizeExceptOxyhq],
+  plugins: [externalizeNodeModules],
   sourcemap: false,
   minify: false,
   logLevel: 'info',
