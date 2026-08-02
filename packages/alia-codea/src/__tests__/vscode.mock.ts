@@ -57,7 +57,10 @@ export const workspace = {
 export const env = {
   uriScheme: 'vscode',
   asExternalUri: async (uri: { toString(): string }) => uri,
-  openExternal: async () => true,
+  // Takes the target so a test can capture the URL the provider opens — the
+  // authorization request carries the `state` and `code_challenge` a sign-in
+  // test needs to answer the callback with.
+  openExternal: async (_target: { toString(): string }) => true,
 };
 
 export const Uri = {
