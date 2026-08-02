@@ -1,5 +1,6 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type * as vscode from 'vscode';
+import { env } from 'vscode';
 
 // The rotation call is the thing under test: it MUST run exactly once per real
 // expiry even under a stampede of concurrent callers. Hoisted so the module
@@ -228,6 +229,283 @@ describe('AliaAuthenticationProvider refresh single-flight', () => {
     });
     expect(await provider.refreshToken()).toBe(true);
     expect(refreshMock).toHaveBeenCalledTimes(1);
+
+    provider.dispose();
+  });
+});
+
+// --- Token exchange: RFC 6749 §4.1.3 request / §5.1 response ---
+
+const OXY_CLIENT_ID = 'oxy_dk_06488927793f96922ef4f366a9800547b34c6aec025fece3';
+const TOKEN_ENDPOINT = 'https://api.oxy.so/auth/oauth/token';
+const CALLBACK_URI = 'vscode://oxy.alia-codea/auth-callback';
+
+/** The `fetch` init the provider builds for the token request. */
+interface RecordedInit {
+  method?: string;
+  headers?: Record<string, string>;
+  body?: string;
+}
+
+interface RecordedRequest {
+  url: string;
+  init: RecordedInit;
+}
+
+/** What the stubbed token endpoint answers with. */
+interface StubbedResponse {
+  status: number;
+  body: unknown;
+  /** `false` makes `response.json()` reject, as a non-JSON body would. */
+  json?: boolean;
+}
+
+interface SignInOutcome {
+  session: vscode.AuthenticationSession | null;
+  error: Error | null;
+  requests: RecordedRequest[];
+}
+
+/**
+ * A context whose SecretStorage starts EMPTY, so cold-start `initialize()`
+ * restores nothing and the sign-in under test is the only thing that writes.
+ */
+function makeSignInContext(): { context: vscode.ExtensionContext; secrets: Map<string, string> } {
+  const secrets = new Map<string, string>();
+  const secretStorage = {
+    get: async (key: string) => secrets.get(key),
+    store: async (key: string, value: string) => {
+      secrets.set(key, value);
+    },
+    delete: async (key: string) => {
+      secrets.delete(key);
+    },
+    onDidChange: () => ({ dispose: () => undefined }),
+  };
+  return { context: { secrets: secretStorage } as unknown as vscode.ExtensionContext, secrets };
+}
+
+/**
+ * Drive one full browser sign-in: start the flow, read the `state` off the
+ * authorization URL the provider opens, then answer the callback with a code.
+ * Returns the resolved session (or the rejection) together with the recorded
+ * token request, which is what the request-shape assertions read.
+ */
+async function runSignIn(
+  provider: AliaAuthenticationProvider,
+  response: StubbedResponse,
+): Promise<SignInOutcome> {
+  const requests: RecordedRequest[] = [];
+  vi.stubGlobal('fetch', async (url: string, init: RecordedInit) => {
+    requests.push({ url, init });
+    return {
+      ok: response.status >= 200 && response.status < 300,
+      status: response.status,
+      json: async () => {
+        if (response.json === false) {
+          throw new SyntaxError('Unexpected token < in JSON at position 0');
+        }
+        return response.body;
+      },
+    };
+  });
+
+  let openedUrl = '';
+  env.openExternal = async (target: { toString(): string }) => {
+    openedUrl = target.toString();
+    return true;
+  };
+
+  const pending = provider.signInWithBrowser();
+  // `signInWithBrowser` awaits `openExternal` before returning its promise, so
+  // yield until the authorization URL has been captured.
+  await Promise.resolve();
+  await Promise.resolve();
+
+  const state = new URL(openedUrl).searchParams.get('state');
+  if (!state) {
+    throw new Error(`expected a state parameter on the authorization URL: "${openedUrl}"`);
+  }
+
+  const callback = {
+    path: '/auth-callback',
+    query: `code=auth-code-1&state=${encodeURIComponent(state)}`,
+  } as unknown as vscode.Uri;
+
+  await provider.handleUri(callback);
+
+  try {
+    return { session: await pending, error: null, requests };
+  } catch (err) {
+    return { session: null, error: err as Error, requests };
+  }
+}
+
+/** The flat RFC 6749 §5.1 document the token endpoint returns. */
+function flatTokenBody(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    access_token: 'access-token-1',
+    token_type: 'Bearer',
+    expires_in: 900,
+    session_id: 'session-1',
+    deviceId: 'device-1',
+    deviceSecret: 'device-secret-1',
+    user: { id: 'user-1', username: 'natefromoxy', name: { displayName: 'Nate Isern' } },
+    ...overrides,
+  };
+}
+
+describe('AliaAuthenticationProvider token exchange', () => {
+  beforeEach(() => {
+    refreshMock.mockReset();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('sends an RFC 6749 §4.1.3 form-encoded request, not camelCase JSON', async () => {
+    const provider = new AliaAuthenticationProvider(makeSignInContext().context);
+    const { session, requests } = await runSignIn(provider, {
+      status: 200,
+      body: flatTokenBody(),
+    });
+
+    expect(session).not.toBeNull();
+    expect(requests).toHaveLength(1);
+
+    const { url, init } = requests[0];
+    expect(url).toBe(TOKEN_ENDPOINT);
+    expect(init.method).toBe('POST');
+    expect(init.headers?.['Content-Type']).toBe('application/x-www-form-urlencoded;charset=UTF-8');
+
+    // The body is form-encoded, so it is NOT parseable as JSON. This is the
+    // assertion that fails if the request ever regresses to `JSON.stringify`.
+    const body = init.body ?? '';
+    expect(() => JSON.parse(body)).toThrow();
+
+    const params = new URLSearchParams(body);
+    expect(params.get('grant_type')).toBe('authorization_code');
+    expect(params.get('code')).toBe('auth-code-1');
+    expect(params.get('redirect_uri')).toBe(CALLBACK_URI);
+    expect(params.get('client_id')).toBe(OXY_CLIENT_ID);
+    // The PKCE verifier is generated per sign-in; only its presence is fixed.
+    expect(params.get('code_verifier')).toBeTruthy();
+
+    // The retired camelCase parameter names must not appear under any encoding.
+    expect(body).not.toContain('clientId');
+    expect(body).not.toContain('redirectUri');
+    expect(body).not.toContain('codeVerifier');
+
+    provider.dispose();
+  });
+
+  it('reads the flat §5.1 response — every member at the top level', async () => {
+    const { context, secrets } = makeSignInContext();
+    const provider = new AliaAuthenticationProvider(context);
+    const before = Date.now();
+    const { session } = await runSignIn(provider, {
+      status: 200,
+      body: flatTokenBody(),
+    });
+
+    expect(session?.accessToken).toBe('access-token-1');
+    expect(session?.account.id).toBe('user-1');
+    // `getCurrentUser` is unavailable in tests, so the label falls back to the
+    // username carried in the token response.
+    expect(session?.account.label).toBe('natefromoxy');
+    // `session_id` is read from the top level, not from a `data` wrapper.
+    expect(session?.id).toBe('session-1');
+
+    const sessions = await provider.getSessions();
+    expect(sessions).toHaveLength(1);
+    expect(provider.getOxyServices().getAccessToken()).toBe('access-token-1');
+
+    // `expires_in` (seconds, top level) drives the persisted expiry.
+    const raw = secrets.get(SESSION_KEY);
+    if (!raw) {
+      throw new Error('expected the sign-in to persist a session');
+    }
+    const persisted = JSON.parse(raw) as { expiresAt: string; refreshToken?: string };
+    const expiresAt = Date.parse(persisted.expiresAt);
+    expect(expiresAt).toBeGreaterThanOrEqual(before + 900 * 1000);
+    expect(expiresAt).toBeLessThanOrEqual(Date.now() + 900 * 1000);
+    // The token endpoint issues no refresh token; nothing may invent one.
+    expect(persisted.refreshToken).toBeUndefined();
+
+    provider.dispose();
+  });
+
+  it('falls back to name.displayName when the account has no username', async () => {
+    const provider = new AliaAuthenticationProvider(makeSignInContext().context);
+    const { session } = await runSignIn(provider, {
+      status: 200,
+      body: flatTokenBody({ user: { id: 'user-2', name: { displayName: 'Nate Isern' } } }),
+    });
+
+    expect(session?.account.label).toBe('Nate Isern');
+
+    provider.dispose();
+  });
+
+  it('rejects a legacy `{ data: … }`-wrapped body instead of unwrapping it', async () => {
+    const provider = new AliaAuthenticationProvider(makeSignInContext().context);
+    const { session, error } = await runSignIn(provider, {
+      status: 200,
+      body: { data: flatTokenBody() },
+    });
+
+    // The old client guessed with `payload.data ?? payload`. The wrapper is no
+    // longer a shape this client accepts.
+    expect(session).toBeNull();
+    expect(error?.message).toBe('OAuth token exchange returned no access token.');
+
+    provider.dispose();
+  });
+
+  it('surfaces the RFC 6749 §5.2 error document', async () => {
+    const provider = new AliaAuthenticationProvider(makeSignInContext().context);
+    const { session, error } = await runSignIn(provider, {
+      status: 400,
+      body: {
+        error: 'invalid_grant',
+        error_description: 'The authorization code is invalid or has expired.',
+      },
+    });
+
+    expect(session).toBeNull();
+    expect(error?.message).toBe(
+      'The authorization code is invalid or has expired. (invalid_grant)',
+    );
+
+    provider.dispose();
+  });
+
+  it('falls back to the HTTP status when the failure carries no §5.2 document', async () => {
+    const provider = new AliaAuthenticationProvider(makeSignInContext().context);
+    const { session, error } = await runSignIn(provider, {
+      status: 502,
+      body: null,
+      json: false,
+    });
+
+    expect(session).toBeNull();
+    expect(error?.message).toBe('OAuth token exchange failed (502).');
+
+    provider.dispose();
+  });
+
+  it('rejects a grant that is not a bearer token', async () => {
+    const provider = new AliaAuthenticationProvider(makeSignInContext().context);
+    const { session, error } = await runSignIn(provider, {
+      status: 200,
+      body: flatTokenBody({ token_type: 'mac' }),
+    });
+
+    expect(session).toBeNull();
+    expect(error?.message).toBe(
+      'OAuth token exchange returned an unsupported token type (mac).',
+    );
 
     provider.dispose();
   });

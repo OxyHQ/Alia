@@ -18,19 +18,55 @@ const REFRESH_BUFFER_MS = 60 * 1000;
 // so the extension owns its own persistence and refresh loop.
 const SESSION_STORAGE_KEY = 'alia.session.v1';
 
-type OAuthTokenExchange = {
+/** The `grant_type` this client uses — RFC 6749 §4.1.3. */
+const AUTHORIZATION_CODE_GRANT = 'authorization_code';
+
+/**
+ * The user document the token response carries alongside the standard members.
+ * Mirrors the wire shape Oxy emits; only the members this extension reads are
+ * modelled, because RFC 6749 §5.1 lets the endpoint carry more and a client
+ * must ignore whatever it does not recognise.
+ */
+interface OAuthTokenUser {
+  id?: string;
+  username?: string;
+  /**
+   * The canonical composed display name. Present only for accounts that have a
+   * real name — username-only accounts carry no `name.displayName` and fall
+   * back to the handle.
+   */
+  name?: { displayName?: string };
+}
+
+/**
+ * A successful RFC 6749 §5.1 token response.
+ *
+ * Every member sits at the TOP LEVEL of the document — there is no `data`
+ * wrapper. `access_token` and `token_type` are the required standard members;
+ * `expires_in` is RECOMMENDED rather than required, so it is optional here and
+ * the caller falls back to {@link DEFAULT_TOKEN_LIFETIME_MS}.
+ *
+ * `session_id` and `user` are Oxy's device-first extras, which §5.1 permits as
+ * additional parameters. The response also carries `deviceId` / `deviceSecret`
+ * — the zero-cookie restore credentials — which this extension does not
+ * consume, so they are deliberately absent from this model.
+ *
+ * The endpoint issues NO refresh token: §5.1 makes `refresh_token` optional and
+ * Oxy's device-first model replaces it with the device secret.
+ */
+interface OAuthTokenResponse {
   access_token: string;
-  refresh_token?: string;
-  token_type: 'Bearer';
-  expires_in: number;
-  session_id: string;
-  user?: {
-    id?: string;
-    username?: string | null;
-    displayName?: string | null;
-    email?: string | null;
-  };
-};
+  token_type: string;
+  expires_in?: number;
+  session_id?: string;
+  user?: OAuthTokenUser;
+}
+
+/** An RFC 6749 §5.2 error document, as the token endpoint emits on failure. */
+interface OAuthErrorResponse {
+  error: string;
+  error_description?: string;
+}
 
 interface PersistedSession {
   accessToken: string;
@@ -38,6 +74,115 @@ interface PersistedSession {
   expiresAt: string;
   userId: string;
   username: string;
+}
+
+/** True for a plain JSON object — the shape both OAuth documents take. */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/** A non-empty string member, or undefined for anything else. */
+function stringMember(value: unknown): string | undefined {
+  return typeof value === 'string' && value.length > 0 ? value : undefined;
+}
+
+/**
+ * Read a response body as JSON, or null when it is not JSON at all.
+ *
+ * An intermediary between the extension and the API (corporate proxy, captive
+ * portal) can answer with HTML. That must surface as the HTTP status the caller
+ * already has, not as a parse error about a body we never expected to read.
+ */
+async function readJsonBody(response: Response): Promise<unknown> {
+  try {
+    return await response.json();
+  } catch {
+    // Body was absent or not JSON; the status alone describes the failure.
+    return null;
+  }
+}
+
+/**
+ * Narrow a parsed body to {@link OAuthTokenUser}, keeping only the members this
+ * extension reads.
+ */
+function parseTokenUser(user: Record<string, unknown>): OAuthTokenUser {
+  const name = isRecord(user.name)
+    ? { displayName: stringMember(user.name.displayName) }
+    : undefined;
+
+  return {
+    id: stringMember(user.id),
+    username: stringMember(user.username),
+    name,
+  };
+}
+
+/**
+ * Narrow a parsed body to a successful RFC 6749 §5.1 token response.
+ *
+ * Members are read from the TOP LEVEL of the document. Anything the endpoint
+ * sends beyond the modelled members is ignored, as §5.1 requires of a client.
+ */
+function parseTokenResponse(payload: unknown): OAuthTokenResponse {
+  if (!isRecord(payload)) {
+    throw new Error('OAuth token exchange returned a malformed response.');
+  }
+
+  const accessToken = stringMember(payload.access_token);
+  if (!accessToken) {
+    throw new Error('OAuth token exchange returned no access token.');
+  }
+
+  // The token is used unconditionally as a bearer credential, so a grant of any
+  // other type is unusable here. RFC 6749 §7.1 makes the value case-insensitive.
+  const tokenType = stringMember(payload.token_type);
+  if (!tokenType || tokenType.toLowerCase() !== 'bearer') {
+    throw new Error(
+      `OAuth token exchange returned an unsupported token type (${tokenType ?? 'none'}).`,
+    );
+  }
+
+  return {
+    access_token: accessToken,
+    token_type: tokenType,
+    expires_in: typeof payload.expires_in === 'number' ? payload.expires_in : undefined,
+    session_id: stringMember(payload.session_id),
+    user: isRecord(payload.user) ? parseTokenUser(payload.user) : undefined,
+  };
+}
+
+/**
+ * Narrow a parsed body to an RFC 6749 §5.2 error document, or null when the
+ * response carries no such document (an HTML error page from a proxy, or a
+ * body that simply has no `error` member).
+ */
+function parseErrorResponse(payload: unknown): OAuthErrorResponse | null {
+  if (!isRecord(payload)) { return null; }
+
+  const error = stringMember(payload.error);
+  if (!error) { return null; }
+
+  return { error, error_description: stringMember(payload.error_description) };
+}
+
+/**
+ * Describe a failed token exchange for the sign-in error notification.
+ *
+ * The §5.2 `error` code is the part a client can act on (`invalid_grant` means
+ * "start sign-in again", `invalid_client` means "this build's client_id is
+ * wrong"), so it is always shown, with the server's description when there is
+ * one. A failure carrying no §5.2 document falls back to the HTTP status.
+ */
+function describeTokenFailure(status: number, payload: unknown): string {
+  const failure = parseErrorResponse(payload);
+  if (!failure) {
+    return `OAuth token exchange failed (${status}).`;
+  }
+
+  return failure.error_description
+    ? `${failure.error_description} (${failure.error})`
+    : `OAuth token exchange failed: ${failure.error}`;
 }
 
 export class AliaAuthenticationProvider
@@ -138,7 +283,7 @@ export class AliaAuthenticationProvider
       this._oxyServices.setTokens(token);
 
       let userId = tokenData.user?.id || '';
-      let username = tokenData.user?.username || tokenData.user?.displayName || '';
+      let username = tokenData.user?.username || tokenData.user?.name?.displayName || '';
       let resolvedSessionId = tokenData.session_id || `browser-${Date.now()}`;
       const expiresAt = new Date(
         Date.now() + (tokenData.expires_in || DEFAULT_TOKEN_LIFETIME_MS / 1000) * 1000,
@@ -154,9 +299,11 @@ export class AliaAuthenticationProvider
       const displayName = (await this.resolveDisplayName()) || username || 'Oxy User';
       if (!userId) { userId = `user-${Date.now()}`; }
 
+      // No `refreshToken`: the token endpoint issues no refresh token (RFC 6749
+      // §5.1 makes it optional), so a session minted by browser sign-in carries
+      // only the access token until it is rotated.
       await this.persistSession({
         accessToken: token,
-        refreshToken: tokenData.refresh_token,
         expiresAt,
         userId,
         username: displayName,
@@ -434,35 +581,59 @@ export class AliaAuthenticationProvider
     }
   }
 
+  /**
+   * Redeem the authorization code for an access token — RFC 6749 §4.1.3.
+   *
+   * The request is `application/x-www-form-urlencoded` with snake_case
+   * parameters and an explicit `grant_type`; the response is read FLAT, as
+   * §5.1 defines it. The endpoint previously took camelCase JSON and wrapped
+   * its payload in `{ data: … }`, which no OAuth library could read and which
+   * left this client guessing whether a wrapper was present.
+   *
+   * Alia is a PUBLIC client — its `client_id` ships inside a VS Code extension
+   * — so it proves itself with the PKCE `code_verifier` and never a client
+   * secret.
+   *
+   * `@oxyhq/core` exposes the same exchange as `OxyServices.exchangeOAuthCode`,
+   * which would remove this duplication, and this class already holds an
+   * `OxyServices`. It is not used here because that method only speaks RFC 6749
+   * from `@oxyhq/core@17`, while this package resolves `^13.0.0` (npm's latest
+   * is 16.0.0): calling the SDK today would put the retired camelCase body on
+   * the wire. Once core 17 is published and the workspace pin is raised, this
+   * method can be replaced by that single call.
+   */
   private async exchangeAuthorizationCode(
     code: string,
     redirectUri: string,
     codeVerifier: string,
-  ): Promise<OAuthTokenExchange> {
+  ): Promise<OAuthTokenResponse> {
+    const form = new URLSearchParams({
+      grant_type: AUTHORIZATION_CODE_GRANT,
+      code,
+      redirect_uri: redirectUri,
+      client_id: OXY_CLIENT_ID,
+      code_verifier: codeVerifier,
+    });
+
     const response = await fetch(`${OXY_PLATFORM_URL}/auth/oauth/token`, {
       method: 'POST',
       headers: {
         Accept: 'application/json',
-        'Content-Type': 'application/json',
+        'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
       },
-      body: JSON.stringify({
-        code,
-        clientId: OXY_CLIENT_ID,
-        redirectUri,
-        codeVerifier,
-      }),
+      // Serialised explicitly rather than handed to `fetch` as a
+      // `URLSearchParams`, so the body matches the Content-Type set above
+      // regardless of which fetch implementation the extension host provides.
+      body: form.toString(),
     });
 
+    const payload = await readJsonBody(response);
+
     if (!response.ok) {
-      throw new Error(`OAuth token exchange failed (${response.status})`);
+      throw new Error(describeTokenFailure(response.status, payload));
     }
 
-    const payload = await response.json() as { data?: OAuthTokenExchange } & Partial<OAuthTokenExchange>;
-    const data = payload.data ?? payload;
-    if (!data.access_token) {
-      throw new Error('OAuth token exchange returned no access token.');
-    }
-    return data as OAuthTokenExchange;
+    return parseTokenResponse(payload);
   }
 
   private rejectPending(message: string): void {
