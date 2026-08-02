@@ -1,6 +1,13 @@
-@import "tailwindcss";
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/preflight.css" layer(base);
+@import "tailwindcss/utilities.css";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
+@import "nativewind/theme";
+@import "@oxyhq/bloom/design-tokens/theme.css";
+
+@source "../../../node_modules/@oxyhq/services/lib/**/*.{js,jsx}";
+@source "../../../node_modules/@oxyhq/bloom/lib/**/*.{js,jsx}";
 
 @custom-variant dark (&:is(.dark *));
 
