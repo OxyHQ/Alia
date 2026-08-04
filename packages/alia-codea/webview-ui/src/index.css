@@ -1,6 +1,18 @@
-@import "tailwindcss";
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/preflight.css" layer(base);
+@import "tailwindcss/utilities.css";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
+@import "nativewind/theme";
+@import "@oxyhq/bloom/design-tokens/theme.css";
+
+/*
+ * react-native-css emits real CSS classes on web, so Bloom's `className` layout
+ * is inert unless this stylesheet scans Bloom's own lib. Colours would still
+ * look right (Bloom applies those inline), which is what makes the gap easy to
+ * miss. No `@oxyhq/services` entry: this webview does not depend on it.
+ */
+@source "../../../../node_modules/@oxyhq/bloom/lib/**/*.{js,jsx}";
 
 /* Support VS Code theme classes: vscode-dark, vscode-light, vscode-high-contrast */
 @custom-variant dark (&:is(.dark *, .vscode-dark *, .vscode-high-contrast *));
