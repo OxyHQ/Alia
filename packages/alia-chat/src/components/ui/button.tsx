@@ -13,7 +13,7 @@ const buttonVariants = cva(
         destructive: "bg-destructive web:hover:opacity-90 active:opacity-90",
         outline:
           "border border-input bg-background web:hover:bg-accent web:hover:text-accent-foreground active:bg-accent",
-        secondary: "bg-secondary web:hover:opacity-80 active:opacity-80",
+        secondary: "bg-muted web:hover:opacity-80 active:opacity-80",
         ghost:
           "web:hover:bg-accent web:hover:text-accent-foreground active:bg-accent",
         link: "web:underline-offset-4 web:hover:underline web:focus:underline ",
@@ -42,7 +42,7 @@ const buttonTextVariants = cva(
         destructive: "text-destructive-foreground",
         outline: "group-active:text-accent-foreground",
         secondary:
-          "text-secondary-foreground group-active:text-secondary-foreground",
+          "text-muted-foreground group-active:text-muted-foreground",
         ghost: "group-active:text-accent-foreground",
         link: "text-primary group-active:underline",
         pill: "text-primary-foreground",
