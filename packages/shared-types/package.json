@@ -29,7 +29,6 @@
     "alia"
   ],
   "author": "Alia",
-  "license": "UNLICENSED",
   "devDependencies": {
     "typescript": "^5.9.3"
   }
