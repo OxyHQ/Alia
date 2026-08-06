@@ -1,5 +1,34 @@
 # @alia.onl/sdk
 
+## 6.0.0
+
+### Licence: this package now has one, and it is Apache-2.0
+
+**Every version up to and including `5.1.0` was published with no `license`
+field and no LICENSE file.** Under copyright law that is not permissive by
+default, it is all rights reserved: nobody who installed this package had
+permission to use, copy or modify it. At roughly ten thousand installs a week,
+that was the most consequential thing wrong with this package, and it had
+nothing to do with the code.
+
+`6.0.0` is Apache-2.0. It ships a verbatim `LICENSE` and a `NOTICE`, and the
+manifest declares `"license": "Apache-2.0"`, so automated policy checks in
+consuming companies stop seeing an unlicensed dependency.
+
+This is a pure widening: it grants rights where there were none. Nothing any
+existing user is doing becomes non-compliant, and no code, API surface or
+behaviour changed in this release.
+
+Apache-2.0 rather than something else because this is a client SDK, the layer
+Oxy licenses permissively on purpose: it is a dependency you either can or
+cannot add, and one an engineer must be able to add without opening a legal
+ticket.
+
+The version is bumped to a major rather than the field being slipped into a
+patch. A licence is part of what a package is, and the previous licence changes
+in this ecosystem went out inside patch releases, which is how consumers ended
+up on terms they never chose. Not repeating that is worth a major.
+
 ## 5.1.0
 
 ### Changed
