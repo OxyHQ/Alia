@@ -1,108 +1,64 @@
 # Contributing to Alia
 
+Alia is a multi surface context agent platform: one chat runtime behind an Expo app, a VS Code extension, a desktop client, a CLI and an HTTP API.
+
+**The contribution process lives in the [Oxy organisation CONTRIBUTING guide](https://github.com/OxyHQ/.github/blob/main/CONTRIBUTING.md)**: reporting an issue, filing a feature request, opening a pull request, code review, licensing. It applies here unchanged. This file layers on top of it the same way `AGENTS.md` files layer, so it is short on purpose: it carries only what is different about this repository.
+
 ## Prerequisites
 
-- **Node.js 22** (use [nvm](https://github.com/nvm-sh/nvm) or [fnm](https://github.com/Schniz/fnm))
-- **MongoDB** (local or Atlas)
-- **Redis** (optional, falls back gracefully)
+- **Bun.** The package manager for every Oxy repository, never npm or yarn. The pinned version is `packageManager` in the root `package.json`, and CI installs that exact version.
+- **Node.js 22.** The runtime the API is built and deployed on. CI pins it alongside bun.
+- **MongoDB**, local or remote, to run the API. The test suite does not need one; it starts its own in memory server.
+- **Redis**, optional. Caching and rate limiting fall back gracefully without it.
 
-## Getting Started
+## Setup
 
 ```bash
-git clone <repo-url> && cd Alia
-bun install              # installs all workspaces
+git clone https://github.com/OxyHQ/Alia.git && cd Alia
+bun install
 cp packages/api/.env.example packages/api/.env   # fill in your values
-bun run dev              # starts all services
+bun run dev                                      # every package at once
 ```
 
-Focused commands:
+You usually want one package rather than all of them:
 
 ```bash
-bun run dev:api          # API only
-bun run dev:app          # Expo app only
+bun run dev:api    # API only
+bun run dev:app    # Expo app only (runs with --clear --tunnel)
 ```
 
-## Monorepo Structure
+Root scripts are named `dev:*`, `build:*` and `start:*`, roughly one per package; read the root `package.json` for the full set. Anything without a shortcut is reachable as `bun run --filter <package> <script>`.
 
-This is an **Bun workspaces** monorepo (no Turborepo/Nx).
+Other packages ship their own `.env.example` (`packages/app`, `packages/alia-gateway`, `packages/alia-gateway-admin`, `packages/alia-cowork`, `packages/alia-docker-host`). Copy the ones for the packages you actually run.
 
-| App | Stack | Purpose |
-| --- | --- | --- |
-| `packages/api` | Express + TypeScript | Core API runtime |
-| `packages/app` | Expo 55 (React Native + Web) | Main app (web + iOS + Android) |
-| `packages/alia-codea` | VS Code extension | Coding assistant surface |
-| `packages/alia-cowork` | Electron | Desktop assistant surface |
-| `packages/alia-console` | TanStack Start + React | Admin console |
-| `packages/alia-canvas` | Next.js | Canvas app |
-| `packages/alia-gateway-admin` | Vite + React | Internal gateway admin |
-| `packages/alia-codea-cli` | CLI | Terminal coding assistant |
-| `packages/alia-docker-host` | Express + TypeScript | Sandboxed container host |
-| `packages/integrations` | Express + TypeScript | Messaging and channel integrations |
+## Layout
 
-## Branch Naming
+A bun workspaces monorepo, no Turborepo and no Nx. Alia is the exception to the Oxy `frontend` + `backend` + `shared-types` baseline: it has thirteen packages, and the API is `packages/api`, not `packages/backend`. The package map is in `AGENTS.md`, so there is one copy of it to keep correct.
 
-```
-feat/short-description
-fix/short-description
-refactor/short-description
-```
+Two things worth knowing before your first pull request:
 
-Always branch from `main`.
+- `packages/alia-chat` publishes to npm as `@alia.onl/sdk`, as **raw source**, so consumers compile `src/` with their own Metro or tsc. It has to resolve and typecheck under a real external install, not only inside this monorepo.
+- `packages/alia-gateway` is not deployed. The API runs an in process fallback instead, so a change there is not exercised by anything unless you opt in explicitly.
 
-## Commit Messages
-
-Use [conventional commits](https://www.conventionalcommits.org/):
-
-```
-feat: add trigger scheduling UI
-fix: correct token refresh race condition
-refactor: extract chat handler into shared module
-docs: update deployment guide
-test: add integration tests for context graph
-chore: bump dependencies
-```
-
-## Pull Request Process
-
-1. Create a branch from `main` with the naming convention above.
-2. Keep PRs focused -- one feature or fix per PR.
-3. Write a descriptive PR summary (what changed and why).
-4. Ensure CI passes before requesting review.
-5. Request review from at least one team member.
-
-## Code Style
-
-- **TypeScript strict mode** encouraged. Avoid `any` -- use proper types.
-- **Frontend styling**: NativeWind (Tailwind). No inline style objects unless necessary.
-- **State management**: Zustand stores. Data fetching via TanStack Query.
-- **Routing**: expo-router (file-based) in `packages/app`.
-- Follow existing patterns in the codebase. When in doubt, look at neighboring files.
-
-## Testing
-
-Run API tests before submitting:
+## Tests
 
 ```bash
-npm test -w @alia/api
+bun run --filter @alia/api test
 ```
 
-Tests use **Vitest**. Place test files next to source as `*.test.ts`.
+Vitest. Place test files next to the source as `*.test.ts`. `packages/api` is the only package with a suite today.
 
-## Key Conventions
+CI runs the following on every pull request, and each line runs locally as written:
 
-### Model Abstraction (Critical)
+```bash
+bun run --filter @alia/api lint
+bun run --filter @alia/api typecheck
+bun run --filter @alia/api test
+bun run --filter @alia.onl/sdk typecheck
+bun run --filter @alia.onl/sdk check:entries
+bun run build:api
+```
 
-Alia wraps multiple AI providers behind branded model names. **Never expose provider names or model IDs** (OpenAI, Anthropic, `gpt-4o`, `claude-sonnet-4`, etc.) in:
+## Conventions
 
-- UI text, error messages, API responses
-- Documentation, comments, or marketing copy
-
-Always use Alia model names: `alia-v1`, `alia-lite`, `alia-v1-pro`, `alia-v1-thinking`, etc.
-
-### Error Handling
-
-Use `sanitizeMessage()` from `packages/api/src/lib/errors/sanitize.ts` for all user-facing error messages. This strips any leaked provider names.
-
-### Database
-
-MongoDB with Mongoose. Database name follows `alia-{NODE_ENV}` convention. Connection URI is shared across the Oxy ecosystem -- the `dbName` is passed to `mongoose.connect()`, not embedded in the URI.
+Coding standards for this repository are in `AGENTS.md` at the repository root, including the model abstraction rule that keeps provider names and provider model ids out of everything user facing, and the Expo SDK override gotcha that makes `bunx expo install --fix` loop forever. `AGENTS.md` is read directly by Claude Code, Codex, Cursor and Copilot, and it is the file to update when a convention changes.
