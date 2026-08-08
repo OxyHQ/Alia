@@ -44,25 +44,66 @@ jobs:
           role-to-assume: arn:aws:iam::237343248947:role/oxy-github-deploy
           aws-region: ${{ env.AWS_REGION }}
 
+      # The secrets are enumerated one at a time, on purpose.
+      #
+      # This step used to expand the entire `secrets` context with
+      # `toJSON(secrets)`, and that is what holds deploys. A workflow that walks
+      # every repository secret into a shell loop is shaped exactly like an
+      # exfiltration payload, so GitHub creates the run with conclusion
+      # `action_required` and ZERO jobs until a human clicks "Approve and run"
+      # in the UI. The REST approve endpoint only serves fork pull requests, so
+      # it cannot be automated, and the approval is per run — every deploy needs
+      # a person.
+      #
+      # Enumerating is also least privilege. The old loop copied every secret
+      # visible to the repo, so the org-wide CI credentials (NPM_TOKEN,
+      # CLOUDFLARE_API_TOKEN, ADD_TO_PROJECT_TOKEN) ended up in this app's SSM
+      # namespace.
+      #
+      # The list is the secrets the `alia` task definition actually consumes.
+      # Adding a new one means adding it here, or it never reaches SSM.
       - name: Sync GitHub secrets -> SSM (GitHub is the source of truth)
         env:
-          SECRETS_JSON: ${{ toJSON(secrets) }}
+          APP_MONGODB_URI: ${{ secrets.MONGODB_URI }}
+          APP_SERVICE_SECRET: ${{ secrets.SERVICE_SECRET }}
+          APP_TOKEN_ENCRYPTION_KEY: ${{ secrets.TOKEN_ENCRYPTION_KEY }}
+          APP_VAPID_PUBLIC_KEY: ${{ secrets.VAPID_PUBLIC_KEY }}
+          APP_VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
+          SHARED_AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          SHARED_AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          SHARED_LIVEKIT_API_KEY: ${{ secrets.LIVEKIT_API_KEY }}
+          SHARED_LIVEKIT_API_SECRET: ${{ secrets.LIVEKIT_API_SECRET }}
+          SHARED_REDIS_URL: ${{ secrets.REDIS_URL }}
         run: |
-          SHARED="AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY REDIS_URL LIVEKIT_API_KEY LIVEKIT_API_SECRET"
-          echo "$SECRETS_JSON" | jq -r 'to_entries[] | select((.key|ascii_upcase) as $k | ($k=="GITHUB_TOKEN" or ($k|startswith("ACTIONS_")))|not) | [.key,.value]|@tsv' | \
-          while IFS=$'\t' read -r k v; do
-            [ -z "$k" ] && continue
-            if [ -z "$v" ] || [ "$v" = "-" ]; then
-              echo "::warning::skip empty/placeholder secret $k; SSM unchanged"
-              continue
+          sync_secret() {
+            name="$1"; value="$2"; path="$3"
+            if [ -z "$value" ] || [ "$value" = "-" ]; then
+              echo "::warning::skip empty/placeholder secret $name; SSM unchanged"
+              return 0
             fi
-            if [ "$k" = "REDIS_URL" ] && [ "$AWS_REGION" = "us-west-2" ] && ! printf '%s' "$v" | grep -q '\.usw2\.cache\.amazonaws\.com'; then
-              echo "::warning::skip REDIS_URL because it does not point at the us-west-2 Valkey endpoint; SSM unchanged"
-              continue
-            fi
-            case " $SHARED " in *" $k "*) path="/oxy/_shared/$k";; *) path="/oxy/$APP/$k";; esac
-            aws ssm put-parameter --name "$path" --value "$v" --type SecureString --overwrite >/dev/null && echo "synced -> $path"
-          done
+            aws ssm put-parameter --name "$path" --value "$value" --type SecureString --overwrite >/dev/null
+            echo "synced -> $path"
+          }
+
+          sync_secret MONGODB_URI "$APP_MONGODB_URI" "/oxy/$APP/MONGODB_URI"
+          sync_secret SERVICE_SECRET "$APP_SERVICE_SECRET" "/oxy/$APP/SERVICE_SECRET"
+          sync_secret TOKEN_ENCRYPTION_KEY "$APP_TOKEN_ENCRYPTION_KEY" "/oxy/$APP/TOKEN_ENCRYPTION_KEY"
+          sync_secret VAPID_PUBLIC_KEY "$APP_VAPID_PUBLIC_KEY" "/oxy/$APP/VAPID_PUBLIC_KEY"
+          sync_secret VAPID_PRIVATE_KEY "$APP_VAPID_PRIVATE_KEY" "/oxy/$APP/VAPID_PRIVATE_KEY"
+          sync_secret AWS_ACCESS_KEY_ID "$SHARED_AWS_ACCESS_KEY_ID" "/oxy/_shared/AWS_ACCESS_KEY_ID"
+          sync_secret AWS_SECRET_ACCESS_KEY "$SHARED_AWS_SECRET_ACCESS_KEY" "/oxy/_shared/AWS_SECRET_ACCESS_KEY"
+          sync_secret LIVEKIT_API_KEY "$SHARED_LIVEKIT_API_KEY" "/oxy/_shared/LIVEKIT_API_KEY"
+          sync_secret LIVEKIT_API_SECRET "$SHARED_LIVEKIT_API_SECRET" "/oxy/_shared/LIVEKIT_API_SECRET"
+
+          # Valkey lives in the cluster's region; a URL from another region
+          # leaves the service silently without a cache, so it is rejected.
+          if [ -n "$SHARED_REDIS_URL" ] && [ "$SHARED_REDIS_URL" != "-" ] &&
+             [ "$AWS_REGION" = "us-west-2" ] &&
+             ! printf '%s' "$SHARED_REDIS_URL" | grep -q '\.usw2\.cache\.amazonaws\.com'; then
+            echo "::warning::skip REDIS_URL because it does not point at the us-west-2 Valkey endpoint; SSM unchanged"
+          else
+            sync_secret REDIS_URL "$SHARED_REDIS_URL" "/oxy/_shared/REDIS_URL"
+          fi
 
       - name: Login to ECR
         uses: aws-actions/amazon-ecr-login@v2
