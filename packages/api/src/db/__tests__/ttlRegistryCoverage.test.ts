@@ -132,6 +132,7 @@ const MONGO_MODEL_TO_TABLE: Readonly<Record<string, string>> = {
   ApiUsage: 'api_usage',
   FallbackEvent: 'fallback_events',
   RoutingLog: 'routing_logs',
+  CacheEntry: 'cache_entries',
 };
 
 const ttls = declaredMongoTtls();
