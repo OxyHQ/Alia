@@ -11,6 +11,12 @@ export default defineConfig({
     globals: true,
     environment: 'node',
     include: ['src/**/__tests__/**/*.test.ts', 'src/**/*.test.ts'],
+    /**
+     * The Postgres suite has its own config and its own CI job — it needs a real
+     * server over TCP, which this one does not. Excluded here so `bun run test`
+     * still works on a machine without Docker.
+     */
+    exclude: ['**/node_modules/**', '**/dist/**', 'src/**/*.pgdb.test.ts'],
     coverage: {
       provider: 'v8',
       include: ['src/**/*.ts'],
