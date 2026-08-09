@@ -25,3 +25,22 @@ import { inList } from '@oxyhq/db';
 export function checkOneOf(name: string, column: PgColumn, values: readonly string[]) {
   return check(name, sql`${column} in (${sql.raw(inList(values))})`);
 }
+
+/**
+ * `CHECK (<array column> <@ ARRAY[…])` — every member is in the tuple.
+ *
+ * The scalar `checkOneOf` cannot express this: `col in (…)` on an array column
+ * compares the whole array to each scalar and is false for everything. Postgres
+ * spells "all members are drawn from this set" as containment, `<@`.
+ *
+ * An EMPTY array is contained by every set, so this permits `{}`. That is the
+ * right split of responsibilities — "at least one category" is a cardinality
+ * rule, enforced beside this one, not something a membership CHECK should be
+ * quietly doing as well.
+ */
+export function checkArrayWithin(name: string, column: PgColumn, values: readonly string[]) {
+  return check(
+    name,
+    sql`${column} <@ ARRAY[${sql.raw(inList(values))}]::text[]`,
+  );
+}
