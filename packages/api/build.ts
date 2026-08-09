@@ -65,6 +65,27 @@ await esbuild.build({
   logLevel: 'info',
 });
 
+// The database migrator, bundled so it ships in the runtime image and can be run
+// as a Fargate command override before the rollout.
+//
+// It MUST be an entrypoint of its own. The deploy's one-shot task invokes a file
+// path, and a migrator that only exists as TypeScript source is a deploy step
+// that cannot work — the runtime stage is `node:*-slim` and carries no bun and no
+// `src/`. This is the half that fails silently: `RUN_MIGRATIONS` defaults to
+// false, so nothing complains until the day somebody turns it on.
+await esbuild.build({
+  entryPoints: ['src/db/migrate.ts'],
+  bundle: true,
+  platform: 'node',
+  target: 'node20',
+  format: 'esm',
+  outfile: 'dist/db/migrate.js',
+  plugins: [externalizeNodeModules],
+  sourcemap: false,
+  minify: false,
+  logLevel: 'info',
+});
+
 // Copy prompts directory to dist
 try {
   await cp('prompts', 'dist/prompts', { recursive: true });

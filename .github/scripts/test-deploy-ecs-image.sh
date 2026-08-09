@@ -223,7 +223,22 @@ aws() {
       printf '{}\n'
       ;;
     "ecs run-task")
-      printf 'reconcile\n' >>"$DEPLOY_TEST_LOG"
+      # Log the COMMAND, not a fixed label. A stub that prints the same string
+      # whatever it was asked to run cannot tell a correct migrator invocation
+      # from one naming a package that does not exist in this repo, a runtime the
+      # image does not carry, or a path build.ts never emits -- which is exactly
+      # how `bun packages/backend/dist/scripts/migrate.js` survived here.
+      run_task_command="$(
+        prev_arg=""
+        for arg in "$@"; do
+          if [[ "$prev_arg" == "--overrides" ]]; then
+            jq -r '.containerOverrides[0].command | join(" ")' <<<"$arg"
+            break
+          fi
+          prev_arg="$arg"
+        done
+      )"
+      printf 'run-task:%s\n' "$run_task_command" >>"$DEPLOY_TEST_LOG"
       printf '%s\n' '{
         "failures": [],
         "tasks": [{"taskArn": "arn:aws:ecs:test:task/deploy-test-reconcile"}]
@@ -338,7 +353,7 @@ printf '%s\n' \
   metrics:arn \
   'service:arn:aws:ecs:test:task-definition/deploy-test:2:desired=1' \
   smoke \
-  reconcile \
+  'run-task:reconcile' \
   >"$test_directory/success/expected.log"
 diff -u \
   "$test_directory/success/expected.log" \
@@ -361,7 +376,7 @@ printf '%s\n' \
   metrics:arn \
   'service:arn:aws:ecs:test:task-definition/deploy-test:2:desired=1' \
   smoke \
-  reconcile \
+  'run-task:reconcile' \
   >"$test_directory/hyphenated-metrics-parameter/expected.log"
 diff -u \
   "$test_directory/hyphenated-metrics-parameter/expected.log" \
@@ -372,7 +387,7 @@ printf '%s\n' \
   task-secret:arn \
   'service:arn:aws:ecs:test:task-definition/deploy-test:2:desired=1' \
   smoke \
-  reconcile \
+  'run-task:reconcile' \
   >"$test_directory/explicit-task-secret/expected.log"
 diff -u \
   "$test_directory/explicit-task-secret/expected.log" \
@@ -382,7 +397,7 @@ run_release reconciliation-failure false false false 1
 printf '%s\n' \
   'service:arn:aws:ecs:test:task-definition/deploy-test:2:desired=1' \
   smoke \
-  reconcile \
+  'run-task:reconcile' \
   tasklogs \
   'service:arn:aws:ecs:test:task-definition/deploy-test:1:desired=1' \
   >"$test_directory/reconciliation-failure/expected.log"
@@ -392,12 +407,34 @@ diff -u \
 
 run_release migration-failure false true false 1
 printf '%s\n' \
-  reconcile \
+  'run-task:node packages/api/dist/db/migrate.js --target-database=alia --phase=pre' \
   tasklogs \
   >"$test_directory/migration-failure/expected.log"
 diff -u \
   "$test_directory/migration-failure/expected.log" \
   "$test_directory/migration-failure/aws.log"
+
+# The migration command itself, asserted verbatim.
+#
+# `RUN_MIGRATIONS` defaults to false, so a wrong command is INERT until somebody
+# turns it on -- which is why this shipped naming `packages/backend` (no such
+# package here), `bun` (absent from the node:*-slim runtime stage) and
+# `dist/scripts/migrate.js` (a path build.ts never emitted). Four faults, none
+# reachable by any test, in a step whose whole job is to run before the rollout
+# that needs it.
+#
+# The flags are part of the assertion: src/db/migrate.ts REQUIRES both and has no
+# default for either, so a command missing them is refused at the door.
+run_release migration-command true true false
+printf '%s\n' \
+  'run-task:node packages/api/dist/db/migrate.js --target-database=alia --phase=pre' \
+  'service:arn:aws:ecs:test:task-definition/deploy-test:2:desired=1' \
+  smoke \
+  'run-task:reconcile' \
+  >"$test_directory/migration-command/expected.log"
+diff -u \
+  "$test_directory/migration-command/expected.log" \
+  "$test_directory/migration-command/aws.log"
 grep -F \
   "[migration] fixture failure" \
   "$test_directory/migration-failure/output.log" \
@@ -421,7 +458,7 @@ run_release transient-zero-deployment true false false 0 false 1 transient-zero-
 printf '%s\n' \
   'service:arn:aws:ecs:test:task-definition/deploy-test:2:desired=1' \
   smoke \
-  reconcile \
+  'run-task:reconcile' \
   >"$test_directory/transient-zero-deployment/expected.log"
 diff -u \
   "$test_directory/transient-zero-deployment/expected.log" \
@@ -481,7 +518,7 @@ run_release smoke-no-rollback-failure false false false 0 false 1 healthy 75
 printf '%s\n' \
   'service:arn:aws:ecs:test:task-definition/deploy-test:2:desired=1' \
   smoke \
-  reconcile \
+  'run-task:reconcile' \
   >"$test_directory/smoke-no-rollback-failure/expected.log"
 diff -u \
   "$test_directory/smoke-no-rollback-failure/expected.log" \
