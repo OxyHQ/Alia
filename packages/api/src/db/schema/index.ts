@@ -6,5 +6,6 @@
 
 export * from './cache';
 export * from './leases';
+export * from './moderation';
 export * from './telemetry';
 export * from './usage';
