@@ -1,20 +1,23 @@
 /**
  * Platform telemetry — health, usage and routing records.
  *
- * Five tables that share one property: every row is an OBSERVATION with a
- * deadline, and four of them carried a Mongo TTL index. Mongo reaped them;
- * Postgres does not, so each of those four has an entry in `db/expiryTargets.ts`
+ * Six tables that share one property: every row is an OBSERVATION with a
+ * deadline, and five of them carried a Mongo TTL index. Mongo reaped them;
+ * Postgres does not, so each of those five has an entry in `db/expiryTargets.ts`
  * and that registry has a caller. A table ported without one grows forever with
  * no error and no failing test.
  *
- * All five are self-contained — each is read by exactly one module — which is
- * why they are the first batch: the cheapest place for a mistake in the
- * toolchain to surface.
+ * Five of the six are self-contained — each is read by exactly one module —
+ * which is why they were the first batch: the cheapest place for a mistake in
+ * the toolchain to surface. `api_key_usage` arrived later, with the providers
+ * and billing batch, and lives here rather than beside them because its only
+ * confusable neighbour is `api_usage` — see that table's comment.
  */
 
 import { boolean, doublePrecision, index, integer, jsonb, pgTable, text, uniqueIndex } from 'drizzle-orm/pg-core';
 import { createdAt, generatedId, timestamptz, updatedAt } from '@oxyhq/db';
 import { checkOneOf } from './columns';
+import { API_KEY_USAGE_AUTH_TYPES, API_KEY_USAGE_METHODS } from '../../models/api-key-usage.js';
 
 /**
  * Circuit-breaker state per (provider, model).
@@ -100,13 +103,27 @@ export const authHealthMetrics = pgTable(
 /**
  * Token consumption per provider key.
  *
+ * This is PROVIDER-key accounting: how many tokens one of Alia's own upstream
+ * credentials spent. `api_key_usage` below is the unrelated one — a DEVELOPER's
+ * key calling Alia's public API. Neither is derivable from the other and the
+ * names are one character apart, which is the only reason they are neighbours.
+ *
  * TTL: 48 hours from `timestamp`.
  *
- * `key_id` carries NO foreign key to `provider_keys`. That table is not ported
- * yet (batch 3), and more importantly usage is an append-only audit of what a
- * key DID: deleting a key must not delete the record that it was used, so this
- * would be `ON DELETE SET NULL` at most rather than a cascade. Revisit when the
- * providers batch lands, deliberately rather than by default.
+ * `key_id` names a `provider_keys` row and carries NO foreign key. That table
+ * landed with batch 3, so the question this comment used to defer is now
+ * answered, and the answer is still none:
+ *
+ *  - a cascade would delete the audit of what the key did, which is the one
+ *    thing the record exists for;
+ *  - `ON DELETE SET NULL` is the only non-cascading alternative and is
+ *    unrepresentable — the column is `notNull`, and making it nullable to
+ *    accommodate a delete would erase the attribution that IS the row's content;
+ *  - `RESTRICT` would make a key undeletable for 48 hours after any use, turning
+ *    a working admin operation (`DELETE /keys/:id`) into an error.
+ *
+ * So a dangling id, deliberately: it preserves which key spent the tokens, and
+ * the 48-hour sweep bounds how long it can dangle.
  */
 export const apiUsage = pgTable(
   'api_usage',
@@ -200,5 +217,65 @@ export const routingLogs = pgTable(
     index('routing_logs_oxy_user_id_idx').on(t.oxyUserId),
     checkOneOf('routing_logs_routed_to_type_check', t.routedToType, ROUTING_TARGET_TYPES),
     checkOneOf('routing_logs_status_check', t.status, ROUTING_STATUSES),
+  ],
+);
+
+/**
+ * One request served through Alia's public API, per developer key.
+ *
+ * The counterpart to `api_usage` above and NOT a variant of it: that one records
+ * what Alia spent upstream, this one records what a developer spent with Alia.
+ * They share no column meaning beyond `timestamp`.
+ *
+ * TTL: 90 days from `timestamp`. This is the longest retention in the schema and
+ * it is deliberate — the read paths bill and rate-limit against monthly windows,
+ * so 48 hours (its neighbour's figure) would delete the data mid-period.
+ *
+ * `api_key_id` and `app_id` name `developer_api_keys` and `developer_apps`, both
+ * unported, so neither carries a foreign key yet. Both are genuinely optional in
+ * the source: a session-authenticated or internal call has neither, which is
+ * what `auth_type` distinguishes.
+ *
+ * No `created_at`/`updated_at`. The Mongoose schema sets `timestamps: false` and
+ * `timestamp` is the event time — adding a second, nearly-identical clock would
+ * invite the sweep to be pointed at the wrong one.
+ */
+export const apiKeyUsage = pgTable(
+  'api_key_usage',
+  {
+    id: generatedId(),
+    /** Null for a session-authenticated or internal call. */
+    apiKeyId: text(),
+    /** An Oxy account. No foreign key: Oxy owns identity. */
+    oxyUserId: text().notNull(),
+    /** Null for a session-authenticated or internal call. */
+    appId: text(),
+    authType: text({ enum: API_KEY_USAGE_AUTH_TYPES as unknown as [string, ...string[]] })
+      .notNull()
+      .default('api_key'),
+    /** The internal service that made the call, when `auth_type` is `internal`. */
+    serviceApp: text(),
+    endpoint: text().notNull(),
+    method: text({ enum: API_KEY_USAGE_METHODS as unknown as [string, ...string[]] }).notNull(),
+    statusCode: integer().notNull(),
+    tokensUsed: integer().notNull().default(0),
+    creditsUsed: integer().notNull().default(0),
+    responseTimeMs: integer('response_time'),
+    userAgent: text(),
+    timestamp: timestamptz().notNull(),
+  },
+  (t) => [
+    index('api_key_usage_api_key_timestamp_idx').on(t.apiKeyId, t.timestamp.desc()),
+    index('api_key_usage_oxy_user_timestamp_idx').on(t.oxyUserId, t.timestamp.desc()),
+    index('api_key_usage_oxy_user_auth_type_timestamp_idx').on(
+      t.oxyUserId,
+      t.authType,
+      t.timestamp.desc(),
+    ),
+    index('api_key_usage_app_timestamp_idx').on(t.appId, t.timestamp.desc()),
+    // The expiry sweep's predicate column. Indexed because the sweep scans it.
+    index('api_key_usage_timestamp_idx').on(t.timestamp),
+    checkOneOf('api_key_usage_auth_type_check', t.authType, API_KEY_USAGE_AUTH_TYPES),
+    checkOneOf('api_key_usage_method_check', t.method, API_KEY_USAGE_METHODS),
   ],
 );

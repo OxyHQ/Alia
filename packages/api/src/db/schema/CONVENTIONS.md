@@ -55,6 +55,19 @@ would be indistinguishable from success.
 `text` + an explicit CHECK rendered from the same `as const` tuple, per the
 integrations file. `text({ enum })` emits no DDL.
 
+**The tuple is IMPORTED from the Mongoose model, never retyped.** Both stores
+exist until cutover, so a CHECK written from a second copy can disagree with the
+validator that has been guarding the same column for years — and the disagreement
+is invisible until a write hits one and not the other. Where a model declared its
+values inline, export them from the model and import them here rather than
+copying (`MODEL_PRICING_TIERS`, `PROVIDER_KEY_TIERS`, `TRANSACTION_TYPES`, …).
+
+`ALIA_TIERS` is the case that forced the rule: `AliaModel.tier` and
+`ModelConfig.aliaTier` are one vocabulary and were two identical thirteen-value
+literals in two files, so there was no single tuple to render a CHECK from. It
+now lives in `internal/providers/lib/alia-tiers.ts` beside `provider-names.ts`,
+and both models read it.
+
 **`auth_health_metrics.method` has NO CHECK, on purpose.** The Mongoose field is
 a bare `String` with no `enum`, so production may already hold values outside
 `AUTH_METHODS` — and Mongoose never validated enums on `updateOne` or
@@ -67,6 +80,58 @@ decision for **after** the backfill has audited what is actually stored.
 re-audit each one **in the same invocation as the copy** — an audit whose result
 can expire between running it and using it is not a gate.
 
+### A vocabulary somebody else owns never gets a CHECK
+
+The Mongoose doubt is about what THIS service may have written. There is a
+second, sharper case: a column whose value set is defined by a third party.
+
+**`subscriptions.status` is the worked example and has no CHECK.** Mongoose lists
+seven Stripe subscription statuses; Stripe also has `paused`, which is not among
+them. A CHECK rendered from that tuple would reject a billing webhook the first
+time a customer pauses, for a value Stripe considers ordinary — and no audit can
+fix that, because the offending value has not been invented yet. `plans.currency`
+is the same call for the same reason.
+
+This is the `jsonb` test applied to a scalar: if the FORMAT belongs to somebody
+else, this schema does not get to close it. Alia's own vocabularies —
+`transactions.type`, `transactions.status`, `billing_period`, `product`,
+`feature_type`, the Alia tiers — all do carry CHECKs.
+
+`billing.pgdb.test.ts` inserts a `paused` subscription, so adding that CHECK
+later fails there rather than in production.
+
+### Adding a value to a closed set is a MIGRATION, in the same commit
+
+`PROVIDER_NAMES` renders a CHECK on three columns. Appending to it therefore
+changes the database and not just TypeScript: ship the additive (`pre`) migration
+widening the CHECK in the SAME commit as the tuple, or the first write naming the
+new provider fails in the routing path. Mercaria's `ALL_CURRENCY_CODES` rule,
+arrived at independently and for the same reason.
+
+### Which Mongoose validations became CHECKs, and which did not
+
+Three classes, decided once so each column does not get re-argued:
+
+- **A declared `enum`** → a CHECK, rendered from the tuple, subject to the
+  backfill audit above. Unless a third party owns the vocabulary.
+- **A declared `min`/`max` on a number** → a CHECK. These are domain invariants:
+  a `quality_score` outside 0..100 silently corrupts the ordering
+  `getNextProvider` depends on, and a negative `spent_usd` would defeat a spend
+  limit. `provider_keys.current_priority` is bounded 1..1000 while
+  `original_priority` is 1..100 — not a typo, and not to be unified: the first
+  absorbs the displacement `recordFailure` applies by setting it past the current
+  maximum, and one shared bound would make the demotion itself a violation.
+- **A declared `maxlength` on a string** → NOT ported. These shape INPUT at the
+  write path, where the request validators already sit; as CHECKs they would
+  enforce nothing anybody relies on and would fail a backfill on a legacy long
+  string. `text` throughout, as everywhere else in Oxy.
+
+Where Mongoose declared NOTHING, neither does this schema — `user_credits` has no
+non-negativity CHECK even though a negative balance is obviously wrong, because
+`addCredits` accepts a negative amount and production may already hold one. A
+CHECK there would fail in the deduction path. That is an audit item, not a
+constraint to add on the way past.
+
 ## Nested Mongoose sub-documents become COLUMNS, not `jsonb`
 
 `routing_logs` is the worked example: `classification` and `routedTo` were
@@ -75,24 +140,88 @@ a fixed, known shape this service owns, so `jsonb` would only hide them from a
 CHECK and from the planner.
 
 `jsonb` is reserved for values whose FORMAT belongs to somebody else, or which
-have no queryable identity. In this batch that is exactly one column:
-`fallback_events.attempts`, an ordered list read whole for display and never
-addressed independently. `provider_health.latency_samples` is `double
-precision[]` rather than `jsonb` for the same reason inverted — it is a bounded
-window of plain numbers, and an array stays summable in SQL.
+have no queryable identity. The register, kept current as batches land:
 
-## Foreign keys: not yet, and say why
+| Column | Why it earned `jsonb` |
+|---|---|
+| `fallback_events.attempts` | An ordered list read whole for display, addressed nowhere. |
+| `transactions.metadata` | Shaped by whichever call site wrote it, different per transaction type. |
 
-`api_usage.key_id` names a `provider_keys` row and carries **no** foreign key.
-That table lands in batch 3, and more importantly usage is an append-only audit
-of what a key DID — deleting a key must not delete the record that it was used,
-so the eventual constraint is `ON DELETE SET NULL` at most, never a cascade.
-Decide it when the providers batch lands, deliberately rather than by default.
+`provider_health.latency_samples` is `double precision[]` rather than `jsonb` for
+the same reason inverted — a bounded window of plain numbers, and an array stays
+summable in SQL.
+
+**`external_models`' eighteen benchmarks are COLUMNS, and the read path is the
+argument.** They looked like the strongest `jsonb` candidate in the batch: a
+sub-document of optional scores, published by a third party who will add a
+nineteenth. But `routes/external-models.ts` filters on four of them being
+non-null and sorts by two, so they have exactly the queryable identity `jsonb` is
+reserved for lacking. The cost is stated rather than hidden: a new upstream
+benchmark is an additive migration.
+
+### An ARRAY of sub-documents is a CHILD TABLE, not either of those
+
+`alia_models.providerMappings` was a Mongoose sub-document array and is now
+`alia_model_provider_mappings`. It looked identical in Mongo to
+`fallback_events.attempts` and is not the same thing: each element carries a
+REFERENCE to `model_configs` and a per-element `is_active` toggle, so `jsonb`
+would hide a foreign key inside an opaque value and leave "does this mapping
+point at a model that still exists" unanswerable in SQL.
+
+The test is not "is it an array" but **does an element have an identity of its
+own** — a reference, a toggle, an ordering that something filters on. Mongo could
+not express a unique index over a sub-document array at all, so
+`UNIQUE(alia_model_id, model_config_id)` is new: what kept it true before was
+only that the seed replaced the whole array with `$set`.
+
+## Foreign keys: per reference, and say why
 
 `oxy_user_id` and every other Oxy account id carry no foreign key anywhere: Oxy
 owns identity, this service reaches it over HTTP, and a shadow users table would
 be a cache that can disagree. See `lib/oxy-user-hydration.ts` for how one is
 resolved.
+
+**`api_usage.key_id` stays without one, and the providers batch is what settled
+it.** `provider_keys` now exists, so the question is no longer "is the target
+ported" but "what should a key's deletion do to the record that it was used" —
+and keys really are hard-deleted (`DELETE /keys/:id` →
+`ProviderKey.findByIdAndDelete`, `routes/keys.ts`). Every available answer is
+worse than none:
+
+- a cascade deletes the audit, which is the one thing the row exists for;
+- `ON DELETE SET NULL` is unrepresentable — the column is `notNull`, and making
+  it nullable to accommodate a delete erases the attribution that IS the content;
+- `RESTRICT` makes a key undeletable for 48 hours after any use, turning a
+  working admin operation into an error.
+
+So a dangling id, deliberately, bounded by the 48-hour sweep. Write the reason
+down rather than the absence: "no FK" and "nobody decided" look identical later.
+
+**Within a batch, a genuine relation gets a real constraint.** Both references on
+`plan_features` and both on `alia_model_provider_mappings` are foreign keys with
+`ON DELETE CASCADE`, because each child is meaningless without its parent and a
+survivor would be silently re-adopted by a re-created row of the same name.
+`alia_model_provider_mappings.model_config_id` is a deliberate behaviour CHANGE:
+Mongo left the sub-document behind when its `ModelConfig` was deleted, and
+`getNextProvider` would then hand the router a provider whose configuration no
+longer existed.
+
+**A foreign key must target `unique()`, never `uniqueIndex()`.** drizzle-kit
+emits every `ALTER TABLE … ADD CONSTRAINT … FOREIGN KEY` BEFORE every
+`CREATE UNIQUE INDEX`, whatever the source order — measured in `0003`, where the
+four FK statements are lines 339-342 and the first `CREATE UNIQUE INDEX` is 343.
+A FK pointing at a unique INDEX therefore generates cleanly and fails at APPLY
+time with `42830: there is no unique constraint matching given keys`. `unique()`
+is emitted inline inside `CREATE TABLE`, so it already exists. This is why
+`plans.plan_id` and `features.feature_id` — both FK targets, both business keys
+rather than surrogate ids — are the only two `unique()` declarations in the
+schema while everything else uses `uniqueIndex()`.
+
+Deferred, with the reason rather than by omission: `provider_keys.organization_id`
+(the `organizations` table is not ported), and `api_key_usage.api_key_id` /
+`app_id` (`developer_api_keys` and `developer_apps` are not ported, and both are
+genuinely optional — a session-authenticated call has neither, which is what
+`auth_type` records).
 
 ## TTL indexes do not survive the port — the registry is not optional
 
@@ -237,6 +366,92 @@ Received an instance of Date`. Bind an ISO string with an explicit cast instead 
 This is usually described as a range-constructor problem. It is not limited to
 one: it bit a plain parameter in `db.execute` in this package's own suite. `tsc`
 cannot see it, so only a real server catches it.
+
+## Money is `bigint` minor units; a RATE is `double precision`
+
+Two different things, and the split is not a judgement call:
+
+- **An amount somebody is charged** → `bigint({ mode: 'number' })`. Every price
+  in `billing.ts` is handed to Stripe as `unit_amount` or read back as
+  `amount_total`, both integer cents, so the Oxy convention applies unmodified.
+- **A derived per-token rate or an accumulated estimate of one** → `double
+  precision`, per `cost_entries.cost_usd`. `model_configs.pricing_cost_per_1m_*`
+  and `provider_keys.spent_usd` are that: fractions of a cent with no minor unit
+  to hold them, where rounding to cents at write time destroys the figure.
+
+`credits` is neither — a count, so `integer`.
+
+**The read side has a trap that `tsc` cannot see.** postgres.js decodes
+`bigint`/`int8` as a STRING. drizzle escapes that for a COLUMN via
+`mode: 'number'`, but an AGGREGATE has no column builder to carry the mode, so
+`sum()`/`max()` come back as strings while typing as numbers, and `max + 1` is
+string concatenation. Coerce explicitly at that boundary.
+
+A test that performs ONE aggregation cannot catch this — `max` over a single row
+plus one gives the same answer either way. `billing.pgdb.test.ts` does two
+sequential appends, which is what makes `"7" + "1" = "71"` distinguishable
+from `8`.
+
+## A credential at rest, and the projection rule that goes with it
+
+**`provider_keys.key` holds a PLAINTEXT provider API key.** Not a hash —
+`key_hash` is that, and `lib/key-manager.ts` reads the plaintext to sign the
+upstream call. It was at rest in Mongo and it is at rest here; the port neither
+introduced nor fixed that.
+
+Until a repository exists there is no mechanism to enforce, so the rule is
+written in the two places somebody will look — the column's own comment and here:
+
+- never `select()` this table whole. Name columns, and leave `key` out of every
+  projection but the one call that must sign a request;
+- it must never reach a log line, an error, a metric label or an admin response.
+  `key_prefix` exists for display and is the only identifier safe to show;
+- `key_hash` is NOT a safer alias. A hash of a credential is an exact-match
+  oracle, so it is equally protected.
+
+## `generatedId()` is wrong exactly once
+
+`user_credits.id` is an OXY ACCOUNT ID — Mongo declared `_id: { type: String }`
+and wrote the account id into it, so the table is keyed by the account rather
+than by a row identity. It is `text().primaryKey()` with **no default**: a uuid v7
+would quietly mint a row no lookup could ever find, and the failure would present
+as a missing balance rather than as a bad insert.
+
+Everywhere else `generatedId()` is right, because the backfill supplies the Mongo
+`_id` and the app mints uuid v7 for new rows in the same column.
+
+## Mongo's three write counts do not survive the port — decide per call site
+
+This is a DESTINATION note: no call site moved in the schema batches, and each
+one is a decision rather than a mechanical substitution. Mongo reports
+`matchedCount`, `modifiedCount` and `upsertedCount`; Postgres reports `rowCount`.
+
+- **`matchedCount` → `rowCount`.** Direct. A no-op update still reports
+  `UPDATE 1`, which is what `matchedCount` meant.
+- **`modifiedCount`** counts rows that actually CHANGED. It equals `rowCount`
+  only when the statement's own filter already excludes rows that would not
+  change — true of `resetAllKeyCooldowns` and `routes/keys.ts /reload`
+  (`cooldownUntil is not null OR consecutiveFailures > 0`, and every matched row
+  changes both) and of `resetAllCircuitBreakers`. It is NOT true of
+  `routes/providers.ts /health/reset-all`, whose filter is `{}`: an
+  already-healthy row is matched and not modified, so `rowCount` over-reports to
+  the admin panel and that one needs an `IS DISTINCT FROM` predicate. Adding such
+  a predicate where it is not needed is its own bug — it can turn a successful
+  repeat into a 404.
+- **`upsertedCount` is not recoverable from `rowCount`**, because
+  `INSERT … ON CONFLICT DO UPDATE` reports one row affected on both the creating
+  and the updating call. It needs `RETURNING (xmax = 0) AS inserted`.
+
+  **But most of this service's upserts do not need that.** Every `seed-*.ts`
+  upsert is `$setOnInsert`-only, which on an existing row is a genuine no-op, so
+  the port is `ON CONFLICT DO NOTHING` — where the empty `RETURNING` set IS the
+  answer and `rowCount` distinguishes created from skipped exactly. Only the
+  `$set` upserts need `xmax`: `scripts/sync-zeroeval.ts` and
+  `POST /plan-features/bulk`, which report both counts on one response.
+
+**A single call cannot tell any of these apart.** The discriminator is a REPEATED
+call, so a test that runs once proves nothing about which semantics it got.
+`providers.pgdb.test.ts` pins the `xmax` behaviour against a real server.
 
 ## Tests run against a REAL Postgres, in their own config
 

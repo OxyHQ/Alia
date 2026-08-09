@@ -11,10 +11,11 @@
  * no entry here. A hand-maintained list only ever falls as far behind as the
  * last time somebody remembered it.
  *
- * `packages/api` declares **14** TTL indexes in total. Four are ported in this
- * batch; the other ten belong to tables that do not exist in Postgres yet, and
- * the coverage test scopes itself to PORTED tables so it tightens automatically
- * as each batch lands rather than needing an allow-list to be pruned.
+ * `packages/api` declares **14** TTL indexes in total. Five were ported in the
+ * platform-telemetry batches and `api_key_usage` came with providers/billing;
+ * the rest belong to tables that do not exist in Postgres yet, and the coverage
+ * test scopes itself to PORTED tables so it tightens automatically as each batch
+ * lands rather than needing an allow-list to be pruned.
  *
  * ## The one that cannot be copied, and what to do about it
  *
@@ -38,7 +39,7 @@
  * ## Every entry is checked for INTENT, not just replicated
  *
  * A Mongo TTL index DELETES, unconditionally, once the deadline passes. None of
- * these four holds unprocessed work or history anyone reads afterwards:
+ * these holds unprocessed work or history anyone reads afterwards:
  *
  *  - `auth_health_metrics` are hourly counters; the health summary reads a
  *    rolling window far shorter than 7 days.
@@ -51,7 +52,13 @@
 
 import type { ExpirySweepTarget } from '@oxyhq/db/expiry';
 import { cacheEntries } from './schema/cache';
-import { apiUsage, authHealthMetrics, fallbackEvents, routingLogs } from './schema/telemetry';
+import {
+  apiKeyUsage,
+  apiUsage,
+  authHealthMetrics,
+  fallbackEvents,
+  routingLogs,
+} from './schema/telemetry';
 
 const DAY = 24 * 60 * 60;
 
@@ -91,5 +98,17 @@ export const EXPIRY_TARGETS: readonly ExpirySweepTarget[] = [
     column: cacheEntries.expiresAt,
     retentionSeconds: 0,
     reason: 'An expired cache entry is unservable by definition; the read filters on expires_at too.',
+  },
+  {
+    table: apiKeyUsage,
+    /**
+     * `timestamp`, NOT a `created_at` — this table has none. Its Mongoose schema
+     * sets `timestamps: false`, so the event time is the only clock it carries
+     * and the sweep measures from the same column the TTL index did.
+     */
+    column: apiKeyUsage.timestamp,
+    retentionSeconds: 90 * DAY,
+    reason:
+      'Developer API request records. The longest retention here on purpose: the billing and rate-limit reads work in monthly windows, so a shorter sweep would delete the period being measured.',
   },
 ];

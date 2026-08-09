@@ -6,6 +6,13 @@
 
 import mongoose, { Document, Schema } from 'mongoose';
 
+/**
+ * Whether a feature is a yes/no entitlement or a numeric allowance. A `limit`
+ * feature is the only kind for which `PlanFeature.limitValue` is meaningful.
+ */
+export const FEATURE_TYPES = ['boolean', 'limit'] as const;
+export type FeatureType = (typeof FEATURE_TYPES)[number];
+
 export interface IFeature extends Document {
   featureId: string;
   label: string;
@@ -46,7 +53,7 @@ const FeatureSchema = new Schema<IFeature>(
     featureType: {
       type: String,
       required: true,
-      enum: ['boolean', 'limit'],
+      enum: [...FEATURE_TYPES],
       default: 'boolean',
     },
     sortOrder: {

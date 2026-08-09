@@ -1,5 +1,13 @@
 import mongoose, { Schema, Document } from 'mongoose';
 
+/** How the caller authenticated. Drives which rate-limit budget the call spends. */
+export const API_KEY_USAGE_AUTH_TYPES = ['api_key', 'session', 'internal'] as const;
+export type ApiKeyUsageAuthType = (typeof API_KEY_USAGE_AUTH_TYPES)[number];
+
+/** The HTTP methods this API exposes. */
+export const API_KEY_USAGE_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'] as const;
+export type ApiKeyUsageMethod = (typeof API_KEY_USAGE_METHODS)[number];
+
 export interface IApiKeyUsage extends Document {
   apiKeyId?: mongoose.Types.ObjectId;  // Optional: null for session-based auth
   oxyUserId: string;
@@ -34,7 +42,7 @@ const ApiKeyUsageSchema = new Schema<IApiKeyUsage>(
     },
     authType: {
       type: String,
-      enum: ['api_key', 'session', 'internal'],
+      enum: [...API_KEY_USAGE_AUTH_TYPES],
       default: 'api_key',
     },
     serviceApp: {
@@ -47,7 +55,7 @@ const ApiKeyUsageSchema = new Schema<IApiKeyUsage>(
     method: {
       type: String,
       required: true,
-      enum: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
+      enum: [...API_KEY_USAGE_METHODS],
     },
     statusCode: {
       type: Number,
