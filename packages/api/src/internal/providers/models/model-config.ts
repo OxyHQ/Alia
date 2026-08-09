@@ -1,5 +1,10 @@
 import mongoose, { Document, Schema } from 'mongoose';
+import { ALIA_TIERS } from '../lib/alia-tiers.js';
 import { PROVIDER_NAMES } from '../lib/provider-names.js';
+
+/** Commercial tier of a provider model's published pricing. */
+export const MODEL_PRICING_TIERS = ['free', 'freemium', 'paid'] as const;
+export type ModelPricingTier = (typeof MODEL_PRICING_TIERS)[number];
 
 export interface IModelCapabilities {
   vision: boolean;
@@ -93,21 +98,7 @@ const ModelConfigSchema = new Schema<IModelConfig>(
     },
     aliaTier: {
       type: String,
-      enum: [
-        'lite',
-        'v1',
-        'v1-codea',
-        'v1-cowork',
-        'v1-browser',
-        'v1-vision',
-        'v1-audio',
-        'v1-tts',
-        'v1-multimodal',
-        'v1-pro',
-        'v1-pro-max',
-        'v1-voice',
-        'v1-voice-pro',
-      ],
+      enum: [...ALIA_TIERS],
       index: true,
     },
     priority: {
@@ -142,7 +133,7 @@ const ModelConfigSchema = new Schema<IModelConfig>(
       tier: {
         type: String,
         required: true,
-        enum: ['free', 'freemium', 'paid'],
+        enum: [...MODEL_PRICING_TIERS],
       },
       costPer1MInput: { type: Number, required: true },
       costPer1MOutput: { type: Number, required: true },

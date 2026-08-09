@@ -5,6 +5,14 @@
 
 import mongoose, { Document, Schema } from 'mongoose';
 
+/** The product a plan sells. `Subscription.plan.product` is the same vocabulary. */
+export const PLAN_PRODUCTS = ['alia', 'codea'] as const;
+export type PlanProduct = (typeof PLAN_PRODUCTS)[number];
+
+/** How a plan is billed. `Subscription.billingPeriod` is the same vocabulary. */
+export const BILLING_PERIODS = ['monthly', 'annual'] as const;
+export type BillingPeriod = (typeof BILLING_PERIODS)[number];
+
 export interface IPlan extends Document {
   planId: string;
   name: string;
@@ -57,7 +65,7 @@ const PlanSchema = new Schema<IPlan>(
     product: {
       type: String,
       required: true,
-      enum: ['alia', 'codea'],
+      enum: [...PLAN_PRODUCTS],
     },
     creditsPerMonth: {
       type: Number,
