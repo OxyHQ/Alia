@@ -4,8 +4,10 @@
  * table missing from here exists in TypeScript and in no migration.
  */
 
+export * from './billing';
 export * from './cache';
 export * from './leases';
 export * from './moderation';
+export * from './providers';
 export * from './telemetry';
 export * from './usage';

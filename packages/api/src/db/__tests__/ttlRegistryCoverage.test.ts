@@ -130,6 +130,7 @@ function portedTables(): Map<string, PgTable> {
 const MONGO_MODEL_TO_TABLE: Readonly<Record<string, string>> = {
   AuthHealthMetric: 'auth_health_metrics',
   ApiUsage: 'api_usage',
+  ApiKeyUsage: 'api_key_usage',
   FallbackEvent: 'fallback_events',
   RoutingLog: 'routing_logs',
   CacheEntry: 'cache_entries',

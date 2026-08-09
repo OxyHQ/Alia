@@ -3,6 +3,22 @@ import crypto from 'crypto';
 import { log } from '../../../lib/logger.js';
 import { PROVIDER_NAMES } from '../lib/provider-names.js';
 
+/** Which deployment a key belongs to. */
+export const PROVIDER_KEY_ENVIRONMENTS = ['production', 'staging', 'development'] as const;
+export type ProviderKeyEnvironment = (typeof PROVIDER_KEY_ENVIRONMENTS)[number];
+
+/**
+ * The commercial tier of the ACCOUNT the key belongs to. Deliberately NOT
+ * `MODEL_PRICING_TIERS`: this one carries `enterprise` and that one does not, so
+ * a single shared tuple would silently widen one of the two.
+ */
+export const PROVIDER_KEY_TIERS = ['free', 'freemium', 'paid', 'enterprise'] as const;
+export type ProviderKeyTier = (typeof PROVIDER_KEY_TIERS)[number];
+
+/** How often the key is expected to be rotated. */
+export const PROVIDER_KEY_ROTATION_SCHEDULES = ['manual', 'monthly', 'quarterly', 'yearly'] as const;
+export type ProviderKeyRotationSchedule = (typeof PROVIDER_KEY_ROTATION_SCHEDULES)[number];
+
 export interface IRateLimit {
   rps?: number;  // Requests per second
   rpm?: number;  // Requests per minute
@@ -99,7 +115,7 @@ const ProviderKeySchema = new Schema<IProviderKey>(
     environment: {
       type: String,
       required: true,
-      enum: ['production', 'staging', 'development'],
+      enum: [...PROVIDER_KEY_ENVIRONMENTS],
       default: 'production',
       index: true,
     },
@@ -138,7 +154,7 @@ const ProviderKeySchema = new Schema<IProviderKey>(
     },
     tier: {
       type: String,
-      enum: ['free', 'freemium', 'paid', 'enterprise'],
+      enum: [...PROVIDER_KEY_TIERS],
       default: 'free',
     },
     currentPriority: {
@@ -229,7 +245,7 @@ const ProviderKeySchema = new Schema<IProviderKey>(
     },
     rotationSchedule: {
       type: String,
-      enum: ['manual', 'monthly', 'quarterly', 'yearly'],
+      enum: [...PROVIDER_KEY_ROTATION_SCHEDULES],
       default: 'manual',
     },
     ownerId: {

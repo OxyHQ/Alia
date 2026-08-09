@@ -1,5 +1,13 @@
 import mongoose, { Schema, Model, Document } from 'mongoose';
 
+/** What the money was for. Alia's own vocabulary, not a payment provider's. */
+export const TRANSACTION_TYPES = ['credit_purchase', 'subscription_payment', 'refund'] as const;
+export type TransactionType = (typeof TRANSACTION_TYPES)[number];
+
+/** Where the transaction got to. Alia's own vocabulary, not a payment provider's. */
+export const TRANSACTION_STATUSES = ['pending', 'completed', 'failed', 'refunded'] as const;
+export type TransactionStatus = (typeof TRANSACTION_STATUSES)[number];
+
 export interface ITransaction extends Document {
   oxyUserId: string;
   stripeCustomerId?: string;
@@ -30,7 +38,7 @@ const TransactionSchema = new Schema<ITransaction>({
   },
   type: {
     type: String,
-    enum: ['credit_purchase', 'subscription_payment', 'refund'],
+    enum: [...TRANSACTION_TYPES],
     required: true,
   },
   amount: {
@@ -47,7 +55,7 @@ const TransactionSchema = new Schema<ITransaction>({
   },
   status: {
     type: String,
-    enum: ['pending', 'completed', 'failed', 'refunded'],
+    enum: [...TRANSACTION_STATUSES],
     default: 'pending',
   },
   description: {

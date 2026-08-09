@@ -1,4 +1,5 @@
 import mongoose, { Document, Schema } from 'mongoose';
+import { ALIA_TIERS } from '../lib/alia-tiers.js';
 
 /**
  * AliaModel - Virtual Alia models (alia-v1, alia-lite, etc.)
@@ -112,21 +113,7 @@ const AliaModelSchema = new Schema<IAliaModel>(
     tier: {
       type: String,
       required: true,
-      enum: [
-        'lite',
-        'v1',
-        'v1-codea',
-        'v1-cowork',
-        'v1-browser',
-        'v1-vision',
-        'v1-audio',
-        'v1-tts',
-        'v1-multimodal',
-        'v1-pro',
-        'v1-pro-max',
-        'v1-voice',
-        'v1-voice-pro',
-      ],
+      enum: [...ALIA_TIERS],
       index: true,
     },
     description: {
