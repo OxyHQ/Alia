@@ -5,6 +5,7 @@ import { sweepAllExpiredRows } from '@oxyhq/db/expiry';
 import { closePostgres, connectPostgres, type ApiDatabase } from '../index';
 import { EXPIRY_TARGETS } from '../expiryTargets';
 import { apiUsage, authHealthMetrics, providerHealth, routingLogs } from '../schema/telemetry';
+import { cacheEntries, cacheStats, CACHE_STATS_SINGLETON_ID } from '../schema/cache';
 import { leases } from '../schema/leases';
 
 /**
@@ -200,5 +201,94 @@ describe('the expiry sweep actually deletes, and only what is expired', () => {
     // The 48h retention is measured from `timestamp`: the 3-day-old row goes,
     // today's stays. A sweep that took both would look identical in the count.
     expect(survivors.map((r) => r.id)).toEqual(['sweep-fresh']);
+  });
+});
+
+describe('cache_stats is a singleton by CONSTRUCTION, not by convention', () => {
+  it('accepts the one row it is allowed', async () => {
+    await db.execute(sql`insert into ${cacheStats} (id) values (${CACHE_STATS_SINGLETON_ID})`);
+    const rows = await db.execute<{ id: string }>(sql`select id from ${cacheStats}`);
+    expect(rows.map((r) => r.id)).toEqual([CACHE_STATS_SINGLETON_ID]);
+  });
+
+  it('refuses a second row under any other id', async () => {
+    // Mongo enforced this by everybody defaulting `_id` to the same string — a
+    // convention, so a stray insert would have split the counters in two and
+    // left every read showing whichever half it found.
+    const stray = db.execute(sql`insert into ${cacheStats} (id) values ('shard-2')`);
+
+    await expect(stray).rejects.toSatisfy((error: unknown) => {
+      expect(constraintNameOf(error)).toBe('cache_stats_singleton_check');
+      return true;
+    });
+  });
+});
+
+describe('a bigint counter reaches JavaScript as a STRING', () => {
+  it('needs TWO increments to tell numeric addition from concatenation', async () => {
+    /**
+     * postgres.js decodes `int8` as a string and drizzle types it as `number`,
+     * so `total + 1` type-checks clean and is string concatenation. A test that
+     * increments ONCE cannot catch it: "7" + 1 and 7 + 1 both look plausible in
+     * isolation. The second increment is the first one with something to
+     * concatenate onto — 7 -> 71 -> 711 rather than 7 -> 8 -> 9.
+     */
+    await db.execute(sql`
+      insert into ${cacheStats} (id, total_hits) values ('global', 7)
+      on conflict (id) do update set total_hits = 7
+    `);
+
+    for (let i = 0; i < 2; i += 1) {
+      const [row] = await db.execute<{ total_hits: string | number }>(
+        sql`select total_hits from ${cacheStats} where id = 'global'`,
+      );
+      // Number() at the boundary is the fix; without it this writes '71' then '711'.
+      const next = Number(row?.total_hits ?? 0) + 1;
+      await db.execute(sql`update ${cacheStats} set total_hits = ${next} where id = 'global'`);
+    }
+
+    const [final] = await db.execute<{ total_hits: string | number }>(
+      sql`select total_hits from ${cacheStats} where id = 'global'`,
+    );
+    expect(Number(final?.total_hits)).toBe(9);
+  });
+});
+
+describe('an expires_at deadline is retention ZERO, not a duration', () => {
+  it('sweeps an entry whose own deadline has passed and keeps one that has not', async () => {
+    const target = EXPIRY_TARGETS.find((t) => t.table === cacheEntries);
+    if (!target) throw new Error('cache_entries has no expiry target; expiryTargets.ts changed');
+    // The whole point: the column IS the deadline. A duration measured from it
+    // would keep every entry for that duration PAST its own expiry.
+    expect(target.retentionSeconds).toBe(0);
+
+    await db.execute(sql`
+      insert into ${cacheEntries} (id, key, prompt_hash, model, messages, response, expires_at) values
+        ('c-expired', 'k1', 'h', 'm', '[]'::jsonb, '{}'::jsonb, now() - interval '1 minute'),
+        ('c-live',    'k2', 'h', 'm', '[]'::jsonb, '{}'::jsonb, now() + interval '1 hour')
+    `);
+
+    await sweepAllExpiredRows(db, [target]);
+
+    const survivors = await db.execute<{ id: string }>(
+      sql`select id from ${cacheEntries} where id like 'c-%'`,
+    );
+    expect(survivors.map((r) => r.id)).toEqual(['c-live']);
+  });
+
+  it('refuses a duplicate cache key, which is what makes it a cache', async () => {
+    await db.execute(sql`
+      insert into ${cacheEntries} (id, key, prompt_hash, model, messages, response, expires_at)
+      values ('dup-1', 'same-key', 'h', 'm', '[]'::jsonb, '{}'::jsonb, now() + interval '1 hour')
+    `);
+    const duplicate = db.execute(sql`
+      insert into ${cacheEntries} (id, key, prompt_hash, model, messages, response, expires_at)
+      values ('dup-2', 'same-key', 'h', 'm', '[]'::jsonb, '{}'::jsonb, now() + interval '1 hour')
+    `);
+
+    await expect(duplicate).rejects.toSatisfy((error: unknown) => {
+      expect(constraintNameOf(error)).toBe('cache_entries_key_key');
+      return true;
+    });
   });
 });

@@ -50,6 +50,7 @@
  */
 
 import type { ExpirySweepTarget } from '@oxyhq/db/expiry';
+import { cacheEntries } from './schema/cache';
 import { apiUsage, authHealthMetrics, fallbackEvents, routingLogs } from './schema/telemetry';
 
 const DAY = 24 * 60 * 60;
@@ -78,5 +79,17 @@ export const EXPIRY_TARGETS: readonly ExpirySweepTarget[] = [
     column: routingLogs.createdAt,
     retentionSeconds: 90 * DAY,
     reason: 'Routing diagnostics; readers filter by their own range.',
+  },
+  {
+    table: cacheEntries,
+    /**
+     * `expires_at` is the DEADLINE, not a birth timestamp, so the retention is
+     * ZERO — delete once the column is in the past. Mongo spelled the same thing
+     * `expireAfterSeconds: 0`. Measuring a duration from this column instead
+     * would keep every entry for that duration PAST its own expiry.
+     */
+    column: cacheEntries.expiresAt,
+    retentionSeconds: 0,
+    reason: 'An expired cache entry is unservable by definition; the read filters on expires_at too.',
   },
 ];
