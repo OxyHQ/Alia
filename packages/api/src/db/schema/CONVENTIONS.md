@@ -426,6 +426,10 @@ This is a DESTINATION note: no call site moved in the schema batches, and each
 one is a decision rather than a mechanical substitution. Mongo reports
 `matchedCount`, `modifiedCount` and `upsertedCount`; Postgres reports `rowCount`.
 
+**Fourteen sites in the providers/billing domain needed FOUR different answers.**
+That number is the argument: any rule simple enough to apply mechanically is
+wrong on most of them.
+
 - **`matchedCount` → `rowCount`.** Direct. A no-op update still reports
   `UPDATE 1`, which is what `matchedCount` meant.
 - **`modifiedCount`** counts rows that actually CHANGED. It equals `rowCount`
@@ -452,6 +456,34 @@ one is a decision rather than a mechanical substitution. Mongo reports
 **A single call cannot tell any of these apart.** The discriminator is a REPEATED
 call, so a test that runs once proves nothing about which semantics it got.
 `providers.pgdb.test.ts` pins the `xmax` behaviour against a real server.
+
+### How to census these, and what the census misses
+
+The batch-3 census was handed over with thirteen sites and there are fourteen:
+`scripts/sync-zeroeval.ts:116` reads BOTH counts off one `bulkWrite` against
+`ExternalModel`. It was missed because it sits in `scripts/` rather than beside
+the domain, which is exactly the "finding less looks identical to there being
+less" failure — so state the method, not just the result.
+
+The method is two halves, and only the first is a grep:
+
+1. **Enumerate** every write-result property name across the WHOLE package, with
+   no directory scoping: `matchedCount`, `modifiedCount`, `upsertedCount`,
+   `upsertedId(s)`, `insertedCount`, `deletedCount`, `nModified`, `nUpserted`,
+   `nInserted`. Scoping to the domain's own directories is what lost the
+   fourteenth.
+2. **Attribute** each site to the model it writes, and account for the RESIDUAL —
+   every site the domain does not claim has to be explained, not ignored.
+
+Both halves were re-run after the batch landed. The wider name list adds nothing:
+only `modifiedCount` (20), `deletedCount` (18), `upsertedCount` (8),
+`matchedCount` (8) and `acknowledged` (5, not a count) appear at all, so there is
+no fifteenth site hiding behind a name the first pass omitted. Attribution
+produced three FALSE positives — `lib/notification-service.ts` and
+`routes/notifications.ts` import `WebPushSubscription`, not the billing
+`Subscription`; `routes/skills.ts` imports `getDefaultAliaModel`, a function, not
+`AliaModel` — each resolved by reading the file. False positives are the safe
+direction; the residual is what makes a false NEGATIVE visible.
 
 ## Tests run against a REAL Postgres, in their own config
 
