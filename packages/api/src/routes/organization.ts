@@ -9,6 +9,7 @@ import { OrganizationAgent } from '../models/organization-agent';
 import { OrganizationInvite } from '../models/organization-invite';
 import { Agent } from '../models/agent';
 import { uploadToS3, deleteFromS3 } from '../lib/s3';
+import { hydrateOxyUsers } from '../lib/oxy-user-hydration.js';
 import { z } from 'zod';
 import { log } from '../lib/logger.js';
 
@@ -224,10 +225,10 @@ router.get('/:id', async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Organization not found' });
     }
 
-    // Fetch members with populated user data
-    const members = await OrganizationMember.find({ organizationId: id })
-      .populate('oxyUserId', 'email username name image')
-      .sort({ createdAt: -1 });
+    // `oxyUserId` names an Oxy account, not a local document — see
+    // lib/oxy-user-hydration.ts. One batch call for the whole membership.
+    const members = await OrganizationMember.find({ organizationId: id }).sort({ createdAt: -1 });
+    const profiles = await hydrateOxyUsers(members.map((m) => m.oxyUserId?.toString()));
 
     res.json({
       organization: {
@@ -235,7 +236,7 @@ router.get('/:id', async (req: Request, res: Response) => {
         role: membership.role,
         members: members.map((m) => ({
           _id: m._id,
-          oxyUserId: m.oxyUserId,
+          oxyUserId: profiles.get(m.oxyUserId?.toString() ?? '') ?? m.oxyUserId,
           role: m.role,
           permissions: m.permissions,
           createdAt: m.createdAt,
@@ -433,9 +434,15 @@ router.get('/:id/members', async (req: Request, res: Response) => {
       return res.status(403).json({ error: 'Not a member of this organization' });
     }
 
-    const members = await OrganizationMember.find({ organizationId: id })
-      .populate('oxyUserId', 'email username name image')
-      .sort({ createdAt: -1 });
+    // See lib/oxy-user-hydration.ts — `oxyUserId` names an Oxy account.
+    const rows = await OrganizationMember.find({ organizationId: id })
+      .sort({ createdAt: -1 })
+      .lean();
+    const profiles = await hydrateOxyUsers(rows.map((m) => m.oxyUserId?.toString()));
+    const members = rows.map((m) => ({
+      ...m,
+      oxyUserId: profiles.get(m.oxyUserId?.toString() ?? '') ?? m.oxyUserId,
+    }));
 
     res.json({ members });
   } catch (error: unknown) {
