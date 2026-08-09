@@ -3,6 +3,7 @@ import { Agent } from '../../models/agent.js';
 import { AgentReview } from '../../models/agent-review.js';
 import { authenticateToken, optionalAuth } from '../../middleware/auth.js';
 import { recalculateAgentRating, VISIBLE_REVIEW_MATCH } from '../../lib/agent-rating.js';
+import { hydrateOxyUsers } from '../../lib/oxy-user-hydration.js';
 import { log } from '../../lib/logger.js';
 import type { Request, Response } from 'express';
 
@@ -15,15 +16,22 @@ router.get('/:id/reviews', optionalAuth, async (req: Request, res: Response) => 
     const pageNum = Math.max(1, parseInt(page as string, 10));
     const limitNum = Math.min(50, Math.max(1, parseInt(limit as string, 10)));
 
-    const reviews = await AgentReview.find({
+    const rows = await AgentReview.find({
       agentId: req.params.id,
       ...VISIBLE_REVIEW_MATCH,
     })
       .sort({ createdAt: -1 })
       .skip((pageNum - 1) * limitNum)
       .limit(limitNum)
-      .populate('userId', 'username avatar')
       .lean();
+
+    // `userId` names an Oxy account, not a local document — see
+    // lib/oxy-user-hydration.ts. One batch call for the whole page.
+    const authors = await hydrateOxyUsers(rows.map((row) => row.userId?.toString()));
+    const reviews = rows.map((row) => ({
+      ...row,
+      userId: authors.get(row.userId?.toString() ?? '') ?? row.userId,
+    }));
 
     const total = await AgentReview.countDocuments({
       agentId: req.params.id,
