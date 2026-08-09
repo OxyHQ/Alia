@@ -179,7 +179,30 @@ Any code reading "no lease row" as "no leader has ever run" keeps working, but
 the two states are no longer distinguishable by the container's existence — only
 by its contents. This generalises to every ported collection: **absence of a
 table stops being a signal.** Anything that inferred something from a collection
-not existing has to infer it from a row count instead.
+not existing has to infer it from a row count instead — and it fails in the
+PERMISSIVE direction, because the code takes the branch for "it exists" against a
+table holding nothing.
+
+### The scan was run, and `packages/api` is clean
+
+Whole-repo, over `git ls-files`, before batch 3:
+
+- `listCollections`, `collectionNames`, `db.collections()`, `.collectionName` — **none**
+- `createCollection`, create-on-demand bootstrap — **none** (the two `.init()`
+  hits are Stagehand browser sessions)
+- `NamespaceNotFound` / error code 26 handling — **none**
+- `countDocuments()` — three, and none is an existence inference:
+  `intelligent-cache.ts:289,345` size a cache for eviction, and
+  `trigger-engine.ts:615` is `.countDocuments().catch(() => 0)` on the legacy
+  `automations` collection — inside `migrateLegacyAutomations()`, which is
+  retired at cutover along with the collection.
+
+`leader-election.ts` reads `doc?.holderId === instanceId`, which is row CONTENT,
+not container existence — so the one table whose collection genuinely does not
+exist in production needs no change.
+
+Re-run this scan per domain rather than trusting this paragraph: it is a fact
+about the code as of batch 2, and a new reader can be added at any time.
 
 ## Name the source database as a LITERAL, never derive it
 
