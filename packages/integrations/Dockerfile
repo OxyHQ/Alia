@@ -29,6 +29,7 @@ COPY packages/integrations/package.json ./packages/integrations/
 COPY packages/alia-console/package.json ./packages/alia-console/
 COPY packages/alia-gateway-admin/package.json ./packages/alia-gateway-admin/
 COPY packages/alia-codea/package.json ./packages/alia-codea/
+COPY packages/alia-codea/webview-ui/package.json ./packages/alia-codea/webview-ui/
 COPY packages/alia-cowork/package.json ./packages/alia-cowork/
 COPY packages/alia-codea-cli/package.json ./packages/alia-codea-cli/
 COPY packages/shared-types/package.json ./packages/shared-types/
@@ -102,6 +103,7 @@ COPY packages/integrations/package.json ./packages/integrations/
 COPY packages/alia-console/package.json ./packages/alia-console/
 COPY packages/alia-gateway-admin/package.json ./packages/alia-gateway-admin/
 COPY packages/alia-codea/package.json ./packages/alia-codea/
+COPY packages/alia-codea/webview-ui/package.json ./packages/alia-codea/webview-ui/
 COPY packages/alia-cowork/package.json ./packages/alia-cowork/
 COPY packages/alia-codea-cli/package.json ./packages/alia-codea-cli/
 COPY packages/shared-types/package.json ./packages/shared-types/
