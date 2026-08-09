@@ -122,6 +122,77 @@ by a CHECK), which is also more correct than the original: Mongo measured from
 one dismissed on day 1 survived another 89. Mercaria's
 `packages/backend/src/db/expiryTargets.ts` is the reference implementation.
 
+## The three unmodelled collections: one is ported, two are RETIRED
+
+A Mongoose-model census cannot see a collection reached through
+`mongoose.connection.collection(...)`. There are three, and they do not get the
+same answer — stating that here rather than at batch 10, because the decision is
+cheap now and expensive once sixty tables have landed around it.
+
+| Collection | Reached from | Decision |
+|---|---|---|
+| `leases` | `lib/leader-election.ts` | **PORTED** (batch 0) |
+| `_migrations` | `lib/migrations/runner.ts` | **RETIRED** |
+| `_migration_lock` | `lib/migrations/runner.ts` | **RETIRED** |
+
+`leases` is live coordination state: the trigger engine elects one leader across
+several ECS tasks, and losing it means two tasks running every schedule.
+
+### Two migration ledgers must not both survive the cutover
+
+`_migrations` and `_migration_lock` belong to this service's own **Mongo data**
+migration runner (`runPendingMigrations()`, called fire-and-forget from
+`index.ts`). `@oxyhq/db` brings a **Postgres DDL** ledger with `pre`/`post`
+phases. They are different things that would look like the same thing:
+
+- Alia's runner records which one-off **document restructurings** were applied to
+  Mongo. Its whole subject matter is a store that ceases to exist.
+- `@oxyhq/db`'s ledger records which **SQL files** were applied to Postgres.
+
+Porting `_migrations` would carry a ledger asserting that migrations ran against
+a database they were never applied to — worse than dropping it, because it reads
+as history. So at cutover the runner, its migration directory, and the
+`runPendingMigrations()` call in `index.ts` are all **deleted**, and Postgres has
+exactly one ledger.
+
+**The consequence that must not be lost with them.** There is exactly one
+registered migration, `001-restructure-memories-title-summary-type`, and
+`_migrations` holds exactly one document in production — so **001 has been
+applied**. It rewrote `UserMemory.memories` from `key`/`value`/`category` to
+`title`/`summary`/`type` and gave every user document a `settings` object.
+
+So the ported `user_memories` schema (batch 8) is written to the POST-001 shape
+and to that shape ONLY — there is no `key` or `category` column, and none should
+be added for compatibility. But "001 has been applied" is a fact with a date on
+it, and the backfill must **assert** it rather than inherit this sentence: check
+for the `_migrations` record, and refuse any source row still carrying the legacy
+keys. Same rule as the enum audit — an audit whose result can expire between
+running it and using it is not a gate.
+
+## A Mongo collection springs into existence; a Postgres table does not
+
+`leases` does not appear in the production collection listing at all, because
+leader election has never acquired and Mongo creates a collection on first write.
+After the port the table exists from migration 0000 onward and is simply empty.
+
+Any code reading "no lease row" as "no leader has ever run" keeps working, but
+the two states are no longer distinguishable by the container's existence — only
+by its contents. This generalises to every ported collection: **absence of a
+table stops being a signal.** Anything that inferred something from a collection
+not existing has to infer it from a row count instead.
+
+## Name the source database as a LITERAL, never derive it
+
+`alia-development` (41 collections, 654 documents) lives on the **same Mongo
+host** as `alia-production`, and `integrations-production` beside them. So a
+backfill that derives its source from `NODE_ENV`, a service name, or any pattern
+can point at a seeded development copy and report a successful run.
+
+State the database name as a literal, and assert `db.databaseName` matches it
+before reading a byte. The same applies on the Postgres side, which is what
+`--target-database` already enforces for migrations — this is the read half of
+the same rule.
+
 ## The clock in a lease is the SERVER's
 
 `leases` is acquired and renewed by ONE conditional statement comparing against
