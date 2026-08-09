@@ -23,7 +23,7 @@ declare global {
  * hash of the request body — not just `{ timestamp, service }`. Without these in
  * the signed material, a captured signature could be replayed against any other
  * endpoint within the timestamp window. Signer and verifier MUST build this
- * string identically (mirrors alia-gateway's middleware).
+ * string identically.
  */
 export function buildServiceSigningString(parts: {
   timestamp: string;
