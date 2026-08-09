@@ -1,0 +1,37 @@
+# Local Postgres for the packages/api test suite.
+#
+# Plain `postgres:17-alpine`: this schema needs no PostGIS, no pgvector and no
+# pg_trgm. The memory-vector search this service does is cosine similarity
+# computed in JavaScript over a `double precision[]`, so an extension would buy
+# nothing and would cost a privileged prerequisite on the shared instance.
+#
+# Port 5440, not 5432: a system Postgres owns that, and 5433-5439 are already
+# claimed by sibling Oxy services' compose files on a shared dev machine —
+# including 5437, which `packages/integrations/docker-compose.postgres.yml`
+# asks for. CI uses a service container rather than this file, so a collision
+# here only ever costs a developer their afternoon, which is reason enough to
+# pick a port nothing else wants.
+#
+#   docker compose -f docker-compose.postgres.yml up -d
+#   TEST_DATABASE_URL=postgres://alia:alia@127.0.0.1:5440/postgres bun run test:pg
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: alia-api-postgres
+    environment:
+      POSTGRES_USER: alia
+      POSTGRES_PASSWORD: alia
+      # The suite creates its own throwaway database per run; this is only the
+      # maintenance database it connects to in order to do that.
+      POSTGRES_DB: postgres
+    ports:
+      - '5440:5432'
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U alia -d postgres']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    tmpfs:
+      # Throwaway by design — no volume, so a stale local database cannot
+      # silently outlive the schema that created it.
+      - /var/lib/postgresql/data
