@@ -82,18 +82,40 @@ describe('the dedup key is the double-credit guard, and it survived the port', (
     });
   });
 
-  it('lets any number of transactions carry no dedup key at all', async () => {
-    // A one-off credit purchase has no renewal to deduplicate. Mongo's `sparse`
-    // exempted a MISSING field; a null `metadata->>'dedup'` is the equivalent,
-    // and Postgres treats nulls as distinct in a unique index.
+  it('lets any number of transactions carry no dedup key, in all THREE absent shapes', async () => {
+    /**
+     * A one-off credit purchase has no renewal to deduplicate, so "absent" has
+     * to stay unconstrained — and it arrives in three different shapes that a
+     * unique index could plausibly treat differently.
+     *
+     * The third is the one worth a fixture. Mongo's `sparse: true` exempted a
+     * MISSING field but still INDEXED a stored null, so a writer that `$set` the
+     * path to null rather than omitting it collided on the second row — a real
+     * trap, in Mongo. It does not carry over: `'{"dedup":null}'::jsonb ->>
+     * 'dedup'` is SQL NULL, and a Postgres unique index is NULLS DISTINCT by
+     * default, so every one of these is permitted.
+     *
+     * Without a fixture in the explicit-null shape, this test could not tell a
+     * plain unique index from a partial `WHERE dedup_key IS NOT NULL` one — the
+     * two are equivalent here, and that equivalence is the thing being asserted.
+     */
     await db.insert(transactions).values(transactionValues({ id: 'txn-nodedup-1', metadata: { note: 'a' } }));
     await db.insert(transactions).values(transactionValues({ id: 'txn-nodedup-2', metadata: { note: 'b' } }));
     await db.insert(transactions).values(transactionValues({ id: 'txn-nodedup-3', metadata: null }));
+    await db.insert(transactions).values(transactionValues({ id: 'txn-nodedup-4', metadata: { dedup: null } }));
+    await db.insert(transactions).values(transactionValues({ id: 'txn-nodedup-5', metadata: { dedup: null } }));
 
     const rows = await db.execute<{ n: string }>(
       sql`select count(*)::text as n from ${transactions} where id like 'txn-nodedup-%'`,
     );
-    expect(rows[0]?.n).toBe('3');
+    expect(rows[0]?.n).toBe('5');
+
+    const [explicitNull] = await db
+      .select({ dedupKey: transactions.dedupKey })
+      .from(transactions)
+      .where(eq(transactions.id, 'txn-nodedup-4'));
+    // A JSON null reaches SQL as a NULL, which is why it does not collide.
+    expect(explicitNull?.dedupKey).toBeNull();
   });
 });
 
