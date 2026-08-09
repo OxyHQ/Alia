@@ -78,7 +78,6 @@ Thirteen workspaces, not the usual three. Everything lives under `packages/`.
 | Path | Package | Stack |
 |---|---|---|
 | [`packages/api`](packages/api/) | `@alia/api` | Express, Mongoose |
-| [`packages/alia-gateway`](packages/alia-gateway/) | `@alia/gateway` | Express, Mongoose |
 | [`packages/integrations`](packages/integrations/) | `@alia/integrations` | Express, Mongoose |
 | [`packages/alia-docker-host`](packages/alia-docker-host/) | `@alia/docker-host` | Express |
 | [`packages/shared-types`](packages/shared-types/) | `@alia/shared-types` | TypeScript |
@@ -130,10 +129,10 @@ More usefully, run only what you are working on:
 
 ```bash
 bun run dev:api          bun run dev:app
-bun run dev:gateway      bun run dev:admin
-bun run dev:canvas       bun run dev:integrations
-bun run dev:codea        bun run dev:cowork
-bun run dev:docker-host  bun run dev:gateway-admin
+bun run dev:admin        bun run dev:canvas
+bun run dev:integrations bun run dev:codea
+bun run dev:cowork       bun run dev:docker-host
+bun run dev:gateway-admin
 ```
 
 The app has platform shortcuts at the root:
@@ -152,8 +151,8 @@ bun run web    # or ios, or android
 | Group | Scripts |
 |---|---|
 | Build all | `bun run build` |
-| Build one | `build:app`, `build:api`, `build:admin`, `build:canvas`, `build:docker-host`, `build:gateway-admin`, `build:integrations`, `build:gateway` |
-| Start one | `start:app`, `start:api`, `start:admin`, `start:canvas`, `start:docker-host`, `start:integrations`, `start:gateway` |
+| Build one | `build:app`, `build:api`, `build:admin`, `build:canvas`, `build:docker-host`, `build:gateway-admin`, `build:integrations` |
+| Start one | `start:app`, `start:api`, `start:admin`, `start:canvas`, `start:docker-host`, `start:integrations` |
 | Lint | `bun run lint`, `bun run lint:canvas` |
 
 </details>

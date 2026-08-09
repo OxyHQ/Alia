@@ -31,7 +31,6 @@ packages/
   alia-console/       Admin console
   alia-cowork/        Collaborative workspace
   alia-docker-host/   Docker host integration
-  alia-gateway/       Gateway service (internal, not deployed)
   alia-gateway-admin/ Gateway admin
   integrations/       Third-party integrations service (owns the MCP client)
 ```
@@ -168,14 +167,17 @@ pipeline. This is SEPARATE from the shared system bot (env `TELEGRAM_BOT_TOKEN`,
 
 ## Gateway and provider keys
 
-`alia-gateway` is NOT deployed in production. The API runs the `gateway-client`
-LOCAL fallback: in-process `internal/providers` against the same MongoDB. HTTP
-gateway mode requires BOTH `SERVICE_SECRET` and `GATEWAY_API_URL` as an explicit
-opt-in. See `packages/api/src/lib/gateway-client.ts`.
+**There is no gateway service.** `packages/alia-gateway` was deleted: it was
+never deployed, and 9 of its 11 Mongoose models were duplicates of the API's own
+`internal/providers` models pointed at the same database, so provider changes had
+to be mirrored by hand into code nothing ran. Provider calls happen in-process in
+`packages/api/src/internal/providers`.
 
-`packages/alia-gateway/src/lib/provider-api.ts` is a separate duplicate of the
-API's provider-call logic, so changes to provider endpoints (TTS, for example)
-must be mirrored there if the gateway is ever enabled.
+`packages/api/src/lib/gateway-client.ts` REMAINS and is the seam that made this
+safe to delete: it already ran the LOCAL in-process path unless BOTH
+`SERVICE_SECRET` and `GATEWAY_API_URL` were set, and production sets only the
+former. Do not reintroduce a second copy of the provider logic; if a remote
+provider tier is ever wanted, it goes behind that same client.
 
 TTS fails over across providers via `packages/api/src/lib/synthesize-speech.ts`
 and `packages/api/src/internal/providers/lib/tts-providers.ts` (the voice

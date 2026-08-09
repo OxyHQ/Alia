@@ -31,7 +31,6 @@ COPY packages/alia-gateway-admin/package.json ./packages/alia-gateway-admin/
 COPY packages/alia-codea/package.json ./packages/alia-codea/
 COPY packages/alia-cowork/package.json ./packages/alia-cowork/
 COPY packages/alia-codea-cli/package.json ./packages/alia-codea-cli/
-COPY packages/alia-gateway/package.json ./packages/alia-gateway/
 COPY packages/shared-types/package.json ./packages/shared-types/
 
 # Rewrite git+ssh:// to git+https:// so cloning works without SSH keys
@@ -105,7 +104,6 @@ COPY packages/alia-gateway-admin/package.json ./packages/alia-gateway-admin/
 COPY packages/alia-codea/package.json ./packages/alia-codea/
 COPY packages/alia-cowork/package.json ./packages/alia-cowork/
 COPY packages/alia-codea-cli/package.json ./packages/alia-codea-cli/
-COPY packages/alia-gateway/package.json ./packages/alia-gateway/
 COPY packages/shared-types/package.json ./packages/shared-types/
 
 # Rewrite git+ssh:// to git+https:// so cloning works without SSH keys

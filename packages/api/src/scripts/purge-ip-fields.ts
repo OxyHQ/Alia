@@ -8,9 +8,11 @@
  *   - `ipAddress` on every `apikeyusages` document
  *   - `ip` on every `adminaudits` document
  *
- * Both collections live in the shared `alia-<env>` database (the gateway and
- * the API share it). Safe to run multiple times — a re-run is a no-op once the
- * fields are gone.
+ * Both collections live in the `alia-<env>` database. `adminaudits` belonged to
+ * the deleted `alia-gateway` service and exists in no current environment; the
+ * entry is kept because a restored backup could still carry the collection, and
+ * purging a table that is not there costs nothing. Safe to run multiple times —
+ * a re-run is a no-op once the fields are gone.
  *
  * Usage:
  *   DRY_RUN=1 npx tsx src/scripts/purge-ip-fields.ts   # count only, no writes

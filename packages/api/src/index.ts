@@ -119,8 +119,6 @@ server.on('connection', (socket) => {
 initSocket(server);
 initMcpRelay(server);
 
-// Note: WebSocket upgrade for gateway admin is now handled by alia-gateway
-
 // Public API routes (/v1) - allow all origins (like OpenAI's API)
 app.use('/v1', cors({
   origin: '*',

@@ -38,7 +38,7 @@ A bun workspaces monorepo, no Turborepo and no Nx. Alia is the exception to the 
 Two things worth knowing before your first pull request:
 
 - `packages/alia-chat` publishes to npm as `@alia.onl/sdk`, as **raw source**, so consumers compile `src/` with their own Metro or tsc. It has to resolve and typecheck under a real external install, not only inside this monorepo.
-- `packages/alia-gateway` is not deployed. The API runs an in process fallback instead, so a change there is not exercised by anything unless you opt in explicitly.
+- There is no gateway service. `packages/api/src/lib/gateway-client.ts` runs provider calls in process, and is the seam any future remote provider tier would go behind — do not add a second copy of the provider logic.
 
 ## Tests
 
