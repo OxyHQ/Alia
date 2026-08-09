@@ -15,6 +15,15 @@ CONTAINER_NAME="${CONTAINER_NAME:-$APP}"
 MAX_WAIT_SECS="${MAX_WAIT_SECS:-1200}"
 POLL_INTERVAL="${POLL_INTERVAL:-15}"
 RUN_MIGRATIONS="${RUN_MIGRATIONS:-false}"
+# The database the migration run INTENDS to reach, and which half of the rollout
+# it is. Deliberately not derived from anything: the target guard exists to catch
+# a DATABASE_URL pointing somewhere unexpected, and deriving the expected name
+# from the same connection string would check it against itself.
+MIGRATION_TARGET_DATABASE="${MIGRATION_TARGET_DATABASE:-alia}"
+# `pre` (additive) runs BEFORE the rollout; `post` (drops, renames, narrows) runs
+# after, through POST_DEPLOY_TASK_COMMAND_JSON. `all` is for a from-zero genesis
+# run only and is the one value that is wrong against a live database.
+MIGRATION_PHASE="${MIGRATION_PHASE:-pre}"
 INTERNAL_METRICS_PARAMETER="${INTERNAL_METRICS_PARAMETER:-}"
 TASK_SECRET_OVERRIDES_JSON="${TASK_SECRET_OVERRIDES_JSON:-}"
 AWS_ACCOUNT_ID="${AWS_ACCOUNT_ID:-}"
@@ -481,9 +490,19 @@ if [[ "$RUN_MIGRATIONS" == "true" || -n "$POST_DEPLOY_TASK_COMMAND_JSON" ]]; the
 fi
 
 if [[ "$RUN_MIGRATIONS" == "true" ]]; then
+  # `node`, not `bun`: the runtime stage is node:*-slim and carries no bun.
+  # `packages/api`, not `packages/backend`: this repo has no backend package.
+  # `dist/db/migrate.js`: an entrypoint of build.ts, so it exists in the image.
+  # Both flags are REQUIRED by the migrator and have no defaults — a run that
+  # does not state its target cannot be checked against the connection string
+  # it was handed, and a migration aimed at the wrong database does not fail,
+  # it reports success over an untouched one.
   if ! run_one_shot_command \
-    "Migration" \
-    '["bun","packages/backend/dist/scripts/migrate.js"]'; then
+    "Migration (phase=$MIGRATION_PHASE, target=$MIGRATION_TARGET_DATABASE)" \
+    "$(jq -cn \
+      --arg target "--target-database=$MIGRATION_TARGET_DATABASE" \
+      --arg phase "--phase=$MIGRATION_PHASE" \
+      '["node","packages/api/dist/db/migrate.js",$target,$phase]')"; then
     exit 1
   fi
 fi
