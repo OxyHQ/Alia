@@ -30,18 +30,40 @@ import { decrypt, encrypt } from '../../lib/crypto-utils.js';
  * Three things to know before using it:
  *
  *  - **A raw `db.execute(sql\`insert …\`)` bypasses it**, exactly as a raw Mongo
- *    driver write bypassed the Mongoose setter. Parity, not a new hole — but it
- *    means the migration and any hand-written statement must pass ciphertext.
- *  - **The BACKFILL must not double-encrypt.** Mongoose applies `get: decrypt`
- *    on property access (both schemas set `toObject/toJSON: { getters: true }`),
- *    so a backfill reading through Mongoose holds PLAINTEXT and must write it
- *    through drizzle, which encrypts once. Reading ciphertext through the raw
- *    driver and writing it through drizzle encrypts it a SECOND time, and the
- *    row is unrecoverable without knowing it happened.
+ *    driver write bypassed the Mongoose setter. Parity, not a new hole — and the
+ *    backfill DEPENDS on it; see below.
  *  - **`fromDriver` throws on a value that is not well-formed ciphertext**,
- *    which is a fail-closed read rather than a silent plaintext leak. The tables
- *    start empty, so the only writer of a malformed value would be a hand-written
- *    statement.
+ *    which is a fail-closed read rather than a silent plaintext leak.
+ *
+ * ## The backfill copies CIPHERTEXT VERBATIM, and must bypass this codec
+ *
+ * Because the algorithm, the format and the key are unchanged from Mongo, the
+ * stored value is portable as-is. So the backfill reads through the RAW driver
+ * (never Mongoose, whose getters decrypt) and writes the same bytes through a
+ * raw statement. Nothing is decrypted, nothing is re-encrypted, **no plaintext
+ * exists in flight at any point**, and the verification is a byte-for-byte
+ * comparison rather than a round trip.
+ *
+ * The failure mode to design against is the mirror of that: handing ciphertext
+ * to this codec produces ciphertext-OF-ciphertext, which looks like a successful
+ * copy and fails at the first read. So the backfill must write the raw column,
+ * and must ASSERT what it wrote still matches `iv:authTag:ciphertext` — cheap,
+ * and the only thing between "copied" and "copied correctly".
+ *
+ * One cost of the verbatim copy, stated because it is not obvious: a Mongo value
+ * that is NOT well-formed ciphertext (written before encryption existed, or by a
+ * raw write) copies through happily and fails at READ time instead of during the
+ * backfill. That same shape assertion is what pulls the failure back to the
+ * controlled moment.
+ *
+ * ## `pgcrypto` was considered and REJECTED — do not revisit it as an obvious win
+ *
+ * Three independent reasons, any one sufficient: it needs an extension, which is
+ * a privileged act on the shared instance that a migration cannot perform; it
+ * moves the key into SQL, where it reaches statement logs and
+ * `pg_stat_statements` in a way an application-side key does not; and it changes
+ * the ciphertext format, which forfeits the verbatim copy above and forces a
+ * decrypt-then-re-encrypt pass over live credentials.
  *
  * `crypto-utils.ts` is AES-256-GCM, `iv:authTag:ciphertext` hex, keyed by
  * `TOKEN_ENCRYPTION_KEY` — already synced to `/oxy/alia/TOKEN_ENCRYPTION_KEY`.

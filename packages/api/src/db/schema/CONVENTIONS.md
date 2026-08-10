@@ -406,10 +406,25 @@ Two in this schema, with opposite answers:
   "encrypted wherever somebody remembers", and the failure is SILENT — the app
   keeps working and third-party tokens sit in plaintext until a dump leaks. They
   use the `encryptedText` custom type (`columns.ts`), which is the only available
-  shape where drizzle applies the transform to every write it builds. Read that
-  file before touching them: a raw `db.execute` bypasses it, and the BACKFILL
-  double-encrypts if it reads ciphertext rather than the plaintext Mongoose's
-  getters hand back.
+  shape where drizzle applies the transform to every write it builds — the
+  difference between "a plaintext token CANNOT be stored" and "must remember not
+  to", which is the whole decision for a column holding somebody else's
+  credential. A write chokepoint would have downgraded a guarantee that held on
+  every write to one that holds on every write *through that function*, defended
+  by a test rather than by the type.
+
+  **The backfill copies ciphertext VERBATIM and bypasses the codec.** The
+  algorithm, format and key are unchanged from Mongo, so the stored value is
+  portable as-is: read through the RAW driver, write through a raw statement, no
+  plaintext in flight and a byte-for-byte comparison as the verification. Handing
+  ciphertext to the codec instead produces ciphertext-of-ciphertext, which looks
+  like a successful copy and fails at the first read — so the backfill must
+  assert what it wrote still matches `iv:authTag:ciphertext`. `columns.ts` holds
+  the full reasoning, including why `pgcrypto` is rejected rather than deferred.
+
+  **Before porting ANY model, grep its schema for field-level `get`/`set` and for
+  `getters: true`.** The backfill's choice of driver silently decides whether it
+  stores plaintext or ciphertext, and both readings look correct at the time.
 - **`organizations.slug`** was `lowercase: true, unique: true`. Here the setter
   was upholding a UNIQUE, so the answer is a FUNCTIONAL unique index on
   `lower(slug)` rather than a transform: a plain unique on the stored text lets
