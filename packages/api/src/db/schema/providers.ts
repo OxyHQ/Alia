@@ -47,6 +47,7 @@ import {
 import { sql } from 'drizzle-orm';
 import { createdAt, generatedId, timestamptz, updatedAt } from '@oxyhq/db';
 import { checkOneOf } from './columns';
+import { organizations } from './organizations';
 import { ALIA_TIERS } from '../../internal/providers/lib/alia-tiers.js';
 import { PROVIDER_NAMES } from '../../internal/providers/lib/provider-names.js';
 import { MODEL_PRICING_TIERS } from '../../internal/providers/models/model-config.js';
@@ -369,13 +370,25 @@ export const providerKeys = pgTable(
       .notNull()
       .default('manual'),
 
-    /**
-     * An Oxy account and an `Organization` row respectively. Neither carries a
-     * foreign key: Oxy owns identity, and `organizations` is not ported yet.
-     * Revisit the organisation one when that batch lands.
-     */
+    /** An Oxy account. No foreign key: Oxy owns identity. */
     ownerId: text(),
-    organizationId: text(),
+    /**
+     * The owning organization, and the orgs/dev batch settled what its deletion
+     * does: **cascade**.
+     *
+     * The column is currently INERT — declared and indexed in Mongoose, never
+     * written and never filtered on, verified package-wide rather than within the
+     * providers directory. So the constraint costs nothing today and exists to
+     * close the dangerous direction before multi-tenancy is built on it.
+     *
+     * `ON DELETE SET NULL` is the option to avoid, and it is the tempting one
+     * because the column is nullable. `key-manager.ts` selects keys by PROVIDER
+     * and does not filter by organization at all, so nulling this would silently
+     * promote a deleted organization's private credential into the pool every
+     * other tenant draws from. Deleting the row with the organization is the safe
+     * direction and matches what the field means.
+     */
+    organizationId: text().references(() => organizations.id, { onDelete: 'cascade' }),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
