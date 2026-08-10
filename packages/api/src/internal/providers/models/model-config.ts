@@ -1,10 +1,7 @@
 import mongoose, { Document, Schema } from 'mongoose';
 import { ALIA_TIERS } from '../lib/alia-tiers.js';
 import { PROVIDER_NAMES } from '../lib/provider-names.js';
-
-/** Commercial tier of a provider model's published pricing. */
-export const MODEL_PRICING_TIERS = ['free', 'freemium', 'paid'] as const;
-export type ModelPricingTier = (typeof MODEL_PRICING_TIERS)[number];
+import { MODEL_PRICING_TIERS } from '../../../domain/model-config.js';
 
 export interface IModelCapabilities {
   vision: boolean;

@@ -41,8 +41,8 @@ import {
 } from 'drizzle-orm/pg-core';
 import { createdAt, generatedId, timestamptz, updatedAt } from '@oxyhq/db';
 import { checkOneOf } from './columns';
-import { CONTAINER_SIZES, CONTAINER_STATUSES } from '../../models/container.js';
-import { EVENT_STREAM_ENTRY_TYPES } from '../../models/event-stream-entry.js';
+import { CONTAINER_SIZES, CONTAINER_STATUSES } from '../../domain/container.js';
+import { EVENT_STREAM_ENTRY_TYPES } from '../../domain/event-stream-entry.js';
 import { agentSessions } from './agent-sessions';
 
 /**

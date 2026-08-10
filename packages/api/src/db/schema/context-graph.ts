@@ -38,10 +38,10 @@
 
 import { boolean, doublePrecision, index, integer, jsonb, pgTable, text, uniqueIndex } from 'drizzle-orm/pg-core';
 import { createdAt, generatedId, timestamptz, updatedAt } from '@oxyhq/db';
-import { CONTEXT_NODE_TYPES } from '../../models/context-node.js';
-import { CONTEXT_EDGE_TYPES } from '../../models/context-edge.js';
-import { CONTEXT_SOURCE_AVAILABILITIES, CONTEXT_SOURCE_KINDS } from '../../models/context-source.js';
-import { AUTONOMY_INTENTS } from '../../models/retrieval-strategy.js';
+import { CONTEXT_NODE_TYPES } from '../../domain/context-node.js';
+import { CONTEXT_EDGE_TYPES } from '../../domain/context-edge.js';
+import { CONTEXT_SOURCE_AVAILABILITIES, CONTEXT_SOURCE_KINDS } from '../../domain/context-source.js';
+import { AUTONOMY_INTENTS } from '../../domain/retrieval-strategy.js';
 import { checkOneOf } from './columns';
 
 /**

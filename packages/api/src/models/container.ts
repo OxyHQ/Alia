@@ -1,15 +1,5 @@
 import mongoose, { Schema, Model, Document } from 'mongoose';
-
-/**
- * Exported as TUPLES, not union types: the Postgres schema renders its CHECKs
- * from these exact values rather than retyping them, so a constraint and the
- * validator guarding the same column cannot drift apart.
- */
-export const CONTAINER_SIZES = ['small', 'medium', 'large'] as const;
-export type ContainerSize = (typeof CONTAINER_SIZES)[number];
-
-export const CONTAINER_STATUSES = ['creating', 'running', 'idle', 'stopped', 'destroyed'] as const;
-export type ContainerStatus = (typeof CONTAINER_STATUSES)[number];
+import { CONTAINER_SIZES, CONTAINER_STATUSES, ContainerSize, ContainerStatus } from '../domain/container.js';
 
 export interface IContainer extends Document {
   containerId: string;
