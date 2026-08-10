@@ -65,6 +65,15 @@ aws() {
     '.services[0].desiredCount = $desired' \
     <<<"$service_json")"
 
+  # ECS not reporting the field at all is a DIFFERENT fault from reporting zero,
+  # and the script must keep telling them apart: zero is a deliberate hold, an
+  # absent count means nothing downstream can reason about capacity. Modelled by
+  # deleting the key rather than by a sentinel number, because a sentinel would
+  # be a number the script could compare and this one must not be comparable.
+  if [[ "$DEPLOY_TEST_ROLLOUT_SCENARIO" == "absent-desired-count" ]]; then
+    service_json="$(jq 'del(.services[0].desiredCount)' <<<"$service_json")"
+  fi
+
   case "$1 $2" in
     "ecs describe-services")
       local describe_count_file="${DEPLOY_TEST_LOG}.describe-count"
@@ -273,6 +282,70 @@ aws() {
 }
 export -f aws
 
+# A bare `grep -F ... >/dev/null` under `set -e` aborts this harness at the
+# failing line and prints NOTHING — the exit code fails the job, but the log says
+# only that it stopped, with no assertion named and no output to read. That is
+# the same "a check that cannot distinguish success from failure" shape the rest
+# of this repo's gates are built against, applied to the gate itself.
+#
+# So every assertion goes through one of these two, which name the case, quote
+# what they were looking for, and dump the output that did not contain it.
+assert_output_contains() {
+  local case_name="$1" needle="$2"
+  local file="$test_directory/$case_name/output.log"
+  if ! grep -qF -- "$needle" "$file"; then
+    printf 'ASSERTION FAILED [%s]: output does not contain: %s\n' "$case_name" "$needle" >&2
+    printf -- '--- %s ---\n' "$file" >&2
+    sed -n '1,240p' "$file" >&2
+    return 1
+  fi
+}
+
+assert_output_lacks() {
+  local case_name="$1" needle="$2"
+  local file="$test_directory/$case_name/output.log"
+  if grep -qF -- "$needle" "$file"; then
+    printf 'ASSERTION FAILED [%s]: output unexpectedly contains: %s\n' "$case_name" "$needle" >&2
+    printf -- '--- %s ---\n' "$file" >&2
+    sed -n '1,240p' "$file" >&2
+    return 1
+  fi
+}
+
+# The AWS call log is the other observable: which mutating calls were made, in
+# order. `assert_aws_log` diffs it against an exact expected list.
+assert_aws_log() {
+  local case_name="$1"
+  shift
+  local file="$test_directory/$case_name/aws.log"
+  printf '%s\n' "$@" >"$test_directory/$case_name/expected.log"
+  if ! diff -u "$test_directory/$case_name/expected.log" "$file"; then
+    printf 'ASSERTION FAILED [%s]: AWS call log differs from expected (- expected, + actual)\n' "$case_name" >&2
+    return 1
+  fi
+}
+
+assert_aws_log_lacks() {
+  local case_name="$1" needle="$2"
+  local file="$test_directory/$case_name/aws.log"
+  if grep -qF -- "$needle" "$file"; then
+    printf 'ASSERTION FAILED [%s]: AWS call log unexpectedly contains: %s\n' "$case_name" "$needle" >&2
+    printf -- '--- %s ---\n' "$file" >&2
+    cat "$file" >&2
+    return 1
+  fi
+}
+
+assert_aws_log_empty() {
+  local case_name="$1"
+  local file="$test_directory/$case_name/aws.log"
+  if [[ -s "$file" ]]; then
+    printf 'ASSERTION FAILED [%s]: expected NO mutating AWS calls, got:\n' "$case_name" >&2
+    cat "$file" >&2
+    return 1
+  fi
+}
+
 run_release() {
   local case_name="$1"
   local expect_success="$2"
@@ -349,15 +422,11 @@ run_release() {
 }
 
 run_release success true false true
-printf '%s\n' \
+assert_aws_log success \
   metrics:arn \
   'service:arn:aws:ecs:test:task-definition/deploy-test:2:desired=1' \
   smoke \
-  'run-task:reconcile' \
-  >"$test_directory/success/expected.log"
-diff -u \
-  "$test_directory/success/expected.log" \
-  "$test_directory/success/aws.log"
+  'run-task:reconcile'
 
 # A hyphen in the parameter path is its own case because it is its own bug: the
 # bracket expression validating this name once matched every character EXCEPT a
@@ -372,47 +441,31 @@ diff -u \
 DEPLOY_TEST_METRICS_PARAMETER=/oxy/sample-app/INTERNAL_METRICS_TOKEN
 run_release hyphenated-metrics-parameter true false true
 DEPLOY_TEST_METRICS_PARAMETER=/oxy/sampleapp/INTERNAL_METRICS_TOKEN
-printf '%s\n' \
+assert_aws_log hyphenated-metrics-parameter \
   metrics:arn \
   'service:arn:aws:ecs:test:task-definition/deploy-test:2:desired=1' \
   smoke \
-  'run-task:reconcile' \
-  >"$test_directory/hyphenated-metrics-parameter/expected.log"
-diff -u \
-  "$test_directory/hyphenated-metrics-parameter/expected.log" \
-  "$test_directory/hyphenated-metrics-parameter/aws.log"
+  'run-task:reconcile'
 
 run_release explicit-task-secret true false false 0 true
-printf '%s\n' \
+assert_aws_log explicit-task-secret \
   task-secret:arn \
   'service:arn:aws:ecs:test:task-definition/deploy-test:2:desired=1' \
   smoke \
-  'run-task:reconcile' \
-  >"$test_directory/explicit-task-secret/expected.log"
-diff -u \
-  "$test_directory/explicit-task-secret/expected.log" \
-  "$test_directory/explicit-task-secret/aws.log"
+  'run-task:reconcile'
 
 run_release reconciliation-failure false false false 1
-printf '%s\n' \
+assert_aws_log reconciliation-failure \
   'service:arn:aws:ecs:test:task-definition/deploy-test:2:desired=1' \
   smoke \
   'run-task:reconcile' \
   tasklogs \
-  'service:arn:aws:ecs:test:task-definition/deploy-test:1:desired=1' \
-  >"$test_directory/reconciliation-failure/expected.log"
-diff -u \
-  "$test_directory/reconciliation-failure/expected.log" \
-  "$test_directory/reconciliation-failure/aws.log"
+  'service:arn:aws:ecs:test:task-definition/deploy-test:1:desired=1'
 
 run_release migration-failure false true false 1
-printf '%s\n' \
+assert_aws_log migration-failure \
   'run-task:node packages/api/dist/db/migrate.js --target-database=alia --phase=pre' \
-  tasklogs \
-  >"$test_directory/migration-failure/expected.log"
-diff -u \
-  "$test_directory/migration-failure/expected.log" \
-  "$test_directory/migration-failure/aws.log"
+  tasklogs
 
 # The migration command itself, asserted verbatim.
 #
@@ -426,116 +479,108 @@ diff -u \
 # The flags are part of the assertion: src/db/migrate.ts REQUIRES both and has no
 # default for either, so a command missing them is refused at the door.
 run_release migration-command true true false
-printf '%s\n' \
+assert_aws_log migration-command \
   'run-task:node packages/api/dist/db/migrate.js --target-database=alia --phase=pre' \
   'service:arn:aws:ecs:test:task-definition/deploy-test:2:desired=1' \
   smoke \
-  'run-task:reconcile' \
-  >"$test_directory/migration-command/expected.log"
-diff -u \
-  "$test_directory/migration-command/expected.log" \
-  "$test_directory/migration-command/aws.log"
-grep -F \
-  "[migration] fixture failure" \
-  "$test_directory/migration-failure/output.log" \
-  >/dev/null
-if grep -q '^service:' "$test_directory/migration-failure/aws.log"; then
-  echo "Failed migration reached update-service." >&2
-  exit 1
-fi
+  'run-task:reconcile'
+assert_output_contains migration-failure "[migration] fixture failure"
+# A failed migration must never reach the rollout.
+assert_aws_log_lacks migration-failure 'service:'
 
-run_release zero-desired-count false false false 0 false 0
-grep -F \
-  "must have a positive desiredCount before deployment (current: 0)" \
-  "$test_directory/zero-desired-count/output.log" \
-  >/dev/null
-if [[ -s "$test_directory/zero-desired-count/aws.log" ]]; then
-  echo "Zero-capacity service reached a mutating AWS call." >&2
-  exit 1
-fi
+# A service held at desiredCount=0 is a STATE, not an error.
+#
+# It used to fail the deploy outright, which gave a repository whose service is
+# deliberately scaled to zero — during a migration or a cutover — no green path
+# at all: every merge reds its deploy, and the only remedy is to scale up, which
+# is what the hold exists to prevent.
+#
+# The release still does everything that does not need a running task, and the
+# assertions below are what pin WHICH those are: the migration one-shot runs, the
+# post-deploy reconciliation one-shot runs (this is how a `post` migration lands
+# while the service is down), and `update-service` is never called. The smoke
+# script must NOT run — with no tasks it would measure the hold rather than the
+# image — which is why `smoke` is absent from the expected call log.
+run_release zero-desired-count true true false 0 false 0
+assert_aws_log zero-desired-count \
+  'run-task:node packages/api/dist/db/migrate.js --target-database=alia --phase=pre' \
+  'run-task:reconcile'
+assert_aws_log_lacks zero-desired-count 'service:'
+assert_aws_log_lacks zero-desired-count 'smoke'
+
+# ...and it must SAY so. The guard being replaced existed to stop a deploy
+# silently doing nothing, and that purpose is not relaxed: the run is green, so
+# the log is the only thing standing between "held down deliberately" and
+# "shipped to nobody by accident". Each line is asserted separately so a
+# reworded message fails on the specific fact it dropped.
+assert_output_contains zero-desired-count \
+  '::warning::ECS service deploy-test is at desiredCount=0, so NO ROLLOUT was performed'
+assert_output_contains zero-desired-count 'desiredCount     : 0'
+assert_output_contains zero-desired-count 'DONE             : registered task definition'
+assert_output_contains zero-desired-count 'DONE             : migrations (phase=pre, target=alia)'
+assert_output_contains zero-desired-count \
+  'NOT DONE         : update-service, rollout wait, post-deploy smoke checks'
+assert_output_contains zero-desired-count 'To serve this image, scale deploy-test up'
+# The old refusal must be gone rather than merely unreached.
+assert_output_lacks zero-desired-count 'must have a positive desiredCount'
+
+# The same path with migrations OFF says so rather than implying they ran. A
+# deploy that registered a revision and did nothing else is the case this whole
+# message exists to keep visible.
+run_release zero-desired-count-no-migrations true false false 0 false 0
+assert_aws_log zero-desired-count-no-migrations 'run-task:reconcile'
+assert_output_contains zero-desired-count-no-migrations \
+  'NOT DONE         : migrations — RUN_MIGRATIONS is false'
+
+# An ABSENT count is a different fault and stays a hard error: zero is a
+# deliberate hold, while a missing field means ECS did not report capacity at all
+# and nothing downstream can reason about it. Collapsing the two would let a
+# malformed describe-services response take the "held down, carry on" path.
+run_release absent-desired-count false true false 0 false 1 absent-desired-count
+assert_output_contains absent-desired-count \
+  '::error::ECS did not report a numeric desiredCount for service deploy-test'
+assert_aws_log_empty absent-desired-count
 
 run_release transient-zero-deployment true false false 0 false 1 transient-zero-deployment
-printf '%s\n' \
+assert_aws_log transient-zero-deployment \
   'service:arn:aws:ecs:test:task-definition/deploy-test:2:desired=1' \
   smoke \
-  'run-task:reconcile' \
-  >"$test_directory/transient-zero-deployment/expected.log"
-diff -u \
-  "$test_directory/transient-zero-deployment/expected.log" \
-  "$test_directory/transient-zero-deployment/aws.log"
-grep -F \
-  "has not assigned desired tasks" \
-  "$test_directory/transient-zero-deployment/output.log" \
-  >/dev/null
+  'run-task:reconcile'
+assert_output_contains transient-zero-deployment "has not assigned desired tasks"
 
 run_release zero-service-during-deploy false false false 0 false 1 zero-service-during-deploy
-printf '%s\n' \
+assert_aws_log zero-service-during-deploy \
   'service:arn:aws:ecs:test:task-definition/deploy-test:2:desired=1' \
-  'service:arn:aws:ecs:test:task-definition/deploy-test:1:desired=1' \
-  >"$test_directory/zero-service-during-deploy/expected.log"
-diff -u \
-  "$test_directory/zero-service-during-deploy/expected.log" \
-  "$test_directory/zero-service-during-deploy/aws.log"
-grep -F \
-  "service deploy-test reached desiredCount=0 during the deployment rollout" \
-  "$test_directory/zero-service-during-deploy/output.log" \
-  >/dev/null
+  'service:arn:aws:ecs:test:task-definition/deploy-test:1:desired=1'
+assert_output_contains zero-service-during-deploy "service deploy-test reached desiredCount=0 during the deployment rollout"
 
 run_release completed-zero-deployment false false false 0 false 1 completed-zero-deployment
-printf '%s\n' \
+assert_aws_log completed-zero-deployment \
   'service:arn:aws:ecs:test:task-definition/deploy-test:2:desired=1' \
-  'service:arn:aws:ecs:test:task-definition/deploy-test:1:desired=1' \
-  >"$test_directory/completed-zero-deployment/expected.log"
-diff -u \
-  "$test_directory/completed-zero-deployment/expected.log" \
-  "$test_directory/completed-zero-deployment/aws.log"
-grep -F \
-  "completed at desiredCount=0; refusing to accept a zero-task steady state" \
-  "$test_directory/completed-zero-deployment/output.log" \
-  >/dev/null
+  'service:arn:aws:ecs:test:task-definition/deploy-test:1:desired=1'
+assert_output_contains completed-zero-deployment "completed at desiredCount=0; refusing to accept a zero-task steady state"
 
 # A smoke failure the smoke script attributes to the new image rolls the service
 # back, and stops the release before the reconciliation task runs.
 run_release smoke-hermetic-failure false false false 0 false 1 healthy 1
-printf '%s\n' \
+assert_aws_log smoke-hermetic-failure \
   'service:arn:aws:ecs:test:task-definition/deploy-test:2:desired=1' \
   smoke \
-  'service:arn:aws:ecs:test:task-definition/deploy-test:1:desired=1' \
-  >"$test_directory/smoke-hermetic-failure/expected.log"
-diff -u \
-  "$test_directory/smoke-hermetic-failure/expected.log" \
-  "$test_directory/smoke-hermetic-failure/aws.log"
-grep -F \
-  "Post-deploy smoke checks failed." \
-  "$test_directory/smoke-hermetic-failure/output.log" \
-  >/dev/null
+  'service:arn:aws:ecs:test:task-definition/deploy-test:1:desired=1'
+assert_output_contains smoke-hermetic-failure "Post-deploy smoke checks failed."
 
 # A smoke failure the smoke script attributes to something outside the new image
 # (exit 75) must NOT roll back: the service stays on the new task definition, the
 # release finishes its reconciliation task, and the job still fails so the
 # failure is paged rather than swallowed.
 run_release smoke-no-rollback-failure false false false 0 false 1 healthy 75
-printf '%s\n' \
+assert_aws_log smoke-no-rollback-failure \
   'service:arn:aws:ecs:test:task-definition/deploy-test:2:desired=1' \
   smoke \
-  'run-task:reconcile' \
-  >"$test_directory/smoke-no-rollback-failure/expected.log"
-diff -u \
-  "$test_directory/smoke-no-rollback-failure/expected.log" \
-  "$test_directory/smoke-no-rollback-failure/aws.log"
-if grep -qF \
-  'service:arn:aws:ecs:test:task-definition/deploy-test:1:' \
-  "$test_directory/smoke-no-rollback-failure/aws.log"; then
-  echo "A smoke failure that cannot be repaired by a rollback rolled back anyway." >&2
-  exit 1
-fi
-grep -F \
-  "stays on arn:aws:ecs:test:task-definition/deploy-test:2" \
-  "$test_directory/smoke-no-rollback-failure/output.log" \
-  >/dev/null
-grep -F \
-  "Nothing was rolled back; this release needs a human." \
-  "$test_directory/smoke-no-rollback-failure/output.log" \
-  >/dev/null
+  'run-task:reconcile'
+assert_aws_log_lacks smoke-no-rollback-failure \
+  'service:arn:aws:ecs:test:task-definition/deploy-test:1:'
+assert_output_contains smoke-no-rollback-failure "stays on arn:aws:ecs:test:task-definition/deploy-test:2"
+assert_output_contains smoke-no-rollback-failure "Nothing was rolled back; this release needs a human."
 
 echo "Deployment script transaction tests passed."

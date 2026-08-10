@@ -110,11 +110,32 @@ if [[ -z "$current_task_definition" ]]; then
   exit 1
 fi
 
-service_desired_count="$(jq -r '.services[0].desiredCount // empty' <<<"$service_json")"
-if ! [[ "$service_desired_count" =~ ^[0-9]+$ ]] ||
-   (( service_desired_count < 1 )); then
-  echo "::error::ECS service $APP must have a positive desiredCount before deployment (current: ${service_desired_count:-missing}). Scale the service up explicitly before retrying."
+# A desiredCount of ZERO is a STATE, not an error.
+#
+# This guard used to refuse the deploy outright, which is wrong in the one
+# situation the count is deliberately zero: a service held down during a
+# migration or a cutover. Every merge then reds its deploy, so the repository
+# has no green path at all until somebody scales up — and scaling up is exactly
+# what the hold exists to prevent. The rollout is the only step that needs
+# running tasks; registering the revision and applying migrations do not.
+#
+# What the guard was FOR still holds and is not relaxed: a deploy must never
+# SILENTLY do nothing. So zero takes a separate path that says, loudly and by
+# name, which service it saw, what its desired count was, and what was and was
+# not done — rather than a rollout quietly reporting success over a service that
+# is serving no traffic.
+#
+# A MISSING or non-numeric count stays a hard error, and that is a different
+# fault: it means ECS did not tell us the count, so nothing below can reason
+# about it. Absence and zero are not the same answer.
+service_desired_count="$(jq -r 'if (.services[0] | has("desiredCount")) then .services[0].desiredCount else "" end' <<<"$service_json")"
+if ! [[ "$service_desired_count" =~ ^[0-9]+$ ]]; then
+  echo "::error::ECS did not report a numeric desiredCount for service $APP (got: ${service_desired_count:-missing})."
   exit 1
+fi
+service_is_scaled_to_zero=false
+if (( service_desired_count == 0 )); then
+  service_is_scaled_to_zero=true
 fi
 
 task_definition_file="$(mktemp)"
@@ -507,58 +528,81 @@ if [[ "$RUN_MIGRATIONS" == "true" ]]; then
   fi
 fi
 
-if [[ -n "${DEPLOY_SHA:-}" ]]; then
-  echo "Re-verifying origin/main immediately before the ECS service update."
-  bash "$DEPLOY_HEAD_GUARD_SCRIPT"
-fi
-
-if ! aws ecs update-service \
-  --cluster "$CLUSTER" \
-  --service "$APP" \
-  --task-definition "$new_task_definition" \
-  --desired-count "$service_desired_count" \
-  --deployment-configuration '{
-    "deploymentCircuitBreaker": {"enable": true, "rollback": true},
-    "minimumHealthyPercent": 100,
-    "maximumPercent": 200
-  }' \
-  >/dev/null; then
-  echo "::error::ECS rejected the service update; restoring the previous task definition defensively."
-  if ! rollback_service; then
-    echo "::error::The defensive rollback also failed; manual intervention is required."
+if [[ "$service_is_scaled_to_zero" == "true" ]]; then
+  # The rollout, its wait and the smoke checks are all skipped together, and
+  # they have to be: there is nothing to roll out onto, `wait_for_service_rollout`
+  # refuses a zero-task steady state by design, and smoke checks against a
+  # service with no tasks measure the hold rather than the image.
+  #
+  # The post-deploy reconciliation below still runs. It is a one-shot task on the
+  # new revision, not the service, so it neither needs nor starts a task in the
+  # service — which is what lets a `post` migration land while the service is
+  # held down, the case this whole path exists for.
+  echo "::warning::ECS service $APP is at desiredCount=0, so NO ROLLOUT was performed and nothing is serving this image."
+  echo "  service          : $APP (cluster $CLUSTER)"
+  echo "  desiredCount     : 0 — read from ECS, not assumed"
+  echo "  DONE             : registered task definition $new_task_definition for image $IMAGE_URI"
+  if [[ "$RUN_MIGRATIONS" == "true" ]]; then
+    echo "  DONE             : migrations (phase=$MIGRATION_PHASE, target=$MIGRATION_TARGET_DATABASE)"
+  else
+    echo "  NOT DONE         : migrations — RUN_MIGRATIONS is false"
   fi
-  exit 1
-fi
-
-echo "Deploying immutable image $IMAGE_URI with task definition $new_task_definition"
-
-if ! wait_for_service_rollout "$new_task_definition" "deployment"; then
-  if ! rollback_service; then
-    echo "::error::Deployment and explicit rollback both failed; manual intervention is required."
+  echo "  NOT DONE         : update-service, rollout wait, post-deploy smoke checks"
+  echo "  To serve this image, scale $APP up; the next deploy will roll out normally."
+else
+  if [[ -n "${DEPLOY_SHA:-}" ]]; then
+    echo "Re-verifying origin/main immediately before the ECS service update."
+    bash "$DEPLOY_HEAD_GUARD_SCRIPT"
   fi
-  exit 1
-fi
-echo "ECS rollout reached a healthy steady state at $new_task_definition"
 
-if [[ -n "$POST_DEPLOY_SMOKE_SCRIPT" ]]; then
-  echo "Running post-deploy smoke checks with $POST_DEPLOY_SMOKE_SCRIPT"
-  smoke_exit=0
-  bash "$POST_DEPLOY_SMOKE_SCRIPT" || smoke_exit=$?
-  if (( smoke_exit == SMOKE_NO_ROLLBACK_EXIT )); then
-    # The smoke script attributed every failure to something outside the image.
-    # The release keeps going — including the reconciliation task below, which
-    # would otherwise be skipped over a fault it has nothing to do with — and the
-    # job fails at the end so the failure is still paged rather than swallowed.
-    echo "::error::Post-deploy smoke checks failed only checks that a rollback cannot repair. $APP stays on $new_task_definition; investigate the dependency named above."
-    smoke_reported_external_failure=true
-  elif (( smoke_exit != 0 )); then
-    echo "::error::Post-deploy smoke checks failed."
-    if rollback_service; then
-      echo "::warning::Rollback completed after smoke failure."
-    else
-      echo "::error::Rollback also failed; manual intervention is required."
+  if ! aws ecs update-service \
+    --cluster "$CLUSTER" \
+    --service "$APP" \
+    --task-definition "$new_task_definition" \
+    --desired-count "$service_desired_count" \
+    --deployment-configuration '{
+      "deploymentCircuitBreaker": {"enable": true, "rollback": true},
+      "minimumHealthyPercent": 100,
+      "maximumPercent": 200
+    }' \
+    >/dev/null; then
+    echo "::error::ECS rejected the service update; restoring the previous task definition defensively."
+    if ! rollback_service; then
+      echo "::error::The defensive rollback also failed; manual intervention is required."
     fi
     exit 1
+  fi
+
+  echo "Deploying immutable image $IMAGE_URI with task definition $new_task_definition"
+
+  if ! wait_for_service_rollout "$new_task_definition" "deployment"; then
+    if ! rollback_service; then
+      echo "::error::Deployment and explicit rollback both failed; manual intervention is required."
+    fi
+    exit 1
+  fi
+  echo "ECS rollout reached a healthy steady state at $new_task_definition"
+
+  if [[ -n "$POST_DEPLOY_SMOKE_SCRIPT" ]]; then
+    echo "Running post-deploy smoke checks with $POST_DEPLOY_SMOKE_SCRIPT"
+    smoke_exit=0
+    bash "$POST_DEPLOY_SMOKE_SCRIPT" || smoke_exit=$?
+    if (( smoke_exit == SMOKE_NO_ROLLBACK_EXIT )); then
+      # The smoke script attributed every failure to something outside the image.
+      # The release keeps going — including the reconciliation task below, which
+      # would otherwise be skipped over a fault it has nothing to do with — and the
+      # job fails at the end so the failure is still paged rather than swallowed.
+      echo "::error::Post-deploy smoke checks failed only checks that a rollback cannot repair. $APP stays on $new_task_definition; investigate the dependency named above."
+      smoke_reported_external_failure=true
+    elif (( smoke_exit != 0 )); then
+      echo "::error::Post-deploy smoke checks failed."
+      if rollback_service; then
+        echo "::warning::Rollback completed after smoke failure."
+      else
+        echo "::error::Rollback also failed; manual intervention is required."
+      fi
+      exit 1
+    fi
   fi
 fi
 
