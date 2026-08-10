@@ -205,6 +205,48 @@ reads it" is a fact with a date on it, the file names the trigger for
 revisiting — the moment retrieval actually follows a strategy, the elements
 acquire readers and it becomes a child table.
 
+### An array of BARE REFERENCES is a child table too, and `populate` is the test
+
+Batch 9 adds the case the rule did not cover: an ObjectId array whose elements
+are not sub-documents at all — `Agent.skills`, `Agent.knowledge`,
+`AgentTeam.agents`/`.skills`/`.knowledge`. There is no per-element data to
+inspect, so "does an element have an identity" cannot be answered by reading the
+shape. What answers it is `.populate()`: `routes/agents/crud.ts:166` and
+`routes/agent-teams.ts:19-21` both do it, and a populate IS a join.
+
+`text[]` was the alternative and it loses two things. It cannot carry a foreign
+key, so "does this agent's skill still exist" stays unanswerable in SQL — the
+`alia_model_provider_mappings` argument unchanged. And `routes/agent-teams.ts:161,184`
+mutates the member list with `$addToSet`/`$pull`, which is set semantics that
+`UNIQUE(parent, child)` expresses exactly and an array does not.
+
+Two things a child table must then carry that the array gave for free:
+
+- **`position`**, because a Mongo array is ordered and the write path replaces it
+  whole. Without it the round trip is a set and the rendered order is arbitrary.
+- **the CASCADE decision, stated.** Mongo left a deleted skill's id in the array
+  and `populate` silently dropped it on read, so an agent's skill list shrank
+  with nothing recording why. `ON DELETE CASCADE` is a deliberate behaviour
+  CHANGE, the same one `alia_model_provider_mappings.model_config_id` made — and
+  it is what turns those dangling ids into a backfill item rather than a
+  permanent silent discrepancy. See the audit list.
+
+### A sub-document GROUP that is `default: undefined` is nullable COLUMNS, and the absence can be load-bearing
+
+`Agent.permissions` and `Agent.soul` are both declared `default: undefined`, so
+the group is present or wholly absent. Flattened, that is a run of NULLABLE
+columns — and for `permissions` the NULL is not merely "unset", it is a VALUE:
+the model's own comment reads "undefined = all allowed (backward compatible)",
+and `lib/agent/actions.ts:272` tests `perms.delegation === false`, so only a
+stored `false` denies anything.
+
+`notNull().default(false)` is the shape that looks tidier and it would revoke
+filesystem, network, shell, communications, MCP and delegation from every agent
+written before the group existed — silently, because an agent being refused a
+capability raises nothing. `agents.pgdb.test.ts` pins both the all-NULL row and a
+PARTIALLY written group, the second because Mongoose enforced no cross-field rule
+and a "all six or none" CHECK would reject rows production may already hold.
+
 ## Foreign keys: per reference, and say why
 
 `oxy_user_id` and every other Oxy account id carry no foreign key anywhere: Oxy
@@ -821,6 +863,8 @@ about enums, applied to all of them.
 | `user_memory_entries_memory_title_lower_key` | two memories under one profile whose titles differ only in case or surrounding whitespace | Mongo could not index inside a sub-document array, so nothing enforced this; the application already treats such a pair as ONE memory, so a hit is two entries a user sees as duplicates. Merge them rather than relaxing the index. |
 | `user_memories_oxy_user_id_key` | two profiles for one account | Mongoose declares `unique: true`, so a hit means a row predating it or a raw write around it. |
 | `skills_skill_id_key` | two skills sharing a `skill_id` | Mongoose declares `unique: true`, so a hit means a row predating it. It matters because `lib/seed-skills.ts` upserts on this key: a duplicate makes which row the seed updates arbitrary, and the other one is then a skill nobody can correct. |
+| `agents_handle_key` | two agents sharing a `handle` | Mongoose declares `unique: true`, so a hit means a row predating it or a raw write around it. A handle is how one agent delegates to another (`@researcher`), so a duplicate makes which agent is hired arbitrary. |
+| `agent_skills_agent_skill_key`, `agent_knowledge_agent_file_key` | one agent's array naming the same skill or file TWICE | New — Mongo cannot index inside a sub-document array, and nothing deduplicated these on write (`routes/agents/crud.ts:252` stores the client's array verbatim, unlike the team routes which use `$addToSet`). A hit is a duplicate the UI already renders twice; drop the repeat rather than relaxing the index. |
 
 ## Not-null a legacy row may not satisfy
 
@@ -840,6 +884,27 @@ Batch 9a adds the same question for `skills.system_prompt`, `.author`, `.icon`,
 Mongoose, all `notNull` here. `skills.icon` and `.color` are the likeliest to
 bite: they are presentation fields, so a seed revision that introduced them
 leaves every earlier row without one.
+
+## Foreign keys a legacy row will not satisfy — the EXPECTED failure of batch 9b
+
+`agent_skills.skill_id`, `agent_knowledge.library_file_id` and (batch 9c)
+`agent_team_*` all have real foreign keys, and **Mongo left dangling ids in
+exactly these arrays**: deleting a `Skill` or a `LibraryFile` never touched the
+agents referencing it, and `populate` silently dropped the unresolvable entry on
+read. So the backfill WILL hit `23503` here, and it is not a defect — it is the
+first time anybody has counted how many of those references are dead.
+
+Do not "fix" it by dropping the constraint. Count the dangling ids first; each
+one is an entry an agent's owner has seen disappear from their skill list
+already, so DISCARDING it restores nothing and loses nothing. Discard, record the
+count, and keep the constraint — that is what makes the same silent shrinkage
+impossible afterwards.
+
+`agents.rating` outside 0..5 is the same class one column over: Mongoose declares
+`min: 0, max: 5`, so a violation means a non-validating write path produced it.
+`lib/agent-rating.ts` is the only writer and it stores an average of 1..5 review
+ratings, so a legacy row outside the range is a real anomaly worth reading rather
+than a bound to widen.
 
 ## The one that corrupts silently rather than failing
 
