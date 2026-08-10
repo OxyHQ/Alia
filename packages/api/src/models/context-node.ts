@@ -1,20 +1,5 @@
 import mongoose, { Schema, Model, Document } from 'mongoose';
-
-export const CONTEXT_NODE_TYPES = [
-  'person',
-  'project',
-  'document',
-  'thread',
-  'calendar_event',
-  'integration',
-  'memory',
-  'conversation',
-  'agent',
-  'service',
-  'tag',
-  'unknown',
-] as const;
-export type ContextNodeType = (typeof CONTEXT_NODE_TYPES)[number];
+import { CONTEXT_NODE_TYPES, ContextNodeType } from '../domain/context-node.js';
 
 export interface IContextNode extends Document {
   oxyUserId: mongoose.Types.ObjectId;

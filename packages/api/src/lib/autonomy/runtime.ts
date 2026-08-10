@@ -1,4 +1,4 @@
-import type { AutonomyIntent } from '../../models/retrieval-strategy.js';
+import type { AutonomyIntent } from '../../domain/retrieval-strategy.js';
 import { classifyIntent, type IntentClassification } from './intents.js';
 import { recallContextForIntent, learnFromRun, saveUserCorrection, type RecallResult } from './context-graph.js';
 import { autonomyFlags } from './flags.js';

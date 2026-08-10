@@ -1,12 +1,5 @@
 import mongoose, { Schema, Model, Document } from 'mongoose';
-
-/** What the money was for. Alia's own vocabulary, not a payment provider's. */
-export const TRANSACTION_TYPES = ['credit_purchase', 'subscription_payment', 'refund'] as const;
-export type TransactionType = (typeof TRANSACTION_TYPES)[number];
-
-/** Where the transaction got to. Alia's own vocabulary, not a payment provider's. */
-export const TRANSACTION_STATUSES = ['pending', 'completed', 'failed', 'refunded'] as const;
-export type TransactionStatus = (typeof TRANSACTION_STATUSES)[number];
+import { TRANSACTION_STATUSES, TRANSACTION_TYPES } from '../domain/transaction.js';
 
 export interface ITransaction extends Document {
   oxyUserId: string;

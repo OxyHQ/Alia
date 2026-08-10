@@ -2,22 +2,7 @@ import mongoose, { Document, Schema } from 'mongoose';
 import crypto from 'crypto';
 import { log } from '../../../lib/logger.js';
 import { PROVIDER_NAMES } from '../lib/provider-names.js';
-
-/** Which deployment a key belongs to. */
-export const PROVIDER_KEY_ENVIRONMENTS = ['production', 'staging', 'development'] as const;
-export type ProviderKeyEnvironment = (typeof PROVIDER_KEY_ENVIRONMENTS)[number];
-
-/**
- * The commercial tier of the ACCOUNT the key belongs to. Deliberately NOT
- * `MODEL_PRICING_TIERS`: this one carries `enterprise` and that one does not, so
- * a single shared tuple would silently widen one of the two.
- */
-export const PROVIDER_KEY_TIERS = ['free', 'freemium', 'paid', 'enterprise'] as const;
-export type ProviderKeyTier = (typeof PROVIDER_KEY_TIERS)[number];
-
-/** How often the key is expected to be rotated. */
-export const PROVIDER_KEY_ROTATION_SCHEDULES = ['manual', 'monthly', 'quarterly', 'yearly'] as const;
-export type ProviderKeyRotationSchedule = (typeof PROVIDER_KEY_ROTATION_SCHEDULES)[number];
+import { PROVIDER_KEY_ENVIRONMENTS, PROVIDER_KEY_ROTATION_SCHEDULES, PROVIDER_KEY_TIERS } from '../../../domain/provider-key.js';
 
 export interface IRateLimit {
   rps?: number;  // Requests per second

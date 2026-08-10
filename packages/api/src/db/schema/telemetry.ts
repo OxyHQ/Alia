@@ -17,7 +17,7 @@
 import { boolean, doublePrecision, index, integer, jsonb, pgTable, text, uniqueIndex } from 'drizzle-orm/pg-core';
 import { createdAt, generatedId, timestamptz, updatedAt } from '@oxyhq/db';
 import { checkOneOf } from './columns';
-import { API_KEY_USAGE_AUTH_TYPES, API_KEY_USAGE_METHODS } from '../../models/api-key-usage.js';
+import { API_KEY_USAGE_AUTH_TYPES, API_KEY_USAGE_METHODS } from '../../domain/api-key-usage.js';
 
 /**
  * Circuit-breaker state per (provider, model).

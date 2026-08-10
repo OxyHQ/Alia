@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { generateText } from 'ai';
-import { Agent, AGENT_ARCHETYPES } from '../../models/agent.js';
+import { Agent } from '../../models/agent.js';
+import { AGENT_ARCHETYPES } from '../../domain/agent.js';
 import { authenticateToken } from '../../middleware/auth.js';
 import { resolveModel, getAIModel, getDefaultAliaModel } from '../../lib/chat-core.js';
 import { log } from '../../lib/logger.js';

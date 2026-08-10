@@ -71,11 +71,7 @@ import { check } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 import { createdAt, generatedId, timestamptz, updatedAt } from '@oxyhq/db';
 import { checkOneOf } from './columns';
-import {
-  AGENT_SESSION_RESOURCE_STATUSES,
-  AGENT_SESSION_RESOURCE_TYPES,
-  AGENT_SESSION_STATUSES,
-} from '../../models/agent-session.js';
+import { AGENT_SESSION_RESOURCE_STATUSES, AGENT_SESSION_RESOURCE_TYPES, AGENT_SESSION_STATUSES } from '../../domain/agent-session.js';
 import { agents } from './agents';
 import { skills } from './agents-support';
 import { libraryFiles } from './library';

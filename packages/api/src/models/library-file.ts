@@ -1,7 +1,5 @@
 import mongoose, { Schema, Model, Document } from 'mongoose';
-
-export const FILE_CATEGORIES = ['documents', 'images', 'other'] as const;
-export type FileCategory = (typeof FILE_CATEGORIES)[number];
+import { FILE_CATEGORIES, FileCategory } from '../domain/library-file.js';
 
 export interface ILibraryFile extends Document {
   name: string;

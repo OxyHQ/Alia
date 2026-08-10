@@ -1,4 +1,4 @@
-import { ReportStatus, type ModerationLocalStatus } from '../../models/report.js';
+import { ReportStatus, type ModerationLocalStatus } from '../../domain/report.js';
 
 /**
  * The one place a report's two status axes are decided.

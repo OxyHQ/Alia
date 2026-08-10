@@ -1,15 +1,5 @@
 import mongoose, { Schema, Model, Document } from 'mongoose';
-
-export const AUTONOMY_INTENTS = [
-  'meeting_prep',
-  'inbox_digest',
-  'project_status',
-  'task_followup',
-  'monitoring',
-  'research',
-  'general',
-] as const;
-export type AutonomyIntent = (typeof AUTONOMY_INTENTS)[number];
+import { AUTONOMY_INTENTS, AutonomyIntent } from '../domain/retrieval-strategy.js';
 
 export interface IRetrievalSourceStep {
   sourceKey: string;

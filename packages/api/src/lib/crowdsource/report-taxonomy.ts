@@ -1,5 +1,5 @@
 import type { TaxonomyCode } from '@oxyhq/crowdsource-contracts';
-import { ReportCategory } from '../../models/report.js';
+import { ReportCategory } from '../../domain/report.js';
 
 /**
  * Alia's report categories, translated into CrowdSource's universal taxonomy.

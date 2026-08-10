@@ -1,6 +1,7 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import mongoose from 'mongoose';
-import { Report, ReportCategory, ReportedType } from '../../../models/report.js';
+import { Report } from '../../../models/report.js';
+import { ReportCategory, ReportedType } from '../../../domain/report.js';
 import { ModerationOutbox } from '../../../models/moderation-outbox.js';
 import { createReport, DuplicateReportError } from '../intake.js';
 import { enqueueModerationOutboxEvent, reportSubmitEventId } from '../outbox.js';

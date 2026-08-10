@@ -1,7 +1,7 @@
 import { Router, type Request, type Response } from 'express';
 import { authenticateToken } from '../middleware/auth.js';
 import { createReport, DuplicateReportError } from '../lib/crowdsource/intake.js';
-import { ReportCategory, ReportedType } from '../models/report.js';
+import { ReportCategory, ReportedType } from '../domain/report.js';
 import { log } from '../lib/logger.js';
 
 /**

@@ -30,7 +30,8 @@ vi.mock('../../../models/report.js', async () => {
   };
 });
 
-import { Report, ReportCategory, ReportedType } from '../../../models/report.js';
+import { Report } from '../../../models/report.js';
+import { ReportCategory, ReportedType } from '../../../domain/report.js';
 import { createReport, DuplicateReportError } from '../intake.js';
 
 const reportModel = Report as unknown as {

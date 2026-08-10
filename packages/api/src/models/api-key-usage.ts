@@ -1,12 +1,5 @@
 import mongoose, { Schema, Document } from 'mongoose';
-
-/** How the caller authenticated. Drives which rate-limit budget the call spends. */
-export const API_KEY_USAGE_AUTH_TYPES = ['api_key', 'session', 'internal'] as const;
-export type ApiKeyUsageAuthType = (typeof API_KEY_USAGE_AUTH_TYPES)[number];
-
-/** The HTTP methods this API exposes. */
-export const API_KEY_USAGE_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'] as const;
-export type ApiKeyUsageMethod = (typeof API_KEY_USAGE_METHODS)[number];
+import { API_KEY_USAGE_AUTH_TYPES, API_KEY_USAGE_METHODS } from '../domain/api-key-usage.js';
 
 export interface IApiKeyUsage extends Document {
   apiKeyId?: mongoose.Types.ObjectId;  // Optional: null for session-based auth

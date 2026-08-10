@@ -51,9 +51,9 @@ import {
 import { sql } from 'drizzle-orm';
 import { createdAt, generatedId, timestamptz, updatedAt } from '@oxyhq/db';
 import { checkOneOf } from './columns';
-import { BILLING_PERIODS, PLAN_PRODUCTS } from '../../internal/providers/models/plan.js';
-import { FEATURE_TYPES } from '../../internal/providers/models/feature.js';
-import { TRANSACTION_STATUSES, TRANSACTION_TYPES } from '../../models/transaction.js';
+import { BILLING_PERIODS, PLAN_PRODUCTS } from '../../domain/plan.js';
+import { FEATURE_TYPES } from '../../domain/feature.js';
+import { TRANSACTION_STATUSES, TRANSACTION_TYPES } from '../../domain/transaction.js';
 
 /**
  * A subscription plan offered for a product.

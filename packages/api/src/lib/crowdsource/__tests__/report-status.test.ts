@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { DECISION_OUTCOMES, DECISION_STATUSES } from '@oxyhq/crowdsource-contracts';
 import { legacyStatusForOutcome, reportStateForDecision } from '../report-status.js';
-import { ReportStatus } from '../../../models/report.js';
+import { ReportStatus } from '../../../domain/report.js';
 
 describe('reportStateForDecision', () => {
   it('resolves a violation and dismisses a no_violation', () => {
