@@ -76,6 +76,16 @@ here would fail on the first write of an unexpected value, in the authentication
 path. The tuple stays a TypeScript narrowing; widening it to a CHECK is a
 decision for **after** the backfill has audited what is actually stored.
 
+The columns that have taken this answer, so the reasoning is not re-argued per
+column: `auth_health_metrics.method`, `chat_analytics.platform`, and
+`voice_call_usage.provider` / `.audio_format` / `.disconnect_reason` /
+`.client_type`. **`voice_call_usage.provider` is the one worth reading twice**,
+because `PROVIDER_NAMES` exists and renders CHECKs on three columns in
+`providers.ts` — so the tempting move is to reuse it. Its Mongoose field is a
+bare `String` with no `enum`, and the write happens during session teardown,
+where the alternative to storing the row is losing the billing record for a call
+that already happened.
+
 **Every enum in this schema is subject to that same doubt.** The backfill must
 re-audit each one **in the same invocation as the copy** — an audit whose result
 can expire between running it and using it is not a gate.
@@ -345,6 +355,23 @@ before reading a byte. The same applies on the Postgres side, which is what
 `--target-database` already enforces for migrations — this is the read half of
 the same rule.
 
+### The same rule for COLUMN names, and `library_files` is the instance
+
+Every table in this schema names the account `oxy_user_id`. `LibraryFile` calls
+the identical thing **`owner`** — so a backfill that pairs source and
+destination fields by matching names, or by a rule like "the account column is
+the one called `oxy_user_id`", copies every other column correctly and leaves
+this one NULL. The copy reports success and every file in the library becomes
+unreachable.
+
+The column is therefore named `owner_oxy_user_id`: the fact travels in the name
+rather than in a comment, and the backfill states the `owner` → `owner_oxy_user_id`
+mapping explicitly. **A Mongoose field name is as arbitrary as a Mongoose
+collection name**, and neither is evidence of anything — a derivation over one
+is a check that cannot fail. Grep each model for what it actually calls the
+account before porting it; three spellings are already in use across this
+service (`oxyUserId`, `userId`, `owner`).
+
 ## The clock in a lease is the SERVER's
 
 `leases` is acquired and renewed by ONE conditional statement comparing against
@@ -382,15 +409,34 @@ Two different things, and the split is not a judgement call:
 `credits` is neither — a count, so `integer`.
 
 **The read side has a trap that `tsc` cannot see.** postgres.js decodes
-`bigint`/`int8` as a STRING. drizzle escapes that for a COLUMN via
-`mode: 'number'`, but an AGGREGATE has no column builder to carry the mode, so
-`sum()`/`max()` come back as strings while typing as numbers, and `max + 1` is
-string concatenation. Coerce explicitly at that boundary.
+`bigint`/`int8` as a STRING. `mode: 'number'` escapes that for a COLUMN, but an
+AGGREGATE has no column builder to carry the mode, so `sum()`/`max()` come back
+as strings while typing as numbers, and `max + 1` is string concatenation.
+Coerce explicitly at that boundary.
 
 A test that performs ONE aggregation cannot catch this — `max` over a single row
 plus one gives the same answer either way. `billing.pgdb.test.ts` does two
 sequential appends, which is what makes `"7" + "1" = "71"` distinguishable
 from `8`.
+
+**`mode: 'number'` is narrower than "for a COLUMN" suggests, and the difference
+was MEASURED rather than reasoned about.** The mode is applied by drizzle's
+result mapper, which runs only for a query the QUERY BUILDER constructed. A raw
+`db.execute(sql\`select size …\`)` returns whatever postgres.js decoded. So one
+`bigint` column, in one row, reaches JavaScript as:
+
+| Read | Type |
+|---|---|
+| `db.select({ size: libraryFiles.size })…` | `number` |
+| `db.execute(sql\`select size from …\`)` | `string` |
+| `sum(size)`, however issued | `string` |
+
+`tsc` types all three `number`. This matters more than it looks, because **every
+`*.pgdb.test.ts` in this package takes the raw path** — so a test asserting a
+`bigint` column round-trips is asserting the string, and a repository that mixes
+builder queries with raw SQL for what the builder cannot express gets two
+JavaScript types for one column. `library.pgdb.test.ts` pins both halves against
+a real server; it is what caught the claim this paragraph originally made.
 
 ## A Mongoose SETTER has no Postgres counterpart, and two of them mattered
 
@@ -601,6 +647,7 @@ about enums, applied to all of them.
 | Where | What to audit | Why it matters |
 |---|---|---|
 | `referral_redemptions_referred_user_key` | one account appearing under TWO referrers | The double-credit race is real (`routes/referrals.ts` pays before it records). A hit here is a customer who was credited twice. |
+| `voice_call_usage_session_id_key` | two rows for one provider `sessionId` | Mongoose declared this unique, so a hit means a row predating it. It matters because `lib/voice-usage.ts` sums minutes per user: a duplicated session double-counts against a plan's voice entitlement. |
 | `organizations_slug_lower_key` | two slugs differing only in case | Mongoose's `lowercase` setter folded them; a row written around it did not. |
 | `alia_models.alias_model_id` | a value that is not already lowercase | Same setter, no CHECK added — the port stores whatever is there. |
 
@@ -611,6 +658,10 @@ about enums, applied to all of them.
 but a `required` added to a schema binds only writes made after it. Audit for
 subscriptions predating the snapshot. Relaxing these is a one-line change while
 the schema is inert and a `post` migration afterwards.
+
+`voice_call_usage.cost_per_minute` is the same shape: `required` in Mongoose with
+no default, so nothing supplies it for a row written before it was added. The
+same question applies to `library_files.size`, `.url` and `.type`.
 
 ## The one that corrupts silently rather than failing
 
@@ -629,6 +680,11 @@ production. `columns.ts` has the full reasoning.
   foreign key applies. It should be — the column is declared and indexed in
   Mongoose and never written, verified package-wide — but confirm rather than
   assume.
+- `voice_call_usage.average_latency_ms` and `.client_type` are declared in
+  Mongoose and written by nothing in the package, verified whole-package rather
+  than around the writer. Confirm they are entirely absent before anybody reads
+  one as meaningful; they are ported so the shape is faithful, not because they
+  carry anything.
 - Migration `001-restructure-memories-title-summary-type` must be recorded as
   applied before `user_memories` (batch 8) is copied, and any source row still
   carrying the legacy `key`/`category` keys refused. Stated in full above.

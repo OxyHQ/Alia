@@ -11,6 +11,7 @@ export * from './cache';
 export * from './developers';
 export * from './integrations';
 export * from './leases';
+export * from './library';
 export * from './moderation';
 export * from './notifications';
 export * from './organizations';

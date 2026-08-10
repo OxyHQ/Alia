@@ -1,6 +1,7 @@
 import mongoose, { Schema, Model, Document } from 'mongoose';
 
-export type FileCategory = 'documents' | 'images' | 'other';
+export const FILE_CATEGORIES = ['documents', 'images', 'other'] as const;
+export type FileCategory = (typeof FILE_CATEGORIES)[number];
 
 export interface ILibraryFile extends Document {
   name: string;
@@ -21,7 +22,7 @@ const LibraryFileSchema = new Schema<ILibraryFile>({
   size: { type: Number, required: true },
   category: {
     type: String,
-    enum: ['documents', 'images', 'other'],
+    enum: [...FILE_CATEGORIES],
     required: true,
   },
   owner: {
