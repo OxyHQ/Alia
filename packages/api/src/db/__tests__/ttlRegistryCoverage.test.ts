@@ -221,6 +221,26 @@ const RETIRED_MONGO_TTLS: readonly RetiredMongoTtl[] = [
     expireAfterSeconds: 86400,
     retiredBy: 'S5 notifications — audio_jobs',
   },
+  {
+    model: 'Notification',
+    collection: 'notifications',
+    /**
+     * `NotificationSchema.index({ createdAt: 1 }, { expireAfterSeconds: 90 * 24
+     * * 60 * 60, partialFilterExpression: { status: 'dismissed' } })`, read off
+     * `src/models/notification.ts:82` before it was deleted.
+     *
+     * **The CONDITIONAL one**, and the reason this list matters more than a
+     * decrement would. Every assertion about the partial TTL — that it is
+     * registered against a DIFFERENT column, that the different column is
+     * `dismissed_at`, that a conditional case exists at all — reads the source's
+     * `partialFilterExpression`. Delete the model and decrement the floor and
+     * all three quietly start measuring an empty set while still passing.
+     */
+    path: 'createdAt',
+    expireAfterSeconds: 90 * 24 * 60 * 60,
+    partialFilterExpression: { status: 'dismissed' },
+    retiredBy: 'S5 notifications — notifications',
+  },
 ];
 
 const walked = declaredMongoTtls();
@@ -254,12 +274,13 @@ describe('every ported TTL index has a matching expiry-sweep target', () => {
      * `RETIRED_MONGO_TTLS` in the same commit — which is what keeps the two
      * halves adding up to 13.
      *
-     * 11 after S1 retired two; 10 once S5 retires `AudioJob`. Lowering it is
-     * legitimate ONLY in the same change that adds the matching retired entry,
-     * and the exact-sum assertion below is what makes that mechanical rather
-     * than a judgement call.
+     * 11 after S1 retired two; 9 once S5 retires `AudioJob` and `Notification`.
+     * Lowering it is legitimate ONLY in the same change that adds the matching
+     * retired entries, and the exact-sum assertion below is what makes that
+     * mechanical rather than a judgement call — the two numbers cannot drift
+     * apart without one of them going red.
      */
-    expect(walked.length).toBeGreaterThanOrEqual(10);
+    expect(walked.length).toBeGreaterThanOrEqual(9);
     expect(walked.length + RETIRED_MONGO_TTLS.length).toBe(13);
   });
 

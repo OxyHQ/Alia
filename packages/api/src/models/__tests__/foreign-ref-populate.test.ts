@@ -62,9 +62,26 @@ function modelFiles(): string[] {
 
 const files = modelFiles();
 
-// Vacuity floor. An empty or broken traversal produces the same "no violations"
-// result as a clean tree, so the count is asserted rather than assumed.
-const MINIMUM_MODEL_FILES = 60;
+/**
+ * Vacuity floor. An empty or broken traversal produces the same "no violations"
+ * result as a clean tree, so the count is asserted rather than assumed.
+ *
+ * ## This floor legitimately FALLS as the Postgres port proceeds, and the TTL
+ * gate's floor does not — the difference is what each one measures
+ *
+ * `ttlRegistryCoverage.test.ts` counts TTL DECLARATIONS as a proxy for sweep
+ * COVERAGE, so lowering it drops a guarantee and its declarations are moved to a
+ * retired list instead, keeping the total conserved. This number measures the
+ * TRAVERSAL — whether `git ls-files` still finds the model tree — and the models
+ * it counts are genuinely being deleted. Lowering it loses nothing; leaving it
+ * would fail on a correct change.
+ *
+ * 56 on 748e620b, 48 after S5 deletes its seven. Set below the live count with
+ * headroom because sibling slices are deleting models concurrently, and well
+ * above what a broken walk reports, which is zero or single digits. Re-express
+ * or delete this at S10, when there are no models left to walk.
+ */
+const MINIMUM_MODEL_FILES = 40;
 
 await Promise.all(
   files.map((f) => import(path.join(PACKAGE_ROOT, f.replace(/\.ts$/, '.js')))),

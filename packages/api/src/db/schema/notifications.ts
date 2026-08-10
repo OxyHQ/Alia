@@ -47,8 +47,11 @@ export const NOTIFICATION_TYPES = [
 export type NotificationTypeValue = (typeof NOTIFICATION_TYPES)[number];
 
 export const NOTIFICATION_CHANNELS = ['push', 'telegram', 'discord', 'whatsapp', 'slack', 'in_app'] as const;
+export type NotificationChannel = (typeof NOTIFICATION_CHANNELS)[number];
 export const NOTIFICATION_STATUSES = ['pending', 'sent', 'read', 'dismissed'] as const;
+export type NotificationStatus = (typeof NOTIFICATION_STATUSES)[number];
 export const NOTIFICATION_PRIORITIES = ['low', 'normal', 'high', 'urgent'] as const;
+export type NotificationPriority = (typeof NOTIFICATION_PRIORITIES)[number];
 
 export const PUSH_TOKEN_PLATFORMS = ['ios', 'android', 'web'] as const;
 export const SUGGESTION_TYPES = ['welcome', 'autocomplete'] as const;
@@ -136,16 +139,23 @@ export const notifications = pgTable(
     id: generatedId(),
     /** An Oxy account. No foreign key: Oxy owns identity. */
     oxyUserId: text().notNull(),
-    type: text({ enum: NOTIFICATION_TYPES as unknown as [string, ...string[]] }).notNull(),
+    // `$type` restores the literal unions the tuple casts erase; the CHECKs are
+    // what make them true. Type-only — no generated SQL changes.
+    type: text({ enum: NOTIFICATION_TYPES as unknown as [string, ...string[]] })
+      .$type<NotificationTypeValue>()
+      .notNull(),
     title: text().notNull(),
     body: text().notNull(),
-    data: jsonb(),
-    channels: text().array().notNull().default(sql`'{}'::text[]`),
-    deliveryStatus: jsonb().notNull().default({}),
+    data: jsonb().$type<Record<string, unknown>>(),
+    channels: text().array().$type<NotificationChannel[]>().notNull().default(sql`'{}'::text[]`),
+    /** A per-channel map, keyed by the channels actually attempted. */
+    deliveryStatus: jsonb().$type<Record<string, string>>().notNull().default({}),
     status: text({ enum: NOTIFICATION_STATUSES as unknown as [string, ...string[]] })
+      .$type<NotificationStatus>()
       .notNull()
       .default('pending'),
     priority: text({ enum: NOTIFICATION_PRIORITIES as unknown as [string, ...string[]] })
+      .$type<NotificationPriority>()
       .notNull()
       .default('normal'),
     /** A `triggers` row. No foreign key — see the table comment. */
