@@ -29,7 +29,7 @@
 
 import { sweepAllExpiredRows } from '@oxyhq/db/expiry';
 import { log } from '../lib/logger.js';
-import { tryGetDb } from './index';
+import { getDb } from './index';
 import { EXPIRY_TARGETS } from './expiryTargets';
 
 /** How often to sweep. Mongo's own TTL monitor ran every 60s; this is less urgent. */
@@ -45,11 +45,11 @@ let timer: ReturnType<typeof setInterval> | null = null;
  * problem, not a reason to take down whatever called it.
  */
 export async function runExpirySweep(): Promise<void> {
-  const db = tryGetDb();
-  if (!db) return;
-
   try {
-    const results = await sweepAllExpiredRows(db, EXPIRY_TARGETS);
+    // Inside the try: a missing handle is a FAILED sweep and is logged as one.
+    // The previous `if (!db) return` made "Postgres is not connected" and "there
+    // was nothing to expire" the same silent outcome.
+    const results = await sweepAllExpiredRows(getDb(), EXPIRY_TARGETS);
     const deleted = results.reduce((total, r) => total + r.deleted, 0);
     const truncated = results.filter((r) => r.truncated).map((r) => r.table);
 

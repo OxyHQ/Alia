@@ -7,20 +7,23 @@
  * CREATED. Getting that wrong produces `column "oxyUserId" does not exist` at
  * runtime with a schema that looks correct in the editor.
  *
- * ## Postgres is OPTIONAL here, and that is temporary
+ * ## Postgres is REQUIRED
  *
- * Unlike `packages/integrations`, this service is live on MongoDB and its task
- * definition carries no `DATABASE_URL`. So `connectPostgres()` returns `null`
- * when there is nothing to connect to; every route still runs against Mongo and
- * nothing in the request path reads this handle. It exists so the destination
- * can be built and migrated AHEAD of the call-site port — the same thing #82 did
- * for integrations.
+ * `oxy-alia:28` carries `DATABASE_URL`, `index.ts` connects before the socket
+ * opens, and a missing or unusable connection string exits the process rather
+ * than starting a service that answers some routes and 500s the rest.
  *
- * When the last domain moves, this becomes required at boot exactly as it is in
- * every other Oxy backend. That is a deliberate step at cutover, not something
- * to slip in: until then a `null` here must mean "not configured", never "not
- * connected yet", or a read would silently fall back to Mongo after its domain
- * had been ported.
+ * `connectPostgres()` still returns `null` for an unconfigured URL rather than
+ * throwing, because the decision "this is fatal" belongs to the application's
+ * boot, not to the module that opens a pool — the test suite legitimately calls
+ * it and wants the answer, not an exception. What is gone is any code path that
+ * treats `null` as a state to CARRY: there is no `tryGetDb()` any more, so a
+ * caller cannot quietly no-op when the database is absent.
+ *
+ * Mongoose call sites remain until the last domain is ported. They do not read
+ * this handle and this handle knows nothing about them; the two stores are
+ * simply both open for the duration, and `lib/db.ts` goes away with the last of
+ * them.
  */
 
 import { createDatabase, type OxyDatabase } from '@oxyhq/db';
@@ -46,21 +49,13 @@ export function connectPostgres(databaseUrl: string | undefined): ApiDatabase | 
 }
 
 /**
- * The handle, or `null` when Postgres is not configured.
+ * The handle, or a thrown error.
  *
- * Deliberately NOT the throwing `getDb()` that `packages/integrations` exposes.
- * There, Postgres is the only store and a missing handle is a bug; here an
- * unconfigured deployment is a supported state for the duration of the port, so
- * the caller must decide what to do about it rather than have this module decide
- * by throwing.
- */
-export function tryGetDb(): ApiDatabase | null {
-  return handle?.db ?? null;
-}
-
-/**
- * The handle, or a thrown error — for code that has already established Postgres
- * is required for the path it is on.
+ * The only accessor. A `tryGetDb()` returning `null` used to exist beside it,
+ * and its single caller answered the null by returning early — which is the
+ * permissive-direction failure in miniature: with Postgres required at boot the
+ * null is unreachable, and while it WAS reachable it turned "the database is
+ * missing" into "there was nothing to do". Throwing is what keeps those apart.
  */
 export function getDb(): ApiDatabase {
   if (!handle) {

@@ -138,7 +138,6 @@ const MONGO_MODEL_TO_TABLE: Readonly<Record<string, string>> = {
   ApiKeyUsage: 'api_key_usage',
   FallbackEvent: 'fallback_events',
   RoutingLog: 'routing_logs',
-  CacheEntry: 'cache_entries',
   OrganizationInvite: 'organization_invites',
   McpOAuthState: 'mcp_oauth_states',
   OAuthState: 'oauth_states',
@@ -153,10 +152,16 @@ const MONGO_MODEL_TO_TABLE: Readonly<Record<string, string>> = {
  * TTL-declaring models deliberately NOT ported, so their absence from the map is
  * a decision rather than an oversight.
  *
- * EMPTY, and that is the current truth: all fourteen TTL declarations are ported
- * and registered. A model belongs here only while its table genuinely does not
- * exist in Postgres — and it has to be moved to the map, not deleted, when it
- * lands.
+ * EMPTY, and that is the current truth: all thirteen surviving TTL declarations
+ * are ported and registered. A model belongs here only while its table genuinely
+ * does not exist in Postgres — and it has to be moved to the map, not deleted,
+ * when it lands.
+ *
+ * `CacheEntry` was the fourteenth. It is not listed here because it is not
+ * unported — it is GONE: `lib/intelligent-cache.ts` declared it and had zero
+ * importers in the whole repository, so the module, both its collections and
+ * both its tables were deleted. A dead model in this set would have read as
+ * "still to do" forever.
  */
 const TTL_MODELS_NOT_PORTED: ReadonlySet<string> = new Set<string>();
 
@@ -166,9 +171,11 @@ const tables = portedTables();
 describe('every ported TTL index has a matching expiry-sweep target', () => {
   it('found the TTL declarations at all', () => {
     // Vacuity floor. An empty walk produces the same "no gaps" verdict as a
-    // complete one, so the count is asserted rather than assumed. 14 measured;
-    // this number goes DOWN only when a TTL is deliberately dropped.
-    expect(ttls.length).toBeGreaterThanOrEqual(14);
+    // complete one, so the count is asserted rather than assumed. 14 measured
+    // originally; 13 since `CacheEntry` was deleted with its dead module — this
+    // number goes DOWN only when a TTL is deliberately dropped, and this gate
+    // firing is what forced that to be written down rather than absorbed.
+    expect(ttls.length).toBeGreaterThanOrEqual(13);
     expect(tables.size).toBeGreaterThanOrEqual(5);
   });
 
