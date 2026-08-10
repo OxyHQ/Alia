@@ -1,5 +1,16 @@
 import mongoose, { Schema, Model, Document } from 'mongoose';
 
+/**
+ * Exported as TUPLES, not union types: the Postgres schema renders its CHECKs
+ * from these exact values rather than retyping them, so a constraint and the
+ * validator guarding the same column cannot drift apart.
+ */
+export const CONTAINER_SIZES = ['small', 'medium', 'large'] as const;
+export type ContainerSize = (typeof CONTAINER_SIZES)[number];
+
+export const CONTAINER_STATUSES = ['creating', 'running', 'idle', 'stopped', 'destroyed'] as const;
+export type ContainerStatus = (typeof CONTAINER_STATUSES)[number];
+
 export interface IContainer extends Document {
   containerId: string;
   name: string;
@@ -7,8 +18,8 @@ export interface IContainer extends Document {
   agentId: mongoose.Types.ObjectId;
   userId: mongoose.Types.ObjectId;
   image: string;
-  size: 'small' | 'medium' | 'large';
-  status: 'creating' | 'running' | 'idle' | 'stopped' | 'destroyed';
+  size: ContainerSize;
+  status: ContainerStatus;
   persistent: boolean;
   previewUrl?: string;
   exposedPorts: number[];
@@ -41,12 +52,12 @@ const ContainerSchema = new Schema<IContainer>({
   image: { type: String, required: true },
   size: {
     type: String,
-    enum: ['small', 'medium', 'large'],
+    enum: CONTAINER_SIZES,
     default: 'small',
   },
   status: {
     type: String,
-    enum: ['creating', 'running', 'idle', 'stopped', 'destroyed'],
+    enum: CONTAINER_STATUSES,
     default: 'creating',
     index: true,
   },
