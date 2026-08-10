@@ -5,6 +5,7 @@
  */
 
 export * from './agents';
+export * from './agent-sessions';
 export * from './agents-support';
 export * from './automation';
 export * from './billing';
