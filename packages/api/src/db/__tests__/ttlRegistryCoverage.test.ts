@@ -165,7 +165,47 @@ const MONGO_MODEL_TO_TABLE: Readonly<Record<string, string>> = {
  */
 const TTL_MODELS_NOT_PORTED: ReadonlySet<string> = new Set<string>();
 
-const ttls = declaredMongoTtls();
+/**
+ * TTL declarations whose Mongoose model has been DELETED by the route switch.
+ *
+ * The route switch breaks this file's central assumption. Every assertion below
+ * derives from walking the live Mongoose schemas, which is exactly right while
+ * both stores exist — and the moment a slice deletes its models, that walk stops
+ * seeing the TTLs those models declared. Nothing goes red: the walk simply
+ * returns fewer rows, every downstream check SKIPS the tables it can no longer
+ * see, and the retention of a still-swept table becomes unverified. Which is the
+ * silent failure the file was written to prevent, reached through the file.
+ *
+ * So a deleted model's TTL is transcribed here rather than lost. These are read
+ * off the source at the commit that removed them and are the last record of what
+ * Mongo did — every column and retention check below runs against them exactly as
+ * it did while the schema existed.
+ *
+ * Verified against `d71f723b`:
+ *   models/moderation-outbox.ts:114  index({expiresAt: 1}, {expireAfterSeconds: 0})
+ *   models/moderation-event.ts:67    index({expiresAt: 1}, {expireAfterSeconds: 0})
+ * `models/report.ts` declared NO TTL, so its deletion adds nothing here.
+ *
+ * This list only ever GROWS, and an entry is never removed: the table it names
+ * is still swept, so the rule it states is still live.
+ */
+const RETIRED_MONGO_TTLS: readonly MongoTtl[] = [
+  {
+    model: 'ModerationOutbox',
+    collection: 'moderation_outbox',
+    path: 'expiresAt',
+    expireAfterSeconds: 0,
+  },
+  {
+    model: 'ModerationEvent',
+    collection: 'moderation_events',
+    path: 'expiresAt',
+    expireAfterSeconds: 0,
+  },
+];
+
+const walked = declaredMongoTtls();
+const ttls = [...walked, ...RETIRED_MONGO_TTLS];
 const tables = portedTables();
 
 describe('every ported TTL index has a matching expiry-sweep target', () => {
@@ -177,6 +217,32 @@ describe('every ported TTL index has a matching expiry-sweep target', () => {
     // firing is what forced that to be written down rather than absorbed.
     expect(ttls.length).toBeGreaterThanOrEqual(13);
     expect(tables.size).toBeGreaterThanOrEqual(5);
+  });
+
+  it('the WALK itself is still non-vacuous, independently of the retired list', () => {
+    /**
+     * `RETIRED_MONGO_TTLS` props up the total, so the floor above would keep
+     * passing on a walk that had broken ENTIRELY — a stale `dist/`, a rename
+     * under `src/models/`, an import that silently threw. That is the same
+     * "found less" / "there is less" collapse the floor exists to prevent, one
+     * level up, and it arrives the moment a retired list exists at all.
+     *
+     * So the walk is floored on its own. This number goes DOWN by exactly as
+     * many models as a slice deletes, and each of those must appear in
+     * `RETIRED_MONGO_TTLS` in the same commit — which is what keeps the two
+     * halves adding up to 13.
+     */
+    expect(walked.length).toBeGreaterThanOrEqual(11);
+    expect(walked.length + RETIRED_MONGO_TTLS.length).toBe(13);
+  });
+
+  it('a retired model is really gone, so its entry cannot double-count a live one', () => {
+    // If a model came back — or was never deleted — its TTL would be counted
+    // twice and the floors above would pass while measuring one table twice.
+    const stillRegistered = RETIRED_MONGO_TTLS.filter((retired) =>
+      walked.some((ttl) => ttl.model === retired.model),
+    );
+    expect(stillRegistered.map((t) => t.model)).toEqual([]);
   });
 
   it('every TTL-declaring model is CLASSIFIED, so an absence cannot mean nothing', () => {

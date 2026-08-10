@@ -1,8 +1,8 @@
+import type { ModerationOutboxEvent } from '../../db/moderation/outboxRepository.js';
 import { crowdSourceConfig } from './config.js';
 import { applyDecisionOutboxEvent } from './decision-worker.js';
 import { deliverReportOutboxEvent } from './delivery-worker.js';
-import { dispatchModerationOutbox, type ModerationOutboxEvent } from './outbox.js';
-import { assertTransactionalTopology } from './topology.js';
+import { dispatchModerationOutbox } from './outbox.js';
 import { log } from '../logger.js';
 
 /**
@@ -44,45 +44,33 @@ export class ModerationOutboxDispatcher {
   private inFlight: Promise<void> | null = null;
   private abortController: AbortController | null = null;
   private running = false;
-  private starting: Promise<void> | null = null;
 
   /**
-   * Begin draining, once the deployment has been shown able to do it safely.
+   * Begin draining.
    *
-   * Synchronous to the caller because `index.ts` starts a dozen subsystems in a
-   * row and none of them blocks boot. The topology check runs in the background
-   * and the interval only starts if it passes — a deployment that cannot run
-   * transactions gets one loud error line and no dispatcher, rather than a loop
-   * that claims events it can never complete.
+   * **There is no topology precondition any more, and its removal was mandatory
+   * rather than tidying.** Under Mongo this gated on `assertTransactionalTopology()`,
+   * because a standalone `mongod` accepted every other write Alia made and failed
+   * only where a report and its outbox event had to commit together. Postgres has
+   * no such mode: transactions are not a deployment option.
+   *
+   * Leaving the check in place across the port would have been the quiet failure
+   * it was written to prevent. It read `mongoose.connection.db`, which is absent
+   * now, so it would have answered "cannot run transactions" on every boot — the
+   * dispatcher would never have started, reports would have queued in Postgres,
+   * and the only sign would have been one error line naming a database this
+   * service no longer uses.
+   *
+   * `CROWDSOURCE_ENABLED` still gates the LOOP and never the durable record.
    */
   start(): void {
-    if (this.running || this.starting) return;
+    if (this.running) return;
     const config = crowdSourceConfig();
     if (!config.enabled) {
       log.general.info('[CrowdSource] outbox dispatcher not started: integration disabled');
       return;
     }
-
-    this.starting = assertTransactionalTopology()
-      .then((topology) => {
-        if (!topology.ok) {
-          log.general.error(
-            { reason: topology.reason },
-            '[CrowdSource] outbox dispatcher not started: MongoDB cannot run transactions',
-          );
-          return;
-        }
-        this.beginTicking();
-      })
-      .catch((error: unknown) => {
-        log.general.error(
-          { error: error instanceof Error ? error.message : String(error) },
-          '[CrowdSource] outbox dispatcher failed to start',
-        );
-      })
-      .finally(() => {
-        this.starting = null;
-      });
+    this.beginTicking();
   }
 
   private beginTicking(): void {
@@ -105,10 +93,6 @@ export class ModerationOutboxDispatcher {
   }
 
   async stop(): Promise<void> {
-    this.running = false;
-    // A stop that raced the topology check must not leave a loop starting behind
-    // it — awaiting the start settles that ordering.
-    await this.starting;
     this.running = false;
     const controller = this.abortController;
     controller?.abort();

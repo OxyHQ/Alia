@@ -57,7 +57,16 @@ export const reports = pgTable(
     reportedType: text({ enum: REPORTED_TYPES as [string, ...string[]] }).notNull(),
     reportedId: text().notNull(),
     reporter: text().notNull(),
-    categories: text().array().notNull(),
+    /**
+     * Typed with the tuple as well as CHECKed against it, so a row READ back
+     * carries `ReportCategory[]` rather than `string[]`. `text({enum})` emits no
+     * DDL, so this costs nothing in the migration and buys the delivery path its
+     * types: `allegationsForCategories` takes the union, and without this every
+     * reader would need a cast asserting exactly what the CHECK already enforces.
+     */
+    categories: text({ enum: REPORT_CATEGORIES as [ReportCategory, ...ReportCategory[]] })
+      .array()
+      .notNull(),
     details: text(),
     status: text({ enum: REPORT_STATUSES as [string, ...string[]] }).notNull().default(ReportStatus.PENDING),
     localStatus: text({ enum: MODERATION_LOCAL_STATUSES as [string, ...string[]] }).notNull().default('received'),
@@ -70,7 +79,28 @@ export const reports = pgTable(
     submittedAt: timestamptz(),
     decisionId: text(),
     decisionRevision: integer(),
+    /**
+     * What the jury concluded, and what Alia did about it.
+     *
+     * `decisionOutcome` and `decisionStatus` are plain `text` with NO CHECK, and
+     * that is deliberate rather than an omission. Both arrive from CrowdSource,
+     * and §10.11 makes a decision document loose ON PURPOSE so that an event this
+     * deployment does not recognise yet WAITS in the outbox until the code
+     * catches up. A CHECK rendered from a tuple this repository owns would invert
+     * that: the day CrowdSource adds a status, a real decision would fail its
+     * write and dead-letter. The value is recorded as delivered and interpreted
+     * where it is read — `report-status.ts` matches the known values explicitly
+     * and maps everything else to `reviewed`, which is where an unknown belongs.
+     *
+     * `enforcedAction` is the opposite case and so is constrained: it is ALIA's
+     * own closed set, written only by `primaryAction()`, which can return nothing
+     * but a member of `MODERATION_ENFORCEMENT_ACTIONS`.
+     */
     decisionOutcome: text(),
+    decisionStatus: text(),
+    decidedAt: timestamptz(),
+    enforcedAction: text({ enum: MODERATION_ENFORCEMENT_ACTIONS as [string, ...string[]] }),
+    enforcedAt: timestamptz(),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -82,6 +112,7 @@ export const reports = pgTable(
     checkOneOf('reports_reported_type_check', t.reportedType, REPORTED_TYPES),
     checkOneOf('reports_status_check', t.status, REPORT_STATUSES),
     checkOneOf('reports_local_status_check', t.localStatus, MODERATION_LOCAL_STATUSES),
+    checkOneOf('reports_enforced_action_check', t.enforcedAction, MODERATION_ENFORCEMENT_ACTIONS),
     checkArrayWithin('reports_categories_check', t.categories, REPORT_CATEGORIES),
     // Cardinality, kept separate from membership: containment permits `{}`, and
     // a report with no allegation is not a report. Mongoose expressed this as a

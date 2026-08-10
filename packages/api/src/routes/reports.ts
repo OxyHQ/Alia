@@ -37,10 +37,9 @@ type Validated =
  * Validate the request body without trusting any of it.
  *
  * `reportedId` is checked to be a non-empty STRING here and again in
- * `createReport`. That is not redundant: a truthiness check passes `{$ne: null}`,
- * and an operator reaching a `findOne` filter matches an unrelated row — so the
- * type is asserted at the boundary AND at the query, because the intake service is
- * exported and this route is not its only possible caller.
+ * `createReport`. That is not redundant: the intake service is exported and this
+ * route is not its only possible caller, so the type is asserted at the boundary
+ * AND at the write.
  */
 function validate(body: unknown): Validated {
   if (typeof body !== 'object' || body === null) {
@@ -139,7 +138,7 @@ router.post('/', authenticateToken, async (req: Request, res: Response) => {
 
     return res.status(201).json({
       report: {
-        id: result.report._id.toHexString(),
+        id: result.report.id,
         reportedType: result.report.reportedType,
         reportedId: result.report.reportedId,
         categories: result.report.categories,
@@ -163,7 +162,7 @@ router.post('/', authenticateToken, async (req: Request, res: Response) => {
       return res.status(409).json({
         error: error.message,
         report: {
-          id: String(error.existing._id),
+          id: error.existing.id,
           reportedType: error.existing.reportedType,
           reportedId: error.existing.reportedId,
           status: error.existing.status,

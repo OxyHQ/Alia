@@ -1,8 +1,11 @@
 import { DecisionSchema, type Decision } from '@oxyhq/crowdsource-contracts';
-import { Report, type LeanReport } from '../../models/report.js';
+import {
+  applyDecisionToReport,
+  findReportsByCaseId,
+} from '../../db/moderation/reportRepository.js';
+import type { ModerationOutboxEvent } from '../../db/moderation/outboxRepository.js';
 import type { ModerationEnforcementAction } from '../../domain/moderation-enforcement.js';
 import { applyDecisionEnforcement } from './enforcement-service.js';
-import type { ModerationOutboxEvent } from './outbox.js';
 import { reportStateForDecision } from './report-status.js';
 import { log } from '../logger.js';
 
@@ -44,14 +47,15 @@ export class ModerationDecisionDeferredError extends Error {
 /**
  * Write the decision onto one report.
  *
- * The filter carries the revision guard, so it is the DATABASE that refuses a
- * stale write rather than a read-then-write in this process. Deliveries can
+ * The WHERE clause carries the revision guard, so it is the DATABASE that refuses
+ * a stale write rather than a read-then-write in this process. Deliveries can
  * overlap — §10.9 retries for 24 hours, and a correction can arrive while the
  * decision it supersedes is still being applied — and an older revision landing
- * last would otherwise overwrite the current answer with a stale one.
+ * last would otherwise overwrite the current answer with a stale one. The guard
+ * itself lives in `applyDecisionToReport`, next to the statement it constrains.
  */
 async function applyToReport(
-  report: Pick<LeanReport, '_id'>,
+  reportId: string,
   decision: Decision,
   enforcedAction: ModerationEnforcementAction | undefined,
 ): Promise<boolean> {
@@ -60,28 +64,16 @@ async function applyToReport(
     decisionStatus: decision.status,
   });
 
-  const result = await Report.updateOne(
-    {
-      _id: report._id,
-      $or: [
-        { decisionRevision: { $exists: false } },
-        { decisionRevision: { $lte: decision.revision } },
-      ],
-    },
-    {
-      $set: {
-        status: state.status,
-        localStatus: state.localStatus,
-        decisionId: decision.id,
-        decisionRevision: decision.revision,
-        decisionOutcome: decision.outcome,
-        decisionStatus: decision.status,
-        decidedAt: new Date(decision.publishedAt),
-        ...(enforcedAction === undefined ? {} : { enforcedAction, enforcedAt: new Date() }),
-      },
-    },
-  );
-  return result.matchedCount === 1;
+  return await applyDecisionToReport(reportId, {
+    status: state.status,
+    localStatus: state.localStatus,
+    decisionId: decision.id,
+    decisionRevision: decision.revision,
+    decisionOutcome: decision.outcome,
+    decisionStatus: decision.status,
+    decidedAt: new Date(decision.publishedAt),
+    ...(enforcedAction === undefined ? {} : { enforcedAction }),
+  });
 }
 
 /**
@@ -137,9 +129,7 @@ export async function applyDecisionOutboxEvent(
   }
   const decision = parsed.data;
 
-  const reports = await Report.find({ crowdSourceCaseId: caseId })
-    .select('_id reportedType reportedId')
-    .lean<Pick<LeanReport, '_id' | 'reportedType' | 'reportedId'>[]>();
+  const reports = await findReportsByCaseId(caseId);
 
   if (reports.length === 0) {
     /**
@@ -169,7 +159,7 @@ export async function applyDecisionOutboxEvent(
 
   let updated = 0;
   for (const report of reports) {
-    if (await applyToReport(report, decision, enforcedAction)) updated += 1;
+    if (await applyToReport(report.id, decision, enforcedAction)) updated += 1;
   }
 
   log.general.info(

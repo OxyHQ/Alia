@@ -32,6 +32,22 @@ import * as schema from './schema';
 
 export type ApiDatabase = OxyDatabase<typeof schema>;
 
+/**
+ * A drizzle transaction handle, or the root connection.
+ *
+ * Declared here beside `ApiDatabase` rather than in one of the repositories that
+ * need it, because it is a property of this handle and three repositories now
+ * take it. Derived from `transaction`'s own callback parameter so it cannot drift
+ * from whatever drizzle actually hands out.
+ *
+ * The two are NOT interchangeable, and the difference is observable at runtime:
+ * only the transaction handle carries `rollback`. `requireTransaction` in
+ * `moderation/outboxRepository.ts` is built on exactly that, because a type
+ * cannot tell the two apart once both are widened to this union — which is the
+ * whole reason the union needs a runtime guard at the one place it matters.
+ */
+export type Executor = ApiDatabase | Parameters<Parameters<ApiDatabase['transaction']>[0]>[0];
+
 let handle: { db: ApiDatabase; client: postgres.Sql } | null = null;
 
 /**
