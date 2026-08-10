@@ -2,7 +2,7 @@
  * System prompt and helpers for LLM-based show script generation.
  */
 
-import type { ShowFormat } from '../../models/show.js';
+import type { ShowFormat } from '../../db/schema/notifications.js';
 import { FORMAT_DEFAULTS } from './voice-roster.js';
 
 const FORMAT_GUIDANCE: Record<ShowFormat, string> = {

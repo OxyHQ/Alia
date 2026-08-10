@@ -62,6 +62,48 @@ export const SHOW_STATUSES = [
   'completed',
   'failed',
 ] as const;
+export type ShowFormat = (typeof SHOW_FORMATS)[number];
+export type ShowStatus = (typeof SHOW_STATUSES)[number];
+
+/**
+ * The statuses that mean a show is still being produced.
+ *
+ * A SUBSET of `SHOW_STATUSES`, not a set of its own — `routes/v1/shows.ts` caps
+ * concurrent generations by counting rows in these states, so it has to stay a
+ * strict subset or the cap silently stops counting something. The type
+ * annotation is what enforces that: adding a member that is not a `ShowStatus`
+ * fails `tsc`.
+ */
+export const ACTIVE_SHOW_STATUSES: readonly ShowStatus[] = [
+  'queued',
+  'generating_script',
+  'generating_audio',
+  'concatenating',
+];
+
+export const SHOW_SEGMENT_TYPES = ['dialogue', 'sfx', 'transition'] as const;
+export type ShowSegmentType = (typeof SHOW_SEGMENT_TYPES)[number];
+export const SHOW_SPEAKER_ROLES = ['host', 'co-host', 'guest', 'narrator'] as const;
+export type ShowSpeakerRole = (typeof SHOW_SPEAKER_ROLES)[number];
+
+/** One voice in a show's cast. An element of the `speakers` `jsonb` array. */
+export interface ShowSpeaker {
+  name: string;
+  voiceId: string;
+  voiceName: string;
+  role: ShowSpeakerRole;
+}
+
+/** One spoken or sound segment. An element of the `segments` `jsonb` array. */
+export interface ShowSegment {
+  index: number;
+  speaker: string;
+  text: string;
+  audioUrl?: string;
+  durationMs?: number;
+  type: ShowSegmentType;
+  sfxPrompt?: string;
+}
 export const AUDIO_JOB_STATUSES = ['processing', 'completed', 'failed'] as const;
 
 /**
@@ -282,14 +324,24 @@ export const shows = pgTable(
     title: text().notNull(),
     description: text(),
     topic: text().notNull(),
+    /**
+     * `$type` restores the literal union the `as unknown as [string, ...string[]]`
+     * cast erases. It is type-only — no generated SQL changes — and what makes
+     * it TRUE rather than a wish is the CHECK below, which is rendered from the
+     * same tuple: no other value can reach a reader.
+     */
     format: text({ enum: SHOW_FORMATS as unknown as [string, ...string[]] })
+      .$type<ShowFormat>()
       .notNull()
       .default('podcast'),
     status: text({ enum: SHOW_STATUSES as unknown as [string, ...string[]] })
+      .$type<ShowStatus>()
       .notNull()
       .default('queued'),
-    speakers: jsonb().notNull().default([]),
-    segments: jsonb().notNull().default([]),
+    // `$type` is a TypeScript annotation only — it changes no generated SQL, and
+    // it is what stops the repository handing `jsonb` back as `unknown`.
+    speakers: jsonb().$type<ShowSpeaker[]>().notNull().default([]),
+    segments: jsonb().$type<ShowSegment[]>().notNull().default([]),
     audioUrl: text(),
     durationMs: integer(),
     error: text(),

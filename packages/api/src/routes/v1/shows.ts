@@ -1,5 +1,14 @@
 import { Router } from 'express';
-import { Show, SHOW_FORMATS, ACTIVE_SHOW_STATUSES, type ShowFormat } from '../../models/show.js';
+import { SHOW_FORMATS, type ShowFormat } from '../../db/schema/notifications.js';
+import { getDb } from '../../db/index.js';
+import {
+  countActiveShows,
+  createShow,
+  deleteShowForUser,
+  findShowForUser,
+  listShowsForUser,
+  updateShow,
+} from '../../db/notifications/showRepository.js';
 import { enqueueShowGeneration } from '../../lib/show/show-queue.js';
 import { SHOW_VOICES, FORMAT_DEFAULTS } from '../../lib/show/voice-roster.js';
 import { log } from '../../lib/logger.js';
@@ -58,39 +67,30 @@ router.post('/generate', async (req: Request, res: Response) => {
     const showFormat: ShowFormat = SHOW_FORMATS.find((f) => f === format) ?? 'podcast';
 
     // Check concurrent show limit (max 3 active per user)
-    const activeCount = await Show.countDocuments({
-      userId,
-      status: { $in: ACTIVE_SHOW_STATUSES },
-    });
+    const activeCount = await countActiveShows(getDb(), userId);
     if (activeCount >= 3) {
       return res.status(429).json({
         error: { message: 'Maximum 3 concurrent show generations. Please wait for current ones to finish.', type: 'rate_limit_error' },
       });
     }
 
-    const show = await Show.create({
+    const show = await createShow(getDb(), {
       userId,
       title: `Show: ${topic.slice(0, 80)}`,
       topic: topic.trim(),
       format: showFormat,
-      status: 'queued',
       sourceNotes: sourceNotes?.slice(0, 10000),
       sourceConversationId,
-      progress: 0,
     });
 
-    const { queued, jobId } = await enqueueShowGeneration({
-      showId: show._id.toString(),
-      userId,
-    });
+    const { queued, jobId } = await enqueueShowGeneration({ showId: show.id, userId });
 
     if (jobId) {
-      show.jobId = jobId;
-      await show.save();
+      await updateShow(getDb(), show.id, { jobId });
     }
 
     res.status(201).json({
-      showId: show._id.toString(),
+      showId: show.id,
       status: show.status,
       queued,
     });
@@ -115,15 +115,8 @@ router.get('/', async (req: Request, res: Response) => {
     const limit = Math.min(50, Math.max(1, parseInt(req.query.limit as string) || 20));
     const skip = (page - 1) * limit;
 
-    const [shows, total] = await Promise.all([
-      Show.find({ userId })
-        .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(limit)
-        .select('-segments') // Exclude segments for list view
-        .lean(),
-      Show.countDocuments({ userId }),
-    ]);
+    // The list projection leaves `segments` out — see the repository.
+    const { shows, total } = await listShowsForUser(getDb(), userId, limit, skip);
 
     res.json({
       shows,
@@ -151,7 +144,12 @@ router.get('/:id', async (req: Request, res: Response) => {
       return res.status(401).json({ error: 'Authentication required' });
     }
 
-    const show = await Show.findOne({ _id: req.params.id, userId }).lean();
+    const { id } = req.params;
+    if (typeof id !== 'string') {
+      return res.status(404).json({ error: { message: 'Show not found', type: 'not_found' } });
+    }
+
+    const show = await findShowForUser(getDb(), id, userId);
     if (!show) {
       return res.status(404).json({ error: { message: 'Show not found', type: 'not_found' } });
     }
@@ -174,8 +172,13 @@ router.delete('/:id', async (req: Request, res: Response) => {
       return res.status(401).json({ error: 'Authentication required' });
     }
 
-    const show = await Show.findOneAndDelete({ _id: req.params.id, userId });
-    if (!show) {
+    const { id } = req.params;
+    if (typeof id !== 'string') {
+      return res.status(404).json({ error: { message: 'Show not found', type: 'not_found' } });
+    }
+
+    const deleted = await deleteShowForUser(getDb(), id, userId);
+    if (!deleted) {
       return res.status(404).json({ error: { message: 'Show not found', type: 'not_found' } });
     }
 
