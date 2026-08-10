@@ -52,7 +52,9 @@ export const NOTIFICATION_PRIORITIES = ['low', 'normal', 'high', 'urgent'] as co
 
 export const PUSH_TOKEN_PLATFORMS = ['ios', 'android', 'web'] as const;
 export const SUGGESTION_TYPES = ['welcome', 'autocomplete'] as const;
+export type SuggestionType = (typeof SUGGESTION_TYPES)[number];
 export const SUGGESTION_SCOPES = ['global', 'personal'] as const;
+export type SuggestionScope = (typeof SUGGESTION_SCOPES)[number];
 export const SHOW_FORMATS = ['podcast', 'news', 'debate', 'interview', 'explainer'] as const;
 export const SHOW_STATUSES = [
   'queued',
@@ -274,10 +276,15 @@ export const suggestions = pgTable(
     description: text(),
     isTemplate: boolean().notNull().default(false),
     templateVariables: text().array().notNull().default(sql`'{}'::text[]`),
-    type: text({ enum: SUGGESTION_TYPES as unknown as [string, ...string[]] }).notNull(),
+    // `$type` restores the literal union the tuple cast erases; the CHECKs below
+    // are what make it true. Type-only — no generated SQL changes.
+    type: text({ enum: SUGGESTION_TYPES as unknown as [string, ...string[]] })
+      .$type<SuggestionType>()
+      .notNull(),
     category: text(),
     triggerWords: text().array().notNull().default(sql`'{}'::text[]`),
     scope: text({ enum: SUGGESTION_SCOPES as unknown as [string, ...string[]] })
+      .$type<SuggestionScope>()
       .notNull()
       .default('global'),
     /** An Oxy account, for a `personal` suggestion. No foreign key. */
