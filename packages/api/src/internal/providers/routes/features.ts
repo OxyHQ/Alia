@@ -4,7 +4,16 @@
  */
 
 import express, { Request, Response } from 'express';
-import { Feature } from '../models/feature.js';
+import { isUniqueViolation } from '@oxyhq/db';
+import { getDb } from '../../../db/index.js';
+import {
+  deleteFeatureByFeatureId,
+  findFeatureByFeatureId,
+  insertFeature,
+  selectFeatures,
+  updateFeatureByFeatureId,
+  type FeatureUpdate,
+} from '../../../db/billing/featureRepository.js';
 import { broadcastFeaturesUpdate } from '../lib/broadcast-helpers.js';
 import { log } from '../../../lib/logger.js';
 
@@ -16,11 +25,10 @@ const router = express.Router();
 router.get('/', async (req: Request, res: Response) => {
   try {
     const { category, active } = req.query;
-    const query: Record<string, unknown> = {};
-    if (category && typeof category === 'string') query.category = category;
-    if (active !== undefined) query.isActive = active === 'true';
-
-    const features = await Feature.find(query).sort({ category: 1, sortOrder: 1 }).lean();
+    const features = await selectFeatures(getDb(), {
+      ...(category && typeof category === 'string' ? { category } : {}),
+      ...(active !== undefined ? { isActive: active === 'true' } : {}),
+    });
     res.json({ success: true, count: features.length, data: features });
   } catch (error: unknown) {
     log.providers.error({ err: error }, 'Error listing features');
@@ -33,7 +41,7 @@ router.get('/', async (req: Request, res: Response) => {
  */
 router.get('/:featureId', async (req: Request, res: Response) => {
   try {
-    const feature = await Feature.findOne({ featureId: req.params.featureId }).lean();
+    const feature = await findFeatureByFeatureId(getDb(), req.params.featureId as string);
     if (!feature) {
       return res.status(404).json({ success: false, error: 'Feature not found', code: 'FEATURE_NOT_FOUND' });
     }
@@ -58,7 +66,7 @@ router.post('/', async (req: Request, res: Response) => {
       return res.status(400).json({ success: false, error: 'featureType must be "boolean" or "limit"', code: 'INVALID_REQUEST' });
     }
 
-    const existing = await Feature.findOne({ featureId: featureId.toLowerCase() });
+    const existing = await findFeatureByFeatureId(getDb(), featureId.toLowerCase());
     if (existing) {
       return res.status(409).json({ success: false, error: 'Feature with this ID already exists', code: 'FEATURE_ALREADY_EXISTS' });
     }
@@ -71,7 +79,7 @@ router.post('/', async (req: Request, res: Response) => {
     if ('isVisibleOnPricing' in rest) optionalFields.isVisibleOnPricing = rest.isVisibleOnPricing;
     if ('isActive' in rest) optionalFields.isActive = rest.isActive;
 
-    const feature = await Feature.create({
+    const feature = await insertFeature(getDb(), {
       featureId: featureId.toLowerCase(),
       label,
       category,
@@ -82,6 +90,11 @@ router.post('/', async (req: Request, res: Response) => {
     res.status(201).json({ success: true, data: feature });
     void broadcastFeaturesUpdate();
   } catch (error: unknown) {
+    // `features_feature_id_key` is what actually holds; the pre-check above is a
+    // read-then-write race that a concurrent create would win.
+    if (isUniqueViolation(error)) {
+      return res.status(409).json({ success: false, error: 'Feature with this ID already exists', code: 'FEATURE_ALREADY_EXISTS' });
+    }
     log.providers.error({ err: error }, 'Error creating feature');
     res.status(500).json({ success: false, error: 'An internal error occurred', code: 'INTERNAL_ERROR' });
   }
@@ -109,10 +122,10 @@ router.patch('/:featureId', async (req: Request, res: Response) => {
       return res.status(400).json({ success: false, error: 'featureType must be "boolean" or "limit"', code: 'INVALID_REQUEST' });
     }
 
-    const feature = await Feature.findOneAndUpdate(
-      { featureId: req.params.featureId },
-      { $set: updates },
-      { returnDocument: 'after', runValidators: true }
+    const feature = await updateFeatureByFeatureId(
+      getDb(),
+      req.params.featureId as string,
+      updates as FeatureUpdate,
     );
 
     if (!feature) {
@@ -132,7 +145,7 @@ router.patch('/:featureId', async (req: Request, res: Response) => {
  */
 router.delete('/:featureId', async (req: Request, res: Response) => {
   try {
-    const feature = await Feature.findOneAndDelete({ featureId: req.params.featureId });
+    const feature = await deleteFeatureByFeatureId(getDb(), req.params.featureId as string);
     if (!feature) {
       return res.status(404).json({ success: false, error: 'Feature not found', code: 'FEATURE_NOT_FOUND' });
     }

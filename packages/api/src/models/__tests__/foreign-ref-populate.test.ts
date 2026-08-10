@@ -121,14 +121,23 @@ interface RetiredModelFile {
 }
 
 /**
- * Empty on purpose.
+ * Every model file the port has deleted, and which slice deleted it.
  *
- * No slice has landed a model deletion yet — S3, S4, S8 and S9 are each holding
- * theirs for a follow-up PR that rebases onto this file. Each adds its own
- * entries in the SAME commit that deletes the files, which is the whole point:
- * a deletion is recorded rather than absorbed.
+ * Each entry is added in the SAME commit that deletes the file, which is the
+ * whole point: a deletion is recorded rather than absorbed, and every commit is
+ * individually green so a bisect lands on the change it means to.
+ *
+ * S3 deletes ten across three commits — the pricing catalogue and voice-call
+ * usage, then subscriptions/transactions/credits, then the developer platform —
+ * and each commit brings its own rows.
  */
-const RETIRED_MODEL_FILES: readonly RetiredModelFile[] = [];
+const RETIRED_MODEL_FILES: readonly RetiredModelFile[] = [
+  { model: 'Plan', file: 'src/internal/providers/models/plan.ts', retiredBy: 'S3 — the pricing catalogue moves to Postgres' },
+  { model: 'Feature', file: 'src/internal/providers/models/feature.ts', retiredBy: 'S3 — the pricing catalogue moves to Postgres' },
+  { model: 'PlanFeature', file: 'src/internal/providers/models/plan-feature.ts', retiredBy: 'S3 — the pricing catalogue moves to Postgres' },
+  { model: 'CreditPackage', file: 'src/internal/providers/models/credit-package.ts', retiredBy: 'S3 — the pricing catalogue moves to Postgres' },
+  { model: 'VoiceCallUsage', file: 'src/models/voice-call-usage.ts', retiredBy: 'S3 — the pricing catalogue moves to Postgres' },
+];
 
 /**
  * Live model files plus retired ones. Counted on `55754587`, where 43 were

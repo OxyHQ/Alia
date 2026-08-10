@@ -93,6 +93,19 @@ export const plans = pgTable(
     creditsLabel: text().notNull().default(''),
     isFeatured: boolean().notNull().default(false),
     sortOrder: integer().notNull().default(0),
+    /**
+     * The `alia_models.alias_model_id`s this plan includes — Alia-branded alias
+     * ids like `alia-v1-pro`, never a provider model id.
+     *
+     * Deliberately NOT a foreign key: it is a plan's advertised contents, and a
+     * model being retired from the catalogue must not cascade into deleting or
+     * silently emptying a plan somebody is paying for. `routes/plans.ts`
+     * validates the ids on write instead, through `findExistingAliasModelIds`.
+     *
+     * This sentence is the only surviving copy. It was a trailing comment on the
+     * Mongoose Plan model's `modelIds`, which the Postgres port deletes, and two
+     * other files cited it by that path until this column took it over.
+     */
     modelIds: text().array().notNull().default(sql`'{}'::text[]`),
 
     isActive: boolean().notNull().default(true),

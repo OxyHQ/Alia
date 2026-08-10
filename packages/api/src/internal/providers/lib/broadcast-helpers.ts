@@ -5,14 +5,14 @@
  */
 
 import { broadcast } from '../ws';
-import { listSafeProviderKeys } from '../../../db/providers/providerKeyRepository.js';
 import { getDb } from '../../../db/index.js';
+import { listSafeProviderKeys } from '../../../db/providers/providerKeyRepository.js';
 import { listModelConfigs } from '../../../db/providers/modelConfigRepository.js';
 import { listAliaModels } from '../../../db/providers/aliaModelRepository.js';
-import { Plan } from '../models/plan';
-import { CreditPackage } from '../models/credit-package';
-import { Feature } from '../models/feature';
-import { PlanFeature } from '../models/plan-feature';
+import { selectPlans } from '../../../db/billing/planRepository.js';
+import { selectCreditPackages } from '../../../db/billing/creditPackageRepository.js';
+import { selectAllFeatures } from '../../../db/billing/featureRepository.js';
+import { selectAllPlanFeatures } from '../../../db/billing/planFeatureRepository.js';
 import { getAllProviderHealth, getProviderHealth } from './provider-health';
 import { log } from '../../../lib/logger.js';
 
@@ -53,7 +53,7 @@ export async function broadcastAliaModelsUpdate(): Promise<void> {
 
 export async function broadcastPlansUpdate(): Promise<void> {
   try {
-    const plans = await Plan.find({}).sort({ product: 1, sortOrder: 1 }).lean();
+    const plans = await selectPlans(getDb());
     broadcast('plans:all', { success: true, count: plans.length, data: plans });
   } catch (error) {
     log.providers.error({ err: error }, 'Error broadcasting plans update');
@@ -62,7 +62,7 @@ export async function broadcastPlansUpdate(): Promise<void> {
 
 export async function broadcastCreditPackagesUpdate(): Promise<void> {
   try {
-    const packages = await CreditPackage.find({}).sort({ sortOrder: 1 }).lean();
+    const packages = await selectCreditPackages(getDb());
     broadcast('credit-packages:all', { success: true, count: packages.length, data: packages });
   } catch (error) {
     log.providers.error({ err: error }, 'Error broadcasting credit-packages update');
@@ -71,7 +71,7 @@ export async function broadcastCreditPackagesUpdate(): Promise<void> {
 
 export async function broadcastFeaturesUpdate(): Promise<void> {
   try {
-    const features = await Feature.find({}).sort({ category: 1, sortOrder: 1 }).lean();
+    const features = await selectAllFeatures(getDb());
     broadcast('features:all', { success: true, count: features.length, data: features });
   } catch (error) {
     log.providers.error({ err: error }, 'Error broadcasting features update');
@@ -80,7 +80,7 @@ export async function broadcastFeaturesUpdate(): Promise<void> {
 
 export async function broadcastPlanFeaturesUpdate(): Promise<void> {
   try {
-    const mappings = await PlanFeature.find({}).lean();
+    const mappings = await selectAllPlanFeatures(getDb());
     broadcast('plan-features:all', { success: true, count: mappings.length, data: mappings });
   } catch (error) {
     log.providers.error({ err: error }, 'Error broadcasting plan-features update');
