@@ -4,7 +4,8 @@
  * a user has consumed in the current billing period.
  */
 
-import { VoiceCallUsage } from '../models/voice-call-usage.js';
+import { getDb } from '../db/index.js';
+import { sumVoiceMinutesUsed } from '../db/usage/voiceCallUsageRepository.js';
 import { Subscription } from '../models/subscription.js';
 
 export interface VoiceUsageSummary {
@@ -38,25 +39,7 @@ async function getCurrentPeriodStart(userId: string): Promise<Date> {
  * Sums durationMinutes + cohostDurationMinutes from completed sessions.
  */
 async function getVoiceMinutesUsed(userId: string, since: Date): Promise<number> {
-  const result = await VoiceCallUsage.aggregate([
-    {
-      $match: {
-        oxyUserId: userId,
-        startTime: { $gte: since },
-        endTime: { $ne: null },
-      },
-    },
-    {
-      $group: {
-        _id: null,
-        totalMinutes: {
-          $sum: { $add: ['$durationMinutes', '$cohostDurationMinutes'] },
-        },
-      },
-    },
-  ]);
-
-  return result[0]?.totalMinutes || 0;
+  return sumVoiceMinutesUsed(getDb(), userId, since);
 }
 
 /**

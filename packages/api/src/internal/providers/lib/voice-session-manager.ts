@@ -21,6 +21,7 @@ import type {
   ClientDataMessage,
 } from './types-voice.js';
 import { DEFAULT_COHOST_CONFIG } from './types-voice.js';
+import type { VoiceCallUsageRecord } from '../../../db/usage/voiceCallUsageRepository.js';
 import { resolveAliaModel } from './model-resolver.js';
 import {
   reserveVoiceCredits,
@@ -1222,17 +1223,19 @@ You are now in a live voice conversation with a second AI called "Cohost" and th
 
   private async saveUsageRecord(session: VoiceSession, isFinal: boolean, disconnectReason?: string): Promise<void> {
     try {
-      const { VoiceCallUsage } = await import('../../../models/voice-call-usage.js');
+      const { getDb } = await import('../../../db/index.js');
+      const { insertVoiceCallUsage, upsertVoiceCallUsage } =
+        await import('../../../db/usage/voiceCallUsageRepository.js');
 
-      const endTime = isFinal ? new Date() : undefined;
-      const durationMinutes = isFinal
-        ? (endTime!.getTime() - session.startTime.getTime()) / 60000
+      const endTime = isFinal ? new Date() : null;
+      const durationMinutes = isFinal && endTime
+        ? (endTime.getTime() - session.startTime.getTime()) / 60000
         : 0;
       const creditsCharged = isFinal && session.creditReservation
         ? session.creditReservation.creditsReserved
         : 0;
 
-      const record: any = {
+      const record: VoiceCallUsageRecord = {
         sessionId: session.sessionId,
         oxyUserId: session.userId,
         aliaModelId: session.aliaModelId,
@@ -1243,21 +1246,27 @@ You are now in a live voice conversation with a second AI called "Cohost" and th
         durationMinutes,
         creditsCharged,
         costPerMinute: session.costPerMinute,
-        disconnectReason,
+        disconnectReason: disconnectReason ?? null,
         audioFormat: session.audioFormat,
         sampleRate: session.sampleRate,
         // Cohost fields
         cohostEnabled: session.cohostEnabled,
-        cohostProvider: session.cohostProvider,
-        cohostProviderModel: session.cohostProviderModelId,
+        cohostProvider: session.cohostProvider ?? null,
+        cohostProviderModel: session.cohostProviderModelId ?? null,
         cohostDurationMinutes: session.cohostMinutesElapsed,
         cohostCreditsCharged: session.cohostCreditReservation?.creditsReserved || 0,
       };
 
+      /**
+       * The final record REPLACES whatever the interim write left; the interim
+       * one plainly inserts, so a second interim write for one session raises on
+       * `session_id`'s unique index and is logged below rather than quietly
+       * accumulating a duplicate row. That asymmetry is the source's.
+       */
       if (isFinal) {
-        await VoiceCallUsage.findOneAndUpdate({ sessionId: session.sessionId }, record, { upsert: true });
+        await upsertVoiceCallUsage(getDb(), record);
       } else {
-        await VoiceCallUsage.create(record);
+        await insertVoiceCallUsage(getDb(), record);
       }
     } catch (error) {
       log.providers.error({ err: error }, 'Error saving usage record');
