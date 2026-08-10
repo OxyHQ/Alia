@@ -33,7 +33,8 @@
  * point.
  */
 
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import {
   MIGRATION_RUNS,
   type MigrationRun,
@@ -42,7 +43,31 @@ import {
 } from '@oxyhq/db/migrate';
 import { log } from '../lib/logger.js';
 
-const PACKAGE_ROOT = join(__dirname, '..', '..');
+/**
+ * `import.meta.url`, never `__dirname`.
+ *
+ * This package is `"type": "module"` and `build.ts` bundles this entrypoint as
+ * `format: 'esm'`, so `__dirname` does not exist in the shipped artefact —
+ * node throws `ReferenceError: __dirname is not defined in ES module scope` on
+ * IMPORT, before a single statement of this file runs.
+ *
+ * It survived because **bun defines `__dirname` in ESM as a compatibility shim
+ * and node does not** (measured, both runtimes, same file). Every path that
+ * exercises this module locally goes through bun — `bun run db:migrate`, and
+ * `testDatabase.ts`, which shells out to this entrypoint for every `*.pgdb`
+ * suite — while the runtime image is `node:*-slim`. So it passed `tsc` (which
+ * accepts `__dirname` because `@types/node` declares it globally), passed the
+ * whole Postgres suite, built cleanly, and could never have run in production.
+ *
+ * Found by running it: the first real one-shot migration task exited 1 on this
+ * line, having touched nothing. Same shape as this repo's `constructEventAsync`
+ * rule — a defect invisible where it is tested and total where it is written.
+ *
+ * The depth is identical from source and from the bundle, which is what makes
+ * one expression correct for both: `src/db/` and `dist/db/` are each two levels
+ * below the package root.
+ */
+const PACKAGE_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const logger = log.general;
 
 /**
