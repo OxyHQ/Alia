@@ -179,28 +179,57 @@ describe('leader election: the CAS Mongo did with an aggregation pipeline', () =
   });
 });
 
+/**
+ * ## Both sweep cases run inside a TRANSACTION, and that is load-bearing
+ *
+ * `vitest.pg.globalSetup.ts` creates ONE database for the whole run and vitest
+ * runs test FILES in parallel. Four other files
+ * (`automation`, `notifications` ×2, `organizations`) call
+ * `sweepAllExpiredRows(db, EXPIRY_TARGETS)` with the FULL registry — which
+ * includes `api_usage` and `cache_entries`. A sweep deletes by AGE, not by
+ * owner, so a deliberately-stale fixture committed here is fair game to every
+ * one of them.
+ *
+ * That produced a real, intermittent failure: another file's sweep reaped
+ * `sweep-old` between this test's insert and its own sweep, so `deleted` came
+ * back 0 and the assertion below failed — on code nobody had touched. Measured
+ * 1 run in 5 on the whole suite, 2 in 5 with just these five files, and 0 in 7
+ * sequentially.
+ *
+ * Writing the fixture inside a transaction fixes it at the source rather than
+ * loosening the assertion: an uncommitted row is invisible to every other
+ * connection, so no other sweep can see it, while this transaction's own sweep
+ * can. `SqlExecutor` exists for exactly this — its own doc comment says a
+ * transaction handle satisfies it "so a sweep or a gate can run inside one".
+ *
+ * The count stays `>= 1` rather than tightening to exactly 1: the transaction
+ * still sees any COMMITTED expired row another file left behind, and pinning
+ * the number would swap this flake for a new coupling to other files' data.
+ */
 describe('the expiry sweep actually deletes, and only what is expired', () => {
   it('removes rows past their retention and leaves the rest', async () => {
     const target = EXPIRY_TARGETS.find((t) => t.table === apiUsage);
     if (!target) throw new Error('api_usage has no expiry target; expiryTargets.ts changed');
 
-    await db.execute(sql`
-      insert into ${apiUsage} (id, key_id, provider, model_id, timestamp) values
-        ('sweep-old',   'k', 'p', 'm', now() - interval '3 days'),
-        ('sweep-fresh', 'k', 'p', 'm', now())
-    `);
+    await db.transaction(async (tx) => {
+      await tx.execute(sql`
+        insert into ${apiUsage} (id, key_id, provider, model_id, timestamp) values
+          ('sweep-old',   'k', 'p', 'm', now() - interval '3 days'),
+          ('sweep-fresh', 'k', 'p', 'm', now())
+      `);
 
-    const results = await sweepAllExpiredRows(db, [target]);
+      const results = await sweepAllExpiredRows(tx, [target]);
 
-    const swept = results.find((r) => r.table === 'api_usage');
-    expect(swept?.deleted).toBeGreaterThanOrEqual(1);
+      const swept = results.find((r) => r.table === 'api_usage');
+      expect(swept?.deleted).toBeGreaterThanOrEqual(1);
 
-    const survivors = await db.execute<{ id: string }>(
-      sql`select id from ${apiUsage} where id like 'sweep-%'`,
-    );
-    // The 48h retention is measured from `timestamp`: the 3-day-old row goes,
-    // today's stays. A sweep that took both would look identical in the count.
-    expect(survivors.map((r) => r.id)).toEqual(['sweep-fresh']);
+      const survivors = await tx.execute<{ id: string }>(
+        sql`select id from ${apiUsage} where id like 'sweep-%'`,
+      );
+      // The 48h retention is measured from `timestamp`: the 3-day-old row goes,
+      // today's stays. A sweep that took both would look identical in the count.
+      expect(survivors.map((r) => r.id)).toEqual(['sweep-fresh']);
+    });
   });
 });
 
@@ -262,18 +291,32 @@ describe('an expires_at deadline is retention ZERO, not a duration', () => {
     // would keep every entry for that duration PAST its own expiry.
     expect(target.retentionSeconds).toBe(0);
 
-    await db.execute(sql`
-      insert into ${cacheEntries} (id, key, prompt_hash, model, messages, response, expires_at) values
-        ('c-expired', 'k1', 'h', 'm', '[]'::jsonb, '{}'::jsonb, now() - interval '1 minute'),
-        ('c-live',    'k2', 'h', 'm', '[]'::jsonb, '{}'::jsonb, now() + interval '1 hour')
-    `);
+    /**
+     * Transactional for the reason given above `api_usage`, with a different
+     * symptom: this case asserts only on SURVIVORS, so another file's
+     * full-registry sweep reaping `c-expired` first leaves it passing while
+     * measuring nothing about the sweep it calls. A silent vacuity rather than
+     * a red run, which is the worse of the two to leave in place.
+     */
+    await db.transaction(async (tx) => {
+      await tx.execute(sql`
+        insert into ${cacheEntries} (id, key, prompt_hash, model, messages, response, expires_at) values
+          ('c-expired', 'k1', 'h', 'm', '[]'::jsonb, '{}'::jsonb, now() - interval '1 minute'),
+          ('c-live',    'k2', 'h', 'm', '[]'::jsonb, '{}'::jsonb, now() + interval '1 hour')
+      `);
 
-    await sweepAllExpiredRows(db, [target]);
+      const results = await sweepAllExpiredRows(tx, [target]);
 
-    const survivors = await db.execute<{ id: string }>(
-      sql`select id from ${cacheEntries} where id like 'c-%'`,
-    );
-    expect(survivors.map((r) => r.id)).toEqual(['c-live']);
+      // Asserted here and not before: without it, a sweep that deleted nothing
+      // is indistinguishable from one whose row somebody else had already taken.
+      const swept = results.find((r) => r.table === 'cache_entries');
+      expect(swept?.deleted).toBeGreaterThanOrEqual(1);
+
+      const survivors = await tx.execute<{ id: string }>(
+        sql`select id from ${cacheEntries} where id like 'c-%'`,
+      );
+      expect(survivors.map((r) => r.id)).toEqual(['c-live']);
+    });
   });
 
   it('refuses a duplicate cache key, which is what makes it a cache', async () => {

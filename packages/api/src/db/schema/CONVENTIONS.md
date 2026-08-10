@@ -714,6 +714,35 @@ drizzle wraps the failure so `code` and `constraint_name` live on `cause`. Name
 the CONSTRAINT too: `isUniqueViolation` alone cannot tell the index under test
 from any other index on the table.
 
+### A fixture that is DELIBERATELY EXPIRED must be written in a transaction
+
+One database serves the whole run and vitest runs FILES in parallel, so every
+committed row is visible to every other file. Most fixtures are safe because
+they are addressed by an id nobody else uses — but a sweep deletes **by age,
+not by owner**, and four files call `sweepAllExpiredRows(db, EXPIRY_TARGETS)`
+with the FULL registry. So a stale row committed anywhere is fair game to all
+of them.
+
+That failed intermittently and reads as a broken commit: `schema.pgdb.test.ts`
+inserted a 3-day-old `api_usage` row and asserted its own sweep deleted at
+least one, and another file's sweep reaped it in between. **Measured on the
+whole suite in parallel: 3 red in 10 before, 0 red in 20 after.** The failure
+moves between files and its message says nothing about concurrency, so the
+first suspicion falls on whatever changed most recently.
+
+Write such a fixture inside `db.transaction(...)` and pass the `tx` handle to
+the sweep. An uncommitted row is invisible to every other connection, so no
+other sweep can take it, while the transaction's own sweep still sees it —
+`SqlExecutor`'s doc comment says it exists precisely so a sweep can run inside a
+caller's transaction. Keep the count assertion at `>= 1` rather than tightening
+it to exactly one: the transaction still sees committed expired rows, and
+pinning the number trades this flake for a coupling to other files' data.
+
+**And assert the count, not only the survivors.** The `cache_entries` case had
+the same exposure with a quieter symptom — it checked only which rows remained,
+so another file's sweep doing the work left it green while measuring nothing
+about the sweep it called.
+
 ---
 
 # The backfill audit list
