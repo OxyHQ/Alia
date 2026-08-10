@@ -923,6 +923,15 @@ about the sweep it called.
 
 # The backfill audit list
 
+> **Part of this list now RUNS.** `src/db/backfill-audit/` holds the runner, its
+> preconditions and the first check — the `23503` dangling-reference count.
+> `docs/backfill-audit.md` specifies the rest, records the four decisions the
+> shipped code encodes (the source-database literal, the required positive
+> control, collection names as literals, and blocking versus informational), and
+> carries the agents-domain switch handover. Add a check there rather than
+> leaving a finding as prose: a finding nobody executes is indistinguishable
+> from a finding nobody had.
+
 Every tightening this port introduced, in one place, because the alternative is
 reading seven schema files to find them. Each is a constraint Postgres will
 enforce that Mongo did not — so each is a way the backfill can fail, and failing
