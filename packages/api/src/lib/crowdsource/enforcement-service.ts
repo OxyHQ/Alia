@@ -4,7 +4,14 @@ import { Agent } from '../../models/agent.js';
 import { AgentReview } from '../../models/agent-review.js';
 import { Skill } from '../../models/skill.js';
 import { ReportedType } from '../../domain/report.js';
-import { ModerationEnforcement, type IModerationEnforcement, type ModerationPreviousState } from '../../models/moderation-enforcement.js';
+import {
+  claimEnforcement,
+  findLastAppliedEnforcement,
+  recordEnforcementApplied,
+  recordEnforcementSkipped,
+  releaseEnforcementClaim,
+  type ModerationPreviousState,
+} from '../../db/moderation/enforcementRepository.js';
 import { type ModerationEnforcementAction } from '../../domain/moderation-enforcement.js';
 import { recalculateAgentRating } from '../agent-rating.js';
 import { crowdSourceConfig, type ModerationEnforcementMode } from './config.js';
@@ -51,15 +58,6 @@ export interface EnforcementOutcome {
   result: 'applied' | 'recorded' | 'duplicate';
 }
 
-function isDuplicateKeyError(error: unknown): boolean {
-  return (
-    typeof error === 'object' &&
-    error !== null &&
-    'code' in error &&
-    Number((error as { code?: unknown }).code) === 11000
-  );
-}
-
 type EffectResult =
   | { changed: true; previousState: ModerationPreviousState }
   | { changed: false; reason: string };
@@ -74,15 +72,8 @@ type EffectResult =
 async function lastApplied(
   subject: EnforcementSubject,
   action: ModerationEnforcementAction,
-): Promise<Pick<IModerationEnforcement, 'previousState'> | null> {
-  return await ModerationEnforcement.findOne({
-    subjectType: subject.type,
-    subjectId: subject.id,
-    action,
-    applied: true,
-  })
-    .sort({ createdAt: -1 })
-    .lean<Pick<IModerationEnforcement, 'previousState'> | null>();
+): Promise<{ previousState: ModerationPreviousState | null } | null> {
+  return await findLastAppliedEnforcement(subject.type, subject.id, action);
 }
 
 interface PublishableState {
@@ -364,46 +355,41 @@ async function applyOne(
   const { decision, caseId, subject } = input;
 
   /**
-   * The claim. The unique index refuses a second row for this
-   * `decisionId + revision + action`, so losing this insert is the answer "another
-   * delivery already handled it" and not an error.
+   * The claim. The unique constraint refuses a second row for this
+   * `decisionId + revision + action`, so losing this insert is the answer
+   * "another delivery already handled it" and not an error.
+   *
+   * `null` rather than a caught duplicate-key error, and that is the whole
+   * difference from the Mongo version: `ON CONFLICT DO NOTHING … RETURNING`
+   * means no statement fails, so a genuine failure — a dropped connection, an
+   * exhausted pool — still propagates instead of being read as "already
+   * enforced" and silently retiring a decision nobody carried out.
    */
-  let record: IModerationEnforcement;
-  try {
-    record = await ModerationEnforcement.create({
-      decisionId: decision.id,
-      decisionRevision: decision.revision,
-      action: planned.action,
-      caseId,
-      subjectType: subject.type,
-      subjectId: subject.id,
-      outcome: decision.outcome,
-      ...(planned.recommendedAction === undefined
-        ? {}
-        : { recommendedAction: planned.recommendedAction }),
-      reason: planned.reason,
-      mode,
-      applied: false,
-    });
-  } catch (error: unknown) {
-    if (isDuplicateKeyError(error)) {
-      countEnforcement(planned.action, mode, 'duplicate');
-      return { action: planned.action, result: 'duplicate' };
-    }
-    throw error;
+  const recordId = await claimEnforcement({
+    decisionId: decision.id,
+    decisionRevision: decision.revision,
+    action: planned.action,
+    caseId,
+    subjectType: subject.type,
+    subjectId: subject.id,
+    outcome: decision.outcome,
+    ...(planned.recommendedAction === undefined
+      ? {}
+      : { recommendedAction: planned.recommendedAction }),
+    reason: planned.reason,
+    mode,
+  });
+  if (recordId === null) {
+    countEnforcement(planned.action, mode, 'duplicate');
+    return { action: planned.action, result: 'duplicate' };
   }
 
   if (!modeAllows(mode, planned.action)) {
-    await ModerationEnforcement.updateOne(
-      { _id: record._id },
-      {
-        $set: {
-          skippedReason:
-            mode === 'observe'
-              ? 'observe mode: recorded, not applied'
-              : `${mode} mode does not apply '${planned.action}' automatically`,
-        },
-      },
+    await recordEnforcementSkipped(
+      recordId,
+      mode === 'observe'
+        ? 'observe mode: recorded, not applied'
+        : `${mode} mode does not apply '${planned.action}' automatically`,
     );
     countEnforcement(planned.action, mode, 'recorded');
     return { action: planned.action, result: 'recorded' };
@@ -412,24 +398,12 @@ async function applyOne(
   try {
     const effect = await applyEffect(planned.action, subject);
     if (!effect.changed) {
-      await ModerationEnforcement.updateOne(
-        { _id: record._id },
-        { $set: { skippedReason: effect.reason } },
-      );
+      await recordEnforcementSkipped(recordId, effect.reason);
       countEnforcement(planned.action, mode, 'recorded');
       return { action: planned.action, result: 'recorded' };
     }
 
-    await ModerationEnforcement.updateOne(
-      { _id: record._id },
-      {
-        $set: {
-          applied: true,
-          appliedAt: new Date(),
-          previousState: effect.previousState,
-        },
-      },
-    );
+    await recordEnforcementApplied(recordId, effect.previousState);
     countEnforcement(planned.action, mode, 'applied');
     return { action: planned.action, result: 'applied' };
   } catch (error: unknown) {
@@ -438,7 +412,7 @@ async function applyOne(
      * transient failure permanent: the action would be deduplicated away forever
      * and the decision would silently never be carried out.
      */
-    await ModerationEnforcement.deleteOne({ _id: record._id });
+    await releaseEnforcementClaim(recordId);
     log.general.error(
       {
         decisionId: decision.id,
