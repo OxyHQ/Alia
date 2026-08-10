@@ -392,6 +392,42 @@ plus one gives the same answer either way. `billing.pgdb.test.ts` does two
 sequential appends, which is what makes `"7" + "1" = "71"` distinguishable
 from `8`.
 
+## A Mongoose SETTER has no Postgres counterpart, and two of them mattered
+
+Mongoose field-level `set`/`get` and `lowercase`/`trim` run on every `save()`
+whatever the call site, so what they enforce is true by construction. drizzle has
+nothing equivalent. Porting such a column faithfully means asking what the setter
+GUARANTEED and re-establishing it structurally — not copying the column type.
+
+Two in this schema, with opposite answers:
+
+- **`integrations` / `connected_accounts` OAuth tokens** were `set: encrypt,
+  get: decrypt`. Plain `text` would demote "encrypted on every write" to
+  "encrypted wherever somebody remembers", and the failure is SILENT — the app
+  keeps working and third-party tokens sit in plaintext until a dump leaks. They
+  use the `encryptedText` custom type (`columns.ts`), which is the only available
+  shape where drizzle applies the transform to every write it builds. Read that
+  file before touching them: a raw `db.execute` bypasses it, and the BACKFILL
+  double-encrypts if it reads ciphertext rather than the plaintext Mongoose's
+  getters hand back.
+- **`organizations.slug`** was `lowercase: true, unique: true`. Here the setter
+  was upholding a UNIQUE, so the answer is a FUNCTIONAL unique index on
+  `lower(slug)` rather than a transform: a plain unique on the stored text lets
+  `Acme` and `acme` coexist where Mongo folded them into one, silently widening
+  the namespace organizations are addressed by. A CHECK asserting the column is
+  already lowercase was rejected — it would fail the backfill on any row a
+  non-validating write path stored differently, where the functional index simply
+  works whatever case is stored.
+
+**A fixture for either MUST be in the un-normalised form.** Two already-lowercase
+slugs behave identically under a plain unique and a functional one, so a test
+seeded that way passes while measuring nothing — the same fixture law as
+everywhere else in this migration.
+
+Not every setter earns this. `organization_invites.email` is `lowercase, trim`
+too, and no unique index depends on it, so it is a lookup-normalisation concern
+for the repository rather than a constraint, and no functional index was added.
+
 ## A credential at rest, and the projection rule that goes with it
 
 **`provider_keys.key` holds a PLAINTEXT provider API key.** Not a hash —

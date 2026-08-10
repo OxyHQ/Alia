@@ -134,6 +134,9 @@ const MONGO_MODEL_TO_TABLE: Readonly<Record<string, string>> = {
   FallbackEvent: 'fallback_events',
   RoutingLog: 'routing_logs',
   CacheEntry: 'cache_entries',
+  OrganizationInvite: 'organization_invites',
+  McpOAuthState: 'mcp_oauth_states',
+  OAuthState: 'oauth_states',
 };
 
 const ttls = declaredMongoTtls();

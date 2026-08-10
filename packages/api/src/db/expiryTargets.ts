@@ -11,11 +11,12 @@
  * no entry here. A hand-maintained list only ever falls as far behind as the
  * last time somebody remembered it.
  *
- * `packages/api` declares **14** TTL indexes in total. Five were ported in the
- * platform-telemetry batches and `api_key_usage` came with providers/billing;
- * the rest belong to tables that do not exist in Postgres yet, and the coverage
- * test scopes itself to PORTED tables so it tightens automatically as each batch
- * lands rather than needing an allow-list to be pruned.
+ * `packages/api` declares **14** TTL indexes in total. Nine are now ported —
+ * five in the platform-telemetry batches, `api_key_usage` with providers/billing,
+ * and three with orgs/dev. The rest belong to tables that do not exist in
+ * Postgres yet, and the coverage test scopes itself to PORTED tables so it
+ * tightens automatically as each batch lands rather than needing an allow-list
+ * to be pruned.
  *
  * ## The one that cannot be copied, and what to do about it
  *
@@ -52,6 +53,9 @@
 
 import type { ExpirySweepTarget } from '@oxyhq/db/expiry';
 import { cacheEntries } from './schema/cache';
+import { mcpOauthStates, oauthStates } from './schema/integrations';
+import { organizationInvites } from './schema/organizations';
+import { MCP_OAUTH_STATE_TTL_SECONDS } from '../models/mcp-oauth-state.js';
 import {
   apiKeyUsage,
   apiUsage,
@@ -110,5 +114,46 @@ export const EXPIRY_TARGETS: readonly ExpirySweepTarget[] = [
     retentionSeconds: 90 * DAY,
     reason:
       'Developer API request records. The longest retention here on purpose: the billing and rate-limit reads work in monthly windows, so a shorter sweep would delete the period being measured.',
+  },
+  {
+    table: organizationInvites,
+    /**
+     * **The only entry in this registry measuring a NON-ZERO retention from a
+     * DEADLINE column, and both ways of "correcting" it destroy data.**
+     *
+     * Mongo: `{expiresAt: 1}, expireAfterSeconds: 30 days` — a row leaves 30 days
+     * AFTER its own expiry. Every other `expires_at` target here
+     * (`cache_entries`, and the two moderation tables) is retention ZERO, so the
+     * pattern a reader arrives with is the wrong one:
+     *
+     *  - retention 0 by analogy deletes an invitation the moment it expires,
+     *    losing the window where the UI can say "this invitation expired" instead
+     *    of 404ing somebody who followed a link from their inbox;
+     *  - measuring from `created_at` instead deletes LIVE invitations, because
+     *    `expires_at` is required with no default and the caller chooses it — a
+     *    31-day-old invite with a 60-day expiry is still valid.
+     */
+    column: organizationInvites.expiresAt,
+    retentionSeconds: 30 * DAY,
+    reason:
+      'Invitations are kept 30 days past their own expiry so an expired link reads as expired rather than missing.',
+  },
+  {
+    table: mcpOauthStates,
+    /**
+     * From CREATION, not from a deadline — this table has no deadline column.
+     * The row is consumed by an atomic delete when the callback lands, so the
+     * sweep only ever reaps ABANDONED flows.
+     */
+    column: mcpOauthStates.createdAt,
+    retentionSeconds: MCP_OAUTH_STATE_TTL_SECONDS,
+    reason: 'Abandoned MCP OAuth handshakes; a completed one deletes its own row.',
+  },
+  {
+    table: oauthStates,
+    /** `expires_at` IS the deadline, so retention is ZERO — the `cache_entries` shape. */
+    column: oauthStates.expiresAt,
+    retentionSeconds: 0,
+    reason: 'Abandoned integrations OAuth handshakes; the row carries its own deadline.',
   },
 ];
