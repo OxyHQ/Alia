@@ -1,30 +1,28 @@
 /**
  * Vector Search for Memory
  * Computes cosine similarity between query embedding and stored embeddings.
- * Falls back to text search if embeddings are unavailable.
+ *
+ * The similarity is computed HERE, in JavaScript, over arrays loaded from
+ * `double precision[]`. There is no vector operator, no index scan and no
+ * distance ordering in SQL — see `db/memory/memoryEmbeddingRepository.ts`.
+ *
+ * ## The model that used to live here
+ *
+ * `MemoryEmbedding` was declared inline at the top of this file, which is why a
+ * census over `src/models/` could not see it. It was also EXPORTED, and
+ * re-exported by `lib/memory/index.ts` — so "declared inline" did not by itself
+ * establish that nothing else used it. What established it was checking: no
+ * consumer ever destructured `MemoryEmbedding` from either module, so moving the
+ * store cost zero call-site edits outside this file.
  */
 
-import mongoose, { Schema, Model, Document } from 'mongoose';
+import { getDb } from '../../db/index.js';
+import {
+  deleteMemoryEmbedding as deleteRow,
+  listMemoryEmbeddings,
+  upsertMemoryEmbedding as upsertRow,
+} from '../../db/memory/memoryEmbeddingRepository.js';
 import { log } from '../logger.js';
-
-export interface IMemoryEmbedding extends Document {
-  oxyUserId: mongoose.Types.ObjectId;
-  memoryKey: string;
-  embedding: number[];
-  updatedAt: Date;
-}
-
-const MemoryEmbeddingSchema = new Schema<IMemoryEmbedding>({
-  oxyUserId: { type: Schema.Types.ObjectId, required: true, index: true },
-  memoryKey: { type: String, required: true },
-  embedding: { type: [Number], required: true },
-}, { timestamps: true });
-
-// Compound index for unique user+key
-MemoryEmbeddingSchema.index({ oxyUserId: 1, memoryKey: 1 }, { unique: true });
-
-export const MemoryEmbedding: Model<IMemoryEmbedding> =
-  mongoose.models.MemoryEmbedding || mongoose.model<IMemoryEmbedding>('MemoryEmbedding', MemoryEmbeddingSchema);
 
 /**
  * Cosine similarity between two vectors
@@ -45,6 +43,11 @@ export function cosineSimilarity(a: number[], b: number[]): number {
 
 /**
  * Store or update embedding for a memory
+ *
+ * The `catch` is deliberate and pre-existing: embedding a memory is best-effort
+ * decoration on a save that has already succeeded, and every caller invokes it
+ * from a detached `.then()` chain. The repository does NOT swallow — the choice
+ * to degrade rather than fail is made here, where the caller's intent is known.
  */
 export async function upsertMemoryEmbedding(
   oxyUserId: string,
@@ -52,11 +55,7 @@ export async function upsertMemoryEmbedding(
   embedding: number[]
 ): Promise<void> {
   try {
-    await MemoryEmbedding.updateOne(
-      { oxyUserId, memoryKey },
-      { $set: { embedding, updatedAt: new Date() } },
-      { upsert: true }
-    );
+    await upsertRow(getDb(), oxyUserId, memoryKey, embedding);
   } catch (error) {
     log.memory.error({ err: error }, 'Error upserting embedding');
   }
@@ -70,14 +69,14 @@ export async function deleteMemoryEmbedding(
   memoryKey: string
 ): Promise<void> {
   try {
-    await MemoryEmbedding.deleteOne({ oxyUserId, memoryKey });
+    await deleteRow(getDb(), oxyUserId, memoryKey);
   } catch (error) {
     log.memory.error({ err: error }, 'Error deleting embedding');
   }
 }
 
 // ── Per-user embedding cache ──────────────────────────────────────────
-// Avoids reloading all embeddings from MongoDB on every search within
+// Avoids reloading all embeddings from the database on every search within
 // the same conversation. TTL-based with write-through invalidation.
 
 interface UserEmbeddingCacheEntry {
@@ -99,7 +98,7 @@ export function invalidateUserEmbeddingCache(oxyUserId: string): void {
 
 /**
  * Search memories by semantic similarity.
- * Uses per-user cache to avoid MongoDB round-trips within the TTL window.
+ * Uses per-user cache to avoid database round-trips within the TTL window.
  */
 export async function searchByVector(
   oxyUserId: string,
@@ -110,7 +109,7 @@ export async function searchByVector(
     let cached = userEmbeddingCache.get(oxyUserId);
 
     if (!cached || Date.now() - cached.loadedAt > USER_CACHE_TTL_MS) {
-      const embeddings = await MemoryEmbedding.find({ oxyUserId }).lean();
+      const embeddings = await listMemoryEmbeddings(getDb(), oxyUserId);
       if (embeddings.length === 0) return [];
 
       cached = {
