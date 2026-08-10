@@ -1,7 +1,7 @@
 import mongoose from 'mongoose';
 import { CONTRACT_LIMITS } from '@oxyhq/crowdsource-contracts';
 import { Skill } from '../../../models/skill.js';
-import { ReportedType } from '../../../models/report.js';
+import { ReportedType } from '../../../value-sets/report.js';
 import type {
   ModerationContextResource,
   ModerationSubjectProvider,

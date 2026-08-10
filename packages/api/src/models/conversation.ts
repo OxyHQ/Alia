@@ -1,13 +1,8 @@
 import mongoose, { Schema, Model, Document } from 'mongoose';
+import { CONVERSATION_SOURCES, ConversationSource, MessageRole, MessageVote } from '../value-sets/conversation.js';
 
 export const TOOL_INVOCATION_STATES = ['partial-call', 'call', 'result'] as const;
 export type ToolInvocationState = (typeof TOOL_INVOCATION_STATES)[number];
-
-export const MESSAGE_ROLES = ['user', 'assistant', 'system'] as const;
-export type MessageRole = (typeof MESSAGE_ROLES)[number];
-
-export const MESSAGE_VOTES = ['up', 'down'] as const;
-export type MessageVote = (typeof MESSAGE_VOTES)[number];
 
 export interface IToolInvocation {
   toolCallId: string;
@@ -34,10 +29,6 @@ export interface IMessage {
   audioUrl?: string;
   createdAt?: Date;
 }
-
-// Source apps for conversations - extensible for future integrations
-export const CONVERSATION_SOURCES = ['app', 'telegram', 'api', 'web', 'discord', 'whatsapp', 'slack'] as const;
-export type ConversationSource = (typeof CONVERSATION_SOURCES)[number];
 
 export interface IConversation extends Document {
   oxyUserId: mongoose.Types.ObjectId;

@@ -1,12 +1,6 @@
 import mongoose, { Schema, Model, Document } from 'mongoose';
-import {
-  MESSAGE_ROLES,
-  MESSAGE_VOTES,
-  TOOL_INVOCATION_STATES,
-  type IMessage,
-  type IToolInvocation,
-  type IAgentInfo,
-} from './conversation.js';
+import { TOOL_INVOCATION_STATES, type IMessage, type IToolInvocation, type IAgentInfo } from './conversation.js';
+import { MESSAGE_ROLES, MESSAGE_VOTES } from '../value-sets/conversation.js';
 
 export interface IMessageDocument extends IMessage, Document {
   conversationId: string;

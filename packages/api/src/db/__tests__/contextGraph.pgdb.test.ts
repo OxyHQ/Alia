@@ -8,7 +8,7 @@ import {
 } from '@oxyhq/db';
 import { closePostgres, connectPostgres, type ApiDatabase } from '../index';
 import { contextEdges, contextNodes, contextSources } from '../schema/context-graph';
-import { CONTEXT_EDGE_TYPES } from '../../models/context-edge.js';
+import { CONTEXT_EDGE_TYPES } from '../../value-sets/context-edge.js';
 
 /**
  * The context graph, against a REAL server.

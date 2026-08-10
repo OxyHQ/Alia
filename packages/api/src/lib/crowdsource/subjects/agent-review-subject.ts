@@ -2,7 +2,7 @@ import mongoose from 'mongoose';
 import { CONTRACT_LIMITS } from '@oxyhq/crowdsource-contracts';
 import { Agent } from '../../../models/agent.js';
 import { AgentReview } from '../../../models/agent-review.js';
-import { ReportedType } from '../../../models/report.js';
+import { ReportedType } from '../../../value-sets/report.js';
 import type {
   ModerationContextResource,
   ModerationResource,

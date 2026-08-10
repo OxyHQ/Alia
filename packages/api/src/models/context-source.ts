@@ -1,21 +1,5 @@
 import mongoose, { Schema, Model, Document } from 'mongoose';
-
-export const CONTEXT_SOURCE_KINDS = [
-  'calendar',
-  'email',
-  'notes',
-  'files',
-  'integration',
-  'oxy_service',
-  'agent_session',
-  'web',
-  'memory',
-  'unknown',
-] as const;
-export type ContextSourceKind = (typeof CONTEXT_SOURCE_KINDS)[number];
-
-export const CONTEXT_SOURCE_AVAILABILITIES = ['available', 'degraded', 'disabled'] as const;
-export type ContextSourceAvailability = (typeof CONTEXT_SOURCE_AVAILABILITIES)[number];
+import { CONTEXT_SOURCE_AVAILABILITIES, CONTEXT_SOURCE_KINDS, ContextSourceKind } from '../value-sets/context-source.js';
 
 export interface IContextSource extends Document {
   oxyUserId: mongoose.Types.ObjectId;

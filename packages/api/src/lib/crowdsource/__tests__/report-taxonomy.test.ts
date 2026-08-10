@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { TaxonomyCodeSchema } from '@oxyhq/crowdsource-contracts';
 import { REPORT_TAXONOMY_VERSION, allegationsForCategories } from '../report-taxonomy.js';
-import { ReportCategory } from '../../../models/report.js';
+import { ReportCategory } from '../../../value-sets/report.js';
 
 describe('allegationsForCategories', () => {
   it('emits a valid universal code for every category Alia offers', () => {

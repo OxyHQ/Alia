@@ -1,4 +1,4 @@
-import type { AutonomyIntent } from '../../models/retrieval-strategy.js';
+import type { AutonomyIntent } from '../../value-sets/retrieval-strategy.js';
 
 export interface IntentClassification {
   intent: AutonomyIntent;

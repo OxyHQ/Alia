@@ -3,7 +3,7 @@ import { eq, sql } from 'drizzle-orm';
 import { isCheckViolation, constraintNameOf } from '@oxyhq/db';
 import { closePostgres, connectPostgres, type ApiDatabase } from '../index';
 import { libraryFiles } from '../schema/library';
-import { FILE_CATEGORIES } from '../../models/library-file.js';
+import { FILE_CATEGORIES } from '../../value-sets/library-file.js';
 
 /**
  * `library_files`, against a REAL server.

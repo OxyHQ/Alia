@@ -1,6 +1,6 @@
 import { DecisionSchema, type Decision } from '@oxyhq/crowdsource-contracts';
 import { Report, type LeanReport } from '../../models/report.js';
-import type { ModerationEnforcementAction } from '../../models/moderation-enforcement.js';
+import type { ModerationEnforcementAction } from '../../value-sets/moderation-enforcement.js';
 import { applyDecisionEnforcement } from './enforcement-service.js';
 import type { ModerationOutboxEvent } from './outbox.js';
 import { reportStateForDecision } from './report-status.js';

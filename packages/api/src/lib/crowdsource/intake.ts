@@ -1,12 +1,6 @@
 import mongoose, { type ClientSession } from 'mongoose';
-import {
-  Report,
-  ReportCategory,
-  ReportStatus,
-  ReportedType,
-  type IReport,
-  type LeanReport,
-} from '../../models/report.js';
+import { Report, type IReport, type LeanReport } from '../../models/report.js';
+import { ReportCategory, ReportStatus, ReportedType } from '../../value-sets/report.js';
 import { enqueueModerationOutboxEvent, reportSubmitEventId } from './outbox.js';
 import { subjectProviderFor } from './subjects/registry.js';
 

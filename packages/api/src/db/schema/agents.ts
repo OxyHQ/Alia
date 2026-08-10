@@ -62,7 +62,7 @@ import { check } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 import { createdAt, generatedId, timestamptz, updatedAt } from '@oxyhq/db';
 import { checkOneOf } from './columns';
-import { AGENT_ARCHETYPES, AGENT_STATUSES } from '../../models/agent.js';
+import { AGENT_ARCHETYPES, AGENT_STATUSES } from '../../value-sets/agent.js';
 import { skills } from './agents-support';
 import { libraryFiles } from './library';
 

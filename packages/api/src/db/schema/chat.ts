@@ -16,7 +16,7 @@
 import { boolean, index, integer, jsonb, pgTable, text, uniqueIndex } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 import { createdAt, generatedId, updatedAt } from '@oxyhq/db';
-import { CONVERSATION_SOURCES, MESSAGE_ROLES, MESSAGE_VOTES } from '../../models/conversation.js';
+import { CONVERSATION_SOURCES, MESSAGE_ROLES, MESSAGE_VOTES } from '../../value-sets/conversation.js';
 import { checkOneOf } from './columns';
 
 /**

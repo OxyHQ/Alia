@@ -6,7 +6,7 @@ import {
   type RecommendedAction,
 } from '@oxyhq/crowdsource-contracts';
 import { planEnforcement } from '../enforcement-plan.js';
-import { MODERATION_ENFORCEMENT_ACTIONS } from '../../../models/moderation-enforcement.js';
+import { MODERATION_ENFORCEMENT_ACTIONS } from '../../../value-sets/moderation-enforcement.js';
 
 /**
  * `planEnforcement` is pure, so it can be pinned as a table. That is the whole

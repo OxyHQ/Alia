@@ -6,7 +6,8 @@
 
 import { getCachedOrGenerateEmbedding } from './embedding-cache.js';
 import { searchByVector } from './vector-search.js';
-import { UserMemory, type IUserMemory, type MemoryType } from '../../models/user-memory.js';
+import { UserMemory, type IUserMemory } from '../../models/user-memory.js';
+import { type MemoryType } from '../../value-sets/user-memory.js';
 
 export interface RecalledMemory {
   title: string;

@@ -1,12 +1,5 @@
 import mongoose, { Schema, Model, Document } from 'mongoose';
-
-/**
- * Exported as a TUPLE, not a union type: the Postgres schema renders its CHECK
- * from this exact value rather than retyping it, so the constraint and this
- * validator cannot drift apart.
- */
-export const SKILL_CATEGORIES = ['featured', 'community', 'recent'] as const;
-export type SkillCategory = (typeof SKILL_CATEGORIES)[number];
+import { SKILL_CATEGORIES, SkillCategory } from '../value-sets/skill.js';
 
 export interface ISkill extends Document {
   skillId: string;

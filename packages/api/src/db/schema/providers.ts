@@ -50,12 +50,8 @@ import { checkOneOf } from './columns';
 import { organizations } from './organizations';
 import { ALIA_TIERS } from '../../internal/providers/lib/alia-tiers.js';
 import { PROVIDER_NAMES } from '../../internal/providers/lib/provider-names.js';
-import { MODEL_PRICING_TIERS } from '../../internal/providers/models/model-config.js';
-import {
-  PROVIDER_KEY_ENVIRONMENTS,
-  PROVIDER_KEY_ROTATION_SCHEDULES,
-  PROVIDER_KEY_TIERS,
-} from '../../internal/providers/models/provider-key.js';
+import { MODEL_PRICING_TIERS } from '../../value-sets/model-config.js';
+import { PROVIDER_KEY_ENVIRONMENTS, PROVIDER_KEY_ROTATION_SCHEDULES, PROVIDER_KEY_TIERS } from '../../value-sets/provider-key.js';
 
 /**
  * One provider model this service knows how to call.

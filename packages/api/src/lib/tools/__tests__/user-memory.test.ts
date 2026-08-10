@@ -15,7 +15,7 @@ vi.mock('../../logger.js', () => ({
 
 import { saveUserMemoryTool, updateUserMemoryTool } from '../user-memory.js';
 import { getOrCreateUserMemory } from '../../memory/user-memory-service.js';
-import type { MemoryType } from '../../../models/user-memory.js';
+import type { MemoryType } from '../../../value-sets/user-memory.js';
 
 const mockGetOrCreate = vi.mocked(getOrCreateUserMemory);
 

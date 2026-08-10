@@ -1,6 +1,7 @@
 import { tool } from "ai";
 import { z } from "zod";
-import { getMemoryLimit, MEMORY_TYPES } from "../../models/user-memory.js";
+import { getMemoryLimit } from "../../models/user-memory.js";
+import { MEMORY_TYPES } from "../../value-sets/user-memory.js";
 import { Subscription } from "../../models/subscription.js";
 import { getOrCreateUserMemory } from "../memory/user-memory-service.js";
 import { log } from '../logger.js';

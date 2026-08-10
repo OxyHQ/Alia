@@ -1,18 +1,5 @@
 import mongoose, { Schema, Model, Document } from 'mongoose';
-
-export const CONTEXT_EDGE_TYPES = [
-  'mentions',
-  'belongs_to',
-  'related_to',
-  'created_by',
-  'updated_by',
-  'references',
-  'discovered_in',
-  'depends_on',
-  'tagged_as',
-  'unknown',
-] as const;
-export type ContextEdgeType = (typeof CONTEXT_EDGE_TYPES)[number];
+import { CONTEXT_EDGE_TYPES, ContextEdgeType } from '../value-sets/context-edge.js';
 
 export interface IContextEdge extends Document {
   oxyUserId: mongoose.Types.ObjectId;

@@ -5,13 +5,7 @@
  */
 
 import mongoose, { Document, Schema } from 'mongoose';
-
-/**
- * Whether a feature is a yes/no entitlement or a numeric allowance. A `limit`
- * feature is the only kind for which `PlanFeature.limitValue` is meaningful.
- */
-export const FEATURE_TYPES = ['boolean', 'limit'] as const;
-export type FeatureType = (typeof FEATURE_TYPES)[number];
+import { FEATURE_TYPES } from '../../../value-sets/feature.js';
 
 export interface IFeature extends Document {
   featureId: string;

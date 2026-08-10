@@ -1,15 +1,5 @@
 import mongoose, { Schema, Model, Document } from 'mongoose';
-
-/**
- * Exported as TUPLES, not union types: the Postgres schema renders its CHECKs
- * from these exact values, and a second copy there could disagree with the
- * validator that has been guarding these columns.
- */
-export const LEARNING_RULE_TYPES = ['correction', 'strategy', 'preference', 'constraint'] as const;
-export type LearningRuleType = (typeof LEARNING_RULE_TYPES)[number];
-
-export const LEARNING_RULE_SOURCES = ['user_feedback', 'runtime', 'system'] as const;
-export type LearningRuleSource = (typeof LEARNING_RULE_SOURCES)[number];
+import { LEARNING_RULE_SOURCES, LEARNING_RULE_TYPES, LearningRuleSource, LearningRuleType } from '../value-sets/learning-rule.js';
 
 export interface ILearningRule extends Document {
   oxyUserId: mongoose.Types.ObjectId;

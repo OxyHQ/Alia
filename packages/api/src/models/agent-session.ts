@@ -1,32 +1,9 @@
 import mongoose, { Schema, Model, Document } from 'mongoose';
-import { EVENT_STREAM_ENTRY_TYPES, type EventStreamEntryType } from './event-stream-entry.js';
-
-/**
- * The tuples the Postgres CHECKs render from. Exported rather than retyped, so
- * a constraint and the validator guarding the same column cannot drift.
- *
- * `EVENT_STREAM_ENTRY_TYPES` is IMPORTED, not redeclared: the embedded
- * `eventStream` array below and the `event_stream_entries` collection are the
- * same vocabulary, and they were two identical fourteen-value literals until
- * this batch.
- */
-export const AGENT_SESSION_STATUSES = [
-  'queued',
-  'running',
-  'completed',
-  'failed',
-  'cancelled',
-] as const;
-export type AgentSessionStatus = (typeof AGENT_SESSION_STATUSES)[number];
+import { EVENT_STREAM_ENTRY_TYPES, type EventStreamEntryType } from '../value-sets/event-stream-entry.js';
+import { AGENT_SESSION_RESOURCE_STATUSES, AGENT_SESSION_RESOURCE_TYPES, AGENT_SESSION_STATUSES, AgentSessionResourceStatus, AgentSessionResourceType, AgentSessionStatus } from '../value-sets/agent-session.js';
 
 export const AGENT_SESSION_MESSAGE_ROLES = ['system', 'user', 'assistant', 'tool'] as const;
 export type AgentSessionMessageRole = (typeof AGENT_SESSION_MESSAGE_ROLES)[number];
-
-export const AGENT_SESSION_RESOURCE_TYPES = ['vm', 'container'] as const;
-export type AgentSessionResourceType = (typeof AGENT_SESSION_RESOURCE_TYPES)[number];
-
-export const AGENT_SESSION_RESOURCE_STATUSES = ['active', 'destroyed'] as const;
-export type AgentSessionResourceStatus = (typeof AGENT_SESSION_RESOURCE_STATUSES)[number];
 
 export const TODO_ITEM_STATUSES = ['pending', 'in_progress', 'completed', 'blocked'] as const;
 export type TodoItemStatus = (typeof TODO_ITEM_STATUSES)[number];

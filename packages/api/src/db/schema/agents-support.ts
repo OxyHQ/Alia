@@ -40,9 +40,9 @@
 import { boolean, index, integer, jsonb, pgTable, text, uniqueIndex } from 'drizzle-orm/pg-core';
 import { createdAt, generatedId, timestamptz, updatedAt } from '@oxyhq/db';
 import { checkOneOf } from './columns';
-import { SKILL_CATEGORIES } from '../../models/skill.js';
-import { LEARNING_RULE_SOURCES, LEARNING_RULE_TYPES } from '../../models/learning-rule.js';
-import { ROLLBACK_RISK_LEVELS, ROLLBACK_STATUSES } from '../../models/rollback-record.js';
+import { SKILL_CATEGORIES } from '../../value-sets/skill.js';
+import { LEARNING_RULE_SOURCES, LEARNING_RULE_TYPES } from '../../value-sets/learning-rule.js';
+import { ROLLBACK_RISK_LEVELS, ROLLBACK_STATUSES } from '../../value-sets/rollback-record.js';
 
 /**
  * A skill: a reusable system-prompt fragment an agent or a chat can adopt.

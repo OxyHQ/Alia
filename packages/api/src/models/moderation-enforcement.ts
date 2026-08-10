@@ -1,5 +1,6 @@
 import mongoose, { Document, Model, Schema } from 'mongoose';
 import type { ModerationEnforcementMode } from '../lib/crowdsource/config.js';
+import { MODERATION_ENFORCEMENT_ACTIONS, ModerationEnforcementAction } from '../value-sets/moderation-enforcement.js';
 
 /**
  * What Alia did about a decision, once per decision revision per action.
@@ -18,35 +19,6 @@ import type { ModerationEnforcementMode } from '../lib/crowdsource/config.js';
  * the real previous value rather than a guess at one — a draft agent that was
  * somehow restricted must not be published by a correction.
  */
-
-/**
- * The three things Alia can actually do to a published artefact, reversibly, plus
- * the two that are notes rather than effects.
- *
- * Deliberately NOT a copy of another application's vocabulary. There is no
- * `label_sensitive` here because Alia renders no content warning anywhere, and
- * recording an effect that did not happen would be worse than mapping honestly —
- * see `lib/crowdsource/enforcement-plan.ts`.
- */
-export type ModerationEnforcementAction =
-  /** Take the artefact out of the catalog. Only its owner can still see it. */
-  | 'restrict'
-  /** Undo everything moderation previously did to this subject. */
-  | 'restore'
-  /** Remove editorial promotion (featured / trending) without unpublishing. */
-  | 'demote'
-  /** Recorded for a human. Never executed automatically. */
-  | 'manual_review'
-  /** An explicit, recorded decision to do nothing. */
-  | 'none';
-
-export const MODERATION_ENFORCEMENT_ACTIONS: readonly ModerationEnforcementAction[] = [
-  'restrict',
-  'restore',
-  'demote',
-  'manual_review',
-  'none',
-];
 
 /**
  * The fields an action replaced, so a reversal can put them back.

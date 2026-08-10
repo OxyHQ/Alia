@@ -1,4 +1,5 @@
 import mongoose, { Schema, Model, Document } from 'mongoose';
+import { AGENT_ARCHETYPES, AGENT_STATUSES, AgentArchetype, AgentStatus } from '../value-sets/agent.js';
 
 export interface IAgentPermissions {
   /** Allow file read/write operations in sandbox */
@@ -23,17 +24,6 @@ export interface IAgentSoul {
   interactionCount: number;
   lastEvolvedAt: Date | null;
 }
-
-export const AGENT_ARCHETYPES = ['general', 'qa', 'task_router', 'status_update'] as const;
-export type AgentArchetype = (typeof AGENT_ARCHETYPES)[number];
-
-/**
- * Exported as a TUPLE for the same reason `AGENT_ARCHETYPES` already is: the
- * Postgres schema renders its CHECK from this exact value rather than retyping
- * it, so the constraint and this validator cannot drift apart.
- */
-export const AGENT_STATUSES = ['active', 'idle', 'offline'] as const;
-export type AgentStatus = (typeof AGENT_STATUSES)[number];
 
 export interface IArchetypeConfig {
   // Q&A

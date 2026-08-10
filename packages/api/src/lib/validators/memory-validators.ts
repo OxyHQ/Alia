@@ -1,9 +1,6 @@
 import { z } from 'zod';
-import {
-  MAX_MEMORY_TITLE_LENGTH,
-  MAX_MEMORY_SUMMARY_LENGTH,
-  MEMORY_TYPES,
-} from '../../models/user-memory';
+import { MAX_MEMORY_TITLE_LENGTH, MAX_MEMORY_SUMMARY_LENGTH } from '../../models/user-memory';
+import { MEMORY_TYPES } from '../../value-sets/user-memory.js';
 
 // Schema for individual memory item
 export const MemoryItemSchema = z.object({

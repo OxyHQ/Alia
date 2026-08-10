@@ -1,4 +1,5 @@
 import mongoose, { Schema, Model, Document } from 'mongoose';
+import { MEMORY_RESPONSE_LENGTHS, MEMORY_TYPES, MemoryResponseLength, MemoryType } from '../value-sets/user-memory.js';
 
 // Validation constants
 export const MAX_MEMORIES_FREE = 100;
@@ -12,14 +13,6 @@ export const STYLE_MIN_MESSAGES = 15;
 export const STYLE_LLM_REFINE_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 export const STYLE_LLM_REFINE_MIN_MESSAGES = 50;
 export const STYLE_RAW_ROLLING_WINDOW = 200;
-
-// Memory grouping shown in the settings UI (You / Topics / People)
-export const MEMORY_TYPES = ['profile', 'topic', 'person'] as const;
-export type MemoryType = typeof MEMORY_TYPES[number];
-
-// How long a reply should be, when the user has expressed a preference.
-export const MEMORY_RESPONSE_LENGTHS = ['short', 'medium', 'long'] as const;
-export type MemoryResponseLength = (typeof MEMORY_RESPONSE_LENGTHS)[number];
 
 // Writing style profile interface
 export interface IWritingStyleRaw {

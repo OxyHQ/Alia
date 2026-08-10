@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { SubjectTypeSchema } from '@oxyhq/crowdsource-contracts';
 import { deliverableTypes, subjectProviderFor } from '../subjects/registry.js';
-import { ReportedType } from '../../../models/report.js';
+import { ReportedType } from '../../../value-sets/report.js';
 
 /**
  * The delivered surface, pinned.
