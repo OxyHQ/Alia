@@ -9,7 +9,7 @@ import {
   STYLE_RAW_ROLLING_WINDOW,
   type IWritingStyleProfile,
   type IWritingStyleRaw,
-} from '../../models/user-memory.js';
+} from '../../domain/writing-style.js';
 
 // ── Stop words (EN + ES) ───────────────────────────────────────────────
 const STOP_WORDS = new Set([

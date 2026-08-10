@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { generateText } from 'ai';
 import { z } from 'zod';
 import { getDb } from '../db/index.js';
+import { findUserMemory } from '../db/memory/userMemoryRepository.js';
 import {
   createSuggestion,
   deleteOwnSuggestion,
@@ -15,7 +16,6 @@ import {
   type SuggestionPatch,
 } from '../db/notifications/suggestionRepository.js';
 import type { SuggestionSearchHit } from '../db/notifications/suggestionRepository.js';
-import { UserMemory } from '../models/user-memory.js';
 import { authenticateToken, optionalAuth } from '../middleware/auth.js';
 import { resolveModel, getAIModel } from '../lib/chat-core.js';
 import { getUserLanguage } from '../lib/memory/user-memory-service.js';
@@ -119,13 +119,11 @@ router.post('/welcome', optionalAuth, async (req: Request, res: Response) => {
     // If authenticated, try to personalize scoring
     if (req.user?.id && pool.length > 0) {
       try {
-        const memory = await UserMemory.findOne({ oxyUserId: req.user.id })
-          .select('preferences.interests context.occupation')
-          .lean();
+        const memory = await findUserMemory(getDb(), req.user.id);
 
         if (memory) {
-          const userInterests = memory.preferences?.interests || [];
-          const userOccupation = memory.context?.occupation || '';
+          const userInterests = memory.preferences.interests;
+          const userOccupation = memory.context.occupation || '';
 
           // Score by relevance to user profile
           pool = pool.map(s => {
@@ -234,15 +232,13 @@ router.post('/generate', authenticateToken, async (req: Request, res: Response) 
     const { count = 6, types = ['welcome', 'autocomplete'] } = req.body;
 
     // Fetch user context for personalization
-    const memory = await UserMemory.findOne({ oxyUserId: req.user.id })
-      .select('preferences context')
-      .lean();
+    const memory = await findUserMemory(getDb(), req.user.id);
 
-    const language = memory?.preferences?.language || 'en-US';
-    const interests = memory?.preferences?.interests || [];
-    const tone = memory?.preferences?.tone || 'friendly';
-    const occupation = memory?.context?.occupation || '';
-    const location = memory?.context?.location || '';
+    const language = memory?.preferences.language || 'en-US';
+    const interests = memory?.preferences.interests ?? [];
+    const tone = memory?.preferences.tone || 'friendly';
+    const occupation = memory?.context.occupation || '';
+    const location = memory?.context.location || '';
 
     // Provider fallback retry loop
     const MAX_PROVIDER_RETRIES = 3;

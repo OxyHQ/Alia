@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { MAX_MEMORY_TITLE_LENGTH, MAX_MEMORY_SUMMARY_LENGTH } from '../../models/user-memory';
+import { MAX_MEMORY_TITLE_LENGTH, MAX_MEMORY_SUMMARY_LENGTH } from '../../domain/user-memory.js';
 import { MEMORY_TYPES } from '../../domain/user-memory.js';
 
 // Schema for individual memory item

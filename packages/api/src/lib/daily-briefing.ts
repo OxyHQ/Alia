@@ -8,7 +8,8 @@
 
 import mongoose from 'mongoose';
 import { Trigger } from '../models/trigger.js';
-import { UserMemory } from '../models/user-memory.js';
+import { getDb } from '../db/index.js';
+import { findUserMemory } from '../db/memory/userMemoryRepository.js';
 import { reloadTrigger } from './trigger-engine.js';
 import { log } from './logger.js';
 
@@ -74,7 +75,7 @@ export async function createDailyBriefing(
   }
 
   // Load user context for personalized prompt
-  const memory = await UserMemory.findOne({ oxyUserId: userId }).lean();
+  const memory = await findUserMemory(getDb(), userId);
   const prompt = buildBriefingPrompt(memory);
 
   const trigger = await Trigger.create({
@@ -121,7 +122,7 @@ export async function refreshBriefingPrompt(userId: string): Promise<boolean> {
 
   if (!trigger) return false;
 
-  const memory = await UserMemory.findOne({ oxyUserId: userId }).lean();
+  const memory = await findUserMemory(getDb(), userId);
   trigger.action.prompt = buildBriefingPrompt(memory);
   await trigger.save();
 

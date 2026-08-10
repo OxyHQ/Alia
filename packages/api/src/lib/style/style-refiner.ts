@@ -7,7 +7,7 @@
 import { generateText } from 'ai';
 import { resolveModel, getAIModel } from '../chat-core.js';
 import { log } from '../logger.js';
-import type { IWritingStyleProfile } from '../../models/user-memory.js';
+import type { IWritingStyleProfile } from '../../domain/writing-style.js';
 import { Message } from '../../models/message.js';
 
 /**

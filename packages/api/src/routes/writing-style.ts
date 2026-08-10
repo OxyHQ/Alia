@@ -1,7 +1,9 @@
 import { Router } from 'express';
 import { authenticateToken } from '../middleware/auth.js';
 import { getOrCreateUserMemory } from '../lib/memory/user-memory-service.js';
-import { STYLE_LLM_REFINE_MIN_MESSAGES } from '../models/user-memory.js';
+import { getDb } from '../db/index.js';
+import { setWritingStyle } from '../db/memory/userMemoryRepository.js';
+import { STYLE_LLM_REFINE_MIN_MESSAGES } from '../domain/writing-style.js';
 import { log } from '../lib/logger.js';
 
 const router = Router();
@@ -45,16 +47,23 @@ router.put('/', async (req, res) => {
       return;
     }
 
-    // Only allow updating user-editable fields
-    if (signOff !== undefined) memory.writingStyle.signOff = signOff;
-    if (Array.isArray(greetingPatterns)) memory.writingStyle.greetingPatterns = greetingPatterns;
-    if (Array.isArray(closingPatterns)) memory.writingStyle.closingPatterns = closingPatterns;
-    if (Array.isArray(toneDescriptors)) memory.writingStyle.toneDescriptors = toneDescriptors;
+    /**
+     * Only user-editable fields. Written as a NEW object rather than mutated in
+     * place: the column is `jsonb`, so the whole value is replaced on every
+     * write and there is nothing corresponding to `markModified` — which existed
+     * only because Mongoose could not see a mutation inside a `Mixed` path.
+     */
+    const next = {
+      ...memory.writingStyle,
+      ...(signOff !== undefined ? { signOff } : {}),
+      ...(Array.isArray(greetingPatterns) ? { greetingPatterns } : {}),
+      ...(Array.isArray(closingPatterns) ? { closingPatterns } : {}),
+      ...(Array.isArray(toneDescriptors) ? { toneDescriptors } : {}),
+    };
 
-    memory.markModified('writingStyle');
-    await memory.save();
+    await setWritingStyle(getDb(), memory._id, next);
 
-    const { _raw, ...publicProfile } = memory.writingStyle;
+    const { _raw, ...publicProfile } = next;
     res.json({ writingStyle: publicProfile });
   } catch (error: unknown) {
     log.chat.error({ err: error }, 'Error updating writing style');
@@ -69,9 +78,7 @@ router.put('/', async (req, res) => {
 router.delete('/', async (req, res) => {
   try {
     const memory = await getOrCreateUserMemory(req.user!.id);
-    memory.writingStyle = null;
-    memory.markModified('writingStyle');
-    await memory.save();
+    await setWritingStyle(getDb(), memory._id, null);
 
     res.json({ success: true, message: 'Writing style profile reset' });
   } catch (error: unknown) {
@@ -103,13 +110,11 @@ router.post('/refresh', async (req, res) => {
     // Trigger LLM refinement
     const { refineStyleWithLLM } = await import('../lib/style/style-refiner.js');
     const refinement = await refineStyleWithLLM(req.user!.id, memory.writingStyle, []);
-    Object.assign(memory.writingStyle, refinement);
-    memory.writingStyle.lastLLMRefinedAt = new Date();
+    const refined = { ...memory.writingStyle, ...refinement, lastLLMRefinedAt: new Date() };
 
-    memory.markModified('writingStyle');
-    await memory.save();
+    await setWritingStyle(getDb(), memory._id, refined);
 
-    const { _raw, ...publicProfile } = memory.writingStyle;
+    const { _raw, ...publicProfile } = refined;
     res.json({ writingStyle: publicProfile, message: 'Style profile refreshed with AI analysis' });
   } catch (error: unknown) {
     log.chat.error({ err: error }, 'Error refreshing writing style');

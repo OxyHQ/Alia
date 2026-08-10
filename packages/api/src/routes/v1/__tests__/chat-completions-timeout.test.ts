@@ -77,8 +77,10 @@ vi.mock('../../../middleware/auth.js', () => ({
   authenticateToken: vi.fn((_r: any, _s: any, n: any) => n()),
 }));
 
-vi.mock('../../../models/user-memory.js', () => ({
-  UserMemory: { findOne: vi.fn().mockResolvedValue(null) },
+vi.mock('../../../db/index.js', () => ({ getDb: vi.fn(() => ({})) }));
+
+vi.mock('../../../db/memory/userMemoryRepository.js', () => ({
+  findUserMemory: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock('../../../models/skill.js', () => ({
