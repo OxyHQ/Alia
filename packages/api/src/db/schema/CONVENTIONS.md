@@ -55,12 +55,39 @@ would be indistinguishable from success.
 `text` + an explicit CHECK rendered from the same `as const` tuple, per the
 integrations file. `text({ enum })` emits no DDL.
 
-**The tuple is IMPORTED from the Mongoose model, never retyped.** Both stores
+**The tuple is IMPORTED from `src/value-sets/`, never retyped.** Both stores
 exist until cutover, so a CHECK written from a second copy can disagree with the
 validator that has been guarding the same column for years — and the disagreement
-is invisible until a write hits one and not the other. Where a model declared its
-values inline, export them from the model and import them here rather than
-copying (`MODEL_PRICING_TIERS`, `PROVIDER_KEY_TIERS`, `TRANSACTION_TYPES`, …).
+is invisible until a write hits one and not the other. The Mongoose model's
+`enum` and this schema's CHECK both read the one tuple
+(`MODEL_PRICING_TIERS`, `PROVIDER_KEY_TIERS`, `TRANSACTION_TYPES`, …).
+
+**They live OUTSIDE `models/`, and that is what makes the models deletable.**
+They used to be `export const`s on the models themselves, so this schema imported
+`src/models/` as a RUNTIME value — which meant deleting a model would not merely
+break a type, it would stop `db/schema/index.ts` loading, and **`drizzle-kit`
+reports that failure by generating NOTHING while exiting 0.** Forty tuples and
+enums across TWO model directories (`src/models/` and
+`src/internal/providers/models/` — a single-path grep under-counts and reads as
+complete) moved to `src/value-sets/` for that reason. Each module there is a
+LEAF: it imports nothing, so no value set can reach back into a model and
+re-create the dependency through one more hop.
+
+`db/__tests__/schemaModelIndependence.test.ts` holds all three halves of it — no
+`db/schema` module may import a model directory, no `value-sets` module may
+import anything, and no model may re-export a value set (a re-export would let
+every consumer keep compiling, which is exactly what makes such a dependency
+survive review). The regression it guards is one `import` line in a new schema
+file that typechecks and leaves every suite green, because the models still
+exist; it bites on the day somebody deletes them, in a different PR.
+
+Six sibling value sets in those directories are deliberately NOT moved, because
+nothing in `db/schema` reads them and the zero-diff `db:generate` control that
+makes this move safe says nothing about them: `AGENT_SESSION_MESSAGE_ROLES`,
+`TODO_ITEM_STATUSES`, `CANVAS_COMPONENT_TYPES`, `TOOL_INVOCATION_STATES`,
+`ACTIVE_SHOW_STATUSES` and `SHOW_FORMATS`. Four have no consumer outside their
+own file; the two on `models/show.ts` are read only by `routes/v1/shows.ts`. They
+move with whoever deletes their model.
 
 `ALIA_TIERS` is the case that forced the rule: `AliaModel.tier` and
 `ModelConfig.aliaTier` are one vocabulary and were two identical thirteen-value
@@ -895,9 +922,10 @@ from any other index on the table.
 One database serves the whole run and vitest runs FILES in parallel, so every
 committed row is visible to every other file. Most fixtures are safe because
 they are addressed by an id nobody else uses — but a sweep deletes **by age,
-not by owner**, and four files call `sweepAllExpiredRows(db, EXPIRY_TARGETS)`
-with the FULL registry. So a stale row committed anywhere is fair game to all
-of them.
+not by owner**, and **five** test files call
+`sweepAllExpiredRows(db, EXPIRY_TARGETS)` with the FULL registry
+(`agentsSupport`, `automation`, `notifications`, `organizations`, `schema`). So
+a stale row committed anywhere is fair game to all of them.
 
 That failed intermittently and reads as a broken commit: `schema.pgdb.test.ts`
 inserted a 3-day-old `api_usage` row and asserted its own sweep deleted at
@@ -918,6 +946,38 @@ pinning the number trades this flake for a coupling to other files' data.
 the same exposure with a quieter symptom — it checked only which rows remained,
 so another file's sweep doing the work left it green while measuring nothing
 about the sweep it called.
+
+### The MIRROR case: a fixture that never sweeps, and wants a FUTURE deadline
+
+The transaction above is the answer for a file that must sweep its OWN expired
+fixture. There is a second shape with the opposite answer, and applying the first
+to it does nothing: a file that never sweeps at all, whose fixture merely
+HAPPENS to be expired. Nothing protects it — its rows are committed, and another
+file's sweep takes them by age.
+
+`reportRepository.pgdb.test.ts` was that case. Its outbox fixture carried a
+literal `expiresAt` of `2026-02-01`, and `moderation_outboxes` has
+`retentionSeconds: 0`, so `expires_at` IS the deadline and the row was reapable
+the moment it was written. The no-op case reads the row twice with a deliberate
+pause between them, which is exactly the window; the row vanished in between and
+the assertion reported `expected undefined to be '2451'` — which reads as the
+enqueue having rewritten the tuple, the very thing under test, rather than as
+another file having deleted it. **The failure names the wrong culprit**, which is
+what makes this worth a section rather than a comment.
+
+The fix is a deadline in the FUTURE, and RELATIVE rather than a literal — a
+literal future date rots into a past one and brings the flake back on whatever
+day it passes, silently.
+
+**It was latent for months and a change with no relationship to it made it
+deterministic.** Removing the Mongoose models from `db/schema`'s import graph
+(above) took `mongoose` off the module-initialisation path of every file that
+imports the schema — which is all of them — so the suite reaches its sweeps
+sooner and the window closed on the fixture. Measured either side of that one
+two-line import change: 0 failures in 6 runs before, 6 in 6 after, with the same
+files on the same machine. **So a timing-dependent test here is not merely
+flaky; it is a trap that fires for whoever next makes the suite faster**, and it
+presents as a regression in their change.
 
 ---
 

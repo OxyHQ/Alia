@@ -31,12 +31,32 @@ const REPORT = {
   localStatus: 'queued',
 } as const;
 
+/**
+ * `expiresAt` is in the FUTURE, and relative rather than a literal.
+ *
+ * One database serves the whole run and vitest runs FILES in parallel, so every
+ * committed row is visible to every other file — and three of them sweep the
+ * FULL registry, which deletes `moderation_outboxes` rows by AGE, not by owner
+ * (`expiryTargets.ts` gives this table `retentionSeconds: 0`, so `expires_at`
+ * IS the deadline). A fixture whose deadline has passed is therefore fair game
+ * to any concurrently running file, and the no-op case below reads the row twice
+ * with a deliberate pause between — which is exactly the window.
+ *
+ * That was a real, reproducible failure and not a hypothetical: the row vanished
+ * between the two reads and the assertion reported `expected undefined to be
+ * '2451'`, which reads as the enqueue having rewritten the tuple rather than as
+ * another file having deleted it.
+ *
+ * A LITERAL future date would rot into a past one and bring the flake back on
+ * whatever day it passed, silently.
+ */
 const EVENT = {
   id: 'report-1:report.submit',
   kind: 'report.submit',
   payload: { hello: 'world' },
-  availableAt: new Date('2026-01-01T00:00:00.000Z'),
-  expiresAt: new Date('2026-02-01T00:00:00.000Z'),
+  /** In the past: the job is deliverable now, which is the ordinary state. */
+  availableAt: new Date(Date.now() - 24 * 60 * 60 * 1000),
+  expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
 } as const;
 
 beforeAll(() => {
