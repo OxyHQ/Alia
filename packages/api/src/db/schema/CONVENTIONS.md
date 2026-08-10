@@ -55,12 +55,32 @@ would be indistinguishable from success.
 `text` + an explicit CHECK rendered from the same `as const` tuple, per the
 integrations file. `text({ enum })` emits no DDL.
 
-**The tuple is IMPORTED from the Mongoose model, never retyped.** Both stores
-exist until cutover, so a CHECK written from a second copy can disagree with the
-validator that has been guarding the same column for years — and the disagreement
-is invisible until a write hits one and not the other. Where a model declared its
-values inline, export them from the model and import them here rather than
-copying (`MODEL_PRICING_TIERS`, `PROVIDER_KEY_TIERS`, `TRANSACTION_TYPES`, …).
+**The tuple is IMPORTED from `src/domain/`, never retyped.** Both stores exist
+until cutover, so a CHECK written from a second copy can disagree with the
+validator that has been guarding the same column for years — and the
+disagreement is invisible until a write hits one and not the other. The Mongoose
+model's `enum` and this schema's CHECK both read the one tuple
+(`MODEL_PRICING_TIERS`, `PROVIDER_KEY_TIERS`, `TRANSACTION_TYPES`, …).
+
+**They live OUTSIDE `models/`, and that is what makes the models deletable.**
+They used to be `export const`s on the models, so this schema imported
+`src/models/` as a RUNTIME value — which meant deleting a model would not merely
+break a type, it would stop `db/schema/index.ts` loading, and **`drizzle-kit`
+reports that failure by generating NOTHING while exiting 0.** Forty tuples and
+enums across TWO model directories (`src/models/` and
+`src/internal/providers/models/` — a single-path grep under-counts and reads as
+complete) moved to `src/domain/` for that reason. Each module there is a LEAF: it
+imports nothing, so no value set can reach back into a model and re-create the
+dependency through one more hop.
+
+`db/__tests__/schemaModelIndependence.test.ts` holds all three halves — no
+`db/schema` module may import a model directory, no `domain` module may import
+anything, and no model may re-export a value set (a re-export would let every
+consumer keep compiling, which is exactly what makes such a dependency survive
+review). The regression it guards is one `import` line in a new schema file that
+typechecks and leaves every suite green, because the models still exist; it bites
+on the day somebody deletes them, in a different PR, naming the deleter rather
+than the author.
 
 `ALIA_TIERS` is the case that forced the rule: `AliaModel.tier` and
 `ModelConfig.aliaTier` are one vocabulary and were two identical thirteen-value
