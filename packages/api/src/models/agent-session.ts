@@ -1,38 +1,55 @@
 import mongoose, { Schema, Model, Document } from 'mongoose';
+import { EVENT_STREAM_ENTRY_TYPES, type EventStreamEntryType } from './event-stream-entry.js';
+
+/**
+ * The tuples the Postgres CHECKs render from. Exported rather than retyped, so
+ * a constraint and the validator guarding the same column cannot drift.
+ *
+ * `EVENT_STREAM_ENTRY_TYPES` is IMPORTED, not redeclared: the embedded
+ * `eventStream` array below and the `event_stream_entries` collection are the
+ * same vocabulary, and they were two identical fourteen-value literals until
+ * this batch.
+ */
+export const AGENT_SESSION_STATUSES = [
+  'queued',
+  'running',
+  'completed',
+  'failed',
+  'cancelled',
+] as const;
+export type AgentSessionStatus = (typeof AGENT_SESSION_STATUSES)[number];
+
+export const AGENT_SESSION_MESSAGE_ROLES = ['system', 'user', 'assistant', 'tool'] as const;
+export type AgentSessionMessageRole = (typeof AGENT_SESSION_MESSAGE_ROLES)[number];
+
+export const AGENT_SESSION_RESOURCE_TYPES = ['vm', 'container'] as const;
+export type AgentSessionResourceType = (typeof AGENT_SESSION_RESOURCE_TYPES)[number];
+
+export const AGENT_SESSION_RESOURCE_STATUSES = ['active', 'destroyed'] as const;
+export type AgentSessionResourceStatus = (typeof AGENT_SESSION_RESOURCE_STATUSES)[number];
+
+export const TODO_ITEM_STATUSES = ['pending', 'in_progress', 'completed', 'blocked'] as const;
+export type TodoItemStatus = (typeof TODO_ITEM_STATUSES)[number];
 
 export interface IAgentSessionMessage {
-  role: 'system' | 'user' | 'assistant' | 'tool';
+  role: AgentSessionMessageRole;
   content: string;
   timestamp: Date;
 }
 
 export interface IAgentSessionResource {
-  type: 'vm' | 'container';
+  type: AgentSessionResourceType;
   resourceId: string;
   ip?: string;
   previewUrl?: string;
-  status: 'active' | 'destroyed';
+  status: AgentSessionResourceStatus;
   createdAt: Date;
 }
 
 export interface IEventStreamEntry {
   seq: number;
   timestamp: number;
-  type:
-    | 'user_message'
-    | 'system_message'
-    | 'action'
-    | 'observation'
-    | 'error'
-    | 'plan_update'
-    | 'thinking'
-    | 'response'
-    | 'complete'
-    | 'screenshot'
-    | 'plan_progress'
-    | 'file_change'
-    | 'source_found'
-    | 'threat_detected';
+  type: EventStreamEntryType;
   content: string;
   metadata?: {
     toolName?: string;
@@ -46,7 +63,7 @@ export interface IEventStreamEntry {
 export interface ITodoItem {
   id: number;
   text: string;
-  status: 'pending' | 'in_progress' | 'completed' | 'blocked';
+  status: TodoItemStatus;
 }
 
 export interface IStructuredPlan {
@@ -65,7 +82,7 @@ export interface IAgentSession extends Document {
   agentId: mongoose.Types.ObjectId;
   userId: mongoose.Types.ObjectId;
   parentSessionId?: mongoose.Types.ObjectId;
-  status: 'queued' | 'running' | 'completed' | 'failed' | 'cancelled';
+  status: AgentSessionStatus;
   task: string;
   result?: string;
   plan?: IStructuredPlan;
@@ -111,7 +128,7 @@ const AgentSessionSchema = new Schema<IAgentSession>({
   },
   status: {
     type: String,
-    enum: ['queued', 'running', 'completed', 'failed', 'cancelled'],
+    enum: AGENT_SESSION_STATUSES,
     default: 'queued',
     index: true,
   },
@@ -123,13 +140,13 @@ const AgentSessionSchema = new Schema<IAgentSession>({
       items: [{
         id: { type: Number, default: 0 },
         text: { type: String, default: '' },
-        status: { type: String, enum: ['pending', 'in_progress', 'completed', 'blocked'], default: 'pending' },
+        status: { type: String, enum: TODO_ITEM_STATUSES, default: 'pending' },
       }],
     },
     default: undefined,
   },
   messages: [{
-    role: { type: String, enum: ['system', 'user', 'assistant', 'tool'], required: true },
+    role: { type: String, enum: AGENT_SESSION_MESSAGE_ROLES, required: true },
     content: { type: String, required: true },
     timestamp: { type: Date, default: Date.now },
   }],
@@ -138,22 +155,7 @@ const AgentSessionSchema = new Schema<IAgentSession>({
     timestamp: { type: Number, required: true },
     type: {
       type: String,
-      enum: [
-        'user_message',
-        'system_message',
-        'action',
-        'observation',
-        'error',
-        'plan_update',
-        'thinking',
-        'response',
-        'complete',
-        'screenshot',
-        'plan_progress',
-        'file_change',
-        'source_found',
-        'threat_detected',
-      ],
+      enum: EVENT_STREAM_ENTRY_TYPES,
       required: true,
     },
     content: { type: String, required: true },
@@ -163,11 +165,11 @@ const AgentSessionSchema = new Schema<IAgentSession>({
     },
   }],
   resources: [{
-    type: { type: String, enum: ['vm', 'container'], required: true },
+    type: { type: String, enum: AGENT_SESSION_RESOURCE_TYPES, required: true },
     resourceId: { type: String, required: true },
     ip: { type: String },
     previewUrl: { type: String },
-    status: { type: String, enum: ['active', 'destroyed'], default: 'active' },
+    status: { type: String, enum: AGENT_SESSION_RESOURCE_STATUSES, default: 'active' },
     createdAt: { type: Date, default: Date.now },
   }],
   creditReservation: {

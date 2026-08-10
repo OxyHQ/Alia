@@ -10,25 +10,42 @@
 
 import mongoose, { Schema, Model, Document } from 'mongoose';
 
+/**
+ * The event vocabulary, defined ONCE and imported by `agent-session.ts`.
+ *
+ * It was two identical fourteen-value literals in two files — this collection
+ * and `AgentSession.eventStream`, which is the legacy embedded copy of the same
+ * events. That is the `ALIA_TIERS` shape exactly: one vocabulary, two copies,
+ * and therefore no single tuple for the Postgres CHECK to render from. Adding a
+ * fifteenth type to one file and not the other would have gone unnoticed until
+ * a write failed against whichever CHECK was rendered from the stale copy.
+ *
+ * This file owns it because this collection is the live store; the embedded
+ * array is the fallback `lib/agent/runner.ts` still writes.
+ */
+export const EVENT_STREAM_ENTRY_TYPES = [
+  'user_message',
+  'system_message',
+  'action',
+  'observation',
+  'error',
+  'plan_update',
+  'thinking',
+  'response',
+  'complete',
+  'screenshot',
+  'plan_progress',
+  'file_change',
+  'source_found',
+  'threat_detected',
+] as const;
+export type EventStreamEntryType = (typeof EVENT_STREAM_ENTRY_TYPES)[number];
+
 export interface IEventStreamEntry extends Document {
   sessionId: mongoose.Types.ObjectId;
   seq: number;
   timestamp: number;
-  type:
-    | 'user_message'
-    | 'system_message'
-    | 'action'
-    | 'observation'
-    | 'error'
-    | 'plan_update'
-    | 'thinking'
-    | 'response'
-    | 'complete'
-    | 'screenshot'
-    | 'plan_progress'
-    | 'file_change'
-    | 'source_found'
-    | 'threat_detected';
+  type: EventStreamEntryType;
   content: string;
   metadata?: {
     toolName?: string;
@@ -51,7 +68,7 @@ const EventStreamEntrySchema = new Schema<IEventStreamEntry>({
   timestamp: { type: Number, required: true },
   type: {
     type: String,
-    enum: ['user_message', 'system_message', 'action', 'observation', 'error', 'plan_update', 'thinking', 'response', 'complete', 'screenshot', 'plan_progress', 'file_change', 'source_found', 'threat_detected'],
+    enum: EVENT_STREAM_ENTRY_TYPES,
     required: true,
   },
   content: { type: String, required: true },

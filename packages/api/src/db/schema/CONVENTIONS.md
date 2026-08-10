@@ -294,6 +294,34 @@ Mongo left the sub-document behind when its `ModelConfig` was deleted, and
 `getNextProvider` would then hand the router a provider whose configuration no
 longer existed.
 
+### One parent, four children, four DIFFERENT deletion rules
+
+`routes/agents/crud.ts:323` deletes an agent with a bare `Agent.deleteOne` and
+touches nothing else, so its sessions, reviews, templates and team memberships
+all orphan in Mongo today. That does not settle the foreign keys — it means each
+child is a separate decision, and batch 9c's four answers are all different.
+Worth keeping together, because the temptation is to apply one rule to a whole
+batch:
+
+| Child | Rule | Why |
+|---|---|---|
+| `agent_sessions.agent_id` | **no FK** | A session is the record of work a PERSON asked for and spent credits on — their `task`, `result` and event stream. CASCADE deletes their history; `SET NULL` is unrepresentable on a `notNull` column; `RESTRICT` makes an agent permanently undeletable once anybody has run it. `trigger_executions.trigger_id`. |
+| `agent_reviews.agent_id` | `CASCADE` | The row's entire content is an opinion of one agent, and `lib/agent-rating.ts` already returns `null` rather than recomputing once it is gone. `plan_features`. |
+| `agent_session_resources.session_id` | `CASCADE` | These rows WERE the session document — an embedded array — so they cannot outlive it by construction. The least arguable in the batch. |
+| `container_templates.agent_id` | `SET NULL` | The **one** place that answer is available, and the contrast with `api_usage.key_id` is why: there the column was `notNull` and the id WAS the row's content, so nulling it erased the record. Here the row is a snapshot tag that stands on its own and the association is an optional convenience. |
+
+`agent_sessions.parent_session_id` is a fifth, self-referencing: `SET NULL`, so a
+delegated run survives its parent's deletion and merely stops claiming one.
+
+### Two bounds on one word, and they must not be unified
+
+`AgentReview.rating` is `min: 1` and `Agent.rating` is `min: 0`, and both are
+ported as declared. That is not an inconsistency: a review is somebody's 1-to-5
+score, while the agent's is an AVERAGE that is legitimately 0 when nobody has
+reviewed it. Collapsing them either admits a nonexistent 0-star review or refuses
+every agent that has none. `agentSessions.pgdb.test.ts` asserts both halves in
+one case so the pair cannot be tidied apart.
+
 **A foreign key must target `unique()`, never `uniqueIndex()`.** drizzle-kit
 emits every `ALTER TABLE … ADD CONSTRAINT … FOREIGN KEY` BEFORE every
 `CREATE UNIQUE INDEX`, whatever the source order — measured in `0003`, where the
@@ -306,6 +334,31 @@ already exists. This is why `plans.plan_id` and `features.feature_id` — both F
 targets, both business keys rather than surrogate ids — are the only two
 `unique()` declarations in the schema while everything else uses
 `uniqueIndex()`.
+
+### A SELF-reference is emitted; a CIRCULAR one between two tables is DROPPED
+
+drizzle-kit silently drops a circular foreign key — the declaration typechecks,
+no `ADD CONSTRAINT` is emitted, nothing reaches the snapshot, and the column
+enforces nothing while reading as correct. Measured in Mercaria on
+`awin_advertisers.activating_sample_id`, which had to be reverted to a plain
+column with the reason recorded.
+
+**`agent_sessions.parent_session_id` is a self-reference and it is NOT affected**,
+verified in all three artefacts: the `ALTER TABLE … ADD CONSTRAINT` is in
+migration `0014`, the constraint is in `0014_snapshot.json`, and
+`agentSessions.pgdb.test.ts` reads it back out of `pg_constraint` by name with
+its `confdeltype`. Two things appear to make the difference and both are easy to
+lose in a refactor: it is declared through the table-level `foreignKey()` helper
+rather than a column-level `references((): AnyPgColumn => …)`, and it is one
+table pointing at itself rather than a cycle between two.
+
+**Verify any self- or circular FK against the GENERATED SQL, never the
+declaration** — and against the live catalogue if it is load-bearing, which is
+what the `pg_constraint` case is for. The behavioural test beside it also
+detects a dropped constraint (confirmed by deleting the `ADD CONSTRAINT`
+statement outright and watching it go red), but it fails as a puzzling
+difference in deletion behaviour rather than by naming the thing that is
+missing.
 
 **A PRIMARY KEY target is exempt, and `context_edges` is the case.** Both its
 endpoints reference `context_nodes.id`, which is emitted inline in
@@ -478,6 +531,14 @@ destination fields by matching names, or by a rule like "the account column is
 the one called `oxy_user_id`", copies every other column correctly and leaves
 this one NULL. The copy reports success and every file in the library becomes
 unreachable.
+
+Batch 9's full rename list, so the backfill states each mapping rather than
+pairing by name: `Agent.author` → `author_oxy_user_id`, `AgentTeam.creator` →
+`creator_oxy_user_id`, and `AgentSession.userId` / `AgentReview.userId` /
+`Container.userId` / `ContainerTemplate.userId` /
+`AgentSession.creditReservation.userId` → `oxy_user_id` (the last as
+`credit_reservation_oxy_user_id`). `Skill.author` is the one that does NOT map to
+an account — see below.
 
 The column is therefore named `owner_oxy_user_id`: the fact travels in the name
 rather than in a comment, and the backfill states the `owner` → `owner_oxy_user_id`
@@ -849,6 +910,10 @@ about enums, applied to all of them.
 | `user_credits.credits_free`, `.credits_paid` | a NEGATIVE balance | No CHECK was added, because `addCredits` accepts a negative amount. Audit the actual range before anybody adds one. |
 | `context_nodes.*_score`, `context_edges.weight`, `context_sources.*_score`, `retrieval_strategies.*_weight` | a value outside 0..1 | Every writer sets 0.2–0.95, so 0..1 is plainly intended — but Mongoose declares no `min`/`max`, so no CHECK was added. Audit the range before anybody adds one; the write path runs on every chat turn. |
 | `retrieval_strategies` | more than one row with `active = true` for one `(oxy_user_id, intent)` | No constraint. Mongo's unique is on `(user, intent, name)`, which permits it, yet both writers filter on `{oxyUserId, intent, active: true}` — so a second active row makes which one they find arbitrary. A partial unique `WHERE active` is the correct tightening and is deliberately left out until audited, exactly like `triggers.schedule`. |
+| `agent_reviews.rating` | a value outside 1..5 | Mongoose declares `min: 1, max: 5`. Note the bound differs from `agents.rating`'s 0..5 deliberately — see the section above; do not unify them to make an audit pass. |
+| `agent_sessions.plan_objective` / `.plan_items` | a document with ONE of the two present | A new CHECK. Every writer sets and clears the plan as a unit (`todoManager.toJSON()` produces both, `runner.ts:803` clears both), so a half-written plan means a raw write around them. Clear both rather than relaxing the constraint — half a plan is not something `loadFromPersisted` can use. |
+| `agent_sessions.messages` | any row where it is NON-EMPTY | Written by nothing and read by nothing package-wide, so it should be empty everywhere. A non-empty row means a writer existed once and the shape assumption behind porting it as an inert `jsonb` needs re-reading before the copy. |
+| `agent_sessions.event_stream` vs `event_stream_entries` | rows where the two DISAGREE, and **a decision that is owed** | See the section below — this is the one item here that is not just a number to read. |
 | `learning_rules.priority`, `.hit_count` | the actual stored range | No CHECK. Mongoose declares no `min`/`max` on either, so the third class applies — but `priority` reads like a 0..100 and `hit_count` like a non-negative, and both invite an obvious constraint. `agentsSupport.pgdb.test.ts` stores `9999` and `-3` so that adding one fails there rather than on somebody's row. Audit the range before anybody proposes it. |
 | `skills.triggers`, `.includes`, `.good_at`, `.not_good_at` | a source document MISSING the key entirely | `notNull default '{}'`, because Mongoose hands every reader `[]` for an absent array and every caller does `.map()`/`.length` without a guard. A backfill reading through the RAW driver gets `undefined` for a document written before the field existed and must coerce to `[]` — through Mongoose it would already be `[]`. This is the one place the choice of driver changes the value, the encrypted-column rule pointed at absence instead of ciphertext. |
 
@@ -865,6 +930,9 @@ about enums, applied to all of them.
 | `skills_skill_id_key` | two skills sharing a `skill_id` | Mongoose declares `unique: true`, so a hit means a row predating it. It matters because `lib/seed-skills.ts` upserts on this key: a duplicate makes which row the seed updates arbitrary, and the other one is then a skill nobody can correct. |
 | `agents_handle_key` | two agents sharing a `handle` | Mongoose declares `unique: true`, so a hit means a row predating it or a raw write around it. A handle is how one agent delegates to another (`@researcher`), so a duplicate makes which agent is hired arbitrary. |
 | `agent_skills_agent_skill_key`, `agent_knowledge_agent_file_key` | one agent's array naming the same skill or file TWICE | New — Mongo cannot index inside a sub-document array, and nothing deduplicated these on write (`routes/agents/crud.ts:252` stores the client's array verbatim, unlike the team routes which use `$addToSet`). A hit is a duplicate the UI already renders twice; drop the repeat rather than relaxing the index. |
+| `agent_session_resources_session_resource_key` | one session claiming the same VM or container twice | New. `lib/agent/runner.ts:272` guards it with `resources.some(...)` before pushing — a read-then-write two concurrent tool calls can both pass, so a duplicate is the expected artefact of that race rather than a surprise. Merge, keeping the row whose `status` is `destroyed` last. |
+| `agent_team_agents_team_agent_key` and its two siblings | a team naming the same member twice | NOT a new tightening: `routes/agent-teams.ts:161` already uses `$addToSet`, so this index is the constraint that operator was emulating. A hit means a row written before that route existed, or a raw write around it. |
+| `agent_reviews_agent_user_key`, `container_templates_snapshot_tag_key` | a duplicate | Both declared `unique: true` in Mongoose, so a hit means a row predating the declaration. |
 
 ## Not-null a legacy row may not satisfy
 
@@ -887,12 +955,21 @@ leaves every earlier row without one.
 
 ## Foreign keys a legacy row will not satisfy — the EXPECTED failure of batch 9b
 
-`agent_skills.skill_id`, `agent_knowledge.library_file_id` and (batch 9c)
-`agent_team_*` all have real foreign keys, and **Mongo left dangling ids in
-exactly these arrays**: deleting a `Skill` or a `LibraryFile` never touched the
-agents referencing it, and `populate` silently dropped the unresolvable entry on
-read. So the backfill WILL hit `23503` here, and it is not a defect — it is the
-first time anybody has counted how many of those references are dead.
+`agent_skills.skill_id`, `agent_knowledge.library_file_id`, `agent_team_agents`,
+`agent_team_skills`, `agent_team_knowledge`, `agent_reviews.agent_id` and
+`agent_session_resources.session_id` all have real foreign keys, and **Mongo left
+dangling ids behind every one of them**: `routes/agents/crud.ts:323` deletes an
+agent with a bare `deleteOne` and touches nothing, and deleting a `Skill` or a
+`LibraryFile` never touched the agents referencing it. `populate` silently
+dropped the unresolvable entry on read, which is why nobody has ever seen it. So
+the backfill WILL hit `23503` here, and it is not a defect — it is the first time
+anybody has counted how many of those references are dead.
+
+**`agent_reviews` is the one to look at rather than discard.** A review of a
+deleted agent is unreachable, so dropping it loses nothing a user can see — but
+the COUNT is worth reading before it goes, because a large number means agents
+are being deleted with reviews attached and `lib/agent-rating.ts` has been
+recomputing against them.
 
 Do not "fix" it by dropping the constraint. Count the dangling ids first; each
 one is an entry an agent's owner has seen disappear from their skill list
@@ -916,6 +993,33 @@ time. Assert the written value still matches `iv:authTag:ciphertext`; that
 assertion is the only thing between "copied" and "copied correctly", because a
 double-encrypted row looks like a successful copy and fails at the first READ, in
 production. `columns.ts` has the full reasoning.
+
+## TWO LIVE STORES FOR ONE FACT — a decision owed, not a shape ported
+
+`agent_sessions.event_stream` and `event_stream_entries` hold the same events.
+`lib/agent/event-stream.ts` persists only to the collection; `lib/agent/runner.ts`
+ALSO writes `session.eventStream = eventStream.toJSON()` on every save; and
+`getRecentActivity` reads the collection first and falls back to the embedded
+array, its own comment calling that "(legacy)".
+
+The port carries both, which is faithful. **But a fallback that reads one store
+and then the other is not resilience — it is two sources of truth**, and a port
+that carries both without saying so is exactly how the arrangement becomes
+permanent. So this is recorded as a decision with an owner rather than as a
+modelled shape:
+
+- **The collection WINS.** It is the store the writer maintains, it is the one
+  `getRecentActivity` prefers, and it is the only one with indexes.
+- **The embedded copy dies when no session needs the fallback** — that is, when
+  every session holding a non-empty `event_stream` either has entries in
+  `event_stream_entries` or is old enough that nobody reads its activity. Count
+  the sessions where the collection is empty AND the array is not; that number
+  is the fallback's entire remaining purpose, and when it reaches zero the
+  column can be dropped in a `post` migration and the four writes in `runner.ts`
+  removed with it.
+- **Until then, do not "tidy" either side.** Writing only the collection breaks
+  the fallback for old sessions; writing only the array reintroduces the 16MB
+  document limit this collection was created to escape.
 
 ## Preconditions rather than failures
 
