@@ -1,16 +1,31 @@
 import { Router, Request, Response } from 'express';
 import Stripe from 'stripe';
 import { authenticateToken, optionalAuth, oxyClient } from '../middleware/auth.js';
-import { UserCredits, type IUserCredits } from '../models/user-credits.js';
-import { Subscription } from '../models/subscription.js';
-import { Transaction } from '../models/transaction.js';
+import { getDb } from '../db/index.js';
+import {
+  addCredits,
+  findUserCreditsByStripeCustomerId,
+  setStripeCustomerId,
+  type UserCreditsRow,
+} from '../db/billing/userCreditsRepository.js';
+import {
+  findActiveSubscription,
+  updateSubscriptionByStripeId,
+  upsertSubscriptionByStripeId,
+} from '../db/billing/subscriptionRepository.js';
+import {
+  countTransactionsForUser,
+  insertTransaction,
+  isDuplicateTransaction,
+  selectTransactionsForUser,
+} from '../db/billing/transactionRepository.js';
 import { getPlans, getCreditPackages, getFeatures, getPlanFeatures, getAllAliaModels, type PlanFeatureData } from '../lib/gateway-client.js';
 import { ensureStripePriceId } from '../lib/stripe-prices.js';
 import { getOrCreateUserCredits } from '../lib/user-credits-helpers.js';
 import { getUserEntitlements, invalidateEntitlementsCache } from '../lib/plan-access.js';
 import { z } from 'zod';
 import { log } from '../lib/logger.js';
-import { sanitizeMessage, isDuplicateKeyError } from '../lib/errors/index.js';
+import { sanitizeMessage } from '../lib/errors/index.js';
 
 const router = Router();
 const getSafeErrorMessage = (error: unknown, fallback: string): string =>
@@ -35,7 +50,7 @@ function getWebhookSecret(): string {
 }
 
 // Helper to get or create Stripe customer
-async function getOrCreateStripeCustomer(userId: string, userCredits: IUserCredits): Promise<string> {
+async function getOrCreateStripeCustomer(userId: string, userCredits: UserCreditsRow): Promise<string> {
   const existingCustomerId = userCredits.stripeCustomerId;
 
   if (existingCustomerId) {
@@ -64,8 +79,7 @@ async function getOrCreateStripeCustomer(userId: string, userCredits: IUserCredi
     metadata: { userId },
   });
 
-  userCredits.stripeCustomerId = customer.id;
-  await userCredits.save();
+  await setStripeCustomerId(getDb(), userId, customer.id);
   log.credits.info({ customerId: customer.id, userId }, 'Created Stripe customer');
 
   return customer.id;
@@ -332,11 +346,9 @@ router.post('/checkout/subscription', authenticateToken, async (req: Request, re
       return res.status(400).json({ error: 'Invalid plan ID' });
     }
 
-    const existingSubscription = await Subscription.findOne({
-      oxyUserId: userId,
-      'plan.product': plan.product,
-      status: { $in: ['active', 'trialing'] },
-    }).lean();
+    const existingSubscription = await findActiveSubscription(getDb(), userId, {
+      product: plan.product,
+    });
 
     if (existingSubscription) {
       return res.status(409).json({
@@ -385,14 +397,9 @@ router.get('/subscription', optionalAuth, async (req: Request, res: Response) =>
       return res.json({ subscription: null });
     }
     const product = req.query.product as string | undefined;
-    const query: Record<string, unknown> = {
-      oxyUserId: req.user.id,
-      status: { $in: ['active', 'trialing'] },
-    };
-    if (product) {
-      query['plan.product'] = product;
-    }
-    const subscription = await Subscription.findOne(query).lean();
+    const subscription = await findActiveSubscription(getDb(), req.user.id, {
+      ...(product ? { product } : {}),
+    });
     res.json({ subscription });
   } catch (error: unknown) {
     log.credits.error({ err: error }, 'Error fetching subscription');
@@ -402,10 +409,7 @@ router.get('/subscription', optionalAuth, async (req: Request, res: Response) =>
 
 router.post('/subscription/cancel', authenticateToken, async (req: Request, res: Response) => {
   try {
-    const subscription = await Subscription.findOne({
-      oxyUserId: req.user!.id,
-      status: { $in: ['active', 'trialing'] },
-    });
+    const subscription = await findActiveSubscription(getDb(), req.user!.id);
 
     if (!subscription) {
       return res.status(404).json({ error: 'No active subscription found' });
@@ -415,10 +419,13 @@ router.post('/subscription/cancel', authenticateToken, async (req: Request, res:
       cancel_at_period_end: true,
     });
 
-    subscription.cancelAtPeriodEnd = true;
-    await subscription.save();
+    const canceled = await updateSubscriptionByStripeId(
+      getDb(),
+      subscription.stripeSubscriptionId,
+      { cancelAtPeriodEnd: true },
+    );
 
-    res.json({ message: 'Subscription will be canceled at end of billing period', subscription });
+    res.json({ message: 'Subscription will be canceled at end of billing period', subscription: canceled });
   } catch (error: unknown) {
     log.credits.error({ err: error }, 'Error canceling subscription');
     res.status(500).json({ error: getSafeErrorMessage(error, 'Failed to cancel subscription') });
@@ -436,10 +443,7 @@ router.post('/subscription/change-plan', authenticateToken, async (req: Request,
     const userId = req.user!.id;
 
     // Find existing active subscription
-    const subscription = await Subscription.findOne({
-      oxyUserId: userId,
-      status: { $in: ['active', 'trialing'] },
-    });
+    const subscription = await findActiveSubscription(getDb(), userId);
 
     if (!subscription) {
       return res.status(404).json({ error: 'No active subscription found' });
@@ -458,6 +462,12 @@ router.post('/subscription/change-plan', authenticateToken, async (req: Request,
     }
 
     // Look up current plan for sortOrder comparison
+    // `plan_id` is nullable on the row: a subscription created before the
+    // column existed has none, and `getPlans({ planId: undefined })` would then
+    // return the WHOLE catalogue rather than nothing.
+    if (!subscription.planId) {
+      return res.status(500).json({ error: 'Current plan not found' });
+    }
     const currentPlans = await getPlans({ planId: subscription.planId });
     const currentPlan = currentPlans[0];
     if (!currentPlan) {
@@ -501,22 +511,26 @@ router.post('/subscription/change-plan', authenticateToken, async (req: Request,
       },
     });
 
-    // Update local subscription document
+    /**
+     * The local mirror follows Stripe. The `plan_snapshot_*` fields move too:
+     * a plan CHANGE is the customer agreeing to something different, so the
+     * frozen record of what they bought is now the new plan. (What it must never
+     * follow is an admin editing the catalogue — nothing here does that.)
+     */
     const price = isAnnual ? targetPlan.annualPrice : targetPlan.monthlyPrice;
-    subscription.planId = targetPlan.planId;
-    subscription.billingPeriod = billingPeriod;
-    subscription.cancelAtPeriodEnd = false;
-    subscription.stripePriceId = targetPriceId;
-    subscription.plan = {
+    await updateSubscriptionByStripeId(getDb(), subscription.stripeSubscriptionId, {
       planId: targetPlan.planId,
-      name: targetPlan.name,
-      product: targetPlan.product,
-      creditsPerMonth: targetPlan.creditsPerMonth,
-      price,
-      currency: targetPlan.currency,
       billingPeriod,
-    };
-    await subscription.save();
+      cancelAtPeriodEnd: false,
+      stripePriceId: targetPriceId,
+      planSnapshotPlanId: targetPlan.planId,
+      planSnapshotName: targetPlan.name,
+      planSnapshotProduct: targetPlan.product,
+      planSnapshotCreditsPerMonth: targetPlan.creditsPerMonth,
+      planSnapshotPrice: price,
+      planSnapshotCurrency: targetPlan.currency,
+      planSnapshotBillingPeriod: billingPeriod,
+    });
 
     invalidateEntitlementsCache(userId);
 
@@ -535,12 +549,12 @@ router.post('/subscription/change-plan', authenticateToken, async (req: Request,
 router.get('/transactions', authenticateToken, async (req: Request, res: Response) => {
   try {
     const { limit = 20, offset = 0 } = req.query;
-    const transactions = await Transaction.find({ oxyUserId: req.user!.id })
-      .sort({ createdAt: -1 })
-      .limit(Number(limit))
-      .skip(Number(offset))
-      .lean();
-    const total = await Transaction.countDocuments({ oxyUserId: req.user!.id });
+    const db = getDb();
+    const transactions = await selectTransactionsForUser(db, req.user!.id, {
+      limit: Number(limit),
+      offset: Number(offset),
+    });
+    const total = await countTransactionsForUser(db, req.user!.id);
     res.json({ transactions, total });
   } catch (error: unknown) {
     log.credits.error({ err: error }, 'Error fetching transactions');
@@ -650,12 +664,12 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
     const credits = parseInt(metadata.credits || '0');
     if (credits <= 0) return;
 
-    const userCredits = await getOrCreateUserCredits(metadata.userId);
-    await userCredits.addCredits(credits, 'paid');
+    await getOrCreateUserCredits(metadata.userId);
+    await addCredits(getDb(), metadata.userId, credits, 'paid');
     log.credits.info({ credits, userId: metadata.userId }, 'Added credits to user');
 
     try {
-      await Transaction.create({
+      await insertTransaction(getDb(), {
         oxyUserId: metadata.userId,
         stripeCustomerId: session.customer as string,
         stripePaymentIntentId: session.payment_intent as string,
@@ -667,7 +681,11 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
         description: `Purchased ${credits.toLocaleString()} credits`,
       });
     } catch (err: unknown) {
-      if (isDuplicateKeyError(err)) {
+      // `transactions_stripe_payment_intent_id_key`. By CONSTRAINT NAME through
+      // the repository, never `err.code`: a drizzle error's SQLSTATE lives on
+      // `cause`, so a mechanically ported code test matches nothing and the
+      // redelivered webhook escapes past this skip.
+      if (isDuplicateTransaction(err)) {
         log.credits.warn({ paymentIntent: session.payment_intent }, 'Duplicate checkout event, skipping');
         return;
       }
@@ -689,14 +707,13 @@ async function handleSubscriptionUpdate(stripeSubscription: Stripe.Subscription)
   const metadata = stripeSubscription.metadata;
 
   // Find UserCredits by Stripe customer ID, fall back to userId from metadata
-  let userCredits = await UserCredits.findOne({ stripeCustomerId: customerId });
+  let userCredits = await findUserCreditsByStripeCustomerId(getDb(), customerId);
   if (!userCredits) {
     if (metadata?.userId) {
       log.credits.warn({ customerId, userId: metadata.userId }, 'No UserCredits for stripeCustomerId, falling back to userId');
       userCredits = await getOrCreateUserCredits(metadata.userId);
       if (!userCredits.stripeCustomerId) {
-        userCredits.stripeCustomerId = customerId;
-        await userCredits.save();
+        userCredits = (await setStripeCustomerId(getDb(), userCredits.id, customerId)) ?? userCredits;
       }
     } else {
       throw new Error(`No UserCredits found for stripeCustomerId ${customerId} and no userId in metadata`);
@@ -719,31 +736,44 @@ async function handleSubscriptionUpdate(stripeSubscription: Stripe.Subscription)
   const periodStart = item?.current_period_start;
   const periodEnd = item?.current_period_end;
 
-  await Subscription.findOneAndUpdate(
-    { stripeSubscriptionId: stripeSubscription.id },
-    {
-      oxyUserId: userCredits._id,
-      stripeCustomerId: customerId,
-      stripeSubscriptionId: stripeSubscription.id,
-      stripePriceId: stripeSubscription.items.data[0].price.id,
-      status: stripeSubscription.status,
-      currentPeriodStart: periodStart ? new Date(periodStart * 1000) : new Date(),
-      currentPeriodEnd: periodEnd ? new Date(periodEnd * 1000) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-      cancelAtPeriodEnd: stripeSubscription.cancel_at_period_end,
-      planId: plan.planId,
-      billingPeriod: isAnnual ? 'annual' : 'monthly',
-      plan: { planId: plan.planId, name: plan.name, product: plan.product, creditsPerMonth: plan.creditsPerMonth, price, currency: plan.currency, billingPeriod: isAnnual ? 'annual' : 'monthly' },
-    },
-    { upsert: true, returnDocument: 'after' }
-  );
+  await upsertSubscriptionByStripeId(getDb(), {
+    oxyUserId: userCredits.id,
+    stripeCustomerId: customerId,
+    stripeSubscriptionId: stripeSubscription.id,
+    stripePriceId: stripeSubscription.items.data[0].price.id,
+    status: stripeSubscription.status,
+    currentPeriodStart: periodStart ? new Date(periodStart * 1000) : new Date(),
+    currentPeriodEnd: periodEnd ? new Date(periodEnd * 1000) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+    cancelAtPeriodEnd: stripeSubscription.cancel_at_period_end,
+    planId: plan.planId,
+    billingPeriod: isAnnual ? 'annual' : 'monthly',
+    planSnapshotPlanId: plan.planId,
+    planSnapshotName: plan.name,
+    planSnapshotProduct: plan.product,
+    planSnapshotCreditsPerMonth: plan.creditsPerMonth,
+    planSnapshotPrice: price,
+    planSnapshotCurrency: plan.currency,
+    planSnapshotBillingPeriod: isAnnual ? 'annual' : 'monthly',
+  });
 
   // Add subscription credits with dedup protection (no time window — dedup key prevents duplicates)
   if (stripeSubscription.status === 'active') {
     const dedupKey = `${stripeSubscription.id}_${periodStart || Date.now()}`;
     try {
-      // Create transaction first as dedup lock, then add credits
-      await Transaction.create({
-        oxyUserId: userCredits._id,
+      /**
+       * The double-credit guard, and the single most dangerous line in this
+       * port. The transaction is written FIRST as a lock — `dedup_key` is a
+       * STORED GENERATED column over `metadata ->> 'dedup'` with a unique index,
+       * so there is no way to write the metadata without the constraint seeing
+       * it — and only then are the credits added.
+       *
+       * `isDuplicateTransaction` tests the CONSTRAINT NAME. A mechanically
+       * ported `err.code === 11000` (or `=== '23505'`) matches nothing, because
+       * a drizzle error's SQLSTATE lives on `cause`; the branch would collapse
+       * silently and every webhook redelivery would credit the customer again.
+       */
+      await insertTransaction(getDb(), {
+        oxyUserId: userCredits.id,
         stripeCustomerId: customerId,
         type: 'subscription_payment',
         amount: price,
@@ -753,10 +783,10 @@ async function handleSubscriptionUpdate(stripeSubscription: Stripe.Subscription)
         description: `${plan.name} subscription credits (${isAnnual ? 'annual' : 'monthly'})`,
         metadata: { dedup: dedupKey },
       });
-      await userCredits.addCredits(plan.creditsPerMonth, 'paid');
+      await addCredits(getDb(), userCredits.id, plan.creditsPerMonth, 'paid');
       log.credits.info({ credits: plan.creditsPerMonth, subscriptionId: stripeSubscription.id, periodStart }, 'Added subscription credits');
     } catch (err: unknown) {
-      if (isDuplicateKeyError(err)) {
+      if (isDuplicateTransaction(err)) {
         log.credits.warn({ dedupKey }, 'Duplicate subscription credit event, skipping');
         return;
       }
@@ -764,14 +794,13 @@ async function handleSubscriptionUpdate(stripeSubscription: Stripe.Subscription)
     }
   }
 
-  invalidateEntitlementsCache(userCredits._id);
+  invalidateEntitlementsCache(userCredits.id);
 }
 
 async function handleSubscriptionDeleted(stripeSubscription: Stripe.Subscription) {
-  const sub = await Subscription.findOneAndUpdate(
-    { stripeSubscriptionId: stripeSubscription.id },
-    { status: 'canceled' }
-  );
+  const sub = await updateSubscriptionByStripeId(getDb(), stripeSubscription.id, {
+    status: 'canceled',
+  });
   if (sub?.oxyUserId) invalidateEntitlementsCache(sub.oxyUserId);
 }
 
@@ -797,10 +826,7 @@ async function handleInvoicePaymentFailed(invoice: Stripe.Invoice) {
   if (!subscriptionId) return;
 
   log.credits.error({ subscriptionId, invoiceId: invoice.id }, 'Invoice payment failed');
-  await Subscription.findOneAndUpdate(
-    { stripeSubscriptionId: subscriptionId },
-    { status: 'past_due' }
-  );
+  await updateSubscriptionByStripeId(getDb(), subscriptionId, { status: 'past_due' });
 }
 
 export default router;

@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { authenticateToken } from '../middleware/auth.js';
-import { getOrCreateUserCredits } from '../lib/user-credits-helpers.js';
+import { getRefreshedUserCredits } from '../lib/user-credits-helpers.js';
 import { creditSpendByDay } from '../db/telemetry/apiKeyUsageRepository.js';
 import { getDb } from '../db/index.js';
 import { log } from '../lib/logger.js';
@@ -12,16 +12,15 @@ const getSafeErrorMessage = (error: unknown, fallback: string): string =>
 
 router.get('/', authenticateToken, async (req, res) => {
   try {
-    const userCredits = await getOrCreateUserCredits(req.user!.id);
-    await userCredits.refreshCreditsIfNeeded();
+    const userCredits = await getRefreshedUserCredits(req.user!.id);
 
     res.json({
-      credits: userCredits.credits.free + userCredits.credits.paid,
-      freeCredits: userCredits.credits.free,
-      freeLimit: userCredits.credits.freeLimit,
-      paidCredits: userCredits.credits.paid,
-      dailyRefresh: userCredits.credits.dailyRefresh,
-      lastRefresh: userCredits.credits.lastRefresh,
+      credits: userCredits.creditsFree + userCredits.creditsPaid,
+      freeCredits: userCredits.creditsFree,
+      freeLimit: userCredits.creditsFreeLimit,
+      paidCredits: userCredits.creditsPaid,
+      dailyRefresh: userCredits.creditsDailyRefresh,
+      lastRefresh: userCredits.creditsLastRefresh,
     });
   } catch (error: unknown) {
     log.credits.error({ err: error }, 'Error');

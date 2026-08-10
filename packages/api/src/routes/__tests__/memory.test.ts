@@ -29,8 +29,16 @@ vi.mock('../../db/memory/userMemoryRepository.js', () => ({
   updateSettings: vi.fn(),
 }));
 
-vi.mock('../../models/subscription.js', () => ({
-  Subscription: { findOne: vi.fn() },
+// The subscription lookup moved to a Postgres repository; these suites care
+// only that the memory limit falls back when there is no active subscription,
+// so the repository is stubbed rather than the model. `getDb` goes with it —
+// it is the repository's first argument and throws without a live pool.
+vi.mock('../../db/index.js', () => ({
+  getDb: vi.fn(() => ({})),
+}));
+
+vi.mock('../../db/billing/subscriptionRepository.js', () => ({
+  findActiveSubscription: vi.fn().mockResolvedValue(null),
 }));
 
 vi.mock('../../middleware/auth.js', () => ({

@@ -1205,7 +1205,7 @@ You are now in a live voice conversation with a second AI called "Cohost" and th
         const { getOrCreateUserCredits } = await import('../../../lib/user-credits-helpers.js');
         const { calculateCreditsFromMinutes } = await import('../../../lib/credits-manager.js');
         const userCredits = await getOrCreateUserCredits(session.userId);
-        const totalCredits = (userCredits.credits?.free || 0) + (userCredits.credits?.paid || 0);
+        const totalCredits = userCredits.creditsFree + userCredits.creditsPaid;
         const creditsForNextMinute = await calculateCreditsFromMinutes(1, session.aliaModelId, session.costPerMinute);
 
         if (totalCredits < creditsForNextMinute) {

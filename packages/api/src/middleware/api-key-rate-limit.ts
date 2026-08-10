@@ -3,7 +3,8 @@ import { recordApiKeyUsage, usageWindow } from '../db/telemetry/apiKeyUsageRepos
 import { API_KEY_USAGE_METHODS, type ApiKeyUsageMethod } from '../domain/api-key-usage.js';
 import { getDb } from '../db/index.js';
 import DeveloperApiKey, { IRateLimitConfig } from '../models/developer-api-key';
-import { Subscription } from '../models/subscription';
+import { getDb } from '../db/index.js';
+import { findActiveSubscription } from '../db/billing/subscriptionRepository.js';
 import { checkLimit } from '../lib/sliding-window-limiter.js';
 import { getRedisClient, withRedisTimeout as withTimeout } from '../lib/redis.js';
 import { log } from '../lib/logger.js';
@@ -74,16 +75,13 @@ export const TIER_RATE_LIMITS: Record<string, IRateLimitConfig> = {
  * Get user's subscription tier
  */
 export async function getUserTier(userId: string): Promise<string> {
-  const subscription = await Subscription.findOne({
-    oxyUserId: userId,
-    status: { $in: ['active', 'trialing'] },
-  }).sort({ createdAt: -1 });
+  const subscription = await findActiveSubscription(getDb(), userId);
 
   if (!subscription) {
     return 'free';
   }
 
-  const planName = subscription.plan?.name?.toLowerCase() || '';
+  const planName = subscription.planSnapshotName.toLowerCase();
 
   if (planName.includes('enterprise')) return 'enterprise';
   if (planName.includes('ultra')) return 'business';

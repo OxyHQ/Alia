@@ -9,7 +9,7 @@ import imagesRouter from './v1/images.js';
 import showsRouter from './v1/shows.js';
 import { authenticateTokenOrApiKey, optionalAuth, oxyClient } from '../middleware/auth.js';
 import { apiKeyRateLimit } from '../middleware/api-key-rate-limit.js';
-import { UserCredits } from '../models/user-credits.js';
+import { getRefreshedUserCredits } from '../lib/user-credits-helpers.js';
 import { listChannels } from '../lib/channels/registry.js';
 import * as crypto from 'crypto';
 import { log } from '../lib/logger.js';
@@ -84,30 +84,16 @@ router.get('/me', async (req: Request, res: Response) => {
     }
 
     // Get user credits
-    let userCredits = await UserCredits.findById(userId);
-    if (!userCredits) {
-      userCredits = await UserCredits.create({
-        _id: userId,
-        credits: {
-          free: 300,
-          freeLimit: 300,
-          dailyRefresh: 300,
-          lastRefresh: new Date(),
-          paid: 0,
-        }
-      });
-    }
-
-    await userCredits.refreshCreditsIfNeeded();
+    const userCredits = await getRefreshedUserCredits(userId);
 
     res.json({
       id: userId,
       email: oxyUser?.email || req.user?.email || '',
       name: oxyUser?.name?.displayName || oxyUser?.username || req.user?.email || '',
       credits: {
-        free: userCredits.credits.free,
-        paid: userCredits.credits.paid,
-        total: userCredits.credits.free + userCredits.credits.paid,
+        free: userCredits.creditsFree,
+        paid: userCredits.creditsPaid,
+        total: userCredits.creditsFree + userCredits.creditsPaid,
       },
     });
   } catch (error: unknown) {

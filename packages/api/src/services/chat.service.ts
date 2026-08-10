@@ -17,7 +17,7 @@ import { buildMcpTools } from '../lib/tools/mcp.js';
 import { buildIntegrationTools } from '../lib/tools/integrations.js';
 import { oxyClient } from '../middleware/auth.js';
 import type { User as OxyUser } from '@oxyhq/core';
-import { getOrCreateUserCredits } from '../lib/user-credits-helpers.js';
+import { getRefreshedUserCredits } from '../lib/user-credits-helpers.js';
 import { Skill } from '../models/skill.js';
 import { Agent } from '../models/agent.js';
 import type { UserMemoryProfile } from '../db/memory/userMemoryRepository.js';
@@ -155,8 +155,12 @@ export async function loadUserContext(userId: string): Promise<UserContext> {
   let creditReservation: CreditReservation | null = null;
 
   try {
-    const [userCredits, mem, tier] = await Promise.all([
-      getOrCreateUserCredits(userId),
+    // `getRefreshedUserCredits` both creates the balance row and applies today's
+    // free allowance — the source's `getOrCreateUserCredits` plus the
+    // `refreshCreditsIfNeeded()` document method that followed it. The order
+    // matters: the reservation below must see the refreshed balance.
+    const [, mem, tier] = await Promise.all([
+      getRefreshedUserCredits(userId),
       getOrCreateUserMemory(userId),
       getUserTier(userId),
     ]);
@@ -164,7 +168,6 @@ export async function loadUserContext(userId: string): Promise<UserContext> {
     memory = mem;
     userTier = tier;
 
-    await userCredits.refreshCreditsIfNeeded();
     creditReservation = await reserveCredits(userId);
   } catch (error) {
     log.chat.error({ err: error }, 'Error loading user data');

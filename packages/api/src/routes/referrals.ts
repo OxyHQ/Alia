@@ -8,6 +8,7 @@ import {
   redeemReferral,
 } from '../db/notifications/referralRepository.js';
 import { getOrCreateUserCredits } from '../lib/user-credits-helpers.js';
+import { addCredits } from '../db/billing/userCreditsRepository.js';
 import { log } from '../lib/logger.js';
 import { sanitizeMessage } from '../lib/errors/sanitize.js';
 
@@ -79,14 +80,19 @@ router.post('/redeem', authenticateToken, async (req, res) => {
       return res.status(400).json({ error: 'You have already redeemed an invite code' });
     }
 
-    // Only now does the money move. `user_credits` is still Mongoose and belongs
-    // to another slice, so it cannot join the transaction above — which is why
-    // the durable claim commits first.
+    // Only now does the money move. `user_credits` is Postgres too now, but the
+    // two grants below still sit OUTSIDE the transaction above: each is its own
+    // atomic `credits = credits + n` statement, and a shared transaction here
+    // would only be honest if a failed second grant rolled back the redemption
+    // claim — which would then be re-redeemable. The durable claim commits first
+    // and stays committed; that is the deliberate ordering, not an artefact of
+    // two stores.
     const userCredits = await getOrCreateUserCredits(userId);
-    await userCredits.addCredits(REFERRAL_CREDIT_REWARD, 'paid');
+    await addCredits(getDb(), userCredits.id, REFERRAL_CREDIT_REWARD, 'paid');
 
+    // Award credits to referrer
     const referrerCredits = await getOrCreateUserCredits(referrer.id);
-    await referrerCredits.addCredits(REFERRAL_CREDIT_REWARD, 'paid');
+    await addCredits(getDb(), referrerCredits.id, REFERRAL_CREDIT_REWARD, 'paid');
 
     res.json({ success: true, creditsAwarded: REFERRAL_CREDIT_REWARD });
   } catch (error: unknown) {
