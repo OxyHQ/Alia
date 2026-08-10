@@ -64,6 +64,13 @@
       "when": 1786325815198,
       "tag": "0008_late_forge",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1786326660696,
+      "tag": "0009_pretty_loki",
+      "breakpoints": true
     }
   ]
 }

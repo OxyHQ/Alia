@@ -184,6 +184,22 @@ not express a unique index over a sub-document array at all, so
 `UNIQUE(alia_model_id, model_config_id)` is new: what kept it true before was
 only that the seed replaced the whole array with `$set`.
 
+**`retrieval_strategies.source_steps` is the counter-case, and it is `jsonb`
+despite passing that test on paper.** Its elements carry an `order`, a
+`required` toggle and a `source_key` naming a `context_sources` row — three
+identity signals, the `alia_model_provider_mappings` shape almost exactly. It is
+`jsonb` because **nothing reads it**: the whole-package grep returns two sites
+and both are writes, each building the array from a hardcoded constant, while
+the one loader tests only that a strategy row EXISTS. A child table would add
+rows, a foreign key and an index to model a copy of a compile-time constant that
+no query touches.
+
+So the test has a second half: an element needs an identity **that something
+exercises**. Reading the shape alone gets this one wrong. And because "nothing
+reads it" is a fact with a date on it, the file names the trigger for
+revisiting — the moment retrieval actually follows a strategy, the elements
+acquire readers and it becomes a child table.
+
 ## Foreign keys: per reference, and say why
 
 `oxy_user_id` and every other Oxy account id carry no foreign key anywhere: Oxy
@@ -211,6 +227,21 @@ down rather than the absence: "no FK" and "nobody decided" look identical later.
 `plan_features` and both on `alia_model_provider_mappings` are foreign keys with
 `ON DELETE CASCADE`, because each child is meaningless without its parent and a
 survivor would be silently re-adopted by a re-created row of the same name.
+Both endpoints of `context_edges` are the same call for a sharper reason: an
+edge IS a pair of node references plus a type, so nothing survives losing one.
+The invariant is already maintained by hand (`context-graph.ts:272` writes the
+edge only inside `if (userNode && assistantNode)`) and nothing in the package
+deletes a node, so the CASCADE constrains no behaviour that exists today and
+decides what happens when a retention policy eventually does.
+
+**A relation is NOT always a foreign key, and `messages` is where this batch says
+no.** Its `conversation_id` names a real parent, on the business key rather than
+on `_id`, and there is no constraint — because `routes/conversations.ts:187-188`
+creates the conversation and inserts the messages inside ONE `Promise.all`.
+Parent and child are written concurrently, so a foreign key would convert a
+working write into a race-dependent `23503` on whichever statement lost. The
+`api_usage.key_id` reasoning applied to an ordering rather than to a deletion:
+every available answer is worse than none, so write down which one was chosen.
 `alia_model_provider_mappings.model_config_id` is a deliberate behaviour CHANGE:
 Mongo left the sub-document behind when its `ModelConfig` was deleted, and
 `getNextProvider` would then hand the router a provider whose configuration no
@@ -219,13 +250,23 @@ longer existed.
 **A foreign key must target `unique()`, never `uniqueIndex()`.** drizzle-kit
 emits every `ALTER TABLE … ADD CONSTRAINT … FOREIGN KEY` BEFORE every
 `CREATE UNIQUE INDEX`, whatever the source order — measured in `0003`, where the
-four FK statements are lines 339-342 and the first `CREATE UNIQUE INDEX` is 343.
-A FK pointing at a unique INDEX therefore generates cleanly and fails at APPLY
-time with `42830: there is no unique constraint matching given keys`. `unique()`
-is emitted inline inside `CREATE TABLE`, so it already exists. This is why
-`plans.plan_id` and `features.feature_id` — both FK targets, both business keys
-rather than surrogate ids — are the only two `unique()` declarations in the
-schema while everything else uses `uniqueIndex()`.
+four FK statements are lines 339-342 and the first `CREATE UNIQUE INDEX` is 343,
+and again in `0009`, where they are lines 72-73 against a first
+`CREATE UNIQUE INDEX` on 74. A FK pointing at a unique INDEX therefore generates
+cleanly and fails at APPLY time with `42830: there is no unique constraint
+matching given keys`. `unique()` is emitted inline inside `CREATE TABLE`, so it
+already exists. This is why `plans.plan_id` and `features.feature_id` — both FK
+targets, both business keys rather than surrogate ids — are the only two
+`unique()` declarations in the schema while everything else uses
+`uniqueIndex()`.
+
+**A PRIMARY KEY target is exempt, and `context_edges` is the case.** Both its
+endpoints reference `context_nodes.id`, which is emitted inline in
+`CREATE TABLE` exactly as `unique()` is, so the ordering above cannot bite. It
+is written down because the rule as stated invites a redundant `unique()` on a
+column that already has a primary key — and because the exemption is about the
+target being emitted INLINE, not about it being a key, so it does not extend to
+any other column.
 
 Deferred, with the reason rather than by omission: `provider_keys.organization_id`
 (the `organizations` table is not ported), and `api_key_usage.api_key_id` /
@@ -641,6 +682,8 @@ about enums, applied to all of them.
 | `notifications.dismissed_at` | `status = 'dismissed'` with no `dismissed_at`, or the reverse | Backfill `dismissed_at` from the row's `updatedAt` (the best available proxy) for dismissed rows, and NULL for every other status. |
 | `triggers` | `schedule` present with `type NOT IN ('schedule','agent_heartbeat')` | No CHECK was added — this is the correct-but-unvalidated tightening deliberately left out. Audit it, then decide whether to add the constraint in a later `post` migration. |
 | `user_credits.credits_free`, `.credits_paid` | a NEGATIVE balance | No CHECK was added, because `addCredits` accepts a negative amount. Audit the actual range before anybody adds one. |
+| `context_nodes.*_score`, `context_edges.weight`, `context_sources.*_score`, `retrieval_strategies.*_weight` | a value outside 0..1 | Every writer sets 0.2–0.95, so 0..1 is plainly intended — but Mongoose declares no `min`/`max`, so no CHECK was added. Audit the range before anybody adds one; the write path runs on every chat turn. |
+| `retrieval_strategies` | more than one row with `active = true` for one `(oxy_user_id, intent)` | No constraint. Mongo's unique is on `(user, intent, name)`, which permits it, yet both writers filter on `{oxyUserId, intent, active: true}` — so a second active row makes which one they find arbitrary. A partial unique `WHERE active` is the correct tightening and is deliberately left out until audited, exactly like `triggers.schedule`. |
 
 ## Uniques that will refuse a duplicate
 

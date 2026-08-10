@@ -8,6 +8,7 @@ export * from './automation';
 export * from './billing';
 export * from './bots';
 export * from './cache';
+export * from './context-graph';
 export * from './developers';
 export * from './integrations';
 export * from './leases';
