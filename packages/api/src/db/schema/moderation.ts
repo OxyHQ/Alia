@@ -253,6 +253,23 @@ export const moderationEnforcements = pgTable(
       t.action,
     ),
     index('moderation_enforcements_case_id_idx').on(t.caseId),
+    /**
+     * The REVERSAL's lookup: the most recent APPLIED action of a kind against a
+     * subject, which is what lets `restore` put back the value that was actually
+     * there instead of guessing one.
+     *
+     * Present in the Mongo model and missing here until the enforcement port —
+     * the kind of omission nothing catches, because a sequential scan over a
+     * small table returns exactly the right row. It only ever shows up as a slow
+     * query years later, on the path a correction takes.
+     */
+    index('moderation_enforcements_subject_applied_idx').on(
+      t.subjectType,
+      t.subjectId,
+      t.action,
+      t.applied,
+      t.createdAt.desc(),
+    ),
     checkOneOf('moderation_enforcements_action_check', t.action, MODERATION_ENFORCEMENT_ACTIONS),
     checkOneOf('moderation_enforcements_mode_check', t.mode, MODERATION_ENFORCEMENT_MODES),
   ],
