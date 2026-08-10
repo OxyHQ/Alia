@@ -224,6 +224,13 @@ This section exists because these facts are cheap to write down now and expensiv
 for anyone to re-derive later. Re-verify anything load-bearing rather than
 inheriting it — that rule is why the census that produced them exists.
 
+**Task #80 is the same handover in issue form and points here.** This document is
+the copy to trust: a task list is not where a fact like the census method
+survives. If they ever disagree, this one is right and #80 is stale.
+
+Two of the items below are **behaviour CHANGES rather than facts**, and they are
+labelled and grouped separately at the end for that reason.
+
 ### The work list is 33 production dependents, not 29 runtime ones
 
 36 files reference `models/agent.ts`: **29 runtime, 4 type-only, 3 test.**
@@ -264,19 +271,51 @@ purpose, and the condition under which the column is dropped in a `post`
 migration with the four `runner.ts` writes. **The switch must choose
 deliberately, not inherit both.**
 
-### Two schema facts a repository author would otherwise learn the hard way
+### Two BEHAVIOUR CHANGES arriving with the switch — not ports, and not facts
 
-- **`agents.permissions` is six NULLABLE booleans and NULL means ALL ALLOWED.**
-  The model says so outright and `lib/agent/actions.ts:272` tests
-  `perms.delegation === false`. A repository that normalises those to `false`
-  silently revokes filesystem, network, shell, communications, MCP and delegation
-  from every agent predating the group — silently, because a refused capability
-  raises nothing.
-- **Deleting an agent now cascades.** Mongo's `routes/agents/crud.ts:323` cleaned
-  up nothing; the Postgres schema has six separately-argued FK rules, so a
-  repository that deletes an agent will remove its reviews and team memberships.
-  See CONVENTIONS §"One parent, four children" and §"two references to ONE
-  parent, opposite answers".
+These are labelled separately from everything above because everything above
+describes what the code does TODAY, and these two describe something that starts
+being true at cutover. A guard that has never held beginning to hold is its own
+category: somebody will notice the new behaviour and reasonably assume something
+broke.
+
+**1. Deleting an agent will start cascading.** Mongo's
+`routes/agents/crud.ts:323` is a bare `deleteOne` that cleans up nothing, so
+reviews and team memberships have always been left behind as orphans. The
+Postgres schema has six separately-argued FK rules (CONVENTIONS §"One parent,
+four children" and §"two references to ONE parent, opposite answers"), and under
+them deleting an agent removes its reviews and its team memberships.
+
+That is almost certainly the RIGHT behaviour — it is the same argument
+`alia_model_provider_mappings` made — but it is new, and it needs saying, because
+the first person to notice that orphaned reviews have stopped accumulating will
+go looking for the bug that stopped them. Note also which children do NOT
+cascade, since the asymmetry looks like an oversight and is not: an agent's
+SESSIONS survive (they are somebody's history and their credits), and a
+`container_templates` row survives with its `agent_id` nulled.
+
+**2. `agents.permissions` NULL means ALL ALLOWED, and the trap is at the
+REPOSITORY layer rather than the schema one.**
+
+The schema decision is already made and is correct: six NULLABLE booleans,
+because the model says outright "undefined = all allowed (backward compatible)"
+and `lib/agent/actions.ts:272` tests `perms.delegation === false`, so only a
+stored `false` denies anything.
+
+**The repository decision is a SEPARATE decision, and it can quietly undo the
+schema one.** A repository author writing a mapper will reach for
+`filesystem: row.permissionsFilesystem ?? false` without a second thought — it
+reads as defensive, it satisfies a non-optional interface field, and it
+reintroduces exactly the silent revocation the nullable columns were chosen to
+prevent: filesystem, network, shell, communications, MCP and delegation removed
+from every agent predating the group. Nothing raises, because an agent being
+refused a capability is not an error.
+
+So the repository must carry the absence through — `permissions` absent as a
+GROUP when every column is null, and each member optional rather than
+defaulted — and its test needs a fixture with all six null asserting that
+delegation is still permitted. Getting the columns right was necessary and is not
+sufficient.
 
 ### And the census METHOD, because two instruments failed producing these numbers
 
