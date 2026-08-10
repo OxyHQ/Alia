@@ -63,9 +63,19 @@ describe('a memory title is an identity, folded on case and whitespace', () => {
     await insertEntry('mem-e3', 'mem-p2', 'Coffee');
     await insertEntry('mem-e4', 'mem-p3', 'Coffee');
 
-    const rows = await db.execute<{ n: string }>(
-      sql`select count(*)::text as n from ${userMemoryEntries} where title = 'Coffee'`,
-    );
+    /**
+     * Scoped to the two profiles this case created. A run shares ONE database
+     * across every `*.pgdb.test.ts` file, so an unscoped `where title =
+     * 'Coffee'` counts whatever a sibling happened to seed — which is how this
+     * read '6' the moment `userMemoryRepository.pgdb.test.ts` arrived with its
+     * own coffee fixtures. Scoping loses nothing: what is being shown is that
+     * BOTH of these profiles hold the title, which is what the per-profile
+     * grain of the unique exists to allow.
+     */
+    const rows = await db.execute<{ n: string }>(sql`
+      select count(*)::text as n from ${userMemoryEntries}
+      where title = 'Coffee' and user_memory_id in ('mem-p2', 'mem-p3')
+    `);
     expect(rows[0]?.n).toBe('2');
   });
 

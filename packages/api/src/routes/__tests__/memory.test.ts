@@ -1,13 +1,33 @@
 // packages/api/src/routes/__tests__/memory.test.ts
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-vi.mock('../../models/user-memory.js', async () => {
-  const actual = await vi.importActual<typeof import('../../models/user-memory.js')>('../../models/user-memory.js');
-  return {
-    ...actual,
-    UserMemory: { findOne: vi.fn(), findOneAndUpdate: vi.fn() },
-  };
-});
+/**
+ * The repository replaces the model. `getDb()` is mocked too because the route
+ * module calls it for a handle — otherwise every case fails with "Postgres is
+ * not connected" before reaching the assertion it is about.
+ *
+ * `vi.importActual` is gone with the model: the constants this file's subject
+ * uses (`getMemoryLimit`) now live in `domain/user-memory.ts`, which is not
+ * mocked and needs no spreading.
+ */
+vi.mock('../../db/index.js', () => ({ getDb: vi.fn(() => ({})) }));
+
+vi.mock('../../db/memory/userMemoryRepository.js', () => ({
+  addEntries: vi.fn(),
+  countEntries: vi.fn(),
+  deleteEntryById: vi.fn(),
+  findEntryByTitle: vi.fn(),
+  findUserMemory: vi.fn(),
+  mergeContext: vi.fn(),
+  mergePreferences: vi.fn(),
+  normalizeMemoryTitle: (t: string) => t.trim().toLowerCase(),
+  replaceContext: vi.fn(),
+  replaceEntries: vi.fn(),
+  replacePreferences: vi.fn(),
+  saveEntryByTitle: vi.fn(),
+  updateEntryById: vi.fn(),
+  updateSettings: vi.fn(),
+}));
 
 vi.mock('../../models/subscription.js', () => ({
   Subscription: { findOne: vi.fn() },
@@ -26,10 +46,58 @@ vi.mock('../../lib/memory/user-memory-service.js', () => ({
 }));
 
 import { getOrCreateUserMemory } from '../../lib/memory/user-memory-service.js';
+import {
+  findEntryByTitle,
+  findUserMemory,
+  saveEntryByTitle,
+  updateSettings,
+} from '../../db/memory/userMemoryRepository.js';
 import { AddMemorySchema, MemorySettingsSchema } from '../../lib/validators/memory-validators.js';
 import router from '../memory.js';
 
 const mockGetOrCreate = getOrCreateUserMemory as unknown as ReturnType<typeof vi.fn>;
+
+/**
+ * Point the mocked repository at one in-memory profile.
+ *
+ * The two handler cases below assert what the store ends up holding — that
+ * `/add` inserts, that `/settings` changes ONE toggle and leaves the other —
+ * and bare spies would reduce both to "the handler called something", which is
+ * true of a handler that writes the wrong thing. `doc.save` counts writes, the
+ * question the Mongoose `save()` it replaces was asked.
+ */
+interface FakeEntry { _id: string; title: string; summary: string; type: string }
+interface FakeProfile {
+  _id: string;
+  memories: FakeEntry[];
+  settings: { autoSaveEnabled: boolean; recallEnabled: boolean };
+  save: ReturnType<typeof vi.fn<() => void>>;
+}
+
+function useProfile(doc: FakeProfile) {
+  mockGetOrCreate.mockResolvedValue(doc);
+  const fold = (t: string) => t.trim().toLowerCase();
+
+  vi.mocked(findUserMemory).mockResolvedValue(doc as unknown as Awaited<ReturnType<typeof findUserMemory>>);
+  vi.mocked(findEntryByTitle).mockImplementation(async (_db, _id, title) =>
+    doc.memories.find((m) => fold(m.title) === fold(title)) as unknown as Awaited<ReturnType<typeof findEntryByTitle>>);
+  vi.mocked(saveEntryByTitle).mockImplementation(async (_db, _id, incoming) => {
+    doc.save();
+    const i = doc.memories.findIndex((m) => fold(m.title) === fold(incoming.title));
+    if (i !== -1) {
+      doc.memories[i] = { ...doc.memories[i], summary: incoming.summary, type: incoming.type };
+      return doc.memories[i] as unknown as Awaited<ReturnType<typeof saveEntryByTitle>>;
+    }
+    const created = { _id: `entry-${doc.memories.length + 1}`, ...incoming };
+    doc.memories.push(created);
+    return created as unknown as Awaited<ReturnType<typeof saveEntryByTitle>>;
+  });
+  vi.mocked(updateSettings).mockImplementation(async (_db, _id, patch) => {
+    doc.save();
+    if (patch.autoSaveEnabled !== undefined) doc.settings.autoSaveEnabled = patch.autoSaveEnabled;
+    if (patch.recallEnabled !== undefined) doc.settings.recallEnabled = patch.recallEnabled;
+  });
+}
 
 function getRouteHandler(method: 'get' | 'post' | 'put' | 'delete', path: string) {
   const layer = (router as any).stack.find(
@@ -72,11 +140,12 @@ describe('memory routes — validators and core logic', () => {
 
   it('adds a new memory when title does not already exist', async () => {
     const doc = {
-      memories: [] as any[],
+      _id: 'profile-1',
+      memories: [] as FakeEntry[],
       settings: { autoSaveEnabled: true, recallEnabled: true },
-      save: vi.fn().mockResolvedValue(undefined),
+      save: vi.fn<() => void>(),
     };
-    mockGetOrCreate.mockResolvedValue(doc);
+    useProfile(doc);
 
     const handler = getRouteHandler('post', '/add');
     const req: any = { user: { id: 'user-1' }, body: { title: 'Food', summary: 'Loves strawberries', type: 'topic' } };
@@ -92,11 +161,12 @@ describe('memory routes — validators and core logic', () => {
 
   it('updates settings via the real PUT /settings handler', async () => {
     const doc = {
-      memories: [] as any[],
+      _id: 'profile-1',
+      memories: [] as FakeEntry[],
       settings: { autoSaveEnabled: true, recallEnabled: true },
-      save: vi.fn().mockResolvedValue(undefined),
+      save: vi.fn<() => void>(),
     };
-    mockGetOrCreate.mockResolvedValue(doc);
+    useProfile(doc);
 
     const handler = getRouteHandler('put', '/settings');
     const req: any = { user: { id: 'user-1' }, body: { autoSaveEnabled: false } };

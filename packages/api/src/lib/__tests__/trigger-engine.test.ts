@@ -26,7 +26,8 @@ vi.mock('../errors/index.js', () => ({ getErrorMessage: vi.fn((e: unknown) => St
 vi.mock('../agent/archetype-prompts.js', () => ({ buildArchetypeSystemPrompt: vi.fn() }));
 vi.mock('../agent/routing-handler.js', () => ({ handleRoutingDecision: vi.fn() }));
 vi.mock('../../middleware/auth.js', () => ({ oxyClient: { getUserById: vi.fn() } }));
-vi.mock('../../models/user-memory.js', () => ({ UserMemory: { findOne: vi.fn() } }));
+vi.mock('../../db/index.js', () => ({ getDb: vi.fn(() => ({})) }));
+vi.mock('../../db/memory/userMemoryRepository.js', () => ({ findUserMemory: vi.fn() }));
 vi.mock('../../models/trigger-execution.js', () => ({ TriggerExecution: { create: vi.fn(), findOne: vi.fn() } }));
 vi.mock('../../models/agent.js', () => ({ Agent: { find: vi.fn() } }));
 vi.mock('../../models/trigger.js', () => ({ Trigger: { find: vi.fn(), findById: vi.fn() } }));

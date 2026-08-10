@@ -1,8 +1,17 @@
 import { tool } from "ai";
 import { z } from "zod";
-import { getMemoryLimit } from '../../models/user-memory.js';
-import { MEMORY_TYPES } from '../../domain/user-memory.js';
+import { getMemoryLimit, MEMORY_TYPES } from '../../domain/user-memory.js';
 import { Subscription } from "../../models/subscription.js";
+import { getDb } from '../../db/index.js';
+import {
+  countEntries,
+  findEntryByTitle,
+  mergeContext,
+  mergePreferences,
+  normalizeMemoryTitle,
+  saveEntryByTitle,
+  updateEntryById,
+} from '../../db/memory/userMemoryRepository.js';
 import { getOrCreateUserMemory } from "../memory/user-memory-service.js";
 import { log } from '../logger.js';
 import { getErrorMessage } from '../errors/index.js';
@@ -56,17 +65,14 @@ export const saveUserMemoryTool = (oxyUserId: string, opts?: { initiatedBy?: Ini
         };
       }
 
-      // Check if a memory with this title already exists (case-insensitive, trimmed)
-      const normalizedTitle = title.trim().toLowerCase();
-      const existingMemoryIndex = memory.memories.findIndex(m => m.title.trim().toLowerCase() === normalizedTitle);
+      // Does a memory with this title already exist? The fold is the same one
+      // `user_memory_entries_memory_title_lower_key` enforces, so the check and
+      // the write below cannot disagree about what counts as the same memory.
+      const db = getDb();
+      const existing = await findEntryByTitle(db, memory._id, title);
 
-      if (existingMemoryIndex !== -1) {
-        // Update existing memory
-        memory.memories[existingMemoryIndex].summary = summary;
-        memory.memories[existingMemoryIndex].type = type;
-        memory.memories[existingMemoryIndex].updatedAt = new Date();
-      } else {
-        // Check memory limit before adding new memory
+      if (!existing) {
+        // Check memory limit before adding a new memory
         const subscription = await Subscription.findOne({
           oxyUserId,
           status: { $in: ['active', 'trialing'] }
@@ -83,19 +89,12 @@ export const saveUserMemoryTool = (oxyUserId: string, opts?: { initiatedBy?: Ini
             limit: memoryLimit
           };
         }
-
-        // Add new memory
-        memory.memories.push({
-          title,
-          summary,
-          type,
-          createdAt: new Date(),
-          updatedAt: new Date()
-        });
       }
 
-      // Save to database
-      await memory.save();
+      // Insert, or overwrite the one already stored under this title. The
+      // server does the fold, so two concurrent saves settle to one row.
+      await saveEntryByTitle(db, memory._id, { title, summary, type });
+      const totalMemories = await countEntries(db, memory._id);
 
       // Generate embedding in background — never block the tool response
       import('../memory/index.js').then(async ({ generateEmbedding, upsertMemoryEmbedding }) => {
@@ -111,7 +110,7 @@ export const saveUserMemoryTool = (oxyUserId: string, opts?: { initiatedBy?: Ini
       return {
         success: true,
         message: `Recuerdo guardado exitosamente: ${title} = ${summary}`,
-        totalMemories: memory.memories.length
+        totalMemories
       };
     } catch (error: unknown) {
       log.tools.error({ err: error }, 'Error');
@@ -156,9 +155,9 @@ export const updateUserMemoryTool = (oxyUserId: string) => tool({
 
       const memory = await getOrCreateUserMemory(oxyUserId);
 
-      const normalized = currentTitle.trim().toLowerCase();
-      const index = memory.memories.findIndex(m => m.title.trim().toLowerCase() === normalized);
-      if (index === -1) {
+      const db = getDb();
+      const found = await findEntryByTitle(db, memory._id, currentTitle);
+      if (!found) {
         return {
           success: false,
           message: `No memory titled "${currentTitle}" exists. Use saveUserMemory to create it instead.`,
@@ -166,26 +165,42 @@ export const updateUserMemoryTool = (oxyUserId: string) => tool({
         };
       }
 
-      const entry = memory.memories[index];
-      const previousTitle = entry.title;
-      const renamedTo = nextTitle && nextTitle.toLowerCase() !== previousTitle.trim().toLowerCase()
+      const previousTitle = found.title;
+      const renamedTo = nextTitle && normalizeMemoryTitle(nextTitle) !== normalizeMemoryTitle(previousTitle)
         ? nextTitle
         : null;
 
-      if (renamedTo && memory.memories.some((m, i) => i !== index && m.title.trim().toLowerCase() === renamedTo.toLowerCase())) {
-        return {
-          success: false,
-          message: `Another memory is already titled "${renamedTo}". Rename to something else, or merge the two by updating that one instead.`,
-          conflict: true,
-        };
+      /**
+       * The collision check stays, and is now belt AND braces. Mongo could not
+       * express a unique inside a sub-document array, so this in-JS lookup was
+       * the ONLY thing keeping titles distinct and two concurrent renames could
+       * both pass it. The functional unique now refuses the second write
+       * outright — but the check is kept because it produces this specific,
+       * actionable message instead of a 500 from a constraint violation.
+       */
+      if (renamedTo) {
+        const clash = await findEntryByTitle(db, memory._id, renamedTo);
+        if (clash && clash._id !== found._id) {
+          return {
+            success: false,
+            message: `Another memory is already titled "${renamedTo}". Rename to something else, or merge the two by updating that one instead.`,
+            conflict: true,
+          };
+        }
       }
 
-      if (nextTitle) entry.title = nextTitle;
-      if (nextSummary) entry.summary = nextSummary;
-      if (type) entry.type = type;
-      entry.updatedAt = new Date();
-
-      await memory.save();
+      const entry = await updateEntryById(db, memory._id, found._id, {
+        ...(nextTitle ? { title: nextTitle } : {}),
+        ...(nextSummary ? { summary: nextSummary } : {}),
+        ...(type ? { type } : {}),
+      });
+      if (!entry) {
+        return {
+          success: false,
+          message: `No memory titled "${currentTitle}" exists. Use saveUserMemory to create it instead.`,
+          notFound: true,
+        };
+      }
 
       // Re-index in background — never block the tool response. A rename changes
       // the embedding's key, so the entry under the old title has to go: leaving
@@ -239,27 +254,34 @@ export const updateUserPreferencesTool = (oxyUserId: string) => tool({
     try {
       const memory = await getOrCreateUserMemory(oxyUserId);
 
-      // Update preferences
-      if (language) memory.preferences.language = language;
-      if (tone) memory.preferences.tone = tone;
-      if (responseLength) memory.preferences.responseLength = responseLength;
-      if (interests) memory.preferences.interests = interests;
-
-      await memory.save();
+      // Only what was supplied — a merge, so omitting a field keeps it.
+      await mergePreferences(getDb(), memory._id, {
+        ...(language ? { language } : {}),
+        ...(tone ? { tone } : {}),
+        ...(responseLength ? { responseLength } : {}),
+        ...(interests ? { interests } : {}),
+      });
+      const preferences = {
+        ...memory.preferences,
+        ...(language ? { language } : {}),
+        ...(tone ? { tone } : {}),
+        ...(responseLength ? { responseLength } : {}),
+        ...(interests ? { interests } : {}),
+      };
 
       if (tone && isPersonalityStyle(tone)) {
         const style = PERSONALITY_STYLES[tone as PersonalityStyleId];
         return {
           success: true,
           message: `Switched to ${style.name} mode — ${style.tagline}`,
-          preferences: memory.preferences,
+          preferences,
         };
       }
 
       return {
         success: true,
         message: 'Preferences updated successfully',
-        preferences: memory.preferences,
+        preferences,
       };
     } catch (error: unknown) {
       log.tools.error({ err: error }, 'Error updating preferences');
@@ -289,18 +311,25 @@ export const updateUserContextTool = (oxyUserId: string) => tool({
     try {
       const memory = await getOrCreateUserMemory(oxyUserId);
 
-      // Update context
-      if (occupation) memory.context.occupation = occupation;
-      if (location) memory.context.location = location;
-      if (timezone) memory.context.timezone = timezone;
-      if (bio) memory.context.bio = bio;
-
-      await memory.save();
+      // Only what was supplied — a merge, so omitting a field keeps it.
+      await mergeContext(getDb(), memory._id, {
+        ...(occupation ? { occupation } : {}),
+        ...(location ? { location } : {}),
+        ...(timezone ? { timezone } : {}),
+        ...(bio ? { bio } : {}),
+      });
+      const context = {
+        ...memory.context,
+        ...(occupation ? { occupation } : {}),
+        ...(location ? { location } : {}),
+        ...(timezone ? { timezone } : {}),
+        ...(bio ? { bio } : {}),
+      };
 
       return {
         success: true,
         message: 'Contexto actualizado exitosamente',
-        context: memory.context
+        context
       };
     } catch (error: unknown) {
       log.tools.error({ err: error }, 'Error');

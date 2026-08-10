@@ -20,7 +20,7 @@ import type { User as OxyUser } from '@oxyhq/core';
 import { getOrCreateUserCredits } from '../lib/user-credits-helpers.js';
 import { Skill } from '../models/skill.js';
 import { Agent } from '../models/agent.js';
-import type { IUserMemory } from '../models/user-memory.js';
+import type { UserMemoryProfile } from '../db/memory/userMemoryRepository.js';
 import { processMessagesForPlatform } from '../lib/message-processor.js';
 import { reserveCredits, type CreditReservation } from '../lib/credits-manager.js';
 import { getOrCreateUserMemory } from '../lib/memory/user-memory-service.js';
@@ -52,7 +52,7 @@ export interface ChatRequestParams {
 
 export interface UserContext {
   oxyUser: OxyUser | null;
-  memory: IUserMemory | null;
+  memory: UserMemoryProfile | null;
   userTier?: string;
   creditReservation: CreditReservation | null;
 }
@@ -72,7 +72,7 @@ export interface ChatSetupResult {
 
 export async function buildChatSystemPrompt(
   oxyUser?: OxyUser | null,
-  memory?: IUserMemory | null,
+  memory?: UserMemoryProfile | null,
   platform: 'app' | 'telegram' = 'app',
   skillPrompt?: string | null,
   recalledMemories?: RecalledMemory[],
@@ -150,7 +150,7 @@ export async function buildChatSystemPrompt(
 
 export async function loadUserContext(userId: string): Promise<UserContext> {
   let oxyUser: OxyUser | null = null;
-  let memory: IUserMemory | null = null;
+  let memory: UserMemoryProfile | null = null;
   let userTier: string | undefined;
   let creditReservation: CreditReservation | null = null;
 

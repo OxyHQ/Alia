@@ -5,6 +5,29 @@ vi.mock('../../memory/user-memory-service.js', () => ({
   getOrCreateUserMemory: vi.fn(),
 }));
 
+/**
+ * The repository is mocked with an IN-MEMORY implementation, not with bare
+ * spies. Every case below asserts what the store ends up holding — that a
+ * case-insensitive title updates rather than duplicates, that a colliding
+ * rename leaves the original alone — and a spy that only records the call
+ * would turn all of them into "the tool called something", which passes
+ * whether or not the tool got the logic right.
+ *
+ * `getDb` is mocked because the tool now asks for a handle; without it every
+ * case fails with "Postgres is not connected" before reaching its assertion.
+ */
+vi.mock('../../../db/index.js', () => ({ getDb: vi.fn(() => ({})) }));
+
+vi.mock('../../../db/memory/userMemoryRepository.js', () => ({
+  countEntries: vi.fn(),
+  findEntryByTitle: vi.fn(),
+  mergeContext: vi.fn(),
+  mergePreferences: vi.fn(),
+  normalizeMemoryTitle: (title: string) => title.trim().toLowerCase(),
+  saveEntryByTitle: vi.fn(),
+  updateEntryById: vi.fn(),
+}));
+
 vi.mock('../../../models/subscription.js', () => ({
   Subscription: { findOne: vi.fn() },
 }));
@@ -15,11 +38,21 @@ vi.mock('../../logger.js', () => ({
 
 import { saveUserMemoryTool, updateUserMemoryTool } from '../user-memory.js';
 import { getOrCreateUserMemory } from '../../memory/user-memory-service.js';
-import type { MemoryType } from '../../../models/user-memory.js';
+import {
+  countEntries,
+  findEntryByTitle,
+  saveEntryByTitle,
+  updateEntryById,
+} from '../../../db/memory/userMemoryRepository.js';
+import type { MemoryType } from '../../../domain/user-memory.js';
 
 const mockGetOrCreate = vi.mocked(getOrCreateUserMemory);
 
+/** The title identity rule the functional unique enforces, mirrored here. */
+const fold = (title: string) => title.trim().toLowerCase();
+
 interface MemoryEntry {
+  _id: string;
   title: string;
   summary: string;
   type: MemoryType;
@@ -33,9 +66,15 @@ interface MemorySettings {
 }
 
 interface MemoryDoc {
+  _id: string;
   memories: MemoryEntry[];
   settings: MemorySettings;
-  save: ReturnType<typeof vi.fn>;
+  /**
+   * Counts repository WRITES. It keeps the name `save` because that is exactly
+   * what every assertion below means by it — "did this tool persist anything" —
+   * and the Mongoose `save()` it replaces answered the same question.
+   */
+  save: ReturnType<typeof vi.fn<() => void>>;
 }
 
 /** The shape both memory tools return; every field past `success` is optional. */
@@ -52,23 +91,60 @@ interface MemoryToolResult {
 
 function makeMemoryDoc(overrides: Partial<Pick<MemoryDoc, 'memories' | 'settings'>> = {}): MemoryDoc {
   return {
+    _id: 'profile-1',
     memories: overrides.memories ?? [],
     settings: overrides.settings ?? { autoSaveEnabled: true, recallEnabled: true },
-    save: vi.fn().mockResolvedValue(undefined),
+    save: vi.fn<() => void>(),
   };
 }
 
+let nextEntryId = 0;
 function entry(title: string, summary = 'old', type: MemoryType = 'topic'): MemoryEntry {
-  return { title, summary, type, createdAt: new Date(), updatedAt: new Date() };
+  nextEntryId += 1;
+  return { _id: `entry-${nextEntryId}`, title, summary, type, createdAt: new Date(), updatedAt: new Date() };
 }
 
 /**
- * The document the tools mutate is a mongoose model at runtime; the mocked
- * stand-in only carries the fields they touch, so it goes in as the shape the
- * mock declares rather than the full model type.
+ * Point the mocked repository at this document's entries.
+ *
+ * The stand-in folds titles exactly as
+ * `user_memory_entries_memory_title_lower_key` does, because that fold is what
+ * the tool's own behaviour now rests on — a stand-in matching titles exactly
+ * would let "updates an existing memory matched by case-insensitive title" pass
+ * against a tool that had stopped folding.
  */
 function useDoc(doc: MemoryDoc): void {
   mockGetOrCreate.mockResolvedValue(doc as unknown as Awaited<ReturnType<typeof getOrCreateUserMemory>>);
+
+  vi.mocked(findEntryByTitle).mockImplementation(async (_db, _profileId, title) =>
+    doc.memories.find((m) => fold(m.title) === fold(title)));
+
+  vi.mocked(saveEntryByTitle).mockImplementation(async (_db, _profileId, incoming) => {
+    doc.save();
+    const index = doc.memories.findIndex((m) => fold(m.title) === fold(incoming.title));
+    if (index !== -1) {
+      doc.memories[index] = {
+        ...doc.memories[index],
+        summary: incoming.summary,
+        type: incoming.type,
+        updatedAt: new Date(),
+      };
+      return doc.memories[index];
+    }
+    const created = entry(incoming.title, incoming.summary, incoming.type);
+    doc.memories.push(created);
+    return created;
+  });
+
+  vi.mocked(updateEntryById).mockImplementation(async (_db, _profileId, entryId, patch) => {
+    const index = doc.memories.findIndex((m) => m._id === entryId);
+    if (index === -1) return undefined;
+    doc.save();
+    doc.memories[index] = { ...doc.memories[index], ...patch, updatedAt: new Date() };
+    return doc.memories[index];
+  });
+
+  vi.mocked(countEntries).mockImplementation(async () => doc.memories.length);
 }
 
 /** `Tool.execute` may resolve or return outright, so the return type stays open. */

@@ -63,23 +63,56 @@ function modelFiles(): string[] {
 const files = modelFiles();
 
 /**
- * Vacuity floor. An empty or broken traversal produces the same "no violations"
- * result as a clean tree, so the count is asserted rather than assumed.
+ * Vacuity guard, in TWO parts, and neither is redundant beside the other.
  *
- * ## This floor legitimately FALLS as the Postgres port proceeds, and the TTL
- * gate's floor does not — the difference is what each one measures
+ * An empty or broken traversal produces the same "no violations" result as a
+ * clean tree, so what the scan found is asserted rather than assumed. The two
+ * assertions catch different failures:
  *
- * `ttlRegistryCoverage.test.ts` counts TTL DECLARATIONS as a proxy for sweep
- * COVERAGE, so lowering it drops a guarantee and its declarations are moved to a
- * retired list instead, keeping the total conserved. This number measures the
- * TRAVERSAL — whether `git ls-files` still finds the model tree — and the models
- * it counts are genuinely being deleted. Lowering it loses nothing; leaving it
- * would fail on a correct change.
+ * **The EQUALITY** (`modelNames().length === files.length`) is structural. It
+ * catches a file that registers two models or none — the case that makes the
+ * enumeration below stop covering what the directory holds — by comparing the
+ * scan against ITSELF. It needs no maintenance, stays true however many models
+ * remain, and a sibling slice merging cannot break it.
  *
- * 56 on 748e620b, 48 after S5 deletes its seven. Set below the live count with
- * headroom because sibling slices are deleting models concurrently, and well
- * above what a broken walk reports, which is zero or single digits. Re-express
- * or delete this at S10, when there are no models left to walk.
+ * **The FLOOR** is the only part that catches a BROKEN SCAN. The equality is
+ * vacuously true at zero: `0 === 0` is what a wrong glob, a moved directory, a
+ * traversal that read nothing and a fully-deleted model tree all report,
+ * identically. A positive control on the OUTPUT is what tells those apart from
+ * a clean run, and that is a number.
+ *
+ * Both were mutation-tested, and each survives what the other kills:
+ *
+ * - filter typo'd to `src/modelz/` — the floor fails `expected 0 to be greater
+ *   than or equal to 40`, and **the equality passes**, because `0 === 0`.
+ * - `src/domain/` folded into the filter, so 23 files register no model — the
+ *   equality fails `expected 51 to be 74`, and **the floor passes**, 74 >= 40.
+ *
+ * Neither half catches a MID-RANGE truncation (measured: `.slice(0, 45)` leaves
+ * both green, 45 === 45 and 45 >= 40). That case is caught downstream instead,
+ * by the unexplained-ref assertion below — a truncated import leaves a ref
+ * naming a model that is no longer registered. Stated rather than papered over,
+ * because a third assertion here would duplicate coverage that already exists.
+ *
+ * ## Why the floor is 40 and not the live count
+ *
+ * Its input is the number of Mongoose model files, which the Postgres port
+ * deletes, so it only ever moves down — 60 until #123 set it to 40. Worse, the
+ * failure lands on a MERGE rather than on either branch: S1 removed three
+ * models, #121 one, #123 seven and S6 two, and no single diff contains the sum,
+ * so a branch's green CI goes stale the moment a sibling merges. Set well below
+ * the live count (measured: 53 on `a3aa0ed4`, 51 once S6 deletes its two) and
+ * well above what a broken walk reports, which is zero or single digits. That
+ * headroom is what keeps it from being decremented one defensible step at a
+ * time toward `>= 0`, a check that cannot fail.
+ *
+ * ## Its retirement condition, because it HAS one
+ *
+ * When the port deletes the last model the floor becomes unsatisfiable, and a
+ * control that cannot be satisfied is a permanent red rather than a gate. That
+ * is not the moment to lower it — it is the moment this WHOLE FILE goes, along
+ * with Mongoose, at S10. There is no valid state in which this file exists and
+ * the floor is below single digits.
  */
 const MINIMUM_MODEL_FILES = 40;
 
@@ -103,9 +136,20 @@ function declaredRefs(): { model: string; path: string; ref: string }[] {
 }
 
 describe('populating a ref this service does not own', () => {
-  it('scanned enough model files to be meaningful', () => {
+  it('registered exactly one model per model file, and scanned a real tree', () => {
+    /**
+     * Structural: a file registering two models, or none, means the enumeration
+     * below no longer covers what the directory holds.
+     */
+    expect(mongoose.modelNames().length).toBe(files.length);
+    /**
+     * The positive control on the OUTPUT. Deliberately NOT folded into the
+     * equality above and NOT written as `> 0`: the equality passes at zero, and
+     * a broken walk reports zero or single digits. See the floor's comment for
+     * why the number is 40 and for the condition that retires this whole file
+     * rather than lowering it.
+     */
     expect(files.length).toBeGreaterThanOrEqual(MINIMUM_MODEL_FILES);
-    expect(mongoose.modelNames().length).toBeGreaterThanOrEqual(MINIMUM_MODEL_FILES);
   });
 
   it('every declared ref is either registered here or a named foreign owner', () => {

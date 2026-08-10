@@ -1,5 +1,23 @@
 import { Router } from 'express';
-import { UserMemory, getMemoryLimit } from '../models/user-memory.js';
+import { getMemoryLimit } from '../domain/user-memory.js';
+import { getDb } from '../db/index.js';
+import {
+  addEntries,
+  countEntries,
+  deleteEntryById,
+  findUserMemory,
+  mergeContext,
+  mergePreferences,
+  replaceContext,
+  findEntryByTitle,
+  normalizeMemoryTitle,
+  replaceEntries,
+  replacePreferences,
+  saveEntryByTitle,
+  updateEntryById,
+  updateSettings,
+  type NewMemoryEntry,
+} from '../db/memory/userMemoryRepository.js';
 import { Subscription } from '../models/subscription.js';
 import { authenticateToken } from '../middleware/auth.js';
 import {
@@ -26,7 +44,7 @@ router.use(authenticateToken);
  */
 router.get('/stats', async (req, res) => {
   try {
-    const memory = await UserMemory.findOne({ oxyUserId: req.user!.id });
+    const memory = await findUserMemory(getDb(), req.user!.id);
 
     if (!memory) {
       res.json({
@@ -77,18 +95,19 @@ router.get('/', async (req, res) => {
  */
 router.put('/context', async (req, res) => {
   try {
-    const memory = await UserMemory.findOneAndUpdate(
-      { oxyUserId: req.user!.id },
-      {
-        $set: {
-          context: req.body,
-          updatedAt: new Date()
-        }
-      },
-      { upsert: true, returnDocument: 'after' }
-    );
+    /**
+     * The fields are named rather than spread. The source `$set` the whole of
+     * `req.body` into `context`, and what stopped that being mass assignment was
+     * Mongoose's `strict` silently dropping every undeclared path — a property
+     * of the driver, not of the route. Naming them keeps the same four columns
+     * writable and makes the boundary visible.
+     */
+    const userId = req.user!.id;
+    const { occupation, location, timezone, bio } = req.body ?? {};
+    const profile = await getOrCreateUserMemory(userId);
+    await replaceContext(getDb(), profile._id, { occupation, location, timezone, bio });
 
-    res.json(memory);
+    res.json(await findUserMemory(getDb(), userId));
   } catch (error: unknown) {
     log.memory.error({ err: error }, 'Error updating context');
     res.status(500).json({ error: 'Failed to update context' });
@@ -101,18 +120,18 @@ router.put('/context', async (req, res) => {
  */
 router.put('/preferences', async (req, res) => {
   try {
-    const memory = await UserMemory.findOneAndUpdate(
-      { oxyUserId: req.user!.id },
-      {
-        $set: {
-          preferences: req.body,
-          updatedAt: new Date()
-        }
-      },
-      { upsert: true, returnDocument: 'after' }
-    );
+    // Named, not spread — see the note on PUT /context.
+    const userId = req.user!.id;
+    const { language, tone, responseLength, interests } = req.body ?? {};
+    const profile = await getOrCreateUserMemory(userId);
+    await replacePreferences(getDb(), profile._id, {
+      language,
+      tone,
+      responseLength,
+      interests: Array.isArray(interests) ? interests : undefined,
+    });
 
-    res.json(memory);
+    res.json(await findUserMemory(getDb(), userId));
   } catch (error: unknown) {
     log.memory.error({ err: error }, 'Error updating preferences');
     res.status(500).json({ error: 'Failed to update preferences' });
@@ -134,17 +153,16 @@ router.put('/settings', async (req, res) => {
       return;
     }
 
-    const memory = await getOrCreateUserMemory(req.user!.id);
+    const userId = req.user!.id;
+    const memory = await getOrCreateUserMemory(userId);
 
-    if (validation.data.autoSaveEnabled !== undefined) {
-      memory.settings.autoSaveEnabled = validation.data.autoSaveEnabled;
-    }
-    if (validation.data.recallEnabled !== undefined) {
-      memory.settings.recallEnabled = validation.data.recallEnabled;
-    }
+    await updateSettings(getDb(), memory._id, {
+      autoSaveEnabled: validation.data.autoSaveEnabled,
+      recallEnabled: validation.data.recallEnabled,
+    });
 
-    await memory.save();
-    res.json(memory.settings);
+    const updated = await findUserMemory(getDb(), userId);
+    res.json(updated?.settings ?? memory.settings);
   } catch (error: unknown) {
     log.memory.error({ err: error }, 'Error updating memory settings');
     res.status(500).json({ error: 'Failed to update memory settings' });
@@ -169,17 +187,23 @@ router.post('/add', async (req, res) => {
       return;
     }
 
-    const userMemory = await getOrCreateUserMemory(req.user!.id);
+    const db = getDb();
+    const userId = req.user!.id;
+    const userMemory = await getOrCreateUserMemory(userId);
 
-    // Check if memory with this title exists
-    const existingMemoryIndex = userMemory.memories.findIndex(m => m.title === title);
+    /**
+     * The match folds case and surrounding whitespace, where this route used to
+     * compare titles EXACTLY (`m.title === title`).
+     *
+     * A behaviour change, and a forced one: `user_memory_entries_memory_title_
+     * lower_key` would refuse the insert that the exact comparison decided to
+     * make, so "add a second memory differing only in case" is no longer a
+     * reachable outcome. It now updates the one already there, which is what
+     * `lib/tools/user-memory.ts` has always done for the same input.
+     */
+    const existing = await findEntryByTitle(db, userMemory._id, title);
 
-    if (existingMemoryIndex !== -1) {
-      // Update existing memory
-      userMemory.memories[existingMemoryIndex].summary = summary;
-      userMemory.memories[existingMemoryIndex].type = type;
-      userMemory.memories[existingMemoryIndex].updatedAt = new Date();
-    } else {
+    if (!existing) {
       // Get user's subscription to check memory limit
       const subscription = await Subscription.findOne({
         oxyUserId: req.user!.id,
@@ -200,19 +224,10 @@ router.post('/add', async (req, res) => {
         });
         return;
       }
-
-      // Add new memory
-      userMemory.memories.push({
-        title,
-        summary,
-        type,
-        createdAt: new Date(),
-        updatedAt: new Date()
-      });
     }
 
-    await userMemory.save();
-    res.json(userMemory);
+    await saveEntryByTitle(db, userMemory._id, { title, summary, type });
+    res.json(await findUserMemory(db, userId));
   } catch (error: unknown) {
     log.memory.error({ err: error }, 'Error adding memory');
     res.status(500).json({ error: 'Failed to add memory' });
@@ -232,7 +247,7 @@ router.get('/semantic-search', async (req, res) => {
     }
 
     const topK = Math.min(Number(limit) || 5, 20);
-    const memory = await UserMemory.findOne({ oxyUserId: req.user!.id });
+    const memory = await findUserMemory(getDb(), req.user!.id);
     if (!memory || memory.memories.length === 0) {
       res.json({ results: [], method: 'none' });
       return;
@@ -304,28 +319,25 @@ router.put('/:memoryId', async (req, res) => {
       return;
     }
 
-    const memory = await UserMemory.findOneAndUpdate(
-      {
-        oxyUserId: req.user!.id,
-        'memories._id': req.params.memoryId
-      },
-      {
-        $set: {
-          'memories.$.title': title,
-          'memories.$.summary': summary,
-          'memories.$.type': type,
-          'memories.$.updatedAt': new Date()
-        }
-      },
-      { returnDocument: 'after', runValidators: true }
-    );
-
-    if (!memory) {
+    const db = getDb();
+    const userId = req.user!.id;
+    const profile = await findUserMemory(db, userId);
+    if (!profile) {
       res.status(404).json({ error: 'Memory not found' });
       return;
     }
 
-    res.json(memory);
+    const updated = await updateEntryById(db, profile._id, String(req.params.memoryId), {
+      title,
+      summary,
+      type,
+    });
+    if (!updated) {
+      res.status(404).json({ error: 'Memory not found' });
+      return;
+    }
+
+    res.json(await findUserMemory(db, userId));
   } catch (error: unknown) {
     log.memory.error({ err: error }, 'Error updating memory');
     res.status(500).json({ error: 'Failed to update memory' });
@@ -338,22 +350,26 @@ router.put('/:memoryId', async (req, res) => {
  */
 router.delete('/:memoryId', async (req, res) => {
   try {
-    const memory = await UserMemory.findOneAndUpdate(
-      { oxyUserId: req.user!.id },
-      {
-        $pull: {
-          memories: { _id: req.params.memoryId }
-        }
-      },
-      { returnDocument: 'after' }
-    );
+    const db = getDb();
+    const userId = req.user!.id;
+    const profile = await findUserMemory(db, userId);
 
-    if (!memory) {
+    /**
+     * 404 when the ACCOUNT has no profile, not when the entry is missing.
+     * `$pull` matched the document by `oxyUserId` alone, so deleting a
+     * nonexistent memory returned 200 with the unchanged profile. Preserved
+     * deliberately rather than tightened: a client retrying a delete it already
+     * completed currently gets a success, and turning that into a 404 is a
+     * product decision, not a porting one.
+     */
+    if (!profile) {
       res.status(404).json({ error: 'Memory not found' });
       return;
     }
 
-    res.json(memory);
+    await deleteEntryById(db, profile._id, String(req.params.memoryId));
+
+    res.json(await findUserMemory(db, userId));
   } catch (error: unknown) {
     log.memory.error({ err: error }, 'Error deleting memory');
     res.status(500).json({ error: 'Failed to delete memory' });
@@ -368,7 +384,7 @@ router.get('/search', async (req, res) => {
   try {
     const { q, type, limit = '50', offset = '0', sortBy = 'updatedAt' } = req.query;
 
-    const memory = await UserMemory.findOne({ oxyUserId: req.user!.id });
+    const memory = await findUserMemory(getDb(), req.user!.id);
     if (!memory) {
       res.json({ memories: [], total: 0, limit: Number(limit), offset: Number(offset) });
       return;
@@ -422,7 +438,7 @@ router.get('/search', async (req, res) => {
  */
 router.get('/duplicates', async (req, res) => {
   try {
-    const memory = await UserMemory.findOne({ oxyUserId: req.user!.id });
+    const memory = await findUserMemory(getDb(), req.user!.id);
     if (!memory) {
       res.json({ duplicates: [], count: 0 });
       return;
@@ -458,7 +474,7 @@ router.get('/duplicates', async (req, res) => {
  */
 router.get('/export/preview', async (req, res) => {
   try {
-    const memory = await UserMemory.findOne({ oxyUserId: req.user!.id });
+    const memory = await findUserMemory(getDb(), req.user!.id);
 
     if (!memory) {
       res.json({
@@ -514,7 +530,7 @@ router.get('/export/preview', async (req, res) => {
  */
 router.get('/export/json', async (req, res) => {
   try {
-    const memory = await UserMemory.findOne({ oxyUserId: req.user!.id });
+    const memory = await findUserMemory(getDb(), req.user!.id);
 
     if (!memory) {
       res.status(404).json({ error: 'No memory data found' });
@@ -565,7 +581,7 @@ function escapeCSV(field: string): string {
  */
 router.get('/export/csv', async (req, res) => {
   try {
-    const memory = await UserMemory.findOne({ oxyUserId: req.user!.id });
+    const memory = await findUserMemory(getDb(), req.user!.id);
 
     if (!memory) {
       res.status(404).json({ error: 'No memory data found' });
@@ -620,7 +636,7 @@ router.post('/import/validate', async (req, res) => {
     }
 
     const importData = validation.data;
-    const memory = await UserMemory.findOne({ oxyUserId: req.user!.id });
+    const memory = await findUserMemory(getDb(), req.user!.id);
 
     // Get user's subscription to check memory limit
     const subscription = await Subscription.findOne({
@@ -643,9 +659,15 @@ router.post('/import/validate', async (req, res) => {
     };
 
     if (memory) {
-      const existingTitles = new Set(memory.memories.map(m => m.title));
-      analysis.duplicateTitles = importData.memories.filter(m => existingTitles.has(m.title)).length;
-      analysis.newTitles = importData.memories.filter(m => !existingTitles.has(m.title)).length;
+      /**
+       * Folded, because the IMPORT folds — `user_memory_entries_memory_title_
+       * lower_key` decides what counts as a duplicate. Counting exact titles
+       * here would promise the user N new memories and then store fewer, with
+       * the difference silently absorbed as updates.
+       */
+      const existingTitles = new Set(memory.memories.map(m => normalizeMemoryTitle(m.title)));
+      analysis.duplicateTitles = importData.memories.filter(m => existingTitles.has(normalizeMemoryTitle(m.title))).length;
+      analysis.newTitles = importData.memories.filter(m => !existingTitles.has(normalizeMemoryTitle(m.title))).length;
       analysis.estimatedFinalTotal = memory.memories.length + analysis.newTitles;
     } else {
       analysis.newTitles = importData.memories.length;
@@ -742,87 +764,68 @@ router.post('/import', async (req, res) => {
       errors: [] as string[],
     };
 
-    // Apply merge strategy
-    if (strategy === 'replace') {
-      // Replace all memories
-      memory.memories = importData.memories.map(m => ({
-        title: m.title,
-        summary: m.summary,
-        type: m.type,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      }));
-      stats.imported = importData.memories.length;
+    const db = getDb();
+    const incoming: NewMemoryEntry[] = importData.memories.map(m => ({
+      title: m.title,
+      summary: m.summary,
+      type: m.type,
+    }));
+    const stored = new Set(memory.memories.map(m => normalizeMemoryTitle(m.title)));
 
-      if (importData.preferences) memory.preferences = importData.preferences;
-      if (importData.context) memory.context = importData.context;
+    /**
+     * The limit is checked BEFORE writing, on the projected total.
+     *
+     * The source mutated the in-memory array, checked its length, and only then
+     * called `save()` — so a rejected import left nothing behind. Here the
+     * writes hit the database as they happen, so the same check has to be made
+     * on a projection rather than on the result. Every strategy's final count is
+     * computable up front because the fold decides what is new.
+     */
+    const uniqueIncoming = new Set(incoming.map(m => normalizeMemoryTitle(m.title)));
+    const projectedTotal = strategy === 'replace'
+      ? uniqueIncoming.size
+      : memory.memories.length + [...uniqueIncoming].filter(t => !stored.has(t)).length;
 
-    } else if (strategy === 'merge') {
-      // Merge: update existing, add new
-      for (const importMemory of importData.memories) {
-        const existingIndex = memory.memories.findIndex(m => m.title === importMemory.title);
-
-        if (existingIndex !== -1) {
-          memory.memories[existingIndex].summary = importMemory.summary;
-          memory.memories[existingIndex].type = importMemory.type;
-          memory.memories[existingIndex].updatedAt = new Date();
-          stats.updated++;
-        } else {
-          memory.memories.push({
-            title: importMemory.title,
-            summary: importMemory.summary,
-            type: importMemory.type,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          });
-          stats.imported++;
-        }
-      }
-
-      // Merge preferences and context
-      if (importData.preferences) {
-        memory.preferences = { ...memory.preferences, ...importData.preferences };
-      }
-      if (importData.context) {
-        memory.context = { ...memory.context, ...importData.context };
-      }
-
-    } else if (strategy === 'skip-duplicates') {
-      // Only add memories that don't exist
-      for (const importMemory of importData.memories) {
-        const exists = memory.memories.some(m => m.title === importMemory.title);
-
-        if (exists) {
-          stats.skipped++;
-        } else {
-          memory.memories.push({
-            title: importMemory.title,
-            summary: importMemory.summary,
-            type: importMemory.type,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          });
-          stats.imported++;
-        }
-      }
-    }
-
-    // Check total memory limit (unless unlimited)
-    if (memoryLimit !== -1 && memory.memories.length > memoryLimit) {
+    if (memoryLimit !== -1 && projectedTotal > memoryLimit) {
       res.status(400).json({
         error: 'Memory limit exceeded',
         limit: memoryLimit,
-        current: memory.memories.length
+        current: projectedTotal
       });
       return;
     }
 
-    await memory.save();
+    // Apply merge strategy
+    if (strategy === 'replace') {
+      // One transaction: the delete and the insert were a single document write
+      // in Mongo, and a failure between them would leave the user with nothing.
+      stats.imported = await replaceEntries(db, memory._id, incoming);
+
+      if (importData.preferences) await replacePreferences(db, memory._id, importData.preferences);
+      if (importData.context) await replaceContext(db, memory._id, importData.context);
+
+    } else if (strategy === 'merge') {
+      // Update existing, add new — the upsert does both, so the counters are
+      // decided by what was already stored rather than by the write's outcome.
+      for (const entry of incoming) {
+        if (stored.has(normalizeMemoryTitle(entry.title))) stats.updated++;
+        else stats.imported++;
+        await saveEntryByTitle(db, memory._id, entry);
+      }
+
+      if (importData.preferences) await mergePreferences(db, memory._id, importData.preferences);
+      if (importData.context) await mergeContext(db, memory._id, importData.context);
+
+    } else if (strategy === 'skip-duplicates') {
+      const fresh = incoming.filter(e => !stored.has(normalizeMemoryTitle(e.title)));
+      stats.skipped = incoming.length - fresh.length;
+      stats.imported = await addEntries(db, memory._id, fresh);
+    }
 
     res.json({
       success: true,
       stats,
-      totalMemories: memory.memories.length,
+      totalMemories: await countEntries(db, memory._id),
     });
 
   } catch (error: unknown) {

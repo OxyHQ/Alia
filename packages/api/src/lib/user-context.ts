@@ -6,7 +6,8 @@
  */
 
 import { oxyClient } from '../middleware/auth.js';
-import { UserMemory } from '../models/user-memory.js';
+import { getDb } from '../db/index.js';
+import { findUserMemory } from '../db/memory/userMemoryRepository.js';
 import { log } from './logger.js';
 
 export interface UserContext {
@@ -36,10 +37,10 @@ export async function buildUserContext(userId: string): Promise<UserContext> {
 
   // Load user memory
   try {
-    const userMemory = await UserMemory.findOne({ oxyUserId: userId });
+    const userMemory = await findUserMemory(getDb(), userId);
     if (userMemory) {
-      if (userMemory.memories?.length > 0) {
-        contextString += '\n\n## Known Facts:\n' + userMemory.memories.map((m: any) => `- ${m.title}: ${m.summary}`).join('\n');
+      if (userMemory.memories.length > 0) {
+        contextString += '\n\n## Known Facts:\n' + userMemory.memories.map(m => `- ${m.title}: ${m.summary}`).join('\n');
       }
       if (userMemory.preferences && Object.keys(userMemory.preferences).length > 0) {
         const prefs = Object.entries(userMemory.preferences)

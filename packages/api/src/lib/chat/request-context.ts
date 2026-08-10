@@ -11,7 +11,8 @@
  */
 import type { Request, Response } from 'express';
 import { resolveModel, getDefaultAliaModel } from '../chat-core.js';
-import { UserMemory, type IUserMemory } from '../../models/user-memory.js';
+import { getDb } from '../../db/index.js';
+import { findUserMemory, type UserMemoryProfile } from '../../db/memory/userMemoryRepository.js';
 import { getOrCreateUserCredits } from '../user-credits-helpers.js';
 import { Conversation } from '../../models/conversation.js';
 import { reserveCredits, refundReservation, type CreditReservation } from '../credits-manager.js';
@@ -49,7 +50,7 @@ export interface ChatRequestContext {
   isDirectUserSession: boolean;
   requestedModel: string;
   clientContext: string | undefined;
-  userMemory: IUserMemory | null;
+  userMemory: UserMemoryProfile | null;
   oxyUser: OxyUserProfile | null;
   skill: SkillDoc | null;
   entitlements: Entitlements | null;
@@ -158,7 +159,7 @@ export async function buildChatRequestContext(
 
     // User memory
     req.user
-      ? UserMemory.findOne({ oxyUserId: req.user.id }).catch(() => null)
+      ? findUserMemory(getDb(), req.user.id).then(m => m ?? null).catch(() => null)
       : Promise.resolve(null),
 
     // User profile from Oxy (HTTP call - add 5s timeout to prevent hanging)

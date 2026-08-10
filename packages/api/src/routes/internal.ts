@@ -24,8 +24,8 @@ import {
 } from '../lib/tools/index.js';
 import { oxyServiceAuth, oxyClient } from '../middleware/auth.js';
 import type { User as OxyUser } from '@oxyhq/core';
-import { UserMemory } from '../models/user-memory.js';
-import type { IUserMemory } from '../models/user-memory.js';
+import { getDb } from '../db/index.js';
+import { findUserMemory, type UserMemoryProfile } from '../db/memory/userMemoryRepository.js';
 import { recordUsage } from '../middleware/api-key-rate-limit.js';
 import { log } from '../lib/logger.js';
 import { getSafeErrorMessage } from '../lib/errors/sanitize.js';
@@ -38,7 +38,7 @@ const router = Router();
  */
 function buildTriggerSystemPrompt(
   oxyUser?: OxyUser | null,
-  memory?: IUserMemory | null,
+  memory?: UserMemoryProfile | null,
   appName?: string
 ): string {
   const userContext: string[] = [];
@@ -148,9 +148,9 @@ router.post('/trigger', oxyServiceAuth, async (req, res) => {
     log.general.info({ event, appName, userId }, 'Trigger received');
 
     // Load user memory
-    let memory: IUserMemory | null = null;
+    let memory: UserMemoryProfile | null = null;
     try {
-      memory = await UserMemory.findOne({ oxyUserId: userId });
+      memory = (await findUserMemory(getDb(), userId)) ?? null;
     } catch (error: unknown) {
       log.general.error({ err: error }, 'Error loading user memory');
     }

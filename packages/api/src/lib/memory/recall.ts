@@ -6,7 +6,9 @@
 
 import { getCachedOrGenerateEmbedding } from './embedding-cache.js';
 import { searchByVector } from './vector-search.js';
-import { UserMemory, type IUserMemory, type MemoryType } from '../../models/user-memory.js';
+import { getDb } from '../../db/index.js';
+import { findUserMemory } from '../../db/memory/userMemoryRepository.js';
+import type { MemoryType } from '../../domain/user-memory.js';
 
 export interface RecalledMemory {
   title: string;
@@ -24,8 +26,8 @@ export async function recallRelevantMemories(
   userMessage: string,
   topK: number = 7
 ): Promise<RecalledMemory[]> {
-  const memory = await UserMemory.findOne({ oxyUserId }).lean() as IUserMemory | null;
-  if (!memory?.memories?.length) return [];
+  const memory = await findUserMemory(getDb(), oxyUserId);
+  if (!memory?.memories.length) return [];
   if (memory.settings?.recallEnabled === false) return [];
 
   // If few memories, return all (no point in searching)

@@ -9,14 +9,22 @@ vi.mock('../vector-search.js', () => ({
   searchByVector: vi.fn().mockResolvedValue([]),
 }));
 
-vi.mock('../../../models/user-memory.js', () => ({
-  UserMemory: { findOne: vi.fn() },
+/**
+ * The repository is mocked where the MODEL used to be. `getDb()` is mocked
+ * alongside it because `recall.ts` calls it to obtain the handle — without that
+ * the module throws "Postgres is not connected" before reaching the stub, which
+ * would fail every case here for a reason that has nothing to do with recall.
+ */
+vi.mock('../../../db/index.js', () => ({ getDb: vi.fn(() => ({})) }));
+
+vi.mock('../../../db/memory/userMemoryRepository.js', () => ({
+  findUserMemory: vi.fn(),
 }));
 
 import { recallRelevantMemories } from '../recall.js';
-import { UserMemory } from '../../../models/user-memory.js';
+import { findUserMemory } from '../../../db/memory/userMemoryRepository.js';
 
-const mockFindOne = UserMemory.findOne as unknown as ReturnType<typeof vi.fn>;
+const mockFindOne = findUserMemory as unknown as ReturnType<typeof vi.fn>;
 
 describe('recallRelevantMemories', () => {
   beforeEach(() => {
@@ -24,14 +32,12 @@ describe('recallRelevantMemories', () => {
   });
 
   it('returns all memories when under topK and recall is enabled', async () => {
-    mockFindOne.mockReturnValue({
-      lean: vi.fn().mockResolvedValue({
+    mockFindOne.mockResolvedValue({
         memories: [
           { title: 'Food', summary: 'Loves strawberries', type: 'topic', createdAt: new Date(), updatedAt: new Date() },
         ],
         settings: { autoSaveEnabled: true, recallEnabled: true },
-      }),
-    });
+      });
 
     const result = await recallRelevantMemories('user-1', 'what do I like to eat?', 7);
 
@@ -40,14 +46,12 @@ describe('recallRelevantMemories', () => {
   });
 
   it('returns empty when recallEnabled is false', async () => {
-    mockFindOne.mockReturnValue({
-      lean: vi.fn().mockResolvedValue({
+    mockFindOne.mockResolvedValue({
         memories: [
           { title: 'Food', summary: 'Loves strawberries', type: 'topic', createdAt: new Date(), updatedAt: new Date() },
         ],
         settings: { autoSaveEnabled: true, recallEnabled: false },
-      }),
-    });
+      });
 
     const result = await recallRelevantMemories('user-1', 'what do I like to eat?', 7);
 
@@ -55,7 +59,7 @@ describe('recallRelevantMemories', () => {
   });
 
   it('returns empty when the user has no memories', async () => {
-    mockFindOne.mockReturnValue({ lean: vi.fn().mockResolvedValue(null) });
+    mockFindOne.mockResolvedValue(undefined);
 
     const result = await recallRelevantMemories('user-1', 'anything', 7);
 
