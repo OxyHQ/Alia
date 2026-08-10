@@ -5,7 +5,8 @@
  */
 
 import { generateText } from 'ai';
-import { Conversation, type ConversationSource } from '../models/conversation.js';
+import { Conversation } from '../models/conversation.js';
+import { type ConversationSource } from '../domain/conversation.js';
 import { Message } from '../models/message.js';
 import { resolveModel, getAIModel } from './chat-core.js';
 import { log } from './logger.js';

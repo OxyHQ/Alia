@@ -31,12 +31,35 @@ const REPORT = {
   localStatus: 'queued',
 } as const;
 
+/**
+ * `expiresAt` is deliberately FAR IN THE FUTURE, and that is load-bearing rather
+ * than arbitrary.
+ *
+ * `moderation_outboxes` is an expiry target with `retentionSeconds: 0` —
+ * `expires_at` IS its deadline — and four `*.pgdb.test.ts` files call
+ * `sweepAllExpiredRows(db, EXPIRY_TARGETS)` with the FULL registry against the
+ * one database the whole run shares. This fixture is COMMITTED, not written
+ * inside a transaction, so it is reachable by every one of them.
+ *
+ * With the previous hardcoded `2026-02-01` the row was expired on arrival, and
+ * the xmin case below could have its row deleted by a sibling file between its
+ * two reads — `after` comes back `undefined` and the assertion fails with
+ * `expected undefined to be '<xmin>'`, naming nothing about the real cause.
+ * That was luck, not correctness: measured 4/4 green on one revision and 2/2
+ * red on the next, with the only difference being module-graph timing.
+ *
+ * A future deadline removes the row from every sweep's reach without changing
+ * anything this file measures — none of these cases is about expiry. This is
+ * CONVENTIONS §"A fixture that is DELIBERATELY EXPIRED must be written in a
+ * transaction", applied from the other side: the fixture was never meant to be
+ * expired in the first place.
+ */
 const EVENT = {
   id: 'report-1:report.submit',
   kind: 'report.submit',
   payload: { hello: 'world' },
   availableAt: new Date('2026-01-01T00:00:00.000Z'),
-  expiresAt: new Date('2026-02-01T00:00:00.000Z'),
+  expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
 } as const;
 
 beforeAll(() => {

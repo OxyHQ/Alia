@@ -4,14 +4,7 @@
  */
 
 import mongoose, { Document, Schema } from 'mongoose';
-
-/** The product a plan sells. `Subscription.plan.product` is the same vocabulary. */
-export const PLAN_PRODUCTS = ['alia', 'codea'] as const;
-export type PlanProduct = (typeof PLAN_PRODUCTS)[number];
-
-/** How a plan is billed. `Subscription.billingPeriod` is the same vocabulary. */
-export const BILLING_PERIODS = ['monthly', 'annual'] as const;
-export type BillingPeriod = (typeof BILLING_PERIODS)[number];
+import { PLAN_PRODUCTS } from '../../../domain/plan.js';
 
 export interface IPlan extends Document {
   planId: string;

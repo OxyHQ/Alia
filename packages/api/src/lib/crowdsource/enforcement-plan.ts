@@ -1,5 +1,5 @@
 import type { Decision, RecommendedAction, Severity } from '@oxyhq/crowdsource-contracts';
-import type { ModerationEnforcementAction } from '../../models/moderation-enforcement.js';
+import type { ModerationEnforcementAction } from '../../domain/moderation-enforcement.js';
 
 /**
  * Deciding what Alia will do about a decision — and nothing else.

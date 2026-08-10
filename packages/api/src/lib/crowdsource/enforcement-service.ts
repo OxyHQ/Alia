@@ -3,13 +3,9 @@ import type { Decision } from '@oxyhq/crowdsource-contracts';
 import { Agent } from '../../models/agent.js';
 import { AgentReview } from '../../models/agent-review.js';
 import { Skill } from '../../models/skill.js';
-import { ReportedType } from '../../models/report.js';
-import {
-  ModerationEnforcement,
-  type IModerationEnforcement,
-  type ModerationEnforcementAction,
-  type ModerationPreviousState,
-} from '../../models/moderation-enforcement.js';
+import { ReportedType } from '../../domain/report.js';
+import { ModerationEnforcement, type IModerationEnforcement, type ModerationPreviousState } from '../../models/moderation-enforcement.js';
+import { type ModerationEnforcementAction } from '../../domain/moderation-enforcement.js';
 import { recalculateAgentRating } from '../agent-rating.js';
 import { crowdSourceConfig, type ModerationEnforcementMode } from './config.js';
 import { planEnforcement, type PlannedEnforcementAction } from './enforcement-plan.js';
