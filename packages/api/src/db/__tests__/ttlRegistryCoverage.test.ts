@@ -188,19 +188,58 @@ const TTL_MODELS_NOT_PORTED: ReadonlySet<string> = new Set<string>();
  *
  * This list only ever GROWS, and an entry is never removed: the table it names
  * is still swept, so the rule it states is still live.
+ *
+ * `retiredBy` names the slice that deleted the model, so an entry can be traced
+ * back to the commit that transcribed it — the values here are only as good as
+ * that provenance, since the source they were read from no longer exists.
  */
-const RETIRED_MONGO_TTLS: readonly MongoTtl[] = [
+interface RetiredMongoTtl extends MongoTtl {
+  /** The slice that deleted the model. */
+  readonly retiredBy: string;
+}
+const RETIRED_MONGO_TTLS: readonly RetiredMongoTtl[] = [
   {
     model: 'ModerationOutbox',
     collection: 'moderation_outbox',
     path: 'expiresAt',
     expireAfterSeconds: 0,
+    retiredBy: 'S1 moderation',
   },
   {
     model: 'ModerationEvent',
     collection: 'moderation_events',
     path: 'expiresAt',
     expireAfterSeconds: 0,
+    retiredBy: 'S1 moderation',
+  },
+  {
+    model: 'AudioJob',
+    collection: 'audiojobs',
+    // `AudioJobSchema.index({ createdAt: 1 }, { expireAfterSeconds: 86400 })`,
+    // read off `src/models/audio-job.ts:40` before it was deleted.
+    path: 'createdAt',
+    expireAfterSeconds: 86400,
+    retiredBy: 'S5 notifications — audio_jobs',
+  },
+  {
+    model: 'Notification',
+    collection: 'notifications',
+    /**
+     * `NotificationSchema.index({ createdAt: 1 }, { expireAfterSeconds: 90 * 24
+     * * 60 * 60, partialFilterExpression: { status: 'dismissed' } })`, read off
+     * `src/models/notification.ts:82` before it was deleted.
+     *
+     * **The CONDITIONAL one**, and the reason this list matters more than a
+     * decrement would. Every assertion about the partial TTL — that it is
+     * registered against a DIFFERENT column, that the different column is
+     * `dismissed_at`, that a conditional case exists at all — reads the source's
+     * `partialFilterExpression`. Delete the model and decrement the floor and
+     * all three quietly start measuring an empty set while still passing.
+     */
+    path: 'createdAt',
+    expireAfterSeconds: 90 * 24 * 60 * 60,
+    partialFilterExpression: { status: 'dismissed' },
+    retiredBy: 'S5 notifications — notifications',
   },
 ];
 
@@ -212,9 +251,12 @@ describe('every ported TTL index has a matching expiry-sweep target', () => {
   it('found the TTL declarations at all', () => {
     // Vacuity floor. An empty walk produces the same "no gaps" verdict as a
     // complete one, so the count is asserted rather than assumed. 14 measured
-    // originally; 13 since `CacheEntry` was deleted with its dead module — this
-    // number goes DOWN only when a TTL is deliberately dropped, and this gate
-    // firing is what forced that to be written down rather than absorbed.
+    // originally; 13 since `CacheEntry` was deleted with its dead module.
+    //
+    // This number does NOT move as models are deleted — a deletion moves the
+    // declaration into `RETIRED_MONGO_TTLS` and the total is conserved. It goes
+    // DOWN only when a TTL is deliberately dropped rather than ported, which has
+    // to be written down rather than absorbed.
     expect(ttls.length).toBeGreaterThanOrEqual(13);
     expect(tables.size).toBeGreaterThanOrEqual(5);
   });
@@ -231,8 +273,14 @@ describe('every ported TTL index has a matching expiry-sweep target', () => {
      * many models as a slice deletes, and each of those must appear in
      * `RETIRED_MONGO_TTLS` in the same commit — which is what keeps the two
      * halves adding up to 13.
+     *
+     * 11 after S1 retired two; 9 once S5 retires `AudioJob` and `Notification`.
+     * Lowering it is legitimate ONLY in the same change that adds the matching
+     * retired entries, and the exact-sum assertion below is what makes that
+     * mechanical rather than a judgement call — the two numbers cannot drift
+     * apart without one of them going red.
      */
-    expect(walked.length).toBeGreaterThanOrEqual(11);
+    expect(walked.length).toBeGreaterThanOrEqual(9);
     expect(walked.length + RETIRED_MONGO_TTLS.length).toBe(13);
   });
 
@@ -243,6 +291,22 @@ describe('every ported TTL index has a matching expiry-sweep target', () => {
       walked.some((ttl) => ttl.model === retired.model),
     );
     expect(stillRegistered.map((t) => t.model)).toEqual([]);
+  });
+
+  it('every retired declaration still names a table that EXISTS', () => {
+    /**
+     * The third way this list can rot. A retired entry props up the total and
+     * feeds the column and retention checks below — but those find their target
+     * through `MONGO_MODEL_TO_TABLE`, and skip when there is none. So an entry
+     * whose table was never mapped, or was later dropped, keeps the sum at 13
+     * while asserting about nothing at all.
+     */
+    const orphaned = RETIRED_MONGO_TTLS.filter((t) => {
+      const table = MONGO_MODEL_TO_TABLE[t.model];
+      return !table || !tables.has(table);
+    }).map((t) => t.model);
+
+    expect(orphaned).toEqual([]);
   });
 
   it('every TTL-declaring model is CLASSIFIED, so an absence cannot mean nothing', () => {

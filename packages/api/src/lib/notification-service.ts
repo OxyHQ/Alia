@@ -11,11 +11,31 @@
 
 import mongoose from 'mongoose';
 import Expo, { type ExpoPushMessage, type ExpoPushReceiptId } from 'expo-server-sdk';
-import { Notification, type INotification, type NotificationType, type NotificationChannel, type NotificationPriority } from '../models/notification.js';
+import { getDb } from '../db/index.js';
+import {
+  countUnread,
+  createNotification,
+  deactivatePushTokenById,
+  deactivatePushTokenByToken,
+  deactivateWebPushSubscriptionById,
+  dismissNotification as dismissNotificationRow,
+  hasActivePushToken,
+  hasActiveWebPushSubscription,
+  listActivePushTokens,
+  listActiveWebPushSubscriptions,
+  markAllNotificationsRead,
+  markNotificationRead,
+  setDeliveryStatus,
+  touchPushTokens,
+  type NotificationRow,
+} from '../db/notifications/notificationRepository.js';
+import type {
+  NotificationChannel,
+  NotificationPriority,
+  NotificationTypeValue,
+} from '../db/schema/notifications.js';
 import { ConnectedAccount } from '../models/connected-account.js';
-import { PushToken } from '../models/push-token.js';
 import { getStatusCode } from './errors/index.js';
-import { WebPushSubscription } from '../models/web-push-subscription.js';
 import { Bot } from '../models/bot.js';
 import { BotUser } from '../models/bot-user.js';
 import { sendChannelMessage } from './channels/outbound.js';
@@ -31,7 +51,7 @@ const expo = new Expo();
 
 export interface SendNotificationOptions {
   userId: string;
-  type: NotificationType;
+  type: NotificationTypeValue;
   title: string;
   body: string;
   priority?: NotificationPriority;
@@ -62,18 +82,10 @@ async function resolveChannels(userId: string, explicit?: NotificationChannel[])
   // Check in parallel: push tokens, web push subscriptions, and Telegram account
   const [hasPushTokens, hasWebPushSubs, telegramBotUser] = await Promise.all([
     // Push: check if user has any active Expo push tokens
-    PushToken.exists({
-      oxyUserId: userObjectId,
-      active: true,
-    }).catch(() => null),
+    hasActivePushToken(getDb(), userId).catch(() => false),
 
     // Web push: check if user has any active browser push subscriptions (only if VAPID configured)
-    VAPID_PUBLIC_KEY
-      ? WebPushSubscription.exists({
-          oxyUserId: userObjectId,
-          active: true,
-        }).catch(() => null)
-      : null,
+    VAPID_PUBLIC_KEY ? hasActiveWebPushSubscription(getDb(), userId).catch(() => false) : false,
 
     // Telegram: check if user has a linked Telegram bot account
     (async () => {
@@ -104,12 +116,12 @@ async function resolveChannels(userId: string, explicit?: NotificationChannel[])
 
 // ── Channel delivery implementations ───────────────────────────────
 
-async function deliverInApp(notification: INotification): Promise<boolean> {
+async function deliverInApp(notification: NotificationRow): Promise<boolean> {
   const io = getIO();
   if (!io) return false;
 
-  io.to(`user:${notification.oxyUserId.toString()}`).emit('notification', {
-    id: notification._id.toString(),
+  io.to(`user:${notification.oxyUserId}`).emit('notification', {
+    id: notification.id,
     type: notification.type,
     title: notification.title,
     body: notification.body,
@@ -121,7 +133,7 @@ async function deliverInApp(notification: INotification): Promise<boolean> {
   return true;
 }
 
-async function deliverTelegram(userId: string, notification: INotification): Promise<boolean> {
+async function deliverTelegram(userId: string, notification: NotificationRow): Promise<boolean> {
   const bot = await Bot.findOne({ platform: 'telegram', status: 'active', userId: { $exists: false } });
   if (!bot) return false;
 
@@ -140,7 +152,7 @@ async function deliverTelegram(userId: string, notification: INotification): Pro
 async function deliverViaChannel(
   channelId: ChannelId,
   userId: string,
-  notification: INotification
+  notification: NotificationRow
 ): Promise<boolean> {
   // Find user's connected account for this channel
   const account = await ConnectedAccount.findOne({
@@ -162,11 +174,8 @@ async function deliverViaChannel(
  * Deliver a push notification to all of a user's registered Expo push tokens.
  * Handles chunked sending (Expo limit) and async receipt checking.
  */
-async function deliverPush(userId: string, notification: INotification): Promise<boolean> {
-  const tokens = await PushToken.find({
-    oxyUserId: new mongoose.Types.ObjectId(userId),
-    active: true,
-  }).lean();
+async function deliverPush(userId: string, notification: NotificationRow): Promise<boolean> {
+  const tokens = await listActivePushTokens(getDb(), userId);
 
   if (tokens.length === 0) return false;
 
@@ -175,7 +184,7 @@ async function deliverPush(userId: string, notification: INotification): Promise
   for (const t of tokens) {
     if (!Expo.isExpoPushToken(t.token)) {
       log.general.warn({ token: t.token, userId }, 'Invalid Expo push token, deactivating');
-      await PushToken.updateOne({ _id: t._id }, { $set: { active: false } });
+      await deactivatePushTokenById(getDb(), t.id);
       continue;
     }
 
@@ -184,7 +193,7 @@ async function deliverPush(userId: string, notification: INotification): Promise
       title: notification.title,
       body: notification.body,
       data: {
-        notificationId: notification._id.toString(),
+        notificationId: notification.id,
         type: notification.type,
         conversationId: notification.conversationId,
         ...notification.data,
@@ -225,7 +234,8 @@ async function deliverPush(userId: string, notification: INotification): Promise
 
           // Deactivate tokens that are permanently invalid
           if (errorDetail.details?.error === 'DeviceNotRegistered') {
-            await PushToken.updateOne({ token: failedToken }, { $set: { active: false } });
+            // By TOKEN — an Expo receipt names no account.
+            await deactivatePushTokenByToken(getDb(), failedToken);
           }
         }
       }
@@ -241,11 +251,8 @@ async function deliverPush(userId: string, notification: INotification): Promise
 
   // Update lastUsedAt for active tokens
   if (anySucceeded) {
-    const activeTokenIds = tokens.filter(t => Expo.isExpoPushToken(t.token)).map(t => t._id);
-    await PushToken.updateMany(
-      { _id: { $in: activeTokenIds } },
-      { $set: { lastUsedAt: new Date() } },
-    );
+    const activeTokenIds = tokens.filter(t => Expo.isExpoPushToken(t.token)).map(t => t.id);
+    await touchPushTokens(getDb(), activeTokenIds);
   }
 
   return anySucceeded;
@@ -288,20 +295,17 @@ async function checkPushReceipts(receiptIds: ExpoPushReceiptId[]): Promise<void>
  * Deliver a push notification to all of a user's registered web push subscriptions.
  * Handles 410 Gone (expired subscription) by deactivating.
  */
-async function deliverWebPush(userId: string, notification: INotification): Promise<boolean> {
+async function deliverWebPush(userId: string, notification: NotificationRow): Promise<boolean> {
   if (!VAPID_PUBLIC_KEY) return false;
 
-  const subscriptions = await WebPushSubscription.find({
-    oxyUserId: new mongoose.Types.ObjectId(userId),
-    active: true,
-  }).lean();
+  const subscriptions = await listActiveWebPushSubscriptions(getDb(), userId);
 
   if (subscriptions.length === 0) return false;
 
   const payload = JSON.stringify({
     title: notification.title,
     body: notification.body,
-    notificationId: notification._id.toString(),
+    notificationId: notification.id,
     type: notification.type,
     conversationId: notification.conversationId,
     ...notification.data,
@@ -311,14 +315,15 @@ async function deliverWebPush(userId: string, notification: INotification): Prom
     subscriptions.map(async (sub) => {
       try {
         await webPush.sendNotification(
-          { endpoint: sub.endpoint, keys: sub.keys },
+          // The nested `keys` sub-document is two flat columns now.
+          { endpoint: sub.endpoint, keys: { p256dh: sub.keysP256dh, auth: sub.keysAuth } },
           payload,
         );
       } catch (error: unknown) {
         const statusCode = getStatusCode(error);
         if (statusCode === 410 || statusCode === 404) {
           // Subscription expired or invalid — deactivate
-          await WebPushSubscription.updateOne({ _id: sub._id }, { $set: { active: false } });
+          await deactivateWebPushSubscriptionById(getDb(), sub.id);
           log.general.info({ userId, endpoint: sub.endpoint }, 'Web push subscription expired, deactivated');
         } else {
           log.general.warn({ err: error, userId, endpoint: sub.endpoint }, 'Web push delivery failed');
@@ -331,7 +336,7 @@ async function deliverWebPush(userId: string, notification: INotification): Prom
   return results.some(r => r.status === 'fulfilled');
 }
 
-function formatNotificationText(notification: INotification): string {
+function formatNotificationText(notification: NotificationRow): string {
   const priorityEmoji = notification.priority === 'urgent' ? '\u26a0\ufe0f '
     : notification.priority === 'high' ? '\u2757 '
     : '';
@@ -344,7 +349,7 @@ function formatNotificationText(notification: INotification): string {
 /**
  * Create and deliver a notification to a user across their preferred channels.
  */
-export async function sendNotification(options: SendNotificationOptions): Promise<INotification> {
+export async function sendNotification(options: SendNotificationOptions): Promise<NotificationRow> {
   const {
     userId,
     type,
@@ -360,20 +365,25 @@ export async function sendNotification(options: SendNotificationOptions): Promis
   const channels = await resolveChannels(userId, options.channels);
 
   // Persist the notification
-  const notification = await Notification.create({
-    oxyUserId: new mongoose.Types.ObjectId(userId),
+  const notification = await createNotification(getDb(), {
+    oxyUserId: userId,
     type,
     title,
     body: body.slice(0, 4000), // Cap body length
     data,
     channels,
     deliveryStatus: Object.fromEntries(channels.map(ch => [ch, 'pending'])),
-    status: 'sent',
     priority,
-    triggerId: triggerId ? new mongoose.Types.ObjectId(triggerId) : undefined,
+    triggerId,
     conversationId,
     expiresAt,
   });
+
+  // `delivery_status` is a `jsonb` column written whole, so the per-channel
+  // results accumulate here and are persisted in ONE update below. The source
+  // mutated the sub-document in place and relied on `markModified` — forgetting
+  // that call persisted nothing, silently.
+  const deliveryStatus: Record<string, string> = { ...notification.deliveryStatus };
 
   // Deliver to each channel in parallel
   const deliveries = channels.map(async (channel) => {
@@ -403,59 +413,40 @@ export async function sendNotification(options: SendNotificationOptions): Promis
         }
       }
 
-      notification.deliveryStatus[channel] = success ? 'sent' : 'failed';
+      deliveryStatus[channel] = success ? 'sent' : 'failed';
     } catch (error: unknown) {
       log.general.error({ err: error, channel, userId }, 'Notification delivery failed');
-      notification.deliveryStatus[channel] = 'failed';
+      deliveryStatus[channel] = 'failed';
     }
   });
 
   await Promise.allSettled(deliveries);
 
   // Persist delivery status
-  notification.markModified('deliveryStatus');
-  await notification.save();
+  await setDeliveryStatus(getDb(), notification.id, deliveryStatus);
 
   log.general.info(
     { type, userId, channels, title: title.slice(0, 50) },
     'Notification sent',
   );
 
-  return notification;
+  return { ...notification, deliveryStatus };
 }
 
 // ── Query helpers ──────────────────────────────────────────────────
 
 export async function getUnreadCount(userId: string): Promise<number> {
-  return Notification.countDocuments({
-    oxyUserId: new mongoose.Types.ObjectId(userId),
-    status: { $in: ['pending', 'sent'] },
-  });
+  return countUnread(getDb(), userId);
 }
 
 export async function markAsRead(notificationId: string, userId: string): Promise<boolean> {
-  const result = await Notification.updateOne(
-    { _id: notificationId, oxyUserId: new mongoose.Types.ObjectId(userId) },
-    { $set: { status: 'read', readAt: new Date() } },
-  );
-  return result.modifiedCount > 0;
+  return markNotificationRead(getDb(), notificationId, userId);
 }
 
 export async function markAllAsRead(userId: string): Promise<number> {
-  const result = await Notification.updateMany(
-    {
-      oxyUserId: new mongoose.Types.ObjectId(userId),
-      status: { $in: ['pending', 'sent'] },
-    },
-    { $set: { status: 'read', readAt: new Date() } },
-  );
-  return result.modifiedCount;
+  return markAllNotificationsRead(getDb(), userId);
 }
 
 export async function dismissNotification(notificationId: string, userId: string): Promise<boolean> {
-  const result = await Notification.updateOne(
-    { _id: notificationId, oxyUserId: new mongoose.Types.ObjectId(userId) },
-    { $set: { status: 'dismissed' } },
-  );
-  return result.modifiedCount > 0;
+  return dismissNotificationRow(getDb(), notificationId, userId);
 }

@@ -6,7 +6,8 @@ import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { connectDB } from './lib/db.js';
-import { closePostgres, connectPostgres } from './db/index.js';
+import { closePostgres, connectPostgres, getDb } from './db/index.js';
+import { failOrphanedAudioJobs } from './db/notifications/audioJobRepository.js';
 import { startExpirySweeper, stopExpirySweeper } from './db/expirySweeper.js';
 import { log } from './lib/logger.js';
 import { isAbortError, isFatalError, isTransientNetworkError } from './lib/error-classification.js';
@@ -363,10 +364,14 @@ function startBackgroundServices(): void {
   getContainerPool()
     .initialize()
     .catch((err) => log.general.error({ err }, '[ContainerPool] Startup error'));
-  // Clean up orphaned audio jobs from previous process crashes (non-blocking)
-  import('./models/audio-job.js').then(({ AudioJob }) =>
-    AudioJob.cleanupOrphanedJobs()
-  ).catch((err) => log.general.error({ err }, '[AudioJob] Orphan cleanup error'));
+  // Clean up orphaned audio jobs from previous process crashes (non-blocking).
+  // Was a dynamic `import()` of the Mongoose model purely to defer loading it;
+  // the repository is an ordinary module, so it is imported at the top now.
+  failOrphanedAudioJobs(getDb())
+    .then((count) => {
+      if (count > 0) log.general.info({ count }, 'Cleaned up orphaned audio jobs');
+    })
+    .catch((err) => log.general.error({ err }, '[AudioJob] Orphan cleanup error'));
   // Initialize show generation queue (non-blocking)
   initShowQueue()
     .then(() => startShowWorker())

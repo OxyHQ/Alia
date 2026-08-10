@@ -1,7 +1,20 @@
 import { Router, Request, Response } from 'express';
 import { generateText } from 'ai';
 import { z } from 'zod';
-import { Suggestion } from '../models/suggestion.js';
+import { getDb } from '../db/index.js';
+import {
+  createSuggestion,
+  deleteOwnSuggestion,
+  findOwnSuggestion,
+  incrementSuggestionUsage,
+  listOwnSuggestions,
+  listSuggestions,
+  listWelcomePool,
+  searchSuggestions,
+  updateOwnSuggestion,
+  type SuggestionPatch,
+} from '../db/notifications/suggestionRepository.js';
+import type { SuggestionSearchHit } from '../db/notifications/suggestionRepository.js';
 import { UserMemory } from '../models/user-memory.js';
 import { authenticateToken, optionalAuth } from '../middleware/auth.js';
 import { resolveModel, getAIModel } from '../lib/chat-core.js';
@@ -56,11 +69,6 @@ setInterval(() => {
   }
 }, 2 * 60 * 1000).unref?.();
 
-/** Filter condition to exclude expired suggestions */
-function notExpiredFilter() {
-  return { $or: [{ expiresAt: null }, { expiresAt: { $exists: false } }, { expiresAt: { $gt: new Date() } }] };
-}
-
 /**
  * POST /suggestions/list
  * List suggestions with filters. Language resolved server-side.
@@ -71,29 +79,14 @@ router.post('/list', optionalAuth, async (req: Request, res: Response) => {
     const { type, category, limit = 200, offset = 0 } = req.body || {};
     const language = await getUserLanguage(req.user?.id);
 
-    const filter: Record<string, unknown> = {
+    const suggestions = await listSuggestions(getDb(), {
       language,
-      $and: [
-        notExpiredFilter(),
-        { $or: [
-          { scope: 'global' },
-          ...(req.user?.id ? [{ scope: 'personal', oxyUserId: req.user.id }] : []),
-        ]},
-      ],
-    };
-
-    if (type && typeof type === 'string') {
-      filter.type = type;
-    }
-    if (category && typeof category === 'string' && category !== 'all') {
-      filter.category = category;
-    }
-
-    const suggestions = await Suggestion.find(filter)
-      .sort({ priority: -1, usageCount: -1, title: 1 })
-      .skip(Number(offset) || 0)
-      .limit(Math.min(Number(limit) || 200, 500))
-      .lean();
+      type: type === 'welcome' || type === 'autocomplete' ? type : undefined,
+      category: typeof category === 'string' ? category : undefined,
+      oxyUserId: req.user?.id,
+      limit: Math.min(Number(limit) || 200, 500),
+      offset: Number(offset) || 0,
+    });
 
     res.json({ suggestions });
   } catch (error: unknown) {
@@ -113,32 +106,14 @@ router.post('/welcome', optionalAuth, async (req: Request, res: Response) => {
     const language = await getUserLanguage(req.user?.id);
 
     // Base query: global welcome suggestions in user's language (exclude expired)
-    const filter: Record<string, unknown> = {
-      type: 'welcome',
-      language,
-      $and: [
-        notExpiredFilter(),
-        { $or: [
-          { scope: 'global' },
-          ...(req.user?.id ? [{ scope: 'personal', oxyUserId: req.user.id }] : []),
-        ]},
-      ],
-    };
-
     const requestedCount = Math.min(Number(count) || 4, 20);
 
     // Fetch a larger pool to randomly pick from
-    let pool = await Suggestion.find(filter)
-      .sort({ priority: -1 })
-      .limit(requestedCount * 5)
-      .lean();
+    let pool = await listWelcomePool(getDb(), language, req.user?.id, requestedCount * 5);
 
     // Fallback to en-US if no suggestions found for user's language
     if (pool.length === 0 && language !== 'en-US') {
-      pool = await Suggestion.find({ ...filter, language: 'en-US' })
-        .sort({ priority: -1 })
-        .limit(requestedCount * 5)
-        .lean();
+      pool = await listWelcomePool(getDb(), 'en-US', req.user?.id, requestedCount * 5);
     }
 
     // If authenticated, try to personalize scoring
@@ -194,9 +169,7 @@ router.post('/me', authenticateToken, async (req: Request, res: Response) => {
     if (!req.user?.id) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
-    const suggestions = await Suggestion.find({ oxyUserId: req.user.id, scope: 'personal' })
-      .sort({ createdAt: -1 })
-      .lean();
+    const suggestions = await listOwnSuggestions(getDb(), req.user.id);
     res.json({ suggestions });
   } catch (error: unknown) {
     log.general.error({ err: error }, 'Error listing user suggestions');
@@ -223,7 +196,7 @@ router.post('/create', authenticateToken, async (req: Request, res: Response) =>
     // Generate suggestionId
     const suggestionId = `user-${title.toLowerCase().replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-').slice(0, 40)}-${Date.now().toString(36).slice(-4)}`;
 
-    const suggestion = await Suggestion.create({
+    const suggestion = await createSuggestion(getDb(), {
       suggestionId,
       title,
       text,
@@ -235,7 +208,7 @@ router.post('/create', authenticateToken, async (req: Request, res: Response) =>
       scope: 'personal',
       language: await getUserLanguage(req.user.id),
       isBuiltIn: false,
-      isAIGenerated: false,
+      isAiGenerated: false,
       oxyUserId: req.user.id,
       ...(expiresAt ? { expiresAt: new Date(expiresAt) } : {}),
     });
@@ -373,7 +346,7 @@ Return ONLY a valid JSON array, no other text.`,
       const suggestionId = `ai-${slug}-${Date.now().toString(36).slice(-4)}-${i}`;
 
       try {
-        const suggestion = await Suggestion.create({
+        const suggestion = await createSuggestion(getDb(), {
           suggestionId,
           title: item.title,
           text: item.text,
@@ -387,7 +360,7 @@ Return ONLY a valid JSON array, no other text.`,
           scope: 'personal',
           language: item.language || language,
           isBuiltIn: false,
-          isAIGenerated: true,
+          isAiGenerated: true,
           oxyUserId: req.user!.id,
         });
         created.push(suggestion);
@@ -415,32 +388,39 @@ router.patch('/:id', authenticateToken, async (req: Request, res: Response) => {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const suggestion = await Suggestion.findOne({
-      suggestionId: req.params.id,
-      oxyUserId: req.user.id,
-      isBuiltIn: false,
-    });
-
-    if (!suggestion) {
+    const { id } = req.params;
+    if (typeof id !== 'string') {
       return res.status(404).json({ error: 'Suggestion not found' });
     }
 
-    const allowedFields = [
-      'title', 'text', 'description', 'type', 'category',
-      'triggerWords', 'tags', 'expiresAt',
-    ];
-
-    for (const field of allowedFields) {
-      if (req.body[field] !== undefined) {
-        if (field === 'expiresAt') {
-          suggestion.set('expiresAt', req.body[field] ? new Date(req.body[field]) : null);
-        } else {
-          suggestion.set(field, req.body[field]);
-        }
-      }
+    const existing = await findOwnSuggestion(getDb(), id, req.user.id);
+    if (!existing) {
+      return res.status(404).json({ error: 'Suggestion not found' });
     }
 
-    await suggestion.save();
+    // The same allow-list as before, applied to a typed patch rather than by
+    // `set()` on a document — mass assignment is not available either way, and
+    // `text` is in it, which is why the repository re-derives the template
+    // columns whenever it is supplied.
+    const patch: SuggestionPatch = {
+      ...(req.body.title === undefined ? {} : { title: req.body.title }),
+      ...(req.body.text === undefined ? {} : { text: req.body.text }),
+      ...(req.body.description === undefined ? {} : { description: req.body.description }),
+      ...(req.body.type === 'welcome' || req.body.type === 'autocomplete'
+        ? { type: req.body.type }
+        : {}),
+      ...(req.body.category === undefined ? {} : { category: req.body.category }),
+      ...(req.body.triggerWords === undefined ? {} : { triggerWords: req.body.triggerWords }),
+      ...(req.body.tags === undefined ? {} : { tags: req.body.tags }),
+      ...(req.body.expiresAt === undefined
+        ? {}
+        : { expiresAt: req.body.expiresAt ? new Date(req.body.expiresAt) : null }),
+    };
+
+    const suggestion = await updateOwnSuggestion(getDb(), id, req.user.id, patch);
+    if (!suggestion) {
+      return res.status(404).json({ error: 'Suggestion not found' });
+    }
     res.json({ suggestion });
   } catch (error: unknown) {
     log.general.error({ err: error }, 'Error updating suggestion');
@@ -458,13 +438,15 @@ router.delete('/:id', authenticateToken, async (req: Request, res: Response) => 
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const result = await Suggestion.deleteOne({
-      suggestionId: req.params.id,
-      oxyUserId: req.user.id,
-      isBuiltIn: false,
-    });
+    const { id } = req.params;
+    if (typeof id !== 'string') {
+      return res.status(404).json({ error: 'Suggestion not found' });
+    }
 
-    if (result.deletedCount === 0) {
+    // `deletedCount === 0` becomes `rowCount === 0`. A DELETE either matched or
+    // it did not, so there is no matched-versus-modified distinction here.
+    const deleted = await deleteOwnSuggestion(getDb(), id, req.user.id);
+    if (!deleted) {
       return res.status(404).json({ error: 'Suggestion not found' });
     }
 
@@ -489,47 +471,37 @@ router.post('/search', optionalAuth, async (req: Request, res: Response) => {
 
     const trimmed = query.trim().toLowerCase();
     const language = await getUserLanguage(req.user?.id);
-    const escaped = trimmed.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const limitNum = Math.min(Number(limit) || 6, 20);
-
-    const searchOr = [
-      { triggerWords: { $regex: `^${escaped}`, $options: 'i' } },
-      { title: { $regex: escaped, $options: 'i' } },
-      { text: { $regex: escaped, $options: 'i' } },
-    ];
 
     // 1. Global results — search all languages, cache by query+language (sort order depends on pref)
     const globalCacheKey = `search:${trimmed}:${language}`;
-    let globalResults = cacheGet(globalCacheKey);
+    let globalResults = cacheGet(globalCacheKey) as SuggestionSearchHit[] | null;
     if (!globalResults) {
-      globalResults = await Suggestion.find({
-        scope: 'global',
-        $and: [notExpiredFilter(), { $or: searchOr }],
-      })
-        .sort({ priority: -1, usageCount: -1 })
-        .limit(limitNum * 2)
-        .select('suggestionId title text language triggerWords')
-        .lean();
+      globalResults = await searchSuggestions(
+        getDb(),
+        trimmed,
+        'global',
+        undefined,
+        limitNum * 2,
+      );
       cacheSet(globalCacheKey, globalResults, SEARCH_CACHE_TTL);
     }
 
     // 2. Personal results — only for authenticated users, not cached
-    let personalResults: any[] = [];
+    let personalResults: SuggestionSearchHit[] = [];
     if (req.user?.id) {
-      personalResults = await Suggestion.find({
-        scope: 'personal',
-        oxyUserId: req.user.id,
-        $and: [notExpiredFilter(), { $or: searchOr }],
-      })
-        .sort({ priority: -1, usageCount: -1 })
-        .limit(limitNum)
-        .select('suggestionId title text language triggerWords')
-        .lean();
+      personalResults = await searchSuggestions(
+        getDb(),
+        trimmed,
+        'personal',
+        req.user.id,
+        limitNum,
+      );
     }
 
     // 3. Merge: personal first, then global, dedupe, prioritize user's language
     const seen = new Set<string>();
-    const candidates = [];
+    const candidates: SuggestionSearchHit[] = [];
     for (const s of [...personalResults, ...globalResults]) {
       if (!seen.has(s.suggestionId)) {
         seen.add(s.suggestionId);
@@ -537,7 +509,7 @@ router.post('/search', optionalAuth, async (req: Request, res: Response) => {
       }
     }
     // Sort: user's preferred language first, then others
-    candidates.sort((a: any, b: any) => {
+    candidates.sort((a, b) => {
       const aMatch = a.language === language ? 0 : 1;
       const bMatch = b.language === language ? 0 : 1;
       return aMatch - bMatch;
@@ -557,10 +529,12 @@ router.post('/search', optionalAuth, async (req: Request, res: Response) => {
  */
 router.post('/:id/use', optionalAuth, async (req: Request, res: Response) => {
   try {
-    await Suggestion.updateOne(
-      { suggestionId: req.params.id },
-      { $inc: { usageCount: 1 } }
-    );
+    const { id } = req.params;
+    if (typeof id !== 'string') {
+      return res.status(400).json({ error: 'Failed to record usage' });
+    }
+
+    await incrementSuggestionUsage(getDb(), id);
     res.json({ success: true });
   } catch (error: unknown) {
     log.general.error({ err: error }, 'Error recording suggestion usage');

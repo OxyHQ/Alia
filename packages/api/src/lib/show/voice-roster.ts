@@ -5,7 +5,7 @@
  * available via DigitalOcean's async-invoke API.
  */
 
-import type { ShowFormat, ShowSpeakerRole } from '../../models/show.js';
+import type { ShowFormat, ShowSpeakerRole } from '../../db/schema/notifications.js';
 
 export interface ShowVoice {
   voiceId: string;

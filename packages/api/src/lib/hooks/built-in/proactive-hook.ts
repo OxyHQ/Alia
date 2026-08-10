@@ -13,7 +13,8 @@
 import { generateText } from 'ai';
 import { registerHook } from '../hook-runner.js';
 import { resolveModel, getAIModel, getDefaultAliaModel } from '../../chat-core.js';
-import { Suggestion } from '../../../models/suggestion.js';
+import { getDb } from '../../../db/index.js';
+import { createSuggestion } from '../../../db/notifications/suggestionRepository.js';
 import { getUserLanguage } from '../../memory/user-memory-service.js';
 import { log } from '../../logger.js';
 import crypto from 'crypto';
@@ -137,7 +138,7 @@ registerHook({
       // Create a personal suggestion for the user
       const suggestionId = `proactive-${crypto.randomBytes(8).toString('hex')}`;
 
-      await Suggestion.create({
+      await createSuggestion(getDb(), {
         suggestionId,
         title: classification.title.slice(0, 100),
         text: classification.description || classification.title,
@@ -147,7 +148,7 @@ registerHook({
         oxyUserId: ctx.userId,
         language: await languagePromise,
         priority: 10, // Higher priority than regular suggestions
-        isAIGenerated: true,
+        isAiGenerated: true,
         tags: ['proactive', classification.category],
         category: classification.category,
         expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // Expire in 7 days

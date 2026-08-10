@@ -1,4 +1,5 @@
-import { Suggestion } from '../models/suggestion.js';
+import { getDb } from '../db/index.js';
+import { upsertSeedSuggestion } from '../db/notifications/suggestionRepository.js';
 import { log } from './logger.js';
 
 const WELCOME_SUGGESTIONS = [
@@ -448,19 +449,20 @@ const ALL_SEED_SUGGESTIONS = [
 export async function seedSuggestions(): Promise<void> {
   try {
     for (const suggestion of ALL_SEED_SUGGESTIONS) {
-      await Suggestion.findOneAndUpdate(
-        { suggestionId: suggestion.suggestionId },
-        {
-          $set: {
-            ...suggestion,
-            scope: 'global',
-            language: 'en-US',
-            isBuiltIn: true,
-            isAIGenerated: false,
-          },
-        },
-        { upsert: true }
-      );
+      /**
+       * The upsert now DERIVES `is_template` / `template_variables` from the
+       * text, which `findOneAndUpdate` never did — the `pre('save')` hook did
+       * not fire on it. Measured before taking the change: none of these 108
+       * texts contains a `{variable}`, so every one derives to the `false` /
+       * `{}` they already stored. See the repository's comment.
+       */
+      await upsertSeedSuggestion(getDb(), {
+        ...suggestion,
+        scope: 'global',
+        language: 'en-US',
+        isBuiltIn: true,
+        isAiGenerated: false,
+      });
     }
     log.seed.info({ count: ALL_SEED_SUGGESTIONS.length }, 'Seeded built-in suggestions');
   } catch (error) {
