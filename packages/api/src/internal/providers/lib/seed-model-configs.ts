@@ -6,8 +6,8 @@
  * Also resets any open circuit breakers on startup.
  */
 
-import { ModelConfig } from '../models/model-config.js';
-import { AliaModel } from '../models/alia-model.js';
+import { findModelConfig, upsertModelConfig } from '../../../db/providers/modelConfigRepository.js';
+import { upsertAliaModel } from '../../../db/providers/aliaModelRepository.js';
 import { resetAllKeyCooldowns as resetKeyCooldowns } from '../../../db/providers/providerKeyRepository.js';
 import { getDb } from '../../../db/index.js';
 import { TIER_MODEL_MAPPINGS, ALIA_MODELS, type ModelCapabilities } from './alia-models.js';
@@ -73,47 +73,48 @@ export async function seedModelConfigs(): Promise<{ seeded: number; skipped: num
       const capabilities: Partial<ModelCapabilities> = mapping.capabilities || {};
 
       try {
-        const result = await ModelConfig.updateOne(
+        const result = await upsertModelConfig(
+          getDb(),
           { provider: mapping.provider, modelId: mapping.modelId },
           {
-            $setOnInsert: {
-              displayName: getDisplayName(mapping.provider, mapping.modelId),
-              capabilities: {
-                vision: capabilities.vision || false,
-                audio: capabilities.audio || false,
-                codeExecution: capabilities.codeExecution || false,
-                webSearch: capabilities.webSearch || false,
-                computerUse: capabilities.computerUse || false,
-                thinking: false,
-                streaming: capabilities.streaming !== false,
-                functionCalling: capabilities.functionCalling !== false,
-                jsonMode: false,
-                promptCaching: capabilities.promptCaching || false,
-              },
-              limits: {
-                maxContextTokens: capabilities.maxContextTokens || 8192,
-                maxOutputTokens: capabilities.maxOutputTokens || 4096,
-              },
-              pricing: {
-                tier: mapping.pricingTier || 'freemium',
-                costPer1MInput: mapping.costPer1MInput || 0,
-                costPer1MOutput: mapping.costPer1MOutput || 0,
-                averageLatencyMs: mapping.averageLatencyMs || 1500,
-              },
-              isActive: true,
-              isDeprecated: false,
+            displayName: getDisplayName(mapping.provider, mapping.modelId),
+            capabilities: {
+              vision: capabilities.vision || false,
+              audio: capabilities.audio || false,
+              codeExecution: capabilities.codeExecution || false,
+              webSearch: capabilities.webSearch || false,
+              computerUse: capabilities.computerUse || false,
+              thinking: false,
+              streaming: capabilities.streaming !== false,
+              functionCalling: capabilities.functionCalling !== false,
+              jsonMode: false,
+              promptCaching: capabilities.promptCaching || false,
             },
-            $set: {
-              // Always update tier mapping info (allows re-running to update priorities)
-              aliaTier: tier,
-              priority: mapping.priority,
-              qualityScore: mapping.qualityScore,
+            limits: {
+              maxContextTokens: capabilities.maxContextTokens || 8192,
+              maxOutputTokens: capabilities.maxOutputTokens || 4096,
             },
+            pricing: {
+              tier: mapping.pricingTier || 'freemium',
+              costPer1MInput: mapping.costPer1MInput || 0,
+              costPer1MOutput: mapping.costPer1MOutput || 0,
+              averageLatencyMs: mapping.averageLatencyMs || 1500,
+            },
+            isActive: true,
+            isDeprecated: false,
           },
-          { upsert: true }
+          {
+            // Always update tier mapping info (allows re-running to update priorities)
+            aliaTier: tier,
+            priority: mapping.priority,
+            qualityScore: mapping.qualityScore,
+          },
         );
 
-        if (result.upsertedCount > 0) {
+        // `inserted` comes from `xmax = 0`, which is Postgres's answer to the
+        // question `upsertedCount` answered: was this tuple created by the
+        // statement, or updated by it.
+        if (result.inserted) {
           seeded++;
           if (!seen.has(uniqueKey)) {
             log.seed.info({ provider: mapping.provider, modelId: mapping.modelId, tier }, 'Created ModelConfig');
@@ -168,14 +169,11 @@ export async function seedAliaModels(): Promise<{ seeded: number; skipped: numbe
       for (const mapping of tierMappings) {
         if (!validProviders.includes(mapping.provider)) continue;
 
-        const modelConfig = await ModelConfig.findOne({
-          provider: mapping.provider,
-          modelId: mapping.modelId,
-        });
+        const modelConfig = await findModelConfig(getDb(), mapping.provider, mapping.modelId);
 
         if (modelConfig) {
           providerMappings.push({
-            modelConfigId: modelConfig._id,
+            modelConfigId: modelConfig.id,
             provider: mapping.provider,
             modelId: mapping.modelId,
             priority: mapping.priority,
@@ -191,33 +189,31 @@ export async function seedAliaModels(): Promise<{ seeded: number; skipped: numbe
       const hasCodeExecution = tierMappings.some(m => m.capabilities?.codeExecution);
       const hasWebSearch = tierMappings.some(m => m.capabilities?.webSearch);
 
-      const result = await AliaModel.updateOne(
-        { aliasModelId: modelId },
+      const result = await upsertAliaModel(
+        getDb(),
+        modelId,
         {
-          $setOnInsert: {
-            displayName: aliaModel.name,
-            tier: aliaModel.tier,
-            description: aliaModel.description,
-            creditMultiplier: aliaModel.creditMultiplier,
-            isFreeTier: aliaModel.creditMultiplier <= 1.0,
-            isActive: true,
-            isDeprecated: false,
-          },
-          $set: {
-            providerMappings,
-            aggregatedCapabilities: {
-              vision: hasVision,
-              audio: hasAudio,
-              codeExecution: hasCodeExecution,
-              webSearch: hasWebSearch,
-              thinking: false,
-            },
+          displayName: aliaModel.name,
+          tier: aliaModel.tier,
+          description: aliaModel.description,
+          creditMultiplier: aliaModel.creditMultiplier,
+          isFreeTier: aliaModel.creditMultiplier <= 1.0,
+          isActive: true,
+          isDeprecated: false,
+        },
+        {
+          aggregatedCapabilities: {
+            vision: hasVision,
+            audio: hasAudio,
+            codeExecution: hasCodeExecution,
+            webSearch: hasWebSearch,
+            thinking: false,
           },
         },
-        { upsert: true }
+        providerMappings,
       );
 
-      if (result.upsertedCount > 0) {
+      if (result.inserted) {
         seeded++;
         log.seed.info({ modelId, tier: aliaModel.tier, providers: providerMappings.length }, 'Created AliaModel');
       } else {

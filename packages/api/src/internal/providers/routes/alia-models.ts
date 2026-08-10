@@ -4,8 +4,15 @@
  */
 
 import express, { Request, Response } from 'express';
-import { AliaModel } from '../models/alia-model';
-import { ModelConfig } from '../models/model-config';
+import {
+  createAliaModel,
+  deleteAliaModel,
+  findAliaModel,
+  listAliaModels,
+  updateAliaModel,
+} from '../../../db/providers/aliaModelRepository.js';
+import { findModelConfig } from '../../../db/providers/modelConfigRepository.js';
+import { getDb } from '../../../db/index.js';
 import { broadcastAliaModelsUpdate } from '../lib/broadcast-helpers';
 import { log } from '../../../lib/logger.js';
 
@@ -26,11 +33,10 @@ router.get('/', async (req: Request, res: Response) => {
   try {
     const { tier, active } = req.query;
 
-    const query: Record<string, unknown> = {};
-    if (tier && typeof tier === 'string') query.tier = tier;
-    if (active !== undefined) query.isActive = active === 'true';
-
-    const models = await AliaModel.find(query).sort({ tier: 1, aliasModelId: 1 });
+    const models = await listAliaModels(getDb(), {
+      tier: tier && typeof tier === 'string' ? tier : undefined,
+      isActive: active === undefined ? undefined : active === 'true',
+    });
 
     res.json({
       success: true,
@@ -55,7 +61,7 @@ router.get('/:aliasModelId', async (req: Request, res: Response) => {
   try {
     const { aliasModelId } = req.params;
 
-    const model = await AliaModel.findOne({ aliasModelId });
+    const model = await findAliaModel(getDb(), String(aliasModelId));
 
     if (!model) {
       return res.status(404).json({
@@ -104,7 +110,7 @@ router.post('/', async (req: Request, res: Response) => {
     }
 
     // Check for duplicate
-    const existing = await AliaModel.findOne({ aliasModelId: aliasModelId.toLowerCase() });
+    const existing = await findAliaModel(getDb(), aliasModelId.toLowerCase());
     if (existing) {
       return res.status(409).json({
         success: false,
@@ -124,7 +130,7 @@ router.post('/', async (req: Request, res: Response) => {
           });
         }
         // Resolve modelConfigId from provider model
-        const modelConfig = await ModelConfig.findOne({ provider: mapping.provider, modelId: mapping.modelId });
+        const modelConfig = await findModelConfig(getDb(), mapping.provider, mapping.modelId);
         if (!modelConfig) {
           return res.status(400).json({
             success: false,
@@ -132,21 +138,24 @@ router.post('/', async (req: Request, res: Response) => {
             code: 'PROVIDER_MODEL_NOT_FOUND',
           });
         }
-        mapping.modelConfigId = modelConfig._id;
+        mapping.modelConfigId = modelConfig.id;
       }
     }
 
-    const model = await AliaModel.create({
-      aliasModelId: aliasModelId.toLowerCase(),
-      displayName,
-      tier,
-      description,
-      features: features || [],
-      creditMultiplier: creditMultiplier || 1.0,
-      isFreeTier: isFreeTier !== undefined ? isFreeTier : true,
-      aggregatedCapabilities: aggregatedCapabilities || {},
-      providerMappings: providerMappings || [],
-    });
+    const model = await createAliaModel(
+      getDb(),
+      {
+        aliasModelId: aliasModelId.toLowerCase(),
+        displayName,
+        tier,
+        description,
+        features: features || [],
+        creditMultiplier: creditMultiplier || 1.0,
+        isFreeTier: isFreeTier !== undefined ? isFreeTier : true,
+        aggregatedCapabilities: aggregatedCapabilities || {},
+      },
+      providerMappings || [],
+    );
 
     res.status(201).json({
       success: true,
@@ -197,7 +206,7 @@ router.patch('/:aliasModelId', async (req: Request, res: Response) => {
         }
         // Resolve modelConfigId if not set
         if (!mapping.modelConfigId) {
-          const modelConfig = await ModelConfig.findOne({ provider: mapping.provider, modelId: mapping.modelId });
+          const modelConfig = await findModelConfig(getDb(), mapping.provider, mapping.modelId);
           if (!modelConfig) {
             return res.status(400).json({
               success: false,
@@ -205,15 +214,19 @@ router.patch('/:aliasModelId', async (req: Request, res: Response) => {
               code: 'PROVIDER_MODEL_NOT_FOUND',
             });
           }
-          mapping.modelConfigId = modelConfig._id;
+          mapping.modelConfigId = modelConfig.id;
         }
       }
     }
 
-    const model = await AliaModel.findOneAndUpdate(
-      { aliasModelId },
-      { $set: updates },
-      { returnDocument: 'after', runValidators: true }
+    // `providerMappings` is passed separately so `undefined` (leave them alone)
+    // stays distinguishable from `[]` (this model now has none).
+    const { providerMappings: updatedMappings, ...modelUpdates } = updates;
+    const model = await updateAliaModel(
+      getDb(),
+      String(aliasModelId),
+      modelUpdates,
+      updatedMappings,
     );
 
     if (!model) {
@@ -248,7 +261,7 @@ router.delete('/:aliasModelId', async (req: Request, res: Response) => {
   try {
     const { aliasModelId } = req.params;
 
-    const model = await AliaModel.findOneAndDelete({ aliasModelId });
+    const model = await deleteAliaModel(getDb(), String(aliasModelId));
 
     if (!model) {
       return res.status(404).json({

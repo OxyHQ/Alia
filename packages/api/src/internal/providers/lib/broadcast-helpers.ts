@@ -7,8 +7,8 @@
 import { broadcast } from '../ws';
 import { listSafeProviderKeys } from '../../../db/providers/providerKeyRepository.js';
 import { getDb } from '../../../db/index.js';
-import { ModelConfig } from '../models/model-config';
-import { AliaModel } from '../models/alia-model';
+import { listModelConfigs } from '../../../db/providers/modelConfigRepository.js';
+import { listAliaModels } from '../../../db/providers/aliaModelRepository.js';
 import { Plan } from '../models/plan';
 import { CreditPackage } from '../models/credit-package';
 import { Feature } from '../models/feature';
@@ -32,7 +32,7 @@ export async function broadcastKeysUpdate(provider: string): Promise<void> {
 
 export async function broadcastModelsUpdate(provider: string): Promise<void> {
   try {
-    const allModels = await ModelConfig.find({}).sort({ provider: 1, priority: 1 });
+    const allModels = await listModelConfigs(getDb(), {});
     broadcast('models:all', { success: true, count: allModels.length, data: allModels });
 
     const providerModels = allModels.filter(m => m.provider === provider);
@@ -44,7 +44,7 @@ export async function broadcastModelsUpdate(provider: string): Promise<void> {
 
 export async function broadcastAliaModelsUpdate(): Promise<void> {
   try {
-    const models = await AliaModel.find({}).sort({ tier: 1, aliasModelId: 1 });
+    const models = await listAliaModels(getDb());
     broadcast('alia-models:all', { success: true, count: models.length, data: models });
   } catch (error) {
     log.providers.error({ err: error }, 'Error broadcasting alia-models update');

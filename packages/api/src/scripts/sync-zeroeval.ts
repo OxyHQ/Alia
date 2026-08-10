@@ -1,4 +1,8 @@
-import { ExternalModel } from '../models/external-model.js';
+import {
+  upsertExternalModels,
+  type ExternalModelUpsert,
+} from '../db/providers/externalModelRepository.js';
+import { getDb } from '../db/index.js';
 import { log } from '../lib/logger.js';
 
 const ZEROEVAL_URL = 'https://api.zeroeval.com/leaderboard/models/full?justCanonicals=true';
@@ -47,45 +51,51 @@ function parseFloat_(val: string | null): number | null {
   return isNaN(n) ? null : n;
 }
 
-function mapToDocument(m: ZeroEvalModel) {
+/**
+ * One upstream record, flattened into columns.
+ *
+ * The eighteen benchmarks were a nested `benchmarks` sub-document in Mongo and
+ * are columns here, so the mapper flattens rather than nests. `undefined` became
+ * an explicit `null` for the same reason: a multi-row `VALUES` has to name the
+ * same columns for every row, and an omitted key would shift the shape.
+ */
+function mapToRow(m: ZeroEvalModel): ExternalModelUpsert {
   return {
     modelId: m.model_id,
     name: m.name,
     organization: m.organization,
     organizationId: m.organization_id,
-    organizationCountry: m.organization_country || undefined,
+    organizationCountry: m.organization_country ?? null,
     params: m.params,
     context: m.context,
     canonicalModelId: m.canonical_model_id,
     releaseDate: m.release_date,
     announcementDate: m.announcement_date,
     multimodal: m.multimodal,
-    license: m.license || undefined,
+    license: m.license ?? null,
     knowledgeCutoff: m.knowledge_cutoff,
     inputPrice: parseFloat_(m.input_price),
     outputPrice: parseFloat_(m.output_price),
     throughput: parseFloat_(m.throughput),
     latency: parseFloat_(m.latency),
-    benchmarks: {
-      aime2025: m.aime_2025_score,
-      hle: m.hle_score,
-      gpqa: m.gpqa_score,
-      sweBenchVerified: m.swe_bench_verified_score,
-      mmmu: m.mmmu_score,
-      simpleqa: m.simpleqa_score,
-      osworld: m.osworld_score,
-      browsecomp: m.browsecomp_score,
-      toolathlon: m.toolathlon_score,
-      terminalBench: m.terminal_bench_score,
-      tauBenchRetail: m.tau_bench_retail_score,
-      arcAgiV2: m.arc_agi_v2_score,
-      mmmlu: m.mmmlu_score,
-      charxivR: m.charxiv_r_score,
-      mmmuPro: m.mmmu_pro_score,
-      screenspotPro: m.screenspot_pro_score,
-      mcpAtlas: m.mcp_atlas_score,
-      frontiermath: m.frontiermath_score,
-    },
+    benchmarkAime2025: m.aime_2025_score,
+    benchmarkHle: m.hle_score,
+    benchmarkGpqa: m.gpqa_score,
+    benchmarkSweBenchVerified: m.swe_bench_verified_score,
+    benchmarkMmmu: m.mmmu_score,
+    benchmarkSimpleqa: m.simpleqa_score,
+    benchmarkOsworld: m.osworld_score,
+    benchmarkBrowsecomp: m.browsecomp_score,
+    benchmarkToolathlon: m.toolathlon_score,
+    benchmarkTerminalBench: m.terminal_bench_score,
+    benchmarkTauBenchRetail: m.tau_bench_retail_score,
+    benchmarkArcAgiV2: m.arc_agi_v2_score,
+    benchmarkMmmlu: m.mmmlu_score,
+    benchmarkCharxivR: m.charxiv_r_score,
+    benchmarkMmmuPro: m.mmmu_pro_score,
+    benchmarkScreenspotPro: m.screenspot_pro_score,
+    benchmarkMcpAtlas: m.mcp_atlas_score,
+    benchmarkFrontiermath: m.frontiermath_score,
     source: 'zeroeval',
     lastSyncedAt: new Date(),
   };
@@ -104,16 +114,13 @@ export async function syncZeroEval(): Promise<void> {
     const models = (await response.json()) as ZeroEvalModel[];
     log.general.info({ count: models.length }, 'ZeroEval models received, upserting');
 
-    const bulkOps = models.map((m) => ({
-      updateOne: {
-        filter: { modelId: m.model_id },
-        update: { $set: mapToDocument(m) },
-        upsert: true,
-      },
-    }));
-
-    const result = await ExternalModel.bulkWrite(bulkOps, { ordered: false });
-    log.general.info({ inserted: result.upsertedCount, updated: result.modifiedCount, total: models.length }, 'ZeroEval sync complete');
+    // One statement with a multi-row VALUES, where this was an unordered
+    // `bulkWrite` of N `updateOne`s. `updated` is no longer reported: Mongo's
+    // `modifiedCount` excluded rows a re-sync left byte-identical and Postgres
+    // has no equivalent, so inventing one from `total - inserted` would silently
+    // change what the number means.
+    const result = await upsertExternalModels(getDb(), models.map(mapToRow));
+    log.general.info({ inserted: result.inserted, total: result.total }, 'ZeroEval sync complete');
   } catch (error) {
     log.general.error({ err: error }, 'ZeroEval sync failed');
   }

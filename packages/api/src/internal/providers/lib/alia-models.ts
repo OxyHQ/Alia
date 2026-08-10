@@ -242,7 +242,8 @@ export const ALIA_MODELS: Record<string, AliaModel> = {
 // Import the generated mappings with full capabilities and pricing data
 import { GENERATED_TIER_MAPPINGS } from './generate-model-mappings';
 import { isProviderAvailable } from './provider-health';
-import { AliaModel as AliaModelDB } from '../models/alia-model';
+import { listAliaModels } from '../../../db/providers/aliaModelRepository.js';
+import { getDb } from '../../../db/index.js';
 import { log } from '../../../lib/logger.js';
 export const TIER_MODEL_MAPPINGS = GENERATED_TIER_MAPPINGS;
 
@@ -298,18 +299,18 @@ export interface AliaModelWithAvailability extends AliaModel {
 /**
  * Get all Alia models with their current availability status.
  * A model is "available" if at least one provider in its tier has a healthy circuit breaker.
- * Legacy status is fetched from MongoDB (managed via admin tool).
+ * Legacy status is fetched from Postgres (managed via admin tool).
  */
 export async function getAvailableModels(): Promise<AliaModelWithAvailability[]> {
   const models = getAllAliaModels();
   const results: AliaModelWithAvailability[] = [];
 
-  // Fetch legacy flags from MongoDB
+  // Fetch legacy flags from the catalogue
   const legacyMap = new Map<string, boolean>();
   try {
-    const dbModels = await AliaModelDB.find({}).select('aliasModelId isLegacy').lean();
+    const dbModels = await listAliaModels(getDb());
     for (const doc of dbModels) {
-      legacyMap.set(doc.aliasModelId, doc.isLegacy ?? false);
+      legacyMap.set(doc.aliasModelId, doc.isLegacy);
     }
   } catch (err) {
     log.providers.warn({ data: err }, 'Failed to fetch legacy flags');
