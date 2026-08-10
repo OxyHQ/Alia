@@ -4,12 +4,7 @@ import { constraintNameOf, isCheckViolation, isUniqueViolation } from '@oxyhq/db
 import { sweepAllExpiredRows } from '@oxyhq/db/expiry';
 import { closePostgres, connectPostgres, type ApiDatabase } from '../index';
 import { EXPIRY_TARGETS } from '../expiryTargets';
-import {
-  audioJobs,
-  notifications,
-  referralRedemptions,
-  referrals,
-} from '../schema/notifications';
+import { notifications, referralRedemptions, referrals } from '../schema/notifications';
 
 /**
  * Notifications and the tables that travel with them, against a REAL server.
@@ -219,23 +214,10 @@ describe('a referral can be redeemed at most once, by construction', () => {
   });
 });
 
-describe('audio jobs are the shortest-lived rows in the schema', () => {
-  it('reaps a job older than 24 hours and keeps a fresh one', async () => {
-    const fresh = new Date(Date.now() - 60_000).toISOString();
-    const stale = new Date(Date.now() - 25 * 60 * 60 * 1000).toISOString();
-
-    await db.execute(sql`
-      insert into ${audioJobs} (id, user_id, prompt, duration, created_at)
-      values
-        ('aj-fresh', 'oxy-audio', 'p', 10, ${fresh}::timestamptz),
-        ('aj-stale', 'oxy-audio', 'p', 10, ${stale}::timestamptz)
-    `);
-
-    await sweepAllExpiredRows(db, EXPIRY_TARGETS);
-
-    const rows = await db.execute<{ id: string }>(
-      sql`select id from ${audioJobs} where user_id = 'oxy-audio' order by id`,
-    );
-    expect(rows.map((r) => r.id)).toEqual(['aj-fresh']);
-  });
-});
+/**
+ * `audio_jobs` used to be exercised here too. It moved to
+ * `audioJobRepository.pgdb.test.ts` in one piece, because
+ * `failOrphanedAudioJobs` is unscoped and its returned count is a property of
+ * the WHOLE table — a second file writing a stalled row would join that count
+ * silently. Exactly one file writes that table now, and it is not this one.
+ */
