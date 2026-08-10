@@ -11,9 +11,9 @@
  * no entry here. A hand-maintained list only ever falls as far behind as the
  * last time somebody remembered it.
  *
- * `packages/api` declares **14** TTL indexes in total. Nine are now ported —
+ * `packages/api` declares **14** TTL indexes in total. Ten are now ported —
  * five in the platform-telemetry batches, `api_key_usage` with providers/billing,
- * and three with orgs/dev. The rest belong to tables that do not exist in
+ * three with orgs/dev, and `trigger_executions` with automation. The rest belong to tables that do not exist in
  * Postgres yet, and the coverage test scopes itself to PORTED tables so it
  * tightens automatically as each batch lands rather than needing an allow-list
  * to be pruned.
@@ -52,6 +52,7 @@
  */
 
 import type { ExpirySweepTarget } from '@oxyhq/db/expiry';
+import { triggerExecutions } from './schema/automation';
 import { cacheEntries } from './schema/cache';
 import { mcpOauthStates, oauthStates } from './schema/integrations';
 import { organizationInvites } from './schema/organizations';
@@ -114,6 +115,17 @@ export const EXPIRY_TARGETS: readonly ExpirySweepTarget[] = [
     retentionSeconds: 90 * DAY,
     reason:
       'Developer API request records. The longest retention here on purpose: the billing and rate-limit reads work in monthly windows, so a shorter sweep would delete the period being measured.',
+  },
+  {
+    table: triggerExecutions,
+    /**
+     * From `started_at`, which is this table's ONLY clock — Mongoose sets
+     * `timestamps: false`, so there is no `created_at` to measure from and no
+     * risk of picking the wrong one.
+     */
+    column: triggerExecutions.startedAt,
+    retentionSeconds: 30 * DAY,
+    reason: 'Trigger run history; the readers page by their own range and nothing waits on an old run.',
   },
   {
     table: organizationInvites,

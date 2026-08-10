@@ -137,6 +137,7 @@ const MONGO_MODEL_TO_TABLE: Readonly<Record<string, string>> = {
   OrganizationInvite: 'organization_invites',
   McpOAuthState: 'mcp_oauth_states',
   OAuthState: 'oauth_states',
+  TriggerExecution: 'trigger_executions',
 };
 
 const ttls = declaredMongoTtls();
