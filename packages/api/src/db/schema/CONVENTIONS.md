@@ -313,6 +313,25 @@ batch:
 `agent_sessions.parent_session_id` is a fifth, self-referencing: `SET NULL`, so a
 delegated run survives its parent's deletion and merely stops claiming one.
 
+**And batch 9d puts two references to the SAME parent on opposite sides**, which
+is the clearest statement of what the question actually is. Both name
+`agent_sessions`:
+
+- `event_stream_entries.session_id` **CASCADES**. It is the session's own log,
+  unreadable once the session is gone, and it is the largest table in the domain
+  by row count — the one place orphans would accumulate without bound.
+- `containers.session_id` **has no foreign key at all**. It is the AUTHORITY for
+  a live Docker sandbox, with its own lifecycle columns and its own lookup key
+  (`lib/agent/terminal-session.ts:250` and `lib/agent/tools.ts:386` find a row by
+  `container_id` alone, never through its session). Deleting the row does not
+  stop the container, so a cascade would destroy the only record of a sandbox
+  that is still running and still costing money.
+
+So the question is never "does this point at the parent" — it is **what is this
+row, and what is lost when it goes**. A log, a copy of the parent's own state,
+somebody's history, and a live resource's only record all point at the same
+table and want four different answers.
+
 ### Two bounds on one word, and they must not be unified
 
 `AgentReview.rating` is `min: 1` and `Agent.rating` is `min: 0`, and both are
@@ -622,6 +641,21 @@ plus one gives the same answer either way. `billing.pgdb.test.ts` does two
 sequential appends, which is what makes `"7" + "1" = "71"` distinguishable
 from `8`.
 
+**A bare Mongoose `Number` holding an EPOCH MILLISECOND needs `bigint`, and the
+column type is the only place that says so.** `event_stream_entries.timestamp`
+is written from `Date.now()` (`lib/agent/event-stream.ts:89`) — around 1.76e12,
+some 800 times past the `integer` maximum — while Mongoose types it a plain
+`Number` with nothing naming the unit. `integer` would reject the very first
+write. `agent_sessions.stats_total_tokens` is the same call for a different
+reason: it accumulates across every step of a session rather than being large to
+begin with. `event_stream_entries.seq` stays `integer` deliberately, because it
+counts events within ONE session and `config_max_steps` bounds it.
+
+The read trap above applies to all three, and `containers.pgdb.test.ts` and
+`agentSessions.pgdb.test.ts` each assert BOTH paths — the builder returning a
+number and a raw `db.execute` returning the string — rather than only the one
+their own code happens to use.
+
 **`mode: 'number'` is narrower than "for a COLUMN" suggests, and the difference
 was MEASURED rather than reasoned about.** The mode is applied by drizzle's
 result mapper, which runs only for a query the QUERY BUILDER constructed. A raw
@@ -907,6 +941,7 @@ about enums, applied to all of them.
 | `model_configs.priority`, `.quality_score`, `alia_model_provider_mappings.*`, `provider_keys.current_priority`, `.original_priority`, `.spent_usd`, `.max_total_failures`, `alia_models.credit_multiplier`, `credit_packages.credits`, `.price` | a number outside the Mongoose `min`/`max` it preserves | These are domain invariants, not input shaping. A violation means a non-validating write path produced it. |
 | `notifications.dismissed_at` | `status = 'dismissed'` with no `dismissed_at`, or the reverse | Backfill `dismissed_at` from the row's `updatedAt` (the best available proxy) for dismissed rows, and NULL for every other status. |
 | `triggers` | `schedule` present with `type NOT IN ('schedule','agent_heartbeat')` | No CHECK was added — this is the correct-but-unvalidated tightening deliberately left out. Audit it, then decide whether to add the constraint in a later `post` migration. |
+| `containers.container_id` | two live rows sharing one Docker id | No unique index. It is the lookup key every writer uses (`terminal-session.ts:250`, `tools.ts:386` find by it alone), so one looks obviously right — but Mongoose declares only `index: true` and TWO independent creation paths write it. Count duplicates first; a partial unique `WHERE status <> 'destroyed'` is the correct tightening and is deliberately left out until audited, exactly like `triggers.schedule`. |
 | `user_credits.credits_free`, `.credits_paid` | a NEGATIVE balance | No CHECK was added, because `addCredits` accepts a negative amount. Audit the actual range before anybody adds one. |
 | `context_nodes.*_score`, `context_edges.weight`, `context_sources.*_score`, `retrieval_strategies.*_weight` | a value outside 0..1 | Every writer sets 0.2–0.95, so 0..1 is plainly intended — but Mongoose declares no `min`/`max`, so no CHECK was added. Audit the range before anybody adds one; the write path runs on every chat turn. |
 | `retrieval_strategies` | more than one row with `active = true` for one `(oxy_user_id, intent)` | No constraint. Mongo's unique is on `(user, intent, name)`, which permits it, yet both writers filter on `{oxyUserId, intent, active: true}` — so a second active row makes which one they find arbitrary. A partial unique `WHERE active` is the correct tightening and is deliberately left out until audited, exactly like `triggers.schedule`. |
@@ -964,6 +999,12 @@ agent with a bare `deleteOne` and touches nothing, and deleting a `Skill` or a
 dropped the unresolvable entry on read, which is why nobody has ever seen it. So
 the backfill WILL hit `23503` here, and it is not a defect — it is the first time
 anybody has counted how many of those references are dead.
+
+**`event_stream_entries.session_id` is the largest of these by far**, and its
+foreign key cascades — so a dangling one is not merely refused, it names a
+session that was deleted while its log survived. Count them before the copy: the
+number is how many sessions somebody removed without the entries going with them,
+which is exactly the unbounded growth the cascade exists to stop.
 
 **`agent_reviews` is the one to look at rather than discard.** A review of a
 deleted agent is unreachable, so dropping it loses nothing a user can see — but
