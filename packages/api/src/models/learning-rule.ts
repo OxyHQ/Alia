@@ -1,6 +1,15 @@
 import mongoose, { Schema, Model, Document } from 'mongoose';
 
-export type LearningRuleType = 'correction' | 'strategy' | 'preference' | 'constraint';
+/**
+ * Exported as TUPLES, not union types: the Postgres schema renders its CHECKs
+ * from these exact values, and a second copy there could disagree with the
+ * validator that has been guarding these columns.
+ */
+export const LEARNING_RULE_TYPES = ['correction', 'strategy', 'preference', 'constraint'] as const;
+export type LearningRuleType = (typeof LEARNING_RULE_TYPES)[number];
+
+export const LEARNING_RULE_SOURCES = ['user_feedback', 'runtime', 'system'] as const;
+export type LearningRuleSource = (typeof LEARNING_RULE_SOURCES)[number];
 
 export interface ILearningRule extends Document {
   oxyUserId: mongoose.Types.ObjectId;
@@ -9,7 +18,7 @@ export interface ILearningRule extends Document {
   priority: number;
   title: string;
   ruleText: string;
-  source: 'user_feedback' | 'runtime' | 'system';
+  source: LearningRuleSource;
   active: boolean;
   hitCount: number;
   lastAppliedAt?: Date;
@@ -22,7 +31,7 @@ const LearningRuleSchema = new Schema<ILearningRule>({
   intent: { type: String, required: true, default: 'general', index: true },
   ruleType: {
     type: String,
-    enum: ['correction', 'strategy', 'preference', 'constraint'],
+    enum: LEARNING_RULE_TYPES,
     required: true,
   },
   priority: { type: Number, default: 50, index: true },
@@ -30,7 +39,7 @@ const LearningRuleSchema = new Schema<ILearningRule>({
   ruleText: { type: String, required: true },
   source: {
     type: String,
-    enum: ['user_feedback', 'runtime', 'system'],
+    enum: LEARNING_RULE_SOURCES,
     required: true,
     default: 'runtime',
   },

@@ -1,12 +1,23 @@
 import mongoose, { Schema, Model, Document } from 'mongoose';
 
-export type RollbackStatus = 'open' | 'rolled_back' | 'expired' | 'failed';
+/**
+ * Exported as a TUPLE, not as a union type, because the Postgres schema renders
+ * its CHECK from this exact value. A second copy over there could disagree with
+ * the validator that has been guarding this column, and the disagreement would
+ * be invisible until a write hit one and not the other.
+ */
+export const ROLLBACK_STATUSES = ['open', 'rolled_back', 'expired', 'failed'] as const;
+export type RollbackStatus = (typeof ROLLBACK_STATUSES)[number];
+
+/** Only R1 actions open a rollback window. Same tuple rule as above. */
+export const ROLLBACK_RISK_LEVELS = ['R1'] as const;
+export type RollbackRiskLevel = (typeof ROLLBACK_RISK_LEVELS)[number];
 
 export interface IRollbackRecord extends Document {
   oxyUserId: mongoose.Types.ObjectId;
   sessionId: string;
   toolName: string;
-  riskLevel: 'R1';
+  riskLevel: RollbackRiskLevel;
   args: Record<string, unknown>;
   beforeState?: Record<string, unknown>;
   afterState?: Record<string, unknown>;
@@ -25,7 +36,7 @@ const RollbackRecordSchema = new Schema<IRollbackRecord>({
   oxyUserId: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
   sessionId: { type: String, required: true, index: true },
   toolName: { type: String, required: true, index: true },
-  riskLevel: { type: String, enum: ['R1'], required: true, default: 'R1' },
+  riskLevel: { type: String, enum: ROLLBACK_RISK_LEVELS, required: true, default: 'R1' },
   args: { type: Schema.Types.Mixed, required: true },
   beforeState: { type: Schema.Types.Mixed, default: undefined },
   afterState: { type: Schema.Types.Mixed, default: undefined },
@@ -33,7 +44,7 @@ const RollbackRecordSchema = new Schema<IRollbackRecord>({
   rollbackAction: { type: Schema.Types.Mixed, default: undefined },
   status: {
     type: String,
-    enum: ['open', 'rolled_back', 'expired', 'failed'],
+    enum: ROLLBACK_STATUSES,
     default: 'open',
     index: true,
   },

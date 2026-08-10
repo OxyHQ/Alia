@@ -291,6 +291,18 @@ rows; that is how a sibling service carried ghost rows in production for weeks.
 PORTED tables, so it tightens by itself as batches land and needs no allow-list
 anybody has to remember to prune.
 
+**A deadline COLUMN is not a TTL, and `rollback_records` is the case.**
+`RollbackRecord.expiresAt` is `required, index: true` with no `expireAfterSeconds`
+behind it: it bounds the rollback WINDOW, not the row's life, so these records
+accumulate in Mongo today and the registry gets no entry. The gate below cannot
+catch a WRONG addition here — it walks the Mongoose schemas for TTLs and finds
+none, so it is silent either way — which is why
+`agentsSupport.pgdb.test.ts` asserts an ancient row SURVIVES a full-registry
+sweep. Mutation-tested by registering the table with `retentionSeconds: 0`.
+The asymmetry that decides it is the one this section already states, pointed at
+an audit trail: a missing entry grows a table, a wrong one deletes the record of
+every destructive action an agent took.
+
 **It checks the RULE, not the presence of an entry** — the retention seconds, the
 column measured from, and whether the source declared a `partialFilterExpression`
 the flat registry type cannot express. The asymmetry is the argument: a MISSING
@@ -430,8 +442,35 @@ rather than in a comment, and the backfill states the `owner` → `owner_oxy_use
 mapping explicitly. **A Mongoose field name is as arbitrary as a Mongoose
 collection name**, and neither is evidence of anything — a derivation over one
 is a check that cannot fail. Grep each model for what it actually calls the
-account before porting it; three spellings are already in use across this
-service (`oxyUserId`, `userId`, `owner`).
+account before porting it; **five** spellings are now in use across this service
+(`oxyUserId`, `userId`, `owner`, and — from batch 9 — `author` and `creator`).
+
+#### And the same NAME means opposite things one model apart
+
+`library_files.owner` shows that a name can hide an account. Batch 9 supplies the
+mirror image, which is worse because the two sit one file apart and a census over
+either name alone reads as complete:
+
+- **`Agent.author` IS an Oxy account** — `routes/agents/crud.ts:245` writes
+  `req.user.id` into it. Ported as `agents.author_oxy_user_id`.
+- **`Skill.author` is a DISPLAY STRING** — `lib/seed-skills.ts` writes `'Alia'`
+  and `'Community'`. Ported as `skills.author`, deliberately WITHOUT the suffix,
+  because adding one would assert something false.
+
+A backfill pairing fields by matching names maps both the same way and is wrong
+about both — in opposite directions, so neither error looks like the other. The
+rule the pair sharpens: **a field name is not evidence in either direction, so
+read the WRITER**. `agents.author_oxy_user_id` carries the fact in the column
+name precisely because `skills.author` proves the name alone cannot be trusted.
+
+### A field declared in the INTERFACE and absent from the SCHEMA was never stored
+
+`ISkill` declared `coverImage: string | null` and `SkillSchema` had no such path,
+with no other reference anywhere in the package — so Mongoose's `strict` dropped
+it on every write and no document has ever carried one. `skills` has no column,
+and the interface field was removed in the same change rather than left to invite
+one. Recorded because a missing column reads as an oversight and this is a
+measurement; check the SCHEMA, not the interface, when deciding what to port.
 
 ## The clock in a lease is the SERVER's
 
@@ -768,6 +807,8 @@ about enums, applied to all of them.
 | `user_credits.credits_free`, `.credits_paid` | a NEGATIVE balance | No CHECK was added, because `addCredits` accepts a negative amount. Audit the actual range before anybody adds one. |
 | `context_nodes.*_score`, `context_edges.weight`, `context_sources.*_score`, `retrieval_strategies.*_weight` | a value outside 0..1 | Every writer sets 0.2–0.95, so 0..1 is plainly intended — but Mongoose declares no `min`/`max`, so no CHECK was added. Audit the range before anybody adds one; the write path runs on every chat turn. |
 | `retrieval_strategies` | more than one row with `active = true` for one `(oxy_user_id, intent)` | No constraint. Mongo's unique is on `(user, intent, name)`, which permits it, yet both writers filter on `{oxyUserId, intent, active: true}` — so a second active row makes which one they find arbitrary. A partial unique `WHERE active` is the correct tightening and is deliberately left out until audited, exactly like `triggers.schedule`. |
+| `learning_rules.priority`, `.hit_count` | the actual stored range | No CHECK. Mongoose declares no `min`/`max` on either, so the third class applies — but `priority` reads like a 0..100 and `hit_count` like a non-negative, and both invite an obvious constraint. `agentsSupport.pgdb.test.ts` stores `9999` and `-3` so that adding one fails there rather than on somebody's row. Audit the range before anybody proposes it. |
+| `skills.triggers`, `.includes`, `.good_at`, `.not_good_at` | a source document MISSING the key entirely | `notNull default '{}'`, because Mongoose hands every reader `[]` for an absent array and every caller does `.map()`/`.length` without a guard. A backfill reading through the RAW driver gets `undefined` for a document written before the field existed and must coerce to `[]` — through Mongoose it would already be `[]`. This is the one place the choice of driver changes the value, the encrypted-column rule pointed at absence instead of ciphertext. |
 
 ## Uniques that will refuse a duplicate
 
@@ -779,6 +820,7 @@ about enums, applied to all of them.
 | `alia_models.alias_model_id` | a value that is not already lowercase | Same setter, no CHECK added — the port stores whatever is there. |
 | `user_memory_entries_memory_title_lower_key` | two memories under one profile whose titles differ only in case or surrounding whitespace | Mongo could not index inside a sub-document array, so nothing enforced this; the application already treats such a pair as ONE memory, so a hit is two entries a user sees as duplicates. Merge them rather than relaxing the index. |
 | `user_memories_oxy_user_id_key` | two profiles for one account | Mongoose declares `unique: true`, so a hit means a row predating it or a raw write around it. |
+| `skills_skill_id_key` | two skills sharing a `skill_id` | Mongoose declares `unique: true`, so a hit means a row predating it. It matters because `lib/seed-skills.ts` upserts on this key: a duplicate makes which row the seed updates arbitrary, and the other one is then a skill nobody can correct. |
 
 ## Not-null a legacy row may not satisfy
 
@@ -791,6 +833,13 @@ the schema is inert and a `post` migration afterwards.
 `voice_call_usage.cost_per_minute` is the same shape: `required` in Mongoose with
 no default, so nothing supplies it for a row written before it was added. The
 same question applies to `library_files.size`, `.url` and `.type`.
+
+Batch 9a adds the same question for `skills.system_prompt`, `.author`, `.icon`,
+`.color` and `.category`, for `learning_rules.title` and `.rule_text`, and for
+`rollback_records.args`, `.expires_at` and `.executed_at` — all `required` in
+Mongoose, all `notNull` here. `skills.icon` and `.color` are the likeliest to
+bite: they are presentation fields, so a seed revision that introduced them
+leaves every earlier row without one.
 
 ## The one that corrupts silently rather than failing
 
@@ -805,6 +854,11 @@ production. `columns.ts` has the full reasoning.
 
 ## Preconditions rather than failures
 
+- `rollback_records.session_id` will contain ids of `agent_sessions` rows that no
+  longer exist, BY DESIGN — there is no foreign key, for the `api_usage.key_id`
+  reason. Do not "repair" a dangling one during the backfill and do not add the
+  constraint in 9c or 9d; `agentsSupport.pgdb.test.ts` stores an unmatched id so
+  that adding it fails there rather than in the governance write path.
 - `provider_keys.organization_id` must be entirely NULL before its CASCADE
   foreign key applies. It should be — the column is declared and indexed in
   Mongoose and never written, verified package-wide — but confirm rather than
