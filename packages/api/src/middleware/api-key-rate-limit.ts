@@ -1,8 +1,9 @@
 import { Request, Response, NextFunction } from 'express';
-import ApiKeyUsage from '../models/api-key-usage';
+import { recordApiKeyUsage, usageWindow } from '../db/telemetry/apiKeyUsageRepository.js';
+import { API_KEY_USAGE_METHODS, type ApiKeyUsageMethod } from '../domain/api-key-usage.js';
+import { getDb } from '../db/index.js';
 import DeveloperApiKey, { IRateLimitConfig } from '../models/developer-api-key';
 import { Subscription } from '../models/subscription';
-import mongoose from 'mongoose';
 import { checkLimit } from '../lib/sliding-window-limiter.js';
 import { getRedisClient, withRedisTimeout as withTimeout } from '../lib/redis.js';
 import { log } from '../lib/logger.js';
@@ -20,7 +21,7 @@ type UsageAuthType = 'api_key' | 'session' | 'internal';
 interface UsageRecord {
   oxyUserId: string;
   endpoint: string;
-  method: string;
+  method: ApiKeyUsageMethod;
   statusCode: number;
   tokensUsed: number;
   creditsUsed: number;
@@ -290,32 +291,19 @@ export async function getApiKeyUsageStats(apiKeyId: string): Promise<{
   const now = new Date();
   const oneMinuteAgo = new Date(now.getTime() - 60 * 1000);
   const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-  const keyObjectId = new mongoose.Types.ObjectId(apiKeyId);
 
-  const [requestsLastMinute, requestsLastDay, tokensMinute, tokensDay] = await Promise.all([
-    ApiKeyUsage.countDocuments({
-      apiKeyId: keyObjectId,
-      timestamp: { $gte: oneMinuteAgo },
-    }),
-    ApiKeyUsage.countDocuments({
-      apiKeyId: keyObjectId,
-      timestamp: { $gte: oneDayAgo },
-    }),
-    ApiKeyUsage.aggregate([
-      { $match: { apiKeyId: keyObjectId, timestamp: { $gte: oneMinuteAgo } } },
-      { $group: { _id: null, total: { $sum: '$tokensUsed' } } },
-    ]),
-    ApiKeyUsage.aggregate([
-      { $match: { apiKeyId: keyObjectId, timestamp: { $gte: oneDayAgo } } },
-      { $group: { _id: null, total: { $sum: '$tokensUsed' } } },
-    ]),
+  // Two statements where there were four: counting and summing the same window
+  // together is exactly equivalent, and this runs on every request.
+  const [minute, day] = await Promise.all([
+    usageWindow(getDb(), { apiKeyId }, oneMinuteAgo),
+    usageWindow(getDb(), { apiKeyId }, oneDayAgo),
   ]);
 
   return {
-    requestsLastMinute,
-    requestsLastDay,
-    tokensLastMinute: tokensMinute[0]?.total || 0,
-    tokensLastDay: tokensDay[0]?.total || 0,
+    requestsLastMinute: minute.requests,
+    requestsLastDay: day.requests,
+    tokensLastMinute: minute.tokens,
+    tokensLastDay: day.tokens,
   };
 }
 
@@ -334,33 +322,19 @@ export async function getUserUsageStats(userId: string): Promise<{
   const oneMinuteAgo = new Date(now.getTime() - 60 * 1000);
   const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
 
-  const [requestsLastMinute, requestsLastDay, tokensMinute, tokensDay, tier] = await Promise.all([
-    ApiKeyUsage.countDocuments({
-      oxyUserId: userId,
-      authType: 'session',
-      timestamp: { $gte: oneMinuteAgo },
-    }),
-    ApiKeyUsage.countDocuments({
-      oxyUserId: userId,
-      authType: 'session',
-      timestamp: { $gte: oneDayAgo },
-    }),
-    ApiKeyUsage.aggregate([
-      { $match: { oxyUserId: userId, authType: 'session', timestamp: { $gte: oneMinuteAgo } } },
-      { $group: { _id: null, total: { $sum: '$tokensUsed' } } },
-    ]),
-    ApiKeyUsage.aggregate([
-      { $match: { oxyUserId: userId, authType: 'session', timestamp: { $gte: oneDayAgo } } },
-      { $group: { _id: null, total: { $sum: '$tokensUsed' } } },
-    ]),
+  const [minute, day, tier] = await Promise.all([
+    usageWindow(getDb(), { oxyUserId: userId, authType: 'session' }, oneMinuteAgo),
+    usageWindow(getDb(), { oxyUserId: userId, authType: 'session' }, oneDayAgo),
     getUserTier(userId),
   ]);
+  const requestsLastMinute = minute.requests;
+  const requestsLastDay = day.requests;
 
   return {
     requestsLastMinute,
     requestsLastDay,
-    tokensLastMinute: tokensMinute[0]?.total || 0,
-    tokensLastDay: tokensDay[0]?.total || 0,
+    tokensLastMinute: minute.tokens,
+    tokensLastDay: day.tokens,
     tier,
     limits: TIER_RATE_LIMITS[tier] || TIER_RATE_LIMITS.free,
   };
@@ -383,10 +357,27 @@ export async function recordUsage(
       return;
     }
 
+    /**
+     * `req.method` is any HTTP verb; the column accepts the five this API
+     * exposes and a CHECK enforces it. Narrowing against the tuple recognises
+     * the mismatch here instead of letting the insert fail in the driver and be
+     * logged as "failed to record usage" — which is what happened before, since
+     * the Mongoose enum rejected these too. A HEAD or OPTIONS request is now
+     * skipped deliberately and says so.
+     */
+    const method = API_KEY_USAGE_METHODS.find((known) => known === req.method);
+    if (!method) {
+      log.rateLimit.debug(
+        { endpoint: req.path, method: req.method },
+        'Not recording usage for a method outside the public API surface',
+      );
+      return;
+    }
+
     const usageRecord: UsageRecord = {
       oxyUserId,
       endpoint: req.path,
-      method: req.method,
+      method,
       statusCode,
       tokensUsed: tokensUsed || 0,
       creditsUsed: creditsUsed || 0,
@@ -408,7 +399,7 @@ export async function recordUsage(
     // Mark that usage was explicitly recorded, so the auth middleware skips its own logging
     req._usageRecorded = true;
 
-    await ApiKeyUsage.create(usageRecord);
+    await recordApiKeyUsage(getDb(), usageRecord);
   } catch (error) {
     log.rateLimit.error({ err: error }, 'Failed to record usage');
   }

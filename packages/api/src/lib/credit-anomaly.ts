@@ -1,4 +1,5 @@
-import ApiKeyUsage from '../models/api-key-usage.js';
+import { creditSpendByDay, creditSpendTotal } from '../db/telemetry/apiKeyUsageRepository.js';
+import { getDb } from '../db/index.js';
 import { UserCredits } from '../models/user-credits.js';
 
 export interface CreditWarning {
@@ -60,49 +61,17 @@ export async function detectCreditAnomaly(userId: string): Promise<CreditWarning
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
   sevenDaysAgo.setHours(0, 0, 0, 0);
 
-  const creditSumExpr = {
-    $sum: {
-      $cond: {
-        if: { $gt: ['$creditsUsed', 0] },
-        then: '$creditsUsed',
-        else: { $max: [{ $ceil: { $divide: ['$tokensUsed', 1000] } }, 1] },
-      },
-    },
-  };
-
-  const [dailySpending, todayResult, userCredits] = await Promise.all([
-    // Last 7 days (excluding today) grouped by day
-    ApiKeyUsage.aggregate([
-      {
-        $match: {
-          oxyUserId: userId,
-          timestamp: { $gte: sevenDaysAgo, $lt: todayStart },
-          $or: [{ creditsUsed: { $gt: 0 } }, { tokensUsed: { $gt: 0 } }],
-        },
-      },
-      {
-        $group: {
-          _id: { $dateToString: { format: '%Y-%m-%d', date: '$timestamp' } },
-          used: creditSumExpr,
-        },
-      },
-    ]),
+  const [dailySpending, todaySpend, userCredits] = await Promise.all([
+    // Last 7 days, excluding today, grouped by UTC day. The credits-or-tokens
+    // filter and the per-row credit expression live in the repository, together:
+    // separating them is how a row that spent neither contributes a phantom
+    // credit through the `greatest(..., 1)` floor.
+    creditSpendByDay(getDb(), userId, sevenDaysAgo, todayStart),
     // Today's spend
-    ApiKeyUsage.aggregate([
-      {
-        $match: {
-          oxyUserId: userId,
-          timestamp: { $gte: todayStart },
-          $or: [{ creditsUsed: { $gt: 0 } }, { tokensUsed: { $gt: 0 } }],
-        },
-      },
-      { $group: { _id: null, used: creditSumExpr } },
-    ]),
+    creditSpendTotal(getDb(), userId, todayStart),
     // Current credit balance
     UserCredits.findById(userId),
   ]);
-
-  const todaySpend = todayResult[0]?.used || 0;
   if (todaySpend === 0) {
     anomalyCache.set(userId, { result: null, expiresAt: Date.now() + ANOMALY_CACHE_TTL_MS });
     return null;
@@ -121,7 +90,7 @@ export async function detectCreditAnomaly(userId: string): Promise<CreditWarning
   }
 
   // Average over 7 calendar days (including zero-usage days) to avoid inflating the baseline
-  const totalHistorical = dailySpending.reduce((sum: number, d: any) => sum + d.used, 0);
+  const totalHistorical = dailySpending.reduce((sum, day) => sum + day.used, 0);
   const avgDailySpend = totalHistorical / 7;
 
   // Too low to detect meaningful anomalies

@@ -1,7 +1,15 @@
 import { Router, Request, Response } from 'express';
 import DeveloperApp from '../models/developer-app';
 import DeveloperApiKey from '../models/developer-api-key';
-import ApiKeyUsage from '../models/api-key-usage';
+import {
+  deleteUsageForApp,
+  deleteUsageForKey,
+  usageByDay,
+  usageByEndpoint,
+  usageSummary,
+  type UsageScope,
+} from '../db/telemetry/apiKeyUsageRepository.js';
+import { getDb } from '../db/index.js';
 import { getApiKeyUsageStats } from '../middleware/api-key-rate-limit';
 import { z } from 'zod';
 import { log } from '../lib/logger.js';
@@ -133,7 +141,7 @@ router.delete('/apps/:id', async (req: Request, res: Response) => {
     await DeveloperApiKey.deleteMany({ appId: id, oxyUserId: userId });
 
     // Delete usage data
-    await ApiKeyUsage.deleteMany({ appId: id, oxyUserId: userId });
+    await deleteUsageForApp(getDb(), String(id), userId);
 
     res.json({ message: 'App deleted successfully' });
   } catch (error: unknown) {
@@ -312,7 +320,7 @@ router.delete('/apps/:appId/keys/:keyId', async (req: Request, res: Response) =>
     }
 
     // Delete usage data
-    await ApiKeyUsage.deleteMany({ apiKeyId: keyId, oxyUserId: userId });
+    await deleteUsageForKey(getDb(), String(keyId), userId);
 
     res.json({ message: 'API key deleted successfully' });
   } catch (error: unknown) {
@@ -468,91 +476,19 @@ router.get('/apps/:appId/usage', async (req: Request, res: Response) => {
     }
 
     // Get usage statistics
-    const usage = await ApiKeyUsage.aggregate([
-      {
-        $match: {
-          appId: app._id,
-          timestamp: { $gte: startDate },
-        },
-      },
-      {
-        $group: {
-          _id: null,
-          totalRequests: { $sum: 1 },
-          totalTokens: { $sum: '$tokensUsed' },
-          totalCredits: { $sum: '$creditsUsed' },
-          avgResponseTime: { $avg: '$responseTime' },
-          successfulRequests: {
-            $sum: {
-              $cond: [{ $lt: ['$statusCode', 400] }, 1, 0],
-            },
-          },
-          errorRequests: {
-            $sum: {
-              $cond: [{ $gte: ['$statusCode', 400] }, 1, 0],
-            },
-          },
-        },
-      },
-    ]);
+    const scope: UsageScope = { kind: 'apps', appIds: [String(app._id)] };
+    const usage = await usageSummary(getDb(), scope, startDate);
 
     // Get usage by day
-    const usageByDay = await ApiKeyUsage.aggregate([
-      {
-        $match: {
-          appId: app._id,
-          timestamp: { $gte: startDate },
-        },
-      },
-      {
-        $group: {
-          _id: {
-            $dateToString: { format: '%Y-%m-%d', date: '$timestamp' },
-          },
-          requests: { $sum: 1 },
-          tokens: { $sum: '$tokensUsed' },
-          credits: { $sum: '$creditsUsed' },
-        },
-      },
-      {
-        $sort: { _id: 1 },
-      },
-    ]);
+    const byDay = await usageByDay(getDb(), scope, startDate);
 
     // Get usage by endpoint
-    const usageByEndpoint = await ApiKeyUsage.aggregate([
-      {
-        $match: {
-          appId: app._id,
-          timestamp: { $gte: startDate },
-        },
-      },
-      {
-        $group: {
-          _id: '$endpoint',
-          requests: { $sum: 1 },
-          tokens: { $sum: '$tokensUsed' },
-        },
-      },
-      {
-        $sort: { requests: -1 },
-      },
-      {
-        $limit: 10,
-      },
-    ]);
+    const byEndpoint = await usageByEndpoint(getDb(), scope, startDate);
 
     res.json({
-      summary: usage[0] || {
-        totalRequests: 0,
-        totalTokens: 0,
-        totalCredits: 0,
-        avgResponseTime: 0,
-        successfulRequests: 0,
-        errorRequests: 0,
-      },
-      byDay: usageByDay,
-      byEndpoint: usageByEndpoint,
+      summary: usage,
+      byDay,
+      byEndpoint,
     });
   } catch (error: unknown) {
     log.developer.error({ err: error }, 'Error fetching usage statistics');
@@ -601,67 +537,15 @@ router.get('/apps/:appId/keys/:keyId/usage', async (req: Request, res: Response)
     }
 
     // Get usage statistics for this specific key
-    const usage = await ApiKeyUsage.aggregate([
-      {
-        $match: {
-          apiKeyId: apiKey._id,
-          timestamp: { $gte: startDate },
-        },
-      },
-      {
-        $group: {
-          _id: null,
-          totalRequests: { $sum: 1 },
-          totalTokens: { $sum: '$tokensUsed' },
-          totalCredits: { $sum: '$creditsUsed' },
-          avgResponseTime: { $avg: '$responseTime' },
-          successfulRequests: {
-            $sum: {
-              $cond: [{ $lt: ['$statusCode', 400] }, 1, 0],
-            },
-          },
-          errorRequests: {
-            $sum: {
-              $cond: [{ $gte: ['$statusCode', 400] }, 1, 0],
-            },
-          },
-        },
-      },
-    ]);
+    const scope: UsageScope = { kind: 'key', apiKeyId: String(apiKey._id) };
+    const usage = await usageSummary(getDb(), scope, startDate);
 
     // Get usage by day
-    const usageByDay = await ApiKeyUsage.aggregate([
-      {
-        $match: {
-          apiKeyId: apiKey._id,
-          timestamp: { $gte: startDate },
-        },
-      },
-      {
-        $group: {
-          _id: {
-            $dateToString: { format: '%Y-%m-%d', date: '$timestamp' },
-          },
-          requests: { $sum: 1 },
-          tokens: { $sum: '$tokensUsed' },
-          credits: { $sum: '$creditsUsed' },
-        },
-      },
-      {
-        $sort: { _id: 1 },
-      },
-    ]);
+    const byDay = await usageByDay(getDb(), scope, startDate);
 
     res.json({
-      summary: usage[0] || {
-        totalRequests: 0,
-        totalTokens: 0,
-        totalCredits: 0,
-        avgResponseTime: 0,
-        successfulRequests: 0,
-        errorRequests: 0,
-      },
-      byDay: usageByDay,
+      summary: usage,
+      byDay,
     });
   } catch (error: unknown) {
     log.developer.error({ err: error }, 'Error fetching API key usage statistics');
@@ -698,73 +582,21 @@ router.get('/usage', async (req: Request, res: Response) => {
         startDate.setDate(now.getDate() - 7);
     }
 
-    const timeFilter = { appId: { $in: appIds }, timestamp: { $gte: startDate } };
+    const scope: UsageScope = { kind: 'apps', appIds: appIds.map(String) };
 
     // Get aggregated usage statistics
-    const usage = await ApiKeyUsage.aggregate([
-      { $match: timeFilter },
-      {
-        $group: {
-          _id: null,
-          totalRequests: { $sum: 1 },
-          totalTokens: { $sum: '$tokensUsed' },
-          totalCredits: { $sum: '$creditsUsed' },
-          avgResponseTime: { $avg: '$responseTime' },
-          successfulRequests: {
-            $sum: {
-              $cond: [{ $lt: ['$statusCode', 400] }, 1, 0],
-            },
-          },
-          errorRequests: {
-            $sum: {
-              $cond: [{ $gte: ['$statusCode', 400] }, 1, 0],
-            },
-          },
-        },
-      },
-    ]);
+    const usage = await usageSummary(getDb(), scope, startDate);
 
     // Get usage by day
-    const usageByDay = await ApiKeyUsage.aggregate([
-      { $match: timeFilter },
-      {
-        $group: {
-          _id: {
-            $dateToString: { format: '%Y-%m-%d', date: '$timestamp' },
-          },
-          requests: { $sum: 1 },
-          tokens: { $sum: '$tokensUsed' },
-          credits: { $sum: '$creditsUsed' },
-        },
-      },
-      { $sort: { _id: 1 } },
-    ]);
+    const byDay = await usageByDay(getDb(), scope, startDate);
 
     // Get usage by endpoint
-    const usageByEndpoint = await ApiKeyUsage.aggregate([
-      { $match: timeFilter },
-      {
-        $group: {
-          _id: '$endpoint',
-          requests: { $sum: 1 },
-          tokens: { $sum: '$tokensUsed' },
-        },
-      },
-      { $sort: { requests: -1 } },
-      { $limit: 10 },
-    ]);
+    const byEndpoint = await usageByEndpoint(getDb(), scope, startDate);
 
     res.json({
-      summary: usage[0] || {
-        totalRequests: 0,
-        totalTokens: 0,
-        totalCredits: 0,
-        avgResponseTime: 0,
-        successfulRequests: 0,
-        errorRequests: 0,
-      },
-      byDay: usageByDay,
-      byEndpoint: usageByEndpoint,
+      summary: usage,
+      byDay,
+      byEndpoint,
     });
   } catch (error: unknown) {
     log.developer.error({ err: error }, 'Error fetching global usage statistics');
@@ -787,24 +619,22 @@ router.get('/stats', async (req: Request, res: Response) => {
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-    const usage = await ApiKeyUsage.aggregate([
-      { $match: { appId: { $in: appIds }, timestamp: { $gte: thirtyDaysAgo } } },
-      {
-        $group: {
-          _id: null,
-          totalRequests: { $sum: 1 },
-          totalTokens: { $sum: '$tokensUsed' },
-          totalCredits: { $sum: '$creditsUsed' },
-        },
-      },
-    ]);
+    const usage = await usageSummary(
+      getDb(),
+      { kind: 'apps', appIds: appIds.map(String) },
+      thirtyDaysAgo,
+    );
 
     res.json({
       totalApps: appIds.length,
       activeApps,
       totalKeys,
       activeKeys,
-      last30Days: usage[0] || { totalRequests: 0, totalTokens: 0, totalCredits: 0 },
+      last30Days: {
+        totalRequests: usage.totalRequests,
+        totalTokens: usage.totalTokens,
+        totalCredits: usage.totalCredits,
+      },
     });
   } catch (error: unknown) {
     log.developer.error({ err: error }, 'Error fetching developer stats');
