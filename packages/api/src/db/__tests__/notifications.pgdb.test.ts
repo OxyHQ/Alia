@@ -1,18 +1,18 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { eq, sql } from 'drizzle-orm';
-import { constraintNameOf, isCheckViolation, isUniqueViolation } from '@oxyhq/db';
+import { sql } from 'drizzle-orm';
+import { constraintNameOf, isCheckViolation } from '@oxyhq/db';
 import { sweepAllExpiredRows } from '@oxyhq/db/expiry';
 import { closePostgres, connectPostgres, type ApiDatabase } from '../index';
 import { EXPIRY_TARGETS } from '../expiryTargets';
-import { notifications, referralRedemptions, referrals } from '../schema/notifications';
+import { notifications } from '../schema/notifications';
 
 /**
  * Notifications and the tables that travel with them, against a REAL server.
  *
- * Two things here exist only in Postgres: the conditional TTL turned into a
- * column (and the CHECK that stops it drifting from the status it stands for),
- * and the unique that makes a referral double-credit impossible rather than
- * merely unlikely.
+ * What is left here is the notifications table itself: the conditional TTL
+ * turned into a column, the CHECK that stops it drifting from the status it
+ * stands for, and the closed value sets. The other tables in this schema module
+ * are exercised by their own repository suites, which OWN them.
  */
 
 let db: ApiDatabase;
@@ -145,74 +145,14 @@ describe('every declared notification type is storable', () => {
   });
 });
 
-describe('a referral can be redeemed at most once, by construction', () => {
-  beforeAll(async () => {
-    await db.insert(referrals).values({ id: 'oxy-alice', inviteCode: 'ALICE001' });
-    await db.insert(referrals).values({ id: 'oxy-bob', inviteCode: 'BOB00001' });
-  });
-
-  it('refuses the same account being referred twice, even by different referrers', async () => {
-    /**
-     * The money guard. `routes/referrals.ts` grants credits to BOTH parties and
-     * only afterwards sets the redeemer's `referred_by`, so its "already
-     * redeemed?" check is a read-then-write whose write lands AFTER the payout —
-     * two concurrent redemptions both pass it and both pay out. Mongo could not
-     * express this at all: a `$push` into a sub-document array has no unique.
-     *
-     * Note the second insert names a DIFFERENT referrer, which is the case a
-     * per-referral unique would have missed.
-     */
-    await db.insert(referralRedemptions).values({
-      id: 'rr-1',
-      referralId: 'oxy-alice',
-      referredUserId: 'oxy-carol',
-      creditedAt: new Date(),
-      creditsAwarded: 500,
-    });
-
-    const second = db.insert(referralRedemptions).values({
-      id: 'rr-2',
-      referralId: 'oxy-bob',
-      referredUserId: 'oxy-carol',
-      creditedAt: new Date(),
-      creditsAwarded: 500,
-    });
-
-    await expect(second).rejects.toSatisfy((error: unknown) => {
-      expect(isUniqueViolation(error)).toBe(true);
-      expect(constraintNameOf(error)).toBe('referral_redemptions_referred_user_key');
-      return true;
-    });
-  });
-
-  it('refuses a duplicate invite code', async () => {
-    const duplicate = db.insert(referrals).values({ id: 'oxy-dave', inviteCode: 'ALICE001' });
-
-    await expect(duplicate).rejects.toSatisfy((error: unknown) => {
-      expect(isUniqueViolation(error)).toBe(true);
-      expect(constraintNameOf(error)).toBe('referrals_invite_code_key');
-      return true;
-    });
-  });
-
-  it('is keyed by the Oxy account, so there is no default to invent one', async () => {
-    const insert = db.execute(sql`insert into ${referrals} (invite_code) values ('NODEFAULT')`);
-
-    await expect(insert).rejects.toSatisfy((error: unknown) => {
-      expect((error as { cause?: { code?: string } }).cause?.code).toBe('23502');
-      return true;
-    });
-  });
-
-  it('takes the redemptions with the referral', async () => {
-    await db.delete(referrals).where(eq(referrals.id, 'oxy-alice'));
-
-    const rows = await db.execute<{ n: string }>(
-      sql`select count(*)::text as n from ${referralRedemptions} where referral_id = 'oxy-alice'`,
-    );
-    expect(rows[0]?.n).toBe('0');
-  });
-});
+/**
+ * The `referrals` and `referral_redemptions` constraint tests moved to
+ * `referralRepository.pgdb.test.ts`, in one piece and unchanged. Same reason as
+ * `audio_jobs` below: the repository suite clears those tables between tests so
+ * its counts are exact, and a second file seeding them turns both suites
+ * flaky — which is how this was found, as a duplicate-key error on a fixture
+ * rather than as a real failure.
+ */
 
 /**
  * `audio_jobs` used to be exercised here too. It moved to
