@@ -27,7 +27,8 @@ import {
 } from './tools/index.js';
 import { buildIntegrationTools } from './tools/integrations.js';
 import { buildMcpTools } from './tools/mcp.js';
-import { UserMemory, type IUserMemory } from '../models/user-memory.js';
+import { getDb } from '../db/index.js';
+import { findUserMemory, type UserMemoryProfile } from '../db/memory/userMemoryRepository.js';
 import { oxyClient } from '../middleware/auth.js';
 import { log } from './logger.js';
 import { getErrorMessage } from './errors/index.js';
@@ -137,7 +138,7 @@ async function buildTriggerTools(userId: string, useTools: boolean): Promise<Too
 function buildTriggerSystemPrompt(
   trigger: ITrigger,
   oxyUser?: OxyUser | null,
-  memory?: IUserMemory | null,
+  memory?: UserMemoryProfile | null,
   source?: string
 ): string {
   const userContext: string[] = [];
@@ -228,7 +229,7 @@ export async function executeTrigger(
   try {
     // Load user context + linked agent (if any)
     const [memory, oxyUser, linkedAgent] = await Promise.all([
-      UserMemory.findOne({ oxyUserId: userId }).catch(() => null),
+      findUserMemory(getDb(), userId).then(m => m ?? null).catch(() => null),
       oxyClient.getUserById(userId).catch(() => null) as Promise<OxyUser | null>,
       trigger.action.agentId
         ? Agent.findById(trigger.action.agentId).select('name archetype archetypeConfig systemPrompt').lean().catch(() => null)

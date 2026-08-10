@@ -4,7 +4,12 @@ import { generateText } from 'ai';
 import { WorkflowExecution } from '../../models/workflow-execution.js';
 import { authenticateToken } from '../../middleware/auth.js';
 import { resolveModel, getAIModel, getDefaultAliaModel } from '../../lib/chat-core.js';
-import { UserMemory } from '../../models/user-memory.js';
+import { getDb } from '../../db/index.js';
+import {
+  findEntryByTitle,
+  getOrCreateUserMemory,
+  saveEntryByTitle,
+} from '../../db/memory/userMemoryRepository.js';
 import { getIO } from '../../socket.js';
 import type { Request, Response } from 'express';
 import { callProviderAPI, getModelMappingsForTier } from '../../lib/gateway-client.js';
@@ -351,28 +356,31 @@ async function executeNode(node: WorkflowNode, input: string, userId: string): P
       if (!memoryKey) {
         throw new Error('Memory key is required');
       }
+      const db = getDb();
       if (operation === 'read') {
-        const userMemory = await UserMemory.findOne({ oxyUserId: userId });
-        if (!userMemory) return '';
-        const entry = userMemory.memories.find(m => m.title === memoryKey);
+        const userMemory = await getOrCreateUserMemory(db, userId);
+        const entry = await findEntryByTitle(db, userMemory._id, memoryKey);
         return entry ? entry.summary : '';
       } else if (operation === 'write') {
-        const existing = await UserMemory.findOne({
-          oxyUserId: userId,
-          'memories.title': memoryKey
+        /**
+         * One upsert where Mongo needed a read, then a positional `$set` OR a
+         * `$push` — three statements racing each other, so two canvas runs
+         * writing the same key could both take the `$push` branch and leave
+         * duplicate memories. `saveEntryByTitle` settles that on the server.
+         *
+         * A behaviour change comes with it, in the safe direction: the Mongo
+         * read matched `'memories.title'` EXACTLY while the write path
+         * everywhere else folds case and whitespace, so a canvas writing
+         * `"Coffee"` against a stored `"coffee"` used to append a second entry
+         * the rest of the application then treated as one. It now updates the
+         * entry that is already there.
+         */
+        const userMemory = await getOrCreateUserMemory(db, userId);
+        await saveEntryByTitle(db, userMemory._id, {
+          title: memoryKey,
+          summary: input,
+          type: 'topic',
         });
-        if (existing) {
-          await UserMemory.updateOne(
-            { oxyUserId: userId, 'memories.title': memoryKey },
-            { $set: { 'memories.$.summary': input, 'memories.$.updatedAt': new Date() } }
-          );
-        } else {
-          await UserMemory.findOneAndUpdate(
-            { oxyUserId: userId },
-            { $push: { memories: { title: memoryKey, summary: input, type: 'topic', createdAt: new Date(), updatedAt: new Date() } } },
-            { upsert: true }
-          );
-        }
         return input;
       }
       throw new Error(`Unknown memory operation: ${operation}`);

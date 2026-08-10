@@ -1,7 +1,15 @@
 import { Router, Request, Response } from 'express';
 import multer from 'multer';
 import { authenticateToken } from '../middleware/auth.js';
-import { LibraryFile } from '../models/library-file.js';
+import { getDb } from '../db/index.js';
+import {
+  createLibraryFile,
+  deleteLibraryFile,
+  findLibraryFile,
+  listLibraryFiles,
+  toLibraryFileResponse,
+} from '../db/library/libraryFileRepository.js';
+import { FILE_CATEGORIES, type FileCategory } from '../domain/library-file.js';
 import { uploadToS3, deleteFromS3 } from '../lib/s3.js';
 import { log } from '../lib/logger.js';
 
@@ -23,16 +31,18 @@ router.get('/', async (req: Request, res: Response) => {
     const userId = req.user!.id;
     const { category } = req.query;
 
-    const filter: Record<string, unknown> = { owner: userId };
-    if (category && ['documents', 'images', 'other'].includes(category as string)) {
-      filter.category = category;
-    }
+    /**
+     * The category tuple comes from `domain/library-file.ts`, the same one the
+     * column's CHECK is rendered from — an inline array here could drift from
+     * the constraint and silently start filtering on a value no row can hold.
+     */
+    const narrowed = FILE_CATEGORIES.includes(category as FileCategory)
+      ? (category as FileCategory)
+      : undefined;
 
-    const files = await LibraryFile.find(filter)
-      .sort({ createdAt: -1 })
-      .lean();
+    const rows = await listLibraryFiles(getDb(), userId, narrowed);
 
-    res.json({ files });
+    res.json({ files: rows.map(toLibraryFileResponse) });
   } catch (error: unknown) {
     log.general.error({ err: error }, 'Error listing library files');
     res.status(500).json({ error: 'Failed to list files' });
@@ -46,11 +56,11 @@ router.get('/', async (req: Request, res: Response) => {
 router.get('/:id', async (req: Request, res: Response) => {
   try {
     const userId = req.user!.id;
-    const file = await LibraryFile.findOne({ _id: req.params.id, owner: userId }).lean();
-    if (!file) {
+    const row = await findLibraryFile(getDb(), String(req.params.id), userId);
+    if (!row) {
       return res.status(404).json({ error: 'File not found' });
     }
-    res.json({ file });
+    res.json({ file: toLibraryFileResponse(row) });
   } catch (error: unknown) {
     log.general.error({ err: error }, 'Error getting library file');
     res.status(500).json({ error: 'Failed to get file' });
@@ -98,18 +108,19 @@ router.post('/upload', upload.single('file'), async (req: Request, res: Response
       thumbnail = url; // Use the same URL as thumbnail for now
     }
 
-    // Create database record
-    const libraryFile = await LibraryFile.create({
+    // Create database record. `owner` -> `ownerOxyUserId` is the one column
+    // mapping in this domain that cannot be derived from the names.
+    const row = await createLibraryFile(getDb(), {
+      ownerOxyUserId: userId,
       name: file.originalname,
       url,
       type: file.mimetype,
       size: file.size,
       category,
-      owner: userId,
       thumbnail,
     });
 
-    res.status(201).json({ file: libraryFile });
+    res.status(201).json({ file: toLibraryFileResponse(row) });
   } catch (error: unknown) {
     log.general.error({ err: error }, 'Error uploading library file');
     res.status(500).json({ error: 'Failed to upload file' });
@@ -123,7 +134,8 @@ router.post('/upload', upload.single('file'), async (req: Request, res: Response
 router.delete('/:id', async (req: Request, res: Response) => {
   try {
     const userId = req.user!.id;
-    const file = await LibraryFile.findOne({ _id: req.params.id, owner: userId });
+    const db = getDb();
+    const file = await findLibraryFile(db, String(req.params.id), userId);
 
     if (!file) {
       return res.status(404).json({ error: 'File not found' });
@@ -136,7 +148,7 @@ router.delete('/:id', async (req: Request, res: Response) => {
     }
 
     // Delete database record
-    await file.deleteOne();
+    await deleteLibraryFile(db, file.id, userId);
 
     res.json({ success: true });
   } catch (error: unknown) {

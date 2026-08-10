@@ -4,7 +4,7 @@
  * for use when Alia composes on behalf of the user.
  */
 
-import type { IWritingStyleProfile } from '../../models/user-memory.js';
+import type { IWritingStyleProfile } from '../../domain/writing-style.js';
 
 const FORMALITY_LABELS: Record<string, string> = {
   very_informal: 'Very informal and casual',

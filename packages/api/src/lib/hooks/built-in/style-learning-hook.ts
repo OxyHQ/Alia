@@ -7,11 +7,13 @@
 import { registerHook } from '../hook-runner.js';
 import { analyzeMessage } from '../../style/style-analyzer.js';
 import { getOrCreateUserMemory } from '../../memory/user-memory-service.js';
+import { getDb } from '../../../db/index.js';
+import { setWritingStyle } from '../../../db/memory/userMemoryRepository.js';
 import { log } from '../../logger.js';
 import {
   STYLE_LLM_REFINE_INTERVAL_MS,
   STYLE_LLM_REFINE_MIN_MESSAGES,
-} from '../../../models/user-memory.js';
+} from '../../../domain/writing-style.js';
 
 registerHook({
   name: 'style-learning',
@@ -57,8 +59,7 @@ registerHook({
       }
 
       // Save updated profile
-      memory.writingStyle = profile;
-      await memory.save();
+      await setWritingStyle(getDb(), memory._id, profile);
     } catch (error) {
       log.chat.error({ err: error }, 'Error in style-learning hook');
     }
