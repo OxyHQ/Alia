@@ -10,7 +10,6 @@ export * from './agents-support';
 export * from './automation';
 export * from './billing';
 export * from './bots';
-export * from './cache';
 export * from './chat';
 export * from './containers';
 export * from './context-graph';

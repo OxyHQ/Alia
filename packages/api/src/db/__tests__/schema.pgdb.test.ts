@@ -5,7 +5,8 @@ import { sweepAllExpiredRows } from '@oxyhq/db/expiry';
 import { closePostgres, connectPostgres, type ApiDatabase } from '../index';
 import { EXPIRY_TARGETS } from '../expiryTargets';
 import { apiUsage, authHealthMetrics, providerHealth, routingLogs } from '../schema/telemetry';
-import { cacheEntries, cacheStats, CACHE_STATS_SINGLETON_ID } from '../schema/cache';
+import { agentSessions } from '../schema/agent-sessions';
+import { oauthStates } from '../schema/integrations';
 import { leases } from '../schema/leases';
 
 /**
@@ -186,7 +187,7 @@ describe('leader election: the CAS Mongo did with an aggregation pipeline', () =
  * runs test FILES in parallel. Four other files
  * (`automation`, `notifications` ×2, `organizations`) call
  * `sweepAllExpiredRows(db, EXPIRY_TARGETS)` with the FULL registry — which
- * includes `api_usage` and `cache_entries`. A sweep deletes by AGE, not by
+ * includes `api_usage` and `oauth_states`. A sweep deletes by AGE, not by
  * owner, so a deliberately-stale fixture committed here is fair game to every
  * one of them.
  *
@@ -233,26 +234,6 @@ describe('the expiry sweep actually deletes, and only what is expired', () => {
   });
 });
 
-describe('cache_stats is a singleton by CONSTRUCTION, not by convention', () => {
-  it('accepts the one row it is allowed', async () => {
-    await db.execute(sql`insert into ${cacheStats} (id) values (${CACHE_STATS_SINGLETON_ID})`);
-    const rows = await db.execute<{ id: string }>(sql`select id from ${cacheStats}`);
-    expect(rows.map((r) => r.id)).toEqual([CACHE_STATS_SINGLETON_ID]);
-  });
-
-  it('refuses a second row under any other id', async () => {
-    // Mongo enforced this by everybody defaulting `_id` to the same string — a
-    // convention, so a stray insert would have split the counters in two and
-    // left every read showing whichever half it found.
-    const stray = db.execute(sql`insert into ${cacheStats} (id) values ('shard-2')`);
-
-    await expect(stray).rejects.toSatisfy((error: unknown) => {
-      expect(constraintNameOf(error)).toBe('cache_stats_singleton_check');
-      return true;
-    });
-  });
-});
-
 describe('a bigint counter reaches JavaScript as a STRING', () => {
   it('needs TWO increments to tell numeric addition from concatenation', async () => {
     /**
@@ -261,77 +242,67 @@ describe('a bigint counter reaches JavaScript as a STRING', () => {
      * increments ONCE cannot catch it: "7" + 1 and 7 + 1 both look plausible in
      * isolation. The second increment is the first one with something to
      * concatenate onto — 7 -> 71 -> 711 rather than 7 -> 8 -> 9.
+     *
+     * `agent_sessions.stats_total_tokens` is the counter this bites: it
+     * accumulates across every step of a session, and its own column comment
+     * names the trap.
      */
     await db.execute(sql`
-      insert into ${cacheStats} (id, total_hits) values ('global', 7)
-      on conflict (id) do update set total_hits = 7
+      insert into ${agentSessions} (id, agent_id, oxy_user_id, task, stats_total_tokens)
+      values ('as-bigint', 'ag-bigint', 'oxy-user-bigint', 'count', 7)
     `);
 
     for (let i = 0; i < 2; i += 1) {
-      const [row] = await db.execute<{ total_hits: string | number }>(
-        sql`select total_hits from ${cacheStats} where id = 'global'`,
+      const [row] = await db.execute<{ stats_total_tokens: string | number }>(
+        sql`select stats_total_tokens from ${agentSessions} where id = 'as-bigint'`,
       );
       // Number() at the boundary is the fix; without it this writes '71' then '711'.
-      const next = Number(row?.total_hits ?? 0) + 1;
-      await db.execute(sql`update ${cacheStats} set total_hits = ${next} where id = 'global'`);
+      const next = Number(row?.stats_total_tokens ?? 0) + 1;
+      await db.execute(
+        sql`update ${agentSessions} set stats_total_tokens = ${next} where id = 'as-bigint'`,
+      );
     }
 
-    const [final] = await db.execute<{ total_hits: string | number }>(
-      sql`select total_hits from ${cacheStats} where id = 'global'`,
+    const [final] = await db.execute<{ stats_total_tokens: string | number }>(
+      sql`select stats_total_tokens from ${agentSessions} where id = 'as-bigint'`,
     );
-    expect(Number(final?.total_hits)).toBe(9);
+    expect(Number(final?.stats_total_tokens)).toBe(9);
   });
 });
 
 describe('an expires_at deadline is retention ZERO, not a duration', () => {
-  it('sweeps an entry whose own deadline has passed and keeps one that has not', async () => {
-    const target = EXPIRY_TARGETS.find((t) => t.table === cacheEntries);
-    if (!target) throw new Error('cache_entries has no expiry target; expiryTargets.ts changed');
+  it('sweeps a row whose own deadline has passed and keeps one that has not', async () => {
+    const target = EXPIRY_TARGETS.find((t) => t.table === oauthStates);
+    if (!target) throw new Error('oauth_states has no expiry target; expiryTargets.ts changed');
     // The whole point: the column IS the deadline. A duration measured from it
-    // would keep every entry for that duration PAST its own expiry.
+    // would keep every row for that duration PAST its own expiry.
     expect(target.retentionSeconds).toBe(0);
 
     /**
      * Transactional for the reason given above `api_usage`, with a different
      * symptom: this case asserts only on SURVIVORS, so another file's
-     * full-registry sweep reaping `c-expired` first leaves it passing while
+     * full-registry sweep reaping `os-expired` first leaves it passing while
      * measuring nothing about the sweep it calls. A silent vacuity rather than
      * a red run, which is the worse of the two to leave in place.
      */
     await db.transaction(async (tx) => {
       await tx.execute(sql`
-        insert into ${cacheEntries} (id, key, prompt_hash, model, messages, response, expires_at) values
-          ('c-expired', 'k1', 'h', 'm', '[]'::jsonb, '{}'::jsonb, now() - interval '1 minute'),
-          ('c-live',    'k2', 'h', 'm', '[]'::jsonb, '{}'::jsonb, now() + interval '1 hour')
+        insert into ${oauthStates} (id, service, user_id, expires_at) values
+          ('os-expired', 'svc', 'u', now() - interval '1 minute'),
+          ('os-live',    'svc', 'u', now() + interval '1 hour')
       `);
 
       const results = await sweepAllExpiredRows(tx, [target]);
 
       // Asserted here and not before: without it, a sweep that deleted nothing
       // is indistinguishable from one whose row somebody else had already taken.
-      const swept = results.find((r) => r.table === 'cache_entries');
+      const swept = results.find((r) => r.table === 'oauth_states');
       expect(swept?.deleted).toBeGreaterThanOrEqual(1);
 
       const survivors = await tx.execute<{ id: string }>(
-        sql`select id from ${cacheEntries} where id like 'c-%'`,
+        sql`select id from ${oauthStates} where id like 'os-%'`,
       );
-      expect(survivors.map((r) => r.id)).toEqual(['c-live']);
-    });
-  });
-
-  it('refuses a duplicate cache key, which is what makes it a cache', async () => {
-    await db.execute(sql`
-      insert into ${cacheEntries} (id, key, prompt_hash, model, messages, response, expires_at)
-      values ('dup-1', 'same-key', 'h', 'm', '[]'::jsonb, '{}'::jsonb, now() + interval '1 hour')
-    `);
-    const duplicate = db.execute(sql`
-      insert into ${cacheEntries} (id, key, prompt_hash, model, messages, response, expires_at)
-      values ('dup-2', 'same-key', 'h', 'm', '[]'::jsonb, '{}'::jsonb, now() + interval '1 hour')
-    `);
-
-    await expect(duplicate).rejects.toSatisfy((error: unknown) => {
-      expect(constraintNameOf(error)).toBe('cache_entries_key_key');
-      return true;
+      expect(survivors.map((r) => r.id)).toEqual(['os-live']);
     });
   });
 });
