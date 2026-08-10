@@ -27,6 +27,14 @@ export interface IAgentSoul {
 export const AGENT_ARCHETYPES = ['general', 'qa', 'task_router', 'status_update'] as const;
 export type AgentArchetype = (typeof AGENT_ARCHETYPES)[number];
 
+/**
+ * Exported as a TUPLE for the same reason `AGENT_ARCHETYPES` already is: the
+ * Postgres schema renders its CHECK from this exact value rather than retyping
+ * it, so the constraint and this validator cannot drift apart.
+ */
+export const AGENT_STATUSES = ['active', 'idle', 'offline'] as const;
+export type AgentStatus = (typeof AGENT_STATUSES)[number];
+
 export interface IArchetypeConfig {
   // Q&A
   knowledgeSources?: { integrations?: string[]; mcpServers?: string[]; oxyServices?: string[] };
@@ -78,7 +86,7 @@ export interface IAgent extends Document {
   isFeatured: boolean;
   isTrending: boolean;
   isPublished: boolean;
-  status: 'active' | 'idle' | 'offline';
+  status: AgentStatus;
   creditBalance: number;
   allowHiring: boolean;
   systemPrompt?: string;
@@ -135,7 +143,7 @@ const AgentSchema = new Schema<IAgent>({
   isPublished: { type: Boolean, default: true },
   status: {
     type: String,
-    enum: ['active', 'idle', 'offline'],
+    enum: AGENT_STATUSES,
     default: 'active',
   },
   creditBalance: { type: Number, default: 0 },
