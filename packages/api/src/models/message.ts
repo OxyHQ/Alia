@@ -1,5 +1,12 @@
 import mongoose, { Schema, Model, Document } from 'mongoose';
-import type { IMessage, IToolInvocation, IAgentInfo } from './conversation.js';
+import {
+  MESSAGE_ROLES,
+  MESSAGE_VOTES,
+  TOOL_INVOCATION_STATES,
+  type IMessage,
+  type IToolInvocation,
+  type IAgentInfo,
+} from './conversation.js';
 
 export interface IMessageDocument extends IMessage, Document {
   conversationId: string;
@@ -12,7 +19,7 @@ const ToolInvocationSchema = new Schema<IToolInvocation>({
   toolName: String,
   state: {
     type: String,
-    enum: ['partial-call', 'call', 'result'],
+    enum: [...TOOL_INVOCATION_STATES],
   },
   args: Schema.Types.Mixed,
   result: Schema.Types.Mixed,
@@ -29,9 +36,9 @@ const MessageSchema = new Schema<IMessageDocument>({
   conversationId: { type: String, required: true },
   oxyUserId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
   id: String,
-  role: { type: String, required: true, enum: ['user', 'assistant', 'system'] },
+  role: { type: String, required: true, enum: [...MESSAGE_ROLES] },
   content: { type: Schema.Types.Mixed, required: true },
-  vote: { type: String, enum: ['up', 'down'], required: false },
+  vote: { type: String, enum: [...MESSAGE_VOTES], required: false },
   toolInvocations: [ToolInvocationSchema],
   agentInfo: { type: AgentInfoSchema, required: false },
   audioUrl: { type: String, required: false },

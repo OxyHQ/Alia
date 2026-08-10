@@ -156,6 +156,11 @@ have no queryable identity. The register, kept current as batches land:
 |---|---|
 | `fallback_events.attempts` | An ordered list read whole for display, addressed nowhere. |
 | `transactions.metadata` | Shaped by whichever call site wrote it, different per transaction type. |
+| `messages.content` | Genuinely polymorphic — a bare string OR an ordered parts array, and the shape is the AI SDK's. |
+| `messages.tool_invocations` | An ordered list read whole; its `args`/`result` are `Mixed`, so a child table would hold two opaque values anyway. |
+| `canvas_sessions.components` | Returned verbatim as a response body; each element's `data` is `Mixed`. |
+| `context_nodes.metadata`, `context_edges.metadata`, `context_sources.metadata` | `Record<string, unknown>` composed by whichever ingestion path wrote the row. |
+| `retrieval_strategies.source_steps` | See the counter-case below — structured, but nothing reads it. |
 
 `provider_health.latency_samples` is `double precision[]` rather than `jsonb` for
 the same reason inverted — a bounded window of plain numbers, and an array stays
@@ -577,6 +582,27 @@ as a missing balance rather than as a bad insert.
 
 Everywhere else `generatedId()` is right, because the backfill supplies the Mongo
 `_id` and the app mints uuid v7 for new rows in the same column.
+
+## A recover-after-duplicate-key pattern does NOT port, and chat has one
+
+**In Postgres one failed statement aborts the ENTIRE transaction** (`25P02`):
+every later statement fails, including a plain read, until it rolls back. Mongo
+has no equivalent — a duplicate-key error leaves the session usable, so "insert
+optimistically, catch the duplicate, recover" degrades cleanly there.
+
+`lib/conversation-saver.ts:177-185` is exactly that shape and it is deliberate,
+not sloppy: it appends messages with `insertMany`, reads a duplicate key on
+`messages_oxy_user_conversation_seq_key` as "a concurrent append claimed this
+seq", and converges with a `deleteMany` + full re-insert. It works today because
+that sequence is NOT inside a transaction.
+
+This is a DESTINATION note — no call site moved in this batch. Whoever ports it
+has two options and needs to pick deliberately: wrap the optimistic insert in a
+`SAVEPOINT` so the failure rolls back only to it and the recovery can still run,
+or keep the sequence outside a transaction as it is now. What must not happen is
+the natural-looking refactor that puts the whole function in a
+`db.transaction(...)` and leaves the `catch` in place — the recovery then fails
+with `25P02` and the message history is left deleted.
 
 ## Mongo's three write counts do not survive the port — decide per call site
 
