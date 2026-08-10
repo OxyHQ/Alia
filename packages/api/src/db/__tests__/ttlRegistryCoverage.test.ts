@@ -284,6 +284,17 @@ const RETIRED_MONGO_TTLS: readonly RetiredMongoTtl[] = [
     expireAfterSeconds: 90 * 24 * 60 * 60,
     retiredBy: 'S2 providers + telemetry — api_key_usage',
   },
+  {
+    model: 'ApiUsage',
+    collection: 'apiusages',
+    // `ApiUsageSchema.index({ timestamp: 1 }, { expireAfterSeconds: 48 * 60 *
+    // 60 })`, read off `src/internal/providers/models/api-usage.ts:25` before it
+    // was deleted. 48 hours — by far the shortest retention in the service, and
+    // the one most obviously wrong to carry across as a default.
+    path: 'timestamp',
+    expireAfterSeconds: 48 * 60 * 60,
+    retiredBy: 'S2 providers + telemetry — api_usage',
+  },
 ];
 
 const walked = declaredMongoTtls();
@@ -318,13 +329,13 @@ describe('every ported TTL index has a matching expiry-sweep target', () => {
      * halves adding up to 13.
      *
      * 11 after S1 retired two; 9 once S5 retired `AudioJob` and `Notification`;
-     * 8 once S2 retired `AuthHealthMetric`, 7 once it retired `FallbackEvent`, 6 once it retired `RoutingLog`, 5 once it retired `ApiKeyUsage`.
+     * 8 once S2 retired `AuthHealthMetric`, 7 once it retired `FallbackEvent`, 6 once it retired `RoutingLog`, 5 once it retired `ApiKeyUsage`, 4 once it retired `ApiUsage`.
      * Lowering it is legitimate ONLY in the same change that adds the matching
      * retired entries, and the exact-sum assertion below is what makes that
      * mechanical rather than a judgement call — the two numbers cannot drift
      * apart without one of them going red.
      */
-    expect(walked.length).toBeGreaterThanOrEqual(5);
+    expect(walked.length).toBeGreaterThanOrEqual(4);
     expect(walked.length + RETIRED_MONGO_TTLS.length).toBe(13);
   });
 

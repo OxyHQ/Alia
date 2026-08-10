@@ -8,7 +8,8 @@
 
 import { ModelConfig } from '../models/model-config.js';
 import { AliaModel } from '../models/alia-model.js';
-import { ProviderKey } from '../models/provider-key.js';
+import { resetAllKeyCooldowns as resetKeyCooldowns } from '../../../db/providers/providerKeyRepository.js';
+import { getDb } from '../../../db/index.js';
 import { TIER_MODEL_MAPPINGS, ALIA_MODELS, type ModelCapabilities } from './alia-models.js';
 import { connectDB } from './db.js';
 import { resetAllCircuitBreakers } from './provider-health.js';
@@ -240,18 +241,19 @@ export async function seedAliaModels(): Promise<{ seeded: number; skipped: numbe
  * Prevents stale lockouts from persisting across deploys.
  */
 export async function resetAllKeyCooldowns(): Promise<number> {
-  await connectDB();
+  /**
+   * `rowCount` standing in for `modifiedCount`, and sound here for a reason
+   * worth checking rather than assuming: the filter selects only rows that HAVE
+   * a cooldown or a non-zero failure run, and the update clears both — so every
+   * matched row necessarily changes and the two counts cannot diverge.
+   */
+  const reset = await resetKeyCooldowns(getDb());
 
-  const result = await ProviderKey.updateMany(
-    { $or: [{ cooldownUntil: { $ne: null } }, { consecutiveFailures: { $gt: 0 } }] },
-    { $set: { cooldownUntil: null, consecutiveFailures: 0 } }
-  );
-
-  if (result.modifiedCount > 0) {
-    log.seed.info({ count: result.modifiedCount }, 'Reset key cooldowns and failure counters');
+  if (reset > 0) {
+    log.seed.info({ count: reset }, 'Reset key cooldowns and failure counters');
   }
 
-  return result.modifiedCount;
+  return reset;
 }
 
 /**

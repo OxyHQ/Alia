@@ -5,7 +5,8 @@
  */
 
 import { broadcast } from '../ws';
-import { ProviderKey } from '../models/provider-key';
+import { listSafeProviderKeys } from '../../../db/providers/providerKeyRepository.js';
+import { getDb } from '../../../db/index.js';
 import { ModelConfig } from '../models/model-config';
 import { AliaModel } from '../models/alia-model';
 import { Plan } from '../models/plan';
@@ -17,9 +18,9 @@ import { log } from '../../../lib/logger.js';
 
 export async function broadcastKeysUpdate(provider: string): Promise<void> {
   try {
-    const allKeys = await ProviderKey.find({})
-      .select('-keyHash -key')
-      .sort({ provider: 1, priority: 1 });
+    // No filter: the broadcast carries every key, archived ones included, which
+    // is what the admin panel renders. The secrets are excluded by TYPE.
+    const allKeys = await listSafeProviderKeys(getDb(), {});
     broadcast('keys:all', { success: true, count: allKeys.length, data: allKeys });
 
     const providerKeys = allKeys.filter(k => k.provider === provider);
