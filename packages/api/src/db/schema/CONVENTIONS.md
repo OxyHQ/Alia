@@ -442,9 +442,9 @@ cheap now and expensive once sixty tables have landed around it.
 
 | Collection | Reached from | Decision |
 |---|---|---|
-| `leases` | `lib/leader-election.ts` | **PORTED** (batch 0) |
-| `_migrations` | `lib/migrations/runner.ts` | **RETIRED** |
-| `_migration_lock` | `lib/migrations/runner.ts` | **RETIRED** |
+| `leases` | `lib/leader-election.ts` | **PORTED** — table in batch 0, call site in the route-switch foundation. `db/coordination/leaseRepository.ts` now owns the statement. |
+| `_migrations` | `lib/migrations/runner.ts` | **RETIRED — DONE.** `lib/migrations/` and its `index.ts` call are deleted. |
+| `_migration_lock` | `lib/migrations/runner.ts` | **RETIRED — DONE.** |
 
 ### And a MODEL census cannot see a model declared outside `src/models/`
 
@@ -477,9 +477,9 @@ phases. They are different things that would look like the same thing:
 
 Porting `_migrations` would carry a ledger asserting that migrations ran against
 a database they were never applied to — worse than dropping it, because it reads
-as history. So at cutover the runner, its migration directory, and the
-`runPendingMigrations()` call in `index.ts` are all **deleted**, and Postgres has
-exactly one ledger.
+as history. So the runner, its migration directory, and the
+`runPendingMigrations()` call in `index.ts` **have been deleted**, and Postgres
+has exactly one ledger.
 
 **The consequence that must not be lost with them.** There is exactly one
 registered migration, `001-restructure-memories-title-summary-type`, and
@@ -489,11 +489,17 @@ applied**. It rewrote `UserMemory.memories` from `key`/`value`/`category` to
 
 So the ported `user_memories` schema (batch 8) is written to the POST-001 shape
 and to that shape ONLY — there is no `key` or `category` column, and none should
-be added for compatibility. But "001 has been applied" is a fact with a date on
-it, and the backfill must **assert** it rather than inherit this sentence: check
-for the `_migrations` record, and refuse any source row still carrying the legacy
-keys. Same rule as the enum audit — an audit whose result can expire between
-running it and using it is not a gate.
+be added for compatibility. That part stands.
+
+What can no longer be done is the check that was supposed to back it. The
+instruction here used to be that a backfill must **assert** "001 has been
+applied" by reading the `_migrations` record rather than inheriting this
+sentence, because a fact with a date on it can expire between being written and
+being used. There is now no `_migrations` collection and no source to read it
+from, so this paragraph is exactly the thing it warned against: an undated claim
+nothing can re-derive. Treat the POST-001 shape as an assumption of the schema,
+not as a verified fact, and if the offline archive is ever restored, verify it
+there before copying a single row.
 
 ## A Mongo collection springs into existence; a Postgres table does not
 
@@ -517,11 +523,12 @@ Whole-repo, over `git ls-files`, before batch 3:
 - `createCollection`, create-on-demand bootstrap — **none** (the two `.init()`
   hits are Stagehand browser sessions)
 - `NamespaceNotFound` / error code 26 handling — **none**
-- `countDocuments()` — three, and none is an existence inference:
-  `intelligent-cache.ts:289,345` size a cache for eviction, and
+- `countDocuments()` — one, and it is not an existence inference:
   `trigger-engine.ts:615` is `.countDocuments().catch(() => 0)` on the legacy
   `automations` collection — inside `migrateLegacyAutomations()`, which is
-  retired at cutover along with the collection.
+  retired at cutover along with the collection. (The other two were in
+  `lib/intelligent-cache.ts`, sizing a cache for eviction; that module had zero
+  importers in the whole repo and has been deleted along with its two tables.)
 
 `leader-election.ts` reads `doc?.holderId === instanceId`, which is row CONTENT,
 not container existence — so the one table whose collection genuinely does not
@@ -923,14 +930,21 @@ about the sweep it called.
 
 # The backfill audit list
 
-> **Part of this list now RUNS.** `src/db/backfill-audit/` holds the runner, its
-> preconditions and the first check — the `23503` dangling-reference count.
-> `docs/backfill-audit.md` specifies the rest, records the four decisions the
-> shipped code encodes (the source-database literal, the required positive
-> control, collection names as literals, and blocking versus informational), and
-> carries the agents-domain switch handover. Add a check there rather than
-> leaving a finding as prose: a finding nobody executes is indistinguishable
-> from a finding nobody had.
+> **This list is now PROSE ONLY, and that is a downgrade taken deliberately.**
+> `src/db/backfill-audit/` and `docs/backfill-audit.md` held a runner that read
+> `alia-production` on MongoDB. That database no longer exists, so the runner
+> could only ever fail from the moment the host was terminated — and a safety net
+> that cannot run is worse than none, because it survives greps and reads as
+> protection. Both are deleted.
+>
+> Its own refusal to hardcode row counts is why: it required the caller to NAME a
+> collection independently confirmed to hold rows, "because a positive control
+> somebody can omit is a positive control nobody runs". That discipline is what
+> makes it clear the module is now unrunnable rather than merely unused.
+>
+> Nothing replaces it. There is no source to audit against — see the note on
+> establishing correctness in TESTS before each switch, which is the only
+> verification this port has left.
 
 Every tightening this port introduced, in one place, because the alternative is
 reading seven schema files to find them. Each is a constraint Postgres will

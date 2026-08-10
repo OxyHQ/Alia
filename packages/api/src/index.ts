@@ -6,6 +6,8 @@ import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { connectDB } from './lib/db.js';
+import { closePostgres, connectPostgres } from './db/index.js';
+import { startExpirySweeper, stopExpirySweeper } from './db/expirySweeper.js';
 import { log } from './lib/logger.js';
 import { isAbortError, isFatalError, isTransientNetworkError } from './lib/error-classification.js';
 
@@ -61,7 +63,6 @@ import { seedBots } from './lib/seed-bots.js';
 import { startTriggerEngine, stopTriggerEngine } from './lib/trigger-engine.js';
 import { warmupProviders } from './lib/provider-warmup.js';
 import { warmupGatewayClient } from './lib/gateway-client.js';
-import { runPendingMigrations } from './lib/migrations/runner.js';
 import { initChannels } from './lib/channels/index.js';
 // Socket.io
 import { initSocket } from './socket.js';
@@ -338,9 +339,6 @@ function startBackgroundServices(): void {
   if (backgroundServicesStarted) return;
   backgroundServicesStarted = true;
 
-  // Run pending data migrations first — idempotent, safe on every boot.
-  runPendingMigrations().catch((err) => log.general.error({ err }, '[Migrations] Runner error'));
-
   // Warm up gateway client cache (non-blocking)
   warmupGatewayClient().catch((err) => log.general.error({ err }, '[Gateway] Client warmup error'));
   // Seed built-in skills and suggestions (non-blocking)
@@ -377,8 +375,9 @@ function startBackgroundServices(): void {
 
 // Attempt the MongoDB connection in the background with retry. The HTTP server
 // starts listening regardless so liveness probes pass and the process stays up
-// even when MongoDB/Redis are temporarily unreachable (readiness stays 503
-// until the database is connected).
+// even when Mongo/Redis are unreachable. Readiness is NOT gated on this any
+// more — it asks Postgres a real question — so a task whose remaining Mongoose
+// call sites cannot connect still serves every ported route.
 function connectWithRetry(attempt = 1): void {
   connectDB()
     .then(() => {
@@ -395,11 +394,50 @@ function connectWithRetry(attempt = 1): void {
     });
 }
 
+/**
+ * Postgres is REQUIRED, and it is required BEFORE the socket opens.
+ *
+ * Not "connect in the background and hope": a deployment without `DATABASE_URL`
+ * must never reach a state where it accepts a request, because half-configured
+ * has to be OFF rather than a service that answers some routes and 500s the
+ * rest. `createDatabase` also resolves the connection string here, so a bad one
+ * fails at boot instead of on whichever request happens to touch it first.
+ */
+function connectPostgresOrExit(): void {
+  const db = connectPostgres(process.env.DATABASE_URL);
+  if (!db) {
+    log.general.error('DATABASE_URL is required — Postgres is this service\'s database');
+    process.exit(1);
+  }
+  log.general.info('Postgres connected');
+}
+
+connectPostgresOrExit();
+
 // Start listening immediately — do not block on external dependencies.
 server.listen(PORT, '0.0.0.0', () => {
   log.general.info(`🚀 API Server running on http://0.0.0.0:${PORT}`);
 
-  // Kick off MongoDB connection (with retry) and dependent background services.
+  /**
+   * Delete rows whose expiry has passed. This replaces 14 Mongo TTL indexes and
+   * had NO caller before this change — the targets were registered and tested,
+   * and nothing ever swept them, so every expiry in the Postgres schema was
+   * inert. It depends only on Postgres, so unlike the services below it does not
+   * wait on a Mongo connection that is never coming.
+   */
+  startExpirySweeper();
+
+  /**
+   * Kick off the MongoDB connection (with retry) and the background services
+   * that depend on it.
+   *
+   * These stay gated on Mongo until the last domain is ported: the trigger
+   * engine, the moderation outbox dispatcher, the queues and the seeds all still
+   * read Mongoose models, so starting them against Postgres now would only make
+   * them fail in a loop. Mongo no longer exists, so in practice this retries
+   * forever and none of them start — which is the honest current state, not an
+   * oversight. Moving them onto Postgres is the last slice of the port.
+   */
   connectWithRetry();
 
   // Pre-warm TLS connections to AI providers (non-blocking, no DB dependency)
@@ -469,10 +507,19 @@ const shutdown = async (signal: string) => {
     // Close MCP relay connections
     shutdownMcpRelay();
 
+    // Stop sweeping before the pool closes, so a sweep in flight is not cut off
+    // mid-statement by the handle disappearing underneath it.
+    stopExpirySweeper();
+
     // Close MongoDB connection
     const mongoose = await import('mongoose');
     await mongoose.default.connection.close();
     log.general.info('MongoDB connection closed');
+
+    // Close the Postgres pool last: it is the store every ported route reads, so
+    // it stays open until everything that could still be using it has stopped.
+    await closePostgres();
+    log.general.info('Postgres pool closed');
 
     clearTimeout(forceTimeout);
     log.general.info('Graceful shutdown complete');

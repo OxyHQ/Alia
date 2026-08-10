@@ -1,17 +1,24 @@
 /**
- * Mongo-lease leader election.
+ * Postgres-lease leader election.
  *
- * A single elected instance holds a time-boxed lease document in the `leases`
- * collection. The lease is renewed on a heartbeat; if the holder dies, the lease
- * expires (evaluated against the MongoDB server clock, so instances don't need
- * synchronized wall clocks) and another instance takes over. This lets a
- * cluster of identical ECS tasks run at-most-one background worker (e.g. the
+ * A single elected instance holds a time-boxed row in the `leases` table. The
+ * lease is renewed on a heartbeat; if the holder dies, the lease expires
+ * (evaluated against the PostgreSQL server clock, so instances don't need
+ * synchronized wall clocks) and another instance takes over. This lets a cluster
+ * of identical ECS tasks run at-most-one background worker (e.g. the
  * scheduled-trigger engine) without a dedicated coordinator.
+ *
+ * The single statement that decides an election lives in
+ * `db/coordination/leaseRepository.ts`; everything here is the state machine
+ * around it. The database handle is resolved per tick rather than captured at
+ * start, so this module has the same signature it had on Mongo and
+ * `trigger-engine.ts` did not have to learn about Postgres to keep working.
  */
 
 import os from 'os';
 import crypto from 'crypto';
-import mongoose from 'mongoose';
+import { acquireOrRenewLease, releaseLease } from '../db/coordination/leaseRepository.js';
+import { getDb } from '../db/index.js';
 import { log } from './logger.js';
 
 /** Unique per process — hostname pins the ECS task, pid + random disambiguates restarts. */
@@ -19,13 +26,6 @@ const instanceId = `${os.hostname()}:${process.pid}:${crypto.randomBytes(4).toSt
 
 const DEFAULT_LEASE_TTL_MS = 60_000;
 const DEFAULT_HEARTBEAT_MS = 20_000;
-
-interface LeaseDoc {
-  _id: string;
-  holderId: string;
-  expiresAt: Date;
-  acquiredAt: Date;
-}
 
 export interface LeaderElectionHooks {
   /** Called exactly once each time this instance becomes the leader. */
@@ -42,15 +42,6 @@ export interface LeaderElectionOptions {
 export interface LeaderElectionHandle {
   isLeader(): boolean;
   stop(): Promise<void>;
-}
-
-function isDuplicateKeyError(err: unknown): boolean {
-  return (
-    typeof err === 'object' &&
-    err !== null &&
-    'code' in err &&
-    err.code === 11000
-  );
 }
 
 /**
@@ -72,10 +63,6 @@ export function startLeaderElection(
   let lastRenewOk = Date.now();
   let timer: ReturnType<typeof setInterval> | null = null;
 
-  function leases() {
-    return mongoose.connection.collection<LeaseDoc>('leases');
-  }
-
   async function runHook(kind: 'onElected' | 'onDemoted', fn: () => void | Promise<void>): Promise<void> {
     try {
       await fn();
@@ -84,48 +71,14 @@ export function startLeaderElection(
     }
   }
 
-  /**
-   * Atomically claim or renew the lease in a single server-evaluated update.
-   * Returns true iff this instance holds the lease afterwards.
-   */
-  async function tryAcquire(): Promise<boolean> {
-    try {
-      const doc = await leases().findOneAndUpdate(
-        {
-          _id: name,
-          $or: [
-            { holderId: instanceId },
-            { $expr: { $lt: ['$expiresAt', '$$NOW'] } },
-          ],
-        },
-        [
-          {
-            $set: {
-              holderId: instanceId,
-              expiresAt: { $add: ['$$NOW', leaseTtlMs] },
-              // Preserve the original acquisition time across renewals; reset it
-              // only when leadership actually changes hands.
-              acquiredAt: {
-                $cond: [{ $eq: ['$holderId', instanceId] }, '$acquiredAt', '$$NOW'],
-              },
-            },
-          },
-        ],
-        { upsert: true, returnDocument: 'after' }
-      );
-      return doc?.holderId === instanceId;
-    } catch (err) {
-      // Lost the first-boot upsert race: another instance inserted the lease
-      // between our filter miss and our upsert. Not the leader.
-      if (isDuplicateKeyError(err)) return false;
-      throw err;
-    }
-  }
-
   async function tick(): Promise<void> {
     if (stopped) return;
     try {
-      const held = await tryAcquire();
+      // `getDb()` throws when Postgres is not connected, which lands in the
+      // catch below and is treated as unreachable — the same way a dropped
+      // connection is. Losing the handle must never read as "somebody else is
+      // the leader", because that would silently promote a second instance.
+      const held = await acquireOrRenewLease(getDb(), name, instanceId, leaseTtlMs);
       lastRenewOk = Date.now();
       if (held && !leader) {
         leader = true;
@@ -150,10 +103,7 @@ export function startLeaderElection(
 
   async function release(): Promise<void> {
     try {
-      await leases().updateOne(
-        { _id: name, holderId: instanceId },
-        { $set: { expiresAt: new Date(0) } }
-      );
+      await releaseLease(getDb(), name, instanceId);
     } catch (err) {
       log.general.error({ err, lease: name }, 'Leader election: failed to release lease');
     }
