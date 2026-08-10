@@ -143,9 +143,63 @@ jobs:
           echo "digest=$DIGEST" >>"$GITHUB_OUTPUT"
           echo "Built $COMMIT_TAG -> $DIGEST"
 
+      # Does this release carry a post-rollout migration at all?
+      #
+      # Grepped with the pattern `@oxyhq/db` EXPORTS as `POST_PHASE_GREP_PATTERN`,
+      # never a retyped copy — `packages/api/src/db/__tests__/deployWorkflow.test.ts`
+      # asserts this workflow contains that exact string, so the two cannot drift.
+      #
+      # The grep is only sound because the migrator separately proves every file
+      # carries exactly one well-formed marker. Without that, a typo in a marker
+      # would read here as "no post migration" and the drop would be applied by
+      # nothing at all — a silent skip rather than a failure.
+      #
+      # Today Alia's journal is 16 `pre` files and no `post` one, so this
+      # resolves false and the post step is skipped. It exists because the
+      # migrator enforces a two-phase contract and half of one is not a contract:
+      # the first `post` migration somebody writes must be applied by something.
+      - name: Detect a post-rollout migration in this release
+        id: phases
+        run: |
+          if grep -rlE '^-- oxy:deploy-phase=post$' packages/api/drizzle >/dev/null 2>&1; then
+            echo "post_command=[\"node\",\"packages/api/dist/db/migrate.js\",\"--target-database=alia\",\"--phase=post\"]" >>"$GITHUB_OUTPUT"
+            echo "this release carries at least one post-rollout migration"
+          else
+            echo "post_command=" >>"$GITHUB_OUTPUT"
+            echo "no post-rollout migration in this release"
+          fi
+
+      # RUN_MIGRATIONS is what turns on machinery deploy-ecs-image.sh has always
+      # had and nothing has ever enabled — so until now NOTHING applied Alia's
+      # migrations, in any environment. The script runs the migration as a
+      # one-shot task on the NEW task definition, before `update-service`, and
+      # fails the deploy with the task's CloudWatch logs if it exits non-zero.
+      #
+      # Running it on the NEW revision is what makes it correct here and is not
+      # interchangeable with the "reuse the service's live task definition" shape
+      # a sibling repo uses: this workflow pins an immutable digest, so the live
+      # revision is the OLD image and migrating with it would apply the previous
+      # release's migration set behind a green deploy.
+      #
+      # `pre` is the script's default and is deliberately not overridden, and no
+      # `migration_phase` dispatch input is offered. That input exists elsewhere
+      # for a journal whose phases cannot be applied in order — a `pre` file
+      # queued behind an unapplied `post` one. Alia's journal cannot be in that
+      # state: all 16 entries are `pre`. An escape hatch for a situation that
+      # cannot arise reads as load-bearing to whoever touches this next.
+      #
+      # The interlock the migrator requires is the workflow-level `concurrency`
+      # group above. `runMigrations` takes no lock — it reads the ledger's high
+      # water mark outside its transaction, so two concurrent runners both
+      # attempt the same DDL and the loser exits 1 on an already-applied
+      # statement. That group, with `cancel-in-progress: false`, is what makes a
+      # merge landing mid-deploy wait rather than race.
       - name: Register immutable task definition and deploy
         env:
           IMAGE_URI: ${{ env.ECR_REGISTRY }}/oxy/${{ env.APP }}@${{ steps.build.outputs.digest }}
+          RUN_MIGRATIONS: 'true'
+          MIGRATION_TARGET_DATABASE: ${{ env.APP }}
+          POST_DEPLOY_TASK_COMMAND_JSON: ${{ steps.phases.outputs.post_command }}
         run: |
           STATUS=$(aws ecs describe-services --cluster "$CLUSTER" --services "$APP" --query 'services[0].status' --output text 2>/dev/null || echo NONE)
           if [ "$STATUS" != "ACTIVE" ]; then
