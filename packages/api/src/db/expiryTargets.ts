@@ -11,9 +11,9 @@
  * no entry here. A hand-maintained list only ever falls as far behind as the
  * last time somebody remembered it.
  *
- * `packages/api` declares **14** TTL indexes in total. Ten are now ported —
+ * `packages/api` declares **14** TTL indexes in total. Twelve are now ported —
  * five in the platform-telemetry batches, `api_key_usage` with providers/billing,
- * three with orgs/dev, and `trigger_executions` with automation. The rest belong to tables that do not exist in
+ * three with orgs/dev, `trigger_executions` with automation, and `notifications` plus `audio_jobs` with the notifications batch. Only `MemoryEmbedding`'s remains, in batch 8. The rest belong to tables that do not exist in
  * Postgres yet, and the coverage test scopes itself to PORTED tables so it
  * tightens automatically as each batch lands rather than needing an allow-list
  * to be pruned.
@@ -54,6 +54,7 @@
 import type { ExpirySweepTarget } from '@oxyhq/db/expiry';
 import { triggerExecutions } from './schema/automation';
 import { cacheEntries } from './schema/cache';
+import { audioJobs, notifications } from './schema/notifications';
 import { mcpOauthStates, oauthStates } from './schema/integrations';
 import { organizationInvites } from './schema/organizations';
 import { MCP_OAUTH_STATE_TTL_SECONDS } from '../models/mcp-oauth-state.js';
@@ -126,6 +127,34 @@ export const EXPIRY_TARGETS: readonly ExpirySweepTarget[] = [
     column: triggerExecutions.startedAt,
     retentionSeconds: 30 * DAY,
     reason: 'Trigger run history; the readers page by their own range and nothing waits on an old run.',
+  },
+  {
+    table: notifications,
+    /**
+     * **The conditional TTL, made expressible.** Mongo swept
+     * `{createdAt: 1}, 90d, partialFilterExpression: {status: 'dismissed'}` —
+     * `ExpirySweepTarget` has no predicate, so the entry its type permits would
+     * have deleted every notification older than 90 days, dismissed or not.
+     *
+     * The condition became a COLUMN instead: `dismissed_at`, written only on
+     * dismissal, bound to `status` by a CHECK so the two cannot drift. A row
+     * never dismissed has NULL and is never swept.
+     *
+     * This is deliberately MORE correct than the original, and the one real
+     * behaviour change in the port: Mongo measured from `created_at`, so a
+     * notification dismissed on day 89 vanished the next day while one dismissed
+     * on day 1 survived another 89.
+     */
+    column: notifications.dismissedAt,
+    retentionSeconds: 90 * DAY,
+    reason: 'Dismissed notifications, 90 days from the DISMISSAL rather than from creation.',
+  },
+  {
+    table: audioJobs,
+    /** From creation. A job is ephemeral and whatever consumed it kept the URL. */
+    column: audioJobs.createdAt,
+    retentionSeconds: DAY,
+    reason: 'Audio generation jobs are ephemeral; the shortest retention in the schema, and intended.',
   },
   {
     table: organizationInvites,

@@ -12,6 +12,7 @@ export * from './developers';
 export * from './integrations';
 export * from './leases';
 export * from './moderation';
+export * from './notifications';
 export * from './organizations';
 export * from './oxy-services';
 export * from './providers';
