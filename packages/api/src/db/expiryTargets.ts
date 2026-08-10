@@ -11,9 +11,9 @@
  * no entry here. A hand-maintained list only ever falls as far behind as the
  * last time somebody remembered it.
  *
- * `packages/api` declares **14** TTL indexes in total. Twelve are now ported —
+ * `packages/api` declares **14** TTL indexes in total. All FOURTEEN are now ported —
  * five in the platform-telemetry batches, `api_key_usage` with providers/billing,
- * three with orgs/dev, `trigger_executions` with automation, and `notifications` plus `audio_jobs` with the notifications batch. Only `MemoryEmbedding`'s remains, in batch 8. The rest belong to tables that do not exist in
+ * three with orgs/dev, `trigger_executions` with automation, `notifications` plus `audio_jobs` with the notifications batch, and the two moderation tables — which were ported in batch 2 and whose entries were MISSING until the chat/memory batch found them. The rest belong to tables that do not exist in
  * Postgres yet, and the coverage test scopes itself to PORTED tables so it
  * tightens automatically as each batch lands rather than needing an allow-list
  * to be pruned.
@@ -54,6 +54,7 @@
 import type { ExpirySweepTarget } from '@oxyhq/db/expiry';
 import { triggerExecutions } from './schema/automation';
 import { cacheEntries } from './schema/cache';
+import { moderationEvents, moderationOutboxes } from './schema/moderation';
 import { audioJobs, notifications } from './schema/notifications';
 import { mcpOauthStates, oauthStates } from './schema/integrations';
 import { organizationInvites } from './schema/organizations';
@@ -155,6 +156,27 @@ export const EXPIRY_TARGETS: readonly ExpirySweepTarget[] = [
     column: audioJobs.createdAt,
     retentionSeconds: DAY,
     reason: 'Audio generation jobs are ephemeral; the shortest retention in the schema, and intended.',
+  },
+  {
+    table: moderationOutboxes,
+    /**
+     * `expires_at` IS the deadline, so retention is ZERO — the `cache_entries`
+     * shape. **This table can hold UNPROCESSED WORK**: `expires_at` is set at
+     * insert and never advanced, so a row that never reaches a terminal state
+     * leaves after its deadline whether or not it was ever delivered. That is
+     * the source's behaviour and this entry reproduces it; without the entry the
+     * table simply grows and the documented behaviour silently stops happening.
+     */
+    column: moderationOutboxes.expiresAt,
+    retentionSeconds: 0,
+    reason: 'Delivery jobs past their own deadline; a job stuck that long is not going to succeed.',
+  },
+  {
+    table: moderationEvents,
+    /** `expires_at` IS the deadline, so retention is ZERO. */
+    column: moderationEvents.expiresAt,
+    retentionSeconds: 0,
+    reason: 'Inbound dedupe claims; the claim must outlive every redelivery of its event and nothing after.',
   },
   {
     table: organizationInvites,

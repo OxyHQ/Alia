@@ -29,11 +29,14 @@ import * as schema from '../schema';
  *
  * ## Scope: PORTED tables only, deliberately
  *
- * Ten of the fourteen TTL declarations belong to tables that do not exist in
- * Postgres yet. Listing them as known-missing would be a TODO in disguise that
- * somebody has to remember to prune. Instead the coverage assertion runs over
- * the INTERSECTION of "declares a TTL" and "has a Postgres table", so it
- * tightens by itself as each batch lands and needs no allow-list at all.
+ * The coverage assertion runs over the INTERSECTION of "declares a TTL" and
+ * "has a Postgres table", so it tightens by itself as each batch lands and needs
+ * no allow-list to prune. As of the chat/memory batch that intersection is
+ * everything: all fourteen declarations are ported and registered.
+ *
+ * The scoping has a cost that took five batches to surface — it SKIPS whatever
+ * is absent from the map, so a table ported without a map entry is invisible to
+ * every check here. That is now a check of its own; see the residual below.
  *
  * The source-side walk is asserted non-vacuous independently, so this cannot
  * pass by finding nothing.
@@ -124,8 +127,10 @@ function portedTables(): Map<string, PgTable> {
  * Explicit rather than derived: Mongoose's name is a `pluralize()` artifact
  * (`authhealthmetrics`) and the Postgres name is a deliberate snake_case choice
  * (`auth_health_metrics`). Nothing can compute one from the other, so the pairing
- * is stated — and a TTL-declaring model absent from here is simply not ported
- * yet, which is exactly what makes the coverage assertion tighten by itself.
+ * is stated. An absence used to MEAN "not ported yet"; it no longer gets to
+ * assert that on its own, because two ported tables sat outside this map for
+ * five batches with no sweep. The residual check below makes an absence prove
+ * itself.
  */
 const MONGO_MODEL_TO_TABLE: Readonly<Record<string, string>> = {
   AuthHealthMetric: 'auth_health_metrics',
@@ -140,7 +145,20 @@ const MONGO_MODEL_TO_TABLE: Readonly<Record<string, string>> = {
   TriggerExecution: 'trigger_executions',
   Notification: 'notifications',
   AudioJob: 'audio_jobs',
+  ModerationOutbox: 'moderation_outboxes',
+  ModerationEvent: 'moderation_events',
 };
+
+/**
+ * TTL-declaring models deliberately NOT ported, so their absence from the map is
+ * a decision rather than an oversight.
+ *
+ * EMPTY, and that is the current truth: all fourteen TTL declarations are ported
+ * and registered. A model belongs here only while its table genuinely does not
+ * exist in Postgres — and it has to be moved to the map, not deleted, when it
+ * lands.
+ */
+const TTL_MODELS_NOT_PORTED: ReadonlySet<string> = new Set<string>();
 
 const ttls = declaredMongoTtls();
 const tables = portedTables();
@@ -152,6 +170,49 @@ describe('every ported TTL index has a matching expiry-sweep target', () => {
     // this number goes DOWN only when a TTL is deliberately dropped.
     expect(ttls.length).toBeGreaterThanOrEqual(14);
     expect(tables.size).toBeGreaterThanOrEqual(5);
+  });
+
+  it('every TTL-declaring model is CLASSIFIED, so an absence cannot mean nothing', () => {
+    /**
+     * The residual, and the check that was missing.
+     *
+     * `MONGO_MODEL_TO_TABLE` is hand-maintained and every other assertion here
+     * SKIPS a model absent from it, on the stated assumption that absent means
+     * "not ported yet". That assumption is not self-enforcing: port a table and
+     * forget the map entry and the model becomes invisible to the whole gate —
+     * no registry entry, no sweep, the table grows forever, and nothing says so.
+     * Which is the failure this file exists to prevent, reached through the file.
+     *
+     * It happened. `moderation_events` and `moderation_outboxes` were ported in
+     * batch 2 with TTL declarations and no registry entries, and were found only
+     * by counting the targets by hand five batches later.
+     *
+     * So absence must now be a DECISION rather than a silence: every
+     * TTL-declaring model is either mapped to a table or listed as deliberately
+     * unported. Being in neither fails.
+     *
+     * Deriving the answer from names was tried first and is not sound — the
+     * collection name is an arbitrary third argument to `mongoose.model()`
+     * (`ModerationOutbox` stores in `moderation_outbox`, singular, while
+     * `ModerationEvent` uses `moderation_events`, plural). The file comment
+     * above always said nothing can compute one from the other; this is that,
+     * enforced.
+     */
+    const classified = ttls.filter(
+      (ttl) =>
+        MONGO_MODEL_TO_TABLE[ttl.model] === undefined && !TTL_MODELS_NOT_PORTED.has(ttl.model),
+    );
+
+    expect(classified.map((ttl) => ttl.model)).toEqual([]);
+  });
+
+  it('no model is claimed as both ported and unported', () => {
+    // The two lists partition; an overlap would let a ported table hide behind
+    // its own exemption.
+    const both = [...TTL_MODELS_NOT_PORTED].filter(
+      (model) => MONGO_MODEL_TO_TABLE[model] !== undefined,
+    );
+    expect(both).toEqual([]);
   });
 
   it('every ported TTL-declaring model has a registry entry', () => {
