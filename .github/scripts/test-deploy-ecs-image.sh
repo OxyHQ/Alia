@@ -273,7 +273,19 @@ aws() {
 }
 export -f aws
 
+# Vacuity floor. On success this suite prints ONE line, so a traversal that
+# silently stopped after two cases is indistinguishable from a full green run --
+# and every guarantee below would read as verified while never having executed.
+# A `set -e` abort mid-file exits non-zero, but an early `return` from a helper,
+# a case list truncated by a bad merge, or a rewrite that drops cases does not.
+#
+# Raise this with the case count; lower it ONLY alongside a deletion you can
+# name. A floor quietly adjusted to match whatever ran is not a floor.
+cases_run=0
+MINIMUM_CASES=13
+
 run_release() {
+  cases_run=$((cases_run + 1))
   local case_name="$1"
   local expect_success="$2"
   local run_migrations="${3:-false}"
@@ -587,4 +599,10 @@ grep -F \
   "$test_directory/smoke-no-rollback-failure/output.log" \
   >/dev/null
 
-echo "Deployment script transaction tests passed."
+if (( cases_run < MINIMUM_CASES )); then
+  echo "ASSERTION FAILED: only $cases_run release cases ran, expected at least $MINIMUM_CASES." >&2
+  echo "The suite exited green without executing everything it claims to check." >&2
+  exit 1
+fi
+
+echo "Deployment script transaction tests passed ($cases_run release cases)."
