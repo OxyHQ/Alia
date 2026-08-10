@@ -1,11 +1,21 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { sql } from 'drizzle-orm';
 import { closePostgres, connectPostgres, type ApiDatabase } from '../index';
-import { createReport } from '../moderation/reportRepository';
+import { setUpTestDatabase, type TestDatabaseHandle } from '../testDatabase';
+import {
+  applyDecisionToReport,
+  closeUndeliverableReport,
+  createReport,
+  findReportById,
+  findReportsByCaseId,
+  markReportDeliveryFailed,
+  markReportSubmitted,
+} from '../moderation/reportRepository';
+import { ReportCategory } from '../../domain/report.js';
 import { moderationOutboxes, reports } from '../schema/moderation';
 
 /**
- * Report intake against a REAL Postgres.
+ * Reports against a REAL Postgres.
  *
  * Every property below is the server's, and a mocked drizzle handle can be made
  * to agree with any of them:
@@ -13,7 +23,8 @@ import { moderationOutboxes, reports } from '../schema/moderation';
  *  - a transaction that commits both writes or neither;
  *  - a unique index that actually refuses the second report;
  *  - `25P02`, which a mocked rejection cannot produce at all, and which is the
- *    entire reason `insertOrNullOnConflict` opens a savepoint.
+ *    entire reason `insertOrNullOnConflict` opens a savepoint;
+ *  - a revision guard whose `IS NULL` branch a mock would never exercise.
  *
  * The `25P02` case is the one worth stating plainly: a mocked `insert` that
  * rejects leaves no aborted transaction behind, so the recovery read succeeds in
@@ -21,52 +32,58 @@ import { moderationOutboxes, reports } from '../schema/moderation';
  */
 
 let db: ApiDatabase;
+let database: TestDatabaseHandle;
 
 const REPORT = {
   id: 'report-1',
   reportedType: 'agent',
   reportedId: 'agent-1',
   reporter: 'oxy-user-1',
-  categories: ['spam'],
+  categories: [ReportCategory.SPAM],
   localStatus: 'queued',
 } as const;
 
 /**
- * `expiresAt` is deliberately FAR IN THE FUTURE, and that is load-bearing rather
- * than arbitrary.
+ * The event now carries only its identity — the repository sets `available_at`
+ * and `expires_at` from the SERVER's clock.
  *
- * `moderation_outboxes` is an expiry target with `retentionSeconds: 0` —
- * `expires_at` IS its deadline — and four `*.pgdb.test.ts` files call
- * `sweepAllExpiredRows(db, EXPIRY_TARGETS)` with the FULL registry against the
- * one database the whole run shares. This fixture is COMMITTED, not written
- * inside a transaction, so it is reachable by every one of them.
- *
- * With the previous hardcoded `2026-02-01` the row was expired on arrival, and
- * the xmin case below could have its row deleted by a sibling file between its
- * two reads — `after` comes back `undefined` and the assertion fails with
- * `expected undefined to be '<xmin>'`, naming nothing about the real cause.
- * That was luck, not correctness: measured 4/4 green on one revision and 2/2
- * red on the next, with the only difference being module-graph timing.
- *
- * A future deadline removes the row from every sweep's reach without changing
- * anything this file measures — none of these cases is about expiry. This is
- * CONVENTIONS §"A fixture that is DELIBERATELY EXPIRED must be written in a
- * transaction", applied from the other side: the fixture was never meant to be
- * expired in the first place.
+ * That removes a hazard this file used to manage by hand. `moderation_outboxes`
+ * is an expiry target with `retentionSeconds: 0`, and these fixtures are
+ * COMMITTED rather than transactional, so a fixture whose `expires_at` had
+ * already passed was reapable by any expiry sweep between two reads here —
+ * failing with `expected undefined to be '<xmin>'`, which names nothing about
+ * the cause. The deadline is now always `now() + 90 days` by construction, so no
+ * fixture in this file can be expired on arrival. It is "write fixture instants
+ * relative to now" made structural rather than remembered.
  */
 const EVENT = {
-  id: 'report-1:report.submit',
+  eventId: 'report-1:report.submit',
   kind: 'report.submit',
-  payload: { hello: 'world' },
-  availableAt: new Date('2026-01-01T00:00:00.000Z'),
-  expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
+  payload: { reportId: 'report-1' },
 } as const;
 
-beforeAll(() => {
-  const connected = connectPostgres(process.env.DATABASE_URL);
-  if (!connected) throw new Error('DATABASE_URL is not set; vitest.pg.globalSetup.ts must run.');
+/**
+ * A PRIVATE database for this file.
+ *
+ * The suite's global setup makes ONE database for the whole run and vitest runs
+ * FILES IN PARALLEL, so the moderation files would otherwise share `reports`
+ * and `moderation_outboxes` — and each one's `afterEach` would wipe the others'
+ * fixtures mid-test. Measured: that is exactly what happened, and it surfaced as
+ * "unique violation but no existing row found", which names nothing about the
+ * cause.
+ *
+ * Namespacing the fixtures would fix the COLLISION but not the ASSERTIONS. The
+ * co-commit test's entire claim is "the table holds NO row" and "exactly ONE
+ * row"; scoping those counts to a prefix is one subtle predicate away from an
+ * assertion that cannot fail — and that assertion is what the whole slice rests
+ * on. An own database keeps a global count meaning what it says.
+ */
+beforeAll(async () => {
+  database = await setUpTestDatabase();
+  const connected = connectPostgres(database.databaseUrl);
+  if (!connected) throw new Error('could not connect to this file\'s throwaway database');
   db = connected;
-});
+}, 120_000);
 
 afterEach(async () => {
   await db.execute(sql`truncate ${reports}, ${moderationOutboxes}`);
@@ -74,6 +91,7 @@ afterEach(async () => {
 
 afterAll(async () => {
   await closePostgres();
+  await database.drop();
 });
 
 describe('a report and its delivery event commit together', () => {
@@ -86,11 +104,15 @@ describe('a report and its delivery event commit together', () => {
     expect(events[0]?.status).toBe('pending');
   });
 
+  /**
+   * The rollback direction. Kept, and labelled: it is NOT the case that
+   * discriminates an enqueue which escaped onto its own connection — a throw
+   * propagates either way. That case lives in `moderationOutbox.pgdb.test.ts`,
+   * where the enqueue SUCCEEDS and a later statement throws.
+   */
   it('writes NEITHER when the event insert fails', async () => {
     // `kind` violates its CHECK, so the second statement raises and the whole
-    // transaction rolls back — including the report. Under Mongo this coupling
-    // needed an explicit multi-document transaction; here it is the default, and
-    // this test is what proves the report is not left behind.
+    // transaction rolls back — including the report.
     const bad = { ...EVENT, kind: 'not-a-kind' as 'report.submit' };
 
     await expect(createReport(db, REPORT, bad)).rejects.toThrow();
@@ -149,7 +171,7 @@ describe('a duplicate is answered with the EXISTING report, not a 500', () => {
     const other = await createReport(
       db,
       { ...REPORT, id: 'report-5', reporter: 'oxy-user-2' },
-      { ...EVENT, id: 'report-5:report.submit' },
+      { ...EVENT, eventId: 'report-5:report.submit' },
     );
 
     // The unique key is (reporter, type, id) — two people may report one agent.
@@ -160,7 +182,11 @@ describe('a duplicate is answered with the EXISTING report, not a 500', () => {
 
 describe('the categories constraints', () => {
   it('refuses a category outside the tuple', async () => {
-    const bad = createReport(db, { ...REPORT, categories: ['not-a-category'] }, EVENT);
+    const bad = createReport(
+      db,
+      { ...REPORT, categories: ['not-a-category' as ReportCategory] },
+      EVENT,
+    );
     await expect(bad).rejects.toThrow();
   });
 
@@ -175,7 +201,7 @@ describe('the categories constraints', () => {
   it('accepts several valid categories', async () => {
     const result = await createReport(
       db,
-      { ...REPORT, categories: ['spam', 'harassment'] },
+      { ...REPORT, categories: [ReportCategory.SPAM, ReportCategory.HARASSMENT] },
       EVENT,
     );
     expect(result.created).toBe(true);
@@ -186,7 +212,7 @@ describe('the outbox enqueue is a genuine no-op on a repeat', () => {
   it('does not touch the row when the same event id arrives again', async () => {
     await createReport(db, REPORT, EVENT);
     const [before] = await db.execute<{ xmin: string; updated_at: Date }>(
-      sql`select xmin::text, updated_at from ${moderationOutboxes} where id = ${EVENT.id}`,
+      sql`select xmin::text, updated_at from ${moderationOutboxes} where id = ${EVENT.eventId}`,
     );
 
     await new Promise((resolve) => setTimeout(resolve, 25));
@@ -194,7 +220,7 @@ describe('the outbox enqueue is a genuine no-op on a repeat', () => {
     await createReport(db, { ...REPORT, id: 'report-6' }, EVENT);
 
     const [after] = await db.execute<{ xmin: string; updated_at: Date }>(
-      sql`select xmin::text, updated_at from ${moderationOutboxes} where id = ${EVENT.id}`,
+      sql`select xmin::text, updated_at from ${moderationOutboxes} where id = ${EVENT.eventId}`,
     );
 
     // `xmin` is the inserting transaction id: unchanged means no new tuple
@@ -204,5 +230,178 @@ describe('the outbox enqueue is a genuine no-op on a repeat', () => {
     // lease on this row while the repeat arrives.
     expect(after?.xmin).toBe(before?.xmin);
     expect(after?.updated_at).toEqual(before?.updated_at);
+  });
+});
+
+describe('the delivery worker writes back onto the report', () => {
+  it('records a submission and clears the previous failure', async () => {
+    await createReport(db, REPORT, EVENT);
+    await markReportDeliveryFailed(REPORT.id, 'CrowdSource was unreachable');
+
+    await markReportSubmitted(REPORT.id, {
+      crowdSourceReportId: 'csr_1',
+      crowdSourceCaseId: 'case_1',
+      crowdSourceMerged: true,
+      contentSnapshotHash: 'sha256:abc',
+    });
+
+    const stored = await findReportById(REPORT.id);
+    expect(stored?.localStatus).toBe('submitted');
+    expect(stored?.crowdSourceCaseId).toBe('case_1');
+    expect(stored?.crowdSourceMerged).toBe(true);
+    // Mongo spelled this `$unset`; here absence is NULL. If it stayed set, an
+    // operational sweep would report a delivered report as still failing.
+    expect(stored?.lastDeliveryError).toBeNull();
+    expect(stored?.submittedAt).toBeInstanceOf(Date);
+  });
+
+  it('closes a report whose subject is gone', async () => {
+    await createReport(db, REPORT, EVENT);
+    await closeUndeliverableReport(REPORT.id, 'The content is no longer available');
+
+    const stored = await findReportById(REPORT.id);
+    expect(stored?.localStatus).toBe('closed');
+    expect(stored?.localStatusReason).toBe('The content is no longer available');
+  });
+
+  it('answers null for a report that does not exist', async () => {
+    expect(await findReportById('no-such-report')).toBeNull();
+  });
+});
+
+describe('applying a decision, with the revision guard', () => {
+  const decision = {
+    status: 'resolved',
+    localStatus: 'closed',
+    decisionId: 'dec_1',
+    decisionRevision: 2,
+    decisionOutcome: 'violation',
+    decisionStatus: 'final',
+    decidedAt: new Date('2026-03-01T00:00:00.000Z'),
+    enforcedAction: 'restrict',
+  } as const;
+
+  /**
+   * The FIRST decision is the case the `IS NULL` branch exists for, and the one
+   * a mock would never catch. `decision_revision` is still unset, and in SQL
+   * `NULL <= 2` is NULL, which a WHERE treats as false — so without the explicit
+   * `IS NULL` this update would match nothing and every first decision would be
+   * silently dropped while the function reported `false`.
+   */
+  it('writes the first decision, where the column is still NULL', async () => {
+    await createReport(db, REPORT, EVENT);
+
+    expect(await applyDecisionToReport(REPORT.id, decision)).toBe(true);
+
+    const stored = await findReportById(REPORT.id);
+    expect(stored?.decisionRevision).toBe(2);
+    expect(stored?.decisionStatus).toBe('final');
+    expect(stored?.enforcedAction).toBe('restrict');
+    // Written only alongside an action, so its presence tracks the action's.
+    expect(stored?.enforcedAt).toBeInstanceOf(Date);
+    expect(stored?.decidedAt).toEqual(decision.decidedAt);
+  });
+
+  it('accepts a LATER revision', async () => {
+    await createReport(db, REPORT, EVENT);
+    await applyDecisionToReport(REPORT.id, decision);
+
+    expect(
+      await applyDecisionToReport(REPORT.id, { ...decision, decisionRevision: 3 }),
+    ).toBe(true);
+    expect((await findReportById(REPORT.id))?.decisionRevision).toBe(3);
+  });
+
+  it('REFUSES an older revision, and leaves the current answer alone', async () => {
+    await createReport(db, REPORT, EVENT);
+    await applyDecisionToReport(REPORT.id, { ...decision, decisionRevision: 5 });
+
+    // §10.9 retries for 24 hours and a correction can overlap the decision it
+    // supersedes, so an older revision landing last is ordinary rather than
+    // exceptional. The database refuses it; no read-then-write in the worker.
+    expect(
+      await applyDecisionToReport(REPORT.id, {
+        ...decision,
+        decisionRevision: 4,
+        decisionOutcome: 'no_violation',
+      }),
+    ).toBe(false);
+
+    const stored = await findReportById(REPORT.id);
+    expect(stored?.decisionRevision).toBe(5);
+    expect(stored?.decisionOutcome).toBe('violation');
+  });
+
+  it('leaves enforcedAction unset when no action was taken', async () => {
+    await createReport(db, REPORT, EVENT);
+    const { enforcedAction: _omitted, ...withoutAction } = decision;
+
+    expect(await applyDecisionToReport(REPORT.id, withoutAction)).toBe(true);
+
+    const stored = await findReportById(REPORT.id);
+    // Not `'none'`: nothing was enforced, and an explicit `none` is a DIFFERENT
+    // claim that only the enforcement plan may make.
+    expect(stored?.enforcedAction).toBeNull();
+    expect(stored?.enforcedAt).toBeNull();
+  });
+
+  it('refuses an enforced action outside the tuple', async () => {
+    await createReport(db, REPORT, EVENT);
+    // Alia's own closed set, so unlike `decisionStatus` it IS CHECKed.
+    await expect(
+      applyDecisionToReport(REPORT.id, { ...decision, enforcedAction: 'delete_everything' }),
+    ).rejects.toThrow();
+  });
+
+  /**
+   * `decisionStatus` and `decisionOutcome` are deliberately UNCHECKED: both come
+   * off the wire and §10.11 makes decisions loose on purpose, so a value a newer
+   * CrowdSource introduces must be storable rather than dead-lettered.
+   */
+  it('stores a decision status this deployment has never seen', async () => {
+    await createReport(db, REPORT, EVENT);
+
+    expect(
+      await applyDecisionToReport(REPORT.id, {
+        ...decision,
+        decisionStatus: 'a_status_from_a_newer_crowdsource',
+        decisionOutcome: 'an_outcome_from_a_newer_crowdsource',
+      }),
+    ).toBe(true);
+
+    const stored = await findReportById(REPORT.id);
+    expect(stored?.decisionStatus).toBe('a_status_from_a_newer_crowdsource');
+  });
+});
+
+describe('the reports of one case', () => {
+  it('returns every report on the case, oldest first', async () => {
+    await createReport(db, REPORT, EVENT);
+    await createReport(
+      db,
+      { ...REPORT, id: 'report-b', reporter: 'oxy-user-2' },
+      { ...EVENT, eventId: 'report-b:report.submit' },
+    );
+    for (const id of ['report-1', 'report-b']) {
+      await markReportSubmitted(id, {
+        crowdSourceReportId: `csr_${id}`,
+        crowdSourceCaseId: 'case_shared',
+        crowdSourceMerged: true,
+        contentSnapshotHash: 'sha256:abc',
+      });
+    }
+
+    const found = await findReportsByCaseId('case_shared');
+    expect(found.map((r) => r.id)).toEqual(['report-1', 'report-b']);
+  });
+
+  /**
+   * Empty is a real answer the decision worker acts on — it defers rather than
+   * dead-letters, because the webhook can outrun the response that carried the
+   * case id back. It must not be an error.
+   */
+  it('returns nothing for a case no report is linked to', async () => {
+    await createReport(db, REPORT, EVENT);
+    expect(await findReportsByCaseId('case_nobody_reported')).toHaveLength(0);
   });
 });

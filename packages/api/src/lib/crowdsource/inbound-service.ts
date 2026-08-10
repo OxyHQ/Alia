@@ -1,6 +1,12 @@
-import mongoose, { type ClientSession } from 'mongoose';
-import { ModerationEvent } from '../../models/moderation-event.js';
-import { decisionApplyEventId, enqueueModerationOutboxEvent } from './outbox.js';
+import { getDb } from '../../db/index.js';
+import {
+  markModerationEventIgnored,
+  markModerationEventQueued,
+} from '../../db/moderation/moderationEventRepository.js';
+import {
+  decisionApplyEventId,
+  enqueueModerationOutboxEvent,
+} from '../../db/moderation/outboxRepository.js';
 
 /**
  * What happens between "a signed decision arrived" and "2xx".
@@ -16,26 +22,12 @@ import { decisionApplyEventId, enqueueModerationOutboxEvent } from './outbox.js'
  * silently lost, with a row that says it arrived. Committing both together means
  * the only two possible outcomes are "recorded and queued" or "neither", and
  * "neither" releases the claim and gets redelivered.
+ *
+ * Both writes take the SAME `tx`. That is the whole mechanism, and it is the one
+ * thing a reviewer should check here: handing either of them the root handle
+ * compiles, and `enqueueModerationOutboxEvent` refuses it at runtime precisely
+ * because the type cannot.
  */
-
-const TRANSACTION_OPTIONS = {
-  readPreference: 'primary' as const,
-  readConcern: { level: 'snapshot' as const },
-  writeConcern: { w: 'majority' as const },
-};
-
-async function inTransaction(
-  operation: (session: ClientSession) => Promise<void>,
-): Promise<void> {
-  const session = await mongoose.startSession();
-  try {
-    await session.withTransaction(async () => {
-      await operation(session);
-    }, TRANSACTION_OPTIONS);
-  } finally {
-    await session.endSession();
-  }
-}
 
 export interface RecordDecisionEventInput {
   eventId: string;
@@ -57,35 +49,17 @@ export interface RecordDecisionEventInput {
 export async function recordDecisionEvent(
   input: RecordDecisionEventInput,
 ): Promise<void> {
-  await inTransaction(async (session) => {
-    const now = new Date();
-    await ModerationEvent.updateOne(
-      { _id: input.eventId },
-      {
-        $set: {
-          type: input.type,
-          caseId: input.caseId,
-          payload: { caseId: input.caseId, decision: input.decision },
-          state: 'queued',
-          queuedAt: now,
-          updatedAt: now,
-        },
+  await getDb().transaction(async (tx) => {
+    await markModerationEventQueued(tx, input);
+    await enqueueModerationOutboxEvent(tx, {
+      eventId: decisionApplyEventId(input.eventId),
+      kind: 'decision.apply',
+      payload: {
+        eventId: input.eventId,
+        caseId: input.caseId,
+        decision: input.decision,
       },
-      { session },
-    );
-
-    await enqueueModerationOutboxEvent(
-      {
-        eventId: decisionApplyEventId(input.eventId),
-        kind: 'decision.apply',
-        payload: {
-          eventId: input.eventId,
-          caseId: input.caseId,
-          decision: input.decision,
-        },
-      },
-      session,
-    );
+    });
   });
 }
 
@@ -96,22 +70,14 @@ export async function recordDecisionEvent(
  * introduces. No outbox row, because no work — but the row is kept, because "did
  * CrowdSource tell us about this case, and when" is the first question asked when
  * a report looks stuck, and it has to be answerable.
+ *
+ * No transaction, because there is no second write to commit with. That asymmetry
+ * with `recordDecisionEvent` is the point rather than an inconsistency.
  */
 export async function recordIgnoredEvent(input: {
   eventId: string;
   type: string;
   caseId?: string;
 }): Promise<void> {
-  const now = new Date();
-  await ModerationEvent.updateOne(
-    { _id: input.eventId },
-    {
-      $set: {
-        type: input.type,
-        ...(input.caseId === undefined ? {} : { caseId: input.caseId }),
-        state: 'ignored',
-        updatedAt: now,
-      },
-    },
-  );
+  await markModerationEventIgnored(input);
 }

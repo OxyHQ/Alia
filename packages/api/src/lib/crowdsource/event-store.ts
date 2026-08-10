@@ -1,11 +1,11 @@
 import type { ProcessedEventStore } from '@oxyhq/crowdsource-express';
 import {
-  ModerationEvent,
-  MODERATION_EVENT_RETENTION_SECONDS,
-} from '../../models/moderation-event.js';
+  claimModerationEvent,
+  releaseModerationEvent,
+} from '../../db/moderation/moderationEventRepository.js';
 
 /**
- * The webhook dedupe store, in Mongo.
+ * The webhook dedupe store, in Postgres.
  *
  * `@oxyhq/crowdsource-express` defaults to an in-process store and says exactly
  * when that is not enough: two instances behind a load balancer each keep their
@@ -18,49 +18,21 @@ import {
  * still deliver the event later. Recording the id only after success would let two
  * copies run at once; recording it before and never releasing would make a
  * transient failure permanent and lose a decision silently.
+ *
+ * The claim itself is an `ON CONFLICT DO NOTHING … RETURNING` in the repository,
+ * NOT a caught duplicate-key error. Under Mongo, catching code 11000 was the
+ * idiomatic spelling; on Postgres it would be wrong twice over — a failed
+ * statement aborts the surrounding transaction, and an exception cannot
+ * distinguish a duplicate from a dropped connection. Reading the empty result set
+ * as the answer keeps a real failure propagating, so the middleware answers
+ * non-2xx and the event stays on the sender's retry schedule instead of being
+ * retired as "already processed".
  */
-
-function isDuplicateKeyError(error: unknown): boolean {
-  return (
-    typeof error === 'object' &&
-    error !== null &&
-    'code' in error &&
-    Number((error as { code?: unknown }).code) === 11000
-  );
-}
-
-export function mongoProcessedEventStore(): ProcessedEventStore {
+export function processedEventStore(): ProcessedEventStore {
   return {
-    /**
-     * True when this call took the claim.
-     *
-     * The insert IS the claim: `_id` is the event id and the index on it is
-     * unique, so the duplicate-key error is not an error condition to work around
-     * — it is the answer "somebody else has this event".
-     */
-    async claim(eventId: string): Promise<boolean> {
-      const now = new Date();
-      try {
-        await ModerationEvent.create({
-          _id: eventId,
-          state: 'claimed',
-          receivedAt: now,
-          expiresAt: new Date(now.getTime() + MODERATION_EVENT_RETENTION_SECONDS * 1_000),
-        });
-        return true;
-      } catch (error: unknown) {
-        if (isDuplicateKeyError(error)) return false;
-        // Anything else — a lost connection, a failover — is NOT "already
-        // processed". Rethrowing makes the middleware answer non-2xx so the event
-        // stays on the sender's retry schedule; swallowing it here would answer
-        // 200 and retire a decision nobody ever handled.
-        throw error;
-      }
-    },
-
+    /** True when this call took the claim. */
+    claim: (eventId: string): Promise<boolean> => claimModerationEvent(eventId),
     /** Give the claim back so a redelivery can be processed. */
-    async release(eventId: string): Promise<void> {
-      await ModerationEvent.deleteOne({ _id: eventId });
-    },
+    release: (eventId: string): Promise<void> => releaseModerationEvent(eventId),
   };
 }

@@ -5,7 +5,7 @@ import {
   recordDecisionEvent,
   recordIgnoredEvent,
 } from '../lib/crowdsource/inbound-service.js';
-import { mongoProcessedEventStore } from '../lib/crowdsource/event-store.js';
+import { processedEventStore } from '../lib/crowdsource/event-store.js';
 import { log } from '../lib/logger.js';
 import { recordMetric } from '../lib/observability/index.js';
 
@@ -106,7 +106,7 @@ export function createCrowdSourceWebhookRoutes(): Router {
       ...(previousSecret === undefined ? {} : { previousSecret }),
       // Shared across ECS tasks: the in-process default would dedupe only the
       // instance that happened to receive both copies of a redelivery.
-      store: mongoProcessedEventStore(),
+      store: processedEventStore(),
       on: {
         /**
          * A decision, provisional or final. Both are queued: a provisional

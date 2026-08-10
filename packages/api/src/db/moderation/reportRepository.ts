@@ -1,7 +1,5 @@
 /**
- * Report intake, on Postgres.
- *
- * This file exists for one statement. Everything else here is bookkeeping.
+ * Reports, on Postgres.
  *
  * ## Why a SAVEPOINT
  *
@@ -40,13 +38,17 @@
  * runs against real Postgres for exactly this reason.
  */
 
-import { and, eq } from 'drizzle-orm';
+import { and, asc, eq, isNull, lte, or, sql } from 'drizzle-orm';
 import { isUniqueViolation } from '@oxyhq/db';
-import type { ApiDatabase } from '../index';
-import { reports, moderationOutboxes } from '../schema/moderation';
-
-/** A drizzle transaction handle, or the root connection. */
-type Executor = ApiDatabase | Parameters<Parameters<ApiDatabase['transaction']>[0]>[0];
+import type { ApiDatabase, Executor } from '../index';
+import { getDb } from '../index';
+import { reports } from '../schema/moderation';
+import type { ReportCategory } from '../../domain/report.js';
+import {
+  enqueueModerationOutboxEvent,
+  type ModerationOutboxKind,
+  type ModerationOutboxPayload,
+} from './outboxRepository';
 
 /**
  * Run `operation` inside a SAVEPOINT, returning `null` if it raised a unique
@@ -87,33 +89,40 @@ async function insertOrNullOnConflict<T>(
   }
 }
 
+export type StoredReport = typeof reports.$inferSelect;
+
 export interface NewReport {
   readonly id: string;
   readonly reportedType: string;
   readonly reportedId: string;
   readonly reporter: string;
-  readonly categories: readonly string[];
+  readonly categories: readonly ReportCategory[];
   readonly details?: string;
   readonly localStatus: string;
   readonly localStatusReason?: string;
 }
 
+/** What to enqueue alongside the report, when there is somewhere to send it. */
 export interface NewOutboxEvent {
-  readonly id: string;
-  readonly kind: 'report.submit' | 'decision.apply';
-  readonly payload: unknown;
-  readonly availableAt: Date;
-  readonly expiresAt: Date;
+  readonly eventId: string;
+  readonly kind: ModerationOutboxKind;
+  readonly payload: ModerationOutboxPayload;
 }
 
 export type CreateReportResult =
-  | { readonly created: true; readonly report: typeof reports.$inferSelect }
-  | { readonly created: false; readonly existing: typeof reports.$inferSelect };
+  | { readonly created: true; readonly report: StoredReport }
+  | { readonly created: false; readonly existing: StoredReport };
 
 /**
  * Store a report and, when it is deliverable, queue its delivery — in ONE
  * transaction, so a report can never commit as `queued` with nothing to deliver
  * it, nor as `received` with a delivery event that will try anyway.
+ *
+ * The enqueue goes through `enqueueModerationOutboxEvent` rather than inserting
+ * the row here, so this path is subject to the same transaction guard as the
+ * inbound one and the outbox keeps a single writer. Handing it `tx` is the whole
+ * mechanism; handing it the root connection is the mistake that guard exists to
+ * refuse.
  *
  * A duplicate returns `{created: false, existing}` rather than throwing, which
  * is the shape the caller needs to answer 409 with the original report.
@@ -164,22 +173,163 @@ export async function createReport(
       return { created: false, existing };
     }
 
-    if (event) {
-      // Deterministic id, so a repeat converges on one row. DO NOTHING rather
-      // than DO UPDATE: a repeat must write no tuple version and touch no
-      // timestamp, because the dispatcher may hold a lease on this very row.
-      await tx
-        .insert(moderationOutboxes)
-        .values({
-          id: event.id,
-          kind: event.kind,
-          payload: event.payload,
-          availableAt: event.availableAt,
-          expiresAt: event.expiresAt,
-        })
-        .onConflictDoNothing();
-    }
+    if (event) await enqueueModerationOutboxEvent(tx, event);
 
     return { created: true, report: inserted };
   });
+}
+
+/** One report, for the delivery worker. */
+export async function findReportById(id: string): Promise<StoredReport | null> {
+  const [row] = await getDb().select().from(reports).where(eq(reports.id, id));
+  return row ?? null;
+}
+
+/**
+ * Close a report there is genuinely nothing left to do about — the reported
+ * object is gone, or was never somebody's published work.
+ */
+export async function closeUndeliverableReport(id: string, reason: string): Promise<void> {
+  await getDb()
+    .update(reports)
+    .set({ localStatus: 'closed', localStatusReason: reason, updatedAt: sql`now()` })
+    .where(eq(reports.id, id));
+}
+
+/**
+ * Record a delivery failure ON THE REPORT, not only in the outbox row.
+ *
+ * `delivery_failed` is what a reporter's receipt and any operational sweep both
+ * read; leaving the report at `queued` while the outbox quietly backed off would
+ * hide the problem in a table nobody looks at.
+ */
+export async function markReportDeliveryFailed(id: string, message: string): Promise<void> {
+  await getDb()
+    .update(reports)
+    .set({
+      localStatus: 'delivery_failed',
+      lastDeliveryError: message.slice(0, 2_000),
+      updatedAt: sql`now()`,
+    })
+    .where(eq(reports.id, id));
+}
+
+/**
+ * Record a successful delivery.
+ *
+ * `lastDeliveryError` and `localStatusReason` are cleared — Mongo's `$unset`.
+ * Setting them to `null` is the same fact here, because the columns are nullable
+ * and absence is spelled `NULL` rather than "key not present".
+ */
+export async function markReportSubmitted(
+  id: string,
+  receipt: {
+    crowdSourceReportId: string;
+    crowdSourceCaseId: string;
+    crowdSourceMerged: boolean;
+    contentSnapshotHash: string;
+  },
+): Promise<void> {
+  await getDb()
+    .update(reports)
+    .set({
+      localStatus: 'submitted',
+      crowdSourceReportId: receipt.crowdSourceReportId,
+      crowdSourceCaseId: receipt.crowdSourceCaseId,
+      crowdSourceMerged: receipt.crowdSourceMerged,
+      contentSnapshotHash: receipt.contentSnapshotHash,
+      submittedAt: sql`now()`,
+      lastDeliveryError: null,
+      localStatusReason: null,
+      updatedAt: sql`now()`,
+    })
+    .where(eq(reports.id, id));
+}
+
+/** Every report that opened or joined this case, for the decision worker. */
+export async function findReportsByCaseId(
+  caseId: string,
+): Promise<Pick<StoredReport, 'id' | 'reportedType' | 'reportedId'>[]> {
+  return await getDb()
+    .select({
+      id: reports.id,
+      reportedType: reports.reportedType,
+      reportedId: reports.reportedId,
+    })
+    .from(reports)
+    .where(eq(reports.crowdSourceCaseId, caseId))
+    /**
+     * Ordered, where Mongo's `find` was not.
+     *
+     * The caller takes `reports[0]` as the case's subject, so an unordered query
+     * makes that an arbitrary row — harmless while §7.3's dedup key guarantees
+     * every report merged into a case is about the SAME object, and a silent
+     * nondeterminism the day that stops being true. Oldest first, because the
+     * report that opened the case is the one that named it. `id` breaks a tie
+     * within a millisecond, which `created_at` alone cannot.
+     */
+    .orderBy(asc(reports.createdAt), asc(reports.id));
+}
+
+export interface ReportDecision {
+  readonly status: string;
+  readonly localStatus: string;
+  readonly decisionId: string;
+  readonly decisionRevision: number;
+  readonly decisionOutcome: string;
+  readonly decisionStatus: string;
+  readonly decidedAt: Date;
+  readonly enforcedAction?: string;
+}
+
+/**
+ * Write a decision onto one report, refusing a stale revision.
+ *
+ * The revision guard is in the WHERE clause, so it is the DATABASE that rejects
+ * an out-of-order write rather than a read-then-write in this process.
+ * Deliveries can overlap — §10.9 retries for 24 hours, and a correction can
+ * arrive while the decision it supersedes is still being applied — and an older
+ * revision landing last would otherwise overwrite the current answer with a
+ * stale one.
+ *
+ * `decision_revision IS NULL OR decision_revision <= $revision` is Mongo's
+ * `$or: [{$exists: false}, {$lte: …}]` exactly. The `IS NULL` branch is not
+ * decoration: in SQL a comparison against NULL is NULL, which a WHERE treats as
+ * false, so without it the FIRST decision on a report — the only case where the
+ * column is still unset — would match nothing and be silently dropped.
+ *
+ * Returns whether a row was written. Mongo read `matchedCount` here and
+ * Postgres's row count is `matchedCount`, so this is a faithful port; the
+ * `RETURNING` is what makes the count readable.
+ */
+export async function applyDecisionToReport(
+  id: string,
+  decision: ReportDecision,
+): Promise<boolean> {
+  const rows = await getDb()
+    .update(reports)
+    .set({
+      status: decision.status,
+      localStatus: decision.localStatus,
+      decisionId: decision.decisionId,
+      decisionRevision: decision.decisionRevision,
+      decisionOutcome: decision.decisionOutcome,
+      decisionStatus: decision.decisionStatus,
+      decidedAt: decision.decidedAt,
+      ...(decision.enforcedAction === undefined
+        ? {}
+        : { enforcedAction: decision.enforcedAction, enforcedAt: sql`now()` }),
+      updatedAt: sql`now()`,
+    })
+    .where(
+      and(
+        eq(reports.id, id),
+        or(
+          isNull(reports.decisionRevision),
+          lte(reports.decisionRevision, decision.decisionRevision),
+        ),
+      ),
+    )
+    .returning({ id: reports.id });
+  return rows.length === 1;
 }

@@ -120,6 +120,13 @@
       "when": 1786358918584,
       "tag": "0016_jazzy_justin_hammer",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1786361217472,
+      "tag": "0017_broad_yellowjacket",
+      "breakpoints": true
     }
   ]
 }
