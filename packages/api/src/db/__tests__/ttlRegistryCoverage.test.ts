@@ -138,6 +138,8 @@ const MONGO_MODEL_TO_TABLE: Readonly<Record<string, string>> = {
   McpOAuthState: 'mcp_oauth_states',
   OAuthState: 'oauth_states',
   TriggerExecution: 'trigger_executions',
+  Notification: 'notifications',
+  AudioJob: 'audio_jobs',
 };
 
 const ttls = declaredMongoTtls();
@@ -165,24 +167,49 @@ describe('every ported TTL index has a matching expiry-sweep target', () => {
     expect(missing).toEqual([]);
   });
 
-  it('a CONDITIONAL TTL is never registered as an unconditional one', () => {
-    // The dangerous direction. `ExpirySweepTarget` has no predicate, so a
-    // partial TTL registered flat deletes rows the source excluded — silently,
-    // and unrecoverably. The remedy is to make the condition a COLUMN; see
-    // expiryTargets.ts. Until then such a model must NOT appear in the registry.
-    const registered = new Set(EXPIRY_TARGETS.map((t) => getTableName(t.table)));
-
-    const conditionalButFlat = ttls
+  it('a CONDITIONAL TTL is registered only against a DIFFERENT column', () => {
+    /**
+     * The dangerous direction, and the reason this is not simply "conditional
+     * models may not be registered" any more.
+     *
+     * `ExpirySweepTarget` has no predicate. Registering a partial TTL against the
+     * column the source measured from therefore deletes rows the source
+     * EXCLUDED — silently and unrecoverably. The sanctioned remedy is to make the
+     * condition a COLUMN and sweep from that instead, which `notifications`
+     * now does (`dismissed_at`, bound to `status` by a CHECK).
+     *
+     * So the property is no longer "absent from the registry"; it is "registered
+     * against a column that is NOT the source's". A conditional TTL pointing at
+     * its original column is exactly the flat registration this always forbade.
+     */
+    const offenders = ttls
       .filter((ttl) => ttl.partialFilterExpression !== undefined)
-      .filter((ttl) => registered.has(MONGO_MODEL_TO_TABLE[ttl.model] ?? ''))
-      .map(
-        (ttl) =>
-          `${ttl.model}: TTL is conditional on ${JSON.stringify(ttl.partialFilterExpression)} ` +
-          `but ${String(MONGO_MODEL_TO_TABLE[ttl.model])} is registered with no predicate — ` +
-          'make the condition a column (see expiryTargets.ts) instead',
-      );
+      .flatMap((ttl) => {
+        const table = MONGO_MODEL_TO_TABLE[ttl.model];
+        const target = EXPIRY_TARGETS.find((t) => getTableName(t.table) === table);
+        if (!table || !target) return [];
+        const registeredPath = sqlColumnName(target.column);
+        const sourcePath = ttl.path.replace(/([A-Z])/g, '_$1').toLowerCase();
+        return registeredPath === sourcePath
+          ? [
+              `${ttl.model}: TTL is conditional on ${JSON.stringify(ttl.partialFilterExpression)} ` +
+                `but ${table} is swept from ${registeredPath}, the SAME column the source measured ` +
+                'from — that deletes rows the condition excluded. Make the condition a column.',
+            ]
+          : [];
+      });
 
-    expect(conditionalButFlat).toEqual([]);
+    expect(offenders).toEqual([]);
+  });
+
+  it('the conditional case really is registered against its condition column', () => {
+    // The positive half. Without it the check above passes just as well when
+    // `notifications` is absent from the registry entirely, which is the state
+    // it used to be in — so this is what stops a silent regression to "not swept
+    // at all" being read as compliance.
+    const target = EXPIRY_TARGETS.find((t) => getTableName(t.table) === 'notifications');
+    if (!target) throw new Error('notifications must be registered in EXPIRY_TARGETS');
+    expect(sqlColumnName(target.column)).toBe('dismissed_at');
   });
 
   it('knows the conditional case exists, so the check above is not vacuous', () => {
@@ -192,12 +219,18 @@ describe('every ported TTL index has a matching expiry-sweep target', () => {
     expect(conditional.map((t) => t.model)).toContain('Notification');
   });
 
-  it('each registry entry measures from the SAME column the source did', () => {
+  it('each UNCONDITIONAL registry entry measures from the SAME column the source did', () => {
     const mismatched: string[] = [];
     for (const target of EXPIRY_TARGETS) {
       const table = getTableName(target.table);
       const ttl = ttls.find((t) => MONGO_MODEL_TO_TABLE[t.model] === table);
       if (!ttl) continue;
+      // A CONDITIONAL TTL is required to measure from a DIFFERENT column — that
+      // difference IS the condition made into one, and the check above enforces
+      // it. Exempting it here is not a loophole: the two assertions together say
+      // "same column unless conditional, different column when conditional",
+      // which is stricter than either alone.
+      if (ttl.partialFilterExpression !== undefined) continue;
       // `column.name` is the TypeScript property name; only sqlColumnName applies
       // the configured casing. Mongoose's path is camelCase, so compare there.
       const registeredPath = sqlColumnName(target.column);
