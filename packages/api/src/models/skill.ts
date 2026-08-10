@@ -1,5 +1,13 @@
 import mongoose, { Schema, Model, Document } from 'mongoose';
 
+/**
+ * Exported as a TUPLE, not a union type: the Postgres schema renders its CHECK
+ * from this exact value rather than retyping it, so the constraint and this
+ * validator cannot drift apart.
+ */
+export const SKILL_CATEGORIES = ['featured', 'community', 'recent'] as const;
+export type SkillCategory = (typeof SKILL_CATEGORIES)[number];
+
 export interface ISkill extends Document {
   skillId: string;
   title: string;
@@ -9,14 +17,13 @@ export interface ISkill extends Document {
   author: string;
   icon: string;
   color: string;
-  category: 'featured' | 'community' | 'recent';
+  category: SkillCategory;
   language: string;
   triggers: string[];
   includes: string[];
   useCase: string;
   goodAt: string[];
   notGoodAt: string[];
-  coverImage: string | null;
   isBuiltIn: boolean;
   isPublished: boolean;
   oxyUserId?: mongoose.Types.ObjectId;
@@ -33,7 +40,7 @@ const SkillSchema = new Schema<ISkill>({
   author: { type: String, required: true },
   icon: { type: String, required: true },
   color: { type: String, required: true },
-  category: { type: String, enum: ['featured', 'community', 'recent'], required: true },
+  category: { type: String, enum: SKILL_CATEGORIES, required: true },
   language: { type: String, required: true, default: 'en-US', index: true },
   triggers: [{ type: String }],
   includes: [{ type: String }],
