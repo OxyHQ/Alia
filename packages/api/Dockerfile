@@ -99,6 +99,23 @@ COPY --from=builder /build/packages/api/package.json ./packages/api/package.json
 # Built application bundle.
 COPY --from=builder /build/packages/api/dist ./packages/api/dist
 
+# The migration SQL and its journal.
+#
+# NOT optional and NOT covered by the line above: `dist/db/migrate.js` resolves
+# `join(PACKAGE_ROOT, 'drizzle')` at runtime, where PACKAGE_ROOT is
+# `/app/packages/api`. Without this the migrator starts fine and then dies with
+#
+#   Cannot read the migration journal at
+#   /app/packages/api/drizzle/meta/_journal.json: ENOENT
+#
+# — which is what the first successful one-shot migration task actually hit,
+# one layer below the `__dirname` defect that had been masking it. A bundler
+# cannot inline these: they are data the migrator reads by path, not modules it
+# imports, so `build.ts` will never pull them in however the entrypoint changes.
+#
+# `dockerfileShipsMigrations.test.ts` is the gate.
+COPY --from=builder /build/packages/api/drizzle ./packages/api/drizzle
+
 # Security hardening: run as the unprivileged "node" user shipped in the image.
 RUN chown -R node:node /app
 USER node
