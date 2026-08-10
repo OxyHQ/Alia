@@ -523,6 +523,28 @@ export async function addEntries(
  * single document write; here it is a DELETE and an INSERT, and a failure
  * between them would leave the user with no memories at all. The import route's
  * `replace` strategy is the only caller.
+ *
+ * ## The parent row is locked, and atomicity alone is not what that is for
+ *
+ * A transaction makes the pair all-or-nothing. It does NOT make two of them
+ * serialize, and under READ COMMITTED they interleave in a way the Mongo
+ * document write could not: B's DELETE blocks on A's row locks, and when it
+ * unblocks its scan cannot see rows A inserted after that statement began — so
+ * A's set survives B's replace and the user is left holding the UNION of two
+ * imports. Measured on a real server, not reasoned about: with A holding an
+ * uncommitted delete and `pg_locks` showing B queued on A's `transactionid`,
+ * the table ended with one row from each.
+ *
+ * `for update` on the owning `user_memories` row makes that row the
+ * serialization point, which is exactly what the Mongo document was. Two
+ * replaces now queue and the later one wins whole. It is the only writer that
+ * takes this lock — every other one is a per-row upsert whose grain is the
+ * functional unique — so there is no second lock to order against.
+ *
+ * Whole-array writers are the only pairing that regressed. `merge` and
+ * `skip-duplicates` were also a whole-array `save()` in Mongo, which LOST a
+ * concurrent write from the memory tool; as per-row upserts they no longer do.
+ * That difference is an improvement and is left alone.
  */
 export async function replaceEntries(
   db: ApiDatabase,
@@ -530,6 +552,7 @@ export async function replaceEntries(
   entries: readonly NewMemoryEntry[],
 ): Promise<number> {
   return db.transaction(async (tx) => {
+    await tx.execute(sql`select id from ${userMemories} where id = ${userMemoryId} for update`);
     await tx.delete(userMemoryEntries).where(eq(userMemoryEntries.userMemoryId, userMemoryId));
     if (entries.length === 0) return 0;
     const rows = await tx

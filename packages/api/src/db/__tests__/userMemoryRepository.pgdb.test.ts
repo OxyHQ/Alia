@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { closePostgres, connectPostgres, type ApiDatabase } from '../index';
 import {
   addEntries,
@@ -46,6 +46,20 @@ beforeAll(() => {
 afterAll(async () => {
   await closePostgres();
 });
+
+/**
+ * Poll until `condition` holds, and THROW when it never does. A concurrency
+ * case whose forcing mechanism silently failed reports the same "passed" as one
+ * where the code under test worked, so the timeout has to be an error and not
+ * a shrug.
+ */
+async function waitFor(condition: () => Promise<boolean>, whenNot: string): Promise<void> {
+  for (let i = 0; i < 100; i += 1) {
+    if (await condition()) return;
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  throw new Error(`INSTRUMENT: ${whenNot}`);
+}
 
 describe('finding or creating the profile', () => {
   it('creates an empty profile with the documented defaults', async () => {
@@ -370,6 +384,89 @@ describe('bulk import', () => {
 
     expect(await replaceEntries(db, p._id, [])).toBe(0);
     expect(await countEntries(db, p._id)).toBe(0);
+  });
+
+  it('serializes against another whole-set writer, so the later one wins WHOLE', async () => {
+    const p = await getOrCreateUserMemory(db, 'umr-replace-race');
+    await saveEntryByTitle(db, p._id, { title: 'Seed', summary: 'a', type: 'topic' });
+
+    /**
+     * Atomicity is not serialization, and this is the case that tells them
+     * apart. Without `for update` on the parent, B's DELETE blocks on A's row
+     * locks and then cannot see the rows A inserted after that statement
+     * began — so the table ends up holding the UNION of two imports, which the
+     * Mongo whole-array `save()` could never produce.
+     *
+     * `Promise.all` would not reproduce it: starting two calls together does
+     * not make their statements interleave, and a run where they happened to
+     * serialize looks exactly like a run where the lock did its job. So A is a
+     * transaction held OPEN until B is provably queued behind it.
+     */
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => { release = resolve; });
+
+    /**
+     * A's backend pid, read INSIDE its transaction. Not compared against the
+     * pool's pid to decide readiness — the pool legitimately hands the
+     * transaction the same connection the previous statement used, so "the pid
+     * changed" reports "never opened" on a run where it opened immediately.
+     * The readiness signal is the flag; the pid is only for scoping the lock
+     * query below.
+     */
+    let holderPid = 0;
+    let holdsLock = false;
+
+    const writerA = db.transaction(async (tx) => {
+      const [row] = await tx.execute<{ pid: number }>(sql`select pg_backend_pid() as pid`);
+      holderPid = row.pid;
+      await tx.execute(sql`select id from ${userMemories} where id = ${p._id} for update`);
+      await tx.delete(userMemoryEntries).where(eq(userMemoryEntries.userMemoryId, p._id));
+      await tx.insert(userMemoryEntries).values({
+        userMemoryId: p._id, title: 'A wins', summary: 'a', type: 'topic',
+      });
+      holdsLock = true;
+      await held;
+    });
+
+    await waitFor(async () => holdsLock, 'writer A never took the parent lock');
+
+    const writerB = replaceEntries(db, p._id, [{ title: 'B wins', summary: 'b', type: 'topic' }]);
+
+    /**
+     * The instrument, and it has to be scoped to THIS holder: `pg_locks` is
+     * database-wide, so a bare `not granted` would be satisfied by any other
+     * suite's contention. A row-lock wait queues on the holder's
+     * `transactionid` rather than on the relation — a predicate naming
+     * `user_memory_entries::regclass` finds nothing on a run where the block
+     * demonstrably happened.
+     *
+     * It THROWS when the wait never appears, because "no union" is equally
+     * what a run that never overlapped would report.
+     */
+    await waitFor(async () => {
+      const [row] = await db.execute<{ n: number }>(sql`
+        select count(*)::int as n
+        from pg_locks waiter
+        where not waiter.granted
+          and waiter.locktype = 'transactionid'
+          and exists (
+            select 1 from pg_locks holder
+            where holder.granted
+              and holder.locktype = 'transactionid'
+              and holder.transactionid = waiter.transactionid
+              and holder.pid = ${holderPid}
+          )
+      `);
+      return row.n > 0;
+    }, 'writer B never queued behind writer A, so this case measured nothing');
+
+    release();
+    await writerA;
+    await writerB;
+
+    const after = await findUserMemory(db, 'umr-replace-race');
+    // Not `toContain`: the point is that A's row is GONE, not that B's arrived.
+    expect(after?.memories.map((m) => m.title)).toEqual(['B wins']);
   });
 });
 
