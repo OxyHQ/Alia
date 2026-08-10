@@ -571,3 +571,76 @@ Assert driver errors through `@oxyhq/db`'s helpers, never a message regex —
 drizzle wraps the failure so `code` and `constraint_name` live on `cause`. Name
 the CONSTRAINT too: `isUniqueViolation` alone cannot tell the index under test
 from any other index on the table.
+
+---
+
+# The backfill audit list
+
+Every tightening this port introduced, in one place, because the alternative is
+reading seven schema files to find them. Each is a constraint Postgres will
+enforce that Mongo did not — so each is a way the backfill can fail, and failing
+there is the DESIGNED outcome rather than a surprise: it surfaces a real
+inconsistency at the one moment somebody is watching.
+
+**Audit in the SAME invocation as the copy.** An audit whose result can expire
+between running it and using it is not a gate — the rule this file already states
+about enums, applied to all of them.
+
+## Values a CHECK will now refuse
+
+| Where | What to audit | If it fires |
+|---|---|---|
+| every `text` + CHECK column | a stored value outside its tuple | Mongoose never validated enums on `updateOne`/`findOneAndUpdate`, so this is the expected class. Widen the tuple or fix the row — do not drop the CHECK. |
+| `model_configs.priority`, `.quality_score`, `alia_model_provider_mappings.*`, `provider_keys.current_priority`, `.original_priority`, `.spent_usd`, `.max_total_failures`, `alia_models.credit_multiplier`, `credit_packages.credits`, `.price` | a number outside the Mongoose `min`/`max` it preserves | These are domain invariants, not input shaping. A violation means a non-validating write path produced it. |
+| `notifications.dismissed_at` | `status = 'dismissed'` with no `dismissed_at`, or the reverse | Backfill `dismissed_at` from the row's `updatedAt` (the best available proxy) for dismissed rows, and NULL for every other status. |
+| `triggers` | `schedule` present with `type NOT IN ('schedule','agent_heartbeat')` | No CHECK was added — this is the correct-but-unvalidated tightening deliberately left out. Audit it, then decide whether to add the constraint in a later `post` migration. |
+| `user_credits.credits_free`, `.credits_paid` | a NEGATIVE balance | No CHECK was added, because `addCredits` accepts a negative amount. Audit the actual range before anybody adds one. |
+
+## Uniques that will refuse a duplicate
+
+| Where | What to audit | Why it matters |
+|---|---|---|
+| `referral_redemptions_referred_user_key` | one account appearing under TWO referrers | The double-credit race is real (`routes/referrals.ts` pays before it records). A hit here is a customer who was credited twice. |
+| `organizations_slug_lower_key` | two slugs differing only in case | Mongoose's `lowercase` setter folded them; a row written around it did not. |
+| `alia_models.alias_model_id` | a value that is not already lowercase | Same setter, no CHECK added — the port stores whatever is there. |
+
+## Not-null a legacy row may not satisfy
+
+`subscriptions.plan_snapshot_name`, `.plan_snapshot_credits_per_month`,
+`.plan_snapshot_price` are `notNull` because Mongoose declares them `required` —
+but a `required` added to a schema binds only writes made after it. Audit for
+subscriptions predating the snapshot. Relaxing these is a one-line change while
+the schema is inert and a `post` migration afterwards.
+
+## The one that corrupts silently rather than failing
+
+**The encrypted OAuth columns.** `integrations.oauth_access_token`,
+`.oauth_refresh_token`, `connected_accounts.*` and `bots.bot_token` are
+`encryptedText`. Copy the CIPHERTEXT verbatim through the RAW driver and write it
+with a raw statement — never through drizzle, which would encrypt it a second
+time. Assert the written value still matches `iv:authTag:ciphertext`; that
+assertion is the only thing between "copied" and "copied correctly", because a
+double-encrypted row looks like a successful copy and fails at the first READ, in
+production. `columns.ts` has the full reasoning.
+
+## Preconditions rather than failures
+
+- `provider_keys.organization_id` must be entirely NULL before its CASCADE
+  foreign key applies. It should be — the column is declared and indexed in
+  Mongoose and never written, verified package-wide — but confirm rather than
+  assume.
+- Migration `001-restructure-memories-title-summary-type` must be recorded as
+  applied before `user_memories` (batch 8) is copied, and any source row still
+  carrying the legacy `key`/`category` keys refused. Stated in full above.
+
+## One measurement taken by somebody else
+
+A whole-host `listDatabases` census of `oxy-mongo`, run as a one-shot ECS task on
+**2026-08-09**, reported `alia-production` with 79 collections, 6,113 documents
+total, and **`notifications: 0`**.
+
+Recorded with its provenance because it is not a measurement taken here, and
+because its weight is entirely in its date: if it still holds at cutover, the
+`notifications` CHECKs above carry no backfill risk at all. **Re-verify at
+backfill time rather than relying on this line** — a zero-row collection is
+exactly the kind of fact that stops being true quietly.
