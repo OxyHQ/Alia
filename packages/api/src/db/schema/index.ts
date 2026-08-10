@@ -4,6 +4,7 @@
  * table missing from here exists in TypeScript and in no migration.
  */
 
+export * from './agents';
 export * from './agents-support';
 export * from './automation';
 export * from './billing';
