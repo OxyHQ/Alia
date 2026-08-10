@@ -13,9 +13,9 @@ import {
   recordSuccess,
   recordFailure,
   isProviderAvailable,
-  resetProviderHealth
+  resetProviderHealth,
+  resetAllProviderHealth
 } from '../lib/provider-health';
-import mongoose from 'mongoose';
 import { getBestKeyForModel, recordKeyUsage, recordKeySpend } from '../lib/key-manager';
 import { sanitizeError, getErrorMessage } from '../../../lib/errors/index.js';
 import { broadcastHealthUpdate } from '../lib/broadcast-helpers';
@@ -339,38 +339,18 @@ router.get('/available', async (req: Request, res: Response) => {
  */
 router.post('/health/reset-all', async (req: Request, res: Response) => {
   try {
-    const ProviderHealth = mongoose.models.ProviderHealth;
-    if (!ProviderHealth) {
-      return res.status(500).json({
-        success: false,
-        error: 'ProviderHealth model not available',
-        code: 'INTERNAL_ERROR',
-      });
-    }
-
-    const result = await ProviderHealth.updateMany(
-      {},
-      {
-        $set: {
-          successCount: 0,
-          failureCount: 0,
-          totalRequests: 0,
-          successRate: 100,
-          consecutiveFailures: 0,
-          consecutiveSuccesses: 0,
-          circuitState: 'closed',
-          circuitOpenedAt: null,
-          halfOpenAttempts: 0,
-          isHealthy: true,
-          lastHealthCheck: new Date(),
-        },
-      }
-    );
+    // Through `provider-health.ts`, the one module that owns this table. This
+    // route used to reach the collection as `mongoose.models.ProviderHealth`,
+    // which is why it also carried a 500 for "model not available" — a state
+    // only lazy Mongoose model registration could produce. Postgres is connected
+    // before the service listens, so there is nothing left for that branch to
+    // report and it is gone rather than left as unreachable reassurance.
+    const resetCount = await resetAllProviderHealth();
 
     res.json({
       success: true,
       data: {
-        resetCount: result.modifiedCount,
+        resetCount,
         message: 'All provider health records reset to healthy state',
       },
     });

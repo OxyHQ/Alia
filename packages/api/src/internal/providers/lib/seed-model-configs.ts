@@ -11,7 +11,7 @@ import { AliaModel } from '../models/alia-model.js';
 import { ProviderKey } from '../models/provider-key.js';
 import { TIER_MODEL_MAPPINGS, ALIA_MODELS, type ModelCapabilities } from './alia-models.js';
 import { connectDB } from './db.js';
-import mongoose from 'mongoose';
+import { resetAllCircuitBreakers } from './provider-health.js';
 import { log } from '../../../lib/logger.js';
 import { isDuplicateKeyError } from '../../../lib/errors/index.js';
 
@@ -236,40 +236,6 @@ export async function seedAliaModels(): Promise<{ seeded: number; skipped: numbe
 }
 
 /**
- * Reset all open circuit breakers to closed state
- */
-export async function resetAllCircuitBreakers(): Promise<number> {
-  await connectDB();
-
-  const ProviderHealth = mongoose.models.ProviderHealth as mongoose.Model<any> | undefined;
-  if (!ProviderHealth) {
-    log.seed.info('ProviderHealth model not loaded yet, skipping circuit breaker reset');
-    return 0;
-  }
-
-  const result = await ProviderHealth.updateMany(
-    { circuitState: { $in: ['open', 'half-open'] } },
-    {
-      $set: {
-        circuitState: 'closed',
-        circuitOpenedAt: null,
-        halfOpenAttempts: 0,
-        consecutiveFailures: 0,
-        consecutiveSuccesses: 0,
-        isHealthy: true,
-        lastHealthCheck: new Date(),
-      },
-    }
-  );
-
-  if (result.modifiedCount > 0) {
-    log.seed.info({ count: result.modifiedCount }, 'Reset open circuit breakers to closed');
-  }
-
-  return result.modifiedCount;
-}
-
-/**
  * Reset all key cooldowns and consecutive failure counters.
  * Prevents stale lockouts from persisting across deploys.
  */
@@ -303,7 +269,13 @@ export async function runStartupSeed(): Promise<void> {
     const { seedFeatures, seedPlanFeatures } = await import('./seed-features.js');
     await seedFeatures();
     await seedPlanFeatures();
-    await resetAllCircuitBreakers();
+    // Owned by `provider-health.ts`, the one module that touches
+    // `provider_health`. It used to be defined here and reach the collection
+    // through `mongoose.models.ProviderHealth`, bypassing that chokepoint.
+    const closed = await resetAllCircuitBreakers();
+    if (closed > 0) {
+      log.seed.info({ count: closed }, 'Reset open circuit breakers to closed');
+    }
     await resetAllKeyCooldowns();
     log.seed.info('Startup seed complete');
   } catch (error) {
