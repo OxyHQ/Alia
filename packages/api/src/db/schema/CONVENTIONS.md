@@ -443,6 +443,26 @@ Not every setter earns this. `organization_invites.email` is `lowercase, trim`
 too, and no unique index depends on it, so it is a lookup-normalisation concern
 for the repository rather than a constraint, and no functional index was added.
 
+### `Workflow`'s `pre('save')` hook was DEAD, and the port changes nothing
+
+Enumerated per the hooks rule, and recorded because the wrong reading of it is
+attractive. `WorkflowSchema.pre('save')` set `updatedAt`, and a `pre('save')`
+hook does not run on `findOneAndUpdate` — which looks exactly like a bug the port
+silently fixes, worth telling users about.
+
+It is not. There are only two `Workflow` write paths and NEITHER calls `.save()`:
+`routes/canvas/workflows.ts:79` creates, and `:112` updates with
+`findOneAndUpdate`, whose payload sets `updatedAt: new Date()` explicitly at
+`:118`. So the hook has never run on an update, the timestamp has always been
+correct, and it was the CALL SITE maintaining it rather than the hook.
+
+Verdict: case 3 — the hook enforced nothing, because the one thing it would have
+enforced was already done by hand. `updatedAt()` from `@oxyhq/db` now carries it
+via `$onUpdate`, which is the same value written in the same circumstances. **No
+observable behaviour changes and no stored timestamp moves**, so there is nothing
+to announce. Check the call sites before believing a hook is load-bearing — a
+dead hook and a live one look identical in the schema file.
+
 ## A credential at rest, and the projection rule that goes with it
 
 **`provider_keys.key` holds a PLAINTEXT provider API key.** Not a hash —
