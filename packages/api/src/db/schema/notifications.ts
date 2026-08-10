@@ -47,12 +47,17 @@ export const NOTIFICATION_TYPES = [
 export type NotificationTypeValue = (typeof NOTIFICATION_TYPES)[number];
 
 export const NOTIFICATION_CHANNELS = ['push', 'telegram', 'discord', 'whatsapp', 'slack', 'in_app'] as const;
+export type NotificationChannel = (typeof NOTIFICATION_CHANNELS)[number];
 export const NOTIFICATION_STATUSES = ['pending', 'sent', 'read', 'dismissed'] as const;
+export type NotificationStatus = (typeof NOTIFICATION_STATUSES)[number];
 export const NOTIFICATION_PRIORITIES = ['low', 'normal', 'high', 'urgent'] as const;
+export type NotificationPriority = (typeof NOTIFICATION_PRIORITIES)[number];
 
 export const PUSH_TOKEN_PLATFORMS = ['ios', 'android', 'web'] as const;
 export const SUGGESTION_TYPES = ['welcome', 'autocomplete'] as const;
+export type SuggestionType = (typeof SUGGESTION_TYPES)[number];
 export const SUGGESTION_SCOPES = ['global', 'personal'] as const;
+export type SuggestionScope = (typeof SUGGESTION_SCOPES)[number];
 export const SHOW_FORMATS = ['podcast', 'news', 'debate', 'interview', 'explainer'] as const;
 export const SHOW_STATUSES = [
   'queued',
@@ -62,6 +67,48 @@ export const SHOW_STATUSES = [
   'completed',
   'failed',
 ] as const;
+export type ShowFormat = (typeof SHOW_FORMATS)[number];
+export type ShowStatus = (typeof SHOW_STATUSES)[number];
+
+/**
+ * The statuses that mean a show is still being produced.
+ *
+ * A SUBSET of `SHOW_STATUSES`, not a set of its own — `routes/v1/shows.ts` caps
+ * concurrent generations by counting rows in these states, so it has to stay a
+ * strict subset or the cap silently stops counting something. The type
+ * annotation is what enforces that: adding a member that is not a `ShowStatus`
+ * fails `tsc`.
+ */
+export const ACTIVE_SHOW_STATUSES: readonly ShowStatus[] = [
+  'queued',
+  'generating_script',
+  'generating_audio',
+  'concatenating',
+];
+
+export const SHOW_SEGMENT_TYPES = ['dialogue', 'sfx', 'transition'] as const;
+export type ShowSegmentType = (typeof SHOW_SEGMENT_TYPES)[number];
+export const SHOW_SPEAKER_ROLES = ['host', 'co-host', 'guest', 'narrator'] as const;
+export type ShowSpeakerRole = (typeof SHOW_SPEAKER_ROLES)[number];
+
+/** One voice in a show's cast. An element of the `speakers` `jsonb` array. */
+export interface ShowSpeaker {
+  name: string;
+  voiceId: string;
+  voiceName: string;
+  role: ShowSpeakerRole;
+}
+
+/** One spoken or sound segment. An element of the `segments` `jsonb` array. */
+export interface ShowSegment {
+  index: number;
+  speaker: string;
+  text: string;
+  audioUrl?: string;
+  durationMs?: number;
+  type: ShowSegmentType;
+  sfxPrompt?: string;
+}
 export const AUDIO_JOB_STATUSES = ['processing', 'completed', 'failed'] as const;
 
 /**
@@ -92,16 +139,23 @@ export const notifications = pgTable(
     id: generatedId(),
     /** An Oxy account. No foreign key: Oxy owns identity. */
     oxyUserId: text().notNull(),
-    type: text({ enum: NOTIFICATION_TYPES as unknown as [string, ...string[]] }).notNull(),
+    // `$type` restores the literal unions the tuple casts erase; the CHECKs are
+    // what make them true. Type-only — no generated SQL changes.
+    type: text({ enum: NOTIFICATION_TYPES as unknown as [string, ...string[]] })
+      .$type<NotificationTypeValue>()
+      .notNull(),
     title: text().notNull(),
     body: text().notNull(),
-    data: jsonb(),
-    channels: text().array().notNull().default(sql`'{}'::text[]`),
-    deliveryStatus: jsonb().notNull().default({}),
+    data: jsonb().$type<Record<string, unknown>>(),
+    channels: text().array().$type<NotificationChannel[]>().notNull().default(sql`'{}'::text[]`),
+    /** A per-channel map, keyed by the channels actually attempted. */
+    deliveryStatus: jsonb().$type<Record<string, string>>().notNull().default({}),
     status: text({ enum: NOTIFICATION_STATUSES as unknown as [string, ...string[]] })
+      .$type<NotificationStatus>()
       .notNull()
       .default('pending'),
     priority: text({ enum: NOTIFICATION_PRIORITIES as unknown as [string, ...string[]] })
+      .$type<NotificationPriority>()
       .notNull()
       .default('normal'),
     /** A `triggers` row. No foreign key — see the table comment. */
@@ -232,10 +286,15 @@ export const suggestions = pgTable(
     description: text(),
     isTemplate: boolean().notNull().default(false),
     templateVariables: text().array().notNull().default(sql`'{}'::text[]`),
-    type: text({ enum: SUGGESTION_TYPES as unknown as [string, ...string[]] }).notNull(),
+    // `$type` restores the literal union the tuple cast erases; the CHECKs below
+    // are what make it true. Type-only — no generated SQL changes.
+    type: text({ enum: SUGGESTION_TYPES as unknown as [string, ...string[]] })
+      .$type<SuggestionType>()
+      .notNull(),
     category: text(),
     triggerWords: text().array().notNull().default(sql`'{}'::text[]`),
     scope: text({ enum: SUGGESTION_SCOPES as unknown as [string, ...string[]] })
+      .$type<SuggestionScope>()
       .notNull()
       .default('global'),
     /** An Oxy account, for a `personal` suggestion. No foreign key. */
@@ -282,14 +341,24 @@ export const shows = pgTable(
     title: text().notNull(),
     description: text(),
     topic: text().notNull(),
+    /**
+     * `$type` restores the literal union the `as unknown as [string, ...string[]]`
+     * cast erases. It is type-only — no generated SQL changes — and what makes
+     * it TRUE rather than a wish is the CHECK below, which is rendered from the
+     * same tuple: no other value can reach a reader.
+     */
     format: text({ enum: SHOW_FORMATS as unknown as [string, ...string[]] })
+      .$type<ShowFormat>()
       .notNull()
       .default('podcast'),
     status: text({ enum: SHOW_STATUSES as unknown as [string, ...string[]] })
+      .$type<ShowStatus>()
       .notNull()
       .default('queued'),
-    speakers: jsonb().notNull().default([]),
-    segments: jsonb().notNull().default([]),
+    // `$type` is a TypeScript annotation only — it changes no generated SQL, and
+    // it is what stops the repository handing `jsonb` back as `unknown`.
+    speakers: jsonb().$type<ShowSpeaker[]>().notNull().default([]),
+    segments: jsonb().$type<ShowSegment[]>().notNull().default([]),
     audioUrl: text(),
     durationMs: integer(),
     error: text(),

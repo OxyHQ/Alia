@@ -6,7 +6,13 @@ import type { CreditReservation } from '../../lib/credits-manager.js';
 import { getOrCreateUserCredits } from '../../lib/user-credits-helpers.js';
 import { uploadToS3 } from '../../lib/s3.js';
 import { Message } from '../../models/message.js';
-import { AudioJob } from '../../models/audio-job.js';
+import { getDb } from '../../db/index.js';
+import {
+  createAudioJob,
+  findAudioJobStatus,
+  markAudioJobCompleted,
+  markAudioJobFailed,
+} from '../../db/notifications/audioJobRepository.js';
 import { log } from '../../lib/logger.js';
 import { getSafeErrorMessage } from '../../lib/errors/sanitize.js';
 import { extractAudioUrl } from '../../internal/providers/lib/digitalocean-async.js';
@@ -197,20 +203,19 @@ router.post('/generate', async (req: Request, res: Response) => {
     }
 
     // Create job record — return immediately so the client isn't blocked
-    const job = await AudioJob.create({
+    const jobId = await createAudioJob(getDb(), {
       userId,
-      status: 'processing',
       prompt,
-      duration,
+      durationSeconds: duration,
       conversationId,
       messageId,
     });
 
     // Respond immediately with job ID
-    res.status(202).json({ jobId: job._id.toString(), status: 'processing' });
+    res.status(202).json({ jobId, status: 'processing' });
 
     // Background: generate audio, upload to S3, finalize credits
-    void processAudioGeneration({ jobId: job._id.toString(), userId, prompt, duration, reservation, conversationId, messageId });
+    void processAudioGeneration({ jobId, userId, prompt, duration, reservation, conversationId, messageId });
   } catch (error: unknown) {
     log.general.error({ err: error, userId: req.user?.id }, 'Audio generation submission failed');
     res.status(500).json({ error: { message: getSafeErrorMessage(error, 'Audio generation failed'), type: 'server_error' } });
@@ -262,7 +267,7 @@ async function processAudioGeneration(input: AudioGenJobInput): Promise<void> {
     if (!audioOutput) {
       await finalizeCredits(reservation, { promptTokens: 0, completionTokens: 0, totalTokens: 0 });
       const error = 'Generation failed — all providers exhausted';
-      await AudioJob.updateOne({ _id: jobId }, { status: 'failed', error });
+      await markAudioJobFailed(getDb(), jobId, error);
       emitAudioJobUpdate(userId, { jobId, status: 'failed', error });
       return;
     }
@@ -272,7 +277,7 @@ async function processAudioGeneration(input: AudioGenJobInput): Promise<void> {
     if (!generatedUrl) {
       await finalizeCredits(reservation, { promptTokens: 0, completionTokens: 0, totalTokens: 0 });
       const error = 'Generation returned no audio';
-      await AudioJob.updateOne({ _id: jobId }, { status: 'failed', error });
+      await markAudioJobFailed(getDb(), jobId, error);
       emitAudioJobUpdate(userId, { jobId, status: 'failed', error });
       return;
     }
@@ -294,7 +299,7 @@ async function processAudioGeneration(input: AudioGenJobInput): Promise<void> {
     ]);
 
     // Update job with result and notify client
-    await AudioJob.updateOne({ _id: jobId }, { status: 'completed', audioUrl });
+    await markAudioJobCompleted(getDb(), jobId, audioUrl);
     emitAudioJobUpdate(userId, { jobId, status: 'completed', audioUrl });
 
     // Link to message (fire-and-forget)
@@ -311,10 +316,7 @@ async function processAudioGeneration(input: AudioGenJobInput): Promise<void> {
   } catch (error: unknown) {
     const errMsg = getSafeErrorMessage(error, 'Generation failed');
     log.general.error({ err: error, jobId, userId }, 'Audio generation background processing failed');
-    await AudioJob.updateOne(
-      { _id: jobId },
-      { status: 'failed', error: errMsg }
-    ).catch(() => {});
+    await markAudioJobFailed(getDb(), jobId, errMsg).catch(() => {});
     emitAudioJobUpdate(userId, { jobId, status: 'failed', error: errMsg });
     await finalizeCredits(reservation, { promptTokens: 0, completionTokens: 0, totalTokens: 0 }).catch(() => {});
   } finally {
@@ -338,9 +340,16 @@ router.get('/jobs/:jobId', async (req: Request, res: Response) => {
       return res.status(401).json({ error: 'Authentication required' });
     }
 
+    // Express types a route parameter as `string | string[]`. Under Mongo the
+    // array went straight into the filter as `{ _id: [...] }` and matched
+    // nothing; the repository asks for the id it will compare, so the shape is
+    // checked here and answered with the same 404 a miss gets.
     const { jobId } = req.params;
+    if (typeof jobId !== 'string') {
+      return res.status(404).json({ error: { message: 'Job not found', type: 'invalid_request_error' } });
+    }
 
-    const job = await AudioJob.findOne({ _id: jobId, userId }, { status: 1, audioUrl: 1, error: 1 }).lean();
+    const job = await findAudioJobStatus(getDb(), jobId, userId);
     if (!job) {
       return res.status(404).json({ error: { message: 'Job not found', type: 'invalid_request_error' } });
     }

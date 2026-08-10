@@ -32,7 +32,7 @@ import { oxyClient } from '../middleware/auth.js';
 import { log } from './logger.js';
 import { getErrorMessage } from './errors/index.js';
 import { sendNotification } from './notification-service.js';
-import type { NotificationChannel } from '../models/notification.js';
+import type { NotificationChannel } from '../db/schema/notifications.js';
 import { buildArchetypeSystemPrompt } from './agent/archetype-prompts.js';
 import { handleRoutingDecision } from './agent/routing-handler.js';
 import { startLeaderElection, type LeaderElectionHandle, type LeaderElectionOptions } from './leader-election.js';

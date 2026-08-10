@@ -11,7 +11,13 @@
  */
 
 import { generateText } from 'ai';
-import { Show, type IShow } from '../../models/show.js';
+import { getDb } from '../../db/index.js';
+import {
+  findShowById,
+  updateShow as updateShowRow,
+  type ShowPatch,
+  type ShowRow,
+} from '../../db/notifications/showRepository.js';
 import { resolveModel, getAIModel, getDefaultAliaModel } from '../chat-core.js';
 import { callProviderAPI } from '../../internal/providers/lib/provider-api.js';
 import { extractAudioUrl, downloadBinaryFromUrl } from '../../internal/providers/lib/digitalocean-async.js';
@@ -62,27 +68,46 @@ function emitProgress(userId: string, showId: string, data: {
  * Run the full show generation pipeline.
  */
 export async function runShowPipeline(showId: string): Promise<void> {
-  const show = await Show.findById(showId);
+  /**
+   * `let`, and rebound by every patch.
+   *
+   * The Mongoose version held one document for the whole run, so
+   * `Object.assign(show, data); await show.save()` made every later read see the
+   * accumulated state. A row is a plain value, so the accumulation has to be
+   * explicit: `applyUpdate` writes the patch and rebinds `show` to what the
+   * database returned. Reads further down — `show.title` when composing the
+   * completion notification — depend on it.
+   */
+  let show = await findShowById(getDb(), showId);
   if (!show) throw new Error(`Show ${showId} not found`);
 
-  const userId = show.userId.toString();
+  const userId = show.userId;
+
+  /** Patch the row and keep the local copy in step with it. */
+  const applyUpdate = async (patch: ShowPatch): Promise<void> => {
+    const updated = await updateShowRow(getDb(), showId, patch);
+    // A null means the row was deleted mid-run; the local copy stays as it was
+    // so the remaining steps still have something to read, exactly as a
+    // detached Mongoose document did.
+    if (updated) show = updated;
+  };
 
   try {
     // Reserve credits
     await getOrCreateUserCredits(userId);
     const reservation = await reserveCredits(userId);
     if (!reservation) {
-      await updateShow(show, { status: 'failed', error: 'Insufficient credits' });
+      await applyUpdate({ status: 'failed', error: 'Insufficient credits' });
       return;
     }
 
     // Step 1: Generate script
-    await updateShow(show, { status: 'generating_script', progress: 5 });
+    await applyUpdate({ status: 'generating_script', progress: 5 });
     emitProgress(userId, showId, { status: 'generating_script', progress: 5, currentStep: 'Generating script...' });
 
     const script = await generateScript(show);
     if (!script) {
-      await updateShow(show, { status: 'failed', error: 'Failed to generate show script' });
+      await applyUpdate({ status: 'failed', error: 'Failed to generate show script' });
       await finalizeCredits(reservation, { promptTokens: 0, completionTokens: 0, totalTokens: 0 });
       return;
     }
@@ -100,7 +125,7 @@ export async function runShowPipeline(showId: string): Promise<void> {
       durationMs: undefined as number | undefined,
     }));
 
-    await updateShow(show, {
+    await applyUpdate({
       title: script.title || show.title,
       description: script.description || show.description,
       speakers,
@@ -113,7 +138,7 @@ export async function runShowPipeline(showId: string): Promise<void> {
     // Step 3: Generate audio for each segment (batched)
     // Process dialogue (TTS) first, then SFX/transitions — prevents SFX timeouts
     // from poisoning the provider key pool before TTS completes.
-    await updateShow(show, { status: 'generating_audio' });
+    await applyUpdate({ status: 'generating_audio' });
 
     const totalSegments = indexedSegments.length;
     const segmentBuffers: Array<{ index: number; buffer: Buffer }> = [];
@@ -160,7 +185,7 @@ export async function runShowPipeline(showId: string): Promise<void> {
 
       completedCount += batch.length;
       const progress = 15 + Math.round((completedCount / totalSegments) * 65);
-      await updateShow(show, { segments: indexedSegments, progress });
+      await applyUpdate({ segments: indexedSegments, progress });
       emitProgress(userId, showId, {
         status: 'generating_audio',
         progress,
@@ -171,7 +196,7 @@ export async function runShowPipeline(showId: string): Promise<void> {
     }
 
     // Step 4: Concatenate
-    await updateShow(show, { status: 'concatenating', progress: 82 });
+    await applyUpdate({ status: 'concatenating', progress: 82 });
     emitProgress(userId, showId, { status: 'concatenating', progress: 82, currentStep: 'Assembling show...' });
 
     // Sort buffers by index
@@ -180,7 +205,7 @@ export async function runShowPipeline(showId: string): Promise<void> {
 
     let finalBuffer: Buffer;
     if (orderedBuffers.length === 0) {
-      await updateShow(show, { status: 'failed', error: 'No audio segments were generated' });
+      await applyUpdate({ status: 'failed', error: 'No audio segments were generated' });
       await finalizeCredits(reservation, { promptTokens: 0, completionTokens: 0, totalTokens: 0 });
       return;
     } else if (orderedBuffers.length === 1) {
@@ -212,7 +237,7 @@ export async function runShowPipeline(showId: string): Promise<void> {
       totalTokens: totalCredits * 50,
     });
 
-    await updateShow(show, {
+    await applyUpdate({
       status: 'completed',
       audioUrl,
       durationMs: estimatedDurationMs,
@@ -236,7 +261,7 @@ export async function runShowPipeline(showId: string): Promise<void> {
 
   } catch (error: unknown) {
     log.general.error({ err: error, showId }, 'Show pipeline failed');
-    await updateShow(show, {
+    await applyUpdate({
       status: 'failed',
       error: getSafeErrorMessage(error, 'Show generation failed'),
     });
@@ -247,7 +272,7 @@ export async function runShowPipeline(showId: string): Promise<void> {
 /**
  * Generate a show script using an LLM.
  */
-async function generateScript(show: IShow): Promise<ShowScript | null> {
+async function generateScript(show: ShowRow): Promise<ShowScript | null> {
   const MAX_RETRIES = 3;
   const skipProviders = new Set<string>();
 
@@ -365,12 +390,4 @@ async function generateSFXSegment(prompt: string): Promise<SegmentAudio | null> 
     log.general.warn({ err, prompt }, 'SFX generation failed');
     return null;
   }
-}
-
-/**
- * Update show document with partial data.
- */
-async function updateShow(show: IShow, data: Partial<IShow>): Promise<void> {
-  Object.assign(show, data);
-  await show.save();
 }
