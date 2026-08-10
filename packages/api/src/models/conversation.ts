@@ -1,9 +1,18 @@
 import mongoose, { Schema, Model, Document } from 'mongoose';
 
+export const TOOL_INVOCATION_STATES = ['partial-call', 'call', 'result'] as const;
+export type ToolInvocationState = (typeof TOOL_INVOCATION_STATES)[number];
+
+export const MESSAGE_ROLES = ['user', 'assistant', 'system'] as const;
+export type MessageRole = (typeof MESSAGE_ROLES)[number];
+
+export const MESSAGE_VOTES = ['up', 'down'] as const;
+export type MessageVote = (typeof MESSAGE_VOTES)[number];
+
 export interface IToolInvocation {
   toolCallId: string;
   toolName: string;
-  state: 'partial-call' | 'call' | 'result';
+  state: ToolInvocationState;
   args?: any;
   result?: any;
 }
@@ -17,9 +26,9 @@ export interface IAgentInfo {
 
 export interface IMessage {
   id?: string;
-  role: 'user' | 'assistant' | 'system';
+  role: MessageRole;
   content: string | Array<{ type: string; [key: string]: any }>;
-  vote?: 'up' | 'down';
+  vote?: MessageVote;
   toolInvocations?: IToolInvocation[];
   agentInfo?: IAgentInfo;
   audioUrl?: string;
@@ -27,7 +36,8 @@ export interface IMessage {
 }
 
 // Source apps for conversations - extensible for future integrations
-export type ConversationSource = 'app' | 'telegram' | 'api' | 'web' | 'discord' | 'whatsapp' | 'slack';
+export const CONVERSATION_SOURCES = ['app', 'telegram', 'api', 'web', 'discord', 'whatsapp', 'slack'] as const;
+export type ConversationSource = (typeof CONVERSATION_SOURCES)[number];
 
 export interface IConversation extends Document {
   oxyUserId: mongoose.Types.ObjectId;
@@ -68,7 +78,7 @@ const ConversationSchema = new Schema<IConversation>({
   // Source tracking - which app/platform the conversation came from
   source: {
     type: String,
-    enum: ['app', 'telegram', 'api', 'web', 'discord', 'whatsapp', 'slack'],
+    enum: [...CONVERSATION_SOURCES],
     default: 'app'
   },
 

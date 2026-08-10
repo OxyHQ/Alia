@@ -1,18 +1,20 @@
 import mongoose, { Schema, Model, Document } from 'mongoose';
 
-export type ContextNodeType =
-  | 'person'
-  | 'project'
-  | 'document'
-  | 'thread'
-  | 'calendar_event'
-  | 'integration'
-  | 'memory'
-  | 'conversation'
-  | 'agent'
-  | 'service'
-  | 'tag'
-  | 'unknown';
+export const CONTEXT_NODE_TYPES = [
+  'person',
+  'project',
+  'document',
+  'thread',
+  'calendar_event',
+  'integration',
+  'memory',
+  'conversation',
+  'agent',
+  'service',
+  'tag',
+  'unknown',
+] as const;
+export type ContextNodeType = (typeof CONTEXT_NODE_TYPES)[number];
 
 export interface IContextNode extends Document {
   oxyUserId: mongoose.Types.ObjectId;
@@ -33,10 +35,7 @@ const ContextNodeSchema = new Schema<IContextNode>({
   nodeKey: { type: String, required: true },
   type: {
     type: String,
-    enum: [
-      'person', 'project', 'document', 'thread', 'calendar_event', 'integration',
-      'memory', 'conversation', 'agent', 'service', 'tag', 'unknown',
-    ],
+    enum: [...CONTEXT_NODE_TYPES],
     required: true,
     default: 'unknown',
   },

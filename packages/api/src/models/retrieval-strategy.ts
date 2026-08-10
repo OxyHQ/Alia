@@ -1,13 +1,15 @@
 import mongoose, { Schema, Model, Document } from 'mongoose';
 
-export type AutonomyIntent =
-  | 'meeting_prep'
-  | 'inbox_digest'
-  | 'project_status'
-  | 'task_followup'
-  | 'monitoring'
-  | 'research'
-  | 'general';
+export const AUTONOMY_INTENTS = [
+  'meeting_prep',
+  'inbox_digest',
+  'project_status',
+  'task_followup',
+  'monitoring',
+  'research',
+  'general',
+] as const;
+export type AutonomyIntent = (typeof AUTONOMY_INTENTS)[number];
 
 export interface IRetrievalSourceStep {
   sourceKey: string;
@@ -44,7 +46,7 @@ const RetrievalStrategySchema = new Schema<IRetrievalStrategy>({
   oxyUserId: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
   intent: {
     type: String,
-    enum: ['meeting_prep', 'inbox_digest', 'project_status', 'task_followup', 'monitoring', 'research', 'general'],
+    enum: [...AUTONOMY_INTENTS],
     required: true,
     index: true,
   },

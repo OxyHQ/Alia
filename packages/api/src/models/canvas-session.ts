@@ -1,8 +1,11 @@
 import mongoose, { Schema, Model, Document } from 'mongoose';
 
+export const CANVAS_COMPONENT_TYPES = ['chart', 'table', 'code', 'form', 'image', 'markdown', 'artifact'] as const;
+export type CanvasComponentType = (typeof CANVAS_COMPONENT_TYPES)[number];
+
 export interface ICanvasComponent {
   id: string;
-  type: 'chart' | 'table' | 'code' | 'form' | 'image' | 'markdown' | 'artifact';
+  type: CanvasComponentType;
   title: string;
   data: Record<string, any>;
   createdAt: Date;
@@ -21,7 +24,7 @@ const CanvasComponentSchema = new Schema<ICanvasComponent>({
   type: {
     type: String,
     required: true,
-    enum: ['chart', 'table', 'code', 'form', 'image', 'markdown', 'artifact'],
+    enum: [...CANVAS_COMPONENT_TYPES],
   },
   title: { type: String, required: true },
   data: { type: Schema.Types.Mixed, required: true },

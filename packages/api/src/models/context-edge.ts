@@ -1,16 +1,18 @@
 import mongoose, { Schema, Model, Document } from 'mongoose';
 
-export type ContextEdgeType =
-  | 'mentions'
-  | 'belongs_to'
-  | 'related_to'
-  | 'created_by'
-  | 'updated_by'
-  | 'references'
-  | 'discovered_in'
-  | 'depends_on'
-  | 'tagged_as'
-  | 'unknown';
+export const CONTEXT_EDGE_TYPES = [
+  'mentions',
+  'belongs_to',
+  'related_to',
+  'created_by',
+  'updated_by',
+  'references',
+  'discovered_in',
+  'depends_on',
+  'tagged_as',
+  'unknown',
+] as const;
+export type ContextEdgeType = (typeof CONTEXT_EDGE_TYPES)[number];
 
 export interface IContextEdge extends Document {
   oxyUserId: mongoose.Types.ObjectId;
@@ -30,18 +32,7 @@ const ContextEdgeSchema = new Schema<IContextEdge>({
   toNodeId: { type: Schema.Types.ObjectId, ref: 'ContextNode', required: true, index: true },
   edgeType: {
     type: String,
-    enum: [
-      'mentions',
-      'belongs_to',
-      'related_to',
-      'created_by',
-      'updated_by',
-      'references',
-      'discovered_in',
-      'depends_on',
-      'tagged_as',
-      'unknown',
-    ],
+    enum: [...CONTEXT_EDGE_TYPES],
     required: true,
     default: 'unknown',
   },
