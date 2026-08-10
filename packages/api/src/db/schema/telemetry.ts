@@ -231,10 +231,24 @@ export const routingLogs = pgTable(
  * it is deliberate — the read paths bill and rate-limit against monthly windows,
  * so 48 hours (its neighbour's figure) would delete the data mid-period.
  *
- * `api_key_id` and `app_id` name `developer_api_keys` and `developer_apps`, both
- * unported, so neither carries a foreign key yet. Both are genuinely optional in
- * the source: a session-authenticated or internal call has neither, which is
- * what `auth_type` distinguishes.
+ * `api_key_id` and `app_id` name `developer_api_keys` and `developer_apps`.
+ * Those tables landed with the orgs/dev batch, and the answer is still NO
+ * foreign key — but for a different reason from `api_usage.key_id` above, and
+ * the difference is worth stating because the obvious option is available here
+ * and is a trap.
+ *
+ * Both columns ARE nullable, so `ON DELETE SET NULL` is representable, unlike on
+ * `api_usage.key_id`. It is still wrong: NULL already MEANS something on these
+ * columns — a session-authenticated or internal call has no key and no app,
+ * which is what `auth_type` records. Nulling a deleted key's rows would make
+ * them indistinguishable from session traffic, so a row would claim
+ * `auth_type = 'api_key'` while naming no key: a state no writer can produce and
+ * no reader expects. That is worse than a dangling id, which at least still says
+ * which key spent the tokens.
+ *
+ * Cascade would delete 90 days of billing and rate-limit evidence along with the
+ * key, and `RESTRICT` would make a key undeletable for those 90 days — three
+ * times the window that already ruled it out for `api_usage`.
  *
  * No `created_at`/`updated_at`. The Mongoose schema sets `timestamps: false` and
  * `timestamp` is the event time — adding a second, nearly-identical clock would
