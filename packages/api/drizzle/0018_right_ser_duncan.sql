@@ -1,0 +1,2 @@
+-- oxy:deploy-phase=pre
+CREATE INDEX "moderation_enforcements_subject_applied_idx" ON "moderation_enforcements" USING btree ("subject_type","subject_id","action","applied","created_at" DESC NULLS LAST);
