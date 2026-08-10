@@ -252,6 +252,18 @@ const RETIRED_MONGO_TTLS: readonly RetiredMongoTtl[] = [
     expireAfterSeconds: 7 * 24 * 60 * 60,
     retiredBy: 'S2 providers + telemetry — auth_health_metrics',
   },
+  {
+    model: 'FallbackEvent',
+    collection: 'fallbackevents',
+    // `FallbackEventSchema.index({ timestamp: 1 }, { expireAfterSeconds: 30 *
+    // 24 * 60 * 60 })`, read off
+    // `src/internal/providers/models/fallback-event.ts:46` before it was
+    // deleted. Note the path is `timestamp`, NOT `createdAt` — the model set its
+    // own event time and the sweep must keep measuring from that column.
+    path: 'timestamp',
+    expireAfterSeconds: 30 * 24 * 60 * 60,
+    retiredBy: 'S2 providers + telemetry — fallback_events',
+  },
 ];
 
 const walked = declaredMongoTtls();
@@ -286,13 +298,13 @@ describe('every ported TTL index has a matching expiry-sweep target', () => {
      * halves adding up to 13.
      *
      * 11 after S1 retired two; 9 once S5 retired `AudioJob` and `Notification`;
-     * 8 once S2 retired `AuthHealthMetric`.
+     * 8 once S2 retired `AuthHealthMetric`, 7 once it retired `FallbackEvent`.
      * Lowering it is legitimate ONLY in the same change that adds the matching
      * retired entries, and the exact-sum assertion below is what makes that
      * mechanical rather than a judgement call — the two numbers cannot drift
      * apart without one of them going red.
      */
-    expect(walked.length).toBeGreaterThanOrEqual(8);
+    expect(walked.length).toBeGreaterThanOrEqual(7);
     expect(walked.length + RETIRED_MONGO_TTLS.length).toBe(13);
   });
 

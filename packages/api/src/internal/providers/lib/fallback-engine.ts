@@ -27,7 +27,8 @@ import {
 } from './alia-models';
 import { getBestKeyForModel, markKeyCreditExhausted } from './key-manager';
 import { isProviderAvailable } from './provider-health';
-import { FallbackEvent } from '../models/fallback-event';
+import { recordFallbackEvent as recordFallbackEventRow } from '../../../db/telemetry/fallbackEventRepository.js';
+import { getDb } from '../../../db/index.js';
 import { getErrorMessage } from '../../../lib/errors/index.js';
 import { log } from '../../../lib/logger.js';
 
@@ -370,7 +371,7 @@ function recordFallbackEvent(
     return;
   }
 
-  FallbackEvent.create({
+  recordFallbackEventRow(getDb(), {
     timestamp: new Date(),
     aliasModel,
     attempts: attempts.map((a) => ({
