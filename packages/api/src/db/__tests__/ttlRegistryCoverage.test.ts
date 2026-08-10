@@ -241,6 +241,17 @@ const RETIRED_MONGO_TTLS: readonly RetiredMongoTtl[] = [
     partialFilterExpression: { status: 'dismissed' },
     retiredBy: 'S5 notifications — notifications',
   },
+  {
+    model: 'AuthHealthMetric',
+    collection: 'authhealthmetrics',
+    // `AuthHealthMetricSchema.index({ createdAt: 1 }, { expireAfterSeconds: 7 *
+    // 24 * 60 * 60 })`, read off `src/lib/auth-health.ts:53` before the model —
+    // which was declared INLINE in that module, beside the functions using it —
+    // was deleted.
+    path: 'createdAt',
+    expireAfterSeconds: 7 * 24 * 60 * 60,
+    retiredBy: 'S2 providers + telemetry — auth_health_metrics',
+  },
 ];
 
 const walked = declaredMongoTtls();
@@ -274,13 +285,14 @@ describe('every ported TTL index has a matching expiry-sweep target', () => {
      * `RETIRED_MONGO_TTLS` in the same commit — which is what keeps the two
      * halves adding up to 13.
      *
-     * 11 after S1 retired two; 9 once S5 retires `AudioJob` and `Notification`.
+     * 11 after S1 retired two; 9 once S5 retired `AudioJob` and `Notification`;
+     * 8 once S2 retired `AuthHealthMetric`.
      * Lowering it is legitimate ONLY in the same change that adds the matching
      * retired entries, and the exact-sum assertion below is what makes that
      * mechanical rather than a judgement call — the two numbers cannot drift
      * apart without one of them going red.
      */
-    expect(walked.length).toBeGreaterThanOrEqual(9);
+    expect(walked.length).toBeGreaterThanOrEqual(8);
     expect(walked.length + RETIRED_MONGO_TTLS.length).toBe(13);
   });
 
