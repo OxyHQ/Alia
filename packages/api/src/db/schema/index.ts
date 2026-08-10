@@ -14,6 +14,7 @@ export * from './developers';
 export * from './integrations';
 export * from './leases';
 export * from './library';
+export * from './memory';
 export * from './moderation';
 export * from './notifications';
 export * from './organizations';

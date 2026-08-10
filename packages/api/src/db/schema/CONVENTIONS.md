@@ -320,6 +320,21 @@ cheap now and expensive once sixty tables have landed around it.
 | `_migrations` | `lib/migrations/runner.ts` | **RETIRED** |
 | `_migration_lock` | `lib/migrations/runner.ts` | **RETIRED** |
 
+### And a MODEL census cannot see a model declared outside `src/models/`
+
+`MemoryEmbedding` is `mongoose.model(...)` at `lib/memory/vector-search.ts:27`,
+beside the functions that use it. A census listing `src/models/` returns ten
+files for batch 8 and the batch has eleven models — and finding LESS looks
+exactly like there BEING less, so nothing about that result says it is short.
+It was caught only because the batch's table list was written from the feature
+rather than from the directory.
+
+`models/__tests__/foreign-ref-populate.test.ts` already names a second directory
+(`src/internal/providers/models/`) in its affirmative filter for the same
+reason, and would not have found this one either. Enumerate `mongoose.model(`
+across the whole package when deciding what is left to port; a directory listing
+is a starting point, not an inventory.
+
 `leases` is live coordination state: the trigger engine elects one leader across
 several ECS tasks, and losing it means two tasks running every schedule.
 
@@ -531,6 +546,20 @@ slugs behave identically under a plain unique and a functional one, so a test
 seeded that way passes while measuring nothing — the same fixture law as
 everywhere else in this migration.
 
+**A rule enforced in APPLICATION code, not by a setter, gets the same
+treatment.** `user_memory_entries` is the case: nothing normalised the title,
+but `lib/tools/user-memory.ts:60` matches an existing memory with
+`m.title.trim().toLowerCase() === normalized` and `:174` refuses a rename that
+would collide the same way — so `lower(trim(title))` IS the application's
+identity for a memory, stated twice in one file. Mongo could not index inside a
+sub-document array at all, so `UNIQUE(user_memory_id, lower(trim(title)))` is
+new, and it is a real backfill risk rather than a formality: two memories
+differing only in case or whitespace collide, which is precisely the pair the
+application already believed was one. The fixture that proves it is
+`'Coffee Preferences'` against `'  coffee preferences  '`; the column keeps what
+was written, so nothing rewrites a user's own words — and the embedding, which
+stores that RAW title as its key, still matches.
+
 Not every setter earns this. `organization_invites.email` is `lowercase, trim`
 too, and no unique index depends on it, so it is a lookup-normalisation concern
 for the repository rather than a constraint, and no functional index was added.
@@ -719,6 +748,8 @@ about enums, applied to all of them.
 | `voice_call_usage_session_id_key` | two rows for one provider `sessionId` | Mongoose declared this unique, so a hit means a row predating it. It matters because `lib/voice-usage.ts` sums minutes per user: a duplicated session double-counts against a plan's voice entitlement. |
 | `organizations_slug_lower_key` | two slugs differing only in case | Mongoose's `lowercase` setter folded them; a row written around it did not. |
 | `alia_models.alias_model_id` | a value that is not already lowercase | Same setter, no CHECK added — the port stores whatever is there. |
+| `user_memory_entries_memory_title_lower_key` | two memories under one profile whose titles differ only in case or surrounding whitespace | Mongo could not index inside a sub-document array, so nothing enforced this; the application already treats such a pair as ONE memory, so a hit is two entries a user sees as duplicates. Merge them rather than relaxing the index. |
+| `user_memories_oxy_user_id_key` | two profiles for one account | Mongoose declares `unique: true`, so a hit means a row predating it or a raw write around it. |
 
 ## Not-null a legacy row may not satisfy
 
@@ -757,6 +788,14 @@ production. `columns.ts` has the full reasoning.
 - Migration `001-restructure-memories-title-summary-type` must be recorded as
   applied before `user_memories` (batch 8) is copied, and any source row still
   carrying the legacy `key`/`category` keys refused. Stated in full above.
+- `user_memories.preferences` and `.context` are ported as COLUMNS on the
+  strength of a measurement: issuing the exact statement `routes/memory.ts`
+  uses, with undeclared keys, against a real MongoDB stores only the declared
+  ones — Mongoose's `strict` drops the rest, confirmed by a raw driver read.
+  The TypeScript interfaces claim `[key: string]: any`, so the column choice
+  depends on that measurement holding for STORED data too. Count rows carrying
+  any key outside the declared set before the copy: a row written before a key
+  was declared, or by a raw write around Mongoose, would lose it silently.
 
 ## One measurement taken by somebody else
 

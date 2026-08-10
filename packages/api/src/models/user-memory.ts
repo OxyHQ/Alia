@@ -17,6 +17,10 @@ export const STYLE_RAW_ROLLING_WINDOW = 200;
 export const MEMORY_TYPES = ['profile', 'topic', 'person'] as const;
 export type MemoryType = typeof MEMORY_TYPES[number];
 
+// How long a reply should be, when the user has expressed a preference.
+export const MEMORY_RESPONSE_LENGTHS = ['short', 'medium', 'long'] as const;
+export type MemoryResponseLength = (typeof MEMORY_RESPONSE_LENGTHS)[number];
+
 // Writing style profile interface
 export interface IWritingStyleRaw {
   sentenceLengths: number[];
@@ -114,7 +118,7 @@ export interface IUserMemory extends Document {
   preferences: {
     language?: string;
     tone?: string;
-    responseLength?: 'short' | 'medium' | 'long';
+    responseLength?: MemoryResponseLength;
     interests?: string[];
     [key: string]: any;
   };
@@ -146,7 +150,7 @@ const UserMemorySchema = new Schema<IUserMemory>({
   preferences: {
     language: { type: String },
     tone: { type: String },
-    responseLength: { type: String, enum: ['short', 'medium', 'long'] },
+    responseLength: { type: String, enum: [...MEMORY_RESPONSE_LENGTHS] },
     interests: [{ type: String }]
   },
   context: {
