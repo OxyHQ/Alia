@@ -76,6 +76,16 @@ here would fail on the first write of an unexpected value, in the authentication
 path. The tuple stays a TypeScript narrowing; widening it to a CHECK is a
 decision for **after** the backfill has audited what is actually stored.
 
+The columns that have taken this answer, so the reasoning is not re-argued per
+column: `auth_health_metrics.method`, `chat_analytics.platform`, and
+`voice_call_usage.provider` / `.audio_format` / `.disconnect_reason` /
+`.client_type`. **`voice_call_usage.provider` is the one worth reading twice**,
+because `PROVIDER_NAMES` exists and renders CHECKs on three columns in
+`providers.ts` — so the tempting move is to reuse it. Its Mongoose field is a
+bare `String` with no `enum`, and the write happens during session teardown,
+where the alternative to storing the row is losing the billing record for a call
+that already happened.
+
 **Every enum in this schema is subject to that same doubt.** The backfill must
 re-audit each one **in the same invocation as the copy** — an audit whose result
 can expire between running it and using it is not a gate.
@@ -146,6 +156,11 @@ have no queryable identity. The register, kept current as batches land:
 |---|---|
 | `fallback_events.attempts` | An ordered list read whole for display, addressed nowhere. |
 | `transactions.metadata` | Shaped by whichever call site wrote it, different per transaction type. |
+| `messages.content` | Genuinely polymorphic — a bare string OR an ordered parts array, and the shape is the AI SDK's. |
+| `messages.tool_invocations` | An ordered list read whole; its `args`/`result` are `Mixed`, so a child table would hold two opaque values anyway. |
+| `canvas_sessions.components` | Returned verbatim as a response body; each element's `data` is `Mixed`. |
+| `context_nodes.metadata`, `context_edges.metadata`, `context_sources.metadata` | `Record<string, unknown>` composed by whichever ingestion path wrote the row. |
+| `retrieval_strategies.source_steps` | See the counter-case below — structured, but nothing reads it. |
 
 `provider_health.latency_samples` is `double precision[]` rather than `jsonb` for
 the same reason inverted — a bounded window of plain numbers, and an array stays
@@ -174,6 +189,22 @@ not express a unique index over a sub-document array at all, so
 `UNIQUE(alia_model_id, model_config_id)` is new: what kept it true before was
 only that the seed replaced the whole array with `$set`.
 
+**`retrieval_strategies.source_steps` is the counter-case, and it is `jsonb`
+despite passing that test on paper.** Its elements carry an `order`, a
+`required` toggle and a `source_key` naming a `context_sources` row — three
+identity signals, the `alia_model_provider_mappings` shape almost exactly. It is
+`jsonb` because **nothing reads it**: the whole-package grep returns two sites
+and both are writes, each building the array from a hardcoded constant, while
+the one loader tests only that a strategy row EXISTS. A child table would add
+rows, a foreign key and an index to model a copy of a compile-time constant that
+no query touches.
+
+So the test has a second half: an element needs an identity **that something
+exercises**. Reading the shape alone gets this one wrong. And because "nothing
+reads it" is a fact with a date on it, the file names the trigger for
+revisiting — the moment retrieval actually follows a strategy, the elements
+acquire readers and it becomes a child table.
+
 ## Foreign keys: per reference, and say why
 
 `oxy_user_id` and every other Oxy account id carry no foreign key anywhere: Oxy
@@ -201,6 +232,21 @@ down rather than the absence: "no FK" and "nobody decided" look identical later.
 `plan_features` and both on `alia_model_provider_mappings` are foreign keys with
 `ON DELETE CASCADE`, because each child is meaningless without its parent and a
 survivor would be silently re-adopted by a re-created row of the same name.
+Both endpoints of `context_edges` are the same call for a sharper reason: an
+edge IS a pair of node references plus a type, so nothing survives losing one.
+The invariant is already maintained by hand (`context-graph.ts:272` writes the
+edge only inside `if (userNode && assistantNode)`) and nothing in the package
+deletes a node, so the CASCADE constrains no behaviour that exists today and
+decides what happens when a retention policy eventually does.
+
+**A relation is NOT always a foreign key, and `messages` is where this batch says
+no.** Its `conversation_id` names a real parent, on the business key rather than
+on `_id`, and there is no constraint — because `routes/conversations.ts:187-188`
+creates the conversation and inserts the messages inside ONE `Promise.all`.
+Parent and child are written concurrently, so a foreign key would convert a
+working write into a race-dependent `23503` on whichever statement lost. The
+`api_usage.key_id` reasoning applied to an ordering rather than to a deletion:
+every available answer is worse than none, so write down which one was chosen.
 `alia_model_provider_mappings.model_config_id` is a deliberate behaviour CHANGE:
 Mongo left the sub-document behind when its `ModelConfig` was deleted, and
 `getNextProvider` would then hand the router a provider whose configuration no
@@ -209,13 +255,23 @@ longer existed.
 **A foreign key must target `unique()`, never `uniqueIndex()`.** drizzle-kit
 emits every `ALTER TABLE … ADD CONSTRAINT … FOREIGN KEY` BEFORE every
 `CREATE UNIQUE INDEX`, whatever the source order — measured in `0003`, where the
-four FK statements are lines 339-342 and the first `CREATE UNIQUE INDEX` is 343.
-A FK pointing at a unique INDEX therefore generates cleanly and fails at APPLY
-time with `42830: there is no unique constraint matching given keys`. `unique()`
-is emitted inline inside `CREATE TABLE`, so it already exists. This is why
-`plans.plan_id` and `features.feature_id` — both FK targets, both business keys
-rather than surrogate ids — are the only two `unique()` declarations in the
-schema while everything else uses `uniqueIndex()`.
+four FK statements are lines 339-342 and the first `CREATE UNIQUE INDEX` is 343,
+and again in `0009`, where they are lines 72-73 against a first
+`CREATE UNIQUE INDEX` on 74. A FK pointing at a unique INDEX therefore generates
+cleanly and fails at APPLY time with `42830: there is no unique constraint
+matching given keys`. `unique()` is emitted inline inside `CREATE TABLE`, so it
+already exists. This is why `plans.plan_id` and `features.feature_id` — both FK
+targets, both business keys rather than surrogate ids — are the only two
+`unique()` declarations in the schema while everything else uses
+`uniqueIndex()`.
+
+**A PRIMARY KEY target is exempt, and `context_edges` is the case.** Both its
+endpoints reference `context_nodes.id`, which is emitted inline in
+`CREATE TABLE` exactly as `unique()` is, so the ordering above cannot bite. It
+is written down because the rule as stated invites a redundant `unique()` on a
+column that already has a primary key — and because the exemption is about the
+target being emitted INLINE, not about it being a key, so it does not extend to
+any other column.
 
 Deferred, with the reason rather than by omission: `provider_keys.organization_id`
 (the `organizations` table is not ported), and `api_key_usage.api_key_id` /
@@ -263,6 +319,21 @@ cheap now and expensive once sixty tables have landed around it.
 | `leases` | `lib/leader-election.ts` | **PORTED** (batch 0) |
 | `_migrations` | `lib/migrations/runner.ts` | **RETIRED** |
 | `_migration_lock` | `lib/migrations/runner.ts` | **RETIRED** |
+
+### And a MODEL census cannot see a model declared outside `src/models/`
+
+`MemoryEmbedding` is `mongoose.model(...)` at `lib/memory/vector-search.ts:27`,
+beside the functions that use it. A census listing `src/models/` returns ten
+files for batch 8 and the batch has eleven models — and finding LESS looks
+exactly like there BEING less, so nothing about that result says it is short.
+It was caught only because the batch's table list was written from the feature
+rather than from the directory.
+
+`models/__tests__/foreign-ref-populate.test.ts` already names a second directory
+(`src/internal/providers/models/`) in its affirmative filter for the same
+reason, and would not have found this one either. Enumerate `mongoose.model(`
+across the whole package when deciding what is left to port; a directory listing
+is a starting point, not an inventory.
 
 `leases` is live coordination state: the trigger engine elects one leader across
 several ECS tasks, and losing it means two tasks running every schedule.
@@ -345,6 +416,23 @@ before reading a byte. The same applies on the Postgres side, which is what
 `--target-database` already enforces for migrations — this is the read half of
 the same rule.
 
+### The same rule for COLUMN names, and `library_files` is the instance
+
+Every table in this schema names the account `oxy_user_id`. `LibraryFile` calls
+the identical thing **`owner`** — so a backfill that pairs source and
+destination fields by matching names, or by a rule like "the account column is
+the one called `oxy_user_id`", copies every other column correctly and leaves
+this one NULL. The copy reports success and every file in the library becomes
+unreachable.
+
+The column is therefore named `owner_oxy_user_id`: the fact travels in the name
+rather than in a comment, and the backfill states the `owner` → `owner_oxy_user_id`
+mapping explicitly. **A Mongoose field name is as arbitrary as a Mongoose
+collection name**, and neither is evidence of anything — a derivation over one
+is a check that cannot fail. Grep each model for what it actually calls the
+account before porting it; three spellings are already in use across this
+service (`oxyUserId`, `userId`, `owner`).
+
 ## The clock in a lease is the SERVER's
 
 `leases` is acquired and renewed by ONE conditional statement comparing against
@@ -382,15 +470,34 @@ Two different things, and the split is not a judgement call:
 `credits` is neither — a count, so `integer`.
 
 **The read side has a trap that `tsc` cannot see.** postgres.js decodes
-`bigint`/`int8` as a STRING. drizzle escapes that for a COLUMN via
-`mode: 'number'`, but an AGGREGATE has no column builder to carry the mode, so
-`sum()`/`max()` come back as strings while typing as numbers, and `max + 1` is
-string concatenation. Coerce explicitly at that boundary.
+`bigint`/`int8` as a STRING. `mode: 'number'` escapes that for a COLUMN, but an
+AGGREGATE has no column builder to carry the mode, so `sum()`/`max()` come back
+as strings while typing as numbers, and `max + 1` is string concatenation.
+Coerce explicitly at that boundary.
 
 A test that performs ONE aggregation cannot catch this — `max` over a single row
 plus one gives the same answer either way. `billing.pgdb.test.ts` does two
 sequential appends, which is what makes `"7" + "1" = "71"` distinguishable
 from `8`.
+
+**`mode: 'number'` is narrower than "for a COLUMN" suggests, and the difference
+was MEASURED rather than reasoned about.** The mode is applied by drizzle's
+result mapper, which runs only for a query the QUERY BUILDER constructed. A raw
+`db.execute(sql\`select size …\`)` returns whatever postgres.js decoded. So one
+`bigint` column, in one row, reaches JavaScript as:
+
+| Read | Type |
+|---|---|
+| `db.select({ size: libraryFiles.size })…` | `number` |
+| `db.execute(sql\`select size from …\`)` | `string` |
+| `sum(size)`, however issued | `string` |
+
+`tsc` types all three `number`. This matters more than it looks, because **every
+`*.pgdb.test.ts` in this package takes the raw path** — so a test asserting a
+`bigint` column round-trips is asserting the string, and a repository that mixes
+builder queries with raw SQL for what the builder cannot express gets two
+JavaScript types for one column. `library.pgdb.test.ts` pins both halves against
+a real server; it is what caught the claim this paragraph originally made.
 
 ## A Mongoose SETTER has no Postgres counterpart, and two of them mattered
 
@@ -438,6 +545,20 @@ Two in this schema, with opposite answers:
 slugs behave identically under a plain unique and a functional one, so a test
 seeded that way passes while measuring nothing — the same fixture law as
 everywhere else in this migration.
+
+**A rule enforced in APPLICATION code, not by a setter, gets the same
+treatment.** `user_memory_entries` is the case: nothing normalised the title,
+but `lib/tools/user-memory.ts:60` matches an existing memory with
+`m.title.trim().toLowerCase() === normalized` and `:174` refuses a rename that
+would collide the same way — so `lower(trim(title))` IS the application's
+identity for a memory, stated twice in one file. Mongo could not index inside a
+sub-document array at all, so `UNIQUE(user_memory_id, lower(trim(title)))` is
+new, and it is a real backfill risk rather than a formality: two memories
+differing only in case or whitespace collide, which is precisely the pair the
+application already believed was one. The fixture that proves it is
+`'Coffee Preferences'` against `'  coffee preferences  '`; the column keeps what
+was written, so nothing rewrites a user's own words — and the embedding, which
+stores that RAW title as its key, still matches.
 
 Not every setter earns this. `organization_invites.email` is `lowercase, trim`
 too, and no unique index depends on it, so it is a lookup-normalisation concern
@@ -490,6 +611,27 @@ as a missing balance rather than as a bad insert.
 
 Everywhere else `generatedId()` is right, because the backfill supplies the Mongo
 `_id` and the app mints uuid v7 for new rows in the same column.
+
+## A recover-after-duplicate-key pattern does NOT port, and chat has one
+
+**In Postgres one failed statement aborts the ENTIRE transaction** (`25P02`):
+every later statement fails, including a plain read, until it rolls back. Mongo
+has no equivalent — a duplicate-key error leaves the session usable, so "insert
+optimistically, catch the duplicate, recover" degrades cleanly there.
+
+`lib/conversation-saver.ts:177-185` is exactly that shape and it is deliberate,
+not sloppy: it appends messages with `insertMany`, reads a duplicate key on
+`messages_oxy_user_conversation_seq_key` as "a concurrent append claimed this
+seq", and converges with a `deleteMany` + full re-insert. It works today because
+that sequence is NOT inside a transaction.
+
+This is a DESTINATION note — no call site moved in this batch. Whoever ports it
+has two options and needs to pick deliberately: wrap the optimistic insert in a
+`SAVEPOINT` so the failure rolls back only to it and the recovery can still run,
+or keep the sequence outside a transaction as it is now. What must not happen is
+the natural-looking refactor that puts the whole function in a
+`db.transaction(...)` and leaves the `catch` in place — the recovery then fails
+with `25P02` and the message history is left deleted.
 
 ## Mongo's three write counts do not survive the port — decide per call site
 
@@ -572,6 +714,35 @@ drizzle wraps the failure so `code` and `constraint_name` live on `cause`. Name
 the CONSTRAINT too: `isUniqueViolation` alone cannot tell the index under test
 from any other index on the table.
 
+### A fixture that is DELIBERATELY EXPIRED must be written in a transaction
+
+One database serves the whole run and vitest runs FILES in parallel, so every
+committed row is visible to every other file. Most fixtures are safe because
+they are addressed by an id nobody else uses — but a sweep deletes **by age,
+not by owner**, and four files call `sweepAllExpiredRows(db, EXPIRY_TARGETS)`
+with the FULL registry. So a stale row committed anywhere is fair game to all
+of them.
+
+That failed intermittently and reads as a broken commit: `schema.pgdb.test.ts`
+inserted a 3-day-old `api_usage` row and asserted its own sweep deleted at
+least one, and another file's sweep reaped it in between. **Measured on the
+whole suite in parallel: 3 red in 10 before, 0 red in 20 after.** The failure
+moves between files and its message says nothing about concurrency, so the
+first suspicion falls on whatever changed most recently.
+
+Write such a fixture inside `db.transaction(...)` and pass the `tx` handle to
+the sweep. An uncommitted row is invisible to every other connection, so no
+other sweep can take it, while the transaction's own sweep still sees it —
+`SqlExecutor`'s doc comment says it exists precisely so a sweep can run inside a
+caller's transaction. Keep the count assertion at `>= 1` rather than tightening
+it to exactly one: the transaction still sees committed expired rows, and
+pinning the number trades this flake for a coupling to other files' data.
+
+**And assert the count, not only the survivors.** The `cache_entries` case had
+the same exposure with a quieter symptom — it checked only which rows remained,
+so another file's sweep doing the work left it green while measuring nothing
+about the sweep it called.
+
 ---
 
 # The backfill audit list
@@ -595,14 +766,19 @@ about enums, applied to all of them.
 | `notifications.dismissed_at` | `status = 'dismissed'` with no `dismissed_at`, or the reverse | Backfill `dismissed_at` from the row's `updatedAt` (the best available proxy) for dismissed rows, and NULL for every other status. |
 | `triggers` | `schedule` present with `type NOT IN ('schedule','agent_heartbeat')` | No CHECK was added — this is the correct-but-unvalidated tightening deliberately left out. Audit it, then decide whether to add the constraint in a later `post` migration. |
 | `user_credits.credits_free`, `.credits_paid` | a NEGATIVE balance | No CHECK was added, because `addCredits` accepts a negative amount. Audit the actual range before anybody adds one. |
+| `context_nodes.*_score`, `context_edges.weight`, `context_sources.*_score`, `retrieval_strategies.*_weight` | a value outside 0..1 | Every writer sets 0.2–0.95, so 0..1 is plainly intended — but Mongoose declares no `min`/`max`, so no CHECK was added. Audit the range before anybody adds one; the write path runs on every chat turn. |
+| `retrieval_strategies` | more than one row with `active = true` for one `(oxy_user_id, intent)` | No constraint. Mongo's unique is on `(user, intent, name)`, which permits it, yet both writers filter on `{oxyUserId, intent, active: true}` — so a second active row makes which one they find arbitrary. A partial unique `WHERE active` is the correct tightening and is deliberately left out until audited, exactly like `triggers.schedule`. |
 
 ## Uniques that will refuse a duplicate
 
 | Where | What to audit | Why it matters |
 |---|---|---|
 | `referral_redemptions_referred_user_key` | one account appearing under TWO referrers | The double-credit race is real (`routes/referrals.ts` pays before it records). A hit here is a customer who was credited twice. |
+| `voice_call_usage_session_id_key` | two rows for one provider `sessionId` | Mongoose declared this unique, so a hit means a row predating it. It matters because `lib/voice-usage.ts` sums minutes per user: a duplicated session double-counts against a plan's voice entitlement. |
 | `organizations_slug_lower_key` | two slugs differing only in case | Mongoose's `lowercase` setter folded them; a row written around it did not. |
 | `alia_models.alias_model_id` | a value that is not already lowercase | Same setter, no CHECK added — the port stores whatever is there. |
+| `user_memory_entries_memory_title_lower_key` | two memories under one profile whose titles differ only in case or surrounding whitespace | Mongo could not index inside a sub-document array, so nothing enforced this; the application already treats such a pair as ONE memory, so a hit is two entries a user sees as duplicates. Merge them rather than relaxing the index. |
+| `user_memories_oxy_user_id_key` | two profiles for one account | Mongoose declares `unique: true`, so a hit means a row predating it or a raw write around it. |
 
 ## Not-null a legacy row may not satisfy
 
@@ -611,6 +787,10 @@ about enums, applied to all of them.
 but a `required` added to a schema binds only writes made after it. Audit for
 subscriptions predating the snapshot. Relaxing these is a one-line change while
 the schema is inert and a `post` migration afterwards.
+
+`voice_call_usage.cost_per_minute` is the same shape: `required` in Mongoose with
+no default, so nothing supplies it for a row written before it was added. The
+same question applies to `library_files.size`, `.url` and `.type`.
 
 ## The one that corrupts silently rather than failing
 
@@ -629,9 +809,22 @@ production. `columns.ts` has the full reasoning.
   foreign key applies. It should be — the column is declared and indexed in
   Mongoose and never written, verified package-wide — but confirm rather than
   assume.
+- `voice_call_usage.average_latency_ms` and `.client_type` are declared in
+  Mongoose and written by nothing in the package, verified whole-package rather
+  than around the writer. Confirm they are entirely absent before anybody reads
+  one as meaningful; they are ported so the shape is faithful, not because they
+  carry anything.
 - Migration `001-restructure-memories-title-summary-type` must be recorded as
   applied before `user_memories` (batch 8) is copied, and any source row still
   carrying the legacy `key`/`category` keys refused. Stated in full above.
+- `user_memories.preferences` and `.context` are ported as COLUMNS on the
+  strength of a measurement: issuing the exact statement `routes/memory.ts`
+  uses, with undeclared keys, against a real MongoDB stores only the declared
+  ones — Mongoose's `strict` drops the rest, confirmed by a raw driver read.
+  The TypeScript interfaces claim `[key: string]: any`, so the column choice
+  depends on that measurement holding for STORED data too. Count rows carrying
+  any key outside the declared set before the copy: a row written before a key
+  was declared, or by a raw write around Mongoose, would lose it silently.
 
 ## One measurement taken by somebody else
 

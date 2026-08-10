@@ -1,16 +1,21 @@
 import mongoose, { Schema, Model, Document } from 'mongoose';
 
-export type ContextSourceKind =
-  | 'calendar'
-  | 'email'
-  | 'notes'
-  | 'files'
-  | 'integration'
-  | 'oxy_service'
-  | 'agent_session'
-  | 'web'
-  | 'memory'
-  | 'unknown';
+export const CONTEXT_SOURCE_KINDS = [
+  'calendar',
+  'email',
+  'notes',
+  'files',
+  'integration',
+  'oxy_service',
+  'agent_session',
+  'web',
+  'memory',
+  'unknown',
+] as const;
+export type ContextSourceKind = (typeof CONTEXT_SOURCE_KINDS)[number];
+
+export const CONTEXT_SOURCE_AVAILABILITIES = ['available', 'degraded', 'disabled'] as const;
+export type ContextSourceAvailability = (typeof CONTEXT_SOURCE_AVAILABILITIES)[number];
 
 export interface IContextSource extends Document {
   oxyUserId: mongoose.Types.ObjectId;
@@ -36,14 +41,14 @@ const ContextSourceSchema = new Schema<IContextSource>({
   sourceKey: { type: String, required: true },
   kind: {
     type: String,
-    enum: ['calendar', 'email', 'notes', 'files', 'integration', 'oxy_service', 'agent_session', 'web', 'memory', 'unknown'],
+    enum: [...CONTEXT_SOURCE_KINDS],
     required: true,
     default: 'unknown',
   },
   label: { type: String, required: true },
   availability: {
     type: String,
-    enum: ['available', 'degraded', 'disabled'],
+    enum: [...CONTEXT_SOURCE_AVAILABILITIES],
     default: 'available',
   },
   freshnessScore: { type: Number, default: 0.5 },
