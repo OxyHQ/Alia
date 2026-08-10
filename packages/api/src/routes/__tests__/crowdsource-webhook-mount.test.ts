@@ -25,7 +25,7 @@ vi.mock('../../lib/crowdsource/inbound-service.js', () => ({
  */
 const claimed = new Set<string>();
 vi.mock('../../lib/crowdsource/event-store.js', () => ({
-  mongoProcessedEventStore: () => ({
+  processedEventStore: () => ({
     claim: async (eventId: string) => {
       if (claimed.has(eventId)) return false;
       claimed.add(eventId);

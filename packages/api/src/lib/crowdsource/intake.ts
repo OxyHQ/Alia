@@ -1,7 +1,11 @@
-import mongoose, { type ClientSession } from 'mongoose';
-import { Report, type IReport, type LeanReport } from '../../models/report.js';
-import { ReportCategory, ReportStatus, ReportedType } from '../../domain/report.js';
-import { enqueueModerationOutboxEvent, reportSubmitEventId } from './outbox.js';
+import { uuidv7 } from '@oxyhq/db';
+import { getDb } from '../../db/index.js';
+import {
+  createReport as storeReport,
+  type StoredReport,
+} from '../../db/moderation/reportRepository.js';
+import { reportSubmitEventId } from '../../db/moderation/outboxRepository.js';
+import { ReportCategory, ReportedType } from '../../domain/report.js';
 import { subjectProviderFor } from './subjects/registry.js';
 
 /**
@@ -21,15 +25,12 @@ import { subjectProviderFor } from './subjects/registry.js';
  * id that was rolled back). Neither surfaces as an error at the moment it happens,
  * which is exactly why this has to be atomic rather than carefully ordered.
  *
- * **There is deliberately no non-transactional fallback.** Alia used no
- * transactions before this feature, so a deployment could in principle be pointed
- * at a standalone MongoDB — and the tempting accommodation is to catch the
- * topology error and do the two writes separately. That would convert a loud,
- * immediate failure into precisely the silent one this design exists to prevent.
- * A `POST /reports` that 500s on a misconfigured deployment is found on the first
- * report; a report that quietly never delivers is found months later, if at all.
- * The dispatcher asserts the topology at boot so it is normally found earlier
- * still — see `dispatcher.ts`.
+ * **On Postgres the transaction is no longer conditional on the deployment.**
+ * Under Mongo this needed a replica set, so `topology.ts` checked for one at boot
+ * and the dispatcher refused to run without it — a standalone `mongod` accepted
+ * every other write Alia made and failed only here. Postgres has no such mode, so
+ * the check and its "there is deliberately no non-transactional fallback" warning
+ * are gone with it: there is nothing left to fall back FROM.
  *
  * The one report with NO delivery event is the one whose type has no subject
  * provider, and that is a different claim entirely: not "delivery failed" but
@@ -39,16 +40,10 @@ import { subjectProviderFor } from './subjects/registry.js';
  * missing row.
  */
 
-const TRANSACTION_OPTIONS = {
-  readPreference: 'primary' as const,
-  readConcern: { level: 'snapshot' as const },
-  writeConcern: { w: 'majority' as const },
-};
-
 export class DuplicateReportError extends Error {
-  readonly existing: LeanReport;
+  readonly existing: StoredReport;
 
-  constructor(existing: LeanReport) {
+  constructor(existing: StoredReport) {
     super('This item has already been reported by this reporter.');
     this.name = 'DuplicateReportError';
     this.existing = existing;
@@ -56,13 +51,14 @@ export class DuplicateReportError extends Error {
 }
 
 /**
- * Refuses an identifier that is not a string, at the point the QUERY is built.
+ * Refuses an identifier that is not a string, at the point the WRITE is built.
  *
  * `CreateReportInput` types these as strings and the route rejects a missing one,
- * but a type is erased at runtime and a truthiness check passes `{$ne: null}`.
- * Handed that, `findOne` matches an UNRELATED report and this function answers
- * "you already reported this" about somebody else's row — and the create would
- * then store an operator where an id belongs.
+ * but a type is erased at runtime. Under Mongo the specific hazard was an operator
+ * object (`{$ne: null}`) reaching a `findOne` filter and matching an unrelated
+ * report; parameterised SQL cannot be subverted that way, but a non-string still
+ * has no business being stored in an identifier column, and the unique key that
+ * decides duplicates is built from these three values.
  *
  * The check lives here rather than at the route because `createReport` is
  * exported: a queue worker, a reconciliation script or a future admin path is
@@ -96,7 +92,7 @@ export interface CreateReportInput {
 }
 
 export interface CreateReportResult {
-  report: IReport;
+  report: StoredReport;
   /**
    * The durable delivery event.
    *
@@ -112,31 +108,13 @@ export interface CreateReportResult {
  * Stored on the row rather than left to be inferred from a missing outbox event. A
  * missing row is also what a lost write looks like, and the two need to be
  * distinguishable months later without re-deriving which types had providers at
- * the time. Bounded by the schema's 300-character limit.
+ * the time.
  */
 function localOnlyReason(reportedType: string): string {
   return (
     `Alia has no moderation subject provider for '${reportedType}', so this report is ` +
     'recorded locally and is not sent for community review.'
   );
-}
-
-async function inTransaction<T>(
-  operation: (session: ClientSession) => Promise<T>,
-): Promise<T> {
-  const session = await mongoose.startSession();
-  let result: T | undefined;
-  try {
-    await session.withTransaction(async () => {
-      result = await operation(session);
-    }, TRANSACTION_OPTIONS);
-    if (result === undefined) {
-      throw new Error('Report intake transaction completed without a result');
-    }
-    return result;
-  } finally {
-    await session.endSession();
-  }
 }
 
 /**
@@ -151,6 +129,11 @@ async function inTransaction<T>(
  * decides anything, so `localStatus` and the presence of an outbox row are decided
  * together from one fact — a report can never commit as `queued` with nothing to
  * deliver it, nor as `received` with a delivery event that will try anyway.
+ *
+ * **The id is minted here, not by the database.** `reports.id` has no default, and
+ * that is what this function needs: `reportSubmitEventId(reportId)` has to be
+ * known BEFORE the insert so both rows can be written in one pass. Mongo got the
+ * same property from a client-generated `ObjectId`.
  *
  * Intake deliberately does not read `CROWDSOURCE_ENABLED`. A report taken while
  * the integration is off still gets its delivery event, so turning the flag on
@@ -175,40 +158,30 @@ export async function createReport(
   }
   const deliverable = subjectProviderFor(reportedType) !== undefined;
 
-  return await inTransaction(async (session) => {
-    const existing = await Report.findOne({ reporter, reportedId, reportedType })
-      .session(session)
-      .lean<LeanReport | null>();
-    if (existing) throw new DuplicateReportError(existing);
+  const id = uuidv7();
+  const result = await storeReport(
+    getDb(),
+    {
+      id,
+      reportedType,
+      reportedId,
+      reporter,
+      categories: input.categories,
+      details: input.details,
+      localStatus: deliverable ? 'queued' : 'received',
+      ...(deliverable ? {} : { localStatusReason: localOnlyReason(reportedType) }),
+    },
+    deliverable
+      ? {
+          eventId: reportSubmitEventId(id),
+          kind: 'report.submit',
+          payload: { reportId: id },
+        }
+      : null,
+  );
 
-    const [report] = await Report.create(
-      [
-        {
-          reportedType,
-          reportedId,
-          reporter,
-          categories: input.categories,
-          details: input.details,
-          status: ReportStatus.PENDING,
-          localStatus: deliverable ? 'queued' : 'received',
-          ...(deliverable ? {} : { localStatusReason: localOnlyReason(reportedType) }),
-        },
-      ],
-      { session },
-    );
-
-    if (!deliverable) return { report };
-
-    const reportId = report._id.toHexString();
-    const outboxEventId = await enqueueModerationOutboxEvent(
-      {
-        eventId: reportSubmitEventId(reportId),
-        kind: 'report.submit',
-        payload: { reportId },
-      },
-      session,
-    );
-
-    return { report, outboxEventId };
-  });
+  if (!result.created) throw new DuplicateReportError(result.existing);
+  return deliverable
+    ? { report: result.report, outboxEventId: reportSubmitEventId(id) }
+    : { report: result.report };
 }

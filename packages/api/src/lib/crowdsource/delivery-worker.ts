@@ -1,7 +1,12 @@
-import { Report, type LeanReport } from '../../models/report.js';
+import {
+  closeUndeliverableReport,
+  findReportById,
+  markReportDeliveryFailed,
+  markReportSubmitted,
+} from '../../db/moderation/reportRepository.js';
+import type { ModerationOutboxEvent } from '../../db/moderation/outboxRepository.js';
 import { getCrowdSourceClient } from './client.js';
 import { buildModerationReportInput } from './evidence-snapshot.js';
-import type { ModerationOutboxEvent } from './outbox.js';
 import { log } from '../logger.js';
 import { recordMetric } from '../observability/index.js';
 
@@ -52,14 +57,6 @@ export class ModerationDeliveryRejectedError extends Error {
   }
 }
 
-/** Close a report there is genuinely nothing left to do about. */
-async function closeUndeliverable(reportId: string, reason: string): Promise<void> {
-  await Report.updateOne(
-    { _id: reportId },
-    { $set: { localStatus: 'closed', localStatusReason: reason } },
-  );
-}
-
 /** Handle one `report.submit` outbox event. */
 export async function deliverReportOutboxEvent(
   event: ModerationOutboxEvent,
@@ -69,7 +66,7 @@ export async function deliverReportOutboxEvent(
     throw new ModerationDeliveryRejectedError('A report.submit event carried no reportId.');
   }
 
-  const report = await Report.findById(reportId).lean<LeanReport | null>();
+  const report = await findReportById(reportId);
   if (!report) {
     /**
      * The report is gone but its delivery event survived. Nothing to deliver and
@@ -90,7 +87,7 @@ export async function deliverReportOutboxEvent(
    * would put the report somewhere nothing alerts on.
    */
   const input = await buildModerationReportInput({
-    id: String(report._id),
+    id: report.id,
     reportedType: report.reportedType,
     reportedId: report.reportedId,
     reporter: report.reporter,
@@ -100,7 +97,7 @@ export async function deliverReportOutboxEvent(
   });
 
   if (input === null) {
-    await closeUndeliverable(
+    await closeUndeliverableReport(
       reportId,
       'The reported content is no longer available for review, so there is nothing to review.',
     );
@@ -124,17 +121,9 @@ export async function deliverReportOutboxEvent(
      * rethrowing so the outbox still applies its own backoff or dead-letters the
      * event.
      */
-    await Report.updateOne(
-      { _id: reportId },
-      {
-        $set: {
-          localStatus: 'delivery_failed',
-          lastDeliveryError: (error instanceof Error
-            ? error.message
-            : String(error)
-          ).slice(0, 2_000),
-        },
-      },
+    await markReportDeliveryFailed(
+      reportId,
+      error instanceof Error ? error.message : String(error),
     );
     recordMetric({
       name: 'crowdsource_report_delivery_total',
@@ -144,20 +133,12 @@ export async function deliverReportOutboxEvent(
     throw error;
   }
 
-  await Report.updateOne(
-    { _id: reportId },
-    {
-      $set: {
-        localStatus: 'submitted',
-        crowdSourceReportId: receipt.reportId,
-        crowdSourceCaseId: receipt.caseId,
-        crowdSourceMerged: receipt.merged,
-        contentSnapshotHash: input.snapshotHash,
-        submittedAt: new Date(),
-      },
-      $unset: { lastDeliveryError: '', localStatusReason: '' },
-    },
-  );
+  await markReportSubmitted(reportId, {
+    crowdSourceReportId: receipt.reportId,
+    crowdSourceCaseId: receipt.caseId,
+    crowdSourceMerged: receipt.merged,
+    contentSnapshotHash: input.snapshotHash,
+  });
 
   recordMetric({
     name: 'crowdsource_report_delivery_total',
