@@ -5,12 +5,14 @@
  */
 
 export * from './billing';
+export * from './bots';
 export * from './cache';
 export * from './developers';
 export * from './integrations';
 export * from './leases';
 export * from './moderation';
 export * from './organizations';
+export * from './oxy-services';
 export * from './providers';
 export * from './telemetry';
 export * from './usage';
