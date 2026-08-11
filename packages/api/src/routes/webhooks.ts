@@ -7,9 +7,17 @@ import { resolveModel, getAIModel, reportModelUsage, getDefaultAliaModel } from 
 import { sendChannelMessage } from '../lib/channels/outbound.js';
 import { buildChatTools } from '../services/chat.service.js';
 import { loadPrompt } from '../lib/prompt-loader.js';
-import type { HydratedDocument } from 'mongoose';
-import { BotUser, type IBotUser } from '../models/bot-user.js';
-import { Bot, type IBot } from '../models/bot.js';
+import { getDb } from '../db/index.js';
+import {
+  findActiveUserBotByWebhookSecret,
+  findSystemBot,
+  setBotUserAuthToken,
+  setBotUserConversation,
+  upsertBotUser,
+  type BotRow,
+  type BotUserRow,
+  type InboundUserBotRow,
+} from '../db/integrations/botRepository.js';
 import { Agent } from '../models/agent.js';
 import { Conversation } from '../models/conversation.js';
 import { Message } from '../models/message.js';
@@ -113,17 +121,16 @@ function generateAuthToken(): string {
 
 async function processChannelMessage(
   channelType: ChannelId,
-  botUser: any,
+  botUser: BotUserRow,
   message: ChannelInboundMessage
 ): Promise<void> {
+  const db = getDb();
   try {
     // Check if user has linked their Alia account
     if (!botUser.isLinked || !botUser.oxyUserId) {
       // Generate auth token and send auth link
       const authToken = generateAuthToken();
-      botUser.authToken = authToken;
-      botUser.authTokenExpiry = new Date(Date.now() + 15 * 60 * 1000);
-      await botUser.save();
+      await setBotUserAuthToken(db, botUser.id, authToken, new Date(Date.now() + 15 * 60 * 1000));
 
       const apiBaseUrl = process.env.API_BASE_URL || 'http://localhost:4150';
       const authUrl = `${apiBaseUrl}/bots/internal/${channelType}/verify?token=${authToken}`;
@@ -159,8 +166,7 @@ async function processChannelMessage(
     let conversationId = botUser.conversationId;
     if (!conversationId) {
       conversationId = crypto.randomUUID();
-      botUser.conversationId = conversationId;
-      await botUser.save();
+      await setBotUserConversation(db, botUser.id, conversationId);
     }
 
     // Load conversation history from messages collection
@@ -292,16 +298,19 @@ async function processChannelMessage(
  * Message docs are owned by the bot owner. The existing global-bot path is untouched.
  */
 async function processAgentBotMessage(
-  bot: IBot,
-  botUser: HydratedDocument<IBotUser>,
+  bot: InboundUserBotRow,
+  botUser: BotUserRow,
   message: ChannelInboundMessage,
   channelType: ChannelId,
 ): Promise<void> {
-  const ownerUserId = bot.userId?.toString();
+  const db = getDb();
+  const ownerUserId = bot.userId ?? undefined;
   const outboundOpts = {
     replyToId: message.replyToId,
     threadId: message.threadId,
-    botToken: bot.botToken,
+    // `undefined`, not `null`: the channel plugin falls back to the env token on
+    // an absent one, and `null` is not a value its context type accepts.
+    botToken: bot.botToken ?? undefined,
   };
 
   try {
@@ -326,8 +335,7 @@ async function processAgentBotMessage(
     let conversationId = botUser.conversationId;
     if (!conversationId) {
       conversationId = crypto.randomUUID();
-      botUser.conversationId = conversationId;
-      await botUser.save();
+      await setBotUserConversation(db, botUser.id, conversationId);
     }
 
     // Load recent history (owned by the bot owner, keyed by conversation id).
@@ -473,12 +481,15 @@ router.post('/:type', async (req, res) => {
   const perBotSecret = req.headers['x-telegram-bot-api-secret-token'] as string | undefined;
   if (perBotSecret) {
     try {
-      const userBot = await Bot.findOne({
-        webhookSecret: perBotSecret,
-        platform: channelType,
-        status: 'active',
-        userId: { $exists: true },
-      }).select('+botToken +webhookSecret');
+      // The BY-VALUE lookup on `bots.webhook_secret`, which is why that column
+      // is plaintext and indexed rather than `encryptedText`: a randomized IV
+      // would make this match nothing and every inbound update would answer 200
+      // having done nothing.
+      const userBot = await findActiveUserBotByWebhookSecret(
+        getDb(),
+        perBotSecret,
+        channelType,
+      );
 
       if (userBot && userBot.userId) {
         const message = channel.webhook.parseMessage(req.body);
@@ -488,37 +499,28 @@ router.post('/:type', async (req, res) => {
 
         // Scope dedup by the receiving bot so the same Telegram user texting two
         // different bots the same thing is not collapsed to one.
-        if (isDuplicate(channelType, message, userBot._id.toString())) {
+        if (isDuplicate(channelType, message, userBot.id)) {
           log.webhook.info({ channelType, platformUserId: message.platformUserId }, 'Duplicate per-bot message skipped');
           return res.sendStatus(200);
         }
 
         // Drop (silently, no credit spend) when a single sender floods the bot,
         // so a stranger can't rapidly burn the owner's credits.
-        if (isBotUserRateLimited(userBot._id.toString(), message.platformUserId)) {
+        if (isBotUserRateLimited(userBot.id, message.platformUserId)) {
           log.webhook.info({ channelType, platformUserId: message.platformUserId }, 'Per-bot message rate-limited');
           return res.sendStatus(200);
         }
 
-        let botUser = await BotUser.findOne({ botId: userBot._id, platformUserId: message.platformUserId });
-        if (!botUser) {
-          botUser = new BotUser({
-            botId: userBot._id,
-            platform: channelType,
-            platformUserId: message.platformUserId,
-            chatId: message.chatId,
-            username: message.username,
-            displayName: message.displayName,
-            metadata: {},
-          });
-          await botUser.save();
-        } else {
-          let updated = false;
-          if (message.chatId && botUser.chatId !== message.chatId) { botUser.chatId = message.chatId; updated = true; }
-          if (message.username && botUser.username !== message.username) { botUser.username = message.username; updated = true; }
-          if (message.displayName && botUser.displayName !== message.displayName) { botUser.displayName = message.displayName; updated = true; }
-          if (updated) await botUser.save();
-        }
+        // One statement instead of read-then-branch: two messages from the same
+        // person arriving together raced the source's insert.
+        const botUser = await upsertBotUser(getDb(), {
+          botId: userBot.id,
+          platform: channelType,
+          platformUserId: message.platformUserId,
+          chatId: message.chatId,
+          username: message.username,
+          displayName: message.displayName,
+        });
 
         // Ack immediately (Telegram retries on non-2xx), then process asynchronously.
         res.sendStatus(200);
@@ -578,46 +580,21 @@ router.post('/:type', async (req, res) => {
     // so a legitimate global-bot update never binds to a user-registered bot now that
     // both live in the same collection — this selects the exact same (system) document
     // the query returned before per-bot support existed.
-    const bot = await Bot.findOne({ platform: channelType, status: 'active', userId: { $exists: false } });
+    const bot: BotRow | null = await findSystemBot(getDb(), channelType, { activeOnly: true });
     if (!bot) {
       log.webhook.warn({ channelType }, 'No active bot found for channel type');
       return res.sendStatus(200);
     }
 
-    // Find or create bot user
-    let botUser = await BotUser.findOne({
-      botId: bot._id,
+    // Find or create bot user, in one statement.
+    const botUser = await upsertBotUser(getDb(), {
+      botId: bot.id,
+      platform: channelType,
       platformUserId: message.platformUserId,
+      chatId: message.chatId,
+      username: message.username,
+      displayName: message.displayName,
     });
-
-    if (!botUser) {
-      botUser = new BotUser({
-        botId: bot._id,
-        platform: channelType,
-        platformUserId: message.platformUserId,
-        chatId: message.chatId,
-        username: message.username,
-        displayName: message.displayName,
-        metadata: {},
-      });
-      await botUser.save();
-      log.webhook.info({ channelType, platformUserId: message.platformUserId }, 'Created new bot user');
-    } else {
-      let updated = false;
-      if (message.chatId && botUser.chatId !== message.chatId) {
-        botUser.chatId = message.chatId;
-        updated = true;
-      }
-      if (message.username && botUser.username !== message.username) {
-        botUser.username = message.username;
-        updated = true;
-      }
-      if (message.displayName && botUser.displayName !== message.displayName) {
-        botUser.displayName = message.displayName;
-        updated = true;
-      }
-      if (updated) await botUser.save();
-    }
 
     // Respond immediately to webhook (Slack has 3s timeout)
     res.sendStatus(200);

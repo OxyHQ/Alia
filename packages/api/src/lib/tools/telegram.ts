@@ -1,8 +1,7 @@
 import { tool } from 'ai';
 import { z } from 'zod';
-import mongoose from 'mongoose';
-import { Bot } from '../../models/bot.js';
-import { BotUser } from '../../models/bot-user.js';
+import { getDb } from '../../db/index.js';
+import { findLinkedBotUser, findSystemBot } from '../../db/integrations/botRepository.js';
 import { log } from '../logger.js';
 import { getErrorMessage } from '../errors/index.js';
 import { markdownToTelegramHtml, stripMarkdown } from '../channels/telegram-format.js';
@@ -21,16 +20,13 @@ export function createSendTelegramTool(userId: string) {
     execute: async ({ message }) => {
       try {
         // Find the system Telegram bot (never a user-registered one), then the user's linked account
-        const bot = await Bot.findOne({ platform: 'telegram', status: 'active', userId: { $exists: false } });
+        const db = getDb();
+        const bot = await findSystemBot(db, 'telegram', { activeOnly: true });
         if (!bot) {
           return { success: false, message: 'Telegram bot not configured' };
         }
 
-        const botUser = await BotUser.findOne({
-          botId: bot._id,
-          oxyUserId: new mongoose.Types.ObjectId(userId),
-          isLinked: true,
-        });
+        const botUser = await findLinkedBotUser(db, bot.id, userId);
 
         if (!botUser || !botUser.chatId) {
           return {

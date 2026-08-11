@@ -1,4 +1,5 @@
-import { Bot } from '../models/bot.js';
+import { getDb } from '../db/index.js';
+import { seedSystemBot } from '../db/integrations/botRepository.js';
 import { getConfiguredChannels } from './channels/registry.js';
 import { log } from './logger.js';
 
@@ -8,23 +9,16 @@ import { log } from './logger.js';
  */
 export async function seedBots(): Promise<void> {
   try {
+    const db = getDb();
     const configured = getConfiguredChannels();
     let seeded = 0;
 
     for (const plugin of configured) {
-      const botId = getBotId(plugin.id);
-
-      await Bot.findOneAndUpdate(
-        { platform: plugin.id },
-        {
-          $setOnInsert: {
-            botId,
-            name: plugin.meta.name,
-            status: 'active',
-          },
-        },
-        { upsert: true },
-      );
+      await seedSystemBot(db, {
+        platform: plugin.id,
+        botId: getBotId(plugin.id),
+        name: plugin.meta.name,
+      });
       seeded++;
     }
 
