@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import mongoose from 'mongoose';
+import { RETIRED_MODEL_FILES } from './retiredModelFiles';
 
 /**
  * `.populate()` on a ref this service does not own is a 500 waiting for traffic.
@@ -110,75 +111,6 @@ const files = modelFiles();
  * it alive past that point.
  */
 
-/** A model file the Postgres port has deleted, and who deleted it. */
-interface RetiredModelFile {
-  /** The Mongoose model it registered, e.g. `Trigger`. */
-  readonly model: string;
-  /** Its path, exactly as `modelFiles()` would have listed it. */
-  readonly file: string;
-  /** The slice that retired it, so the sum is auditable against git history. */
-  readonly retiredBy: string;
-}
-
-/**
- * Every model file the port has deleted, and which slice deleted it.
- *
- * Each entry is added in the SAME commit that deletes the file, which is the
- * whole point: a deletion is recorded rather than absorbed, and every commit is
- * individually green so a bisect lands on the change it means to.
- *
- * S3 deletes ten across three commits — the pricing catalogue and voice-call
- * usage, then subscriptions/transactions/credits, then the developer platform —
- * and each commit brings its own rows.
- *
- * APPEND, never reorder or rewrite. Several slices land entries here and an
- * append conflicts VISIBLY, in one array, where a reorder resolves wrongly by
- * accident. S8's eight follow S3's ten for that reason and no other.
- */
-const RETIRED_MODEL_FILES: readonly RetiredModelFile[] = [
-  { model: 'Plan', file: 'src/internal/providers/models/plan.ts', retiredBy: 'S3 — the pricing catalogue moves to Postgres' },
-  { model: 'Feature', file: 'src/internal/providers/models/feature.ts', retiredBy: 'S3 — the pricing catalogue moves to Postgres' },
-  { model: 'PlanFeature', file: 'src/internal/providers/models/plan-feature.ts', retiredBy: 'S3 — the pricing catalogue moves to Postgres' },
-  { model: 'CreditPackage', file: 'src/internal/providers/models/credit-package.ts', retiredBy: 'S3 — the pricing catalogue moves to Postgres' },
-  { model: 'VoiceCallUsage', file: 'src/models/voice-call-usage.ts', retiredBy: 'S3 — the pricing catalogue moves to Postgres' },
-  { model: 'Subscription', file: 'src/models/subscription.ts', retiredBy: 'S3 — subscriptions, transactions and credits move to Postgres' },
-  { model: 'Transaction', file: 'src/models/transaction.ts', retiredBy: 'S3 — subscriptions, transactions and credits move to Postgres' },
-  { model: 'UserCredits', file: 'src/models/user-credits.ts', retiredBy: 'S3 — subscriptions, transactions and credits move to Postgres' },
-  { model: 'DeveloperApp', file: 'src/models/developer-app.ts', retiredBy: 'S3 — the developer platform moves to Postgres' },
-  { model: 'DeveloperApiKey', file: 'src/models/developer-api-key.ts', retiredBy: 'S3 — the developer platform moves to Postgres' },
-  { model: 'Trigger', file: 'src/models/trigger.ts', retiredBy: 'S8 automation — triggers' },
-  {
-    model: 'TriggerExecution',
-    file: 'src/models/trigger-execution.ts',
-    retiredBy: 'S8 automation — trigger_executions',
-  },
-  { model: 'Workflow', file: 'src/models/workflow.ts', retiredBy: 'S8 automation — workflows' },
-  {
-    model: 'WorkflowExecution',
-    file: 'src/models/workflow-execution.ts',
-    retiredBy: 'S8 automation — workflow_executions',
-  },
-  {
-    model: 'ContextNode',
-    file: 'src/models/context-node.ts',
-    retiredBy: 'S8 context graph — context_nodes',
-  },
-  {
-    model: 'ContextEdge',
-    file: 'src/models/context-edge.ts',
-    retiredBy: 'S8 context graph — context_edges',
-  },
-  {
-    model: 'ContextSource',
-    file: 'src/models/context-source.ts',
-    retiredBy: 'S8 context graph — context_sources',
-  },
-  {
-    model: 'RetrievalStrategy',
-    file: 'src/models/retrieval-strategy.ts',
-    retiredBy: 'S8 context graph — retrieval_strategies',
-  },
-];
 
 /**
  * Live model files plus retired ones. Counted on `55754587`, where 43 were
