@@ -31,6 +31,19 @@
  * `foreign-ref-populate.test.ts` — `MODEL_FILES_EVER`. This file is the data;
  * the invariant is the gate's.
  *
+ * ## Counting these rows with `grep` UNDER-reports, measured
+ *
+ * Prettier wraps a long entry across four lines, so the array mixes one-line
+ * and multi-line forms. `grep -c "{ model: '"` sees only the one-line ones —
+ * **20 against an actual 26** at the time of writing. That miscount already
+ * caused a reviewer to compute `25 + 12 = 37` and briefly believe `main` was
+ * red, against the very gate built to prevent that class.
+ *
+ * A line-based instrument over multi-line data fails toward a FALSE ALARM here,
+ * which is the safer direction and still wrong. Count `model: '` without the
+ * brace, or read `RETIRED_MODEL_FILES.length` — the gate itself always does the
+ * latter, which is why the gate was never fooled.
+ *
  * NOTE for anyone reconciling counts: models deleted BEFORE `55754587` are
  * outside this ledger entirely and can never enter it. `MODEL_FILES_EVER`
  * counts what existed at that commit, so the 16 retired earlier by S1/S2/S5/S6
