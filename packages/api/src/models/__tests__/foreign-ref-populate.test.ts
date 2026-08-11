@@ -130,6 +130,10 @@ interface RetiredModelFile {
  * S3 deletes ten across three commits — the pricing catalogue and voice-call
  * usage, then subscriptions/transactions/credits, then the developer platform —
  * and each commit brings its own rows.
+ *
+ * APPEND, never reorder or rewrite. Several slices land entries here and an
+ * append conflicts VISIBLY, in one array, where a reorder resolves wrongly by
+ * accident. S8's eight follow S3's ten for that reason and no other.
  */
 const RETIRED_MODEL_FILES: readonly RetiredModelFile[] = [
   { model: 'Plan', file: 'src/internal/providers/models/plan.ts', retiredBy: 'S3 — the pricing catalogue moves to Postgres' },
@@ -142,6 +146,38 @@ const RETIRED_MODEL_FILES: readonly RetiredModelFile[] = [
   { model: 'UserCredits', file: 'src/models/user-credits.ts', retiredBy: 'S3 — subscriptions, transactions and credits move to Postgres' },
   { model: 'DeveloperApp', file: 'src/models/developer-app.ts', retiredBy: 'S3 — the developer platform moves to Postgres' },
   { model: 'DeveloperApiKey', file: 'src/models/developer-api-key.ts', retiredBy: 'S3 — the developer platform moves to Postgres' },
+  { model: 'Trigger', file: 'src/models/trigger.ts', retiredBy: 'S8 automation — triggers' },
+  {
+    model: 'TriggerExecution',
+    file: 'src/models/trigger-execution.ts',
+    retiredBy: 'S8 automation — trigger_executions',
+  },
+  { model: 'Workflow', file: 'src/models/workflow.ts', retiredBy: 'S8 automation — workflows' },
+  {
+    model: 'WorkflowExecution',
+    file: 'src/models/workflow-execution.ts',
+    retiredBy: 'S8 automation — workflow_executions',
+  },
+  {
+    model: 'ContextNode',
+    file: 'src/models/context-node.ts',
+    retiredBy: 'S8 context graph — context_nodes',
+  },
+  {
+    model: 'ContextEdge',
+    file: 'src/models/context-edge.ts',
+    retiredBy: 'S8 context graph — context_edges',
+  },
+  {
+    model: 'ContextSource',
+    file: 'src/models/context-source.ts',
+    retiredBy: 'S8 context graph — context_sources',
+  },
+  {
+    model: 'RetrievalStrategy',
+    file: 'src/models/retrieval-strategy.ts',
+    retiredBy: 'S8 context graph — retrieval_strategies',
+  },
 ];
 
 /**
@@ -186,9 +222,24 @@ function specifierOf(file: string): string {
  */
 function filesReferencing(file: string, sources: string[]): string[] {
   const specifier = specifierOf(file).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  // A specifier is always followed by an extension or the closing quote, which
-  // is what stops `models/trigger` matching `models/trigger-execution`.
-  const pattern = new RegExp(`${specifier}(\\.js|\\.ts|['"\`])`);
+  /**
+   * A RELATIVE prefix is required, and it is what separates a reference from a
+   * CITATION.
+   *
+   * Every module specifier in this package is relative — `../models/trigger.js`,
+   * `../../models/trigger.js` — while prose naming a deleted file is
+   * repo-rooted, e.g. ``read off `src/models/trigger-execution.ts:86` before it
+   * was deleted``. `RETIRED_MONGO_TTLS` writes exactly that, deliberately, as
+   * the provenance for a TTL whose source no longer exists, and the first real
+   * use of this gate flagged it.
+   *
+   * That citation is CORRECT and must stay: it is the only surviving record of
+   * what the index said. A gate cannot tell a valuable citation from a stale
+   * comment, so it does not try — it polices what the runtime resolves. The
+   * trailing extension-or-quote is what stops `models/trigger` matching
+   * `models/trigger-execution`.
+   */
+  const pattern = new RegExp(`\\.\\.?/${specifier}(\\.js|\\.ts|['"\`])`);
   return sources.filter((source) =>
     readFileSync(path.join(PACKAGE_ROOT, source), 'utf8')
       .split('\n')
