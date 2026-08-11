@@ -1,8 +1,16 @@
 import mongoose from 'mongoose';
-import { ContextNode } from '../../models/context-node.js';
-import { ContextEdge } from '../../models/context-edge.js';
-import { ContextSource } from '../../models/context-source.js';
-import { RetrievalStrategy } from '../../models/retrieval-strategy.js';
+import { getDb } from '../../db/index.js';
+import {
+  createStrategyIfAbsent,
+  findActiveStrategy,
+  findSourceScores,
+  insertMissingSources,
+  recordSourceRun,
+  recordStrategyRun,
+  upsertContextEdge,
+  upsertContextNode,
+} from '../../db/autonomy/contextGraphRepository.js';
+import { type ContextSourceKind } from '../../domain/context-source.js';
 import { type AutonomyIntent } from '../../domain/retrieval-strategy.js';
 import { LearningRule } from '../../models/learning-rule.js';
 import { log } from '../logger.js';
@@ -33,8 +41,23 @@ const DEFAULT_SOURCE_PATHS: Record<AutonomyIntent, string[]> = {
   general: ['notes', 'files'],
 };
 
+/**
+ * Only `LearningRule` still needs this. The four context-graph tables are on
+ * Postgres, where `oxy_user_id` is `text` and takes the Oxy id verbatim;
+ * `learning_rules` has a Postgres table but no repository yet — it belongs to
+ * the agents slice — so this file writes two stores until that lands.
+ */
 function toObjectId(userId: string): mongoose.Types.ObjectId {
   return new mongoose.Types.ObjectId(userId);
+}
+
+/** The kind a default source key implies. Was duplicated at both write sites. */
+function sourceKindFor(sourceKey: string): ContextSourceKind {
+  if (sourceKey === 'email') return 'email';
+  if (sourceKey === 'calendar') return 'calendar';
+  if (sourceKey === 'files') return 'files';
+  if (sourceKey === 'notes') return 'notes';
+  return 'unknown';
 }
 
 function clamp01(value: number): number {
@@ -62,28 +85,32 @@ function rankSources(input: Array<{ sourceKey: string; freshnessScore: number; p
     .sort((a, b) => b.score - a.score);
 }
 
-async function ensureSources(oxyUserId: mongoose.Types.ObjectId, intent: AutonomyIntent): Promise<Array<{ sourceKey: string; freshnessScore: number; precisionScore: number; costScore: number }>> {
+async function ensureSources(oxyUserId: string, intent: AutonomyIntent): Promise<Array<{ sourceKey: string; freshnessScore: number; precisionScore: number; costScore: number }>> {
   const defaultSources = DEFAULT_SOURCE_PATHS[intent] || DEFAULT_SOURCE_PATHS.general;
 
-  const existing = await ContextSource.find({ oxyUserId, sourceKey: { $in: defaultSources } })
-    .select('sourceKey freshnessScore precisionScore avgCostScore')
-    .lean();
+  const existing = await findSourceScores(getDb(), oxyUserId, defaultSources);
 
   const existingKeys = new Set(existing.map((s) => s.sourceKey));
   const missing = defaultSources.filter((key) => !existingKeys.has(key));
   if (missing.length > 0) {
-    await ContextSource.insertMany(
+    // The source swallowed every failure here, duplicates included. Duplicates
+    // are now handled by the unique's `do nothing`, so only a real fault is
+    // caught — and it stays caught, because seeding defaults must not fail a
+    // recall the caller can still answer from those same defaults.
+    await insertMissingSources(
+      getDb(),
       missing.map((sourceKey) => ({
         oxyUserId,
         sourceKey,
-        kind: sourceKey === 'email' ? 'email' : sourceKey === 'calendar' ? 'calendar' : sourceKey === 'files' ? 'files' : sourceKey === 'notes' ? 'notes' : 'unknown',
+        kind: sourceKindFor(sourceKey),
         label: sourceKey,
         freshnessScore: 0.5,
         precisionScore: 0.5,
         avgCostScore: 0.5,
       })),
-      { ordered: false }
-    ).catch(() => {});
+    ).catch((err) => {
+      log.general.warn({ err }, 'Failed to seed default context sources');
+    });
   }
 
   // Merge existing DB rows with defaults for newly inserted sources (avoids a second query)
@@ -99,22 +126,26 @@ async function ensureSources(oxyUserId: mongoose.Types.ObjectId, intent: Autonom
   return result;
 }
 
-async function ensureIntentStrategy(oxyUserId: mongoose.Types.ObjectId, intent: AutonomyIntent): Promise<void> {
-  const existing = await RetrievalStrategy.findOne({ oxyUserId, intent, active: true }).lean();
+/** The `source_steps` a fresh strategy is created with. Write-only today. */
+function defaultSourceSteps(intent: AutonomyIntent): Array<Record<string, unknown>> {
+  const defaults = DEFAULT_SOURCE_PATHS[intent] || DEFAULT_SOURCE_PATHS.general;
+  return defaults.map((sourceKey, index) => ({
+    sourceKey,
+    order: index + 1,
+    required: index === 0,
+    fallbackSourceKeys: defaults.filter((candidate) => candidate !== sourceKey),
+  }));
+}
+
+async function ensureIntentStrategy(oxyUserId: string, intent: AutonomyIntent): Promise<void> {
+  const existing = await findActiveStrategy(getDb(), oxyUserId, intent);
   if (existing) return;
 
-  const defaults = DEFAULT_SOURCE_PATHS[intent] || DEFAULT_SOURCE_PATHS.general;
-  await RetrievalStrategy.create({
+  await createStrategyIfAbsent(getDb(), {
     oxyUserId,
     intent,
     name: `${intent}-default`,
-    active: true,
-    sourceSteps: defaults.map((sourceKey, index) => ({
-      sourceKey,
-      order: index + 1,
-      required: index === 0,
-      fallbackSourceKeys: defaults.filter((candidate) => candidate !== sourceKey),
-    })),
+    sourceSteps: defaultSourceSteps(intent),
   });
 }
 
@@ -139,12 +170,11 @@ export async function recallContextForIntent(params: {
     };
   }
 
-  const oxyUserId = toObjectId(params.userId);
-  await ensureIntentStrategy(oxyUserId, params.intent);
+  await ensureIntentStrategy(params.userId, params.intent);
 
   const [sourceRows, ruleRows] = await Promise.all([
-    ensureSources(oxyUserId, params.intent),
-    LearningRule.find({ oxyUserId, active: true, $or: [{ intent: params.intent }, { intent: 'general' }] })
+    ensureSources(params.userId, params.intent),
+    LearningRule.find({ oxyUserId: toObjectId(params.userId), active: true, $or: [{ intent: params.intent }, { intent: 'general' }] })
       .sort({ priority: -1, updatedAt: -1 })
       .limit(8)
       .select('priority ruleText ruleType')
@@ -171,61 +201,38 @@ export async function learnFromRun(params: {
 }): Promise<void> {
   if (!autonomyFlags.contextGraphEnabled || !params.userId) return;
 
-  const oxyUserId = toObjectId(params.userId);
+  const oxyUserId = params.userId;
   const now = new Date();
 
+  // Exactly ONE of the two timestamps is supplied per run. The source wrote the
+  // other as `undefined`, which Mongo drops from a `$set`; passing it here would
+  // write NULL and erase the opposite timestamp on every run, so the key is
+  // omitted instead. The repository has no way to express an explicit NULL.
   await Promise.all(params.usedSources.map((sourceKey) =>
-    ContextSource.updateOne(
-      { oxyUserId, sourceKey },
-      {
-        $setOnInsert: {
-          oxyUserId,
-          sourceKey,
-          kind: sourceKey === 'email' ? 'email' : sourceKey === 'calendar' ? 'calendar' : sourceKey === 'files' ? 'files' : sourceKey === 'notes' ? 'notes' : 'unknown',
-          label: sourceKey,
-        },
-        $inc: {
-          successfulReads: params.success ? 1 : 0,
-          failedReads: params.success ? 0 : 1,
-        },
-        $set: {
-          lastSuccessAt: params.success ? now : undefined,
-          lastErrorAt: params.success ? undefined : now,
-          avgLatencyMs: Math.max(0, params.latencyMs),
-          freshnessScore: params.success ? 0.9 : 0.4,
-          precisionScore: params.success ? 0.85 : 0.45,
-        },
-      },
-      { upsert: true }
-    )
+    recordSourceRun(getDb(), {
+      oxyUserId,
+      sourceKey,
+      kind: sourceKindFor(sourceKey),
+      label: sourceKey,
+      successfulReadsDelta: params.success ? 1 : 0,
+      failedReadsDelta: params.success ? 0 : 1,
+      ...(params.success ? { lastSuccessAt: now } : { lastErrorAt: now }),
+      avgLatencyMs: Math.max(0, params.latencyMs),
+      freshnessScore: params.success ? 0.9 : 0.4,
+      precisionScore: params.success ? 0.85 : 0.45,
+    })
   ));
 
-  await RetrievalStrategy.updateOne(
-    { oxyUserId, intent: params.intent, active: true },
-    {
-      $setOnInsert: {
-        oxyUserId,
-        intent: params.intent,
-        name: `${params.intent}-default`,
-        active: true,
-        sourceSteps: (DEFAULT_SOURCE_PATHS[params.intent] || DEFAULT_SOURCE_PATHS.general).map((sourceKey, index) => ({
-          sourceKey,
-          order: index + 1,
-          required: index === 0,
-          fallbackSourceKeys: (DEFAULT_SOURCE_PATHS[params.intent] || DEFAULT_SOURCE_PATHS.general).filter((candidate) => candidate !== sourceKey),
-        })),
-      },
-      $inc: {
-        successCount: params.success ? 1 : 0,
-        failureCount: params.success ? 0 : 1,
-      },
-      $set: {
-        lastUsedAt: now,
-        avgLatencyMs: Math.max(0, params.latencyMs),
-      },
-    },
-    { upsert: true }
-  );
+  await recordStrategyRun(getDb(), {
+    oxyUserId,
+    intent: params.intent,
+    name: `${params.intent}-default`,
+    sourceSteps: defaultSourceSteps(params.intent),
+    successDelta: params.success ? 1 : 0,
+    failureDelta: params.success ? 0 : 1,
+    lastUsedAt: now,
+    avgLatencyMs: Math.max(0, params.latencyMs),
+  });
 
   // Minimal context graph ingestion from chat signals.
   const userText = params.userMessage.slice(0, 400);
@@ -235,64 +242,38 @@ export async function learnFromRun(params: {
   const userNodeKey = `message:user:${Buffer.from(userText).toString('base64').slice(0, 48)}`;
   const assistantNodeKey = `message:assistant:${Buffer.from(assistantText).toString('base64').slice(0, 48)}`;
 
+  // Both upserts must return a row: the edge's endpoints are real foreign keys,
+  // so it cannot be written before its nodes exist. `upsertContextNode` throws
+  // rather than returning undefined, which is why the source's
+  // `if (userNode && assistantNode)` guard has no counterpart here — there is no
+  // longer a state in which one succeeded and the other silently did not.
   const [userNode, assistantNode] = await Promise.all([
-    ContextNode.findOneAndUpdate(
-      { oxyUserId, nodeKey: userNodeKey },
-      {
-        $setOnInsert: {
-          oxyUserId,
-          nodeKey: userNodeKey,
-          type: 'memory',
-          label: userText || 'user_message',
-        },
-        $set: {
-          lastSeenAt: now,
-          freshnessScore: 0.9,
-        },
-      },
-      { upsert: true, new: true }
-    ),
-    ContextNode.findOneAndUpdate(
-      { oxyUserId, nodeKey: assistantNodeKey },
-      {
-        $setOnInsert: {
-          oxyUserId,
-          nodeKey: assistantNodeKey,
-          type: 'memory',
-          label: assistantText || 'assistant_message',
-        },
-        $set: {
-          lastSeenAt: now,
-          freshnessScore: 0.9,
-        },
-      },
-      { upsert: true, new: true }
-    ),
+    upsertContextNode(getDb(), {
+      oxyUserId,
+      nodeKey: userNodeKey,
+      type: 'memory',
+      label: userText || 'user_message',
+      lastSeenAt: now,
+      freshnessScore: 0.9,
+    }),
+    upsertContextNode(getDb(), {
+      oxyUserId,
+      nodeKey: assistantNodeKey,
+      type: 'memory',
+      label: assistantText || 'assistant_message',
+      lastSeenAt: now,
+      freshnessScore: 0.9,
+    }),
   ]);
 
-  if (userNode && assistantNode) {
-    await ContextEdge.updateOne(
-      {
-        oxyUserId,
-        fromNodeId: userNode._id,
-        toNodeId: assistantNode._id,
-        edgeType: 'related_to',
-      },
-      {
-        $setOnInsert: {
-          oxyUserId,
-          fromNodeId: userNode._id,
-          toNodeId: assistantNode._id,
-          edgeType: 'related_to',
-        },
-        $set: {
-          lastSeenAt: now,
-          weight: params.success ? 0.9 : 0.4,
-        },
-      },
-      { upsert: true }
-    );
-  }
+  await upsertContextEdge(getDb(), {
+    oxyUserId,
+    fromNodeId: userNode.id,
+    toNodeId: assistantNode.id,
+    edgeType: 'related_to',
+    lastSeenAt: now,
+    weight: params.success ? 0.9 : 0.4,
+  });
 }
 
 export async function saveUserCorrection(params: {

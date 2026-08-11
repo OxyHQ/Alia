@@ -13,8 +13,11 @@ import { OxyService } from '../models/oxy-service.js';
 import { OxyServiceEventLog } from '../models/oxy-service-event-log.js';
 import { Agent } from '../models/agent.js';
 import { AgentSession } from '../models/agent-session.js';
-import { ContextSource } from '../models/context-source.js';
-import { ContextNode } from '../models/context-node.js';
+import { getDb } from '../db/index.js';
+import {
+  recordSourceRun,
+  upsertContextNode,
+} from '../db/autonomy/contextGraphRepository.js';
 import { sendNotification } from '../lib/notification-service.js';
 import { enqueueAgentSession } from '../lib/task-queue.js';
 import { log } from '../lib/logger.js';
@@ -95,38 +98,26 @@ async function notifyFallback(params: {
 
 async function ingestOxySignal(userId: string, serviceId: string, event: string, data?: any): Promise<void> {
   const now = new Date();
-  await ContextSource.updateOne(
-    { oxyUserId: userId, sourceKey: `oxy:${serviceId}` },
-    {
-      $setOnInsert: {
-        oxyUserId: userId,
-        sourceKey: `oxy:${serviceId}`,
-        kind: 'oxy_service',
-        label: serviceId,
-      },
-      $set: {
-        freshnessScore: 0.95,
-        precisionScore: 0.8,
-        lastSuccessAt: now,
-      },
-      $inc: { successfulReads: 1 },
-    },
-    { upsert: true }
-  ).catch(() => {});
+  await recordSourceRun(getDb(), {
+    oxyUserId: userId,
+    sourceKey: `oxy:${serviceId}`,
+    kind: 'oxy_service',
+    label: serviceId,
+    successfulReadsDelta: 1,
+    freshnessScore: 0.95,
+    precisionScore: 0.8,
+    lastSuccessAt: now,
+  }).catch(() => {});
 
-  await ContextNode.updateOne(
-    { oxyUserId: userId, nodeKey: `oxy-event:${serviceId}:${event}:${hashPayload(data).slice(0, 12)}` },
-    {
-      $setOnInsert: {
-        oxyUserId: userId,
-        nodeKey: `oxy-event:${serviceId}:${event}:${hashPayload(data).slice(0, 12)}`,
-        type: 'service',
-        label: `${serviceId}:${event}`,
-      },
-      $set: { lastSeenAt: now, freshnessScore: 0.95 },
-    },
-    { upsert: true }
-  ).catch(() => {});
+  const nodeKey = `oxy-event:${serviceId}:${event}:${hashPayload(data).slice(0, 12)}`;
+  await upsertContextNode(getDb(), {
+    oxyUserId: userId,
+    nodeKey,
+    type: 'service',
+    label: `${serviceId}:${event}`,
+    lastSeenAt: now,
+    freshnessScore: 0.95,
+  }).catch(() => {});
 }
 
 async function processEvent(params: {
