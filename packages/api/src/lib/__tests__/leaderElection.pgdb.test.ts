@@ -102,6 +102,33 @@ async function until(
   }
 }
 
+/**
+ * How many heartbeats are queued behind the backend `holderPid`, transitively.
+ *
+ * Recursive because row-lock waiters CHAIN: the first blocked upsert waits on
+ * the lock holder's transaction, but the second waits on the FIRST one's tuple
+ * lock, not on the holder. A one-hop `pg_blocking_pids(pid) @> holderPid` counts
+ * exactly 1 no matter how many heartbeats are queued — measured, and it fails
+ * as a timeout rather than as a wrong number, which is the only reason it was
+ * caught.
+ *
+ * Scoped to the holder's pid throughout, because `test:pg` shares one database
+ * with every other file in the suite.
+ */
+async function heartbeatsBlockedBehind(holderPid: number): Promise<number> {
+  const [row] = await observer<{ waiters: number }[]>`
+    with recursive blocked(pid) as (
+      select a.pid from pg_stat_activity a
+       where ${holderPid} = any(pg_blocking_pids(a.pid))
+      union
+      select a.pid from pg_stat_activity a
+       join blocked b on b.pid = any(pg_blocking_pids(a.pid))
+    )
+    select count(*)::int as waiters from blocked
+  `;
+  return row.waiters;
+}
+
 /** A fresh module instance — a distinct `instanceId`, i.e. a distinct task. */
 async function loadInstance() {
   vi.resetModules();
@@ -185,6 +212,71 @@ describe('leader-election', () => {
     // Once across the whole settle window: renewing a lease it already holds is
     // not a re-election.
     expect(electedB).toHaveBeenCalledTimes(1);
+  });
+
+  /**
+   * The OTHER CI failure, and a different mechanism from the one below.
+   *
+   * `main`'s run `31450693540` failed `demotes a leader whose lease was taken
+   * over while it was away` at `expected false to be true` — its FIRST
+   * assertion, before any takeover, where a fixed `wait(150)` ran out before the
+   * first heartbeat landed. Nothing to do with the `stop()` race: measured
+   * against the FIXED module, main's `wait(150)` shape still fails and the
+   * `until()` shape passes.
+   *
+   * Held here rather than hoped for. The lease row is locked for longer than
+   * that whole window, so a RUN of heartbeats blocks — and the part worth
+   * pinning is that a pile of blocked renewals all granted at once produces ONE
+   * election, not one per heartbeat.
+   */
+  it('elects once when a run of heartbeats is blocked past any fixed wait', async () => {
+    const name = leaseName('slow-first-election');
+    // A lapsed claim, so the row EXISTS and the election's upsert conflicts on
+    // it. An absent row would not block on a lock at all, and the test would
+    // quietly measure nothing.
+    await db.execute(sql`
+      insert into ${leases} (name, holder_id, expires_at, acquired_at)
+      values (${name}, 'dead-task', now() - interval '1 second', now() - interval '1 hour')
+    `);
+
+    const holder = await observer.reserve();
+    let committed = false;
+    try {
+      const [pidRow] = await holder<{ pid: number }[]>`select pg_backend_pid() as pid`;
+      const holderPid = pidRow.pid;
+
+      await holder`begin`;
+      await holder`select 1 from leases where name = ${name} for update`;
+
+      const modA = await loadInstance();
+      const electedA = vi.fn();
+      const handleA = modA.startLeaderElection(
+        name,
+        { onElected: electedA, onDemoted: vi.fn() },
+        { heartbeatMs: HEARTBEAT_MS, leaseTtlMs: 60_000 },
+      );
+      handles.push(handleA);
+
+      // Two or more, not one: the property is about the PILE, and a single
+      // blocked heartbeat would not distinguish "elects once" from "elects".
+      await until(
+        `a run of heartbeats to queue behind pid ${holderPid}`,
+        async () => (await heartbeatsBlockedBehind(holderPid)) >= 2,
+      );
+      // The block is really holding the election up, so what follows is a
+      // recovery and not a race this test happened to win.
+      expect(handleA.isLeader()).toBe(false);
+
+      await holder`commit`;
+      committed = true;
+
+      await until('the election to land once the block clears', () => handleA.isLeader());
+      await settle();
+      expect(electedA).toHaveBeenCalledTimes(1);
+    } finally {
+      if (!committed) await holder`rollback`;
+      holder.release();
+    }
   });
 
   it('demotes a leader whose lease was taken over while it was away', async () => {
@@ -278,18 +370,11 @@ describe('leader-election', () => {
 
       // The precondition, asserted rather than assumed. Without a genuine block
       // there is no in-flight renewal and the rest of this test proves nothing —
-      // it would pass against the very bug it exists to catch. Scoped to the
-      // holder's pid because `test:pg` shares one database with every other file
-      // in the suite, and `pg_blocking_pids` covers the tuple-lock hop an
-      // `ON CONFLICT` upsert takes on its way to waiting for a transaction.
-      await until(`a heartbeat to block on the lease row held by pid ${holderPid}`, async () => {
-        const [row] = await observer<{ waiters: number }[]>`
-          select count(*)::int as waiters
-          from pg_stat_activity a
-          where ${holderPid} = any(pg_blocking_pids(a.pid))
-        `;
-        return row.waiters > 0;
-      });
+      // it would pass against the very bug it exists to catch.
+      await until(
+        `a heartbeat to block on the lease row held by pid ${holderPid}`,
+        async () => (await heartbeatsBlockedBehind(holderPid)) > 0,
+      );
 
       // `stop()` clears the interval synchronously, so what is in flight at this
       // line is all there will ever be.
