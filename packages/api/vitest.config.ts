@@ -12,9 +12,17 @@ export default defineConfig({
     environment: 'node',
     include: ['src/**/__tests__/**/*.test.ts', 'src/**/*.test.ts'],
     /**
-     * The Postgres suite has its own config and its own CI job — it needs a real
-     * server over TCP, which this one does not. Excluded here so `bun run test`
-     * still works on a machine without Docker.
+     * The Postgres suite has its own config (`vitest.pg.config.ts`, run by
+     * `test:pg`) and its own CI job — **`api-postgres`**, `ci.yml:151`, which
+     * stands up a `postgres:17-alpine` service. It needs a real server over TCP,
+     * which this one does not. Excluded here so `bun run test` still works on a
+     * machine without Docker.
+     *
+     * The job is NAMED because the previous wording — "its own CI job", with no
+     * name — reads as a claim rather than a citation, and cost two rounds of
+     * argument over whether the `*.pgdb.test.ts` files run in CI at all. They
+     * do. A reader who doubts it can check the named job instead of grepping for
+     * `test:pg` and trusting whatever tree they happen to be standing in.
      */
     exclude: ['**/node_modules/**', '**/dist/**', 'src/**/*.pgdb.test.ts'],
     coverage: {
