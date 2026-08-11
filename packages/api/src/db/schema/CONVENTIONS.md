@@ -543,12 +543,17 @@ Whole-repo, over `git ls-files`, before batch 3:
 - `createCollection`, create-on-demand bootstrap — **none** (the two `.init()`
   hits are Stagehand browser sessions)
 - `NamespaceNotFound` / error code 26 handling — **none**
-- `countDocuments()` — one, and it is not an existence inference:
-  `trigger-engine.ts:615` is `.countDocuments().catch(() => 0)` on the legacy
-  `automations` collection — inside `migrateLegacyAutomations()`, which is
-  retired at cutover along with the collection. (The other two were in
-  `lib/intelligent-cache.ts`, sizing a cache for eviction; that module had zero
-  importers in the whole repo and has been deleted along with its two tables.)
+- `countDocuments()` — **none**. There was one, and it was retired rather than
+  ported: `trigger-engine.ts:615` ran `.countDocuments().catch(() => 0)` on the
+  legacy `automations` collection inside `migrateLegacyAutomations()`. That
+  collection held **0 rows at dump time** — a measured zero, present as a key in
+  the 79-collection map, and no longer re-derivable now the source Mongo is
+  destroyed — and its source is gone, so converting the count to a Postgres one
+  would have been a permanently-false condition dressed as a check. The
+  function, its call site and its `legacyMigrationDone` latch went with S8.
+  (The other two were in `lib/intelligent-cache.ts`, sizing a cache for
+  eviction; that module had zero importers in the whole repo and has been
+  deleted along with its two tables.)
 
 `leader-election.ts` reads `doc?.holderId === instanceId`, which is row CONTENT,
 not container existence — so the one table whose collection genuinely does not

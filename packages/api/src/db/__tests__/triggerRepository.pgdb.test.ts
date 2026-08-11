@@ -42,6 +42,22 @@ afterAll(async () => {
   await closePostgres();
 });
 
+/**
+ * Fixture instants are RELATIVE to now, and that is not a style choice.
+ *
+ * `trigger_executions` is an expiry target with 30-day retention measured from
+ * `started_at` (`db/expiryTargets.ts`), and the pgdb suite shares ONE database
+ * across files. A hardcoded `2026-03-01` is therefore a row ANY sibling file's
+ * full-registry sweep is entitled to delete MID-TEST — and it surfaces as an
+ * ordering assertion failing in a file that changed nothing, which is the worst
+ * possible place to go looking. Measured: these fixtures made
+ * `pages newest first` intermittent under the parallel run.
+ *
+ * `workflow_executions` has no TTL, so `workflowRepository.pgdb.test.ts` is not
+ * exposed the same way.
+ */
+const minutesAgo = (n: number): Date => new Date(Date.now() - n * 60_000);
+
 const seed = (owner: string, extra: Partial<NewTrigger> = {}) =>
   createTrigger(db, {
     oxyUserId: owner,
@@ -320,7 +336,7 @@ describe('runs', () => {
       oxyUserId: 'trr-run',
       triggerType: 'manual',
       input: { event: 'e', payload: { a: 1 }, source: 'manual' },
-      startedAt: new Date('2026-03-01T00:00:00.000Z'),
+      startedAt: minutesAgo(30),
     });
     expect(execution.status).toBe('running');
     expect(execution.inputEvent).toBe('e');
@@ -333,7 +349,7 @@ describe('runs', () => {
       toolCalls: [{ tool: 'search', args: { q: 'x' } }],
       tokens: { prompt: 10, completion: 20, total: 30 },
       durationMs: 1234,
-      completedAt: new Date('2026-03-01T00:00:05.000Z'),
+      completedAt: minutesAgo(29),
     });
 
     const [row] = await listTriggerExecutions(db, trigger._id, { limit: 10, offset: 0 });
@@ -347,19 +363,24 @@ describe('runs', () => {
 
   it('pages newest first and counts independently of the page', async () => {
     const trigger = await seed('trr-page');
-    for (const day of ['01', '03', '02']) {
-      await createTriggerExecution(db, {
-        triggerId: trigger._id,
-        oxyUserId: 'trr-page',
-        triggerType: 'schedule',
-        startedAt: new Date(`2026-03-${day}T00:00:00.000Z`),
-      });
-    }
+    // Deliberately inserted out of order, so the ordering is the query's doing.
+    // A run has no caller-supplied id, so the rows are identified by the ids the
+    // inserts handed back rather than by a fixture value.
+    const [oldest, newest, middle] = await Promise.all(
+      [30, 10, 20].map((ago) =>
+        createTriggerExecution(db, {
+          triggerId: trigger._id,
+          oxyUserId: 'trr-page',
+          triggerType: 'schedule',
+          startedAt: minutesAgo(ago),
+        }),
+      ),
+    );
 
     const firstPage = await listTriggerExecutions(db, trigger._id, { limit: 2, offset: 0 });
-    expect(firstPage.map((r) => r.startedAt.toISOString().slice(8, 10))).toEqual(['03', '02']);
+    expect(firstPage.map((r) => r.id)).toEqual([newest?.id, middle?.id]);
     const secondPage = await listTriggerExecutions(db, trigger._id, { limit: 2, offset: 2 });
-    expect(secondPage).toHaveLength(1);
+    expect(secondPage.map((r) => r.id)).toEqual([oldest?.id]);
     // The count is the total, not the page.
     expect(await countTriggerExecutions(db, trigger._id)).toBe(3);
   });
@@ -375,13 +396,13 @@ describe('runs', () => {
       triggerId: trigger._id,
       oxyUserId: 'trr-prev',
       triggerType: 'schedule',
-      startedAt: new Date('2026-03-01T00:00:00.000Z'),
+      startedAt: minutesAgo(30),
     });
     await completeTriggerExecution(db, real.id, {
       status: 'success',
       result: 'the real report',
       durationMs: 1,
-      completedAt: new Date('2026-03-01T00:00:01.000Z'),
+      completedAt: minutesAgo(29),
     });
     // A success that never completed — the row `NULLS LAST` has to keep at the back.
     await db.insert(triggerExecutions).values({
@@ -389,7 +410,7 @@ describe('runs', () => {
       oxyUserId: 'trr-prev',
       status: 'success',
       triggerType: 'schedule',
-      startedAt: new Date('2026-03-02T00:00:00.000Z'),
+      startedAt: minutesAgo(20),
     });
 
     const previous = await findLastSuccessfulExecution(db, trigger._id);
@@ -402,13 +423,13 @@ describe('runs', () => {
       triggerId: trigger._id,
       oxyUserId: 'trr-none',
       triggerType: 'schedule',
-      startedAt: new Date('2026-03-01T00:00:00.000Z'),
+      startedAt: minutesAgo(30),
     });
     await completeTriggerExecution(db, execution.id, {
       status: 'failed',
       result: 'boom',
       durationMs: 1,
-      completedAt: new Date('2026-03-01T00:00:01.000Z'),
+      completedAt: minutesAgo(29),
     });
     expect(await findLastSuccessfulExecution(db, trigger._id)).toBeUndefined();
   });
