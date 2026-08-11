@@ -1,22 +1,23 @@
 import express from 'express';
 import crypto from 'crypto';
-import mongoose, { Schema } from 'mongoose';
 import { authenticateToken } from '../middleware/auth.js';
-import { Integration } from '../models/integration.js';
+import { getDb } from '../db/index.js';
+import {
+  createIntegration,
+  deleteIntegrationForUser,
+  findIntegrationForUser,
+  listIntegrationsForUser,
+} from '../db/integrations/integrationRepository.js';
+import {
+  consumeOAuthState,
+  createOAuthState,
+  findLiveOAuthState,
+  OAUTH_STATE_TTL_MS,
+} from '../db/integrations/oauthStateRepository.js';
 import { INTEGRATION_REGISTRY, type IntegrationRegistryEntry } from '../lib/integration-registry.js';
 import { log } from '../lib/logger.js';
 
 const router = express.Router();
-
-// MongoDB-backed OAuth state store (survives restarts, works across instances)
-const OAuthStateSchema = new Schema({
-  _id: { type: String }, // the random state token
-  service: { type: String, required: true },
-  userId: { type: String, required: true },
-  expiresAt: { type: Date, required: true },
-});
-OAuthStateSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 }); // TTL auto-cleanup
-const OAuthState = mongoose.model('OAuthState', OAuthStateSchema);
 
 function getRegistryEntry(service: string): IntegrationRegistryEntry | undefined {
   return INTEGRATION_REGISTRY.find(i => i.service === service);
@@ -47,11 +48,7 @@ router.get('/available', authenticateToken, (_req, res) => {
 // List user's connected integrations
 router.get('/', authenticateToken, async (req, res) => {
   try {
-    const integrations = await Integration.find({
-      oxyUserId: new mongoose.Types.ObjectId(req.userId),
-    })
-      .select('-oauthTokens')
-      .sort({ createdAt: -1 });
+    const integrations = await listIntegrationsForUser(getDb(), req.userId!);
     res.json({ integrations });
   } catch (error: unknown) {
     log.general.error({ err: error }, 'List integrations error');
@@ -73,11 +70,11 @@ router.get('/:service/oauth-url', authenticateToken, async (req: express.Request
   }
 
   const state = crypto.randomBytes(32).toString('hex');
-  await OAuthState.create({
-    _id: state,
+  await createOAuthState(getDb(), {
+    state,
     service,
     userId: req.userId!,
-    expiresAt: new Date(Date.now() + 10 * 60 * 1000), // 10 minutes
+    expiresAt: new Date(Date.now() + OAUTH_STATE_TTL_MS),
   });
 
   const apiBaseUrl = process.env.API_BASE_URL || 'http://localhost:4150';
@@ -119,9 +116,11 @@ router.get('/:service/callback', async (req: express.Request<{ service: string }
 
   // Validate the state exists, matches the service, and is unexpired WITHOUT
   // consuming it — the authenticated /complete call consumes it after verifying
-  // the caller owns it.
-  const stateData = await OAuthState.findOne({ _id: state });
-  if (!stateData || stateData.service !== service || stateData.expiresAt < new Date()) {
+  // the caller owns it. All three conditions live in the repository and answer
+  // with ONE outcome, so a client cannot vary an input at a time and read out
+  // which part failed.
+  const stateRow = await findLiveOAuthState(getDb(), state, service);
+  if (!stateRow) {
     return res.redirect(
       `${appUrl}/settings/integrations?service=${encodeURIComponent(service)}&error=oauth_expired`,
     );
@@ -150,24 +149,25 @@ router.post('/:service/complete', authenticateToken, async (req: express.Request
     return res.status(400).json({ error: 'state and code are required' });
   }
 
+  const db = getDb();
+
   // Load and validate the state WITHOUT consuming it, so a mismatched caller
   // cannot burn the initiating user's state.
-  const stateData = await OAuthState.findOne({ _id: state });
-  if (!stateData || stateData.service !== service || stateData.expiresAt < new Date()) {
+  const stateRow = await findLiveOAuthState(db, state, service);
+  if (!stateRow) {
     return res.status(400).json({ error: 'Invalid or expired state' });
   }
 
   // CSRF binding: the state must have been issued to the authenticated caller.
   // Whoever holds the code (the browser that got the callback) can only finish
   // the link into their OWN account, never someone else's.
-  if (stateData.userId !== req.userId) {
+  if (stateRow.userId !== req.userId) {
     return res.status(403).json({ error: 'State was not issued to this account' });
   }
 
   // Consume the state (single-use) now that the caller is verified. The atomic
   // delete also guards against replay/race between the load above and here.
-  const consumed = await OAuthState.findOneAndDelete({ _id: state });
-  if (!consumed) {
+  if (!(await consumeOAuthState(db, state))) {
     return res.status(400).json({ error: 'Invalid or expired state' });
   }
 
@@ -245,33 +245,27 @@ router.post('/:service/complete', authenticateToken, async (req: express.Request
       }
     }
 
-    // Create the integration bound to the authenticated caller (never stateData
-    // identity — that is the CSRF fix).
-    const integration = new Integration({
-      oxyUserId: new mongoose.Types.ObjectId(req.userId),
+    // Create the integration bound to the authenticated caller (never the state
+    // row's identity — that is the CSRF fix). `createIntegration` returns the
+    // SAFE projection, so the response cannot carry the tokens: it is a
+    // different type with no token field, rather than a re-read that drops them.
+    const integration = await createIntegration(db, {
+      oxyUserId: req.userId!,
       service,
       displayName: entry.name,
-      oauthTokens: {
-        accessToken: tokenData.access_token,
-        refreshToken: tokenData.refresh_token,
-        expiresAt: tokenData.expires_in
-          ? new Date(Date.now() + tokenData.expires_in * 1000)
-          : undefined,
-        scope: tokenData.scope || entry.oauthConfig.scopes.join(' '),
-        tokenType: tokenData.token_type || 'Bearer',
-      },
+      accessToken: tokenData.access_token,
+      refreshToken: tokenData.refresh_token,
+      expiresAt: tokenData.expires_in
+        ? new Date(Date.now() + tokenData.expires_in * 1000)
+        : undefined,
+      scope: tokenData.scope || entry.oauthConfig.scopes.join(' '),
+      tokenType: tokenData.token_type || 'Bearer',
       accountId: profileData.accountId,
       accountName: profileData.accountName,
       avatarUrl: profileData.avatarUrl,
-      status: 'active',
-      connectedAt: new Date(),
     });
 
-    await integration.save();
-
-    // Return the integration without the encrypted OAuth tokens.
-    const integrationSafe = await Integration.findById(integration._id).select('-oauthTokens');
-    res.json({ integration: integrationSafe });
+    res.json({ integration });
   } catch (error: unknown) {
     log.general.error({ err: error }, 'OAuth complete error');
     res.status(500).json({ error: 'Internal server error' });
@@ -279,14 +273,11 @@ router.post('/:service/complete', authenticateToken, async (req: express.Request
 });
 
 // Disconnect integration
-router.delete('/:id', authenticateToken, async (req, res) => {
+router.delete('/:id', authenticateToken, async (req: express.Request<{ id: string }>, res) => {
   try {
-    const integration = await Integration.findOneAndDelete({
-      _id: req.params.id,
-      oxyUserId: new mongoose.Types.ObjectId(req.userId),
-    });
+    const removed = await deleteIntegrationForUser(getDb(), req.params.id, req.userId!);
 
-    if (!integration) {
+    if (!removed) {
       return res.status(404).json({ error: 'Integration not found' });
     }
 
@@ -298,12 +289,9 @@ router.delete('/:id', authenticateToken, async (req, res) => {
 });
 
 // Get integration status
-router.get('/:id/status', authenticateToken, async (req, res) => {
+router.get('/:id/status', authenticateToken, async (req: express.Request<{ id: string }>, res) => {
   try {
-    const integration = await Integration.findOne({
-      _id: req.params.id,
-      oxyUserId: new mongoose.Types.ObjectId(req.userId),
-    }).select('-oauthTokens');
+    const integration = await findIntegrationForUser(getDb(), req.params.id, req.userId!);
 
     if (!integration) {
       return res.status(404).json({ error: 'Integration not found' });

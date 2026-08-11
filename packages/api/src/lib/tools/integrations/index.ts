@@ -8,8 +8,8 @@
  */
 
 import type { ToolSet } from 'ai';
-import mongoose from 'mongoose';
-import { Integration } from '../../../models/integration.js';
+import { getDb } from '../../../db/index.js';
+import { listConnectedServices } from '../../../db/integrations/integrationRepository.js';
 import { log } from '../../logger.js';
 import { TTLCache } from '../../ttl-cache.js';
 import { buildGoogleCalendarTools } from './google-calendar.js';
@@ -23,23 +23,13 @@ const cache = new TTLCache<ToolSet>({ ttlMs: 30_000, maxSize: 2000 });
  * Build integration tools for a user based on their connected OAuth services.
  */
 export async function buildIntegrationTools(oxyUserId: string): Promise<ToolSet> {
-  if (!mongoose.Types.ObjectId.isValid(oxyUserId)) return {};
-
   const cached = cache.get(oxyUserId);
   if (cached) return cached;
 
   const tools: ToolSet = {};
 
   try {
-    const integrations = await Integration.find({
-      oxyUserId: new mongoose.Types.ObjectId(oxyUserId),
-      enabled: true,
-      status: 'active',
-    })
-      .select('service')
-      .lean();
-
-    const connectedServices = new Set(integrations.map(i => i.service));
+    const connectedServices = new Set(await listConnectedServices(getDb(), oxyUserId));
 
     if (connectedServices.has('google-calendar')) {
       Object.assign(tools, buildGoogleCalendarTools(oxyUserId));

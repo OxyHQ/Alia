@@ -1,24 +1,28 @@
 /**
  * Seed script: Register Oxy ecosystem services for Alia
  *
- * Usage: npx tsx src/scripts/seed-oxy-services.ts
+ * Usage: bun src/scripts/seed-oxy-services.ts
  *
  * Upserts service manifests so Alia can interact with Oxy apps.
- * Safe to run multiple times — uses upsert by serviceId.
+ * Safe to run multiple times — the upsert is keyed on `service_id`.
+ *
+ * The manifest is typed `OxyServiceManifest`, which is REQUIRED where the old
+ * `Partial<IOxyService>` was optional. That is the point: the upsert replaces
+ * every column rather than merging, so a manifest that omitted a field would
+ * silently keep whatever a previous version wrote.
  */
 
-import mongoose from 'mongoose';
-import { OxyService, type IOxyService } from '../models/oxy-service.js';
-
-const MONGODB_URI = process.env.MONGODB_URI!;
-const NODE_ENV = process.env.NODE_ENV || 'development';
-const DB_NAME = `alia-${NODE_ENV}`;
+import { closePostgres, connectPostgres } from '../db/index.js';
+import {
+  upsertOxyService,
+  type OxyServiceManifest,
+} from '../db/integrations/oxyServiceRepository.js';
 
 // ---------------------------------------------------------------------------
 // Inbox (Email) service manifest
 // ---------------------------------------------------------------------------
 
-const inboxService: Partial<IOxyService> = {
+const inboxService: OxyServiceManifest = {
   serviceId: 'oxy-inbox',
   displayName: 'Inbox',
   description: 'Access and manage the user\'s Oxy email — search, read, send, organize',
@@ -274,23 +278,23 @@ const inboxService: Partial<IOxyService> = {
 // Main seed function
 // ---------------------------------------------------------------------------
 
-const services = [inboxService];
+const services: OxyServiceManifest[] = [inboxService];
 
 async function seed() {
-  console.log(`Connecting to MongoDB: ${DB_NAME}...`);
-  await mongoose.connect(MONGODB_URI, { dbName: DB_NAME });
+  const db = connectPostgres(process.env.DATABASE_URL);
+  if (!db) {
+    throw new Error('DATABASE_URL must be set to seed Oxy service manifests');
+  }
 
   for (const svc of services) {
-    const result = await OxyService.findOneAndUpdate(
-      { serviceId: svc.serviceId },
-      { $set: svc },
-      { upsert: true, new: true },
+    const result = await upsertOxyService(db, svc);
+    console.log(
+      `✓ ${result.serviceId} (${result.displayName}) — ${result.tools.length} tools, ${result.events.length} events`,
     );
-    console.log(`✓ ${result.serviceId} (${result.displayName}) — ${result.tools.length} tools, ${result.events?.length || 0} events`);
   }
 
   console.log(`\nDone. ${services.length} service(s) seeded.`);
-  await mongoose.disconnect();
+  await closePostgres();
 }
 
 seed().catch((err) => {

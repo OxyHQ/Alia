@@ -9,11 +9,16 @@
 import crypto from 'crypto';
 import { Router, Request, Response } from 'express';
 import mongoose from 'mongoose';
-import { OxyService } from '../models/oxy-service.js';
-import { OxyServiceEventLog } from '../models/oxy-service-event-log.js';
+import { getDb } from '../db/index.js';
+import { findActiveOxyService } from '../db/integrations/oxyServiceRepository.js';
+import {
+  claimOxyServiceEvent,
+  markOxyServiceEventDuplicate,
+  markOxyServiceEventFailed,
+  markOxyServiceEventProcessed,
+} from '../db/integrations/oxyServiceEventLogRepository.js';
 import { Agent } from '../models/agent.js';
 import { AgentSession } from '../models/agent-session.js';
-import { getDb } from '../db/index.js';
 import {
   recordSourceRun,
   upsertContextNode,
@@ -21,7 +26,7 @@ import {
 import { sendNotification } from '../lib/notification-service.js';
 import { enqueueAgentSession } from '../lib/task-queue.js';
 import { log } from '../lib/logger.js';
-import { getErrorMessage, isDuplicateKeyError } from '../lib/errors/index.js';
+import { getErrorMessage } from '../lib/errors/index.js';
 import { autonomyFlags } from '../lib/autonomy/flags.js';
 
 const router = Router();
@@ -121,7 +126,7 @@ async function ingestOxySignal(userId: string, serviceId: string, event: string,
 }
 
 async function processEvent(params: {
-  logId: mongoose.Types.ObjectId;
+  logId: string;
   serviceId: string;
   displayName: string;
   action: 'notify' | 'context' | 'autonomous';
@@ -132,6 +137,7 @@ async function processEvent(params: {
   message?: string;
 }): Promise<void> {
   const { logId, serviceId, displayName, action, userId, event, data, title, message } = params;
+  const db = getDb();
 
   try {
     log.general.info({ serviceId, event, action, userId }, 'Processing Oxy service event');
@@ -146,33 +152,25 @@ async function processEvent(params: {
         data: { serviceId, event, ...data },
       });
 
-      await OxyServiceEventLog.findByIdAndUpdate(logId, {
-        $set: { status: 'processed', processedAt: new Date() },
-      });
+      await markOxyServiceEventProcessed(db, logId);
       return;
     }
 
     if (action === 'context') {
       // Context endpoint is pulled at chat-time; this event acts as freshness signal.
-      await OxyServiceEventLog.findByIdAndUpdate(logId, {
-        $set: { status: 'processed', processedAt: new Date() },
-      });
+      await markOxyServiceEventProcessed(db, logId);
       return;
     }
 
     if (!autonomyFlags.oxyAutonomousEnabled) {
       await notifyFallback({ userId, displayName, event, title, message, data, reason: 'autonomy_disabled' });
-      await OxyServiceEventLog.findByIdAndUpdate(logId, {
-        $set: { status: 'failed', processedAt: new Date(), errorMessage: 'autonomy_disabled' },
-      });
+      await markOxyServiceEventFailed(db, logId, 'autonomy_disabled');
       return;
     }
 
     if (!isObjectId(userId)) {
       await notifyFallback({ userId, displayName, event, title, message, data, reason: 'invalid_user_id' });
-      await OxyServiceEventLog.findByIdAndUpdate(logId, {
-        $set: { status: 'failed', processedAt: new Date(), errorMessage: 'invalid_user_id' },
-      });
+      await markOxyServiceEventFailed(db, logId, 'invalid_user_id');
       return;
     }
 
@@ -202,13 +200,7 @@ async function processEvent(params: {
         agentName: 'Alia Autonomy Runtime',
       });
 
-      await OxyServiceEventLog.findByIdAndUpdate(logId, {
-        $set: {
-          status: 'processed',
-          processedAt: new Date(),
-          agentSessionId: session._id,
-        },
-      });
+      await markOxyServiceEventProcessed(db, logId, session._id.toString());
     } catch (queueErr: unknown) {
       await notifyFallback({ userId, displayName, event, title, message, data, reason: 'autonomous_queue_failed' });
 
@@ -221,27 +213,21 @@ async function processEvent(params: {
         },
       });
 
-      await OxyServiceEventLog.findByIdAndUpdate(logId, {
-        $set: {
-          status: 'failed',
-          processedAt: new Date(),
-          errorMessage: getErrorMessage(queueErr) || 'autonomous_queue_failed',
-          agentSessionId: session._id,
-        },
-      });
+      await markOxyServiceEventFailed(
+        db,
+        logId,
+        getErrorMessage(queueErr) || 'autonomous_queue_failed',
+        session._id.toString(),
+      );
     }
 
     return;
   } catch (err: unknown) {
     await notifyFallback({ userId, displayName, event, title, message, data, reason: 'autonomous_execution_failed' }).catch(() => {});
 
-    await OxyServiceEventLog.findByIdAndUpdate(logId, {
-      $set: {
-        status: 'failed',
-        processedAt: new Date(),
-        errorMessage: getErrorMessage(err) || 'unknown_error',
-      },
-    }).catch(() => {});
+    await markOxyServiceEventFailed(db, logId, getErrorMessage(err) || 'unknown_error').catch(
+      () => {},
+    );
 
     log.general.error({ err, serviceId, event }, 'Failed to process Oxy service event');
   }
@@ -251,7 +237,8 @@ router.post('/:serviceId', async (req: Request, res: Response) => {
   const serviceId = req.params.serviceId as string;
 
   try {
-    const service = await OxyService.findOne({ serviceId, status: 'active' }).lean();
+    const db = getDb();
+    const service = await findActiveOxyService(db, serviceId);
     if (!service) {
       res.status(404).json({ error: 'Service not found' });
       return;
@@ -282,47 +269,45 @@ router.post('/:serviceId', async (req: Request, res: Response) => {
       return;
     }
 
-    const action = (service.events?.find((e) => e.name === event)?.action || 'notify') as 'notify' | 'context' | 'autonomous';
+    const action = service.events.find((e) => e.name === event)?.action ?? 'notify';
     const eventId = buildEventId(req);
     const payloadHash = hashPayload(req.body);
 
-    try {
-      const eventLog = await OxyServiceEventLog.create({
-        serviceId,
-        oxyUserId: userId,
-        eventId,
-        eventName: event,
-        action,
-        status: 'received',
-        payloadHash,
-      });
+    // A `null` id means the idempotency key was already taken, which is the same
+    // answer the source got from a duplicate-key ERROR — but with no failed
+    // statement, so the duplicate-marking update below cannot inherit an aborted
+    // transaction. A genuine failure still throws out of here.
+    const logId = await claimOxyServiceEvent(db, {
+      serviceId,
+      oxyUserId: userId,
+      eventId,
+      eventName: event,
+      action,
+      payloadHash,
+    });
 
-      res.status(202).json({ accepted: true, eventId });
+    if (logId === null) {
+      await markOxyServiceEventDuplicate(db, { serviceId, oxyUserId: userId, eventId }).catch(
+        () => {},
+      );
 
-      processEvent({
-        logId: eventLog._id,
-        serviceId,
-        displayName: service.displayName,
-        action,
-        userId,
-        event,
-        data,
-        title,
-        message,
-      }).catch((err) => log.general.error({ err, serviceId, event }, 'Async processing failed'));
-    } catch (insertErr: unknown) {
-      if (isDuplicateKeyError(insertErr)) {
-        await OxyServiceEventLog.updateOne(
-          { serviceId, oxyUserId: userId, eventId },
-          { $set: { status: 'duplicate', processedAt: new Date() } }
-        ).catch(() => {});
-
-        res.status(202).json({ accepted: true, duplicate: true, eventId });
-        return;
-      }
-
-      throw insertErr;
+      res.status(202).json({ accepted: true, duplicate: true, eventId });
+      return;
     }
+
+    res.status(202).json({ accepted: true, eventId });
+
+    processEvent({
+      logId,
+      serviceId,
+      displayName: service.displayName,
+      action,
+      userId,
+      event,
+      data,
+      title,
+      message,
+    }).catch((err) => log.general.error({ err, serviceId, event }, 'Async processing failed'));
   } catch (err: unknown) {
     log.general.error({ err, serviceId }, 'Oxy service webhook error');
     if (!res.headersSent) {

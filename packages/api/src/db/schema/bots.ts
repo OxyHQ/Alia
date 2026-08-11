@@ -66,6 +66,7 @@ export const bots = pgTable(
     username: text(),
     avatarUrl: text(),
     status: text({ enum: BOT_STATUSES as unknown as [string, ...string[]] })
+      .$type<BotStatus>()
       .notNull()
       .default('active'),
     /** An Oxy account. No foreign key. Absent for the global env-configured bot. */
@@ -132,10 +133,12 @@ export const botUsers = pgTable(
     /** A short-lived credential, looked up by. See the table comment. */
     authToken: text(),
     authTokenExpiry: timestamptz(),
-    authTokenMode: text({ enum: BOT_USER_AUTH_TOKEN_MODES as unknown as [string, ...string[]] }),
+    authTokenMode: text({
+      enum: BOT_USER_AUTH_TOKEN_MODES as unknown as [string, ...string[]],
+    }).$type<BotUserAuthTokenMode>(),
     conversationId: text(),
     preferredModel: text(),
-    metadata: jsonb().notNull().default({}),
+    metadata: jsonb().$type<Record<string, unknown>>().notNull().default({}),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },

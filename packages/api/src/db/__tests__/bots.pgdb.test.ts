@@ -139,8 +139,15 @@ describe('a bot user is unique per bot, and goes with its bot', () => {
       .insert(botUsers)
       .values({ id: 'bu-3', botId: 'bot-other', platform: 'telegram', platformUserId: 'p1', chatId: 'c3' });
 
+    // Scoped to the two bots THIS FILE created. The count was unscoped —
+    // `where platform_user_id = 'p1'` across the whole table — and several
+    // `*.pgdb.test.ts` files share one database per run, so any sibling storing
+    // a bot user called `p1` made this read its fixtures and fail for a reason
+    // that named nothing. `botRepository.pgdb.test.ts` is the sibling that
+    // surfaced it.
     const rows = await db.execute<{ n: string }>(
-      sql`select count(*)::text as n from ${botUsers} where platform_user_id = 'p1'`,
+      sql`select count(*)::text as n from ${botUsers}
+          where platform_user_id = 'p1' and bot_id in ('bot-hook', 'bot-other')`,
     );
     expect(rows[0]?.n).toBe('2');
   });

@@ -55,9 +55,12 @@ import type { ExpirySweepTarget } from '@oxyhq/db/expiry';
 import { triggerExecutions } from './schema/automation';
 import { moderationEvents, moderationOutboxes } from './schema/moderation';
 import { audioJobs, notifications } from './schema/notifications';
-import { mcpOauthStates, oauthStates } from './schema/integrations';
+import {
+  MCP_OAUTH_STATE_TTL_SECONDS,
+  mcpOauthStates,
+  oauthStates,
+} from './schema/integrations';
 import { organizationInvites } from './schema/organizations';
-import { MCP_OAUTH_STATE_TTL_SECONDS } from '../models/mcp-oauth-state.js';
 import {
   apiKeyUsage,
   apiUsage,

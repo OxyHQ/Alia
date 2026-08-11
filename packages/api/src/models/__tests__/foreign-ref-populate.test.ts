@@ -133,7 +133,14 @@ interface RetiredModelFile {
  *
  * APPEND, never reorder or rewrite. Several slices land entries here and an
  * append conflicts VISIBLY, in one array, where a reorder resolves wrongly by
- * accident. S8's eight follow S3's ten for that reason and no other.
+ * accident. S8's eight follow S3's ten for that reason and no other, and S4's
+ * eight follow S8's.
+ *
+ * `OAuthState` is NOT here and is not missing. S4 retired it, but it was
+ * declared inline in a ROUTE file rather than under a model directory, so
+ * `modelFiles()` never listed it and it was never part of this sum — its
+ * retirement is recorded in the TTL coverage gate, whose walk DOES see route
+ * files. Two conserved totals over two different populations.
  */
 const RETIRED_MODEL_FILES: readonly RetiredModelFile[] = [
   { model: 'Plan', file: 'src/internal/providers/models/plan.ts', retiredBy: 'S3 — the pricing catalogue moves to Postgres' },
@@ -178,6 +185,14 @@ const RETIRED_MODEL_FILES: readonly RetiredModelFile[] = [
     file: 'src/models/retrieval-strategy.ts',
     retiredBy: 'S8 context graph — retrieval_strategies',
   },
+  { model: 'Integration', file: 'src/models/integration.ts', retiredBy: 'S4 integrations' },
+  { model: 'ConnectedAccount', file: 'src/models/connected-account.ts', retiredBy: 'S4 integrations' },
+  { model: 'McpServer', file: 'src/models/mcp-server.ts', retiredBy: 'S4 integrations' },
+  { model: 'McpOAuthState', file: 'src/models/mcp-oauth-state.ts', retiredBy: 'S4 integrations' },
+  { model: 'Bot', file: 'src/models/bot.ts', retiredBy: 'S4 integrations' },
+  { model: 'BotUser', file: 'src/models/bot-user.ts', retiredBy: 'S4 integrations' },
+  { model: 'OxyService', file: 'src/models/oxy-service.ts', retiredBy: 'S4 integrations' },
+  { model: 'OxyServiceEventLog', file: 'src/models/oxy-service-event-log.ts', retiredBy: 'S4 integrations' },
 ];
 
 /**

@@ -3,8 +3,8 @@
  * authenticated fetch helpers.
  */
 
-import mongoose from 'mongoose';
-import { Integration } from '../../../models/integration.js';
+import { getDb } from '../../../db/index.js';
+import { touchIntegrationLastUsed } from '../../../db/integrations/integrationRepository.js';
 import { getValidToken } from '../../integration-token.js';
 import { log } from '../../logger.js';
 import { getErrorMessage } from '../../errors/index.js';
@@ -121,10 +121,9 @@ export async function authedFetch(
   }
 
   // Update lastUsedAt in background
-  Integration.updateOne(
-    { oxyUserId: new mongoose.Types.ObjectId(userId), service, enabled: true },
-    { lastUsedAt: new Date() },
-  ).catch((err) => log.general.warn({ err, service }, 'Failed to update integration lastUsedAt'));
+  touchIntegrationLastUsed(getDb(), userId, service).catch((err) =>
+    log.general.warn({ err, service }, 'Failed to update integration lastUsedAt'),
+  );
 
   return response.json();
 }
@@ -151,10 +150,9 @@ export async function authedFetchText(
     throw new Error(`${service} API error (${response.status}): ${body.slice(0, 200)}`);
   }
 
-  Integration.updateOne(
-    { oxyUserId: new mongoose.Types.ObjectId(userId), service, enabled: true },
-    { lastUsedAt: new Date() },
-  ).catch((err) => log.general.warn({ err, service }, 'Failed to update integration lastUsedAt'));
+  touchIntegrationLastUsed(getDb(), userId, service).catch((err) =>
+    log.general.warn({ err, service }, 'Failed to update integration lastUsedAt'),
+  );
 
   return response.text();
 }
