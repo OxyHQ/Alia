@@ -485,7 +485,7 @@ export async function findTriggersForIntegrationEvent(
 // ── Public API ─────────────────────────────────────────────────────
 
 /**
- * Start the trigger engine under Mongo-lease leader election. The elected
+ * Start the trigger engine under Postgres-lease leader election. The elected
  * instance runs the scheduler; every other instance stays idle so a scheduled
  * trigger fires exactly once across a cluster of ECS tasks. Idempotent.
  */
