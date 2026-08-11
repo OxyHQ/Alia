@@ -295,6 +295,22 @@ const RETIRED_MONGO_TTLS: readonly RetiredMongoTtl[] = [
     expireAfterSeconds: 48 * 60 * 60,
     retiredBy: 'S2 providers + telemetry — api_usage',
   },
+  {
+    model: 'TriggerExecution',
+    collection: 'triggerexecutions',
+    // `TriggerExecutionSchema.index({ startedAt: 1 }, { expireAfterSeconds: 30 *
+    // 24 * 60 * 60 })`, read off `src/models/trigger-execution.ts:86` before it
+    // was deleted. The ONLY TTL among S8's eight models — the other seven
+    // declared none, so no entry is owed for them.
+    //
+    // It measures from `started_at` rather than a `created_at`, because the
+    // model set `timestamps: false` and had no `created_at` to measure from;
+    // `trigger_executions` carries none either, so the sweep reads the same
+    // column the TTL index did.
+    path: 'startedAt',
+    expireAfterSeconds: 30 * 24 * 60 * 60,
+    retiredBy: 'S8 automation — trigger_executions',
+  },
 ];
 
 const walked = declaredMongoTtls();
@@ -329,13 +345,14 @@ describe('every ported TTL index has a matching expiry-sweep target', () => {
      * halves adding up to 13.
      *
      * 11 after S1 retired two; 9 once S5 retired `AudioJob` and `Notification`;
-     * 8 once S2 retired `AuthHealthMetric`, 7 once it retired `FallbackEvent`, 6 once it retired `RoutingLog`, 5 once it retired `ApiKeyUsage`, 4 once it retired `ApiUsage`.
+     * 8 once S2 retired `AuthHealthMetric`, 7 once it retired `FallbackEvent`, 6 once it retired `RoutingLog`, 5 once it retired `ApiKeyUsage`, 4 once it retired `ApiUsage`,
+     * 3 once S8 retired `TriggerExecution` — the only TTL among its eight models.
      * Lowering it is legitimate ONLY in the same change that adds the matching
      * retired entries, and the exact-sum assertion below is what makes that
      * mechanical rather than a judgement call — the two numbers cannot drift
      * apart without one of them going red.
      */
-    expect(walked.length).toBeGreaterThanOrEqual(4);
+    expect(walked.length).toBeGreaterThanOrEqual(3);
     expect(walked.length + RETIRED_MONGO_TTLS.length).toBe(13);
   });
 
