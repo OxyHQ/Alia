@@ -2,12 +2,26 @@ import { Request, Response, NextFunction } from 'express';
 import { recordApiKeyUsage, usageWindow } from '../db/telemetry/apiKeyUsageRepository.js';
 import { API_KEY_USAGE_METHODS, type ApiKeyUsageMethod } from '../domain/api-key-usage.js';
 import { getDb } from '../db/index.js';
-import DeveloperApiKey, { IRateLimitConfig } from '../models/developer-api-key';
-import { getDb } from '../db/index.js';
+import { findKeyById } from '../db/developers/developerRepository.js';
 import { findActiveSubscription } from '../db/billing/subscriptionRepository.js';
 import { checkLimit } from '../lib/sliding-window-limiter.js';
 import { getRedisClient, withRedisTimeout as withTimeout } from '../lib/redis.js';
 import { log } from '../lib/logger.js';
+
+/**
+ * A key's rate-limit allowance. NULL means UNLIMITED, never zero — a zero would
+ * read as "no requests permitted", which is the opposite.
+ *
+ * It lived on the Mongoose model beside the sub-document it described. The
+ * sub-document is four columns now, and this is the module that consumes them,
+ * so the shape lives here rather than orphaned in a deleted model.
+ */
+export interface IRateLimitConfig {
+  requestsPerMinute: number | null;
+  requestsPerDay: number | null;
+  tokensPerMinute: number | null;
+  tokensPerDay: number | null;
+}
 
 interface RateLimitStatus {
   limited: boolean;
@@ -190,20 +204,20 @@ export async function apiKeyRateLimit(
   // Handle API key rate limiting
   if (req.apiKey) {
     try {
-      const apiKey = await DeveloperApiKey.findById(req.apiKey.id).select('rateLimit');
+      const apiKey = await findKeyById(getDb(), req.apiKey.id);
 
       if (!apiKey) {
         res.status(401).json({ error: 'API key not found' });
         return;
       }
 
-      const rateLimit: IRateLimitConfig = apiKey.rateLimit || {
-        requestsPerMinute: null,
-        requestsPerDay: 1000,
-        tokensPerMinute: null,
-        tokensPerDay: null,
+      // The flattened `rate_limit_*` columns. NULL is UNLIMITED, never zero.
+      const rateLimit: IRateLimitConfig = {
+        requestsPerMinute: apiKey.rateLimitRequestsPerMinute,
+        requestsPerDay: apiKey.rateLimitRequestsPerDay,
+        tokensPerMinute: apiKey.rateLimitTokensPerMinute,
+        tokensPerDay: apiKey.rateLimitTokensPerDay,
       };
-
       const status = await checkApiKeyRateLimits(req.apiKey.id, rateLimit);
 
       if (status.limited) {

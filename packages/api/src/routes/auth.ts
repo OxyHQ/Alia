@@ -1,9 +1,16 @@
 import { Router } from 'express';
 import { OxyServices } from '@oxyhq/core';
 import { authenticateToken } from '../middleware/auth.js';
-import DeveloperApp from '../models/developer-app.js';
-import DeveloperApiKey from '../models/developer-api-key.js';
 import crypto from 'crypto';
+import { getDb } from '../db/index.js';
+import {
+  findOwnedAppByName,
+  findOwnedKeyByName,
+  insertApiKey,
+  insertApp,
+  updateOwnedKey,
+} from '../db/developers/developerRepository.js';
+import { generateDeveloperApiKey, hashDeveloperApiKey } from '../lib/api-key-crypto.js';
 import { log } from '../lib/logger.js';
 import { getRedisClient } from '../lib/redis.js';
 
@@ -127,13 +134,10 @@ router.post('/authorize/codea', authenticateToken, async (req, res) => {
     const appName = 'Alia Codea';
 
     // Find or create the Alia Codea app for this user
-    let app = await DeveloperApp.findOne({
-      oxyUserId: userId,
-      name: appName,
-    });
+    let app = await findOwnedAppByName(getDb(), userId, appName);
 
     if (!app) {
-      app = await DeveloperApp.create({
+      app = await insertApp(getDb(), {
         oxyUserId: userId,
         name: appName,
         description: 'Alia Codea desktop application',
@@ -148,12 +152,12 @@ router.post('/authorize/codea', authenticateToken, async (req, res) => {
     await storeAuthCode(authCode, {
       userId,
       codeChallenge: code_challenge,
-      appId: app._id.toString(),
+      appId: app.id.toString(),
     });
 
     res.json({
       code: authCode,
-      appId: app._id,
+      appId: app.id,
     });
   } catch (error: unknown) {
     log.auth.error({ err: error }, 'Authorize Codea error');
@@ -190,13 +194,10 @@ router.post('/authorize/cowork', authenticateToken, async (req, res) => {
     const appName = 'Alia Cowork';
 
     // Find or create the Alia Cowork app for this user
-    let app = await DeveloperApp.findOne({
-      oxyUserId: userId,
-      name: appName,
-    });
+    let app = await findOwnedAppByName(getDb(), userId, appName);
 
     if (!app) {
-      app = await DeveloperApp.create({
+      app = await insertApp(getDb(), {
         oxyUserId: userId,
         name: appName,
         description: 'Alia Cowork desktop application',
@@ -211,12 +212,12 @@ router.post('/authorize/cowork', authenticateToken, async (req, res) => {
     await storeAuthCode(authCode, {
       userId,
       codeChallenge: code_challenge,
-      appId: app._id.toString(),
+      appId: app.id.toString(),
     });
 
     res.json({
       code: authCode,
-      appId: app._id,
+      appId: app.id,
     });
   } catch (error: unknown) {
     log.auth.error({ err: error }, 'Authorize Cowork error');
@@ -272,34 +273,36 @@ router.post('/token', async (req, res) => {
     const appId = authData.appId;
 
     // Find existing active API key or create a new one
-    let apiKey = await DeveloperApiKey.findOne({
-      oxyUserId: userId,
-      appId: appId,
-      isActive: true,
-    });
+    const keyName = 'Alia Cowork Key';
+    let apiKey = await findOwnedKeyByName(getDb(), appId, userId, keyName);
 
-    let plainKey: string;
+    const plainKey = generateDeveloperApiKey();
+    const keyHash = hashDeveloperApiKey(plainKey);
+    const keyPrefix = plainKey.substring(0, 16);
 
     if (apiKey) {
-      // Regenerate key for security (user is re-authorizing)
-      plainKey = DeveloperApiKey.generateKey();
-      const keyHash = DeveloperApiKey.hashKey(plainKey);
-      const keyPrefix = plainKey.substring(0, 16);
-
-      apiKey.keyHash = keyHash;
-      apiKey.keyPrefix = keyPrefix;
-      apiKey.lastUsedAt = undefined;
-      await apiKey.save();
+      /**
+       * Regenerate the key: the user is re-authorizing, so the old credential
+       * stops working. `lastUsedAt` goes back to null because this is a
+       * different key wearing the same row.
+       *
+       * The lookup is by NAME within the app rather than by `isActive: true`, so
+       * re-authorizing after a revocation reuses the row instead of leaving a
+       * dead one behind and colliding on nothing. An inactive key is reactivated
+       * here, which is what re-authorization means.
+       */
+      apiKey =
+        (await updateOwnedKey(getDb(), apiKey.id, appId, userId, {
+          keyHash,
+          keyPrefix,
+          lastUsedAt: null,
+          isActive: true,
+        })) ?? apiKey;
     } else {
-      // Create new API key
-      plainKey = DeveloperApiKey.generateKey();
-      const keyHash = DeveloperApiKey.hashKey(plainKey);
-      const keyPrefix = plainKey.substring(0, 16);
-
-      apiKey = await DeveloperApiKey.create({
+      apiKey = await insertApiKey(getDb(), {
         oxyUserId: userId,
         appId: appId,
-        name: 'Alia Cowork Key',
+        name: keyName,
         keyHash,
         keyPrefix,
         scopes: ['chat:read', 'chat:write', 'models:read'],

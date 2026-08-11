@@ -7,12 +7,12 @@ import {
   type OxyRequestUser,
   type OxyServiceAppContext,
 } from '@oxyhq/core/server';
-import DeveloperApiKey from '../models/developer-api-key.js';
-import DeveloperApp from '../models/developer-app.js';
 import { recordApiKeyUsage } from '../db/telemetry/apiKeyUsageRepository.js';
 import { API_KEY_USAGE_METHODS } from '../domain/api-key-usage.js';
-import { getDb } from '../db/index.js';
 import { log } from '../lib/logger.js';
+import { getDb } from '../db/index.js';
+import { findAppById, findKeyByHash, touchKeyLastUsed } from '../db/developers/developerRepository.js';
+import { hashDeveloperApiKey } from '../lib/api-key-crypto.js';
 import { getConfiguredChannels } from '../lib/channels/registry.js';
 
 // Initialize Oxy client
@@ -111,8 +111,8 @@ export async function authenticateApiKey(
       return;
     }
 
-    const keyHash = DeveloperApiKey.hashKey(apiKey);
-    const developerApiKey = await DeveloperApiKey.findOne({ keyHash });
+    const keyHash = hashDeveloperApiKey(apiKey);
+    const developerApiKey = await findKeyByHash(getDb(), keyHash);
 
     if (!developerApiKey) {
       res.status(401).json({ error: 'Invalid API key' });
@@ -129,26 +129,29 @@ export async function authenticateApiKey(
       return;
     }
 
-    const app = await DeveloperApp.findById(developerApiKey.appId);
+    const app = await findAppById(getDb(), developerApiKey.appId);
     if (!app || !app.isActive) {
       res.status(401).json({ error: 'Associated app is inactive' });
       return;
     }
 
+    // Every one of these was `.toString()` on an ObjectId; the columns are
+    // `text`, so the conversion is gone rather than ported.
     req.apiKey = {
-      id: developerApiKey._id.toString(),
-      appId: developerApiKey.appId.toString(),
-      userId: developerApiKey.oxyUserId.toString(),
+      id: developerApiKey.id,
+      appId: developerApiKey.appId,
+      userId: developerApiKey.oxyUserId,
       scopes: developerApiKey.scopes,
     };
 
-    req.userId = developerApiKey.oxyUserId.toString();
-    req.user = { id: developerApiKey.oxyUserId.toString() };
+    req.userId = developerApiKey.oxyUserId;
+    req.user = { id: developerApiKey.oxyUserId };
 
-    // Update last used (async)
-    DeveloperApiKey.findByIdAndUpdate(developerApiKey._id, {
-      lastUsedAt: new Date(),
-    }).catch((err) => log.auth.error({ err }, 'Failed to update lastUsedAt'));
+    // Update last used (async) — a failure to stamp it must not fail the
+    // request it describes.
+    touchKeyLastUsed(getDb(), developerApiKey.id).catch((err: unknown) =>
+      log.auth.error({ err }, 'Failed to update lastUsedAt'),
+    );
 
     // Log usage after response (skip if the route already recorded usage via recordUsage())
     res.on('finish', async () => {
@@ -160,10 +163,12 @@ export async function authenticateApiKey(
       const method = API_KEY_USAGE_METHODS.find((known) => known === req.method);
       if (!method) return;
       try {
+        // `developerApiKey` is a Postgres row now, so the `String(...)` and
+        // `.toString()` the ObjectId columns needed are gone rather than ported.
         await recordApiKeyUsage(getDb(), {
-          apiKeyId: String(developerApiKey._id),
-          oxyUserId: developerApiKey.oxyUserId.toString(),
-          appId: developerApiKey.appId ? String(developerApiKey.appId) : null,
+          apiKeyId: developerApiKey.id,
+          oxyUserId: developerApiKey.oxyUserId,
+          appId: developerApiKey.appId,
           endpoint: req.path,
           method,
           statusCode: res.statusCode,

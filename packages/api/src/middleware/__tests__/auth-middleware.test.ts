@@ -1,22 +1,25 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Request, Response, NextFunction } from 'express';
 
-// Mock dependencies
-vi.mock('../../models/developer-api-key.js', () => {
-  const hashKey = vi.fn((key: string) => `hashed_${key}`);
-  return {
-    default: {
-      findOne: vi.fn(),
-      findByIdAndUpdate: vi.fn().mockReturnValue({ catch: vi.fn() }),
-      hashKey,
-    },
-  };
-});
+// Mock dependencies.
+//
+// The seam is the REPOSITORY, not the model: what these cases exercise is the
+// middleware's refusal logic — inactive key, expired key, inactive app — which
+// is JavaScript and has nothing to do with which store the row came from. The
+// statements themselves are covered against a real server in
+// `db/__tests__/developerRepository.pgdb.test.ts`.
+//
+// `hashDeveloperApiKey` is deliberately NOT mocked: it is pure crypto with no
+// database, and letting it run is one fewer stub that could disagree with the
+// real thing.
+vi.mock('../../db/index.js', () => ({
+  getDb: vi.fn(() => ({})),
+}));
 
-vi.mock('../../models/developer-app.js', () => ({
-  default: {
-    findById: vi.fn(),
-  },
+vi.mock('../../db/developers/developerRepository.js', () => ({
+  findKeyByHash: vi.fn(),
+  findAppById: vi.fn(),
+  touchKeyLastUsed: vi.fn().mockResolvedValue(undefined),
 }));
 
 /**
@@ -53,8 +56,7 @@ vi.mock('@oxyhq/core', () => {
   return { OxyServices: MockOxyServices };
 });
 
-import DeveloperApiKey from '../../models/developer-api-key.js';
-import DeveloperApp from '../../models/developer-app.js';
+import { findAppById, findKeyByHash } from '../../db/developers/developerRepository.js';
 import {
   authenticateApiKey,
   authenticateTelegramBot,
@@ -64,18 +66,8 @@ import {
 
 type MockFn = ReturnType<typeof vi.fn>;
 
-interface MockDeveloperApiKeyModel {
-  findOne: MockFn;
-  findByIdAndUpdate: MockFn;
-  hashKey: MockFn;
-}
-
-interface MockDeveloperAppModel {
-  findById: MockFn;
-}
-
-const developerApiKeyMock = DeveloperApiKey as unknown as MockDeveloperApiKeyModel;
-const developerAppMock = DeveloperApp as unknown as MockDeveloperAppModel;
+const developerApiKeyMock = { findOne: findKeyByHash as unknown as MockFn };
+const developerAppMock = { findById: findAppById as unknown as MockFn };
 
 function mockReq(overrides: Partial<Request> = {}): Request {
   return {
@@ -149,7 +141,7 @@ describe('auth middleware', () => {
 
     it('rejects inactive API key', async () => {
       developerApiKeyMock.findOne.mockResolvedValue({
-        _id: 'key-1',
+        id: 'key-1',
         isActive: false,
         appId: 'app-1',
         oxyUserId: 'user-1',
@@ -168,7 +160,7 @@ describe('auth middleware', () => {
 
     it('rejects expired API key', async () => {
       developerApiKeyMock.findOne.mockResolvedValue({
-        _id: 'key-1',
+        id: 'key-1',
         isActive: true,
         expiresAt: new Date('2020-01-01'),
         appId: 'app-1',
@@ -188,7 +180,7 @@ describe('auth middleware', () => {
 
     it('rejects when app is inactive', async () => {
       developerApiKeyMock.findOne.mockResolvedValue({
-        _id: 'key-1',
+        id: 'key-1',
         isActive: true,
         appId: 'app-1',
         oxyUserId: 'user-1',
@@ -208,10 +200,10 @@ describe('auth middleware', () => {
 
     it('succeeds with valid API key', async () => {
       developerApiKeyMock.findOne.mockResolvedValue({
-        _id: { toString: () => 'key-1' },
+        id: 'key-1',
         isActive: true,
-        appId: { toString: () => 'app-1' },
-        oxyUserId: { toString: () => 'user-1' },
+        appId: 'app-1',
+        oxyUserId: 'user-1',
         scopes: ['chat', 'memory'],
       });
       developerAppMock.findById.mockResolvedValue({ isActive: true });

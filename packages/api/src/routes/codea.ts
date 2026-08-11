@@ -2,10 +2,9 @@ import { Router, Request, Response } from 'express';
 import { authenticateApiKey } from '../middleware/auth.js';
 import { apiKeyRateLimit } from '../middleware/api-key-rate-limit.js';
 import { getDb } from '../db/index.js';
+import { findKeyWithApp } from '../db/developers/developerRepository.js';
 import { findActiveSubscriptions } from '../db/billing/subscriptionRepository.js';
 import { getRefreshedUserCredits } from '../lib/user-credits-helpers.js';
-import DeveloperApiKey from '../models/developer-api-key.js';
-import type { IDeveloperApp } from '../models/developer-app.js';
 import { log } from '../lib/logger.js';
 
 const router = Router();
@@ -52,7 +51,10 @@ router.get('/user', authenticateApiKey, apiKeyRateLimit, async (req: Request, re
     const userCredits = await getRefreshedUserCredits(userId);
 
     // Get API key info for username
-    const apiKey = await DeveloperApiKey.findById(req.apiKey?.id).populate<{ appId: IDeveloperApp }>('appId');
+    // `.populate('appId')` becomes a LEFT join: `populate` yielded null for a
+    // missing app rather than dropping the key, and the fallback below reads it
+    // that way. An inner join would turn a missing app into a missing KEY.
+    const apiKey = req.apiKey?.id ? await findKeyWithApp(getDb(), req.apiKey.id) : null;
 
     // Calculate quota information
     const totalCredits = userCredits.creditsFree + userCredits.creditsPaid;
@@ -107,7 +109,7 @@ router.get('/user', authenticateApiKey, apiKeyRateLimit, async (req: Request, re
         },
       },
 
-      username: apiKey?.appId?.name || 'Alia User',
+      username: apiKey?.app?.name || 'Alia User',
       email: undefined,
       name: 'Alia User',
     };
@@ -206,11 +208,14 @@ router.get('/me', authenticateApiKey, apiKeyRateLimit, async (req: Request, res:
     const userCredits = await getRefreshedUserCredits(userId);
 
     // Get API key info
-    const apiKey = await DeveloperApiKey.findById(req.apiKey?.id).populate<{ appId: IDeveloperApp }>('appId');
+    // `.populate('appId')` becomes a LEFT join: `populate` yielded null for a
+    // missing app rather than dropping the key, and the fallback below reads it
+    // that way. An inner join would turn a missing app into a missing KEY.
+    const apiKey = req.apiKey?.id ? await findKeyWithApp(getDb(), req.apiKey.id) : null;
 
     res.json({
       id: userId,
-      username: apiKey?.appId?.name || 'Alia User',
+      username: apiKey?.app?.name || 'Alia User',
       credits: {
         free: userCredits.creditsFree,
         paid: userCredits.creditsPaid,

@@ -140,6 +140,8 @@ const RETIRED_MODEL_FILES: readonly RetiredModelFile[] = [
   { model: 'Subscription', file: 'src/models/subscription.ts', retiredBy: 'S3 — subscriptions, transactions and credits move to Postgres' },
   { model: 'Transaction', file: 'src/models/transaction.ts', retiredBy: 'S3 — subscriptions, transactions and credits move to Postgres' },
   { model: 'UserCredits', file: 'src/models/user-credits.ts', retiredBy: 'S3 — subscriptions, transactions and credits move to Postgres' },
+  { model: 'DeveloperApp', file: 'src/models/developer-app.ts', retiredBy: 'S3 — the developer platform moves to Postgres' },
+  { model: 'DeveloperApiKey', file: 'src/models/developer-api-key.ts', retiredBy: 'S3 — the developer platform moves to Postgres' },
 ];
 
 /**
