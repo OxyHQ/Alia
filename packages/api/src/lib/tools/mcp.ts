@@ -7,8 +7,9 @@
  */
 
 import { tool, type ToolSet } from 'ai';
-import mongoose from 'mongoose';
-import { McpServer } from '../../models/mcp-server.js';
+import { getDb } from '../../db/index.js';
+import { listRunnableMcpServersForUser } from '../../db/integrations/mcpServerRepository.js';
+import type { McpServerTool } from '../../db/schema/integrations.js';
 import { log } from '../logger.js';
 import { TTLCache } from '../ttl-cache.js';
 import { jsonSchemaToZod } from './mcp-schema.js';
@@ -24,9 +25,10 @@ interface McpToolCallResult {
   result?: unknown;
 }
 
-// Short-lived per-user cache to avoid querying MongoDB on every chat message.
-// MCP server config changes rarely; 30s staleness is acceptable. Tool closures
-// capture only oxyUserId, so caching by user stays correct across callers.
+// Short-lived per-user cache to avoid a database round trip on every chat
+// message. MCP server config changes rarely; 30s staleness is acceptable. Tool
+// closures capture only oxyUserId, so caching by user stays correct across
+// callers.
 const cache = new TTLCache<ToolSet>({ ttlMs: 30_000, maxSize: 2000 });
 
 /**
@@ -36,8 +38,6 @@ const cache = new TTLCache<ToolSet>({ ttlMs: 30_000, maxSize: 2000 });
  * Tool names are prefixed with `mcp_{serverName}_` to avoid collisions.
  */
 export async function buildMcpTools(oxyUserId: string): Promise<ToolSet> {
-  if (!mongoose.Types.ObjectId.isValid(oxyUserId)) return {};
-
   const cached = cache.get(oxyUserId);
   if (cached) return cached;
 
@@ -46,16 +46,11 @@ export async function buildMcpTools(oxyUserId: string): Promise<ToolSet> {
   try {
     // Server-side MCP tools (running in integrations service)
     if (INTEGRATIONS_URL && INTEGRATIONS_SECRET) {
-      const servers = await McpServer.find({
-        oxyUserId: new mongoose.Types.ObjectId(oxyUserId),
-        enabled: true,
-        status: 'running',
-        runtime: 'server',
-      }).lean();
+      const servers = await listRunnableMcpServersForUser(getDb(), oxyUserId);
 
       for (const server of servers) {
-        if (!server.tools?.length) continue;
-        const serverId = server._id.toString();
+        if (!server.tools.length) continue;
+        const serverId = server.id;
         const prefix = `mcp_${sanitizeName(server.name)}`;
 
         for (const mcpTool of server.tools) {
@@ -111,7 +106,7 @@ function sanitizeName(name: string): string {
 
 function createServerTool(
   displayName: string,
-  mcpTool: { name: string; description: string; inputSchema: Record<string, any> },
+  mcpTool: McpServerTool,
   serverId: string,
 ) {
   let inputSchema;

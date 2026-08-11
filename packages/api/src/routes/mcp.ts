@@ -1,12 +1,33 @@
 import express from 'express';
 import crypto from 'crypto';
-import mongoose from 'mongoose';
 import { authenticateToken } from '../middleware/auth.js';
-import { McpServer } from '../models/mcp-server.js';
-import { McpOAuthState, MCP_OAUTH_STATE_TTL_SECONDS } from '../models/mcp-oauth-state.js';
+import { getDb } from '../db/index.js';
+import {
+  deleteMcpServerForUser,
+  findMcpServerByName,
+  findMcpServerForUser,
+  installMcpServer,
+  listMcpServersForUser,
+  serializeMcpServer,
+  setMcpServerStatus,
+  toMcpServerConfig,
+  updateMcpServer,
+  type McpServerConfig,
+} from '../db/integrations/mcpServerRepository.js';
+import {
+  createMcpOAuthState,
+  deleteMcpOAuthState,
+  deleteMcpOAuthStateByToken,
+  findLiveMcpOAuthState,
+} from '../db/integrations/mcpOAuthStateRepository.js';
+import type {
+  McpServerResource,
+  McpServerRuntime,
+  McpServerTool,
+  McpServerTransport,
+} from '../db/schema/integrations.js';
 import { MCP_REGISTRY } from '../lib/mcp-registry.js';
 import { log } from '../lib/logger.js';
-import { isDuplicateKeyError } from '../lib/errors/index.js';
 
 const router = express.Router();
 
@@ -37,12 +58,10 @@ router.get('/registry/:id', authenticateToken, (req, res) => {
 
 // Begin the interactive OAuth flow — proxies to integrations, returns the
 // authorization URL the client should open.
-router.post('/:id/oauth/start', authenticateToken, async (req, res) => {
+router.post('/:id/oauth/start', authenticateToken, async (req: express.Request<{ id: string }>, res) => {
   try {
-    const server = await McpServer.findOne({
-      _id: req.params.id,
-      oxyUserId: new mongoose.Types.ObjectId(req.userId),
-    });
+    const db = getDb();
+    const server = await findMcpServerForUser(db, req.params.id, req.userId!);
 
     if (!server) {
       return res.status(404).json({ error: 'Server not found' });
@@ -61,16 +80,16 @@ router.post('/:id/oauth/start', authenticateToken, async (req, res) => {
     }
 
     const state = crypto.randomBytes(32).toString('hex');
-    await McpOAuthState.create({
+    await createMcpOAuthState(db, {
       state,
-      oxyUserId: req.userId,
-      serverId: String(server._id),
+      oxyUserId: req.userId!,
+      serverId: server.id,
     });
 
     const apiBaseUrl = process.env.API_BASE_URL || 'http://localhost:4150';
     const callbackUrl = `${apiBaseUrl}/mcp/oauth/callback`;
 
-    const response = await fetch(`${INTEGRATIONS_URL}/mcp/servers/${server._id}/oauth/start`, {
+    const response = await fetch(`${INTEGRATIONS_URL}/mcp/servers/${server.id}/oauth/start`, {
       method: 'POST',
       headers: {
         'X-Gateway-Secret': INTEGRATIONS_SECRET,
@@ -78,7 +97,7 @@ router.post('/:id/oauth/start', authenticateToken, async (req, res) => {
       },
       body: JSON.stringify({
         oxyUserId: req.userId,
-        config: server.config,
+        config: toMcpServerConfig(server),
         transport: server.transport,
         stateToken: state,
         callbackUrl,
@@ -90,12 +109,12 @@ router.post('/:id/oauth/start', authenticateToken, async (req, res) => {
 
     if (!response.ok) {
       // The state row is short-lived (TTL), so a failed start self-cleans.
-      await McpOAuthState.deleteOne({ state });
+      await deleteMcpOAuthStateByToken(db, state);
       return res.status(response.status).json({ error: data.error || 'Failed to start OAuth' });
     }
 
     if (!data.authorizationUrl || typeof data.authorizationUrl !== 'string') {
-      await McpOAuthState.deleteOne({ state });
+      await deleteMcpOAuthStateByToken(db, state);
       return res.status(502).json({ error: 'OAuth authorization URL was not returned' });
     }
 
@@ -124,8 +143,10 @@ router.get('/oauth/callback', async (req, res) => {
 
   // Validate the state exists and is unexpired WITHOUT consuming it — the
   // authenticated /oauth/complete call consumes it after verifying the caller.
-  const stateDoc = await McpOAuthState.findOne({ state });
-  if (!stateDoc || Date.now() - stateDoc.createdAt.getTime() > MCP_OAUTH_STATE_TTL_SECONDS * 1000) {
+  // The expiry lives in the repository, so this reader and the one below cannot
+  // disagree about how old is too old.
+  const stateRow = await findLiveMcpOAuthState(getDb(), state);
+  if (!stateRow) {
     return res.redirect(`${appUrl}/settings/connectors?error=oauth_expired`);
   }
 
@@ -147,29 +168,27 @@ router.post('/oauth/complete', authenticateToken, async (req, res) => {
       return res.status(400).json({ error: 'state and code are required' });
     }
 
-    const stateDoc = await McpOAuthState.findOne({ state });
-    if (!stateDoc || Date.now() - stateDoc.createdAt.getTime() > MCP_OAUTH_STATE_TTL_SECONDS * 1000) {
+    const db = getDb();
+    const stateRow = await findLiveMcpOAuthState(db, state);
+    if (!stateRow) {
       return res.status(400).json({ error: 'Invalid or expired state' });
     }
 
     // CSRF binding: the state must have been issued to the authenticated caller.
     // Whoever holds the code (the browser that got the callback) can only finish
     // the link into their OWN account, never someone else's.
-    if (stateDoc.oxyUserId !== req.userId) {
+    if (stateRow.oxyUserId !== req.userId) {
       return res.status(403).json({ error: 'State was not issued to this account' });
     }
 
     // Consume the state (single-use) now that the caller is verified.
-    await McpOAuthState.deleteOne({ _id: stateDoc._id });
+    await deleteMcpOAuthState(db, stateRow.id);
 
     if (!INTEGRATIONS_URL || !INTEGRATIONS_SECRET) {
       return res.status(503).json({ error: 'Integrations service not configured' });
     }
 
-    const server = await McpServer.findOne({
-      _id: stateDoc.serverId,
-      oxyUserId: new mongoose.Types.ObjectId(req.userId),
-    });
+    const server = await findMcpServerForUser(db, stateRow.serverId, req.userId!);
     if (!server) {
       return res.status(404).json({ error: 'Server not found' });
     }
@@ -177,7 +196,7 @@ router.post('/oauth/complete', authenticateToken, async (req, res) => {
     const apiBaseUrl = process.env.API_BASE_URL || 'http://localhost:4150';
     const callbackUrl = `${apiBaseUrl}/mcp/oauth/callback`;
 
-    const response = await fetch(`${INTEGRATIONS_URL}/mcp/servers/${server._id}/oauth/finish`, {
+    const response = await fetch(`${INTEGRATIONS_URL}/mcp/servers/${server.id}/oauth/finish`, {
       method: 'POST',
       headers: {
         'X-Gateway-Secret': INTEGRATIONS_SECRET,
@@ -185,7 +204,7 @@ router.post('/oauth/complete', authenticateToken, async (req, res) => {
       },
       body: JSON.stringify({
         oxyUserId: req.userId,
-        config: server.config,
+        config: toMcpServerConfig(server),
         transport: server.transport,
         code,
         callbackUrl,
@@ -196,24 +215,29 @@ router.post('/oauth/complete', authenticateToken, async (req, res) => {
     const data = await response.json();
 
     if (!response.ok || !data.success) {
-      server.status = 'error';
-      server.statusMessage = data.error || 'OAuth connection failed';
-      await server.save();
+      await setMcpServerStatus(db, server.id, req.userId!, {
+        status: 'error',
+        statusMessage: data.error || 'OAuth connection failed',
+      });
       return res.status(response.status === 200 ? 502 : response.status).json({
         error: data.error || 'OAuth connection failed',
       });
     }
 
-    server.status = 'running';
-    // Durably mark this connector as OAuth-authenticated so a later normal
-    // /:id/start reattaches the SDK OAuthClientProvider (integrations rebuilds
-    // it from config.requiresOAuth) instead of connecting unauthenticated.
-    server.config.requiresOAuth = true;
-    if (data.tools) server.tools = data.tools;
-    if (data.resources) server.resources = data.resources;
-    await server.save();
+    const connected = await setMcpServerStatus(db, server.id, req.userId!, {
+      status: 'running',
+      // Durably mark this connector as OAuth-authenticated so a later normal
+      // /:id/start reattaches the SDK OAuthClientProvider (integrations rebuilds
+      // it from config.requiresOAuth) instead of connecting unauthenticated.
+      requiresOAuth: true,
+      ...(data.tools ? { tools: data.tools as McpServerTool[] } : {}),
+      ...(data.resources ? { resources: data.resources as McpServerResource[] } : {}),
+    });
+    if (!connected) {
+      return res.status(404).json({ error: 'Server not found' });
+    }
 
-    res.json({ server });
+    res.json({ server: serializeMcpServer(connected) });
   } catch (error: unknown) {
     log.general.error({ err: error }, 'MCP OAuth complete error');
     res.status(500).json({ error: 'Internal server error' });
@@ -223,10 +247,8 @@ router.post('/oauth/complete', authenticateToken, async (req, res) => {
 // List user's installed MCP servers
 router.get('/installed', authenticateToken, async (req, res) => {
   try {
-    const servers = await McpServer.find({
-      oxyUserId: new mongoose.Types.ObjectId(req.userId),
-    }).sort({ createdAt: -1 });
-    res.json({ servers });
+    const servers = await listMcpServersForUser(getDb(), req.userId!);
+    res.json({ servers: servers.map(serializeMcpServer) });
   } catch (error: unknown) {
     log.general.error({ err: error }, 'List MCP servers error');
     res.status(500).json({ error: 'Internal server error' });
@@ -236,9 +258,18 @@ router.get('/installed', authenticateToken, async (req, res) => {
 // Install MCP server
 router.post('/install', authenticateToken, async (req, res) => {
   try {
+    const db = getDb();
     const { registryId, name, displayName, description, icon, transport, runtime, config, env } = req.body;
 
-    let serverConfig = { name, displayName, description, icon, transport, runtime, config };
+    let serverConfig: {
+      name?: string;
+      displayName?: string;
+      description?: string;
+      icon?: string;
+      transport?: McpServerTransport;
+      runtime?: McpServerRuntime;
+      config?: McpServerConfig;
+    } = { name, displayName, description, icon, transport, runtime, config };
 
     // If installing from registry, use registry defaults
     if (registryId) {
@@ -258,7 +289,9 @@ router.post('/install', authenticateToken, async (req, res) => {
           command: registryEntry.command,
           args: registryEntry.args,
           // Remote connectors carry their hosted endpoint + OAuth requirement;
-          // stdio entries leave these undefined (Mongoose omits them).
+          // stdio entries leave these undefined, and `installMcpServer` turns an
+          // undefined into a NULL column, which `toMcpServerConfig` reads back as
+          // an absent key — the round trip Mongoose gave for free.
           url: registryEntry.url,
           requiresOAuth: registryEntry.requiresOAuth,
           ...(env && typeof env === 'object' && !Array.isArray(env) ? { env } : {}),
@@ -271,47 +304,46 @@ router.post('/install', authenticateToken, async (req, res) => {
       return res.status(400).json({ error: 'name, displayName, and transport are required' });
     }
 
-    const server = new McpServer({
-      oxyUserId: new mongoose.Types.ObjectId(req.userId),
-      ...serverConfig,
+    const server = await installMcpServer(db, {
+      oxyUserId: req.userId!,
+      name: serverConfig.name,
+      displayName: serverConfig.displayName,
+      description: serverConfig.description,
+      icon: serverConfig.icon,
       source: registryId ? 'registry' : 'custom',
       registryId,
-      status: 'installed',
+      transport: serverConfig.transport,
+      runtime: serverConfig.runtime ?? 'server',
+      config: serverConfig.config ?? {},
     });
 
-    await server.save();
-    res.status(201).json({ server });
-  } catch (error: unknown) {
-    if (isDuplicateKeyError(error)) {
-      // Registry installs are idempotent: the Connect flow calls /install to
-      // "ensure the connector exists" before starting OAuth, so an already-
-      // installed registry connector must return the existing server (200)
-      // rather than 409 — otherwise Connect fails with a duplicate-key 409.
+    if (!server) {
+      // The name is taken, which `mcp_servers_oxy_user_name_key` decided rather
+      // than a read-then-write race. Registry installs are idempotent: the
+      // Connect flow calls /install to "ensure the connector exists" before
+      // starting OAuth, so an already-installed registry connector must return
+      // the existing server (200) rather than 409 — otherwise Connect fails.
       // Custom installs keep the 409 (the user explicitly named a new server).
-      const rid = req.body.registryId;
-      if (rid) {
-        const existing = await McpServer.findOne({
-          oxyUserId: new mongoose.Types.ObjectId(req.userId),
-          name: rid,
-        });
+      if (registryId) {
+        const existing = await findMcpServerByName(db, req.userId!, registryId);
         if (existing) {
-          return res.status(200).json({ server: existing });
+          return res.status(200).json({ server: serializeMcpServer(existing) });
         }
       }
       return res.status(409).json({ error: 'MCP server with this name is already installed' });
     }
+
+    res.status(201).json({ server: serializeMcpServer(server) });
+  } catch (error: unknown) {
     log.general.error({ err: error }, 'Install MCP server error');
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
 // Uninstall MCP server
-router.delete('/:id', authenticateToken, async (req, res) => {
+router.delete('/:id', authenticateToken, async (req: express.Request<{ id: string }>, res) => {
   try {
-    const server = await McpServer.findOneAndDelete({
-      _id: req.params.id,
-      oxyUserId: new mongoose.Types.ObjectId(req.userId),
-    });
+    const server = await deleteMcpServerForUser(getDb(), req.params.id, req.userId!);
 
     if (!server) {
       return res.status(404).json({ error: 'Server not found' });
@@ -320,7 +352,7 @@ router.delete('/:id', authenticateToken, async (req, res) => {
     // Stop in integrations if running
     if (server.status === 'running' && server.runtime === 'server' && INTEGRATIONS_URL && INTEGRATIONS_SECRET) {
       try {
-        await fetch(`${INTEGRATIONS_URL}/mcp/servers/${server._id}/stop`, {
+        await fetch(`${INTEGRATIONS_URL}/mcp/servers/${server.id}/stop`, {
           method: 'POST',
           headers: { 'X-Gateway-Secret': INTEGRATIONS_SECRET },
           signal: AbortSignal.timeout(5_000),
@@ -338,24 +370,20 @@ router.delete('/:id', authenticateToken, async (req, res) => {
 });
 
 // Update MCP server config
-router.patch('/:id', authenticateToken, async (req, res) => {
+router.patch('/:id', authenticateToken, async (req: express.Request<{ id: string }>, res) => {
   try {
-    const server = await McpServer.findOne({
-      _id: req.params.id,
-      oxyUserId: new mongoose.Types.ObjectId(req.userId),
+    const { config, enabled, runtime } = req.body;
+    const server = await updateMcpServer(getDb(), req.params.id, req.userId!, {
+      config,
+      enabled,
+      runtime,
     });
 
     if (!server) {
       return res.status(404).json({ error: 'Server not found' });
     }
 
-    const { config, enabled, runtime } = req.body;
-    if (config !== undefined) server.config = { ...server.config, ...config };
-    if (enabled !== undefined) server.enabled = enabled;
-    if (runtime !== undefined) server.runtime = runtime;
-
-    await server.save();
-    res.json({ server });
+    res.json({ server: serializeMcpServer(server) });
   } catch (error: unknown) {
     log.general.error({ err: error }, 'Update MCP server error');
     res.status(500).json({ error: 'Internal server error' });
@@ -363,12 +391,10 @@ router.patch('/:id', authenticateToken, async (req, res) => {
 });
 
 // Start MCP server (server-side only)
-router.post('/:id/start', authenticateToken, async (req, res) => {
+router.post('/:id/start', authenticateToken, async (req: express.Request<{ id: string }>, res) => {
   try {
-    const server = await McpServer.findOne({
-      _id: req.params.id,
-      oxyUserId: new mongoose.Types.ObjectId(req.userId),
-    });
+    const db = getDb();
+    const server = await findMcpServerForUser(db, req.params.id, req.userId!);
 
     if (!server) {
       return res.status(404).json({ error: 'Server not found' });
@@ -382,7 +408,7 @@ router.post('/:id/start', authenticateToken, async (req, res) => {
       return res.status(503).json({ error: 'Integrations service not configured' });
     }
 
-    const response = await fetch(`${INTEGRATIONS_URL}/mcp/servers/${server._id}/start`, {
+    const response = await fetch(`${INTEGRATIONS_URL}/mcp/servers/${server.id}/start`, {
       method: 'POST',
       headers: {
         'X-Gateway-Secret': INTEGRATIONS_SECRET,
@@ -390,7 +416,7 @@ router.post('/:id/start', authenticateToken, async (req, res) => {
       },
       body: JSON.stringify({
         oxyUserId: req.userId,
-        config: server.config,
+        config: toMcpServerConfig(server),
         transport: server.transport,
       }),
       signal: AbortSignal.timeout(30_000),
@@ -398,18 +424,22 @@ router.post('/:id/start', authenticateToken, async (req, res) => {
 
     const data = await response.json();
 
-    if (response.ok) {
-      server.status = 'running';
-      if (data.tools) server.tools = data.tools;
-      if (data.resources) server.resources = data.resources;
-      await server.save();
-    } else {
-      server.status = 'error';
-      server.statusMessage = data.error || 'Failed to start';
-      await server.save();
+    const updated = response.ok
+      ? await setMcpServerStatus(db, server.id, req.userId!, {
+          status: 'running',
+          ...(data.tools ? { tools: data.tools as McpServerTool[] } : {}),
+          ...(data.resources ? { resources: data.resources as McpServerResource[] } : {}),
+        })
+      : await setMcpServerStatus(db, server.id, req.userId!, {
+          status: 'error',
+          statusMessage: data.error || 'Failed to start',
+        });
+
+    if (!updated) {
+      return res.status(404).json({ error: 'Server not found' });
     }
 
-    res.status(response.status).json({ server, ...data });
+    res.status(response.status).json({ server: serializeMcpServer(updated), ...data });
   } catch (error: unknown) {
     log.general.error({ err: error }, 'Start MCP server error');
     res.status(500).json({ error: 'Internal server error' });
@@ -417,12 +447,10 @@ router.post('/:id/start', authenticateToken, async (req, res) => {
 });
 
 // Stop MCP server
-router.post('/:id/stop', authenticateToken, async (req, res) => {
+router.post('/:id/stop', authenticateToken, async (req: express.Request<{ id: string }>, res) => {
   try {
-    const server = await McpServer.findOne({
-      _id: req.params.id,
-      oxyUserId: new mongoose.Types.ObjectId(req.userId),
-    });
+    const db = getDb();
+    const server = await findMcpServerForUser(db, req.params.id, req.userId!);
 
     if (!server) {
       return res.status(404).json({ error: 'Server not found' });
@@ -434,7 +462,7 @@ router.post('/:id/stop', authenticateToken, async (req, res) => {
 
     if (INTEGRATIONS_URL && INTEGRATIONS_SECRET) {
       try {
-        await fetch(`${INTEGRATIONS_URL}/mcp/servers/${server._id}/stop`, {
+        await fetch(`${INTEGRATIONS_URL}/mcp/servers/${server.id}/stop`, {
           method: 'POST',
           headers: { 'X-Gateway-Secret': INTEGRATIONS_SECRET },
           signal: AbortSignal.timeout(5_000),
@@ -444,10 +472,12 @@ router.post('/:id/stop', authenticateToken, async (req, res) => {
       }
     }
 
-    server.status = 'stopped';
-    await server.save();
+    const stopped = await setMcpServerStatus(db, server.id, req.userId!, { status: 'stopped' });
+    if (!stopped) {
+      return res.status(404).json({ error: 'Server not found' });
+    }
 
-    res.json({ server });
+    res.json({ server: serializeMcpServer(stopped) });
   } catch (error: unknown) {
     log.general.error({ err: error }, 'Stop MCP server error');
     res.status(500).json({ error: 'Internal server error' });
@@ -455,12 +485,9 @@ router.post('/:id/stop', authenticateToken, async (req, res) => {
 });
 
 // List tools from MCP server
-router.get('/:id/tools', authenticateToken, async (req, res) => {
+router.get('/:id/tools', authenticateToken, async (req: express.Request<{ id: string }>, res) => {
   try {
-    const server = await McpServer.findOne({
-      _id: req.params.id,
-      oxyUserId: new mongoose.Types.ObjectId(req.userId),
-    });
+    const server = await findMcpServerForUser(getDb(), req.params.id, req.userId!);
 
     if (!server) {
       return res.status(404).json({ error: 'Server not found' });
@@ -474,12 +501,9 @@ router.get('/:id/tools', authenticateToken, async (req, res) => {
 });
 
 // Health check / status
-router.get('/:id/status', authenticateToken, async (req, res) => {
+router.get('/:id/status', authenticateToken, async (req: express.Request<{ id: string }>, res) => {
   try {
-    const server = await McpServer.findOne({
-      _id: req.params.id,
-      oxyUserId: new mongoose.Types.ObjectId(req.userId),
-    });
+    const server = await findMcpServerForUser(getDb(), req.params.id, req.userId!);
 
     if (!server) {
       return res.status(404).json({ error: 'Server not found' });
