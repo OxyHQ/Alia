@@ -101,11 +101,12 @@ export const integrations = pgTable(
     accountName: text(),
     avatarUrl: text(),
     status: text({ enum: INTEGRATION_STATUSES as unknown as [string, ...string[]] })
+      .$type<IntegrationStatus>()
       .notNull()
       .default('active'),
     enabled: boolean().notNull().default(true),
     /** Shape belongs to whichever service was connected. */
-    metadata: jsonb().notNull().default({}),
+    metadata: jsonb().$type<Record<string, unknown>>().notNull().default({}),
     connectedAt: timestamptz().notNull(),
     lastUsedAt: timestamptz(),
     createdAt: createdAt(),
@@ -144,6 +145,7 @@ export const connectedAccounts = pgTable(
     email: text(),
     avatarUrl: text(),
     status: text({ enum: CONNECTED_ACCOUNT_STATUSES as unknown as [string, ...string[]] })
+      .$type<ConnectedAccountStatus>()
       .notNull()
       .default('connecting'),
     statusMessage: text(),
@@ -162,7 +164,7 @@ export const connectedAccounts = pgTable(
     oauthRefreshToken: encryptedText(),
     oauthExpiresAt: timestamptz(),
     oauthScope: text(),
-    metadata: jsonb().notNull().default({}),
+    metadata: jsonb().$type<Record<string, unknown>>().notNull().default({}),
     lastActiveAt: timestamptz(),
     connectedAt: timestamptz(),
     createdAt: createdAt(),

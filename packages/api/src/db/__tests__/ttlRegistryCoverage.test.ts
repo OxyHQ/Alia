@@ -222,6 +222,28 @@ const RETIRED_MONGO_TTLS: readonly RetiredMongoTtl[] = [
     retiredBy: 'S5 notifications — audio_jobs',
   },
   {
+    model: 'OAuthState',
+    collection: 'oauthstates',
+    /**
+     * `OAuthStateSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 })`,
+     * read off `src/routes/integrations-oauth.ts:18` at `69d4b3d4`, the commit
+     * before S4 removed it.
+     *
+     * **The one declared in a ROUTE file**, which is why `modelFiles()` above
+     * includes `src/routes/` and why removing that directory from the walk would
+     * silently drop this entry rather than fail. It is also why the count moved
+     * when a route stopped declaring a model — no file under `src/models/`
+     * changed at all.
+     *
+     * `expires_at` IS the deadline, so retention is ZERO. The sibling
+     * `organization_invites` has a deadline column AND a 30-day retention; the
+     * two look alike and are not.
+     */
+    path: 'expiresAt',
+    expireAfterSeconds: 0,
+    retiredBy: 'S4 integrations — oauth_states',
+  },
+  {
     model: 'Notification',
     collection: 'notifications',
     /**
@@ -345,14 +367,21 @@ describe('every ported TTL index has a matching expiry-sweep target', () => {
      * halves adding up to 13.
      *
      * 11 after S1 retired two; 9 once S5 retired `AudioJob` and `Notification`;
-     * 8 once S2 retired `AuthHealthMetric`, 7 once it retired `FallbackEvent`, 6 once it retired `RoutingLog`, 5 once it retired `ApiKeyUsage`, 4 once it retired `ApiUsage`,
-     * 3 once S8 retired `TriggerExecution` — the only TTL among its eight models.
+     * 8 once S2 retired `AuthHealthMetric`, 7 once it retired `FallbackEvent`, 6
+     * once it retired `RoutingLog`, 5 once it retired `ApiKeyUsage`, 4 once it
+     * retired `ApiUsage`, 3 once S8 retired `TriggerExecution` — the only TTL
+     * among its eight models — 2 once S4 retired `OAuthState`.
      * Lowering it is legitimate ONLY in the same change that adds the matching
      * retired entries, and the exact-sum assertion below is what makes that
      * mechanical rather than a judgement call — the two numbers cannot drift
      * apart without one of them going red.
+     *
+     * S4 is the case that shows the walk is not a `src/models/` census: nothing
+     * under that directory changed, and the number still moved, because
+     * `OAuthState` was declared inline in a ROUTE file — which is also why
+     * `modelFiles()` above includes `src/routes/`.
      */
-    expect(walked.length).toBeGreaterThanOrEqual(3);
+    expect(walked.length).toBeGreaterThanOrEqual(2);
     expect(walked.length + RETIRED_MONGO_TTLS.length).toBe(13);
   });
 
