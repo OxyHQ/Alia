@@ -28,9 +28,27 @@ vi.mock('../agent/routing-handler.js', () => ({ handleRoutingDecision: vi.fn() }
 vi.mock('../../middleware/auth.js', () => ({ oxyClient: { getUserById: vi.fn() } }));
 vi.mock('../../db/index.js', () => ({ getDb: vi.fn(() => ({})) }));
 vi.mock('../../db/memory/userMemoryRepository.js', () => ({ findUserMemory: vi.fn() }));
-vi.mock('../../models/trigger-execution.js', () => ({ TriggerExecution: { create: vi.fn(), findOne: vi.fn() } }));
 vi.mock('../../models/agent.js', () => ({ Agent: { find: vi.fn() } }));
-vi.mock('../../models/trigger.js', () => ({ Trigger: { find: vi.fn(), findById: vi.fn() } }));
+// The engine reads triggers through the repository now, so THAT is what is
+// stubbed. A `vi.mock` specifier is a plain string that neither tsc nor vitest
+// checks against a real module, so a stale path here would silently stub
+// nothing and the reconcile loop would try to reach Postgres.
+vi.mock('../../db/automation/triggerRepository.js', () => ({
+  findSchedulableTriggers: vi.fn(),
+  listSchedulableTriggerVersions: vi.fn(),
+  findTriggerById: vi.fn(),
+  findAgentHeartbeatTrigger: vi.fn(),
+  findIntegrationEventTriggers: vi.fn(),
+  findTriggerByWebhookToken: vi.fn(),
+  findLastSuccessfulExecution: vi.fn(),
+  claimTriggerForRun: vi.fn(),
+  completeTriggerExecution: vi.fn(),
+  createTrigger: vi.fn(),
+  createTriggerExecution: vi.fn(),
+  recordTriggerSuccess: vi.fn(),
+  recordTriggerFailure: vi.fn(),
+  setTriggerSchedule: vi.fn(),
+}));
 vi.mock('../logger.js', () => ({
   log: {
     triggers: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
@@ -38,17 +56,23 @@ vi.mock('../logger.js', () => ({
   },
 }));
 
-import { Trigger } from '../../models/trigger.js';
+import {
+  findSchedulableTriggers,
+  findTriggerById,
+  listSchedulableTriggerVersions,
+} from '../../db/automation/triggerRepository.js';
 import { Agent } from '../../models/agent.js';
 import cron from 'node-cron';
 
 type MockFn = ReturnType<typeof vi.fn>;
-const triggerModel = Trigger as unknown as { find: MockFn; findById: MockFn };
+const schedulable = findSchedulableTriggers as unknown as MockFn;
+const versions = listSchedulableTriggerVersions as unknown as MockFn;
+const byIdFn = findTriggerById as unknown as MockFn;
 const agentModel = Agent as unknown as { find: MockFn };
 const cronMock = cron as unknown as { schedule: MockFn; validate: MockFn };
 
 interface FakeTrigger {
-  _id: { toString(): string };
+  _id: string;
   name: string;
   enabled: boolean;
   type: string;
@@ -67,7 +91,7 @@ function makeQuery<T>(result: T) {
 }
 
 const trig = (id: string, updatedAt: Date): FakeTrigger => ({
-  _id: { toString: () => id },
+  _id: id,
   name: `trigger-${id}`,
   enabled: true,
   type: 'schedule',
@@ -103,8 +127,14 @@ describe('trigger-engine reconcile loop', () => {
     // Initial load: two enabled schedule triggers.
     let rows: FakeTrigger[] = [trig('a', t0), trig('b', t0)];
     const byId = new Map<string, FakeTrigger>([['a', rows[0]], ['b', rows[1]]]);
-    triggerModel.find.mockImplementation(() => makeQuery(rows));
-    triggerModel.findById.mockImplementation((id: string) => Promise.resolve(byId.get(String(id)) ?? null));
+    schedulable.mockImplementation(() => Promise.resolve(rows));
+    // The reconcile loop reads only `(id, updatedAt)`, then re-reads in full.
+    versions.mockImplementation(() =>
+      Promise.resolve(rows.map((r) => ({ id: r._id, updatedAt: r.updatedAt }))),
+    );
+    byIdFn.mockImplementation((_db: unknown, id: string) =>
+      Promise.resolve(byId.get(String(id)) ?? undefined),
+    );
 
     await startTriggerScheduler();
     expect(cronMock.schedule).toHaveBeenCalledTimes(2);
