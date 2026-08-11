@@ -226,27 +226,8 @@ const RETIRED_MONGO_TTLS: readonly RetiredMongoTtl[] = [
     collection: 'mcpoauthstates',
     /**
      * `McpOAuthStateSchema.index({ createdAt: 1 }, { expireAfterSeconds:
-     * MCP_OAUTH_STATE_TTL_SECONDS })` — line 29 of the `McpOAuthState` model
-     * module, with the constant at line 12 — 10 minutes.
-     *
-     * ## Why this citation names no PATH, unlike the four above it
-     *
-     * `foreign-ref-populate.test.ts` fails any source that names a retired
-     * model file, and it normalises `src/` away, so there is no spelling of the
-     * path that satisfies both gates. The two requirements really do collide:
-     * that gate wants no reference to a deleted module anywhere, and this one
-     * wants provenance for a value read out of one.
-     *
-     * Naming the MODEL rather than the file is what gives way, because it costs
-     * nothing — `model`, `collection` and `retiredBy` already identify the
-     * source uniquely, and `git log` finds the deleting commit from `retiredBy`.
-     * Weakening the other gate's exclusion from one line to a category would
-     * have cost something real.
-     *
-     * The four entries above still carry paths only because their models had
-     * not been deleted when they were written. Whoever retires `Notification`,
-     * `AudioJob`, `ModerationOutbox` or `ModerationEvent` will have to reword
-     * them the same way, in the same commit that deletes the file.
+     * MCP_OAUTH_STATE_TTL_SECONDS })`, read off `src/models/mcp-oauth-state.ts:29`
+     * before it was deleted, with the constant at `:12` — 10 minutes.
      *
      * Measured from CREATION, not from a deadline: the row is consumed by an
      * atomic delete when the callback lands, so the sweep only ever reaps
