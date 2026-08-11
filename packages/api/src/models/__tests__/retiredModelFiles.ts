@@ -31,18 +31,26 @@
  * `foreign-ref-populate.test.ts` — `MODEL_FILES_EVER`. This file is the data;
  * the invariant is the gate's.
  *
- * ## Counting these rows with `grep` UNDER-reports, measured
+ * ## Do not count these rows with `grep`. Read `.length`.
  *
- * Prettier wraps a long entry across four lines, so the array mixes one-line
- * and multi-line forms. `grep -c "{ model: '"` sees only the one-line ones —
- * **20 against an actual 26** at the time of writing. That miscount already
- * caused a reviewer to compute `25 + 12 = 37` and briefly believe `main` was
- * red, against the very gate built to prevent that class.
+ * Two independent reasons, both measured on this file:
  *
- * A line-based instrument over multi-line data fails toward a FALSE ALARM here,
- * which is the safer direction and still wrong. Count `model: '` without the
- * brace, or read `RETIRED_MODEL_FILES.length` — the gate itself always does the
- * latter, which is why the gate was never fooled.
+ * 1. Prettier wraps a long entry across four lines, so the array mixes one-line
+ *    and multi-line forms and any single-line pattern sees only the former.
+ * 2. **This comment is part of the file.** The first version of this warning
+ *    spelled out the field pattern it was warning about, so a grep for that
+ *    pattern matched the warning twice and reported 28 against an actual 26 —
+ *    a prose-contaminated census, in the very note telling you to avoid one.
+ *
+ * Both directions have already cost real time: a line-based count reported 20
+ * and a reviewer computed 37, briefly believing `main` was red; a
+ * comment-contaminated count reported 28 and another briefly had conservation
+ * broken at 45. One under-reported, one over-reported.
+ *
+ * `RETIRED_MODEL_FILES.length` is immune to both, and it is what every
+ * assertion here already uses — which is why no GATE was ever fooled, only
+ * people reading past them. If you must scan the text, exclude comment lines
+ * first; that is what `filesReferencing` does for the same reason.
  *
  * NOTE for anyone reconciling counts: models deleted BEFORE `55754587` are
  * outside this ledger entirely and can never enter it. `MODEL_FILES_EVER`
