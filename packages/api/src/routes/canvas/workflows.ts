@@ -22,7 +22,8 @@ router.use(authenticateToken);
 // Get all workflows
 router.get('/', async (req: Request, res: Response) => {
   try {
-    const workflows = await listWorkflows(getDb(), req.userId!);
+    if (!req.userId) return res.status(401).json({ error: 'Unauthorized' });
+    const workflows = await listWorkflows(getDb(), req.userId);
 
     const formattedWorkflows = workflows.map(w => ({
       id: w.workflowId,
@@ -44,7 +45,8 @@ router.get('/', async (req: Request, res: Response) => {
 // Get a specific workflow
 router.get('/:id', async (req: Request, res: Response) => {
   try {
-    const workflow = await findWorkflow(getDb(), req.userId!, String(req.params.id));
+    if (!req.userId) return res.status(401).json({ error: 'Unauthorized' });
+    const workflow = await findWorkflow(getDb(), req.userId, String(req.params.id));
 
     if (!workflow) {
       return res.status(404).json({ error: 'Workflow not found' });
@@ -70,6 +72,7 @@ router.get('/:id', async (req: Request, res: Response) => {
 // Create a new workflow
 router.post('/', async (req: Request, res: Response) => {
   try {
+    if (!req.userId) return res.status(401).json({ error: 'Unauthorized' });
     const { name, description, nodes, edges } = req.body;
 
     if (!name) {
@@ -79,7 +82,7 @@ router.post('/', async (req: Request, res: Response) => {
     const workflowId = randomUUID();
 
     const workflow = await createWorkflow(getDb(), {
-      oxyUserId: req.userId!,
+      oxyUserId: req.userId,
       workflowId,
       name,
       description: description || '',
@@ -107,12 +110,13 @@ router.post('/', async (req: Request, res: Response) => {
 // Update a workflow
 router.put('/:id', async (req: Request, res: Response) => {
   try {
+    if (!req.userId) return res.status(401).json({ error: 'Unauthorized' });
     const { name, description, nodes, edges } = req.body;
 
     // No `updatedAt` here: the column carries `$onUpdate`, so drizzle writes it
     // on every update. Setting it by hand would be the second authority the
     // `pre('save')` hook already was.
-    const workflow = await updateWorkflow(getDb(), req.userId!, String(req.params.id), {
+    const workflow = await updateWorkflow(getDb(), req.userId, String(req.params.id), {
       name,
       description,
       nodes,
@@ -143,7 +147,8 @@ router.put('/:id', async (req: Request, res: Response) => {
 // Delete a workflow
 router.delete('/:id', async (req: Request, res: Response) => {
   try {
-    const workflow = await deleteWorkflow(getDb(), req.userId!, String(req.params.id));
+    if (!req.userId) return res.status(401).json({ error: 'Unauthorized' });
+    const workflow = await deleteWorkflow(getDb(), req.userId, String(req.params.id));
 
     if (!workflow) {
       return res.status(404).json({ error: 'Workflow not found' });
@@ -162,7 +167,8 @@ router.delete('/:id', async (req: Request, res: Response) => {
 // Get execution history for a workflow
 router.get('/:id/executions', async (req: Request, res: Response) => {
   try {
-    const executions = await listExecutions(getDb(), req.userId!, String(req.params.id));
+    if (!req.userId) return res.status(401).json({ error: 'Unauthorized' });
+    const executions = await listExecutions(getDb(), req.userId, String(req.params.id));
 
     const formattedExecutions = executions.map(e => ({
       id: e.executionId,

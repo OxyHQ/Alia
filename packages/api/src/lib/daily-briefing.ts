@@ -6,8 +6,12 @@
  * and preferred topics to deliver a morning summary.
  */
 
-import mongoose from 'mongoose';
-import { Trigger } from '../models/trigger.js';
+import {
+  createTrigger,
+  findBriefingTrigger,
+  setTriggerActionPrompt,
+  type TriggerRecord,
+} from '../db/automation/triggerRepository.js';
 import { getDb } from '../db/index.js';
 import { findUserMemory } from '../db/memory/userMemoryRepository.js';
 import { reloadTrigger } from './trigger-engine.js';
@@ -61,13 +65,9 @@ export async function createDailyBriefing(
     timezone?: string;
     channelId?: string;
   },
-): Promise<typeof Trigger.prototype | null> {
+): Promise<TriggerRecord | null> {
   // Check if user already has a daily briefing
-  const existing = await Trigger.findOne({
-    oxyUserId: new mongoose.Types.ObjectId(userId),
-    name: { $regex: /daily briefing|morning briefing/i },
-    type: 'schedule',
-  });
+  const existing = await findBriefingTrigger(getDb(), userId);
 
   if (existing) {
     log.general.info({ userId }, 'User already has a daily briefing trigger');
@@ -78,8 +78,8 @@ export async function createDailyBriefing(
   const memory = await findUserMemory(getDb(), userId);
   const prompt = buildBriefingPrompt(memory);
 
-  const trigger = await Trigger.create({
-    oxyUserId: new mongoose.Types.ObjectId(userId),
+  const trigger = await createTrigger(getDb(), {
+    oxyUserId: userId,
     name: 'Morning Briefing',
     description: 'Personalized daily briefing with news, tasks, and insights',
     type: 'schedule',
@@ -114,17 +114,12 @@ export async function createDailyBriefing(
  * memories and preferences evolve.
  */
 export async function refreshBriefingPrompt(userId: string): Promise<boolean> {
-  const trigger = await Trigger.findOne({
-    oxyUserId: new mongoose.Types.ObjectId(userId),
-    name: { $regex: /daily briefing|morning briefing/i },
-    type: 'schedule',
-  });
+  const trigger = await findBriefingTrigger(getDb(), userId);
 
   if (!trigger) return false;
 
   const memory = await findUserMemory(getDb(), userId);
-  trigger.action.prompt = buildBriefingPrompt(memory);
-  await trigger.save();
+  await setTriggerActionPrompt(getDb(), trigger._id, buildBriefingPrompt(memory));
 
   return true;
 }

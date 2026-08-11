@@ -5,8 +5,12 @@ import { Conversation } from '../../models/conversation.js';
 import { authenticateToken, optionalAuth } from '../../middleware/auth.js';
 import { getRecentActivity } from '../../lib/agent-runner.js';
 import { EventStreamEntry as EventStreamEntryModel } from '../../models/event-stream-entry.js';
-import { Trigger } from '../../models/trigger.js';
-import { TriggerExecution } from '../../models/trigger-execution.js';
+import { getDb } from '../../db/index.js';
+import {
+  countTriggerExecutions,
+  findAgentTriggerByType,
+  listTriggerExecutions,
+} from '../../db/automation/triggerRepository.js';
 import { log } from '../../lib/logger.js';
 import type { Request, Response } from 'express';
 
@@ -182,11 +186,12 @@ router.get('/:id/reports', authenticateToken, async (req: Request, res: Response
     }
 
     // Find the trigger linked to this agent
-    const trigger = await Trigger.findOne({
-      'action.agentId': req.params.id,
-      type: 'schedule',
-      oxyUserId: req.user.id,
-    }).select('_id').lean();
+    const trigger = await findAgentTriggerByType(
+      getDb(),
+      req.user.id,
+      String(req.params.id),
+      'schedule',
+    );
 
     if (!trigger) {
       return res.json({ reports: [], total: 0 });
@@ -197,13 +202,11 @@ router.get('/:id/reports', authenticateToken, async (req: Request, res: Response
     const limitNum = Math.min(50, Math.max(1, parseInt(limit as string, 10) || 20));
 
     const [reports, total] = await Promise.all([
-      TriggerExecution.find({ triggerId: trigger._id })
-        .sort({ startedAt: -1 })
-        .skip((pageNum - 1) * limitNum)
-        .limit(limitNum)
-        .select('status result toolCalls tokens durationMs startedAt completedAt')
-        .lean(),
-      TriggerExecution.countDocuments({ triggerId: trigger._id }),
+      listTriggerExecutions(getDb(), trigger._id, {
+        limit: limitNum,
+        offset: (pageNum - 1) * limitNum,
+      }),
+      countTriggerExecutions(getDb(), trigger._id),
     ]);
 
     res.json({ reports, total, page: pageNum, limit: limitNum });

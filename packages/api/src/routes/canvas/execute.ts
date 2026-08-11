@@ -63,13 +63,15 @@ router.post('/', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Invalid workflow edges' });
     }
 
+    if (!req.userId) return res.status(401).json({ error: 'Unauthorized' });
+
     const executionId = randomUUID();
 
     // Create execution record
     // `status`, `results` and `final_output` take their column defaults —
     // 'running', [] and '' — which are the values the source set by hand.
     await createExecution(getDb(), {
-      oxyUserId: req.userId!,
+      oxyUserId: req.userId,
       workflowId: workflowId || 'temp',
       executionId,
       startedAt: new Date(),
@@ -77,7 +79,7 @@ router.post('/', async (req: Request, res: Response) => {
 
     try {
       // Execute the workflow
-      const { results, finalOutput } = await executeWorkflow(nodes, edges, req.userId!, executionId);
+      const { results, finalOutput } = await executeWorkflow(nodes, edges, req.userId, executionId);
 
       await completeExecution(getDb(), executionId, {
         status: 'completed',

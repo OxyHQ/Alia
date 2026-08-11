@@ -2,7 +2,12 @@ import { Router } from 'express';
 import { Agent, type IAgent } from '../../models/agent.js';
 import { authenticateToken, optionalAuth } from '../../middleware/auth.js';
 import { getAgentCapabilities } from '../../lib/agent/health.js';
-import { Trigger } from '../../models/trigger.js';
+import { getDb } from '../../db/index.js';
+import {
+  createTrigger,
+  findAgentTriggerByType,
+  updateTrigger,
+} from '../../db/automation/triggerRepository.js';
 import { reloadTrigger, generateWebhookToken } from '../../lib/trigger-engine.js';
 import { log } from '../../lib/logger.js';
 import type { Request, Response } from 'express';
@@ -25,11 +30,7 @@ async function syncArchetypeTriggers(
   if (!config) return;
 
   if (agent.archetype === 'status_update' && config.schedule) {
-    const existing = await Trigger.findOne({
-      'action.agentId': agentId,
-      type: 'schedule',
-      oxyUserId: userId,
-    });
+    const existing = await findAgentTriggerByType(getDb(), userId, agentId, 'schedule');
 
     const triggerSchedule = {
       type: config.schedule.type || 'daily',
@@ -44,13 +45,17 @@ async function syncArchetypeTriggers(
       : 'Generate a comprehensive status update report from all configured data sources.';
 
     if (existing) {
-      existing.set('schedule', triggerSchedule);
-      existing.action.prompt = reportPrompt;
-      existing.name = `${agent.name || 'Agent'} Report`;
-      await existing.save();
-      await reloadTrigger(existing._id.toString());
+      // `schedule` REPLACES and `action` MERGES, exactly as the hydrated-document
+      // path did: `set('schedule', …)` overwrote the sub-document while the
+      // prompt was assigned field by field.
+      await updateTrigger(getDb(), existing._id, {
+        schedule: triggerSchedule,
+        action: { prompt: reportPrompt },
+        name: `${agent.name || 'Agent'} Report`,
+      });
+      await reloadTrigger(existing._id);
     } else {
-      const trigger = await Trigger.create({
+      const trigger = await createTrigger(getDb(), {
         oxyUserId: userId,
         name: `${agent.name || 'Agent'} Report`,
         description: `Scheduled status report from ${agent.name || 'agent'}`,
@@ -66,19 +71,15 @@ async function syncArchetypeTriggers(
         schedule: triggerSchedule,
         triggerCount: 0,
       });
-      await reloadTrigger(trigger._id.toString());
+      await reloadTrigger(trigger._id);
     }
   }
 
   if (agent.archetype === 'task_router' && config.inboundChannels?.includes('webhook')) {
-    const existing = await Trigger.findOne({
-      'action.agentId': agentId,
-      type: 'webhook',
-      oxyUserId: userId,
-    });
+    const existing = await findAgentTriggerByType(getDb(), userId, agentId, 'webhook');
 
     if (!existing) {
-      await Trigger.create({
+      await createTrigger(getDb(), {
         oxyUserId: userId,
         name: `${agent.name || 'Agent'} Webhook`,
         description: `Inbound webhook for task routing by ${agent.name || 'agent'}`,
