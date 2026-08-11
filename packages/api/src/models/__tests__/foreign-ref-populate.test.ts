@@ -243,8 +243,25 @@ function filesReferencing(file: string, sources: string[]): string[] {
   return sources.filter((source) =>
     readFileSync(path.join(PACKAGE_ROOT, source), 'utf8')
       .split('\n')
+      .filter((line) => !isCommentLine(line))
       .some((line) => pattern.test(line)),
   );
+}
+
+/**
+ * A line that is entirely comment, and therefore not a reference.
+ *
+ * This is what lets the scan cover EVERY file including this one. A relative
+ * specifier written as documentation always sits on a comment line — this
+ * file's own docblock spells out `vi.mock('../../models/trigger.js', …)` to
+ * explain the hazard — while a real call never does. Matching on the line's
+ * first non-whitespace character rather than stripping `//` anywhere keeps a
+ * `https://` inside a string intact.
+ *
+ * A commented-out `vi.mock` is deliberately not a finding: it resolves nothing.
+ */
+function isCommentLine(line: string): boolean {
+  return /^\s*(\/\/|\/\*|\*)/.test(line);
 }
 
 /** Every tracked TypeScript source, TESTS INCLUDED. See `filesReferencing`. */
@@ -351,14 +368,22 @@ describe('populating a ref this service does not own', () => {
     expect(SCANNER_CONTROL_SPECIFIER).toContain('__scanner_control__');
 
     /**
-     * THIS file necessarily names every retired path — recording them is its
-     * job — so it is the one exclusion, and it is one line rather than a
-     * category. The hazard lives in OTHER test files: a `vi.mock` specifier is
-     * a string neither tsc nor vitest resolves.
+     * NO file is exempt, including this one.
+     *
+     * It used to be, because recording retired paths is this file's job and its
+     * docblocks quote relative specifiers verbatim. But a blanket exemption is
+     * the shape that grows one defensible line at a time, and it left a real
+     * hole: a `vi.mock` of a retired model placed HERE — the file that talks
+     * about mocks, and therefore the likely place somebody adds one — went
+     * uncaught. Skipping comment LINES instead of whole FILES removes the
+     * exemption entirely rather than narrowing it, so there is no list of
+     * exemptions to keep an exact count of.
+     *
+     * `RETIRED_MODEL_FILES`'s own `file:` values are repo-rooted, so the
+     * relative-prefix rule already excludes them without naming them.
      */
-    const scanned = sources.filter((f) => !f.endsWith('foreign-ref-populate.test.ts'));
     const dangling = RETIRED_MODEL_FILES.flatMap((retired) =>
-      filesReferencing(retired.file, scanned).map((source) => `${source} -> ${retired.file}`),
+      filesReferencing(retired.file, sources).map((source) => `${source} -> ${retired.file}`),
     );
     expect(dangling).toEqual([]);
   });
