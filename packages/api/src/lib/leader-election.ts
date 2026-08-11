@@ -62,6 +62,24 @@ export function startLeaderElection(
   // unreachable we keep leading until the lease would have expired, then demote.
   let lastRenewOk = Date.now();
   let timer: ReturnType<typeof setInterval> | null = null;
+  /**
+   * Heartbeats that have reached the database and not yet come back.
+   *
+   * `stop()` waits for these, and that wait is the whole shutdown contract. A
+   * renewal already at the server commits whenever the server gets to it, which
+   * may be after the release — and it renews for a FULL TTL, so the lease this
+   * instance just gave up is re-taken on its way out and the successor waits out
+   * the entire TTL. That is the one thing `stop()` exists to prevent. The same
+   * late tick also runs the state machine against a `leader` that `stop()` has
+   * already set false, so a stopped handle elects itself and reports
+   * `isLeader() === true` afterwards.
+   *
+   * Note there is deliberately NO `stopped` re-check inside `tick` instead: a
+   * renewal that DID take the lease has to be allowed to record it, or `leader`
+   * is false by the time `stop()` looks and the lease is never released at all.
+   * Waiting is what makes the two orderings the same ordering.
+   */
+  const pending = new Set<Promise<void>>();
 
   async function runHook(kind: 'onElected' | 'onDemoted', fn: () => void | Promise<void>): Promise<void> {
     try {
@@ -109,10 +127,19 @@ export function startLeaderElection(
     }
   }
 
-  timer = setInterval(() => { void tick(); }, heartbeatMs);
+  /** One heartbeat, kept visible to `stop()` until it comes back. */
+  function beat(): void {
+    // `tick` handles every failure it can meet, so this settles rather than
+    // rejecting and the bookkeeping needs no rejection path of its own.
+    const run = tick();
+    pending.add(run);
+    void run.finally(() => pending.delete(run));
+  }
+
+  timer = setInterval(beat, heartbeatMs);
   timer.unref?.();
   // Kick off the first attempt immediately rather than waiting a full heartbeat.
-  void tick();
+  beat();
 
   return {
     isLeader: () => leader,
@@ -123,6 +150,10 @@ export function startLeaderElection(
         clearInterval(timer);
         timer = null;
       }
+      // Clearing the timer above is synchronous, so nothing is added to
+      // `pending` after this point and one wait is enough: every renewal
+      // already at the database lands BEFORE the release is issued.
+      await Promise.all([...pending]);
       if (leader) {
         leader = false;
         await runHook('onDemoted', hooks.onDemoted);
