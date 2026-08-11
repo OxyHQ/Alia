@@ -134,6 +134,13 @@
       "when": 1786364108435,
       "tag": "0018_right_ser_duncan",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1786406733006,
+      "tag": "0019_funny_vampiro",
+      "breakpoints": true
     }
   ]
 }

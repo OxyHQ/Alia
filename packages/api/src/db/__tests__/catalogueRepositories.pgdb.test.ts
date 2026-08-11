@@ -385,8 +385,8 @@ describe('alia_models and their provider mappings', () => {
      * `plans.ts` filtered `AliaModel.find({ modelId: ... })`. `modelId` belongs
      * to the providerMappings SUB-DOCUMENT and a bare path does not reach into
      * one, so the query matched nothing and every plan id was reported invalid.
-     * This asks about `aliasModelId`, which `models/plan.ts:26` documents as
-     * what the field holds.
+     * This asks about `aliasModelId`, which `plans.modelIds` in
+     * `db/schema/billing.ts` documents as what the field holds.
      */
     const found = await findExistingAliasModelIds(db, [present, 'alia-does-not-exist']);
     expect(found.has(present)).toBe(true);

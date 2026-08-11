@@ -4,8 +4,9 @@
  * a user has consumed in the current billing period.
  */
 
-import { VoiceCallUsage } from '../models/voice-call-usage.js';
-import { Subscription } from '../models/subscription.js';
+import { getDb } from '../db/index.js';
+import { sumVoiceMinutesUsed } from '../db/usage/voiceCallUsageRepository.js';
+import { findActiveSubscriptionByPeriodStart } from '../db/billing/subscriptionRepository.js';
 
 export interface VoiceUsageSummary {
   usedMinutes: number;
@@ -18,12 +19,7 @@ export interface VoiceUsageSummary {
  * Falls back to start of current calendar month if no active subscription.
  */
 async function getCurrentPeriodStart(userId: string): Promise<Date> {
-  const sub = await Subscription.findOne({
-    oxyUserId: userId,
-    status: { $in: ['active', 'trialing'] },
-  })
-    .sort({ currentPeriodStart: -1 })
-    .lean();
+  const sub = await findActiveSubscriptionByPeriodStart(getDb(), userId);
 
   if (sub?.currentPeriodStart) {
     return sub.currentPeriodStart;
@@ -38,25 +34,7 @@ async function getCurrentPeriodStart(userId: string): Promise<Date> {
  * Sums durationMinutes + cohostDurationMinutes from completed sessions.
  */
 async function getVoiceMinutesUsed(userId: string, since: Date): Promise<number> {
-  const result = await VoiceCallUsage.aggregate([
-    {
-      $match: {
-        oxyUserId: userId,
-        startTime: { $gte: since },
-        endTime: { $ne: null },
-      },
-    },
-    {
-      $group: {
-        _id: null,
-        totalMinutes: {
-          $sum: { $add: ['$durationMinutes', '$cohostDurationMinutes'] },
-        },
-      },
-    },
-  ]);
-
-  return result[0]?.totalMinutes || 0;
+  return sumVoiceMinutesUsed(getDb(), userId, since);
 }
 
 /**

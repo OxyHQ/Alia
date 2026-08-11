@@ -1,6 +1,4 @@
 import { Router, Request, Response } from 'express';
-import DeveloperApp from '../models/developer-app';
-import DeveloperApiKey from '../models/developer-api-key';
 import {
   deleteUsageForApp,
   deleteUsageForKey,
@@ -9,9 +7,27 @@ import {
   usageSummary,
   type UsageScope,
 } from '../db/telemetry/apiKeyUsageRepository.js';
-import { getDb } from '../db/index.js';
 import { getApiKeyUsageStats } from '../middleware/api-key-rate-limit';
 import { z } from 'zod';
+import { getDb } from '../db/index.js';
+import {
+  countActiveApps,
+  countKeysForApps,
+  deleteKeysForApp,
+  deleteOwnedApp,
+  deleteOwnedKey,
+  findOwnedApp,
+  findOwnedKey,
+  insertApiKey,
+  insertApp,
+  selectAppsForOwner,
+  selectKeysForApp,
+  toDeveloperApiKeyResponse,
+  toDeveloperAppResponse,
+  updateOwnedApp,
+  updateOwnedKey,
+} from '../db/developers/developerRepository.js';
+import { generateDeveloperApiKey, hashDeveloperApiKey } from '../lib/api-key-crypto.js';
 import { log } from '../lib/logger.js';
 
 const router = Router();
@@ -30,8 +46,8 @@ function orgFilter(req: Request): { organizationId: string | null } {
 router.get('/apps', async (req: Request, res: Response) => {
   try {
     const userId = req.user!.id;
-    const apps = await DeveloperApp.find({ oxyUserId: userId, ...orgFilter(req) }).sort({ createdAt: -1 });
-    res.json({ apps });
+    const apps = await selectAppsForOwner(getDb(), userId, orgFilter(req));
+    res.json({ apps: apps.map(toDeveloperAppResponse) });
   } catch (error: unknown) {
     log.developer.error({ err: error }, 'Error fetching developer apps');
     res.status(500).json({ error: 'Failed to fetch apps' });
@@ -42,15 +58,15 @@ router.get('/apps', async (req: Request, res: Response) => {
 router.get('/apps/:id', async (req: Request, res: Response) => {
   try {
     const userId = req.user!.id;
-    const { id } = req.params;
+    const id = req.params.id as string;
 
-    const app = await DeveloperApp.findOne({ _id: id, oxyUserId: userId });
+    const app = await findOwnedApp(getDb(), id, userId);
 
     if (!app) {
       return res.status(404).json({ error: 'App not found' });
     }
 
-    res.json({ app });
+    res.json({ app: toDeveloperAppResponse(app) });
   } catch (error: unknown) {
     log.developer.error({ err: error }, 'Error fetching developer app');
     res.status(500).json({ error: 'Failed to fetch app' });
@@ -71,14 +87,13 @@ router.post('/apps', async (req: Request, res: Response) => {
     const userId = req.user!.id;
     const validatedData = createAppSchema.parse(req.body);
 
-    const app = new DeveloperApp({
+    const app = await insertApp(getDb(), {
       oxyUserId: userId,
       organizationId: req.workspace?.id ?? null,
       ...validatedData,
     });
 
-    await app.save();
-    res.status(201).json({ app });
+    res.status(201).json({ app: toDeveloperAppResponse(app) });
   } catch (error: unknown) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: 'Invalid input', details: error.errors });
@@ -101,21 +116,17 @@ const updateAppSchema = z.object({
 router.patch('/apps/:id', async (req: Request, res: Response) => {
   try {
     const userId = req.user!.id;
-    const { id } = req.params;
+    const id = req.params.id as string;
 
     const validatedData = updateAppSchema.parse(req.body);
 
-    const app = await DeveloperApp.findOneAndUpdate(
-      { _id: id, oxyUserId: userId },
-      { $set: validatedData },
-      { returnDocument: 'after' }
-    );
+    const app = await updateOwnedApp(getDb(), id, userId, validatedData);
 
     if (!app) {
       return res.status(404).json({ error: 'App not found' });
     }
 
-    res.json({ app });
+    res.json({ app: toDeveloperAppResponse(app) });
   } catch (error: unknown) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: 'Invalid input', details: error.errors });
@@ -129,16 +140,19 @@ router.patch('/apps/:id', async (req: Request, res: Response) => {
 router.delete('/apps/:id', async (req: Request, res: Response) => {
   try {
     const userId = req.user!.id;
-    const { id } = req.params;
+    const id = req.params.id as string;
 
-    const app = await DeveloperApp.findOneAndDelete({ _id: id, oxyUserId: userId });
+    const app = await deleteOwnedApp(getDb(), id, userId);
 
     if (!app) {
       return res.status(404).json({ error: 'App not found' });
     }
 
-    // Also delete all API keys associated with this app
-    await DeveloperApiKey.deleteMany({ appId: id, oxyUserId: userId });
+    // Also delete all API keys associated with this app. `developer_api_keys`
+    // cascades on `app_id`, so this is now redundant — kept because it is
+    // idempotent and removing it would leave the route depending silently on a
+    // schema property stated nowhere near it.
+    await deleteKeysForApp(getDb(), id, userId);
 
     // Delete usage data
     await deleteUsageForApp(getDb(), String(id), userId);
@@ -158,17 +172,15 @@ router.delete('/apps/:id', async (req: Request, res: Response) => {
 router.get('/apps/:appId/keys', async (req: Request, res: Response) => {
   try {
     const userId = req.user!.id;
-    const { appId } = req.params;
+    const appId = req.params.appId as string;
 
     // Verify the app belongs to the user
-    const app = await DeveloperApp.findOne({ _id: appId, oxyUserId: userId });
+    const app = await findOwnedApp(getDb(), appId, userId);
     if (!app) {
       return res.status(404).json({ error: 'App not found' });
     }
 
-    const keys = await DeveloperApiKey.find({ appId, oxyUserId: userId })
-      .select('-keyHash') // Don't send the hash
-      .sort({ createdAt: -1 });
+    const keys = (await selectKeysForApp(getDb(), appId, userId)).map(toDeveloperApiKeyResponse);
 
     res.json({ keys });
   } catch (error: unknown) {
@@ -196,10 +208,10 @@ const createApiKeySchema = z.object({
 router.post('/apps/:appId/keys', async (req: Request, res: Response) => {
   try {
     const userId = req.user!.id;
-    const { appId } = req.params;
+    const appId = req.params.appId as string;
 
     // Verify the app belongs to the user
-    const app = await DeveloperApp.findOne({ _id: appId, oxyUserId: userId });
+    const app = await findOwnedApp(getDb(), appId, userId);
     if (!app) {
       return res.status(404).json({ error: 'App not found' });
     }
@@ -207,11 +219,11 @@ router.post('/apps/:appId/keys', async (req: Request, res: Response) => {
     const validatedData = createApiKeySchema.parse(req.body);
 
     // Generate a new API key
-    const plainKey = DeveloperApiKey.generateKey();
-    const keyHash = DeveloperApiKey.hashKey(plainKey);
+    const plainKey = generateDeveloperApiKey();
+    const keyHash = hashDeveloperApiKey(plainKey);
     const keyPrefix = plainKey.substring(0, 16); // "alia_sk_12345678"
 
-    const apiKey = new DeveloperApiKey({
+    const apiKey = await insertApiKey(getDb(), {
       oxyUserId: userId,
       appId,
       name: validatedData.name,
@@ -221,12 +233,9 @@ router.post('/apps/:appId/keys', async (req: Request, res: Response) => {
       expiresAt: validatedData.expiresAt ? new Date(validatedData.expiresAt) : null,
     });
 
-    await apiKey.save();
-
     // Return the plain key only this one time — omit the stored hash
-    const { keyHash: _keyHash, ...keyFields } = apiKey.toObject();
     const keyResponse = {
-      ...keyFields,
+      ...toDeveloperApiKeyResponse(apiKey),
       key: plainKey, // Only returned on creation
     };
 
@@ -271,27 +280,24 @@ const updateApiKeySchema = z.object({
 router.patch('/apps/:appId/keys/:keyId', async (req: Request, res: Response) => {
   try {
     const userId = req.user!.id;
-    const { appId, keyId } = req.params;
+    const appId = req.params.appId as string;
+    const keyId = req.params.keyId as string;
 
     // Verify the app belongs to the user
-    const app = await DeveloperApp.findOne({ _id: appId, oxyUserId: userId });
+    const app = await findOwnedApp(getDb(), appId, userId);
     if (!app) {
       return res.status(404).json({ error: 'App not found' });
     }
 
     const validatedData = updateApiKeySchema.parse(req.body);
 
-    const apiKey = await DeveloperApiKey.findOneAndUpdate(
-      { _id: keyId, appId, oxyUserId: userId },
-      { $set: validatedData },
-      { returnDocument: 'after' }
-    ).select('-keyHash');
+    const updated = await updateOwnedKey(getDb(), keyId, appId, userId, validatedData);
 
-    if (!apiKey) {
+    if (!updated) {
       return res.status(404).json({ error: 'API key not found' });
     }
 
-    res.json({ apiKey });
+    res.json({ apiKey: toDeveloperApiKeyResponse(updated) });
   } catch (error: unknown) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: 'Invalid input', details: error.errors });
@@ -305,15 +311,16 @@ router.patch('/apps/:appId/keys/:keyId', async (req: Request, res: Response) => 
 router.delete('/apps/:appId/keys/:keyId', async (req: Request, res: Response) => {
   try {
     const userId = req.user!.id;
-    const { appId, keyId } = req.params;
+    const appId = req.params.appId as string;
+    const keyId = req.params.keyId as string;
 
     // Verify the app belongs to the user
-    const app = await DeveloperApp.findOne({ _id: appId, oxyUserId: userId });
+    const app = await findOwnedApp(getDb(), appId, userId);
     if (!app) {
       return res.status(404).json({ error: 'App not found' });
     }
 
-    const apiKey = await DeveloperApiKey.findOneAndDelete({ _id: keyId, appId, oxyUserId: userId });
+    const apiKey = await deleteOwnedKey(getDb(), keyId, appId, userId);
 
     if (!apiKey) {
       return res.status(404).json({ error: 'API key not found' });
@@ -333,17 +340,17 @@ router.delete('/apps/:appId/keys/:keyId', async (req: Request, res: Response) =>
 router.get('/apps/:appId/keys/:keyId/rate-limits', async (req: Request, res: Response) => {
   try {
     const userId = req.user!.id;
-    const { appId, keyId } = req.params;
+    const appId = req.params.appId as string;
+    const keyId = req.params.keyId as string;
 
     // Verify the app belongs to the user
-    const app = await DeveloperApp.findOne({ _id: appId, oxyUserId: userId });
+    const app = await findOwnedApp(getDb(), appId, userId);
     if (!app) {
       return res.status(404).json({ error: 'App not found' });
     }
 
     // Get the API key with rate limits
-    const apiKey = await DeveloperApiKey.findOne({ _id: keyId, appId, oxyUserId: userId })
-      .select('rateLimit name keyPrefix');
+    const apiKey = await findOwnedKey(getDb(), keyId, appId, userId);
 
     if (!apiKey) {
       return res.status(404).json({ error: 'API key not found' });
@@ -352,11 +359,18 @@ router.get('/apps/:appId/keys/:keyId/rate-limits', async (req: Request, res: Res
     // Get current usage stats
     const usage = await getApiKeyUsageStats(keyId as string);
 
-    const rateLimit = apiKey.rateLimit || {
-      requestsPerMinute: null,
-      requestsPerDay: 1000,
-      tokensPerMinute: null,
-      tokensPerDay: null,
+    /**
+     * The four flattened columns. NULL means UNLIMITED, never zero — a zero
+     * would read as "no requests permitted", which is the opposite — so the
+     * `?? null` below preserves an explicit null rather than defaulting it away.
+     * Only `requestsPerDay` has a non-null default, at 1000, exactly as the
+     * sub-document had.
+     */
+    const rateLimit = {
+      requestsPerMinute: apiKey.rateLimitRequestsPerMinute,
+      requestsPerDay: apiKey.rateLimitRequestsPerDay,
+      tokensPerMinute: apiKey.rateLimitTokensPerMinute,
+      tokensPerDay: apiKey.rateLimitTokensPerDay,
     };
 
     res.json({
@@ -389,36 +403,35 @@ router.get('/apps/:appId/keys/:keyId/rate-limits', async (req: Request, res: Res
 router.patch('/apps/:appId/keys/:keyId/rate-limits', async (req: Request, res: Response) => {
   try {
     const userId = req.user!.id;
-    const { appId, keyId } = req.params;
+    const appId = req.params.appId as string;
+    const keyId = req.params.keyId as string;
 
     // Verify the app belongs to the user
-    const app = await DeveloperApp.findOne({ _id: appId, oxyUserId: userId });
+    const app = await findOwnedApp(getDb(), appId, userId);
     if (!app) {
       return res.status(404).json({ error: 'App not found' });
     }
 
     const validatedData = rateLimitSchema.parse(req.body);
 
-    // Build update object for only provided fields
+    // Build update object for only provided fields. The `rateLimit`
+    // sub-document is four columns now; an ABSENT field still means "leave it
+    // alone", and NULL still means unlimited rather than zero.
     const updateFields: Record<string, number | null> = {};
     if (validatedData.requestsPerMinute !== undefined) {
-      updateFields['rateLimit.requestsPerMinute'] = validatedData.requestsPerMinute;
+      updateFields.rateLimitRequestsPerMinute = validatedData.requestsPerMinute;
     }
     if (validatedData.requestsPerDay !== undefined) {
-      updateFields['rateLimit.requestsPerDay'] = validatedData.requestsPerDay;
+      updateFields.rateLimitRequestsPerDay = validatedData.requestsPerDay;
     }
     if (validatedData.tokensPerMinute !== undefined) {
-      updateFields['rateLimit.tokensPerMinute'] = validatedData.tokensPerMinute;
+      updateFields.rateLimitTokensPerMinute = validatedData.tokensPerMinute;
     }
     if (validatedData.tokensPerDay !== undefined) {
-      updateFields['rateLimit.tokensPerDay'] = validatedData.tokensPerDay;
+      updateFields.rateLimitTokensPerDay = validatedData.tokensPerDay;
     }
 
-    const apiKey = await DeveloperApiKey.findOneAndUpdate(
-      { _id: keyId, appId, oxyUserId: userId },
-      { $set: updateFields },
-      { returnDocument: 'after' }
-    ).select('-keyHash');
+    const apiKey = await updateOwnedKey(getDb(), keyId, appId, userId, updateFields);
 
     if (!apiKey) {
       return res.status(404).json({ error: 'API key not found' });
@@ -426,7 +439,12 @@ router.patch('/apps/:appId/keys/:keyId/rate-limits', async (req: Request, res: R
 
     res.json({
       message: 'Rate limits updated successfully',
-      rateLimit: apiKey.rateLimit,
+      rateLimit: {
+        requestsPerMinute: apiKey.rateLimitRequestsPerMinute,
+        requestsPerDay: apiKey.rateLimitRequestsPerDay,
+        tokensPerMinute: apiKey.rateLimitTokensPerMinute,
+        tokensPerDay: apiKey.rateLimitTokensPerDay,
+      },
     });
   } catch (error: unknown) {
     if (error instanceof z.ZodError) {
@@ -445,11 +463,11 @@ router.patch('/apps/:appId/keys/:keyId/rate-limits', async (req: Request, res: R
 router.get('/apps/:appId/usage', async (req: Request, res: Response) => {
   try {
     const userId = req.user!.id;
-    const { appId } = req.params;
+    const appId = req.params.appId as string;
     const { period = '7d' } = req.query;
 
     // Verify the app belongs to the user
-    const app = await DeveloperApp.findOne({ _id: appId, oxyUserId: userId });
+    const app = await findOwnedApp(getDb(), appId, userId);
     if (!app) {
       return res.status(404).json({ error: 'App not found' });
     }
@@ -476,7 +494,7 @@ router.get('/apps/:appId/usage', async (req: Request, res: Response) => {
     }
 
     // Get usage statistics
-    const scope: UsageScope = { kind: 'apps', appIds: [String(app._id)] };
+    const scope: UsageScope = { kind: 'apps', appIds: [app.id] };
     const usage = await usageSummary(getDb(), scope, startDate);
 
     // Get usage by day
@@ -500,17 +518,18 @@ router.get('/apps/:appId/usage', async (req: Request, res: Response) => {
 router.get('/apps/:appId/keys/:keyId/usage', async (req: Request, res: Response) => {
   try {
     const userId = req.user!.id;
-    const { appId, keyId } = req.params;
+    const appId = req.params.appId as string;
+    const keyId = req.params.keyId as string;
     const { period = '7d' } = req.query;
 
     // Verify the app belongs to the user
-    const app = await DeveloperApp.findOne({ _id: appId, oxyUserId: userId });
+    const app = await findOwnedApp(getDb(), appId, userId);
     if (!app) {
       return res.status(404).json({ error: 'App not found' });
     }
 
     // Verify the API key belongs to the app
-    const apiKey = await DeveloperApiKey.findOne({ _id: keyId, appId, oxyUserId: userId });
+    const apiKey = await findOwnedKey(getDb(), keyId, appId, userId);
     if (!apiKey) {
       return res.status(404).json({ error: 'API key not found' });
     }
@@ -537,7 +556,7 @@ router.get('/apps/:appId/keys/:keyId/usage', async (req: Request, res: Response)
     }
 
     // Get usage statistics for this specific key
-    const scope: UsageScope = { kind: 'key', apiKeyId: String(apiKey._id) };
+    const scope: UsageScope = { kind: 'key', apiKeyId: apiKey.id };
     const usage = await usageSummary(getDb(), scope, startDate);
 
     // Get usage by day
@@ -559,7 +578,7 @@ router.get('/usage', async (req: Request, res: Response) => {
     const userId = req.user!.id;
     const { period = '7d' } = req.query;
 
-    const appIds = await DeveloperApp.find({ oxyUserId: userId, ...orgFilter(req) }).distinct('_id');
+    const appIds = (await selectAppsForOwner(getDb(), userId, orgFilter(req))).map((a) => a.id);
 
     // Calculate date range
     const now = new Date();
@@ -608,12 +627,13 @@ router.get('/usage', async (req: Request, res: Response) => {
 router.get('/stats', async (req: Request, res: Response) => {
   try {
     const userId = req.user!.id;
-    const appIds = await DeveloperApp.find({ oxyUserId: userId, ...orgFilter(req) }).distinct('_id');
+    const appIds = (await selectAppsForOwner(getDb(), userId, orgFilter(req))).map((a) => a.id);
 
+    const db = getDb();
     const [activeApps, totalKeys, activeKeys] = await Promise.all([
-      DeveloperApp.countDocuments({ _id: { $in: appIds }, isActive: true }),
-      DeveloperApiKey.countDocuments({ appId: { $in: appIds }, oxyUserId: userId }),
-      DeveloperApiKey.countDocuments({ appId: { $in: appIds }, oxyUserId: userId, isActive: true }),
+      countActiveApps(db, appIds),
+      countKeysForApps(db, appIds, userId),
+      countKeysForApps(db, appIds, userId, { isActive: true }),
     ]);
 
     const thirtyDaysAgo = new Date();

@@ -4,9 +4,17 @@
  */
 
 import express, { Request, Response } from 'express';
-import { Plan } from '../models/plan.js';
-import { findExistingAliasModelIds } from '../../../db/providers/aliaModelRepository.js';
+import { isUniqueViolation } from '@oxyhq/db';
 import { getDb } from '../../../db/index.js';
+import { findExistingAliasModelIds } from '../../../db/providers/aliaModelRepository.js';
+import {
+  deletePlanByPlanId,
+  findPlanByPlanId,
+  insertPlan,
+  selectPlans,
+  updatePlanByPlanId,
+  type PlanUpdate,
+} from '../../../db/billing/planRepository.js';
 import { broadcastPlansUpdate } from '../lib/broadcast-helpers.js';
 import { log } from '../../../lib/logger.js';
 
@@ -20,11 +28,10 @@ router.get('/', async (req: Request, res: Response) => {
   try {
     const { product, active } = req.query;
 
-    const query: Record<string, unknown> = {};
-    if (product && typeof product === 'string') query.product = product;
-    if (active !== undefined) query.isActive = active === 'true';
-
-    const plans = await Plan.find(query).sort({ product: 1, sortOrder: 1 }).lean();
+    const plans = await selectPlans(getDb(), {
+      ...(product && typeof product === 'string' ? { product } : {}),
+      ...(active !== undefined ? { isActive: active === 'true' } : {}),
+    });
 
     res.json({
       success: true,
@@ -47,8 +54,8 @@ router.get('/', async (req: Request, res: Response) => {
  */
 router.get('/:planId', async (req: Request, res: Response) => {
   try {
-    const { planId } = req.params;
-    const plan = await Plan.findOne({ planId }).lean();
+    const planId = req.params.planId as string;
+    const plan = await findPlanByPlanId(getDb(), planId);
 
     if (!plan) {
       return res.status(404).json({
@@ -106,7 +113,7 @@ router.post('/', async (req: Request, res: Response) => {
       });
     }
 
-    const existing = await Plan.findOne({ planId: planId.toLowerCase() });
+    const existing = await findPlanByPlanId(getDb(), planId.toLowerCase());
     if (existing) {
       return res.status(409).json({
         success: false,
@@ -144,7 +151,7 @@ router.post('/', async (req: Request, res: Response) => {
     if ('description' in rest) optionalFields.description = rest.description;
     if ('notes' in rest) optionalFields.notes = rest.notes;
 
-    const plan = await Plan.create({
+    const plan = await insertPlan(getDb(), {
       planId: planId.toLowerCase(),
       name,
       product,
@@ -162,6 +169,15 @@ router.post('/', async (req: Request, res: Response) => {
 
     void broadcastPlansUpdate();
   } catch (error: unknown) {
+    // The pre-check above is a read-then-write race; `plans_plan_id_key` is what
+    // actually holds, so a concurrent create still gets the 409 rather than a 500.
+    if (isUniqueViolation(error)) {
+      return res.status(409).json({
+        success: false,
+        error: 'Plan with this ID already exists',
+        code: 'PLAN_ALREADY_EXISTS',
+      });
+    }
     log.providers.error({ err: error }, 'Error creating plan');
     res.status(500).json({
       success: false,
@@ -177,7 +193,7 @@ router.post('/', async (req: Request, res: Response) => {
  */
 router.patch('/:planId', async (req: Request, res: Response) => {
   try {
-    const { planId } = req.params;
+    const planId = req.params.planId as string;
 
     // Explicit whitelist — planId is immutable and excluded on purpose.
     // stripeProductId is excluded: it is server-authoritative, auto-created
@@ -235,11 +251,7 @@ router.patch('/:planId', async (req: Request, res: Response) => {
       }
     }
 
-    const plan = await Plan.findOneAndUpdate(
-      { planId },
-      { $set: updates },
-      { returnDocument: 'after', runValidators: true }
-    );
+    const plan = await updatePlanByPlanId(getDb(), planId, updates as PlanUpdate);
 
     if (!plan) {
       return res.status(404).json({
@@ -271,9 +283,9 @@ router.patch('/:planId', async (req: Request, res: Response) => {
  */
 router.delete('/:planId', async (req: Request, res: Response) => {
   try {
-    const { planId } = req.params;
+    const planId = req.params.planId as string;
 
-    const plan = await Plan.findOneAndDelete({ planId });
+    const plan = await deletePlanByPlanId(getDb(), planId);
 
     if (!plan) {
       return res.status(404).json({

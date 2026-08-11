@@ -1,8 +1,8 @@
 import { tool } from "ai";
 import { z } from "zod";
 import { getMemoryLimit, MEMORY_TYPES } from '../../domain/user-memory.js';
-import { Subscription } from "../../models/subscription.js";
 import { getDb } from '../../db/index.js';
+import { findActiveSubscription } from '../../db/billing/subscriptionRepository.js';
 import {
   countEntries,
   findEntryByTitle,
@@ -73,18 +73,15 @@ export const saveUserMemoryTool = (oxyUserId: string, opts?: { initiatedBy?: Ini
 
       if (!existing) {
         // Check memory limit before adding a new memory
-        const subscription = await Subscription.findOne({
-          oxyUserId,
-          status: { $in: ['active', 'trialing'] }
-        });
+        const subscription = await findActiveSubscription(db, oxyUserId);
 
-        const memoryLimit = getMemoryLimit(subscription?.plan?.name);
+        const memoryLimit = getMemoryLimit(subscription?.planSnapshotName);
 
         // Check if adding new memory would exceed limit (unless unlimited)
         if (memoryLimit !== -1 && memory.memories.length >= memoryLimit) {
           return {
             success: false,
-            message: `Memory limit reached (${memoryLimit} memories). ${subscription?.plan?.name ? 'Upgrade to Business plan for unlimited memories.' : 'Upgrade your plan for more memories.'}`,
+            message: `Memory limit reached (${memoryLimit} memories). ${subscription?.planSnapshotName ? 'Upgrade to Business plan for unlimited memories.' : 'Upgrade your plan for more memories.'}`,
             limitReached: true,
             limit: memoryLimit
           };

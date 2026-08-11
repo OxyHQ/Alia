@@ -1,6 +1,6 @@
 import { creditSpendByDay, creditSpendTotal } from '../db/telemetry/apiKeyUsageRepository.js';
 import { getDb } from '../db/index.js';
-import { UserCredits } from '../models/user-credits.js';
+import { findUserCredits, type UserCreditsRow } from '../db/billing/userCreditsRepository.js';
 
 export interface CreditWarning {
   level: 'warning' | 'critical';
@@ -26,10 +26,18 @@ setInterval(() => {
  * If spending exceeds daily refresh, returns days until paid+free credits deplete.
  * If spending is within daily refresh and no paid credits, returns 999 (no risk).
  */
-function calculateDaysRemaining(todaySpend: number, userCredits: any): number {
-  const freeCredits = userCredits?.credits?.free || 0;
-  const paidCredits = userCredits?.credits?.paid || 0;
-  const dailyRefresh = userCredits?.credits?.dailyRefresh || 0;
+function calculateDaysRemaining(todaySpend: number, userCredits: UserCreditsRow | null): number {
+  /**
+   * `?? 0` rather than `|| 0`, and the balance row rather than a Mongoose
+   * document. The source read `userCredits?.credits?.free`, and after the
+   * sub-document became `credits_*` columns that path is `undefined` — which
+   * `|| 0` turns into a balance of ZERO, silently, in the low-credit warning.
+   * A missed shape read is the quiet half of this port; a missed model call
+   * throws.
+   */
+  const freeCredits = userCredits?.creditsFree ?? 0;
+  const paidCredits = userCredits?.creditsPaid ?? 0;
+  const dailyRefresh = userCredits?.creditsDailyRefresh ?? 0;
   const totalCredits = freeCredits + paidCredits;
 
   if (totalCredits <= 0) return 0;
@@ -70,7 +78,7 @@ export async function detectCreditAnomaly(userId: string): Promise<CreditWarning
     // Today's spend
     creditSpendTotal(getDb(), userId, todayStart),
     // Current credit balance
-    UserCredits.findById(userId),
+    findUserCredits(getDb(), userId),
   ]);
   if (todaySpend === 0) {
     anomalyCache.set(userId, { result: null, expiresAt: Date.now() + ANOMALY_CACHE_TTL_MS });

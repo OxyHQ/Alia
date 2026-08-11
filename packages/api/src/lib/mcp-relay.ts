@@ -8,9 +8,10 @@
 
 import { WebSocketServer, WebSocket } from 'ws';
 import type http from 'http';
-import crypto from 'crypto';
 import { log } from './logger.js';
-import DeveloperApiKey from '../models/developer-api-key.js';
+import { getDb } from '../db/index.js';
+import { findActiveKeyByHash } from '../db/developers/developerRepository.js';
+import { hashDeveloperApiKey } from './api-key-crypto.js';
 
 interface LocalTool {
   name: string;
@@ -244,9 +245,9 @@ async function validateToken(token: string | undefined): Promise<string | null> 
   // API key (alia_sk_*)
   if (token.startsWith('alia_sk_')) {
     try {
-      const keyHash = crypto.createHash('sha256').update(token).digest('hex');
-      const key = await DeveloperApiKey.findOne({ keyHash, isActive: true });
-      return key ? key.oxyUserId.toString() : null;
+      const keyHash = hashDeveloperApiKey(token);
+      const key = await findActiveKeyByHash(getDb(), keyHash);
+      return key ? key.oxyUserId : null;
     } catch {
       return null;
     }

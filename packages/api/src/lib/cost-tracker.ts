@@ -3,10 +3,39 @@
  *
  * Tracks real-time costs per request, aggregates by user/model,
  * and provides analytics for cost optimization.
+ *
+ * ## The store is Postgres; the pricing is code
+ *
+ * Rows live in `cost_entries` and every statement is in
+ * `db/usage/costEntryRepository.ts`. What stays here is the arithmetic that
+ * cannot become SQL: `calculateCost` and `estimateFreeTierSavings` read
+ * `getModelPricing()`, a code table, so the cache-savings and free-tier-savings
+ * figures re-price each row in JavaScript exactly as they did before. The
+ * groupings that ARE expressible — top spenders, per-model efficiency — moved
+ * into the database.
+ *
+ * ## Nothing in this repository calls `recordCost`
+ *
+ * Measured repo-wide: `lib/cost-tracker.ts` has exactly two importers, taking
+ * `calculateCost` and `getGlobalCostStats`. No caller anywhere writes an entry,
+ * so the table is empty and `getGlobalCostStats` returns zeros — before this
+ * change and after it. That is worth knowing precisely because it removes the
+ * usual post-cutover check: a correct read of an empty table and a broken switch
+ * produce the same answer. The real-database suite therefore seeds through
+ * `recordCost` itself and asserts non-zero results, so a zero means filtering
+ * rather than emptiness.
  */
 
-import { connectDB } from './db.js';
-import mongoose from 'mongoose';
+import { getDb } from '../db/index.js';
+import {
+  aggregateModelEfficiency,
+  aggregateTopUsersByCost,
+  countDistinctCostEntryUsers,
+  insertCostEntry,
+  selectCostEntries,
+  selectRecentCostEntries,
+  type CostEntryRow,
+} from '../db/usage/costEntryRepository.js';
 import { getModelPricing } from '../internal/providers/lib/model-capabilities-data.js';
 import { log } from './logger.js';
 
@@ -39,30 +68,28 @@ export interface UserCostSummary {
   freeTierSavings: number;  // Savings from using free providers
 }
 
-// ============== MONGODB SCHEMA ==============
-
-const CostEntrySchema = new mongoose.Schema({
-  userId: { type: String, required: true, index: true },
-  sessionId: { type: String, index: true },
-  aliasModelId: { type: String, required: true, index: true },
-  actualProvider: { type: String, required: true },
-  actualModelId: { type: String, required: true },
-  inputTokens: { type: Number, required: true },
-  outputTokens: { type: Number, required: true },
-  totalTokens: { type: Number, required: true },
-  costUSD: { type: Number, required: true },
-  savedFromCache: { type: Boolean, default: false },
-  timestamp: { type: Date, default: Date.now, index: true }
-}, {
-  timestamps: true
-});
-
-// Compound indexes for efficient queries
-CostEntrySchema.index({ userId: 1, timestamp: -1 });
-CostEntrySchema.index({ aliasModelId: 1, timestamp: -1 });
-CostEntrySchema.index({ userId: 1, aliasModelId: 1 });
-
-const CostEntryModel = mongoose.model('CostEntry', CostEntrySchema);
+/**
+ * A stored row in this module's own shape.
+ *
+ * The column is `cost_usd`, so drizzle hands back `costUsd`; the exported
+ * `CostEntry` has always spelled it `costUSD` and is a published shape. One
+ * rename, in one place, rather than a second spelling leaking outward.
+ */
+function toCostEntry(row: CostEntryRow): CostEntry {
+  return {
+    userId: row.userId,
+    ...(row.sessionId === null ? {} : { sessionId: row.sessionId }),
+    aliasModelId: row.aliasModelId,
+    actualProvider: row.actualProvider,
+    actualModelId: row.actualModelId,
+    inputTokens: row.inputTokens,
+    outputTokens: row.outputTokens,
+    totalTokens: row.totalTokens,
+    costUSD: row.costUsd,
+    savedFromCache: row.savedFromCache,
+    timestamp: row.timestamp,
+  };
+}
 
 // ============== COST CALCULATION ==============
 
@@ -121,19 +148,18 @@ export async function recordCost(
     const totalTokens = inputTokens + outputTokens;
     const costUSD = calculateCost(actualProvider, actualModelId, inputTokens, outputTokens);
 
-    await connectDB();
-    await CostEntryModel.create({
+    await insertCostEntry(getDb(), {
       userId,
-      sessionId,
+      sessionId: sessionId ?? null,
       aliasModelId,
       actualProvider,
       actualModelId,
       inputTokens,
       outputTokens,
       totalTokens,
-      costUSD,
+      costUsd: costUSD,
       savedFromCache,
-      timestamp: new Date()
+      timestamp: new Date(),
     });
 
     log.credits.info({ costUSD, aliasModelId, totalTokens, savedFromCache }, 'Recorded cost');
@@ -153,17 +179,7 @@ export async function getUserCostSummary(
   endDate?: Date
 ): Promise<UserCostSummary> {
   try {
-    await connectDB();
-
-    const query: Record<string, unknown> = { userId };
-    if (startDate || endDate) {
-      const timestamp: { $gte?: Date; $lte?: Date } = {};
-      if (startDate) timestamp.$gte = startDate;
-      if (endDate) timestamp.$lte = endDate;
-      query.timestamp = timestamp;
-    }
-
-    const entries = await CostEntryModel.find(query);
+    const entries = await selectCostEntries(getDb(), { userId, startDate, endDate });
 
     let totalSpent = 0;
     let totalTokens = 0;
@@ -173,12 +189,12 @@ export async function getUserCostSummary(
     const tokensByModel: Record<string, number> = {};
 
     for (const entry of entries) {
-      totalSpent += entry.costUSD;
+      totalSpent += entry.costUsd;
       totalTokens += entry.totalTokens;
 
       // Aggregate by Alia model (not provider!)
       const model = entry.aliasModelId;
-      costByModel[model] = (costByModel[model] || 0) + entry.costUSD;
+      costByModel[model] = (costByModel[model] || 0) + entry.costUsd;
       tokensByModel[model] = (tokensByModel[model] || 0) + entry.totalTokens;
 
       // Track cache savings (cost that would have been incurred)
@@ -193,7 +209,7 @@ export async function getUserCostSummary(
       }
 
       // Track free tier savings
-      if (entry.costUSD === 0) {
+      if (entry.costUsd === 0) {
         freeTierSavings += estimateFreeTierSavings(entry.inputTokens, entry.outputTokens);
       }
     }
@@ -238,6 +254,9 @@ export async function getUserCostSummary(
 
 /**
  * Get global cost statistics (admin)
+ *
+ * `uniqueUsers` is a `count(distinct …)` rather than a `Set` over the fetched
+ * rows: the same answer, computed where the rows already are.
  */
 export async function getGlobalCostStats(
   startDate?: Date,
@@ -254,18 +273,11 @@ export async function getGlobalCostStats(
   freeTierSavingsTotal: number;
 }> {
   try {
-    await connectDB();
-
-    const query: Record<string, unknown> = {};
-    if (startDate || endDate) {
-      const timestamp: { $gte?: Date; $lte?: Date } = {};
-      if (startDate) timestamp.$gte = startDate;
-      if (endDate) timestamp.$lte = endDate;
-      query.timestamp = timestamp;
-    }
-
-    const entries = await CostEntryModel.find(query);
-    const uniqueUsers = new Set(entries.map(e => e.userId)).size;
+    const db = getDb();
+    const [entries, uniqueUsers] = await Promise.all([
+      selectCostEntries(db, { startDate, endDate }),
+      countDistinctCostEntryUsers(db, { startDate, endDate }),
+    ]);
 
     let totalRevenue = 0;
     let totalTokens = 0;
@@ -275,20 +287,20 @@ export async function getGlobalCostStats(
     const costByActualProvider: Record<string, number> = {};
 
     for (const entry of entries) {
-      totalRevenue += entry.costUSD;
+      totalRevenue += entry.costUsd;
       totalTokens += entry.totalTokens;
 
       // By Alia model (user-facing)
-      costByAliasModel[entry.aliasModelId] = (costByAliasModel[entry.aliasModelId] || 0) + entry.costUSD;
+      costByAliasModel[entry.aliasModelId] = (costByAliasModel[entry.aliasModelId] || 0) + entry.costUsd;
 
       // By actual provider (internal analytics only!)
-      costByActualProvider[entry.actualProvider] = (costByActualProvider[entry.actualProvider] || 0) + entry.costUSD;
+      costByActualProvider[entry.actualProvider] = (costByActualProvider[entry.actualProvider] || 0) + entry.costUsd;
 
       if (entry.savedFromCache) {
         cacheSavingsTotal += calculateCost(entry.actualProvider, entry.actualModelId, entry.inputTokens, entry.outputTokens);
       }
 
-      if (entry.costUSD === 0) {
+      if (entry.costUsd === 0) {
         freeTierSavingsTotal += estimateFreeTierSavings(entry.inputTokens, entry.outputTokens);
       }
     }
@@ -332,37 +344,7 @@ export async function getTopUsersByCost(
   endDate?: Date
 ): Promise<Array<{ userId: string; totalSpent: number; totalTokens: number; totalRequests: number }>> {
   try {
-    await connectDB();
-
-    const matchStage: any = {};
-    if (startDate || endDate) {
-      matchStage.timestamp = {};
-      if (startDate) matchStage.timestamp.$gte = startDate;
-      if (endDate) matchStage.timestamp.$lte = endDate;
-    }
-
-    const pipeline = [
-      ...(Object.keys(matchStage).length > 0 ? [{ $match: matchStage }] : []),
-      {
-        $group: {
-          _id: '$userId',
-          totalSpent: { $sum: '$costUSD' },
-          totalTokens: { $sum: '$totalTokens' },
-          totalRequests: { $sum: 1 }
-        }
-      },
-      { $sort: { totalSpent: -1 as const } },
-      { $limit: limit }
-    ];
-
-    const results = await CostEntryModel.aggregate(pipeline);
-
-    return results.map(r => ({
-      userId: r._id,
-      totalSpent: r.totalSpent,
-      totalTokens: r.totalTokens,
-      totalRequests: r.totalRequests
-    }));
+    return await aggregateTopUsersByCost(getDb(), { limit, startDate, endDate });
   } catch (error) {
     log.credits.error({ err: error }, 'Error getting top users');
     return [];
@@ -379,42 +361,7 @@ export async function getModelEfficiency(): Promise<Array<{
   totalCost: number;
 }>> {
   try {
-    await connectDB();
-
-    const pipeline = [
-      {
-        $group: {
-          _id: '$aliasModelId',
-          totalCost: { $sum: '$costUSD' },
-          totalTokens: { $sum: '$totalTokens' },
-          totalRequests: { $sum: 1 }
-        }
-      },
-      {
-        $project: {
-          aliasModelId: '$_id',
-          totalCost: 1,
-          totalRequests: 1,
-          avgCostPer1kTokens: {
-            $cond: [
-              { $gt: ['$totalTokens', 0] },
-              { $multiply: [{ $divide: ['$totalCost', '$totalTokens'] }, 1000] },
-              0
-            ]
-          }
-        }
-      },
-      { $sort: { avgCostPer1kTokens: 1 as const } }
-    ];
-
-    const results = await CostEntryModel.aggregate(pipeline);
-
-    return results.map(r => ({
-      aliasModelId: r.aliasModelId,
-      avgCostPer1kTokens: r.avgCostPer1kTokens,
-      totalRequests: r.totalRequests,
-      totalCost: r.totalCost
-    }));
+    return await aggregateModelEfficiency(getDb());
   } catch (error) {
     log.credits.error({ err: error }, 'Error getting model efficiency');
     return [];
@@ -470,15 +417,12 @@ export async function getUserDashboardData(userId: string): Promise<{
   const [summary, recommendations, recentActivity] = await Promise.all([
     getUserCostSummary(userId, thirtyDaysAgo),
     getCostOptimizationRecommendations(userId),
-    CostEntryModel.find({ userId })
-      .sort({ timestamp: -1 })
-      .limit(10)
-      .lean()
+    selectRecentCostEntries(getDb(), userId, 10),
   ]);
 
   return {
     summary,
     recommendations,
-    recentActivity: recentActivity as CostEntry[]
+    recentActivity: recentActivity.map(toCostEntry),
   };
 }

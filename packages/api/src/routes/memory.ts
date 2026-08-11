@@ -18,7 +18,7 @@ import {
   updateSettings,
   type NewMemoryEntry,
 } from '../db/memory/userMemoryRepository.js';
-import { Subscription } from '../models/subscription.js';
+import { findActiveSubscription } from '../db/billing/subscriptionRepository.js';
 import { authenticateToken } from '../middleware/auth.js';
 import {
   AddMemorySchema,
@@ -205,12 +205,9 @@ router.post('/add', async (req, res) => {
 
     if (!existing) {
       // Get user's subscription to check memory limit
-      const subscription = await Subscription.findOne({
-        oxyUserId: req.user!.id,
-        status: { $in: ['active', 'trialing'] }
-      });
+      const subscription = await findActiveSubscription(getDb(), req.user!.id);
 
-      const memoryLimit = getMemoryLimit(subscription?.plan?.name);
+      const memoryLimit = getMemoryLimit(subscription?.planSnapshotName);
 
       // Check memory limit before adding new (unless unlimited)
       if (memoryLimit !== -1 && userMemory.memories.length >= memoryLimit) {
@@ -218,7 +215,7 @@ router.post('/add', async (req, res) => {
           error: 'Memory limit exceeded',
           limit: memoryLimit,
           current: userMemory.memories.length,
-          suggestion: subscription?.plan?.name
+          suggestion: subscription?.planSnapshotName
             ? 'Upgrade to Business plan for unlimited memories'
             : 'Upgrade to Pro or Business plan for more memories'
         });
@@ -639,12 +636,9 @@ router.post('/import/validate', async (req, res) => {
     const memory = await findUserMemory(getDb(), req.user!.id);
 
     // Get user's subscription to check memory limit
-    const subscription = await Subscription.findOne({
-      oxyUserId: req.user!.id,
-      status: { $in: ['active', 'trialing'] }
-    });
+    const subscription = await findActiveSubscription(getDb(), req.user!.id);
 
-    const memoryLimit = getMemoryLimit(subscription?.plan?.name);
+    const memoryLimit = getMemoryLimit(subscription?.planSnapshotName);
 
     // Analyze what would happen
     const analysis = {
@@ -750,12 +744,9 @@ router.post('/import', async (req, res) => {
     const memory = await getOrCreateUserMemory(req.user!.id);
 
     // Get user's subscription to check memory limit
-    const subscription = await Subscription.findOne({
-      oxyUserId: req.user!.id,
-      status: { $in: ['active', 'trialing'] }
-    });
+    const subscription = await findActiveSubscription(getDb(), req.user!.id);
 
-    const memoryLimit = getMemoryLimit(subscription?.plan?.name);
+    const memoryLimit = getMemoryLimit(subscription?.planSnapshotName);
 
     const stats = {
       imported: 0,

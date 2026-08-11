@@ -29,8 +29,12 @@ vi.mock('../../db/memory/userMemoryRepository.js', () => ({
   updateSettings: vi.fn(),
 }));
 
-vi.mock('../../models/subscription.js', () => ({
-  Subscription: { findOne: vi.fn() },
+// The subscription lookup moved to a Postgres repository; these suites care
+// only that the memory limit falls back when there is no active subscription,
+// so the repository is stubbed rather than the model. `db/index.js` is already
+// mocked above for the memory repository, and the two share it.
+vi.mock('../../db/billing/subscriptionRepository.js', () => ({
+  findActiveSubscription: vi.fn().mockResolvedValue(null),
 }));
 
 vi.mock('../../middleware/auth.js', () => ({

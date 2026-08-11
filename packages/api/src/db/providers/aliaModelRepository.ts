@@ -410,9 +410,10 @@ export function modelConfigKey(provider: string, modelId: string): string {
  *
  * That is not arbitrariness to reproduce, and it is not portable either: the
  * column does not exist, so the faithful version does not compile. The intent is
- * documented at `models/plan.ts:26` ("AliaModel aliasModelIds included in this
- * plan") and confirmed by `seed-plans.ts`, which fills the field with
- * `alia-v1-pro` and friends. This asks about `aliasModelId`.
+ * documented on `plans.modelIds` in `db/schema/billing.ts` ("the
+ * `alia_models.alias_model_id`s this plan includes") and confirmed by
+ * `seed-plans.ts`, which fills the field with `alia-v1-pro` and friends. This
+ * asks about `aliasModelId`.
  *
  * BEHAVIOUR CHANGE, flagged: plans carrying valid alias ids will now be accepted
  * where they were previously rejected.

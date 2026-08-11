@@ -1,10 +1,10 @@
 import { Router, Request, Response } from 'express';
 import { authenticateApiKey } from '../middleware/auth.js';
 import { apiKeyRateLimit } from '../middleware/api-key-rate-limit.js';
-import { Subscription } from '../models/subscription.js';
-import { UserCredits } from '../models/user-credits.js';
-import DeveloperApiKey from '../models/developer-api-key.js';
-import type { IDeveloperApp } from '../models/developer-app.js';
+import { getDb } from '../db/index.js';
+import { findKeyWithApp } from '../db/developers/developerRepository.js';
+import { findActiveSubscriptions } from '../db/billing/subscriptionRepository.js';
+import { getRefreshedUserCredits } from '../lib/user-credits-helpers.js';
 import { log } from '../lib/logger.js';
 
 const router = Router();
@@ -44,36 +44,20 @@ router.get('/user', authenticateApiKey, apiKeyRateLimit, async (req: Request, re
     }
 
     // Get all active subscriptions (user may have both Alia and Codea)
-    const subscriptions = await Subscription.find({
-      oxyUserId: userId,
-      status: { $in: ['active', 'trialing'] }
-    }).sort({ createdAt: -1 });
+    const subscriptions = await findActiveSubscriptions(getDb(), userId);
     const subscription = subscriptions[0] || null;
 
     // Get user credits
-    let userCredits = await UserCredits.findById(userId);
-    if (!userCredits) {
-      // Create default credits for new user
-      userCredits = await UserCredits.create({
-        _id: userId,
-        credits: {
-          free: 300,
-          freeLimit: 300,
-          dailyRefresh: 300,
-          lastRefresh: new Date(),
-          paid: 0,
-        }
-      });
-    }
-
-    // Refresh credits if needed
-    await userCredits.refreshCreditsIfNeeded();
+    const userCredits = await getRefreshedUserCredits(userId);
 
     // Get API key info for username
-    const apiKey = await DeveloperApiKey.findById(req.apiKey?.id).populate<{ appId: IDeveloperApp }>('appId');
+    // `.populate('appId')` becomes a LEFT join: `populate` yielded null for a
+    // missing app rather than dropping the key, and the fallback below reads it
+    // that way. An inner join would turn a missing app into a missing KEY.
+    const apiKey = req.apiKey?.id ? await findKeyWithApp(getDb(), req.apiKey.id) : null;
 
     // Calculate quota information
-    const totalCredits = userCredits.credits.free + userCredits.credits.paid;
+    const totalCredits = userCredits.creditsFree + userCredits.creditsPaid;
     const resetDate = new Date();
     resetDate.setDate(resetDate.getDate() + 1); // Next day for daily refresh
 
@@ -81,7 +65,7 @@ router.get('/user', authenticateApiKey, apiKeyRateLimit, async (req: Request, re
     const planHierarchy = ['alia_free', 'alia_go', 'alia_pro', 'alia_max', 'alia_ultra'];
     let aliaPlan = 'alia_free';
     for (const sub of subscriptions) {
-      const mapped = mapPlanToAliaPlan(sub.plan?.name);
+      const mapped = mapPlanToAliaPlan(sub.planSnapshotName);
       if (planHierarchy.indexOf(mapped) > planHierarchy.indexOf(aliaPlan)) {
         aliaPlan = mapped;
       }
@@ -102,7 +86,7 @@ router.get('/user', authenticateApiKey, apiKeyRateLimit, async (req: Request, re
         chat: {
           entitlement: totalCredits,
           overage_count: 0,
-          overage_permitted: userCredits.credits.paid > 0,
+          overage_permitted: userCredits.creditsPaid > 0,
           percent_remaining: totalCredits > 0 ? 100 : 0,
           remaining: totalCredits,
           unlimited: false,
@@ -110,22 +94,22 @@ router.get('/user', authenticateApiKey, apiKeyRateLimit, async (req: Request, re
         completions: {
           entitlement: totalCredits,
           overage_count: 0,
-          overage_permitted: userCredits.credits.paid > 0,
+          overage_permitted: userCredits.creditsPaid > 0,
           percent_remaining: totalCredits > 0 ? 100 : 0,
           remaining: totalCredits,
           unlimited: false,
         },
         premium_interactions: {
-          entitlement: userCredits.credits.paid,
+          entitlement: userCredits.creditsPaid,
           overage_count: 0,
           overage_permitted: false,
-          percent_remaining: userCredits.credits.paid > 0 ? 100 : 0,
-          remaining: userCredits.credits.paid,
+          percent_remaining: userCredits.creditsPaid > 0 ? 100 : 0,
+          remaining: userCredits.creditsPaid,
           unlimited: false,
         },
       },
 
-      username: apiKey?.appId?.name || 'Alia User',
+      username: apiKey?.app?.name || 'Alia User',
       email: undefined,
       name: 'Alia User',
     };
@@ -151,29 +135,15 @@ router.get('/token', authenticateApiKey, apiKeyRateLimit, async (req: Request, r
     }
 
     // Get user credits for token information
-    let userCredits = await UserCredits.findById(userId);
-    if (!userCredits) {
-      userCredits = await UserCredits.create({
-        _id: userId,
-        credits: {
-          free: 300,
-          freeLimit: 300,
-          dailyRefresh: 300,
-          lastRefresh: new Date(),
-          paid: 0,
-        }
-      });
-    }
-
-    await userCredits.refreshCreditsIfNeeded();
+    const userCredits = await getRefreshedUserCredits(userId);
 
     res.json({
       valid: true,
       user_id: userId,
       credits: {
-        free: userCredits.credits.free,
-        paid: userCredits.credits.paid,
-        total: userCredits.credits.free + userCredits.credits.paid,
+        free: userCredits.creditsFree,
+        paid: userCredits.creditsPaid,
+        total: userCredits.creditsFree + userCredits.creditsPaid,
       },
       features: {
         chat: true,
@@ -235,32 +205,21 @@ router.get('/me', authenticateApiKey, apiKeyRateLimit, async (req: Request, res:
     }
 
     // Get user credits
-    let userCredits = await UserCredits.findById(userId);
-    if (!userCredits) {
-      userCredits = await UserCredits.create({
-        _id: userId,
-        credits: {
-          free: 300,
-          freeLimit: 300,
-          dailyRefresh: 300,
-          lastRefresh: new Date(),
-          paid: 0,
-        }
-      });
-    }
-
-    await userCredits.refreshCreditsIfNeeded();
+    const userCredits = await getRefreshedUserCredits(userId);
 
     // Get API key info
-    const apiKey = await DeveloperApiKey.findById(req.apiKey?.id).populate<{ appId: IDeveloperApp }>('appId');
+    // `.populate('appId')` becomes a LEFT join: `populate` yielded null for a
+    // missing app rather than dropping the key, and the fallback below reads it
+    // that way. An inner join would turn a missing app into a missing KEY.
+    const apiKey = req.apiKey?.id ? await findKeyWithApp(getDb(), req.apiKey.id) : null;
 
     res.json({
       id: userId,
-      username: apiKey?.appId?.name || 'Alia User',
+      username: apiKey?.app?.name || 'Alia User',
       credits: {
-        free: userCredits.credits.free,
-        paid: userCredits.credits.paid,
-        total: userCredits.credits.free + userCredits.credits.paid,
+        free: userCredits.creditsFree,
+        paid: userCredits.creditsPaid,
+        total: userCredits.creditsFree + userCredits.creditsPaid,
       }
     });
   } catch (error: unknown) {

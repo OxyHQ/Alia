@@ -4,9 +4,18 @@
  */
 
 import express, { Request, Response } from 'express';
-import { Transaction } from '../../../models/transaction.js';
-import { Subscription } from '../../../models/subscription.js';
-import { UserCredits } from '../../../models/user-credits.js';
+import { getDb } from '../../../db/index.js';
+import {
+  countTransactions,
+  selectTransactions,
+  selectTransactionsForUser,
+} from '../../../db/billing/transactionRepository.js';
+import {
+  countSubscriptions,
+  selectSubscriptions,
+  selectSubscriptionsForUser,
+} from '../../../db/billing/subscriptionRepository.js';
+import { findUserCredits } from '../../../db/billing/userCreditsRepository.js';
 import { log } from '../../../lib/logger.js';
 
 const router = express.Router();
@@ -19,16 +28,18 @@ router.get('/transactions', async (req: Request, res: Response) => {
   try {
     const { status, type, limit: limitStr, offset: offsetStr } = req.query;
 
-    const query: Record<string, unknown> = {};
-    if (status && typeof status === 'string') query.status = status;
-    if (type && typeof type === 'string') query.type = type;
+    const filter = {
+      ...(status && typeof status === 'string' ? { status } : {}),
+      ...(type && typeof type === 'string' ? { type } : {}),
+    };
 
     const limit = Math.min(parseInt(limitStr as string) || 50, 200);
     const offset = parseInt(offsetStr as string) || 0;
 
+    const db = getDb();
     const [transactions, total] = await Promise.all([
-      Transaction.find(query).sort({ createdAt: -1 }).skip(offset).limit(limit).lean(),
-      Transaction.countDocuments(query),
+      selectTransactions(db, filter, { limit, offset }),
+      countTransactions(db, filter),
     ]);
 
     res.json({
@@ -55,16 +66,19 @@ router.get('/subscriptions', async (req: Request, res: Response) => {
   try {
     const { status, product, limit: limitStr, offset: offsetStr } = req.query;
 
-    const query: Record<string, unknown> = {};
-    if (status && typeof status === 'string') query.status = status;
-    if (product && typeof product === 'string') query['plan.product'] = product;
+    const filter = {
+      ...(status && typeof status === 'string' ? { status } : {}),
+      // Mongo's `'plan.product'` — the SNAPSHOT of what was sold.
+      ...(product && typeof product === 'string' ? { product } : {}),
+    };
 
     const limit = Math.min(parseInt(limitStr as string) || 50, 200);
     const offset = parseInt(offsetStr as string) || 0;
 
+    const db = getDb();
     const [subscriptions, total] = await Promise.all([
-      Subscription.find(query).sort({ createdAt: -1 }).skip(offset).limit(limit).lean(),
-      Subscription.countDocuments(query),
+      selectSubscriptions(db, filter, { limit, offset }),
+      countSubscriptions(db, filter),
     ]);
 
     res.json({
@@ -89,12 +103,13 @@ router.get('/subscriptions', async (req: Request, res: Response) => {
  */
 router.get('/user/:userId', async (req: Request, res: Response) => {
   try {
-    const { userId } = req.params;
+    const userId = req.params.userId as string;
 
+    const db = getDb();
     const [credits, subscriptions, transactions] = await Promise.all([
-      UserCredits.findById(userId).lean(),
-      Subscription.find({ oxyUserId: userId }).sort({ createdAt: -1 }).lean(),
-      Transaction.find({ oxyUserId: userId }).sort({ createdAt: -1 }).limit(50).lean(),
+      findUserCredits(db, userId),
+      selectSubscriptionsForUser(db, userId),
+      selectTransactionsForUser(db, userId, { limit: 50 }),
     ]);
 
     res.json({

@@ -84,19 +84,40 @@ export const costEntries = pgTable(
  * CHECK would fail on the first unexpected value — in a hook that runs on every
  * completion. Same reasoning as `auth_health_metrics.method`; revisit after the
  * backfill audits the actual values.
+ *
+ * ## `model` and `alia_model_id` are two DIFFERENT models, and dropping the
+ * second empties a route
+ *
+ * `analytics-hook.ts` writes `model: ctx.modelUsed` — the PROVIDER's model id —
+ * and `alia_model_id: ctx.model`, the Alia-branded alias. `GET /analytics/models`
+ * groups by `coalesce(alia_model_id, model)` and resolves each group through
+ * `getAliaModel()`, which is keyed by the ALIAS (`alia-v1-pro`) and returns null
+ * for a provider id. Per the model-abstraction rule an entry that cannot resolve
+ * is SKIPPED — so a table without this column makes that route return an empty
+ * list for every user, silently, looking exactly like "no usage yet".
+ *
+ * The column was absent when the table landed. `conversation_id` and `skill_id`
+ * were absent with it: nothing reads them today, but the hook writes both, and a
+ * write with nowhere to go is data thrown away rather than a column nobody
+ * needs. All three are nullable because all three are optional in the source.
  */
 export const chatAnalytics = pgTable(
   'chat_analytics',
   {
     id: generatedId(),
     oxyUserId: text().notNull(),
+    conversationId: text(),
+    /** The PROVIDER's model id. Internal — never a user-facing response. */
     model: text().notNull(),
+    /** The Alia-branded alias. What `getAliaModel()` resolves. */
+    aliaModelId: text(),
     provider: text().notNull(),
     promptTokens: integer().notNull().default(0),
     completionTokens: integer().notNull().default(0),
     totalTokens: integer().notNull().default(0),
     latencyMs: integer().notNull().default(0),
     platform: text().notNull().default('app'),
+    skillId: text(),
     createdAt: createdAt(),
   },
   (t) => [index('chat_analytics_oxy_user_created_at_idx').on(t.oxyUserId, t.createdAt.desc())],

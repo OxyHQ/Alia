@@ -7,11 +7,11 @@
  * PlanFeature mappings are always overwritten from code (source of truth).
  */
 
-import { Feature } from '../models/feature.js';
-import { PlanFeature } from '../models/plan-feature.js';
-import { connectDB } from './db.js';
+import { isUniqueViolation } from '@oxyhq/db';
+import { getDb } from '../../../db/index.js';
+import { seedFeature } from '../../../db/billing/featureRepository.js';
+import { seedPlanFeatures as insertSeedPlanFeatures } from '../../../db/billing/planFeatureRepository.js';
 import { log } from '../../../lib/logger.js';
-import { isDuplicateKeyError } from '../../../lib/errors/index.js';
 
 // ─── Feature seed data ──────────────────────────────────────
 
@@ -239,36 +239,32 @@ const PLAN_FEATURES: PlanFeatureSeed[] = [
 // ─── Seed functions ──────────────────────────────────────────
 
 export async function seedFeatures(): Promise<{ seeded: number; skipped: number }> {
-  await connectDB();
+  const db = getDb();
 
   let seeded = 0;
   let skipped = 0;
 
   for (const f of FEATURES) {
     try {
-      const result = await Feature.updateOne(
-        { featureId: f.featureId },
-        {
-          $setOnInsert: {
-            label: f.label,
-            description: f.description,
-            category: f.category,
-            featureType: f.featureType,
-            sortOrder: f.sortOrder,
-            isVisibleOnPricing: f.isVisibleOnPricing,
-            isActive: true,
-          },
-        },
-        { upsert: true }
-      );
+      // `$setOnInsert`-only: an admin's later label edit is never overwritten.
+      const result = await seedFeature(db, {
+        featureId: f.featureId,
+        label: f.label,
+        description: f.description,
+        category: f.category,
+        featureType: f.featureType,
+        sortOrder: f.sortOrder,
+        isVisibleOnPricing: f.isVisibleOnPricing,
+        isActive: true,
+      });
 
-      if (result.upsertedCount > 0) {
+      if (result.inserted) {
         seeded++;
       } else {
         skipped++;
       }
     } catch (error: unknown) {
-      if (isDuplicateKeyError(error)) {
+      if (isUniqueViolation(error)) {
         skipped++;
       } else {
         log.seed.error({ err: error, featureId: f.featureId }, 'Error seeding feature');
@@ -281,25 +277,26 @@ export async function seedFeatures(): Promise<{ seeded: number; skipped: number 
 }
 
 export async function seedPlanFeatures(): Promise<{ upserted: number }> {
-  await connectDB();
-
-  const ops = PLAN_FEATURES.map((pf) => ({
-    updateOne: {
-      filter: { planId: pf.planId, featureId: pf.featureId },
-      update: {
-        $setOnInsert: {
-          enabled: pf.enabled,
-          limitValue: pf.limitValue,
-          displayLabel: pf.displayLabel,
-          displayDescription: pf.displayDescription,
-        },
-      },
-      upsert: true,
-    },
-  }));
-
-  const result = await PlanFeature.bulkWrite(ops);
-  const upserted = result.upsertedCount;
+  /**
+   * `$setOnInsert`-only, so `ON CONFLICT DO NOTHING` says it exactly and the
+   * returned row count IS `upsertedCount` — an existing mapping is left alone
+   * rather than reset from code.
+   *
+   * The mappings reference plans and features by their business keys, and both
+   * are foreign keys now, so this must run AFTER `seedPlans` and `seedFeatures`.
+   * It already did; the ordering is simply enforced rather than assumed.
+   */
+  const { upserted } = await insertSeedPlanFeatures(
+    getDb(),
+    PLAN_FEATURES.map((pf) => ({
+      planId: pf.planId,
+      featureId: pf.featureId,
+      enabled: pf.enabled,
+      limitValue: pf.limitValue,
+      displayLabel: pf.displayLabel,
+      displayDescription: pf.displayDescription,
+    })),
+  );
   log.seed.info({ upserted }, 'PlanFeature seeding complete');
   return { upserted };
 }
