@@ -1,7 +1,8 @@
 import { Router } from 'express';
 import { authenticateToken } from '../middleware/auth.js';
 import { getOrCreateUserCredits } from '../lib/user-credits-helpers.js';
-import ApiKeyUsage from '../models/api-key-usage.js';
+import { creditSpendByDay } from '../db/telemetry/apiKeyUsageRepository.js';
+import { getDb } from '../db/index.js';
 import { log } from '../lib/logger.js';
 import { sanitizeMessage } from '../lib/errors/sanitize.js';
 
@@ -38,44 +39,16 @@ router.get('/usage', authenticateToken, async (req, res) => {
     since.setDate(since.getDate() - days);
     since.setHours(0, 0, 0, 0);
 
-    const usage = await ApiKeyUsage.aggregate([
-      {
-        $match: {
-          oxyUserId: req.user!.id,
-          timestamp: { $gte: since },
-          $or: [
-            { creditsUsed: { $gt: 0 } },
-            { tokensUsed: { $gt: 0 } },
-          ],
-        },
-      },
-      {
-        $group: {
-          _id: {
-            $dateToString: { format: '%Y-%m-%d', date: '$timestamp' },
-          },
-          used: {
-            $sum: {
-              $cond: {
-                if: { $gt: ['$creditsUsed', 0] },
-                then: '$creditsUsed',
-                else: { $max: [{ $ceil: { $divide: ['$tokensUsed', 1000] } }, 1] },
-              },
-            },
-          },
-        },
-      },
-      { $sort: { _id: 1 } },
-    ]);
+    const usage = await creditSpendByDay(getDb(), req.user!.id, since);
 
     // Build a complete array with all days (fill gaps with 0)
     const result: { date: string; used: number }[] = [];
-    const usageMap = new Map(usage.map((u: any) => [u._id, u.used]));
+    const usageMap = new Map(usage.map((u) => [u._id, u.used]));
     for (let i = 0; i < days; i++) {
       const d = new Date(since);
       d.setDate(d.getDate() + i);
       const key = d.toISOString().slice(0, 10);
-      result.push({ date: key, used: (usageMap.get(key) as number) || 0 });
+      result.push({ date: key, used: usageMap.get(key) ?? 0 });
     }
 
     res.json(result);

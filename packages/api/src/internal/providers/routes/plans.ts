@@ -5,7 +5,8 @@
 
 import express, { Request, Response } from 'express';
 import { Plan } from '../models/plan.js';
-import { AliaModel } from '../models/alia-model.js';
+import { findExistingAliasModelIds } from '../../../db/providers/aliaModelRepository.js';
+import { getDb } from '../../../db/index.js';
 import { broadcastPlansUpdate } from '../lib/broadcast-helpers.js';
 import { log } from '../../../lib/logger.js';
 
@@ -115,8 +116,7 @@ router.post('/', async (req: Request, res: Response) => {
     }
 
     if (rest.modelIds && Array.isArray(rest.modelIds) && rest.modelIds.length > 0) {
-      const validModels = await AliaModel.find({ modelId: { $in: rest.modelIds } }).select('modelId').lean();
-      const validIds = new Set(validModels.map((m: any) => m.modelId));
+      const validIds = await findExistingAliasModelIds(getDb(), rest.modelIds);
       const invalid = rest.modelIds.filter((id: string) => !validIds.has(id));
       if (invalid.length > 0) {
         return res.status(400).json({
@@ -224,8 +224,7 @@ router.patch('/:planId', async (req: Request, res: Response) => {
 
     const updateModelIds = updates.modelIds;
     if (Array.isArray(updateModelIds) && updateModelIds.length > 0) {
-      const validModels = await AliaModel.find({ modelId: { $in: updateModelIds } }).select('modelId').lean();
-      const validIds = new Set(validModels.map((m: any) => m.modelId));
+      const validIds = await findExistingAliasModelIds(getDb(), updateModelIds);
       const invalid = updateModelIds.filter((id: string) => !validIds.has(id));
       if (invalid.length > 0) {
         return res.status(400).json({

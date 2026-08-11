@@ -19,10 +19,18 @@ vi.mock('../../models/developer-app.js', () => ({
   },
 }));
 
-vi.mock('../../models/api-key-usage.js', () => ({
-  default: {
-    create: vi.fn(),
-  },
+/**
+ * Usage recording moved to Postgres. Both halves are mocked: without the
+ * `getDb` stub the middleware would reach a real connection, throw, and be
+ * swallowed by its own catch — so the test would still pass while exercising
+ * the error path instead of the one it means to.
+ */
+vi.mock('../../db/telemetry/apiKeyUsageRepository.js', () => ({
+  recordApiKeyUsage: vi.fn(),
+}));
+
+vi.mock('../../db/index.js', () => ({
+  getDb: vi.fn(() => ({})),
 }));
 
 vi.mock('../../lib/logger.js', () => ({
