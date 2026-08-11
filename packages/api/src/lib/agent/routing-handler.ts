@@ -10,7 +10,8 @@ import type { IAgent } from '../../models/agent.js';
 import type { ITrigger } from '../../models/trigger.js';
 import { Agent } from '../../models/agent.js';
 import { AgentSession } from '../../models/agent-session.js';
-import { RoutingLog } from '../../models/routing-log.js';
+import { createRoutingLog } from '../../db/telemetry/routingLogRepository.js';
+import { getDb } from '../../db/index.js';
 import { enqueueAgentSession } from '../task-queue.js';
 import { reserveCredits } from '../credits-manager.js';
 import { sendNotification } from '../notification-service.js';
@@ -84,11 +85,13 @@ export async function handleRoutingDecision(
 
   const userId = trigger.oxyUserId.toString();
 
-  // Create routing log entry
-  const routingLog = await RoutingLog.create({
-    agentId: agent._id,
-    oxyUserId: trigger.oxyUserId,
-    triggerId: trigger._id,
+  // Create routing log entry. The ids are stringified because the Postgres
+  // columns are `text` — Oxy owns identity and an agent id is only ever compared
+  // for equality, so there is nothing an ObjectId column would buy.
+  const routingLog = await createRoutingLog(getDb(), {
+    agentId: String(agent._id),
+    oxyUserId: userId,
+    triggerId: String(trigger._id),
     inboundChannel: trigger.type === 'webhook' ? 'webhook' : trigger.type,
     inboundSummary: decision.summary.slice(0, 500),
     classification: {
@@ -107,7 +110,7 @@ export async function handleRoutingDecision(
       category: decision.category,
       priority: decision.priority,
       routedTo: decision.assignTo,
-      routingLogId: routingLog._id?.toString(),
+      routingLogId: routingLog._id,
     },
     'Task routed',
   );
@@ -156,7 +159,7 @@ export async function handleRoutingDecision(
           body: `Routed by ${agent.name}\n\nPriority: ${decision.priority}\n${decision.reasoning}`,
           channels: ['in_app'],
           data: {
-            routingLogId: routingLog._id?.toString(),
+            routingLogId: routingLog._id,
             assignTo: decision.assignTo,
           },
         }).catch(err => {

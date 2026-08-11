@@ -9,7 +9,9 @@ import {
 } from '@oxyhq/core/server';
 import DeveloperApiKey from '../models/developer-api-key.js';
 import DeveloperApp from '../models/developer-app.js';
-import ApiKeyUsage from '../models/api-key-usage.js';
+import { recordApiKeyUsage } from '../db/telemetry/apiKeyUsageRepository.js';
+import { API_KEY_USAGE_METHODS } from '../domain/api-key-usage.js';
+import { getDb } from '../db/index.js';
 import { log } from '../lib/logger.js';
 import { getConfiguredChannels } from '../lib/channels/registry.js';
 
@@ -152,15 +154,20 @@ export async function authenticateApiKey(
     res.on('finish', async () => {
       if (req._usageRecorded) return;
       const responseTime = Date.now() - startTime;
+      // The column accepts the five verbs this API exposes and a CHECK enforces
+      // it, so anything else is recognised here rather than failing in the
+      // driver. The Mongoose enum rejected the same set.
+      const method = API_KEY_USAGE_METHODS.find((known) => known === req.method);
+      if (!method) return;
       try {
-        await ApiKeyUsage.create({
-          apiKeyId: developerApiKey._id,
-          oxyUserId: developerApiKey.oxyUserId,
-          appId: developerApiKey.appId,
+        await recordApiKeyUsage(getDb(), {
+          apiKeyId: String(developerApiKey._id),
+          oxyUserId: developerApiKey.oxyUserId.toString(),
+          appId: developerApiKey.appId ? String(developerApiKey.appId) : null,
           endpoint: req.path,
-          method: req.method,
+          method,
           statusCode: res.statusCode,
-          responseTime,
+          responseTimeMs: responseTime,
           userAgent: req.headers['user-agent'],
           authType: 'api_key',
         });

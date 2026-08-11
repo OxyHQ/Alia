@@ -228,20 +228,19 @@ router.get('/:id/routing-logs', authenticateToken, async (req: Request, res: Res
       return res.status(403).json({ error: 'Access denied' });
     }
 
-    const { RoutingLog } = await import('../../models/routing-log.js');
+    const { listRoutingLogsForAgent } = await import('../../db/telemetry/routingLogRepository.js');
+    const { getDb } = await import('../../db/index.js');
 
     const { page = '1', limit = '20' } = req.query;
     const pageNum = Math.max(1, parseInt(page as string, 10) || 1);
     const limitNum = Math.min(50, Math.max(1, parseInt(limit as string, 10) || 20));
 
-    const [logs, total] = await Promise.all([
-      RoutingLog.find({ agentId: req.params.id })
-        .sort({ createdAt: -1 })
-        .skip((pageNum - 1) * limitNum)
-        .limit(limitNum)
-        .lean(),
-      RoutingLog.countDocuments({ agentId: req.params.id }),
-    ]);
+    const { logs, total } = await listRoutingLogsForAgent(
+      getDb(),
+      String(req.params.id),
+      (pageNum - 1) * limitNum,
+      limitNum,
+    );
 
     res.json({ logs, total, page: pageNum, limit: limitNum });
   } catch (error: unknown) {
@@ -262,28 +261,15 @@ router.get('/:id/routing-stats', authenticateToken, async (req: Request, res: Re
       return res.status(404).json({ error: 'Agent not found' });
     }
 
-    const { RoutingLog } = await import('../../models/routing-log.js');
-    const agentObjectId = agent._id;
+    const { routingStatsForAgent } = await import('../../db/telemetry/routingLogRepository.js');
+    const { getDb } = await import('../../db/index.js');
 
-    const [result] = await RoutingLog.aggregate([
-      { $match: { agentId: agentObjectId } },
-      { $facet: {
-        byCategory: [
-          { $group: { _id: '$classification.category', count: { $sum: 1 } } },
-          { $sort: { count: -1 } },
-        ],
-        byPriority: [
-          { $group: { _id: '$classification.priority', count: { $sum: 1 } } },
-        ],
-        byStatus: [
-          { $group: { _id: '$status', count: { $sum: 1 } } },
-        ],
-        total: [{ $count: 'count' }],
-      }},
-    ]);
+    // `agent._id` and `req.params.id` were two spellings of one id — the former
+    // an ObjectId an aggregation pipeline would not cast, the latter a string
+    // Mongoose did. Against a `text` column they are the same value.
+    const stats = await routingStatsForAgent(getDb(), String(agent._id));
 
-    const { byCategory = [], byPriority = [], byStatus = [], total: totalArr = [] } = result || {};
-    res.json({ byCategory, byPriority, byStatus, total: totalArr[0]?.count || 0 });
+    res.json(stats);
   } catch (error: unknown) {
     log.agents.error({ err: error }, 'Error getting routing stats');
     res.status(500).json({ error: 'Failed to get routing stats' });

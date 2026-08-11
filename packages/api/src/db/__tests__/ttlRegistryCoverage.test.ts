@@ -241,6 +241,60 @@ const RETIRED_MONGO_TTLS: readonly RetiredMongoTtl[] = [
     partialFilterExpression: { status: 'dismissed' },
     retiredBy: 'S5 notifications — notifications',
   },
+  {
+    model: 'AuthHealthMetric',
+    collection: 'authhealthmetrics',
+    // `AuthHealthMetricSchema.index({ createdAt: 1 }, { expireAfterSeconds: 7 *
+    // 24 * 60 * 60 })`, read off `src/lib/auth-health.ts:53` before the model —
+    // which was declared INLINE in that module, beside the functions using it —
+    // was deleted.
+    path: 'createdAt',
+    expireAfterSeconds: 7 * 24 * 60 * 60,
+    retiredBy: 'S2 providers + telemetry — auth_health_metrics',
+  },
+  {
+    model: 'FallbackEvent',
+    collection: 'fallbackevents',
+    // `FallbackEventSchema.index({ timestamp: 1 }, { expireAfterSeconds: 30 *
+    // 24 * 60 * 60 })`, read off
+    // `src/internal/providers/models/fallback-event.ts:46` before it was
+    // deleted. Note the path is `timestamp`, NOT `createdAt` — the model set its
+    // own event time and the sweep must keep measuring from that column.
+    path: 'timestamp',
+    expireAfterSeconds: 30 * 24 * 60 * 60,
+    retiredBy: 'S2 providers + telemetry — fallback_events',
+  },
+  {
+    model: 'RoutingLog',
+    collection: 'routinglogs',
+    // `RoutingLogSchema.index({ createdAt: 1 }, { expireAfterSeconds: 90 * 24 *
+    // 60 * 60 })`, read off `src/models/routing-log.ts:56` before it was
+    // deleted.
+    path: 'createdAt',
+    expireAfterSeconds: 90 * 24 * 60 * 60,
+    retiredBy: 'S2 providers + telemetry — routing_logs',
+  },
+  {
+    model: 'ApiKeyUsage',
+    collection: 'apikeyusages',
+    // `ApiKeyUsageSchema.index({ timestamp: 1 }, { expireAfterSeconds: 90 * 24 *
+    // 60 * 60 })`, read off `src/models/api-key-usage.ts:88` before it was
+    // deleted.
+    path: 'timestamp',
+    expireAfterSeconds: 90 * 24 * 60 * 60,
+    retiredBy: 'S2 providers + telemetry — api_key_usage',
+  },
+  {
+    model: 'ApiUsage',
+    collection: 'apiusages',
+    // `ApiUsageSchema.index({ timestamp: 1 }, { expireAfterSeconds: 48 * 60 *
+    // 60 })`, read off `src/internal/providers/models/api-usage.ts:25` before it
+    // was deleted. 48 hours — by far the shortest retention in the service, and
+    // the one most obviously wrong to carry across as a default.
+    path: 'timestamp',
+    expireAfterSeconds: 48 * 60 * 60,
+    retiredBy: 'S2 providers + telemetry — api_usage',
+  },
 ];
 
 const walked = declaredMongoTtls();
@@ -274,13 +328,14 @@ describe('every ported TTL index has a matching expiry-sweep target', () => {
      * `RETIRED_MONGO_TTLS` in the same commit — which is what keeps the two
      * halves adding up to 13.
      *
-     * 11 after S1 retired two; 9 once S5 retires `AudioJob` and `Notification`.
+     * 11 after S1 retired two; 9 once S5 retired `AudioJob` and `Notification`;
+     * 8 once S2 retired `AuthHealthMetric`, 7 once it retired `FallbackEvent`, 6 once it retired `RoutingLog`, 5 once it retired `ApiKeyUsage`, 4 once it retired `ApiUsage`.
      * Lowering it is legitimate ONLY in the same change that adds the matching
      * retired entries, and the exact-sum assertion below is what makes that
      * mechanical rather than a judgement call — the two numbers cannot drift
      * apart without one of them going red.
      */
-    expect(walked.length).toBeGreaterThanOrEqual(9);
+    expect(walked.length).toBeGreaterThanOrEqual(4);
     expect(walked.length + RETIRED_MONGO_TTLS.length).toBe(13);
   });
 

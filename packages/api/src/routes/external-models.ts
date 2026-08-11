@@ -1,5 +1,10 @@
 import { Router, Request, Response } from 'express';
-import { ExternalModel } from '../models/external-model.js';
+import {
+  findExternalModel,
+  listExternalModels,
+  listExternalOrganizations,
+} from '../db/providers/externalModelRepository.js';
+import { getDb } from '../db/index.js';
 import { log } from '../lib/logger.js';
 
 const router = Router();
@@ -12,26 +17,17 @@ router.get('/', async (req: Request, res: Response) => {
   try {
     const { organization, multimodal, has_benchmarks, sort } = req.query;
 
-    const filter: Record<string, any> = {};
-    if (organization) filter.organizationId = organization;
-    if (multimodal === 'true') filter.multimodal = true;
-    if (has_benchmarks === 'true') {
-      filter.$or = [
-        { 'benchmarks.gpqa': { $ne: null } },
-        { 'benchmarks.sweBenchVerified': { $ne: null } },
-        { 'benchmarks.mmmu': { $ne: null } },
-        { 'benchmarks.mmmlu': { $ne: null } },
-      ];
-    }
+    const sortKey =
+      sort === 'gpqa' || sort === 'swe' || sort === 'mmmlu' || sort === 'release' || sort === 'price'
+        ? sort
+        : 'default';
 
-    let sortOption: Record<string, 1 | -1> = { organizationId: 1, name: 1 };
-    if (sort === 'gpqa') sortOption = { 'benchmarks.gpqa': -1 };
-    else if (sort === 'swe') sortOption = { 'benchmarks.sweBenchVerified': -1 };
-    else if (sort === 'mmmlu') sortOption = { 'benchmarks.mmmlu': -1 };
-    else if (sort === 'release') sortOption = { releaseDate: -1 };
-    else if (sort === 'price') sortOption = { inputPrice: 1 };
-
-    const models = await ExternalModel.find(filter).sort(sortOption).lean();
+    const models = await listExternalModels(getDb(), {
+      organizationId: typeof organization === 'string' ? organization : undefined,
+      multimodal: multimodal === 'true' ? true : undefined,
+      hasBenchmarks: has_benchmarks === 'true' ? true : undefined,
+      sort: sortKey,
+    });
 
     res.json({
       models,
@@ -50,17 +46,7 @@ router.get('/', async (req: Request, res: Response) => {
  */
 router.get('/organizations', async (_req: Request, res: Response) => {
   try {
-    const orgs = await ExternalModel.aggregate([
-      {
-        $group: {
-          _id: '$organizationId',
-          name: { $first: '$organization' },
-          country: { $first: '$organizationCountry' },
-          modelCount: { $sum: 1 },
-        },
-      },
-      { $sort: { modelCount: -1 } },
-    ]);
+    const orgs = await listExternalOrganizations(getDb());
 
     res.json({ organizations: orgs });
   } catch (error: unknown) {
@@ -75,7 +61,7 @@ router.get('/organizations', async (_req: Request, res: Response) => {
  */
 router.get('/:modelId', async (req: Request, res: Response) => {
   try {
-    const model = await ExternalModel.findOne({ modelId: req.params.modelId }).lean();
+    const model = await findExternalModel(getDb(), String(req.params.modelId));
     if (!model) {
       return res.status(404).json({ error: 'Model not found' });
     }

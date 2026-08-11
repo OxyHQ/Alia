@@ -1,10 +1,30 @@
 /**
  * Key Manager - Handles provider key loading, selection, and rate limiting
  * Uses dynamic priority rotation: failed keys move to end of queue
+ *
+ * The statements live in `db/providers/providerKeyRepository.ts` and
+ * `db/telemetry/apiUsageRepository.ts`. The Mongoose instance methods this
+ * module used to call (`key.recordSuccess()`, `key.recordFailure()`) are gone;
+ * each is now one atomic statement, which is why the read-then-write pairs below
+ * have collapsed.
  */
 
-import { ProviderKey, IProviderKey } from '../models/provider-key';
-import { ApiUsage } from '../models/api-usage';
+import {
+  loadActiveProviderKeys,
+  findProviderKeyById,
+  markKeyCreditExhausted as markCreditExhausted,
+  maxPriorityInGroup,
+  providerKeyStats,
+  recordKeyFailure as recordFailureRow,
+  recordKeySpend as recordSpendRow,
+  recordKeySuccess as recordSuccessRow,
+  recordKeyUsage as recordUsageRow,
+  setKeyCooldown,
+  type ProviderKeyRow,
+  type ProviderKeyStats,
+} from '../../../db/providers/providerKeyRepository.js';
+import { keyUsageWindows, recordApiUsage } from '../../../db/telemetry/apiUsageRepository.js';
+import { getDb } from '../../../db/index.js';
 import type { KeyConfig } from './types';
 import { log } from '../../../lib/logger.js';
 
@@ -13,14 +33,17 @@ const TIMEOUT_PATTERN = /timeout|AbortError/i;
 const RATE_LIMIT_PATTERN = /rate.?limit|429|RESOURCE_EXHAUSTED|quota/i;
 
 // Cache for loaded keys (TTL: 10 seconds — short to minimize stale-key window)
-const keyCache = new Map<string, { keys: IProviderKey[]; timestamp: number }>();
+const keyCache = new Map<string, { keys: ProviderKeyRow[]; timestamp: number }>();
 const KEY_CACHE_TTL = 10000;
 
 /**
- * Load all available keys for a provider from MongoDB
+ * Load all available keys for a provider.
  * Keys are sorted by: 1) Free first, then paid 2) currentPriority within each group
+ *
+ * That ordering was three JavaScript passes — two filters, two sorts and a
+ * concatenation. It is one `ORDER BY` in the repository now, where the index is.
  */
-export async function loadProviderKeys(provider: string): Promise<IProviderKey[]> {
+export async function loadProviderKeys(provider: string): Promise<ProviderKeyRow[]> {
   const cacheKey = `provider:${provider}`;
   const cached = keyCache.get(cacheKey);
 
@@ -29,93 +52,41 @@ export async function loadProviderKeys(provider: string): Promise<IProviderKey[]
     return cached.keys;
   }
 
-  // Query MongoDB - exclude archived keys
-  const allKeys = await ProviderKey.find({
-    provider,
-    isArchived: false,
-    isActive: true,
-  });
-
-  // Separate free and paid keys, sort each group by currentPriority
-  const freeKeys = allKeys
-    .filter((k) => !k.isPaid)
-    .sort((a, b) => a.currentPriority - b.currentPriority);
-
-  const paidKeys = allKeys
-    .filter((k) => k.isPaid)
-    .sort((a, b) => a.currentPriority - b.currentPriority);
-
-  // Free keys first, then paid keys
-  const keys = [...freeKeys, ...paidKeys];
-
-  // Cache the results
+  const keys = await loadActiveProviderKeys(getDb(), provider);
   keyCache.set(cacheKey, { keys, timestamp: Date.now() });
-
   return keys;
 }
 
 /**
  * Check if a key has exceeded rate limits.
- * Uses a single $facet aggregation to check all limits in one DB round-trip.
+ *
+ * One statement covering all four windows, where the source built a `$facet`
+ * whose branches were added only for the limits a key configured. The
+ * "only compute what is configured" optimisation is gone on purpose: the four
+ * `FILTER`s run over rows already scanned for the day window, and a branchless
+ * version cannot pair a limit with the wrong window.
  */
-async function isKeyRateLimited(key: IProviderKey, tokens: number = 0): Promise<boolean> {
-  const rl = key.rateLimit;
+async function isKeyRateLimited(key: ProviderKeyRow, tokens: number = 0): Promise<boolean> {
+  const {
+    rateLimitRps: rps, rateLimitRpm: rpm, rateLimitRph: rph, rateLimitRpd: rpd,
+    rateLimitTps: tps, rateLimitTpm: tpm, rateLimitTph: tph, rateLimitTpd: tpd,
+  } = key;
+
   // No limits configured = not rate limited
-  if (!rl.rps && !rl.rpm && !rl.rph && !rl.rpd && !rl.tps && !rl.tpm && !rl.tph && !rl.tpd) {
+  if (!rps && !rpm && !rph && !rpd && !tps && !tpm && !tph && !tpd) {
     return false;
   }
 
-  const now = Date.now();
-  const oneSecondAgo = new Date(now - 1000);
-  const oneMinuteAgo = new Date(now - 60000);
-  const oneHourAgo = new Date(now - 3600000);
-  const oneDayAgo = new Date(now - 86400000);
+  const { second, minute, hour, day } = await keyUsageWindows(getDb(), key.id, new Date());
 
-  // Build facet stages only for configured limits
-  const facet: Record<string, any[]> = {};
-  if (rl.rps || rl.tps) {
-    facet.secondStats = [
-      { $match: { timestamp: { $gte: oneSecondAgo } } },
-      { $group: { _id: null, count: { $sum: 1 }, tokens: { $sum: '$tokens' } } },
-    ];
-  }
-  if (rl.rpm || rl.tpm) {
-    facet.minuteStats = [
-      { $match: { timestamp: { $gte: oneMinuteAgo } } },
-      { $group: { _id: null, count: { $sum: 1 }, tokens: { $sum: '$tokens' } } },
-    ];
-  }
-  if (rl.rph || rl.tph) {
-    facet.hourStats = [
-      { $match: { timestamp: { $gte: oneHourAgo } } },
-      { $group: { _id: null, count: { $sum: 1 }, tokens: { $sum: '$tokens' } } },
-    ];
-  }
-  if (rl.rpd || rl.tpd) {
-    facet.dayStats = [
-      { $group: { _id: null, count: { $sum: 1 }, tokens: { $sum: '$tokens' } } },
-    ];
-  }
-
-  // Single aggregation with $facet to check all limits at once
-  const [result] = await ApiUsage.aggregate([
-    { $match: { keyId: key._id, timestamp: { $gte: oneDayAgo } } },
-    { $facet: facet },
-  ]);
-
-  const second = result?.secondStats?.[0] || { count: 0, tokens: 0 };
-  const minute = result?.minuteStats?.[0] || { count: 0, tokens: 0 };
-  const hour = result?.hourStats?.[0] || { count: 0, tokens: 0 };
-  const day = result?.dayStats?.[0] || { count: 0, tokens: 0 };
-
-  if (rl.rps && second.count >= rl.rps) return true;
-  if (rl.rpm && minute.count >= rl.rpm) return true;
-  if (rl.rph && hour.count >= rl.rph) return true;
-  if (rl.rpd && day.count >= rl.rpd) return true;
-  if (rl.tps && tokens > 0 && second.tokens + tokens > rl.tps) return true;
-  if (rl.tpm && tokens > 0 && minute.tokens + tokens > rl.tpm) return true;
-  if (rl.tph && tokens > 0 && hour.tokens + tokens > rl.tph) return true;
-  if (rl.tpd && tokens > 0 && day.tokens + tokens > rl.tpd) return true;
+  if (rps && second.count >= rps) return true;
+  if (rpm && minute.count >= rpm) return true;
+  if (rph && hour.count >= rph) return true;
+  if (rpd && day.count >= rpd) return true;
+  if (tps && tokens > 0 && second.tokens + tokens > tps) return true;
+  if (tpm && tokens > 0 && minute.tokens + tokens > tpm) return true;
+  if (tph && tokens > 0 && hour.tokens + tokens > tph) return true;
+  if (tpd && tokens > 0 && day.tokens + tokens > tpd) return true;
 
   return false;
 }
@@ -141,10 +112,8 @@ export async function getBestKeyForModel(
   // Failed keys will have been moved to end of queue
   const now = new Date();
   for (const key of keys) {
-    const keyId = key._id.toString();
-
     // Skip keys the caller has already tried and failed on
-    if (skipKeyIds?.has(keyId)) {
+    if (skipKeyIds?.has(key.id)) {
       continue;
     }
 
@@ -154,9 +123,9 @@ export async function getBestKeyForModel(
       continue;
     }
 
-    // Skip keys that have exceeded their credit limit
-    if (key.creditLimitUSD != null && key.spentUSD >= key.creditLimitUSD) {
-      log.keys.debug({ keyPrefix: key.keyPrefix, provider: key.provider, spentUSD: key.spentUSD, creditLimitUSD: key.creditLimitUSD }, 'Key credit exhausted, skipping');
+    // Skip keys that have exceeded their credit limit. Null means UNLIMITED.
+    if (key.creditLimitUsd != null && key.spentUsd >= key.creditLimitUsd) {
+      log.keys.debug({ keyPrefix: key.keyPrefix, provider: key.provider, spentUSD: key.spentUsd, creditLimitUSD: key.creditLimitUsd }, 'Key credit exhausted, skipping');
       continue;
     }
 
@@ -174,19 +143,19 @@ export async function getBestKeyForModel(
 
     // Found a suitable key
     return {
-      keyId,
+      keyId: key.id,
       provider: key.provider,
       modelId,
       key: key.key,
       isPaid: key.isPaid,
-      rps: key.rateLimit.rps,
-      rpm: key.rateLimit.rpm,
-      rph: key.rateLimit.rph,
-      rpd: key.rateLimit.rpd,
-      tps: key.rateLimit.tps,
-      tpm: key.rateLimit.tpm,
-      tph: key.rateLimit.tph,
-      tpd: key.rateLimit.tpd,
+      rps: key.rateLimitRps ?? undefined,
+      rpm: key.rateLimitRpm ?? undefined,
+      rph: key.rateLimitRph ?? undefined,
+      rpd: key.rateLimitRpd ?? undefined,
+      tps: key.rateLimitTps ?? undefined,
+      tpm: key.rateLimitTpm ?? undefined,
+      tph: key.rateLimitTph ?? undefined,
+      tpd: key.rateLimitTpd ?? undefined,
     };
   }
 
@@ -203,36 +172,25 @@ export async function recordKeyUsage(
   provider: string,
   modelId: string
 ): Promise<void> {
-  await ApiUsage.create({
-    keyId,
-    provider,
-    modelId,
-    tokens,
-    timestamp: new Date(),
-  });
+  await recordApiUsage(getDb(), { keyId, provider, modelId, tokens, timestamp: new Date() });
 
   // Update key statistics (fire and forget)
-  ProviderKey.findByIdAndUpdate(keyId, {
-    $set: { lastUsedAt: new Date() },
-    $inc: { totalRequests: 1, totalTokens: tokens },
-  }).catch((err) => log.keys.error({ err }, 'Failed to update key stats'));
+  recordUsageRow(getDb(), keyId, tokens, new Date()).catch((err) =>
+    log.keys.error({ err }, 'Failed to update key stats'),
+  );
 }
 
 /**
  * Record key success (resets failure counters, restores original priority, clears cooldown)
+ *
+ * One statement where there were three — a read, a `save()` from the Mongoose
+ * method, and a second write clearing the cooldown. Between the last two the key
+ * looked healthy and was still in cooldown; that window is gone.
  */
 export async function recordKeySuccess(keyId: string): Promise<void> {
   try {
-    const key = await ProviderKey.findById(keyId);
+    const key = await recordSuccessRow(getDb(), keyId, new Date());
     if (key) {
-      await key.recordSuccess();
-
-      // Clear cooldown atomically
-      await ProviderKey.updateOne(
-        { _id: keyId },
-        { $set: { cooldownUntil: null } }
-      );
-
       // Invalidate cache to pick up priority changes
       invalidateKeyCache(key.provider);
     }
@@ -247,35 +205,44 @@ export async function recordKeySuccess(keyId: string): Promise<void> {
  */
 export async function recordKeyFailure(keyId: string, reason: string, retryAfterMs?: number): Promise<void> {
   try {
-    const key = await ProviderKey.findById(keyId);
+    const key = await findProviderKeyById(getDb(), keyId);
     if (!key) {
       log.keys.warn({ keyId }, 'Key not found');
       return;
     }
 
     // Get max priority within the same group (free or paid)
-    const maxKey = await ProviderKey.findOne({
-      provider: key.provider,
-      isPaid: key.isPaid, // Same group (free or paid)
-      isArchived: false,
-    })
-      .sort({ currentPriority: -1 })
-      .select('currentPriority');
+    const maxPriority = (await maxPriorityInGroup(getDb(), key.provider, key.isPaid)) ?? 999;
 
-    const maxPriority = maxKey?.currentPriority || 999;
+    // Rate limits are transient — the key works fine, we just hit quota. They
+    // move neither failure counter, so they can never archive a key.
+    const isRateLimit = RATE_LIMIT_PATTERN.test(reason);
+    const outcome = await recordFailureRow(
+      getDb(),
+      keyId,
+      reason,
+      maxPriority,
+      new Date(),
+      isRateLimit,
+    );
+    if (!outcome) return;
 
-    // Record failure and move to end of its group's queue
-    await key.recordFailure(reason, maxPriority);
+    log.keys.warn({ keyPrefix: key.keyPrefix, provider: key.provider, priority: outcome.currentPriority, reason: reason.substring(0, 50), isRateLimit }, 'Key moved to last priority after failure');
+    if (outcome.archived && !key.isArchived) {
+      log.keys.error({ keyPrefix: key.keyPrefix, provider: key.provider, totalFailures: outcome.totalFailures }, 'Key archived after too many failures');
+    }
 
-    // Set cooldown (atomic $set)
+    // Set cooldown.
     // Timeouts indicate slow service, not a bad key — skip cooldown for them.
     // Priority: 1) Provider's Retry-After header, 2) Key's configured rateLimitResetMs, 3) Default
     // For rate_limit errors: use provider Retry-After or key config or 60s flat
     // For other errors: exponential backoff (30s base, doubles per failure, capped at 5min)
     const isTimeout = TIMEOUT_PATTERN.test(reason);
     if (!isTimeout) {
-      const consecutiveFailures = (key.consecutiveFailures || 0) + 1; // +1 because recordFailure already incremented
-      const isRateLimit = RATE_LIMIT_PATTERN.test(reason);
+      // The POST-increment count, read back off the write rather than guessed
+      // from a value fetched before it — the source added one by hand here
+      // because its own method had already incremented.
+      const consecutiveFailures = outcome.consecutiveFailures;
       let cooldownMs: number;
       if (retryAfterMs && retryAfterMs > 0) {
         cooldownMs = retryAfterMs; // Provider-supplied Retry-After takes priority
@@ -284,14 +251,11 @@ export async function recordKeyFailure(keyId: string, reason: string, retryAfter
       } else if (isRateLimit) {
         cooldownMs = 60000;  // Default 60s for rate limits
       } else {
-        cooldownMs = Math.min(30000 * Math.pow(2, consecutiveFailures - 1), 300000);
+        cooldownMs = Math.min(30000 * Math.pow(2, Math.max(consecutiveFailures - 1, 0)), 300000);
       }
       const cooldownUntil = new Date(Date.now() + cooldownMs);
 
-      await ProviderKey.updateOne(
-        { _id: keyId },
-        { $set: { cooldownUntil } }
-      );
+      await setKeyCooldown(getDb(), keyId, cooldownUntil);
 
       log.keys.info({ keyPrefix: key.keyPrefix, provider: key.provider, cooldownSec: cooldownMs / 1000 }, 'Key cooldown set');
     } else {
@@ -308,21 +272,8 @@ export async function recordKeyFailure(keyId: string, reason: string, retryAfter
 /**
  * Get statistics for a provider's keys
  */
-export async function getProviderKeyStats(provider: string): Promise<any> {
-  const keys = await ProviderKey.find({ provider, isArchived: false });
-
-  return {
-    total: keys.length,
-    active: keys.filter((k) => k.isActive).length,
-    rateLimited: 0, // Would need to check actual rate limits
-    averageSuccessRate:
-      keys.reduce((sum, k) => {
-        const total = k.successCount + k.totalFailures;
-        return sum + (total > 0 ? k.successCount / total : 1);
-      }, 0) / keys.length,
-    totalRequests: keys.reduce((sum, k) => sum + k.totalRequests, 0),
-    totalFailures: keys.reduce((sum, k) => sum + k.totalFailures, 0),
-  };
+export async function getProviderKeyStats(provider: string): Promise<ProviderKeyStats> {
+  return providerKeyStats(getDb(), provider);
 }
 
 /**
@@ -330,9 +281,9 @@ export async function getProviderKeyStats(provider: string): Promise<any> {
  */
 export async function recordKeySpend(keyId: string, costUSD: number): Promise<void> {
   if (costUSD <= 0) return;
-  ProviderKey.findByIdAndUpdate(keyId, {
-    $inc: { spentUSD: costUSD },
-  }).catch((err) => log.keys.error({ err }, 'Failed to update key spend'));
+  recordSpendRow(getDb(), keyId, costUSD).catch((err) =>
+    log.keys.error({ err }, 'Failed to update key spend'),
+  );
 }
 
 /**
@@ -340,14 +291,15 @@ export async function recordKeySpend(keyId: string, costUSD: number): Promise<vo
  */
 export async function markKeyCreditExhausted(keyId: string): Promise<void> {
   try {
-    const key = await ProviderKey.findById(keyId);
-    if (key && key.creditLimitUSD != null) {
-      await ProviderKey.updateOne(
-        { _id: keyId },
-        { $set: { spentUSD: key.creditLimitUSD } }
-      );
+    // One guarded statement: the source read the key, checked the limit was set
+    // and then wrote. A key with no limit is simply not matched.
+    const marked = await markCreditExhausted(getDb(), keyId);
+    if (!marked) return;
+
+    const key = await findProviderKeyById(getDb(), keyId);
+    if (key) {
       invalidateKeyCache(key.provider);
-      log.keys.warn({ keyPrefix: key.keyPrefix, provider: key.provider, creditLimitUSD: key.creditLimitUSD }, 'Key marked as credit exhausted');
+      log.keys.warn({ keyPrefix: key.keyPrefix, provider: key.provider, creditLimitUSD: key.creditLimitUsd }, 'Key marked as credit exhausted');
     }
   } catch (err) {
     log.keys.error({ err }, 'Failed to mark key as credit exhausted');

@@ -4,7 +4,15 @@
  */
 
 import express, { Request, Response } from 'express';
-import { ModelConfig } from '../models/model-config';
+import {
+  createModelConfig,
+  deleteModelConfig,
+  findModelConfig,
+  listModelConfigs,
+  listModelConfigsForTier,
+  updateModelConfig,
+} from '../../../db/providers/modelConfigRepository.js';
+import { getDb } from '../../../db/index.js';
 import { broadcastModelsUpdate } from '../lib/broadcast-helpers';
 import { getErrorMessage } from '../../../lib/errors/index.js';
 import { log } from '../../../lib/logger.js';
@@ -22,14 +30,12 @@ router.get('/', async (req: Request, res: Response) => {
     const { provider, aliaTier, active, deprecated } = req.query;
 
     // Build query
-    const query: Record<string, unknown> = {};
-    if (provider) query.provider = provider;
-    if (aliaTier) query.aliaTier = aliaTier;
-    if (active !== undefined) query.isActive = active === 'true';
-    if (deprecated !== undefined) query.isDeprecated = deprecated === 'true';
-
-    // Execute query
-    const models = await ModelConfig.find(query).sort({ provider: 1, priority: 1 });
+    const models = await listModelConfigs(getDb(), {
+      provider: typeof provider === 'string' ? provider : undefined,
+      aliaTier: typeof aliaTier === 'string' ? aliaTier : undefined,
+      isActive: active === undefined ? undefined : active === 'true',
+      isDeprecated: deprecated === undefined ? undefined : deprecated === 'true',
+    });
 
     res.json({
       success: true,
@@ -54,11 +60,7 @@ router.get('/by-tier/:tier', async (req: Request, res: Response) => {
   try {
     const { tier } = req.params;
 
-    const models = await ModelConfig.find({
-      aliaTier: tier,
-      isActive: true,
-      isDeprecated: false,
-    }).sort({ priority: 1 });
+    const models = await listModelConfigsForTier(getDb(), String(tier));
 
     res.json({
       success: true,
@@ -84,7 +86,7 @@ router.get('/:provider/:modelId', async (req: Request, res: Response) => {
   try {
     const { provider, modelId } = req.params;
 
-    const model = await ModelConfig.findOne({ provider, modelId });
+    const model = await findModelConfig(getDb(), String(provider), String(modelId));
 
     if (!model) {
       return res.status(404).json({
@@ -117,10 +119,7 @@ router.post('/', async (req: Request, res: Response) => {
     const modelData = req.body;
 
     // Check if model already exists
-    const existing = await ModelConfig.findOne({
-      provider: modelData.provider,
-      modelId: modelData.modelId,
-    });
+    const existing = await findModelConfig(getDb(), modelData.provider, modelData.modelId);
 
     if (existing) {
       return res.status(409).json({
@@ -131,7 +130,7 @@ router.post('/', async (req: Request, res: Response) => {
     }
 
     // Create new model
-    const model = await ModelConfig.create(modelData);
+    const model = await createModelConfig(getDb(), modelData);
 
     res.status(201).json({
       success: true,
@@ -162,11 +161,7 @@ router.patch('/:provider/:modelId', async (req: Request, res: Response) => {
     delete updates.provider;
     delete updates.modelId;
 
-    const model = await ModelConfig.findOneAndUpdate(
-      { provider, modelId },
-      { $set: updates },
-      { returnDocument: 'after', runValidators: true }
-    );
+    const model = await updateModelConfig(getDb(), String(provider), String(modelId), updates);
 
     if (!model) {
       return res.status(404).json({
@@ -200,7 +195,7 @@ router.delete('/:provider/:modelId', async (req: Request, res: Response) => {
   try {
     const { provider, modelId } = req.params;
 
-    const model = await ModelConfig.findOneAndDelete({ provider, modelId });
+    const model = await deleteModelConfig(getDb(), String(provider), String(modelId));
 
     if (!model) {
       return res.status(404).json({

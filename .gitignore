@@ -64,3 +64,6 @@ usage-data.json
 # App specific
 packages/api/dist/
 packages/app/.expo/
+
+# git worktrees (agents work in <repo>/.worktrees/<name>)
+.worktrees/

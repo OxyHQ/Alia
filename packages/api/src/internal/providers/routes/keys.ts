@@ -5,7 +5,21 @@
 
 import express, { Request, Response } from 'express';
 import crypto from 'crypto';
-import { ProviderKey } from '../models/provider-key';
+import {
+  countUsableKeys,
+  createProviderKey,
+  deleteProviderKey,
+  findSafeProviderKeyById,
+  hashProviderKey,
+  listProviderKeyDiagnostics,
+  listSafeProviderKeys,
+  providerKeyHashExists,
+  providerKeyPrefix,
+  resetAllKeyCooldowns,
+  rotateProviderKey,
+  updateProviderKey,
+} from '../../../db/providers/providerKeyRepository.js';
+import { getDb } from '../../../db/index.js';
 import { invalidateKeyCache } from '../lib/key-manager';
 import { clearHealthCache } from '../lib/provider-health';
 import { broadcastKeysUpdate } from '../lib/broadcast-helpers';
@@ -45,14 +59,10 @@ router.post('/reload', async (req: Request, res: Response) => {
     clearHealthCache();
 
     // Reset all key cooldowns and failure counters
-    const cooldownResult = await ProviderKey.updateMany(
-      { $or: [{ cooldownUntil: { $ne: null } }, { consecutiveFailures: { $gt: 0 } }] },
-      { $set: { cooldownUntil: null, consecutiveFailures: 0 } }
-    );
-    const cooldownsReset = cooldownResult.modifiedCount;
+    const cooldownsReset = await resetAllKeyCooldowns(getDb());
 
     // Compute config hash for tracking
-    const keyCount = await ProviderKey.countDocuments({ isArchived: false, isActive: true });
+    const keyCount = await countUsableKeys(getDb());
     const configHash = crypto
       .createHash('sha256')
       .update(JSON.stringify({ keyCount, reloadedAt: Date.now() }))
@@ -85,16 +95,15 @@ router.get('/', async (req: Request, res: Response) => {
     const environment = sanitizeQueryParam(req.query.environment);
     const active = sanitizeQueryParam(req.query.active);
 
-    // Build query
-    const query: Record<string, unknown> = {};
-    if (provider) query.provider = provider;
-    if (environment) query.environment = environment;
-    if (active !== undefined) query.isActive = active === 'true';
-
-    // Get keys (exclude keyHash and key for security)
-    const keys = await ProviderKey.find(query)
-      .select('-keyHash -key')
-      .sort({ provider: 1, priority: 1 });
+    // The secrets are excluded by TYPE — `SafeProviderKey` omits them, so a
+    // response body that reached for one would not compile. The source used
+    // `.select('-keyHash -key')`, a runtime string that silently does nothing
+    // when misspelled.
+    const keys = await listSafeProviderKeys(getDb(), {
+      provider: provider || undefined,
+      environment: environment || undefined,
+      isActive: active === undefined ? undefined : active === 'true',
+    });
 
     res.json({
       success: true,
@@ -117,26 +126,25 @@ router.get('/', async (req: Request, res: Response) => {
  */
 router.get('/diagnostics', async (req: Request, res: Response) => {
   try {
-    const keys = await ProviderKey.find({ isArchived: false }).select(
-      'name provider keyPrefix isActive key isPaid currentPriority totalRequests successCount totalFailures lastFailureReason creditLimitUSD spentUSD'
-    );
+    const keys = await listProviderKeyDiagnostics(getDb());
 
     const diagnostics = keys.map((k) => ({
       name: k.name,
       provider: k.provider,
       keyPrefix: k.keyPrefix,
       isActive: k.isActive,
-      hasKeyValue: !!k.key,
-      keyLength: k.key ? k.key.length : 0,
+      // Computed in SQL: the plaintext credential never enters this process.
+      hasKeyValue: k.hasKeyValue,
+      keyLength: k.keyLength,
       isPaid: k.isPaid,
       currentPriority: k.currentPriority,
       totalRequests: k.totalRequests,
       successCount: k.successCount,
       totalFailures: k.totalFailures,
       lastFailureReason: k.lastFailureReason || null,
-      creditLimitUSD: k.creditLimitUSD ?? null,
-      spentUSD: k.spentUSD || 0,
-      creditExhausted: k.creditLimitUSD != null && k.spentUSD >= k.creditLimitUSD,
+      creditLimitUSD: k.creditLimitUsd ?? null,
+      spentUSD: k.spentUsd || 0,
+      creditExhausted: k.creditLimitUsd != null && k.spentUsd >= k.creditLimitUsd,
     }));
 
     const issues: string[] = [];
@@ -177,7 +185,7 @@ router.get('/:keyId', async (req: Request, res: Response) => {
   try {
     const { keyId } = req.params;
 
-    const key = await ProviderKey.findById(keyId).select('-keyHash -key');
+    const key = await findSafeProviderKeyById(getDb(), String(keyId));
 
     if (!key) {
       return res.status(404).json({
@@ -261,12 +269,12 @@ router.post('/', async (req: Request, res: Response) => {
       });
     }
 
-    // Hash the key for deduplication
-    const keyHash = crypto.createHash('sha256').update(key).digest('hex');
+    // Hashed through the repository so the create path and the rotate path
+    // cannot compute the digest differently.
+    const keyHash = hashProviderKey(key);
 
     // Check if key already exists
-    const existing = await ProviderKey.findOne({ keyHash });
-    if (existing) {
+    if (await providerKeyHashExists(getDb(), keyHash)) {
       return res.status(409).json({
         success: false,
         error: 'Key already exists',
@@ -274,25 +282,20 @@ router.post('/', async (req: Request, res: Response) => {
       });
     }
 
-    // Extract key prefix for display
-    const keyPrefix = key.substring(0, Math.min(8, key.length)) + '...';
-
     // Create new key
-    const newKey = await ProviderKey.create({
+    const newKey = await createProviderKey(getDb(), {
       name,
       provider,
       keyHash,
-      keyPrefix,
+      keyPrefix: providerKeyPrefix(key),
       key,
       environment: environment || 'production',
       isPaid: isPaid || false,
       tier: tier || 'free',
-      currentPriority: priority || 10,
-      originalPriority: priority || 10,
+      priority: priority || 10,
       rateLimit: rateLimit || {},
-      creditLimitUSD: creditLimitUSD ?? null,
+      creditLimitUsd: creditLimitUSD ?? null,
       rateLimitResetMs: rateLimitResetMs ?? null,
-      isActive: true,
     });
 
     // Invalidate cache
@@ -301,7 +304,7 @@ router.post('/', async (req: Request, res: Response) => {
     res.status(201).json({
       success: true,
       data: {
-        id: newKey._id,
+        id: newKey.id,
         keyPrefix: newKey.keyPrefix,
         message: 'Key added successfully',
       },
@@ -343,11 +346,7 @@ router.patch('/:keyId', async (req: Request, res: Response) => {
       });
     }
 
-    const key = await ProviderKey.findByIdAndUpdate(
-      keyId,
-      { $set: updates },
-      { returnDocument: 'after', runValidators: true }
-    ).select('-keyHash -key');
+    const key = await updateProviderKey(getDb(), String(keyId), updates);
 
     if (!key) {
       return res.status(404).json({
@@ -384,7 +383,7 @@ router.delete('/:keyId', async (req: Request, res: Response) => {
   try {
     const { keyId } = req.params;
 
-    const key = await ProviderKey.findByIdAndDelete(keyId);
+    const key = await deleteProviderKey(getDb(), String(keyId));
 
     if (!key) {
       return res.status(404).json({
@@ -431,8 +430,8 @@ router.post('/:keyId/rotate', async (req: Request, res: Response) => {
     }
 
     // Find existing key
-    const key = await ProviderKey.findById(keyId);
-    if (!key) {
+    const existingKey = await findSafeProviderKeyById(getDb(), String(keyId));
+    if (!existingKey) {
       return res.status(404).json({
         success: false,
         error: 'Key not found',
@@ -440,12 +439,9 @@ router.post('/:keyId/rotate', async (req: Request, res: Response) => {
       });
     }
 
-    // Hash the new key
-    const newKeyHash = crypto.createHash('sha256').update(newKey).digest('hex');
-
-    // Check if new key already exists
-    const existing = await ProviderKey.findOne({ keyHash: newKeyHash });
-    if (existing) {
+    // Check if new key already exists. Digest computed by the repository, the
+    // one place that knows how this column is derived.
+    if (await providerKeyHashExists(getDb(), hashProviderKey(newKey))) {
       return res.status(409).json({
         success: false,
         error: 'New key already exists in system',
@@ -454,12 +450,14 @@ router.post('/:keyId/rotate', async (req: Request, res: Response) => {
     }
 
     // Update key
-    const newKeyPrefix = newKey.substring(0, Math.min(8, newKey.length)) + '...';
-    key.keyHash = newKeyHash;
-    key.keyPrefix = newKeyPrefix;
-    key.key = newKey;
-    key.rotatedAt = new Date();
-    await key.save();
+    const key = await rotateProviderKey(getDb(), String(keyId), newKey, new Date());
+    if (!key) {
+      return res.status(404).json({
+        success: false,
+        error: 'Key not found',
+        code: 'KEY_NOT_FOUND',
+      });
+    }
 
     // Invalidate cache
     invalidateKeyCache(key.provider);
@@ -492,11 +490,7 @@ router.post('/:keyId/reset-spend', async (req: Request, res: Response) => {
   try {
     const { keyId } = req.params;
 
-    const key = await ProviderKey.findByIdAndUpdate(
-      keyId,
-      { $set: { spentUSD: 0 } },
-      { returnDocument: 'after' }
-    ).select('-keyHash -key');
+    const key = await updateProviderKey(getDb(), String(keyId), { spentUsd: 0 });
 
     if (!key) {
       return res.status(404).json({
@@ -534,11 +528,7 @@ router.post('/:keyId/deactivate', async (req: Request, res: Response) => {
   try {
     const { keyId } = req.params;
 
-    const key = await ProviderKey.findByIdAndUpdate(
-      keyId,
-      { $set: { isActive: false } },
-      { returnDocument: 'after' }
-    ).select('-keyHash -key');
+    const key = await updateProviderKey(getDb(), String(keyId), { isActive: false });
 
     if (!key) {
       return res.status(404).json({
@@ -576,11 +566,7 @@ router.post('/:keyId/activate', async (req: Request, res: Response) => {
   try {
     const { keyId } = req.params;
 
-    const key = await ProviderKey.findByIdAndUpdate(
-      keyId,
-      { $set: { isActive: true } },
-      { returnDocument: 'after' }
-    ).select('-keyHash -key');
+    const key = await updateProviderKey(getDb(), String(keyId), { isActive: true });
 
     if (!key) {
       return res.status(404).json({

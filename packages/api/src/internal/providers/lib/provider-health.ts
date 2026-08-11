@@ -1,12 +1,36 @@
 /**
  * Provider Health Monitoring System
  *
- * Tracks provider reliability, implements circuit breaker pattern,
- * and automatically adjusts routing based on real-time health metrics.
+ * Tracks provider reliability, implements the circuit breaker pattern, and
+ * gates routing on real-time health.
+ *
+ * This module is the ONLY thing that touches `provider_health`. Every consumer
+ * — the fallback engine, the model registry, the gateway client, the providers
+ * routes — imports these functions and has never seen the model, which is why
+ * moving the store underneath changes nothing outside this file. The statements
+ * live in `db/telemetry/providerHealthRepository.ts`.
+ *
+ * Two callers did NOT come through here: they reached the collection as
+ * `mongoose.models.ProviderHealth`, bypassing the chokepoint entirely. Both now
+ * call this module's {@link resetAllCircuitBreakers} and
+ * {@link resetAllProviderHealth}, so the chokepoint is real rather than merely
+ * conventional.
  */
 
-import { connectDB } from './db';
-import mongoose from 'mongoose';
+import {
+  CIRCUIT_CONFIG,
+  closeAllCircuits,
+  getOrCreateProviderHealth,
+  halfOpenExpiredCircuits,
+  listProviderHealth,
+  openCircuitForProbe,
+  recordProviderFailure,
+  recordProviderSuccess,
+  resetAllProviderHealth as resetAllRows,
+  resetProviderHealth as resetRow,
+  type ProviderHealthRow,
+} from '../../../db/telemetry/providerHealthRepository.js';
+import { getDb } from '../../../db/index.js';
 import { log } from '../../../lib/logger.js';
 
 // ============== HEALTH METRICS ==============
@@ -26,46 +50,6 @@ export interface HealthMetrics {
   lastHealthCheck: Date;
   isHealthy: boolean;
 }
-
-// Circuit breaker configuration
-const CIRCUIT_CONFIG = {
-  failureThreshold: 5,              // Open circuit after 5 consecutive failures
-  successThreshold: 2,              // Close circuit after 2 consecutive successes in half-open
-  openDurationMs: 60000,            // Keep circuit open for 1 minute
-  halfOpenMaxAttempts: 3,           // Try 3 requests in half-open state
-  minRequestsForMetrics: 10,        // Need 10 requests before calculating success rate
-  unhealthySuccessRateThreshold: 50 // Consider unhealthy if success rate < 50%
-};
-
-// ============== MONGODB SCHEMA ==============
-
-const ProviderHealthSchema = new mongoose.Schema({
-  provider: { type: String, required: true, index: true },
-  modelId: { type: String, required: true, index: true },
-  successCount: { type: Number, default: 0 },
-  failureCount: { type: Number, default: 0 },
-  totalRequests: { type: Number, default: 0 },
-  successRate: { type: Number, default: 100 },
-  averageLatencyMs: { type: Number, default: 0 },
-  latencySamples: { type: [Number], default: [] }, // Last 100 samples
-  lastSuccess: { type: Date, default: null },
-  lastFailure: { type: Date, default: null },
-  consecutiveFailures: { type: Number, default: 0 },
-  consecutiveSuccesses: { type: Number, default: 0 },
-  circuitState: { type: String, enum: ['closed', 'open', 'half-open'], default: 'closed' },
-  circuitOpenedAt: { type: Date, default: null },
-  halfOpenAttempts: { type: Number, default: 0 },
-  lastHealthCheck: { type: Date, default: Date.now },
-  isHealthy: { type: Boolean, default: true },
-  updatedAt: { type: Date, default: Date.now }
-}, {
-  timestamps: true
-});
-
-// Compound index for unique provider+model combination
-ProviderHealthSchema.index({ provider: 1, modelId: 1 }, { unique: true });
-
-const ProviderHealth = (mongoose.models.ProviderHealth || mongoose.model('ProviderHealth', ProviderHealthSchema)) as mongoose.Model<any>;
 
 // ============== IN-MEMORY CACHE ==============
 
@@ -115,28 +99,7 @@ export async function getProviderHealth(provider: string, modelId: string): Prom
   }
 
   try {
-    await connectDB();
-    let health = await ProviderHealth.findOne({ provider, modelId });
-
-    if (!health) {
-      // Initialize new health record
-      health = await ProviderHealth.create({
-        provider,
-        modelId,
-        successCount: 0,
-        failureCount: 0,
-        totalRequests: 0,
-        successRate: 100,
-        averageLatencyMs: 0,
-        latencySamples: [],
-        consecutiveFailures: 0,
-        consecutiveSuccesses: 0,
-        circuitState: 'closed',
-        isHealthy: true,
-        lastHealthCheck: new Date()
-      });
-    }
-
+    const health = await getOrCreateProviderHealth(getDb(), provider, modelId, new Date());
     const metrics = healthToMetrics(health);
     setCachedHealth(provider, modelId, metrics);
     return metrics;
@@ -162,7 +125,11 @@ export async function getProviderHealth(provider: string, modelId: string): Prom
 }
 
 /**
- * Record a successful request
+ * Record a successful request.
+ *
+ * The counters and the circuit state they imply move in ONE statement — see the
+ * repository for why that is a deliberate improvement on the two writes this
+ * replaced.
  */
 export async function recordSuccess(
   provider: string,
@@ -170,62 +137,9 @@ export async function recordSuccess(
   latencyMs: number
 ): Promise<void> {
   try {
-    await connectDB();
-    const now = new Date();
-
-    // Atomic counter update: concurrent requests each apply their own $inc, so
-    // no update is lost. latencySamples is capped in the same write. The returned
-    // doc carries the fresh counters we derive the circuit state from.
-    const health = await ProviderHealth.findOneAndUpdate(
-      { provider, modelId },
-      {
-        $inc: { successCount: 1, totalRequests: 1, consecutiveSuccesses: 1 },
-        $set: { lastSuccess: now, consecutiveFailures: 0, lastHealthCheck: now },
-        $push: { latencySamples: { $each: [latencyMs], $slice: -100 } },
-        $setOnInsert: { provider, modelId },
-      },
-      { new: true, upsert: true, setDefaultsOnInsert: true },
-    );
-
-    const samples: number[] = Array.isArray(health.latencySamples) ? health.latencySamples : [];
-    const averageLatencyMs = samples.length > 0
-      ? samples.reduce((a: number, b: number) => a + b, 0) / samples.length
-      : latencyMs;
-    const successRate = health.totalRequests > 0
-      ? (health.successCount / health.totalRequests) * 100
-      : 100;
-
-    const prevState: string = health.circuitState || 'closed';
-    const prevHealthy: boolean = health.isHealthy ?? true;
-    const derived: Record<string, unknown> = { averageLatencyMs, successRate };
-    let nextState = prevState;
-    let nextHealthy = prevHealthy;
-
-    // Circuit breaker logic (computed from the freshly-incremented counters)
-    if (prevState === 'half-open') {
-      if (health.consecutiveSuccesses >= CIRCUIT_CONFIG.successThreshold) {
-        // Close the circuit - provider is healthy again
-        nextState = 'closed';
-        nextHealthy = true;
-        derived.circuitState = 'closed';
-        derived.circuitOpenedAt = null;
-        derived.halfOpenAttempts = 0;
-        derived.isHealthy = true;
-      } else {
-        derived.halfOpenAttempts = (health.halfOpenAttempts || 0) + 1;
-      }
-    }
-
-    // Check overall health
-    if (health.totalRequests >= CIRCUIT_CONFIG.minRequestsForMetrics) {
-      nextHealthy = successRate >= CIRCUIT_CONFIG.unhealthySuccessRateThreshold;
-      derived.isHealthy = nextHealthy;
-    }
-
-    await ProviderHealth.updateOne({ provider, modelId }, { $set: derived });
-
+    const transition = await recordProviderSuccess(getDb(), provider, modelId, latencyMs, new Date());
     // Only invalidate the availability cache when routing-relevant state changed.
-    if (nextState !== prevState || nextHealthy !== prevHealthy) {
+    if (transition.nextState !== transition.prevState || transition.nextHealthy !== transition.prevHealthy) {
       healthCache.delete(getCacheKey(provider, modelId));
     }
   } catch (error) {
@@ -246,65 +160,9 @@ export async function recordFailure(
   const isRateLimit = errorCode != null && /rate.?limit|429|RESOURCE_EXHAUSTED|quota/i.test(errorCode);
 
   try {
-    await connectDB();
-    const now = new Date();
-
-    // Atomic counter update. consecutiveFailures/consecutiveSuccesses only move
-    // for real (non-rate-limit) failures, so those operators are conditional.
-    const inc: Record<string, number> = { failureCount: 1, totalRequests: 1 };
-    const set: Record<string, unknown> = { lastFailure: now, lastHealthCheck: now };
-    if (!isRateLimit) {
-      // Only real failures (500s, timeouts, auth errors) affect circuit breaker
-      inc.consecutiveFailures = 1;
-      set.consecutiveSuccesses = 0;
-    }
-
-    const health = await ProviderHealth.findOneAndUpdate(
-      { provider, modelId },
-      { $inc: inc, $set: set, $setOnInsert: { provider, modelId } },
-      { new: true, upsert: true, setDefaultsOnInsert: true },
-    );
-
-    const successRate = health.totalRequests > 0
-      ? (health.successCount / health.totalRequests) * 100
-      : 0;
-
-    const prevState: string = health.circuitState || 'closed';
-    const prevHealthy: boolean = health.isHealthy ?? true;
-    const derived: Record<string, unknown> = { successRate };
-    let nextState = prevState;
-    let nextHealthy = prevHealthy;
-
-    // Circuit breaker logic (computed from the freshly-incremented counters)
-    if (prevState === 'closed') {
-      if (health.consecutiveFailures >= CIRCUIT_CONFIG.failureThreshold) {
-        // Open the circuit - stop sending requests
-        nextState = 'open';
-        nextHealthy = false;
-        derived.circuitState = 'open';
-        derived.circuitOpenedAt = now;
-        derived.isHealthy = false;
-      }
-    } else if (prevState === 'half-open') {
-      // Failed in half-open state - re-open circuit
-      nextState = 'open';
-      nextHealthy = false;
-      derived.circuitState = 'open';
-      derived.circuitOpenedAt = now;
-      derived.halfOpenAttempts = 0;
-      derived.isHealthy = false;
-    }
-
-    // Check overall health
-    if (health.totalRequests >= CIRCUIT_CONFIG.minRequestsForMetrics) {
-      nextHealthy = successRate >= CIRCUIT_CONFIG.unhealthySuccessRateThreshold;
-      derived.isHealthy = nextHealthy;
-    }
-
-    await ProviderHealth.updateOne({ provider, modelId }, { $set: derived });
-
+    const transition = await recordProviderFailure(getDb(), provider, modelId, new Date(), isRateLimit);
     // Only invalidate the availability cache when routing-relevant state changed.
-    if (nextState !== prevState || nextHealthy !== prevHealthy) {
+    if (transition.nextState !== transition.prevState || transition.nextHealthy !== transition.prevHealthy) {
       healthCache.delete(getCacheKey(provider, modelId));
     }
   } catch (error) {
@@ -323,21 +181,17 @@ export async function isProviderAvailable(provider: string, modelId: string): Pr
   }
 
   if (health.circuitState === 'open') {
-    // Check if we should transition to half-open
+    // Check if we should transition to half-open.
+    //
+    // The cooldown is measured from `lastFailure` here and from `circuitOpenedAt`
+    // in the background monitor. That divergence predates the port and is kept:
+    // they answer different questions, and unifying them would change routing.
     if (health.lastFailure) {
       const timeSinceOpen = Date.now() - health.lastFailure.getTime();
       if (timeSinceOpen >= CIRCUIT_CONFIG.openDurationMs) {
         // Transition to half-open - try again
         try {
-          await connectDB();
-          await ProviderHealth.updateOne(
-            { provider, modelId },
-            {
-              circuitState: 'half-open',
-              halfOpenAttempts: 0,
-              consecutiveSuccesses: 0
-            }
-          );
+          await openCircuitForProbe(getDb(), provider, modelId);
           healthCache.delete(getCacheKey(provider, modelId));
           return true;
         } catch (error) {
@@ -362,8 +216,7 @@ export async function isProviderAvailable(provider: string, modelId: string): Pr
  */
 export async function getAllProviderHealth(): Promise<HealthMetrics[]> {
   try {
-    await connectDB();
-    const healthRecords = await ProviderHealth.find({}).sort({ updatedAt: -1 });
+    const healthRecords = await listProviderHealth(getDb());
     return healthRecords.map(healthToMetrics);
   } catch (error) {
     log.providers.error({ err: error }, 'Error fetching all health metrics');
@@ -376,33 +229,47 @@ export async function getAllProviderHealth(): Promise<HealthMetrics[]> {
  */
 export async function resetProviderHealth(provider: string, modelId: string): Promise<void> {
   try {
-    await connectDB();
-    await ProviderHealth.findOneAndUpdate(
-      { provider, modelId },
-      {
-        successCount: 0,
-        failureCount: 0,
-        totalRequests: 0,
-        successRate: 100,
-        consecutiveFailures: 0,
-        consecutiveSuccesses: 0,
-        circuitState: 'closed',
-        circuitOpenedAt: null,
-        halfOpenAttempts: 0,
-        isHealthy: true,
-        lastHealthCheck: new Date()
-      },
-      { upsert: true }
-    );
+    await resetRow(getDb(), provider, modelId, new Date());
     healthCache.delete(getCacheKey(provider, modelId));
   } catch (error) {
     log.providers.error({ err: error }, 'Error resetting health');
   }
 }
 
+/**
+ * Close every circuit that is currently open or half-open, leaving traffic
+ * counters intact. Run after a deploy so a stale lockout does not survive it.
+ *
+ * Returns the number of circuits closed.
+ *
+ * Previously reached through `mongoose.models.ProviderHealth`, which returned 0
+ * and logged "model not loaded yet" when the model had not been registered. That
+ * branch is gone: it existed only because Mongoose registers models lazily on
+ * first import, and Postgres is connected before the service listens. The reset
+ * now always runs, which is what the caller always intended.
+ */
+export async function resetAllCircuitBreakers(): Promise<number> {
+  const closed = await closeAllCircuits(getDb(), new Date());
+  clearHealthCache();
+  return closed;
+}
+
+/**
+ * Return EVERY provider/model row to its default state, counters included.
+ *
+ * The operator hammer behind `POST /v1/providers/health/reset-all`, and
+ * deliberately NOT the same thing as {@link resetAllCircuitBreakers} — this one
+ * erases the success history as well.
+ */
+export async function resetAllProviderHealth(): Promise<number> {
+  const reset = await resetAllRows(getDb(), new Date());
+  clearHealthCache();
+  return reset;
+}
+
 // ============== HELPER FUNCTIONS ==============
 
-function healthToMetrics(health: any): HealthMetrics {
+function healthToMetrics(health: ProviderHealthRow): HealthMetrics {
   return {
     provider: health.provider,
     modelId: health.modelId,
@@ -415,7 +282,10 @@ function healthToMetrics(health: any): HealthMetrics {
     lastFailure: health.lastFailure,
     consecutiveFailures: health.consecutiveFailures,
     circuitState: health.circuitState,
-    lastHealthCheck: health.lastHealthCheck,
+    // Nullable in the schema and non-null here: every write path sets it, and a
+    // row that somehow lacks one is reported as checked now rather than as a
+    // null the dashboard would render as "never".
+    lastHealthCheck: health.lastHealthCheck ?? new Date(),
     isHealthy: health.isHealthy
   };
 }
@@ -430,20 +300,10 @@ export function startHealthCheckMonitor(): void {
 
   healthCheckInterval = setInterval(async () => {
     try {
-      await connectDB();
-      const healths = await ProviderHealth.find({ circuitState: { $in: ['open', 'half-open'] } });
-
-      for (const health of healths) {
-        // Auto-transition open circuits to half-open after cooldown
-        if (health.circuitState === 'open' && health.circuitOpenedAt) {
-          const timeSinceOpen = Date.now() - health.circuitOpenedAt.getTime();
-          if (timeSinceOpen >= CIRCUIT_CONFIG.openDurationMs) {
-            health.circuitState = 'half-open';
-            health.halfOpenAttempts = 0;
-            await health.save();
-          }
-        }
-      }
+      // One statement, where the Mongo version read every open and half-open row
+      // and tested the cooldown per document in JavaScript. Same predicate, no
+      // window in which a row can change between the read and the save.
+      await halfOpenExpiredCircuits(getDb(), new Date());
     } catch (error) {
       log.providers.error({ err: error }, 'Error in health check monitor');
     }
