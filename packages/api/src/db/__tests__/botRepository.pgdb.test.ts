@@ -98,7 +98,7 @@ describe('the three credentials are treated OPPOSITELY, on purpose', () => {
     const botUser = await upsertBotUser(db, {
       botId: bot.id,
       platform: 'br-token',
-      platformUserId: 'p1',
+      platformUserId: 'br-p1',
       chatId: 'c1',
     });
 
@@ -141,12 +141,12 @@ describe('the three credentials are treated OPPOSITELY, on purpose', () => {
     const botUser = await upsertBotUser(db, {
       botId: bot.id,
       platform: 'br-noauth',
-      platformUserId: 'p1',
+      platformUserId: 'br-p1',
       chatId: 'c1',
     });
     await setBotUserAuthToken(db, botUser.id, 'br-secret-token', new Date(Date.now() + 60_000));
 
-    const read = await findBotUser(db, bot.id, 'p1');
+    const read = await findBotUser(db, bot.id, 'br-p1');
     expect(Object.keys(read ?? {})).not.toContain('authToken');
     // Its DEADLINE is projected — the auth-request route echoes it — and that is
     // not the credential.
@@ -314,7 +314,7 @@ describe('deleting a bot takes its users with it', () => {
     await upsertBotUser(db, {
       botId: bot.id,
       platform: 'br-cascade',
-      platformUserId: 'p1',
+      platformUserId: 'br-p1',
       chatId: 'c1',
     });
 
@@ -336,14 +336,14 @@ describe('a bot user is upserted, not read-then-branched', () => {
     const first = await upsertBotUser(db, {
       botId: bot.id,
       platform: 'br-upsert',
-      platformUserId: 'p1',
+      platformUserId: 'br-p1',
       chatId: 'chat-1',
       username: 'first',
     });
     const second = await upsertBotUser(db, {
       botId: bot.id,
       platform: 'br-upsert',
-      platformUserId: 'p1',
+      platformUserId: 'br-p1',
       chatId: 'chat-2',
       username: 'second',
     });
@@ -360,14 +360,14 @@ describe('a bot user is upserted, not read-then-branched', () => {
     await upsertBotUser(db, {
       botId: bot.id,
       platform: 'br-omit',
-      platformUserId: 'p1',
+      platformUserId: 'br-p1',
       chatId: 'c1',
       displayName: 'Known Name',
     });
     const after = await upsertBotUser(db, {
       botId: bot.id,
       platform: 'br-omit',
-      platformUserId: 'p1',
+      platformUserId: 'br-p1',
       chatId: 'c2',
     });
 
@@ -382,14 +382,14 @@ describe('a bot user is upserted, not read-then-branched', () => {
     await upsertBotUser(db, {
       botId: bot.id,
       platform: 'br-meta',
-      platformUserId: 'p1',
+      platformUserId: 'br-p1',
       chatId: 'c1',
       metadata: { a: 1 },
     });
     const after = await upsertBotUser(db, {
       botId: bot.id,
       platform: 'br-meta',
-      platformUserId: 'p1',
+      platformUserId: 'br-p1',
       chatId: 'c1',
       metadata: { b: 2 },
     });
@@ -424,7 +424,7 @@ describe('a link token is single-use, and unlinking really unlinks', () => {
     const bot = await registerBot(db, newBot({ platform: 'br-link', botId: 'l1' }));
     if (!bot) throw new Error('registerBot returned null');
     const botUser = await upsertBotUser(db, {
-      botId: bot.id, platform: 'br-link', platformUserId: 'p1', chatId: 'c1',
+      botId: bot.id, platform: 'br-link', platformUserId: 'br-p1', chatId: 'c1',
     });
     await setBotUserAuthToken(db, botUser.id, 'br-once', new Date(Date.now() + 60_000));
 
@@ -452,7 +452,7 @@ describe('a link token is single-use, and unlinking really unlinks', () => {
     const bot = await registerBot(db, newBot({ platform: 'br-unlink', botId: 'u1' }));
     if (!bot) throw new Error('registerBot returned null');
     const botUser = await upsertBotUser(db, {
-      botId: bot.id, platform: 'br-unlink', platformUserId: 'p1', chatId: 'c1',
+      botId: bot.id, platform: 'br-unlink', platformUserId: 'br-p1', chatId: 'c1',
     });
     await linkBotUser(db, botUser.id, { oxyUserId: 'bru-unlinker' });
     await setBotUserConversation(db, botUser.id, 'conv-1');
@@ -460,7 +460,7 @@ describe('a link token is single-use, and unlinking really unlinks', () => {
 
     await unlinkBotUser(db, botUser.id);
 
-    const after = await findBotUser(db, bot.id, 'p1');
+    const after = await findBotUser(db, bot.id, 'br-p1');
     expect(after?.isLinked).toBe(false);
     expect(after?.oxyUserId).toBeNull();
     expect(after?.conversationId).toBeNull();
@@ -473,13 +473,13 @@ describe('a link token is single-use, and unlinking really unlinks', () => {
     const bot = await registerBot(db, newBot({ platform: 'br-logout', botId: 'g1' }));
     if (!bot) throw new Error('registerBot returned null');
     const botUser = await upsertBotUser(db, {
-      botId: bot.id, platform: 'br-logout', platformUserId: 'p1', chatId: 'c1',
+      botId: bot.id, platform: 'br-logout', platformUserId: 'br-p1', chatId: 'c1',
     });
     await linkBotUser(db, botUser.id, { oxyUserId: 'bru-logout' });
 
     await logoutBotUser(db, botUser.id);
 
-    const after = await findBotUser(db, bot.id, 'p1');
+    const after = await findBotUser(db, bot.id, 'br-p1');
     expect(after?.isLinked).toBe(false);
     expect(after?.oxyUserId).toBeNull();
     expect(after?.linkedAt).toBeInstanceOf(Date);

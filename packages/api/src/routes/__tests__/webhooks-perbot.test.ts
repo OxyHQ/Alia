@@ -16,8 +16,19 @@ vi.mock('../../lib/chat-core.js', () => ({
 vi.mock('../../lib/channels/outbound.js', () => ({ sendChannelMessage: vi.fn() }));
 vi.mock('../../services/chat.service.js', () => ({ buildChatTools: vi.fn() }));
 vi.mock('../../lib/prompt-loader.js', () => ({ loadPrompt: vi.fn() }));
-vi.mock('../../models/bot-user.js', () => ({ BotUser: {} }));
-vi.mock('../../models/bot.js', () => ({ Bot: {} }));
+// `bots` and `bot_users` are Postgres now, so the stubs name the repository
+// rather than the deleted model modules. `vi.mock` specifiers are STRINGS —
+// neither tsc nor vitest notices when the module they name goes — so these have
+// to be found by grepping the deleted PATHS at deletion time, not by following
+// importers.
+vi.mock('../../db/index.js', () => ({ getDb: () => ({}) }));
+vi.mock('../../db/integrations/botRepository.js', () => ({
+  findActiveUserBotByWebhookSecret: vi.fn(),
+  findSystemBot: vi.fn(),
+  setBotUserAuthToken: vi.fn(),
+  setBotUserConversation: vi.fn(),
+  upsertBotUser: vi.fn(),
+}));
 vi.mock('../../models/agent.js', () => ({ Agent: {} }));
 vi.mock('../../models/conversation.js', () => ({ Conversation: {} }));
 vi.mock('../../models/message.js', () => ({ Message: {} }));

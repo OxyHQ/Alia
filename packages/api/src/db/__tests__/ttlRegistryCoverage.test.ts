@@ -222,6 +222,43 @@ const RETIRED_MONGO_TTLS: readonly RetiredMongoTtl[] = [
     retiredBy: 'S5 notifications — audio_jobs',
   },
   {
+    model: 'McpOAuthState',
+    collection: 'mcpoauthstates',
+    /**
+     * `McpOAuthStateSchema.index({ createdAt: 1 }, { expireAfterSeconds:
+     * MCP_OAUTH_STATE_TTL_SECONDS })` — line 29 of the `McpOAuthState` model
+     * module, with the constant at line 12 — 10 minutes.
+     *
+     * ## Why this citation names no PATH, unlike the four above it
+     *
+     * `foreign-ref-populate.test.ts` fails any source that names a retired
+     * model file, and it normalises `src/` away, so there is no spelling of the
+     * path that satisfies both gates. The two requirements really do collide:
+     * that gate wants no reference to a deleted module anywhere, and this one
+     * wants provenance for a value read out of one.
+     *
+     * Naming the MODEL rather than the file is what gives way, because it costs
+     * nothing — `model`, `collection` and `retiredBy` already identify the
+     * source uniquely, and `git log` finds the deleting commit from `retiredBy`.
+     * Weakening the other gate's exclusion from one line to a category would
+     * have cost something real.
+     *
+     * The four entries above still carry paths only because their models had
+     * not been deleted when they were written. Whoever retires `Notification`,
+     * `AudioJob`, `ModerationOutbox` or `ModerationEvent` will have to reword
+     * them the same way, in the same commit that deletes the file.
+     *
+     * Measured from CREATION, not from a deadline: the row is consumed by an
+     * atomic delete when the callback lands, so the sweep only ever reaps
+     * ABANDONED flows. That constant now lives on the column it describes, in
+     * `db/schema/integrations.ts`, so the sweep's retention and the callback's
+     * liveness check read the same number.
+     */
+    path: 'createdAt',
+    expireAfterSeconds: 10 * 60,
+    retiredBy: 'S4 integrations — mcp_oauth_states',
+  },
+  {
     model: 'OAuthState',
     collection: 'oauthstates',
     /**
@@ -370,7 +407,8 @@ describe('every ported TTL index has a matching expiry-sweep target', () => {
      * 8 once S2 retired `AuthHealthMetric`, 7 once it retired `FallbackEvent`, 6
      * once it retired `RoutingLog`, 5 once it retired `ApiKeyUsage`, 4 once it
      * retired `ApiUsage`, 3 once S8 retired `TriggerExecution` — the only TTL
-     * among its eight models — 2 once S4 retired `OAuthState`.
+     * among its eight models — 2 once S4 retired `OAuthState`, 1 once S4 deleted
+     * the `McpOAuthState` MODEL.
      * Lowering it is legitimate ONLY in the same change that adds the matching
      * retired entries, and the exact-sum assertion below is what makes that
      * mechanical rather than a judgement call — the two numbers cannot drift
@@ -381,7 +419,7 @@ describe('every ported TTL index has a matching expiry-sweep target', () => {
      * `OAuthState` was declared inline in a ROUTE file — which is also why
      * `modelFiles()` above includes `src/routes/`.
      */
-    expect(walked.length).toBeGreaterThanOrEqual(2);
+    expect(walked.length).toBeGreaterThanOrEqual(1);
     expect(walked.length + RETIRED_MONGO_TTLS.length).toBe(13);
   });
 
