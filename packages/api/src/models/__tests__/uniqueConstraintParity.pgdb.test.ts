@@ -1,4 +1,5 @@
 import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -962,15 +963,45 @@ describe('the map cannot silently lag the schema', () => {
 });
 
 describe('the ratchet', () => {
-  it('never lets the frozen record grow', () => {
+  /**
+   * The frozen record, pinned by CONTENT rather than by count.
+   *
+   * A size assertion cannot defend this list, and it is worth being exact about
+   * why: deleting a row and lowering the number are two edits that move
+   * together, each individually defensible as tidying, and no test fails. The
+   * count is precisely the quantity both of them adjust.
+   *
+   * A digest over the rows' content converts that into ONE edit that is visibly
+   * a rewrite of the record of the past. You cannot drop a row and "update the
+   * hash" while telling yourself you are bookkeeping — the same structural move
+   * as the two-list pattern (membership in the past cannot be edited without it
+   * reading as a lie), applied where there is no second list to be a subset of.
+   *
+   * Recompute it rather than trusting this constant: each row rendered as
+   * `model|file|retiredBy|table|constraint|mongooseKey.join(',')`, the rows
+   * sorted, joined with newlines, sha256 hex. Sorted so a reordering is not a
+   * failure — only the CONTENT is pinned.
+   */
+  it('pins the frozen record by content, not by count', () => {
+    const canonical = [...UNIQUES_AT_FREEZE]
+      .map((r) =>
+        [r.model, r.file, r.retiredBy, r.table, r.constraint, [...r.mongooseKey].join(',')].join(
+          '|',
+        ),
+      )
+      .sort()
+      .join('\n');
+
     expect(
-      UNIQUES_AT_FREEZE.length,
-      'UNIQUES_AT_FREEZE is a statement about which models were already deleted on ' +
-        '2026-08-11 at 55754587. It cannot grow. A model retired AFTER the freeze ' +
-        'belongs to RETIRED_MODEL_FILES and is accounted for through that list — and ' +
-        'unlike a list of enum keys, a false entry here is contradicted by ' +
-        '`git show <sha>^:<file>`, so backdating one is not a bookkeeping edit.',
-    ).toBe(11);
+      createHash('sha256').update(canonical).digest('hex'),
+      'UNIQUES_AT_FREEZE has CHANGED. It is a statement about which models were ' +
+        'already deleted on 2026-08-11 at 55754587, and it cannot be edited — a ' +
+        'model retired since then belongs to UNIQUES_RETIRED_SINCE. If you are ' +
+        'here because a row looked wrong, check it with ' +
+        '`git show <retiredBy>^:<file>` before changing anything: the source is ' +
+        'gone and this list is the only surviving record that the constraint was ' +
+        'ever required.',
+    ).toBe('5c8d5de2ba0bc81d87bfd8dbaa5417a08d4f9662091a3d214bc82eaf3467becb');
   });
 
   it('never lets the not-ported list grow silently', () => {
