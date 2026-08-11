@@ -7,8 +7,14 @@
 
 import { tool } from 'ai';
 import { z } from 'zod';
-import mongoose from 'mongoose';
-import { Trigger } from '../../models/trigger.js';
+import { getDb } from '../../db/index.js';
+import {
+  createTrigger,
+  deleteTriggerForUser,
+  findTriggerForUser,
+  listTriggers,
+  updateTrigger,
+} from '../../db/automation/triggerRepository.js';
 import { reloadTrigger } from '../trigger-engine.js';
 import { generateWebhookToken } from '../trigger-engine.js';
 import { log } from '../logger.js';
@@ -35,7 +41,7 @@ export function createTriggerTool(userId: string) {
     execute: async (args) => {
       try {
         const triggerData: any = {
-          oxyUserId: new mongoose.Types.ObjectId(userId),
+          oxyUserId: userId,
           name: args.name,
           description: args.description,
           type: args.type,
@@ -63,10 +69,10 @@ export function createTriggerTool(userId: string) {
           };
         }
 
-        const trigger = await Trigger.create(triggerData);
+        const trigger = await createTrigger(getDb(), triggerData);
 
         // Start cron schedule if applicable
-        await reloadTrigger(trigger._id.toString());
+        await reloadTrigger(trigger._id);
 
         const summary: any = {
           success: true,
@@ -108,20 +114,17 @@ export function listTriggersTool(userId: string) {
     }),
     execute: async (args) => {
       try {
-        const filter: any = { oxyUserId: new mongoose.Types.ObjectId(userId) };
-        if (args.type) filter.type = args.type;
-        if (!args.includeDisabled) filter.enabled = true;
-
-        const triggers = await Trigger.find(filter)
-          .sort({ createdAt: -1 })
-          .limit(20)
-          .lean();
+        const triggers = await listTriggers(getDb(), userId, {
+          type: args.type,
+          enabledOnly: !args.includeDisabled,
+          limit: 20,
+        });
 
         return {
           success: true,
           count: triggers.length,
           triggers: triggers.map((t) => ({
-            id: t._id.toString(),
+            id: t._id,
             name: t.name,
             description: t.description,
             type: t.type,
@@ -156,36 +159,43 @@ export function updateTriggerTool(userId: string) {
     }),
     execute: async (args) => {
       try {
-        const trigger = await Trigger.findOne({
-          _id: args.triggerId,
-          oxyUserId: new mongoose.Types.ObjectId(userId),
-        });
+        const existing = await findTriggerForUser(getDb(), args.triggerId, userId);
 
-        if (!trigger) {
+        if (!existing) {
           return { success: false, error: 'Trigger not found' };
         }
 
-        if (args.name) trigger.name = args.name;
-        if (args.enabled !== undefined) trigger.enabled = args.enabled;
-        if (args.prompt) trigger.action.prompt = args.prompt;
-        if (args.notify !== undefined) trigger.action.notify = args.notify;
-        if (args.channelId !== undefined) trigger.action.channelId = args.channelId;
+        // This tool MERGES the schedule — it assigned individual fields on the
+        // hydrated document — where the HTTP route replaces it wholesale. The
+        // merge is done here, against the row just read, so the repository keeps
+        // one replace-shaped `schedule` and the two callers keep their own
+        // semantics. Only touched when a schedule already exists, as before.
+        const schedule = existing.schedule && {
+          ...existing.schedule,
+          ...(args.time ? { time: args.time } : {}),
+          ...(args.days ? { days: args.days } : {}),
+          ...(args.intervalMinutes ? { intervalMinutes: args.intervalMinutes } : {}),
+          ...(args.timezone ? { timezone: args.timezone } : {}),
+        };
 
-        if (trigger.schedule) {
-          if (args.time) trigger.schedule.time = args.time;
-          if (args.days) trigger.schedule.days = args.days;
-          if (args.intervalMinutes) trigger.schedule.intervalMinutes = args.intervalMinutes;
-          if (args.timezone) trigger.schedule.timezone = args.timezone;
-        }
+        const trigger = await updateTrigger(getDb(), existing._id, {
+          ...(args.name ? { name: args.name } : {}),
+          ...(args.enabled === undefined ? {} : { enabled: args.enabled }),
+          action: {
+            ...(args.prompt ? { prompt: args.prompt } : {}),
+            ...(args.notify === undefined ? {} : { notify: args.notify }),
+            ...(args.channelId === undefined ? {} : { channelId: args.channelId }),
+          },
+          ...(schedule ? { schedule } : {}),
+        });
 
-        await trigger.save();
-        await reloadTrigger(trigger._id.toString());
+        await reloadTrigger(existing._id);
 
         return {
           success: true,
-          triggerId: trigger._id.toString(),
-          name: trigger.name,
-          enabled: trigger.enabled,
+          triggerId: existing._id,
+          name: trigger?.name ?? existing.name,
+          enabled: trigger?.enabled ?? existing.enabled,
         };
       } catch (error: unknown) {
         return { success: false, error: getErrorMessage(error) };
@@ -202,12 +212,9 @@ export function deleteTriggerTool(userId: string) {
     }),
     execute: async ({ triggerId }) => {
       try {
-        const result = await Trigger.findOneAndDelete({
-          _id: triggerId,
-          oxyUserId: new mongoose.Types.ObjectId(userId),
-        });
+        const deleted = await deleteTriggerForUser(getDb(), triggerId, userId);
 
-        if (!result) {
+        if (!deleted) {
           return { success: false, error: 'Trigger not found' };
         }
 
@@ -216,7 +223,7 @@ export function deleteTriggerTool(userId: string) {
 
         return {
           success: true,
-          message: `Trigger "${result.name}" deleted`,
+          message: `Trigger "${deleted.name}" deleted`,
         };
       } catch (error: unknown) {
         return { success: false, error: getErrorMessage(error) };

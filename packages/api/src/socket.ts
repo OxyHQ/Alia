@@ -7,7 +7,8 @@ import { oxyClient } from './middleware/auth.js';
 import { AgentSession } from './models/agent-session.js';
 import { Agent } from './models/agent.js';
 import { CanvasSession } from './models/canvas-session.js';
-import { WorkflowExecution } from './models/workflow-execution.js';
+import { getDb } from './db/index.js';
+import { findExecutionOwner } from './db/automation/workflowRepository.js';
 
 /** Read the authenticated user id planted on the socket by `oxy.authSocket()`. */
 function socketUserId(socket: Socket): string | null {
@@ -73,8 +74,11 @@ export function initSocket(server: http.Server) {
     socket.on('subscribe-workflow', async (executionId: string) => {
       if (typeof executionId !== 'string' || executionId.length === 0 || executionId.length > 256) return;
       if (!userId) return;
-      const execution = await WorkflowExecution.findOne({ executionId }).select('oxyUserId').lean();
-      if (!execution || execution.oxyUserId?.toString() !== userId) return;
+      // `oxy_user_id` is `text`, so the source's `.toString()` on a stored
+      // ObjectId has no counterpart — but the comparison it guarded does, and it
+      // is the whole access check for this room.
+      const owner = await findExecutionOwner(getDb(), executionId);
+      if (owner !== userId) return;
       Promise.resolve(socket.join(`workflow:${executionId}`)).catch((err) => log.general.warn({ err }, 'socket.join workflow failed'));
     });
 

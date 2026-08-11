@@ -7,7 +7,7 @@
  */
 
 import type { IAgent } from '../../models/agent.js';
-import type { ITrigger } from '../../models/trigger.js';
+import type { TriggerRecord } from '../../db/automation/triggerRepository.js';
 import { Agent } from '../../models/agent.js';
 import { AgentSession } from '../../models/agent-session.js';
 import { createRoutingLog } from '../../db/telemetry/routingLogRepository.js';
@@ -72,7 +72,7 @@ function parseRoutingDecision(aiResult: string): RoutingDecision | null {
 export async function handleRoutingDecision(
   agent: IAgent,
   aiResult: string,
-  trigger: ITrigger,
+  trigger: TriggerRecord,
 ): Promise<void> {
   const decision = parseRoutingDecision(aiResult);
   if (!decision) {

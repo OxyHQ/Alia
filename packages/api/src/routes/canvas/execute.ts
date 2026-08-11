@@ -1,7 +1,10 @@
 import { Router } from 'express';
 import { randomUUID } from 'crypto';
 import { generateText } from 'ai';
-import { WorkflowExecution } from '../../models/workflow-execution.js';
+import {
+  completeExecution,
+  createExecution,
+} from '../../db/automation/workflowRepository.js';
 import { authenticateToken } from '../../middleware/auth.js';
 import { resolveModel, getAIModel, getDefaultAliaModel } from '../../lib/chat-core.js';
 import { getDb } from '../../db/index.js';
@@ -60,29 +63,30 @@ router.post('/', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Invalid workflow edges' });
     }
 
+    if (!req.userId) return res.status(401).json({ error: 'Unauthorized' });
+
     const executionId = randomUUID();
 
     // Create execution record
-    const execution = await WorkflowExecution.create({
+    // `status`, `results` and `final_output` take their column defaults —
+    // 'running', [] and '' — which are the values the source set by hand.
+    await createExecution(getDb(), {
       oxyUserId: req.userId,
       workflowId: workflowId || 'temp',
       executionId,
-      status: 'running',
-      results: [],
-      finalOutput: '',
-      startedAt: new Date()
+      startedAt: new Date(),
     });
 
     try {
       // Execute the workflow
-      const { results, finalOutput } = await executeWorkflow(nodes, edges, req.userId!, executionId);
+      const { results, finalOutput } = await executeWorkflow(nodes, edges, req.userId, executionId);
 
-      // Update execution with results
-      execution.status = 'completed';
-      execution.results = results;
-      execution.finalOutput = finalOutput;
-      execution.completedAt = new Date();
-      await execution.save();
+      await completeExecution(getDb(), executionId, {
+        status: 'completed',
+        results,
+        finalOutput,
+        completedAt: new Date(),
+      });
 
       res.json({
         executionId,
@@ -91,11 +95,13 @@ router.post('/', async (req: Request, res: Response) => {
         finalOutput
       });
     } catch (error) {
-      // Update execution with error
-      execution.status = 'failed';
-      execution.finalOutput = error instanceof Error ? error.message : 'Unknown error';
-      execution.completedAt = new Date();
-      await execution.save();
+      // `results` is deliberately not written: the source left whatever the run
+      // had accumulated in place, and the column's default is already `[]`.
+      await completeExecution(getDb(), executionId, {
+        status: 'failed',
+        finalOutput: error instanceof Error ? error.message : 'Unknown error',
+        completedAt: new Date(),
+      });
 
       throw error;
     }

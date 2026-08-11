@@ -1,6 +1,15 @@
 import { Router } from 'express';
-import { Trigger } from '../models/trigger.js';
-import { TriggerExecution } from '../models/trigger-execution.js';
+import { getDb } from '../db/index.js';
+import {
+  countTriggerExecutions,
+  createTrigger,
+  deleteTriggerForUser,
+  findTriggerForUser,
+  listTriggerExecutions,
+  listTriggers,
+  updateTrigger,
+} from '../db/automation/triggerRepository.js';
+import type { TriggerTypeValue } from '../db/schema/automation.js';
 import { authenticateToken } from '../middleware/auth.js';
 import {
   executeTrigger,
@@ -24,12 +33,11 @@ authRouter.get('/', async (req: Request, res: Response) => {
     if (!req.user?.id) return res.status(401).json({ error: 'Unauthorized' });
 
     const { type } = req.query;
-    const filter: Record<string, any> = { oxyUserId: req.user.id };
-    if (type && ['schedule', 'webhook', 'integration_event'].includes(type as string)) {
-      filter.type = type;
-    }
+    const narrowed = ['schedule', 'webhook', 'integration_event'].includes(type as string)
+      ? (type as TriggerTypeValue)
+      : undefined;
 
-    const triggers = await Trigger.find(filter).sort({ createdAt: -1 });
+    const triggers = await listTriggers(getDb(), req.user.id, { type: narrowed });
     res.json({ triggers });
   } catch (error: unknown) {
     log.triggers.error({ err: error }, 'Error listing triggers');
@@ -42,7 +50,7 @@ authRouter.get('/:id', async (req: Request, res: Response) => {
   try {
     if (!req.user?.id) return res.status(401).json({ error: 'Unauthorized' });
 
-    const trigger = await Trigger.findOne({ _id: req.params.id, oxyUserId: req.user.id });
+    const trigger = await findTriggerForUser(getDb(), String(req.params.id), req.user.id);
     if (!trigger) return res.status(404).json({ error: 'Trigger not found' });
 
     res.json({ trigger });
@@ -100,7 +108,7 @@ authRouter.post('/', async (req: Request, res: Response) => {
       ...webhook,
     } : webhook;
 
-    const trigger = await Trigger.create({
+    const trigger = await createTrigger(getDb(), {
       oxyUserId: req.user.id,
       name,
       description,
@@ -120,12 +128,12 @@ authRouter.post('/', async (req: Request, res: Response) => {
     });
 
     // Reload scheduler if it's a schedule trigger
-    reloadTrigger(trigger._id.toString()).catch((err) =>
+    reloadTrigger(trigger._id).catch((err) =>
       log.triggers.error({ err }, 'Failed to reload trigger')
     );
 
     // Build webhook URL for response
-    const triggerResponse: any = trigger.toObject();
+    const triggerResponse: Record<string, unknown> = { ...trigger };
     if (type === 'webhook' && trigger.webhook?.token) {
       const baseUrl = process.env.API_BASE_URL || 'http://localhost:4150';
       triggerResponse.webhookUrl = `${baseUrl}/triggers/webhook/${trigger.webhook.token}`;
@@ -143,22 +151,27 @@ authRouter.patch('/:id', async (req: Request, res: Response) => {
   try {
     if (!req.user?.id) return res.status(401).json({ error: 'Unauthorized' });
 
-    const trigger = await Trigger.findOne({ _id: req.params.id, oxyUserId: req.user.id });
-    if (!trigger) return res.status(404).json({ error: 'Trigger not found' });
+    const existing = await findTriggerForUser(getDb(), String(req.params.id), req.user.id);
+    if (!existing) return res.status(404).json({ error: 'Trigger not found' });
 
     const { name, description, action, schedule, webhook, integrationEvent, enabled } = req.body;
 
-    if (name !== undefined) trigger.name = name;
-    if (description !== undefined) trigger.description = description;
-    if (action !== undefined) trigger.set('action', { ...trigger.action, ...action });
-    if (schedule !== undefined) trigger.schedule = schedule;
-    if (webhook !== undefined) trigger.set('webhook', { ...trigger.webhook, ...webhook });
-    if (integrationEvent !== undefined) trigger.integrationEvent = integrationEvent;
-    if (enabled !== undefined) trigger.enabled = enabled;
+    // `action` and `webhook` MERGE into what is stored; `schedule` and
+    // `integrationEvent` REPLACE it. That asymmetry is the source's — the first
+    // two went through `trigger.set('x', {...trigger.x, ...patch})` and the
+    // other two were assigned — and the repository reproduces it column by
+    // column, so a replacement clears the keys it does not name.
+    const trigger = await updateTrigger(getDb(), existing._id, {
+      name,
+      description,
+      enabled,
+      action,
+      schedule,
+      integrationEvent,
+      webhook,
+    });
 
-    await trigger.save();
-
-    reloadTrigger(trigger._id.toString()).catch((err) =>
+    reloadTrigger(existing._id).catch((err) =>
       log.triggers.error({ err }, 'Failed to reload trigger')
     );
 
@@ -174,8 +187,8 @@ authRouter.delete('/:id', async (req: Request, res: Response) => {
   try {
     if (!req.user?.id) return res.status(401).json({ error: 'Unauthorized' });
 
-    const result = await Trigger.deleteOne({ _id: req.params.id, oxyUserId: req.user.id });
-    if (result.deletedCount === 0) return res.status(404).json({ error: 'Trigger not found' });
+    const deleted = await deleteTriggerForUser(getDb(), String(req.params.id), req.user.id);
+    if (!deleted) return res.status(404).json({ error: 'Trigger not found' });
 
     reloadTrigger(String(req.params.id)).catch((err) =>
       log.triggers.error({ err }, 'Failed to reload trigger')
@@ -193,7 +206,7 @@ authRouter.post('/:id/run', async (req: Request, res: Response) => {
   try {
     if (!req.user?.id) return res.status(401).json({ error: 'Unauthorized' });
 
-    const trigger = await Trigger.findOne({ _id: req.params.id, oxyUserId: req.user.id });
+    const trigger = await findTriggerForUser(getDb(), String(req.params.id), req.user.id);
     if (!trigger) return res.status(404).json({ error: 'Trigger not found' });
 
     const { success, result, executionId } = await executeTrigger(trigger, {
@@ -214,18 +227,14 @@ authRouter.get('/:id/executions', async (req: Request, res: Response) => {
     if (!req.user?.id) return res.status(401).json({ error: 'Unauthorized' });
 
     // Verify trigger ownership
-    const trigger = await Trigger.findOne({ _id: req.params.id, oxyUserId: req.user.id });
+    const trigger = await findTriggerForUser(getDb(), String(req.params.id), req.user.id);
     if (!trigger) return res.status(404).json({ error: 'Trigger not found' });
 
     const limit = Math.min(parseInt(req.query.limit as string) || 20, 100);
     const offset = parseInt(req.query.offset as string) || 0;
 
-    const executions = await TriggerExecution.find({ triggerId: trigger._id })
-      .sort({ startedAt: -1 })
-      .skip(offset)
-      .limit(limit);
-
-    const total = await TriggerExecution.countDocuments({ triggerId: trigger._id });
+    const executions = await listTriggerExecutions(getDb(), trigger._id, { limit, offset });
+    const total = await countTriggerExecutions(getDb(), trigger._id);
 
     res.json({ executions, total, limit, offset });
   } catch (error: unknown) {
@@ -239,13 +248,13 @@ authRouter.post('/:id/regenerate-token', async (req: Request, res: Response) => 
   try {
     if (!req.user?.id) return res.status(401).json({ error: 'Unauthorized' });
 
-    const trigger = await Trigger.findOne({ _id: req.params.id, oxyUserId: req.user.id });
-    if (!trigger) return res.status(404).json({ error: 'Trigger not found' });
-    if (trigger.type !== 'webhook') return res.status(400).json({ error: 'Only webhook triggers have tokens' });
+    const existing = await findTriggerForUser(getDb(), String(req.params.id), req.user.id);
+    if (!existing) return res.status(404).json({ error: 'Trigger not found' });
+    if (existing.type !== 'webhook') return res.status(400).json({ error: 'Only webhook triggers have tokens' });
 
     const newToken = generateWebhookToken();
-    trigger.set('webhook', { ...trigger.webhook, token: newToken });
-    await trigger.save();
+    // A MERGE, so an existing HMAC secret and IP allowlist survive the rotation.
+    const trigger = await updateTrigger(getDb(), existing._id, { webhook: { token: newToken } });
 
     const baseUrl = process.env.API_BASE_URL || 'http://localhost:4150';
     res.json({

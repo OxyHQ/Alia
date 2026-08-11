@@ -7,12 +7,27 @@
  */
 
 import crypto from 'crypto';
-import mongoose from 'mongoose';
 import cron, { type ScheduledTask } from 'node-cron';
 import { generateText, stepCountIs, type ToolSet } from 'ai';
-import { Trigger, type ITrigger, type ITriggerSchedule, type TriggerType } from '../models/trigger.js';
+import {
+  claimTriggerForRun,
+  completeTriggerExecution,
+  createTrigger,
+  createTriggerExecution,
+  findAgentHeartbeatTrigger,
+  findIntegrationEventTriggers,
+  findLastSuccessfulExecution,
+  findSchedulableTriggers,
+  findTriggerById,
+  findTriggerByWebhookToken,
+  listSchedulableTriggerVersions,
+  recordTriggerFailure,
+  recordTriggerSuccess,
+  setTriggerSchedule,
+  type TriggerRecord,
+  type TriggerSchedule,
+} from '../db/automation/triggerRepository.js';
 import { Agent, type IAgent } from '../models/agent.js';
-import { TriggerExecution } from '../models/trigger-execution.js';
 import { resolveModel, getAIModel, getDefaultAliaModel } from './chat-core.js';
 import {
   getCurrentDateTool,
@@ -49,7 +64,6 @@ const scheduledUpdatedAt = new Map<string, number>();
 const RECONCILE_INTERVAL_MS = 30_000;
 let reconcileTimer: ReturnType<typeof setInterval> | null = null;
 let electionHandle: LeaderElectionHandle | null = null;
-let legacyMigrationDone = false;
 
 // ── Cron helpers ───────────────────────────────────────────────────
 
@@ -61,7 +75,7 @@ function dayToCronNumber(day: string): number {
   return dayMap[day.toLowerCase()] ?? -1;
 }
 
-function scheduleToCron(schedule: ITriggerSchedule): string | null {
+function scheduleToCron(schedule: TriggerSchedule): string | null {
   if (schedule.type === 'cron' && schedule.cron) {
     return schedule.cron;
   }
@@ -136,7 +150,7 @@ async function buildTriggerTools(userId: string, useTools: boolean): Promise<Too
 // ── System prompt builder ──────────────────────────────────────────
 
 function buildTriggerSystemPrompt(
-  trigger: ITrigger,
+  trigger: TriggerRecord,
   oxyUser?: OxyUser | null,
   memory?: UserMemoryProfile | null,
   source?: string
@@ -187,20 +201,19 @@ export interface TriggerExecutionContext {
 }
 
 export async function executeTrigger(
-  trigger: ITrigger,
+  trigger: TriggerRecord,
   context: TriggerExecutionContext
 ): Promise<{ success: boolean; result?: string; executionId?: string }> {
-  const triggerId = trigger._id.toString();
-  const userId = trigger.oxyUserId.toString();
+  const triggerId = trigger._id;
+  const userId = trigger.oxyUserId;
   const startTime = Date.now();
 
   log.triggers.info({ name: trigger.name, triggerId, source: context.source }, 'Executing trigger');
 
   // Create execution record
-  const execution = await TriggerExecution.create({
-    triggerId: trigger._id,
-    oxyUserId: trigger.oxyUserId,
-    status: 'running',
+  const execution = await createTriggerExecution(getDb(), {
+    triggerId,
+    oxyUserId: userId,
     triggerType: context.source === 'manual' ? 'manual' : trigger.type,
     input: {
       event: context.event,
@@ -210,20 +223,19 @@ export async function executeTrigger(
     startedAt: new Date(),
   });
 
-  // Atomically mark trigger as running
-  const updated = await Trigger.findOneAndUpdate(
-    { _id: triggerId, lastStatus: { $ne: 'running' } },
-    { $set: { lastStatus: 'running' } },
-    { returnDocument: 'after' }
-  );
+  // Atomically mark the trigger as running. ONE conditional statement, as the
+  // source's `findOneAndUpdate` was one round trip — a read-then-write here
+  // would reopen the race this guard exists to close.
+  const updated = await claimTriggerForRun(getDb(), triggerId);
   if (!updated) {
     log.triggers.info({ name: trigger.name }, 'Trigger already running, skipping');
-    execution.status = 'failed';
-    execution.result = 'Trigger already running';
-    execution.completedAt = new Date();
-    execution.durationMs = Date.now() - startTime;
-    await execution.save();
-    return { success: false, result: 'Trigger already running', executionId: execution._id.toString() };
+    await completeTriggerExecution(getDb(), execution.id, {
+      status: 'failed',
+      result: 'Trigger already running',
+      completedAt: new Date(),
+      durationMs: Date.now() - startTime,
+    });
+    return { success: false, result: 'Trigger already running', executionId: execution.id };
   }
 
   try {
@@ -265,10 +277,7 @@ export async function executeTrigger(
 
     // Previous report comparison for status_update agents
     if (linkedAgent?.archetype === 'status_update' && linkedAgent.archetypeConfig?.compareWithPrevious) {
-      const previousExecution = await TriggerExecution.findOne({
-        triggerId: trigger._id,
-        status: 'success',
-      }).sort({ completedAt: -1 }).select('result completedAt').lean();
+      const previousExecution = await findLastSuccessfulExecution(getDb(), triggerId);
 
       if (previousExecution?.result) {
         userMessage += `\n\n---\n## Previous Report (${previousExecution.completedAt?.toISOString() || 'unknown date'})\n\n${previousExecution.result.slice(0, 4000)}`;
@@ -307,22 +316,19 @@ export async function executeTrigger(
     } : undefined;
 
     // Update execution record
-    execution.status = 'success';
-    execution.result = resultText;
-    execution.toolCalls = toolCalls;
-    execution.tokens = tokens;
-    execution.durationMs = durationMs;
-    execution.completedAt = new Date();
-    await execution.save();
+    await completeTriggerExecution(getDb(), execution.id, {
+      status: 'success',
+      result: resultText,
+      toolCalls,
+      tokens,
+      durationMs,
+      completedAt: new Date(),
+    });
 
     // Update trigger stats
-    await Trigger.findByIdAndUpdate(triggerId, {
-      $set: {
-        lastTriggeredAt: new Date(),
-        lastStatus: 'success',
-        lastResult: resultText.slice(0, 2000),
-      },
-      $inc: { triggerCount: 1 },
+    await recordTriggerSuccess(getDb(), triggerId, {
+      lastTriggeredAt: new Date(),
+      lastResult: resultText.slice(0, 2000),
     });
 
     log.triggers.info({ name: trigger.name, triggerId, durationMs, toolCalls: toolCalls.length }, 'Trigger completed');
@@ -353,33 +359,31 @@ export async function executeTrigger(
         body: resultText.slice(0, 4000),
         channels: deliveryChannels,
         triggerId,
-        data: { executionId: execution._id.toString() },
+        data: { executionId: execution.id },
       }).catch((err) => {
         log.triggers.error({ err, triggerId }, 'Failed to send trigger notification');
       });
     }
 
-    return { success: true, result: resultText, executionId: execution._id.toString() };
+    return { success: true, result: resultText, executionId: execution.id };
   } catch (error: unknown) {
     const durationMs = Date.now() - startTime;
     const errMsg = getErrorMessage(error);
     log.triggers.error({ err: error, name: trigger.name, triggerId }, 'Trigger execution failed');
 
-    execution.status = 'failed';
-    execution.result = errMsg;
-    execution.durationMs = durationMs;
-    execution.completedAt = new Date();
-    await execution.save();
-
-    await Trigger.findByIdAndUpdate(triggerId, {
-      $set: {
-        lastStatus: 'failed',
-        lastResult: errMsg,
-        lastTriggeredAt: new Date(),
-      },
+    await completeTriggerExecution(getDb(), execution.id, {
+      status: 'failed',
+      result: errMsg,
+      durationMs,
+      completedAt: new Date(),
     });
 
-    return { success: false, result: errMsg, executionId: execution._id.toString() };
+    await recordTriggerFailure(getDb(), triggerId, {
+      lastResult: errMsg,
+      lastTriggeredAt: new Date(),
+    });
+
+    return { success: false, result: errMsg, executionId: execution.id };
   }
 }
 
@@ -394,8 +398,8 @@ function unscheduleTrigger(triggerId: string): void {
   }
 }
 
-function scheduleTrigger(trigger: ITrigger): void {
-  const triggerId = trigger._id.toString();
+function scheduleTrigger(trigger: TriggerRecord): void {
+  const triggerId = trigger._id;
 
   // Remove existing schedule before (re)scheduling in place
   unscheduleTrigger(triggerId);
@@ -415,7 +419,7 @@ function scheduleTrigger(trigger: ITrigger): void {
 
   const task = cron.schedule(cronExpression, async () => {
     try {
-      const fresh = await Trigger.findById(triggerId);
+      const fresh = await findTriggerById(getDb(), triggerId);
       if (!fresh || !fresh.enabled) return;
       await executeTrigger(fresh, { source: 'cron' });
     } catch (error) {
@@ -426,7 +430,7 @@ function scheduleTrigger(trigger: ITrigger): void {
   });
 
   scheduledTasks.set(triggerId, task);
-  scheduledUpdatedAt.set(triggerId, trigger.updatedAt?.getTime() ?? 0);
+  scheduledUpdatedAt.set(triggerId, trigger.updatedAt.getTime());
   log.triggers.info({ name: trigger.name, cronExpression, timezone: trigger.schedule.timezone }, 'Scheduled trigger');
 }
 
@@ -458,14 +462,8 @@ export async function findTriggersForIntegrationEvent(
   event: string,
   userId: string,
   eventData?: Record<string, any>
-): Promise<ITrigger[]> {
-  const triggers = await Trigger.find({
-    oxyUserId: userId,
-    type: 'integration_event',
-    enabled: true,
-    'integrationEvent.service': service,
-    'integrationEvent.event': event,
-  });
+): Promise<TriggerRecord[]> {
+  const triggers = await findIntegrationEventTriggers(getDb(), userId, service, event);
 
   // Apply filters
   return triggers.filter((trigger) => {
@@ -528,12 +526,7 @@ export async function startTriggerScheduler(): Promise<void> {
   log.triggers.info('Starting trigger scheduler...');
 
   try {
-    await migrateLegacyAutomations();
-
-    const triggers = await Trigger.find({
-      type: { $in: ['schedule', 'agent_heartbeat'] },
-      enabled: true,
-    });
+    const triggers = await findSchedulableTriggers(getDb());
     log.triggers.info({ count: triggers.length }, 'Found enabled schedule triggers');
 
     for (const trigger of triggers) {
@@ -579,20 +572,17 @@ export function stopAllScheduledTasks(): void {
  */
 async function reconcileScheduledTriggers(): Promise<void> {
   try {
-    const rows = await Trigger.find({
-      type: { $in: ['schedule', 'agent_heartbeat'] },
-      enabled: true,
-    }).select('_id updatedAt').lean();
+    const rows = await listSchedulableTriggerVersions(getDb());
 
     const seen = new Set<string>();
     for (const row of rows) {
-      const triggerId = row._id.toString();
+      const triggerId = row.id;
       seen.add(triggerId);
-      const updatedAtMs = row.updatedAt ? new Date(row.updatedAt).getTime() : 0;
+      const updatedAtMs = row.updatedAt.getTime();
       if (scheduledUpdatedAt.get(triggerId) === updatedAtMs) continue;
 
       // New or changed since we last scheduled it — reschedule in place.
-      const full = await Trigger.findById(triggerId);
+      const full = await findTriggerById(getDb(), triggerId);
       if (full) scheduleTrigger(full);
     }
 
@@ -605,73 +595,6 @@ async function reconcileScheduledTriggers(): Promise<void> {
   }
 }
 
-async function migrateLegacyAutomations(): Promise<void> {
-  if (legacyMigrationDone) return;
-  legacyMigrationDone = true;
-
-  const db = mongoose.connection.db;
-  if (!db) return;
-
-  const legacy = db.collection('automations');
-  const count = await legacy.countDocuments().catch(() => 0);
-  if (!count) return;
-
-  const docs = await legacy.find({}).toArray();
-  let migrated = 0;
-
-  for (const doc of docs) {
-    const oxyUserId = doc.oxyUserId;
-    const name = String(doc.name || '').trim();
-    const prompt = String(doc.prompt || '').trim();
-    if (!oxyUserId || !name || !prompt) continue;
-
-    const schedule: ITriggerSchedule = {
-      type: doc.schedule?.type === 'interval' ? 'interval' : 'daily',
-      ...(doc.schedule?.type === 'interval'
-        ? { intervalMinutes: Math.max(1, Number(doc.schedule?.intervalMinutes || 60)) }
-        : {
-            time: typeof doc.schedule?.time === 'string' ? doc.schedule.time : '09:00',
-            days: Array.isArray(doc.schedule?.days) ? doc.schedule.days : undefined,
-          }),
-    };
-
-    const exists = await Trigger.findOne({
-      oxyUserId,
-      name,
-      type: 'schedule',
-      'action.prompt': prompt,
-    }).select('_id').lean();
-    if (exists) continue;
-
-    await Trigger.create({
-      oxyUserId,
-      name,
-      description: 'Migrated from legacy automations',
-      type: 'schedule',
-      enabled: doc.enabled !== false,
-      action: {
-        prompt,
-        roleId: doc.roleId,
-        useTools: true,
-        notify: false,
-      },
-      schedule,
-      lastTriggeredAt: doc.lastRunAt,
-      triggerCount: Number(doc.runCount || 0),
-      lastStatus: doc.lastRunStatus,
-      lastResult: doc.lastRunResult,
-      createdAt: doc.createdAt,
-      updatedAt: doc.updatedAt,
-    }).catch(() => {});
-
-    migrated++;
-  }
-
-  // Hard cut: remove legacy rows once migrated.
-  await legacy.deleteMany({}).catch(() => {});
-
-  log.triggers.info({ migrated, scanned: docs.length }, 'Legacy automations migrated to triggers');
-}
 
 /**
  * Reload a single trigger's schedule (called on create/update/delete).
@@ -681,7 +604,7 @@ async function migrateLegacyAutomations(): Promise<void> {
 export async function reloadTrigger(triggerId: string): Promise<void> {
   if (!isTriggerLeader()) return;
 
-  const trigger = await Trigger.findById(triggerId);
+  const trigger = await findTriggerById(getDb(), triggerId);
   if (trigger && (trigger.type === 'schedule' || trigger.type === 'agent_heartbeat')) {
     scheduleTrigger(trigger);
   } else {
@@ -698,11 +621,7 @@ export async function processWebhookTrigger(
   payload: Record<string, any>,
   headers?: Record<string, string>
 ): Promise<{ success: boolean; result?: string; triggerId?: string; executionId?: string }> {
-  const trigger = await Trigger.findOne({
-    'webhook.token': token,
-    type: 'webhook',
-    enabled: true,
-  });
+  const trigger = await findTriggerByWebhookToken(getDb(), token);
 
   if (!trigger) {
     return { success: false, result: 'Trigger not found or disabled' };
@@ -793,34 +712,29 @@ async function startAgentHeartbeatScheduler(): Promise<void> {
 
     for (const agent of agents) {
       // Check if a heartbeat trigger already exists for this agent
-      const existing = await Trigger.findOne({
-        type: 'agent_heartbeat',
-        'action.agentId': agent._id,
-        enabled: true,
-      });
+      const existing = await findAgentHeartbeatTrigger(getDb(), String(agent._id));
 
       if (existing) {
         // Ensure schedule matches agent's interval
         const expectedCron = `*/${agent.scheduleInterval} * * * *`;
         if (existing.schedule?.cron !== expectedCron) {
-          existing.schedule = { type: 'cron', cron: expectedCron };
-          await existing.save();
-          scheduleTrigger(existing);
+          await setTriggerSchedule(getDb(), existing._id, { type: 'cron', cron: expectedCron });
+          scheduleTrigger({ ...existing, schedule: { type: 'cron', cron: expectedCron } });
           log.triggers.info({ agentName: agent.name, interval: agent.scheduleInterval }, 'Updated heartbeat schedule');
         }
         continue;
       }
 
       // Create a new heartbeat trigger for this agent
-      const trigger = await Trigger.create({
-        oxyUserId: agent.author,
+      const trigger = await createTrigger(getDb(), {
+        oxyUserId: String(agent.author),
         name: `${agent.name} Heartbeat`,
         description: `Periodic heartbeat check for ${agent.name}`,
-        type: 'agent_heartbeat' as TriggerType,
+        type: 'agent_heartbeat',
         enabled: true,
         action: {
           prompt: HEARTBEAT_PROMPT,
-          agentId: agent._id,
+          agentId: String(agent._id),
           useTools: false,
           notify: true,
         },
