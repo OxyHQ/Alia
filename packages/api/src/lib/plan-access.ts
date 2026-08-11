@@ -4,7 +4,8 @@
  * Results are cached per-user with a short TTL.
  */
 
-import { Subscription } from '../models/subscription.js';
+import { getDb } from '../db/index.js';
+import { findActiveSubscriptions } from '../db/billing/subscriptionRepository.js';
 import { getPlans, getPlanFeatures } from './gateway-client.js';
 import { TTLCache } from './ttl-cache.js';
 
@@ -22,13 +23,10 @@ export async function getUserEntitlements(userId: string): Promise<Entitlements>
   const cached = cache.get(userId);
   if (cached) return cached;
 
-  const subscriptions = await Subscription.find({
-    oxyUserId: userId,
-    status: { $in: ['active', 'trialing'] },
-  }).lean();
+  const subscriptions = await findActiveSubscriptions(getDb(), userId);
 
   const planIds = subscriptions
-    .map(s => s.plan?.planId)
+    .map(s => s.planSnapshotPlanId)
     .filter(Boolean) as string[];
   if (planIds.length === 0) planIds.push('free');
 

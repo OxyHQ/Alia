@@ -3,10 +3,10 @@
  * Uses $setOnInsert for idempotency — re-running never overwrites admin edits.
  */
 
-import { CreditPackage } from '../models/credit-package.js';
-import { connectDB } from './db.js';
+import { isUniqueViolation } from '@oxyhq/db';
+import { getDb } from '../../../db/index.js';
+import { seedCreditPackage } from '../../../db/billing/creditPackageRepository.js';
 import { log } from '../../../lib/logger.js';
-import { isDuplicateKeyError } from '../../../lib/errors/index.js';
 
 interface CreditPackageSeed {
   packageId: string;
@@ -25,36 +25,33 @@ const SEED_PACKAGES: CreditPackageSeed[] = [
 ];
 
 export async function seedCreditPackages(): Promise<{ seeded: number; skipped: number }> {
-  await connectDB();
+  const db = getDb();
 
   let seeded = 0;
   let skipped = 0;
 
   for (const pkgData of SEED_PACKAGES) {
     try {
-      const result = await CreditPackage.updateOne(
-        { packageId: pkgData.packageId },
-        {
-          $setOnInsert: {
-            name: pkgData.name,
-            credits: pkgData.credits,
-            price: pkgData.price,
-            currency: pkgData.currency,
-            sortOrder: pkgData.sortOrder,
-            isActive: true,
-          },
-        },
-        { upsert: true }
-      );
+      // `$setOnInsert`-only: an existing package is never overwritten, so an
+      // admin's price edit survives every re-run.
+      const result = await seedCreditPackage(db, {
+        packageId: pkgData.packageId,
+        name: pkgData.name,
+        credits: pkgData.credits,
+        price: pkgData.price,
+        currency: pkgData.currency,
+        sortOrder: pkgData.sortOrder,
+        isActive: true,
+      });
 
-      if (result.upsertedCount > 0) {
+      if (result.inserted) {
         seeded++;
         log.seed.info({ packageId: pkgData.packageId }, 'Created CreditPackage');
       } else {
         skipped++;
       }
     } catch (error: unknown) {
-      if (isDuplicateKeyError(error)) {
+      if (isUniqueViolation(error)) {
         skipped++;
       } else {
         log.seed.error({ err: error, packageId: pkgData.packageId }, 'Error seeding credit package');

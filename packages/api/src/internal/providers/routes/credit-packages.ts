@@ -4,7 +4,16 @@
  */
 
 import express, { Request, Response } from 'express';
-import { CreditPackage } from '../models/credit-package.js';
+import { isUniqueViolation } from '@oxyhq/db';
+import { getDb } from '../../../db/index.js';
+import {
+  deleteCreditPackageByPackageId,
+  findCreditPackageByPackageId,
+  insertCreditPackage,
+  selectCreditPackages,
+  updateCreditPackageByPackageId,
+  type CreditPackageUpdate,
+} from '../../../db/billing/creditPackageRepository.js';
 import { broadcastCreditPackagesUpdate } from '../lib/broadcast-helpers.js';
 import { log } from '../../../lib/logger.js';
 
@@ -18,10 +27,9 @@ router.get('/', async (req: Request, res: Response) => {
   try {
     const { active } = req.query;
 
-    const query: Record<string, unknown> = {};
-    if (active !== undefined) query.isActive = active === 'true';
-
-    const packages = await CreditPackage.find(query).sort({ sortOrder: 1 }).lean();
+    const packages = await selectCreditPackages(getDb(), {
+      ...(active !== undefined ? { isActive: active === 'true' } : {}),
+    });
 
     res.json({
       success: true,
@@ -44,8 +52,8 @@ router.get('/', async (req: Request, res: Response) => {
  */
 router.get('/:packageId', async (req: Request, res: Response) => {
   try {
-    const { packageId } = req.params;
-    const pkg = await CreditPackage.findOne({ packageId }).lean();
+    const packageId = req.params.packageId as string;
+    const pkg = await findCreditPackageByPackageId(getDb(), packageId);
 
     if (!pkg) {
       return res.status(404).json({
@@ -101,7 +109,7 @@ router.post('/', async (req: Request, res: Response) => {
       });
     }
 
-    const existing = await CreditPackage.findOne({ packageId: packageId.toLowerCase() });
+    const existing = await findCreditPackageByPackageId(getDb(), packageId.toLowerCase());
     if (existing) {
       return res.status(409).json({
         success: false,
@@ -117,7 +125,7 @@ router.post('/', async (req: Request, res: Response) => {
     if ('isActive' in rest) optionalFields.isActive = rest.isActive;
     if ('description' in rest) optionalFields.description = rest.description;
 
-    const pkg = await CreditPackage.create({
+    const pkg = await insertCreditPackage(getDb(), {
       packageId: packageId.toLowerCase(),
       name,
       credits,
@@ -133,6 +141,15 @@ router.post('/', async (req: Request, res: Response) => {
 
     void broadcastCreditPackagesUpdate();
   } catch (error: unknown) {
+    // `credit_packages_package_id_key` is what actually holds; the pre-check
+    // above is a read-then-write race a concurrent create would win.
+    if (isUniqueViolation(error)) {
+      return res.status(409).json({
+        success: false,
+        error: 'Credit package with this ID already exists',
+        code: 'PACKAGE_ALREADY_EXISTS',
+      });
+    }
     log.providers.error({ err: error }, 'Error creating credit package');
     res.status(500).json({
       success: false,
@@ -148,7 +165,7 @@ router.post('/', async (req: Request, res: Response) => {
  */
 router.patch('/:packageId', async (req: Request, res: Response) => {
   try {
-    const { packageId } = req.params;
+    const packageId = req.params.packageId as string;
 
     // Explicit whitelist — packageId is immutable and excluded on purpose.
     // Never spread req.body directly into a $set update (mass-assignment).
@@ -179,11 +196,7 @@ router.patch('/:packageId', async (req: Request, res: Response) => {
       });
     }
 
-    const pkg = await CreditPackage.findOneAndUpdate(
-      { packageId },
-      { $set: updates },
-      { returnDocument: 'after', runValidators: true }
-    );
+    const pkg = await updateCreditPackageByPackageId(getDb(), packageId, updates as CreditPackageUpdate);
 
     if (!pkg) {
       return res.status(404).json({
@@ -215,9 +228,9 @@ router.patch('/:packageId', async (req: Request, res: Response) => {
  */
 router.delete('/:packageId', async (req: Request, res: Response) => {
   try {
-    const { packageId } = req.params;
+    const packageId = req.params.packageId as string;
 
-    const pkg = await CreditPackage.findOneAndDelete({ packageId });
+    const pkg = await deleteCreditPackageByPackageId(getDb(), packageId);
 
     if (!pkg) {
       return res.status(404).json({

@@ -6,10 +6,10 @@
  * (see seed-features.ts). This file only seeds plan metadata and modelIds.
  */
 
-import { Plan } from '../models/plan.js';
-import { connectDB } from './db.js';
+import { isUniqueViolation } from '@oxyhq/db';
+import { getDb } from '../../../db/index.js';
+import { seedPlan } from '../../../db/billing/planRepository.js';
 import { log } from '../../../lib/logger.js';
-import { isDuplicateKeyError } from '../../../lib/errors/index.js';
 
 interface PlanSeed {
   planId: string;
@@ -155,48 +155,42 @@ const SEED_PLANS: PlanSeed[] = [
 ];
 
 export async function seedPlans(): Promise<{ seeded: number; skipped: number }> {
-  await connectDB();
+  const db = getDb();
 
   let seeded = 0;
   let skipped = 0;
 
   for (const planData of SEED_PLANS) {
     try {
-      const result = await Plan.updateOne(
-        { planId: planData.planId },
-        {
-          // Always sync modelIds from seed (code-managed)
-          $set: {
-            modelIds: planData.modelIds,
-          },
-          // Only set other fields on first insert (admin-managed)
-          $setOnInsert: {
-            name: planData.name,
-            product: planData.product,
-            creditsPerMonth: planData.creditsPerMonth,
-            dailyFreeCredits: planData.dailyFreeCredits,
-            monthlyPrice: planData.monthlyPrice,
-            annualPrice: planData.annualPrice,
-            currency: planData.currency,
-            subtitle: planData.subtitle,
-            creditsLabel: planData.creditsLabel,
-            isFeatured: planData.isFeatured,
-            sortOrder: planData.sortOrder,
-            isFree: planData.isFree,
-            isActive: true,
-          },
-        },
-        { upsert: true }
-      );
+      // `modelIds` is code-managed and re-synced on every run; everything else
+      // is admin-managed and set only when the row is created — the `$set` /
+      // `$setOnInsert` split, as an `ON CONFLICT DO UPDATE` touching one column.
+      const result = await seedPlan(db, {
+        planId: planData.planId,
+        modelIds: planData.modelIds,
+        name: planData.name,
+        product: planData.product,
+        creditsPerMonth: planData.creditsPerMonth,
+        dailyFreeCredits: planData.dailyFreeCredits,
+        monthlyPrice: planData.monthlyPrice,
+        annualPrice: planData.annualPrice,
+        currency: planData.currency,
+        subtitle: planData.subtitle,
+        creditsLabel: planData.creditsLabel,
+        isFeatured: planData.isFeatured,
+        sortOrder: planData.sortOrder,
+        isFree: planData.isFree,
+        isActive: true,
+      });
 
-      if (result.upsertedCount > 0) {
+      if (result.inserted) {
         seeded++;
         log.seed.info({ planId: planData.planId, name: planData.name }, 'Created Plan');
       } else {
         skipped++;
       }
     } catch (error: unknown) {
-      if (isDuplicateKeyError(error)) {
+      if (isUniqueViolation(error)) {
         skipped++;
       } else {
         log.seed.error({ err: error, planId: planData.planId }, 'Error seeding plan');

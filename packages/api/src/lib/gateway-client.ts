@@ -9,13 +9,19 @@
  *
  * Gateway mode requires EXPLICIT config: without a deployed alia-gateway and a
  * GATEWAY_API_URL pointing at it, the facade uses its in-process local fallback
- * (direct Mongo models + internal/providers/*). This mirrors the ecosystem
+ * (the Postgres repositories + internal/providers/*). This mirrors the ecosystem
  * env-gating convention (e.g. REDIS_URL → BullMQ, else inline).
  *
  * Consumer files always import from this module — the backend is transparent.
+ *
+ * The local fallbacks below load their repositories through `await import()`,
+ * which is the shape the pre-existing code used for the Mongoose models and is
+ * kept: this module is imported at boot by callers that must not pull the whole
+ * `internal/providers` tree in with it.
  */
 
 import crypto from 'crypto';
+import type { PlanFilter } from '../db/billing/planRepository.js';
 import { log } from './logger.js';
 import { getStatusCode } from './errors/index.js';
 
@@ -594,7 +600,7 @@ export async function getProviderHealth(provider: string, modelId: string): Prom
 /**
  * Get plans.
  */
-export async function getPlans(filter?: Record<string, unknown>): Promise<PlanData[]> {
+export async function getPlans(filter?: PlanFilter): Promise<PlanData[]> {
   if (GATEWAY_API_ENABLED) {
     const data = await apiGet<{ plans: PlanData[] }>('/api/billing?type=plans');
     const plans = data.plans ?? [];
@@ -602,8 +608,9 @@ export async function getPlans(filter?: Record<string, unknown>): Promise<PlanDa
     return plans.filter(p => Object.entries(filter).every(([k, v]) => (p as unknown as Record<string, unknown>)[k] === v));
   }
 
-  const { Plan } = await import('../internal/providers/models/plan.js');
-  return Plan.find(filter || {}).lean() as unknown as PlanData[];
+  const { getDb } = await import('../db/index.js');
+  const { selectPlans } = await import('../db/billing/planRepository.js');
+  return selectPlans(getDb(), filter ?? {}) as unknown as Promise<PlanData[]>;
 }
 
 /**
@@ -616,10 +623,9 @@ export async function getCreditPackages(active?: boolean): Promise<CreditPackage
     return data.packages ?? [];
   }
 
-  const { CreditPackage } = await import('../internal/providers/models/credit-package.js');
-  const filter: Record<string, boolean> = {};
-  if (active !== undefined) filter.isActive = active;
-  return CreditPackage.find(filter).lean() as unknown as CreditPackageData[];
+  const { getDb } = await import('../db/index.js');
+  const { selectCreditPackages } = await import('../db/billing/creditPackageRepository.js');
+  return selectCreditPackages(getDb(), active === undefined ? {} : { isActive: active }) as unknown as CreditPackageData[];
 }
 
 /**
@@ -631,8 +637,9 @@ export async function getFeatures(): Promise<FeatureData[]> {
     return data.features ?? [];
   }
 
-  const { Feature } = await import('../internal/providers/models/feature.js');
-  return Feature.find({}).lean() as unknown as FeatureData[];
+  const { getDb } = await import('../db/index.js');
+  const { selectAllFeatures } = await import('../db/billing/featureRepository.js');
+  return selectAllFeatures(getDb()) as unknown as FeatureData[];
 }
 
 /**
@@ -645,22 +652,25 @@ export async function getPlanFeatures(planId?: string): Promise<PlanFeatureData[
     return data.planFeatures ?? [];
   }
 
-  const { PlanFeature } = await import('../internal/providers/models/plan-feature.js');
-  const filter: Record<string, string> = {};
-  if (planId) filter.planId = planId;
-  return PlanFeature.find(filter).lean() as unknown as PlanFeatureData[];
+  const { getDb } = await import('../db/index.js');
+  const { selectPlanFeatures } = await import('../db/billing/planFeatureRepository.js');
+  return selectPlanFeatures(getDb(), planId ? { planId } : {}) as unknown as PlanFeatureData[];
 }
 
 /**
  * Update a plan (e.g. to persist auto-created Stripe price IDs).
  */
-export async function updatePlan(planId: string, updates: Record<string, unknown>): Promise<PlanData | null> {
+export async function updatePlan(
+  planId: string,
+  updates: { stripeProductId?: string; stripeMonthlyPriceId?: string; stripeAnnualPriceId?: string },
+): Promise<PlanData | null> {
   if (GATEWAY_API_ENABLED) {
     return apiPatch(`/v1/plans/${planId}`, updates);
   }
 
-  const { Plan } = await import('../internal/providers/models/plan.js');
-  return Plan.findOneAndUpdate({ planId }, { $set: updates }, { returnDocument: 'after' }).lean();
+  const { getDb } = await import('../db/index.js');
+  const { updatePlanByPlanId } = await import('../db/billing/planRepository.js');
+  return updatePlanByPlanId(getDb(), planId, updates) as unknown as Promise<PlanData | null>;
 }
 
 // ============== KEY MANAGEMENT ==============
