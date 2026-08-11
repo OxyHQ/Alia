@@ -154,10 +154,18 @@ jobs:
       # would read here as "no post migration" and the drop would be applied by
       # nothing at all — a silent skip rather than a failure.
       #
-      # Today Alia's journal is 16 `pre` files and no `post` one, so this
-      # resolves false and the post step is skipped. It exists because the
-      # migrator enforces a two-phase contract and half of one is not a contract:
-      # the first `post` migration somebody writes must be applied by something.
+      # This resolves TRUE today: `0016` is a `post` migration, with `0017` and
+      # `0018` `pre` behind it. The comment this replaces said the journal was
+      # all `pre` and the step therefore inert, which stopped being true the day
+      # 0016 landed and was corrected by nothing — while the deploys that fact
+      # governs were failing.
+      #
+      # It matters most at desiredCount=0, where alia has sat for the whole
+      # Postgres cutover: deploy-ecs-image.sh runs this command on the
+      # zero-capacity path too, because a `post` migration deferred there is not
+      # deferred, it is DEADLOCKED — the ledger is a high-water mark, so the next
+      # release's `pre` run is refused behind the unapplied `post` one and that
+      # deploy fails at its migration step.
       - name: Detect a post-rollout migration in this release
         id: phases
         run: |

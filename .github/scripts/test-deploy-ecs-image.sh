@@ -282,7 +282,7 @@ export -f aws
 # Raise this with the case count; lower it ONLY alongside a deletion you can
 # name. A floor quietly adjusted to match whatever ran is not a floor.
 cases_run=0
-MINIMUM_CASES=13
+MINIMUM_CASES=14
 
 run_release() {
   cases_run=$((cases_run + 1))
@@ -464,17 +464,60 @@ fi
 # The exact log is the whole assertion, and what it does NOT contain matters more
 # than what it does. Compare `migration-command` above, the same release at
 # desired=1: there, `service:` is followed by `smoke` and `run-task:reconcile`.
-# Here the log must STOP at `service:`, because neither is real when nothing is
-# running -- a smoke check against a service with zero tasks is the plausible
-# green this case exists to refuse. `diff -u` fails if either appears.
+# Here `smoke` must be ABSENT and `run-task:reconcile` must be PRESENT, and the
+# difference between those two is the entire point of this case.
+#
+# THE ASYMMETRY, because an earlier version of this case got it wrong: it
+# asserted the log STOPS at `service:`, excluding both, on the reasoning that
+# "neither is real when nothing is running". That is true of the smoke check and
+# false of the one-shot.
+#
+#   - A smoke script asserts HTTP against the service's own origin. Zero tasks,
+#     so it can only fail on an empty target group or "pass" against something
+#     that is not this image. Not real. Skipped.
+#   - `run_one_shot_command` calls `ecs run-task`: its own task, on the new
+#     revision, independent of the service. The `run-task:...--phase=pre` line
+#     directly above in this same expected log is the positive control -- it
+#     launches and succeeds at desired=0 by exactly that mechanism. Real. Run.
+#
+# Excluding the one-shot deadlocked alia for four consecutive merges: it is the
+# `post` migration phase, @oxyhq/db's ledger is a high-water mark, and the next
+# release's `pre` run is refused behind an unapplied `post` one -- so the deploy
+# that was supposed to "catch up later" fails at its migration step instead.
 run_release zero-desired-count true true false 0 false 0
 printf '%s\n' \
   'run-task:node packages/api/dist/db/migrate.js --target-database=alia --phase=pre' \
   'service:arn:aws:ecs:test:task-definition/deploy-test:2:desired=0' \
+  'run-task:reconcile' \
   >"$test_directory/zero-desired-count/expected.log"
 diff -u \
   "$test_directory/zero-desired-count/expected.log" \
   "$test_directory/zero-desired-count/aws.log"
+# Ordering, asserted separately from the diff because the diff would also pass on
+# a script that ran the one-shot BEFORE `update-service`. The post phase belongs
+# after the repoint at zero capacity for the same reason it belongs after the
+# rollout at capacity: it is the half that runs once the new revision is what the
+# service will launch.
+if ! grep -A1 -F 'service:arn:aws:ecs:test:task-definition/deploy-test:2:desired=0' \
+  "$test_directory/zero-desired-count/aws.log" | grep -qF 'run-task:reconcile'; then
+  echo "The zero-capacity post-deploy one-shot did not run after the repoint." >&2
+  exit 1
+fi
+# The smoke script is skipped, and SAID to be skipped. An omitted line and a
+# deliberate skip look identical in a log, which is how the post phase went
+# missing in the first place.
+if grep -qF 'smoke' "$test_directory/zero-desired-count/aws.log"; then
+  echo "A zero-capacity release ran smoke checks against a service with no tasks." >&2
+  exit 1
+fi
+grep -F \
+  "post-deploy smoke checks were SKIPPED" \
+  "$test_directory/zero-desired-count/output.log" \
+  >/dev/null
+grep -F \
+  "MIGRATIONS DID RUN — phase=pre before the repoint and the post-deploy one-shot after it" \
+  "$test_directory/zero-desired-count/output.log" \
+  >/dev/null
 # `service:...deploy-test:2:...` is the REPOINT, and it is the half that is easy
 # to drop: registering a revision does not point the service at it, so without
 # this line a later scale-up would launch the OLD image and every subsequent
@@ -500,6 +543,41 @@ if grep -qF \
   echo "A zero-capacity release claimed a healthy rollout it never performed." >&2
   exit 1
 fi
+
+# A post-deploy one-shot that FAILS at zero capacity must fail the job and must
+# NOT attempt a rollback. `RUN_MIGRATIONS` is false here on purpose: the mocked
+# describe-tasks returns one exit code for every one-shot, so leaving it on would
+# fail the `pre` task first and never reach the branch under test.
+#
+# The rollback is the whole assertion. `rollback_service` calls
+# wait_for_service_rollout, which at desiredCount=0 waits for a steady state that
+# cannot arrive -- so the naive "handle it like the at-capacity path" version of
+# this fix hangs for MAX_WAIT_SECS and then reports a second, misleading failure
+# on top of the real one. Compare `reconciliation-failure` above, the same case
+# at desired=1, whose expected log ENDS with the rollback repoint to :1.
+run_release zero-capacity-reconciliation-failure false false false 1 false 0
+printf '%s\n' \
+  'service:arn:aws:ecs:test:task-definition/deploy-test:2:desired=0' \
+  'run-task:reconcile' \
+  tasklogs \
+  >"$test_directory/zero-capacity-reconciliation-failure/expected.log"
+diff -u \
+  "$test_directory/zero-capacity-reconciliation-failure/expected.log" \
+  "$test_directory/zero-capacity-reconciliation-failure/aws.log"
+# Stated positively as well as by the diff: :1 is the PREVIOUS revision, so this
+# line appearing at all means a rollback was attempted.
+if grep -qF \
+  'service:arn:aws:ecs:test:task-definition/deploy-test:1:' \
+  "$test_directory/zero-capacity-reconciliation-failure/aws.log"; then
+  echo "A zero-capacity post-deploy failure attempted a rollback that cannot complete." >&2
+  exit 1
+fi
+# The operator has to be told the schema is half-migrated, because the next
+# deploy will fail at its migration step and the cause will not be in that log.
+grep -F \
+  "with the post phase UNAPPLIED" \
+  "$test_directory/zero-capacity-reconciliation-failure/output.log" \
+  >/dev/null
 
 # The negative control for the case above: desiredCount ABSENT is ECS declining
 # to answer, which is not the same fact as a zero it reports confidently, and
