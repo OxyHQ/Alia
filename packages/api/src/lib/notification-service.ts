@@ -34,7 +34,7 @@ import type {
   NotificationPriority,
   NotificationTypeValue,
 } from '../db/schema/notifications.js';
-import { ConnectedAccount } from '../models/connected-account.js';
+import { findConnectedAccountForChannel } from '../db/integrations/connectedAccountRepository.js';
 import { getStatusCode } from './errors/index.js';
 import { Bot } from '../models/bot.js';
 import { BotUser } from '../models/bot-user.js';
@@ -155,11 +155,7 @@ async function deliverViaChannel(
   notification: NotificationRow
 ): Promise<boolean> {
   // Find user's connected account for this channel
-  const account = await ConnectedAccount.findOne({
-    oxyUserId: new mongoose.Types.ObjectId(userId),
-    platform: channelId,
-    status: 'connected',
-  });
+  const account = await findConnectedAccountForChannel(getDb(), userId, channelId);
 
   if (!account?.accountId) return false;
 
