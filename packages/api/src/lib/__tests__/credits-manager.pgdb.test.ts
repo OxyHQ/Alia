@@ -1,6 +1,8 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import postgres from 'postgres';
 import { closePostgres, connectPostgres } from '../../db/index';
 import {
+  addCredits,
   getOrCreateUserCredits,
   findUserCredits,
   spendCreditsFreeFirst,
@@ -339,6 +341,111 @@ describe('getUserCredits', () => {
   });
 });
 
+/**
+ * What each entry point does when the STORE itself fails.
+ *
+ * The pre-port suite covered all three by making a mocked Mongoose model throw.
+ * That technique does not survive the port and the cases nearly went with it —
+ * they are three different deliberate answers to the same event, and each is a
+ * decision somebody made:
+ *
+ *   - `reserveCredits` RETHROWS. Credits are money; a spend that may or may not
+ *     have happened must not be reported as success.
+ *   - `refundReservation`/`safeRefund` SWALLOW. They already run on the error
+ *     path, and a throw here would replace the caller's real error with this one.
+ *   - `getUserCredits` returns NULL, which its callers render as "unknown".
+ *
+ * The failure is REAL, not a stub: `credits_free` is `integer`, so an amount
+ * past int4 makes the server raise `22003 numeric value out of range` inside the
+ * same statement the production path issues. A mocked rejection would prove the
+ * `catch` runs; this proves it runs for something the database can actually do.
+ */
+describe('when the store itself fails', () => {
+  /** Beyond int4, so the ARITHMETIC — not a validation — is what fails. */
+  const OVERFLOW = 9_999_999_999;
+  /** `22003 numeric_value_out_of_range`. */
+  const OUT_OF_RANGE = '22003';
+
+  /**
+   * The SQLSTATE, which is NOT on the error.
+   *
+   * Drizzle rethrows as `Failed query: update "user_credits" …` and hangs the
+   * driver's error off `cause`, so matching the message for "out of range" finds
+   * nothing — the same trap that makes a ported `err.code === '23505'` collapse
+   * silently. Walking the chain is the only reading that works.
+   */
+  function sqlstateOf(error: unknown): string | undefined {
+    let current: unknown = error;
+    for (let depth = 0; depth < 5 && current; depth++) {
+      const code = (current as { code?: unknown }).code;
+      if (typeof code === 'string') return code;
+      current = (current as { cause?: unknown }).cause;
+    }
+    return undefined;
+  }
+
+  async function sqlstateOfRejection(run: () => Promise<unknown>): Promise<string | undefined> {
+    try {
+      await run();
+    } catch (error) {
+      return sqlstateOf(error);
+    }
+    return undefined; // resolved — the caller's assertion will say so
+  }
+
+  /**
+   * The positive control, and the reason the two "swallows" below mean anything.
+   *
+   * `resolves.toBeUndefined()` is exactly what a call that never errored also
+   * reports, so on its own it cannot tell a swallowed failure from a quiet
+   * success. This asserts that the identical statement, issued directly, really
+   * does fail — and names WHY, so the suite cannot start passing on some other
+   * error that happens to be thrown from the same line.
+   */
+  it('the overflow used below is a genuine server error', async () => {
+    const id = await account('cm-err-control', 2_000_000_000, 0);
+    expect(await sqlstateOfRejection(() => addCredits(getDb(), id, OVERFLOW, 'free'))).toBe(
+      OUT_OF_RANGE,
+    );
+    // ...and the balance is untouched, so nothing was half-applied.
+    expect(await balanceOf(id)).toEqual({ free: 2_000_000_000, paid: 0 });
+  });
+
+  it('reserveCredits rethrows rather than reporting a spend that may not have happened', async () => {
+    const id = await account('cm-err-reserve', 2_000_000_000, 2_000_000_000);
+    expect(await sqlstateOfRejection(() => reserveCredits(id, OVERFLOW))).toBe(OUT_OF_RANGE);
+  });
+
+  it('refundReservation swallows, because it is already on the error path', async () => {
+    const id = await account('cm-err-refund', 2_000_000_000, 0);
+    await expect(
+      refundReservation({
+        userId: id,
+        creditsReserved: OVERFLOW,
+        initialFreeCredits: 0,
+        initialPaidCredits: 0,
+      }),
+    ).resolves.toBeUndefined();
+    expect(await balanceOf(id)).toEqual({ free: 2_000_000_000, paid: 0 });
+  });
+
+  it('safeRefund swallows too', async () => {
+    const id = await account('cm-err-safe', 2_000_000_000, 0);
+    await expect(
+      safeRefund(
+        {
+          userId: id,
+          creditsReserved: OVERFLOW,
+          initialFreeCredits: 0,
+          initialPaidCredits: 0,
+        },
+        'test',
+      ),
+    ).resolves.toBeUndefined();
+    expect(await balanceOf(id)).toEqual({ free: 2_000_000_000, paid: 0 });
+  });
+});
+
 describe('concurrency', () => {
   it('two simultaneous reservations cannot overdraw the balance', async () => {
     const id = await account('cm-race', 10, 0);
@@ -346,11 +453,124 @@ describe('concurrency', () => {
     // Both ask for 6 of a balance of 10. Exactly one can win, because the guard
     // and the deduction are the same statement. A read-then-write would let both
     // through and leave -2.
+    //
+    // This case does NOT on its own prove the statement is atomic — see the one
+    // below, which forces the overlap and refuses to pass without it.
     const [a, b] = await Promise.all([reserveCredits(id, 6), reserveCredits(id, 6)]);
 
     const winners = [a, b].filter((r) => r !== null);
     expect(winners).toHaveLength(1);
     expect(await balanceOf(id)).toEqual({ free: 4, paid: 0 });
+  });
+
+  /**
+   * The same claim, but with the overlap FORCED and verified.
+   *
+   * `Promise.all` does not make two statements interleave. It issues them
+   * without awaiting between, and whether the two backends are ever inside the
+   * row at once is up to the pool and the scheduler — so a read-then-write
+   * implementation that happened to serialise would produce exactly one winner
+   * and a balance of 4, which is what the case above asserts. That case can
+   * therefore pass while measuring nothing.
+   *
+   * It is worse than theoretical. Measured on this schema against a real server:
+   * with the row pinned by another transaction, `pg_stat_activity` shows the
+   * pool's connection IDLE and neither spend at the server. postgres.js
+   * PIPELINES onto one connection, so issuing two queries — in the same tick or
+   * staggered, both were tried — never produces two contending backends; the
+   * second waits in the first's connection and they run in order once the lock
+   * clears. One winner, balance 4, and no concurrency whatsoever.
+   *
+   * So the competitor is the holder's OWN transaction, which needs no second
+   * pooled connection. The holder spends 6 of 10 and does not commit; the real
+   * `spendCreditsFreeFirst` is then issued through `getDb()` and OBSERVED
+   * blocked on that uncommitted row — `pg_blocking_pids` scoped to the holder's
+   * backend pid, so nothing another test file is doing can be mistaken for it —
+   * and only then does the holder commit.
+   *
+   * That is the whole property, and the discriminator is sharp. Under one
+   * statement the blocked spender re-evaluates `free + paid >= 6` against the
+   * COMMITTED row (free is now 4) and returns null. Under a read-then-write it
+   * had already read 10 and decided it could afford the spend before it blocked,
+   * so it would write and leave the balance at -2.
+   *
+   * The wait THROWS rather than falling through on timeout. A polling loop that
+   * gives up quietly reports "no contention observed" in exactly the same way as
+   * a harness that never armed, and the second is the likelier of the two.
+   */
+  it('a spender blocked mid-flight re-checks the balance and refuses', async () => {
+    const id = await account('cm-race-forced', 10, 0);
+
+    // TWO connections, not one: the holder's transaction occupies its connection
+    // for as long as it holds the lock, so a poller sharing that pool would
+    // simply queue behind it and the timeout would look like "no contention".
+    const holder = postgres(process.env.DATABASE_URL as string, { max: 1 });
+    const observer = postgres(process.env.DATABASE_URL as string, { max: 1 });
+    let release!: () => void;
+    const released = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+
+    try {
+      /** How many backends are blocked specifically BY the holder's backend. */
+      const blockedByHolder = async (holderPid: number): Promise<number> => {
+        const [row] = await observer<{ n: number }[]>`
+          select count(*)::int as n
+            from pg_stat_activity
+           where datname = current_database()
+             and ${holderPid}::int = any(pg_blocking_pids(pid))
+        `;
+        return row?.n ?? 0;
+      };
+
+      const waitForBlocked = async (holderPid: number, want: number): Promise<void> => {
+        const deadline = Date.now() + 10_000;
+        for (;;) {
+          const n = await blockedByHolder(holderPid);
+          if (n >= want) return;
+          if (Date.now() > deadline) {
+            throw new Error(
+              `only ${n} of ${want} backends were blocked by pid ${holderPid} after 10s — the ` +
+                `contention this test exists to create did not happen, so nothing was measured`,
+            );
+          }
+          await new Promise((r) => setTimeout(r, 25));
+        }
+      };
+
+      // The competing spend, uncommitted, holding the row's write lock. The pid
+      // is read INSIDE the transaction so it names the backend actually holding
+      // it.
+      let announcePid!: (pid: number) => void;
+      const holderPidReady = new Promise<number>((resolve) => {
+        announcePid = resolve;
+      });
+      const held = holder.begin(async (tx) => {
+        await tx`
+          update user_credits set credits_free = credits_free - 6
+           where id = ${id} and credits_free + credits_paid >= 6`;
+        const [{ pid }] = await tx<{ pid: number }[]>`select pg_backend_pid() as pid`;
+        announcePid(pid);
+        await released;
+      });
+      const holderPid = await holderPidReady;
+
+      // Issued through the REAL pool and the REAL repository function, then
+      // proved to be sitting in the holder's lock queue.
+      const blocked = spendCreditsFreeFirst(getDb(), id, 6);
+      await waitForBlocked(holderPid, 1);
+
+      release();
+      await held;
+
+      // It woke up, re-read the row the holder committed (free = 4) and refused.
+      expect(await blocked).toBeNull();
+      expect(await balanceOf(id)).toEqual({ free: 4, paid: 0 });
+    } finally {
+      release();
+      await holder.end({ timeout: 5 });
+      await observer.end({ timeout: 5 });
+    }
   });
 
   it('the balance never goes negative under a spend larger than it holds', async () => {
