@@ -13,7 +13,12 @@
 
 import { tool, type ToolSet } from 'ai';
 import type { ZodTypeAny } from 'zod';
-import { OxyService, type IOxyServiceTool, type IOxyServiceToolEndpoint } from '../../models/oxy-service.js';
+import { getDb } from '../../db/index.js';
+import { listActiveOxyServiceDefs } from '../../db/integrations/oxyServiceRepository.js';
+import type {
+  OxyServiceTool,
+  OxyServiceToolEndpoint,
+} from '../../db/schema/oxy-services.js';
 import { jsonSchemaToZod } from './mcp-schema.js';
 import { log } from '../logger.js';
 import { getErrorMessage } from '../errors/index.js';
@@ -49,14 +54,20 @@ interface CompiledTool {
   displayName: string;
   description: string;
   inputSchema: ZodTypeAny;
-  toolDef: IOxyServiceTool;
+  toolDef: OxyServiceTool;
 }
 
 interface ServiceDef {
   serviceId: string;
   displayName: string;
   description: string;
-  contextEndpoint?: string;
+  /**
+   * `null` rather than `undefined`, because Postgres answers an unset column
+   * with `null` and the two are not interchangeable to the `!!d.contextEndpoint`
+   * filter's TYPE below — narrowing on the wrong one leaves `URL()` taking
+   * `string | null`.
+   */
+  contextEndpoint: string | null;
   toolNames: string[];
   hasConfirm: boolean;
   compiledTools: CompiledTool[];
@@ -67,7 +78,7 @@ const contextCache = new TTLCache<string>({ ttlMs: 60_000, maxSize: 2000 });
 const DEFS_KEY = 'defs';
 
 async function loadServiceDefs(): Promise<ServiceDef[]> {
-  const services = await OxyService.find({ status: 'active' }).lean();
+  const services = await listActiveOxyServiceDefs(getDb());
 
   return services.map((svc) => {
     const prefix = `oxy_${sanitizeName(svc.serviceId)}`;
@@ -101,7 +112,7 @@ function getServiceDefs(): Promise<ServiceDef[]> {
 // ---------------------------------------------------------------------------
 
 function resolveEndpointPath(
-  endpoint: IOxyServiceToolEndpoint,
+  endpoint: OxyServiceToolEndpoint,
   args: Record<string, any>,
 ): { url: URL; remainingArgs: Record<string, any> } {
   const baseUrl = OXY_API_URL;
@@ -157,7 +168,7 @@ function buildRequestBody(
 
 function applyResultMapping(
   data: any,
-  toolDef: IOxyServiceTool,
+  toolDef: OxyServiceTool,
 ): any {
   if (!toolDef.resultMapping) return data;
 
@@ -198,7 +209,7 @@ function applyResultMapping(
 }
 
 async function callOxyService(
-  toolDef: IOxyServiceTool,
+  toolDef: OxyServiceTool,
   args: Record<string, any>,
   accessToken: string,
 ): Promise<any> {

@@ -7,6 +7,7 @@ const { mockServices, findMock } = vi.hoisted(() => ({
       serviceId: 'inbox',
       displayName: 'Inbox',
       description: 'Email service',
+      contextEndpoint: null,
       tools: [
         {
           name: 'searchEmails',
@@ -21,9 +22,14 @@ const { mockServices, findMock } = vi.hoisted(() => ({
   findMock: vi.fn(),
 }));
 
-vi.mock('../../models/oxy-service.js', () => ({
-  OxyService: { find: findMock },
+vi.mock('../../db/integrations/oxyServiceRepository.js', () => ({
+  listActiveOxyServiceDefs: findMock,
 }));
+
+// The handle is never used — `listActiveOxyServiceDefs` is mocked — but
+// `getDb()` throws when Postgres is not connected, which is the correct
+// production behaviour and would fail this unit test for the wrong reason.
+vi.mock('../../db/index.js', () => ({ getDb: () => ({}) }));
 
 vi.mock('../logger.js', () => {
   const child = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() };
@@ -46,7 +52,7 @@ describe('oxy-services tool token freshness', () => {
   let fetchMock: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
-    findMock.mockReturnValue({ lean: () => Promise.resolve(mockServices) });
+    findMock.mockResolvedValue(mockServices);
     fetchMock = vi.fn(async () => ({
       ok: true,
       headers: { get: (h: string) => (h === 'content-type' ? 'application/json' : null) },
