@@ -1,7 +1,15 @@
 import { Router } from 'express';
 import { randomUUID } from 'crypto';
-import { Workflow } from '../../models/workflow.js';
-import { WorkflowExecution } from '../../models/workflow-execution.js';
+import { getDb } from '../../db/index.js';
+import {
+  createWorkflow,
+  deleteExecutionsForWorkflow,
+  deleteWorkflow,
+  findWorkflow,
+  listExecutions,
+  listWorkflows,
+  updateWorkflow,
+} from '../../db/automation/workflowRepository.js';
 import { authenticateToken } from '../../middleware/auth.js';
 import type { Request, Response } from 'express';
 import { log } from '../../lib/logger.js';
@@ -14,10 +22,7 @@ router.use(authenticateToken);
 // Get all workflows
 router.get('/', async (req: Request, res: Response) => {
   try {
-    const workflows = await Workflow.find({ oxyUserId: req.userId })
-      .select('workflowId name description nodes edges createdAt updatedAt')
-      .sort({ updatedAt: -1 })
-      .limit(100);
+    const workflows = await listWorkflows(getDb(), req.userId!);
 
     const formattedWorkflows = workflows.map(w => ({
       id: w.workflowId,
@@ -39,10 +44,7 @@ router.get('/', async (req: Request, res: Response) => {
 // Get a specific workflow
 router.get('/:id', async (req: Request, res: Response) => {
   try {
-    const workflow = await Workflow.findOne({
-      oxyUserId: req.userId,
-      workflowId: req.params.id
-    });
+    const workflow = await findWorkflow(getDb(), req.userId!, String(req.params.id));
 
     if (!workflow) {
       return res.status(404).json({ error: 'Workflow not found' });
@@ -76,15 +78,13 @@ router.post('/', async (req: Request, res: Response) => {
 
     const workflowId = randomUUID();
 
-    const workflow = await Workflow.create({
-      oxyUserId: req.userId,
+    const workflow = await createWorkflow(getDb(), {
+      oxyUserId: req.userId!,
       workflowId,
       name,
       description: description || '',
       nodes: nodes || [],
       edges: edges || [],
-      createdAt: new Date(),
-      updatedAt: new Date()
     });
 
     res.json({
@@ -109,20 +109,15 @@ router.put('/:id', async (req: Request, res: Response) => {
   try {
     const { name, description, nodes, edges } = req.body;
 
-    const workflow = await Workflow.findOneAndUpdate(
-      {
-        oxyUserId: req.userId,
-        workflowId: req.params.id
-      },
-      {
-        name,
-        description,
-        nodes,
-        edges,
-        updatedAt: new Date()
-      },
-      { returnDocument: 'after' }
-    );
+    // No `updatedAt` here: the column carries `$onUpdate`, so drizzle writes it
+    // on every update. Setting it by hand would be the second authority the
+    // `pre('save')` hook already was.
+    const workflow = await updateWorkflow(getDb(), req.userId!, String(req.params.id), {
+      name,
+      description,
+      nodes,
+      edges,
+    });
 
     if (!workflow) {
       return res.status(404).json({ error: 'Workflow not found' });
@@ -148,17 +143,14 @@ router.put('/:id', async (req: Request, res: Response) => {
 // Delete a workflow
 router.delete('/:id', async (req: Request, res: Response) => {
   try {
-    const workflow = await Workflow.findOneAndDelete({
-      oxyUserId: req.userId,
-      workflowId: req.params.id
-    });
+    const workflow = await deleteWorkflow(getDb(), req.userId!, String(req.params.id));
 
     if (!workflow) {
       return res.status(404).json({ error: 'Workflow not found' });
     }
 
     // Also delete all executions for this workflow
-    await WorkflowExecution.deleteMany({ workflowId: req.params.id });
+    await deleteExecutionsForWorkflow(getDb(), String(req.params.id));
 
     res.json({ message: 'Workflow deleted successfully' });
   } catch (error) {
@@ -170,12 +162,7 @@ router.delete('/:id', async (req: Request, res: Response) => {
 // Get execution history for a workflow
 router.get('/:id/executions', async (req: Request, res: Response) => {
   try {
-    const executions = await WorkflowExecution.find({
-      oxyUserId: req.userId,
-      workflowId: req.params.id
-    })
-      .sort({ startedAt: -1 })
-      .limit(50);
+    const executions = await listExecutions(getDb(), req.userId!, String(req.params.id));
 
     const formattedExecutions = executions.map(e => ({
       id: e.executionId,
