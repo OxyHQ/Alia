@@ -9,7 +9,6 @@
  * Each notification is persisted and can be delivered to multiple channels simultaneously.
  */
 
-import mongoose from 'mongoose';
 import Expo, { type ExpoPushMessage, type ExpoPushReceiptId } from 'expo-server-sdk';
 import { getDb } from '../db/index.js';
 import {
@@ -34,10 +33,9 @@ import type {
   NotificationPriority,
   NotificationTypeValue,
 } from '../db/schema/notifications.js';
-import { ConnectedAccount } from '../models/connected-account.js';
+import { findConnectedAccountForChannel } from '../db/integrations/connectedAccountRepository.js';
 import { getStatusCode } from './errors/index.js';
-import { Bot } from '../models/bot.js';
-import { BotUser } from '../models/bot-user.js';
+import { findLinkedBotUser, findSystemBot } from '../db/integrations/botRepository.js';
 import { sendChannelMessage } from './channels/outbound.js';
 import { webPush, VAPID_PUBLIC_KEY } from './web-push.js';
 import { getIO } from '../socket.js';
@@ -77,8 +75,6 @@ async function resolveChannels(userId: string, explicit?: NotificationChannel[])
   // Default: always in_app
   const channels: NotificationChannel[] = ['in_app'];
 
-  const userObjectId = new mongoose.Types.ObjectId(userId);
-
   // Check in parallel: push tokens, web push subscriptions, and Telegram account
   const [hasPushTokens, hasWebPushSubs, telegramBotUser] = await Promise.all([
     // Push: check if user has any active Expo push tokens
@@ -90,13 +86,10 @@ async function resolveChannels(userId: string, explicit?: NotificationChannel[])
     // Telegram: check if user has a linked Telegram bot account
     (async () => {
       try {
-        const bot = await Bot.findOne({ platform: 'telegram', status: 'active', userId: { $exists: false } });
+        const db = getDb();
+        const bot = await findSystemBot(db, 'telegram', { activeOnly: true });
         if (!bot) return null;
-        return BotUser.findOne({
-          botId: bot._id,
-          oxyUserId: userObjectId,
-          isLinked: true,
-        });
+        return findLinkedBotUser(db, bot.id, userId);
       } catch {
         return null;
       }
@@ -134,14 +127,11 @@ async function deliverInApp(notification: NotificationRow): Promise<boolean> {
 }
 
 async function deliverTelegram(userId: string, notification: NotificationRow): Promise<boolean> {
-  const bot = await Bot.findOne({ platform: 'telegram', status: 'active', userId: { $exists: false } });
+  const db = getDb();
+  const bot = await findSystemBot(db, 'telegram', { activeOnly: true });
   if (!bot) return false;
 
-  const botUser = await BotUser.findOne({
-    botId: bot._id,
-    oxyUserId: new mongoose.Types.ObjectId(userId),
-    isLinked: true,
-  });
+  const botUser = await findLinkedBotUser(db, bot.id, userId);
   if (!botUser?.chatId) return false;
 
   const text = formatNotificationText(notification);
@@ -155,11 +145,7 @@ async function deliverViaChannel(
   notification: NotificationRow
 ): Promise<boolean> {
   // Find user's connected account for this channel
-  const account = await ConnectedAccount.findOne({
-    oxyUserId: new mongoose.Types.ObjectId(userId),
-    platform: channelId,
-    status: 'connected',
-  });
+  const account = await findConnectedAccountForChannel(getDb(), userId, channelId);
 
   if (!account?.accountId) return false;
 

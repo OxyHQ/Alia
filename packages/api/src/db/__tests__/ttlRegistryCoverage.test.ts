@@ -222,6 +222,65 @@ const RETIRED_MONGO_TTLS: readonly RetiredMongoTtl[] = [
     retiredBy: 'S5 notifications — audio_jobs',
   },
   {
+    model: 'McpOAuthState',
+    collection: 'mcpoauthstates',
+    /**
+     * `McpOAuthStateSchema.index({ createdAt: 1 }, { expireAfterSeconds:
+     * MCP_OAUTH_STATE_TTL_SECONDS })` — line 29 of the `McpOAuthState` model
+     * module, with the constant at line 12 — 10 minutes.
+     *
+     * ## Why this citation names no PATH, unlike the four above it
+     *
+     * `foreign-ref-populate.test.ts` fails any source that names a retired
+     * model file, and it normalises `src/` away, so there is no spelling of the
+     * path that satisfies both gates. The two requirements really do collide:
+     * that gate wants no reference to a deleted module anywhere, and this one
+     * wants provenance for a value read out of one.
+     *
+     * Naming the MODEL rather than the file is what gives way, because it costs
+     * nothing — `model`, `collection` and `retiredBy` already identify the
+     * source uniquely, and `git log` finds the deleting commit from `retiredBy`.
+     * Weakening the other gate's exclusion from one line to a category would
+     * have cost something real.
+     *
+     * The four entries above still carry paths only because their models had
+     * not been deleted when they were written. Whoever retires `Notification`,
+     * `AudioJob`, `ModerationOutbox` or `ModerationEvent` will have to reword
+     * them the same way, in the same commit that deletes the file.
+     *
+     * Measured from CREATION, not from a deadline: the row is consumed by an
+     * atomic delete when the callback lands, so the sweep only ever reaps
+     * ABANDONED flows. That constant now lives on the column it describes, in
+     * `db/schema/integrations.ts`, so the sweep's retention and the callback's
+     * liveness check read the same number.
+     */
+    path: 'createdAt',
+    expireAfterSeconds: 10 * 60,
+    retiredBy: 'S4 integrations — mcp_oauth_states',
+  },
+  {
+    model: 'OAuthState',
+    collection: 'oauthstates',
+    /**
+     * `OAuthStateSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 })`,
+     * read off `src/routes/integrations-oauth.ts:18` at `69d4b3d4`, the commit
+     * before S4 removed it.
+     *
+     * **The one declared in a ROUTE file**, which is why `modelFiles()` above
+     * includes `src/routes/` and why removing that directory from the walk would
+     * silently drop this entry rather than fail. It is also why the count moved
+     * when a route stopped declaring a model — no file under `src/models/`
+     * changed at all.
+     *
+     * `expires_at` IS the deadline, so retention is ZERO. The sibling
+     * `organization_invites` has a deadline column AND a 30-day retention; the
+     * two look alike and are not.
+     */
+    path: 'expiresAt',
+    expireAfterSeconds: 0,
+    retiredBy: 'S4 integrations — oauth_states',
+  },
+  {
     model: 'Notification',
     collection: 'notifications',
     /**
@@ -345,14 +404,22 @@ describe('every ported TTL index has a matching expiry-sweep target', () => {
      * halves adding up to 13.
      *
      * 11 after S1 retired two; 9 once S5 retired `AudioJob` and `Notification`;
-     * 8 once S2 retired `AuthHealthMetric`, 7 once it retired `FallbackEvent`, 6 once it retired `RoutingLog`, 5 once it retired `ApiKeyUsage`, 4 once it retired `ApiUsage`,
-     * 3 once S8 retired `TriggerExecution` — the only TTL among its eight models.
+     * 8 once S2 retired `AuthHealthMetric`, 7 once it retired `FallbackEvent`, 6
+     * once it retired `RoutingLog`, 5 once it retired `ApiKeyUsage`, 4 once it
+     * retired `ApiUsage`, 3 once S8 retired `TriggerExecution` — the only TTL
+     * among its eight models — 2 once S4 retired `OAuthState`, 1 once S4 deleted
+     * the `McpOAuthState` MODEL.
      * Lowering it is legitimate ONLY in the same change that adds the matching
      * retired entries, and the exact-sum assertion below is what makes that
      * mechanical rather than a judgement call — the two numbers cannot drift
      * apart without one of them going red.
+     *
+     * S4 is the case that shows the walk is not a `src/models/` census: nothing
+     * under that directory changed, and the number still moved, because
+     * `OAuthState` was declared inline in a ROUTE file — which is also why
+     * `modelFiles()` above includes `src/routes/`.
      */
-    expect(walked.length).toBeGreaterThanOrEqual(3);
+    expect(walked.length).toBeGreaterThanOrEqual(1);
     expect(walked.length + RETIRED_MONGO_TTLS.length).toBe(13);
   });
 

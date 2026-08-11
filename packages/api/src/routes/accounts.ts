@@ -1,8 +1,19 @@
 import express from 'express';
 import crypto from 'crypto';
-import mongoose from 'mongoose';
 import { authenticateToken } from '../middleware/auth.js';
-import { ConnectedAccount } from '../models/connected-account.js';
+import { getDb } from '../db/index.js';
+import {
+  completeGmailConnection,
+  createPendingConnectedAccount,
+  deleteConnectedAccount,
+  deleteConnectedAccountForUser,
+  findConnectedAccountForUser,
+  listConnectedAccountsForUser,
+  setConnectedAccountSession,
+  setConnectedAccountStatus,
+  updateConnectedAccountSettings,
+  type ConnectedAccountSafeRow,
+} from '../db/integrations/connectedAccountRepository.js';
 import { log } from '../lib/logger.js';
 
 const router = express.Router();
@@ -96,9 +107,7 @@ const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token';
 // List all connected accounts for the current user
 router.get('/', authenticateToken, async (req, res) => {
   try {
-    const accounts = await ConnectedAccount.find({
-      oxyUserId: new mongoose.Types.ObjectId(req.userId),
-    }).sort({ createdAt: -1 });
+    const accounts = await listConnectedAccountsForUser(getDb(), req.userId!);
     res.json({ accounts });
   } catch (error: unknown) {
     log.channels.error({ err: error }, 'List accounts error');
@@ -107,13 +116,10 @@ router.get('/', authenticateToken, async (req, res) => {
 });
 
 // List accounts for a specific platform
-router.get('/:platform', authenticateToken, async (req, res) => {
+router.get('/:platform', authenticateToken, async (req: express.Request<{ platform: string }>, res) => {
   try {
     const { platform } = req.params;
-    const accounts = await ConnectedAccount.find({
-      oxyUserId: new mongoose.Types.ObjectId(req.userId),
-      platform,
-    }).sort({ createdAt: -1 });
+    const accounts = await listConnectedAccountsForUser(getDb(), req.userId!, platform);
     res.json({ accounts });
   } catch (error: unknown) {
     log.channels.error({ err: error }, 'List platform accounts error');
@@ -122,28 +128,32 @@ router.get('/:platform', authenticateToken, async (req, res) => {
 });
 
 // Gmail OAuth connect — returns OAuth URL for Google authorization
-router.post('/gmail/connect', authenticateToken, (req, res) => {
+router.post('/gmail/connect', authenticateToken, async (req, res) => {
   const clientId = process.env.GOOGLE_OAUTH_CLIENT_ID;
   if (!clientId) {
     return res.status(503).json({ error: 'Google OAuth not configured' });
   }
 
-  // Create pending account
-  const accountId = new mongoose.Types.ObjectId();
-  const account = new ConnectedAccount({
-    _id: accountId,
-    oxyUserId: new mongoose.Types.ObjectId(req.userId),
-    platform: 'gmail',
-    accountId: 'pending',
-    status: 'connecting',
-    capabilities: ['read_messages', 'send_messages'],
-  });
-  account.save().catch((err: unknown) => log.channels.error({ err }, 'Gmail account save error'));
+  // Create pending account. AWAITED, unlike the source, which fired `save()`
+  // without waiting and answered 200 with a pre-minted id whether or not the
+  // write landed — a failed save produced an id the client would poll forever.
+  let account: ConnectedAccountSafeRow;
+  try {
+    account = await createPendingConnectedAccount(getDb(), {
+      oxyUserId: req.userId!,
+      platform: 'gmail',
+      capabilities: ['read_messages', 'send_messages'],
+    });
+  } catch (err: unknown) {
+    log.channels.error({ err }, 'Gmail account save error');
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+  const accountId = account.id;
 
   const state = crypto.randomBytes(32).toString('hex');
   gmailOAuthStates.set(state, {
     userId: req.userId!,
-    accountId: accountId.toString(),
+    accountId,
     expiresAt: Date.now() + 10 * 60 * 1000,
   });
 
@@ -223,25 +233,21 @@ router.get('/gmail/callback', async (req, res) => {
     const profile = await profileResponse.json() as { email?: string; name?: string };
     const email = profile.email || 'unknown';
 
-    // Update the ConnectedAccount
-    const account = await ConnectedAccount.findById(stateData.accountId);
+    // Update the ConnectedAccount. The four OAuth columns are written together,
+    // which `connected_accounts_oauth_pair_check` requires — Mongo could not
+    // express "the group is present as a whole or absent as a whole".
+    const expiresAt = tokenData.expires_in
+      ? new Date(Date.now() + tokenData.expires_in * 1000)
+      : undefined;
+    const account = await completeGmailConnection(getDb(), stateData.accountId, {
+      email,
+      displayName: profile.name || email,
+      accessToken: tokenData.access_token,
+      refreshToken: tokenData.refresh_token,
+      expiresAt,
+      scope: tokenData.scope || GMAIL_SCOPES.join(' '),
+    });
     if (account) {
-      account.status = 'connected';
-      account.accountId = email;
-      account.email = email;
-      account.displayName = profile.name || email;
-      account.connectedAt = new Date();
-      const oauthTokens = {
-        accessToken: tokenData.access_token,
-        refreshToken: tokenData.refresh_token,
-        expiresAt: tokenData.expires_in
-          ? new Date(Date.now() + tokenData.expires_in * 1000)
-          : undefined,
-        scope: tokenData.scope || GMAIL_SCOPES.join(' '),
-      };
-      account.oauthTokens = oauthTokens;
-      await account.save();
-
       // Create session in integrations service
       if (INTEGRATIONS_URL && INTEGRATIONS_SECRET) {
         try {
@@ -258,7 +264,7 @@ router.get('/gmail/callback', async (req, res) => {
                 accountId: stateData.accountId,
                 accessToken: tokenData.access_token,
                 refreshToken: tokenData.refresh_token,
-                expiresAt: oauthTokens.expiresAt?.toISOString(),
+                expiresAt: expiresAt?.toISOString(),
                 email,
               }),
               signal: AbortSignal.timeout(10_000),
@@ -266,8 +272,7 @@ router.get('/gmail/callback', async (req, res) => {
           );
           const sessionData = await sessionResponse.json() as { sessionId?: string };
           if (sessionData.sessionId) {
-            account.sessionId = sessionData.sessionId;
-            await account.save();
+            await setConnectedAccountSession(getDb(), account.id, sessionData.sessionId);
           }
         } catch (err: unknown) {
           log.channels.warn({ err }, 'Failed to create Gmail session in integrations');
@@ -287,7 +292,8 @@ router.get('/gmail/callback', async (req, res) => {
 // Initiate connection (returns QR code or OAuth URL)
 router.post('/:platform/connect', ...authed, async (req, res) => {
   const platform = req.params.platform as string;
-  let account: InstanceType<typeof ConnectedAccount> | null = null;
+  const db = getDb();
+  let account: ConnectedAccountSafeRow | null = null;
   try {
     const servicePath = PLATFORM_PATHS[platform];
     if (!servicePath) {
@@ -295,14 +301,11 @@ router.post('/:platform/connect', ...authed, async (req, res) => {
     }
 
     // Create ConnectedAccount record
-    account = new ConnectedAccount({
-      oxyUserId: new mongoose.Types.ObjectId(req.userId),
+    account = await createPendingConnectedAccount(db, {
+      oxyUserId: req.userId!,
       platform,
-      accountId: 'pending',
-      status: 'connecting',
       capabilities: ['read_messages', 'send_messages'],
     });
-    await account.save();
 
     // Proxy to integrations service to start session
     const response = await fetch(`${INTEGRATIONS_URL}/${servicePath}/sessions/connect`, {
@@ -311,43 +314,46 @@ router.post('/:platform/connect', ...authed, async (req, res) => {
         'X-Gateway-Secret': INTEGRATIONS_SECRET!,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ oxyUserId: req.userId, accountId: account._id.toString() }),
+      body: JSON.stringify({ oxyUserId: req.userId, accountId: account.id }),
       signal: AbortSignal.timeout(15_000),
     });
 
     const contentType = response.headers.get('content-type') || '';
     if (!contentType.includes('application/json')) {
-      await account.deleteOne();
+      await deleteConnectedAccount(db, account.id);
       return res.status(502).json({ error: `Integration service unavailable for ${platform}` });
     }
 
     const data = await response.json();
 
     if (response.ok && data.sessionId) {
-      account.sessionId = data.sessionId;
-      await account.save();
+      await setConnectedAccountSession(db, account.id, data.sessionId);
     }
 
     res.status(response.status).json({
-      accountId: account._id,
+      accountId: account.id,
       ...data,
     });
   } catch (error: unknown) {
     log.channels.error({ err: error, platform }, 'Connect account error');
-    if (account?._id) {
-      await ConnectedAccount.deleteOne({ _id: account._id }).catch((err: unknown) => log.channels.warn({ err, accountId: account!._id }, 'Failed to clean up ConnectedAccount after connect error'));
+    if (account) {
+      const orphanId = account.id;
+      await deleteConnectedAccount(db, orphanId).catch((err: unknown) =>
+        log.channels.warn(
+          { err, accountId: orphanId },
+          'Failed to clean up ConnectedAccount after connect error',
+        ),
+      );
     }
     res.status(502).json({ error: `Failed to connect ${platform}` });
   }
 });
 
 // Get account status
-router.get('/:id/status', authenticateToken, async (req, res) => {
+router.get('/:id/status', authenticateToken, async (req: express.Request<{ id: string }>, res) => {
   try {
-    const account = await ConnectedAccount.findOne({
-      _id: req.params.id,
-      oxyUserId: new mongoose.Types.ObjectId(req.userId),
-    });
+    const db = getDb();
+    const account = await findConnectedAccountForUser(db, req.params.id, req.userId!);
 
     if (!account) {
       return res.status(404).json({ error: 'Account not found' });
@@ -367,16 +373,24 @@ router.get('/:id/status', authenticateToken, async (req, res) => {
           );
           if (response.ok) {
             const statusData = await response.json();
-            // Sync status from integrations
+            // Sync status from integrations. Every optional field is passed only
+            // when the poll CARRIED it, so a reply that omits a display name does
+            // not erase the stored one.
             if (statusData.status && statusData.status !== account.status) {
-              account.status = statusData.status;
-              if (statusData.phoneNumber) account.phoneNumber = statusData.phoneNumber;
-              if (statusData.displayName) account.displayName = statusData.displayName;
-              if (statusData.status === 'connected' && !account.connectedAt) {
-                account.connectedAt = new Date();
-                account.accountId = statusData.phoneNumber || statusData.accountId || account.accountId;
-              }
-              await account.save();
+              const becameConnected = statusData.status === 'connected' && !account.connectedAt;
+              const synced = await setConnectedAccountStatus(db, account.id, {
+                status: statusData.status,
+                phoneNumber: statusData.phoneNumber || undefined,
+                displayName: statusData.displayName || undefined,
+                ...(becameConnected
+                  ? {
+                      connectedAt: new Date(),
+                      accountId:
+                        statusData.phoneNumber || statusData.accountId || account.accountId,
+                    }
+                  : {}),
+              });
+              return res.json({ account: synced ?? account, liveStatus: statusData });
             }
             return res.json({ account, liveStatus: statusData });
           }
@@ -394,12 +408,9 @@ router.get('/:id/status', authenticateToken, async (req, res) => {
 });
 
 // Get QR code for connecting account
-router.get('/:id/qr', ...authed, async (req, res) => {
+router.get('/:id/qr', ...authed, async (req: express.Request<{ id: string }>, res) => {
   try {
-    const account = await ConnectedAccount.findOne({
-      _id: req.params.id,
-      oxyUserId: new mongoose.Types.ObjectId(req.userId),
-    });
+    const account = await findConnectedAccountForUser(getDb(), req.params.id, req.userId!);
 
     if (!account || !account.sessionId) {
       return res.status(404).json({ error: 'Account not found or no active session' });
@@ -423,12 +434,10 @@ router.get('/:id/qr', ...authed, async (req, res) => {
 });
 
 // Disconnect account
-router.post('/:id/disconnect', ...authed, async (req, res) => {
+router.post('/:id/disconnect', ...authed, async (req: express.Request<{ id: string }>, res) => {
   try {
-    const account = await ConnectedAccount.findOne({
-      _id: req.params.id,
-      oxyUserId: new mongoose.Types.ObjectId(req.userId),
-    });
+    const db = getDb();
+    const account = await findConnectedAccountForUser(db, req.params.id, req.userId!);
 
     if (!account) {
       return res.status(404).json({ error: 'Account not found' });
@@ -450,8 +459,7 @@ router.post('/:id/disconnect', ...authed, async (req, res) => {
       }
     }
 
-    account.status = 'disconnected';
-    await account.save();
+    await setConnectedAccountStatus(db, account.id, { status: 'disconnected' });
 
     res.json({ success: true });
   } catch (error: unknown) {
@@ -461,12 +469,9 @@ router.post('/:id/disconnect', ...authed, async (req, res) => {
 });
 
 // List chats for a connected account
-router.get('/:id/chats', ...authed, async (req, res) => {
+router.get('/:id/chats', ...authed, async (req: express.Request<{ id: string }>, res) => {
   try {
-    const account = await ConnectedAccount.findOne({
-      _id: req.params.id,
-      oxyUserId: new mongoose.Types.ObjectId(req.userId),
-    });
+    const account = await findConnectedAccountForUser(getDb(), req.params.id, req.userId!);
 
     if (!account || !account.sessionId) {
       return res.status(404).json({ error: 'Account not found or not connected' });
@@ -490,12 +495,9 @@ router.get('/:id/chats', ...authed, async (req, res) => {
 });
 
 // Get messages from a chat
-router.get('/:id/chats/:chatId/messages', ...authed, async (req, res) => {
+router.get('/:id/chats/:chatId/messages', ...authed, async (req: express.Request<{ id: string; chatId: string }>, res) => {
   try {
-    const account = await ConnectedAccount.findOne({
-      _id: req.params.id,
-      oxyUserId: new mongoose.Types.ObjectId(req.userId),
-    });
+    const account = await findConnectedAccountForUser(getDb(), req.params.id, req.userId!);
 
     if (!account || !account.sessionId) {
       return res.status(404).json({ error: 'Account not found or not connected' });
@@ -509,7 +511,7 @@ router.get('/:id/chats/:chatId/messages', ...authed, async (req, res) => {
     const limit = String(req.query.limit || '20');
     await proxyToIntegrations(
       res,
-      `/${servicePath}/sessions/${account.sessionId}/chats/${encodeURIComponent(req.params.chatId as string)}/messages?limit=${limit}`,
+      `/${servicePath}/sessions/${account.sessionId}/chats/${encodeURIComponent(req.params.chatId)}/messages?limit=${limit}`,
       undefined,
       `${account.platform} messages`,
     );
@@ -520,12 +522,9 @@ router.get('/:id/chats/:chatId/messages', ...authed, async (req, res) => {
 });
 
 // Send message via connected account
-router.post('/:id/send', ...authed, async (req, res) => {
+router.post('/:id/send', ...authed, async (req: express.Request<{ id: string }>, res) => {
   try {
-    const account = await ConnectedAccount.findOne({
-      _id: req.params.id,
-      oxyUserId: new mongoose.Types.ObjectId(req.userId),
-    });
+    const account = await findConnectedAccountForUser(getDb(), req.params.id, req.userId!);
 
     if (!account || !account.sessionId) {
       return res.status(404).json({ error: 'Account not found or not connected' });
@@ -553,17 +552,8 @@ router.post('/:id/send', ...authed, async (req, res) => {
 });
 
 // Update account settings (auto-reply, context, tools, etc.)
-router.patch('/:id/settings', authenticateToken, async (req, res) => {
+router.patch('/:id/settings', authenticateToken, async (req: express.Request<{ id: string }>, res) => {
   try {
-    const account = await ConnectedAccount.findOne({
-      _id: req.params.id,
-      oxyUserId: new mongoose.Types.ObjectId(req.userId),
-    });
-
-    if (!account) {
-      return res.status(404).json({ error: 'Account not found' });
-    }
-
     const {
       autoReply,
       autoReplyAgentId,
@@ -573,22 +563,23 @@ router.patch('/:id/settings', authenticateToken, async (req, res) => {
       allowedSkillIds,
     } = req.body;
 
-    if (autoReply !== undefined) account.autoReply = autoReply;
-    if (autoReplyAgentId !== undefined) {
-      account.autoReplyAgentId = autoReplyAgentId
-        ? new mongoose.Types.ObjectId(autoReplyAgentId)
-        : undefined;
-    }
-    if (customContext !== undefined) account.customContext = customContext;
-    if (allowedTools !== undefined) account.allowedTools = allowedTools;
-    if (blockedTools !== undefined) account.blockedTools = blockedTools;
-    if (allowedSkillIds !== undefined) {
-      account.allowedSkillIds = allowedSkillIds?.map(
-        (id: string) => new mongoose.Types.ObjectId(id),
-      );
+    // Each clearable field maps a falsy-but-PRESENT value to an explicit `null`.
+    // Mongo unset a field assigned `undefined`; drizzle would silently skip it,
+    // so `autoReplyAgentId: null` from the client would have left the agent
+    // bound while the UI showed it cleared.
+    const account = await updateConnectedAccountSettings(getDb(), req.params.id, req.userId!, {
+      autoReply,
+      autoReplyAgentId,
+      customContext,
+      allowedTools,
+      blockedTools,
+      allowedSkillIds,
+    });
+
+    if (!account) {
+      return res.status(404).json({ error: 'Account not found' });
     }
 
-    await account.save();
     res.json({ account });
   } catch (error: unknown) {
     log.channels.error({ err: error }, 'Update settings error');
@@ -597,12 +588,9 @@ router.patch('/:id/settings', authenticateToken, async (req, res) => {
 });
 
 // Delete account
-router.delete('/:id', authenticateToken, async (req, res) => {
+router.delete('/:id', authenticateToken, async (req: express.Request<{ id: string }>, res) => {
   try {
-    const account = await ConnectedAccount.findOneAndDelete({
-      _id: req.params.id,
-      oxyUserId: new mongoose.Types.ObjectId(req.userId),
-    });
+    const account = await deleteConnectedAccountForUser(getDb(), req.params.id, req.userId!);
 
     if (!account) {
       return res.status(404).json({ error: 'Account not found' });

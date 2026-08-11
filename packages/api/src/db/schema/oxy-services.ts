@@ -32,6 +32,62 @@ export type OxyServiceEventAction = (typeof OXY_SERVICE_EVENT_ACTIONS)[number];
 export const OXY_SERVICE_EVENT_STATUSES = ['received', 'processed', 'failed', 'duplicate'] as const;
 export type OxyServiceEventStatus = (typeof OXY_SERVICE_EVENT_STATUSES)[number];
 
+export const OXY_SERVICE_TOOL_METHODS = ['GET', 'POST', 'PUT', 'DELETE'] as const;
+export type OxyServiceToolMethod = (typeof OXY_SERVICE_TOOL_METHODS)[number];
+
+/**
+ * The manifest element types, which live HERE because the column owns them.
+ *
+ * They were `IOxyServiceTool` and friends on the Mongoose model, and they are the
+ * contract `lib/tools/oxy-services.ts` compiles into Zod schemas at runtime — so
+ * they outlive the model rather than going with it. A `jsonb` column's element
+ * shape is a property of the column; putting it anywhere else would leave the
+ * column typed `unknown` and the shape asserted twice.
+ *
+ * Postgres validates none of this. Mongoose validated only the two `enum`s
+ * (`method`, `action`), both of which are now `$type` narrowings with no runtime
+ * check inside the document — which is a faithful port of what a `jsonb` column
+ * can express, not a loss of one it could. The values are written by the seed
+ * script and by service operators, never by an end user.
+ */
+export interface OxyServiceToolEndpoint {
+  method: OxyServiceToolMethod;
+  /** e.g. `/email/search` or `/email/messages/{messageId}`. */
+  path: string;
+  /** tool param -> query param */
+  queryMapping?: Record<string, string>;
+  /** tool param -> body field */
+  bodyMapping?: Record<string, string>;
+}
+
+export interface OxyServiceToolResultMapping {
+  /** Top-level field to pluck (e.g. `data`). */
+  extract?: string;
+  /** Fields to keep in the AI summary. */
+  summarize?: string[];
+  /** Per-tool truncation limit. */
+  maxChars?: number;
+}
+
+/** One operation Alia can perform on a service. An element of `oxy_services.tools`. */
+export interface OxyServiceTool {
+  name: string;
+  description: string;
+  /** JSON Schema supplied by the service — a format this repository does not own. */
+  inputSchema: Record<string, unknown>;
+  endpoint: OxyServiceToolEndpoint;
+  resultMapping?: OxyServiceToolResultMapping;
+  /** e.g. `true` for `sendEmail`. */
+  confirmBeforeExecute?: boolean;
+}
+
+/** One event a service can push. An element of `oxy_services.events`. */
+export interface OxyServiceEvent {
+  name: string;
+  description: string;
+  action: OxyServiceEventAction;
+}
+
 /**
  * One service's manifest.
  *
@@ -54,13 +110,16 @@ export const oxyServices = pgTable(
     baseUrl: text().notNull(),
     icon: text(),
     status: text({ enum: OXY_SERVICE_STATUSES as unknown as [string, ...string[]] })
+      .$type<OxyServiceStatus>()
       .notNull()
       .default('active'),
     isFirstParty: boolean().notNull().default(false),
     /** An HMAC verification key. A credential — see the file comment. */
     webhookSecret: text(),
-    tools: jsonb().notNull().default([]),
-    events: jsonb().notNull().default([]),
+    // `$type` is a TypeScript annotation only — no generated SQL changes — and it
+    // is what stops the repository handing these back as `unknown`.
+    tools: jsonb().$type<OxyServiceTool[]>().notNull().default([]),
+    events: jsonb().$type<OxyServiceEvent[]>().notNull().default([]),
     contextEndpoint: text(),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
@@ -95,8 +154,11 @@ export const oxyServiceEventLogs = pgTable(
     /** The service's own id for the event — the half of the idempotency key it controls. */
     eventId: text().notNull(),
     eventName: text().notNull(),
-    action: text({ enum: OXY_SERVICE_EVENT_ACTIONS as unknown as [string, ...string[]] }).notNull(),
+    action: text({ enum: OXY_SERVICE_EVENT_ACTIONS as unknown as [string, ...string[]] })
+      .$type<OxyServiceEventAction>()
+      .notNull(),
     status: text({ enum: OXY_SERVICE_EVENT_STATUSES as unknown as [string, ...string[]] })
+      .$type<OxyServiceEventStatus>()
       .notNull()
       .default('received'),
     payloadHash: text(),

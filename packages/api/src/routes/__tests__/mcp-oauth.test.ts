@@ -9,30 +9,38 @@ vi.hoisted(() => {
   process.env.APP_URL = 'http://app.test';
 });
 
-vi.mock('../../models/mcp-server.js', () => {
-  const McpServer = vi.fn();
-  (McpServer as unknown as { findOne: unknown }).findOne = vi.fn();
-  return { McpServer };
+vi.mock('../../db/integrations/mcpServerRepository.js', async () => {
+  // `serializeMcpServer` and `toMcpServerConfig` are PURE row transforms, and
+  // they are the seam that keeps the wire shape (`_id`, a nested `config`)
+  // apart from the flat columns. Mocking them away would leave the assertions
+  // below unable to notice a broken serializer, so the real ones are kept and
+  // only the query functions replaced.
+  const actual = await vi.importActual<
+    typeof import('../../db/integrations/mcpServerRepository.js')
+  >('../../db/integrations/mcpServerRepository.js');
+  return {
+    ...actual,
+    findMcpServerForUser: vi.fn(),
+    findMcpServerByName: vi.fn(),
+    listMcpServersForUser: vi.fn(),
+    installMcpServer: vi.fn(),
+    deleteMcpServerForUser: vi.fn(),
+    updateMcpServer: vi.fn(),
+    setMcpServerStatus: vi.fn(),
+  };
 });
 
-vi.mock('../../models/mcp-oauth-state.js', () => ({
-  McpOAuthState: { findOne: vi.fn(), deleteOne: vi.fn(), create: vi.fn() },
-  MCP_OAUTH_STATE_TTL_SECONDS: 600,
+vi.mock('../../db/integrations/mcpOAuthStateRepository.js', () => ({
+  createMcpOAuthState: vi.fn(),
+  findLiveMcpOAuthState: vi.fn(),
+  deleteMcpOAuthState: vi.fn(),
+  deleteMcpOAuthStateByToken: vi.fn(),
 }));
 
-vi.mock('mongoose', () => {
-  function ObjectId(this: { value?: string }, value: string) {
-    this.value = value;
-  }
-  ObjectId.prototype.toString = function toString() {
-    return this.value;
-  };
-
-  return {
-    default: { Types: { ObjectId } },
-    Types: { ObjectId },
-  };
-});
+// The handle is never used — every repository call is mocked — but `getDb()`
+// throws when Postgres is not connected, which is correct production behaviour
+// and would fail these unit tests for the wrong reason.
+vi.mock('../../db/index.js', () => ({ getDb: () => ({}) }));
 
 vi.mock('@oxyhq/core/server', () => ({
   createOxyAuthMiddleware: vi.fn(() => (_req: any, _res: any, next: any) => next()),
@@ -62,21 +70,73 @@ vi.mock('../../lib/mcp-registry.js', () => ({
   ],
 }));
 
-import { McpServer } from '../../models/mcp-server.js';
-import { McpOAuthState } from '../../models/mcp-oauth-state.js';
+import {
+  deleteMcpServerForUser,
+  findMcpServerByName,
+  findMcpServerForUser,
+  installMcpServer,
+  setMcpServerStatus,
+  type McpServerRow,
+} from '../../db/integrations/mcpServerRepository.js';
+import {
+  createMcpOAuthState,
+  deleteMcpOAuthState,
+  deleteMcpOAuthStateByToken,
+  findLiveMcpOAuthState,
+} from '../../db/integrations/mcpOAuthStateRepository.js';
 import router from '../mcp.js';
 
-const mockMcpServer = McpServer as unknown as ReturnType<typeof vi.fn> & {
-  findOne: ReturnType<typeof vi.fn>;
-};
-const mockMcpOAuthState = McpOAuthState as unknown as Record<string, ReturnType<typeof vi.fn>>;
+const mockFindServer = vi.mocked(findMcpServerForUser);
+const mockFindByName = vi.mocked(findMcpServerByName);
+const mockInstall = vi.mocked(installMcpServer);
+const mockSetStatus = vi.mocked(setMcpServerStatus);
+const mockDeleteServer = vi.mocked(deleteMcpServerForUser);
+const mockCreateState = vi.mocked(createMcpOAuthState);
+const mockFindState = vi.mocked(findLiveMcpOAuthState);
+const mockDeleteState = vi.mocked(deleteMcpOAuthState);
+const mockDeleteStateByToken = vi.mocked(deleteMcpOAuthStateByToken);
 
-// Two valid 24-hex ObjectId strings — mcp.ts wraps req.userId in
-// `new mongoose.Types.ObjectId(...)`, which throws on non-hex ids.
+/**
+ * Two distinct user ids. They were 24-hex ObjectId strings because the route
+ * wrapped `req.userId` in `new mongoose.Types.ObjectId(...)`, which threw on
+ * anything else. `oxy_user_id` is `text` now and the ids need only differ —
+ * kept in the old shape so the fixtures stay recognisable, not because the code
+ * still requires it.
+ */
 const USER_A = '507f1f77bcf86cd799439011';
 const USER_B = '507f1f77bcf86cd799439012';
 
-function getRouteHandler(method: 'get' | 'post' | 'put' | 'delete', path: string) {
+/** A stored connector row, with only the fields a given test cares about set. */
+function serverRow(overrides: Partial<McpServerRow> = {}): McpServerRow {
+  return {
+    id: 'srv-1',
+    oxyUserId: USER_A,
+    name: 'github',
+    displayName: 'GitHub',
+    description: null,
+    icon: null,
+    source: 'registry',
+    registryId: 'github',
+    transport: 'streamable-http',
+    runtime: 'server',
+    configCommand: null,
+    configArgs: null,
+    configUrl: 'https://mcp.github.test',
+    configHeaders: null,
+    configEnv: null,
+    configRequiresOauth: true,
+    status: 'installed',
+    statusMessage: null,
+    tools: [],
+    resources: null,
+    enabled: true,
+    createdAt: new Date('2026-01-01T00:00:00Z'),
+    updatedAt: new Date('2026-01-01T00:00:00Z'),
+    ...overrides,
+  };
+}
+
+function getRouteHandler(method: 'get' | 'post' | 'put' | 'delete' | 'patch', path: string) {
   const layer = (router as any).stack.find(
     (l: any) => l.route?.path === path && l.route.methods[method],
   );
@@ -108,9 +168,8 @@ describe('mcp.ts — OAuth CSRF binding + idempotent install', () => {
 
   describe('POST /oauth/complete — CSRF binding', () => {
     it('responds 403 and does NOT exchange when state was issued to a different user', async () => {
-      mockMcpOAuthState.findOne.mockResolvedValue({
-        _id: 'state-doc-1',
-        state: 'the-state',
+      mockFindState.mockResolvedValue({
+        id: 'state-row-1',
         oxyUserId: USER_B, // issued to someone else
         serverId: 'srv-1',
         createdAt: new Date(),
@@ -125,28 +184,20 @@ describe('mcp.ts — OAuth CSRF binding + idempotent install', () => {
       expect(res.statusCode).toBe(403);
       expect(mockFetch).not.toHaveBeenCalled();
       // State must NOT be consumed on a rejected CSRF attempt.
-      expect(mockMcpOAuthState.deleteOne).not.toHaveBeenCalled();
+      expect(mockDeleteState).not.toHaveBeenCalled();
     });
 
     it('consumes the state and proxies to integrations when state belongs to the caller', async () => {
-      mockMcpOAuthState.findOne.mockResolvedValue({
-        _id: 'state-doc-1',
-        state: 'the-state',
+      mockFindState.mockResolvedValue({
+        id: 'state-row-1',
         oxyUserId: USER_A, // belongs to the caller
         serverId: 'srv-1',
         createdAt: new Date(),
       });
-      mockMcpOAuthState.deleteOne.mockResolvedValue({ deletedCount: 1 });
-
-      const server: any = {
-        _id: 'srv-1',
-        config: {},
-        status: 'installed',
-        tools: [],
-        resources: [],
-        save: vi.fn().mockResolvedValue(undefined),
-      };
-      mockMcpServer.findOne.mockResolvedValue(server);
+      mockFindServer.mockResolvedValue(serverRow());
+      mockSetStatus.mockResolvedValue(
+        serverRow({ status: 'running', configRequiresOauth: true, tools: [] }),
+      );
 
       mockFetch.mockResolvedValue({
         ok: true,
@@ -160,25 +211,33 @@ describe('mcp.ts — OAuth CSRF binding + idempotent install', () => {
 
       await handler(req, res);
 
-      expect(mockMcpOAuthState.deleteOne).toHaveBeenCalledWith({ _id: 'state-doc-1' });
+      expect(mockDeleteState).toHaveBeenCalledWith(expect.anything(), 'state-row-1');
       expect(mockFetch).toHaveBeenCalledTimes(1);
       expect(res.statusCode).toBe(200);
-      expect(res.body).toEqual({ server });
-      expect(server.status).toBe('running');
-      expect(server.config.requiresOAuth).toBe(true);
+
+      // The durable OAuth mark, which a later `/:id/start` reads to reattach the
+      // SDK OAuthClientProvider. Asserted on the WRITE rather than on a local
+      // object, because there is no document to mutate any more.
+      expect(mockSetStatus).toHaveBeenCalledWith(expect.anything(), 'srv-1', USER_A, {
+        status: 'running',
+        requiresOAuth: true,
+        tools: [{ name: 't' }],
+        resources: [],
+      });
+
+      // The response still carries `_id` and a NESTED `config`, which the
+      // shipped mobile build reads. The real serializer produces both.
+      expect(res.body.server._id).toBe('srv-1');
+      expect(res.body.server.config).toEqual({
+        url: 'https://mcp.github.test',
+        requiresOAuth: true,
+      });
     });
   });
 
   describe('POST /:id/oauth/start — authorization URL contract', () => {
     it('returns the authorization URL from integrations and creates state', async () => {
-      const server: any = {
-        _id: 'srv-1',
-        runtime: 'server',
-        transport: 'streamable-http',
-        config: { url: 'https://mcp.github.test', requiresOAuth: true },
-      };
-      mockMcpServer.findOne.mockResolvedValue(server);
-      mockMcpOAuthState.create.mockResolvedValue({ state: 'created' });
+      mockFindServer.mockResolvedValue(serverRow({ runtime: 'server', transport: 'streamable-http' }));
       mockFetch.mockResolvedValue({
         ok: true,
         status: 200,
@@ -193,21 +252,19 @@ describe('mcp.ts — OAuth CSRF binding + idempotent install', () => {
 
       expect(res.statusCode).toBe(200);
       expect(res.body).toEqual({ authorizationUrl: 'https://auth.example/authorize' });
-      expect(mockMcpOAuthState.create).toHaveBeenCalledWith(expect.objectContaining({
-        oxyUserId: USER_A,
-        serverId: 'srv-1',
-      }));
+      expect(mockCreateState).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ oxyUserId: USER_A, serverId: 'srv-1' }),
+      );
+
+      // The integrations service receives the NESTED config, reassembled from
+      // the flat columns — it is a separate deploy and cannot read them.
+      const body = JSON.parse(mockFetch.mock.calls[0]?.[1]?.body as string);
+      expect(body.config).toEqual({ url: 'https://mcp.github.test', requiresOAuth: true });
     });
 
     it('fails and removes the state when integrations does not return an authorization URL', async () => {
-      const server: any = {
-        _id: 'srv-1',
-        runtime: 'server',
-        transport: 'streamable-http',
-        config: { url: 'https://mcp.github.test', requiresOAuth: true },
-      };
-      mockMcpServer.findOne.mockResolvedValue(server);
-      mockMcpOAuthState.create.mockResolvedValue({ state: 'created' });
+      mockFindServer.mockResolvedValue(serverRow({ runtime: 'server', transport: 'streamable-http' }));
       mockFetch.mockResolvedValue({
         ok: true,
         status: 200,
@@ -222,20 +279,17 @@ describe('mcp.ts — OAuth CSRF binding + idempotent install', () => {
 
       expect(res.statusCode).toBe(502);
       expect(res.body).toEqual({ error: 'OAuth authorization URL was not returned' });
-      expect(mockMcpOAuthState.deleteOne).toHaveBeenCalledWith({
-        state: expect.any(String),
-      });
+      expect(mockDeleteStateByToken).toHaveBeenCalledWith(expect.anything(), expect.any(String));
     });
   });
 
   describe('GET /oauth/callback — public, does not link', () => {
     it('redirects with mcp_oauth_state + mcp_oauth_code and never exchanges', async () => {
-      mockMcpOAuthState.findOne.mockResolvedValue({
-        _id: 'state-doc-1',
-        state: 'the-state',
+      mockFindState.mockResolvedValue({
+        id: 'state-row-1',
         oxyUserId: USER_A,
         serverId: 'srv-1',
-        createdAt: new Date(), // unexpired
+        createdAt: new Date(),
       });
 
       const handler = getRouteHandler('get', '/oauth/callback');
@@ -252,6 +306,23 @@ describe('mcp.ts — OAuth CSRF binding + idempotent install', () => {
       expect(mockFetch).not.toHaveBeenCalled();
     });
 
+    it('redirects with error= when the state is expired', async () => {
+      // Expiry is now the repository's decision — an expired row is simply not
+      // returned — so the route's `!stateRow` branch covers both "unknown" and
+      // "too old". Previously the route recomputed the age itself, in two
+      // places, from two copies of the same arithmetic.
+      mockFindState.mockResolvedValue(null);
+
+      const handler = getRouteHandler('get', '/oauth/callback');
+      const req: any = { query: { code: 'the-code', state: 'the-state' } };
+      const res = makeMockRes();
+
+      await handler(req, res);
+
+      expect(res.redirectUrl).toContain('error=oauth_expired');
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
     it('redirects with error= when code/state are missing', async () => {
       const handler = getRouteHandler('get', '/oauth/callback');
       const req: any = { query: {} };
@@ -261,21 +332,16 @@ describe('mcp.ts — OAuth CSRF binding + idempotent install', () => {
 
       expect(res.redirect).toHaveBeenCalledTimes(1);
       expect(res.redirectUrl).toContain('error=');
-      expect(mockMcpOAuthState.findOne).not.toHaveBeenCalled();
+      expect(mockFindState).not.toHaveBeenCalled();
       expect(mockFetch).not.toHaveBeenCalled();
     });
   });
 
-  describe('POST /install — idempotency on duplicate key', () => {
+  describe('POST /install — idempotency on a taken name', () => {
     it('persists registry env values under config.env', async () => {
-      let savedServer: any;
-      mockMcpServer.mockImplementation(function (data: any) {
-        savedServer = {
-          ...data,
-          save: vi.fn().mockResolvedValue(undefined),
-        };
-        return savedServer;
-      });
+      mockInstall.mockResolvedValue(
+        serverRow({ configEnv: { GITHUB_PERSONAL_ACCESS_TOKEN: 'token' } }),
+      );
 
       const handler = getRouteHandler('post', '/install');
       const req: any = {
@@ -290,19 +356,23 @@ describe('mcp.ts — OAuth CSRF binding + idempotent install', () => {
       await handler(req, res);
 
       expect(res.statusCode).toBe(201);
-      expect(savedServer.config.env).toEqual({ GITHUB_PERSONAL_ACCESS_TOKEN: 'token' });
-      expect(res.body.server).toBe(savedServer);
+      expect(mockInstall).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          oxyUserId: USER_A,
+          name: 'github',
+          source: 'registry',
+          config: expect.objectContaining({ env: { GITHUB_PERSONAL_ACCESS_TOKEN: 'token' } }),
+        }),
+      );
+      expect(res.body.server.config.env).toEqual({ GITHUB_PERSONAL_ACCESS_TOKEN: 'token' });
     });
 
     it('returns 200 with the existing server on a duplicate registry install', async () => {
-      // Regular function so `new McpServer(...)` can construct it (arrow fns throw).
-      mockMcpServer.mockImplementation(function (this: any, data: any) {
-        Object.assign(this, data);
-        this.save = vi.fn().mockRejectedValue(Object.assign(new Error('dup'), { code: 11000 }));
-      });
-
-      const existing = { _id: 'existing-1', name: 'github', displayName: 'GitHub' };
-      mockMcpServer.findOne.mockResolvedValue(existing);
+      // `null` is what the unique index decided, surfaced without a thrown
+      // constraint violation.
+      mockInstall.mockResolvedValue(null);
+      mockFindByName.mockResolvedValue(serverRow({ id: 'existing-1' }));
 
       const handler = getRouteHandler('post', '/install');
       const req: any = { userId: USER_A, body: { registryId: 'github' } };
@@ -311,18 +381,12 @@ describe('mcp.ts — OAuth CSRF binding + idempotent install', () => {
       await handler(req, res);
 
       expect(res.statusCode).toBe(200);
-      expect(res.body).toEqual({ server: existing });
-      expect(mockMcpServer.findOne).toHaveBeenCalledWith({
-        oxyUserId: expect.anything(),
-        name: 'github',
-      });
+      expect(res.body.server._id).toBe('existing-1');
+      expect(mockFindByName).toHaveBeenCalledWith(expect.anything(), USER_A, 'github');
     });
 
     it('returns 409 on a duplicate CUSTOM install (no registryId)', async () => {
-      mockMcpServer.mockImplementation(function (this: any, data: any) {
-        Object.assign(this, data);
-        this.save = vi.fn().mockRejectedValue(Object.assign(new Error('dup'), { code: 11000 }));
-      });
+      mockInstall.mockResolvedValue(null);
 
       const handler = getRouteHandler('post', '/install');
       const req: any = {
@@ -339,7 +403,29 @@ describe('mcp.ts — OAuth CSRF binding + idempotent install', () => {
 
       expect(res.statusCode).toBe(409);
       // No existing-server lookup for a custom install.
-      expect(mockMcpServer.findOne).not.toHaveBeenCalled();
+      expect(mockFindByName).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('the list and delete routes serve the shape the mobile build reads', () => {
+    it('answers 404 rather than 500 for an id of any shape', async () => {
+      /**
+       * A behaviour change worth a test. `_id: req.params.id` against a Mongo
+       * `ObjectId` raised a `CastError` the route turned into a 500 for any
+       * malformed id; `id` is `text`, so a malformed id simply matches nothing.
+       * Loud to quiet, in the direction the caller deserved — and stated here so
+       * it cannot be mistaken for an accident later.
+       */
+      mockDeleteServer.mockResolvedValue(null);
+
+      const handler = getRouteHandler('delete', '/:id');
+      const req: any = { userId: USER_A, params: { id: 'not-an-object-id-at-all' } };
+      const res = makeMockRes();
+
+      await handler(req, res);
+
+      expect(res.statusCode).toBe(404);
+      expect(res.body).toEqual({ error: 'Server not found' });
     });
   });
 });

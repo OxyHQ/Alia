@@ -51,6 +51,26 @@ export const MCP_SERVER_STATUSES = ['installed', 'running', 'stopped', 'error'] 
 export type McpServerStatus = (typeof MCP_SERVER_STATUSES)[number];
 
 /**
+ * An element of `mcp_servers.tools` / `.resources`.
+ *
+ * Declared here rather than on the Mongoose model because the column owns its
+ * element shape, and because these outlive the model: `tools[].inputSchema` is
+ * JSON Schema the MCP server itself supplies, a format this service does not own
+ * and cannot narrow further than `Record<string, unknown>`.
+ */
+export interface McpServerTool {
+  name: string;
+  description: string;
+  inputSchema: Record<string, unknown>;
+}
+
+export interface McpServerResource {
+  uri: string;
+  name: string;
+  description?: string;
+}
+
+/**
  * One user's OAuth connection to a third-party service.
  *
  * The `oauthTokens` sub-document was `required`, and `accessToken`, `scope` and
@@ -81,11 +101,12 @@ export const integrations = pgTable(
     accountName: text(),
     avatarUrl: text(),
     status: text({ enum: INTEGRATION_STATUSES as unknown as [string, ...string[]] })
+      .$type<IntegrationStatus>()
       .notNull()
       .default('active'),
     enabled: boolean().notNull().default(true),
     /** Shape belongs to whichever service was connected. */
-    metadata: jsonb().notNull().default({}),
+    metadata: jsonb().$type<Record<string, unknown>>().notNull().default({}),
     connectedAt: timestamptz().notNull(),
     lastUsedAt: timestamptz(),
     createdAt: createdAt(),
@@ -124,6 +145,7 @@ export const connectedAccounts = pgTable(
     email: text(),
     avatarUrl: text(),
     status: text({ enum: CONNECTED_ACCOUNT_STATUSES as unknown as [string, ...string[]] })
+      .$type<ConnectedAccountStatus>()
       .notNull()
       .default('connecting'),
     statusMessage: text(),
@@ -142,7 +164,7 @@ export const connectedAccounts = pgTable(
     oauthRefreshToken: encryptedText(),
     oauthExpiresAt: timestamptz(),
     oauthScope: text(),
-    metadata: jsonb().notNull().default({}),
+    metadata: jsonb().$type<Record<string, unknown>>().notNull().default({}),
     lastActiveAt: timestamptz(),
     connectedAt: timestamptz(),
     createdAt: createdAt(),
@@ -187,39 +209,71 @@ export const mcpServers = pgTable(
     description: text(),
     icon: text(),
     source: text({ enum: MCP_SERVER_SOURCES as unknown as [string, ...string[]] })
+      .$type<McpServerSource>()
       .notNull()
       .default('registry'),
     registryId: text(),
-    transport: text({ enum: MCP_SERVER_TRANSPORTS as unknown as [string, ...string[]] }).notNull(),
+    transport: text({ enum: MCP_SERVER_TRANSPORTS as unknown as [string, ...string[]] })
+      .$type<McpServerTransport>()
+      .notNull(),
     runtime: text({ enum: MCP_SERVER_RUNTIMES as unknown as [string, ...string[]] })
+      .$type<McpServerRuntime>()
       .notNull()
       .default('server'),
     configCommand: text(),
     configArgs: text().array(),
     configUrl: text(),
     /** User-supplied and routinely secret-bearing. Never log; never select by default. */
-    configHeaders: jsonb(),
+    configHeaders: jsonb().$type<Record<string, string>>(),
     /** User-supplied and routinely secret-bearing. Never log; never select by default. */
-    configEnv: jsonb(),
+    configEnv: jsonb().$type<Record<string, string>>(),
     configRequiresOauth: boolean(),
     status: text({ enum: MCP_SERVER_STATUSES as unknown as [string, ...string[]] })
+      .$type<McpServerStatus>()
       .notNull()
       .default('installed'),
     statusMessage: text(),
-    tools: jsonb().notNull().default([]),
-    resources: jsonb(),
+    tools: jsonb().$type<McpServerTool[]>().notNull().default([]),
+    resources: jsonb().$type<McpServerResource[]>(),
     enabled: boolean().notNull().default(true),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
   (t) => [
     index('mcp_servers_oxy_user_id_idx').on(t.oxyUserId),
+    /**
+     * `McpServerSchema.index({ oxyUserId: 1, name: 1 }, { unique: true })`, and
+     * the ONE index of this slice's twenty-six that the schema batch did not
+     * port. It is not decoration.
+     *
+     * `POST /mcp/install` is idempotent for registry connectors — the Connect
+     * flow calls it to ensure the connector exists before starting OAuth, and a
+     * second call must return the EXISTING row with 200 rather than 409. The
+     * route decides which by catching the duplicate-key error this index raises.
+     * Without it the insert simply succeeds, so every Connect attempt installs
+     * another copy of the same connector under the same user, silently: no
+     * error, no 409, a growing list of duplicates and an OAuth flow attached to
+     * whichever row was found last. Loud in Mongo, quiet here.
+     */
+    uniqueIndex('mcp_servers_oxy_user_name_key').on(t.oxyUserId, t.name),
     checkOneOf('mcp_servers_source_check', t.source, MCP_SERVER_SOURCES),
     checkOneOf('mcp_servers_transport_check', t.transport, MCP_SERVER_TRANSPORTS),
     checkOneOf('mcp_servers_runtime_check', t.runtime, MCP_SERVER_RUNTIMES),
     checkOneOf('mcp_servers_status_check', t.status, MCP_SERVER_STATUSES),
   ],
 );
+
+/**
+ * How long an abandoned MCP OAuth handshake survives.
+ *
+ * It lived on the Mongoose model, and its two consumers — `db/expiryTargets.ts`
+ * for the sweep's retention and `routes/mcp.ts` for the liveness check the
+ * callback makes — imported it from there. That is a co-located CONSTANT in a
+ * module the port deletes, so it moves to the column it describes rather than
+ * being carried along with a model that is going away. One number, two readers,
+ * and the sweep and the check cannot now disagree.
+ */
+export const MCP_OAUTH_STATE_TTL_SECONDS = 10 * 60;
 
 /**
  * The MCP connector's single-use OAuth `state`.
