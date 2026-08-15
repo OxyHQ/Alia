@@ -32,11 +32,11 @@ bun run dev:app    # Expo app only (runs with --clear --tunnel)
 
 Root scripts are named `dev:*`, `build:*` and `start:*`, roughly one per package; read the root `package.json` for the full set. Anything without a shortcut is reachable as `bun run --filter <package> <script>`.
 
-Other packages ship their own `.env.example` (`packages/app`, `packages/alia-gateway-admin`, `packages/alia-cowork`, `packages/alia-docker-host`). Copy the ones for the packages you actually run.
+Other packages ship their own `.env.example` (`packages/app`, `packages/alia-cowork`, `packages/alia-docker-host`). Copy the ones for the packages you actually run.
 
 ## Layout
 
-A bun workspaces monorepo, no Turborepo and no Nx. Alia is the exception to the Oxy `frontend` + `backend` + `shared-types` baseline: thirteen workspaces across twelve directories under `packages/` (`packages/alia-codea/webview-ui` is its own workspace entry), and the API is `packages/api`, not `packages/backend`. The package map is in `AGENTS.md`, so there is one copy of it to keep correct.
+A bun workspaces monorepo, no Turborepo and no Nx. Alia is the exception to the Oxy `frontend` + `backend` + `shared-types` baseline: twelve workspaces across eleven directories under `packages/` (`packages/alia-codea/webview-ui` is its own workspace entry), and the API is `packages/api`, not `packages/backend`. The package map is in `AGENTS.md`, so there is one copy of it to keep correct.
 
 Three things worth knowing before your first pull request:
 

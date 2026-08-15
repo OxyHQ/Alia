@@ -99,7 +99,7 @@ entries. Readiness does not consult it. Finishing that port is tracked on
 
 ## Packages
 
-Thirteen workspaces across twelve directories — `packages/alia-codea/webview-ui` is its own
+Twelve workspaces across eleven directories — `packages/alia-codea/webview-ui` is its own
 workspace entry. Everything lives under `packages/`.
 
 <table>
@@ -133,7 +133,6 @@ workspace entry. Everything lives under `packages/`.
 |---|---|---|
 | [`packages/alia-console`](packages/alia-console/) | `alia-console` | TanStack Start, React |
 | [`packages/alia-canvas`](packages/alia-canvas/) | `alia-canvas` | Vite, React |
-| [`packages/alia-gateway-admin`](packages/alia-gateway-admin/) | `alia-gateway-admin` | Vite, React |
 
 **Shared**
 
@@ -168,7 +167,6 @@ bun run dev:api          bun run dev:app
 bun run dev:admin        bun run dev:canvas
 bun run dev:integrations bun run dev:codea
 bun run dev:cowork       bun run dev:docker-host
-bun run dev:gateway-admin
 ```
 
 The app has platform shortcuts at the root:
@@ -187,7 +185,7 @@ bun run web    # or ios, or android
 | Group | Scripts |
 |---|---|
 | Build all | `bun run build` |
-| Build one | `build:app`, `build:api`, `build:admin`, `build:canvas`, `build:docker-host`, `build:gateway-admin`, `build:integrations` |
+| Build one | `build:app`, `build:api`, `build:admin`, `build:canvas`, `build:docker-host`, `build:integrations` |
 | Start one | `start:app`, `start:api`, `start:admin`, `start:canvas`, `start:docker-host`, `start:integrations` |
 | Lint | `bun run lint`, `bun run lint:canvas` |
 

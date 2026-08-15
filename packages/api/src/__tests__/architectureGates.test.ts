@@ -400,13 +400,34 @@ describe('gate 1: no product module imports a provider adapter (ADR 0001)', () =
     expect(observed.map(fmt).sort()).toEqual([...PROVIDER_IMPORT_ALLOWLIST].map(fmt).sort());
   });
 
-  it('nothing outside the provider tree reaches its ROUTES or its module entrypoint', () => {
-    // Load-bearing for gate 4's definition of "public": `src/internal/providers/`
-    // exposes an admin router (`index.ts`, mounting `routes/keys.ts` behind
-    // `authenticateService`) that NOTHING mounts — measured, not assumed. So the
-    // provider-key serializers are not a reachable HTTP surface at all today.
-    // Mounting one would add a pair here and fail the equality above; this
-    // states the consequence separately so a reader does not have to derive it.
+  it('the provider tree has no ROUTES and no module entrypoint, and nothing reaches for one', () => {
+    /**
+     * Load-bearing for gate 4's definition of "public". This used to assert
+     * that nothing imported the admin router (`index.ts`, mounting
+     * `routes/keys.ts` behind `authenticateService`) which NOTHING mounted.
+     * #141 deleted the router and all twelve routes, and that turned the
+     * assertion vacuous: no import can resolve to a path that cannot exist, so
+     * it would have gone on passing for a reason unrelated to the invariant.
+     *
+     * The invariant is now the stronger one #141 established — the provider
+     * tree has no HTTP surface to import — so it is asserted against the tree
+     * itself rather than against imports of it. The import check is kept
+     * underneath, because a re-added router would have to be imported to be
+     * mounted and this states the consequence separately.
+     */
+    const tree = execFileSync('git', ['ls-files', 'packages/api/src/internal/providers/'], {
+      cwd: REPO_ROOT,
+      encoding: 'utf8',
+    }).split('\n').filter((f) => f !== '');
+
+    // Vacuity floor: an empty enumeration satisfies every "no such file" check
+    // below, and a renamed directory would produce exactly that.
+    expect(tree.length).toBeGreaterThanOrEqual(40);
+    expect(tree).toContain('packages/api/src/internal/providers/lib/providers/openai.ts');
+
+    expect(tree.filter((f) => f.startsWith('packages/api/src/internal/providers/routes/'))).toEqual([]);
+    expect(tree).not.toContain('packages/api/src/internal/providers/index.ts');
+
     const reachable = observed.filter(
       (o) => o.to.startsWith('packages/api/src/internal/providers/routes/') || o.to === 'packages/api/src/internal/providers/index',
     );
@@ -613,7 +634,6 @@ const EGRESS_HOSTS: readonly string[] = [
   'console.alia.onl',
   'discord.com',
   'duckduckgo.com',
-  'gateway.alia.onl',
   'generativelanguage.googleapis.com',
   'gmail.googleapis.com',
   'graph.facebook.com',
@@ -858,8 +878,9 @@ describe('gate 3: the alia-* alias set is frozen (ADR 0002)', () => {
  * "Public" here means: a module under `packages/api/src/routes/`. Every one of
  * those is mounted directly on the Express app in `src/index.ts` and served on
  * `api.alia.onl` behind at most a user credential — never a service credential.
- * `src/internal/providers/routes/` is NOT public in that sense and is not even
- * mounted; gate 1's last assertion is what keeps that true.
+ * `src/internal/providers/` has no routes at all since #141 — it was never
+ * mounted, and now there is nothing to mount; gate 1's last assertion is what
+ * keeps that true.
  *
  * Two different credentials share the field names `key`, `keyHash` and
  * `keyPrefix`, and only one of them is a provider secret:
@@ -892,10 +913,8 @@ const PROVIDER_KEY_READERS: readonly string[] = [
   'packages/api/src/db/__tests__/providerKeyRepository.pgdb.test.ts',
   'packages/api/src/db/__tests__/providers.pgdb.test.ts',
   'packages/api/src/db/providers/providerKeyRepository.ts',
-  'packages/api/src/internal/providers/lib/broadcast-helpers.ts',
   'packages/api/src/internal/providers/lib/key-manager.ts',
   'packages/api/src/internal/providers/lib/seed-model-configs.ts',
-  'packages/api/src/internal/providers/routes/keys.ts',
 ];
 
 /**
@@ -906,10 +925,9 @@ const PROVIDER_KEY_READERS: readonly string[] = [
  */
 const ALLOWED_KEY_CONFIG_SHAPES: readonly string[] = ['arg of getAIModel()', 'read .keyId', 'read .modelId'];
 
-/** The three files that read the plaintext credential itself. Two are inside the provider tree. */
+/** The two files that read the plaintext credential itself. One is inside the provider tree. */
 const PLAINTEXT_CREDENTIAL_READERS: readonly string[] = [
   'packages/api/src/internal/providers/lib/provider-api.ts',
-  'packages/api/src/internal/providers/routes/providers.ts',
   'packages/api/src/lib/chat-core.ts',
 ];
 
@@ -968,7 +986,7 @@ describe('gate 4: no provider secret reaches a public serializer (ADR 0001)', ()
     }
 
     expect([...readers].sort()).toEqual([...PROVIDER_KEY_READERS].sort());
-    expect(PROVIDER_KEY_READERS).toHaveLength(7);
+    expect(PROVIDER_KEY_READERS).toHaveLength(5);
     expect([...readers].filter((f) => f.startsWith('packages/api/src/routes/'))).toEqual([]);
   });
 
@@ -998,11 +1016,14 @@ describe('gate 4: no provider secret reaches a public serializer (ADR 0001)', ()
     expect(outside.map(([shape]) => shape).sort()).toEqual([...ALLOWED_KEY_CONFIG_SHAPES].sort());
   });
 
-  it('the plaintext credential is read in exactly three files, one of them product code', () => {
+  it('the plaintext credential is read in exactly two files, one of them product code', () => {
     // `lib/chat-core.ts:111` is that one: `getAIModel()` reads `keyConfig.key`
     // to construct an AI SDK provider. It is the product-side chokepoint the
     // Relay client replaces, and it does not serialize — which the shape freeze
     // above is what proves.
+    //
+    // Was three until #141 deleted `internal/providers/routes/providers.ts`,
+    // the unmounted proxy route that read the credential to forward it upstream.
     const readers = new Set<string>();
     for (const { file, ast } of apiSources) {
       const visit = (n: ts.Node): void => {

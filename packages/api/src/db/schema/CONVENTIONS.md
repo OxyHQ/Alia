@@ -277,15 +277,21 @@ resolved.
 **`api_usage.key_id` stays without one, and the providers batch is what settled
 it.** `provider_keys` now exists, so the question is no longer "is the target
 ported" but "what should a key's deletion do to the record that it was used" —
-and keys really are hard-deleted (`DELETE /keys/:id` →
-`ProviderKey.findByIdAndDelete`, `routes/keys.ts`). Every available answer is
-worse than none:
+and keys really are hard-deleted (`deleteProviderKey`,
+`db/providers/providerKeyRepository.ts`). Every available answer is worse than
+none:
 
 - a cascade deletes the audit, which is the one thing the row exists for;
 - `ON DELETE SET NULL` is unrepresentable — the column is `notNull`, and making
   it nullable to accommodate a delete erases the attribution that IS the content;
 - `RESTRICT` makes a key undeletable for 48 hours after any use, turning a
-  working admin operation into an error.
+  working operation into an error.
+
+`deleteProviderKey` has no HTTP caller today — the admin route that called it
+went with the rest of the never-mounted `/internal/gateway` surface — so the
+delete is reachable only from code and its own test. The decision above does not
+change with that: the function is live, tested, and the next surface to expose
+key management inherits exactly this trade-off.
 
 So a dangling id, deliberately, bounded by the 48-hour sweep. Write the reason
 down rather than the absence: "no FK" and "nobody decided" look identical later.
@@ -855,14 +861,18 @@ wrong on most of them.
   `UPDATE 1`, which is what `matchedCount` meant.
 - **`modifiedCount`** counts rows that actually CHANGED. It equals `rowCount`
   only when the statement's own filter already excludes rows that would not
-  change — true of `resetAllKeyCooldowns` and `routes/keys.ts /reload`
-  (`cooldownUntil is not null OR consecutiveFailures > 0`, and every matched row
-  changes both) and of `resetAllCircuitBreakers`. It is NOT true of
-  `routes/providers.ts /health/reset-all`, whose filter is `{}`: an
-  already-healthy row is matched and not modified, so `rowCount` over-reports to
-  the admin panel and that one needs an `IS DISTINCT FROM` predicate. Adding such
-  a predicate where it is not needed is its own bug — it can turn a successful
-  repeat into a 404.
+  change — true of `resetAllKeyCooldowns`
+  (`db/providers/providerKeyRepository.ts`: `cooldownUntil is not null OR
+  consecutiveFailures > 0`, and every matched row changes both) and of
+  `resetAllCircuitBreakers` (`internal/providers/lib/provider-health.ts`). It is
+  NOT true of a reset whose filter is `{}`: an already-healthy row is matched and
+  not modified, so `rowCount` over-reports and that one needs an
+  `IS DISTINCT FROM` predicate. Adding such a predicate where it is not needed is
+  its own bug — it can turn a successful repeat into a 404.
+
+  The unfiltered case had a caller until the `/internal/gateway` admin routes
+  were deleted (`routes/providers.ts /health/reset-all`). The rule stays because
+  the next unfiltered reset written against these tables hits it again.
 - **`upsertedCount` is not recoverable from `rowCount`**, because
   `INSERT … ON CONFLICT DO UPDATE` reports one row affected on both the creating
   and the updating call. It needs `RETURNING (xmax = 0) AS inserted`.

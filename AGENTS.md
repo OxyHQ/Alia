@@ -31,7 +31,6 @@ packages/
   alia-console/       Admin console
   alia-cowork/        Collaborative workspace
   alia-docker-host/   Docker host integration
-  alia-gateway-admin/ Gateway admin
   integrations/       Third-party integrations service (owns the MCP client)
 ```
 

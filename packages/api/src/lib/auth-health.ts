@@ -5,12 +5,23 @@
  * recording functions are fire-and-forget safe — they never throw or block the
  * auth flow.
  *
- * This module is the ONLY thing that touches `auth_health_metrics`. Its two
- * consumers (`internal/providers/middleware/auth.ts`,
- * `internal/providers/routes/auth-health.ts`) call these three functions and
- * have never seen the model, which is why moving the store underneath changed
- * nothing outside this file. The statements live in
- * `db/telemetry/authHealthRepository.ts`.
+ * This module is the ONLY thing that touches `auth_health_metrics`, through
+ * `db/telemetry/authHealthRepository.ts` — nothing above it has ever seen the
+ * model, which is why moving the store underneath changed nothing outside this
+ * file.
+ *
+ * It currently has NO CALLERS. Its only two were the HMAC service middleware
+ * and the stats route of the `/internal/gateway` admin surface, and both were
+ * unreachable — no `app.use` ever mounted that router — for as long as they
+ * existed, so this table has never been written in production. They were
+ * deleted with the rest of that surface.
+ *
+ * The table is still registered as an expiry target (`db/expiryTargets.ts`) and
+ * is still swept. Two live options, neither of which is this file's to pick:
+ * call `recordAuthSuccess`/`recordAuthFailure` from the real auth middleware
+ * (`middleware/auth.ts`), which would make the metrics mean something for the
+ * first time; or retire the table, its repository and its expiry entry
+ * together.
  */
 
 import {
@@ -69,7 +80,6 @@ export async function recordAuthFailure(method: string, reason?: string): Promis
 
 /**
  * Get aggregated auth health stats for the last N hours (default 24).
- * Used by the admin dashboard endpoint.
  */
 export async function getAuthHealthStats(hours: number = 24): Promise<AuthHealthSummary[]> {
   const since = new Date();

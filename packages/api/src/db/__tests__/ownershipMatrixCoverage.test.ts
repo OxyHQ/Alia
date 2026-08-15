@@ -10,10 +10,24 @@
  *
  * ## What each assertion is for
  *
- * **Existence.** Every `currentPath` names a real path. This is what catches
- * drift as the epic's deletions land: delete a file without touching its row
- * and this goes red, which is the moment to decide whether the row is done or
- * merely stale.
+ * **Existence.** Every `currentPath` names a real path, UNLESS the row records
+ * the PR that removed it in `removedIn`. This is what catches drift as the
+ * epic's deletions land: delete a file without touching its row and this goes
+ * red, which is the moment to decide whether the row is done or merely stale.
+ *
+ * A removed row is annotated, never deleted. Deleting it would take the record
+ * of why the code was safe to remove with it, and every `dependsOn` pointing at
+ * it would dangle — the rows that survive cite the removed ones as the reason
+ * they are unreachable. `removedIn` is checked in BOTH directions: a row that
+ * claims removal while its file still exists is as wrong as an unannotated gap,
+ * and without that half the field is just a way to silence this test.
+ *
+ * **Exact count on the removed set.** `REMOVED_ROW_COUNT` is asserted exactly,
+ * for the same reason `NOT_APPLICABLE_COUNT` is. A gate whose input the
+ * migration deletes erodes to vacuity one defensible decrement at a time,
+ * ending at a check over nothing; the removed count is the number that has to
+ * move, visibly, in the commit that does the removing. Its complement — the
+ * rows whose file must STILL exist — carries a floor for the same reason.
  *
  * **Coverage of `internal/providers/**`.** That directory is what the epic
  * exists to dismantle, so every file in it must be a DECISION: mapped by a row,
@@ -72,6 +86,8 @@ interface MatrixRow {
   readonly domain: string;
   readonly kind: string;
   readonly currentPath: string;
+  /** The PR that deleted `currentPath`. Present only on rows whose file is gone. */
+  readonly removedIn?: string;
   readonly reachable: string;
   readonly owner: string;
   readonly targetPath: string;
@@ -80,6 +96,20 @@ interface MatrixRow {
   readonly provenance: string;
   readonly evidence: string;
 }
+
+/**
+ * Rows whose `currentPath` this repository no longer contains.
+ *
+ * Exact, not a floor. Removing more code means editing this number in the same
+ * commit — which is the only thing standing between "the epic is deleting
+ * things" and "the matrix has quietly stopped describing anything".
+ *
+ * 38 as of #141 (retire the gateway admin), over 35 distinct paths: 18 rows on
+ * 16 paths under `internal/providers/**`, and 20 rows on 19 paths under
+ * `packages/alia-gateway-admin/`. Three paths carry two rows each, because two
+ * separate migration subjects lived in one file.
+ */
+const REMOVED_ROW_COUNT = 38;
 
 const OWNERS = new Set(['alia', 'oxy', 'relay', 'delete']);
 const REACHABLE = new Set(['live', 'dead', 'unverified', 'loaded-not-invoked']);
@@ -108,6 +138,12 @@ function readMatrix(): MatrixRow[] {
       }
     }
     if (!Array.isArray(r.dependsOn)) throw new Error(`row ${index}: dependsOn is not an array`);
+    // Optional, but not free-form: an empty or non-string `removedIn` would
+    // satisfy `'removedIn' in row` and exempt the row from the existence check
+    // while recording nothing about who removed it.
+    if (r.removedIn !== undefined && (typeof r.removedIn !== 'string' || r.removedIn === '')) {
+      throw new Error(`row ${index} (${String(r.id)}): removedIn is present but not a non-empty string`);
+    }
     return row as MatrixRow;
   });
 }
@@ -133,22 +169,46 @@ describe('the ownership matrix still describes this repository', () => {
      * 300 rather than 356 (the count at the time of writing) so that ordinary
      * consolidation does not fail the build; it goes DOWN only when a whole
      * domain has finished migrating, which is a deliberate edit.
+     *
+     * The governed floor was 50 against 60 files. #141 deleted 16 of them,
+     * leaving 44, so the floor moves to 40 — a deliberate edit in the commit
+     * that removed the files, which is the only way it is allowed to move. It
+     * cannot be decremented to nothing: the 22 adapter files under
+     * `lib/providers/` are the last thing this epic retires, so a floor below
+     * that is measuring a subtree that has already finished migrating.
      */
     expect(matrix.length).toBeGreaterThanOrEqual(300);
-    expect(governed.length).toBeGreaterThanOrEqual(50);
+    expect(governed.length).toBeGreaterThanOrEqual(40);
 
     // Positive control on the enumeration: a file known to be in that subtree.
     // Without it, a renamed directory reads as "everything is classified".
     expect(governed).toContain('packages/api/src/internal/providers/lib/providers/openai.ts');
   });
 
-  it('every currentPath still exists', () => {
-    const missing = matrix
-      .filter((r) => !existsSync(path.join(REPO_ROOT, r.currentPath)))
-      .map((r) => `${r.id} -> ${r.currentPath}`);
+  it('every currentPath still exists, unless the row says which PR removed it', () => {
+    const exists = (r: MatrixRow) => existsSync(path.join(REPO_ROOT, r.currentPath));
+    const fmt = (r: MatrixRow) => `${r.id} -> ${r.currentPath}`;
 
-    expect(missing).toEqual([]);
-    // The check above is vacuous if the matrix names no paths at all.
+    // A file that vanished without anybody annotating the row. This is the
+    // drift the gate exists to catch.
+    expect(matrix.filter((r) => r.removedIn === undefined && !exists(r)).map(fmt)).toEqual([]);
+
+    // The other direction, which is what stops `removedIn` from becoming a way
+    // to switch this test off: a row may only claim removal if the file really
+    // is gone.
+    expect(matrix.filter((r) => r.removedIn !== undefined && exists(r)).map(fmt)).toEqual([]);
+
+    // Exact, so removing more code has to move a number in the same commit.
+    expect(matrix.filter((r) => r.removedIn !== undefined)).toHaveLength(REMOVED_ROW_COUNT);
+
+    /**
+     * Floors, both halves. The first assertion above is satisfied by a matrix
+     * in which every row is annotated as removed, which is precisely the end
+     * state this gate must not slide into; the floor on rows whose file must
+     * still exist is what makes that visible. 250 rather than the 318 of the
+     * day, so ordinary consolidation does not fail the build.
+     */
+    expect(matrix.filter((r) => r.removedIn === undefined).length).toBeGreaterThanOrEqual(250);
     expect(new Set(matrix.map((r) => r.currentPath)).size).toBeGreaterThanOrEqual(150);
   });
 

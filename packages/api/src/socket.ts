@@ -28,7 +28,6 @@ const ALLOWED_ORIGINS = [
   process.env.WEB_URL || 'http://localhost:4150',
   'https://alia.onl',
   'https://console.alia.onl',
-  'https://gateway.alia.onl',
 ];
 
 let io: Server | null = null;
