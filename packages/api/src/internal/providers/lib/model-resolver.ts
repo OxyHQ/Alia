@@ -31,7 +31,7 @@ export interface ResolvedModel {
 /**
  * Resolve an Alia model ID to a concrete provider and model.
  *
- * Keys are loaded internally from MongoDB via key-manager.
+ * Keys are loaded from the `provider_keys` PostgreSQL table via key-manager.
  * Uses the fallback engine for smart retry logic based on error classification.
  *
  * @param requestedModel - The model ID requested (can be Alia model or legacy model name)

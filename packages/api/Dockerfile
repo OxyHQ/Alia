@@ -121,11 +121,13 @@ RUN chown -R node:node /app
 USER node
 
 ENV NODE_ENV=production
-# PORT is read at runtime (defaults to 3001 in the app). EXPOSE documents it.
+# PORT is read at runtime. The app's own fallback is 4150 (src/index.ts), so the
+# deployment must set PORT explicitly to match the 3001 documented here and used
+# by the health check below.
 EXPOSE 3001
 
 # Liveness HEALTHCHECK — always 200 while the process is up, independent of
-# MongoDB/Redis reachability. Honors $PORT.
+# database and Redis reachability. Honors $PORT.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
   CMD curl -fsS "http://127.0.0.1:${PORT:-3001}/health/live" || exit 1
 

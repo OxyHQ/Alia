@@ -33,9 +33,9 @@ Main API (Port 3001)
 The module provides a multi-layer failover system for AI provider requests:
 
 **Key Manager** (`lib/key-manager.ts`):
-- Loads provider keys from MongoDB, sorted by priority (free first, then paid)
+- Loads provider keys from the `provider_keys` PostgreSQL table, sorted by priority (free first, then paid), through `db/providers/providerKeyRepository.ts`
 - 10-second cache TTL to minimize stale-key window
-- Rate limit checking via single `$facet` aggregation (rps/rpm/rph/rpd and tps/tpm/tph/tpd)
+- Rate limit checking in one statement covering all four windows (rps/rpm/rph/rpd and tps/tpm/tph/tpd), via `db/telemetry/apiUsageRepository.ts`
 - Credit limit enforcement (`spentUSD >= creditLimitUSD` → skip)
 - Cooldown management: exponential backoff for errors, flat 60s for rate limits, provider Retry-After header priority
 - `skipKeyIds` parameter for caller-driven key exclusion (failed keys from previous attempts)
@@ -49,7 +49,7 @@ The module provides a multi-layer failover system for AI provider requests:
   - `billing` → skip provider, mark key credit-exhausted
   - `provider_unavailable` → skip provider entirely (geo-restriction, service down)
   - `format` / `content_filter` → stop (non-retryable)
-- Records `FallbackEvent` documents for analytics (fire-and-forget)
+- Records `fallback_events` rows for analytics, fire-and-forget, via `db/telemetry/fallbackEventRepository.ts`
 
 **Error Classification** (`../../lib/errors/failover-error.ts`):
 - Classifies unknown errors into `FailoverReason` categories
@@ -62,7 +62,7 @@ The module provides a multi-layer failover system for AI provider requests:
 
 **Provider Health** (`lib/provider-health.ts`):
 - Circuit breaker pattern: 5 consecutive failures → open for 60s → half-open (3 attempts, 2 successes to close)
-- Per-provider/model health tracking in MongoDB
+- Per-provider/model health tracked in the `provider_health` PostgreSQL table, via `db/telemetry/providerHealthRepository.ts`
 
 ### Authentication:
 

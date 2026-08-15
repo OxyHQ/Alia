@@ -1,39 +1,108 @@
 ---
 title: "Model abstraction"
-description: "Alia model tiers, provider routing, fallback chains, and the sanitization rules that keep providers private."
+description: "The thirteen alia-* identifiers Alia serves today, what each one actually is, and the vocabulary ADR 0003 replaces them with."
 order: 2
 ---
 
 # Model abstraction
 
-Alia exposes one stable namespace of model identifiers and routes them internally to whichever provider model is cheapest, fastest, and healthy. Clients, errors, and analytics never see the underlying provider. This is a shipping blocker — violating it is a security and a brand bug at once.
+Alia publishes one flat namespace of `alia-*` identifiers and resolves each one, per
+request, to an upstream deployment. This page describes what that namespace contains
+**today**, and the decisions recorded against it.
 
-## Public Alia models
+Two things are worth stating before the detail, because most of the confusion about this
+layer comes from conflating them:
 
-Defined in `packages/api/src/internal/providers/lib/alia-models.ts` as `ALIA_MODELS`. Every model carries a tier, category, credit multiplier, and capability flags.
+- The namespace is **not** a catalogue of models. Several `alia-*` identifiers are routing
+  policies, surface presets or reasoning settings.
+- The namespace is **frozen**. Under [ADR 0002](./adr/0002-alia-is-a-relay-consumer-and-future-model-publisher.md)
+  no new `alia-*` identifier is created, and under the
+  [compatibility window](./migration/compatibility-window.md) the existing ones sunset.
 
-| Tier | ID | Category | Notes |
-|------|-----|----------|-------|
-| `lite` | `alia-lite` | general | Fast, low-cost; `0.5×` credit multiplier |
-| `v1` | `alia-v1` | general | Default balanced tier; `1×` |
-| `v1-pro` | `alia-v1-pro` | general | Higher quality general tier |
-| `v1-pro-max` | `alia-v1-pro-max` | general | Top-tier general capability |
-| `v1-codea` | `alia-v1-codea` | coding | Coding-tuned (Codea + CLI) |
-| `v1-cowork` | `alia-v1-cowork` | general | Cowork desktop assistant tier |
-| `v1-browser` | `alia-v1-browser` | general | Headless-browser-aware tier |
-| `v1-vision` | `alia-v1-vision` | vision | Image understanding |
-| `v1-audio` | `alia-v1-audio` | audio | Audio transcription / analysis |
-| `v1-tts` | `alia-v1-tts` | audio | Text-to-speech |
-| `v1-image` | `alia-v1-image` | multimodal | Image generation |
-| `v1-multimodal` | `alia-v1-multimodal` | multimodal | Mixed audio / vision / text |
-| `v1-voice` | `alia-v1-voice` | voice | Real-time voice |
-| `v1-voice-pro` | `alia-v1-voice-pro` | voice | Pro real-time voice |
+## What Alia serves today
 
-The `chatVisible` flag controls whether a model appears in the picker; `creditMultiplier` is how usage is billed.
+`ALIA_MODELS` (`packages/api/src/internal/providers/lib/alia-models.ts:61`, entries at
+`:62` through `:223`) holds thirteen identifiers. Every one of them is serialized with
+`object: 'model'` and `owned_by: 'alia'` (`packages/api/src/routes/v1/models.ts:22` and
+`:24`), so a client reading `GET /v1/models` cannot tell a policy from a model.
+
+`tier` is what selects the routing table; `id` is what a caller asks for. Where two
+identifiers share a tier, they resolve against the same upstream list.
+
+| Identifier | Tier | Category | Credit multiplier | In the picker | What it actually is |
+|---|---|---|---|---|---|
+| `alia-lite` | `lite` | general | 0.5 | yes | Routing policy over sixteen upstream entries |
+| `alia-v1` | `v1` | general | 1 | yes | Routing policy, the default tier |
+| `alia-v1-codea` | `v1-codea` | coding | 1.5 | no | Surface preset for the Codea extension and CLI |
+| `alia-v1-cowork` | `v1-cowork` | coding | 1.5 | no | Surface preset for the Cowork desktop client |
+| `alia-v1-browser` | `v1-browser` | coding | 1.5 | no | Surface preset for browser automation |
+| `alia-v1-vision` | `v1-vision` | vision | 1.5 | no | Capability-scoped routing policy |
+| `alia-v1-audio` | `v1-audio` | audio | 1 | no | Capability-scoped routing policy |
+| `alia-v1-multimodal` | `v1-multimodal` | multimodal | 2 | no | Capability-scoped routing policy |
+| `alia-v1-pro` | `v1-pro` | coding | 3 | yes | Routing policy; display name is "Codea Pro" |
+| `alia-v1-thinking` | `v1-pro-max` | coding | 5 | yes | Reasoning setting — same tier as `alia-v1-pro-max` |
+| `alia-v1-pro-max` | `v1-pro-max` | general | 5 | yes | Routing policy |
+| `alia-v1-voice` | `v1-voice` | voice | 2 | no | Capability-scoped routing policy |
+| `alia-v1-voice-pro` | `v1-voice-pro` | voice | 4 | no | Capability-scoped routing policy |
+
+Three consequences of that table are easy to miss:
+
+- **`alia-lite` is not a model.** `generate-model-mappings.ts:36` declares the `lite` tier
+  and `:37` through `:52` map it onto sixteen upstream entries operated by fourteen
+  different companies, several of them serving models published by unrelated
+  organizations. Which one answers a given request depends on the ranking below at that
+  instant.
+- **`alia-v1-thinking` and `alia-v1-pro-max` are one tier.** Both carry `tier: 'v1-pro-max'`
+  (`alia-models.ts:176` and `:189`), so both resolve against the same upstream list. The
+  difference between them is presentation and a reasoning setting, not weights.
+- **`alia-v1-tts` and `alia-v1-image` are not served.** Both appear in the `AliaTier` union
+  (`alia-models.ts:9`) and both have routing tables (`generate-model-mappings.ts:132` and
+  `:142`), but neither has an `ALIA_MODELS` entry, so neither is addressable through
+  `GET /v1/models` or a chat request. Earlier revisions of this page listed them as public
+  models; they were not.
+
+Only five identifiers carry `chatVisible: true`, and those are the five the app's picker
+and the `switchModel` tool offer (`packages/api/src/lib/tools/switch-model.ts:18`).
+
+## How a request resolves today
+
+There is no gateway service. `packages/alia-gateway` was deleted, and
+`packages/api/src/lib/gateway-client.ts:32` computes `GATEWAY_API_ENABLED` from
+`SERVICE_SECRET` **and** `GATEWAY_API_URL` together — production sets only the first, so
+every call takes the in-process local path.
+
+1. `resolveModel()` (`packages/api/src/lib/chat-core.ts:56`) asks the gateway client,
+   which loads `internal/providers/lib/model-resolver.js` in local mode
+   (`gateway-client.ts:309`).
+2. `resolveWithFallback()` (`fallback-engine.ts:72`) reads the tier's mapping list from
+   `TIER_MODEL_MAPPINGS` (`alia-models.ts:248`, which is `GENERATED_TIER_MAPPINGS`) and
+   sorts it by `priority` alone (`:99`). It does not rank by price or by quality score,
+   despite both fields existing on every mapping.
+3. Entries whose operator the caller excluded, or whose circuit breaker is open, are
+   skipped (`:117` onward).
+4. A credential for the surviving entry is selected from the `provider_keys` table
+   (`packages/api/src/db/schema/providers.ts:300`). Credentials live in Postgres, not in
+   environment variables.
+5. `getAIModel()` (`chat-core.ts:110`) constructs a Vercel AI SDK client for the resolved
+   operator — `createGoogleGenerativeAI` at `:117`, `createOpenAI` at `:121`,
+   `createAnthropic` at `:125`, and an OpenAI-compatible client with an explicit base URL
+   for the rest (`:104`).
+
+Two behaviours of this path are worth knowing because they are invisible to the caller:
+
+- **An unrecognised model identifier is silently rewritten to `alia-v1`**
+  (`fallback-engine.ts:82`). A typo does not error; it answers from the default tier.
+- **Substitution across the tier's list is not announced.** The `alia.model_switch` stream
+  event is emitted by the `switchModel` *tool* (`packages/api/src/lib/tool-pipeline.ts:122`),
+  which is the model choosing a different tier on the user's behalf. The fallback engine
+  emits nothing at all — it contains no SSE code.
 
 ## Public API
 
-`GET /v1/models` returns only Alia identifiers:
+`GET /v1/models` is mounted before authentication (`packages/api/src/routes/v1.ts:28`) and
+returns the thirteen identifiers above. The serializer is
+`packages/api/src/routes/v1/models.ts:19`; the sample below omits the `emoji` field it also
+returns:
 
 ```json
 {
@@ -42,11 +111,15 @@ The `chatVisible` flag controls whether a model appears in the picker; `creditMu
     {
       "id": "alia-v1",
       "object": "model",
+      "created": 1755000000,
       "owned_by": "alia",
       "name": "Alia V1",
+      "description": "Balanced performance for everyday tasks",
       "category": "general",
       "is_default": true,
       "is_available": true,
+      "is_legacy": false,
+      "required_plan": null,
       "capabilities": { "tools": true, "vision": true, "max_tokens": 8192 },
       "pricing": { "credit_multiplier": 1 }
     }
@@ -54,91 +127,131 @@ The `chatVisible` flag controls whether a model appears in the picker; `creditMu
 }
 ```
 
-Query params:
+Query parameters: `category` (`general | coding | vision | audio | multimodal | voice`)
+and `chat=true` for chat-visible entries only. `GET /v1/models/:modelId` returns one entry
+in the same shape. Upstream model ids, operators and routing data are not in the response.
 
-- `category` — `general | coding | vision | audio | multimodal | voice`
-- `chat=true` — return chat-visible models only
+## What replaces this
 
-`GET /v1/models/:modelId` returns a single descriptor with the same shape. Provider model IDs, owners, and routing data are never included.
+[ADR 0003](./adr/0003-model-revision-deployment-provider-routing-profile.md) splits the
+single word "model" into five concepts — model, model revision, deployment, provider and
+routing profile — and binds four invariants to them. The two that change this page most:
 
-## Internal mapping
+- A routing profile is never serialized as `object: "model"`. A client must be able to tell
+  a policy from a model from the response type, not from a naming convention.
+- A concrete requested model stays concrete for the whole request path. Cross-model
+  substitution becomes an explicit, caller-selected policy rather than the default.
 
-Each `AliaModel` is backed by a list of `ModelMapping` entries:
+Under that vocabulary every identifier in the table above is reclassified: each becomes
+either a concrete model reference or a routing profile in the product's own namespace.
+None of them is a model owned by Alia — the `alia/*` publisher namespace is reserved and
+empty, and [ADR 0002](./adr/0002-alia-is-a-relay-consumer-and-future-model-publisher.md)
+lists the four conditions anything must meet before occupying it.
 
-```ts
-interface ModelMapping {
-  provider: string;
-  modelId: string;
-  priority: number;
-  qualityScore: number;
-  pricingTier: 'free' | 'freemium' | 'paid';
-  costPer1MInput?: number;
-  costPer1MOutput?: number;
-  costPerMinute?: number;
-  averageLatencyMs?: number;
-  capabilities: ModelCapabilities;
-}
-```
+Note the two notations are different and stay visually distinct: `alia-*` with a hyphen is
+the current alias set; `alia/*` with a slash is the reserved publisher namespace in
+canonical `<publisher>/<model>` form.
 
-Mappings are generated by `packages/api/src/internal/providers/lib/generate-model-mappings.ts` and live in the internal `providers/` directory — never imported from outside `packages/api/src/internal/`.
+None of this is implemented yet. The reclassification is workstream 4 of #139, the client
+rendering split is workstream 5, and the enforcement tests are workstream 19.
 
-## Fallback engine
+## Compatibility window
 
-`packages/api/src/internal/providers/lib/fallback-engine.ts` selects a provider per request:
+The `alia-*` aliases are section (a) of
+[`docs/migration/compatibility-window.md`](./migration/compatibility-window.md).
 
-1. Filter mappings by required capabilities (tools, vision, voice, context length)
-2. Sort by `pricingTier` (free first), then `priority`, then `qualityScore`
-3. Drop providers marked unhealthy by `provider-health.ts`
-4. Try the top candidate; on 5xx, rate-limit, or circuit-breaker trip, escalate
-5. Emit `alia.model_switch` if the provider changes mid-stream
-6. After the run, update `averageLatencyMs` and the health state for that provider
+**Still works.** Every existing alias resolves and serves requests. `GET /v1/models`
+continues to list them. A migration map from each alias to its replacement is published
+before any alias is removed.
 
-The user sees a single response and a single Alia model name. Internal switches are invisible except for the optional `alia.model_switch` event.
+**Does not.** No new alias is created, and no existing alias is extended to cover a new
+capability, surface or tier.
 
-## Sanitization
+**Removal gate, per alias.** A measurement over `chat_analytics.alia_model_id`
+(`packages/api/src/db/schema/usage.ts:113`) and `cost_entries.alias_model_id` (`:50`)
+showing zero requests across at least one full monthly billing cycle, with a positive
+control on a still-live identifier over the same window — *or* an enumeration showing every
+known consumer has migrated. Plus the published migration map entry. Stored per-conversation
+and per-agent model selections count as consumers even when they generate no traffic.
 
-`sanitizeMessage()` in `packages/api/src/lib/errors/sanitize.ts` is the only sanctioned exit point for error strings reaching users. It strips:
+The deprecation signal for the window is `Deprecation` and `Sunset` response headers plus
+an `alia.deprecation` stream event. Neither exists in the API today; emitting them is a
+prerequisite for starting the clock, tracked by workstream 19.
 
-- Provider names registered in `packages/api/src/internal/providers/lib/provider-names.ts`
-- Provider-specific model IDs
-- Provider error codes that hint at the upstream
-- API endpoint paths from `*.openai.com`, `*.anthropic.com`, `*.googleapis.com`, etc.
+## Error sanitization
 
-Use it everywhere a thrown error might be serialized into an HTTP response, an SSE event, a notification, or a log line that ships to a customer dashboard.
+`sanitizeMessage()` (`packages/api/src/lib/errors/sanitize.ts`) is the sanctioned exit
+point for error strings reaching users. It strips operator names registered in
+`internal/providers/lib/provider-names.ts`, upstream model ids, upstream error codes and
+upstream endpoint hostnames.
+
+Use it wherever a thrown error can be serialized into an HTTP response, an SSE event, a
+notification, or a log line that reaches a customer-facing dashboard.
 
 ```ts
 import { sanitizeMessage } from '@/lib/errors/sanitize';
 
 try {
-  await someAIProviderCall();
+  await someUpstreamCall();
 } catch (err) {
   throw new ApiError(sanitizeMessage(err), { code: 'model_unavailable' });
 }
 ```
 
-## Rules of engagement
+### The rule is scoped, not global
 
-1. **Never** import from `packages/api/src/internal/providers/*` outside `packages/api`
-2. **Never** name a provider in UI, API response, error message, log line, doc, or analytics event
-3. **Never** add an endpoint that resolves an Alia ID to a provider model ID
-4. **Never** ship a model picker that shows provider attribution
-5. **Always** look up display strings with the public `ALIA_MODELS` registry, not the mapping table
-6. **Always** route user-facing errors through `sanitizeMessage()`
+The sanitization rule protects the **Alia product surface**: UI, product API responses,
+product errors, notifications and customer-facing analytics. It is a product and privacy
+boundary, not a blanket ban on the words.
 
-Removed endpoints — there is no compatibility layer:
+It does not extend to engineering documentation, ADRs, schema comments or internal
+diagnostics, and it cannot: [ADR 0003](./adr/0003-model-revision-deployment-provider-routing-profile.md)
+makes `<publisher>/<model>` the canonical identifier form, so publisher identity becomes
+part of the vocabulary rather than something to hide. ADR 0001 records the same scoping —
+`sanitizeMessage()` survives the migration but guards the product surface, not the neutral
+platform surface Oxy operates.
 
-- `POST /v1/resolve-model` → `410 Gone`
-- `POST /codea/resolve-model` → `410 Gone`
-- `POST /v1/report-usage` → `410 Gone`
-- `POST /codea/report-usage` → `410 Gone`
+What stays absolute on the product surface:
 
-## Adding a new Alia model
+1. No upstream operator name or upstream model id in a product API response, a product
+   error, the UI, or a customer-facing analytics event.
+2. No endpoint that maps an Alia identifier back to an upstream model id. The two that
+   existed return `410 Gone`; see below.
+3. No model picker that shows upstream attribution.
+4. Display strings come from `ALIA_MODELS` through `getAliaModel()`, never from the mapping
+   table.
+5. User-facing errors go through `sanitizeMessage()`.
 
-1. Add the `AliaModel` entry to `ALIA_MODELS` in `packages/api/src/internal/providers/lib/alia-models.ts`
-2. Add provider mappings in `generate-model-mappings.ts`
-3. Update `model-capabilities-data.ts` if the model exposes a new capability
-4. Add an entry to the model-store enum in `packages/app/lib/stores/model-store.ts`
-5. Wire the picker label and emoji in the public list
-6. Add a test in `packages/api/src/internal/providers/lib/__tests__/`
+## Removed endpoints
 
-Never expose the new provider model ID, latency data, or cost numbers in a public response.
+Four endpoints return `410 Gone` with no compatibility shim:
+
+| Endpoint | Handler | Response message |
+|---|---|---|
+| `POST /v1/resolve-model` | `packages/api/src/routes/v1.ts:109` | "Use /v1/chat/completions with Alia model IDs. Direct model resolution is internal-only." |
+| `POST /v1/report-usage` | `packages/api/src/routes/v1.ts:120` | "Usage is tracked automatically by Alia runtime." |
+| `POST /codea/resolve-model` | `packages/api/src/routes/codea.ts:235` | Same as `/v1/resolve-model` |
+| `POST /codea/report-usage` | `packages/api/src/routes/codea.ts:246` | Same as `/v1/report-usage` |
+
+This is the pattern compatibility-window removals follow: a `410` naming the replacement,
+rather than deleting the route and returning a bare `404`.
+
+## Adding a model
+
+**You do not.** The `alia-*` set is closed as of ADR 0002, and a pull request adding an
+entry to `ALIA_MODELS` is rejected on that ADR. There is no automated check yet; the freeze
+is a code review rule until workstream 19 lands one.
+
+Adding an upstream route is likewise no longer a unilateral Alia change. Under ADR 0001
+provider execution moves behind Relay, and adding a route becomes a Relay change with a
+Relay conformance test.
+
+## Open questions
+
+- **Whether `alia-v1-thinking` becomes a routing profile or a parameter on `alia-v1-pro-max`.**
+  It shares a tier with `alia-v1-pro-max`, so under ADR 0003 it is either a distinct profile
+  or a reasoning setting on one — the reclassification decides which. *Owner: workstream 4
+  owner.*
+- **Whether the unserved `v1-tts` and `v1-image` tiers carry forward at all.** They have
+  routing tables and no public identifier. *Owner: workstream 1 owner, as part of the
+  inventory.*

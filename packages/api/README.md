@@ -9,7 +9,8 @@ Express + TypeScript API for Alia autonomy runtime.
 - Trigger engine (`/triggers`) for schedule, webhook, integration event, and agent heartbeat tasks.
 - Oxy service event ingestion with idempotency and autonomous session creation.
 - Governance by risk level (`R0` read, `R1` reversible write + rollback record, `R2` approval required, `R3` blocked).
-- Public model abstraction: only Alia model IDs are exposed.
+- Model abstraction on the product surface: only the `alia-*` identifiers are exposed.
+- PostgreSQL through drizzle as the primary store, with a background MongoDB connection for the domains not yet ported.
 
 ## Runtime Flow
 
@@ -65,17 +66,23 @@ Express + TypeScript API for Alia autonomy runtime.
 
 ## Streaming Event Contract (`eventVersion: 1`)
 
-Named SSE events used by all clients:
+Named SSE events written to the chat response stream:
 
 - `alia.plan_preview`
-- `alia.approval_request`
-- `alia.approval_result`
-- `alia.research_progress`
-- `alia.agent_session`
+- `alia.model_switch`
 - `alia.reasoning`
 - `alia.tool_result`
+- `alia.agent`
+- `alia.agent_session`
 - `alia.title`
-- `alia.model_switch`
+- `alia.research_progress`
+
+`alia.approval_request` and `alia.approval_result` are **Socket.IO** events
+(`src/socket.ts`), not SSE. Nothing writes them to the HTTP stream.
+
+These are Alia **product** events. They are not part of any generic inference contract —
+see `docs/adr/0004-product-endpoints-versus-generic-inference-endpoints.md`. Exact payload
+fields and emitting lines are in `docs/chat-runtime.mdx`.
 
 ## Development
 
@@ -96,18 +103,22 @@ bun run start
 
 ## Environment
 
-Use `packages/api/example.env` as baseline.
+Use `packages/api/.env.example` as the baseline; it carries a per-variable note.
 
 Key groups:
 
 - Server and CORS (`PORT`, `WEB_URL`, `API_BASE_URL`)
-- MongoDB (`MONGODB_URI`)
-- Auth secrets (`JWT_SECRET`, `SERVICE_SECRET`)
-- Queue/async execution (`REDIS_URL`)
-- Integrations and channels (`INTEGRATIONS_SERVICE_URL`, channel secrets)
+- PostgreSQL (`DATABASE_URL`) — the one variable the process cannot start without
+- MongoDB (`MONGODB_URI`) — optional, for the domains not yet ported
+- Identity and internal auth (`OXY_API_URL`, `SERVICE_SECRET`, `TOKEN_ENCRYPTION_KEY`)
+- Queue and async execution (`REDIS_URL`)
+- Integrations and channels (`INTEGRATIONS_URL`, `INTEGRATIONS_SECRET`, channel secrets)
 - Optional sandbox runtime (`DOCKER_HOST_URL`, `DOCKER_HOST_SECRET`)
+
+Upstream model credentials are not environment variables — they live in the
+`provider_keys` table. Leave `GATEWAY_API_URL` unset; there is no gateway service.
 
 ## Notes
 
-- Keep all user-facing errors sanitized.
-- Never expose internal model-routing details in public responses or logs.
+- Keep user-facing errors sanitized through `sanitizeMessage()`.
+- Never expose upstream routing detail in product responses or logs.

@@ -1,9 +1,13 @@
 /**
- * Seed ModelConfig collection from TIER_MODEL_MAPPINGS
+ * Seed the routing catalogue from TIER_MODEL_MAPPINGS.
  *
- * Populates the ModelConfig MongoDB collection with all provider models
- * from the hardcoded tier mappings. Uses upsert for idempotency.
- * Also resets any open circuit breakers on startup.
+ * Populates the `model_configs` and `alia_models` PostgreSQL tables from the
+ * hardcoded tier mappings, through the repositories in `db/providers/`. Uses
+ * upsert for idempotency. Also resets any open circuit breakers on startup.
+ *
+ * Under ADR 0001 these tables stop being written by Alia and become migration
+ * inputs rather than live state; they are dropped under the gates in workstream
+ * 10 of #139.
  */
 
 import { findModelConfig, upsertModelConfig } from '../../../db/providers/modelConfigRepository.js';
@@ -142,11 +146,11 @@ export async function seedModelConfigs(): Promise<{ seeded: number; skipped: num
 }
 
 /**
- * Seed AliaModel collection from ALIA_MODELS and TIER_MODEL_MAPPINGS
+ * Seed `alia_models` from ALIA_MODELS and TIER_MODEL_MAPPINGS.
  *
- * Creates virtual Alia models (alia-v1, alia-lite, etc.) in MongoDB
- * with their provider mappings linked to ModelConfig documents.
- * Must run AFTER seedModelConfigs() so ModelConfig references exist.
+ * Writes the alia-* identifiers (alia-v1, alia-lite and the rest) with their
+ * mappings linked to `model_configs` rows. Must run AFTER seedModelConfigs() so
+ * those rows exist.
  */
 export async function seedAliaModels(): Promise<{ seeded: number; skipped: number }> {
   await connectDB();
