@@ -1,8 +1,8 @@
 # Alia Agents
 
-Last updated: 2026-03-07
-
 Alia runs as a context-agent system that prioritizes autonomous retrieval and policy-safe execution.
+
+Agents, tools, approvals, the risk policy, deep research and triggers are Alia's own responsibility and stay that way under [ADR 0001](./adr/0001-alia-oxy-relay-responsibility-boundary.md). None of it moves to the Relay data plane.
 
 ## Execution Loop
 
@@ -30,13 +30,14 @@ Current first-wave intents:
 
 ## Context Graph
 
-Persistent entities in MongoDB:
+Persistent entities, read through `db/autonomy/contextGraphRepository.ts`:
 
-- `ContextSource` - where data lives and how reliable it is.
-- `ContextNode` - discovered entities (people, projects, docs, threads, etc.).
-- `ContextEdge` - relationships between nodes.
-- `RetrievalStrategy` - per-intent navigation strategy.
-- `LearningRule` - corrections/preferences/constraints.
+- `context_sources` - where data lives and how reliable it is.
+- `context_nodes` - discovered entities (people, projects, docs, threads, etc.).
+- `context_edges` - relationships between nodes.
+- `retrieval_strategies` - per-intent navigation strategy.
+
+Learned corrections, preferences and constraints are still served by the Mongoose `LearningRule` model; that port is in flight.
 
 Ranking combines freshness, precision, and cost to choose source order.
 
@@ -49,7 +50,7 @@ Risk policy is enforced per action:
 - `R2` external/unknown impact: approval required.
 - `R3` destructive: blocked.
 
-User approvals are interactive and real-time (`alia.approval_request` / `alia.approval_result`).
+User approvals are interactive and real-time. `alia.approval_request` and `alia.approval_result` travel over Socket.IO, to the `agent-session:<sessionId>` room (`packages/api/src/socket.ts:216`, `:231`) — not over the chat SSE stream.
 
 ## Triggers and Proactive Runs
 
@@ -62,7 +63,7 @@ Trigger types:
 - `integration_event`
 - `agent_heartbeat`
 
-Each execution is stored in `TriggerExecution` with status, tool calls, tokens, and duration.
+Each execution is stored in `trigger_executions` with status, tool calls, tokens, and duration.
 
 ## Oxy Event Autonomy
 
@@ -75,5 +76,7 @@ Each execution is stored in `TriggerExecution` with status, tool calls, tokens, 
 
 ## Model Abstraction
 
-Public surfaces expose only Alia model IDs (`alia-lite`, `alia-v1`, etc.).
-Internal model-routing details are never returned to users.
+The product surface exposes only the `alia-*` identifiers (`alia-lite`, `alia-v1` and so
+on). Upstream routing detail is never returned to users. Several of those identifiers are
+routing policies rather than models, and the set is frozen — see
+[model abstraction](./model-abstraction.mdx).

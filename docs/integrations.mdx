@@ -47,15 +47,15 @@ MCP capabilities are visible to the model with the same calling convention as na
 
 ## Oxy service connector
 
-Alia is part of the Oxy ecosystem. Services in that ecosystem register a manifest in MongoDB; Alia auto-discovers their tools and exposes them in chat. Two files own this:
+Alia is part of the Oxy ecosystem. Services in that ecosystem register a manifest row in the `oxy_services` table; Alia auto-discovers their tools and exposes them in chat. Registering a service is a data change with no Alia code change. Two files own this:
 
-- `packages/api/src/models/oxy-service.ts` — `OxyService` model (manifest, tools, scopes)
+- `packages/api/src/db/integrations/oxyServiceRepository.ts` — reads the manifest (tools, scopes)
 - `packages/api/src/lib/tools/oxy-services.ts` — tool builder that turns manifest entries into AI SDK tools
 
 Inbound service events go through `POST /webhooks/oxy/:serviceId`:
 
 - Signature verified against the registered service secret
-- `eventId` deduplicated against `OxyServiceEventLog`
+- `eventId` deduplicated against `oxy_service_event_logs`
 - Persistent `AgentSession` created before queueing autonomous work
 - If autonomous execution fails, a notification fallback is dispatched
 

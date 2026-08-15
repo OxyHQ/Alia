@@ -2,16 +2,16 @@
  * The Alia tier vocabulary — the public-facing model family a request is served
  * as, independent of whoever actually serves it.
  *
- * Declared once here rather than inline in each Mongoose schema. `AliaModel.tier`
- * and `ModelConfig.aliaTier` are the SAME vocabulary read from two directions
- * ("what tier is this Alia model" and "which tier does this provider model
+ * Declared once here rather than inline beside each column. `alia_models.tier`
+ * and `model_configs.alia_tier` are the SAME vocabulary read from two directions
+ * ("what tier is this Alia identifier" and "which tier does this upstream model
  * serve"), and they were two identical thirteen-value literals — a shape where
- * adding a tier to one and not the other is silent, and the symptom is a model
- * that cannot be routed to.
+ * adding a tier to one and not the other is silent, and the symptom is an
+ * identifier that cannot be routed to.
  *
  * `provider-names.ts` is the precedent. The Postgres CHECK on both columns is
- * rendered from THIS tuple too, so the database, the two Mongoose enums and the
- * TypeScript union cannot drift apart while both stores exist.
+ * rendered from THIS tuple, so the database and the TypeScript union cannot
+ * drift apart.
  */
 
 export const ALIA_TIERS = [
