@@ -1,4 +1,5 @@
 import type { KeyConfig, OpenAIMessage, OpenAITool, Provider, ProviderConfig } from '../types';
+import { readProviderErrorBody } from '../provider-error-body.js';
 
 // ============== NOVITA AI ==============
 export const novitaProvider: Provider = {
@@ -29,7 +30,7 @@ export const novitaProvider: Provider = {
     });
 
     if (!res.ok) {
-      throw new Error(`Novita ${res.status}: ${await res.text()}`);
+      throw new Error(`Novita ${res.status}: ${await readProviderErrorBody(res, key.key)}`);
     }
 
     return res.body!;

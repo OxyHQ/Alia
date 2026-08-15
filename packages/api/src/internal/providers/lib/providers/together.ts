@@ -1,4 +1,5 @@
 import type { KeyConfig, OpenAIMessage, OpenAITool, Provider, ProviderConfig } from '../types';
+import { readProviderErrorBody } from '../provider-error-body.js';
 
 // ============== TOGETHER AI ==============
 export const togetherProvider: Provider = {
@@ -29,7 +30,7 @@ export const togetherProvider: Provider = {
     });
 
     if (!res.ok) {
-      throw new Error(`Together ${res.status}: ${await res.text()}`);
+      throw new Error(`Together ${res.status}: ${await readProviderErrorBody(res, key.key)}`);
     }
 
     return res.body!;

@@ -1,4 +1,5 @@
 import type { KeyConfig, OpenAIMessage, OpenAITool, Provider, ProviderConfig } from '../types';
+import { readProviderErrorBody } from '../provider-error-body.js';
 
 // ============== DIGITALOCEAN GRADIENT ==============
 // Fully-managed AI inference platform with OpenAI-compatible API
@@ -31,7 +32,7 @@ export const digitaloceanProvider: Provider = {
     });
 
     if (!res.ok) {
-      throw new Error(`DigitalOcean ${res.status}: ${await res.text()}`);
+      throw new Error(`DigitalOcean ${res.status}: ${await readProviderErrorBody(res, key.key)}`);
     }
 
     // DigitalOcean Gradient uses OpenAI-compatible format

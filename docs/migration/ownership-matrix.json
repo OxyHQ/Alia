@@ -3862,7 +3862,7 @@
       ],
       "removalGate": "Any NEW caller of callProviderAPI that returns err.message or err.providerMessage directly leaks a provider name. Relay should never return a provider-named error to Alia.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/internal/providers/lib/provider-api.ts:294-297"
+      "evidence": "packages/api/src/internal/providers/lib/provider-api.ts:305-308"
     },
     {
       "id": "leak-toAliaError-internal-message",
@@ -4285,6 +4285,23 @@
       "removalGate": "N/A \u2014 this is a defect to carry across, not to delete. Relay must either cover all providers or reject the mapping at config time instead of at call time.",
       "provenance": "re-derived",
       "evidence": "packages/api/src/internal/providers/lib/provider-api.ts:32-37 vs packages/api/src/internal/providers/lib/provider-names.ts:6-26 (19 names)"
+    },
+    {
+      "id": "provider-error-body",
+      "workstream": "7",
+      "domain": "provider-runtime",
+      "kind": "module",
+      "currentPath": "packages/api/src/internal/providers/lib/provider-error-body.ts",
+      "reachable": "live",
+      "owner": "relay",
+      "targetPath": "relay:errors/upstream-body.ts",
+      "dependsOn": [
+        "leak-provider-api-error",
+        "provider-api"
+      ],
+      "removalGate": "Moves WITH the adapters, not before them: it is the only place in internal/providers that turns an upstream response into a string, and architectureGates gate 4 asserts that. Relay must redact at its own point of read \u2014 an upstream 401 quotes the credential it rejected, so a Relay that hands Alia a raw body reintroduces the leak on the other side of the boundary (#139 ws15).",
+      "provenance": "measured",
+      "evidence": "packages/api/src/internal/providers/lib/provider-error-body.ts:76-121 (exact-credential pass at :76, pattern pass then bound at :99, the reader at :114); 23 call sites: 19 adapters under lib/providers/, digitalocean-async.ts:84,138, provider-api.ts:194,256"
     },
     {
       "id": "provider-health",

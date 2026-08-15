@@ -1,4 +1,5 @@
 import type { KeyConfig, OpenAIMessage, OpenAITool, Provider, ProviderConfig } from '../types';
+import { readProviderErrorBody } from '../provider-error-body.js';
 
 // ============== HYPERBOLIC ==============
 export const hyperbolicProvider: Provider = {
@@ -29,7 +30,7 @@ export const hyperbolicProvider: Provider = {
     });
 
     if (!res.ok) {
-      throw new Error(`Hyperbolic ${res.status}: ${await res.text()}`);
+      throw new Error(`Hyperbolic ${res.status}: ${await readProviderErrorBody(res, key.key)}`);
     }
 
     return res.body!;

@@ -1,4 +1,5 @@
 import type { KeyConfig, OpenAIMessage, OpenAITool, Provider, ProviderConfig } from '../types';
+import { readProviderErrorBody } from '../provider-error-body.js';
 
 // ============== ANTHROPIC ==============
 // Anthropic Claude models - requires conversion from OpenAI to Anthropic format
@@ -78,7 +79,7 @@ export const anthropicProvider: Provider = {
     });
 
     if (!res.ok) {
-      throw new Error(`Anthropic ${res.status}: ${await res.text()}`);
+      throw new Error(`Anthropic ${res.status}: ${await readProviderErrorBody(res, key.key)}`);
     }
 
     // Convert Anthropic streaming format to OpenAI format

@@ -1,4 +1,5 @@
 import type { KeyConfig, OpenAIMessage, OpenAITool, Provider, ProviderConfig } from '../types';
+import { readProviderErrorBody } from '../provider-error-body.js';
 
 // ============== CEREBRAS ==============
 export const cerebrasProvider: Provider = {
@@ -29,7 +30,7 @@ export const cerebrasProvider: Provider = {
     });
 
     if (!res.ok) {
-      throw new Error(`Cerebras ${res.status}: ${await res.text()}`);
+      throw new Error(`Cerebras ${res.status}: ${await readProviderErrorBody(res, key.key)}`);
     }
 
     return res.body!;
