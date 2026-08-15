@@ -36,7 +36,23 @@ async function runSubtask(
   systemContext?: string,
 ): Promise<SubtaskResult> {
   const start = Date.now();
-  const aliasModelId = preferredModel || 'alia-flash';
+  /**
+   * `alia-v1` is the alias delegation has actually been running on.
+   *
+   * The previous default was `alia-flash`, which is not one of the thirteen
+   * registered aliases. That was not rejected anywhere: resolution reaches
+   * `internal/providers/lib/fallback-engine.ts:82`, whose first act is
+   * `isAliaModel(aliasModelId) ? aliasModelId : 'alia-v1'`, and `isAliaModel`
+   * tests membership of `ALIA_MODELS`. So every subtask ran on `alia-v1` while
+   * the result below reported `model: 'alia-flash'` to the caller.
+   *
+   * Naming the alias it already resolved to keeps behaviour identical and
+   * removes the false report. It is deliberately NOT `getDefaultAliaModel()`,
+   * which returns `alia-lite` — that would be a behaviour change wearing a
+   * cleanup's clothes. Registering `alia-flash` was not an option either: ADR
+   * 0002 freezes the alias set.
+   */
+  const aliasModelId = preferredModel || 'alia-v1';
 
   try {
     const resolved = await resolveModel(aliasModelId);
@@ -101,7 +117,10 @@ export const delegateSubtaskTool = tool({
   inputSchema: z.object({
     subtasks: z.array(z.object({
       task: z.string().describe('The subtask to complete'),
-      model: z.string().optional().describe('Optional: which Alia model to use (e.g., "alia-flash", "alia-v1"). Defaults to alia-flash.'),
+      // The model reads this on every call, so a wrong statement here is a
+      // wrong statement made repeatedly. It named an identifier that does not
+      // exist and promised a default the tool never used.
+      model: z.string().optional().describe('Optional: which Alia model to use (e.g., "alia-lite", "alia-v1", "alia-v1-pro"). Defaults to alia-v1.'),
       context: z.string().optional().describe('Optional: additional system context for the subtask'),
     })).min(1).max(MAX_CONCURRENT_SUBTASKS).describe('List of subtasks to run in parallel (max 3)'),
   }),
@@ -126,7 +145,8 @@ export const delegateSubtaskTool = tool({
       }
       return {
         task: tasks[i].task,
-        model: tasks[i].model || 'alia-flash',
+        // Same default as `runSubtask`, for the rejected-promise path.
+        model: tasks[i].model || 'alia-v1',
         result: null,
         error: s.reason?.message || 'Subtask failed',
         latencyMs: Date.now() - start,
