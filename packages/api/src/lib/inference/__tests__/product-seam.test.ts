@@ -32,12 +32,19 @@ import {
  * seam without touching this file, and every list below is an exact equality in
  * both directions so that fails.
  *
- * ## What changes when `@oxyhq/contracts` publishes the inference module
+ * ## What did NOT change when `@oxyhq/contracts` published the inference module
  *
- * Exactly one list: {@link FROZEN_MODULE_REFS} gains the type-only contracts
- * import, in the same PR that binds the four type parameters. Nothing else here
- * should need to move, and if it does, that is the review's signal that a
- * contract type was copied rather than imported.
+ * This file predicted that {@link FROZEN_MODULE_REFS} would gain a type-only
+ * contracts import in the PR that bound the four type parameters. It did not,
+ * and the prediction was wrong in an instructive direction: the parameters are
+ * bound at the IMPLEMENTATION (`relay-client.ts`, `RelayInferencePort`), so the
+ * seam still imports nothing at all. A product module that named this port
+ * would otherwise have to name the wire types with it, which is the coupling the
+ * port exists to remove.
+ *
+ * The freeze therefore stays empty, and that emptiness is now a stronger claim
+ * than it was: the contracts package IS available, and the seam still does not
+ * reach for it.
  */
 
 const SEAM_PATH = fileURLToPath(new URL('../product-seam.ts', import.meta.url));
