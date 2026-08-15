@@ -28,6 +28,7 @@ import {
   listExternalOrganizations,
   upsertExternalModels,
 } from '../providers/externalModelRepository';
+import { ReservedNamespaceError } from '../../lib/reserved-namespace';
 import { aliaModelProviderMappings, modelConfigs } from '../schema/providers';
 
 /**
@@ -244,6 +245,52 @@ describe('alia_models and their provider mappings', () => {
     const read = await findAliaModel(db, aliasModelId);
     expect(read?.providerMappings).toHaveLength(2);
     expect(read?.aggregatedCapabilities.vision).toBe(false);
+  });
+
+  it('refuses to register anything in the reserved alia/* namespace', async () => {
+    /**
+     * ADR 0002 reserves `alia/<model>` for real released Alia models and nothing
+     * qualifies. This is the REGISTRATION chokepoint — `createAliaModel` and
+     * `upsertAliaModel` are the only writers of `alia_models.alias_model_id` —
+     * so the refusal is asserted here against a real server rather than against
+     * a stub that would accept any statement.
+     *
+     * The write not landing is asserted separately from the throw. A guard that
+     * threw AFTER inserting would satisfy `rejects` alone, and the row would be
+     * sitting in the catalogue.
+     */
+    const a = await seedConfig('openai');
+    const mappings = [
+      { modelConfigId: a.id, provider: 'openai', modelId: a.modelId, priority: 1, qualityScore: 50 },
+    ];
+
+    for (const reserved of ['alia/atlas', 'alia/atlas@2026-08-01', 'ALIA/Atlas', 'alia/']) {
+      await expect(
+        createAliaModel(db, { aliasModelId: reserved, displayName: 'X', tier: 'v1' }, mappings),
+      ).rejects.toBeInstanceOf(ReservedNamespaceError);
+      expect(await findAliaModel(db, reserved)).toBeNull();
+    }
+
+    // The upsert path too, including the identifier that reaches the
+    // ON CONFLICT ... SET clause and could otherwise RENAME an existing row.
+    await expect(
+      upsertAliaModel(db, 'alia/atlas', { displayName: 'X', tier: 'v1' }, {}, mappings),
+    ).rejects.toBeInstanceOf(ReservedNamespaceError);
+    expect(await findAliaModel(db, 'alia/atlas')).toBeNull();
+
+    const existing = nextId('alia-rename-target');
+    await createAliaModel(db, { aliasModelId: existing, displayName: 'T', tier: 'v1' }, mappings);
+    await expect(
+      upsertAliaModel(db, existing, {}, { aliasModelId: 'alia/atlas' }, mappings),
+    ).rejects.toBeInstanceOf(ReservedNamespaceError);
+    expect(await findAliaModel(db, existing)).not.toBeNull();
+
+    // The negative control: the hyphenated alias form is one character away and
+    // must still register. Without this, a guard refusing every identifier
+    // would pass everything above and take the catalogue down.
+    const hyphenated = nextId('alia-v1-not-reserved');
+    const ok = await createAliaModel(db, { aliasModelId: hyphenated, displayName: 'T', tier: 'v1' }, mappings);
+    expect(ok.aliasModelId).toBe(hyphenated);
   });
 
   it('REPLACES the mappings rather than appending to them', async () => {

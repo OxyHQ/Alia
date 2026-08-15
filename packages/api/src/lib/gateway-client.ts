@@ -24,6 +24,7 @@ import crypto from 'crypto';
 import type { PlanFilter } from '../db/billing/planRepository.js';
 import { log } from './logger.js';
 import { getStatusCode } from './errors/index.js';
+import { assertUnreservedModelIdentifier } from './reserved-namespace.js';
 
 // ============== MODE DETECTION ==============
 
@@ -291,6 +292,13 @@ export async function resolveAliaModel(
   skipProviders: Set<string> = new Set(),
   skipKeyIds?: Set<string>
 ): Promise<ResolvedModel | null> {
+  // ADR 0002: the `alia/*` publisher namespace is reserved and empty. Refused
+  // here, above the mode branch, so both the remote gateway path and the local
+  // path are covered by one statement. This is the serving chokepoint: outside
+  // `internal/providers/` nothing else reaches `model-resolver`, which the
+  // architecture gates' frozen importer list is what proves.
+  assertUnreservedModelIdentifier(model);
+
   if (GATEWAY_API_ENABLED) {
     try {
       return await apiPost<ResolvedModel>('/api/resolve', {

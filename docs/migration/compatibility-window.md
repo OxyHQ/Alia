@@ -54,7 +54,9 @@ A `Sunset` value is emitted only once a removal date has been set. A removal dat
 
 **A product stream event.** `alia.deprecation`, following the existing `alia.*` SSE convention with `eventVersion: 1`, carrying the deprecated identifier, its replacement, and the sunset date where one is set. This event does not exist in the code today; naming it is a decision taken by this document.
 
-Neither signal exists in the API today: no `Deprecation` or `Sunset` header is emitted by any route in `packages/api/src`. Emitting them is a prerequisite for starting any of the three clocks below, not an optional extra — a window that runs without a signal is a window that surprises its callers at the end.
+**Status of each signal.** The headers exist for path (a) as of workstream 4: `packages/api/src/middleware/alias-deprecation.ts`, mounted app-wide in `src/index.ts` and emitted on any response to a request naming one of the thirteen aliases. `Sunset` support is implemented and no value is emitted, because no removal date is set — see the paragraph above, which is the rule that keeps it that way.
+
+Paths (b) and (c) emit nothing yet, and neither does the `alia.deprecation` stream event for any path. Emitting them is a prerequisite for starting those clocks, not an optional extra — a window that runs without a signal is a window that surprises its callers at the end.
 
 ---
 
@@ -71,7 +73,7 @@ Thirteen identifiers, defined in `packages/api/src/internal/providers/lib/alia-m
 **Removal gate.** Per alias, both of:
 
 1. A measurement over `chat_analytics.alia_model_id` and `cost_entries.alias_model_id` showing zero requests naming that alias across a window covering at least one full monthly billing cycle, with a positive control on a still-live identifier over the same window; **or** an enumeration showing every known consumer of that alias — app, Codea, Cowork, CLI, SDK, triggers, agents, bots and stored per-conversation model selections — has been migrated to its replacement.
-2. The migration map entry for that alias exists and is published.
+2. The migration map entry for that alias exists and is published. It does, for all thirteen: [`alias-migration-map.json`](./alias-migration-map.json), which records what each alias becomes under ADR 0003 — every one of them a routing profile, none a concrete model reference — with the fan-out measurement behind the classification. The counts in it are recomputed from the live routing table by `packages/api/src/__tests__/aliasMigrationMap.test.ts`, so the map cannot drift away from the routing it describes.
 
 Stored selections deserve their own attention: a per-conversation or per-agent model choice persisted months ago is a consumer that generates no traffic until the conversation is resumed, so a traffic measurement alone can report zero for an alias that is still referenced in stored rows. Enumerate the stored references as well as the traffic.
 
