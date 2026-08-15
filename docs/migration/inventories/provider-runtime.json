@@ -1,0 +1,1969 @@
+{
+  "category": "provider-runtime",
+  "generatedFrom": "b909147d489828dccd7a791cbe4e230980f8eb05",
+  "generatedAt": "2026-08-15",
+  "worktree": "/home/nate/Oxy/Alia/.worktrees/alia-ws0 (branch epic139/ws-a-inventory, clean)",
+  "method": {
+    "scanPrimitive": "git ls-files -z | xargs -0 grep \u2014 1574 tracked files, 1287 of them .ts/.tsx/.js/.jsx/.mjs/.cjs. Untracked files and node_modules are OUT of scope by construction; `git status --porcelain` was empty, so nothing untracked existed to miss.",
+    "controls": [
+      "HOSTNAME CENSUS positive control: the regex 'https?://[a-zA-Z0-9._-]+' over all tracked files returned 132 distinct hosts including 'api.openai.com' (known present at packages/api/src/internal/providers/lib/providers/openai.ts:10) and 'tailwindcss.com' x307. A blind scan would have printed 0 hosts. Vacuity floor: 132 > 0.",
+      "HOSTNAME CENSUS negative-direction control: the https-only regex MISSED the two realtime endpoints (wss://api.openai.com/v1/realtime, wss://api.x.ai/v1/realtime). A second pass on 'wss?://' found them plus 9 unrelated ws URLs, so that pass was also non-vacuous. Both passes are reported; the count below is the union.",
+      "ADAPTER COUNT positive control: `ls providers/*.ts` = 22 files; `grep -c 'export const .*Provider: Provider'` matched in exactly 19 of them, and `grep -l 'VoiceProvider = {'` matched exactly 2 (grok-voice, openai-voice). 19 + 2 + index.ts = 22, so the file listing and the two symbol censuses agree and neither is vacuous.",
+      "DEAD-ROUTER claim positive control: an unanchored `grep -n 'internal/providers'` over ALL tracked files returned 60+ hits across AGENTS.md, docs/, db tests, schema and gateway-client (so the pattern demonstrably sees the string), and packages/api/src/index.ts appeared in NONE of them. A second control: `grep 'authenticateService'` found 13 hits INSIDE internal/providers and 0 outside. Two independent patterns, same conclusion.",
+      "SANITIZER CENSUS positive control: grep for sanitizeMessage|sanitizeError|sanitizeFull|getSafeErrorMessage|formatErrorResponse found 16 files including packages/api/src/routes/v1/chat-completions.ts, a known user-facing surface. Floor: 16 > 0.",
+      "SDK-DEP CENSUS positive control: the package.json scan found '@ai-sdk/openai' in packages/api/package.json, which is independently proven present by the static import at packages/api/src/lib/chat-core.ts:9. All 15 tracked package.json files were read (list enumerated, not globbed by name pattern alone).",
+      "ENV CENSUS positive control: the process.env regex returned 97 distinct names including GROK_API_KEY, independently confirmed at packages/api/src/internal/providers/lib/providers/grok-voice.ts:52 and packages/api/.env.example:108. A second pass covered dynamic `process.env[expr]` access (5 sites, all OAuth/flags, none provider-inference)."
+    ],
+    "limitations": [
+      "A call-site census using the pattern `name(` MISSES generic calls. Measured directly: `callProviderAPI(` scored 0 in packages/api/src/lib/memory/embeddings.ts and packages/api/src/routes/v1/audio.ts because both call `callProviderAPI<any>(` / `callProviderAPI<Buffer>(`. Every call-site count below was re-run WITHOUT the paren requirement. Any count in this file that still used `(` is flagged in its own evidence.",
+      "A single-pattern importer census misses alternate relative specifiers. Measured: `from '.*lib/retry|from './retry` returned 0 importers for packages/api/src/lib/retry.ts, but `withRetry|retry\\.js` returned 3 real importers (browser-session, web-scraper, web-search). Every 'has no importers' claim below was therefore re-run against the SYMBOL name, not the path.",
+      "Counts of call sites exclude comments only where stated. The provider-conditional census (`provider === '<name>'`) does not filter comments; its 6 hits were each read in context and all 6 are executable code.",
+      "grep is line-based. A provider hostname split across a template-literal newline would not match. No such construction was found, but this is an unmeasured blind spot \u2014 the finding is 'not observed', not 'absent'.",
+      "Reachability claims are STATIC (import graph + Express mount table). They do not account for a runtime `require`/`eval`. No dynamic module loading by string concatenation was found in packages/api/src.",
+      "Provider CREDENTIAL VALUES were not read. The store is asserted from the schema (provider_keys.key is a plaintext `text()` column) and from the deploy workflow's secret list; no live database was queried (Mongo is gone, Postgres not reachable from this box).",
+      "The `.do/app.yaml` DigitalOcean spec is present in the repo but the deploy pipeline is `.github/workflows/deploy-aws.yml` (ECS). Whether `.do/app.yaml` still governs a running DO app was NOT verified \u2014 that requires the DO dashboard, outside this read-only repo scan. It is reported as a hazard, not as live config."
+    ],
+    "residual": [
+      "packages/alia-gateway-admin (61 source files) is an operator UI for the deleted alia-gateway. Its dev proxy rewrites /api/providers -> /internal/providers against https://api.alia.onl, and /internal/providers is NOT mounted. I could not classify whether the deployed static site still exists (DO static_sites entry in .do/app.yaml) \u2014 that is an infra question, not a repo question.",
+      "packages/alia-console documentation pages (sdks.tsx, examples.tsx, quickstart.tsx) print `import OpenAI from 'openai'` 13+ times. This is the OpenAI-COMPATIBLE client library name, not a claim about Alia's backend provider. Whether that counts as a model-abstraction violation is a product call I am not making.",
+      "Whether the 15 thin OpenAI-compatible adapters should be ported to Relay or simply deleted depends on whether Relay reuses the Vercel AI SDK. I classified them 'delete' because their entire content is a base URL plus a default model id, both already duplicated in chat-core.ts \u2014 but that is a recommendation, not a measurement.",
+      "`external_models` (the ZeroEval leaderboard mirror served publicly at GET /external-models) exposes third-party organisation names. It is deliberate per the schema comment, but I could not determine whether the model-abstraction rule was ever consciously exempted for it.",
+      "Timeouts for the embeddings modality: packages/api/src/lib/memory/embeddings.ts passes NO `timeout` and NO `maxAttempts`, so it inherits provider-api.ts's maxAttempts=3 and NO per-attempt timeout at all. Whether the absent timeout is intentional is unknown.",
+      "I did not classify the ~60 packages/api/src/db repositories beyond the 6 that touch provider tables. Workstream boundaries may need the rest."
+    ]
+  },
+  "items": [
+    {
+      "id": "adapter-registry",
+      "kind": "module",
+      "name": "Provider registry (providers/index.ts)",
+      "currentPath": "packages/api/src/internal/providers/lib/providers/index.ts",
+      "summary": "Maps 19 provider names to adapter objects; merges openai-voice into openai and grok-voice into xai as CombinedProvider.",
+      "proposedOwner": "relay",
+      "targetPath": "relay:providers/registry.ts",
+      "dependsOn": [
+        "adapter-openai-voice",
+        "adapter-grok-voice",
+        "voice-session-manager"
+      ],
+      "removalGate": "voice-session-manager.ts:30 is the ONLY live importer. Removable once realtime voice no longer resolves a provider adapter in-process.",
+      "evidence": "packages/api/src/internal/providers/lib/providers/index.ts:31-53; sole live importer packages/api/src/internal/providers/lib/voice-session-manager.ts:30"
+    },
+    {
+      "id": "adapter-google",
+      "kind": "adapter",
+      "name": "Google Gemini text adapter",
+      "currentPath": "packages/api/src/internal/providers/lib/providers/google.ts",
+      "summary": "Full OpenAI<->Gemini message/tool translation plus an SSE stream transformer; 234 lines, the largest real translation in the tree. API key travels in the QUERY STRING.",
+      "proposedOwner": "relay",
+      "targetPath": "relay:providers/google.ts",
+      "dependsOn": [
+        "adapter-registry",
+        "dead-internal-providers-router"
+      ],
+      "removalGate": "UNREACHABLE TODAY: its proxy() is called only from packages/api/src/internal/providers/routes/providers.ts:138, inside the unmounted router. Deletable from Alia with no runtime gate; port the translation to Relay only if Relay does not use the Vercel AI SDK.",
+      "evidence": "packages/api/src/internal/providers/lib/providers/google.ts:22 (key in URL), :101-112, :116-234 (stream transform)"
+    },
+    {
+      "id": "adapter-anthropic",
+      "kind": "adapter",
+      "name": "Anthropic Messages adapter",
+      "currentPath": "packages/api/src/internal/providers/lib/providers/anthropic.ts",
+      "summary": "OpenAI<->Anthropic Messages translation and stream conversion; 153 lines.",
+      "proposedOwner": "relay",
+      "targetPath": "relay:providers/anthropic.ts",
+      "dependsOn": [
+        "adapter-registry",
+        "dead-internal-providers-router"
+      ],
+      "removalGate": "Unreachable today (same as adapter-google). No runtime gate.",
+      "evidence": "packages/api/src/internal/providers/lib/providers/anthropic.ts:11"
+    },
+    {
+      "id": "adapter-replicate",
+      "kind": "adapter",
+      "name": "Replicate predictions adapter",
+      "currentPath": "packages/api/src/internal/providers/lib/providers/replicate.ts",
+      "summary": "Flattens chat messages into a single prompt and streams Replicate's predictions API back as OpenAI chunks; 136 lines.",
+      "proposedOwner": "relay",
+      "targetPath": "relay:providers/replicate.ts",
+      "dependsOn": [
+        "adapter-registry",
+        "dead-internal-providers-router"
+      ],
+      "removalGate": "Unreachable today. No runtime gate.",
+      "evidence": "packages/api/src/internal/providers/lib/providers/replicate.ts:101-135"
+    },
+    {
+      "id": "adapter-cloudflare",
+      "kind": "adapter",
+      "name": "Cloudflare Workers AI adapter",
+      "currentPath": "packages/api/src/internal/providers/lib/providers/cloudflare.ts",
+      "summary": "Splits the stored credential on ':' into accountId:apiToken and builds a per-account base URL \u2014 the only adapter with a composite credential.",
+      "proposedOwner": "relay",
+      "targetPath": "relay:providers/cloudflare.ts",
+      "dependsOn": [
+        "adapter-registry",
+        "chat-core-get-ai-model",
+        "dead-internal-providers-router"
+      ],
+      "removalGate": "Unreachable today, BUT the composite-credential convention is duplicated live at packages/api/src/lib/chat-core.ts:157. Relay must accept the same 'accountId:token' shape or provider_keys rows for cloudflare become unusable.",
+      "evidence": "packages/api/src/internal/providers/lib/providers/cloudflare.ts:13-21; live duplicate packages/api/src/lib/chat-core.ts:156-162"
+    },
+    {
+      "id": "adapter-openai-voice",
+      "kind": "adapter",
+      "name": "OpenAI Realtime voice adapter",
+      "currentPath": "packages/api/src/internal/providers/lib/providers/openai-voice.ts",
+      "summary": "Opens a WebSocket to wss://api.openai.com/v1/realtime, sends session.update (VAD, whisper-1 transcription, tools), returns the raw ws. LIVE.",
+      "proposedOwner": "relay",
+      "targetPath": "relay:providers/openai-realtime.ts",
+      "dependsOn": [
+        "adapter-registry",
+        "voice-session-manager",
+        "hostname-openai-realtime"
+      ],
+      "removalGate": "LIVE PATH. Gate: Relay terminates the realtime WebSocket and Alia's voice-session-manager bridges LiveKit audio to Relay instead of to a provider socket. Until then deleting this breaks POST /v1/voice/token.",
+      "evidence": "packages/api/src/internal/providers/lib/providers/openai-voice.ts:37-113; consumed at packages/api/src/internal/providers/lib/voice-session-manager.ts:229"
+    },
+    {
+      "id": "adapter-grok-voice",
+      "kind": "adapter",
+      "name": "xAI Grok Realtime voice adapter",
+      "currentPath": "packages/api/src/internal/providers/lib/providers/grok-voice.ts",
+      "summary": "Same OpenAI-Realtime protocol against wss://api.x.ai/v1/realtime. LIVE. Its isEnabled() is `!!process.env.GROK_API_KEY || true` \u2014 always true, so the env var is decorative.",
+      "proposedOwner": "relay",
+      "targetPath": "relay:providers/xai-realtime.ts",
+      "dependsOn": [
+        "adapter-registry",
+        "voice-session-manager",
+        "env-grok-api-key",
+        "hostname-xai-realtime"
+      ],
+      "removalGate": "LIVE PATH, same gate as adapter-openai-voice.",
+      "evidence": "packages/api/src/internal/providers/lib/providers/grok-voice.ts:51-53 (tautological isEnabled), :71-151"
+    },
+    {
+      "id": "adapter-thin-openai-compatible-x15",
+      "kind": "adapter",
+      "name": "15 thin OpenAI-compatible adapters (openai, groq, cerebras, together, mistral, deepseek, openrouter, cohere, xai, fireworks, perplexity, sambanova, hyperbolic, novita, digitalocean)",
+      "currentPath": "packages/api/src/internal/providers/lib/providers/{openai,groq,cerebras,together,mistral,deepseek,openrouter,cohere,xai,fireworks,perplexity,sambanova,hyperbolic,novita,digitalocean}.ts",
+      "summary": "37-42 lines each; content is a hardcoded base URL, a Bearer header and a passthrough of the OpenAI SSE body. Verified byte-identical modulo name/URL: `diff <(sed s/cerebras/PROV/gi cerebras.ts) <(sed s/together/PROV/gi together.ts)` differs only on the display name.",
+      "proposedOwner": "delete",
+      "targetPath": "delete",
+      "dependsOn": [
+        "dead-internal-providers-router",
+        "chat-core-get-ai-model"
+      ],
+      "removalGate": "Unreachable today. Their only knowledge (base URL + default model id) already exists twice more: packages/api/src/lib/chat-core.ts:115-197 and packages/integrations/src/shared/model-resolver.ts:85-108. Deletable now; nothing gates it.",
+      "evidence": "packages/api/src/internal/providers/lib/providers/cerebras.ts:10, together.ts:10 (diff exit 0 after name substitution); wc -l shows 37-42 lines for all 15"
+    },
+    {
+      "id": "model-resolver",
+      "kind": "module",
+      "name": "model-resolver.ts",
+      "currentPath": "packages/api/src/internal/providers/lib/model-resolver.ts",
+      "summary": "Thin wrapper over resolveWithFallback; turns an Alia model id into {provider, modelId, keyConfig}. 88 lines.",
+      "proposedOwner": "relay",
+      "targetPath": "relay:routing/resolve.ts",
+      "dependsOn": [
+        "fallback-engine",
+        "alia-models",
+        "gateway-client"
+      ],
+      "removalGate": "Three live importers: gateway-client.ts:309 (dynamic), voice-session-manager.ts:25, and the dead routes/providers.ts:9. Removable once Relay owns model->provider resolution AND Alia's voice manager stops resolving locally.",
+      "evidence": "packages/api/src/internal/providers/lib/model-resolver.ts:42-72; packages/api/src/lib/gateway-client.ts:309"
+    },
+    {
+      "id": "fallback-engine",
+      "kind": "module",
+      "name": "fallback-engine.ts",
+      "currentPath": "packages/api/src/internal/providers/lib/fallback-engine.ts",
+      "summary": "Walks TIER_MODEL_MAPPINGS in priority order, skips providers whose circuit breaker is open, caps key cycling at MAX_KEYS_PER_PROVIDER=3, treats 'format' and 'content_filter' as non-retryable, and records a fallback_events row per resolution.",
+      "proposedOwner": "relay",
+      "targetPath": "relay:routing/fallback.ts",
+      "dependsOn": [
+        "model-resolver",
+        "key-manager",
+        "provider-health",
+        "alia-models",
+        "telemetry-fallback-events"
+      ],
+      "removalGate": "Reachable only through model-resolver. Gate: Relay implements tier-ordered failover AND Alia stops needing per-attempt FallbackAttempt data for its own telemetry.",
+      "evidence": "packages/api/src/internal/providers/lib/fallback-engine.ts:53-56 (NON_RETRYABLE_REASONS), :99 (priority sort), :108 (MAX_KEYS_PER_PROVIDER), :121 (circuit check), :30 (fallbackEventRepository)"
+    },
+    {
+      "id": "provider-api",
+      "kind": "module",
+      "name": "provider-api.ts",
+      "currentPath": "packages/api/src/internal/providers/lib/provider-api.ts",
+      "summary": "The NON-streaming provider call path (images, embeddings, TTS, transcription, audio-gen). Owns key rotation, per-attempt AbortController, DigitalOcean async-invoke branch and the Google Gemini TTS branch. Default maxAttempts=3, timeout OPTIONAL.",
+      "proposedOwner": "relay",
+      "targetPath": "relay:call/non-streaming.ts",
+      "dependsOn": [
+        "key-manager",
+        "digitalocean-async",
+        "tts-providers",
+        "failover-error-classifier"
+      ],
+      "removalGate": "LIVE. Reached from gateway-client.ts:353 (dynamic) and directly from lib/show/show-pipeline.ts:22. Gate: Relay exposes an equivalent multi-modal non-streaming call with key rotation, and all 8 callProviderAPI call sites are repointed.",
+      "evidence": "packages/api/src/internal/providers/lib/provider-api.ts:32-37 (PROVIDER_BASES, only 4 providers have a base URL), :102-103 (maxAttempts default 3), :112-291 (retry loop), :134 (DO branch), :163 (Gemini TTS branch)"
+    },
+    {
+      "id": "provider-api-base-url-gap",
+      "kind": "behaviour",
+      "name": "PROVIDER_BASES covers only 4 of 19 providers",
+      "currentPath": "packages/api/src/internal/providers/lib/provider-api.ts",
+      "summary": "The non-streaming path only knows base URLs for openai, groq, openrouter and digitalocean. Any other provider appearing in a v1-image / v1-tts / v1-audio tier mapping throws 'Provider \"x\" has no configured base URL' at attempt time, which the callers swallow as 'try next'.",
+      "proposedOwner": "relay",
+      "targetPath": "relay:call/non-streaming.ts",
+      "dependsOn": [
+        "provider-api",
+        "tier-mappings-generated"
+      ],
+      "removalGate": "N/A \u2014 this is a defect to carry across, not to delete. Relay must either cover all providers or reject the mapping at config time instead of at call time.",
+      "evidence": "packages/api/src/internal/providers/lib/provider-api.ts:32-37 vs packages/api/src/internal/providers/lib/provider-names.ts:6-26 (19 names)"
+    },
+    {
+      "id": "provider-health",
+      "kind": "module",
+      "name": "provider-health.ts (circuit breaker)",
+      "currentPath": "packages/api/src/internal/providers/lib/provider-health.ts",
+      "summary": "Per (provider, modelId) circuit breaker with closed/open/half-open states, a 10s in-process cache, and a 5-minute background interval that half-opens expired circuits. Rate-limit errors deliberately do NOT open the circuit.",
+      "proposedOwner": "relay",
+      "targetPath": "relay:health/circuit-breaker.ts",
+      "dependsOn": [
+        "telemetry-provider-health-table"
+      ],
+      "removalGate": "BLOCKS ON THE LOAD BALANCER: packages/api/src/routes/health.ts:79 and :144 call getAllProviderHealth(), and /health/ready returns 503 'no_healthy_providers' when zero providers are healthy. Land a replacement readiness probe IN PRODUCTION before removing this, or the removal is a rolling outage that reports success.",
+      "evidence": "packages/api/src/internal/providers/lib/provider-health.ts:176-212 (isProviderAvailable), :298-323 (monitor, auto-started outside NODE_ENV=test), :57-58 (10s cache); readiness dependency packages/api/src/routes/health.ts:144-147"
+    },
+    {
+      "id": "key-manager",
+      "kind": "module",
+      "name": "key-manager.ts",
+      "currentPath": "packages/api/src/internal/providers/lib/key-manager.ts",
+      "summary": "Selects the best provider key (priority order within free/paid group), enforces per-key rps/rpm/rph/rpd/tps/tpm/tph/tpd windows, demotes failing keys to last priority, sets exponential cooldown (30s * 2^n capped 5min), archives after maxTotalFailures, and marks credit-exhausted keys. 10s key cache.",
+      "proposedOwner": "relay",
+      "targetPath": "relay:keys/manager.ts",
+      "dependsOn": [
+        "schema-provider-keys",
+        "telemetry-api-usage"
+      ],
+      "removalGate": "Removable once Relay owns provider credentials. NOTE the export markKeyCreditExhausted is called from PRODUCT code (agent/runner.ts:704, services/chat.service.ts:286) via gateway-client, so those two call sites must be repointed or dropped first.",
+      "evidence": "packages/api/src/internal/providers/lib/key-manager.ts:36-37 (KEY_CACHE_TTL 10000), :98 (getBestKeyForModel), :206-269 (failure/cooldown), :292 (markKeyCreditExhausted)"
+    },
+    {
+      "id": "alia-models",
+      "kind": "module",
+      "name": "alia-models.ts (ALIA_MODELS catalogue)",
+      "currentPath": "packages/api/src/internal/providers/lib/alia-models.ts",
+      "summary": "The Alia-branded model catalogue (14 tiers) plus TIER_MODEL_MAPPINGS re-exported from the generator, and getAvailableModels() which joins circuit-breaker health with an isLegacy flag read from Postgres.",
+      "proposedOwner": "alia",
+      "targetPath": "keep",
+      "dependsOn": [
+        "tier-mappings-generated",
+        "provider-health",
+        "db-alia-model-repository"
+      ],
+      "removalGate": "STAYS IN ALIA \u2014 this is the branding layer that makes model abstraction possible and is the only thing that must NOT leak to Relay's vocabulary. What must move is TIER_MODEL_MAPPINGS (the provider routing table), not ALIA_MODELS.",
+      "evidence": "packages/api/src/internal/providers/lib/alia-models.ts:61 (ALIA_MODELS), :248 (TIER_MODEL_MAPPINGS = GENERATED_TIER_MAPPINGS), :304-338 (getAvailableModels)"
+    },
+    {
+      "id": "tier-mappings-generated",
+      "kind": "module",
+      "name": "generate-model-mappings.ts",
+      "currentPath": "packages/api/src/internal/providers/lib/generate-model-mappings.ts",
+      "summary": "The provider routing table: for each of 14 Alia tiers, an ordered list of createMapping(provider, providerModelId, priority, qualityScore). This is the single densest concentration of provider model ids in the repo.",
+      "proposedOwner": "relay",
+      "targetPath": "relay:catalogue/tier-mappings.ts",
+      "dependsOn": [
+        "model-capabilities-data",
+        "alia-models"
+      ],
+      "removalGate": "Read by gateway-client's getModelMappingsForTier, which 8 product call sites use (images, TTS, transcription, avatars, canvas, chat-completions, voice, chat.service). Every one must resolve tiers through Relay first. NOTE: a live Postgres table `alia_model_provider_mappings` exists but the runtime reads the CODE table, not the table.",
+      "evidence": "packages/api/src/internal/providers/lib/generate-model-mappings.ts:34-... (GENERATED_TIER_MAPPINGS); packages/api/src/db/schema/providers.ts:228 (aliaModelProviderMappings, not read by the resolver)"
+    },
+    {
+      "id": "model-capabilities-data",
+      "kind": "module",
+      "name": "model-capabilities-data.ts",
+      "currentPath": "packages/api/src/internal/providers/lib/model-capabilities-data.ts",
+      "summary": "682-line hardcoded table of MODEL_CAPABILITIES and MODEL_PRICING keyed by PROVIDER model id (gpt-3.5-turbo, claude-*, gemini-*, ...). Includes legacy models (ada, babbage, curie, davinci).",
+      "proposedOwner": "relay",
+      "targetPath": "relay:catalogue/capabilities.ts",
+      "dependsOn": [],
+      "removalGate": "Two consumers: generate-model-mappings.ts (internal) and packages/api/src/lib/cost-tracker.ts:39 (getModelPricing, PRODUCT code). cost-tracker must get pricing from Relay or from its own Alia-side table before this can go.",
+      "evidence": "packages/api/src/internal/providers/lib/model-capabilities-data.ts:35 (MODEL_CAPABILITIES), :359 (MODEL_PRICING), :675-681; consumer packages/api/src/lib/cost-tracker.ts:39"
+    },
+    {
+      "id": "provider-names",
+      "kind": "module",
+      "name": "provider-names.ts (PROVIDER_NAMES)",
+      "currentPath": "packages/api/src/internal/providers/lib/provider-names.ts",
+      "summary": "The canonical 19-name provider list. Load-bearing in THREE places: the Postgres enum/CHECK constraints on 3 tables, and the sanitizer's scrub list.",
+      "proposedOwner": "alia",
+      "targetPath": "keep",
+      "dependsOn": [],
+      "removalGate": "DO NOT DELETE with the adapters. packages/api/src/lib/errors/sanitize.ts:8 builds its provider-name scrub list from this array \u2014 deleting it silently empties the scrubber and starts leaking provider names into user-facing errors. Also feeds checkOneOf constraints in packages/api/src/db/schema/providers.ts:51.",
+      "evidence": "packages/api/src/internal/providers/lib/provider-names.ts:6-26; consumers packages/api/src/lib/errors/sanitize.ts:8 and packages/api/src/db/schema/providers.ts:52"
+    },
+    {
+      "id": "alia-tiers",
+      "kind": "module",
+      "name": "alia-tiers.ts (ALIA_TIERS)",
+      "currentPath": "packages/api/src/internal/providers/lib/alia-tiers.ts",
+      "summary": "Canonical tier list, consumed by the Postgres schema CHECK constraints.",
+      "proposedOwner": "alia",
+      "targetPath": "keep",
+      "dependsOn": [],
+      "removalGate": "Feeds packages/api/src/db/schema/providers.ts:51. Alia-branded vocabulary; stays.",
+      "evidence": "packages/api/src/internal/providers/lib/alia-tiers.ts:17-33; consumer packages/api/src/db/schema/providers.ts:51"
+    },
+    {
+      "id": "tts-providers",
+      "kind": "module",
+      "name": "tts-providers.ts (voice translation table)",
+      "currentPath": "packages/api/src/internal/providers/lib/tts-providers.ts",
+      "summary": "Maps OpenAI voice names to Gemini prebuilt voices and ElevenLabs voice IDs, decides the real output container per provider, and wraps Gemini's raw PCM in a WAV header.",
+      "proposedOwner": "relay",
+      "targetPath": "relay:tts/voices.ts",
+      "dependsOn": [
+        "provider-api",
+        "gwc-import-synthesize-speech"
+      ],
+      "removalGate": "LIVE via packages/api/src/lib/synthesize-speech.ts:16 and provider-api.ts:15. Gate: Relay accepts a canonical voice name and returns audio plus its real container, so Alia never needs the per-provider table.",
+      "evidence": "packages/api/src/internal/providers/lib/tts-providers.ts:32-51 (voice table), :65-81 (resolveVoiceForProvider), :87-91 (ttsOutputFormat), :108-131 (pcmToWav)"
+    },
+    {
+      "id": "digitalocean-async",
+      "kind": "module",
+      "name": "digitalocean-async.ts",
+      "currentPath": "packages/api/src/internal/providers/lib/digitalocean-async.ts",
+      "summary": "The 3-step DO Gradient async-invoke pattern (submit / poll status every 500ms / fetch result) plus extractAudioUrl, extractImageUrl and downloadBinaryFromUrl. Default timeout 45s.",
+      "proposedOwner": "relay",
+      "targetPath": "relay:providers/digitalocean-async.ts",
+      "dependsOn": [
+        "provider-api",
+        "hostname-digitalocean"
+      ],
+      "removalGate": "LIVE and its helpers leak OUT of internal/: extractImageUrl/extractAudioUrl are imported by 5 product files (routes/agents-avatar.ts:9, routes/canvas/execute.ts:19, routes/v1/audio.ts:18, routes/v1/images.ts:8, lib/show/show-pipeline.ts:23). Relay must return a normalised {url} so those 5 imports disappear.",
+      "evidence": "packages/api/src/internal/providers/lib/digitalocean-async.ts:12-14, :66-148, :154-163; 5 product importers listed above"
+    },
+    {
+      "id": "voice-session-manager",
+      "kind": "module",
+      "name": "voice-session-manager.ts",
+      "currentPath": "packages/api/src/internal/providers/lib/voice-session-manager.ts",
+      "summary": "1296 lines. Creates a LiveKit room, opens the provider realtime WebSocket, bridges audio both ways, runs server-side tool executors, bills per minute, and enforces inactivity timeouts. The single largest live provider-coupled module.",
+      "proposedOwner": "relay",
+      "targetPath": "relay:voice/session-manager.ts (bridge stays alia)",
+      "dependsOn": [
+        "adapter-openai-voice",
+        "adapter-grok-voice",
+        "adapter-registry",
+        "model-resolver",
+        "livekit-agent-bridge",
+        "credits-manager-voice"
+      ],
+      "removalGate": "SPLIT REQUIRED: the LiveKit room lifecycle, credit reservation and tool execution are Alia product logic; only providerSocket handling belongs in Relay. Gate: Relay exposes a realtime session endpoint Alia can bridge to, and voice-session-manager stops importing providers/index.js and model-resolver.js.",
+      "evidence": "packages/api/src/internal/providers/lib/voice-session-manager.ts:25 (model-resolver), :30 (providers registry), :99-104 (MAX_SESSIONS_PER_USER=5, BILLING_INTERVAL_MS=60s, USER_SILENCE_TIMEOUT_MS=20s, COHOST_INACTIVITY_TIMEOUT_MS=30s), :229 (provider connect), :383-546 (socket handlers)"
+    },
+    {
+      "id": "types-voice",
+      "kind": "module",
+      "name": "types-voice.ts",
+      "currentPath": "packages/api/src/internal/providers/lib/types-voice.ts",
+      "summary": "VoiceProvider / VoiceSession / AgentDataMessage types and DEFAULT_COHOST_CONFIG.",
+      "proposedOwner": "alia",
+      "targetPath": "keep",
+      "dependsOn": [
+        "voice-session-manager"
+      ],
+      "removalGate": "packages/api/src/lib/livekit-agent.ts:26 imports AgentDataMessage and LiveKitAgentBridgeRef type-only. Those two types are LiveKit-shaped, not provider-shaped, and should be relocated out of internal/providers rather than deleted.",
+      "evidence": "packages/api/src/internal/providers/lib/types-voice.ts; type-only importer packages/api/src/lib/livekit-agent.ts:26"
+    },
+    {
+      "id": "providers-types",
+      "kind": "module",
+      "name": "types.ts (Provider / KeyConfig / OpenAI message shapes)",
+      "currentPath": "packages/api/src/internal/providers/lib/types.ts",
+      "summary": "Provider interface, KeyConfig (carries the plaintext key), OpenAI message/tool shapes. Also carries unrelated ChatFolder/FOLDER_COLORS constants.",
+      "proposedOwner": "relay",
+      "targetPath": "relay:types.ts (split: folder types stay alia)",
+      "dependsOn": [],
+      "removalGate": "packages/api/src/routes/v1/voice.ts:16 imports OpenAITool type-only. NOTE the co-located FOLDER_COLORS/ChatFolder/ChatHistory exports at lines 71-103 have nothing to do with providers \u2014 grep them before deleting the file.",
+      "evidence": "packages/api/src/internal/providers/lib/types.ts:14-28 (KeyConfig holds `key: string`), :58-67 (Provider), :71-103 (unrelated folder types); importer packages/api/src/routes/v1/voice.ts:16"
+    },
+    {
+      "id": "dead-internal-providers-router",
+      "kind": "route",
+      "name": "internal/providers Express module \u2014 NEVER MOUNTED",
+      "currentPath": "packages/api/src/internal/providers/index.ts",
+      "summary": "Mounts 12 admin routers (providers, models, alia-models, keys, usage, auth-health, fallback-stats, plans, credit-packages, billing, features, plan-features) behind authenticateService. NOTHING imports this file, so none of it is reachable.",
+      "proposedOwner": "delete",
+      "targetPath": "delete",
+      "dependsOn": [],
+      "removalGate": "NONE. Verified two independent ways: (1) an unanchored grep for 'internal/providers' over all 1574 tracked files returns 60+ hits and packages/api/src/index.ts is in none of them; (2) authenticateService has 13 hits inside internal/providers and 0 outside. Deletable immediately.",
+      "evidence": "packages/api/src/internal/providers/index.ts:16-42; packages/api/src/index.ts:221-257 (40 app.use mounts, none for this router)"
+    },
+    {
+      "id": "dead-providers-proxy-route",
+      "kind": "route",
+      "name": "internal/providers/routes/providers.ts \u2014 the only proxy() caller",
+      "currentPath": "packages/api/src/internal/providers/routes/providers.ts",
+      "summary": "The single call site of any adapter's proxy(). Because its router is unmounted, ALL 19 text-chat adapters are dead code at runtime.",
+      "proposedOwner": "delete",
+      "targetPath": "delete",
+      "dependsOn": [
+        "dead-internal-providers-router",
+        "adapter-thin-openai-compatible-x15",
+        "adapter-google",
+        "adapter-anthropic",
+        "adapter-replicate",
+        "adapter-cloudflare"
+      ],
+      "removalGate": "NONE. `grep '\\.proxy('` across all tracked .ts returns exactly one hit, this file, line 138.",
+      "evidence": "packages/api/src/internal/providers/routes/providers.ts:138 (sole .proxy( call site repo-wide)"
+    },
+    {
+      "id": "dead-providers-ws",
+      "kind": "module",
+      "name": "internal/providers/ws.ts + broadcast-helpers.ts",
+      "currentPath": "packages/api/src/internal/providers/ws.ts",
+      "summary": "A `new WebSocketServer({ noServer: true })` for admin realtime updates, and 8 broadcast helpers. No server.on('upgrade') handler routes to it; only the 8 dead admin routes call the helpers.",
+      "proposedOwner": "delete",
+      "targetPath": "delete",
+      "dependsOn": [
+        "dead-internal-providers-router"
+      ],
+      "removalGate": "NONE. `grep providersWss` returns 0 hits outside internal/providers.",
+      "evidence": "packages/api/src/internal/providers/ws.ts:11; packages/api/src/internal/providers/lib/broadcast-helpers.ts:7; 8 importers all under internal/providers/routes/"
+    },
+    {
+      "id": "dead-providers-auth-middleware",
+      "kind": "module",
+      "name": "internal/providers/middleware/auth.ts",
+      "currentPath": "packages/api/src/internal/providers/middleware/auth.ts",
+      "summary": "HMAC service auth (SERVICE_SECRET, ALLOWED_SERVICES, ADMIN_USERNAMES) for the unmounted admin module. Also the only writer of auth_health_metrics.",
+      "proposedOwner": "delete",
+      "targetPath": "delete",
+      "dependsOn": [
+        "dead-internal-providers-router",
+        "dead-auth-health-lib"
+      ],
+      "removalGate": "NONE.",
+      "evidence": "packages/api/src/internal/providers/middleware/auth.ts:4; ALLOWED_SERVICES has exactly 2 sites repo-wide (.env.example + this file)"
+    },
+    {
+      "id": "dead-auth-health-lib",
+      "kind": "module",
+      "name": "lib/auth-health.ts",
+      "currentPath": "packages/api/src/lib/auth-health.ts",
+      "summary": "Auth success/failure telemetry. Its own docstring names its two consumers, both inside the unmounted admin module \u2014 so auth_health_metrics is never written at runtime.",
+      "proposedOwner": "delete",
+      "targetPath": "delete",
+      "dependsOn": [
+        "dead-providers-auth-middleware"
+      ],
+      "removalGate": "NONE, but it is OUTSIDE internal/providers, so a cleanup scoped to that directory will strand it. Also strands the auth_health_metrics table and its repository.",
+      "evidence": "packages/api/src/lib/auth-health.ts:8-13; importers only packages/api/src/internal/providers/middleware/auth.ts:4 and routes/auth-health.ts:7"
+    },
+    {
+      "id": "dead-startup-seed",
+      "kind": "module",
+      "name": "runStartupSeed + 4 seed modules",
+      "currentPath": "packages/api/src/internal/providers/lib/seed-model-configs.ts",
+      "summary": "seedModelConfigs / seedAliaModels / seedPlans / seedCreditPackages / seedFeatures / seedPlanFeatures / resetAllCircuitBreakers / resetAllKeyCooldowns, orchestrated by runStartupSeed(). runStartupSeed has ZERO callers repo-wide.",
+      "proposedOwner": "delete",
+      "targetPath": "delete",
+      "dependsOn": [],
+      "removalGate": "NONE for the orchestrator. Positive control for the census: the same grep found warmupProviders with 2 call sites, so it can see callers. CAUTION: seed-plans/seed-features/seed-credit-packages seed BILLING data, not provider data \u2014 confirm the billing catalogue is populated another way before deleting them.",
+      "evidence": "packages/api/src/internal/providers/lib/seed-model-configs.ts:258 (definition, no callers); seed-plans.ts:157, seed-features.ts:241, seed-credit-packages.ts:27"
+    },
+    {
+      "id": "dead-providers-mongoose-db",
+      "kind": "module",
+      "name": "internal/providers/lib/db.ts",
+      "currentPath": "packages/api/src/internal/providers/lib/db.ts",
+      "summary": "A second mongoose.connect() using MONGODB_URI, left over from the alia-gateway split. Zero importers.",
+      "proposedOwner": "delete",
+      "targetPath": "delete",
+      "dependsOn": [],
+      "removalGate": "NONE.",
+      "evidence": "packages/api/src/internal/providers/lib/db.ts:1-9; symbol census for its importers returned 0"
+    },
+    {
+      "id": "gateway-client",
+      "kind": "module",
+      "name": "gateway-client.ts \u2014 the dual-mode facade",
+      "currentPath": "packages/api/src/lib/gateway-client.ts",
+      "summary": "709 lines. If BOTH SERVICE_SECRET and GATEWAY_API_URL are set it HMAC-signs HTTP calls to a gateway that no longer exists; otherwise it dynamic-imports internal/providers/*. This is the designated seam for a remote provider tier and therefore the natural Relay insertion point.",
+      "proposedOwner": "alia",
+      "targetPath": "keep (repoint HTTP mode at Relay)",
+      "dependsOn": [
+        "model-resolver",
+        "provider-api",
+        "key-manager",
+        "provider-health",
+        "alia-models",
+        "env-gateway-api-url",
+        "env-service-secret"
+      ],
+      "removalGate": "KEEP. Per AGENTS.md this seam is exactly what made deleting alia-gateway safe. Relay should replace the HTTP branch's target, not the module. But see hazard-do-app-yaml-gateway-url: production must never have GATEWAY_API_URL set to the dead gateway.",
+      "evidence": "packages/api/src/lib/gateway-client.ts:29-38 (mode detection), :59-73 (HMAC signing string), :288-311, :339-379, :430-696 (local fallbacks)"
+    },
+    {
+      "id": "gwc-import-index-warmup",
+      "kind": "module",
+      "name": "gateway-client importer: index.ts (warmupGatewayClient)",
+      "currentPath": "packages/api/src/index.ts",
+      "summary": "INFRA. Calls warmupGatewayClient() at boot \u2014 but inside startBackgroundServices(), which only runs after a MongoDB connection succeeds. Mongo is gone, so this NEVER RUNS in production.",
+      "proposedOwner": "alia",
+      "targetPath": "keep",
+      "dependsOn": [
+        "gateway-client",
+        "hazard-mongo-gated-boot"
+      ],
+      "removalGate": "Delete alongside the Mongo-gated boot block, not on its own.",
+      "evidence": "packages/api/src/index.ts:66 (import), :344 (call, inside startBackgroundServices), :386-398 (connectWithRetry gate), :435-446 (comment: 'Mongo no longer exists, so in practice this retries forever and none of them start')"
+    },
+    {
+      "id": "gwc-import-agent-runner",
+      "kind": "module",
+      "name": "gateway-client importer: lib/agent/runner.ts (markKeyCreditExhausted)",
+      "currentPath": "packages/api/src/lib/agent/runner.ts",
+      "summary": "PRODUCT. The autonomous agent runner reaches into KEY LIFECYCLE to exhaust a credit-dead provider key. A product module knowing about provider keys is the coupling Relay must break.",
+      "proposedOwner": "alia",
+      "targetPath": "keep (drop the key-lifecycle call)",
+      "dependsOn": [
+        "gateway-client",
+        "key-manager"
+      ],
+      "removalGate": "Relay must handle credit exhaustion internally; Alia's agent runner should see only a 'model unavailable' failure reason.",
+      "evidence": "packages/api/src/lib/agent/runner.ts:20 (import), :704 (markKeyCreditExhausted), :527 and :712 (reportModelUsage via chat-core)"
+    },
+    {
+      "id": "gwc-import-chat-core",
+      "kind": "module",
+      "name": "gateway-client importer: lib/chat-core.ts",
+      "currentPath": "packages/api/src/lib/chat-core.ts",
+      "summary": "INFRA. The largest consumer: resolveAliaModel, getAliaModel, getAllAliaModels, getAvailableModels, getAliaModelsByCategory, getDefaultModelForCategory, isAliaModel, getDefaultAliaModel, reportModelUsage plus 4 types, all re-exported to 32 downstream files.",
+      "proposedOwner": "alia",
+      "targetPath": "keep",
+      "dependsOn": [
+        "gateway-client",
+        "chat-core-get-ai-model"
+      ],
+      "removalGate": "This is the real chokepoint (32 non-test importers vs gateway-client's 21). Relay migration is a chat-core rewrite, not a gateway-client rewrite.",
+      "evidence": "packages/api/src/lib/chat-core.ts:13-31"
+    },
+    {
+      "id": "gwc-import-chat-lifecycle",
+      "kind": "module",
+      "name": "gateway-client importer: lib/chat-lifecycle.ts (getAliaModel)",
+      "currentPath": "packages/api/src/lib/chat-lifecycle.ts",
+      "summary": "PRODUCT. Reads the Alia model record for lifecycle bookkeeping. Alia-branded only; no provider data crosses.",
+      "proposedOwner": "alia",
+      "targetPath": "keep",
+      "dependsOn": [
+        "gateway-client",
+        "alia-models"
+      ],
+      "removalGate": "None \u2014 getAliaModel returns branded data and stays in Alia.",
+      "evidence": "packages/api/src/lib/chat-lifecycle.ts:5, :136"
+    },
+    {
+      "id": "gwc-import-embeddings",
+      "kind": "module",
+      "name": "gateway-client importer: lib/memory/embeddings.ts (callProviderAPI)",
+      "currentPath": "packages/api/src/lib/memory/embeddings.ts",
+      "summary": "PRODUCT with a HARDCODED provider: provider:'openai', model 'text-embedding-3-small', 1536 dims, endpoint /v1/embeddings. No tier mapping, no fallback, no timeout, returns null on any failure.",
+      "proposedOwner": "relay",
+      "targetPath": "relay:embeddings",
+      "dependsOn": [
+        "gateway-client",
+        "provider-api",
+        "behaviour-embeddings"
+      ],
+      "removalGate": "Relay must expose an embeddings endpoint with the SAME 1536 dimensionality, or every stored memory embedding becomes incomparable.",
+      "evidence": "packages/api/src/lib/memory/embeddings.ts:7, :10-11, :20-28"
+    },
+    {
+      "id": "gwc-import-plan-access",
+      "kind": "module",
+      "name": "gateway-client importer: lib/plan-access.ts (getPlans, getPlanFeatures)",
+      "currentPath": "packages/api/src/lib/plan-access.ts",
+      "summary": "PRODUCT, BILLING \u2014 not provider runtime. It rides the same facade only because the billing catalogue used to live in alia-gateway.",
+      "proposedOwner": "alia",
+      "targetPath": "keep",
+      "dependsOn": [
+        "gateway-client"
+      ],
+      "removalGate": "Must NOT be swept up in a provider cleanup. The billing catalogue is Alia's.",
+      "evidence": "packages/api/src/lib/plan-access.ts:9, :35-36"
+    },
+    {
+      "id": "gwc-import-stripe-prices",
+      "kind": "module",
+      "name": "gateway-client importer: lib/stripe-prices.ts (getPlans, updatePlan)",
+      "currentPath": "packages/api/src/lib/stripe-prices.ts",
+      "summary": "PRODUCT, BILLING. Same note as plan-access: billing data behind a provider-shaped facade.",
+      "proposedOwner": "alia",
+      "targetPath": "keep",
+      "dependsOn": [
+        "gateway-client"
+      ],
+      "removalGate": "Must not be swept up in a provider cleanup.",
+      "evidence": "packages/api/src/lib/stripe-prices.ts:10, :30, :50, :75"
+    },
+    {
+      "id": "gwc-import-synthesize-speech",
+      "kind": "module",
+      "name": "gateway-client importer: lib/synthesize-speech.ts",
+      "currentPath": "packages/api/src/lib/synthesize-speech.ts",
+      "summary": "PRODUCT. The single TTS provider loop: walks v1-tts tier mappings, 1 attempt each, per-mapping timeout from getProviderTimeout, translates the voice per provider, returns the ACTUAL container.",
+      "proposedOwner": "relay",
+      "targetPath": "relay:tts",
+      "dependsOn": [
+        "gateway-client",
+        "provider-api",
+        "tts-providers",
+        "behaviour-tts"
+      ],
+      "removalGate": "Two callers (routes/v1/audio.ts:3, lib/show/show-pipeline.ts:362). Relay must return {audio, actualFormat} or S3 objects get the wrong extension and content type.",
+      "evidence": "packages/api/src/lib/synthesize-speech.ts:15-16, :38-72"
+    },
+    {
+      "id": "gwc-import-system-prompt-builder",
+      "kind": "module",
+      "name": "gateway-client importer: lib/system-prompt-builder.ts (getAliaModel)",
+      "currentPath": "packages/api/src/lib/system-prompt-builder.ts",
+      "summary": "PRODUCT. Branded model metadata only.",
+      "proposedOwner": "alia",
+      "targetPath": "keep",
+      "dependsOn": [
+        "gateway-client",
+        "alia-models"
+      ],
+      "removalGate": "None.",
+      "evidence": "packages/api/src/lib/system-prompt-builder.ts:8, :115"
+    },
+    {
+      "id": "gwc-import-switch-model-tool",
+      "kind": "module",
+      "name": "gateway-client importer: lib/tools/switch-model.ts (getAliaModel)",
+      "currentPath": "packages/api/src/lib/tools/switch-model.ts",
+      "summary": "PRODUCT. An AI tool that switches the user's model, validated against the Alia catalogue.",
+      "proposedOwner": "alia",
+      "targetPath": "keep",
+      "dependsOn": [
+        "gateway-client",
+        "alia-models"
+      ],
+      "removalGate": "None.",
+      "evidence": "packages/api/src/lib/tools/switch-model.ts:11, :34"
+    },
+    {
+      "id": "gwc-import-agents-avatar",
+      "kind": "route",
+      "name": "gateway-client importer: routes/agents-avatar.ts",
+      "currentPath": "packages/api/src/routes/agents-avatar.ts",
+      "summary": "PRODUCT. Generates an agent avatar: walks v1-image mappings, 30s per attempt, maxAttempts 1, extracts b64/url with the DO helper, and maps content_filter to a 400.",
+      "proposedOwner": "relay",
+      "targetPath": "relay:images",
+      "dependsOn": [
+        "gateway-client",
+        "provider-api",
+        "digitalocean-async",
+        "behaviour-images"
+      ],
+      "removalGate": "Relay must expose image generation with per-provider failover AND surface a distinguishable content_filter reason, or the 400 collapses into a 502.",
+      "evidence": "packages/api/src/routes/agents-avatar.ts:8-9, :137, :143-156, :166-168"
+    },
+    {
+      "id": "gwc-import-analytics",
+      "kind": "route",
+      "name": "gateway-client importer: routes/analytics.ts (getAliaModel)",
+      "currentPath": "packages/api/src/routes/analytics.ts",
+      "summary": "PRODUCT. Resolves branded model names for analytics; per AGENTS.md it SKIPS entries that cannot resolve, which is the model-abstraction safeguard.",
+      "proposedOwner": "alia",
+      "targetPath": "keep",
+      "dependsOn": [
+        "gateway-client",
+        "alia-models"
+      ],
+      "removalGate": "None, but the skip-on-unresolvable behaviour must survive any catalogue change.",
+      "evidence": "packages/api/src/routes/analytics.ts:9, :57"
+    },
+    {
+      "id": "gwc-import-billing",
+      "kind": "route",
+      "name": "gateway-client importer: routes/billing.ts",
+      "currentPath": "packages/api/src/routes/billing.ts",
+      "summary": "PRODUCT, BILLING. 18 references \u2014 getPlans x6, getCreditPackages x4, getFeatures, getPlanFeatures, getAllAliaModels. The single heaviest gateway-client consumer and it touches NO provider data.",
+      "proposedOwner": "alia",
+      "targetPath": "keep",
+      "dependsOn": [
+        "gateway-client"
+      ],
+      "removalGate": "Must not be swept up in a provider cleanup. Its presence is why 'gateway-client importer count' overstates provider coupling.",
+      "evidence": "packages/api/src/routes/billing.ts:22, :90, :117, :175, :221, :238-240, :256, :343, :453, :466, :471, :725"
+    },
+    {
+      "id": "gwc-import-canvas-execute",
+      "kind": "route",
+      "name": "gateway-client importer: routes/canvas/execute.ts",
+      "currentPath": "packages/api/src/routes/canvas/execute.ts",
+      "summary": "PRODUCT. The canvas aiImage node duplicates the image-generation loop (v1-image mappings, 30s, 1 attempt) \u2014 a third copy of the same pattern.",
+      "proposedOwner": "relay",
+      "targetPath": "relay:images",
+      "dependsOn": [
+        "gateway-client",
+        "provider-api",
+        "digitalocean-async",
+        "behaviour-images"
+      ],
+      "removalGate": "Same as gwc-import-agents-avatar.",
+      "evidence": "packages/api/src/routes/canvas/execute.ts:18-19, :256-280"
+    },
+    {
+      "id": "gwc-import-health",
+      "kind": "route",
+      "name": "gateway-client importer: routes/health.ts (getAllProviderHealth)",
+      "currentPath": "packages/api/src/routes/health.ts",
+      "summary": "INFRA and LOAD-BEARING. /health reports a provider summary and /health/ready returns 503 'no_healthy_providers' when providers exist but none is healthy.",
+      "proposedOwner": "alia",
+      "targetPath": "keep (rewrite the probe)",
+      "dependsOn": [
+        "gateway-client",
+        "provider-health"
+      ],
+      "removalGate": "HIGHEST-RISK GATE IN THIS INVENTORY. The ALB health check reads this route. A new readiness definition must be LIVE IN PRODUCTION before provider-health is removed, or the removal is a rolling outage that reports success.",
+      "evidence": "packages/api/src/routes/health.ts:4, :76-95, :136-150"
+    },
+    {
+      "id": "gwc-import-models-stats",
+      "kind": "route",
+      "name": "gateway-client importer: routes/models-stats.ts",
+      "currentPath": "packages/api/src/routes/models-stats.ts",
+      "summary": "PRODUCT. Public GET /models/stats aggregates per-provider health into one branded number per Alia model. Its own header says 'NEVER exposes internal provider information'. N+1: one getProviderHealth call per mapping per model.",
+      "proposedOwner": "alia",
+      "targetPath": "keep (source stats from Relay)",
+      "dependsOn": [
+        "gateway-client",
+        "provider-health",
+        "tier-mappings-generated"
+      ],
+      "removalGate": "Relay must expose per-tier aggregate health, or this endpoint has nothing to aggregate.",
+      "evidence": "packages/api/src/routes/models-stats.ts:1-11, :42-43, :59, :129, :142, :156"
+    },
+    {
+      "id": "gwc-import-v1-audio",
+      "kind": "route",
+      "name": "gateway-client importer: routes/v1/audio.ts",
+      "currentPath": "packages/api/src/routes/v1/audio.ts",
+      "summary": "PRODUCT. POST /v1/audio/speech (TTS, 55s global) and POST /v1/audio/generate (async job, 180s background). The generate path HARDCODES provider:'digitalocean' and model 'fal-ai/stable-audio-25/text-to-audio'.",
+      "proposedOwner": "relay",
+      "targetPath": "relay:audio",
+      "dependsOn": [
+        "gateway-client",
+        "provider-api",
+        "digitalocean-async",
+        "gwc-import-synthesize-speech",
+        "behaviour-audio-generation"
+      ],
+      "removalGate": "Relay must offer a text-to-audio model reachable WITHOUT Alia naming a provider, and must tolerate a 170s call.",
+      "evidence": "packages/api/src/routes/v1/audio.ts:2, :36 (TTS_TIMEOUT_MS 55s), :241 (GEN_TIMEOUT_MS 180s), :249-262 (hardcoded provider+model, timeout 170s, maxAttempts 1)"
+    },
+    {
+      "id": "gwc-import-v1-chat-completions",
+      "kind": "route",
+      "name": "gateway-client importer: routes/v1/chat-completions.ts",
+      "currentPath": "packages/api/src/routes/v1/chat-completions.ts",
+      "summary": "PRODUCT. The main chat endpoint. Uses getAliaModel + getModelMappingsForTier to size its retry budget; the actual inference goes through chat-core/AI SDK, not gateway-client.",
+      "proposedOwner": "alia",
+      "targetPath": "keep",
+      "dependsOn": [
+        "gateway-client",
+        "chat-core-get-ai-model",
+        "behaviour-chat-streaming"
+      ],
+      "removalGate": "Needs a tier size (or a Relay-supplied retry budget) to keep MAX_PROVIDER_RETRIES meaningful.",
+      "evidence": "packages/api/src/routes/v1/chat-completions.ts:3, :44 (GLOBAL_TIMEOUT_MS 80s), :221-222, :344"
+    },
+    {
+      "id": "gwc-import-v1-images",
+      "kind": "route",
+      "name": "gateway-client importer: routes/v1/images.ts",
+      "currentPath": "packages/api/src/routes/v1/images.ts",
+      "summary": "PRODUCT. POST /v1/images/generations: 60s global abort, per-mapping 30s / 1 attempt, b64 uploaded to S3, 504 vs 503 distinguished by whether the global abort fired.",
+      "proposedOwner": "relay",
+      "targetPath": "relay:images",
+      "dependsOn": [
+        "gateway-client",
+        "provider-api",
+        "digitalocean-async",
+        "behaviour-images"
+      ],
+      "removalGate": "Same as gwc-import-agents-avatar; this is the canonical of the three image loops.",
+      "evidence": "packages/api/src/routes/v1/images.ts:2, :21-23, :63-101, :105"
+    },
+    {
+      "id": "gwc-import-v1-voice",
+      "kind": "route",
+      "name": "gateway-client importer: routes/v1/voice.ts",
+      "currentPath": "packages/api/src/routes/v1/voice.ts",
+      "summary": "PRODUCT. POST /v1/voice/token creates a LiveKit-backed realtime session; POST /v1/voice/transcribe walks the audio tier (55s global, 15s per provider, 1 attempt each) against /v1/audio/transcriptions.",
+      "proposedOwner": "relay",
+      "targetPath": "relay:voice + relay:transcription",
+      "dependsOn": [
+        "gateway-client",
+        "voice-session-manager",
+        "provider-api",
+        "behaviour-transcription",
+        "behaviour-voice-realtime"
+      ],
+      "removalGate": "Two distinct gates: transcription needs a Relay endpoint; realtime needs the voice-session-manager split.",
+      "evidence": "packages/api/src/routes/v1/voice.ts:3-4, :8, :118, :265 (TRANSCRIBE_TIMEOUT_MS 55s), :304-329 (15s, 1 attempt), :347"
+    },
+    {
+      "id": "gwc-import-chat-service",
+      "kind": "module",
+      "name": "gateway-client importer: services/chat.service.ts",
+      "currentPath": "packages/api/src/services/chat.service.ts",
+      "summary": "PRODUCT. The Socket.IO chat path \u2014 a SECOND full inference entry point beside /v1/chat/completions, with its own tool assembly and its own markKeyCreditExhausted call.",
+      "proposedOwner": "alia",
+      "targetPath": "keep",
+      "dependsOn": [
+        "gateway-client",
+        "chat-core-get-ai-model",
+        "key-manager"
+      ],
+      "removalGate": "Easy to miss: a migration that only repoints routes/v1 leaves the socket path on the old runtime. Both entry points must move together.",
+      "evidence": "packages/api/src/services/chat.service.ts:13-15, :257, :286, :347, :349"
+    },
+    {
+      "id": "gwc-import-test-mock",
+      "kind": "module",
+      "name": "gateway-client importer: chat-completions-timeout.test.ts (vi.mock)",
+      "currentPath": "packages/api/src/routes/v1/__tests__/chat-completions-timeout.test.ts",
+      "summary": "TEST. Mocks both gateway-client and internal/providers/lib/alia-models. Any signature change to the facade breaks this suite.",
+      "proposedOwner": "alia",
+      "targetPath": "keep",
+      "dependsOn": [
+        "gateway-client"
+      ],
+      "removalGate": "Update in the same commit as any facade change.",
+      "evidence": "packages/api/src/routes/v1/__tests__/chat-completions-timeout.test.ts:54, :173"
+    },
+    {
+      "id": "chat-core-get-ai-model",
+      "kind": "module",
+      "name": "chat-core.ts getAIModel \u2014 the LIVE provider construction site",
+      "currentPath": "packages/api/src/lib/chat-core.ts",
+      "summary": "THE real inference chokepoint. A 19-case switch that builds a Vercel AI SDK client per provider, with 16 base URLs inline, hardcoded default model ids, and a 10-minute TTLCache keyed by provider|baseURL|apiKey. 32 non-test files import chat-core; every generateText/streamText in the repo gets its model from here.",
+      "proposedOwner": "relay",
+      "targetPath": "relay:client (Alia keeps a thin resolveModel that returns a Relay-backed LanguageModel)",
+      "dependsOn": [
+        "gateway-client",
+        "model-resolver",
+        "hostname-openai",
+        "hostname-anthropic",
+        "hostname-google",
+        "sdk-ai-sdk-openai",
+        "sdk-ai-sdk-anthropic",
+        "sdk-ai-sdk-google",
+        "sdk-ai"
+      ],
+      "removalGate": "THE central gate of the whole epic. Every one of the 32 chat-core importers must accept a model object it did not construct. Note the TTLCache is keyed on the PLAINTEXT api key, so Alia holds provider credentials in process memory for 10 minutes.",
+      "evidence": "packages/api/src/lib/chat-core.ts:8-10 (3 SDK imports), :86 (TTLCache 10min/200), :94 (cache key includes apiKey), :110-198 (19-case switch, 16 inline base URLs)"
+    },
+    {
+      "id": "chat-model-config-provider-branches",
+      "kind": "behaviour",
+      "name": "Provider-specific request tuning in the chat path",
+      "currentPath": "packages/api/src/lib/chat/model-config.ts",
+      "summary": "Two provider conditionals OUTSIDE internal/providers: experimental_thinking for anthropic, experimental_providerMetadata.google.includeThoughts for google. Also sets maxRetries:0 to force application-level failover, and a 20s first-byte abort.",
+      "proposedOwner": "relay",
+      "targetPath": "relay:capabilities (thinking/reasoning as a capability flag)",
+      "dependsOn": [
+        "chat-core-get-ai-model",
+        "behaviour-chat-streaming"
+      ],
+      "removalGate": "Relay must express 'thinking mode' and 'reasoning traces' as provider-agnostic options, otherwise thinking mode silently stops working when routing moves off anthropic/google.",
+      "evidence": "packages/api/src/lib/chat/model-config.ts:63 (maxRetries 0), :87-90 (anthropic), :95-99 (google), :116-124 (FIRST_BYTE_TIMEOUT_MS 20s)"
+    },
+    {
+      "id": "tool-converter-gemini-naming",
+      "kind": "module",
+      "name": "Google Gemini tool-name sanitisation",
+      "currentPath": "packages/api/src/lib/tool-converter.ts",
+      "summary": "Rewrites tool names to satisfy Gemini's function-name rules (start with letter/underscore, [A-Za-z0-9_.:-], max 64) and carries a toolNameMapping that message-converter.ts must reverse on the way back.",
+      "proposedOwner": "relay",
+      "targetPath": "relay:tools/name-normalisation",
+      "dependsOn": [
+        "message-converter-gemini-mapping"
+      ],
+      "removalGate": "The mapping is threaded through provider-loop -> stream-runner -> conversation save. Removing it requires Relay to accept arbitrary tool names and normalise internally.",
+      "evidence": "packages/api/src/lib/tool-converter.ts:5, :25; packages/api/src/lib/message-converter.ts:9, :27, :77, :87"
+    },
+    {
+      "id": "message-converter-gemini-mapping",
+      "kind": "module",
+      "name": "message-converter.ts tool-name reverse mapping",
+      "currentPath": "packages/api/src/lib/message-converter.ts",
+      "summary": "Converts OpenAI-format messages to AI SDK ModelMessage and reverses the Gemini-sanitised tool names.",
+      "proposedOwner": "relay",
+      "targetPath": "relay:tools/name-normalisation",
+      "dependsOn": [
+        "tool-converter-gemini-naming"
+      ],
+      "removalGate": "Same as tool-converter-gemini-naming.",
+      "evidence": "packages/api/src/lib/message-converter.ts:9, :77-90"
+    },
+    {
+      "id": "text-tool-fallback",
+      "kind": "module",
+      "name": "text-tool-fallback.ts (provider quirk workaround)",
+      "currentPath": "packages/api/src/lib/chat/text-tool-fallback.ts",
+      "summary": "Named-provider workaround in product code: 'Some models (Gemini 3 preview, Minimax, etc.) emit tool calls as plain text'. Scans assistant text for two formats, executes the tool, and runs a follow-up completion with a 30s abort.",
+      "proposedOwner": "relay",
+      "targetPath": "relay:compat/text-tool-calls",
+      "dependsOn": [
+        "behaviour-chat-streaming"
+      ],
+      "removalGate": "Only removable once Relay guarantees native tool-calling for every routed model. Note it names a provider model in a comment, which the docs sweep must catch.",
+      "evidence": "packages/api/src/lib/chat/text-tool-fallback.ts:1-18; retry abort at packages/api/src/lib/chat/stream-runner.ts:329-333 (30s)"
+    },
+    {
+      "id": "failover-error-classifier",
+      "kind": "module",
+      "name": "failover-error.ts \u2014 provider-specific error classification",
+      "currentPath": "packages/api/src/lib/errors/failover-error.ts",
+      "summary": "Parses Google (error.status: FAILED_PRECONDITION / RESOURCE_EXHAUSTED / UNAVAILABLE / PERMISSION_DENIED), OpenAI (error.type, error.code incl. billing_hard_limit_reached, insufficient_quota) and Anthropic (overloaded_error, HTTP 529) error shapes into a FailoverReason. Deliberately does NOT classify HTTP 400 by status.",
+      "proposedOwner": "relay",
+      "targetPath": "relay:errors (Relay returns a normalised reason)",
+      "dependsOn": [
+        "fallback-engine",
+        "provider-api",
+        "sanitize-message"
+      ],
+      "removalGate": "Alia must keep FailoverReason as its own vocabulary (credits, retry, UI messaging all key off it). What moves to Relay is the provider-shape PARSING, not the enum.",
+      "evidence": "packages/api/src/lib/errors/failover-error.ts:130-192 (getProviderErrorData), :253-342 (classifyError), :265 (529 = Anthropic overloaded), :266-267 (400 deliberately omitted)"
+    },
+    {
+      "id": "sanitize-message",
+      "kind": "sanitizer",
+      "name": "sanitizeMessage / sanitizeError / sanitizeFull / getSafeErrorMessage / formatErrorResponse",
+      "currentPath": "packages/api/src/lib/errors/sanitize.ts",
+      "summary": "Scrubs the 19 PROVIDER_NAMES plus gemini/claude/gpt-/llama/whisper from any user-facing string, replacing each with 'Alia', then rewrites gpt-*/claude-*/gemini-* model ids to 'Alia model'.",
+      "proposedOwner": "alia",
+      "targetPath": "keep",
+      "dependsOn": [
+        "provider-names"
+      ],
+      "removalGate": "NEVER REMOVE. Its scrub list is BUILT FROM provider-names.ts, so deleting that array silently reduces the sanitizer to the 5 hardcoded patterns. Anyone deleting the provider directory must keep PROVIDER_NAMES or inline the list here first.",
+      "evidence": "packages/api/src/lib/errors/sanitize.ts:8, :14-17, :23-35"
+    },
+    {
+      "id": "sanitize-call-sites",
+      "kind": "sanitizer",
+      "name": "Sanitization call sites (16 files)",
+      "currentPath": "packages/api/src/routes/{billing,referrals,credits,internal}.ts, routes/v1/{voice,audio,images,chat-completions,shows}.ts, routes/canvas/execute.ts, lib/show/show-pipeline.ts, lib/chat-modes/deep-research-handler.ts, lib/errors/index.ts, internal/providers/routes/providers.ts",
+      "summary": "16 files reference a sanitizer. Densest: billing.ts (18), referrals.ts (7), v1/voice.ts (5), credits.ts (5), v1/audio.ts (4).",
+      "proposedOwner": "alia",
+      "targetPath": "keep",
+      "dependsOn": [
+        "sanitize-message"
+      ],
+      "removalGate": "Coverage must be re-audited after the Relay switch: Relay error strings are a NEW untrusted source, and none of these call sites knows that yet.",
+      "evidence": "grep sanitizeMessage|sanitizeError|sanitizeFull|getSafeErrorMessage|formatErrorResponse across tracked .ts/.tsx, 16 files, comment lines excluded"
+    },
+    {
+      "id": "leak-provider-api-error",
+      "kind": "sanitizer",
+      "name": "LEAK: provider-api.ts throws a provider-named Error with raw provider body",
+      "currentPath": "packages/api/src/internal/providers/lib/provider-api.ts",
+      "summary": "On exhaustion it throws `Provider API exhausted: ${provider}/${modelId} (${lastReason})` and attaches `error.providerMessage = lastMessage` (the raw provider response body). Safe today only because every caller wraps it in getSafeErrorMessage \u2014 the error object itself is unsanitised.",
+      "proposedOwner": "relay",
+      "targetPath": "relay:errors",
+      "dependsOn": [
+        "provider-api",
+        "sanitize-message"
+      ],
+      "removalGate": "Any NEW caller of callProviderAPI that returns err.message or err.providerMessage directly leaks a provider name. Relay should never return a provider-named error to Alia.",
+      "evidence": "packages/api/src/internal/providers/lib/provider-api.ts:294-297"
+    },
+    {
+      "id": "leak-toAliaError-internal-message",
+      "kind": "sanitizer",
+      "name": "toAliaError builds a provider-prefixed internal message",
+      "currentPath": "packages/api/src/lib/errors/failover-error.ts",
+      "summary": "Constructs `[provider/model] originalMessage` as AliaError.message, relying on the discipline that only AliaError.userMessage reaches users.",
+      "proposedOwner": "alia",
+      "targetPath": "keep",
+      "dependsOn": [
+        "failover-error-classifier",
+        "sanitize-message"
+      ],
+      "removalGate": "Documented and intentional; the gate is that formatErrorResponse only ever emits userMessage (verified at sanitize.ts:108-117).",
+      "evidence": "packages/api/src/lib/errors/failover-error.ts:389-398, :411-417; packages/api/src/lib/errors/sanitize.ts:108-117"
+    },
+    {
+      "id": "leak-canvas-provider-badge",
+      "kind": "sanitizer",
+      "name": "LEAK: canvas AI text node renders a provider name",
+      "currentPath": "packages/alia-canvas/src/components/workflow/nodes/ai-text-node.tsx",
+      "summary": "Renders `{data.provider || \"openai\"}` in a user-visible workflow node \u2014 a provider name defaulted into the UI.",
+      "proposedOwner": "alia",
+      "targetPath": "keep (fix)",
+      "dependsOn": [
+        "sanitize-message"
+      ],
+      "removalGate": "Model-abstraction defect independent of the epic; fix by rendering the Alia model name.",
+      "evidence": "packages/alia-canvas/src/components/workflow/nodes/ai-text-node.tsx:24"
+    },
+    {
+      "id": "leak-external-models-public",
+      "kind": "sanitizer",
+      "name": "Public /external-models exposes third-party organisation names",
+      "currentPath": "packages/api/src/routes/external-models.ts",
+      "summary": "Unauthenticated GET /external-models and /external-models/organizations serve the mirrored ZeroEval leaderboard, including organization names (OpenAI, Anthropic, Google...). Deliberate per the schema comment, and explicitly NOT the routing catalogue.",
+      "proposedOwner": "alia",
+      "targetPath": "keep",
+      "dependsOn": [
+        "script-sync-zeroeval",
+        "schema-external-models"
+      ],
+      "removalGate": "Unaffected by the Relay migration; listed so a provider-name sweep does not mistake it for a leak (or does so knowingly).",
+      "evidence": "packages/api/src/routes/external-models.ts:16-40; mounted unauthenticated at packages/api/src/index.ts:240; packages/api/src/db/schema/providers.ts:415-425 (comment: 'NOT the routing catalogue')"
+    },
+    {
+      "id": "leak-gateway-admin-ui",
+      "kind": "sanitizer",
+      "name": "alia-gateway-admin UI renders raw provider names",
+      "currentPath": "packages/alia-gateway-admin/src/types/index.ts",
+      "summary": "An operator UI whose Provider union type lists all 19 names and whose Keys/Models pages render them. Operator-facing, so not a user-facing abstraction breach, but it is a provider-name surface tied to the dead gateway.",
+      "proposedOwner": "delete",
+      "targetPath": "delete",
+      "dependsOn": [
+        "dead-internal-providers-router",
+        "env-vite-gateway-api-url"
+      ],
+      "removalGate": "Its dev proxy rewrites /api/providers -> /internal/providers against https://api.alia.onl, which is unmounted, so the panel cannot work against the current API. Confirm no deployed static site depends on it (see residual).",
+      "evidence": "packages/alia-gateway-admin/src/types/index.ts (19 provider names); packages/alia-gateway-admin/vite.config.ts:50-56; packages/alia-gateway-admin/src/lib/api/client.ts:6"
+    },
+    {
+      "id": "provider-warmup",
+      "kind": "module",
+      "name": "provider-warmup.ts (TLS pre-warm)",
+      "currentPath": "packages/api/src/lib/provider-warmup.ts",
+      "summary": "On every boot, fires HEAD requests with a 5s timeout to 9 provider endpoints purely to complete the TLS handshake. RUNS IN PRODUCTION (it is outside the Mongo-gated boot block).",
+      "proposedOwner": "delete",
+      "targetPath": "delete",
+      "dependsOn": [
+        "hostname-openai",
+        "hostname-anthropic",
+        "hostname-google",
+        "hostname-groq",
+        "hostname-openai-compatible-others",
+        "hostname-openrouter"
+      ],
+      "removalGate": "Delete the moment Alia stops making direct provider calls; until then it is 9 unauthenticated outbound requests per boot to provider APIs from Alia's own egress IP.",
+      "evidence": "packages/api/src/lib/provider-warmup.ts:13-23, :29-52; called at packages/api/src/index.ts:449 (outside startBackgroundServices)"
+    },
+    {
+      "id": "integrations-model-resolver",
+      "kind": "module",
+      "name": "packages/integrations shared/model-resolver.ts \u2014 ORPHANED",
+      "currentPath": "packages/integrations/src/shared/model-resolver.ts",
+      "summary": "A SECOND provider-construction site in a SECOND service: fetches POST /v1/resolve-model expecting {provider, modelId, providerKey} and builds AI SDK clients for 7 providers. It is dead twice over \u2014 zero importers inside packages/integrations, and the endpoint it calls now returns 410 Gone.",
+      "proposedOwner": "delete",
+      "targetPath": "delete",
+      "dependsOn": [
+        "sdk-integrations-ai-sdk"
+      ],
+      "removalGate": "NONE. Scoped symbol census over packages/integrations/**/*.ts: resolveModel / createAIModel / reportUsage appear only in this file; positive control \u2014 createOpenAI also appears only here, and browser/tools.ts + terminal/tools.ts prove the scan sees other integrations files. Deleting it also removes the last need for the 3 @ai-sdk/* deps in that package.",
+      "evidence": "packages/integrations/src/shared/model-resolver.ts:25, :56, :85-108; endpoint now 410 at packages/api/src/routes/v1.ts:109-115 and packages/api/src/routes/codea.ts:235-241"
+    },
+    {
+      "id": "gateway-admin-ai-tool",
+      "kind": "module",
+      "name": "AI tool 'gatewayAdmin' proxying to the deleted gateway",
+      "currentPath": "packages/api/src/lib/tools/gateway-admin.ts",
+      "summary": "An AI-callable tool that HMAC-signs CRUD against ${GATEWAY_API_URL}/gateway/v1/{keys,models,alia-models,usage}. Registered in the tool registry with requiredPlan 'business' and additionally gated by a hardcoded `username === 'nate'` in tool-pipeline.ts. With GATEWAY_API_URL unset it fetches the literal string 'undefined/gateway/v1/keys'.",
+      "proposedOwner": "delete",
+      "targetPath": "delete",
+      "dependsOn": [
+        "env-gateway-api-url",
+        "env-service-secret"
+      ],
+      "removalGate": "Broken today (target service deleted). Deleting it requires removing the registry entry at lib/tools/index.ts:190-197, the tool-pipeline branch at :129-132, the chat.service branch at :256-258 and the re-export at index.ts:242.",
+      "evidence": "packages/api/src/lib/tools/gateway-admin.ts:7-8, :30-46; packages/api/src/lib/tool-pipeline.ts:129-132 (username === 'nate'); packages/api/src/lib/tools/index.ts:190-197"
+    },
+    {
+      "id": "script-sync-zeroeval",
+      "kind": "module",
+      "name": "scripts/sync-zeroeval.ts",
+      "currentPath": "packages/api/src/scripts/sync-zeroeval.ts",
+      "summary": "Mirrors the ZeroEval public model leaderboard into external_models. Called from index.ts:350 inside startBackgroundServices, so like warmupGatewayClient it NEVER RUNS in production today.",
+      "proposedOwner": "alia",
+      "targetPath": "keep",
+      "dependsOn": [
+        "hostname-zeroeval",
+        "schema-external-models",
+        "hazard-mongo-gated-boot"
+      ],
+      "removalGate": "Not provider inference \u2014 a marketing/leaderboard feature. Keep, but its dead-on-boot state should be fixed independently.",
+      "evidence": "packages/api/src/scripts/sync-zeroeval.ts:8; called packages/api/src/index.ts:350"
+    },
+    {
+      "id": "schema-provider-keys",
+      "kind": "module",
+      "name": "Postgres table provider_keys (PLAINTEXT credentials)",
+      "currentPath": "packages/api/src/db/schema/providers.ts",
+      "summary": "Where Alia's provider credentials actually live. `key: text()` is a PLAINTEXT column (the schema says so explicitly), alongside a sha256 keyHash and a display prefix. Carries 8 rate-limit columns, priority/cooldown/archive state and spend tracking. NOT env vars, NOT SSM \u2014 which is why the deploy workflow lists no provider secrets.",
+      "proposedOwner": "relay",
+      "targetPath": "relay:provider credential store",
+      "dependsOn": [
+        "key-manager",
+        "env-database-url"
+      ],
+      "removalGate": "MOST DESTRUCTIVE ITEM IN THIS INVENTORY. Count the rows and export them before any drop \u2014 these are live third-party credentials that exist nowhere else in the repo or in SSM. Migration must reach Relay's store before the table is dropped, and rotation is the safer alternative to copying plaintext.",
+      "evidence": "packages/api/src/db/schema/providers.ts:300-320 (key/keyHash/keyPrefix), :322-329 (rate limits), :404-411 (unique + rotation indexes); deploy secret list .github/workflows/deploy-aws.yml:66-76 contains NO provider key"
+    },
+    {
+      "id": "schema-model-configs",
+      "kind": "module",
+      "name": "Postgres tables model_configs / alia_models / alia_model_provider_mappings",
+      "currentPath": "packages/api/src/db/schema/providers.ts",
+      "summary": "The database copy of the routing catalogue. Its provider column is constrained to PROVIDER_NAMES. The RUNTIME reads the code table (GENERATED_TIER_MAPPINGS), not these rows \u2014 only isLegacy is read back, in getAvailableModels.",
+      "proposedOwner": "relay",
+      "targetPath": "relay:catalogue",
+      "dependsOn": [
+        "schema-provider-keys",
+        "tier-mappings-generated",
+        "alia-models"
+      ],
+      "removalGate": "Before dropping, confirm the row counts and confirm nothing outside the dead admin routes writes them (the seeds that populate them have no callers). alia_models.isLegacy IS read live and must be preserved somewhere Alia-side.",
+      "evidence": "packages/api/src/db/schema/providers.ts:73, :154, :228; live read packages/api/src/internal/providers/lib/alia-models.ts:311-318"
+    },
+    {
+      "id": "schema-external-models",
+      "kind": "module",
+      "name": "Postgres table external_models",
+      "currentPath": "packages/api/src/db/schema/providers.ts",
+      "summary": "18 benchmark columns mirroring the ZeroEval leaderboard. Explicitly NOT the routing catalogue.",
+      "proposedOwner": "alia",
+      "targetPath": "keep",
+      "dependsOn": [
+        "script-sync-zeroeval",
+        "leak-external-models-public"
+      ],
+      "removalGate": "Not part of the inference runtime; do not delete with the provider tables.",
+      "evidence": "packages/api/src/db/schema/providers.ts:415-432"
+    },
+    {
+      "id": "telemetry-provider-health-table",
+      "kind": "module",
+      "name": "Postgres table provider_health",
+      "currentPath": "packages/api/src/db/schema/telemetry.ts",
+      "summary": "Circuit-breaker state per (provider, modelId). Written by provider-health.ts only; read by /health, /health/ready and /models/stats.",
+      "proposedOwner": "relay",
+      "targetPath": "relay:health",
+      "dependsOn": [
+        "provider-health",
+        "gwc-import-health"
+      ],
+      "removalGate": "Blocked on the readiness-probe rewrite (see gwc-import-health).",
+      "evidence": "packages/api/src/db/schema/telemetry.ts:33-37; packages/api/src/db/telemetry/providerHealthRepository.ts"
+    },
+    {
+      "id": "telemetry-api-usage",
+      "kind": "module",
+      "name": "Postgres table api_usage (per-key rate-limit windows)",
+      "currentPath": "packages/api/src/db/schema/telemetry.ts",
+      "summary": "Backs key-manager's rps/rpm/rph/rpd + tps/tpm/tph/tpd window checks. Written on every provider call.",
+      "proposedOwner": "relay",
+      "targetPath": "relay:keys/usage",
+      "dependsOn": [
+        "key-manager",
+        "schema-provider-keys"
+      ],
+      "removalGate": "Goes with provider_keys; has no meaning once Alia holds no keys.",
+      "evidence": "packages/api/src/db/schema/telemetry.ts:128-133; packages/api/src/db/telemetry/apiUsageRepository.ts; consumer key-manager.ts:26"
+    },
+    {
+      "id": "telemetry-fallback-events",
+      "kind": "module",
+      "name": "Postgres table fallback_events",
+      "currentPath": "packages/api/src/db/schema/telemetry.ts",
+      "summary": "One row per model resolution recording the full attempt chain (provider, model, reason, latency). Written by fallback-engine, read only by the DEAD fallback-stats admin route.",
+      "proposedOwner": "relay",
+      "targetPath": "relay:telemetry",
+      "dependsOn": [
+        "fallback-engine",
+        "dead-internal-providers-router"
+      ],
+      "removalGate": "Its only reader is unmounted, so it is write-only today. Decide explicitly whether Alia wants routing telemetry at all after the switch, rather than letting it vanish.",
+      "evidence": "packages/api/src/db/schema/telemetry.ts:156; writer packages/api/src/internal/providers/lib/fallback-engine.ts:30; reader packages/api/src/internal/providers/routes/fallback-stats.ts (unmounted)"
+    },
+    {
+      "id": "telemetry-provider-columns-elsewhere",
+      "kind": "module",
+      "name": "provider columns on chat_analytics, voice_call_usage, cost_entries",
+      "currentPath": "packages/api/src/db/schema/usage.ts",
+      "summary": "Three usage tables persist the internal provider name per row. cost_entries additionally stores actualProvider/actualModelId alongside the branded aliasModelId.",
+      "proposedOwner": "alia",
+      "targetPath": "keep (decide the value going forward)",
+      "dependsOn": [
+        "schema-provider-keys"
+      ],
+      "removalGate": "After the switch these columns record which provider RELAY chose \u2014 either Relay must report it back, or the columns become permanently null and every query grouping on them silently returns nothing.",
+      "evidence": "packages/api/src/db/schema/usage.ts:114 (chat_analytics.provider), :189 (voice_call_usage.provider); packages/api/src/lib/cost-tracker.ts:47-49"
+    },
+    {
+      "id": "observability-provider-metrics",
+      "kind": "module",
+      "name": "Prometheus provider metrics",
+      "currentPath": "packages/api/src/lib/observability/metrics.ts",
+      "summary": "alia_provider_requests_total / alia_provider_errors_total / alia_provider_latency_seconds, all labelled {provider, model}. Plus a 'provider_cascade' critical alert when a share of provider keys have failed.",
+      "proposedOwner": "alia",
+      "targetPath": "keep (relabel)",
+      "dependsOn": [
+        "chat-core-get-ai-model",
+        "key-manager"
+      ],
+      "removalGate": "The provider LABEL becomes meaningless once Relay routes. The cascade alert reads key counts that will no longer exist. Both need redefining before provider_keys goes.",
+      "evidence": "packages/api/src/lib/observability/metrics.ts:167-169, :204-208; packages/api/src/lib/observability/alerts.ts:99-105"
+    },
+    {
+      "id": "cost-calculator",
+      "kind": "module",
+      "name": "cost-calculator.ts (savings vs the priciest provider in tier)",
+      "currentPath": "packages/api/src/lib/cost-calculator.ts",
+      "summary": "Product feature: shows the user what Alia's routing saved them, by comparing the actual provider's price to the most expensive mapping in the same tier. Imports TIER_MODEL_MAPPINGS from internal/providers DIRECTLY, bypassing gateway-client.",
+      "proposedOwner": "alia",
+      "targetPath": "keep (source pricing from Relay)",
+      "dependsOn": [
+        "tier-mappings-generated",
+        "alia-models"
+      ],
+      "removalGate": "One of only three product files that reach into internal/providers WITHOUT going through gateway-client, so a facade-only migration misses it. Needs per-tier pricing from Relay or the feature dies.",
+      "evidence": "packages/api/src/lib/cost-calculator.ts:11-12"
+    },
+    {
+      "id": "cost-tracker-pricing",
+      "kind": "module",
+      "name": "cost-tracker.ts getModelPricing dependency",
+      "currentPath": "packages/api/src/lib/cost-tracker.ts",
+      "summary": "Re-prices cost rows in JavaScript using the hardcoded MODEL_PRICING table, imported directly from internal/providers. Its own docstring records that NOTHING calls recordCost, so cost_entries is empty.",
+      "proposedOwner": "alia",
+      "targetPath": "keep (source pricing from Relay)",
+      "dependsOn": [
+        "model-capabilities-data"
+      ],
+      "removalGate": "Second of the three direct internal/providers importers outside gateway-client.",
+      "evidence": "packages/api/src/lib/cost-tracker.ts:17-25 (nothing calls recordCost), :39"
+    },
+    {
+      "id": "show-pipeline-provider-calls",
+      "kind": "module",
+      "name": "show-pipeline.ts direct provider calls",
+      "currentPath": "packages/api/src/lib/show/show-pipeline.ts",
+      "summary": "Third direct internal/providers importer: imports callProviderAPI and the DO helpers straight from internal/providers, and HARDCODES provider:'digitalocean' + 'fal-ai/stable-audio-25/text-to-audio' for sound effects (170s timeout, 1 attempt).",
+      "proposedOwner": "relay",
+      "targetPath": "relay:audio",
+      "dependsOn": [
+        "provider-api",
+        "digitalocean-async",
+        "gwc-import-synthesize-speech"
+      ],
+      "removalGate": "Bypasses gateway-client entirely, so a facade-level migration leaves it calling the old runtime. Must be repointed explicitly.",
+      "evidence": "packages/api/src/lib/show/show-pipeline.ts:22-23, :362, :371-384"
+    },
+    {
+      "id": "behaviour-chat-streaming",
+      "kind": "behaviour",
+      "name": "MODALITY chat + streaming: timeouts, retries, fallback, cancellation",
+      "currentPath": "packages/api/src/routes/v1/chat-completions.ts",
+      "summary": "Global request timeout 80s (chosen to beat a ~120s gateway limit). Per-provider first-byte abort 20s. AI SDK maxRetries=0 so failover is application-level. Provider retry budget = max(tierMappings.length, 5). Time-budget guard breaks the loop with 10s left. auth/rate_limit are KEY-level (retry same provider, next key); timeout/unknown skip the provider. Cancellation: req.on('close') aborts; a mid-stream timeout sends a graceful finish instead of an error. In-stream synthesis retry uses a fresh 30s AbortController.",
+      "proposedOwner": "relay",
+      "targetPath": "relay:chat (Alia keeps the global timeout + SSE contract)",
+      "dependsOn": [
+        "chat-core-get-ai-model",
+        "chat-model-config-provider-branches",
+        "gwc-import-v1-chat-completions",
+        "gwc-import-chat-service"
+      ],
+      "removalGate": "Relay must expose per-attempt failover semantics OR accept that Alia's 80s budget now covers a network hop it does not control. The 20s first-byte abort is the number most likely to be wrong after the hop is added.",
+      "evidence": "packages/api/src/routes/v1/chat-completions.ts:44, :47-63, :94; packages/api/src/lib/chat/model-config.ts:63, :116-124; packages/api/src/lib/chat/provider-loop.ts:120-137, :213, :375; packages/api/src/lib/chat/stream-runner.ts:328-333"
+    },
+    {
+      "id": "behaviour-images",
+      "kind": "behaviour",
+      "name": "MODALITY images: timeouts, retries, fallback, cancellation",
+      "currentPath": "packages/api/src/routes/v1/images.ts",
+      "summary": "Global 60s AbortController; walk v1-image mappings in priority order with timeout 30s and maxAttempts 1 each (fail fast, next provider); abort checked at the top of each iteration; exhaustion returns 504 if the global abort fired else 503. THREE independent copies of this loop exist (v1/images.ts, agents-avatar.ts, canvas/execute.ts) with slightly different error mapping.",
+      "proposedOwner": "relay",
+      "targetPath": "relay:images",
+      "dependsOn": [
+        "provider-api",
+        "digitalocean-async",
+        "tier-mappings-generated"
+      ],
+      "removalGate": "All three copies must move together; agents-avatar additionally maps content_filter to a 400, which Relay must preserve as a distinguishable reason.",
+      "evidence": "packages/api/src/routes/v1/images.ts:21-23, :66-101, :103-107; packages/api/src/routes/agents-avatar.ts:137-170; packages/api/src/routes/canvas/execute.ts:256-280"
+    },
+    {
+      "id": "behaviour-tts",
+      "kind": "behaviour",
+      "name": "MODALITY TTS: timeouts, retries, fallback, cancellation",
+      "currentPath": "packages/api/src/lib/synthesize-speech.ts",
+      "summary": "Route-level global 55s abort; per mapping maxAttempts 1 and a MODEL-DEPENDENT timeout \u2014 getProviderTimeout returns 120s for fal-ai/* models and 15s otherwise. Voice name translated per provider before the call; the real output container is returned separately. S3 upload has its own 15s race. Cached audio on the message short-circuits the whole path.",
+      "proposedOwner": "relay",
+      "targetPath": "relay:tts",
+      "dependsOn": [
+        "gwc-import-synthesize-speech",
+        "tts-providers",
+        "provider-api",
+        "digitalocean-async"
+      ],
+      "removalGate": "getProviderTimeout's fal-ai/ prefix test lives in gateway-client.ts:316-321 \u2014 a provider model-id string inside the facade. Relay must own that timing decision.",
+      "evidence": "packages/api/src/routes/v1/audio.ts:36-38, :118-130; packages/api/src/lib/synthesize-speech.ts:45-60; packages/api/src/lib/gateway-client.ts:316-321"
+    },
+    {
+      "id": "behaviour-audio-generation",
+      "kind": "behaviour",
+      "name": "MODALITY audio generation: async job, 3-minute budget",
+      "currentPath": "packages/api/src/routes/v1/audio.ts",
+      "summary": "POST /v1/audio/generate returns 202 with a jobId immediately, then a background worker runs with GEN_TIMEOUT_MS=180s and a 170s provider timeout, maxAttempts 1, single hardcoded provider+model. Result polled via GET /v1/audio/jobs/:jobId; progress pushed over Socket.IO. Credits are finalised at zero on failure.",
+      "proposedOwner": "relay",
+      "targetPath": "relay:audio",
+      "dependsOn": [
+        "provider-api",
+        "digitalocean-async",
+        "gwc-import-v1-audio"
+      ],
+      "removalGate": "The 202-plus-poll shape exists because generation exceeds a proxy timeout. Relay must either keep the async contract or Alia must keep its own job table.",
+      "evidence": "packages/api/src/routes/v1/audio.ts:166-223, :239-325, :336-370"
+    },
+    {
+      "id": "behaviour-transcription",
+      "kind": "behaviour",
+      "name": "MODALITY transcription: timeouts, retries, fallback",
+      "currentPath": "packages/api/src/routes/v1/voice.ts",
+      "summary": "POST /v1/voice/transcribe: global 55s abort, walks the audio tier with timeout 15s and 1 attempt each, endpoint /v1/audio/transcriptions with multipart audio (gateway-client converts base64 to FormData for the local path). Exhaustion returns 503; global abort returns a TIMEOUT code.",
+      "proposedOwner": "relay",
+      "targetPath": "relay:transcription",
+      "dependsOn": [
+        "provider-api",
+        "gateway-client",
+        "gwc-import-v1-voice"
+      ],
+      "removalGate": "The base64-to-FormData conversion lives in gateway-client.ts:355-366; Relay's contract must accept audio directly.",
+      "evidence": "packages/api/src/routes/v1/voice.ts:265, :304-347; packages/api/src/lib/gateway-client.ts:355-366"
+    },
+    {
+      "id": "behaviour-voice-realtime",
+      "kind": "behaviour",
+      "name": "MODALITY realtime voice: connection timeouts, inactivity, billing",
+      "currentPath": "packages/api/src/internal/providers/lib/voice-session-manager.ts",
+      "summary": "WebSocket handshakeTimeout 10s plus a 10s connect promise timeout. MAX_SESSIONS_PER_USER=5, per-minute billing tick (60s), user-silence timeout 20s, cohost inactivity 30s, cohost check-in wait 15s, MAX_RECENT_TRANSCRIPTS=5, VOICE_MAX_TOOL_ROUNDS=3. No provider FAILOVER at all: a provider socket error closes the session ('provider_error'). Session duration additionally capped by the plan's voice-minutes entitlement.",
+      "proposedOwner": "relay",
+      "targetPath": "relay:voice",
+      "dependsOn": [
+        "voice-session-manager",
+        "adapter-openai-voice",
+        "adapter-grok-voice",
+        "env-livekit"
+      ],
+      "removalGate": "This is the only modality with NO fallback. If Relay adds a hop, the 10s connect budget and the 20s silence timer both need re-derivation, and 'provider_error' must not become 'relay_error' in a user-facing string.",
+      "evidence": "packages/api/src/internal/providers/lib/voice-session-manager.ts:99-104, :43, :229, :536-546; packages/api/src/internal/providers/lib/providers/openai-voice.ts:48, :52-55; packages/api/src/routes/v1/voice.ts:42-60 (entitlement + minutes cap)"
+    },
+    {
+      "id": "behaviour-embeddings",
+      "kind": "behaviour",
+      "name": "MODALITY embeddings: NO timeout, NO fallback, silent null",
+      "currentPath": "packages/api/src/lib/memory/embeddings.ts",
+      "summary": "The only modality with no timeout and no tier mapping: a single hardcoded provider/model, inheriting provider-api's maxAttempts=3 with NO per-attempt timeout, and returning null on any failure so memory search silently degrades.",
+      "proposedOwner": "relay",
+      "targetPath": "relay:embeddings",
+      "dependsOn": [
+        "gwc-import-embeddings",
+        "provider-api"
+      ],
+      "removalGate": "A hop to Relay without a timeout means a hung Relay hangs memory writes for as long as the socket stays open. Add a timeout as part of the move, and preserve 1536 dimensions.",
+      "evidence": "packages/api/src/lib/memory/embeddings.ts:20-32 (no timeout/maxAttempts passed); default at packages/api/src/internal/providers/lib/provider-api.ts:103 (maxAttempts=3, timeout undefined)"
+    },
+    {
+      "id": "behaviour-provider-loop-key-vs-provider",
+      "kind": "behaviour",
+      "name": "Key-level vs provider-level failure discrimination",
+      "currentPath": "packages/api/src/lib/chat/provider-loop.ts",
+      "summary": "KEY_LEVEL_REASONS = {auth, rate_limit} -> add the key id to failedKeyIds and retry the SAME provider; everything else -> add the provider to skipProviders. This two-tier retry is invisible from outside and is the behaviour most likely to be silently dropped in a port.",
+      "proposedOwner": "relay",
+      "targetPath": "relay:routing",
+      "dependsOn": [
+        "behaviour-chat-streaming",
+        "fallback-engine",
+        "key-manager"
+      ],
+      "removalGate": "Relay must distinguish 'this credential is bad' from 'this provider is down', or a single bad key takes a whole provider out of rotation for the request.",
+      "evidence": "packages/api/src/lib/chat/provider-loop.ts:125-126, :139-148, :375"
+    },
+    {
+      "id": "hostname-openai",
+      "kind": "hostname",
+      "name": "api.openai.com",
+      "currentPath": "packages/api/src/internal/providers/lib/providers/openai.ts",
+      "summary": "Chat completions, embeddings, images, TTS, transcription. Reached from provider-api (PROVIDER_BASES), the dead adapter, provider-warmup and (via the AI SDK default) chat-core.",
+      "proposedOwner": "relay",
+      "targetPath": "relay",
+      "dependsOn": [
+        "provider-api",
+        "chat-core-get-ai-model",
+        "provider-warmup"
+      ],
+      "removalGate": "Egress from Alia's ECS tasks to this host should be zero before the epic is called done.",
+      "evidence": "packages/api/src/internal/providers/lib/providers/openai.ts:10; packages/api/src/internal/providers/lib/provider-api.ts:33; packages/api/src/lib/provider-warmup.ts:14"
+    },
+    {
+      "id": "hostname-openai-realtime",
+      "kind": "hostname",
+      "name": "wss://api.openai.com/v1/realtime",
+      "currentPath": "packages/api/src/internal/providers/lib/providers/openai-voice.ts",
+      "summary": "Realtime voice WebSocket. NOT matched by an https:// grep \u2014 found only on a second wss:// pass.",
+      "proposedOwner": "relay",
+      "targetPath": "relay",
+      "dependsOn": [
+        "adapter-openai-voice"
+      ],
+      "removalGate": "LIVE. Gated on the voice-session-manager split.",
+      "evidence": "packages/api/src/internal/providers/lib/providers/openai-voice.ts:39"
+    },
+    {
+      "id": "hostname-anthropic",
+      "kind": "hostname",
+      "name": "api.anthropic.com",
+      "currentPath": "packages/api/src/internal/providers/lib/providers/anthropic.ts",
+      "summary": "Messages API. Live via the AI SDK's createAnthropic default base URL; also warmed at boot.",
+      "proposedOwner": "relay",
+      "targetPath": "relay",
+      "dependsOn": [
+        "chat-core-get-ai-model",
+        "provider-warmup"
+      ],
+      "removalGate": "As hostname-openai.",
+      "evidence": "packages/api/src/internal/providers/lib/providers/anthropic.ts:11; packages/api/src/lib/provider-warmup.ts:15"
+    },
+    {
+      "id": "hostname-google",
+      "kind": "hostname",
+      "name": "generativelanguage.googleapis.com",
+      "currentPath": "packages/api/src/internal/providers/lib/providers/google.ts",
+      "summary": "Gemini generateContent / streamGenerateContent, plus the Gemini TTS branch. The dead adapter puts the API KEY IN THE QUERY STRING; the live TTS branch deliberately uses the x-goog-api-key header instead.",
+      "proposedOwner": "relay",
+      "targetPath": "relay",
+      "dependsOn": [
+        "chat-core-get-ai-model",
+        "provider-api",
+        "provider-warmup"
+      ],
+      "removalGate": "As hostname-openai. Note the key-in-URL inconsistency when deciding what to port.",
+      "evidence": "packages/api/src/internal/providers/lib/providers/google.ts:22 (key in query string); packages/api/src/internal/providers/lib/provider-api.ts:166-169 (header, with a comment explaining why)"
+    },
+    {
+      "id": "hostname-xai-realtime",
+      "kind": "hostname",
+      "name": "wss://api.x.ai/v1/realtime (and https://api.x.ai/v1)",
+      "currentPath": "packages/api/src/internal/providers/lib/providers/grok-voice.ts",
+      "summary": "Grok realtime voice (live) and Grok chat via the OpenAI-compatible base URL (chat-core).",
+      "proposedOwner": "relay",
+      "targetPath": "relay",
+      "dependsOn": [
+        "adapter-grok-voice",
+        "chat-core-get-ai-model"
+      ],
+      "removalGate": "LIVE for voice.",
+      "evidence": "packages/api/src/internal/providers/lib/providers/grok-voice.ts:73; packages/api/src/lib/chat-core.ts:168"
+    },
+    {
+      "id": "hostname-digitalocean",
+      "kind": "hostname",
+      "name": "inference.do-ai.run",
+      "currentPath": "packages/api/src/internal/providers/lib/digitalocean-async.ts",
+      "summary": "DO Gradient: chat completions plus the async-invoke pattern used for fal-ai TTS, image and audio generation. The most operationally load-bearing non-chat host.",
+      "proposedOwner": "relay",
+      "targetPath": "relay",
+      "dependsOn": [
+        "digitalocean-async",
+        "provider-api",
+        "chat-core-get-ai-model"
+      ],
+      "removalGate": "LIVE for images, TTS and audio generation.",
+      "evidence": "packages/api/src/internal/providers/lib/digitalocean-async.ts:12; packages/api/src/internal/providers/lib/provider-api.ts:36; packages/api/src/lib/chat-core.ts:192"
+    },
+    {
+      "id": "hostname-do-asset-urls",
+      "kind": "hostname",
+      "name": "DYNAMIC: arbitrary result URLs returned by DO async-invoke",
+      "currentPath": "packages/api/src/internal/providers/lib/digitalocean-async.ts",
+      "summary": "downloadBinaryFromUrl fetches whatever URL the provider's output object names, with no allow-list. Also fetch(generatedUrl) in routes/v1/audio.ts:286. An SSRF-shaped surface that no hostname grep can enumerate.",
+      "proposedOwner": "relay",
+      "targetPath": "relay",
+      "dependsOn": [
+        "digitalocean-async"
+      ],
+      "removalGate": "Egress rules cannot be written from a static host list while this exists. Relay should return bytes, not a URL Alia must fetch.",
+      "evidence": "packages/api/src/internal/providers/lib/digitalocean-async.ts:168-177; packages/api/src/routes/v1/audio.ts:286"
+    },
+    {
+      "id": "hostname-groq",
+      "kind": "hostname",
+      "name": "api.groq.com",
+      "currentPath": "packages/api/src/lib/chat-core.ts",
+      "summary": "OpenAI-compatible chat. LIVE via chat-core; also in provider-api's PROVIDER_BASES and warmed at boot.",
+      "proposedOwner": "relay",
+      "targetPath": "relay",
+      "dependsOn": [
+        "chat-core-get-ai-model",
+        "provider-api",
+        "provider-warmup"
+      ],
+      "removalGate": "As hostname-openai.",
+      "evidence": "packages/api/src/lib/chat-core.ts:129; packages/api/src/internal/providers/lib/provider-api.ts:34; packages/api/src/lib/provider-warmup.ts:17"
+    },
+    {
+      "id": "hostname-openrouter",
+      "kind": "hostname",
+      "name": "openrouter.ai",
+      "currentPath": "packages/api/src/lib/chat-core.ts",
+      "summary": "OpenAI-compatible chat. LIVE. The dead adapter also sends an 'HTTP-Referer: https://alia-ai.com' ranking header naming a domain Alia does not otherwise use.",
+      "proposedOwner": "relay",
+      "targetPath": "relay",
+      "dependsOn": [
+        "chat-core-get-ai-model",
+        "provider-api",
+        "provider-warmup"
+      ],
+      "removalGate": "As hostname-openai.",
+      "evidence": "packages/api/src/lib/chat-core.ts:149; packages/api/src/internal/providers/lib/providers/openrouter.ts:29 (alia-ai.com referer)"
+    },
+    {
+      "id": "hostname-cloudflare-ai",
+      "kind": "hostname",
+      "name": "api.cloudflare.com (Workers AI)",
+      "currentPath": "packages/api/src/lib/chat-core.ts",
+      "summary": "Per-account AI base URL built from the composite credential. NOTE the same hostname appears in .github/workflows/setup-mention-mcp-dns.yml for DNS \u2014 do not treat every hit as inference.",
+      "proposedOwner": "relay",
+      "targetPath": "relay",
+      "dependsOn": [
+        "chat-core-get-ai-model",
+        "adapter-cloudflare"
+      ],
+      "removalGate": "As hostname-openai, but the DNS workflow's use of the same host must survive.",
+      "evidence": "packages/api/src/lib/chat-core.ts:159; .github/workflows/setup-mention-mcp-dns.yml:21-35 (unrelated DNS use)"
+    },
+    {
+      "id": "hostname-openai-compatible-others",
+      "kind": "hostname",
+      "name": "api.together.ai, api.cerebras.ai, api.mistral.ai, api.deepseek.com, api.replicate.com, api.cohere.ai, api.fireworks.ai, api.perplexity.ai, api.sambanova.ai, api.hyperbolic.xyz, api.novita.ai",
+      "currentPath": "packages/api/src/lib/chat-core.ts",
+      "summary": "11 further OpenAI-compatible chat hosts, each reachable LIVE from chat-core's switch. together/cerebras/mistral/deepseek are additionally warmed at boot and additionally duplicated in packages/integrations' dead model-resolver.",
+      "proposedOwner": "relay",
+      "targetPath": "relay",
+      "dependsOn": [
+        "chat-core-get-ai-model",
+        "provider-warmup",
+        "integrations-model-resolver"
+      ],
+      "removalGate": "As hostname-openai. Egress to all 11 should be zero after the switch.",
+      "evidence": "packages/api/src/lib/chat-core.ts:133, :137, :141, :145, :153, :164, :172, :176, :180, :184, :188; packages/api/src/lib/provider-warmup.ts:18-22"
+    },
+    {
+      "id": "hostname-zeroeval",
+      "kind": "hostname",
+      "name": "api.zeroeval.com",
+      "currentPath": "packages/api/src/scripts/sync-zeroeval.ts",
+      "summary": "NOT an inference host. Public model-leaderboard mirror. Listed so an egress allow-list review does not misclassify it in either direction.",
+      "proposedOwner": "alia",
+      "targetPath": "keep",
+      "dependsOn": [
+        "script-sync-zeroeval"
+      ],
+      "removalGate": "Unrelated to the epic.",
+      "evidence": "packages/api/src/scripts/sync-zeroeval.ts:8"
+    },
+    {
+      "id": "sdk-ai",
+      "kind": "dependency",
+      "name": "ai (Vercel AI SDK core)",
+      "currentPath": "packages/api/package.json, packages/integrations/package.json",
+      "summary": "^6.0.225 in both packages. Provides streamText/generateText/generateObject/tool. In packages/api it is imported by 40+ files, so it is NOT removable with the providers \u2014 only its model-construction usage is.",
+      "proposedOwner": "alia",
+      "targetPath": "keep",
+      "dependsOn": [
+        "chat-core-get-ai-model"
+      ],
+      "removalGate": "Only removable if Relay replaces the tool-calling loop too. Do not schedule this for deletion with the @ai-sdk/* provider packages.",
+      "evidence": "packages/api/package.json dependencies.ai; 40+ importers found by grep \"from 'ai'\""
+    },
+    {
+      "id": "sdk-ai-sdk-openai",
+      "kind": "dependency",
+      "name": "@ai-sdk/openai",
+      "currentPath": "packages/api/package.json",
+      "summary": "^3.0.84. Imported once in packages/api (chat-core.ts:9) and used for 17 of the 19 providers via createOpenAI({baseURL}).",
+      "proposedOwner": "relay",
+      "targetPath": "relay",
+      "dependsOn": [
+        "chat-core-get-ai-model"
+      ],
+      "removalGate": "Removable from packages/api once getAIModel returns a Relay-backed model.",
+      "evidence": "packages/api/package.json; packages/api/src/lib/chat-core.ts:9 (sole importer in packages/api)"
+    },
+    {
+      "id": "sdk-ai-sdk-anthropic",
+      "kind": "dependency",
+      "name": "@ai-sdk/anthropic",
+      "currentPath": "packages/api/package.json",
+      "summary": "^3.0.96. Sole importer packages/api/src/lib/chat-core.ts:10.",
+      "proposedOwner": "relay",
+      "targetPath": "relay",
+      "dependsOn": [
+        "chat-core-get-ai-model"
+      ],
+      "removalGate": "As sdk-ai-sdk-openai.",
+      "evidence": "packages/api/package.json; packages/api/src/lib/chat-core.ts:10"
+    },
+    {
+      "id": "sdk-ai-sdk-google",
+      "kind": "dependency",
+      "name": "@ai-sdk/google",
+      "currentPath": "packages/api/package.json",
+      "summary": "^3.0.91. Sole importer packages/api/src/lib/chat-core.ts:8.",
+      "proposedOwner": "relay",
+      "targetPath": "relay",
+      "dependsOn": [
+        "chat-core-get-ai-model"
+      ],
+      "removalGate": "As sdk-ai-sdk-openai.",
+      "evidence": "packages/api/package.json; packages/api/src/lib/chat-core.ts:8"
+    },
+    {
+      "id": "sdk-integrations-ai-sdk",
+      "kind": "dependency",
+      "name": "@ai-sdk/{openai,anthropic,google} in packages/integrations",
+      "currentPath": "packages/integrations/package.json",
+      "summary": "Three provider SDKs whose ONLY importer in that package is the orphaned shared/model-resolver.ts. Deletable today.",
+      "proposedOwner": "delete",
+      "targetPath": "delete",
+      "dependsOn": [
+        "integrations-model-resolver"
+      ],
+      "removalGate": "NONE beyond deleting model-resolver.ts. `ai` itself must stay (browser/tools.ts:5, terminal/tools.ts:5).",
+      "evidence": "packages/integrations/package.json; sole importer packages/integrations/src/shared/model-resolver.ts:6-8"
+    },
+    {
+      "id": "sdk-openai-clients",
+      "kind": "dependency",
+      "name": "openai npm package in alia-codea, alia-codea-cli, alia-cowork",
+      "currentPath": "packages/alia-codea/package.json, packages/alia-codea-cli/package.json, packages/alia-cowork/package.json",
+      "summary": "NOT provider dependencies: these are CLIENTS of Alia's own OpenAI-compatible API (alia-cowork defaults apiBaseUrl to https://api.alia.onl, model 'alia-v1-cowork'). Version drift: ^6.46.0 in codea/codea-cli, ^4.104.0 in cowork.",
+      "proposedOwner": "alia",
+      "targetPath": "keep",
+      "dependsOn": [],
+      "removalGate": "Do NOT delete in a provider sweep. They only require that Alia keeps serving an OpenAI-compatible /v1 surface after the Relay switch \u2014 which is itself a contract Relay must not break.",
+      "evidence": "packages/alia-cowork/src/main/chat.ts:7, :28-31; packages/alia-codea/src/chatProvider.ts:2, :9-16; packages/alia-codea-cli/src/utils/api.ts:1"
+    },
+    {
+      "id": "sdk-livekit",
+      "kind": "dependency",
+      "name": "@livekit/agents, @livekit/rtc-node, livekit-server-sdk, livekit-client, @livekit/react-native",
+      "currentPath": "packages/api/package.json, packages/app/package.json, packages/alia-chat/package.json",
+      "summary": "Voice TRANSPORT, not provider inference. Alia terminates LiveKit and bridges audio to the provider realtime socket.",
+      "proposedOwner": "alia",
+      "targetPath": "keep",
+      "dependsOn": [
+        "behaviour-voice-realtime"
+      ],
+      "removalGate": "Stays with Alia unless Relay also terminates LiveKit, which would move the client SDKs' server target too.",
+      "evidence": "packages/api/package.json (@livekit/agents ^1.5.2, @livekit/rtc-node ^0.13.31, livekit-server-sdk ^2.17.0); packages/app/package.json; packages/alia-chat/package.json peerDependencies"
+    },
+    {
+      "id": "env-grok-api-key",
+      "kind": "env",
+      "name": "GROK_API_KEY",
+      "currentPath": "packages/api/.env.example",
+      "summary": "The ONLY provider-credential environment variable in the whole repo, and it is inert: its single read is `!!process.env.GROK_API_KEY || true`, which is always true. Every real credential comes from provider_keys.",
+      "proposedOwner": "delete",
+      "targetPath": "delete",
+      "dependsOn": [
+        "adapter-grok-voice"
+      ],
+      "removalGate": "NONE \u2014 removing it changes no behaviour, which is exactly why it should go rather than be carried into Relay's config as if it mattered.",
+      "evidence": "packages/api/.env.example:108; packages/api/src/internal/providers/lib/providers/grok-voice.ts:52 (only read repo-wide)"
+    },
+    {
+      "id": "env-gateway-api-url",
+      "kind": "env",
+      "name": "GATEWAY_API_URL",
+      "currentPath": "packages/api/src/lib/gateway-client.ts",
+      "summary": "Together with SERVICE_SECRET this flips gateway-client from the local in-process path to HMAC-signed HTTP. The natural place to point Alia at Relay.",
+      "proposedOwner": "alia",
+      "targetPath": "keep (repoint at Relay)",
+      "dependsOn": [
+        "gateway-client",
+        "gateway-admin-ai-tool"
+      ],
+      "removalGate": "Also read by lib/tools/gateway-admin.ts:7 and by the gateway-admin frontend. Setting it to Relay would silently re-enable that broken admin tool against Relay's URL \u2014 deal with the tool first.",
+      "evidence": "packages/api/src/lib/gateway-client.ts:30, :33; packages/api/src/lib/tools/gateway-admin.ts:7; packages/api/.env.example:80"
+    },
+    {
+      "id": "env-service-secret",
+      "kind": "env",
+      "name": "SERVICE_SECRET",
+      "currentPath": ".github/workflows/deploy-aws.yml",
+      "summary": "Synced to SSM /oxy/alia/SERVICE_SECRET. Serves three roles: gateway-client HMAC, the (dead) internal providers module auth, and general service-to-service auth in middleware/auth.ts.",
+      "proposedOwner": "alia",
+      "targetPath": "keep",
+      "dependsOn": [
+        "gateway-client",
+        "dead-providers-auth-middleware"
+      ],
+      "removalGate": "Do NOT remove with the provider cleanup \u2014 packages/api/src/middleware/auth.ts and lib/tools/browse.ts also read it.",
+      "evidence": ".github/workflows/deploy-aws.yml:68, :90; packages/api/src/lib/gateway-client.ts:29; packages/api/src/middleware/auth.ts"
+    },
+    {
+      "id": "env-database-url",
+      "kind": "env",
+      "name": "DATABASE_URL",
+      "currentPath": ".github/workflows/deploy-aws.yml",
+      "summary": "The real provider-credential dependency: provider_keys, model_configs, provider_health and api_usage all live behind it. Required at boot \u2014 connectPostgresOrExit() exits 1 without it.",
+      "proposedOwner": "alia",
+      "targetPath": "keep",
+      "dependsOn": [
+        "schema-provider-keys"
+      ],
+      "removalGate": "Stays; only the provider TABLES leave.",
+      "evidence": ".github/workflows/deploy-aws.yml:67, :89; packages/api/src/index.ts:411-419"
+    },
+    {
+      "id": "env-livekit",
+      "kind": "env",
+      "name": "LIVEKIT_URL / LIVEKIT_INTERNAL_URL / LIVEKIT_API_KEY / LIVEKIT_API_SECRET",
+      "currentPath": "packages/api/src/lib/livekit-token.ts",
+      "summary": "Voice transport credentials, synced to SSM /oxy/_shared/. Required for POST /v1/voice/token (503 without them).",
+      "proposedOwner": "alia",
+      "targetPath": "keep",
+      "dependsOn": [
+        "behaviour-voice-realtime"
+      ],
+      "removalGate": "Stays with Alia unless Relay terminates LiveKit.",
+      "evidence": "packages/api/src/lib/livekit-token.ts:22; .github/workflows/deploy-aws.yml:73-74, :92-93; packages/api/.env.example:103-106"
+    },
+    {
+      "id": "env-allowed-services-admin-usernames",
+      "kind": "env",
+      "name": "ALLOWED_SERVICES / ADMIN_USERNAMES",
+      "currentPath": "packages/api/src/internal/providers/middleware/auth.ts",
+      "summary": "Read ONLY by the dead internal-providers auth middleware. ALLOWED_SERVICES has exactly two occurrences repo-wide (.env.example and that file).",
+      "proposedOwner": "delete",
+      "targetPath": "delete",
+      "dependsOn": [
+        "dead-providers-auth-middleware"
+      ],
+      "removalGate": "NONE. Note ADMIN_USERNAMES is separately hardcoded as `username === 'nate'` in tool-pipeline.ts:130, so removing the env var does not remove the admin gate.",
+      "evidence": "packages/api/src/internal/providers/middleware/auth.ts; packages/api/.env.example:72, :74; .do/app.yaml:118-119; hardcoded gate packages/api/src/lib/tool-pipeline.ts:130"
+    },
+    {
+      "id": "env-vite-gateway-api-url",
+      "kind": "env",
+      "name": "VITE_GATEWAY_API_URL",
+      "currentPath": "packages/alia-gateway-admin/.env.example",
+      "summary": "Frontend base URL for the dead admin panel; defaults to http://localhost:4150/internal/gateway.",
+      "proposedOwner": "delete",
+      "targetPath": "delete",
+      "dependsOn": [
+        "leak-gateway-admin-ui"
+      ],
+      "removalGate": "Goes with the package.",
+      "evidence": "packages/alia-gateway-admin/.env.example:4; packages/alia-gateway-admin/src/lib/api/client.ts:6; packages/alia-gateway-admin/src/lib/websocket/client.ts:34"
+    },
+    {
+      "id": "env-mongodb-uri-legacy",
+      "kind": "env",
+      "name": "MONGODB_URI / CA_CERT (legacy)",
+      "currentPath": "packages/api/.env.example",
+      "summary": "Still declared required in .env.example and .do/app.yaml, still read by lib/db.ts and by the dead internal/providers/lib/db.ts. index.ts's own comment says Mongo no longer exists.",
+      "proposedOwner": "delete",
+      "targetPath": "delete",
+      "dependsOn": [
+        "dead-providers-mongoose-db",
+        "hazard-mongo-gated-boot"
+      ],
+      "removalGate": "Not the provider workstream's call alone \u2014 routes/v1/audio.ts and other product code still use Mongoose Message models. Flagged because the provider cleanup will surface it.",
+      "evidence": "packages/api/.env.example:35; packages/api/src/index.ts:435-446; packages/api/src/routes/v1/audio.ts:58, :136"
+    },
+    {
+      "id": "deploy-secret-list",
+      "kind": "env",
+      "name": "deploy-aws.yml secret allow-list (10 entries, ZERO provider keys)",
+      "currentPath": ".github/workflows/deploy-aws.yml",
+      "summary": "Syncs exactly DATABASE_URL, SERVICE_SECRET, TOKEN_ENCRYPTION_KEY, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, LIVEKIT_API_KEY, LIVEKIT_API_SECRET, REDIS_URL. No OpenAI/Anthropic/Google/etc. key appears anywhere in the deploy path \u2014 confirming provider credentials live only in provider_keys.",
+      "proposedOwner": "alia",
+      "targetPath": "keep",
+      "dependsOn": [
+        "schema-provider-keys",
+        "env-database-url"
+      ],
+      "removalGate": "If Relay needs a shared secret from Alia, it must be ADDED here and to terraform in the same change \u2014 a render carries forward every secret it is not told to replace, so a half-added secret fails only at scale-up.",
+      "evidence": ".github/workflows/deploy-aws.yml:66-76 (env block), :88-97 (sync_secret calls)"
+    },
+    {
+      "id": "hazard-do-app-yaml-gateway-url",
+      "kind": "env",
+      "name": "HAZARD: .do/app.yaml sets GATEWAY_API_URL to the deleted gateway",
+      "currentPath": ".do/app.yaml",
+      "summary": "Sets GATEWAY_API_URL=http://gateway:9091 AND SERVICE_SECRET on the alia service \u2014 the exact pair that flips gateway-client into HTTP mode against a service that no longer exists. It also declares a `gateway` service built with `bun run build:gateway`, a script that no longer exists in the root package.json.",
+      "proposedOwner": "delete",
+      "targetPath": "delete",
+      "dependsOn": [
+        "gateway-client",
+        "env-gateway-api-url"
+      ],
+      "removalGate": "Verify no DigitalOcean app still reads this file before deleting (see residual). If one does, every inference call is already failing there. The AWS pipeline (deploy-aws.yml) sets neither variable.",
+      "evidence": ".do/app.yaml:43-46 (SERVICE_SECRET + GATEWAY_API_URL), :77-90 (gateway service, build:gateway); root package.json scripts contain no build:gateway or start:gateway"
+    },
+    {
+      "id": "hazard-env-example-stale",
+      "kind": "env",
+      "name": "HAZARD: packages/api/.env.example documents a provider architecture that no longer exists",
+      "currentPath": "packages/api/.env.example",
+      "summary": "Header states 'Provider API keys (OpenAI/Anthropic/etc.) are NOT configured here \u2014 they live in the alia-gateway service. The API reaches it via GATEWAY_API_URL + SERVICE_SECRET.' The gateway is deleted and keys live in Postgres. It also lists MONGODB_URI as required and never mentions DATABASE_URL.",
+      "proposedOwner": "alia",
+      "targetPath": "keep (rewrite)",
+      "dependsOn": [
+        "hazard-do-app-yaml-gateway-url",
+        "env-mongodb-uri-legacy"
+      ],
+      "removalGate": "A wrong instruction survives forever in a dotenv template. Fix in the same change that touches gateway-client, or the next operator wires GATEWAY_API_URL at a dead host.",
+      "evidence": "packages/api/.env.example:15-17, :31-35, :76-80"
+    },
+    {
+      "id": "hazard-mongo-gated-boot",
+      "kind": "behaviour",
+      "name": "HAZARD: warmupGatewayClient and syncZeroEval never run (Mongo-gated boot)",
+      "currentPath": "packages/api/src/index.ts",
+      "summary": "startBackgroundServices() is called only from connectWithRetry()'s success branch. The file's own comment states Mongo no longer exists and the retry loop therefore never succeeds, so the gateway-client cache warm-up and the leaderboard sync are dead in production. warmupProviders() is NOT affected \u2014 it sits outside the gate and does run.",
+      "proposedOwner": "alia",
+      "targetPath": "keep (fix)",
+      "dependsOn": [
+        "gwc-import-index-warmup",
+        "script-sync-zeroeval",
+        "provider-warmup"
+      ],
+      "removalGate": "Relevant to the epic because 'we warm the model cache at boot' is false today; any Relay design that assumes a warmed cache is designing against fiction.",
+      "evidence": "packages/api/src/index.ts:338-344 (startBackgroundServices), :386-398 (only caller), :435-446 (the comment), :449 (warmupProviders, outside the gate)"
+    },
+    {
+      "id": "hazard-plaintext-key-in-memory",
+      "kind": "behaviour",
+      "name": "HAZARD: provider credentials held in process memory for 10 minutes",
+      "currentPath": "packages/api/src/lib/chat-core.ts",
+      "summary": "The provider-instance TTLCache is keyed `${provider}|${baseURL}|${apiKey}` with ttlMs 10 minutes and maxSize 200, so up to 200 plaintext provider credentials sit in a module-level map in Alia's process, and each appears in a cache KEY.",
+      "proposedOwner": "relay",
+      "targetPath": "relay",
+      "dependsOn": [
+        "chat-core-get-ai-model",
+        "schema-provider-keys"
+      ],
+      "removalGate": "Disappears for free once Relay holds the credentials \u2014 this is one of the strongest arguments for the epic, and worth stating in the PR.",
+      "evidence": "packages/api/src/lib/chat-core.ts:86, :94"
+    },
+    {
+      "id": "docs-provider-surface",
+      "kind": "module",
+      "name": "Documentation naming providers and provider files",
+      "currentPath": "docs/model-abstraction.mdx, docs/chat-runtime.mdx, docs/onboarding.md, docs/index.mdx, AGENTS.md",
+      "summary": "Five documents describe the provider runtime by FILE PATH (alia-models.ts, generate-model-mappings.ts, fallback-engine.ts, provider-names.ts, tts-providers.ts, gateway-client.ts) and by provider name. AGENTS.md additionally states the gateway-client seam rule.",
+      "proposedOwner": "alia",
+      "targetPath": "keep (rewrite in the same change)",
+      "dependsOn": [
+        "gateway-client",
+        "provider-names",
+        "tier-mappings-generated"
+      ],
+      "removalGate": "Per the org standard, docs/comments/log strings are where a wrong statement survives forever. Every file path named in these five documents is a candidate for deletion by this epic; sweep them in the same PR, not after.",
+      "evidence": "docs/model-abstraction.mdx:13, :83, :87, :102, :121, :137, :142; docs/index.mdx:155; docs/onboarding.md:81, :176-177; AGENTS.md:66, :172-183"
+    },
+    {
+      "id": "livekit-agent-bridge",
+      "kind": "module",
+      "name": "livekit-agent.ts (LiveKit <-> provider audio bridge)",
+      "currentPath": "packages/api/src/lib/livekit-agent.ts",
+      "summary": "Joins a LiveKit room as an agent participant and pumps PCM16 audio both ways between LiveKit tracks and the provider realtime WebSocket, plus transcripts over the data channel. 24 kHz mono.",
+      "proposedOwner": "alia",
+      "targetPath": "keep (retarget the socket)",
+      "dependsOn": [
+        "voice-session-manager",
+        "types-voice",
+        "behaviour-voice-realtime",
+        "sdk-livekit"
+      ],
+      "removalGate": "STAYS IN ALIA \u2014 it is LiveKit plumbing, not provider logic. What changes is WHICH socket it pumps into. Note it imports AgentDataMessage/LiveKitAgentBridgeRef type-only from internal/providers/lib/types-voice.js, so a directory-scoped deletion breaks its typecheck.",
+      "evidence": "packages/api/src/lib/livekit-agent.ts:1-13, :26 (type import from internal/providers), :29-30 (SAMPLE_RATE 24000, NUM_CHANNELS 1)"
+    },
+    {
+      "id": "credits-manager-voice",
+      "kind": "module",
+      "name": "credits-manager reserveVoiceCredits / finalizeVoiceCredits",
+      "currentPath": "packages/api/src/lib/credits-manager.ts",
+      "summary": "Per-minute voice billing. voice-session-manager reserves 1 minute up front at the mapping's costPerMinute and finalises on close, separately for the primary and the cohost agent.",
+      "proposedOwner": "alia",
+      "targetPath": "keep",
+      "dependsOn": [
+        "voice-session-manager",
+        "behaviour-voice-realtime",
+        "tier-mappings-generated"
+      ],
+      "removalGate": "STAYS IN ALIA (credits are Alia's), but costPerMinute comes from the ModelMapping, i.e. from the provider routing table. Relay must report a per-minute cost or voice billing silently reserves at zero.",
+      "evidence": "packages/api/src/lib/credits-manager.ts:292, :319; packages/api/src/internal/providers/lib/voice-session-manager.ts:27-28, :160, :325, :332, :680, :797"
+    },
+    {
+      "id": "db-alia-model-repository",
+      "kind": "module",
+      "name": "db/providers/* repositories (4 files)",
+      "currentPath": "packages/api/src/db/providers/",
+      "summary": "aliaModelRepository, modelConfigRepository, providerKeyRepository, externalModelRepository \u2014 every statement against the four provider tables. Consumers: key-manager (providerKey), alia-models (listAliaModels for isLegacy), routes/external-models + sync-zeroeval (external), and the dead admin routes/seeds for the rest.",
+      "proposedOwner": "relay",
+      "targetPath": "relay:store (externalModelRepository stays alia)",
+      "dependsOn": [
+        "schema-provider-keys",
+        "schema-model-configs",
+        "schema-external-models",
+        "key-manager",
+        "alia-models"
+      ],
+      "removalGate": "SPLIT: externalModelRepository is the leaderboard mirror and stays. The other three go with their tables. aliaModelRepository.listAliaModels is the one live read outside the dead subtree (the isLegacy flag) and needs an Alia-side home.",
+      "evidence": "packages/api/src/db/providers/aliaModelRepository.ts:148 (listAliaModels); live consumer packages/api/src/internal/providers/lib/alia-models.ts:245, :311; packages/api/src/db/providers/providerKeyRepository.ts consumed by key-manager.ts:26"
+    }
+  ],
+  "counts": {
+    "adapters": 21,
+    "adaptersDetail": "19 text-chat Provider adapters + 2 realtime VoiceProvider adapters; 22 files in the directory including index.ts. Only the 2 voice adapters are reachable at runtime.",
+    "gatewayClientImporters": 21,
+    "gatewayClientImportersDetail": "21 non-test importer files plus 1 test that vi.mocks the module. Of the 21, 3 are billing-only (plan-access, stripe-prices, billing) and touch no provider data. The larger real chokepoint is chat-core.ts with 32 non-test importers.",
+    "providerHostnames": 20,
+    "providerHostnamesDetail": "19 inference hostnames (openai, openai-realtime-wss, anthropic, google, groq, openrouter, digitalocean, xai incl. wss, mistral, deepseek, cerebras, together, fireworks, perplexity, novita, hyperbolic, sambanova, cohere, replicate, cloudflare \u2014 counted as 19 distinct hosts since api.openai.com and api.x.ai each serve both https and wss) plus api.zeroeval.com which is NOT inference. Excludes the unbounded dynamic asset URLs returned by DO async-invoke.",
+    "providerEnvVars": 12,
+    "providerEnvVarsDetail": "GROK_API_KEY, GATEWAY_API_URL, SERVICE_SECRET, ALLOWED_SERVICES, ADMIN_USERNAMES, DATABASE_URL, LIVEKIT_URL, LIVEKIT_INTERNAL_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET, MONGODB_URI, VITE_GATEWAY_API_URL. Exactly ONE (GROK_API_KEY) is a provider credential, and it is inert.",
+    "providerSdkDeps": 11,
+    "providerSdkDepsDetail": "11 declarations across 5 distinct packages: ai (api, integrations), @ai-sdk/openai (api, integrations), @ai-sdk/anthropic (api, integrations), @ai-sdk/google (api, integrations), openai (alia-codea, alia-codea-cli, alia-cowork). The 3 openai declarations are CLIENTS of Alia's own API, not provider deps. Excludes the 5 LiveKit packages (voice transport).",
+    "deadCodeFiles": 26,
+    "deadCodeFilesDetail": "internal/providers/index.ts + 12 route files + middleware/auth.ts + ws.ts + broadcast-helpers.ts + lib/db.ts + 4 seed modules + lib/auth-health.ts + 19 text adapters reachable only through routes/providers.ts + packages/integrations/src/shared/model-resolver.ts. Counted as distinct FILES that no live import path reaches.",
+    "inventoryItems": 126
+  }
+}
