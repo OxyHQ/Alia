@@ -44,8 +44,12 @@ Bot adapters authenticate with the API using per-channel secrets (`X-Channel-Bot
 
 ```bash
 # Required
-MONGODB_URI=mongodb+srv://...        # Shared cluster (DB: integrations-{NODE_ENV})
-INTEGRATIONS_SECRET=<hex-32>         # Internal auth for gateway REST endpoints
+DATABASE_URL=postgres://...          # PostgreSQL; the pool opens once from main()
+MONGODB_URI=mongodb+srv://...        # Shared cluster (DB: integrations-{NODE_ENV}), for
+                                     # the domains not yet ported to PostgreSQL
+INTEGRATIONS_SECRET=<hex-32>         # Internal auth for the REST endpoints the API calls
+TOKEN_ENCRYPTION_KEY=<hex-32>        # MUST equal the API's value: encrypted OAuth tokens
+                                     # are written by one process and read by the other
 API_BASE_URL=http://localhost:4150   # Main API URL
 
 # Telegram Bot

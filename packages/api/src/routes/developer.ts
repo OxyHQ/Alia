@@ -32,7 +32,7 @@ import { log } from '../lib/logger.js';
 
 const router = Router();
 
-// Build Mongoose filter from req.workspace (set by resolveWorkspace middleware)
+// Build the organization scope from req.workspace (set by resolveWorkspace middleware)
 function orgFilter(req: Request): { organizationId: string | null } {
   return { organizationId: req.workspace?.id ?? null };
 }

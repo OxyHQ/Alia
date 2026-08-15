@@ -8,8 +8,11 @@ Alia is a multi surface context agent platform: one chat runtime behind an Expo 
 
 - **Bun.** The package manager for every Oxy repository, never npm or yarn. The pinned version is `packageManager` in the root `package.json`, and CI installs that exact version.
 - **Node.js 22.** The runtime the API is built and deployed on. CI pins it alongside bun.
-- **MongoDB**, local or remote, to run the API. The test suite does not need one; it starts its own in memory server.
+- **PostgreSQL**, local or remote. `DATABASE_URL` is the one variable the API cannot start without: it exits at boot if it cannot connect.
+- **MongoDB**, optional, for the domains not yet ported. The connection is retried in the background and the routes still backed by a Mongoose model return `500` until it succeeds. The Mongo test suite does not need one; it starts its own in-memory replica set.
 - **Redis**, optional. Caching and rate limiting fall back gracefully without it.
+
+Upstream model credentials are not environment variables. They live in the `provider_keys` table, and there is no gateway service to point at — see the `GATEWAY_API_URL` note in `packages/api/.env.example` before setting it.
 
 ## Setup
 
@@ -29,36 +32,52 @@ bun run dev:app    # Expo app only (runs with --clear --tunnel)
 
 Root scripts are named `dev:*`, `build:*` and `start:*`, roughly one per package; read the root `package.json` for the full set. Anything without a shortcut is reachable as `bun run --filter <package> <script>`.
 
-Other packages ship their own `.env.example` (`packages/app`, `packages/alia-gateway`, `packages/alia-gateway-admin`, `packages/alia-cowork`, `packages/alia-docker-host`). Copy the ones for the packages you actually run.
+Other packages ship their own `.env.example` (`packages/app`, `packages/alia-gateway-admin`, `packages/alia-cowork`, `packages/alia-docker-host`). Copy the ones for the packages you actually run.
 
 ## Layout
 
-A bun workspaces monorepo, no Turborepo and no Nx. Alia is the exception to the Oxy `frontend` + `backend` + `shared-types` baseline: it has thirteen packages, and the API is `packages/api`, not `packages/backend`. The package map is in `AGENTS.md`, so there is one copy of it to keep correct.
+A bun workspaces monorepo, no Turborepo and no Nx. Alia is the exception to the Oxy `frontend` + `backend` + `shared-types` baseline: thirteen workspaces across twelve directories under `packages/` (`packages/alia-codea/webview-ui` is its own workspace entry), and the API is `packages/api`, not `packages/backend`. The package map is in `AGENTS.md`, so there is one copy of it to keep correct.
 
-Two things worth knowing before your first pull request:
+Three things worth knowing before your first pull request:
 
 - `packages/alia-chat` publishes to npm as `@alia.onl/sdk`, as **raw source**, so consumers compile `src/` with their own Metro or tsc. It has to resolve and typecheck under a real external install, not only inside this monorepo.
-- There is no gateway service. `packages/api/src/lib/gateway-client.ts` runs provider calls in process, and is the seam any future remote provider tier would go behind — do not add a second copy of the provider logic.
+- There is no gateway service. `packages/api/src/lib/gateway-client.ts` runs model calls in process, and is the seam any future remote tier would go behind — do not add a second copy of that logic.
+- Alia is mid-migration. Read [`docs/adr/`](docs/adr/README.md) before a change that touches inference, developer credentials, billing or the model catalogue; [`docs/migration/compatibility-window.md`](docs/migration/compatibility-window.md) says what is frozen and on what gate it is removed. Every pull request against epic [#139](https://github.com/OxyHQ/Alia/issues/139) names its workstream and the exact checkboxes it completes.
 
 ## Tests
 
 ```bash
-bun run --filter @alia/api test
+bun run --filter @alia/api test        # Mongo-backed suite; starts its own replica set
+bun run --filter @alia/api test:pg     # Postgres-backed suite; needs TEST_DATABASE_URL
+bun run --filter @alia/integrations test
 ```
 
-Vitest. Place test files next to the source as `*.test.ts`. `packages/api` is the only package with a suite today.
+Vitest. Place test files next to the source as `*.test.ts`. `packages/api` and `packages/integrations` have suites.
+
+The Postgres suites need a real server — CHECK constraints, unique indexes, `ON DELETE CASCADE` and `ON CONFLICT` are enforced by Postgres and have no mocked counterpart. Each run creates and migrates a throwaway database through the real `src/db/migrate.ts` entrypoint, which also exercises its phase and `--target-database` guards.
 
 CI runs the following on every pull request, and each line runs locally as written:
 
 ```bash
+bun install && git diff --exit-code bun.lock
 bun run --filter @alia/api lint
 bun run --filter @alia/api typecheck
 bun run --filter @alia/api test
 bun run --filter @alia.onl/sdk typecheck
 bun run --filter @alia.onl/sdk check:entries
 bun run build:api
+bun run --filter @alia/integrations type-check
+bun run --filter @alia/integrations test    # against a real Postgres
+bun run --filter @alia/api test:pg          # against a real Postgres
 ```
+
+CI also runs `.github/scripts/test-deploy-ecs-image.sh`, which gates the rollout logic the AWS deploy uses.
 
 ## Conventions
 
-Coding standards for this repository are in `AGENTS.md` at the repository root, including the model abstraction rule that keeps provider names and provider model ids out of everything user facing, and the Expo SDK override gotcha that makes `bunx expo install --fix` loop forever. `AGENTS.md` is read directly by Claude Code, Codex, Cursor and Copilot, and it is the file to update when a convention changes.
+Coding standards for this repository are in `AGENTS.md` at the repository root, including the Expo SDK override gotcha that makes `bunx expo install --fix` loop forever. `AGENTS.md` is read directly by Claude Code, Codex, Cursor and Copilot, and it is the file to update when a convention changes.
+
+Two conventions are worth repeating here because neither is caught by types:
+
+1. **Model identity on the product surface.** Product API responses, product errors, the UI and customer-facing analytics carry `alia-*` identifiers only; user-facing errors go through `sanitizeMessage()`. It is a product and privacy boundary, not a global ban — engineering docs and ADRs name publishers, because ADR 0003 makes `<publisher>/<model>` the canonical identifier form. See [`docs/model-abstraction.mdx`](docs/model-abstraction.mdx).
+2. **The `alia-*` set is frozen.** A pull request adding one is rejected on ADR 0002, and nothing may be published under the reserved `alia/*` namespace without the four conditions that ADR lists.

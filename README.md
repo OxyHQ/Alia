@@ -21,8 +21,11 @@
 
 ### 🧠 It remembers, and it learns
 
-Context is a persistent graph in MongoDB, not a chat log. `ContextNode`, `ContextEdge`,
-`ContextSource`, `RetrievalStrategy` and `LearningRule` are real collections.
+Context is a persistent graph, not a chat log. `context_nodes`, `context_edges`,
+`context_sources` and `retrieval_strategies` are real PostgreSQL tables
+([`packages/api/src/db/schema/context-graph.ts`](packages/api/src/db/schema/context-graph.ts)),
+read through `db/autonomy/contextGraphRepository.ts`. Learned rules are still served by the
+Mongoose `LearningRule` model; the port is in flight.
 
 The autonomy runtime classifies the intent, recalls context for it, and feeds the result
 of the run back in: `classifyIntent`, `recallContextForIntent` and `learnFromRun` in
@@ -44,30 +47,60 @@ rather than an investigation.
 </table>
 
 > [!IMPORTANT]
-> **Public surfaces expose Alia model IDs only.** `alia-lite`, `alia-v1`, `alia-v1-codea`,
-> `alia-v1-pro`, `alia-v1-thinking` and `alia-v1-pro-max` are the names anyone outside the
-> platform sees. Upstream provider names and provider model IDs never appear in an API
-> response, an error, the UI or the docs. The provider adapters live under
-> `packages/api/src/internal/`, which is CORS restricted, and user facing errors go
-> through a sanitiser first.
+> **The product surface exposes Alia model identifiers only.** Thirteen `alia-*`
+> identifiers are served today; upstream operator names and upstream model IDs never appear
+> in a product API response, an error, the UI or a customer-facing analytics event, and
+> user-facing errors go through a sanitiser first. The rule is a product and privacy
+> boundary, not a global ban on the words — engineering docs and ADRs name publishers,
+> because [ADR 0003](docs/adr/0003-model-revision-deployment-provider-routing-profile.md)
+> makes `<publisher>/<model>` the canonical identifier form. Several of the thirteen are
+> routing policies rather than models; see
+> [model abstraction](docs/model-abstraction.mdx).
 
-## The unified chat runtime
+## The chat runtime
 
-`/alia/chat` and `/v1/chat/completions` are served by the **same handler**, so the app,
-Codea and Cowork cannot drift apart in behaviour. Both are registered in
-[`packages/api/src/index.ts`](packages/api/src/index.ts).
+`/alia/chat` and `/v1/chat/completions` are served by the **same handler**
+(`handleChatCompletions`), so the app, Codea and Cowork cannot drift apart in behaviour.
+Both are registered in [`packages/api/src/index.ts`](packages/api/src/index.ts), with
+different auth: `optionalAuth` on the first, session-or-API-key plus a per-key rate limit
+on the second.
 
-Around it sit the OpenAI shaped `/v1` routes (`chat-completions`, `models`, `responses`,
-`images`, `audio`, `voice`, `shows`) and a provider fallback loop that can retry a request
-across adapters.
+`/alia/chat` is the Alia **product** runtime. The OpenAI-shaped `/v1` routes
+(`chat/completions`, `models`, `responses`, `images`, `audio`, `voice`, `shows`) are a
+**bounded compatibility surface** that sunsets under
+[ADR 0004](docs/adr/0004-product-endpoints-versus-generic-inference-endpoints.md); new
+generic integrations go to Oxy Console and `api.oxy.so/v1`.
+
+There is **no gateway service**. Provider calls happen in process:
+`packages/api/src/lib/chat-core.ts` builds an AI SDK client directly, against credentials
+in the `provider_keys` Postgres table, with a fallback loop that retries a request down the
+tier's ranked list. Under
+[ADR 0001](docs/adr/0001-alia-oxy-relay-responsibility-boundary.md) that moves behind one
+typed client for a separate data plane (working name Relay), which does not exist yet.
 
 `/triggers` is the **only** scheduling API. It covers scheduled, webhook, integration and
-heartbeat executions. There is no second scheduler and no backward compatible model
-resolution endpoint.
+heartbeat executions. There is no second scheduler, and no backward-compatible model
+resolution endpoint — `POST /v1/resolve-model` and `POST /v1/report-usage` return
+`410 Gone`.
+
+## Storage
+
+PostgreSQL through drizzle is the primary store: 80 tables under
+[`packages/api/src/db/schema/`](packages/api/src/db/schema/), and the API exits at boot if
+it cannot connect. Readiness (`GET /health/ready`) issues a real statement against it.
+
+A Mongoose connection is still opened in the background, with retry, for the domains that
+have not been ported: the seventeen models under
+[`packages/api/src/models/`](packages/api/src/models/) — conversations, messages, agents,
+agent sessions, teams and reviews, organizations and their members and invites, containers
+and templates, skills, learning rules, rollback records, canvas sessions and event-stream
+entries. Readiness does not consult it. Finishing that port is tracked on
+[#139](https://github.com/OxyHQ/Alia/issues/139).
 
 ## Packages
 
-Thirteen workspaces, not the usual three. Everything lives under `packages/`.
+Thirteen workspaces across twelve directories — `packages/alia-codea/webview-ui` is its own
+workspace entry. Everything lives under `packages/`.
 
 <table>
 <tr>
@@ -77,8 +110,8 @@ Thirteen workspaces, not the usual three. Everything lives under `packages/`.
 
 | Path | Package | Stack |
 |---|---|---|
-| [`packages/api`](packages/api/) | `@alia/api` | Express, Mongoose |
-| [`packages/integrations`](packages/integrations/) | `@alia/integrations` | Express, Mongoose |
+| [`packages/api`](packages/api/) | `@alia/api` | Express, drizzle + PostgreSQL, Mongoose |
+| [`packages/integrations`](packages/integrations/) | `@alia/integrations` | Express, drizzle + PostgreSQL, Mongoose, MCP client |
 | [`packages/alia-docker-host`](packages/alia-docker-host/) | `@alia/docker-host` | Express |
 | [`packages/shared-types`](packages/shared-types/) | `@alia/shared-types` | TypeScript |
 
@@ -118,7 +151,10 @@ for shared UI. See [`docs/oxyhq-auth.md`](docs/oxyhq-auth.md).
 
 ## Quick start
 
-Bun `1.3.14` is pinned in `packageManager`. You also need MongoDB.
+The bun version is pinned in `packageManager` and CI installs that exact version. You also
+need a PostgreSQL instance — the API exits at boot without one. MongoDB is optional
+locally: the API retries in the background and the routes still backed by Mongoose return
+`500` while it is unreachable.
 
 ```bash
 bun install
@@ -174,9 +210,11 @@ bun run web    # or ios, or android
 |---|---|
 | [Onboarding](docs/onboarding.md) | **Start here if you are new** |
 | [Overview](docs/index.mdx) | What Alia is |
-| [Chat runtime](docs/chat-runtime.mdx) | The unified handler |
-| [Model abstraction](docs/model-abstraction.mdx) | Alia model IDs and why |
-| [API reference](docs/api-reference.md) | The HTTP surface |
+| [Chat runtime](docs/chat-runtime.mdx) | The handler, the SSE events, the Relay boundary |
+| [Model abstraction](docs/model-abstraction.mdx) | What the `alia-*` identifiers really are |
+| [API reference](docs/api-reference.md) | The HTTP surface, by boundary |
+| [Architecture decisions](docs/adr/README.md) | The recorded decisions |
+| [Compatibility window](docs/migration/compatibility-window.md) | What sunsets, and on what gate |
 
 </td>
 <td valign="top" width="50%">
@@ -188,7 +226,7 @@ bun run web    # or ios, or android
 | [Proactive intelligence](docs/proactive-intelligence.md) | Acting unprompted |
 | [Integrations](docs/integrations.mdx) | Channels and messaging |
 | [Oxy auth](docs/oxyhq-auth.md) | Identity and sessions |
-| [Developer portal](docs/developers-portal.md) | Third party access |
+| [Developer access](docs/developers-portal.md) | `alia_sk_*` keys and their sunset |
 | [Deployment](docs/deployment.md) | Shipping it |
 
 </td>
@@ -197,8 +235,14 @@ bun run web    # or ios, or android
 
 ## Contributing
 
-Read [CONTRIBUTING.md](CONTRIBUTING.md) first. Two rules are worth repeating, because both
-are easy to break by accident and neither is caught by types:
+Read [CONTRIBUTING.md](CONTRIBUTING.md) first. Three rules are worth repeating, because
+each is easy to break by accident and none is caught by types:
 
-1. Never expose a provider name or a provider model ID on a public surface.
+1. Never expose an upstream operator name or upstream model ID on the **product surface** —
+   product API responses, errors, the UI, customer-facing analytics. It is a product and
+   privacy boundary, not a global ban on the words.
 2. `Triggers` is the only scheduling API. Do not add a second one.
+3. The `alia-*` identifier set is frozen. A pull request adding one is rejected on
+   [ADR 0002](docs/adr/0002-alia-is-a-relay-consumer-and-future-model-publisher.md), and
+   nothing may be published under the reserved `alia/*` namespace without the four
+   conditions that ADR lists.

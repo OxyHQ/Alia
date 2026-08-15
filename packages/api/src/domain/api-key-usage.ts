@@ -1,10 +1,11 @@
 /**
  * Closed value sets for `api-key-usage`.
  *
- * These live OUTSIDE `models/` because the drizzle schema renders its CHECK
- * constraints from these exact tuples — so the Postgres schema depends on them
- * at runtime, and deleting the Mongoose model would break the schema itself.
- * The model imports them from here like any other consumer.
+ * These live OUTSIDE the schema module because the drizzle schema renders its
+ * CHECK constraints from these exact tuples, and the repositories and validators
+ * guarding the same columns import the same tuples — so a constraint and the
+ * code enforcing it cannot drift apart. The Mongoose model these once
+ * accompanied has been deleted.
  */
 
 /** How the caller authenticated. Drives which rate-limit budget the call spends. */

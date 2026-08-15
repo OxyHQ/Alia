@@ -6,13 +6,13 @@ order: 0
 
 # Alia
 
-Alia is a multi-surface context-agent platform focused on autonomous execution with policy controls. One runtime powers the Expo app, the Codea VS Code extension, the Cowork desktop client, the developer CLI, and every webhook-driven trigger — all on top of a shared autonomy loop and a persistent context graph in MongoDB.
+Alia is a multi-surface context-agent platform focused on autonomous execution with policy controls. One runtime powers the Expo app, the Codea VS Code extension, the Cowork desktop client, the developer CLI, and every webhook-driven trigger — all on top of a shared autonomy loop and a persistent context graph.
 
 ## What it is
 
 A single chat runtime (`/alia/chat` and `/v1/chat/completions`) serves every surface. Each turn runs the autonomy loop `classify → recall → retrieve → act → learn`, draws from a per-user context graph, and is governed by an explicit risk policy (`R0`/`R1`/`R2`/`R3`) so writes are reversible, external impact requires approval, and destructive actions are blocked.
 
-Models are exposed as Alia identifiers only (`alia-lite`, `alia-v1`, `alia-v1-pro`, `alia-v1-thinking`, …). Internal provider routing is never leaked to clients, errors, or analytics.
+Model access goes through thirteen `alia-*` identifiers. Upstream routing is never leaked to clients, product errors or customer-facing analytics. Several of those identifiers are routing policies rather than models, and the set is frozen — [model abstraction](./model-abstraction.mdx) says which is which, and [ADR 0003](./adr/0003-model-revision-deployment-provider-routing-profile.md) records the vocabulary that replaces them.
 
 ## Architecture
 
@@ -26,15 +26,15 @@ Models are exposed as Alia identifiers only (`alia-lite`, `alia-v1`, `alia-v1-pr
                                       |
                             +---------v---------+
                             |  Express API      |
-                            |  (packages/api)       |
+                            |  (packages/api)   |
                             +--+----------+-----+
                                |          |
               +----------------+          +-----------------+
               |                                             |
      +--------v---------+                       +-----------v-----------+
-     |   MongoDB        |                       |  AI Providers         |
-     |   (Mongoose)     |                       |  (routed via Alia     |
-     +--------+---------+                       |   model abstraction)  |
+     |   PostgreSQL     |                       |  Upstream model       |
+     |   (drizzle)      |                       |  endpoints, called    |
+     +--------+---------+                       |  in process           |
               |                                 +-----------------------+
      +--------v---------+
      |  Redis (Valkey)  |     Socket.IO (real-time events,
@@ -43,18 +43,22 @@ Models are exposed as Alia identifiers only (`alia-lite`, `alia-v1`, `alia-v1-pr
      +------------------+
 ```
 
+A MongoDB connection is still opened alongside PostgreSQL for the domains that have not been ported — conversations, messages, agents, organizations, containers, skills and a few more. It is not a readiness dependency. Under [ADR 0001](./adr/0001-alia-oxy-relay-responsibility-boundary.md) the in-process model calls move behind one typed client for a separate data plane (working name Relay), which does not exist yet.
+
 | App | Stack | Purpose |
 | --- | --- | --- |
-| `packages/app` | Expo 55 / React Native 0.83 | Main app (web + iOS + Android) |
+| `packages/app` | Expo + React Native | Main app (web + iOS + Android) |
 | `packages/api` | Express + TypeScript | Core API runtime |
 | `packages/alia-codea` | VS Code extension | Coding assistant surface |
 | `packages/alia-codea-cli` | Bun CLI | Terminal coding assistant |
-| `packages/alia-cowork` | Electron 33 | Desktop assistant surface |
-| `packages/alia-console` | TanStack Start + React | Admin console |
-| `packages/alia-canvas` | Next.js 16 | Canvas / diagram editor |
-| `packages/alia-gateway-admin` | Vite + React | Internal gateway admin |
+| `packages/alia-cowork` | Electron | Desktop assistant surface |
+| `packages/alia-console` | TanStack Start + React | Developer console |
+| `packages/alia-canvas` | Vite + React | Canvas / diagram editor |
+| `packages/alia-gateway-admin` | Vite + React | Admin panel for the deleted gateway service; retirement is workstream 9 of #139 |
 | `packages/alia-docker-host` | Express + TypeScript | Sandboxed container host |
-| `packages/integrations` | Express + TypeScript | Telegram / WhatsApp / Discord / browser bridges |
+| `packages/integrations` | Express + TypeScript | Telegram / WhatsApp / Discord / browser bridges, and the MCP client |
+| `packages/alia-chat` | React | Published as `@alia.onl/sdk` |
+| `packages/shared-types` | TypeScript | Shared types |
 
 ## Install
 
@@ -64,7 +68,7 @@ The monorepo uses Bun workspaces and Turbo. Bun is the only supported package ma
 bun install
 ```
 
-Copy `packages/api/.env.example` to `packages/api/.env` and fill in `MONGODB_URI`, `REDIS_URL`, and provider keys. The database name is computed automatically as `alia-{NODE_ENV}` — do not embed it in the URI.
+Copy `packages/api/.env.example` to `packages/api/.env` and fill it in. `DATABASE_URL` is the only variable the API cannot start without. `MONGODB_URI` is optional and covers the domains not yet ported; its database name is computed as `alia-{NODE_ENV}`, so do not embed it in the URI. Upstream model credentials are not environment variables — they live in the `provider_keys` table.
 
 ## Quick start
 
@@ -100,8 +104,10 @@ const res = await fetch('https://api.alia.onl/v1/chat/completions', {
     stream: true,
   }),
 });
-// SSE stream — see "AI providers and model abstraction" for the event contract.
+// SSE stream — see "Chat runtime" for the event contract.
 ```
+
+`alia_sk_*` credentials authenticate `api.alia.onl/v1/*` inside a bounded compatibility window. New integrations register in Oxy Console and call `api.oxy.so/v1` — see [developer access](./developers-portal.md).
 
 ## Core concepts
 
@@ -119,18 +125,18 @@ The loop is shared verbatim across app, Codea, and Cowork. Feature flags (`AUTON
 
 ### Context graph
 
-Persistent autonomy state lives in MongoDB:
+Persistent autonomy state:
 
-| Model | Tracks |
-|-------|--------|
-| `ContextSource` | freshness, precision, average cost, latency, failure rate of a source |
-| `ContextNode` | entities discovered during retrieval (people, projects, docs, threads) |
-| `ContextEdge` | relationships and confidence weights between nodes |
-| `RetrievalStrategy` | per-intent source ordering and fallback paths |
-| `LearningRule` | persisted corrections, constraints, and preferences |
-| `RollbackRecord` | before/after state + rollback payload for `R1` writes |
+| Table | Tracks | Read through |
+|-------|--------|--------------|
+| `context_sources` | freshness, precision, average cost, latency, failure rate of a source | `db/autonomy/contextGraphRepository.ts` |
+| `context_nodes` | entities discovered during retrieval (people, projects, docs, threads) | `db/autonomy/contextGraphRepository.ts` |
+| `context_edges` | relationships and confidence weights between nodes | `db/autonomy/contextGraphRepository.ts` |
+| `retrieval_strategies` | per-intent source ordering and fallback paths | `db/autonomy/contextGraphRepository.ts` |
+| `learning_rules` | persisted corrections, constraints, and preferences | the Mongoose `LearningRule` model — not ported yet |
+| `rollback_records` | before/after state and rollback payload for `R1` writes | the Mongoose `RollbackRecord` model — not ported yet |
 
-User-visible memory (preferences, long-term facts, occupation, tone) lives in the separate `UserMemory` model exposed via `/memory/*`.
+User-visible memory (preferences, long-term facts, occupation, tone) lives in `user_memories` and `user_memory_entries`, exposed via `/memory/*`.
 
 ### Risk governance
 
@@ -145,14 +151,16 @@ Every action carries a risk class enforced by the runtime:
 
 Approvals are real-time. The client receives `alia.approval_request` while the stream is paused and resolves it with an `approve` / `deny` decision; timeouts default to 60s.
 
-### Model abstraction (non-negotiable)
+### Model abstraction
 
-Public surfaces only ever expose Alia model IDs:
+The product surface exposes thirteen `alia-*` identifiers and nothing beneath them:
 
-- `alia-lite`, `alia-v1`, `alia-v1-pro`, `alia-v1-pro-max`, `alia-v1-thinking`
-- Category-specific: `alia-v1-codea`, `alia-v1-cowork`, `alia-v1-browser`, `alia-v1-vision`, `alia-v1-audio`, `alia-v1-tts`, `alia-v1-image`, `alia-v1-multimodal`, `alia-v1-voice`, `alia-v1-voice-pro`
+- In the picker: `alia-lite`, `alia-v1`, `alia-v1-pro`, `alia-v1-thinking`, `alia-v1-pro-max`
+- Addressable but not in the picker: `alia-v1-codea`, `alia-v1-cowork`, `alia-v1-browser`, `alia-v1-vision`, `alia-v1-audio`, `alia-v1-multimodal`, `alia-v1-voice`, `alia-v1-voice-pro`
 
-Each Alia tier maps to a prioritized list of provider models (`ModelMapping` in `packages/api/src/internal/providers/lib/alia-models.ts`). The fallback engine tries the cheapest healthy provider first and progressively escalates. Errors are passed through `sanitizeMessage()` (`packages/api/src/lib/errors/sanitize.ts`) before reaching any user-facing surface — provider names, model IDs, and internal endpoints are stripped.
+Each identifier carries a tier, and each tier maps to a ranked list of upstream deployments (`ModelMapping` in `packages/api/src/internal/providers/lib/alia-models.ts`). The fallback engine walks that list in `priority` order, skipping any entry whose circuit breaker is open. Errors pass through `sanitizeMessage()` (`packages/api/src/lib/errors/sanitize.ts`) before reaching a user-facing surface, which strips upstream names, model ids and endpoints.
+
+Two of those identifiers share a tier, several are routing policies rather than models, and the whole set is frozen and inside a compatibility window. [Model abstraction](./model-abstraction.mdx) has the full table and the retirement gate.
 
 ### Trigger engine
 
@@ -163,7 +171,7 @@ The only scheduling primitive is `/triggers`. Trigger types:
 - `integration_event` — matched by `service + event + filters`
 - `agent_heartbeat` — periodic agent health / status check
 
-Each run writes a `TriggerExecution` record with status, tool calls, token usage, and duration. Trigger actions follow the unified action contract: `{ prompt, agentId?, roleId?, useTools, notify?, channelId? }`.
+Each run writes a `trigger_executions` row with status, tool calls, token usage and duration, through `db/automation/triggerRepository.ts`. Trigger actions follow the unified action contract: `{ prompt, agentId?, roleId?, useTools, notify?, channelId? }`.
 
 ## Deep dives
 

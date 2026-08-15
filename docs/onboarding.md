@@ -1,37 +1,39 @@
 # Alia Developer Onboarding
 
-Last updated: 2026-03-11
-
 Welcome to Alia -- a multi-surface context-agent platform with autonomous execution and policy controls. This guide gets you productive on day 1.
+
+Read [the ADRs](./adr/README.md) early. Alia is mid-migration: a large epic ([#139](https://github.com/OxyHQ/Alia/issues/139)) is moving inference execution behind a separate data plane, developer identity and billing to Oxy, and the last domains from MongoDB to PostgreSQL. The ADRs say where each responsibility is going, and this guide describes where things are **today**.
 
 ## Architecture Overview
 
 ```
                            +-------------------+
-                           |   Expo App (Web,   |
-    User  ───────────────> |   iOS, Android)    |
+                           |   Expo App (Web,  |
+    User  ───────────────> |   iOS, Android)   |
                            +--------+----------+
                                     |
                           POST /v1/chat/completions (SSE)
                                     |
                            +--------v----------+
-                           |  Express API       |
-                           |  (packages/api)        |
+                           |  Express API      |
+                           |  (packages/api)   |
                            +--+---------+------+
                               |         |
               +---------------+         +----------------+
               |                                          |
      +--------v--------+                     +-----------v-----------+
-     |  MongoDB         |                     |  AI Providers          |
-     |  (Mongoose)      |                     |  (routed via Alia      |
-     +--------+---------+                     |   model abstraction)   |
-              |                               +------------------------+
+     |  PostgreSQL     |                      |  Upstream model       |
+     |  (drizzle)      |                      |  endpoints, called    |
+     +--------+--------+                      |  in process           |
+              |                               +-----------------------+
      +--------v--------+
-     |  Redis (Valkey)  |     Socket.IO (real-time events,
-     |  rate limits,    |     approval requests, streaming)
-     |  caching         |
+     |  Redis (Valkey) |      Socket.IO (real-time events,
+     |  rate limits,   |      approval requests, streaming)
+     |  caching        |
      +-----------------+
 ```
+
+PostgreSQL is the hard dependency — the API exits at boot without `DATABASE_URL`. A MongoDB connection is opened in the background for the seventeen models still under `packages/api/src/models/`; it is not a readiness dependency, and the routes backed by those models return `500` while it is unreachable.
 
 ### Autonomy Loop
 
@@ -52,7 +54,7 @@ Every chat interaction runs one loop:
 | R2 | External/unknown impact | Requires user approval |
 | R3 | Destructive | Blocked |
 
-Approvals are real-time via Socket.IO (`alia.approval_request` / `alia.approval_result`).
+Approvals are real-time via Socket.IO (`alia.approval_request` / `alia.approval_result`). They are Socket.IO events only — nothing writes them to the chat SSE stream.
 
 ---
 
@@ -62,23 +64,30 @@ Approvals are real-time via Socket.IO (`alia.approval_request` / `alia.approval_
 
 | Path | What it does | When you touch it |
 |------|-------------|-------------------|
-| `index.ts` | Express boot: DB connect, route mounting, Socket.IO setup | Adding a new top-level route |
-| `routes/v1/chat-completions.ts` | Main chat endpoint -- tool building, AI SDK `streamText`, SSE | Changing chat behavior, adding tools |
-| `lib/agent-runner.ts` | Orchestrates autonomous agent sessions | Modifying agent execution flow |
+| `index.ts` | Express boot: Postgres connect, Mongo retry, route mounting, Socket.IO setup | Adding a new top-level route |
+| `routes/v1/chat-completions.ts` | Main chat handler -- context, tools, provider loop, SSE | Changing chat behavior, adding tools |
+| `lib/chat/request-context.ts` | Per-request context: credits, model, memory, entitlements | Changing what a turn loads |
+| `lib/chat/provider-loop.ts` | The streaming loop, conversation save, credit finalization | Streaming and persistence |
+| `lib/chat/stream-runner.ts` | Chunk handling, tool results, the named SSE writes | SSE event work |
+| `lib/agent/runner.ts` | Orchestrates autonomous agent sessions | Modifying agent execution flow |
 | `lib/autonomy/runtime.ts` | Before/after chat hooks for the autonomy loop | Changing classify/recall/learn steps |
 | `lib/tools/index.ts` | Tool barrel file -- exports all tool constructors | Adding a new AI tool |
+| `lib/tool-pipeline.ts` | Assembles the per-request tool set | Adding a new AI tool |
 | `lib/tools/mcp.ts` | MCP server tool builder | MCP integration work |
 | `lib/tools/oxy-services.ts` | Oxy Service Connector tool builder | Adding Oxy ecosystem integrations |
 | `lib/tools/integrations.ts` | Third-party integration tools (WhatsApp, Telegram, etc.) | Integration work |
 | `lib/prompt-loader.ts` | Builds the system prompt from fragments | Changing AI behavior/instructions |
-| `lib/chat-core.ts` | Model resolution, `resolveModel()`, `getAIModel()` | Model routing changes |
-| `lib/providers-client.ts` | `getAliaModel()`, model mapping lookups | Model abstraction |
-| `lib/errors/sanitize.ts` | Strips provider names from error messages | Error handling |
+| `lib/chat-core.ts` | `resolveModel()`, `getAIModel()` -- builds the AI SDK client | Model routing changes |
+| `lib/gateway-client.ts` | The seam in front of `internal/providers/`; runs the local path | Model abstraction |
+| `lib/errors/sanitize.ts` | Strips upstream names from error messages | Error handling |
 | `lib/redis.ts` | Shared Redis/Valkey client | Caching, rate limiting |
-| `lib/db.ts` | MongoDB connection (50-connection pool) | DB config changes |
-| `middleware/auth.ts` | JWT verification via OxyHQ, sets `req.userId` | Auth changes |
-| `models/` | Mongoose models (~40 files: conversation, message, agent, trigger, etc.) | Schema changes |
-| `internal/providers/` | Provider routing logic (CORS-restricted, never exposed) | Internal model config |
+| `db/index.ts`, `db/schema/` | Postgres connection and the 80-table drizzle schema | Schema changes |
+| `db/migrate.ts` | The migrator; requires `--target-database` and honours phase markers | Migrations |
+| `lib/db.ts` | MongoDB connection, for the domains not yet ported | Mongo config changes |
+| `middleware/auth.ts` | Token verification via OxyHQ, sets `req.user` | Auth changes |
+| `models/` | The seventeen remaining Mongoose models (conversation, message, agent, organization, container, skill, …) | Mongo-backed schema changes |
+| `domain/` | Closed value sets the drizzle CHECK constraints render from | Adding an enum value |
+| `internal/providers/` | Upstream routing, key selection, health, fallback (CORS-restricted) | Routing config |
 
 ### App (`packages/app/`)
 
@@ -104,23 +113,26 @@ Frontend                            Backend
 --------                            -------
 1. User types message
 2. chat-interface.tsx calls
-   POST /v1/chat/completions ──────> 3. Auth middleware (JWT verify)
+   POST /v1/chat/completions ──────> 3. Auth middleware sets req.user
    with SSE streaming                4. Workspace/org middleware
-                                     5. Resolve Alia model -> provider model
-                                     6. Load user memory + context graph
+                                     5. autonomy beforeChat (classify, recall, retrieve)
+                                     6. In parallel: reserve credits, resolve the Alia
+                                        identifier to an upstream deployment, load user
+                                        memory, Oxy profile, skill, entitlements, agent
                                      7. Build tools: native + MCP + Oxy + integrations
                                      8. Build system prompt (fragments)
-                                     9. autonomy beforeChat (classify, recall, retrieve)
-                                    10. AI SDK streamText() with fallback chain
-                                    11. Stream chunks back via SSE
-12. Frontend processes SSE  <──────
+                                     9. AI SDK streamText() inside the fallback loop
+                                    10. Stream chunks back via SSE
+11. Frontend processes SSE  <──────
     chunks, renders messages
-13. Thinking/tool calls
+12. Thinking/tool calls
     displayed in real-time
-                                    14. autonomy afterChat (learn, score sources)
-                                    15. Save conversation + messages to MongoDB
-                                    16. Finalize credit usage
+                                    13. Save conversation + messages
+                                    14. Finalize credit usage
+                                    15. afterChat hooks + autonomy learn (non-blocking)
 ```
+
+Conversations and messages are still written through the Mongoose `Conversation` and `Message` models. The `conversations` and `messages` tables exist in the drizzle schema; the chat write path does not read them yet.
 
 ---
 
@@ -130,18 +142,20 @@ Frontend                            Backend
 
 Use for UI state and data that needs to persist across screens.
 
+Sixteen stores in `packages/app/lib/stores/`. The ones you meet first:
+
 | Store | Purpose |
 |-------|---------|
-| `ui-store` | Right panel, command palette, global UI toggles |
+| `ui-store` | Right panel, command palette, sidebar collapse, global UI toggles |
+| `global-store` | Cross-cutting app state |
+| `user-data-store` | The signed-in user's cached product data |
 | `model-store` | Selected model, model preferences |
-| `theme-store` | Color scheme, app color preset |
-| `agents-store` | Agent list, selected agent |
-| `projects-store` | Workspace projects |
-| `folders-store` | Conversation folders |
-| `favorites-store` | Favorited conversations |
-| `pinned-store` | Pinned conversations |
-| `roles-store` | User-created roles/personas |
-| `organization-store` | Org membership, settings |
+| `agents-store`, `agent-favorites-store` | Agent list, selected agent, favourites |
+| `projects-store`, `folders-store` | Workspace projects, conversation folders |
+| `favorites-store`, `pinned-store` | Favourited and pinned conversations |
+| `roles-store`, `skills-store` | User-created roles/personas, skills |
+| `library-store`, `show-store`, `create-collection-store` | Library, shows, collection creation |
+| `i18n-store` | Language selection |
 
 ### TanStack Query (server state, async)
 
@@ -154,29 +168,41 @@ Use for data fetched from the API that needs caching, refetching, and stale mana
 
 ---
 
-## Model Abstraction (Critical)
+## Model Abstraction
 
-This is the most important convention in the codebase. Violating it is a shipping blocker.
+The most consequential convention in the codebase, and the one with the most nuance since
+the ADRs landed.
 
-| Layer | What users see | What exists internally |
-|-------|---------------|----------------------|
-| Public | `alia-lite`, `alia-v1`, `alia-v1-pro`, `alia-v1-thinking`, `alia-v1-pro-max` | Multiple provider models per Alia model |
-| Routing | N/A | Cheapest/free provider tried first, then progressively more expensive fallbacks |
-| Errors | Generic Alia error messages | `sanitizeMessage()` strips all provider names before returning |
+| Layer | Today | What it is |
+|-------|-------|------------|
+| Product surface | Thirteen `alia-*` identifiers | Five in the picker, eight addressable; several are routing policies rather than models |
+| Routing | The tier's mapping list, walked in `priority` order | Not price-ordered and not quality-ordered, despite both fields existing |
+| Errors | Generic messages | `sanitizeMessage()` strips upstream names, model ids, error codes and hostnames |
 
-### Rules
+### The rule, scoped
 
-- **NEVER** expose provider names (OpenAI, Anthropic, Google, etc.) in UI, API responses, error messages, or docs
-- **NEVER** show provider model IDs (gpt-4o, claude-sonnet-4, gemini-2.5-flash) to users
-- **ALWAYS** use `sanitizeMessage()` from `lib/errors/sanitize.ts` for user-facing errors
-- **ALWAYS** resolve to Alia model names via `getAliaModel()` in analytics/display code
+- **NEVER** put an upstream operator name or upstream model id on the **product surface**:
+  product API responses, product errors, the UI, customer-facing analytics.
+- **ALWAYS** use `sanitizeMessage()` from `lib/errors/sanitize.ts` for user-facing errors.
+- **ALWAYS** resolve display strings via `getAliaModel()`, never from the mapping table.
+- **DO NOT** add an `alia-*` identifier. The set is frozen under
+  [ADR 0002](./adr/0002-alia-is-a-relay-consumer-and-future-model-publisher.md).
+
+It is a product and privacy boundary, not a global ban on the words. Engineering
+documentation, ADRs and schema comments name publishers — ADR 0003 makes
+`<publisher>/<model>` the canonical identifier form, so publisher identity becomes part of
+the vocabulary.
 
 ### Key files
 
-- `internal/providers/lib/alia-models.ts` -- Alia model definitions
-- `internal/providers/lib/generate-model-mappings.ts` -- provider routing config
-- `routes/v1/models.ts` -- public models API (returns only Alia models)
+- `internal/providers/lib/alia-models.ts` -- the thirteen identifiers and their tiers
+- `internal/providers/lib/generate-model-mappings.ts` -- the per-tier routing tables
+- `internal/providers/lib/fallback-engine.ts` -- how one is chosen per request
+- `routes/v1/models.ts` -- the public catalogue
 - `lib/errors/sanitize.ts` -- error sanitization
+
+[Model abstraction](./model-abstraction.mdx) has the full table, and the compatibility
+window that retires it.
 
 ---
 
@@ -198,31 +224,41 @@ This is the most important convention in the codebase. Violating it is a shippin
 
 1. Create `packages/api/src/lib/tools/my-tool.ts` exporting a tool constructor function
 2. Export it from `packages/api/src/lib/tools/index.ts`
-3. Wire it into the tool-building section of `routes/v1/chat-completions.ts`
+3. Register it in `lib/tool-pipeline.ts`, which assembles the per-request tool set
 4. Follow the `safeExecute()` pattern used by existing tools for error handling
 
-### Running tests
+### Adding an enum value
 
-```bash
-npm test -w @alia/api            # Run all API tests
-npm test -w @alia/api -- --run   # Run once (no watch)
-bun run lint -w @alia/api        # Lint the API
-```
+Closed value sets live in `packages/api/src/domain/`, not in a schema file, because the
+drizzle CHECK constraints render from those exact tuples. Add the value there, run
+`bun run --filter @alia/api db:generate`, and commit the generated migration with the
+change.
 
 ---
 
 ## Useful Commands
 
+Bun only. There is no npm or yarn in this repository.
+
 ```bash
-bun install                      # Install all workspace dependencies
-bun run dev                      # Start all apps in dev mode
-bun run dev:api                  # API only (Express + hot reload)
-bun run dev:app                  # Expo app only (web + tunnel)
-npm test -w @alia/api            # API tests (vitest)
-bun run lint -w @alia/api        # Lint API code
+bun install                              # Install all workspace dependencies
+bun run dev                              # Start all packages in dev mode
+bun run dev:api                          # API only (Express + hot reload)
+bun run dev:app                          # Expo app only (web + tunnel)
+bun run --filter @alia/api lint          # Lint the API
+bun run --filter @alia/api typecheck     # Typecheck the API
+bun run --filter @alia/api test          # API tests (vitest; starts its own Mongo)
+bun run --filter @alia/api test:pg       # API tests against a real Postgres
+bun run --filter @alia/api db:generate   # Generate a migration from the schema
 ```
 
-Environment: copy `.env.example` to `.env` in `packages/api/` and fill in your MongoDB URI, Redis URL, and provider API keys. The database name is computed automatically as `alia-{NODE_ENV}` -- do not embed it in the URI.
+`test:pg` and the integrations suite need a real PostgreSQL and read `TEST_DATABASE_URL`;
+each run creates and migrates its own throwaway database.
+
+Environment: copy `.env.example` to `.env` in `packages/api/` and fill it in. `DATABASE_URL`
+is the only variable the API cannot start without. `MONGODB_URI` is optional; its database
+name is computed as `alia-{NODE_ENV}`, so do not embed it in the URI. Upstream model
+credentials are not environment variables -- they live in the `provider_keys` table.
 
 ---
 
@@ -230,11 +266,16 @@ Environment: copy `.env.example` to `.env` in `packages/api/` and fill in your M
 
 | Topic | File |
 |-------|------|
+| Architecture decisions | [docs/adr/README.md](adr/README.md) |
+| What sunsets, and on what gate | [docs/migration/compatibility-window.md](migration/compatibility-window.md) |
+| Chat runtime, SSE events, the Relay boundary | [docs/chat-runtime.mdx](chat-runtime.mdx) |
+| What the `alia-*` identifiers really are | [docs/model-abstraction.mdx](model-abstraction.mdx) |
 | Agents and autonomy loop | [docs/agents.md](agents.md) |
-| API reference (all endpoints) | [docs/api-reference.md](api-reference.md) |
+| API reference, by boundary | [docs/api-reference.md](api-reference.md) |
 | Memory and context graph | [docs/memory-system.md](memory-system.md) |
 | OxyHQ authentication | [docs/oxyhq-auth.md](oxyhq-auth.md) |
-| Deployment (DigitalOcean) | [docs/deployment.md](deployment.md) |
+| Deployment (AWS ECS Fargate) | [docs/deployment.md](deployment.md) |
 | Proactive intelligence / triggers | [docs/proactive-intelligence.md](proactive-intelligence.md) |
-| Developer portal / API keys | [docs/developers-portal.md](developers-portal.md) |
-| Project conventions | [CLAUDE.md](../CLAUDE.md) (also read by AI coding assistants) |
+| Developer access and `alia_sk_*` keys | [docs/developers-portal.md](developers-portal.md) |
+| Contributing | [CONTRIBUTING.md](../CONTRIBUTING.md) |
+| Project conventions | [AGENTS.md](../AGENTS.md) (also read by AI coding assistants) |
