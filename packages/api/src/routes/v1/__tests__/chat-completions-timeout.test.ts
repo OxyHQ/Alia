@@ -14,6 +14,7 @@ const {
   mockGenerateText,
   mockGetUserById,
   mockBuildSystemPrompt,
+  mockRefundReservation,
 } = vi.hoisted(() => ({
   mockResolveModel: vi.fn(),
   mockGetAIModel: vi.fn(() => 'mock-ai-model'),
@@ -26,6 +27,7 @@ const {
   mockGenerateText: vi.fn(),
   mockGetUserById: vi.fn().mockResolvedValue(null),
   mockBuildSystemPrompt: vi.fn().mockResolvedValue('You are Alia, a helpful AI assistant.'),
+  mockRefundReservation: vi.fn().mockResolvedValue(undefined),
 }));
 
 // ── Module mocks ───────────────────────────────────────────────────────────
@@ -63,7 +65,7 @@ vi.mock('../../../internal/providers/lib/alia-models.js', () => ({
 vi.mock('../../../lib/credits-manager.js', () => ({
   reserveCredits: (...args: any[]) => mockReserveCredits(...args),
   finalizeCredits: (...args: any[]) => mockFinalizeCredits(...args),
-  refundReservation: vi.fn().mockResolvedValue(undefined),
+  refundReservation: (...args: any[]) => mockRefundReservation(...args),
 }));
 
 vi.mock('../../../lib/user-credits-helpers.js', () => ({
@@ -237,6 +239,7 @@ vi.mock('../../../lib/autonomy/runtime.js', () => ({
 // ── Import router after mocks are set up ───────────────────────────────────
 
 import chatCompletionsRouter from '../chat-completions.js';
+import { FallbackNotPermittedError, UnregisteredModelError } from '../../../lib/routing/policy.js';
 
 // ── Test constants ─────────────────────────────────────────────────────────
 
@@ -587,5 +590,194 @@ describe('504 timeout fixes - /v1/chat/completions', () => {
       .map((c: any[]) => c[0])
       .filter((w: string) => w.startsWith('data: '));
     expect(dataWrites.length).toBeGreaterThan(0);
+  });
+});
+
+// ── Routing policy on the request path (#139 ws14, ADR 0003) ───────────────
+
+/**
+ * The refusals as a CALLER sees them, driven through the real route handler and
+ * the real `buildChatRequestContext`. Only `resolveModel` is replaced, at the
+ * seam this file already owns — the discrimination under test (which refusal
+ * becomes which status and which message) is the shipped code.
+ *
+ * The two controls that matter are already above and must keep passing:
+ * "returns 503 JSON ... when no models available" and "resolveModel .catch()
+ * prevents Promise.all crash". Together they say that a `null` resolution and a
+ * generic rejection still produce the exact 503 they always did, so everything
+ * below is an ADDITION rather than a change of behaviour.
+ */
+describe('routing policy refusals - /v1/chat/completions', () => {
+  let handler: (req: any, res: any, next: any) => Promise<void>;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.useRealTimers();
+    handler = getHandler();
+    mockResolveModel.mockResolvedValue(VALID_RESOLVED_MODEL);
+    mockReserveCredits.mockResolvedValue(VALID_RESERVATION);
+    mockGetOrCreateUserCredits.mockResolvedValue({});
+    mockGetUserById.mockResolvedValue(null);
+    mockBuildSystemPrompt.mockResolvedValue('You are Alia.');
+    mockStreamText.mockReturnValue(
+      createMockStream([
+        { type: 'text-delta', text: 'Hello' },
+        { type: 'finish', finishReason: 'stop' },
+      ])
+    );
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('answers an unregistered model with 400 and the product message, not 503', async () => {
+    mockResolveModel.mockRejectedValue(new UnregisteredModelError('alia-flash', ['alia-v1', 'alia-lite']));
+
+    const req = createMockReq({
+      body: { messages: [{ role: 'user', content: 'Hello' }], model: 'alia-flash', stream: false },
+    });
+    const res = createMockRes();
+
+    await handler(req, res, vi.fn());
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    // 503 is what this used to be, and what a generic failure still is. Naming
+    // it here is what makes the discrimination the thing being measured.
+    expect(res.status).not.toHaveBeenCalledWith(503);
+    const [payload] = res.json.mock.calls[0];
+    expect(payload.error.message).toContain('alia-flash');
+    expect(payload.error.message).toContain('alia-lite');
+    expect(payload.error.param).toBe('model');
+    expect(mockStreamText).not.toHaveBeenCalled();
+  });
+
+  it('refunds the reservation it took for a request it then refuses', async () => {
+    mockResolveModel.mockRejectedValue(new UnregisteredModelError('alia-flash', ['alia-v1']));
+
+    await handler(
+      createMockReq({ body: { messages: [{ role: 'user', content: 'Hi' }], model: 'alia-flash', stream: false } }),
+      createMockRes(),
+      vi.fn(),
+    );
+
+    // Credits are reserved in parallel with resolution, so a refusal that did
+    // not refund would charge for a request that never reached a provider.
+    expect(mockRefundReservation).toHaveBeenCalledWith(VALID_RESERVATION);
+  });
+
+  it('answers an unavailable model under a restrictive policy with the policy message', async () => {
+    mockResolveModel.mockRejectedValue(new FallbackNotPermittedError('alia-v1', 'no-fallback'));
+
+    const req = createMockReq({
+      body: {
+        messages: [{ role: 'user', content: 'Hello' }],
+        model: 'alia-v1',
+        fallbackPolicy: 'no-fallback',
+        stream: false,
+      },
+    });
+    const res = createMockRes();
+
+    await handler(req, res, vi.fn());
+
+    expect(res.status).toHaveBeenCalledWith(503);
+    const [payload] = res.json.mock.calls[0];
+    expect(payload.error.message).toContain('alia-v1');
+    // Distinguishable from the generic shortage, which is the whole point.
+    expect(payload.error.message).not.toBe('No models available. Please try again.');
+  });
+
+  it('hands the caller’s policy to the resolver', async () => {
+    const req = createMockReq({
+      body: {
+        messages: [{ role: 'user', content: 'Hello' }],
+        model: 'alia-v1',
+        fallbackPolicy: 'same-model-only',
+        stream: false,
+      },
+    });
+
+    await handler(req, createMockRes(), vi.fn());
+
+    expect(mockResolveModel).toHaveBeenCalledWith('alia-v1', undefined, undefined, {
+      fallbackPolicy: 'same-model-only',
+    });
+  });
+
+  it('hands an EMPTY options object when the caller names no policy', async () => {
+    // The byte-identical-default assertion, made positively. An absent
+    // `fallbackPolicy` must not become an explicit one here — the engine's own
+    // default is the single place that decision lives.
+    const req = createMockReq({
+      body: { messages: [{ role: 'user', content: 'Hello' }], model: 'alia-v1', stream: false },
+    });
+
+    await handler(req, createMockRes(), vi.fn());
+
+    expect(mockResolveModel).toHaveBeenCalledWith('alia-v1', undefined, undefined, {});
+  });
+
+  it('re-resolves a retry under the SAME policy, never a wider one', async () => {
+    /**
+     * The retry is where a policy would leak if it leaked at all: the first
+     * resolve honours the caller and the second quietly falls back to the
+     * default, so a `no-fallback` request answers from a substitute one attempt
+     * later — the same silent substitution, arriving late.
+     *
+     * Driven by making the first attempt stream a retryable failure, which is
+     * what forces `runProviderLoop` to re-resolve.
+     */
+    let resolveCallCount = 0;
+    mockResolveModel.mockImplementation(() => {
+      resolveCallCount += 1;
+      return Promise.resolve(resolveCallCount === 1 ? VALID_RESOLVED_MODEL : null);
+    });
+    mockStreamText.mockImplementation(() => ({
+      // eslint-disable-next-line require-yield -- simulates immediate provider failure
+      fullStream: (async function* () {
+        throw Object.assign(new Error('Rate limit exceeded'), { status: 429 });
+      })(),
+    }));
+
+    const req = createMockReq({
+      body: {
+        messages: [{ role: 'user', content: 'Hi' }],
+        model: 'alia-v1',
+        fallbackPolicy: 'no-fallback',
+        stream: true,
+      },
+    });
+
+    await handler(req, createMockRes(), vi.fn());
+
+    // A floor first: without a second call this asserts nothing at all.
+    expect(mockResolveModel.mock.calls.length).toBeGreaterThanOrEqual(2);
+    for (const call of mockResolveModel.mock.calls) {
+      expect(call[3]).toEqual({ fallbackPolicy: 'no-fallback' });
+    }
+  });
+
+  it('rejects a mistyped policy before reserving credits', async () => {
+    const req = createMockReq({
+      body: {
+        messages: [{ role: 'user', content: 'Hello' }],
+        model: 'alia-v1',
+        fallbackPolicy: 'no_fallback',
+        stream: false,
+      },
+    });
+    const res = createMockRes();
+
+    await handler(req, res, vi.fn());
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    const [payload] = res.json.mock.calls[0];
+    expect(payload.error.param).toBe('fallbackPolicy');
+    expect(payload.error.message).toContain('no_fallback');
+    // Nothing was reserved, so there is nothing to refund. A lenient parser
+    // would instead have widened this to `cross-model` and billed the request.
+    expect(mockReserveCredits).not.toHaveBeenCalled();
+    expect(mockResolveModel).not.toHaveBeenCalled();
   });
 });

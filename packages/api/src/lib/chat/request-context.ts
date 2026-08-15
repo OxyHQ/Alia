@@ -10,7 +10,13 @@
  * timeout suite's module mocks keep intercepting the same seams.
  */
 import type { Request, Response } from 'express';
-import { resolveModel, getDefaultAliaModel } from '../chat-core.js';
+import { resolveModel, getDefaultAliaModel, type RoutingOptions } from '../chat-core.js';
+import {
+  isFallbackPolicy,
+  FallbackNotPermittedError,
+  UnknownFallbackPolicyError,
+  UnregisteredModelError,
+} from '../routing/policy.js';
 import { getDb } from '../../db/index.js';
 import { findUserMemory, type UserMemoryProfile } from '../../db/memory/userMemoryRepository.js';
 import { getOrCreateUserCredits } from '../user-credits-helpers.js';
@@ -36,6 +42,7 @@ interface SkillDoc {
 export interface ChatRequestContext {
   body: Record<string, unknown> & {
     model?: string;
+    fallbackPolicy?: unknown;
     stream?: boolean;
     skillId?: string;
     conversationId?: string;
@@ -59,6 +66,13 @@ export interface ChatRequestContext {
   creditReservation: CreditReservation | null;
   resolved: Awaited<ReturnType<typeof resolveModel>>;
   aliasModelId: string;
+  /**
+   * The routing options this request resolved under. Carried on the context so
+   * the provider loop's RE-resolve uses the same policy the first resolve did —
+   * a retry that quietly widened the policy would be the silent substitution
+   * this workstream removes, arriving one attempt later.
+   */
+  routingOptions: RoutingOptions;
   autonomyRuntime: AutonomyRuntimeContext | null;
   recalledMemories: Array<{ title: string; summary: string }> | undefined;
 }
@@ -98,6 +112,30 @@ export async function buildChatRequestContext(
     });
     return null;
   }
+
+  /**
+   * `fallbackPolicy` — the request's own answer to ADR 0003 invariant 3.
+   *
+   * Validated here, before any credits are reserved, because it is a body
+   * parameter like `messages` and a mistyped value must not cost the caller a
+   * reservation. Absent means `DEFAULT_FALLBACK_POLICY`, which is what every
+   * client sends today and is the behaviour they already have.
+   */
+  if (body.fallbackPolicy !== undefined && !isFallbackPolicy(body.fallbackPolicy)) {
+    const policyError = new UnknownFallbackPolicyError(body.fallbackPolicy);
+    res.status(policyError.httpStatus).json({
+      error: {
+        message: policyError.userMessage,
+        type: 'invalid_request_error',
+        param: 'fallbackPolicy',
+        code: policyError.code,
+      }
+    });
+    return null;
+  }
+  const routingOptions: RoutingOptions = isFallbackPolicy(body.fallbackPolicy)
+    ? { fallbackPolicy: body.fallbackPolicy }
+    : {};
 
   // Extract optional parameters for Alia internal features
   const conversationId = body.conversationId as string | undefined;
@@ -151,9 +189,18 @@ export async function buildChatRequestContext(
       return { reservation: null, error: true as const };
     }) : Promise.resolve({ reservation: null, error: false as const }),
 
-    // Model resolution (includes key loading, rate limit checks, circuit breaker)
-    resolveModel(requestedModel).catch((err) => {
+    /**
+     * Model resolution (includes key loading, rate limit checks, circuit
+     * breaker).
+     *
+     * The catch keeps the two REFUSALS instead of flattening them to `null`.
+     * Everything else still becomes `null` and still becomes the same 503 it
+     * always did — the discrimination below is additive, and no error that
+     * existed before this change reaches it.
+     */
+    resolveModel(requestedModel, undefined, undefined, routingOptions).catch((err: unknown) => {
       log.v1.error({ err }, 'Error resolving model');
+      if (err instanceof UnregisteredModelError || err instanceof FallbackNotPermittedError) return err;
       return null;
     }),
 
@@ -208,6 +255,37 @@ export async function buildChatRequestContext(
       sse.writeError(creditError);
     } else {
       res.status(402).json({ error: creditError });
+    }
+    return null;
+  }
+
+  /**
+   * A refused request is answered by the refusal, not by "no models available".
+   *
+   * Two distinct outcomes used to arrive here as the same 503: an identifier
+   * nobody registered (never a working request) and a genuine provider
+   * shortage (retry and it may work). Telling them apart is the point — the
+   * first is a 400 naming what was asked for and what exists, the second is
+   * untouched below.
+   *
+   * The reservation is refunded, matching the `MODEL_NOT_IN_PLAN` branch further
+   * down, which is the same situation: a request rejected on its `model`
+   * parameter after credits were held. The 503 path deliberately keeps its
+   * existing behaviour.
+   */
+  if (resolvedResult instanceof UnregisteredModelError || resolvedResult instanceof FallbackNotPermittedError) {
+    if (creditReservation) await refundReservation(creditReservation);
+    clearTimeout(globalTimer);
+    const refusal = {
+      message: resolvedResult.userMessage,
+      type: resolvedResult.httpStatus >= 500 ? 'server_error' : 'invalid_request_error',
+      param: 'model',
+      code: resolvedResult.code,
+    };
+    if (sse.sent) {
+      sse.writeError(refusal);
+    } else {
+      res.status(resolvedResult.httpStatus).json({ error: refusal });
     }
     return null;
   }
@@ -287,6 +365,7 @@ export async function buildChatRequestContext(
     creditReservation,
     resolved,
     aliasModelId,
+    routingOptions,
     autonomyRuntime,
     recalledMemories,
   };

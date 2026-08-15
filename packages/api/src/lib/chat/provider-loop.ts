@@ -24,7 +24,7 @@
  */
 import type { Request, Response } from 'express';
 import { streamText, type ToolSet } from 'ai';
-import { resolveModel, reportModelUsage, type ResolvedModel } from '../chat-core.js';
+import { resolveModel, reportModelUsage, type ResolvedModel, type RoutingOptions } from '../chat-core.js';
 import { Conversation } from '../../models/conversation.js';
 import type { CreditReservation, CreditUsage } from '../credits-manager.js';
 import {
@@ -85,6 +85,12 @@ export interface ProviderLoopParams {
   agentMessages: AgentMessage[];
   systemPromptTokens: number;
   requestedModel: string;
+  /**
+   * The SAME routing options the first resolve used. Re-resolving under a
+   * different (wider) policy would reintroduce silent substitution one retry
+   * later, which is exactly the shape ADR 0003 invariant 3 forbids.
+   */
+  routingOptions: RoutingOptions;
   isSpanish: boolean;
   autonomyRuntime: AutonomyRuntimeContext | null;
   includeUsage: boolean;
@@ -101,7 +107,7 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
   const {
     req, res, sse, requestId, requestStartTime, globalTimer, globalTimeoutMs, state,
     body, messages, conversationId, thinkingMode, convertedMessages, truncatedTools,
-    toolNameMapping, agentMessages, systemPromptTokens, requestedModel, isSpanish,
+    toolNameMapping, agentMessages, systemPromptTokens, requestedModel, routingOptions, isSpanish,
     autonomyRuntime, includeUsage, tierMappingsLength,
   } = params;
 
@@ -138,7 +144,7 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
 
     // Re-resolve model on retry (skipping failed providers and keys)
     if (providerAttempt > 0) {
-      state.resolved = await resolveModel(requestedModel, skipProviders, failedKeyIds);
+      state.resolved = await resolveModel(requestedModel, skipProviders, failedKeyIds, routingOptions);
       if (!state.resolved) {
         log.v1.warn({ retries: providerAttempt }, 'No more providers available after retries');
         break;

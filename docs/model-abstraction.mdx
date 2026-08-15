@@ -71,31 +71,69 @@ There is no gateway service. `packages/alia-gateway` was deleted, and
 `SERVICE_SECRET` **and** `GATEWAY_API_URL` together — production sets only the first, so
 every call takes the in-process local path.
 
-1. `resolveModel()` (`packages/api/src/lib/chat-core.ts:56`) asks the gateway client,
+1. `resolveModel()` (`packages/api/src/lib/chat-core.ts:60`) asks the gateway client,
    which loads `internal/providers/lib/model-resolver.js` in local mode
-   (`gateway-client.ts:309`).
-2. `resolveWithFallback()` (`fallback-engine.ts:72`) reads the tier's mapping list from
+   (`gateway-client.ts:339`).
+2. `resolveWithFallback()` (`fallback-engine.ts:136`) reads the tier's mapping list from
    `TIER_MODEL_MAPPINGS` (`alia-models.ts:248`, which is `GENERATED_TIER_MAPPINGS`) and
-   sorts it by `priority` alone (`:99`). It does not rank by price or by quality score,
+   sorts it by `priority` alone (`:185`). It does not rank by price or by quality score,
    despite both fields existing on every mapping.
-3. Entries whose operator the caller excluded, or whose circuit breaker is open, are
-   skipped (`:117` onward).
-4. A credential for the surviving entry is selected from the `provider_keys` table
+3. The sorted list is then narrowed to what the request's fallback policy permits
+   (`candidatesUnderPolicy`, `:110`). The default permits all of it.
+4. Entries whose operator the caller excluded, or whose circuit breaker is open, are
+   skipped (`:203` onward).
+5. A credential for the surviving entry is selected from the `provider_keys` table
    (`packages/api/src/db/schema/providers.ts:300`). Credentials live in Postgres, not in
    environment variables.
-5. `getAIModel()` (`chat-core.ts:110`) constructs a Vercel AI SDK client for the resolved
-   operator — `createGoogleGenerativeAI` at `:117`, `createOpenAI` at `:121`,
-   `createAnthropic` at `:125`, and an OpenAI-compatible client with an explicit base URL
-   for the rest (`:104`).
+6. `getAIModel()` (`chat-core.ts:116`) constructs a Vercel AI SDK client for the resolved
+   operator — `createGoogleGenerativeAI` at `:123`, `createOpenAI` at `:127`,
+   `createAnthropic` at `:131`, and an OpenAI-compatible client with an explicit base URL
+   for the rest (`:109`).
 
-Two behaviours of this path are worth knowing because they are invisible to the caller:
+## Fallback policy
 
-- **An unrecognised model identifier is silently rewritten to `alia-v1`**
-  (`fallback-engine.ts:82`). A typo does not error; it answers from the default tier.
-- **Substitution across the tier's list is not announced.** The `alia.model_switch` stream
-  event is emitted by the `switchModel` *tool* (`packages/api/src/lib/tool-pipeline.ts:122`),
-  which is the model choosing a different tier on the user's behalf. The fallback engine
-  emits nothing at all — it contains no SSE code.
+Which candidates step 3 keeps is a property of the REQUEST, not a global setting
+(ADR 0003 invariant 3). `POST /v1/chat/completions` accepts an optional
+`fallbackPolicy` body field, validated at `lib/chat/request-context.ts:124`:
+
+| Value | What the engine may substitute |
+| --- | --- |
+| `cross-model` | The whole ranked list, other publishers included. **The default.** |
+| `same-model-only` | Other deployments of the top-ranked model only. |
+| `no-fallback` | The top-ranked candidate, or nothing. |
+
+`same-model-only` decides sameness by string equality on the upstream model id,
+which UNDER-approximates: two operators serving one open-weight model can name it
+differently, so a legitimate same-model deployment may be excluded. Admitting a
+different model is the error that matters and string equality cannot make it.
+
+Omitting the field selects `DEFAULT_FALLBACK_POLICY`
+(`packages/api/src/lib/routing/policy.ts:59`), which is `cross-model` — the
+behaviour this path has always had. The policies are enforced, and the presets
+that carry them are product configuration in
+`packages/api/src/lib/routing/presets.ts:95`, keyed by the `profile:<tier>` ids
+`docs/migration/alias-migration-map.json` assigns. Region and data-policy
+restrictions, operator allow/deny and same-revision deployment fallback are named
+in `DELEGATED_TO_RELAY` and deliberately not implemented here.
+
+`ROUTING_POLICY_VERSION` (`policy.ts:71`) and the policy in force are written to
+every `fallback_events` row, so a later question about why a response came from a
+given model does not have to assume the configuration never changed.
+
+Two behaviours of this path are worth knowing:
+
+- **An unrecognised model identifier is refused, not rewritten.**
+  `resolveWithFallback` throws `UnregisteredModelError` (`fallback-engine.ts:164`)
+  and the route answers `400` with a message naming what was requested and what
+  exists (`request-context.ts:276`). Until #139 workstream 14 the same line read
+  `isAliaModel(aliasModelId) ? aliasModelId : 'alia-v1'`: a typo did not error, it
+  answered from the default tier while reporting the name the caller sent.
+- **Substitution across the tier's list is still not announced.** The
+  `alia.model_switch` stream event is emitted by the `switchModel` *tool*
+  (`packages/api/src/lib/tool-pipeline.ts:122`), which is the model choosing a
+  different tier on the user's behalf. The fallback engine emits nothing at all —
+  it contains no SSE code. A caller who needs the guarantee rather than the
+  notification sets `fallbackPolicy`.
 
 ## Public API
 

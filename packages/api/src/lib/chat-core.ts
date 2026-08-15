@@ -24,11 +24,12 @@ import {
   type AliaModel,
   type AliaModelWithAvailability,
   type ModelCategory,
+  type RoutingOptions,
 } from './gateway-client.js';
 
 // Re-export types and helpers that chat routes need
 export { getDefaultAliaModel, isAliaModel, getAliaModel, getAllAliaModels, getAliaModelsByCategory, getDefaultModelForCategory, getAvailableModels };
-export type { KeyConfig, AliaModel, AliaModelWithAvailability, ModelCategory };
+export type { KeyConfig, AliaModel, AliaModelWithAvailability, ModelCategory, RoutingOptions };
 
 /**
  * Result of resolving an Alia model to a concrete provider/model.
@@ -51,18 +52,23 @@ export interface ResolvedModel {
  * @param aliasModelId - The Alia model ID (e.g., "alia-v1", "alia-lite")
  * @param skipProviders - Providers to skip (for retry scenarios)
  * @param skipKeyIds - Specific key IDs to skip (for retry scenarios)
+ * @param options - Per-request routing options; omitted means today's behaviour
  * @returns Resolved model with key config, or null if no providers available
+ * @throws UnregisteredModelError when `aliasModelId` names no registered model
+ * @throws FallbackNotPermittedError when a non-default policy exhausts its candidates
  */
 export async function resolveModel(
   aliasModelId: string,
   skipProviders?: Set<string>,
-  skipKeyIds?: Set<string>
+  skipKeyIds?: Set<string>,
+  options?: RoutingOptions
 ): Promise<ResolvedModel | null> {
   const result = await internalResolveAliaModel(
     aliasModelId,
     1000,
     skipProviders || new Set(),
-    skipKeyIds
+    skipKeyIds,
+    options
   );
   if (!result) return null;
   return {

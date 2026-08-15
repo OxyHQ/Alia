@@ -2558,7 +2558,7 @@
       ],
       "removalGate": "Reachable only through model-resolver. Gate: Relay implements tier-ordered failover AND Alia stops needing per-attempt FallbackAttempt data for its own telemetry.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/internal/providers/lib/fallback-engine.ts:53-56 (NON_RETRYABLE_REASONS), :99 (priority sort), :108 (MAX_KEYS_PER_PROVIDER), :121 (circuit check), :30 (fallbackEventRepository)"
+      "evidence": "packages/api/src/internal/providers/lib/fallback-engine.ts:83-86 (NON_RETRYABLE_REASONS), :110 (candidatesUnderPolicy, the fallback-policy narrowing), :164 (UnregisteredModelError refusal), :185 (priority sort), :196 (MAX_KEYS_PER_PROVIDER), :209 (circuit check), :51 (fallbackEventRepository)"
     },
     {
       "id": "field-provider-keys-key",

@@ -164,6 +164,20 @@ export const fallbackEvents = pgTable(
     finalModel: text(),
     success: boolean().notNull(),
     totalLatencyMs: integer(),
+    /**
+     * The fallback policy this request ran under, and the version of the
+     * routing-preset configuration that produced it (#139 ws14, ADR 0003).
+     *
+     * Nullable, and NOT because the writer treats them as optional — it always
+     * sends both. Rows written before this column existed have no policy to
+     * report, and a `DEFAULT 'cross-model'` would answer that question with a
+     * guess: it happens to be what those rows ran under today, but the value is
+     * a fact about the configuration at write time, and back-filling it would
+     * make every historical row indistinguishable from one measured under a
+     * policy that had been deliberately chosen. NULL means "not recorded".
+     */
+    fallbackPolicy: text(),
+    routingPolicyVersion: integer(),
     createdAt: createdAt(),
   },
   (t) => [
