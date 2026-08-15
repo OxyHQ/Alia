@@ -62,10 +62,17 @@ The endpoint is OpenAI-compatible at the schema level and adds product-specific 
   "thinkingMode": true,
   "agentMode": "research",
   "deepResearch": true,
+  "fallbackPolicy": "cross-model",
   "tools": ["webSearch", "webScraper"],
   "stream_options": { "include_usage": true }
 }
 ```
+
+`fallbackPolicy` is optional and decides whether the request may be answered from a
+different model when the selected one cannot be served — `cross-model`,
+`same-model-only` or `no-fallback`. Omitting it selects `cross-model`, which is what
+every client sends today. See
+[the model abstraction page](./model-abstraction.mdx#fallback-policy).
 
 Authentication on `/v1/*` accepts either:
 
@@ -80,11 +87,13 @@ The second is inside the compatibility window and is not extended; see
 What happens between request and first SSE chunk:
 
 1. Auth middleware resolves the caller and sets `req.user`.
-2. `buildChatRequestContext()` (`packages/api/src/lib/chat/request-context.ts:66`) runs the
-   autonomy `beforeChat` stage (`:114`) and then, in parallel (`:142`), reserves credits,
+2. `buildChatRequestContext()` (`packages/api/src/lib/chat/request-context.ts:80`)
+   validates `fallbackPolicy` (`:124`, before anything is reserved), runs the autonomy
+   `beforeChat` stage (`:152`) and then, in parallel (`:180`), reserves credits,
    resolves the Alia identifier to an upstream deployment, loads the user's memory
    profile, hydrates the Oxy profile, loads the skill, resolves entitlements and loads any
-   agent linked to the conversation.
+   agent linked to the conversation. An identifier nothing registers is refused here with
+   a `400` rather than resolved (`:276`).
 3. Deep-research requests branch out to `handleDeepResearch()`
    (`routes/v1/chat-completions.ts:83`) and stream `alia.research_progress` instead of the
    ordinary loop.

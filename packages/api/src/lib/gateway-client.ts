@@ -25,6 +25,7 @@ import type { PlanFilter } from '../db/billing/planRepository.js';
 import { log } from './logger.js';
 import { getStatusCode } from './errors/index.js';
 import { assertUnreservedModelIdentifier } from './reserved-namespace.js';
+import type { FallbackPolicy } from './routing/policy.js';
 
 // ============== MODE DETECTION ==============
 
@@ -184,6 +185,19 @@ export interface ResolvedModel {
   isFallback: boolean;
 }
 
+/**
+ * Per-request routing options.
+ *
+ * Declared here rather than re-exported from `internal/providers`, matching how
+ * every other type on this page is declared: this module is the seam, and it
+ * must not pull the provider tree in at module load. The shape is structurally
+ * identical to `FallbackOptions` and is checked against it by `tsc` at the one
+ * call site below that passes it across.
+ */
+export interface RoutingOptions {
+  fallbackPolicy?: FallbackPolicy;
+}
+
 export interface HealthMetrics {
   provider: string;
   modelId: string;
@@ -285,12 +299,19 @@ function isCacheValid<T>(entry: CacheEntry<T> | null): entry is CacheEntry<T> {
 /**
  * Resolve an alia model to a concrete provider + key.
  * Used before streaming chat completions.
+ *
+ * `options.fallbackPolicy` is a property of the REQUEST (ADR 0003 invariant 3),
+ * so it crosses this seam with the request rather than being read from process
+ * config on the far side. Omitting it is what every existing caller does and
+ * selects `DEFAULT_FALLBACK_POLICY`, which is the behaviour this function has
+ * always had.
  */
 export async function resolveAliaModel(
   model: string,
   tokens: number = 1000,
   skipProviders: Set<string> = new Set(),
-  skipKeyIds?: Set<string>
+  skipKeyIds?: Set<string>,
+  options: RoutingOptions = {}
 ): Promise<ResolvedModel | null> {
   // ADR 0002: the `alia/*` publisher namespace is reserved and empty. Refused
   // here, above the mode branch, so both the remote gateway path and the local
@@ -306,6 +327,7 @@ export async function resolveAliaModel(
         estimatedTokens: tokens,
         skipProviders: [...skipProviders],
         skipKeyIds: skipKeyIds ? [...skipKeyIds] : [],
+        fallbackPolicy: options.fallbackPolicy,
       });
     } catch (error: unknown) {
       if (getStatusCode(error) === 503) return null;
@@ -315,7 +337,7 @@ export async function resolveAliaModel(
 
   // Local fallback
   const { resolveAliaModel: localResolve } = await import('../internal/providers/lib/model-resolver.js');
-  return localResolve(model, tokens, skipProviders, skipKeyIds || new Set());
+  return localResolve(model, tokens, skipProviders, skipKeyIds || new Set(), options);
 }
 
 // ============== PROVIDER HELPERS ==============

@@ -73,12 +73,14 @@ const GOVERNED_PREFIX = 'packages/api/src/internal/providers/';
  * the same commit, which is the point.
  */
 const NOT_APPLICABLE: Readonly<Record<string, string>> = {
+  'packages/api/src/internal/providers/lib/__tests__/fallback-engine-policy.test.ts':
+    'Test of fallback-engine.ts, which is mapped (row `fallback-engine`). Moves or dies with it.',
   'packages/api/src/internal/providers/lib/__tests__/provider-health.test.ts':
     'Test of provider-health.ts, which is mapped (row `provider-health`). Moves or dies with it.',
   'packages/api/src/internal/providers/lib/__tests__/tts-providers.test.ts':
     'Test of tts-providers.ts, which is mapped (row `tts-providers`). Moves or dies with it.',
 };
-const NOT_APPLICABLE_COUNT = 2;
+const NOT_APPLICABLE_COUNT = 3;
 
 interface MatrixRow {
   readonly id: string;
