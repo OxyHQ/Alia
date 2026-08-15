@@ -18,11 +18,14 @@
  * is exactly the drift the epic exists to prevent, and a mirror written
  * "temporarily" is the way one arrives.
  *
- * The published package is not a dependency yet: `@oxyhq/contracts@0.26.0` was
- * cut before the inference module merged, so adding it today would resolve to a
- * module that does not exist. `docs/migration/relay-client-gap.md` records the
- * exact edit that binds each parameter, and `__tests__/product-seam.test.ts`
- * fails if a parameter is replaced by a locally declared shape.
+ * `@oxyhq/contracts` is a dependency of `packages/api` as of the inference
+ * module's release, and the four parameters are bound in `relay-client.ts` —
+ * `RelayInferencePort`, one type alias, at the implementation rather than here.
+ * That is deliberate: binding them on the interface would make every product
+ * module that names this port name the wire types too, and the port's value is
+ * that a product module never has to. `__tests__/product-seam.test.ts` fails if
+ * a parameter is replaced by a locally declared shape, and
+ * `docs/migration/relay-client-gap.md` records what binds each one.
  *
  * ## Deliberately NOT here
  *
@@ -31,8 +34,10 @@
  * - **Provider selection, health, keys and circuit breaking.** Relay's, per
  *   ADR 0001. `reportModelUsage` has no counterpart on this seam because it has
  *   no counterpart in the target architecture at all — see the gap analysis.
- * - **Any wiring.** Nothing imports this module yet, on purpose. A half-wired
- *   seam is worse than an unwired one: it makes the cutover look done.
+ * - **Any wiring.** The only importer is the Relay client that implements this
+ *   port, and nothing in `packages/api` imports THAT — frozen by
+ *   `__tests__/relay-boundary.test.ts`. A half-wired seam is worse than an
+ *   unwired one: it makes the cutover look done. Workstream 8 wires it.
  */
 
 /* -------------------------------------------------------------------------- */
