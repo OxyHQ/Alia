@@ -1,4 +1,5 @@
 import type { KeyConfig, OpenAIMessage, OpenAITool, Provider, ProviderConfig } from '../types';
+import { readProviderErrorBody } from '../provider-error-body.js';
 
 // ============== OPENROUTER ==============
 // Unified API that provides access to 100+ models from multiple providers
@@ -33,7 +34,7 @@ export const openrouterProvider: Provider = {
     });
 
     if (!res.ok) {
-      throw new Error(`OpenRouter ${res.status}: ${await res.text()}`);
+      throw new Error(`OpenRouter ${res.status}: ${await readProviderErrorBody(res, key.key)}`);
     }
 
     // OpenRouter uses OpenAI-compatible format

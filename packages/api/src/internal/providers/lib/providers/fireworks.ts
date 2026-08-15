@@ -1,4 +1,5 @@
 import type { KeyConfig, OpenAIMessage, OpenAITool, Provider, ProviderConfig } from '../types';
+import { readProviderErrorBody } from '../provider-error-body.js';
 
 // ============== FIREWORKS AI ==============
 export const fireworksProvider: Provider = {
@@ -29,7 +30,7 @@ export const fireworksProvider: Provider = {
     });
 
     if (!res.ok) {
-      throw new Error(`Fireworks ${res.status}: ${await res.text()}`);
+      throw new Error(`Fireworks ${res.status}: ${await readProviderErrorBody(res, key.key)}`);
     }
 
     return res.body!;

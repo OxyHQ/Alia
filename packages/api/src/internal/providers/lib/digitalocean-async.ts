@@ -8,6 +8,7 @@
  */
 
 import { log } from '../../../lib/logger.js';
+import { readProviderErrorBody } from './provider-error-body.js';
 
 const DO_BASE = 'https://inference.do-ai.run';
 const POLL_INTERVAL_MS = 500;
@@ -80,7 +81,7 @@ export async function callDigitalOceanAsyncInvoke(
   });
 
   if (!submitRes.ok) {
-    const errBody = await submitRes.text().catch(() => `HTTP ${submitRes.status}`);
+    const errBody = await readProviderErrorBody(submitRes, apiKey);
     throw new Error(`DO async-invoke submit ${submitRes.status}: ${errBody}`);
   }
 
@@ -134,7 +135,7 @@ export async function callDigitalOceanAsyncInvoke(
   });
 
   if (!resultRes.ok) {
-    const errBody = await resultRes.text().catch(() => `HTTP ${resultRes.status}`);
+    const errBody = await readProviderErrorBody(resultRes, apiKey);
     throw new Error(`DO async-invoke result fetch ${resultRes.status}: ${errBody}`);
   }
 

@@ -1,4 +1,5 @@
 import type { KeyConfig, OpenAIMessage, OpenAITool, Provider, ProviderConfig } from '../types';
+import { readProviderErrorBody } from '../provider-error-body.js';
 
 // ============== DEEPSEEK ==============
 // Chinese AI company with competitive reasoning models
@@ -31,7 +32,7 @@ export const deepseekProvider: Provider = {
     });
 
     if (!res.ok) {
-      throw new Error(`DeepSeek ${res.status}: ${await res.text()}`);
+      throw new Error(`DeepSeek ${res.status}: ${await readProviderErrorBody(res, key.key)}`);
     }
 
     // DeepSeek uses OpenAI-compatible format

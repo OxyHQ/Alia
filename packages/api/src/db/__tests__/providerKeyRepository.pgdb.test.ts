@@ -93,6 +93,35 @@ describe('the safe projection', () => {
     expect(full?.keyHash).toHaveLength(64);
   });
 
+  it('never carries a credential the provider quoted back at us, either', async () => {
+    /**
+     * `last_failure_reason` is built from an upstream error body, and an
+     * upstream 401 echoes the credential it rejected. The column is INSIDE the
+     * projection above, so whatever is stored travels with every "safe" read —
+     * and `Omit<…, 'key' | 'keyHash'>` cannot catch it, because the column is
+     * legitimately named and legitimately present (#139 workstream 15).
+     *
+     * The value is synthetic and assembled from fragments: shaped like a
+     * project key, a single repeated letter for a body, nothing to rotate.
+     */
+    const synthetic = ['sk', 'proj', 'B'.repeat(40) + 'ENDS0043'].join('-');
+    const created = await createProviderKey(db, newKey({ name: 'pk-failure-reason' }));
+    const reason = `test-model 401: {"error":{"message":"Incorrect API key provided: ${synthetic}"}}`;
+    // The control: what the repository is handed really does carry it, so a
+    // clean read below is redaction rather than an empty column.
+    expect(reason).toContain(synthetic);
+
+    await recordKeyFailure(db, created.id, reason, 20, new Date(), false);
+
+    const safe = await findSafeProviderKeyById(db, created.id);
+    expect(safe?.lastFailureReason).not.toContain(synthetic);
+    expect(safe?.lastFailureReason).not.toContain(synthetic.slice(0, 12));
+    // And it is still worth reading — which is why the column is redacted
+    // rather than dropped, and why a classification does not replace it.
+    expect(safe?.lastFailureReason).toContain('401');
+    expect(safe?.lastFailureReason).toContain('Incorrect API key provided');
+  });
+
   it('reports whether a key HAS a value without returning it', async () => {
     const withValue = await createProviderKey(db, newKey({ name: 'pk-diag-has' }));
     const blank = await createProviderKey(db, newKey({ name: 'pk-diag-blank' }));

@@ -1,4 +1,5 @@
 import type { KeyConfig, OpenAIMessage, OpenAITool, Provider, ProviderConfig } from '../types';
+import { readProviderErrorBody } from '../provider-error-body.js';
 
 // ============== OPENAI ==============
 export const openaiProvider: Provider = {
@@ -29,7 +30,7 @@ export const openaiProvider: Provider = {
     });
 
     if (!res.ok) {
-      throw new Error(`OpenAI ${res.status}: ${await res.text()}`);
+      throw new Error(`OpenAI ${res.status}: ${await readProviderErrorBody(res, key.key)}`);
     }
 
     return res.body!;

@@ -1,5 +1,6 @@
 import type { KeyConfig, OpenAIMessage, OpenAITool, Provider, ProviderConfig } from '../types';
 import { log } from '../../../../lib/logger.js';
+import { readProviderErrorBody } from '../provider-error-body.js';
 
 // Narrow shapes for the Gemini `generateContent` request body.
 interface GeminiPart {
@@ -105,7 +106,7 @@ export const googleProvider: Provider = {
     });
 
     if (!res.ok) {
-      throw new Error(`Gemini ${res.status}: ${await res.text()}`);
+      throw new Error(`Gemini ${res.status}: ${await readProviderErrorBody(res, key.key)}`);
     }
 
     return transformGeminiStream(res.body!, key.modelId);

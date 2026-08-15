@@ -1,4 +1,5 @@
 import type { KeyConfig, OpenAIMessage, OpenAITool, Provider, ProviderConfig } from '../types';
+import { readProviderErrorBody } from '../provider-error-body.js';
 
 // ============== REPLICATE ==============
 // Replicate uses a predictions API (not OpenAI-compatible).
@@ -128,7 +129,7 @@ export const replicateProvider: Provider = {
     });
 
     if (!res.ok) {
-      throw new Error(`Replicate ${res.status}: ${await res.text()}`);
+      throw new Error(`Replicate ${res.status}: ${await readProviderErrorBody(res, key.key)}`);
     }
 
     return convertReplicateStreamToOpenAI(res.body!);

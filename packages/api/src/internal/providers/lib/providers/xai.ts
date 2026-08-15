@@ -1,4 +1,5 @@
 import type { KeyConfig, OpenAIMessage, OpenAITool, Provider, ProviderConfig } from '../types';
+import { readProviderErrorBody } from '../provider-error-body.js';
 
 // ============== XAI (GROK) - TEXT ==============
 export const xaiProvider: Provider = {
@@ -29,7 +30,7 @@ export const xaiProvider: Provider = {
     });
 
     if (!res.ok) {
-      throw new Error(`xAI ${res.status}: ${await res.text()}`);
+      throw new Error(`xAI ${res.status}: ${await readProviderErrorBody(res, key.key)}`);
     }
 
     return res.body!;
