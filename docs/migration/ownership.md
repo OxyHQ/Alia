@@ -33,20 +33,23 @@ dead code, an endpoint split that is the wrong way round, and provider credentia
 environment variables that do not exist. Four corrections, each established with a
 positive control, and then three more found while assembling this matrix.
 
-### 1. `internal/providers/index.ts` and its twelve admin sub-routers are NOT MOUNTED
+### 1. `internal/providers/index.ts` and its twelve admin sub-routers were NOT MOUNTED — and are now DELETED (#141)
 
-`packages/api/src/index.ts` makes 46 `app.use(` calls; none mounts `/internal/providers`
-or `/internal/gateway` (`packages/api/src/index.ts:221-257`). Nothing outside
-`packages/api/src/internal/providers/` imports that module. Everything reachable only
-through it is dead code, not a migration target — 21 files, listed in the matrix with
-`reachable: "dead"`.
+`packages/api/src/index.ts` made 46 `app.use(` calls; none mounted `/internal/providers`
+or `/internal/gateway`. One correction to the original wording, which said "none mounts
+`/internal`": `app.use('/internal', internalRouter)` **did** exist, at
+`packages/api/src/index.ts:257`, mounting `routes/internal.ts` — whose entire route table
+is one `POST /internal/trigger`. So the accurate claim is that nothing mounted the
+*providers* router, and both `/internal/providers` and `/internal/gateway` returned 404.
 
-The only repo reference to the path is a Vite dev-proxy rewrite in
-`packages/alia-gateway-admin/vite.config.ts:53`, and
-`packages/alia-gateway-admin/src/lib/api/client.ts:6` targets `/internal/gateway`, a
-path the API does not serve either. The single occurrence of the string
-`internal/gateway` under `packages/api` is a diagram in
-`packages/api/src/internal/README.md:24`.
+Nothing outside `packages/api/src/internal/providers/` imported that module. Everything
+reachable only through it was dead code, not a migration target — 21 files.
+
+**#141 deleted them**, together with `packages/alia-gateway-admin`, the only client that
+ever called them. Their rows are still in the matrix, now carrying
+`removedIn: "#141"`; they are not deleted, because the surviving rows cite them as the
+reason they are themselves unreachable, and because a row is the record of why the code
+was safe to remove.
 
 ### 2. The live inference path is `lib/chat-core.ts`, not the hand-written adapters
 
@@ -94,11 +97,14 @@ src/index.ts → routes/v1.ts → routes/v1/voice.ts
 ```
 
 The registry object is read at `voice-session-manager.ts:148` and `:676`, but only its
-`.voice` member is ever used. Repo-wide, `.proxy(` returns **exactly one** hit —
-`internal/providers/routes/providers.ts:138`, inside the unmounted router. So the text
-adapters are `loaded-not-invoked`: no request reaches their code, but deleting a file
-means editing a registry that a live module imports. That is not a free removal, and
-"dead code" would have said it was.
+`.voice` member is ever used. Repo-wide, `.proxy(` returned **exactly one** hit —
+`internal/providers/routes/providers.ts:138`, inside the unmounted router — and #141
+deleted that file, so **`.proxy(` now returns zero** (positive control: the same grep
+against `origin/main` returns the one hit). So the text adapters are
+`loaded-not-invoked`: no request reaches their code, but deleting a file means editing a
+registry that a live module imports. That is not a free removal, and "dead code" would
+have said it was. #141 changed nothing about that: it removed the caller, not the
+adapters, and all 22 remain byte-untouched.
 
 ### 6. There are THREE live provider surfaces, not one
 
@@ -238,6 +244,14 @@ archived rather than cited from a chat log because a `provenance` of
 `inventory-product-api` has to resolve to something. Load-bearing claims — anything a
 deletion hangs on — were re-derived here with a positive control; the rest are marked
 `inventory-<domain>` and should be read as claims.
+
+**They are deliberately NOT updated as the epic deletes things, and #141 is the first PR
+for which that matters.** All four still describe `packages/alia-gateway-admin` and the
+`internal/providers` routes in the present tense, because they are a verbatim record of
+what was true at `b909147d` — rewriting them would destroy the one property that makes an
+archive worth keeping. The matrix is the living document; the inventories are its input,
+frozen. Read any path in them against the matrix row that cites it, which is where
+`removedIn` says whether the file still exists.
 
 **The matrix was generated once** from those four files plus the measurements recorded
 above, and is HAND-MAINTAINED from here. The generator is deliberately not committed: the
@@ -398,12 +412,19 @@ accident and not a control.
 27 stay in Alia, 11 to Oxy, 9 deleted, 8 to a Relay operations surface. 38 live, 15 dead,
 2 unverified.
 
-**`packages/alia-gateway-admin` is dead UI.** Twenty rows name a path inside that
-package; **18 are `dead`** and the other two are its DigitalOcean specs, which are
-`unverified` because no repo read can say what a live DO app is running. Every endpoint
-the client calls is unmounted. That changes the shape of workstream 9 — nothing
-is being migrated, because nothing works. What the epic is really deciding is where four
-capabilities should live, none of which has a home today:
+**`packages/alia-gateway-admin` was dead UI, and #141 DELETED it.** Twenty rows named a
+path inside that package; **18 were `dead`** and the other two were its DigitalOcean
+specs, which were `unverified` because no repo read can say what a live DO app is
+running. Every endpoint the client called was unmounted. That changed the shape of
+workstream 9 — nothing was migrated, because nothing worked, so the package went rather
+than moved. All twenty rows survive with `removedIn: "#141"`.
+
+Note what that does and does not settle. The package is gone, but the checkbox it sits
+under reads "Remove the package from the Alia workspace **once replacement surfaces are
+live**", and no replacement surface exists. It was removed because it was dead at both
+ends, not because Oxy Console took it over. What the epic is really deciding is where
+four capabilities should live, none of which has a home today — and after #141, none of
+which has any code either:
 
 | capability | current state | proposed owner |
 | --- | --- | --- |
@@ -412,11 +433,14 @@ capabilities should live, none of which has a home today:
 | plan / feature / credit-pack editing | dead; the catalogue has no writer at all | Alia |
 | customer billing browser | dead | Alia or Oxy |
 
-Two hazards to record before it goes: authorization is a client-side
+Two hazards recorded before it went, and kept here because the code they describe no
+longer exists to be read: authorization was a client-side
 `user?.username?.toLowerCase() === 'nate'` (`src/App.tsx:81`) — not an access boundary at
-all — and the realtime client puts the bearer token in the WebSocket URL query string
+all — and the realtime client put the bearer token in the WebSocket URL query string
 (`src/lib/websocket/client.ts:60`), where it lands in access logs. Neither pattern may be
-carried into a replacement.
+carried into a replacement. A third, server-side: the proxy route set an `X-Key-Used`
+response header carrying the first eight characters of a plaintext provider key
+(`internal/providers/routes/providers.ts:145`). All three are gone with their files.
 
 Five further rows sit OUTSIDE the package and are the ones a directory-scoped deletion
 misses: the two root scripts, the workspace entry, the deploy job and the root DO spec.
@@ -562,18 +586,29 @@ Added by this matrix:
 `packages/api/src/db/__tests__/ownershipMatrixCoverage.test.ts`, in the `@alia/api` suite,
 asserts that:
 
-- every `currentPath` in the matrix still exists — this is what catches drift as the
-  epic's deletions land;
+- every `currentPath` in the matrix still exists, UNLESS the row carries `removedIn`
+  naming the PR that deleted it — this is what catches drift as the epic's deletions
+  land;
+- no row carries `removedIn` while its file still exists — the other direction, without
+  which the field would just be a way to switch the check off;
+- the removed set has an EXACT count (38 as of #141), so deleting more code means moving
+  a number in the same commit;
+- the complement — rows whose file must still exist — is floored at 250, so the matrix
+  cannot end up entirely annotated-as-removed, which is what a check over nothing would
+  look like;
 - every tracked file under `packages/api/src/internal/providers/**` is either mapped by a
   row or listed in an explicit `NOT_APPLICABLE` map with a reason; being in neither fails;
 - `NOT_APPLICABLE` has an EXACT count (2 — the two test files under that subtree), so it
   cannot grow one defensible line at a time;
-- rows are unique, sorted by id, and depend only on ids that exist;
-- every row carries a legal `owner` and `reachable` value.
+- rows are unique, sorted by id, and depend only on ids that exist. This is why removed
+  rows are annotated rather than deleted: surviving rows list them in `dependsOn`, and
+  deleting one would dangle every reference to it.
 
-Both halves are floored against vacuity (≥ 300 rows, ≥ 50 governed files, ≥ 150 distinct
-paths) and the file enumeration carries a positive control naming a file known to be in
-the subtree. Every assertion was mutation-tested: each violation confirmed RED, each
+Both halves are floored against vacuity (≥ 300 rows, ≥ 40 governed files, ≥ 150 distinct
+paths, ≥ 250 not-removed rows) and the file enumeration carries a positive control naming
+a file known to be in the subtree. The governed floor was 50 against 60 files; #141
+deleted 16, leaving 44, and moved the floor to 40 in the same commit — the only way it is
+allowed to move. Every assertion was mutation-tested: each violation confirmed RED, each
 restore from a pristine copy confirmed GREEN.
 
 ---
