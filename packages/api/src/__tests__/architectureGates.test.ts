@@ -140,6 +140,36 @@ function lineOf(sf: ts.SourceFile, node: ts.Node): number {
   return sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1;
 }
 
+/** Every `<anything>.<name>()` call, by line. Reading a response body is one of these. */
+function methodCalls(sf: ts.SourceFile, name: string): number[] {
+  const out: number[] = [];
+  const visit = (n: ts.Node): void => {
+    if (ts.isCallExpression(n) && ts.isPropertyAccessExpression(n.expression) && n.expression.name.text === name) {
+      out.push(lineOf(sf, n));
+    }
+    ts.forEachChild(n, visit);
+  };
+  visit(sf);
+  return out;
+}
+
+/**
+ * Every `<name>: <initializer>` in an object literal, as the initializer's own
+ * source text — so a check can ask what a field is set FROM, not merely whether
+ * the field exists.
+ */
+function propertyInitializers(sf: ts.SourceFile, name: string): string[] {
+  const out: string[] = [];
+  const visit = (n: ts.Node): void => {
+    if (ts.isPropertyAssignment(n) && (ts.isIdentifier(n.name) || ts.isStringLiteral(n.name)) && n.name.text === name) {
+      out.push(n.initializer.getText(sf));
+    }
+    ts.forEachChild(n, visit);
+  };
+  visit(sf);
+  return out;
+}
+
 // ===========================================================================
 // The scanner's own positive controls
 // ===========================================================================
@@ -181,6 +211,23 @@ describe('the scanner recognises every form it claims to handle', () => {
     const commented = parse(`// import { A } from 'ghost';\n/* https://api.ghost.example */\nconst x = 1;`);
     expect(moduleRefs(commented)).toEqual([]);
     expect(stringLiterals(commented)).toEqual([]);
+  });
+
+  it('finds a method call however it is spelled, and not one in a comment', () => {
+    expect(methodCalls(parse('const b = await res.text();'), 'text')).toEqual([1]);
+    expect(methodCalls(parse('const b = await res\n  .text()\n  .catch(() => "");'), 'text')).toEqual([1]);
+    expect(methodCalls(parse('const b = await (await fetch(u)).text();'), 'text')).toEqual([1]);
+    // The inflation hazard again: a comment quoting the call it forbids.
+    expect(methodCalls(parse('// const b = await res.text();\nconst x = 1;'), 'text')).toEqual([]);
+    // And the negative half — a bare identifier of the same name is not a call.
+    expect(methodCalls(parse('const t = res.text;'), 'text')).toEqual([]);
+  });
+
+  it('reads what a property is set FROM, not merely that it is set', () => {
+    expect(propertyInitializers(parse('const o = { a: redact(b).c, d: 1 };'), 'a')).toEqual(['redact(b).c']);
+    expect(propertyInitializers(parse("const o = { 'a': f(x) };"), 'a')).toEqual(['f(x)']);
+    expect(propertyInitializers(parse('const o = { a: 1 };\nconst p = { a: 2 };'), 'a')).toEqual(['1', '2']);
+    expect(propertyInitializers(parse('/* { a: leak } */ const x = 1;'), 'a')).toEqual([]);
   });
 
   it('scans a non-trivial number of files, so a clean result means clean', () => {
@@ -1038,6 +1085,46 @@ const PLAINTEXT_CREDENTIAL_READERS: readonly string[] = [
   'packages/api/src/lib/chat-core.ts',
 ];
 
+/**
+ * ## The logging half (#139 workstream 15)
+ *
+ * The four checks above are about the TYPE, the imports and `res.*`. None of
+ * them looks at a log call, and a credential does not have to be the row to
+ * escape: an upstream provider's 401 body quotes the credential it rejected,
+ * and that body was written to the logs in full and to
+ * `provider_keys.last_failure_reason` besides. `Omit<…, 'key' | 'keyHash'>` is
+ * structurally incapable of catching text DERIVED from a credential.
+ *
+ * The fix is two chokepoints, and these checks assert both are the only way
+ * through. A fix applied at the 941 log sites would decay; a fix where the
+ * string is BORN holds, and is checkable:
+ *
+ *  1. {@link PROVIDER_BODY_READER} — the only file in the provider tree that
+ *     may turn a response into a string. It redacts the credential that was
+ *     SENT (by exact value, so a truncated or URL-embedded echo is caught too)
+ *     and then runs the pattern scrubber for credentials it did not send.
+ *  2. `lib/logger.ts` — the only place that can see an error this codebase did
+ *     not construct. The AI SDK's `APICallError` carries the raw upstream body
+ *     on `responseBody`, and `lib/chat/provider-loop.ts` logs that object.
+ *
+ * **What these checks cannot see**, stated rather than implied: a body read
+ * with `.json()` rather than `.text()` on a failed response (no code does that
+ * today, and the census would not notice if it did), and a credential
+ * interpolated into a log MESSAGE rather than into `{ err }` — the message
+ * string never reaches a pino serializer. Both are covered only by the fact
+ * that, after check 1, no unredacted body exists as a string to interpolate.
+ *
+ * The behavioural half — what pino actually emits, driven by a real
+ * `APICallError` from the real AI SDK against a local server — is
+ * `internal/providers/lib/__tests__/credential-redaction.test.ts`. A census
+ * over source cannot answer that question, and a test that builds the object it
+ * then redacts answers a different one.
+ */
+const PROVIDER_BODY_READER = 'packages/api/src/internal/providers/lib/provider-error-body.ts';
+
+/** The single redaction authority. `logger.ts` had a second, unattached copy; it is gone. */
+const SECRET_SCANNER = 'packages/api/src/lib/agent/secret-scanner';
+
 describe('gate 4: no provider secret reaches a public serializer (ADR 0001)', () => {
   const apiSources = trackedSources('packages/api/src');
 
@@ -1174,6 +1261,87 @@ describe('gate 4: no provider secret reaches a public serializer (ADR 0001)', ()
     }
     expect(responses).toBeGreaterThanOrEqual(900);
     expect(offenders).toEqual([]);
+  });
+
+  it('every upstream response body in the provider tree is read through one function', () => {
+    const tree = trackedSources('packages/api/src/internal/providers');
+    // Floor: a census over an empty file list reports the same clean nothing.
+    expect(tree.length).toBeGreaterThanOrEqual(20);
+
+    const sites = tree.flatMap(({ file, ast }) => methodCalls(ast, 'text').map((line) => `${file}:${line}`));
+
+    // Positive control INSIDE the scanned scope: the one legitimate read is
+    // found. Without it, a visitor that matched nothing would report the same
+    // empty offender list as a tree that is genuinely clean.
+    expect(sites.filter((s) => s.startsWith(`${PROVIDER_BODY_READER}:`))).toHaveLength(1);
+    expect(sites.filter((s) => !s.startsWith(`${PROVIDER_BODY_READER}:`))).toEqual([]);
+
+    // Second control, in the same currency but outside the tree: the shape is
+    // common in this package (channel plugins, MCP, the web tools), so a scan
+    // that could not see it at all would fail here rather than pass above.
+    const packageWide = apiSources.reduce((n, { ast }) => n + methodCalls(ast, 'text').length, 0);
+    expect(packageWide).toBeGreaterThanOrEqual(15);
+  });
+
+  it('the logger scrubs every error it serializes', () => {
+    const [logger] = trackedSources('packages/api/src/lib/logger.ts');
+    expect(logger).toBeDefined();
+
+    // One redaction authority, imported — not a second private copy. `logger.ts`
+    // carried exactly that for as long as it was dead code, and its existence
+    // made the logging path look protected.
+    const authorities = moduleRefs(logger.ast).filter((r) => resolveSpec(logger.file, r.spec) === SECRET_SCANNER);
+    expect(authorities).toHaveLength(1);
+
+    const serializers = propertyInitializers(logger.ast, 'serializers');
+    // The positive control for the walk: `redact` is the configuration that was
+    // always there, so finding it proves the pino options object was read. A
+    // walk that found nothing would report an empty `serializers` list too.
+    expect(propertyInitializers(logger.ast, 'redact')).toHaveLength(1);
+
+    expect(serializers).toHaveLength(1);
+    expect(serializers[0]).toContain('err:');
+    expect(serializers[0]).toContain('wrapErrorSerializer');
+  });
+
+  it('nothing can store an unredacted failure reason on a provider key', () => {
+    const [repository] = trackedSources('packages/api/src/db/providers/providerKeyRepository.ts');
+    expect(repository).toBeDefined();
+
+    const authorities = moduleRefs(repository.ast).filter(
+      (r) => resolveSpec(repository.file, r.spec) === SECRET_SCANNER,
+    );
+    expect(authorities).toHaveLength(1);
+
+    const uses = propertyInitializers(repository.ast, 'lastFailureReason');
+    // Two, and each carries its own meaning:
+    //
+    //  - `providerKeys.lastFailureReason` is the SAFE PROJECTION entry. Finding
+    //    it is this check's positive control (the walk read the file), and it
+    //    also freezes the decision to keep the column in that projection —
+    //    which is defensible only because the value stored is redacted.
+    //  - the other is the write, and it must go through the redactor.
+    expect(uses).toHaveLength(2);
+    expect(uses).toContain('providerKeys.lastFailureReason');
+
+    const stored = uses.filter((u) => u !== 'providerKeys.lastFailureReason');
+    expect(stored).toHaveLength(1);
+    /**
+     * Redaction OUTSIDE, truncation OUTERMOST — the nesting, not merely the
+     * presence of both. `redactSecrets(reason.substring(0, 500)).redacted`
+     * contains every token the obvious check looks for and cuts the string
+     * FIRST, which is how a credential survives by straddling the cut. That
+     * spelling was written and run against this assertion: the first version
+     * compared the two `indexOf`s and passed it, which is the vacuous form.
+     */
+    expect(stored[0]).toMatch(/^redactSecrets\(.+\)\.redacted\.substring\(0, \d+\)$/);
+
+    /**
+     * `db/telemetry/authHealthRepository.ts` has a column of the same name on a
+     * different table, fed by auth failure reasons rather than by an upstream
+     * body. It is deliberately outside this check: naming it here would make
+     * the assertion about a word rather than about a credential path.
+     */
   });
 });
 

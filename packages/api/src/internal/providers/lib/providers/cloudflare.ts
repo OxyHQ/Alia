@@ -1,4 +1,5 @@
 import type { KeyConfig, OpenAIMessage, OpenAITool, Provider, ProviderConfig } from '../types';
+import { readProviderErrorBody } from '../provider-error-body.js';
 
 // ============== CLOUDFLARE WORKERS AI ==============
 // Serverless AI inference on Cloudflare's global network
@@ -38,7 +39,7 @@ export const cloudflareProvider: Provider = {
     });
 
     if (!res.ok) {
-      throw new Error(`Cloudflare ${res.status}: ${await res.text()}`);
+      throw new Error(`Cloudflare ${res.status}: ${await readProviderErrorBody(res, apiToken)}`);
     }
 
     // Cloudflare Workers AI uses OpenAI-compatible format

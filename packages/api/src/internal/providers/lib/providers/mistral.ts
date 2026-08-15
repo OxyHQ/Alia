@@ -1,4 +1,5 @@
 import type { KeyConfig, OpenAIMessage, OpenAITool, Provider, ProviderConfig } from '../types';
+import { readProviderErrorBody } from '../provider-error-body.js';
 
 // ============== MISTRAL AI ==============
 // French AI company with excellent coding models
@@ -31,7 +32,7 @@ export const mistralProvider: Provider = {
     });
 
     if (!res.ok) {
-      throw new Error(`Mistral ${res.status}: ${await res.text()}`);
+      throw new Error(`Mistral ${res.status}: ${await readProviderErrorBody(res, key.key)}`);
     }
 
     // Mistral uses OpenAI-compatible format

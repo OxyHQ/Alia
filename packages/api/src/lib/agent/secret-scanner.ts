@@ -54,6 +54,36 @@ const SECRET_PATTERNS: SecretPattern[] = [
   // ── Anthropic ──
   { type: 'anthropic_api_key', pattern: /\bsk-ant-[a-zA-Z0-9_-]{40,}\b/g, severity: 'critical', redact: prefixRedact(7) },
 
+  // ── The rest of the providers `provider_keys.provider` admits ──
+  //
+  // The check constraint (`drizzle/0003_closed_black_queen.sql`) admits nineteen
+  // providers and the three above covered three of them, so the redactor missed
+  // the credential type that is actually loaded in production. Each entry here
+  // is a prefix its vendor documents; the providers whose keys are opaque
+  // strings with no prefix at all — Mistral, Cohere, Together, SambaNova,
+  // Hyperbolic, Novita, Cloudflare — cannot be matched by any pattern, and are
+  // covered instead by the exact-credential pass in
+  // `internal/providers/lib/provider-error-body.ts`.
+  { type: 'groq_api_key', pattern: /\bgsk_[a-zA-Z0-9]{20,}\b/g, severity: 'critical', redact: prefixRedact(4) },
+  { type: 'xai_api_key', pattern: /\bxai-[a-zA-Z0-9]{20,}\b/g, severity: 'critical', redact: prefixRedact(4) },
+  { type: 'openrouter_api_key', pattern: /\bsk-or-v1-[a-zA-Z0-9]{20,}\b/g, severity: 'critical', redact: prefixRedact(9) },
+  { type: 'replicate_api_key', pattern: /\br8_[a-zA-Z0-9]{20,}\b/g, severity: 'critical', redact: prefixRedact(3) },
+  { type: 'digitalocean_api_key', pattern: /\bdop_v1_[a-f0-9]{32,}\b/g, severity: 'critical', redact: prefixRedact(7) },
+  { type: 'fireworks_api_key', pattern: /\bfw_[a-zA-Z0-9]{20,}\b/g, severity: 'critical', redact: prefixRedact(3) },
+  { type: 'perplexity_api_key', pattern: /\bpplx-[a-zA-Z0-9]{20,}\b/g, severity: 'critical', redact: prefixRedact(5) },
+  { type: 'cerebras_api_key', pattern: /\bcsk-[a-zA-Z0-9]{20,}\b/g, severity: 'critical', redact: prefixRedact(4) },
+
+  // ── Alia's own developer credential ──
+  { type: 'alia_developer_key', pattern: /\balia_sk_[a-zA-Z0-9_-]{16,}/g, severity: 'critical', redact: prefixRedact(8) },
+
+  // ── A credential a provider echoes back MASKED ──
+  //
+  // OpenAI's 401 body is the known case: it quotes the rejected key as its
+  // first characters, a run of asterisks, and its LAST FOUR characters. The
+  // tail is the part worth removing, and no prefix pattern reaches it because
+  // the middle is not key-shaped any more.
+  { type: 'masked_credential', pattern: /\b[a-zA-Z0-9_-]{2,}\*{4,}[a-zA-Z0-9]{2,}\b/g, severity: 'critical', redact: () => '[REDACTED]' },
+
   // ── Slack ──
   { type: 'slack_token', pattern: /\bxox[bpras]-[0-9]{10,}-[a-zA-Z0-9-]+\b/g, severity: 'critical', redact: prefixRedact(4) },
   { type: 'slack_webhook', pattern: /https:\/\/hooks\.slack\.com\/services\/T[A-Z0-9]+\/B[A-Z0-9]+\/[a-zA-Z0-9]+/g, severity: 'critical' },
@@ -91,6 +121,15 @@ const SECRET_PATTERNS: SecretPattern[] = [
 
   // ── PyPI token ──
   { type: 'pypi_token', pattern: /\bpypi-[a-zA-Z0-9_-]{50,}\b/g, severity: 'critical', redact: prefixRedact(5) },
+
+  // ── Any other OpenAI-compatible credential ──
+  //
+  // DeepSeek, Novita and every OpenAI-compatible gateway issue `sk-…` keys with
+  // no vendor-specific marker. LAST in the list deliberately: `scanForSecrets`
+  // deduplicates by matched VALUE, so the first pattern to claim a span decides
+  // how it is censored, and the specific entries above carry the more useful
+  // prefixes. `*` is inside the class so a masked echo is still one token.
+  { type: 'openai_compatible_key', pattern: /\bsk-[a-zA-Z0-9_*-]{20,}/g, severity: 'critical', redact: prefixRedact(3) },
 ];
 
 /**

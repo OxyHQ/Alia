@@ -9,6 +9,7 @@
  */
 
 import { getBestKeyForModel, recordKeySuccess, recordKeyFailure, recordKeyUsage, markKeyCreditExhausted } from './key-manager.js';
+import { readProviderErrorBody, redactProviderText } from './provider-error-body.js';
 import { classifyError } from '../../../lib/errors/failover-error.js';
 import { log } from '../../../lib/logger.js';
 import { callDigitalOceanAsyncInvoke, downloadBinaryFromUrl, extractAudioUrl } from './digitalocean-async.js';
@@ -107,6 +108,12 @@ export async function callProviderAPI<T = any>(options: ProviderAPIOptions): Pro
   // own URL, so a missing base is validated at the point of the standard fetch.
   const baseUrl = PROVIDER_BASES[provider];
   let lastReason: FailoverReason = 'unknown';
+  /**
+   * Every assignment to this comes from {@link readProviderErrorBody},
+   * {@link redactProviderText} or a literal written here — which is what makes
+   * it safe to hang off the thrown error as `providerMessage` and to log, and
+   * what a new assignment from an unredacted source would break.
+   */
   let lastMessage = '';
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
@@ -184,7 +191,7 @@ export async function callProviderAPI<T = any>(options: ProviderAPIOptions): Pro
         if (timer) clearTimeout(timer);
 
         if (!geminiRes.ok) {
-          const errBody = await geminiRes.text().catch(() => `HTTP ${geminiRes.status}`);
+          const errBody = await readProviderErrorBody(geminiRes, keyConfig.key);
           const reason = classifyError({ status: geminiRes.status, message: errBody });
           log.keys.warn({ attempt, provider, modelId, status: geminiRes.status, reason }, 'Provider API call failed');
           lastReason = reason;
@@ -241,12 +248,12 @@ export async function callProviderAPI<T = any>(options: ProviderAPIOptions): Pro
       if (timer) clearTimeout(timer);
 
       if (!response.ok) {
-        let errBody = '';
-        try {
-          errBody = await response.text();
-        } catch {
-          errBody = `HTTP ${response.status} (body unreadable)`;
-        }
+        // Redacted before anything else touches it, including the classifier:
+        // the classifier reads words ("quota", "rate limit", "invalid_api_key")
+        // and the redaction removes credential-shaped TOKENS, so the two do not
+        // overlap. Classifying the raw body first would mean the unredacted
+        // string outlives this line, which is the whole thing being prevented.
+        const errBody = await readProviderErrorBody(response, keyConfig.key);
         const reason = classifyError({ status: response.status, message: errBody });
 
         log.keys.warn({ attempt, provider, modelId, status: response.status, reason }, 'Provider API call failed');
@@ -282,10 +289,14 @@ export async function callProviderAPI<T = any>(options: ProviderAPIOptions): Pro
     } catch (fetchErr: any) {
       if (timer) clearTimeout(timer);
       const isTimeout = fetchErr?.name === 'AbortError';
+      // A transport error's message is not an upstream body, but it can carry
+      // the request URL — and a URL is one of the shapes a credential travels
+      // in. Same redaction, same reason.
+      const fetchMessage = redactProviderText(fetchErr?.message ?? '', keyConfig.key);
       log.keys.warn({ attempt, provider, modelId, err: fetchErr, isTimeout }, 'Provider API fetch error');
-      await recordKeyFailure(keyConfig.keyId, `${modelId} ${isTimeout ? 'timeout' : 'fetch'}: ${fetchErr?.message?.slice(0, 200)}`);
+      await recordKeyFailure(keyConfig.keyId, `${modelId} ${isTimeout ? 'timeout' : 'fetch'}: ${fetchMessage.slice(0, 200)}`);
       lastReason = isTimeout ? 'timeout' : 'unknown';
-      lastMessage = fetchErr?.message || 'Network error';
+      lastMessage = fetchMessage || 'Network error';
       continue;
     }
   }

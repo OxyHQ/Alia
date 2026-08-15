@@ -47,6 +47,7 @@
 import { and, asc, desc, eq, isNotNull, or, sql } from 'drizzle-orm';
 import crypto from 'crypto';
 import type { Executor } from '../index';
+import { redactSecrets } from '../../lib/agent/secret-scanner';
 import { providerKeys } from '../schema/providers';
 
 /** The CHECK's ceiling on `current_priority`. Named so the clamp cannot drift. */
@@ -411,6 +412,27 @@ export interface FailureOutcome {
  * The archival test uses the POST-increment total, matching the source, and is
  * evaluated by the server against the stored row rather than against a snapshot
  * JavaScript read a moment earlier.
+ *
+ * ## `reason` is scrubbed here, and that is the second scrub, not the first
+ *
+ * `reason` is built from an upstream provider's error body, and a provider's
+ * 401 quotes the credential it rejected. `last_failure_reason` is inside
+ * {@link safeColumns}, so anything stored travels with every "safe" read of the
+ * row — a projection built to exclude `key` and `key_hash` cannot exclude a
+ * column that legitimately holds free text.
+ *
+ * `internal/providers/lib/provider-error-body.ts` already redacts at the point
+ * the body is read, which is the scrub that can match the exact credential.
+ * This one is here because the column, not the caller, is what has to be true:
+ * a future writer that does not go through the provider tree still cannot store
+ * key material. Redaction runs BEFORE the truncation, so a credential cannot
+ * survive by sitting across the 500-character cut.
+ *
+ * The classification is deliberately NOT prepended to the stored string.
+ * `key-manager.ts` decides `isRateLimit` by matching `/rate.?limit|429|…/`
+ * against this same text, so writing the word `rate_limit` into it would change
+ * which failures count toward archival — a behaviour change wearing a security
+ * fix's clothes.
  */
 export async function recordKeyFailure(
   db: Executor,
@@ -437,7 +459,7 @@ export async function recordKeyFailure(
         : sql`${providerKeys.consecutiveFailures} + 1`,
       totalFailures: nextTotalFailures,
       lastFailureAt: now,
-      lastFailureReason: reason.substring(0, 500),
+      lastFailureReason: redactSecrets(reason).redacted.substring(0, 500),
       currentPriority: nextPriority,
       isArchived: sql`case when ${archives} then true else ${providerKeys.isArchived} end`,
       isActive: sql`case when ${archives} then false else ${providerKeys.isActive} end`,

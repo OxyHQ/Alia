@@ -1,4 +1,5 @@
 import type { KeyConfig, OpenAIMessage, OpenAITool, Provider, ProviderConfig } from '../types';
+import { readProviderErrorBody } from '../provider-error-body.js';
 
 // ============== GROQ ==============
 export const groqProvider: Provider = {
@@ -29,7 +30,7 @@ export const groqProvider: Provider = {
     });
 
     if (!res.ok) {
-      throw new Error(`Groq ${res.status}: ${await res.text()}`);
+      throw new Error(`Groq ${res.status}: ${await readProviderErrorBody(res, key.key)}`);
     }
 
     // Groq ya usa formato OpenAI nativo

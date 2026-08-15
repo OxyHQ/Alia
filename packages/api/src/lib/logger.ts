@@ -11,6 +11,77 @@
  */
 
 import pino from 'pino';
+import { redactSecrets } from './agent/secret-scanner.js';
+
+/**
+ * The second chokepoint for credential material, and the only one that can see
+ * an error this codebase did not build.
+ *
+ * `internal/providers/lib/provider-error-body.ts` scrubs every upstream body
+ * Alia itself reads. It cannot scrub what the AI SDK throws: an `APICallError`
+ * carries the raw upstream body on `responseBody`, plus `url`, `data` and
+ * `responseHeaders`, and `lib/chat/provider-loop.ts:354` logs exactly that
+ * object as `{ err }` on the live chat path. pino's default `err` serializer
+ * copies every enumerable property of an error, so all of it is emitted.
+ *
+ * MEASURED against the installed pino 10.3.1 with this file's own config: with
+ * the serializer below removed, a real `APICallError` driven through the real
+ * AI SDK emits its `responseBody` in full, while `{ token }` at the top level
+ * redacts correctly. That measurement is
+ * `internal/providers/lib/__tests__/credential-redaction.test.ts`, and deleting
+ * this serializer turns three of its assertions red — mutation-tested.
+ *
+ * `redact.paths` below cannot do this job: pino paths are literal property
+ * paths, so they would have to name `providerMessage`, `responseBody` and every
+ * future sibling, and the one field that always carries the body — `message` —
+ * cannot be blanked without destroying the log's only diagnostic content. This
+ * scrubs VALUES instead: what a credential looks like, wherever it sits.
+ */
+
+/**
+ * How deep into an error's own properties the scrub descends.
+ *
+ * The bound is what makes a CYCLIC structure terminate — an error whose `data`
+ * points back at itself is legal and would otherwise recurse forever inside a
+ * log call. A string is scrubbed at every depth; what the bound gives up is a
+ * string inside an object nested deeper than this, which is passed through by
+ * reference. Eight is well past the deepest real shape (`data.error.message`,
+ * three) and short of a stack.
+ */
+const MAX_SCRUB_DEPTH = 8;
+
+function scrubDeep(value: unknown, depth: number): unknown {
+  if (typeof value === 'string') return redactSecrets(value).redacted;
+  if (value === null || typeof value !== 'object' || depth >= MAX_SCRUB_DEPTH) return value;
+  if (Array.isArray(value)) return value.map((entry) => scrubDeep(entry, depth + 1));
+
+  // A copy, never a mutation: `data` and `responseHeaders` on a serialized
+  // error are references to the LIVE error object, and scrubbing in place would
+  // edit application state from inside a logger.
+  const copy: Record<string, unknown> = {};
+  for (const [key, entry] of Object.entries(value)) copy[key] = scrubDeep(entry, depth + 1);
+  return copy;
+}
+
+/**
+ * Runs on the object pino's standard error serializer produces — a throwaway,
+ * so its own string fields are safe to overwrite. `message` and `stack` already
+ * carry every cause's message and stack concatenated, which is why scrubbing
+ * them covers a wrapped error too.
+ */
+function scrubSerializedError(serialized: Record<string, unknown>): Record<string, unknown> {
+  // The declared shape is a promise the caller does not keep: pino's standard
+  // serializer returns its input untouched when that input is not error-like,
+  // so `log.x.error({ err: 'a string' })` arrives here as a string. Assigning
+  // to an index of one throws under ESM strict mode, which would turn a log
+  // call into a crash.
+  if (typeof serialized !== 'object' || serialized === null) return serialized;
+
+  for (const [key, value] of Object.entries(serialized)) {
+    serialized[key] = typeof value === 'string' ? redactSecrets(value).redacted : scrubDeep(value, 1);
+  }
+  return serialized;
+}
 
 // Patterns to redact from log output
 const REDACT_PATHS = [
@@ -36,6 +107,9 @@ const rootLogger = pino({
   redact: {
     paths: REDACT_PATHS,
     censor: '[REDACTED]',
+  },
+  serializers: {
+    err: pino.stdSerializers.wrapErrorSerializer(scrubSerializedError),
   },
   ...(isDev
     ? {
@@ -69,30 +143,6 @@ const rootLogger = pino({
  */
 export function createLogger(subsystem: string) {
   return rootLogger.child({ subsystem });
-}
-
-/**
- * Sanitize a string by removing potential API keys and tokens.
- * Inspired by ZeroClaw's scrub_secret_patterns for comprehensive coverage.
- * Use as a safety net before logging user-facing messages.
- */
-export function sanitizeForLog(value: string): string {
-  return value
-    // OpenAI keys
-    .replace(/sk-[a-zA-Z0-9_-]{20,}/g, 'sk-[REDACTED]')
-    // Anthropic keys
-    .replace(/sk-ant-[a-zA-Z0-9_-]+/g, 'sk-ant-[REDACTED]')
-    // Alia internal keys
-    .replace(/alia_sk_[a-zA-Z0-9_-]+/g, 'alia_sk_[REDACTED]')
-    // Slack tokens
-    .replace(/xoxb-[a-zA-Z0-9_-]+/g, 'xoxb-[REDACTED]')
-    .replace(/xoxp-[a-zA-Z0-9_-]+/g, 'xoxp-[REDACTED]')
-    // Google AI keys (AIza prefix)
-    .replace(/AIza[a-zA-Z0-9_-]{35,}/g, 'AIza[REDACTED]')
-    // Bearer tokens
-    .replace(/Bearer\s+[a-zA-Z0-9._-]+/gi, 'Bearer [REDACTED]')
-    // Generic key- prefix
-    .replace(/key-[a-zA-Z0-9]{20,}/g, 'key-[REDACTED]');
 }
 
 // Pre-built loggers for common subsystems
