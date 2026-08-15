@@ -74,7 +74,7 @@ function correctlyMountedApp(): Express {
  * The regression this whole guard exists for: a parser ran first.
  *
  * Note the `verify` hook — this is Alia's real `express.json()` configuration,
- * which leaves a Buffer on `req.rawBody` for the provider HMAC. The SDK middleware
+ * which leaves a Buffer on `req.rawBody`. The SDK middleware
  * ACCEPTS that Buffer, so without `assertRawBody` this mount order would appear to
  * work while the signature was being checked against bytes the parser handed back
  * rather than the bytes that arrived. That is why the mount order needs a test and

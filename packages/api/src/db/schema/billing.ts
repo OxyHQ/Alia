@@ -99,8 +99,16 @@ export const plans = pgTable(
      *
      * Deliberately NOT a foreign key: it is a plan's advertised contents, and a
      * model being retired from the catalogue must not cascade into deleting or
-     * silently emptying a plan somebody is paying for. `routes/plans.ts`
-     * validates the ids on write instead, through `findExistingAliasModelIds`.
+     * silently emptying a plan somebody is paying for. Validation belonged to
+     * the write path instead.
+     *
+     * There is currently NO write path. `routes/plans.ts`, the admin route that
+     * called `findExistingAliasModelIds` on write, was part of the never-mounted
+     * `/internal/gateway` surface and has been deleted; `seed-plans.ts` is the
+     * only writer left and it does not validate. The validator itself survives
+     * uncalled at `db/providers/aliaModelRepository.ts`. Whoever adds the next
+     * plan-write surface owns calling it — without a foreign key, nothing else
+     * will catch an id that names no model.
      *
      * This sentence is the only surviving copy. It was a trailing comment on the
      * Mongoose Plan model's `modelIds`, which the Postgres port deletes, and two
