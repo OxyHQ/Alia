@@ -22,7 +22,7 @@
  * resolves the active `oxy` preset (base + extended tokens) to `rgb(...)` and
  * writes them onto `document.documentElement`, so Bloom is the real token
  * source — these static values just avoid an unstyled flash before the provider
- * commits. They mirror `alia-gateway-admin`'s shadcn-neutral base.
+ * commits. They are the stock shadcn-neutral base.
  */
 :root {
     --background: oklch(1 0 0);

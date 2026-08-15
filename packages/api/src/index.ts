@@ -139,7 +139,6 @@ app.use('/v1', (_req, res, next) => {
 const PRODUCTION_ORIGINS = [
   'https://alia.onl',
   'https://console.alia.onl',
-  'https://gateway.alia.onl',
 ];
 
 const DEV_ORIGINS = [
