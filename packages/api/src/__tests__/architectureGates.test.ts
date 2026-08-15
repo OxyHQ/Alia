@@ -756,25 +756,30 @@ const NON_MODEL_ALIA_STRINGS: Readonly<Record<string, string>> = {
 /**
  * Model identifiers used as defaults in product code that are NOT registered.
  *
- * `alia-flash` is a DANGLING DEFAULT, not a database-defined alias. Traced:
- * `lib/tools/delegate.ts:39` defaults `preferredModel` to it, and its tool
- * schema advertises it to the model as an option (`:104`). Resolution runs
- * `chat-core.resolveModel` -> `gateway-client.resolveAliaModel` ->
+ * EMPTY, and it was not always. `alia-flash` sat here: `lib/tools/delegate.ts`
+ * defaulted `preferredModel` to it and its tool schema advertised it to the
+ * model as an option. Resolution runs `chat-core.resolveModel` ->
+ * `gateway-client.resolveAliaModel` ->
  * `internal/providers/lib/fallback-engine.resolveWithFallback`, whose first act
  * is `isAliaModel(aliasModelId) ? aliasModelId : 'alia-v1'`. `isAliaModel` tests
  * membership of ALIA_MODELS, which has no `alia-flash`, so every delegated
- * subtask silently runs on `alia-v1` while the tool result reports
- * `model: 'alia-flash'` back to the caller (`delegate.ts:73`, `:129`).
+ * subtask ran on `alia-v1` while the tool result reported `model: 'alia-flash'`
+ * back to the caller — ADR 0003 invariant 2 failing in the plainest way, a
+ * requested identifier not surviving the request path and the substitution
+ * reported as the original.
  *
- * That is ADR 0003 invariant 2 failing in the plainest way: a requested
- * identifier does not survive the request path, and the substitution is
- * reported as the original. It is recorded rather than fixed because fixing it
- * is a product decision (which registered alias should delegation default to?)
- * belonging to #139 workstream 4, not to a gate.
+ * #139 workstream 4 answered the product question the gate deliberately left
+ * open: the default is now `alia-v1` explicitly, which is what it had been
+ * running on all along, so behaviour is unchanged and the false report is gone.
+ *
+ * A count decremented to zero must not become a check that cannot fail, so the
+ * enforcement moved with it. The assertion below is no longer "the recorded
+ * dangling default is still there" — it is a census over every alias-shaped
+ * DEFAULT in non-test source, asserting each one is registered. This list stays
+ * as the exemption record it always was, at its exact length, so re-admitting a
+ * dangling default is a visible edit to a number.
  */
-const DANGLING_MODEL_DEFAULTS: Readonly<Record<string, readonly string[]>> = {
-  'alia-flash': ['packages/api/src/lib/tools/delegate.ts'],
-};
+const DANGLING_MODEL_DEFAULTS: Readonly<Record<string, readonly string[]>> = {};
 
 describe('gate 3: the alia-* alias set is frozen (ADR 0002)', () => {
   it('registers exactly the thirteen frozen aliases', () => {
@@ -831,16 +836,79 @@ describe('gate 3: the alia-* alias set is frozen (ADR 0002)', () => {
     expect(Object.keys(NON_MODEL_ALIA_STRINGS).filter((s) => !found.has(s))).toEqual([]);
   });
 
-  it('records alia-flash as a dangling default, not a registered alias', () => {
-    for (const [id, files] of Object.entries(DANGLING_MODEL_DEFAULTS)) {
-      expect(isAliaModel(id)).toBe(false);
-      const sources = trackedSources('packages/api/src')
-        .filter(({ ast }) => stringLiterals(ast).includes(id))
-        .map(({ file }) => file)
-        .filter((f) => !isTestFile(f));
-      expect(sources.sort()).toEqual([...files].sort());
+  it('no unregistered identifier is used as a model default anywhere', () => {
+    /**
+     * The replacement for the `alia-flash` record, and a strictly wider check
+     * than the one it replaces: that one named ONE identifier and would have
+     * stayed green while a second dangling default landed beside it.
+     *
+     * A DEFAULT is a value that is used when the caller supplies nothing, so it
+     * is read off the three syntactic forms that express one — `x || 'lit'`,
+     * `x ?? 'lit'`, and an initializer on a parameter or a destructuring
+     * binding. A bare literal elsewhere is a different thing and is covered by
+     * the classification census above.
+     *
+     * The cheapest way to make this green is to use a registered alias, which
+     * is the action that is wanted. The next cheapest is to add a line to
+     * NON_MODEL_ALIA_STRINGS, which is exact-length asserted above.
+     *
+     * RESIDUAL, stated rather than hidden: a default assembled at runtime, or
+     * one that names the alias inside a longer sentence, is invisible here. The
+     * `alia-flash` tool description was exactly the second case — the census
+     * never saw `'Optional: which Alia model to use (e.g., "alia-flash", ...)'`
+     * because the literal is a sentence, not an identifier. Prose is reviewed,
+     * not gated.
+     */
+    const ALIAS_SHAPED = /^alia-[a-z0-9]+(?:-[a-z0-9]+)*$/;
+    const found: { file: string; line: number; id: string }[] = [];
+    for (const { file, ast } of trackedSources('packages/api/src')) {
+      if (isTestFile(file)) continue;
+      const take = (node: ts.Node | undefined): void => {
+        if (node && ts.isStringLiteralLike(node) && ALIAS_SHAPED.test(node.text)) {
+          found.push({ file, line: lineOf(ast, node), id: node.text });
+        }
+      };
+      const visit = (n: ts.Node): void => {
+        if (
+          ts.isBinaryExpression(n) &&
+          (n.operatorToken.kind === ts.SyntaxKind.BarBarToken ||
+            n.operatorToken.kind === ts.SyntaxKind.QuestionQuestionToken)
+        ) {
+          take(n.right);
+        }
+        if ((ts.isParameter(n) || ts.isBindingElement(n)) && n.initializer) take(n.initializer);
+        ts.forEachChild(n, visit);
+      };
+      visit(ast);
     }
-    expect(Object.keys(DANGLING_MODEL_DEFAULTS)).toHaveLength(1);
+
+    /**
+     * Positive control, chosen rather than found: `reserveVoiceCredits`
+     * (`lib/credits-manager.ts`) declares `aliasModelId: string = 'alia-v1-voice'`
+     * as a parameter default. Credit accounting is product behaviour ADR 0005
+     * keeps in Alia, so it is expected to outlive the `/v1` surface and the
+     * provider tree both. When credits stop defaulting a model — the condition
+     * that retires this control — repoint it rather than deleting it, or the
+     * census silently starts measuring nothing.
+     */
+    expect(found.map((d) => `${d.file}:${d.id}`)).toContain(
+      'packages/api/src/lib/credits-manager.ts:alia-v1-voice',
+    );
+    // Vacuity floor beside it: a broken visitor prints a clean empty list.
+    expect(found.length).toBeGreaterThanOrEqual(8);
+
+    // A default must name something that resolves to itself: a registered alias,
+    // or one of the classified non-model strings (a LiveKit participant identity
+    // and this service's own name are both legitimately defaulted).
+    const unregistered = found
+      .filter((d) => !isAliaModel(d.id) && NON_MODEL_ALIA_STRINGS[d.id] === undefined)
+      .map((d) => `${d.file}:${d.line} defaults to ${d.id}, which is not registered`);
+    expect(unregistered).toEqual([]);
+
+    // The exemption record itself, exact rather than floored — re-admitting a
+    // dangling default has to be an edit to this number.
+    expect(Object.keys(DANGLING_MODEL_DEFAULTS)).toHaveLength(0);
+    for (const id of Object.keys(DANGLING_MODEL_DEFAULTS)) expect(isAliaModel(id)).toBe(false);
   });
 
   it('an unregistered identifier is silently rewritten to alia-v1, which is why the above matters', () => {

@@ -27,6 +27,7 @@
 
 import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 import type { ApiDatabase, Executor } from '../index';
+import { assertUnreservedModelIdentifier } from '../../lib/reserved-namespace.js';
 import { aliaModelProviderMappings, aliaModels, modelConfigs } from '../schema/providers';
 
 export type AliaModelRow = typeof aliaModels.$inferSelect;
@@ -251,6 +252,11 @@ export async function createAliaModel(
   input: AliaModelInput,
   mappings: ProviderMappingInput[],
 ): Promise<AliaModelView> {
+  // ADR 0002: nothing may occupy the reserved `alia/*` publisher namespace.
+  // Refused before the transaction opens, so a rejected registration costs no
+  // round trip and cannot half-apply.
+  if (input.aliasModelId !== undefined) assertUnreservedModelIdentifier(input.aliasModelId);
+
   return db.transaction(async (tx) => {
     const [row] = await tx
       .insert(aliaModels)
@@ -268,6 +274,10 @@ export async function createAliaModel(
  * `undefined` mappings mean "leave them alone"; an EMPTY ARRAY means "this model
  * now has none". Collapsing the two would make a PATCH of the display name
  * silently unroute the model.
+ *
+ * No reserved-namespace check here, and that is a consequence of the code rather
+ * than an omission: the SET clause drops `aliasModelId` below, so an identity
+ * cannot move through an update and no new identifier can enter this way.
  */
 export async function updateAliaModel(
   db: ApiDatabase,
@@ -328,6 +338,14 @@ export async function upsertAliaModel(
   always: AliaModelInput,
   mappings: ProviderMappingInput[],
 ): Promise<{ inserted: boolean }> {
+  // ADR 0002, same reservation as `createAliaModel`. All three identifiers are
+  // checked, not just the parameter: `always.aliasModelId` reaches the
+  // `onConflictDoUpdate` SET clause below, so an upsert can RENAME an existing
+  // row's alias, and checking only the parameter would leave that route open.
+  assertUnreservedModelIdentifier(aliasModelId);
+  if (insertOnly.aliasModelId !== undefined) assertUnreservedModelIdentifier(insertOnly.aliasModelId);
+  if (always.aliasModelId !== undefined) assertUnreservedModelIdentifier(always.aliasModelId);
+
   return db.transaction(async (tx) => {
     const insertColumns = {
       ...toColumns(insertOnly),

@@ -55,6 +55,7 @@ import { moderationOutboxDispatcher } from './lib/crowdsource/dispatcher.js';
 
 // Register hooks (side-effect import)
 import './lib/hooks/index.js';
+import { aliasDeprecationHeaders } from './middleware/alias-deprecation.js';
 import { authenticateToken } from './middleware/auth.js';
 import { resolveWorkspace } from './middleware/workspace.js';
 import { syncZeroEval } from './scripts/sync-zeroeval.js';
@@ -126,6 +127,10 @@ app.use('/v1', cors({
   origin: '*',
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin', 'X-Service-Name', 'X-Timestamp', 'X-Signature', 'X-Session-Id', 'X-Device-Info'],
+  // A deprecation header a browser client cannot read is not a signal. Without
+  // this, `Deprecation`, `Sunset` and `Link` are stripped from every
+  // cross-origin response before the SDK ever sees them.
+  exposedHeaders: ['Deprecation', 'Sunset', 'Link'],
   optionsSuccessStatus: 200
 }));
 
@@ -215,6 +220,12 @@ app.use(express.json({
   },
 }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// The alias deprecation signal (compatibility window (a), RFC 9745 + RFC 8594).
+// Below the body parsers because it reads `body.model`, and above every route
+// because the subject is the alias, not one surface: `/alia/chat` and `/v1/*`
+// both name aliases and both owe their callers the notice.
+app.use(aliasDeprecationHeaders);
 
 // Optimize SSE routes for real-time streaming
 app.use('/alia/chat', (_req, res, next) => {
