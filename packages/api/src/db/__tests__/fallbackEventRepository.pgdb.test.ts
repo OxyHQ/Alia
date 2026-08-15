@@ -10,6 +10,7 @@ import {
   topFailureReasons,
 } from '../telemetry/fallbackEventRepository';
 import { fallbackEvents } from '../schema/telemetry';
+import { ROUTING_POLICY_VERSION } from '../../lib/routing/policy';
 
 /**
  * `fallback_events`, against a real server.
@@ -60,6 +61,8 @@ async function seed(
     attempts: ReturnType<typeof attempt>[];
     totalLatencyMs?: number;
     minutesAgo?: number;
+    fallbackPolicy?: string;
+    routingPolicyVersion?: number;
   },
 ) {
   await recordFallbackEvent(db, {
@@ -70,6 +73,8 @@ async function seed(
     finalModel: null,
     success: opts.success,
     totalLatencyMs: opts.totalLatencyMs ?? 100,
+    fallbackPolicy: opts.fallbackPolicy ?? 'cross-model',
+    routingPolicyVersion: opts.routingPolicyVersion ?? ROUTING_POLICY_VERSION,
   });
 }
 
@@ -88,6 +93,27 @@ describe('recording', () => {
     // `jsonb`, so it must survive the round trip as structure rather than text.
     expect(row.attempts).toHaveLength(2);
     expect((row.attempts as ReturnType<typeof attempt>[])[1].reason).toBe('rate_limit');
+  });
+
+  it('stores the routing policy the request ran under, distinctly per row', async () => {
+    // Two rows differing ONLY in policy. A single-row assertion would pass
+    // against a column that ignored its input and stored a constant.
+    await seed('fb-policy-a', { success: false, attempts: [attempt('p1', 'm', 'timeout', 10)] });
+    await seed('fb-policy-b', {
+      success: false,
+      attempts: [attempt('p1', 'm', 'timeout', 10)],
+      fallbackPolicy: 'no-fallback',
+      routingPolicyVersion: ROUTING_POLICY_VERSION + 41,
+    });
+
+    const [a] = await db.select().from(fallbackEvents).where(eq(fallbackEvents.aliasModel, 'fb-policy-a'));
+    const [b] = await db.select().from(fallbackEvents).where(eq(fallbackEvents.aliasModel, 'fb-policy-b'));
+    expect(a.fallbackPolicy).toBe('cross-model');
+    expect(a.routingPolicyVersion).toBe(ROUTING_POLICY_VERSION);
+    expect(b.fallbackPolicy).toBe('no-fallback');
+    expect(b.routingPolicyVersion).toBe(ROUTING_POLICY_VERSION + 41);
+    // `integer`, not the bigint-decoded-as-string trap this file warns about.
+    expect(typeof b.routingPolicyVersion).toBe('number');
   });
 });
 

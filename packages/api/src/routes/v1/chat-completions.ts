@@ -70,7 +70,7 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
 
     const {
       body, messages, conversationId, thinkingMode, agentMode, deepResearch,
-      includeUsage, isDirectUserSession, requestedModel, clientContext,
+      includeUsage, isDirectUserSession, requestedModel, routingOptions, clientContext,
       userMemory, oxyUser, skill, linkedAgent,
     } = ctx;
     state.creditReservation = ctx.creditReservation;
@@ -259,6 +259,7 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
       agentMessages,
       systemPromptTokens,
       requestedModel,
+      routingOptions,
       isSpanish,
       autonomyRuntime,
       includeUsage,

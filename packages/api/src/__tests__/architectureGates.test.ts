@@ -332,6 +332,12 @@ const PROVIDER_IMPORT_ALLOWLIST: readonly { from: string; to: string; via: Modul
     why: 'Replaces the alias table so the timeout suite does not depend on the catalogue.',
   },
   {
+    from: 'packages/api/src/lib/routing/__tests__/routing-policy.test.ts',
+    to: 'packages/api/src/internal/providers/lib/alia-models',
+    via: 'import',
+    why: 'Reads ALIA_MODELS to check the routing presets cover exactly the registered aliases, in both directions (#139 ws14). Test-only; retires when the catalogue moves to Relay.',
+  },
+  {
     from: 'packages/api/src/routes/v1/audio.ts',
     to: 'packages/api/src/internal/providers/lib/digitalocean-async',
     via: 'import',
@@ -358,7 +364,7 @@ const PROVIDER_IMPORT_ALLOWLIST: readonly { from: string; to: string; via: Modul
 ];
 
 /** The exact-count assertion the list needs, so it cannot grow one defensible line at a time. */
-const PROVIDER_IMPORT_ALLOWLIST_SIZE = 22;
+const PROVIDER_IMPORT_ALLOWLIST_SIZE = 23;
 
 function observedProviderImports(): { from: string; to: string; via: ModuleRef['via'] }[] {
   const seen = new Map<string, { from: string; to: string; via: ModuleRef['via'] }>();
@@ -761,16 +767,23 @@ const NON_MODEL_ALIA_STRINGS: Readonly<Record<string, string>> = {
  * model as an option. Resolution runs `chat-core.resolveModel` ->
  * `gateway-client.resolveAliaModel` ->
  * `internal/providers/lib/fallback-engine.resolveWithFallback`, whose first act
- * is `isAliaModel(aliasModelId) ? aliasModelId : 'alia-v1'`. `isAliaModel` tests
- * membership of ALIA_MODELS, which has no `alia-flash`, so every delegated
- * subtask ran on `alia-v1` while the tool result reported `model: 'alia-flash'`
- * back to the caller — ADR 0003 invariant 2 failing in the plainest way, a
- * requested identifier not surviving the request path and the substitution
- * reported as the original.
+ * WAS `isAliaModel(aliasModelId) ? aliasModelId : 'alia-v1'`. `isAliaModel`
+ * tests membership of ALIA_MODELS, which has no `alia-flash`, so every
+ * delegated subtask ran on `alia-v1` while the tool result reported
+ * `model: 'alia-flash'` back to the caller — ADR 0003 invariant 2 failing in
+ * the plainest way, a requested identifier not surviving the request path and
+ * the substitution reported as the original.
  *
  * #139 workstream 4 answered the product question the gate deliberately left
  * open: the default is now `alia-v1` explicitly, which is what it had been
  * running on all along, so behaviour is unchanged and the false report is gone.
+ *
+ * #139 workstream 14 then removed the rewrite itself, which raises the stakes
+ * of this list from a record to a prohibition. A dangling default no longer
+ * degrades to a mislabelled success — `resolveWithFallback` throws
+ * `UnregisteredModelError` and the caller gets nothing — so an entry re-added
+ * here would document a code path that cannot work rather than one that works
+ * wrongly.
  *
  * A count decremented to zero must not become a check that cannot fail, so the
  * enforcement moved with it. The assertion below is no longer "the recorded
@@ -911,17 +924,27 @@ describe('gate 3: the alia-* alias set is frozen (ADR 0002)', () => {
     for (const id of Object.keys(DANGLING_MODEL_DEFAULTS)) expect(isAliaModel(id)).toBe(false);
   });
 
-  it('an unregistered identifier is silently rewritten to alia-v1, which is why the above matters', () => {
-    // The consequence, measured against the source rather than described. The
-    // normalisation is one conditional in the fallback engine; if it ever
-    // becomes a refusal — which is what ADR 0003 invariant 3 asks for — this
-    // fails and the record above must be re-derived rather than carried
-    // forward.
+  it('an unregistered identifier is refused, not rewritten (ADR 0003 invariant 2)', () => {
+    /**
+     * Re-derived, not carried forward. This assertion used to record the
+     * OPPOSITE — that `fallback-engine.ts:82` read
+     * `isAliaModel(aliasModelId) ? aliasModelId : 'alia-v1'` — and said in its
+     * own comment that becoming a refusal would fail it. #139 workstream 14
+     * made it a refusal, so the record is inverted here rather than deleted:
+     * the rewrite must not come back, and something must still refuse.
+     *
+     * Measured against the source, because the shape being forbidden is
+     * syntactic. The behavioural half lives in
+     * `internal/providers/lib/__tests__/fallback-engine-policy.test.ts`, which
+     * drives the real resolver.
+     */
     const engine = trackedSources('packages/api/src/internal/providers/lib/fallback-engine.ts');
     expect(engine).toHaveLength(1);
 
     const rewrites: string[] = [];
+    let refusals = 0;
     const visit = (n: ts.Node): void => {
+      // `isAliaModel(x) ? x : '<literal>'` — the rewrite, in any spelling.
       if (
         ts.isConditionalExpression(n) &&
         ts.isCallExpression(n.condition) &&
@@ -930,11 +953,27 @@ describe('gate 3: the alia-* alias set is frozen (ADR 0002)', () => {
       ) {
         rewrites.push(`${engine[0].file}:${lineOf(engine[0].ast, n)} -> ${n.whenFalse.text}`);
       }
+      // `throw new UnregisteredModelError(...)` — the replacement.
+      if (
+        ts.isThrowStatement(n) &&
+        n.expression &&
+        ts.isNewExpression(n.expression) &&
+        n.expression.expression.getText(engine[0].ast) === 'UnregisteredModelError'
+      ) {
+        refusals += 1;
+      }
       ts.forEachChild(n, visit);
     };
     visit(engine[0].ast);
 
-    expect(rewrites).toEqual(['packages/api/src/internal/providers/lib/fallback-engine.ts:82 -> alia-v1']);
+    expect(rewrites).toEqual([]);
+    /**
+     * The vacuity floor for the line above. "No rewrite found" is also what a
+     * walk over an empty AST, a renamed file or a moved `isAliaModel` reports,
+     * and every one of those would let the rewrite return unseen. A refusal
+     * that IS found proves the walk reached the code that decides.
+     */
+    expect(refusals).toBe(1);
   });
 });
 

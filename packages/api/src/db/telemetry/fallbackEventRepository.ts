@@ -43,6 +43,14 @@ export interface NewFallbackEvent {
   readonly finalModel: string | null;
   readonly success: boolean;
   readonly totalLatencyMs: number;
+  /**
+   * Required on the way IN even though the column is nullable. The only writer
+   * always knows both, so accepting `undefined` here would create a second way
+   * to produce an unrecorded row — one that looks like a pre-migration row and
+   * is not.
+   */
+  readonly fallbackPolicy: string;
+  readonly routingPolicyVersion: number;
 }
 
 /** Append one event. Fire-and-forget at the call site; this still rejects. */
@@ -55,6 +63,8 @@ export async function recordFallbackEvent(db: ApiDatabase, event: NewFallbackEve
     finalModel: event.finalModel,
     success: event.success,
     totalLatencyMs: event.totalLatencyMs,
+    fallbackPolicy: event.fallbackPolicy,
+    routingPolicyVersion: event.routingPolicyVersion,
   });
 }
 

@@ -16,7 +16,7 @@ import {
   type AliaModel,
   type AliaTier,
 } from './alia-models';
-import { resolveWithFallback, type FallbackResult, type FallbackAttempt } from './fallback-engine';
+import { resolveWithFallback, type FallbackOptions, type FallbackResult, type FallbackAttempt } from './fallback-engine';
 
 export interface ResolvedModel {
   aliasModelId: string;
@@ -34,18 +34,21 @@ export interface ResolvedModel {
  * Keys are loaded from the `provider_keys` PostgreSQL table via key-manager.
  * Uses the fallback engine for smart retry logic based on error classification.
  *
- * @param requestedModel - The model ID requested (can be Alia model or legacy model name)
+ * @param requestedModel - A registered Alia model ID; anything else is refused
  * @param tokens - Estimated tokens for rate limit checking
  * @param skipProviders - Optional set of providers to skip (for retry scenarios)
+ * @param skipKeyIds - Specific key IDs to skip (for retry scenarios)
+ * @param options - Per-request routing options; omitted means today's behaviour
  * @returns Resolved model with key config, or null if no models available
  */
 export async function resolveAliaModel(
   requestedModel: string,
   tokens: number = 1000,
   skipProviders: Set<string> = new Set(),
-  skipKeyIds: Set<string> = new Set()
+  skipKeyIds: Set<string> = new Set(),
+  options: FallbackOptions = {}
 ): Promise<ResolvedModel | null> {
-  const result = await resolveWithFallback(requestedModel, tokens, skipProviders, skipKeyIds);
+  const result = await resolveWithFallback(requestedModel, tokens, skipProviders, skipKeyIds, options);
   return result.resolved;
 }
 
@@ -56,15 +59,18 @@ export async function resolveAliaModel(
  * @param requestedModel - The model ID requested
  * @param tokens - Estimated tokens for rate limit checking
  * @param skipProviders - Optional set of providers to skip
+ * @param skipKeyIds - Specific key IDs to skip (for retry scenarios)
+ * @param options - Per-request routing options; omitted means today's behaviour
  * @returns Full FallbackResult with resolved model, attempts, and metadata
  */
 export async function resolveAliaModelWithAttempts(
   requestedModel: string,
   tokens: number = 1000,
   skipProviders: Set<string> = new Set(),
-  skipKeyIds: Set<string> = new Set()
+  skipKeyIds: Set<string> = new Set(),
+  options: FallbackOptions = {}
 ): Promise<FallbackResult> {
-  return resolveWithFallback(requestedModel, tokens, skipProviders, skipKeyIds);
+  return resolveWithFallback(requestedModel, tokens, skipProviders, skipKeyIds, options);
 }
 
 /**
@@ -85,4 +91,4 @@ export function isValidModel(modelId: string): boolean {
 export { isAliaModel, getAliaModel, ALIA_MODELS, type AliaModel, type AliaTier };
 
 // Re-export fallback types for consumers
-export type { FallbackResult, FallbackAttempt };
+export type { FallbackOptions, FallbackResult, FallbackAttempt };
