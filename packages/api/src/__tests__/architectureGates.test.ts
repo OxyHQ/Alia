@@ -1388,6 +1388,14 @@ const OBJECT_KIND_EMITTERS: Readonly<Record<string, readonly string[]>> = {
     'packages/api/src/internal/providers/lib/providers/google.ts',
     'packages/api/src/internal/providers/lib/providers/replicate.ts',
     'packages/api/src/lib/chat/provider-loop.ts',
+    // The Relay client's dialect adapter (#139 workstream 3) and its suite. This
+    // is the direction the list is SUPPOSED to move: the five entries above
+    // construct the OpenAI wire shape in five separate places, and the adapter
+    // is the one place it will be constructed after the cutover. It joins the
+    // list rather than replacing anything because it is not wired in yet — the
+    // client must not become the live path before workstream 8.
+    'packages/api/src/lib/inference/__tests__/relay-openai-adapter.test.ts',
+    'packages/api/src/lib/inference/relay-openai-adapter.ts',
     'packages/api/src/lib/streaming-helpers.ts',
   ],
   list: ['packages/api/src/routes/catalogue.ts', 'packages/api/src/routes/v1/models.ts'],
