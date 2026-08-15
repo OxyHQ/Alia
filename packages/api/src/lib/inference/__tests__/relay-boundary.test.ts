@@ -176,6 +176,10 @@ describe('nothing in the API imports the Relay client (#139 ws3, constraint 3)',
    */
   const FROZEN_IMPORTERS: readonly string[] = [
     `${RELAY_DIR}/__tests__/relay-client.test.ts`,
+    // #139 workstream 13: asserts what the client puts on the wire, so it has to
+    // drive one. A test, not a call site — the constraint is that no PRODUCT
+    // module imports the client, and this is the fourth of its own tests.
+    `${RELAY_DIR}/__tests__/relay-context-minimality.test.ts`,
     `${RELAY_DIR}/__tests__/relay-openai-adapter.test.ts`,
     `${RELAY_DIR}/__tests__/relay-request.test.ts`,
     `${RELAY_DIR}/relay-client.ts`,
