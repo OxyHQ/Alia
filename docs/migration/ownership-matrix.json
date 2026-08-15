@@ -13,7 +13,7 @@
         "adapter-registry",
         "dead-internal-providers-router"
       ],
-      "removalGate": "The MODULE is loaded in production (lib/providers/index.ts is imported by the live voice-session-manager), but its proxy() has no live caller: repo-wide `.proxy(` returns exactly one hit, internal/providers/routes/providers.ts:138, inside the unmounted router. So no runtime gate \u2014 but deleting the file means editing the LIVE registry. Unreachable today (same as adapter-google). No runtime gate.",
+      "removalGate": "The MODULE is loaded in production (lib/providers/index.ts is imported by the live voice-session-manager), but its proxy() has no caller at all: repo-wide `.proxy(` returned exactly one hit, internal/providers/routes/providers.ts:138, inside the unmounted router, and #141 deleted that router \u2014 repo-wide `.proxy(` is now zero. So no runtime gate \u2014 but deleting the file means editing the LIVE registry. Unreachable today (same as adapter-google). No runtime gate.",
       "provenance": "re-derived",
       "evidence": "packages/api/src/internal/providers/lib/providers/anthropic.ts:11"
     },
@@ -31,9 +31,9 @@
         "chat-core-get-ai-model",
         "dead-providers-proxy-route"
       ],
-      "removalGate": "None beyond editing the registry. Its proxy() has no live caller (repo-wide `.proxy(` returns exactly one hit, the unmounted internal/providers/routes/providers.ts:138), and its only knowledge \u2014 base URL api.cerebras.ai/v1 plus a default model id \u2014 is already duplicated in live code: duplicated live at chat-core.ts:133. Deleting the FILE requires editing lib/providers/index.ts, which IS live (voice-session-manager reads it), so this is not a free removal even though nothing calls it.",
+      "removalGate": "None beyond editing the registry. Its proxy() has no caller at all (repo-wide `.proxy(` returned exactly one hit, the unmounted internal/providers/routes/providers.ts:138, which #141 deleted; the count is now zero), and its only knowledge \u2014 base URL api.cerebras.ai/v1 plus a default model id \u2014 is already duplicated in live code: duplicated live at chat-core.ts:133. Deleting the FILE requires editing lib/providers/index.ts, which IS live (voice-session-manager reads it), so this is not a free removal even though nothing calls it.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/internal/providers/lib/providers/cerebras.ts; registry entry at lib/providers/index.ts:31-53; sole proxy() call site internal/providers/routes/providers.ts:138 (unmounted)"
+      "evidence": "packages/api/src/internal/providers/lib/providers/cerebras.ts; registry entry at lib/providers/index.ts:31-53; sole proxy() call site was internal/providers/routes/providers.ts:138 (unmounted), deleted in #141 \u2014 no call site remains"
     },
     {
       "id": "adapter-cloudflare",
@@ -49,7 +49,7 @@
         "chat-core-get-ai-model",
         "dead-internal-providers-router"
       ],
-      "removalGate": "The MODULE is loaded in production (lib/providers/index.ts is imported by the live voice-session-manager), but its proxy() has no live caller: repo-wide `.proxy(` returns exactly one hit, internal/providers/routes/providers.ts:138, inside the unmounted router. So no runtime gate \u2014 but deleting the file means editing the LIVE registry. Unreachable today, BUT the composite-credential convention is duplicated live at packages/api/src/lib/chat-core.ts:157. Relay must accept the same 'accountId:token' shape or provider_keys rows for cloudflare become unusable.",
+      "removalGate": "The MODULE is loaded in production (lib/providers/index.ts is imported by the live voice-session-manager), but its proxy() has no caller at all: repo-wide `.proxy(` returned exactly one hit, internal/providers/routes/providers.ts:138, inside the unmounted router, and #141 deleted that router \u2014 repo-wide `.proxy(` is now zero. So no runtime gate \u2014 but deleting the file means editing the LIVE registry. Unreachable today, BUT the composite-credential convention is duplicated live at packages/api/src/lib/chat-core.ts:157. Relay must accept the same 'accountId:token' shape or provider_keys rows for cloudflare become unusable.",
       "provenance": "re-derived",
       "evidence": "packages/api/src/internal/providers/lib/providers/cloudflare.ts:13-21; live duplicate packages/api/src/lib/chat-core.ts:156-162"
     },
@@ -67,9 +67,9 @@
         "chat-core-get-ai-model",
         "dead-providers-proxy-route"
       ],
-      "removalGate": "None beyond editing the registry. Its proxy() has no live caller (repo-wide `.proxy(` returns exactly one hit, the unmounted internal/providers/routes/providers.ts:138), and its only knowledge \u2014 base URL api.cohere.ai/compatibility/v1 plus a default model id \u2014 is already duplicated in live code: duplicated live at chat-core.ts:164. Deleting the FILE requires editing lib/providers/index.ts, which IS live (voice-session-manager reads it), so this is not a free removal even though nothing calls it.",
+      "removalGate": "None beyond editing the registry. Its proxy() has no caller at all (repo-wide `.proxy(` returned exactly one hit, the unmounted internal/providers/routes/providers.ts:138, which #141 deleted; the count is now zero), and its only knowledge \u2014 base URL api.cohere.ai/compatibility/v1 plus a default model id \u2014 is already duplicated in live code: duplicated live at chat-core.ts:164. Deleting the FILE requires editing lib/providers/index.ts, which IS live (voice-session-manager reads it), so this is not a free removal even though nothing calls it.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/internal/providers/lib/providers/cohere.ts; registry entry at lib/providers/index.ts:31-53; sole proxy() call site internal/providers/routes/providers.ts:138 (unmounted)"
+      "evidence": "packages/api/src/internal/providers/lib/providers/cohere.ts; registry entry at lib/providers/index.ts:31-53; sole proxy() call site was internal/providers/routes/providers.ts:138 (unmounted), deleted in #141 \u2014 no call site remains"
     },
     {
       "id": "adapter-deepseek",
@@ -85,9 +85,9 @@
         "chat-core-get-ai-model",
         "dead-providers-proxy-route"
       ],
-      "removalGate": "None beyond editing the registry. Its proxy() has no live caller (repo-wide `.proxy(` returns exactly one hit, the unmounted internal/providers/routes/providers.ts:138), and its only knowledge \u2014 base URL api.deepseek.com plus a default model id \u2014 is already duplicated in live code: duplicated live at chat-core.ts:145. Deleting the FILE requires editing lib/providers/index.ts, which IS live (voice-session-manager reads it), so this is not a free removal even though nothing calls it.",
+      "removalGate": "None beyond editing the registry. Its proxy() has no caller at all (repo-wide `.proxy(` returned exactly one hit, the unmounted internal/providers/routes/providers.ts:138, which #141 deleted; the count is now zero), and its only knowledge \u2014 base URL api.deepseek.com plus a default model id \u2014 is already duplicated in live code: duplicated live at chat-core.ts:145. Deleting the FILE requires editing lib/providers/index.ts, which IS live (voice-session-manager reads it), so this is not a free removal even though nothing calls it.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/internal/providers/lib/providers/deepseek.ts; registry entry at lib/providers/index.ts:31-53; sole proxy() call site internal/providers/routes/providers.ts:138 (unmounted)"
+      "evidence": "packages/api/src/internal/providers/lib/providers/deepseek.ts; registry entry at lib/providers/index.ts:31-53; sole proxy() call site was internal/providers/routes/providers.ts:138 (unmounted), deleted in #141 \u2014 no call site remains"
     },
     {
       "id": "adapter-digitalocean",
@@ -103,9 +103,9 @@
         "chat-core-get-ai-model",
         "dead-providers-proxy-route"
       ],
-      "removalGate": "None beyond editing the registry. Its proxy() has no live caller (repo-wide `.proxy(` returns exactly one hit, the unmounted internal/providers/routes/providers.ts:138), and its only knowledge \u2014 base URL inference.do-ai.run/v1 plus a default model id \u2014 is already duplicated in live code: duplicated live at chat-core.ts:192. Deleting the FILE requires editing lib/providers/index.ts, which IS live (voice-session-manager reads it), so this is not a free removal even though nothing calls it.",
+      "removalGate": "None beyond editing the registry. Its proxy() has no caller at all (repo-wide `.proxy(` returned exactly one hit, the unmounted internal/providers/routes/providers.ts:138, which #141 deleted; the count is now zero), and its only knowledge \u2014 base URL inference.do-ai.run/v1 plus a default model id \u2014 is already duplicated in live code: duplicated live at chat-core.ts:192. Deleting the FILE requires editing lib/providers/index.ts, which IS live (voice-session-manager reads it), so this is not a free removal even though nothing calls it.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/internal/providers/lib/providers/digitalocean.ts; registry entry at lib/providers/index.ts:31-53; sole proxy() call site internal/providers/routes/providers.ts:138 (unmounted)"
+      "evidence": "packages/api/src/internal/providers/lib/providers/digitalocean.ts; registry entry at lib/providers/index.ts:31-53; sole proxy() call site was internal/providers/routes/providers.ts:138 (unmounted), deleted in #141 \u2014 no call site remains"
     },
     {
       "id": "adapter-fireworks",
@@ -121,9 +121,9 @@
         "chat-core-get-ai-model",
         "dead-providers-proxy-route"
       ],
-      "removalGate": "None beyond editing the registry. Its proxy() has no live caller (repo-wide `.proxy(` returns exactly one hit, the unmounted internal/providers/routes/providers.ts:138), and its only knowledge \u2014 base URL api.fireworks.ai/inference/v1 plus a default model id \u2014 is already duplicated in live code: duplicated live at chat-core.ts:172. Deleting the FILE requires editing lib/providers/index.ts, which IS live (voice-session-manager reads it), so this is not a free removal even though nothing calls it.",
+      "removalGate": "None beyond editing the registry. Its proxy() has no caller at all (repo-wide `.proxy(` returned exactly one hit, the unmounted internal/providers/routes/providers.ts:138, which #141 deleted; the count is now zero), and its only knowledge \u2014 base URL api.fireworks.ai/inference/v1 plus a default model id \u2014 is already duplicated in live code: duplicated live at chat-core.ts:172. Deleting the FILE requires editing lib/providers/index.ts, which IS live (voice-session-manager reads it), so this is not a free removal even though nothing calls it.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/internal/providers/lib/providers/fireworks.ts; registry entry at lib/providers/index.ts:31-53; sole proxy() call site internal/providers/routes/providers.ts:138 (unmounted)"
+      "evidence": "packages/api/src/internal/providers/lib/providers/fireworks.ts; registry entry at lib/providers/index.ts:31-53; sole proxy() call site was internal/providers/routes/providers.ts:138 (unmounted), deleted in #141 \u2014 no call site remains"
     },
     {
       "id": "adapter-google",
@@ -138,7 +138,7 @@
         "adapter-registry",
         "dead-internal-providers-router"
       ],
-      "removalGate": "The MODULE is loaded in production (lib/providers/index.ts is imported by the live voice-session-manager), but its proxy() has no live caller: repo-wide `.proxy(` returns exactly one hit, internal/providers/routes/providers.ts:138, inside the unmounted router. So no runtime gate \u2014 but deleting the file means editing the LIVE registry. UNREACHABLE TODAY: its proxy() is called only from packages/api/src/internal/providers/routes/providers.ts:138, inside the unmounted router. Deletable from Alia with no runtime gate; port the translation to Relay only if Relay does not use the Vercel AI SDK.",
+      "removalGate": "The MODULE is loaded in production (lib/providers/index.ts is imported by the live voice-session-manager), but its proxy() has no caller at all: repo-wide `.proxy(` returned exactly one hit, internal/providers/routes/providers.ts:138, inside the unmounted router, and #141 deleted that router \u2014 repo-wide `.proxy(` is now zero. So no runtime gate \u2014 but deleting the file means editing the LIVE registry. UNREACHABLE TODAY: its proxy() had one caller, packages/api/src/internal/providers/routes/providers.ts:138, inside the unmounted router, which #141 deleted. Deletable from Alia with no runtime gate; port the translation to Relay only if Relay does not use the Vercel AI SDK.",
       "provenance": "re-derived",
       "evidence": "packages/api/src/internal/providers/lib/providers/google.ts:22 (key in URL), :101-112, :116-234 (stream transform)"
     },
@@ -175,9 +175,9 @@
         "chat-core-get-ai-model",
         "dead-providers-proxy-route"
       ],
-      "removalGate": "None beyond editing the registry. Its proxy() has no live caller (repo-wide `.proxy(` returns exactly one hit, the unmounted internal/providers/routes/providers.ts:138), and its only knowledge \u2014 base URL api.groq.com/openai/v1 plus a default model id \u2014 is already duplicated in live code: duplicated live at chat-core.ts:129. Deleting the FILE requires editing lib/providers/index.ts, which IS live (voice-session-manager reads it), so this is not a free removal even though nothing calls it.",
+      "removalGate": "None beyond editing the registry. Its proxy() has no caller at all (repo-wide `.proxy(` returned exactly one hit, the unmounted internal/providers/routes/providers.ts:138, which #141 deleted; the count is now zero), and its only knowledge \u2014 base URL api.groq.com/openai/v1 plus a default model id \u2014 is already duplicated in live code: duplicated live at chat-core.ts:129. Deleting the FILE requires editing lib/providers/index.ts, which IS live (voice-session-manager reads it), so this is not a free removal even though nothing calls it.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/internal/providers/lib/providers/groq.ts; registry entry at lib/providers/index.ts:31-53; sole proxy() call site internal/providers/routes/providers.ts:138 (unmounted)"
+      "evidence": "packages/api/src/internal/providers/lib/providers/groq.ts; registry entry at lib/providers/index.ts:31-53; sole proxy() call site was internal/providers/routes/providers.ts:138 (unmounted), deleted in #141 \u2014 no call site remains"
     },
     {
       "id": "adapter-hyperbolic",
@@ -193,9 +193,9 @@
         "chat-core-get-ai-model",
         "dead-providers-proxy-route"
       ],
-      "removalGate": "None beyond editing the registry. Its proxy() has no live caller (repo-wide `.proxy(` returns exactly one hit, the unmounted internal/providers/routes/providers.ts:138), and its only knowledge \u2014 base URL api.hyperbolic.xyz/v1 plus a default model id \u2014 is already duplicated in live code: duplicated live at chat-core.ts:184. Deleting the FILE requires editing lib/providers/index.ts, which IS live (voice-session-manager reads it), so this is not a free removal even though nothing calls it.",
+      "removalGate": "None beyond editing the registry. Its proxy() has no caller at all (repo-wide `.proxy(` returned exactly one hit, the unmounted internal/providers/routes/providers.ts:138, which #141 deleted; the count is now zero), and its only knowledge \u2014 base URL api.hyperbolic.xyz/v1 plus a default model id \u2014 is already duplicated in live code: duplicated live at chat-core.ts:184. Deleting the FILE requires editing lib/providers/index.ts, which IS live (voice-session-manager reads it), so this is not a free removal even though nothing calls it.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/internal/providers/lib/providers/hyperbolic.ts; registry entry at lib/providers/index.ts:31-53; sole proxy() call site internal/providers/routes/providers.ts:138 (unmounted)"
+      "evidence": "packages/api/src/internal/providers/lib/providers/hyperbolic.ts; registry entry at lib/providers/index.ts:31-53; sole proxy() call site was internal/providers/routes/providers.ts:138 (unmounted), deleted in #141 \u2014 no call site remains"
     },
     {
       "id": "adapter-mistral",
@@ -211,9 +211,9 @@
         "chat-core-get-ai-model",
         "dead-providers-proxy-route"
       ],
-      "removalGate": "None beyond editing the registry. Its proxy() has no live caller (repo-wide `.proxy(` returns exactly one hit, the unmounted internal/providers/routes/providers.ts:138), and its only knowledge \u2014 base URL api.mistral.ai/v1 plus a default model id \u2014 is already duplicated in live code: duplicated live at chat-core.ts:141. Deleting the FILE requires editing lib/providers/index.ts, which IS live (voice-session-manager reads it), so this is not a free removal even though nothing calls it.",
+      "removalGate": "None beyond editing the registry. Its proxy() has no caller at all (repo-wide `.proxy(` returned exactly one hit, the unmounted internal/providers/routes/providers.ts:138, which #141 deleted; the count is now zero), and its only knowledge \u2014 base URL api.mistral.ai/v1 plus a default model id \u2014 is already duplicated in live code: duplicated live at chat-core.ts:141. Deleting the FILE requires editing lib/providers/index.ts, which IS live (voice-session-manager reads it), so this is not a free removal even though nothing calls it.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/internal/providers/lib/providers/mistral.ts; registry entry at lib/providers/index.ts:31-53; sole proxy() call site internal/providers/routes/providers.ts:138 (unmounted)"
+      "evidence": "packages/api/src/internal/providers/lib/providers/mistral.ts; registry entry at lib/providers/index.ts:31-53; sole proxy() call site was internal/providers/routes/providers.ts:138 (unmounted), deleted in #141 \u2014 no call site remains"
     },
     {
       "id": "adapter-novita",
@@ -229,9 +229,9 @@
         "chat-core-get-ai-model",
         "dead-providers-proxy-route"
       ],
-      "removalGate": "None beyond editing the registry. Its proxy() has no live caller (repo-wide `.proxy(` returns exactly one hit, the unmounted internal/providers/routes/providers.ts:138), and its only knowledge \u2014 base URL api.novita.ai/v3/openai plus a default model id \u2014 is already duplicated in live code: duplicated live at chat-core.ts:188. Deleting the FILE requires editing lib/providers/index.ts, which IS live (voice-session-manager reads it), so this is not a free removal even though nothing calls it.",
+      "removalGate": "None beyond editing the registry. Its proxy() has no caller at all (repo-wide `.proxy(` returned exactly one hit, the unmounted internal/providers/routes/providers.ts:138, which #141 deleted; the count is now zero), and its only knowledge \u2014 base URL api.novita.ai/v3/openai plus a default model id \u2014 is already duplicated in live code: duplicated live at chat-core.ts:188. Deleting the FILE requires editing lib/providers/index.ts, which IS live (voice-session-manager reads it), so this is not a free removal even though nothing calls it.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/internal/providers/lib/providers/novita.ts; registry entry at lib/providers/index.ts:31-53; sole proxy() call site internal/providers/routes/providers.ts:138 (unmounted)"
+      "evidence": "packages/api/src/internal/providers/lib/providers/novita.ts; registry entry at lib/providers/index.ts:31-53; sole proxy() call site was internal/providers/routes/providers.ts:138 (unmounted), deleted in #141 \u2014 no call site remains"
     },
     {
       "id": "adapter-openai",
@@ -247,9 +247,9 @@
         "chat-core-get-ai-model",
         "dead-providers-proxy-route"
       ],
-      "removalGate": "None beyond editing the registry. Its proxy() has no live caller (repo-wide `.proxy(` returns exactly one hit, the unmounted internal/providers/routes/providers.ts:138), and its only knowledge \u2014 base URL api.openai.com plus a default model id \u2014 is already duplicated in live code: the base URL and default id are duplicated live at chat-core.ts:121. Deleting the FILE requires editing lib/providers/index.ts, which IS live (voice-session-manager reads it), so this is not a free removal even though nothing calls it.",
+      "removalGate": "None beyond editing the registry. Its proxy() has no caller at all (repo-wide `.proxy(` returned exactly one hit, the unmounted internal/providers/routes/providers.ts:138, which #141 deleted; the count is now zero), and its only knowledge \u2014 base URL api.openai.com plus a default model id \u2014 is already duplicated in live code: the base URL and default id are duplicated live at chat-core.ts:121. Deleting the FILE requires editing lib/providers/index.ts, which IS live (voice-session-manager reads it), so this is not a free removal even though nothing calls it.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/internal/providers/lib/providers/openai.ts; registry entry at lib/providers/index.ts:31-53; sole proxy() call site internal/providers/routes/providers.ts:138 (unmounted)"
+      "evidence": "packages/api/src/internal/providers/lib/providers/openai.ts; registry entry at lib/providers/index.ts:31-53; sole proxy() call site was internal/providers/routes/providers.ts:138 (unmounted), deleted in #141 \u2014 no call site remains"
     },
     {
       "id": "adapter-openai-voice",
@@ -283,9 +283,9 @@
         "chat-core-get-ai-model",
         "dead-providers-proxy-route"
       ],
-      "removalGate": "None beyond editing the registry. Its proxy() has no live caller (repo-wide `.proxy(` returns exactly one hit, the unmounted internal/providers/routes/providers.ts:138), and its only knowledge \u2014 base URL openrouter.ai/api/v1 plus a default model id \u2014 is already duplicated in live code: duplicated live at chat-core.ts:149; also sends an HTTP-Referer naming alia-ai.com. Deleting the FILE requires editing lib/providers/index.ts, which IS live (voice-session-manager reads it), so this is not a free removal even though nothing calls it.",
+      "removalGate": "None beyond editing the registry. Its proxy() has no caller at all (repo-wide `.proxy(` returned exactly one hit, the unmounted internal/providers/routes/providers.ts:138, which #141 deleted; the count is now zero), and its only knowledge \u2014 base URL openrouter.ai/api/v1 plus a default model id \u2014 is already duplicated in live code: duplicated live at chat-core.ts:149; also sends an HTTP-Referer naming alia-ai.com. Deleting the FILE requires editing lib/providers/index.ts, which IS live (voice-session-manager reads it), so this is not a free removal even though nothing calls it.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/internal/providers/lib/providers/openrouter.ts; registry entry at lib/providers/index.ts:31-53; sole proxy() call site internal/providers/routes/providers.ts:138 (unmounted)"
+      "evidence": "packages/api/src/internal/providers/lib/providers/openrouter.ts; registry entry at lib/providers/index.ts:31-53; sole proxy() call site was internal/providers/routes/providers.ts:138 (unmounted), deleted in #141 \u2014 no call site remains"
     },
     {
       "id": "adapter-perplexity",
@@ -301,9 +301,9 @@
         "chat-core-get-ai-model",
         "dead-providers-proxy-route"
       ],
-      "removalGate": "None beyond editing the registry. Its proxy() has no live caller (repo-wide `.proxy(` returns exactly one hit, the unmounted internal/providers/routes/providers.ts:138), and its only knowledge \u2014 base URL api.perplexity.ai plus a default model id \u2014 is already duplicated in live code: duplicated live at chat-core.ts:176. Deleting the FILE requires editing lib/providers/index.ts, which IS live (voice-session-manager reads it), so this is not a free removal even though nothing calls it.",
+      "removalGate": "None beyond editing the registry. Its proxy() has no caller at all (repo-wide `.proxy(` returned exactly one hit, the unmounted internal/providers/routes/providers.ts:138, which #141 deleted; the count is now zero), and its only knowledge \u2014 base URL api.perplexity.ai plus a default model id \u2014 is already duplicated in live code: duplicated live at chat-core.ts:176. Deleting the FILE requires editing lib/providers/index.ts, which IS live (voice-session-manager reads it), so this is not a free removal even though nothing calls it.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/internal/providers/lib/providers/perplexity.ts; registry entry at lib/providers/index.ts:31-53; sole proxy() call site internal/providers/routes/providers.ts:138 (unmounted)"
+      "evidence": "packages/api/src/internal/providers/lib/providers/perplexity.ts; registry entry at lib/providers/index.ts:31-53; sole proxy() call site was internal/providers/routes/providers.ts:138 (unmounted), deleted in #141 \u2014 no call site remains"
     },
     {
       "id": "adapter-registry",
@@ -336,7 +336,7 @@
         "adapter-registry",
         "dead-internal-providers-router"
       ],
-      "removalGate": "The MODULE is loaded in production (lib/providers/index.ts is imported by the live voice-session-manager), but its proxy() has no live caller: repo-wide `.proxy(` returns exactly one hit, internal/providers/routes/providers.ts:138, inside the unmounted router. So no runtime gate \u2014 but deleting the file means editing the LIVE registry. Unreachable today. No runtime gate.",
+      "removalGate": "The MODULE is loaded in production (lib/providers/index.ts is imported by the live voice-session-manager), but its proxy() has no caller at all: repo-wide `.proxy(` returned exactly one hit, internal/providers/routes/providers.ts:138, inside the unmounted router, and #141 deleted that router \u2014 repo-wide `.proxy(` is now zero. So no runtime gate \u2014 but deleting the file means editing the LIVE registry. Unreachable today. No runtime gate.",
       "provenance": "re-derived",
       "evidence": "packages/api/src/internal/providers/lib/providers/replicate.ts:101-135"
     },
@@ -354,9 +354,9 @@
         "chat-core-get-ai-model",
         "dead-providers-proxy-route"
       ],
-      "removalGate": "None beyond editing the registry. Its proxy() has no live caller (repo-wide `.proxy(` returns exactly one hit, the unmounted internal/providers/routes/providers.ts:138), and its only knowledge \u2014 base URL api.sambanova.ai/v1 plus a default model id \u2014 is already duplicated in live code: duplicated live at chat-core.ts:180. Deleting the FILE requires editing lib/providers/index.ts, which IS live (voice-session-manager reads it), so this is not a free removal even though nothing calls it.",
+      "removalGate": "None beyond editing the registry. Its proxy() has no caller at all (repo-wide `.proxy(` returned exactly one hit, the unmounted internal/providers/routes/providers.ts:138, which #141 deleted; the count is now zero), and its only knowledge \u2014 base URL api.sambanova.ai/v1 plus a default model id \u2014 is already duplicated in live code: duplicated live at chat-core.ts:180. Deleting the FILE requires editing lib/providers/index.ts, which IS live (voice-session-manager reads it), so this is not a free removal even though nothing calls it.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/internal/providers/lib/providers/sambanova.ts; registry entry at lib/providers/index.ts:31-53; sole proxy() call site internal/providers/routes/providers.ts:138 (unmounted)"
+      "evidence": "packages/api/src/internal/providers/lib/providers/sambanova.ts; registry entry at lib/providers/index.ts:31-53; sole proxy() call site was internal/providers/routes/providers.ts:138 (unmounted), deleted in #141 \u2014 no call site remains"
     },
     {
       "id": "adapter-together",
@@ -372,9 +372,9 @@
         "chat-core-get-ai-model",
         "dead-providers-proxy-route"
       ],
-      "removalGate": "None beyond editing the registry. Its proxy() has no live caller (repo-wide `.proxy(` returns exactly one hit, the unmounted internal/providers/routes/providers.ts:138), and its only knowledge \u2014 base URL api.together.xyz/v1 plus a default model id \u2014 is already duplicated in live code: duplicated live at chat-core.ts:137. Deleting the FILE requires editing lib/providers/index.ts, which IS live (voice-session-manager reads it), so this is not a free removal even though nothing calls it.",
+      "removalGate": "None beyond editing the registry. Its proxy() has no caller at all (repo-wide `.proxy(` returned exactly one hit, the unmounted internal/providers/routes/providers.ts:138, which #141 deleted; the count is now zero), and its only knowledge \u2014 base URL api.together.xyz/v1 plus a default model id \u2014 is already duplicated in live code: duplicated live at chat-core.ts:137. Deleting the FILE requires editing lib/providers/index.ts, which IS live (voice-session-manager reads it), so this is not a free removal even though nothing calls it.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/internal/providers/lib/providers/together.ts; registry entry at lib/providers/index.ts:31-53; sole proxy() call site internal/providers/routes/providers.ts:138 (unmounted)"
+      "evidence": "packages/api/src/internal/providers/lib/providers/together.ts; registry entry at lib/providers/index.ts:31-53; sole proxy() call site was internal/providers/routes/providers.ts:138 (unmounted), deleted in #141 \u2014 no call site remains"
     },
     {
       "id": "adapter-xai",
@@ -390,9 +390,9 @@
         "chat-core-get-ai-model",
         "dead-providers-proxy-route"
       ],
-      "removalGate": "None beyond editing the registry. Its proxy() has no live caller (repo-wide `.proxy(` returns exactly one hit, the unmounted internal/providers/routes/providers.ts:138), and its only knowledge \u2014 base URL api.x.ai/v1 plus a default model id \u2014 is already duplicated in live code: duplicated live at chat-core.ts:168; the xai entry also carries the LIVE grok-voice .voice half. Deleting the FILE requires editing lib/providers/index.ts, which IS live (voice-session-manager reads it), so this is not a free removal even though nothing calls it.",
+      "removalGate": "None beyond editing the registry. Its proxy() has no caller at all (repo-wide `.proxy(` returned exactly one hit, the unmounted internal/providers/routes/providers.ts:138, which #141 deleted; the count is now zero), and its only knowledge \u2014 base URL api.x.ai/v1 plus a default model id \u2014 is already duplicated in live code: duplicated live at chat-core.ts:168; the xai entry also carries the LIVE grok-voice .voice half. Deleting the FILE requires editing lib/providers/index.ts, which IS live (voice-session-manager reads it), so this is not a free removal even though nothing calls it.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/internal/providers/lib/providers/xai.ts; registry entry at lib/providers/index.ts:31-53; sole proxy() call site internal/providers/routes/providers.ts:138 (unmounted)"
+      "evidence": "packages/api/src/internal/providers/lib/providers/xai.ts; registry entry at lib/providers/index.ts:31-53; sole proxy() call site was internal/providers/routes/providers.ts:138 (unmounted), deleted in #141 \u2014 no call site remains"
     },
     {
       "id": "alia-chat-app-route-constant",
@@ -1730,9 +1730,9 @@
       "dependsOn": [
         "dead-providers-auth-middleware"
       ],
-      "removalGate": "NONE, but it is OUTSIDE internal/providers, so a cleanup scoped to that directory will strand it. Also strands the auth_health_metrics table and its repository.",
+      "removalGate": "NONE. #141 deleted both its callers and deliberately left the module in place, so it is stranded now: `auth_health_metrics` has no writer, and both callers were unreachable, so it never had one in production. Also strands the auth_health_metrics table and its repository.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/lib/auth-health.ts:8-13; importers only packages/api/src/internal/providers/middleware/auth.ts:4 and routes/auth-health.ts:7"
+      "evidence": "packages/api/src/lib/auth-health.ts:8-13; importers were packages/api/src/internal/providers/middleware/auth.ts:4 and routes/auth-health.ts:7, both deleted in #141; it now has ZERO importers"
     },
     {
       "id": "dead-get-user-credits",
@@ -1756,6 +1756,7 @@
       "domain": "provider-runtime",
       "kind": "route",
       "currentPath": "packages/api/src/internal/providers/index.ts",
+      "removedIn": "#141",
       "reachable": "dead",
       "owner": "delete",
       "targetPath": "delete",
@@ -1781,6 +1782,7 @@
       "domain": "provider-runtime",
       "kind": "module",
       "currentPath": "packages/api/src/internal/providers/middleware/auth.ts",
+      "removedIn": "#141",
       "reachable": "dead",
       "owner": "delete",
       "targetPath": "delete",
@@ -1797,6 +1799,7 @@
       "kind": "module",
       "domain": "provider-runtime",
       "currentPath": "packages/api/src/internal/providers/lib/broadcast-helpers.ts",
+      "removedIn": "#141",
       "owner": "delete",
       "targetPath": "delete",
       "summary": "Eight WebSocket broadcast helpers for the admin panel (health, keys, models, alia-models). Every importer is a dead admin route.",
@@ -1830,6 +1833,7 @@
       "domain": "provider-runtime",
       "kind": "route",
       "currentPath": "packages/api/src/internal/providers/routes/providers.ts",
+      "removedIn": "#141",
       "reachable": "dead",
       "owner": "delete",
       "targetPath": "delete",
@@ -1865,6 +1869,7 @@
       "domain": "provider-runtime",
       "kind": "module",
       "currentPath": "packages/api/src/internal/providers/ws.ts",
+      "removedIn": "#141",
       "reachable": "dead",
       "owner": "delete",
       "targetPath": "delete",
@@ -1881,6 +1886,7 @@
       "domain": "provider-runtime",
       "kind": "route",
       "currentPath": "packages/api/src/internal/providers/routes/alia-models.ts",
+      "removedIn": "#141",
       "reachable": "dead",
       "owner": "relay",
       "targetPath": "relay: catalogue admin",
@@ -1897,6 +1903,7 @@
       "domain": "provider-runtime",
       "kind": "route",
       "currentPath": "packages/api/src/internal/providers/routes/auth-health.ts",
+      "removedIn": "#141",
       "reachable": "dead",
       "owner": "delete",
       "targetPath": "delete",
@@ -1913,6 +1920,7 @@
       "domain": "provider-runtime",
       "kind": "route",
       "currentPath": "packages/api/src/internal/providers/routes/billing-admin.ts",
+      "removedIn": "#141",
       "reachable": "dead",
       "owner": "alia",
       "targetPath": "alia: an Alia-owned billing admin surface",
@@ -1929,6 +1937,7 @@
       "domain": "provider-runtime",
       "kind": "route",
       "currentPath": "packages/api/src/internal/providers/routes/credit-packages.ts",
+      "removedIn": "#141",
       "reachable": "dead",
       "owner": "alia",
       "targetPath": "alia: product catalogue admin",
@@ -1945,6 +1954,7 @@
       "domain": "provider-runtime",
       "kind": "route",
       "currentPath": "packages/api/src/internal/providers/routes/fallback-stats.ts",
+      "removedIn": "#141",
       "reachable": "dead",
       "owner": "relay",
       "targetPath": "relay: routing telemetry",
@@ -1961,6 +1971,7 @@
       "domain": "provider-runtime",
       "kind": "route",
       "currentPath": "packages/api/src/internal/providers/routes/features.ts",
+      "removedIn": "#141",
       "reachable": "dead",
       "owner": "alia",
       "targetPath": "alia: entitlements admin",
@@ -1977,6 +1988,7 @@
       "domain": "provider-runtime",
       "kind": "route",
       "currentPath": "packages/api/src/internal/providers/routes/keys.ts",
+      "removedIn": "#141",
       "reachable": "dead",
       "owner": "relay",
       "targetPath": "relay: provider credential admin",
@@ -1993,6 +2005,7 @@
       "domain": "provider-runtime",
       "kind": "route",
       "currentPath": "packages/api/src/internal/providers/routes/models.ts",
+      "removedIn": "#141",
       "reachable": "dead",
       "owner": "relay",
       "targetPath": "relay: upstream catalogue admin",
@@ -2009,6 +2022,7 @@
       "domain": "provider-runtime",
       "kind": "route",
       "currentPath": "packages/api/src/internal/providers/routes/plan-features.ts",
+      "removedIn": "#141",
       "reachable": "dead",
       "owner": "alia",
       "targetPath": "alia: entitlements admin",
@@ -2025,6 +2039,7 @@
       "domain": "provider-runtime",
       "kind": "route",
       "currentPath": "packages/api/src/internal/providers/routes/plans.ts",
+      "removedIn": "#141",
       "reachable": "dead",
       "owner": "alia",
       "targetPath": "alia: plan admin",
@@ -2041,6 +2056,7 @@
       "domain": "provider-runtime",
       "kind": "route",
       "currentPath": "packages/api/src/internal/providers/routes/usage.ts",
+      "removedIn": "#141",
       "reachable": "dead",
       "owner": "relay",
       "targetPath": "relay: usage reporting",
@@ -2396,6 +2412,7 @@
       "domain": "provider-runtime",
       "kind": "env",
       "currentPath": "packages/api/src/internal/providers/middleware/auth.ts",
+      "removedIn": "#141",
       "reachable": "dead",
       "owner": "delete",
       "targetPath": "delete",
@@ -2581,6 +2598,7 @@
       "domain": "product-api",
       "kind": "dependency",
       "currentPath": "packages/alia-gateway-admin/src/lib/api/client.ts",
+      "removedIn": "#141",
       "reachable": "dead",
       "owner": "delete",
       "targetPath": "delete",
@@ -2597,6 +2615,7 @@
       "domain": "frontend-admin",
       "kind": "screen",
       "currentPath": "packages/alia-gateway-admin/src/App.tsx",
+      "removedIn": "#141",
       "reachable": "dead",
       "owner": "delete",
       "targetPath": "delete",
@@ -2623,6 +2642,7 @@
       "domain": "frontend-admin",
       "kind": "screen",
       "currentPath": "packages/alia-gateway-admin/src/components/models/FallbackChain.tsx",
+      "removedIn": "#141",
       "reachable": "dead",
       "owner": "relay",
       "targetPath": "internal-relay-ops",
@@ -2639,6 +2659,7 @@
       "domain": "frontend-admin",
       "kind": "package",
       "currentPath": "packages/alia-gateway-admin/.do/app.yaml",
+      "removedIn": "#141",
       "reachable": "unverified",
       "owner": "delete",
       "targetPath": "delete",
@@ -2669,6 +2690,7 @@
       "domain": "product-api",
       "kind": "doc",
       "currentPath": "packages/alia-gateway-admin/README.md",
+      "removedIn": "#141",
       "reachable": "unverified",
       "owner": "delete",
       "targetPath": "delete",
@@ -2686,6 +2708,7 @@
       "domain": "frontend-admin",
       "kind": "env",
       "currentPath": "packages/alia-gateway-admin/.env.example",
+      "removedIn": "#141",
       "reachable": "dead",
       "owner": "delete",
       "targetPath": "delete",
@@ -2700,6 +2723,7 @@
       "domain": "provider-runtime",
       "kind": "env",
       "currentPath": "packages/alia-gateway-admin/.env.example",
+      "removedIn": "#141",
       "reachable": "dead",
       "owner": "delete",
       "targetPath": "delete",
@@ -2718,6 +2742,7 @@
       "domain": "frontend-admin",
       "kind": "screen",
       "currentPath": "packages/alia-gateway-admin/src/lib/websocket/client.ts",
+      "removedIn": "#141",
       "reachable": "dead",
       "owner": "relay",
       "targetPath": "internal-relay-ops",
@@ -2734,6 +2759,7 @@
       "domain": "frontend-admin",
       "kind": "screen",
       "currentPath": "packages/alia-gateway-admin/src/pages/Billing.tsx",
+      "removedIn": "#141",
       "reachable": "dead",
       "owner": "alia",
       "targetPath": "keep-as-alia-product-setting",
@@ -2750,6 +2776,7 @@
       "domain": "frontend-admin",
       "kind": "screen",
       "currentPath": "packages/alia-gateway-admin/src/pages/CreditPackages.tsx",
+      "removedIn": "#141",
       "reachable": "dead",
       "owner": "alia",
       "targetPath": "keep-as-alia-product-setting",
@@ -2766,6 +2793,7 @@
       "domain": "frontend-admin",
       "kind": "screen",
       "currentPath": "packages/alia-gateway-admin/src/pages/Dashboard.tsx",
+      "removedIn": "#141",
       "reachable": "dead",
       "owner": "relay",
       "targetPath": "internal-relay-ops",
@@ -2783,6 +2811,7 @@
       "domain": "frontend-admin",
       "kind": "screen",
       "currentPath": "packages/alia-gateway-admin/src/pages/Features.tsx",
+      "removedIn": "#141",
       "reachable": "dead",
       "owner": "alia",
       "targetPath": "keep-as-alia-product-setting",
@@ -2800,6 +2829,7 @@
       "domain": "frontend-admin",
       "kind": "screen",
       "currentPath": "packages/alia-gateway-admin/src/pages/Keys.tsx",
+      "removedIn": "#141",
       "reachable": "dead",
       "owner": "relay",
       "targetPath": "internal-relay-ops",
@@ -2816,6 +2846,7 @@
       "domain": "frontend-admin",
       "kind": "screen",
       "currentPath": "packages/alia-gateway-admin/src/pages/Login.tsx",
+      "removedIn": "#141",
       "reachable": "dead",
       "owner": "delete",
       "targetPath": "delete",
@@ -2830,6 +2861,7 @@
       "domain": "frontend-admin",
       "kind": "screen",
       "currentPath": "packages/alia-gateway-admin/src/pages/Logs.tsx",
+      "removedIn": "#141",
       "reachable": "dead",
       "owner": "relay",
       "targetPath": "internal-relay-ops",
@@ -2846,6 +2878,7 @@
       "domain": "frontend-admin",
       "kind": "screen",
       "currentPath": "packages/alia-gateway-admin/src/pages/Models.tsx",
+      "removedIn": "#141",
       "reachable": "dead",
       "owner": "relay",
       "targetPath": "internal-relay-ops",
@@ -2864,6 +2897,7 @@
       "domain": "frontend-admin",
       "kind": "screen",
       "currentPath": "packages/alia-gateway-admin/src/pages/Monitoring.tsx",
+      "removedIn": "#141",
       "reachable": "dead",
       "owner": "relay",
       "targetPath": "internal-relay-ops",
@@ -2881,6 +2915,7 @@
       "domain": "frontend-admin",
       "kind": "screen",
       "currentPath": "packages/alia-gateway-admin/src/pages/Plans.tsx",
+      "removedIn": "#141",
       "reachable": "dead",
       "owner": "alia",
       "targetPath": "keep-as-alia-product-setting",
@@ -2897,6 +2932,7 @@
       "domain": "frontend-admin",
       "kind": "screen",
       "currentPath": "packages/alia-gateway-admin/src/pages/Usage.tsx",
+      "removedIn": "#141",
       "reachable": "dead",
       "owner": "relay",
       "targetPath": "internal-relay-ops",
@@ -2921,9 +2957,9 @@
         "ga-do-spec-root",
         "ga-workflow-deploy"
       ],
-      "removalGate": "Removed ONLY after the workflow job and both DO spec entries that call it are removed, or the deploy fails on a missing script. Also update README.md:154.",
+      "removalGate": "DONE in #141: the script and all three callers were removed in one commit, so no deploy ever saw a missing script. README.md:154 updated with it.",
       "provenance": "inventory-frontend-admin",
-      "evidence": "package.json:39; callers: .github/workflows/deploy-frontends.yml:92, .do/app.yaml:193, packages/alia-gateway-admin/.do/app.yaml:16"
+      "evidence": "was package.json:39; callers were .github/workflows/deploy-frontends.yml:92, .do/app.yaml:193 and packages/alia-gateway-admin/.do/app.yaml:16 \u2014 all removed in #141"
     },
     {
       "id": "ga-script-dev",
@@ -2947,6 +2983,7 @@
       "domain": "provider-runtime",
       "kind": "behaviour",
       "currentPath": "packages/alia-gateway-admin/src/types/index.ts",
+      "removedIn": "#141",
       "reachable": "dead",
       "owner": "delete",
       "targetPath": "delete",
@@ -3850,6 +3887,7 @@
       "domain": "data-billing",
       "kind": "module",
       "currentPath": "packages/api/src/internal/providers/routes/providers.ts",
+      "removedIn": "#141",
       "reachable": "dead",
       "owner": "delete",
       "targetPath": "delete \u2014 nothing should echo credential material or a provider name to a caller",
@@ -4680,7 +4718,7 @@
       "dependsOn": [
         "alia-models"
       ],
-      "removalGate": "UNDECIDED \u2014 the two inventories disagree: product/api says delete it as an orphan (measured: no package.json in the repo depends on @alia/shared-types; positive control, the same scan finds @alia.onl/sdk as a real dependency of packages/app), frontend/admin says keep it and make it authoritative because it is the only provider-agnostic tier declaration. Both cannot hold. Decide which registry is canonical BEFORE workstream 4 edits model semantics, or the port updates the copy nobody reads.  || inventory gate, kept for the record: Delete, or make it the real source and have the API import it. Leaving two 'canonical' registries where one has no consumers guarantees the port updates the wrong one.  || frontend-admin inventory adds: Keep and make it authoritative. It calls itself 'the canonical superset', yet the gateway admin maintains a SECOND, DIFFERENT 12-member list (missing v1-tts and v1-image) with no type relationship between them. Retiring the gateway admin removes that fork for free \u2014 which is an argument for doing workstream 9 early rather than late.",
+      "removalGate": "UNDECIDED \u2014 the two inventories disagree: product/api says delete it as an orphan (measured: no package.json in the repo depends on @alia/shared-types; positive control, the same scan finds @alia.onl/sdk as a real dependency of packages/app), frontend/admin says keep it and make it authoritative because it is the only provider-agnostic tier declaration. Both cannot hold. Decide which registry is canonical BEFORE workstream 4 edits model semantics, or the port updates the copy nobody reads.  || inventory gate, kept for the record: Delete, or make it the real source and have the API import it. Leaving two 'canonical' registries where one has no consumers guarantees the port updates the wrong one.  || frontend-admin inventory adds: Keep and make it authoritative. It calls itself 'the canonical superset', yet the gateway admin maintains a SECOND, DIFFERENT 12-member list (missing v1-tts and v1-image) with no type relationship between them. Retiring the gateway admin removes that fork for free \u2014 which is an argument for doing workstream 9 early rather than late. #141 did: the second list is deleted, so this registry is now the only one, and the UNDECIDED above is a straight keep-or-delete with no fork to reconcile.",
       "provenance": "re-derived",
       "evidence": "packages/shared-types/src/models.ts:14-34; no '@alia/shared-types' dependency in any packages/*/package.json; packages/shared-types/src/models.ts:13-31 vs packages/alia-gateway-admin/src/types/index.ts:268-281"
     },
@@ -5161,9 +5199,9 @@
         "dead-internal-providers-router",
         "fallback-engine"
       ],
-      "removalGate": "UNDECIDED \u2014 whether Alia wants routing telemetry at all once Relay routes. The table is WRITE-ONLY today: its only reader is the unmounted fallback-stats admin route (measured orphan). So it can be dropped with no reader to migrate, but that is a decision to take deliberately rather than by omission.  || inventory gate, kept for the record: Its only reader is unmounted, so it is write-only today. Decide explicitly whether Alia wants routing telemetry at all after the switch, rather than letting it vanish.",
+      "removalGate": "UNDECIDED \u2014 whether Alia wants routing telemetry at all once Relay routes. The table is WRITE-ONLY today: its only reader was the unmounted fallback-stats admin route (measured orphan), which #141 deleted, so it now has no reader at all. So it can be dropped with no reader to migrate, but that is a decision to take deliberately rather than by omission.  || inventory gate, kept for the record: Its only reader is unmounted, so it is write-only today. Decide explicitly whether Alia wants routing telemetry at all after the switch, rather than letting it vanish.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/db/schema/telemetry.ts:156; writer packages/api/src/internal/providers/lib/fallback-engine.ts:30; reader packages/api/src/internal/providers/routes/fallback-stats.ts (unmounted)"
+      "evidence": "packages/api/src/db/schema/telemetry.ts:156; writer packages/api/src/internal/providers/lib/fallback-engine.ts:30; reader was packages/api/src/internal/providers/routes/fallback-stats.ts (unmounted), deleted in #141"
     },
     {
       "id": "table-features",
@@ -5198,7 +5236,7 @@
         "tuple-model-pricing-tiers",
         "tuple-provider-names"
       ],
-      "removalGate": "Before dropping, confirm the row counts and confirm nothing outside the dead admin routes writes them (the seeds that populate them have no callers). alia_models.isLegacy IS read live and must be preserved somewhere Alia-side.  || data-billing inventory adds: production row count audited AND both writers confirmed unreachable (routes/models.ts is mounted only through the unmounted internal/providers/index.ts; seed-model-configs.ts's upsert runs only inside runStartupSeed, which has zero callers) AND the routing path confirmed to read TIER_MODEL_MAPPINGS from code rather than this table.",
+      "removalGate": "Before dropping, confirm the row counts and confirm nothing outside the dead admin routes writes them (the seeds that populate them have no callers). alia_models.isLegacy IS read live and must be preserved somewhere Alia-side.  || data-billing inventory adds: production row count audited AND both writers confirmed unreachable (routes/models.ts was mounted only through the unmounted internal/providers/index.ts and both were deleted in #141; seed-model-configs.ts's upsert runs only inside runStartupSeed, which has zero callers) AND the routing path confirmed to read TIER_MODEL_MAPPINGS from code rather than this table.",
       "provenance": "re-derived",
       "evidence": "packages/api/src/db/schema/providers.ts:73, :154, :228; live read packages/api/src/internal/providers/lib/alia-models.ts:311-318; packages/api/src/db/schema/providers.ts:73"
     },
@@ -5270,7 +5308,7 @@
         "table-api-usage",
         "tuple-provider-names"
       ],
-      "removalGate": "MOST DESTRUCTIVE ITEM IN THIS INVENTORY. Count the rows and export them before any drop \u2014 these are live third-party credentials that exist nowhere else in the repo or in SSM. Migration must reach Relay's store before the table is dropped, and rotation is the safer alternative to copying plaintext.  || data-billing inventory adds: production row count audited AND every stored credential ROTATED at the upstream provider before the row is deleted \u2014 a deleted row is not a revoked key. The only live writers today are the telemetry updates in key-manager.ts (success/failure/spend/cooldown); the CREATE path (routes/keys.ts) is unreachable because internal/providers/index.ts is unmounted, so keys are currently inserted by hand.",
+      "removalGate": "MOST DESTRUCTIVE ITEM IN THIS INVENTORY. Count the rows and export them before any drop \u2014 these are live third-party credentials that exist nowhere else in the repo or in SSM. Migration must reach Relay's store before the table is dropped, and rotation is the safer alternative to copying plaintext.  || data-billing inventory adds: production row count audited AND every stored credential ROTATED at the upstream provider before the row is deleted \u2014 a deleted row is not a revoked key. The only live writers today are the telemetry updates in key-manager.ts (success/failure/spend/cooldown); the CREATE path (routes/keys.ts) was unreachable because internal/providers/index.ts was unmounted, and #141 deleted both, so keys are inserted by hand and there is no longer any code path that creates one.",
       "provenance": "re-derived",
       "evidence": "packages/api/src/db/schema/providers.ts:300-320 (key/keyHash/keyPrefix), :322-329 (rate limits), :404-411 (unique + rotation indexes); deploy secret list .github/workflows/deploy-aws.yml:66-76 contains NO provider key; packages/api/src/db/schema/providers.ts:300"
     },

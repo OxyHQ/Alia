@@ -4,28 +4,32 @@
 
 ## Providers Module
 
-The `providers/` module is an internal service for managing AI provider keys, model configurations, and request routing for virtual Alia models.
+The `providers/` module holds the in-process logic for provider keys, model
+configurations and request routing for virtual Alia models. It is a **library,
+not a service**: nothing here is mounted on the HTTP server.
 
 ### Key Points:
 
-- **Internal Use Only**: These endpoints are NOT part of the public API
-- **Admin Panel Access**: Only accessible to the admin panel via HMAC authentication
-- **No Public Documentation**: Never document these endpoints in public API docs
-- **Virtual Alia Models**: Used exclusively for internal Alia model resolution (alia-v1, alia-lite, etc.)
+- **No HTTP surface**: `providers/lib/**` is reached only through
+  `../../lib/gateway-client.ts`, which every consumer imports. There are no
+  provider routes to call, and none should be added — expose a public endpoint
+  in `routes/` that abstracts the provider details instead.
+- **Never publicly documented**: provider names and provider model ids stay
+  inside this directory. Everything that crosses the boundary is Alia-branded.
+- **Virtual Alia Models**: used exclusively for internal Alia model resolution
+  (alia-v1, alia-lite, etc.)
 
 ### Architecture:
 
-The providers module was previously a separate microservice but has been integrated into the main API to reduce infrastructure costs while maintaining clear separation.
+The providers module was previously a separate microservice, then a set of
+admin routes under `/internal/gateway` driven by a Vite admin panel. Both are
+gone; the module is now imported directly by the API that uses it.
 
 ```
 Main API (Port 3001)
 ├── Public Endpoints (/health, /auth, /chat, etc.)
 ├── Public Billing (/billing/plans, /billing/checkout, /billing/subscription)
-└── Internal Gateway (/internal/gateway)
-    ├── /v1/providers (model resolution, health monitoring)
-    ├── /v1/models (model configuration)
-    ├── /v1/keys (API key management)
-    └── /v1/plans (subscription plan CRUD, seeded on startup)
+└── lib/gateway-client.ts  ← the only door into internal/providers
 ```
 
 ### Provider Failover & Key Management:
@@ -63,20 +67,6 @@ The module provides a multi-layer failover system for AI provider requests:
 **Provider Health** (`lib/provider-health.ts`):
 - Circuit breaker pattern: 5 consecutive failures → open for 60s → half-open (3 attempts, 2 successes to close)
 - Per-provider/model health tracked in the `provider_health` PostgreSQL table, via `db/telemetry/providerHealthRepository.ts`
-
-### Authentication:
-
-All internal provider endpoints require HMAC-based service authentication:
-- `X-Service-Name`: Calling service identifier
-- `X-Timestamp`: Unix timestamp (60-second window)
-- `X-Signature`: HMAC-SHA256 signature
-
-### Access Control:
-
-Endpoints are protected by:
-1. HMAC authentication middleware
-2. CORS restrictions (admin panel origin only)
-3. No inclusion in public API documentation
 
 ---
 

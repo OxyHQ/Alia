@@ -139,7 +139,6 @@ app.use('/v1', (_req, res, next) => {
 const PRODUCTION_ORIGINS = [
   'https://alia.onl',
   'https://console.alia.onl',
-  'https://gateway.alia.onl',
 ];
 
 const DEV_ORIGINS = [
@@ -193,8 +192,22 @@ app.use('/billing/webhook', express.raw({ type: 'application/json' }));
  */
 app.use('/webhooks', createCrowdSourceWebhookRoutes());
 
-// Increase body size limit for large chat contexts. Capture the raw body so the
-// service-to-service HMAC (providers middleware) can bind a body hash.
+// `rawBody` is declared here because this hook is the only thing that sets it.
+// It outlived its original consumer: the declaration used to sit in the
+// `/internal/gateway` HMAC middleware, which was never mounted and is now gone.
+// The field is still READ, by `@oxyhq/crowdsource-express` — `readRawBody` does
+// a `Reflect.get(request, 'rawBody')` before touching the stream, which no grep
+// of this repo can see. That is the trap `crowdsource-webhook.ts` guards
+// against, so keep both the hook and the guard.
+declare global {
+  namespace Express {
+    interface Request {
+      rawBody?: Buffer;
+    }
+  }
+}
+
+// Increase body size limit for large chat contexts.
 app.use(express.json({
   limit: '10mb',
   verify: (req, _res, buf) => {

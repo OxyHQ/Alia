@@ -21,10 +21,10 @@ import { recordMetric } from '../lib/observability/index.js';
  * Alia's parser happens to keep a Buffer copy on `req.rawBody`, which
  * `@oxyhq/crowdsource-express` would accept, so mounting late would appear to work
  * — and that is exactly why the guard below exists rather than a comment. The
- * `verify` hook that populates `req.rawBody` is there for the provider HMAC and
- * belongs to another feature entirely; the day somebody removes or narrows it,
- * webhook verification would start signing over a re-serialisation with nothing
- * failing. Reading the stream ourselves depends on nothing.
+ * `verify` hook that populates `req.rawBody` lives in `index.ts` and answers to
+ * nothing here; the day somebody removes or narrows it, webhook verification
+ * would start signing over a re-serialisation with nothing failing. Reading the
+ * stream ourselves depends on nothing.
  *
  * ## What this handler does and does not do
  *
