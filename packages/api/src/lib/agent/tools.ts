@@ -438,7 +438,10 @@ When NOT to use: For simple web searches or file reads — use the dedicated too
         description: z.string().describe('Brief description of what this code does'),
         timeout: z.number().optional().default(60).describe('Timeout in seconds (max 300)'),
       }),
-      execute: async ({ containerId, code, description, timeout }) => {
+      // `description` is in the schema and not in the call: asking the model to
+      // say what its code does before writing it shapes the code, but the answer
+      // is model output and does not belong in a log or an execution option.
+      execute: async ({ containerId, code, timeout }) => {
         const resource = session.resources.find(r => r.resourceId === containerId && r.status === 'active');
         if (!resource) {
           return { error: `Container ${containerId} not found or not active. Create one first with shell_create_container.` };
@@ -447,7 +450,6 @@ When NOT to use: For simple web searches or file reads — use the dedicated too
         const result = await executeCode({
           containerId,
           code,
-          description,
           seq: ++codeActSeq,
           timeout: Math.min((timeout || 60) * 1000, 300_000),
         });

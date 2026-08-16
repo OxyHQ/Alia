@@ -412,7 +412,8 @@ export async function sendNotification(options: SendNotificationOptions): Promis
   await setDeliveryStatus(getDb(), notification.id, deliveryStatus);
 
   log.general.info(
-    { type, userId, channels, title: title.slice(0, 50) },
+    // The title is written from the conversation it is about.
+    { type, userId, channels },
     'Notification sent',
   );
 

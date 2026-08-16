@@ -30,8 +30,6 @@ export interface CodeActOptions {
   containerId: string;
   /** Python code to execute */
   code: string;
-  /** Description of what the code does (for logging/audit) */
-  description: string;
   /** Sequence number for file naming */
   seq: number;
   /** Execution timeout in milliseconds (default: 60s) */
@@ -47,7 +45,7 @@ export interface CodeActOptions {
  * 4. Captures stdout/stderr and exit code
  */
 export async function executeCode(opts: CodeActOptions): Promise<CodeActResult> {
-  const { containerId, code, description, seq, timeout = DEFAULT_EXEC_TIMEOUT } = opts;
+  const { containerId, code, seq, timeout = DEFAULT_EXEC_TIMEOUT } = opts;
   const startMs = Date.now();
   const filePath = `/workspace/.alia/scripts/${seq}.py`;
 
@@ -78,7 +76,7 @@ export async function executeCode(opts: CodeActOptions): Promise<CodeActResult> 
     };
   }
 
-  log.agents.info({ containerId, seq, description, codeLength: code.length, warnings: safetyCheck.warnings }, 'CodeAct: executing');
+  log.agents.info({ containerId, seq, codeLength: code.length, warnings: safetyCheck.warnings }, 'CodeAct: executing');
 
   const sandbox = getSandboxProvider();
 
