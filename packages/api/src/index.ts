@@ -66,6 +66,7 @@ import { seedBots } from './lib/seed-bots.js';
 import { startTriggerEngine, stopTriggerEngine } from './lib/trigger-engine.js';
 import { warmupProviders } from './lib/provider-warmup.js';
 import { warmupGatewayClient } from './lib/gateway-client.js';
+import { relayBootConfigurationFailure } from './lib/inference/relay-boot-check.js';
 import { initChannels } from './lib/channels/index.js';
 // Socket.io
 import { initSocket } from './socket.js';
@@ -445,7 +446,27 @@ function connectPostgresOrExit(): void {
   log.general.info('Postgres connected');
 }
 
+/**
+ * Refuse to start when the Relay client is enabled and cannot work — #139
+ * workstream 2.
+ *
+ * Same shape and same reason as `connectPostgresOrExit` above: half-configured
+ * has to be OFF rather than a service that accepts requests and then fails every
+ * model call. What it costs when `ALIA_RELAY_CLIENT_ENABLED` is not exactly
+ * `'true'` — which is everywhere today — is one read of that one variable;
+ * `relayBootConfigurationFailure` consults no Relay configuration at all on that
+ * path, and `lib/inference/__tests__/relay-boot-check.test.ts` pins it with a
+ * recording environment rather than by inspection.
+ */
+function assertRelayConfigurationOrExit(): void {
+  const failure = relayBootConfigurationFailure();
+  if (failure === null) return;
+  log.general.error({ failure }, 'Relay client configuration is invalid — refusing to start');
+  process.exit(1);
+}
+
 connectPostgresOrExit();
+assertRelayConfigurationOrExit();
 
 // Start listening immediately — do not block on external dependencies.
 server.listen(PORT, '0.0.0.0', () => {

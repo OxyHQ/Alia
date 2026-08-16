@@ -63,8 +63,6 @@ services:
       # Telegram
       - key: TELEGRAM_BOT_TOKEN
         type: SECRET
-      - key: TELEGRAM_BOT_USERNAME
-        value: "alia_onlbot"
       # LiveKit
       - key: LIVEKIT_URL
         value: "wss://livekit.oxy.so"
