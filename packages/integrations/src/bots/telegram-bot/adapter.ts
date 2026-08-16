@@ -9,7 +9,7 @@
 import { Telegraf, Markup, type Context } from 'telegraf';
 import type { Message, TelegramEmoji } from 'telegraf/types';
 import { errorMessage, errorCode, errorStatus } from '../../shared/utils';
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID } from 'node:crypto';
 import type { BotAdapter } from '../types';
 import { APIClient, type MessageContent, type MessageContentPart } from '../../shared/api-client';
 import { markdownToTelegramHtml, stripMarkdown } from '../../shared/telegram-format';
@@ -151,7 +151,7 @@ export class TelegramBotAdapter implements BotAdapter {
       // Conversation management
       let conversationId = botUser.conversationId;
       if (!conversationId) {
-        conversationId = uuidv4();
+        conversationId = randomUUID();
         await apiClient.updateConversation(telegramId, conversationId);
       }
 

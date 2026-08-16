@@ -1,6 +1,6 @@
 import { Message, Client, REST, Routes, SlashCommandBuilder } from 'discord.js';
 import { APIClient } from '../../shared/api-client';
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID } from 'node:crypto';
 import { createLogger } from '../../shared/logger';
 
 const logger = createLogger('Discord');
@@ -136,7 +136,7 @@ async function handleNewConversation(message: Message): Promise<void> {
       await sendAuthRequest(message);
       return;
     }
-    await apiClient.updateConversation(message.author.id, uuidv4());
+    await apiClient.updateConversation(message.author.id, randomUUID());
     await message.reply('New conversation started! Send me a message.');
   } catch {
     await message.reply('Error starting new conversation.');

@@ -8,7 +8,7 @@
  * so that adapters get the full system prompt, user memory, tools, etc.
  */
 
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID } from 'node:crypto';
 import { APIClient } from './api-client';
 import { chunkText } from './utils';
 import { createLogger } from './logger';
@@ -70,7 +70,7 @@ export async function handleIncomingMessage(
     // Conversation management
     let conversationId = botUser.conversationId;
     if (!conversationId) {
-      conversationId = uuidv4();
+      conversationId = randomUUID();
       await apiClient.updateConversation(oxyUserId, conversationId);
     }
 

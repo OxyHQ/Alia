@@ -2,7 +2,7 @@ import { TelegramClient } from 'telegram';
 import { StringSession } from 'telegram/sessions';
 import { NewMessage } from 'telegram/events';
 import { Api } from 'telegram/tl';
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID } from 'node:crypto';
 import { TelegramSession } from './models';
 import { TelegramChat } from './models';
 import { TelegramMessage } from './models';
@@ -68,7 +68,7 @@ class SessionManager {
    * Returns a sessionId and a promise that resolves with the first QR URL.
    */
   async createSession(oxyUserId: string): Promise<{ sessionId: string; qrPromise: Promise<string> }> {
-    const sessionId = uuidv4();
+    const sessionId = randomUUID();
 
     // Create a new session document in MongoDB
     await TelegramSession.create({
