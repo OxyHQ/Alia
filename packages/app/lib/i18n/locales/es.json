@@ -436,6 +436,7 @@
     "paymentSuccess": "¡Pago exitoso!",
     "failedCheckout": "Error al crear la sesión de pago",
     "modelRequiresPlan": "Este modelo requiere el plan {{plan}}",
+    "modelRequiresUpgrade": "Mejora tu plan para usar este modelo.",
     "featureRequiresPlan": "{{feature}} requiere un plan de pago",
     "signInRequired": "Inicia sesión para usar esta función.",
     "downgrade": "Bajar de plan",
@@ -766,7 +767,32 @@
   "models": {
     "selectModel": "Seleccionar modelo",
     "loadingModels": "Cargando modelos...",
-    "legacyModels": "Modelos anteriores"
+    "legacyModels": "Modelos anteriores",
+    "catalogueUnavailable": "No se pudieron cargar los modelos",
+    "noModels": "No hay modelos disponibles",
+    "routingProfilesSection": "Perfiles de enrutado · Alia elige el modelo en cada mensaje",
+    "modelsSection": "Modelos · un solo modelo responde cada mensaje",
+    "routingProfile": "Perfil de enrutado, no un modelo concreto",
+    "routingProfileSelects": "Perfil de enrutado · elige entre {{count}} modelos en cada mensaje",
+    "concreteModel": "Un modelo concreto",
+    "unavailable": "No disponible",
+    "retiringOn": "Deja de funcionar el {{date}}",
+    "selectionReplaced": "Tu elección anterior ya no se ofrece. Se usará {{model}}.",
+    "capabilities": {
+      "tools": "Herramientas",
+      "vision": "Imágenes",
+      "audio": "Audio",
+      "reasoning": "Razonamiento",
+      "structuredOutput": "Salida estructurada",
+      "context": "Contexto",
+      "maxOutput": "Respuesta máx."
+    },
+    "availability": {
+      "always": "sí",
+      "sometimes": "a veces",
+      "never": "no",
+      "unknown": "se desconoce"
+    }
   },
   "modes": {
     "searchOn": "Se usará búsqueda web",

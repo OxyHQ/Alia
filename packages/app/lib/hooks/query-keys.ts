@@ -1,4 +1,9 @@
 export const queryKeys = {
+  catalogue: {
+    // Keyed by caller: the entitlement annotations describe whoever asked, so a
+    // signed-out catalogue must not survive a sign-in.
+    list: (userId: string | null) => ['catalogue', userId] as const,
+  },
   conversations: {
     all: ['conversations'] as const,
     detail: (id: string) => ['conversation', id] as const,

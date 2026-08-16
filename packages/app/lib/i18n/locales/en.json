@@ -464,6 +464,7 @@
     "paymentSuccess": "Payment successful!",
     "failedCheckout": "Failed to create checkout session",
     "modelRequiresPlan": "This model requires the {{plan}} plan",
+    "modelRequiresUpgrade": "Upgrade your plan to use this model.",
     "featureRequiresPlan": "{{feature}} requires a paid plan",
     "signInRequired": "Please sign in to use this feature.",
     "downgrade": "Downgrade",
@@ -804,7 +805,32 @@
   "models": {
     "selectModel": "Select Model",
     "loadingModels": "Loading models...",
-    "legacyModels": "Legacy models"
+    "legacyModels": "Legacy models",
+    "catalogueUnavailable": "Models could not be loaded",
+    "noModels": "No models available",
+    "routingProfilesSection": "Routing profiles · Alia picks the model for each message",
+    "modelsSection": "Models · one model answers every message",
+    "routingProfile": "Routing profile, not a single model",
+    "routingProfileSelects": "Routing profile · picks among {{count}} models per message",
+    "concreteModel": "A single model",
+    "unavailable": "Unavailable",
+    "retiringOn": "Stops working on {{date}}",
+    "selectionReplaced": "Your previous choice is no longer offered. Using {{model}}.",
+    "capabilities": {
+      "tools": "Tools",
+      "vision": "Images",
+      "audio": "Audio",
+      "reasoning": "Reasoning",
+      "structuredOutput": "Structured output",
+      "context": "Context",
+      "maxOutput": "Max reply"
+    },
+    "availability": {
+      "always": "yes",
+      "sometimes": "sometimes",
+      "never": "no",
+      "unknown": "unknown"
+    }
   },
   "modes": {
     "searchOn": "Web search will be used",
