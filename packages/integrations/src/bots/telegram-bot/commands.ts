@@ -5,7 +5,7 @@
  */
 
 import { Context, Markup } from 'telegraf';
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID } from 'node:crypto';
 import { APIClient, type ModelInfo } from '../../shared/api-client';
 import { createLogger } from '../../shared/logger';
 
@@ -380,7 +380,7 @@ export async function handleNewConversation(ctx: Context) {
       return;
     }
 
-    const newConversationId = uuidv4();
+    const newConversationId = randomUUID();
     await apiClient.updateConversation(telegramId, newConversationId);
 
     await ctx.reply(

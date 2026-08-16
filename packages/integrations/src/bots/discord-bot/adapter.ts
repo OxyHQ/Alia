@@ -1,5 +1,5 @@
 import { Client, GatewayIntentBits, Events, Partials, type Message } from 'discord.js';
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID } from 'node:crypto';
 import type { BotAdapter } from '../types';
 import { APIClient, type BotUser } from '../../shared/api-client';
 import { chunkText, errorStatus } from '../../shared/utils';
@@ -102,7 +102,7 @@ export class DiscordBotAdapter implements BotAdapter {
         case 'new':
           await interaction.deferReply({ ephemeral: true });
           try {
-            await apiClient.updateConversation(interaction.user.id, uuidv4());
+            await apiClient.updateConversation(interaction.user.id, randomUUID());
             await interaction.editReply('New conversation started!');
           } catch {
             await interaction.editReply('Error starting new conversation.');
@@ -209,7 +209,7 @@ export class DiscordBotAdapter implements BotAdapter {
       try {
         let conversationId = botUser.conversationId;
         if (!conversationId) {
-          conversationId = uuidv4();
+          conversationId = randomUUID();
           await apiClient.updateConversation(discordUserId, conversationId);
         }
 

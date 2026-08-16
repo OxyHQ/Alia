@@ -10,7 +10,7 @@ import makeWASocket, {
   type WASocket,
 } from '@whiskeysockets/baileys';
 import { errorCode } from '../../shared/utils';
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID } from 'node:crypto';
 import { WhatsAppSession, WhatsAppChat, WhatsAppMessage, type IWhatsAppSession } from './models';
 import { handleIncomingMessage } from '../../shared/chat-handler';
 import { APIClient } from '../../shared/api-client';
@@ -88,7 +88,7 @@ class SessionManager {
    * Returns the sessionId and a promise that resolves with the first QR code string.
    */
   async createSession(oxyUserId: string): Promise<{ sessionId: string; qrPromise: Promise<string> }> {
-    const sessionId = uuidv4();
+    const sessionId = randomUUID();
 
     // Create a new MongoDB document for this session
     await WhatsAppSession.create({

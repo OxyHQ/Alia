@@ -1,7 +1,7 @@
 import { spawn, ChildProcess } from 'child_process';
 import fs from 'fs/promises';
 import path from 'path';
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID } from 'node:crypto';
 import { SignalSession } from './models';
 import { SignalMessage } from './models';
 
@@ -78,7 +78,7 @@ class SessionManager {
    * Spawns signal-cli link and returns a promise that resolves with the QR URI.
    */
   async linkDevice(oxyUserId: string): Promise<{ sessionId: string; qrPromise: Promise<string> }> {
-    const sessionId = uuidv4();
+    const sessionId = randomUUID();
     const dataDir = path.resolve(`./signal-data/${sessionId}`);
     await fs.mkdir(dataDir, { recursive: true });
 
