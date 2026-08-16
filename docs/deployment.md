@@ -76,10 +76,40 @@ encrypted tokens are written by one process and read by the other.
   `GATEWAY_API_URL` unset. It is still read by
   `packages/api/src/lib/tools/gateway-admin.ts`, which is why it has not been deleted
   outright; removing it is part of workstreams 8 and 9 of #139.
-- **`GROK_API_KEY`.** Its only reader is
+- **`GROK_API_KEY`.** Removed from `packages/api/.env.example`; documented here so nobody
+  puts it back. Its only reader is
   `packages/api/src/internal/providers/lib/providers/grok-voice.ts:52`, in the expression
-  `!!process.env.GROK_API_KEY || true`, which is true either way. It changes nothing.
-  Upstream credentials live in the `provider_keys` table, not in the environment.
+  `!!process.env.GROK_API_KEY || true`, which is true either way — and that read never
+  executes at all: `isEnabled` has 24 definitions under `packages/api/src` and zero call
+  sites repo-wide. Upstream credentials live in the `provider_keys` table, not in the
+  environment.
+
+### Relay client
+
+Six variables, all unset in every environment today, and **all or nothing**: when
+`ALIA_RELAY_CLIENT_ENABLED` is exactly the literal `true`, the process refuses to start
+unless the other five describe a principal `@oxyhq/contracts` accepts
+(`packages/api/src/lib/inference/relay-boot-check.ts`).
+
+```bash
+ALIA_RELAY_CLIENT_ENABLED=true        # exactly `true`; `1` and `TRUE` do not enable it
+ALIA_RELAY_ACCOUNT_ID=<oxy-account>   # who is charged; never an end user
+ALIA_RELAY_APPLICATION_ID=<oxy-app>
+ALIA_RELAY_CREDENTIAL_ID=<oxy-credential>
+ALIA_RELAY_ENVIRONMENT=production     # development | staging | production
+ALIA_RELAY_INFERENCE_SCOPES=inference:invoke
+```
+
+`ALIA_RELAY_ENVIRONMENT` is the environment the **credential** was issued into, and on a
+production or staging task it must match `NODE_ENV`: a staging credential presented by a
+production task bills test traffic to the production account, and no later query separates
+it out again. A development process is left alone, so a local run may point wherever it was
+configured.
+
+Deliberately absent from `.do/app.yaml` and from `deploy-aws.yml`'s secret list. Adding
+them there before `Oxy API → Relay` is mounted would be configuration for a service that
+does not answer; adding them is part of the #139 workstream 8 cutover, together with
+flipping the flag.
 
 ### Secrets
 
@@ -95,16 +125,20 @@ Never set a repository secret to a placeholder. The sync job overwrites the real
 
 ## Startup behaviour
 
-On boot, in this order (`packages/api/src/index.ts:411` onward):
+On boot, in this order (`packages/api/src/index.ts`, from `connectPostgresOrExit()` to the
+end of the `server.listen` callback — named rather than cited by line, because a line
+number in a document drifts with every edit above it):
 
 1. Connect to PostgreSQL, or exit.
-2. Start listening. Nothing below blocks the listener.
-3. Start the expiry sweeper, which deletes rows whose retention has passed. It depends only
+2. Check the Relay client configuration, or exit — see
+   *Relay client* below. A no-op unless `ALIA_RELAY_CLIENT_ENABLED` is exactly `true`.
+3. Start listening. Nothing below blocks the listener.
+4. Start the expiry sweeper, which deletes rows whose retention has passed. It depends only
    on PostgreSQL.
-4. Attempt the MongoDB connection with backoff. Background services that read Mongoose
+5. Attempt the MongoDB connection with backoff. Background services that read Mongoose
    models — the trigger scheduler, the moderation outbox dispatcher, the queues and the
    built-in seeds — start only once that connection succeeds.
-5. Pre-warm TLS connections to upstream endpoints.
+6. Pre-warm TLS connections to upstream endpoints.
 
 ## Health checks
 
