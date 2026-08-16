@@ -2470,7 +2470,7 @@
       ],
       "removalGate": "None, and it is even more inert than it looks: its only read is `!!process.env.GROK_API_KEY || true` inside `grokVoiceProvider.isEnabled`, and `isEnabled` has ZERO call sites repo-wide \u2014 24 definitions of the member across the adapter files, no invocation anywhere (positive control: the same scan finds all 24 definitions). So the read never executes. Remove it rather than carrying it into Relay config as if it mattered; and note the whole `Provider.isEnabled` member is dead with it.  || inventory gate, kept for the record: NONE \u2014 removing it changes no behaviour, which is exactly why it should go rather than be carried into Relay's config as if it mattered.",
       "provenance": "re-derived",
-      "evidence": "packages/api/.env.example:108; packages/api/src/internal/providers/lib/providers/grok-voice.ts:52 (only read repo-wide)"
+      "evidence": "packages/api/src/internal/providers/lib/providers/grok-voice.ts:52 (only read repo-wide). The packages/api/.env.example entry this row also cited was removed by #139 workstream 8, after re-deriving the unreachability the removalGate asserts: 24 isEnabled definitions under packages/api/src, zero call sites repo-wide. The adapter's dead read is what remains, and it dies with the adapter."
     },
     {
       "id": "env-livekit",

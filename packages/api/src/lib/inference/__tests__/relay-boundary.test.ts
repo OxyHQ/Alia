@@ -175,6 +175,13 @@ describe('nothing in the API imports the Relay client (#139 ws3, constraint 3)',
    * blocked (OxyHQ/oxy#981), so a client wired in today points at a hole.
    */
   const FROZEN_IMPORTERS: readonly string[] = [
+    // #139 ws2: the boot refusal, and its own test. They read the client's
+    // RULES — the flag, `assertPrincipalMatchesDeployment` and the contract
+    // principal — and construct no client, open no transport and mint no token,
+    // which `relay-boot-check.test.ts` asserts about its own source. `src/index.ts`
+    // imports the boot check, NOT this module, so the constraint below is
+    // unchanged: the product runtime still names the client nowhere.
+    `${RELAY_DIR}/__tests__/relay-boot-check.test.ts`,
     `${RELAY_DIR}/__tests__/relay-client.test.ts`,
     // #139 workstream 13: asserts what the client puts on the wire, so it has to
     // drive one. A test, not a call site — the constraint is that no PRODUCT
@@ -186,6 +193,7 @@ describe('nothing in the API imports the Relay client (#139 ws3, constraint 3)',
     `${RELAY_DIR}/__tests__/relay-egress.test.ts`,
     `${RELAY_DIR}/__tests__/relay-openai-adapter.test.ts`,
     `${RELAY_DIR}/__tests__/relay-request.test.ts`,
+    `${RELAY_DIR}/relay-boot-check.ts`,
     `${RELAY_DIR}/relay-client.ts`,
     `${RELAY_DIR}/relay-openai-adapter.ts`,
     `${RELAY_DIR}/relay-request.ts`,

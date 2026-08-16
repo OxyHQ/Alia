@@ -51,8 +51,15 @@ describe('src/index.ts boot wiring', () => {
      * Order, not just presence: a connect that happens inside the `listen`
      * callback would accept requests first and exit afterwards, which is the
      * half-configured state this is meant to prevent.
+     *
+     * The leading newline is load-bearing. `connectPostgresOrExit()` is also a
+     * substring of its own declaration — `function connectPostgresOrExit(): void`
+     * — so a bare search found that instead, 1141 characters earlier and also
+     * before `listen`. This assertion therefore used to pass with the CALL
+     * deleted, which is the only way it could ever have failed. Anchoring on a
+     * top-level statement is what makes it a check.
      */
-    const connectAt = source.indexOf('connectPostgresOrExit()');
+    const connectAt = source.indexOf('\nconnectPostgresOrExit();');
     const listenAt = source.indexOf('server.listen(PORT');
     expect(connectAt).toBeGreaterThan(-1);
     expect(listenAt).toBeGreaterThan(-1);
@@ -62,6 +69,27 @@ describe('src/index.ts boot wiring', () => {
   it('exits rather than continuing when DATABASE_URL is absent', () => {
     expect(source).toContain('process.exit(1)');
     expect(source).toContain('DATABASE_URL is required');
+  });
+
+  it('checks the Relay configuration before the socket opens', () => {
+    /**
+     * #139 workstream 2. Order again, and for the same reason as Postgres: a
+     * check that ran inside the `listen` callback would accept requests first
+     * and exit afterwards.
+     *
+     * WHAT the check does — and in particular that it consults nothing at all
+     * while `ALIA_RELAY_CLIENT_ENABLED` is off, which is everywhere today — is
+     * `lib/inference/__tests__/relay-boot-check.test.ts`. This assertion is only
+     * that the entrypoint calls it, which is the failure mode a fully-tested
+     * function reached by nobody produces — so it is anchored on the top-level
+     * CALL, for the reason written above `connectPostgresOrExit`.
+     */
+    const checkAt = source.indexOf('\nassertRelayConfigurationOrExit();');
+    const listenAt = source.indexOf('server.listen(PORT');
+    expect(checkAt).toBeGreaterThan(-1);
+    expect(listenAt).toBeGreaterThan(-1);
+    expect(checkAt).toBeLessThan(listenAt);
+    expect(source).toContain('relayBootConfigurationFailure');
   });
 
   it('no longer runs the retired Mongo data-migration ledger', () => {
