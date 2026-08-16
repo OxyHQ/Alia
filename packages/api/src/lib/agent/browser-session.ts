@@ -320,7 +320,9 @@ export class BrowserSession {
       }
       return `Typed: "${text}"`;
     } catch (nlErr: unknown) {
-      log.agents.warn({ err: nlErr, selector, text: text.slice(0, 50) }, 'Browser: Stagehand type failed, trying JS fallback');
+      // Never the text: what an agent types into a page is whatever the user
+      // asked it to enter, up to and including a credential.
+      log.agents.warn({ err: nlErr, selector, textLength: text.length }, 'Browser: Stagehand type failed, trying JS fallback');
       try {
         // Fallback: find input by selector, placeholder, or label
         const typed = await this.page.evaluate(({ sel, val }: { sel: string; val: string }) => {

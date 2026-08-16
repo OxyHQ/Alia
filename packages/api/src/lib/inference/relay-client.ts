@@ -105,6 +105,77 @@ export function isRelayClientEnabled(env: NodeJS.ProcessEnv = process.env): bool
 }
 
 /* -------------------------------------------------------------------------- */
+/*  Scope and environment                                                     */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The one scope every call this client makes needs.
+ *
+ * `inferenceScopes` is a contract field (`attribution.ts`), and the data plane
+ * authorizes against the envelope rather than re-deriving access — so a
+ * principal configured without this scope produces requests that are refused at
+ * the far end with `insufficient_scope`, one per user request, forever.
+ * `inference:models:read` and the rest are other surfaces' business and are
+ * deliberately not required here.
+ */
+export const RELAY_REQUIRED_SCOPE = 'inference:invoke' as const;
+
+/**
+ * Which Oxy environment this process IS, as opposed to which one it claims.
+ *
+ * Only the two REAL deployments are recognised. A local run, a CI job and a
+ * vitest process all resolve to `development`, and the check below makes no
+ * claim about them — see {@link assertPrincipalMatchesDeployment}.
+ */
+export function resolveDeploymentEnvironment(
+  env: NodeJS.ProcessEnv = process.env,
+): AuthenticatedPrincipal['environment'] {
+  if (env.NODE_ENV === 'production') return 'production';
+  if (env.NODE_ENV === 'staging') return 'staging';
+  return 'development';
+}
+
+/**
+ * Refuse a principal that does not match the process presenting it.
+ *
+ * `environment` on the contract's principal is Alia's own statement about which
+ * Oxy environment this application is, and it rides on every request into
+ * metering and the receipt. A staging deployment claiming `production` bills
+ * test traffic to the production account and makes the usage report wrong in a
+ * way no later query can separate out — so it is checked once, at construction,
+ * where it is a deployment mistake rather than a user's failed request.
+ *
+ * **Only enforced when the process is a real deployment.** A development or test
+ * process legitimately points at whichever environment the engineer configured,
+ * and turning that into a throw would mean every fixture had to name the
+ * environment its runner happens to have. The direction that matters is the one
+ * this covers: a production or staging TASK whose principal disagrees with it.
+ *
+ * The cheapest way to silence this in production would be to unset `NODE_ENV`,
+ * which also switches the logger to pretty-printing and drops the production log
+ * formatter (`lib/logger.ts`) — loud, not quiet, which is why the escape is
+ * acceptable.
+ */
+export function assertPrincipalMatchesDeployment(
+  principal: AuthenticatedPrincipal,
+  env: NodeJS.ProcessEnv = process.env,
+): void {
+  if (!principal.inferenceScopes.includes(RELAY_REQUIRED_SCOPE)) {
+    throw new Error(
+      `Relay principal is missing the ${RELAY_REQUIRED_SCOPE} scope; it can invoke nothing`,
+    );
+  }
+
+  const deployment = resolveDeploymentEnvironment(env);
+  if (deployment === 'development') return;
+  if (principal.environment !== deployment) {
+    throw new Error(
+      `Relay principal claims environment ${principal.environment} on a ${deployment} deployment`,
+    );
+  }
+}
+
+/* -------------------------------------------------------------------------- */
 /*  Transport and credential                                                  */
 /* -------------------------------------------------------------------------- */
 
@@ -209,6 +280,12 @@ export interface RelayClientConfig {
   /** Injectable clock and id source, so the retry and circuit tests are deterministic. */
   readonly now?: () => number;
   readonly newId?: () => string;
+  /**
+   * The process environment {@link assertPrincipalMatchesDeployment} reads.
+   * Injected for the same reason `now` is: so the check can be exercised for a
+   * deployment this test process is not.
+   */
+  readonly env?: NodeJS.ProcessEnv;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -438,8 +515,11 @@ export class RelayInferenceClient implements RelayInferencePort {
   constructor(private readonly config: RelayClientConfig) {
     // Fail at construction, not at the first request: a misconfigured account id
     // is a deployment mistake and a deployment mistake should not wait for a
-    // user to discover it.
+    // user to discover it. The same reasoning covers the two things the SHAPE
+    // cannot say — whether the scopes permit invoking at all, and whether the
+    // environment named is the one this process is running in.
     this.principal = authenticatedPrincipalSchema.parse(config.principal);
+    assertPrincipalMatchesDeployment(this.principal, config.env ?? process.env);
     this.now = config.now ?? Date.now;
     this.newId = config.newId ?? randomUUID;
   }

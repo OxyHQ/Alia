@@ -26,7 +26,8 @@ export function createDeepResearchTool(userId: string) {
       query: z.string().describe('The research question or topic to investigate thoroughly'),
     }),
     execute: async ({ query }) => {
-      log.tools.info({ query }, 'Deep research tool invoked by AI');
+      // The research question is the user's own prompt, restated by the model.
+      log.tools.info({ queryLength: query.length }, 'Deep research tool invoked by AI');
 
       try {
         const result = await runDeepResearch(query, [], {
@@ -41,7 +42,7 @@ export function createDeepResearchTool(userId: string) {
           totalSearches: result.totalSearches,
         };
       } catch (err: unknown) {
-        log.tools.error({ err, query }, 'Deep research tool failed');
+        log.tools.error({ err, queryLength: query.length }, 'Deep research tool failed');
         return { error: `Research failed: ${getErrorMessage(err)}` };
       }
     },

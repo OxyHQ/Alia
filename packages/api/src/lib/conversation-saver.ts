@@ -250,7 +250,8 @@ export async function generateConversationTitle(
         { oxyUserId: userId, conversationId },
         { $set: { title } },
       );
-      log.chat.info({ conversationId, title }, 'Auto-generated conversation title');
+      // The title is a model summary of the user's own conversation.
+      log.chat.info({ conversationId }, 'Auto-generated conversation title');
     }
   } catch (err) {
     log.chat.error({ err, conversationId }, 'generateConversationTitle failed');

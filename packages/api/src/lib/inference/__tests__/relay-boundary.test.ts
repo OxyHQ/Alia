@@ -180,6 +180,10 @@ describe('nothing in the API imports the Relay client (#139 ws3, constraint 3)',
     // drive one. A test, not a call site — the constraint is that no PRODUCT
     // module imports the client, and this is the fourth of its own tests.
     `${RELAY_DIR}/__tests__/relay-context-minimality.test.ts`,
+    // #139 ws15: drives the client so it can read what the client SENDS — the
+    // delegated identifier, the routing-policy reference and the single
+    // credential on the hop. A test importer, so constraint 3 is untouched.
+    `${RELAY_DIR}/__tests__/relay-egress.test.ts`,
     `${RELAY_DIR}/__tests__/relay-openai-adapter.test.ts`,
     `${RELAY_DIR}/__tests__/relay-request.test.ts`,
     `${RELAY_DIR}/relay-client.ts`,

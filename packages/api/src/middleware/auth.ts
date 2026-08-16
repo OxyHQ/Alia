@@ -53,8 +53,36 @@ export const authenticateToken = createOxyAuthMiddleware(oxyClient, { auth: { de
 /**
  * Service-only auth — rejects anything that isn't a service token.
  * Use for internal-only endpoints (e.g., /internal/trigger).
+ *
+ * No `jwtSecret`, and Alia has none to give: `SERVICE_TOKEN_SECRET` exists in
+ * neither this repository nor `deploy-aws.yml`. `@oxyhq/core` treats that as a
+ * refusal rather than a licence — every service token gets 403
+ * `SERVICE_TOKEN_NOT_CONFIGURED` — so this is fail-CLOSED and `/internal/trigger`
+ * currently accepts nothing. Provisioning the secret in `oxy-infra` is what
+ * turns it on, and `routes/__tests__/inference-boundary.test.ts` is the test
+ * that has to be rewritten at that moment (epic #139 workstream 15).
  */
 export const oxyServiceAuth = oxyClient.serviceAuth({ debug: true });
+
+/**
+ * Which Oxy environment this process IS.
+ *
+ * Used for the synthetic `serviceApp` below, which claimed `'production'`
+ * unconditionally — a statement that was false on every staging task and every
+ * developer machine. Nothing in Alia reads the field today, which is exactly why
+ * a wrong value could sit there: the first reader would inherit the lie.
+ *
+ * The same three-way mapping as `lib/inference/relay-client.ts`'s
+ * `resolveDeploymentEnvironment`, and deliberately NOT imported from it — that
+ * module is the unwired Relay client, and a middleware that imported it would
+ * make the client reachable from the request path, which
+ * `lib/inference/__tests__/relay-boundary.test.ts` freezes against.
+ */
+function deploymentEnvironment(): OxyServiceAppContext['environment'] {
+  if (process.env.NODE_ENV === 'production') return 'production';
+  if (process.env.NODE_ENV === 'staging') return 'staging';
+  return 'development';
+}
 
 /**
  * Optional auth - attaches user if token present, doesn't block if absent
@@ -237,7 +265,7 @@ export function authenticateTokenOrApiKey(
       appName: 'internal',
       credentialId: 'service-secret',
       scopes: ['internal'],
-      environment: 'production',
+      environment: deploymentEnvironment(),
     };
     return next();
   }

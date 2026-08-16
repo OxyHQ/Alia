@@ -44,22 +44,26 @@ interface DelegateAgentToolOutput {
   response: string;
 }
 
-/** Max characters of a tool arg/result payload to include in debug logs (prevents log bloat) */
-const LOG_PREVIEW_MAX_CHARS = 500;
-
-/** Compact, size-capped string preview of an arbitrary value for debug logging */
-function previewForLog(value: unknown): string {
-  let str: string | undefined;
+/**
+ * How big a tool argument or result was, which is all a log may say about it.
+ *
+ * This replaced a 500-character PREVIEW of the same value (epic #139 workstream
+ * 15). A tool's arguments are model output and its result is usually user data
+ * the tool went and fetched, so the preview was message content in an ordinary
+ * request log — reachable in production behind one `LOG_LEVEL=debug`, and on by
+ * default in development. The size is what the line was actually read for:
+ * telling an empty payload from a truncated one from a huge one.
+ *
+ * `-1` for a value that cannot be measured, so a circular structure reports a
+ * fact rather than throwing inside a log call.
+ */
+function sizeForLog(value: unknown): number {
+  if (typeof value === 'string') return value.length;
   try {
-    str = typeof value === 'string' ? value : JSON.stringify(value);
+    return JSON.stringify(value)?.length ?? -1;
   } catch {
-    // Circular or non-serializable payload — fall back to a coarse string form.
-    str = String(value);
+    return -1;
   }
-  if (str === undefined) str = String(value);
-  return str.length > LOG_PREVIEW_MAX_CHARS
-    ? `${str.slice(0, LOG_PREVIEW_MAX_CHARS)}... [${str.length} chars total]`
-    : str;
 }
 
 const MAX_TOOL_CALLS = 15;
@@ -190,7 +194,7 @@ export async function runStream<TOOLS extends ToolSet>(params: RunStreamParams<T
       const originalToolName = toolNameMapping.get(chunk.toolName) || chunk.toolName;
 
       // Log the tool call arguments being sent to the client
-      log.v1.debug({ toolName: originalToolName, args: previewForLog(chunk.input) }, 'Streaming tool call');
+      log.v1.debug({ toolName: originalToolName, argsBytes: sizeForLog(chunk.input) }, 'Streaming tool call');
 
       res.write(`data: ${JSON.stringify(makeChunk(requestId, aliasModelId, [{
         index: 0,
@@ -221,7 +225,7 @@ export async function runStream<TOOLS extends ToolSet>(params: RunStreamParams<T
       state.hasStreamedContent = true;
 
       const originalToolName = toolNameMapping.get(chunk.toolName) || chunk.toolName;
-      log.v1.debug({ toolName: originalToolName, output: previewForLog(chunk.output) }, 'Tool result');
+      log.v1.debug({ toolName: originalToolName, outputBytes: sizeForLog(chunk.output) }, 'Tool result');
 
       // Record tool.call observability event
       const toolStart = toolTimers.get(chunk.toolCallId);
@@ -369,7 +373,10 @@ export async function runStream<TOOLS extends ToolSet>(params: RunStreamParams<T
       sse.ensureHeaders();
       writeStopChunk(res, requestId, aliasModelId, chunk.finishReason || 'stop');
     } else {
-      log.v1.warn({ chunkType: chunk.type, chunk }, 'Unhandled chunk type');
+      // The type, never the chunk: an unrecognised frame is the one case where
+      // nothing here knows what the payload holds, and "unknown" is exactly
+      // when it is most likely to be output text.
+      log.v1.warn({ chunkType: chunk.type }, 'Unhandled chunk type');
     }
   }
 

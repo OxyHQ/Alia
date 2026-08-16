@@ -72,7 +72,8 @@ export async function executeSubtasks(
       running.set(subtask.id, promise);
 
       log.agents.info(
-        { subtaskId: subtask.id, description: subtask.description.slice(0, 100), running: running.size },
+        // The description is the planner model's own words about the user's task.
+        { subtaskId: subtask.id, running: running.size },
         'ExecutorPool: starting subtask',
       );
     }
