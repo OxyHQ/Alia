@@ -307,7 +307,9 @@ async function generateScript(show: ShowRow): Promise<ShowScript | null> {
       const text = result.text || '';
       const jsonMatch = text.match(/\{[\s\S]*\}/);
       if (!jsonMatch) {
-        log.general.warn({ text: text.slice(0, 200) }, 'No JSON in show script response');
+        // The model's own answer; only its size tells an empty reply from a
+        // long one that never contained JSON.
+        log.general.warn({ replyLength: text.length }, 'No JSON in show script response');
         skipProviders.add(resolved.provider);
         continue;
       }
@@ -387,7 +389,8 @@ async function generateSFXSegment(prompt: string): Promise<SegmentAudio | null> 
 
     return { buffer: await downloadBinaryFromUrl(audioUrl), format: 'mp3' };
   } catch (err: unknown) {
-    log.general.warn({ err, prompt }, 'SFX generation failed');
+    // `prompt` is model-authored text describing the requested sound.
+    log.general.warn({ err }, 'SFX generation failed');
     return null;
   }
 }

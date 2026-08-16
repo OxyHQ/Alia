@@ -313,7 +313,10 @@ export async function getAvailableModels(): Promise<AliaModelWithAvailability[]>
       legacyMap.set(doc.aliasModelId, doc.isLegacy);
     }
   } catch (err) {
-    log.providers.warn({ data: err }, 'Failed to fetch legacy flags');
+    // `err`, not `data`: pino's error serializer — and with it the credential
+    // scrub in `lib/logger.ts` — is keyed on the property NAME, so an Error
+    // logged under any other key is emitted with none of it applied.
+    log.providers.warn({ err }, 'Failed to fetch legacy flags');
   }
 
   for (const model of models) {

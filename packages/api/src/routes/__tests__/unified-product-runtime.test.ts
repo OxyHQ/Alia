@@ -84,8 +84,15 @@ describe('both public chat surfaces run the same handler object', () => {
     // own `isDirectUserSession` branch the single place that decides what a
     // session may do (`lib/chat/request-context.ts:160`). A surface that lost
     // its middleware would reach the handler with a session it never checked.
+    //
+    // `apiKeyRateLimit` sits between them because the limit belongs to the WORK
+    // this route reaches, not to the URL that asked for it — `/v1` has applied it
+    // to the same handler all along (`routes/v1.ts`). It is asserted here by
+    // EXACT equality rather than by containment so that any future change to this
+    // stack has to be looked at, which is how the limiter's absence was found.
     const { optionalAuth } = await import('../../middleware/auth.js');
+    const { apiKeyRateLimit } = await import('../../middleware/api-key-rate-limit.js');
     const handlers = postHandlers(aliaChatRouter, '/');
-    expect(handlers).toEqual([optionalAuth, handleChatCompletions]);
+    expect(handlers).toEqual([optionalAuth, apiKeyRateLimit, handleChatCompletions]);
   });
 });

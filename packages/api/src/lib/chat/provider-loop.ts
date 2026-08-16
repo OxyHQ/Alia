@@ -284,7 +284,8 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
               { oxyUserId: req.user.id, conversationId },
               { $set: { title } },
             );
-            log.v1.info({ conversationId, title }, 'Auto-generated conversation title');
+            // The title is a model summary of the user's own conversation.
+            log.v1.info({ conversationId }, 'Auto-generated conversation title');
           }
         } catch (err) {
           log.v1.error({ err }, 'Failed to send inline title');

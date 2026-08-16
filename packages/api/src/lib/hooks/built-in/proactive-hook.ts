@@ -129,7 +129,8 @@ registerHook({
       const suggestionDescription = classification.description || classification.title;
       if (looksLikeAssistantVoice(classification.title) || looksLikeAssistantVoice(suggestionDescription)) {
         log.chat.warn(
-          { userId: ctx.userId, title: classification.title, description: suggestionDescription },
+          // The classification is model output about the user's conversation.
+          { userId: ctx.userId },
           'Proactive suggestion discarded — phrased in assistant voice instead of user voice',
         );
         return;
@@ -155,7 +156,7 @@ registerHook({
       });
 
       log.chat.info(
-        { userId: ctx.userId, category: classification.category, title: classification.title },
+        { userId: ctx.userId, category: classification.category },
         'Proactive insight created',
       );
     } catch (error) {

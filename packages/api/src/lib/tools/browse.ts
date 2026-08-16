@@ -70,7 +70,9 @@ export const browseTool = tool({
 
       const aliaApiUrl = process.env.ALIA_API_URL || 'http://localhost:4150';
 
-      log.tools.info({ action, query, url }, 'Browse tool starting');
+      // Neither the query nor the URL: both are chosen by the model from what
+      // the user asked, and a URL identifies what someone is reading.
+      log.tools.info({ action }, 'Browse tool starting');
 
       stagehand = new Stagehand({
         env: 'LOCAL',
@@ -112,7 +114,7 @@ export const browseTool = tool({
           url: r.url ?? '',
           snippet: r.snippet ?? '',
         }));
-        log.tools.info({ query, count: results.length }, 'Browse search completed');
+        log.tools.info({ count: results.length }, 'Browse search completed');
         return { action: 'search', results, count: results.length };
       }
 
@@ -133,13 +135,13 @@ export const browseTool = tool({
             ? data.content.slice(0, maxLen) + '...'
             : data.content;
 
-        log.tools.info({ url, titleLength: data.title.length, contentLength: content.length }, 'Browse read completed');
+        log.tools.info({ titleLength: data.title.length, contentLength: content.length }, 'Browse read completed');
         return { action: 'read', title: data.title, content, url };
       }
 
       return { action, error: 'Invalid action' };
     } catch (err: unknown) {
-      log.tools.error({ err, action, query, url }, 'Browse tool error');
+      log.tools.error({ err, action }, 'Browse tool error');
       return { action, error: getErrorMessage(err) };
     } finally {
       if (stagehand) {

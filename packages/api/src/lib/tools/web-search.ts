@@ -120,11 +120,12 @@ export const webSearchTool = tool({
   }),
   execute: async ({ query }: { query: string }): Promise<WebSearchResponse> => {
     try {
-      log.tools.info({ query }, 'Web search executing');
+      // A search query is model output derived from the user's prompt.
+      log.tools.info({ queryLength: query.length }, 'Web search executing');
 
       const cached = getCached(query);
       if (cached) {
-        log.tools.info({ query, count: cached.count }, 'Web search cache hit');
+        log.tools.info({ count: cached.count }, 'Web search cache hit');
         return cached;
       }
 
@@ -159,7 +160,7 @@ export const webSearchTool = tool({
 
       const results = parseDDGLite(html).slice(0, 10);
 
-      log.tools.info({ query, count: results.length }, 'Web search found results');
+      log.tools.info({ count: results.length }, 'Web search found results');
 
       const response: WebSearchResponse = { results, count: results.length };
       setCache(query, response);

@@ -355,7 +355,10 @@ export async function streamProviderResponseAsSSE(
             }
           } catch {
             // Invalid JSON - skip
-            log.chat.warn({ data }, 'Failed to parse SSE chunk');
+            // `data` is the upstream SSE payload, which on a text frame IS the
+            // model's output. Its size distinguishes a truncated frame from a
+            // malformed one, which is the whole diagnostic value it had.
+            log.chat.warn({ bytes: data.length }, 'Failed to parse SSE chunk');
           }
         }
       }

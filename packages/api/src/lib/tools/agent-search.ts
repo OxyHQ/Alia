@@ -43,7 +43,8 @@ export const createSearchAgentsTool = () => tool({
         .limit(MAX_RESULTS)
         .lean();
 
-      log.general.info({ query, resultCount: agents.length }, 'Agent search completed');
+      // The query is model output derived from the user's prompt.
+      log.general.info({ resultCount: agents.length }, 'Agent search completed');
 
       return {
         agents: agents.map((a: any) => ({
@@ -58,7 +59,7 @@ export const createSearchAgentsTool = () => tool({
         count: agents.length,
       };
     } catch (error: unknown) {
-      log.general.error({ err: error, query }, 'Agent search failed');
+      log.general.error({ err: error }, 'Agent search failed');
       return { agents: [], count: 0, error: getErrorMessage(error) };
     }
   },

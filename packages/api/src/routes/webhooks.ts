@@ -567,12 +567,15 @@ router.post('/:type', async (req, res) => {
     return res.sendStatus(200);
   }
 
+  // The message TEXT is a user prompt and never goes to the log; its length is
+  // what an operator actually needs to tell an empty webhook from a real one.
+  // `username` is out for the same reason `text` is — the platform user id is
+  // the opaque handle every other line in this file correlates on.
   log.webhook.info({
     channelType,
     from: message.platformUserId,
     chatId: message.chatId,
-    text: message.text.slice(0, 100),
-    username: message.username,
+    textLength: message.text.length,
   }, 'Inbound message');
 
   try {

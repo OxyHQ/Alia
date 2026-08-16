@@ -604,7 +604,8 @@ export class VoiceSessionManager {
 
       if (executor) {
         try {
-          log.providers.info({ toolName: fc.name, args, role }, 'Executing voice tool');
+          // `args` is model output derived from what the user said out loud.
+          log.providers.info({ toolName: fc.name, role }, 'Executing voice tool');
           const result = await executor(args);
           output = JSON.stringify(result);
         } catch (error: unknown) {

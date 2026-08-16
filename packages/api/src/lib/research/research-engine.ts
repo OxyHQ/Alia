@@ -118,7 +118,8 @@ export async function runDeepResearch(
               }
             }
           } catch (err) {
-            log.general.warn({ err, query: q }, 'Research: search failed');
+            // The sub-question is model output about the user's research topic.
+            log.general.warn({ err }, 'Research: search failed');
           }
         }
 
@@ -175,7 +176,7 @@ export async function runDeepResearch(
           }
         }
       } catch (err) {
-        log.general.warn({ err, query: gap }, 'Research: follow-up search failed');
+        log.general.warn({ err }, 'Research: follow-up search failed');
       }
     }
 
