@@ -29,13 +29,21 @@ import { describe, expect, it } from 'vitest';
  *     routes on.
  *  3. **Which models a plan grants.** `plans.modelIds` IS a database column, and
  *     it is the input to `lib/plan-access.ts`, which is the gate that decides
- *     whether a request may use a model at all. This is the one that looks like
- *     a runtime configuration surface, and the finding is that it is not: the
- *     list is code-managed and re-asserted from code on every boot, so editing
- *     the row does not survive the next deploy.
+ *     whether a request may use a model at all.
  *
- * So the audit trail for all three is git, and the property worth guarding is
- * the one that makes that TRUE — that each remains code-managed. Each assertion
+ *     This file originally claimed the row was code-managed because boot
+ *     re-asserts it. **That was wrong, and the correction matters more than the
+ *     original claim did.** `seedPlans()` is called from exactly one place —
+ *     `runStartupSeed()` in `internal/providers/lib/seed-model-configs.ts:267` —
+ *     and `runStartupSeed()` has zero callers repo-wide. `src/index.ts:374-376`
+ *     seeds skills, suggestions and bots, and nothing else. So nothing re-asserts
+ *     `plans.modelIds`, a hand-edited row survives every deploy, and this IS a
+ *     runtime configuration surface that decides model access with no audit
+ *     record of who changed it.
+ *
+ * So the audit trail is git for (1) and (2) only. (3) is a real gap, and the
+ * epic's "add audit logs for configuration changes that affect model/routing
+ * behavior" is NOT satisfied by absence — it is unsatisfied. Each assertion
  * below therefore says what would make it false, and would fail at exactly the
  * moment somebody built the runtime surface the checkbox is about, which is when
  * the audit log becomes a real requirement rather than a note.
@@ -147,7 +155,7 @@ describe('the routing presets are code, not a row (#139 ws15)', () => {
 /*  3: which models a plan grants                                              */
 /* -------------------------------------------------------------------------- */
 
-describe('plan model access is code-managed, so its audit trail is git (#139 ws15)', () => {
+describe('plan model access is an UNAUDITED database row (#139 ws15)', () => {
   /**
    * Every writer of `plans` and `plan_features`, and its runtime caller.
    *
@@ -218,10 +226,16 @@ describe('plan model access is code-managed, so its audit trail is git (#139 ws1
     ]);
   });
 
-  it('boot re-asserts the model list from code, so a row edit does not survive a deploy', () => {
-    // The claim that makes "the audit trail is git" true rather than hopeful. A
-    // hand-edited `plans.modelIds` is overwritten by the next start-up, so the
-    // row is a cache of the code and never a source of truth.
+  it('the plan seeder would re-assert the model list, but NOTHING RUNS IT', () => {
+    // Reads as the guard that makes "the audit trail is git" true. It is not:
+    // the seeder it describes is never invoked, so `plans.modelIds` is a source
+    // of truth in the database rather than a cache of the code, and a hand edit
+    // survives every deploy unrecorded.
+    //
+    // The assertion below is kept anyway, because it is the precondition for the
+    // fix: whoever wires `runStartupSeed()` back up needs the seeder to
+    // re-assert rather than skip. Until then this test documents a GAP, and the
+    // assertion that it is a gap is the one immediately after it.
     //
     // The failure to watch for is the tidy-looking one: `onConflictDoNothing`,
     // or dropping `modelIds` from the `set`. Either makes the DATABASE the
@@ -239,6 +253,34 @@ describe('plan model access is code-managed, so its audit trail is git (#139 ws1
     expect(seed).toMatch(/modelIds: FREE_MODEL_IDS/);
     expect([...seed.matchAll(/modelIds:/g)].length).toBeGreaterThanOrEqual(7);
     expect(seed).not.toContain('req.body');
+  });
+
+  it('the seeder has no caller, which is why this is a GAP and not an absence', () => {
+    // Turns the finding above into a guard. `seedPlans()` is reached only from
+    // `runStartupSeed()`, and `runStartupSeed()` is reached from nowhere — so
+    // `plans.modelIds` is unaudited runtime configuration today.
+    //
+    // This goes RED the moment somebody wires the seeder back up, which is
+    // exactly when a reader should return and re-decide whether the epic's audit
+    // checkbox has become satisfiable by absence after all. Failing on the FIX is
+    // deliberate: the alternative is a comment nobody re-reads.
+    const api = sourceFiles('packages/api/src');
+
+    // Vacuity floor and positive control: the scan must see a real tree, and it
+    // must be able to find a boot seeder that IS called, or its zero below means
+    // the scan is broken rather than that the caller is missing.
+    expect(api.length).toBeGreaterThan(200);
+    const entrypoint = code('index.ts');
+    expect(entrypoint).toContain('seedSkills()');
+
+    const callers = api.filter(
+      (f) => !f.includes('__tests__') && !f.endsWith('seed-model-configs.ts') && code(f).includes('runStartupSeed'),
+    );
+    expect(callers).toEqual([]);
+
+    // And the entrypoint seeds only the three it actually seeds.
+    expect(entrypoint).not.toContain('runStartupSeed');
+    expect(entrypoint).not.toContain('seedPlans');
   });
 
   it('no route writes plan or model configuration', () => {
