@@ -427,7 +427,14 @@ describe('model and routing configuration has no unaudited write path (#139 ws15
 
   /** Writers reachable at runtime, and the ONE caller each is allowed. */
   const CALLED_BY: Readonly<Record<string, readonly string[]>> = {
-    // Boot seeding: runs from the process's own start-up, not from a request.
+    // Seeding that NOTHING RUNS. Their one caller is `runStartupSeed()` in
+    // `seed-model-configs.ts`, and that function has zero callers repo-wide —
+    // `src/index.ts` seeds skills, suggestions and bots, and never this. So these
+    // three are unreachable in the serving process, not "reached only at boot".
+    //
+    // The distinction is load-bearing: a reader who believes boot re-asserts the
+    // model list from code would conclude that a hand-edited row cannot survive a
+    // deploy. It can. Nothing overwrites it, because nothing writes at all.
     upsertAliaModel: ['internal/providers/lib/seed-model-configs.ts'],
     upsertModelConfig: ['internal/providers/lib/seed-model-configs.ts'],
     resetAllKeyCooldowns: ['internal/providers/lib/seed-model-configs.ts'],
