@@ -82,8 +82,17 @@ export const ALIAS_DEPRECATION = new Date('2026-08-15T00:00:00.000Z');
  */
 export const ALIAS_SUNSET: Date | null = null;
 
-/** Where a caller reads what to do about it. */
-const DOCS_URL = process.env.DEPRECATION_DOCS_URL || 'https://alia.onl/docs/migration/compatibility-window';
+/**
+ * Where a caller reads what to do about it.
+ *
+ * Exported because section (c) of the same document — the `alia_sk_*`
+ * credentials, `middleware/credential-deprecation.ts` — points its own `Link` at
+ * the same page. One deprecation, one document, one environment variable: a
+ * second copy of this default would be a second page to keep in step, and the
+ * two would disagree silently because a `Link` header is never read by a test
+ * that did not go looking for it.
+ */
+export const DOCS_URL = process.env.DEPRECATION_DOCS_URL || 'https://alia.onl/docs/migration/compatibility-window';
 
 /** RFC 9745 §2 / RFC 9651 §3.3.7 — a structured-field Date: `@` plus epoch seconds. */
 export function toStructuredFieldDate(when: Date): string {

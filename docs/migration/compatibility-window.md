@@ -56,7 +56,9 @@ A `Sunset` value is emitted only once a removal date has been set. A removal dat
 
 **Status of each signal.** The headers exist for path (a) as of workstream 4: `packages/api/src/middleware/alias-deprecation.ts`, mounted app-wide in `src/index.ts` and emitted on any response to a request naming one of the thirteen aliases. `Sunset` support is implemented and no value is emitted, because no removal date is set — see the paragraph above, which is the rule that keeps it that way.
 
-Paths (b) and (c) emit nothing yet, and neither does the `alia.deprecation` stream event for any path. Emitting them is a prerequisite for starting those clocks, not an optional extra — a window that runs without a signal is a window that surprises its callers at the end.
+They exist for path (c) as of workstream 11: `packages/api/src/middleware/credential-deprecation.ts`, mounted app-wide beside the alias signal, emitted on any response to a request that PRESENTS an `alia_sk_*` credential, and emitted again by `refuseIssuance` on every closed creation path. Presentation rather than successful authentication, because the middleware runs ahead of auth and a caller whose key has lapsed is exactly the caller who needs the notice. `Sunset` is implemented and withheld for the same reason as (a). Both modules serialize through the same two functions and point at the same document, so the two signals cannot disagree about a date or a link.
+
+Path (b) emits nothing yet, and neither does the `alia.deprecation` stream event for any path. Emitting them is a prerequisite for starting those clocks, not an optional extra — a window that runs without a signal is a window that surprises its callers at the end.
 
 ---
 
@@ -108,9 +110,13 @@ Route-by-route is deliberate. These routes have different consumers and will emp
 
 Alia-issued API keys, prefix at `packages/api/src/lib/api-key-crypto.ts:21`, stored in `developer_api_keys` (`packages/api/src/db/schema/developers.ts:80`) under `developer_apps` (`:37`), managed through `packages/api/src/routes/developer.ts`. Under ADR 0001 and ADR 0004, developer identity and credentials belong to Oxy.
 
-**What still works during the window.** Existing active keys continue to authenticate against the compatibility surface described in (b), with their existing scopes and rate limits. Owners can list, inspect, rotate and revoke their existing keys, because taking away revocation during a migration would be a security regression.
+**What still works during the window.** Existing active keys continue to authenticate against the compatibility surface described in (b), with their existing scopes and rate limits. Owners can list, inspect, rename, re-scope, re-limit and revoke their existing keys, because taking away revocation during a migration would be a security regression.
 
-**What does not.** No new `alia_sk_*` key is issued, and no new Alia developer application is created for generic inference. Key creation endpoints refuse with a message pointing at Oxy Console.
+Not *rotate*, and this document said otherwise until workstream 11 measured it: no rotation endpoint has ever existed on `/developer`, whose `PATCH` covers name, scopes, active flag and rate limits and nothing else. The only path that ever replaced a key's secret was `POST /auth/token`, which did it as a side effect of desktop re-authorization and is now closed. Rotation is not restored, because minting a replacement secret is issuance under another name; an owner who needs a new credential obtains an Oxy one.
+
+**What does not.** No new `alia_sk_*` key is issued, and no new Alia developer application is created. Every creation path refuses with `410 Gone` and a body naming Oxy Console — `POST /developer/apps`, `POST /developer/apps/:appId/keys`, and the three `/auth` routes that were the undocumented second minting path (`/authorize/codea`, `/authorize/cowork`, `/token`).
+
+The refusal is not the only thing holding this. `generateDeveloperApiKey`, `insertApp` and `insertApiKey` are deleted rather than left unused behind a refusing route, and `DeveloperApiKeyUpdate` cannot name `keyHash` — so a reintroduced mint has to write the cryptography again, and a reintroduced rotation fails to compile. `packages/api/src/middleware/__tests__/credential-deprecation.test.ts` censuses the tree for all three shapes.
 
 **Deprecation signal.** `Deprecation` and `Sunset` headers on responses to requests authenticated with an `alia_sk_*` credential, plus a direct notification to each key owner — an owner who never calls the API in the window never sees a response header, so headers alone cannot be the only notice for a credential deprecation. Migration instructions accompany the notification.
 

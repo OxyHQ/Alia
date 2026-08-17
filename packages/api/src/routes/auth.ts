@@ -1,66 +1,36 @@
+/**
+ * `/auth` — the session endpoints, plus the desktop authorization flow that used
+ * to mint `alia_sk_*` credentials and no longer does.
+ *
+ * ## The second minting path
+ *
+ * `docs/developers-portal.md` describes `POST /developer/apps/:appId/keys` as
+ * the way an `alia_sk_*` key comes into existence. It was not the only one: this
+ * router held a complete PKCE exchange that created an Alia developer
+ * APPLICATION per user on `/authorize/codea` and `/authorize/cowork`, then minted
+ * — or silently REPLACED the secret of — a key on `/token`, for any caller able
+ * to complete the challenge. Two of the checkboxes in #139 workstream 11 are
+ * unreachable while it exists, so it is closed here alongside the documented one.
+ *
+ * ## What that costs, stated plainly
+ *
+ * `packages/alia-cowork/src/main/auth.ts:213` and
+ * `packages/alia-codea-cli/src/commands/auth.ts:78` still call `POST /auth/token`
+ * to sign in. They now receive `410` and cannot obtain a NEW credential; every
+ * credential they already hold keeps authenticating for the whole compatibility
+ * window, so a signed-in installation is unaffected. The replacement is not
+ * speculative — `packages/alia-codea/src/authProvider.ts:618` already
+ * authenticates against Oxy's own `/auth/oauth/token`, so the VS Code extension
+ * has made this move and the other two clients follow it.
+ */
+
 import { Router } from 'express';
 import { OxyServices } from '@oxyhq/core';
 import { authenticateToken } from '../middleware/auth.js';
-import crypto from 'crypto';
-import { getDb } from '../db/index.js';
-import {
-  findOwnedAppByName,
-  findOwnedKeyByName,
-  insertApiKey,
-  insertApp,
-  updateOwnedKey,
-} from '../db/developers/developerRepository.js';
-import { generateDeveloperApiKey, hashDeveloperApiKey } from '../lib/api-key-crypto.js';
+import { refuseIssuance } from '../middleware/credential-deprecation.js';
 import { log } from '../lib/logger.js';
-import { getRedisClient } from '../lib/redis.js';
 
 const router = Router();
-
-const AUTH_CODE_PREFIX = 'pkce:';
-const AUTH_CODE_TTL = 300; // 5 minutes
-
-interface AuthCodeData {
-  userId: string;
-  codeChallenge: string;
-  appId: string;
-}
-
-// In-memory fallback when Redis is unavailable (dev environments)
-const memoryFallback = new Map<string, AuthCodeData & { expiresAt: number }>();
-
-async function storeAuthCode(code: string, data: AuthCodeData): Promise<void> {
-  const redis = getRedisClient();
-  if (redis) {
-    try {
-      await redis.set(AUTH_CODE_PREFIX + code, JSON.stringify(data), 'EX', AUTH_CODE_TTL);
-      return;
-    } catch (err: unknown) {
-      log.auth.warn({ err }, 'Redis storeAuthCode failed, using memory fallback');
-    }
-  }
-  memoryFallback.set(code, { ...data, expiresAt: Date.now() + AUTH_CODE_TTL * 1000 });
-}
-
-/**
- * Atomically get and delete an auth code (one-time use).
- * Uses GETDEL on Redis to prevent TOCTOU race conditions.
- */
-async function consumeAuthCode(code: string): Promise<AuthCodeData | null> {
-  const redis = getRedisClient();
-  if (redis) {
-    try {
-      const raw = await redis.getdel(AUTH_CODE_PREFIX + code);
-      return raw ? JSON.parse(raw) : null;
-    } catch (err: unknown) {
-      log.auth.warn({ err }, 'Redis consumeAuthCode failed, trying memory fallback');
-    }
-  }
-  const entry = memoryFallback.get(code);
-  memoryFallback.delete(code);
-  if (!entry) return null;
-  if (entry.expiresAt < Date.now()) return null;
-  return { userId: entry.userId, codeChallenge: entry.codeChallenge, appId: entry.appId };
-}
 
 // Initialize Oxy client
 const OXY_API_URL = process.env.OXY_API_URL || 'https://api.oxy.so';
@@ -106,218 +76,45 @@ router.post('/logout', authenticateToken, async (req, res) => {
 });
 
 /**
- * POST /auth/authorize/codea
- * Authorize Alia Codea desktop app with PKCE
- * Returns an authorization code that can be exchanged for a token
+ * The desktop authorization flow: CLOSED.
+ *
+ * `/authorize/*` registered an Alia developer application and `/token` minted
+ * the `alia_sk_*` credential the application held. Both are Oxy's under ADR 0001,
+ * so both refuse. The routes keep their shape because the shipped clients above
+ * cannot be updated in place, and a refusal that names the replacement is the
+ * only thing they can act on; a deleted route would answer `404` and read as an
+ * outage.
+ *
+ * `authenticateToken` is gone from the two `/authorize/*` routes with the work
+ * they used to do. Requiring a session to be told that a capability no longer
+ * exists withholds the instruction from exactly the caller who is stuck — a CLI
+ * whose stored credential has lapsed cannot authenticate, and would have got a
+ * `401` with nothing in it.
  */
-router.post('/authorize/codea', authenticateToken, async (req, res) => {
-  try {
-    if (!req.user) {
-      res.status(401).json({ error: 'Not authenticated' });
-      return;
-    }
+router.post('/authorize/codea', (_req, res) => {
+  refuseIssuance(res, 'developer_application');
+});
 
-    const { code_challenge, code_challenge_method } = req.body;
-
-    // Validate PKCE parameters
-    if (!code_challenge) {
-      res.status(400).json({ error: 'code_challenge is required' });
-      return;
-    }
-
-    if (code_challenge_method && code_challenge_method !== 'S256') {
-      res.status(400).json({ error: 'Only S256 code_challenge_method is supported' });
-      return;
-    }
-
-    const userId = req.user.id;
-    const appName = 'Alia Codea';
-
-    // Find or create the Alia Codea app for this user
-    let app = await findOwnedAppByName(getDb(), userId, appName);
-
-    if (!app) {
-      app = await insertApp(getDb(), {
-        oxyUserId: userId,
-        name: appName,
-        description: 'Alia Codea desktop application',
-        isActive: true,
-      });
-    }
-
-    // Generate authorization code
-    const authCode = crypto.randomBytes(32).toString('base64url');
-
-    // Store the code with challenge in Redis (TTL-based expiry)
-    await storeAuthCode(authCode, {
-      userId,
-      codeChallenge: code_challenge,
-      appId: app.id.toString(),
-    });
-
-    res.json({
-      code: authCode,
-      appId: app.id,
-    });
-  } catch (error: unknown) {
-    log.auth.error({ err: error }, 'Authorize Codea error');
-    res.status(500).json({ error: 'Failed to authorize' });
-  }
+router.post('/authorize/cowork', (_req, res) => {
+  refuseIssuance(res, 'developer_application');
 });
 
 /**
- * POST /auth/authorize/cowork
- * Authorize Alia Cowork desktop app with PKCE
- * Returns an authorization code that can be exchanged for a token
+ * POST /auth/token — the credential mint. CLOSED.
+ *
+ * It refuses before reading the request, so no authorization code is consumed
+ * and no PKCE challenge is verified: there is no path through this handler that
+ * reaches a write, which is why the store, the challenge check and the fallback
+ * map were deleted rather than left behind an early return.
+ *
+ * The `subject` is `developer_api_key` rather than the application: this route
+ * both created a key and REPLACED the secret of an existing one, and replacing a
+ * secret issues a new credential just as surely as inserting a row does. That is
+ * the reason `DeveloperApiKeyUpdate` no longer admits `keyHash` — see
+ * `db/developers/developerRepository.ts`.
  */
-router.post('/authorize/cowork', authenticateToken, async (req, res) => {
-  try {
-    if (!req.user) {
-      res.status(401).json({ error: 'Not authenticated' });
-      return;
-    }
-
-    const { code_challenge, code_challenge_method } = req.body;
-
-    // Validate PKCE parameters
-    if (!code_challenge) {
-      res.status(400).json({ error: 'code_challenge is required' });
-      return;
-    }
-
-    if (code_challenge_method && code_challenge_method !== 'S256') {
-      res.status(400).json({ error: 'Only S256 code_challenge_method is supported' });
-      return;
-    }
-
-    const userId = req.user.id;
-    const appName = 'Alia Cowork';
-
-    // Find or create the Alia Cowork app for this user
-    let app = await findOwnedAppByName(getDb(), userId, appName);
-
-    if (!app) {
-      app = await insertApp(getDb(), {
-        oxyUserId: userId,
-        name: appName,
-        description: 'Alia Cowork desktop application',
-        isActive: true,
-      });
-    }
-
-    // Generate authorization code
-    const authCode = crypto.randomBytes(32).toString('base64url');
-
-    // Store the code with challenge in Redis (TTL-based expiry)
-    await storeAuthCode(authCode, {
-      userId,
-      codeChallenge: code_challenge,
-      appId: app.id.toString(),
-    });
-
-    res.json({
-      code: authCode,
-      appId: app.id,
-    });
-  } catch (error: unknown) {
-    log.auth.error({ err: error }, 'Authorize Cowork error');
-    res.status(500).json({ error: 'Failed to authorize' });
-  }
-});
-
-/**
- * POST /auth/token
- * Exchange authorization code for token using PKCE
- */
-router.post('/token', async (req, res) => {
-  try {
-    const { grant_type, code, code_verifier, client_id } = req.body;
-
-    // Validate request
-    if (grant_type !== 'authorization_code') {
-      res.status(400).json({ error: 'Invalid grant_type' });
-      return;
-    }
-
-    if (!code || !code_verifier) {
-      res.status(400).json({ error: 'code and code_verifier are required' });
-      return;
-    }
-
-    // Accept both codea and cowork as valid client IDs
-    if (client_id !== 'codea' && client_id !== 'cowork') {
-      res.status(400).json({ error: 'Invalid client_id' });
-      return;
-    }
-
-    // Atomically get and delete authorization code (one-time use)
-    const authData = await consumeAuthCode(code);
-    if (!authData) {
-      res.status(400).json({ error: 'Invalid or expired authorization code' });
-      return;
-    }
-
-    // Verify PKCE challenge
-    const computedChallenge = crypto
-      .createHash('sha256')
-      .update(code_verifier)
-      .digest('base64url');
-
-    if (computedChallenge !== authData.codeChallenge) {
-      res.status(400).json({ error: 'Invalid code_verifier' });
-      return;
-    }
-
-    // Now create or regenerate the API key
-    const userId = authData.userId;
-    const appId = authData.appId;
-
-    // Find existing active API key or create a new one
-    const keyName = 'Alia Cowork Key';
-    let apiKey = await findOwnedKeyByName(getDb(), appId, userId, keyName);
-
-    const plainKey = generateDeveloperApiKey();
-    const keyHash = hashDeveloperApiKey(plainKey);
-    const keyPrefix = plainKey.substring(0, 16);
-
-    if (apiKey) {
-      /**
-       * Regenerate the key: the user is re-authorizing, so the old credential
-       * stops working. `lastUsedAt` goes back to null because this is a
-       * different key wearing the same row.
-       *
-       * The lookup is by NAME within the app rather than by `isActive: true`, so
-       * re-authorizing after a revocation reuses the row instead of leaving a
-       * dead one behind and colliding on nothing. An inactive key is reactivated
-       * here, which is what re-authorization means.
-       */
-      apiKey =
-        (await updateOwnedKey(getDb(), apiKey.id, appId, userId, {
-          keyHash,
-          keyPrefix,
-          lastUsedAt: null,
-          isActive: true,
-        })) ?? apiKey;
-    } else {
-      apiKey = await insertApiKey(getDb(), {
-        oxyUserId: userId,
-        appId: appId,
-        name: keyName,
-        keyHash,
-        keyPrefix,
-        scopes: ['chat:read', 'chat:write', 'models:read'],
-        isActive: true,
-      });
-    }
-
-    res.json({
-      token: plainKey,
-      token_type: 'Bearer',
-    });
-  } catch (error: unknown) {
-    log.auth.error({ err: error }, 'Token exchange error');
-    res.status(500).json({ error: 'Failed to exchange token' });
-  }
+router.post('/token', (_req, res) => {
+  refuseIssuance(res, 'developer_api_key');
 });
 
 export default router;

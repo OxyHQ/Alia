@@ -1040,9 +1040,11 @@ describe('gate 3: the alia-* alias set is frozen (ADR 0002)', () => {
  * `keyPrefix`, and only one of them is a provider secret:
  *
  *  - `provider_keys` — UPSTREAM provider credentials. The subject of this gate.
- *  - `developer_api_keys` — Alia's own `alia_sk_` credentials, legitimately
- *    created and shown to their owner by `routes/developer.ts` and
- *    `routes/auth.ts`.
+ *  - `developer_api_keys` — Alia's own `alia_sk_` credentials, read and revoked
+ *    by their owner through `routes/developer.ts`. No longer CREATED anywhere:
+ *    #139 workstream 11 closed issuance, and
+ *    `middleware/__tests__/credential-deprecation.test.ts` is the census that
+ *    keeps it closed.
  *
  * Discriminating on the field NAME would therefore be wrong in both directions.
  * The gate discriminates on PROVENANCE instead: a product route cannot hold a

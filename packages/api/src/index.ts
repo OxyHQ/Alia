@@ -57,6 +57,7 @@ import { moderationOutboxDispatcher } from './lib/crowdsource/dispatcher.js';
 // Register hooks (side-effect import)
 import './lib/hooks/index.js';
 import { aliasDeprecationHeaders } from './middleware/alias-deprecation.js';
+import { credentialDeprecationHeaders } from './middleware/credential-deprecation.js';
 import { authenticateToken } from './middleware/auth.js';
 import { resolveWorkspace } from './middleware/workspace.js';
 import { syncZeroEval } from './scripts/sync-zeroeval.js';
@@ -228,6 +229,13 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 // because the subject is the alias, not one surface: `/alia/chat` and `/v1/*`
 // both name aliases and both owe their callers the notice.
 app.use(aliasDeprecationHeaders);
+
+// The credential deprecation signal (compatibility window (c), same two RFCs).
+// Above every route for the same reason: an `alia_sk_*` credential authenticates
+// `/v1/*`, `/codea/*` and the MCP relay alike, so the notice cannot belong to one
+// mount. It reads only the Authorization header, so the body parsers above it are
+// incidental rather than required.
+app.use(credentialDeprecationHeaders);
 
 // Optimize SSE routes for real-time streaming
 app.use('/alia/chat', (_req, res, next) => {

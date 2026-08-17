@@ -20,20 +20,20 @@ live credential with no documentation is worse for its holder than a deprecated 
 
 Everything below is the current behaviour of `api.alia.onl`, verified against the code.
 
-**Applications and keys.** `/developer` (`packages/api/src/routes/developer.ts`, mounted at
-`packages/api/src/index.ts:234` behind `authenticateToken` and workspace resolution) serves
-the full CRUD surface:
+**Applications and keys.** `/developer` (`packages/api/src/routes/developer.ts`, mounted in
+`packages/api/src/index.ts` behind `authenticateToken` and workspace resolution) serves
+everything except creation:
 
 | Route | Purpose |
 |---|---|
 | `GET /developer/apps` | List the caller's apps, scoped by the `X-Workspace-Id` header |
 | `GET /developer/apps/:id` | One app |
-| `POST /developer/apps` | Create an app |
+| `POST /developer/apps` | **Closed.** `410 Gone`, `error: "issuance_closed"` |
 | `PATCH /developer/apps/:id` | Update an app |
 | `DELETE /developer/apps/:id` | Delete an app |
 | `GET /developer/apps/:appId/keys` | List an app's keys |
-| `POST /developer/apps/:appId/keys` | Mint a key |
-| `PATCH /developer/apps/:appId/keys/:keyId` | Update a key |
+| `POST /developer/apps/:appId/keys` | **Closed.** `410 Gone`, `error: "issuance_closed"` |
+| `PATCH /developer/apps/:appId/keys/:keyId` | Update a key — name, scopes, active flag, limits |
 | `DELETE /developer/apps/:appId/keys/:keyId` | Revoke a key |
 | `GET /developer/apps/:appId/keys/:keyId/rate-limits` | Read a key's limits |
 | `PATCH /developer/apps/:appId/keys/:keyId/rate-limits` | Change a key's limits |
@@ -41,6 +41,28 @@ the full CRUD surface:
 | `GET /developer/apps/:appId/keys/:keyId/usage` | Per-key usage |
 | `GET /developer/usage` | Usage across the caller's apps |
 | `GET /developer/stats` | Aggregate stats |
+
+**The desktop authorization flow, which was the second minting path.** Earlier revisions of
+this page described `POST /developer/apps/:appId/keys` as the way a key came into
+existence. It was not the only one. `packages/api/src/routes/auth.ts` carried a complete
+PKCE exchange that registered an Alia developer application per user and then minted — or
+silently replaced the secret of — a key, for any caller able to complete the challenge:
+
+| Route | Was | Now |
+|---|---|---|
+| `POST /auth/authorize/codea` | Register an "Alia Codea" app, return an authorization code | **Closed.** `410 Gone` |
+| `POST /auth/authorize/cowork` | Register an "Alia Cowork" app, return an authorization code | **Closed.** `410 Gone` |
+| `POST /auth/token` | Exchange the code for a fresh `alia_sk_*` credential | **Closed.** `410 Gone` |
+
+`POST /auth/me` and `POST /auth/logout` are unaffected.
+
+Two shipped clients still call `POST /auth/token` to sign in —
+`packages/alia-cowork/src/main/auth.ts` and `packages/alia-codea-cli/src/commands/auth.ts`.
+They can no longer obtain a **new** credential; a credential they already hold keeps
+authenticating for the whole window, so an installation that is already signed in is
+unaffected. The replacement is not speculative:
+`packages/alia-codea/src/authProvider.ts` already authenticates the VS Code extension
+against Oxy's own `/auth/oauth/token`, and the other two clients follow it.
 
 **Authentication.** An `alia_sk_*` credential authenticates every route under `/v1/*`
 except `/v1/models` and `/v1/shows`, which are mounted ahead of the auth middleware
@@ -76,11 +98,14 @@ revisions of this page were removed.
 Under ADR 0004 and the compatibility window:
 
 - **No new `alia_sk_*` credential is issued.** The set of Alia developer credentials is
-  closed. Key creation refuses and points at Oxy Console. *Today the creation endpoint
-  still mints keys* — `POST /developer/apps/:appId/keys` has not been changed, and the
-  freeze is a code review rule until workstream 19 of #139 lands a check. If you are
-  reading this before that lands, do not create new keys.
-- **No new Alia developer application** is created for generic inference.
+  closed. All three creation paths refuse with `410 Gone` and a body naming Oxy Console.
+  This is enforced rather than agreed: `generateDeveloperApiKey` has been deleted from
+  `packages/api/src/lib/api-key-crypto.ts`, so no code in the service can produce a key;
+  `insertApiKey` and `insertApp` have been deleted from the repository, so no code can
+  write one; and `DeveloperApiKeyUpdate` cannot name `keyHash`, so no code can replace an
+  existing key's secret either — which is issuance wearing maintenance's clothes.
+- **No new Alia developer application** is created, for generic inference or otherwise.
+  Every application this surface registered existed to hold `alia_sk_*` keys.
 - **The surface gains nothing.** No new route, no new capability and no new model lands on
   `api.alia.onl/v1/*`. Generic inference development happens on `api.oxy.so/v1`.
 - **Alia stops settling inference charges** for this surface. Usage is metered by Relay and
@@ -171,10 +196,23 @@ The clock owner is the owner of workstream 11 of #139, recorded on the epic.
 ## Deprecation signal
 
 Every path inside the window emits `Deprecation` (RFC 9745) and `Sunset` (RFC 8594)
-response headers with a `Link` to this documentation, plus an `alia.deprecation` stream
-event. **No such header is emitted by any route in `packages/api/src` today.** Emitting
-them is a prerequisite for starting the clock, not an optional extra — a window that runs
-without a signal surprises its callers at the end. Tracked by workstream 19 of #139.
+response headers with a `Link` to the migration documentation, plus an `alia.deprecation`
+stream event. Emitting them is a prerequisite for starting the clock, not an optional extra
+— a window that runs without a signal surprises its callers at the end.
+
+For credentials the headers exist: `packages/api/src/middleware/credential-deprecation.ts`,
+mounted app-wide, emits them on any response to a request that presents an `alia_sk_*`
+credential, and `refuseIssuance` emits them on every closed creation path. The signal fires
+on **presentation** rather than on successful authentication — the middleware runs before
+auth, and a caller whose key has lapsed is exactly the caller who needs the notice.
+
+Two things are still missing, and neither is this page's to fix: the `alia.deprecation`
+stream event does not exist for any path, and the direct notification to each key owner has
+not been sent. Headers alone cannot be the whole notice for a credential — an owner who
+never calls the API in the window never sees one — so the removal gate below is not
+satisfiable until that notification happens. It is blocked on Oxy shipping the
+Applications/Console side (`OxyHQ/oxy#972`), because there is nowhere to migrate a key to
+until then.
 
 A `Sunset` value appears only once a removal date is set, and a date is set only when the
 gate is satisfied or credibly close. An announced date that then moves teaches callers to
@@ -190,14 +228,28 @@ owning app is active; the request carries the scope the route requires; the head
 Only requests that authenticated successfully are recorded. Rows older than 90 days are
 swept.
 
-**Key creation fails.** Confirm the app exists and belongs to you, that you are
-authenticated, and that the app is active. If creation begins refusing outright, that is
-the freeze in the section above, and the message points at Oxy Console.
+**Key creation fails with `410` and `"error": "issuance_closed"`.** That is the freeze, not
+a fault. Alia issues no new credentials; register an application in Oxy Console. The
+response carries a `Link` header and a `documentation` field pointing at the migration
+document.
+
+**A desktop client cannot sign in.** Cowork and the Codea CLI obtained their credential
+from `POST /auth/token`, which is closed. An installation already holding a credential
+keeps working; a new sign-in needs the client migrated to Oxy's own OAuth, as the VS Code
+extension already is.
 
 ## Open questions
 
 - **The notification channel for key owners.** Whether it is Alia notifications, Oxy
-  account email, or both. *Owner: workstream 11 owner.*
-- **Whether the key-creation endpoint refuses or is removed.** Refusing keeps the route
-  shape and lets the response carry migration instructions; removing it is cleaner. *Owner:
-  workstream 11 owner.*
+  account email, or both. *Owner: workstream 11 owner.* Blocked on `OxyHQ/oxy#972`: the
+  notification has to name a destination, and there is none until Oxy Applications exists.
+
+## Decided
+
+- **Whether the key-creation endpoint refuses or is removed: it REFUSES.** Removing the
+  route is cleaner in the diff and worse for everyone reading the response. A removed route
+  answers with the framework's default `404`, which is indistinguishable from a typo, a
+  stale base URL or an outage, and carries nothing a developer can act on. Refusing keeps
+  the shape, returns `410 Gone` — the same answer this API already gives for
+  `POST /v1/resolve-model` and `POST /v1/report-usage` — and carries the subject, the
+  message and the link. *Decided by workstream 11 of #139.*

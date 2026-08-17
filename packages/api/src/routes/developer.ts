@@ -18,8 +18,6 @@ import {
   deleteOwnedKey,
   findOwnedApp,
   findOwnedKey,
-  insertApiKey,
-  insertApp,
   selectAppsForOwner,
   selectKeysForApp,
   toDeveloperApiKeyResponse,
@@ -27,7 +25,7 @@ import {
   updateOwnedApp,
   updateOwnedKey,
 } from '../db/developers/developerRepository.js';
-import { generateDeveloperApiKey, hashDeveloperApiKey } from '../lib/api-key-crypto.js';
+import { refuseIssuance } from '../middleware/credential-deprecation.js';
 import { log } from '../lib/logger.js';
 
 const router = Router();
@@ -73,34 +71,19 @@ router.get('/apps/:id', async (req: Request, res: Response) => {
   }
 });
 
-// Create a new app (scoped by X-Workspace-Id header)
-const createAppSchema = z.object({
-  name: z.string().min(1).max(100),
-  description: z.string().max(500).optional(),
-  websiteUrl: z.string().url().optional().or(z.literal('')),
-  redirectUrls: z.array(z.string().url()).optional(),
-  icon: z.string().optional(),
-});
-
-router.post('/apps', async (req: Request, res: Response) => {
-  try {
-    const userId = req.user!.id;
-    const validatedData = createAppSchema.parse(req.body);
-
-    const app = await insertApp(getDb(), {
-      oxyUserId: userId,
-      organizationId: req.workspace?.id ?? null,
-      ...validatedData,
-    });
-
-    res.status(201).json({ app: toDeveloperAppResponse(app) });
-  } catch (error: unknown) {
-    if (error instanceof z.ZodError) {
-      return res.status(400).json({ error: 'Invalid input', details: error.errors });
-    }
-    log.developer.error({ err: error }, 'Error creating developer app');
-    res.status(500).json({ error: 'Failed to create app' });
-  }
+/**
+ * Registration of a new Alia developer application: CLOSED.
+ *
+ * ADR 0001 gives applications to Oxy, and every application this route created
+ * existed to hold `alia_sk_*` keys for the generic inference surface — so
+ * closing it is #139 workstream 11's "stop creating Alia-specific developer
+ * applications for generic inference".
+ *
+ * The route keeps its shape so the response can carry the instruction; the
+ * body schema is gone with the write it validated.
+ */
+router.post('/apps', (_req: Request, res: Response) => {
+  refuseIssuance(res, 'developer_application');
 });
 
 // Update an app
@@ -189,67 +172,19 @@ router.get('/apps/:appId/keys', async (req: Request, res: Response) => {
   }
 });
 
-// Create a new API key
-const createApiKeySchema = z.object({
-  name: z.string().min(1).max(100),
-  scopes: z.array(z.enum([
-    'chat:read',
-    'chat:write',
-    'models:read',
-    'conversations:read',
-    'conversations:write',
-    'conversations:delete',
-    'memory:read',
-    'memory:write',
-  ])).default(['chat:read', 'chat:write']),
-  expiresAt: z.string().datetime().optional(),
-});
-
-router.post('/apps/:appId/keys', async (req: Request, res: Response) => {
-  try {
-    const userId = req.user!.id;
-    const appId = req.params.appId as string;
-
-    // Verify the app belongs to the user
-    const app = await findOwnedApp(getDb(), appId, userId);
-    if (!app) {
-      return res.status(404).json({ error: 'App not found' });
-    }
-
-    const validatedData = createApiKeySchema.parse(req.body);
-
-    // Generate a new API key
-    const plainKey = generateDeveloperApiKey();
-    const keyHash = hashDeveloperApiKey(plainKey);
-    const keyPrefix = plainKey.substring(0, 16); // "alia_sk_12345678"
-
-    const apiKey = await insertApiKey(getDb(), {
-      oxyUserId: userId,
-      appId,
-      name: validatedData.name,
-      keyHash,
-      keyPrefix,
-      scopes: validatedData.scopes,
-      expiresAt: validatedData.expiresAt ? new Date(validatedData.expiresAt) : null,
-    });
-
-    // Return the plain key only this one time — omit the stored hash
-    const keyResponse = {
-      ...toDeveloperApiKeyResponse(apiKey),
-      key: plainKey, // Only returned on creation
-    };
-
-    res.status(201).json({
-      apiKey: keyResponse,
-      warning: 'This is the only time you will see this key. Please save it securely.',
-    });
-  } catch (error: unknown) {
-    if (error instanceof z.ZodError) {
-      return res.status(400).json({ error: 'Invalid input', details: error.errors });
-    }
-    log.developer.error({ err: error }, 'Error creating API key');
-    res.status(500).json({ error: 'Failed to create API key' });
-  }
+/**
+ * Minting a new `alia_sk_*` credential: CLOSED. #139 workstream 11, "stop
+ * issuing new `alia_sk_*` keys".
+ *
+ * It refuses BEFORE looking the app up, so the answer does not depend on the
+ * database being reachable and cannot vary by app: there is no state in which
+ * this route mints a key, which is the property the suite beside it asserts.
+ * That also means a caller naming an app it does not own gets the migration
+ * instruction rather than a 404 — no ownership is disclosed either way, because
+ * the response is identical for every app id.
+ */
+router.post('/apps/:appId/keys', (_req: Request, res: Response) => {
+  refuseIssuance(res, 'developer_api_key');
 });
 
 // Rate limit configuration schema
