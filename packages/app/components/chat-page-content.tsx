@@ -24,7 +24,7 @@ import { toast } from "@oxyhq/bloom/toast";
 import { VoiceOverlay, VoiceControls, useAmbientWave } from "@alia.onl/sdk/voice";
 import { AlertTriangle, Pencil } from "lucide-react-native";
 import { CreditWarningBanner } from "@/components/credit-warning-banner";
-import { getThinkingModelId, isThinkingModel } from "@/components/model-selector";
+import { THINKING_MODEL_ID } from "@/lib/config";
 import { useModelStore } from "@/lib/stores/model-store";
 import { useEntitlements } from "@/lib/hooks/use-billing";
 import { useCredits } from "@/lib/hooks/use-credits";
@@ -138,7 +138,7 @@ export const ChatPageContent = ({
   const { width: screenWidth } = useWindowDimensions();
   const isNarrowScreen = screenWidth < 640;
   const [activeModes, setActiveModes] = useState<Set<Mode>>(new Set());
-  const thinkingMode = isThinkingModel(selectedModel);
+  const thinkingMode = selectedModel === THINKING_MODEL_ID;
   const baseModel = useModelStore((s) => s.baseModel);
   const setBaseModel = useModelStore((s) => s.setBaseModel);
 
@@ -162,7 +162,7 @@ export const ChatPageContent = ({
   });
 
   useEffect(() => {
-    if (!isThinkingModel(selectedModel)) {
+    if (selectedModel !== THINKING_MODEL_ID) {
       setBaseModel(selectedModel);
     }
   }, [selectedModel, setBaseModel]);
@@ -275,7 +275,7 @@ export const ChatPageContent = ({
       onModelChange(baseModel);
       toast.info(t('modes.thinkingOff'));
     } else {
-      onModelChange(getThinkingModelId());
+      onModelChange(THINKING_MODEL_ID);
       toast.info(t('modes.thinkingOn'));
     }
   };

@@ -4,6 +4,7 @@ import Head from "expo-router/head";
 import { useRolesStore } from "@/lib/stores/roles-store";
 import { useStore } from "@/lib/stores/global-store";
 import { useModelStore } from "@/lib/stores/model-store";
+import { resolveSelection, useCatalogue } from "@/lib/hooks/use-catalogue";
 import { useChatConversation } from "@/lib/hooks/use-chat-conversation";
 import { useCreateConversation } from "@/lib/hooks/use-conversations";
 import { ChatPageContent } from "@/components/chat-page-content";
@@ -25,8 +26,13 @@ const ChatPage = () => {
     }
   }, [skillIdParam, activeSkillId]);
 
+  // The store holds what the user chose; the catalogue decides what a request
+  // may carry. They differ only when the chosen identifier is no longer one the
+  // product offers, and sending that identifier would be a 400.
   const selectedModel = useModelStore((s) => s.selectedModel);
   const setSelectedModel = useModelStore((s) => s.setSelectedModel);
+  const { data: catalogue } = useCatalogue();
+  const selection = resolveSelection(selectedModel, catalogue);
   const [activeRoleId, setActiveRoleId] = useState<string | undefined>(roleId);
   const activeRole = activeRoleId ? roles.find(r => r.id === activeRoleId) : undefined;
 
@@ -40,7 +46,7 @@ const ChatPage = () => {
     createNewConversation,
     editMessage,
     clearConversation,
-  } = useChatConversation({ activeRole, selectedModel, skillId: effectiveSkillId });
+  } = useChatConversation({ activeRole, selectedModel: selection.effectiveId, skillId: effectiveSkillId });
 
   const handleSubmit = ghostMode ? sendMessage : createNewConversation;
 

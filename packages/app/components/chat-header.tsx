@@ -17,8 +17,9 @@ import { useTheme, withAlpha } from "@oxyhq/bloom/theme";
 
 interface ChatHeaderProps {
   title: string;
-  selectedModel?: string;
-  onModelChange?: (modelId: string) => void;
+  /** The identifier the user chose; the picker resolves it against the catalogue. */
+  selectedModel: string;
+  onModelChange: (modelId: string) => void;
   onGhostModePress?: () => void;
   ghostModeActive?: boolean;
   onSearchPress?: () => void;

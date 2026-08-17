@@ -1,7 +1,16 @@
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { persist, createJSONStorage } from 'zustand/middleware';
+import { DEFAULT_MODEL_ID } from '@/lib/config';
 
+/**
+ * What the user last chose, across app launches.
+ *
+ * The store holds the REQUESTED identifier and never validates it: the
+ * catalogue is the authority on what exists, it is fetched rather than
+ * persisted, and `resolveSelection` (`lib/hooks/use-catalogue.ts`) is where a
+ * selection the product no longer offers is answered for.
+ */
 interface ModelState {
   selectedModel: string;
   baseModel: string; // Last non-thinking model (survives refresh)
@@ -13,8 +22,8 @@ interface ModelState {
 export const useModelStore = create<ModelState>()(
   persist(
     (set) => ({
-      selectedModel: 'alia-v1',
-      baseModel: 'alia-v1',
+      selectedModel: DEFAULT_MODEL_ID,
+      baseModel: DEFAULT_MODEL_ID,
 
       setSelectedModel: (model) =>
         set({ selectedModel: model }),

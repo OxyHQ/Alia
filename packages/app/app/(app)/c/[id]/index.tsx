@@ -7,7 +7,9 @@ import { useSaveConversation } from "@/lib/hooks/use-conversations";
 import { ChatPageContent } from "@/components/chat-page-content";
 import { UsageLimitDialog } from "@/components/usage-limit-dialog";
 import { UsageLimitError } from "@/lib/errors/usage-limit-error";
-import { isThinkingModel } from "@/components/model-selector";
+import { useModelStore } from "@/lib/stores/model-store";
+import { resolveSelection, useCatalogue } from "@/lib/hooks/use-catalogue";
+import { THINKING_MODEL_ID } from "@/lib/config";
 import { useVoiceMode } from "@/lib/hooks/use-voice-mode";
 import { useVoiceSoundEffects } from "@/lib/hooks/use-sound-effects";
 import { ContentPanel } from "@oxyhq/bloom/content-panel";
@@ -17,9 +19,19 @@ const ChatConversationPage = () => {
   const roles = useRolesStore((state) => state.roles);
   const activeSkillId = useStore((state) => state.activeSkillId);
 
-  const [selectedModel, setSelectedModel] = useState("alia-v1");
+  // A conversation keeps its own choice once one is made here, and follows the
+  // user's standing choice until then. It used to open on a hard-coded
+  // identifier instead, which silently discarded the model the user had picked
+  // on the screen that started the conversation.
+  const globalModel = useModelStore((s) => s.selectedModel);
+  const [conversationModel, setConversationModel] = useState<string | null>(null);
+  const selectedModel = conversationModel ?? globalModel;
+  const { data: catalogue } = useCatalogue();
+  const selection = resolveSelection(selectedModel, catalogue);
   const [activeRoleId, setActiveRoleId] = useState<string | undefined>(roleId);
-  const thinkingMode = isThinkingModel(selectedModel);
+  // Off the effective identifier, not the requested one: this flag travels in
+  // the request body beside the model, so it has to describe what is sent.
+  const thinkingMode = selection.effectiveId === THINKING_MODEL_ID;
   const activeRole = activeRoleId ? roles.find(r => r.id === activeRoleId) : undefined;
 
   const {
@@ -36,7 +48,7 @@ const ChatConversationPage = () => {
     setMessages,
     approvePlan,
     rejectPlan,
-  } = useChatConversation({ conversationId: id, activeRole, thinkingMode, selectedModel, skillId: activeSkillId, agentId });
+  } = useChatConversation({ conversationId: id, activeRole, thinkingMode, selectedModel: selection.effectiveId, skillId: activeSkillId, agentId });
 
   const saveConversation = useSaveConversation();
 
@@ -83,7 +95,7 @@ const ChatConversationPage = () => {
           onStop={stopGeneration}
           onClear={clearConversation}
           selectedModel={selectedModel}
-          onModelChange={setSelectedModel}
+          onModelChange={setConversationModel}
           activeRole={activeRole}
           onRemoveRole={() => setActiveRoleId(undefined)}
           disabled={!!usageLimitError}
