@@ -13,25 +13,29 @@ was wrong or became wrong and are corrected under [Corrections](#corrections).
 
 ## Totals
 
-416 checkboxes: **219 ticked, 197 unticked** as of 2026-08-17 against `1f7ee01b`. At the audit
-(`975955c4`) it was 170 and 246; **49 of the audited rows have since been earned**, and each carries
-`resolvedSince` in the JSON. **One was re-opened** — L243, *"Stop treating system prompts, reasoning
-levels, Codea presets or quality modes as model identities"* — and the flags are synced from the
-issue body in **both** directions, because a record that can only say "done" reports an epic as
-further along than it is.
+416 checkboxes: **227 ticked, 189 unticked** as of 2026-08-17 against `e8927b7c`. At the audit
+(`975955c4`) it was 170 and 246; **57 of the audited rows have since been earned**, and each carries
+`resolvedSince` in the JSON.
+
+**Two rows have moved in both directions, which is why the sync is bidirectional.** L243 was ticked,
+re-opened for want of a located mechanism, and is ticked again now that one was found
+(`system-prompt-builder.ts:129-132`, guarded and mutation-tested). L241 went the other way: ticked
+off the API-side work, then re-opened, because the surface the row is actually about — the console's
+model documentation — was never cleared. A record that can resolve but not un-resolve reports an
+epic as further along than it is.
 
 | verdict | at audit | still open | meaning |
 | --- | ---: | ---: | --- |
 | `BLOCKED_RELAY` | 94 | 92 | needs the Relay data plane **deployed and reachable** — see [the blocker, named](#the-relay-blocker-named) |
-| `ACTIONABLE_NOW` | 42 | 14 | can be earned in this repository today; the row carries a deliverable and the guard that would go red |
-| `DUPLICATE_OF` | 41 | 29 | restates another box; the row names it |
+| `ACTIONABLE_NOW` | 42 | 8 | can be earned in this repository today; the row carries a deliverable and the guard that would go red |
+| `DUPLICATE_OF` | 41 | 28 | restates another box; the row names it |
 | `BLOCKED_OXY_972` | 27 | 26 | needs [OxyHQ/oxy#972](https://github.com/OxyHQ/oxy/issues/972) |
-| `BLOCKED_ALIAMODELS` | 26 | 26 | needs the separate AliaModels repository with real trained artifacts |
+| `BLOCKED_ALIAMODELS` | 26 | 25 | needs the separate AliaModels repository with real trained artifacts |
 | `PRODUCT_DECISION` | 11 | 9 | a human product or commercial call, not engineering |
 | `ALREADY_TRUE` | 5 | 1 | a landed guard already makes it hold; the row carries the mutation that turns it red |
 
-**41 of the 246 were duplicates, 29 of them still open**, so the epic's real remaining surface is
-**168 distinct properties**. Two clusters accounted for most of them: the thirteen `alia-*`
+**41 of the 246 were duplicates, 28 of them still open**, so the epic's real remaining surface is
+**161 distinct properties**. Two clusters accounted for most of them: the thirteen `alia-*`
 identifiers served as `object: "model"` with `owned_by: "alia"` were one line in
 `packages/api/src/routes/v1/models.ts` restated across five rows (L99, L241, L242, L262, L768) —
 four of those five are now ticked — and the sixteen definition-of-done rows are almost entirely
@@ -49,9 +53,25 @@ satisfied vacuously. A `DUPLICATE_OF` verdict is not on its own a reason to tick
 
 Eight rows carried a stale or wrong claim. Each is corrected in place in the JSON and says so.
 
-**The rule they cost, stated first because it is the general one: a mechanism can be green and
-inert.** Evidence that names a function, a config table or a module is not evidence that the
-property holds unless the **entrypoint calls it**. Row 266 failed exactly that way.
+**They cost four general rules, and the rules are worth more than the rows.** Each is carried in the
+JSON as `verdictHazards`, and every one is the same mistake in a different currency: *the thing
+measured was not the thing claimed.*
+
+| hazard | the mistake | the instance |
+| --- | --- | --- |
+| `greenAndInert` | A mechanism exists, is tested, and is called by nothing. Naming a function, a config table or a module is not evidence the property holds — **assert the entrypoint calls it** | L266: `presets.ts` claimed each preset's policy was "enforced on every request that selects this preset", and `getRoutingPreset` had no caller outside tests |
+| `wrongArtefact` | A census over the wrong artefact. **A heading census answers "is there a section named X", never "is the rule written"** | L654: reported the rollback rule unwritten; it was at `rollback.md:12` verbatim |
+| `emptyTableReadsCorrect` | **A correct read of an empty table and a broken switch are indistinguishable** without a positive control | L475: asserted a `cost_entries` row was written because the code path that would write one exists. `recordCost` has no caller |
+| `ratchetNotSynchroniser` | **A sync that only ever adds is not a synchroniser, it is a ratchet.** Same family as a floor a gate's own work erodes, and a matrix row that outlives its file | This file's own `resolvedSince` kept a re-opened box marked done. Caught only because a count disagreed by one |
+
+A fifth belongs beside them, found by the workstream 12 agent in #167's audit guard rather than in
+this file: **a census over source TEXT cannot answer a question about the TYPE SYSTEM.**
+`config-audit.test.ts:319` asserts no caller can omit the actor by testing
+`not.toMatch(/actor\?\s*:/)` — and a **default parameter** (`actor: ConfigAuditActor = {…}`) defeats
+it completely. No `?`, so the regex misses; the signature census still sees a parameter named `actor`
+typed `ConfigAuditActor`; and TypeScript treats it as optional at every call site. Proven with a
+probe that typechecks with zero errors, not argued. A property enforced by the type system needs a
+gate in the type system.
 
 | row | what was wrong | corrected to |
 | --- | --- | --- |
