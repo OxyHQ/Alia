@@ -9,6 +9,8 @@ import { ToolExecutor } from './tools'
 import Store from 'electron-store'
 import { errorMessage, errorName, errorStack } from './errors'
 import { createLogger } from './logger'
+import { PREFERRED_CHAT_MODEL_ID } from './config'
+import { fetchCatalogue, resolveModelId, type CatalogueEntry } from './catalogue'
 
 /** A file/folder context item attached to a chat message from the renderer. */
 interface ContextItem {
@@ -27,7 +29,7 @@ const store = new Store({
   defaults: {
     apiKey: '',
     apiBaseUrl: 'https://api.alia.onl',
-    model: 'alia-v1-cowork',
+    model: PREFERRED_CHAT_MODEL_ID,
     enableTools: true
   }
 })
@@ -60,7 +62,17 @@ export class ChatProvider {
 
     const apiKey = store.get('apiKey') as string
     const baseUrl = store.get('apiBaseUrl') as string
-    const selectedModel = model || (store.get('model') as string)
+    /**
+     * Resolved once, here, and then carried through the whole conversation
+     * including the tool-result continuations. Resolving deeper would re-resolve
+     * per continuation and could change model mid-conversation.
+     */
+    const requestedModel = model || (store.get('model') as string)
+    const selectedModel = await resolveModelId(
+      store.get('apiBaseUrl') as string,
+      requestedModel,
+      store.get('apiKey') as string,
+    )
     const enableTools = store.get('enableTools') as boolean
 
     if (!apiKey) {
@@ -1080,16 +1092,25 @@ export class ChatProvider {
     }
   }
 
-  async getModels(): Promise<unknown[]> {
-    const baseUrl = store.get('apiBaseUrl') as string
-
+  /**
+   * The models this build offers, from `GET /catalogue`.
+   *
+   * It read `GET /v1/models?category=coding`, which serializes every entry with
+   * `object: "model"` — including the twelve that are routing profiles. ADR 0003
+   * invariant 1 forbids presenting a routing profile as a model, so the old
+   * surface handed this process the one claim it must not repeat. `/catalogue`
+   * distinguishes the two and `parseCatalogue` keeps the distinction.
+   *
+   * An empty list on failure, as before: the renderer treats it as "nothing to
+   * offer" rather than as an error, and a thrown exception across IPC would
+   * surface as an unhandled rejection in the main process.
+   */
+  async getModels(): Promise<CatalogueEntry[]> {
     try {
-      const response = await fetch(`${baseUrl}/v1/models?category=coding`)
-
-      if (!response.ok) return []
-
-      const data = await response.json() as { data?: unknown[] }
-      return data.data || []
+      return (await fetchCatalogue(
+        store.get('apiBaseUrl') as string,
+        store.get('apiKey') as string,
+      )).filter((entry) => entry.chatVisible)
     } catch {
       return []
     }

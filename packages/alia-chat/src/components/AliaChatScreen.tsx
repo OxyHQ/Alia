@@ -28,7 +28,7 @@ import type { VoiceSessionComponent } from '../types';
 export interface AliaChatScreenProps {
   /** App context injected into system prompt */
   clientContext?: string;
-  /** Alia model (default: 'alia-v1') */
+  /** Alia model. Checked against `GET /catalogue`; omitted, the build's preference is used. */
   model?: string;
   /** API URL override */
   apiUrl?: string;

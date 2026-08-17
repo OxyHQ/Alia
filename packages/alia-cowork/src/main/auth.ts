@@ -5,6 +5,7 @@ import * as https from 'https'
 import * as crypto from 'crypto'
 import { errorMessage } from './errors'
 import { createLogger } from './logger'
+import { PREFERRED_CHAT_MODEL_ID } from './config'
 
 const logger = createLogger('Auth')
 
@@ -23,7 +24,7 @@ const store = new Store({
     apiKey: '',
     apiBaseUrl: process.env.ALIA_API_URL || DEFAULT_API_BASE_URL,
     authUrl: process.env.ALIA_AUTH_URL || DEFAULT_AUTH_URL,
-    model: 'alia-v1-cowork'
+    model: PREFERRED_CHAT_MODEL_ID
   }
 })
 

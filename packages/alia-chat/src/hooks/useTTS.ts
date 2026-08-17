@@ -11,6 +11,7 @@ import {
 import { useOxy } from '@oxyhq/services';
 import { errorMessage } from '../lib/utils';
 import { create } from 'zustand';
+import { PREFERRED_VOICE_MODEL_ID } from '../lib/config';
 
 const API_URL = process.env.EXPO_PUBLIC_ALIA_API_URL ?? 'https://api.alia.onl';
 
@@ -21,6 +22,15 @@ export interface UseTTSOptions {
   accessToken?: string;
   voice?: 'male' | 'female';
   tone?: 'brief' | 'chill' | 'default';
+  /**
+   * Speech model. Defaults to the build's `PREFERRED_VOICE_MODEL_ID`.
+   *
+   * Not checked against `GET /catalogue`: that surface describes what a chat
+   * picker may offer and its resolver filters to `chat_visible` entries, so
+   * passing a voice identifier through it would substitute a chat model that
+   * cannot speak. See `lib/config.ts`.
+   */
+  model?: string;
 }
 
 // ============== INLINE TTS STORE ==============
@@ -52,6 +62,7 @@ const useTTSStore = create<TTSStore>((set) => ({
 export function useTTS(options: UseTTSOptions = {}) {
   const apiUrl = options.apiUrl || API_URL;
   const voicePref = options.voice ?? 'female';
+  const voiceModel = options.model ?? PREFERRED_VOICE_MODEL_ID;
   const tonePref = options.tone ?? 'default';
 
   const { oxyServices } = useOxy();
@@ -202,7 +213,7 @@ export function useTTS(options: UseTTSOptions = {}) {
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          model: 'alia-v1-voice',
+          model: voiceModel,
           input: text,
           voice: getTTSVoice(),
           speed: getTTSSpeed(),

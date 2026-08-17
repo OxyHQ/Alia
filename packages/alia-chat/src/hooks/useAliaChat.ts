@@ -2,13 +2,22 @@ import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { useOxy } from '@oxyhq/services';
 import type { ChatMessage, ToolInvocation } from '../types';
 import { getTextFromContent } from '../lib/content-utils';
+import { resolveModelId } from '../lib/catalogue';
+import { PREFERRED_CHAT_MODEL_ID } from '../lib/config';
 
 const API_URL = process.env.EXPO_PUBLIC_ALIA_API_URL ?? 'https://api.alia.onl';
 
 export interface UseAliaChatOptions {
   /** Alia API base URL (default: EXPO_PUBLIC_ALIA_API_URL or https://api.alia.onl) */
   apiUrl?: string;
-  /** Alia model to use (default: 'alia-v1') */
+  /**
+   * Alia model to use.
+   *
+   * Optional, and checked against `GET /catalogue` before a request carries it:
+   * an identifier the server no longer offers is replaced rather than sent, so a
+   * retirement does not turn into a 400 inside a consumer's app. Omitted, the
+   * build's `PREFERRED_CHAT_MODEL_ID` is what gets checked.
+   */
   model?: string;
   /** App context injected as system message so Alia knows which app the user is in */
   clientContext?: string;
@@ -43,7 +52,7 @@ function generateId(): string {
 export function useAliaChat(options: UseAliaChatOptions = {}): UseAliaChatReturn {
   const {
     apiUrl = API_URL,
-    model = 'alia-v1',
+    model = PREFERRED_CHAT_MODEL_ID,
     clientContext,
     accessToken: accessTokenProp,
   } = options;
@@ -221,7 +230,11 @@ export function useAliaChat(options: UseAliaChatOptions = {}): UseAliaChatReturn
             Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({
-            model,
+            // Resolved HERE rather than at render: this is the moment a request
+            // is about to name a model, and it is the only moment at which
+            // sending a retired identifier would actually cost anything. A
+            // catalogue that cannot be read leaves the choice alone.
+            model: await resolveModelId(apiUrl, model, token, PREFERRED_CHAT_MODEL_ID),
             messages: apiMessages,
             stream: true,
           }),

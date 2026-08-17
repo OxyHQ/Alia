@@ -3,25 +3,13 @@ import { getErrorMessage } from '@/lib/utils';
 import { useState } from 'react';
 import { HugeiconsIcon } from '@hugeicons/react';
 import {
-  Add01Icon,
   ArrowLeft01Icon,
   ArrowRight01Icon,
-  Copy01Icon,
   Delete02Icon,
 } from '@hugeicons/core-free-icons';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -32,7 +20,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { useApiKeys, useApp, useCreateApiKey, useDeleteApp } from '@/hooks/use-developer';
+import { useApiKeys, useApp, useDeleteApp } from '@/hooks/use-developer';
+import { IssuanceClosedNotice } from '@/components/issuance-closed-notice';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
 export const Route = createFileRoute('/_layout/apps/$appId/')({
@@ -44,12 +33,8 @@ function AppDetailPage() {
   const { appId } = Route.useParams();
   const { data: app, isLoading: isLoadingApp } = useApp(appId);
   const { data: apiKeys = [], isLoading: isLoadingKeys } = useApiKeys(appId);
-  const createApiKeyMutation = useCreateApiKey();
   const deleteAppMutation = useDeleteApp();
 
-  const [showNewKeyModal, setShowNewKeyModal] = useState(false);
-  const [keyName, setKeyName] = useState('');
-  const [newlyCreatedKey, setNewlyCreatedKey] = useState<string | null>(null);
   const [deleteAppDialog, setDeleteAppDialog] = useState(false);
 
   const handleDeleteApp = async () => {
@@ -61,35 +46,6 @@ function AppDetailPage() {
     } catch (error: unknown) {
       toast.error(getErrorMessage(error, 'Failed to delete app'));
     }
-  };
-
-  const handleCreateKey = async () => {
-    if (!keyName.trim()) {
-      toast.error('Please enter a key name');
-      return;
-    }
-
-    try {
-      const result = await createApiKeyMutation.mutateAsync({
-        appId,
-        data: {
-          name: keyName.trim(),
-          scopes: ['chat:read', 'chat:write', 'models:read'],
-        },
-      });
-
-      setNewlyCreatedKey(result.apiKey.key || null);
-      setShowNewKeyModal(false);
-      setKeyName('');
-      toast.success('API key created successfully');
-    } catch (error: unknown) {
-      toast.error(getErrorMessage(error, 'Failed to create API key'));
-    }
-  };
-
-  const handleCopyKey = async (key: string) => {
-    await navigator.clipboard.writeText(key);
-    toast.success('API key copied to clipboard');
   };
 
   if (isLoadingApp || !app) {
@@ -165,46 +121,15 @@ function AppDetailPage() {
 
       {/* API Keys */}
       <div className="px-6 py-6 border-b border-border">
-        <div className="flex items-center justify-between mb-4">
-          <p className="text-sm font-semibold text-foreground">API keys</p>
-          <Button size="sm" onClick={() => setShowNewKeyModal(true)}>
-            <HugeiconsIcon icon={Add01Icon} size={14} className="mr-1.5" />
-            Create key
-          </Button>
-        </div>
+        <p className="text-sm font-semibold text-foreground mb-4">API keys</p>
 
-        {/* New Key Alert */}
-        {newlyCreatedKey && (
-          <div className="mb-4 p-4 rounded-md bg-yellow-500/10 border border-yellow-500/20">
-            <p className="text-sm font-semibold text-yellow-500 mb-2">Save your API key</p>
-            <p className="text-xs text-yellow-500/80 mb-3">
-              Make sure to copy your API key now. You won't be able to see it again!
-            </p>
-            <button
-              onClick={() => handleCopyKey(newlyCreatedKey)}
-              className="flex items-center w-full p-2 rounded bg-yellow-500/10 hover:bg-yellow-500/20 transition-colors"
-            >
-              <span className="flex-1 text-sm font-mono text-yellow-500 truncate text-left">
-                {newlyCreatedKey}
-              </span>
-              <HugeiconsIcon icon={Copy01Icon} size={16} className="text-yellow-500 ml-2" />
-            </button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setNewlyCreatedKey(null)}
-              className="mt-3"
-            >
-              I saved my key
-            </Button>
-          </div>
-        )}
+        <IssuanceClosedNotice className="mb-4" />
 
         {isLoadingKeys ? (
           <p className="text-sm text-muted-foreground py-4">Loading keys...</p>
         ) : apiKeys.length === 0 ? (
           <p className="text-sm text-muted-foreground py-4">
-            No API keys yet. Create one to get started.
+            This application has no API keys.
           </p>
         ) : (
           <div>
@@ -254,42 +179,6 @@ function AppDetailPage() {
           Delete app
         </Button>
       </div>
-
-      {/* Create API Key Modal */}
-      <Dialog open={showNewKeyModal} onOpenChange={setShowNewKeyModal}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Create API key</DialogTitle>
-            <DialogDescription>
-              Give your API key a name to help you identify it later.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="py-4">
-            <Label htmlFor="keyName" className="text-sm">
-              Key name
-            </Label>
-            <Input
-              id="keyName"
-              value={keyName}
-              onChange={(e) => setKeyName(e.target.value)}
-              placeholder="Production Key"
-              className="mt-2"
-              maxLength={100}
-            />
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowNewKeyModal(false)}>
-              Cancel
-            </Button>
-            <Button
-              onClick={handleCreateKey}
-              disabled={createApiKeyMutation.isPending || !keyName.trim()}
-            >
-              {createApiKeyMutation.isPending ? 'Creating...' : 'Create'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* Delete App Confirmation Dialog */}
       <AlertDialog open={deleteAppDialog} onOpenChange={setDeleteAppDialog}>

@@ -13,6 +13,7 @@ import { Stagehand } from '@browserbasehq/stagehand'
 import Store from 'electron-store'
 import { errorMessage, errorCode } from './errors'
 import { createLogger } from './logger'
+import { PREFERRED_BROWSER_MODEL_ID } from './config'
 
 const execAsync = promisify(exec)
 const store = new Store()
@@ -451,7 +452,7 @@ export class ToolExecutor {
 
           const agent = this.stagehand.agent({
             model: {
-              modelName: 'alia-v1-browser', // Browser automation specialist model
+              modelName: PREFERRED_BROWSER_MODEL_ID,
               apiKey: apiKey,
               baseURL: `${baseUrl}/v1`, // Alia API endpoint (OpenAI-compatible)
             }
