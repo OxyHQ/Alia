@@ -5,12 +5,16 @@
     "repo": "OxyHQ/Alia",
     "ref": "origin/main",
     "commit": "975955c4beb958610a5715bd562367179546da0a",
-    "note": "Five agents were landing workstream 4, 8, 11, 15 and 20 PRs concurrently; every verdict below is against this commit, not against their branches."
+    "note": "Original verdicts were measured against 975955c4. Corrected against 78da61cf: 35 of the 246 boxes were ticked in between (#160, #162, #163, #164, #165, #166) and now carry `resolvedSince`; rows 212, 266, 454, 459 and 522 carried a stale or wrong claim and are corrected in place, each saying so; and the Relay blocker is renamed now that OxyHQ/Relay exists.",
+    "correctedAt": "2026-08-17",
+    "correctedAgainst": "origin/main at 78da61cf"
   },
   "checkboxes": {
     "total": 416,
-    "ticked": 170,
-    "unticked": 246
+    "tickedAtAudit": 170,
+    "tickedNow": 205,
+    "untickedAtAudit": 246,
+    "untickedNow": 211
   },
   "verdictCounts": {
     "ACTIONABLE_NOW": 42,
@@ -25,7 +29,7 @@
     "ACTIONABLE_NOW": "Can be earned inside this repository today. Carries deliverable and guard.",
     "ALREADY_TRUE": "A landed guard already makes it hold. Carries the mutation that turns it red.",
     "DUPLICATE_OF": "Restates another box. Carries that box.",
-    "BLOCKED_RELAY": "Needs the Relay data plane to exist.",
+    "BLOCKED_RELAY": "Needs the Relay data plane to be DEPLOYED and reachable. See `blockers.relay` — the repository now exists and is substantial; what is missing is a deployment and an endpoint.",
     "BLOCKED_OXY_972": "Needs OxyHQ/oxy#972.",
     "BLOCKED_ALIAMODELS": "Needs the separate AliaModels repository with real trained artifacts.",
     "PRODUCT_DECISION": "A human product or commercial call, not engineering."
@@ -88,7 +92,8 @@
       "text": "A routing policy, quality mode, prompt preset or provider alias is never presented as an Alia-owned model.",
       "verdict": "DUPLICATE_OF",
       "evidence": "Same single change as the canonical row: packages/api/src/routes/v1/models.ts serves all thirteen aliases with `object: \"model\"` (:22) and `owned_by: \"alia\"` (:24). The truthful surface already exists at GET /catalogue and gate 5 of packages/api/src/__tests__/architectureGates.test.ts asserts the biconditional there.",
-      "duplicateOf": "L242 — \"Stop returning `owned_by: alia` for provider aliases.\""
+      "duplicateOf": "L242 — \"Stop returning `owned_by: alia` for provider aliases.\"",
+      "resolvedSince": "2026-08-17"
     },
     {
       "line": 102,
@@ -116,7 +121,8 @@
       "verdict": "ACTIONABLE_NOW",
       "evidence": "No inventory of migrations, tables or row counts existed before this PR. docs/migration/ownership-matrix.json classifies 21 tables under workstreams 10/11/12 but records no counts and no migration mapping.",
       "deliverable": "docs/migration/epic-139-status.md section \"Task 2\" — 22 migrations, 21 tables, the migration that creates each, the fresh-schema baseline (all 21 are 0 rows after a from-zero run of every drizzle migration, measured 2026-08-17 in a throwaway postgis/postgis:17-3.5 container) and the exact production count command, recorded UNMEASURED because no Alia database credential exists under ~/.config/oxy/tokens/.",
-      "guard": "packages/api/src/db/__tests__/ownershipMatrixCoverage.test.ts already fails when a schema table has no matrix row; the counts themselves are an operator measurement, not a gate."
+      "guard": "packages/api/src/db/__tests__/ownershipMatrixCoverage.test.ts already fails when a schema table has no matrix row; the counts themselves are an operator measurement, not a gate.",
+      "resolvedSince": "2026-08-17"
     },
     {
       "line": 177,
@@ -166,9 +172,10 @@
       "section": "Client responsibilities",
       "text": "Support tools, structured output, vision, reasoning, prompt caching and modality capabilities.",
       "verdict": "ALREADY_TRUE",
-      "evidence": "packages/api/src/lib/inference/relay-request.ts:211-241 (`violatedCapability`) refuses a request the target cannot serve on `streaming`, `tools`, `structuredOutput` (json_schema), `jsonMode` (json_object), output modality and every input modality used — vision included, since vision is an input modality in this contract. Tool definitions, tool choice and response format cross the seam as the contract's own `toolDefinitionSchema`/`toolChoiceSchema`/`responseFormatSchema` (@oxyhq/contracts@0.27.0, imported at relay-request.ts:35).",
-      "mutation": "MEASURED: replacing the condition at relay-request.ts:219 with `false` failed packages/api/src/lib/inference/__tests__/relay-request.test.ts:357. Baseline 26 passed; mutated 1 failed, 25 passed.",
-      "residual": "`promptCaching` and `reasoning` are deliberately unchecked (relay-request.ts:206-208): neither is a request FIELD in this contract, they change what the usage report contains. Separately, prompt caching on the LIVE path is still a hardcoded `cached_tokens: 0` (lib/chat/provider-loop.ts) — a workstream 8 cutover item, not a client one. And `capabilities` has no source until workstream 5 supplies a Relay-backed catalogue."
+      "evidence": "CORRECTED. The capability check is `violatedCapability`, which #164 moved to packages/api/src/lib/inference/relay-request.ts:340 (the audit cited :211, now stale). It refuses a request the target cannot serve on `streaming`, `tools`, `structuredOutput`, `jsonMode`, output modality and every input modality used, vision included. Tool definitions, tool choice and response format cross the seam as the contract's own schemas. THE ENTRYPOINT CALLS IT: packages/api/src/lib/inference/relay-client.ts:931 invokes it on every call, so within the client it is wired rather than green-and-inert.",
+      "mutation": "MEASURED at the audit: replacing the tools condition with `false` failed packages/api/src/lib/inference/__tests__/relay-request.test.ts:357. Baseline 26 passed; mutated 1 failed, 25 passed.",
+      "residual": "The CLIENT is wired; the PRODUCT is not. relay-boundary.test.ts freezes the Relay client out of the API import graph, so no product request reaches this check yet. `promptCaching` and `reasoning` are deliberately unchecked (neither is a request field in this contract), and prompt caching on the live path is still a hardcoded `cached_tokens: 0`.",
+      "resolvedSince": "2026-08-17"
     },
     {
       "line": 230,
@@ -195,7 +202,8 @@
       "text": "Stop returning `owned_by: alia` for provider aliases.",
       "verdict": "PRODUCT_DECISION",
       "evidence": "One line: packages/api/src/routes/v1/models.ts:24 emits `owned_by: \"alia\"` for all thirteen. Changing it is a response-shape change on the compatibility surface that docs/migration/compatibility-window.md section (a) and ADR 0004 (\"their existing request and response shapes\") exist to prevent, and its removal gate is a usage measurement over `chat_analytics.alia_model_id` and `cost_entries.alias_model_id` with a positive control — which needs production access this repo does not have. Gate 5 of packages/api/src/__tests__/architectureGates.test.ts records the violation at EXACTLY thirteen ids in one file so it cannot grow.",
-      "residual": "The engineering half is already built and shipped beside it: GET /catalogue tells the truth and gate 5 asserts the biconditional there. What is left is the commercial call to break external callers, plus the measurement."
+      "residual": "The engineering half is already built and shipped beside it: GET /catalogue tells the truth and gate 5 asserts the biconditional there. What is left is the commercial call to break external callers, plus the measurement.",
+      "resolvedSince": "2026-08-17"
     },
     {
       "line": 243,
@@ -204,7 +212,8 @@
       "text": "Stop treating system prompts, reasoning levels, Codea presets or quality modes as model identities.",
       "verdict": "DUPLICATE_OF",
       "evidence": "The diagnosis whose fix is the product-modes row. Measured: `alia-v1-thinking` and `alia-v1-pro-max` share tier `v1-pro-max` (packages/api/src/lib/routing/presets.ts:106 covers both with one preset), and `alia-v1-codea`/`alia-v1-cowork`/`alia-v1-browser` are surface presets (docs/model-abstraction.mdx table). Twelve presets cover thirteen aliases.",
-      "duplicateOf": "L255 — \"Replace fake aliases with clearly typed product modes/routing presets, for example:\""
+      "duplicateOf": "L255 — \"Replace fake aliases with clearly typed product modes/routing presets, for example:\"",
+      "resolvedSince": "2026-08-17"
     },
     {
       "line": 244,
@@ -214,7 +223,8 @@
       "verdict": "ACTIONABLE_NOW",
       "evidence": "The global rule is live in three places: packages/api/src/lib/errors/sanitize.ts:3-5 (\"Users must NEVER see provider names\"), whose `sanitizeMessage` rewrites every registered provider name plus `gemini|claude|gpt-|llama|whisper` anywhere in any string; AGENTS.md \"Model abstraction (CRITICAL)\"; and docs/model-abstraction.mdx. Gate 5 already asserts the narrower, correct rule — no provider or provider model id in a CATALOGUE RESPONSE — which is the scoped form this row asks for.",
       "deliverable": "Scope the rule to user-facing product surfaces (errors shown to end users, the catalogue response, the app UI) and drop the blanket prohibition from AGENTS.md and the docs. Note: agent ws20-sanitization-scope is landing this concurrently.",
-      "guard": "Gate 5's \"no catalogue response names a provider or a provider model id\" (packages/api/src/__tests__/architectureGates.test.ts:1602) is the surviving scoped guard; it already carries its own positive control (a planted model id must be seen)."
+      "guard": "Gate 5's \"no catalogue response names a provider or a provider model id\" (packages/api/src/__tests__/architectureGates.test.ts:1602) is the surviving scoped guard; it already carries its own positive control (a planted model id must be seen).",
+      "resolvedSince": "2026-08-17"
     },
     {
       "line": 248,
@@ -232,7 +242,8 @@
       "verdict": "ACTIONABLE_NOW",
       "evidence": "packages/api/src/lib/routing/presets.ts already IS product configuration — twelve `RoutingPreset` entries with no provider name, no upstream model id and no ranking — but they are keyed `profile:<tier>` and named after the aliases, not after the product modes this row lists. GET /catalogue already serves `object: \"routing_profile\"` for them.",
       "deliverable": "Add the named product modes (Automatic, Fast, Balanced, Maximum quality, Coding, Deep research) as preset identities, map each to the tier(s) it selects, and serve them from GET /catalogue. This is the one deliverable behind L255-L262.",
-      "guard": "packages/api/src/lib/routing/__tests__/routing-policy.test.ts asserts the preset table equals docs/migration/alias-migration-map.json in BOTH directions; extend it so a mode with no alias mapping, or an alias with no mode, fails. Mutation: drop one mode -> red."
+      "guard": "packages/api/src/lib/routing/__tests__/routing-policy.test.ts asserts the preset table equals docs/migration/alias-migration-map.json in BOTH directions; extend it so a mode with no alias mapping, or an alias with no mode, fails. Mutation: drop one mode -> red.",
+      "resolvedSince": "2026-08-17"
     },
     {
       "line": 256,
@@ -241,7 +252,8 @@
       "text": "Automatic",
       "verdict": "DUPLICATE_OF",
       "evidence": "An indented example under its parent row, not a separate deliverable. Today packages/api/src/lib/routing/presets.ts:96-113 names none of the six; it names twelve `profile:<tier>` ids.",
-      "duplicateOf": "L255 — \"Replace fake aliases with clearly typed product modes/routing presets, for example:\""
+      "duplicateOf": "L255 — \"Replace fake aliases with clearly typed product modes/routing presets, for example:\"",
+      "resolvedSince": "2026-08-17"
     },
     {
       "line": 257,
@@ -250,7 +262,8 @@
       "text": "Fast",
       "verdict": "DUPLICATE_OF",
       "evidence": "An indented example under its parent row, not a separate deliverable. Today packages/api/src/lib/routing/presets.ts:96-113 names none of the six; it names twelve `profile:<tier>` ids.",
-      "duplicateOf": "L255 — \"Replace fake aliases with clearly typed product modes/routing presets, for example:\""
+      "duplicateOf": "L255 — \"Replace fake aliases with clearly typed product modes/routing presets, for example:\"",
+      "resolvedSince": "2026-08-17"
     },
     {
       "line": 258,
@@ -259,7 +272,8 @@
       "text": "Balanced",
       "verdict": "DUPLICATE_OF",
       "evidence": "An indented example under its parent row, not a separate deliverable. Today packages/api/src/lib/routing/presets.ts:96-113 names none of the six; it names twelve `profile:<tier>` ids.",
-      "duplicateOf": "L255 — \"Replace fake aliases with clearly typed product modes/routing presets, for example:\""
+      "duplicateOf": "L255 — \"Replace fake aliases with clearly typed product modes/routing presets, for example:\"",
+      "resolvedSince": "2026-08-17"
     },
     {
       "line": 259,
@@ -268,7 +282,8 @@
       "text": "Maximum quality",
       "verdict": "DUPLICATE_OF",
       "evidence": "An indented example under its parent row, not a separate deliverable. Today packages/api/src/lib/routing/presets.ts:96-113 names none of the six; it names twelve `profile:<tier>` ids.",
-      "duplicateOf": "L255 — \"Replace fake aliases with clearly typed product modes/routing presets, for example:\""
+      "duplicateOf": "L255 — \"Replace fake aliases with clearly typed product modes/routing presets, for example:\"",
+      "resolvedSince": "2026-08-17"
     },
     {
       "line": 260,
@@ -277,7 +292,8 @@
       "text": "Coding",
       "verdict": "DUPLICATE_OF",
       "evidence": "An indented example under its parent row, not a separate deliverable. Today packages/api/src/lib/routing/presets.ts:96-113 names none of the six; it names twelve `profile:<tier>` ids.",
-      "duplicateOf": "L255 — \"Replace fake aliases with clearly typed product modes/routing presets, for example:\""
+      "duplicateOf": "L255 — \"Replace fake aliases with clearly typed product modes/routing presets, for example:\"",
+      "resolvedSince": "2026-08-17"
     },
     {
       "line": 261,
@@ -286,7 +302,8 @@
       "text": "Deep research",
       "verdict": "DUPLICATE_OF",
       "evidence": "An indented example under its parent row, not a separate deliverable. Today packages/api/src/lib/routing/presets.ts:96-113 names none of the six; it names twelve `profile:<tier>` ids.",
-      "duplicateOf": "L255 — \"Replace fake aliases with clearly typed product modes/routing presets, for example:\""
+      "duplicateOf": "L255 — \"Replace fake aliases with clearly typed product modes/routing presets, for example:\"",
+      "resolvedSince": "2026-08-17"
     },
     {
       "line": 262,
@@ -295,7 +312,8 @@
       "text": "Represent those modes as product configuration or `routing_profile`, never `object: model`.",
       "verdict": "DUPLICATE_OF",
       "evidence": "Half already holds and the other half is the one frozen line. GET /catalogue emits `object: \"routing_profile\"` for every entry that fans out to more than one model, asserted as a biconditional recomputed from the live routing table by gate 5 of packages/api/src/__tests__/architectureGates.test.ts:1540. /v1/models emits `object: \"model\"` for all thirteen, frozen at exactly that.",
-      "duplicateOf": "L242 — \"Stop returning `owned_by: alia` for provider aliases.\""
+      "duplicateOf": "L242 — \"Stop returning `owned_by: alia` for provider aliases.\"",
+      "resolvedSince": "2026-08-17"
     },
     {
       "line": 263,
@@ -305,7 +323,8 @@
       "verdict": "ACTIONABLE_NOW",
       "evidence": "Visibility is a hardcoded literal, not configuration: `chatVisible` is a field on the frozen `ALIA_MODELS` record (packages/api/src/internal/providers/lib/alia-models.ts:42, set at :73, :86, :171, :184), and the `alia_models` table carries only an `isLegacy` display flag — packages/api/src/lib/routing/__tests__/routing-config-audit.test.ts says so explicitly (\"the alias set is a literal, and the table behind it carries one display flag\").",
       "deliverable": "Move catalogue visibility into product configuration a product owner can change (a row or a config module), and have GET /catalogue filter on it.",
-      "guard": "routing-config-audit.test.ts already enumerates every writer of routing configuration and requires each to be audited, boot-only or uncalled; a new visibility writer must join that map or the test fails."
+      "guard": "routing-config-audit.test.ts already enumerates every writer of routing configuration and requires each to be audited, boot-only or uncalled; a new visibility writer must join that map or the test fails.",
+      "resolvedSince": "2026-08-17"
     },
     {
       "line": 264,
@@ -323,7 +342,8 @@
       "text": "Ensure a selected concrete model remains concrete through the request path.",
       "verdict": "DUPLICATE_OF",
       "evidence": "Satisfied by absence AND by a landed guard. Absence: no concrete model can be selected today (all thirteen entries are routing profiles, gate 5:1526). Guard: internal/providers/lib/fallback-engine.ts throws `UnregisteredModelError` instead of rewriting an unknown identifier, asserted by gate 3 (packages/api/src/__tests__/architectureGates.test.ts:974) with `expect(rewrites).toEqual([])` and the vacuity floor `expect(refusals).toBe(1)`. It would become false again the day a concrete model enters the catalogue without a same-model-only default.",
-      "duplicateOf": "TICKED L100 — \"A concrete requested model is not silently replaced with another model.\""
+      "duplicateOf": "TICKED L100 — \"A concrete requested model is not silently replaced with another model.\"",
+      "resolvedSince": "2026-08-17"
     },
     {
       "line": 266,
@@ -331,8 +351,9 @@
       "section": "Product modes",
       "text": "Make cross-model fallback an explicit product/user policy rather than hidden behavior.",
       "verdict": "DUPLICATE_OF",
-      "evidence": "Landed in #147: `fallbackPolicy` is a property of the REQUEST, carried across the seam at gateway-client.ts:309-341 and defaulted by `DEFAULT_FALLBACK_POLICY` (packages/api/src/lib/routing/policy.ts); every preset states its policy explicitly (presets.ts:96-113) and the frozen table in routing-policy.test.ts fails if any entry narrows.",
-      "duplicateOf": "TICKED L509 — \"Support `no fallback`, `same model only` and explicit cross-model fallback modes.\""
+      "evidence": "CORRECTED — the audit rested this on a mechanism nothing called. The REQUEST half was live (`fallbackPolicy` crossing the seam at gateway-client.ts:309-341), but the PRODUCT half was not: `presets.ts` claimed each preset's `fallbackPolicy` was enforced on every request that selects it, and `getRoutingPreset` had no caller outside tests — green and inert. #163 wired it: internal/providers/lib/fallback-engine.ts:168 now reads `options.fallbackPolicy ?? getRoutingPreset(aliasModelId)?.fallbackPolicy ?? DEFAULT_FALLBACK_POLICY`, with the history recorded in that file's own comment at :153. The box is earned by #163 and was not before it.",
+      "duplicateOf": "TICKED L509 — \"Support `no fallback`, `same model only` and explicit cross-model fallback modes.\"",
+      "resolvedSince": "2026-08-17"
     },
     {
       "line": 274,
@@ -650,7 +671,8 @@
       "verdict": "ACTIONABLE_NOW",
       "evidence": "The inventory DID discover more, and they are the live ones. lib/chat-core.ts `getAIModel()` builds an AI SDK provider against a hardcoded base URL for fifteen providers; lib/provider-warmup.ts opens TLS to seven provider hosts at boot from src/index.ts; internal/providers/lib/provider-api.ts holds five more base URLs; and packages/integrations/src/shared/model-resolver.ts is a SECOND SERVICE with its own copy of five. All four are enumerated in packages/api/src/__tests__/architectureGates.test.ts PROVIDER_HOST_ALLOWLIST (lines 543-640).",
       "deliverable": "Record these four as adapters in docs/migration/ownership-matrix.json under workstream 7 with their own removal gates — chat-core.getAIModel() and provider-warmup are the two that actually egress today, so they, not the nineteen dead files, are the extraction that matters.",
-      "guard": "gate 2 of packages/api/src/__tests__/architectureGates.test.ts already freezes the whole outbound host set (EGRESS_HOSTS) in both directions, so an added or removed host fails. Mutation: add a hostname to chat-core.ts -> red."
+      "guard": "gate 2 of packages/api/src/__tests__/architectureGates.test.ts already freezes the whole outbound host set (EGRESS_HOSTS) in both directions, so an added or removed host fails. Mutation: add a hostname to chat-core.ts -> red.",
+      "resolvedSince": "2026-08-17"
     },
     {
       "line": 357,
@@ -875,7 +897,8 @@
       "section": "",
       "text": "Make Relay connectivity explicit in health/readiness checks.",
       "verdict": "BLOCKED_RELAY",
-      "evidence": "packages/api/src/routes/health.ts checks the datastores, not Relay, and there is no Relay endpoint to probe. Also note the ordering rule in ~/Oxy/AGENTS.md: a new health probe must land LIVE before the removal PR, because the ALB health check depends on this route."
+      "evidence": "packages/api/src/routes/health.ts checks the datastores, not Relay, and there is no Relay endpoint to probe. Also note the ordering rule in ~/Oxy/AGENTS.md: a new health probe must land LIVE before the removal PR, because the ALB health check depends on this route.",
+      "resolvedSince": "2026-08-17"
     },
     {
       "line": 395,
@@ -885,7 +908,8 @@
       "verdict": "ACTIONABLE_NOW",
       "evidence": "The STARTUP half landed in #158: relay-boot-check.ts refuses to boot when the migration flag is on and the principal is unusable, and src/index.ts:69 wires it to `process.exit(1)`. The CI half does not exist — nothing fails a build because direct provider mode is configured, and the flag is off by default so the boot check is inert on every current deployment.",
       "deliverable": "A CI assertion that the deployed configuration cannot select direct provider mode: assert the deploy workflow and the task definition never set GATEWAY_API_URL to a provider host, and that the migration flag is on for production once cutover starts.",
-      "guard": "A new test beside db/__tests__/deployWorkflow.test.ts, which already reads .github/workflows/deploy-aws.yml as source. Mutation: add a provider host to the workflow env -> red."
+      "guard": "A new test beside db/__tests__/deployWorkflow.test.ts, which already reads .github/workflows/deploy-aws.yml as source. Mutation: add a provider host to the workflow env -> red.",
+      "resolvedSince": "2026-08-17"
     },
     {
       "line": 396,
@@ -895,7 +919,8 @@
       "verdict": "ACTIONABLE_NOW",
       "evidence": "The Relay client side is already proven not to egress: relay-boundary.test.ts asserts the four relay modules \"name no provider tree, no gateway seam and no provider SDK\", with an explicit \"the forbidden-specifier check can actually fire\" control. What is missing is the SERVICE-level statement: gate 2 of packages/api/src/__tests__/architectureGates.test.ts freezes the whole outbound host set including all nineteen provider hosts, so today the policy would say the opposite of what this row wants.",
       "deliverable": "A post-cutover egress allowlist expressed as a test over EGRESS_HOSTS: after cutover the nineteen provider hostnames must be ABSENT from non-test source, and the Relay and Oxy hosts present. Write it now, gated on the migration flag, so it goes green as extraction proceeds rather than being invented at cutover.",
-      "guard": "gate 2 of packages/api/src/__tests__/architectureGates.test.ts:754 is the existing both-directions freeze; the new assertion is its mirror image. Mutation: leave one provider host in source -> red."
+      "guard": "gate 2 of packages/api/src/__tests__/architectureGates.test.ts:754 is the existing both-directions freeze; the new assertion is its mirror image. Mutation: leave one provider host in source -> red.",
+      "resolvedSince": "2026-08-17"
     },
     {
       "line": 406,
@@ -921,7 +946,8 @@
       "verdict": "ACTIONABLE_NOW",
       "evidence": "Measured remnants after #141: no root script and no workflow references the package — .github/workflows/deploy-frontends.yml deploys exactly two Cloudflare Pages projects, `alia-app` and `alia-canvas` — but packages/api/src/lib/tools/gateway-admin.ts survives and is exported at lib/tools/index.ts:11/:242, packages/api/.env.example:91 keeps GATEWAY_API_URL documented \"because lib/tools/gateway-admin.ts reads it\", and docs/deployment.md:77 says the same. DNS is not in this repo (~/Oxy/oxy-infra owns it).",
       "deliverable": "Delete lib/tools/gateway-admin.ts and its two exports, then remove the .env.example and docs/deployment.md paragraphs that exist only to explain it. Note docs/migration/inventories/provider-runtime.json:1721 warns that repointing GATEWAY_API_URL at Relay would silently re-enable this broken tool — deal with the tool first, which is exactly this row.",
-      "guard": "gate 1 of packages/api/src/__tests__/architectureGates.test.ts is exact-set in both directions over provider-tree importers, so removing a file requires deleting its line there too; add an assertion that no tool named in lib/tools/index.ts is gated on a hardcoded username. Mutation: re-add the tool -> red."
+      "guard": "gate 1 of packages/api/src/__tests__/architectureGates.test.ts is exact-set in both directions over provider-tree importers, so removing a file requires deleting its line there too; add an assertion that no tool named in lib/tools/index.ts is gated on a hardcoded username. Mutation: re-add the tool -> red.",
+      "resolvedSince": "2026-08-17"
     },
     {
       "line": 412,
@@ -931,7 +957,8 @@
       "verdict": "ACTIONABLE_NOW",
       "evidence": "Two of the three operator runbooks exist — docs/runbooks/credential-rotation.md and docs/runbooks/rollback.md (#159) — plus docs/runbooks/provider-credential-exposure.md. None covers the gateway-admin screens, and the screenshots are unrecoverable: the package was deleted in #141, so only git history and docs/migration/inventories/frontend-admin.json describe them.",
       "deliverable": "An archive note under docs/migration/ recording, per screen, what an operator did there and where that action goes now — sourced from frontend-admin.json and the pre-#141 tree, since the screens cannot be re-screenshotted.",
-      "guard": "docs-only; the honest guard is that frontend-admin.json's screen list and the archive note must have equal cardinality, asserted like ownershipMatrixCoverage.test.ts does."
+      "guard": "docs-only; the honest guard is that frontend-admin.json's screen list and the archive note must have equal cardinality, asserted like ownershipMatrixCoverage.test.ts does.",
+      "resolvedSince": "2026-08-17"
     },
     {
       "line": 420,
@@ -1065,7 +1092,8 @@
       "verdict": "ACTIONABLE_NOW",
       "evidence": "POST /developer/apps (packages/api/src/routes/developer.ts:85) creates them with no gate at all. Stopping CREATION is separable from migrating what exists, and is one route change plus a guard.",
       "deliverable": "Refuse new developer-app creation (410 or 403 with a pointer to Oxy Console), leaving read, rotate and delete working for existing owners through the bounded window docs/migration/compatibility-window.md section (c) defines.",
-      "guard": "A route census asserting POST /developer/apps returns a terminal status, beside the existing routes/__tests__ suites. Mutation: restore creation -> red."
+      "guard": "A route census asserting POST /developer/apps returns a terminal status, beside the existing routes/__tests__ suites. Mutation: restore creation -> red.",
+      "resolvedSince": "2026-08-17"
     },
     {
       "line": 451,
@@ -1075,7 +1103,8 @@
       "verdict": "ACTIONABLE_NOW",
       "evidence": "POST /developer/apps/:appId/keys (developer.ts:208, minting `alia_sk_` at :224) is the only issuer. docs/migration/compatibility-window.md section (c) already defines the compatibility window for existing credentials, so refusing NEW ones is inside the plan.",
       "deliverable": "Refuse new key issuance while leaving verification (middleware/auth.ts:108/:137/:274) and rotation working for the window.",
-      "guard": "middleware/__tests__/auth-middleware.test.ts already exercises the `alia_sk_` path; add a route assertion that issuance is terminal. Mutation: restore issuance -> red."
+      "guard": "middleware/__tests__/auth-middleware.test.ts already exercises the `alia_sk_` path; add a route assertion that issuance is terminal. Mutation: restore issuance -> red.",
+      "resolvedSince": "2026-08-17"
     },
     {
       "line": 452,
@@ -1100,8 +1129,8 @@
       "text": "Map/reissue credentials securely; never expose stored hashes as replacement secrets.",
       "verdict": "ALREADY_TRUE",
       "evidence": "The hash is structurally unreachable as a replacement secret. `developer_api_keys.key_hash` is never returned: developer.ts:224 shows the plaintext exactly once at creation and stores only the hash and a 16-char prefix; gate 4 of packages/api/src/__tests__/architectureGates.test.ts:1042-1050 records the deliberate distinction between `provider_keys` (upstream, this gate's subject) and `developer_api_keys` (Alia's own, legitimately shown to their owner), and packages/api/src/lib/agent/secret-scanner.ts:77 redacts any `alia_sk_` that reaches a log.",
-      "mutation": "Return `keyHash` from any developer route -> gate 4's \"no response body built in a product route names a key config\" census and the secret-scanner suite both have to be edited; more directly, add `keyHash` to a `res.json` argument in routes/ and the response census at packages/api/src/__tests__/architectureGates.test.ts:1235 fires.",
-      "falseAgain": "A future \"re-issue your key\" endpoint that echoes the stored hash as the new secret. The gate as written watches `keyConfig`, not `keyHash`, so widen it when the migration endpoint is built."
+      "mutation": "CORRECTED — the audit named a guard that does not cover this. Gate 4's response census (architectureGates.test.ts:1342) matches the identifier `keyConfig`, NOT `keyHash`, so putting `keyHash` in a `res.json` argument would NOT fire it. There is NO guard for this direction. The property holds by ABSENCE: no route returns the column, and routes/developer.ts:224 shows the plaintext exactly once at creation and stores only the hash and a 16-char prefix.",
+      "falseAgain": "A \"re-issue your key\" endpoint that echoes the stored hash as the new secret — which is precisely what this box is about, and precisely what nothing would catch. The guard to write alongside that endpoint is gate 4's census widened from `keyConfig` to the developer-key columns."
     },
     {
       "line": 455,
@@ -1119,7 +1148,8 @@
       "verdict": "ACTIONABLE_NOW",
       "evidence": "Nothing marks the fifteen developer routes as deprecated: packages/api/src/middleware/alias-deprecation.ts covers path (a) only, keyed on the model id in the body, query or path. docs/migration/compatibility-window.md says paths (b) and (c) emit nothing yet and that emitting is a PREREQUISITE for starting their clocks, not an optional extra.",
       "deliverable": "Emit `Deprecation` and `Link` on /developer/* responses using the same middleware shape, keyed on the mount rather than on a model id. `Sunset` stays absent until a date is set, per the same document.",
-      "guard": "alias-deprecation.test.ts is the template, including its mount-ORDER assertion. Mutation: mount the new middleware above the router -> the header disappears -> red."
+      "guard": "alias-deprecation.test.ts is the template, including its mount-ORDER assertion. Mutation: mount the new middleware above the router -> the header disappears -> red.",
+      "resolvedSince": "2026-08-17"
     },
     {
       "line": 457,
@@ -1136,7 +1166,7 @@
       "text": "Remove duplicate app/key/usage frontend stores and screens.",
       "verdict": "ACTIONABLE_NOW",
       "evidence": "The console still ships the duplicate surface: packages/alia-console/src/routes/_layout/ contains the developer documentation, examples and playground that document and exercise `alia_sk_` keys against api.alia.onl/v1/chat/completions (examples.tsx:30/:79/:89, playground.tsx:141, documentation/authentication.tsx:87, sdks.tsx:169, quickstart.tsx:123, chat-completions.tsx:101).",
-      "deliverable": "Remove or redirect the console's developer app/key/usage screens and stores, keeping only what the compatibility window needs (rotate and revoke).",
+      "deliverable": "CORRECTED — the audit said to keep \"rotate and revoke\". ROTATION HAS NEVER EXISTED on /developer: its PATCH covers name, scopes, the active flag and rate limits only, and the sole path that ever replaced a secret was POST /auth/token, closed by #160, which also corrected the same false claim in compatibility-window.md:111. As written the row told the next reader to build a rotate button for an endpoint that does not exist. The deliverable is: remove or redirect the console's developer app/key/usage screens and stores, keeping only REVOKE (delete) for the bounded window.",
       "guard": "No CI job covers packages/alia-console today; the deliverable includes adding one, or a content census from the API suite. Naming that gap is required — a screen deletion with no job that would notice its return is not gated."
     },
     {
@@ -1145,7 +1175,8 @@
       "section": "",
       "text": "Preserve an Alia product API only if it provides product-specific assistant functionality and still authenticates through Oxy.",
       "verdict": "PRODUCT_DECISION",
-      "evidence": "A scoping call about which Alia API is product-specific enough to keep. The measured input: /alia/chat and /v1/chat/completions are the SAME handler (routes/chat.ts:23, unified-product-runtime.test.ts:65) and /alia/chat has ZERO in-repo callers, so \"an Alia product API\" does not exist as a distinct thing today."
+      "evidence": "A scoping call about which Alia API is product-specific enough to keep. The measured input: /alia/chat and /v1/chat/completions are the SAME handler (routes/chat.ts:23, unified-product-runtime.test.ts:65) and /alia/chat has ZERO in-repo callers, so \"an Alia product API\" does not exist as a distinct thing today.",
+      "resolvedSince": "2026-08-17"
     },
     {
       "line": 468,
@@ -1295,8 +1326,8 @@
       "section": "Provider secrets",
       "text": "Remove provider API keys from Alia deployment environments after Relay cutover.",
       "verdict": "ALREADY_TRUE",
-      "evidence": "Satisfied by ABSENCE and measured with a positive control. A repo-wide case-insensitive grep for `(OPENAI|ANTHROPIC|GOOGLE|GROQ|MISTRAL|DEEPSEEK|TOGETHER|REPLICATE|CEREBRAS|CLOUDFLARE|OPENROUTER|COHERE|FIREWORKS|PERPLEXITY|XAI|SAMBANOVA|HYPERBOLIC|NOVITA|DIGITALOCEAN|GEMINI)_API_KEY` matches only packages/api/src/lib/agent/secret-scanner.ts (twelve DETECTION patterns — the control proving the grep can match), plus one vestigial `process.env.GROK_API_KEY` at internal/providers/lib/providers/grok-voice.ts:52 inside `!!x || true`, which changes no behaviour. packages/api/.env.example documents no provider key, and .github/workflows/deploy-aws.yml:65-76 syncs exactly ten named secrets, none a provider credential.",
-      "mutation": "Add `process.env.OPENAI_API_KEY` to any non-test source file — nothing in CI fails today. That is the gap: this row holds by absence with NO guard.",
+      "evidence": "Satisfied by ABSENCE and measured with a positive control. A repo-wide case-insensitive grep for `(OPENAI|ANTHROPIC|GOOGLE|GROQ|MISTRAL|DEEPSEEK|TOGETHER|REPLICATE|CEREBRAS|CLOUDFLARE|OPENROUTER|COHERE|FIREWORKS|PERPLEXITY|XAI|SAMBANOVA|HYPERBOLIC|NOVITA|DIGITALOCEAN|GEMINI)_API_KEY` matches only packages/api/src/lib/agent/secret-scanner.ts (twelve DETECTION patterns — the control proving the grep can match), plus one vestigial `process.env.GROK_API_KEY` at internal/providers/lib/providers/grok-voice.ts:52 inside `!!x || true`, which changes no behaviour. packages/api/.env.example documents no provider key, and .github/workflows/deploy-aws.yml:65-76 syncs exactly ten named secrets, none a provider credential. UPDATE since the audit: #164 added packages/api/src/lib/inference/direct-provider-guard.ts, whose PROVIDER_CREDENTIAL_ENV list refuses to boot when a provider credential is configured. It is GREEN AND INERT today — `directProviderModeFailure` returns `null` immediately unless `ALIA_RELAY_CLIENT_ENABLED` is exactly `true`, and that flag is unset in every environment. So the property still holds by absence, not by that guard.",
+      "mutation": "CORRECTED. Adding `process.env.OPENAI_API_KEY` to any non-test source file still fails nothing, because the only guard that names provider credentials is armed by a flag no deployment sets. The durable form remains a census over `process.env.*` naming the permitted variables exactly, in the shape gate 2 uses for hostnames.",
       "falseAgain": "Any deployment that reintroduces a provider key as an env var. The deliverable that would make it durable is a census over `process.env.*` naming the allowed variables exactly, in the shape gate 2 already uses for hostnames."
     },
     {
@@ -1315,7 +1346,8 @@
       "section": "Service security",
       "text": "Verify Oxy service-token signatures; never trust decoded claims alone.",
       "verdict": "BLOCKED_OXY_972",
-      "evidence": "Recorded as a deliberate absence: packages/api/src/routes/__tests__/inference-boundary.test.ts asserts \"nothing in the API decodes a JWT itself\" and separately \"records that Alia configures no service-token verification secret\". Alia PRESENTS a token to Relay rather than verifying one (relay-client.ts:222-224: \"Alia never constructs the contract's AuthenticatedPrincipal from a token\"). If Oxy ever calls INTO Alia with a service token, the verification key is #972's to publish."
+      "evidence": "Recorded as a deliberate absence: packages/api/src/routes/__tests__/inference-boundary.test.ts asserts \"nothing in the API decodes a JWT itself\" and separately \"records that Alia configures no service-token verification secret\". Alia PRESENTS a token to Relay rather than verifying one (relay-client.ts:222-224: \"Alia never constructs the contract's AuthenticatedPrincipal from a token\"). If Oxy ever calls INTO Alia with a service token, the verification key is #972's to publish.",
+      "resolvedSince": "2026-08-17"
     },
     {
       "line": 540,
@@ -1323,7 +1355,8 @@
       "section": "Service security",
       "text": "Pin allowed Relay origins/endpoints.",
       "verdict": "BLOCKED_RELAY",
-      "evidence": "There is no origin to pin, and that is asserted rather than assumed: packages/api/src/lib/inference/__tests__/relay-egress.test.ts has \"names no origin, because there is no endpoint to name yet\" and \"neither the config nor the transport request has a field an origin fits in\". The guard is pre-built; the value is missing."
+      "evidence": "There is no origin to pin, and that is asserted rather than assumed: packages/api/src/lib/inference/__tests__/relay-egress.test.ts has \"names no origin, because there is no endpoint to name yet\" and \"neither the config nor the transport request has a field an origin fits in\". The guard is pre-built; the value is missing.",
+      "resolvedSince": "2026-08-17"
     },
     {
       "line": 544,
@@ -1333,7 +1366,8 @@
       "verdict": "ACTIONABLE_NOW",
       "evidence": "The gap is measured, named and unfixed. routing-config-audit.test.ts asserts the routing PRESETS are a frozen literal with no table behind them and no repository or route names one — so those need no audit — and then asserts the opposite for plan model access: \"plan model access is an UNAUDITED database row\". packages/api/src/routes/audit.ts exists and is mounted (src/index.ts:284), so the audit sink is already there.",
       "deliverable": "Write an audit record from every writer of plan/model/routing configuration into the existing audit surface.",
-      "guard": "routing-config-audit.test.ts, flipped: the writer map's \"unaudited\" category must be EMPTY. Mutation: add a writer without an audit call -> red."
+      "guard": "routing-config-audit.test.ts, flipped: the writer map's \"unaudited\" category must be EMPTY. Mutation: add a writer without an audit call -> red.",
+      "resolvedSince": "2026-08-17"
     },
     {
       "line": 554,
@@ -1487,7 +1521,8 @@
       "text": "Do not create separate model IDs merely for a system prompt or reasoning-effort setting.",
       "verdict": "DUPLICATE_OF",
       "evidence": "The `alia/*` restatement of the alias freeze. The `alia-*` half is enforced: gate 3 of packages/api/src/__tests__/architectureGates.test.ts asserts exactly thirteen registered aliases by exact set equality and that no unregistered identifier is used as a default anywhere. The repository does not exist or is not reachable: `gh repo view OxyHQ/AliaModels` returns \"Could not resolve to a Repository\" (2026-08-17). No training, dataset, evaluation, model-card or release-manifest artefact exists anywhere in this monorepo. The one thing that IS landed is the refusal: packages/api/src/lib/reserved-namespace.ts refuses any `alia/*` identifier at the serving chokepoint (gateway-client.ts:321, above the mode branch so both paths are covered), asserted by lib/__tests__/reserved-namespace.test.ts.",
-      "duplicateOf": "TICKED L117 — \"Freeze creation of new `alia-*` provider aliases immediately.\""
+      "duplicateOf": "TICKED L117 — \"Freeze creation of new `alia-*` provider aliases immediately.\"",
+      "resolvedSince": "2026-08-17"
     },
     {
       "line": 579,
@@ -1630,7 +1665,8 @@
       "verdict": "ACTIONABLE_NOW",
       "evidence": "No such test exists, and there is nothing to stop the hole: internal-only deployments do not exist yet, but the CHECK does not exist either, so the day a scope arrives it will be unguarded. inference-boundary.test.ts already enumerates every credential type reaching inference (`api_key`, `session`, `internal`), which is the input this test needs.",
       "deliverable": "A test that a public/user credential cannot reach an `internal_alia`-scoped entry through any Alia route, written against a fixture scope so it is meaningful before Relay supplies real ones.",
-      "guard": "Itself. Mutation: remove the scope check from the route -> red. Written now it starts green-and-vacuous, so it must carry a positive control: a fixture entry scoped `internal_alia` MUST be refused, proving the check fires."
+      "guard": "Itself. Mutation: remove the scope check from the route -> red. Written now it starts green-and-vacuous, so it must carry a positive control: a fixture entry scoped `internal_alia` MUST be refused, proving the check fires.",
+      "resolvedSince": "2026-08-17"
     },
     {
       "line": 618,
@@ -1832,7 +1868,8 @@
       "verdict": "ACTIONABLE_NOW",
       "evidence": "docs/runbooks/rollback.md (#159) is thorough about rolling back an ECS release — it distinguishes \"schema advanced\" from \"code is serving\", covers the zero-capacity case, names what cannot be rolled back and states decision thresholds — and it mentions Relay eight times, but it defines rollback in terms of TASK DEFINITION revisions, not Relay versions. The specific prohibition this row states, that rollback must never return traffic to direct providers inside Alia, is not written anywhere as a rule.",
       "deliverable": "A section in docs/runbooks/rollback.md stating that the rollback target after cutover is the previous Relay version and never `GATEWAY_API_ENABLED=false`, with the commands.",
-      "guard": "A test that the rollback runbook names no command that re-enables direct provider mode, in the shape db/__tests__/deployWorkflow.test.ts already uses for reading a workflow as source. Mutation: add such a command to the runbook -> red."
+      "guard": "A test that the rollback runbook names no command that re-enables direct provider mode, in the shape db/__tests__/deployWorkflow.test.ts already uses for reading a workflow as source. Mutation: add such a command to the runbook -> red.",
+      "resolvedSince": "2026-08-17"
     },
     {
       "line": 655,
@@ -1858,7 +1895,8 @@
       "verdict": "ALREADY_TRUE",
       "evidence": "Gate 5 of packages/api/src/__tests__/architectureGates.test.ts does exactly this, in two halves that fail for different reasons. The BICONDITIONAL half (:1540) recomputes the expected `object` from the live routing table on every run and asserts an entry is `model` exactly when it fans out to one upstream model, plus the named direction `policiesCalledModels` must be empty. The FROZEN half records the deliberate /v1/models violation at exactly thirteen ids in one file, so a fourteenth fails. `OBJECT_KIND_EMITTERS` (:1381) additionally freezes which files may emit any `object:` literal at all.",
       "mutation": "MEASURED, not asserted: replacing `entry.kind === 'model'` with `true` at packages/api/src/routes/catalogue.ts:122 failed two gate 5 assertions — architectureGates.test.ts:1553 (the fan-out biconditional) and :1599 (disagreement with alias-migration-map.json, naming all thirteen aliases). Baseline was 44 passed; mutated was 2 failed, 42 passed. Adding a fourteenth id to /v1/models fires :1516; emitting `object:` from a new file fires :1485.",
-      "residual": "Serving `alia-*` as `object: \"model\"` on /v1/models is still live; it is recorded as a frozen violation rather than prevented, and retires with docs/migration/compatibility-window.md section (a)."
+      "residual": "Serving `alia-*` as `object: \"model\"` on /v1/models is still live; it is recorded as a frozen violation rather than prevented, and retires with docs/migration/compatibility-window.md section (a).",
+      "resolvedSince": "2026-08-17"
     },
     {
       "line": 674,
@@ -2049,7 +2087,8 @@
       "text": "Replace “never expose any provider/model name anywhere” with scoped product/privacy rules.",
       "verdict": "DUPLICATE_OF",
       "evidence": "The documentation spelling of scoping the sanitization rule. The rule text lives in AGENTS.md \"Model abstraction (CRITICAL)\", docs/model-abstraction.mdx and the sanitize.ts docstring; the code that implements it is sanitize.ts:22-34.",
-      "duplicateOf": "L244 — \"Remove the global rule that provider/model identity must never appear anywhere; limit sanitization to Alia product surfaces where hiding route detail is an intentional UX/privacy decision.\""
+      "duplicateOf": "L244 — \"Remove the global rule that provider/model identity must never appear anywhere; limit sanitization to Alia product surfaces where hiding route detail is an intentional UX/privacy decision.\"",
+      "resolvedSince": "2026-08-17"
     },
     {
       "line": 723,
@@ -2160,5 +2199,27 @@
       "evidence": "A rollup of all of workstreams 19 and 20 with no independent content. Its unticked components are, exactly: L668 (architecture tests), L674 (contract tests), L683-L698 (end-to-end), L702-L706 (observability), L719 and L723 (docs), plus the security rows L521-L544 and the rollback rows L654-L656.",
       "duplicateOf": "L668 — \"Fail when a product mode is serialized as `object: model`.\""
     }
-  ]
+  ],
+  "blockers": {
+    "relay": {
+      "repository": "https://github.com/OxyHQ/Relay",
+      "trackedAs": "workstream 13 of https://github.com/OxyHQ/oxy/issues/972 (OPEN)",
+      "measuredAt": "2026-08-17",
+      "exists": "PUBLIC, Go, created 2026-08-16, 82 files. Implements internal/provider/anthropic and internal/provider/openaicompat, internal/provider/conformance (the suite every adapter must pass), internal/relay/executor with failover, internal/rotation (circuit breakers and health), internal/providercost, internal/sse, internal/edgeauth and internal/httpapi. So the DESTINATION for most workstream 7 rows is now a real path, not a hypothesis — the audit's blanket \"no Relay exists\" is stale.",
+      "missing": "A DEPLOYMENT. The repository carries no Dockerfile, no deploy workflow and no infrastructure; its only workflow is ci.yml. And Alia has no endpoint to name: packages/api/src/lib/inference/__tests__/relay-egress.test.ts:522 asserts exactly that, and no RELAY_*_URL exists anywhere in packages/api/src.",
+      "notTheBlocker": "OxyHQ/oxy#981 is NOT this blocker and is CLOSED (2026-08-15). Its subject is an unmetered public inference exposure on Oxy's proxy INTO Alia, not \"Oxy API -> Relay is not mounted\". docs/migration/relay-client-gap.md cites it as OPEN, which was already stale when written."
+    }
+  },
+  "verdictHazards": {
+    "greenAndInert": "A mechanism can exist, be tested, and be called by nothing. Evidence that names a function, a config table or a module is not evidence that the property HOLDS unless the ENTRYPOINT calls it. Row 266 failed this way and is corrected above. Every ALREADY_TRUE and DUPLICATE_OF row was re-checked against it on 2026-08-17; the live callers are: reserved-namespace via gateway-client.ts:320, fallback-engine via gateway-client.ts:339, violatedCapability via relay-client.ts:931 (client-internal only), and gates 3/4/5, which are censuses that run in CI. The two rows that hold by ABSENCE with NO guard at all are 454 and 522, and both now say so in their mutation field rather than naming a guard that does not cover them."
+  },
+  "openVerdictCounts": {
+    "ACTIONABLE_NOW": 27,
+    "ALREADY_TRUE": 3,
+    "BLOCKED_ALIAMODELS": 26,
+    "BLOCKED_OXY_972": 26,
+    "BLOCKED_RELAY": 92,
+    "DUPLICATE_OF": 28,
+    "PRODUCT_DECISION": 9
+  }
 }
