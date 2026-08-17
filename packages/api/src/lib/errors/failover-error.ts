@@ -7,8 +7,10 @@
  * This module handles ANY error shape: Error objects, strings, plain objects,
  * null/undefined, numbers, etc. It must be robust against malformed input.
  *
- * IMPORTANT: Internal logging may reference providers, but the AliaError
- * produced by toAliaError() will NEVER expose provider names in userMessage.
+ * The two messages have different audiences: `AliaError.message` is for
+ * operators and names the deployment that failed, `AliaError.userMessage` is the
+ * product surface and does not. Both are needed; neither is a fallback for the
+ * other.
  */
 
 import {
@@ -390,8 +392,8 @@ const REASON_TO_ERROR: Record<FailoverReason, ReasonMapping> = {
 /**
  * Creates an AliaError from an unknown error with optional context.
  *
- * The internal message (AliaError.message) may include provider/model info
- * for logging purposes. The userMessage will NEVER expose provider names.
+ * `AliaError.message` names the deployment, for operators. `userMessage` is a
+ * constant from `error-codes.ts` and carries no route detail.
  *
  * @param err - The original error (any shape)
  * @param context - Optional provider/model context for internal logging

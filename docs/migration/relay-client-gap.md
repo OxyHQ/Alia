@@ -328,11 +328,11 @@ Two traps here:
    *rendered* — but only if the sanitiser stops running on the wire object.
    Running it there would corrupt a field the contract needs and would still not
    be a security control.
-2. The same unanchored regex means a user's own text is rewritten. `llama` is on
-   the pattern list (`sanitize.ts:16`) and is an ordinary Spanish word; Alia
-   answers in Spanish. Listed as an open question, not fixed here — it is not
-   workstream 3's, and pretending otherwise would widen this PR into the
-   sanitiser.
+2. The same unanchored regex meant a user's own text was rewritten: `llama` was
+   on the pattern list and is an ordinary Spanish word, and Alia answers in
+   Spanish. **Fixed by workstream 20**, which scoped concealment to identifiers
+   and proper nouns and gated it on the shipped `es.json`. Trap 1 is unaffected:
+   the sanitiser still must not run on the wire object.
 
 ### 3.9 Tools, structured output, vision, reasoning, prompt caching, modalities
 
@@ -726,7 +726,7 @@ written. None is answerable from either repository today.
 | 1 | A request whose `target` is a `routing_profile` has no `requestedModelId`, so `inferenceRouteSwitchDetailSchema`'s `scope: 'model'` branch (`streamEvents.ts:132-149`) cannot be constructed for it. Is a profile-targeted request resolved once and then subject to `deployment` switches only, or is the union missing a third scope? Alia's `alia-*` aliases become profiles in workstream 4, so this decides whether Alia can report a switch at all. | Oxy contract owner |
 | 2 | Sizing the reservation from the request rather than the flat 1 credit (§4.3) changes what users are charged on large prompts. Ship it before Relay, or wait? | #139 epic owner |
 | 3 | Does Alia adopt the contract's `usageSource` distinction now? Today a provider that reports no usage is indistinguishable from zero usage (`model-config.ts:71` coalesces to 0, `credits-manager.ts:69-70` then charges the 1-credit minimum) — an estimate presented as a measurement. | #139 epic owner |
-| 4 | `sanitizeMessage`'s unanchored patterns rewrite ordinary Spanish text (§3.8, trap 2). Fix in the sanitiser, or scope sanitisation to error text only? | Alia product owner |
+| ~~4~~ | **Answered by #139 workstream 20.** Fixed in the sanitiser: concealment now matches identifiers and proper nouns, so `llama` in Spanish prose survives. `sanitize.test.ts` walks the shipped `es.json` and fails on any string the sanitiser rewrites. | closed |
 | 5 | Interim exposure on `POST /v1/chat/completions` (OxyHQ/oxy#981) — options 1, 2 or 3 in that issue. Alia is the billed party, so Alia has an interest in the answer. | Oxy API owner |
 
 ## 8. Reopening conditions
