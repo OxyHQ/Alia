@@ -24,6 +24,34 @@ const ENV = {
   },
 };
 
+/**
+ * The selection a user starts with, and the one a selection the catalogue no
+ * longer offers falls back to.
+ *
+ * Configuration rather than a literal in the store, because epic #139
+ * workstream 5 asks for a default the product controls. `GET /catalogue`
+ * carries no default of its own — it orders entries by price and says
+ * explicitly that position is not a recommendation — so a build-time value is
+ * the mechanism available, overridden per build by
+ * `EXPO_PUBLIC_ALIA_DEFAULT_MODEL`.
+ *
+ * It is never trusted: `resolveSelection` checks it against the catalogue and
+ * falls through to the first entry actually offered.
+ */
+export const DEFAULT_MODEL_ID = process.env.EXPO_PUBLIC_ALIA_DEFAULT_MODEL ?? 'alia-v1';
+
+/**
+ * The entry the composer's thinking toggle switches to.
+ *
+ * Configuration rather than a substring test on the identifier. Deciding what
+ * an entry IS by reading its name is the habit ADR 0003 exists to end, and the
+ * catalogue carries nothing that marks a reasoning entry — `reasoning` is
+ * `unknown` for every entry today, because no capability record in the API has
+ * a field for it. Naming the one entry the toggle means is honest about that;
+ * inferring it from the string is not.
+ */
+export const THINKING_MODEL_ID = process.env.EXPO_PUBLIC_ALIA_THINKING_MODEL ?? 'alia-v1-thinking';
+
 const getEnvVars = () => {
   // Priority 1: Use EXPO_PUBLIC_API_URL if set in .env
   if (process.env.EXPO_PUBLIC_API_URL) {
