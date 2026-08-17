@@ -1,6 +1,8 @@
 import * as vscode from 'vscode';
 import type { AliaAuthenticationProvider } from './authProvider';
 import { log } from './logger';
+import { PREFERRED_MODEL_ID } from './config';
+import { resolveModelId } from './catalogue';
 
 export class AliaInlineCompletionProvider implements vscode.InlineCompletionItemProvider {
   private apiBaseUrl: string = '';
@@ -20,7 +22,7 @@ export class AliaInlineCompletionProvider implements vscode.InlineCompletionItem
   private loadConfig() {
     const config = vscode.workspace.getConfiguration('codea');
     this.apiBaseUrl = config.get('apiBaseUrl', 'https://api.alia.onl');
-    this.model = config.get('model', 'alia-v1-codea');
+    this.model = config.get('model', PREFERRED_MODEL_ID);
   }
 
   async provideInlineCompletionItems(
@@ -97,7 +99,9 @@ export class AliaInlineCompletionProvider implements vscode.InlineCompletionItem
           'Authorization': `Bearer ${accessToken}`
         },
         body: JSON.stringify({
-          model: this.model,
+          // Resolved at the request: this is the moment an identifier is about
+          // to be sent, and an unreadable catalogue leaves it alone.
+          model: await resolveModelId(this.apiBaseUrl, this.model, accessToken),
           messages: [
             {
               role: 'system',

@@ -46,12 +46,13 @@ function QuickStartPage() {
           <span className="flex items-center justify-center w-8 h-8 rounded-full bg-primary text-primary-foreground text-sm font-semibold">
             1
           </span>
-          <h2 className="text-lg font-semibold text-foreground">Create an API Key</h2>
+          <h2 className="text-lg font-semibold text-foreground">Get an API Key</h2>
         </div>
         <p className="text-sm text-muted-foreground mb-4">
-          First, you'll need to create an API key to authenticate your requests.
-          Go to the <Link to="/apps" className="text-primary hover:underline">API Keys</Link> section
-          to create a new application and generate an API key.
+          Alia no longer issues API keys — register an application in Oxy Console and use its
+          credential. If you already hold an <code className="text-xs bg-muted px-1 py-0.5 rounded">alia_sk_</code>
+          {' '}key it keeps working for the compatibility window, and you can find it in the{' '}
+          <Link to="/apps" className="text-primary hover:underline">API Keys</Link> section.
         </p>
         <EnvironmentVariables className="max-w-md">
           <EnvironmentVariablesHeader>

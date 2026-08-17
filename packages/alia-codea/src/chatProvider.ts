@@ -4,6 +4,8 @@ import { fileTools, ToolExecutor, type EditorContext } from './tools';
 import type { AliaAuthenticationProvider } from './authProvider';
 import { errorMessage, errorName, errorStatus } from './errors';
 import { log } from './logger';
+import { PREFERRED_MODEL_ID } from './config';
+import { resolveModelId } from './catalogue';
 
 /** Alia API streams an extra `alia_meta` field on chunks; not part of the OpenAI type. */
 type AliaMetaChunk = OpenAI.Chat.ChatCompletionChunk & {
@@ -589,7 +591,15 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
     const config = vscode.workspace.getConfiguration('codea');
     const accessToken = await this._authProvider.getAccessToken();
     const baseUrl = config.get<string>('apiBaseUrl') || 'https://api.alia.onl';
-    const model = selectedModel || config.get<string>('model') || 'alia-v1-codea';
+    /**
+     * Resolved once here, then carried through the whole conversation —
+     * including `_lastRequestParams`, which replays it after a tool round. The
+     * alternative, resolving inside `streamChatCompletion`, would re-resolve on
+     * every continuation and could change model mid-conversation if the
+     * catalogue shifted underneath it.
+     */
+    const requestedModel = selectedModel || config.get<string>('model') || PREFERRED_MODEL_ID;
+    const model = await resolveModelId(baseUrl, requestedModel, accessToken ?? undefined);
 
     if (!accessToken) {
       vscode.window.showErrorMessage(

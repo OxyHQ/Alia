@@ -122,6 +122,22 @@ jobs:
       - name: Assert the Expo generator did not rewrite tsconfig
         run: git diff --exit-code packages/app/tsconfig.json
 
+      # `alia-console` gains a `typecheck` script in this PR, so the enumeration
+      # above picks it up automatically. Its SUITE does not enumerate: before
+      # this PR the package had zero test files and a `test` script of
+      # `vitest run --passWithNoTests`, which is a green that measures nothing.
+      # The suite is the row-459 gate — it fails if a screen or store starts
+      # asking Alia to issue an application or a key again.
+      - name: Test console
+        run: bun run --filter alia-console test
+
+      # Every client reads GET /catalogue instead of baking an `alia-*`
+      # identifier into a shipped artefact. It spans five source trees in four
+      # packages — two of which have no test runner at all — so it is a script
+      # rather than any one package's suite.
+      - name: Check no client hardcodes a model default
+        run: node scripts/check-model-defaults.mjs
+
   build-api:
     name: Build API
     runs-on: ubuntu-latest

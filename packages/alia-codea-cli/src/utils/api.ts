@@ -1,6 +1,7 @@
 import OpenAI from 'openai';
 import { config } from './config.js';
 import type { Message, ToolCall } from './conversation.js';
+import { resolveModelId } from './catalogue.js';
 
 interface StreamCallbacks {
   onContent: (content: string) => void;
@@ -154,7 +155,13 @@ export async function streamChat(
 
   try {
     const stream = await openai.chat.completions.create({
-      model,
+      /**
+       * Resolved HERE because this is the one place every CLI path — the REPL,
+       * `run`, `exec` and a resumed session — actually names a model. A
+       * catalogue that cannot be read leaves the identifier alone and the server
+       * stays the authority.
+       */
+      model: await resolveModelId(model),
       messages: allMessages,
       tools: fileTools as OpenAI.Chat.ChatCompletionTool[],
       stream: true

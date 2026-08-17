@@ -8,6 +8,7 @@ import { processConversation, Message, ToolExecution } from './utils/conversatio
 import { buildSystemMessage, getCodebaseContext, loadProjectInstructions } from './utils/context.js';
 import { createSession, saveSession } from './utils/config.js';
 import { ApprovalMode, parseApprovalMode } from './utils/approval.js';
+import { fetchCatalogue, matchShorthand } from './utils/catalogue.js';
 
 export interface AppOptions {
   model: string;
@@ -22,7 +23,19 @@ export function App({ options }: { options: AppOptions }) {
   const [displayMessages, setDisplayMessages] = useState<DisplayMessage[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [thinkingLabel, setThinkingLabel] = useState('Thinking');
-  const [model, setModel] = useState(options.model);
+  /**
+   * The chosen model and how to show it, in ONE piece of state.
+   *
+   * They were two, and the display was derived by stripping an `alia-v1-`
+   * prefix off the identifier — which rendered `alia-lite` as `alia-lite` and
+   * only ever shortened one family. The catalogue supplies the real name, and
+   * that arrives asynchronously, so keeping the pair together is what stops the
+   * label describing a model the request no longer carries. Until the catalogue
+   * has been consulted the identifier IS the label, which is honest rather than
+   * pretty.
+   */
+  const [selection, setSelection] = useState({ id: options.model, label: options.model });
+  const model = selection.id;
   const [approvalMode, setApprovalMode] = useState<ApprovalMode>(options.approvalMode);
   const [contextPercent, setContextPercent] = useState(100);
   const [pendingApproval, setPendingApproval] = useState<{
@@ -143,9 +156,32 @@ export function App({ options }: { options: AppOptions }) {
         }
         case 'model':
           if (args[0]) {
-            const newModel = args[0].startsWith('alia-') ? args[0] : `alia-v1-${args[0]}`;
-            setModel(newModel);
-            addMessage({ id: nextId(), type: 'info', content: `Model: ${newModel}` });
+            /**
+             * The shorthand is matched against the CATALOGUE rather than
+             * expanded with a naming scheme. `alia-v1-${arg}` produced
+             * identifiers that had never existed and sent them anyway; an
+             * unknown shorthand now says so instead of guessing.
+             */
+            const shorthand = args[0];
+            void (async () => {
+              const entries = await fetchCatalogue().catch(() => null);
+              const matched = entries === null ? null : matchShorthand(shorthand, entries);
+              if (matched === null) {
+                addMessage({
+                  id: nextId(),
+                  type: 'info',
+                  content: entries === null
+                    ? `Could not read the model catalogue; model unchanged (${model}).`
+                    : `No model matches "${shorthand}". Available: ${entries
+                        .filter((e) => e.chatVisible)
+                        .map((e) => e.displayName)
+                        .join(', ')}`,
+                });
+                return;
+              }
+              setSelection({ id: matched.id, label: matched.displayName });
+              addMessage({ id: nextId(), type: 'info', content: `Model: ${matched.displayName}` });
+            })();
           } else {
             addMessage({ id: nextId(), type: 'info', content: `Current model: ${model}` });
           }
@@ -253,7 +289,7 @@ export function App({ options }: { options: AppOptions }) {
     }
   }, [pendingApproval]);
 
-  const modelDisplay = model.replace('alia-v1-', '');
+  const modelDisplay = selection.label;
 
   return (
     <Box flexDirection="column">

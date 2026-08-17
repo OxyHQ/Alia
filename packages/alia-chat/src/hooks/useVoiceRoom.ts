@@ -20,6 +20,7 @@ import {
 import { useOxy } from '@oxyhq/services';
 import { errorMessage } from '../lib/utils';
 import type { RoomState, AgentState, VoiceMessage, VoiceToolInvocation } from '../types';
+import { PREFERRED_VOICE_MODEL_ID } from '../lib/config';
 
 const API_URL = process.env.EXPO_PUBLIC_ALIA_API_URL ?? 'https://api.alia.onl';
 
@@ -33,6 +34,14 @@ export interface UseVoiceRoomOptions {
   apiUrl?: string;
   voicePreference?: 'male' | 'female';
   accessToken?: string;
+  /**
+   * Voice session model. Defaults to the build's `PREFERRED_VOICE_MODEL_ID`.
+   *
+   * Not checked against `GET /catalogue`, for the reason given in
+   * `lib/config.ts`: the chat resolver filters to `chat_visible` entries and
+   * would substitute something that cannot hold a voice session.
+   */
+  model?: string;
 }
 
 // ============== TITLE TAG UTILITIES ==============
@@ -105,6 +114,7 @@ function micDeviceErrorMessage(name: string): string | null {
 export function useVoiceRoom(options: UseVoiceRoomOptions = {}) {
   const apiUrl = options.apiUrl || API_URL;
   const voicePref = options.voicePreference ?? 'female';
+  const voiceModel = options.model ?? PREFERRED_VOICE_MODEL_ID;
 
   const [roomState, setRoomState] = useState<RoomState>('disconnected');
   const [agentState, setAgentState] = useState<AgentState>('idle');
@@ -329,7 +339,7 @@ export function useVoiceRoom(options: UseVoiceRoomOptions = {}) {
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          model: 'alia-v1-voice',
+          model: voiceModel,
           voice: voicePref === 'male' ? 'echo' : 'nova',
         }),
       });

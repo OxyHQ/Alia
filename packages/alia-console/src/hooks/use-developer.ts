@@ -1,3 +1,30 @@
+/**
+ * The developer application and credential store.
+ *
+ * ## Creation is not here, and its absence is the point
+ *
+ * ADR 0001 gives developer applications and credentials to Oxy, and #160 closed
+ * every path by which Alia issued one: `POST /developer/apps` and
+ * `POST /developer/apps/:appId/keys` answer `410 Gone` with
+ * `{ error: "issuance_closed" }`. `useCreateApp` and `useCreateApiKey` are
+ * deleted rather than left pointing at those routes, because a mutation whose
+ * only possible outcome is a toast reading "Failed to create app" is worse for
+ * its user than no button at all.
+ *
+ * What #160 left working is what remains here: read, update (name, scopes,
+ * active flag, rate limits) and revoke, for the whole compatibility window —
+ * `docs/migration/compatibility-window.md` section (c) keeps revocation
+ * available deliberately, since removing it mid-migration is a security
+ * regression.
+ *
+ * **Rotation is not missing, it does not exist.** No endpoint has ever
+ * regenerated an `alia_sk_*` secret in place, and `DeveloperApiKeyUpdate` in the
+ * API cannot name `keyHash`, so one cannot be added without a backend change
+ * that is itself forbidden. A rotate button here would be a control with nothing
+ * behind it. `epic-139-status.json` row 459 still says to keep "rotate and
+ * revoke"; it was measured before #160 landed and is stale on that word.
+ */
+
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@oxyhq/services';
 import { useCurrentWorkspaceId } from './use-workspace';
@@ -28,7 +55,6 @@ export interface DeveloperApiKey {
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
-  key?: string; // Only present when creating
 }
 
 export interface UsageSummary {
@@ -112,26 +138,6 @@ export function useApp(id: string) {
   });
 }
 
-export function useCreateApp() {
-  const queryClient = useQueryClient();
-  const workspaceId = useWorkspaceKey();
-
-  return useMutation({
-    mutationFn: async (data: Partial<DeveloperApp>) => {
-      const response = await apiClient.post('/developer/apps', data);
-      return response.data.app as DeveloperApp;
-    },
-    onSuccess: (newApp) => {
-      queryClient.setQueryData<Array<DeveloperApp>>(['developer-apps', workspaceId], (old) => {
-        if (!old) return [newApp];
-        return [newApp, ...old];
-      });
-      queryClient.setQueryData(['developer-app', newApp._id], newApp);
-      queryClient.invalidateQueries({ queryKey: ['developer-stats', workspaceId] });
-    },
-  });
-}
-
 export function useUpdateApp() {
   const queryClient = useQueryClient();
   const workspaceId = useWorkspaceKey();
@@ -184,30 +190,6 @@ export function useApiKeys(appId: string) {
     enabled: isReady && isAuthenticated && !!appId,
     staleTime: 1000 * 60 * 2,
     retry: 1,
-  });
-}
-
-export function useCreateApiKey() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async ({
-      appId,
-      data,
-    }: {
-      appId: string;
-      data: { name: string; scopes: Array<string>; expiresAt?: string };
-    }) => {
-      const response = await apiClient.post(`/developer/apps/${appId}/keys`, data);
-      return { appId, apiKey: response.data.apiKey, warning: response.data.warning };
-    },
-    onSuccess: ({ appId, apiKey }) => {
-      queryClient.setQueryData<Array<DeveloperApiKey>>(['developer-keys', appId], (old) => {
-        if (!old) return [apiKey];
-        return [apiKey, ...old];
-      });
-      queryClient.invalidateQueries({ queryKey: ['developer-stats'] });
-    },
   });
 }
 

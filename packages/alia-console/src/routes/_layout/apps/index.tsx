@@ -3,7 +3,6 @@ import { getErrorMessage } from '@/lib/utils';
 import { useState } from 'react';
 import { HugeiconsIcon } from '@hugeicons/react';
 import {
-  Add01Icon,
   ArrowRight01Icon,
   ChartLineData02Icon,
   Copy01Icon,
@@ -12,20 +11,8 @@ import {
   Settings01Icon,
 } from '@hugeicons/core-free-icons';
 import { toast } from 'sonner';
-import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
 import {
   ContextMenu,
   ContextMenuContent,
@@ -44,7 +31,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { useApps, useCreateApp, useDeleteApp } from '@/hooks/use-developer';
+import { useApps, useDeleteApp } from '@/hooks/use-developer';
+import { IssuanceClosedNotice } from '@/components/issuance-closed-notice';
 
 export const Route = createFileRoute('/_layout/apps/')({
   component: AppsPage,
@@ -53,37 +41,9 @@ export const Route = createFileRoute('/_layout/apps/')({
 function AppsPage() {
   const navigate = useNavigate();
   const { data: apps = [], isLoading } = useApps();
-  const createAppMutation = useCreateApp();
   const deleteAppMutation = useDeleteApp();
 
-  const [showCreateDialog, setShowCreateDialog] = useState(false);
-  const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
-  const [websiteUrl, setWebsiteUrl] = useState('');
   const [deleteAppId, setDeleteAppId] = useState<string | null>(null);
-
-  const handleCreateApp = async () => {
-    if (!name.trim()) {
-      toast.error('Please enter an app name');
-      return;
-    }
-
-    try {
-      const newApp = await createAppMutation.mutateAsync({
-        name: name.trim(),
-        description: description.trim() || undefined,
-        websiteUrl: websiteUrl.trim() || undefined,
-      });
-      setShowCreateDialog(false);
-      setName('');
-      setDescription('');
-      setWebsiteUrl('');
-      toast.success('App created successfully');
-      navigate({ to: '/apps/$appId', params: { appId: newApp._id } });
-    } catch (error: unknown) {
-      toast.error(getErrorMessage(error, 'Failed to create app'));
-    }
-  };
 
   const handleDeleteApp = async () => {
     if (!deleteAppId) return;
@@ -101,13 +61,6 @@ function AppsPage() {
     toast.success('App ID copied to clipboard');
   };
 
-  const handleOpenCreate = () => {
-    setName('');
-    setDescription('');
-    setWebsiteUrl('');
-    setShowCreateDialog(true);
-  };
-
   const appToDelete = apps.find((app) => app._id === deleteAppId);
 
   return (
@@ -118,14 +71,11 @@ function AppsPage() {
           <div>
             <h1 className="text-2xl font-semibold text-foreground">API Keys</h1>
             <p className="text-sm text-muted-foreground mt-1">
-              Manage your applications and API keys
+              Review and revoke your existing applications and API keys
             </p>
           </div>
-          <Button size="sm" onClick={handleOpenCreate}>
-            <HugeiconsIcon icon={Add01Icon} size={16} className="mr-2" />
-            Create app
-          </Button>
         </div>
+        <IssuanceClosedNotice className="mt-4" />
       </div>
 
       {/* Apps List */}
@@ -146,14 +96,12 @@ function AppsPage() {
               size={48}
               className="text-muted-foreground mx-auto mb-4"
             />
-            <p className="text-sm font-medium text-foreground mb-1">No apps yet</p>
-            <p className="text-sm text-muted-foreground mb-4 max-w-md mx-auto">
-              Create your first application to generate API keys and start using the Alia API.
+            <p className="text-sm font-medium text-foreground mb-1">No apps here</p>
+            <p className="text-sm text-muted-foreground max-w-md mx-auto">
+              Alia no longer registers developer applications. Register one in Oxy Console and call{' '}
+              <span className="font-mono">api.oxy.so/v1</span>. This page lists applications Alia
+              already holds, so you can review and revoke them.
             </p>
-            <Button size="sm" onClick={handleOpenCreate}>
-              <HugeiconsIcon icon={Add01Icon} size={16} className="mr-2" />
-              Create your first app
-            </Button>
           </div>
         ) : (
           <div>
@@ -247,67 +195,6 @@ function AppsPage() {
           </div>
         )}
       </div>
-
-      {/* Create App Dialog */}
-      <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Create app</DialogTitle>
-            <DialogDescription>
-              Create a new application to generate API keys and start using the Alia API.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="name" className="text-sm">
-                Name *
-              </Label>
-              <Input
-                id="name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="My Awesome App"
-                maxLength={100}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="description" className="text-sm">
-                Description
-              </Label>
-              <Textarea
-                id="description"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="A brief description of your app"
-                rows={3}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="websiteUrl" className="text-sm">
-                Website URL
-              </Label>
-              <Input
-                id="websiteUrl"
-                type="url"
-                value={websiteUrl}
-                onChange={(e) => setWebsiteUrl(e.target.value)}
-                placeholder="https://example.com"
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowCreateDialog(false)}>
-              Cancel
-            </Button>
-            <Button
-              onClick={handleCreateApp}
-              disabled={createAppMutation.isPending || !name.trim()}
-            >
-              {createAppMutation.isPending ? 'Creating...' : 'Create app'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* Delete App Confirmation */}
       <AlertDialog open={!!deleteAppId} onOpenChange={(open) => !open && setDeleteAppId(null)}>

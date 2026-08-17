@@ -21,7 +21,7 @@ const api = {
   zoomReset: () => ipcRenderer.invoke('window:zoom-reset'),
 
   // Chat
-  sendMessage: (message: string, mode: string, model: string, context?: ContextItem[]) =>
+  sendMessage: (message: string, mode: string, model: string | undefined, context?: ContextItem[]) =>
     ipcRenderer.invoke('chat:send', message, mode, model, context),
   stopGeneration: () => ipcRenderer.invoke('chat:stop'),
   clearChat: () => ipcRenderer.invoke('chat:clear'),

@@ -49,7 +49,7 @@ declare global {
       onFullScreenChanged: (callback: (isFullScreen: boolean) => void) => () => void
 
       // Chat
-      sendMessage: (message: string, mode: string, model: string, context?: ContextItem[]) => Promise<void>
+      sendMessage: (message: string, mode: string, model: string | undefined, context?: ContextItem[]) => Promise<void>
       stopGeneration: () => void
       clearChat: () => void
       getModels: () => Promise<ModelEntry[]>

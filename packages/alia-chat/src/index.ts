@@ -29,6 +29,19 @@ export type { UseTTSOptions } from './hooks/useTTS';
 export { useSpeechToText, useSTTStore } from './hooks/useSpeechToText';
 export type { UseSTTOptions } from './hooks/useSpeechToText';
 
+// ── Model catalogue (GET /catalogue) ──
+// Exported so a consumer building its own picker reads the surface the SDK
+// reads, rather than hardcoding an identifier the way this package used to.
+export {
+  fetchCatalogue,
+  parseCatalogue,
+  resolveSelection,
+  resolveModelId,
+  clearCatalogueCache,
+} from './lib/catalogue';
+export type { CatalogueEntry, CatalogueEntryKind, ModelSelection } from './lib/catalogue';
+export { PREFERRED_CHAT_MODEL_ID, PREFERRED_VOICE_MODEL_ID } from './lib/config';
+
 // ── Types ──
 export type {
   ChatMessage,

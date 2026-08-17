@@ -120,10 +120,22 @@ describe('the three general-purpose modes are an ORDERING, not three assignments
 
 describe('Coding is read off the coding product, not chosen', () => {
   it('pins the profile every Codea surface already defaults to', () => {
+    /**
+     * Where the Codea default actually lives.
+     *
+     * `packages/alia-codea/src/inlineCompletionProvider.ts` used to be the third
+     * entry and no longer names an identifier: #139 workstream 5 moved the
+     * extension's default out of its three providers into one preference module,
+     * so that the clients read `GET /catalogue` instead of baking an alias into
+     * a marketplace build. The FACT this asserts is unchanged — every Codea
+     * surface defaults to one identifier — but the file that states it moved, so
+     * the list moved with it in the same change. `scripts/check-model-defaults.mjs`
+     * is what now forbids the identifier reappearing in the providers.
+     */
     const defaults = [
       repoFile('packages/alia-codea/package.json'),
       repoFile('packages/alia-codea-cli/src/utils/config.ts'),
-      repoFile('packages/alia-codea/src/inlineCompletionProvider.ts'),
+      repoFile('packages/alia-codea/src/config.ts'),
     ];
     // Greedy whole-token matching, never `includes`: `alia-v1` is a PREFIX of
     // `alia-v1-codea`, so a substring scan reports both and the "one

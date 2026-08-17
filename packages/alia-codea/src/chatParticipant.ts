@@ -1,6 +1,8 @@
 import * as vscode from 'vscode';
 import type { AliaAuthenticationProvider } from './authProvider';
 import { log } from './logger';
+import { PREFERRED_MODEL_ID } from './config';
+import { resolveModelId } from './catalogue';
 
 export class AliaChatParticipant {
   private apiBaseUrl: string = '';
@@ -27,7 +29,7 @@ export class AliaChatParticipant {
   private loadConfig() {
     const config = vscode.workspace.getConfiguration('codea');
     this.apiBaseUrl = config.get('apiBaseUrl', 'https://api.alia.onl');
-    this.model = config.get('model', 'alia-v1-codea');
+    this.model = config.get('model', PREFERRED_MODEL_ID);
   }
 
   private registerParticipant(context: vscode.ExtensionContext) {
@@ -181,7 +183,7 @@ export class AliaChatParticipant {
           'Authorization': `Bearer ${bearerToken}`
         },
         body: JSON.stringify({
-          model: this.model,
+          model: await resolveModelId(this.apiBaseUrl, this.model, bearerToken),
           messages,
           max_tokens: maxTokens,
           temperature,

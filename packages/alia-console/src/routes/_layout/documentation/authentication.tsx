@@ -62,8 +62,11 @@ function AuthenticationPage() {
       <div className="px-6 py-6 border-b border-border">
         <h2 className="text-lg font-semibold text-foreground mb-4">API Keys</h2>
         <p className="text-sm text-muted-foreground mb-4">
-          All API requests require authentication using an API key. You can create and manage your
-          API keys in the <Link to="/apps" className="text-primary hover:underline">API Keys</Link> section.
+          <strong className="text-foreground">Alia no longer issues API keys.</strong> Register an
+          application in Oxy Console and call <code className="text-xs bg-muted px-1 py-0.5 rounded">api.oxy.so/v1</code>.
+          A key Alia already issued keeps authenticating the requests below for the compatibility
+          window, and you can review, re-scope and revoke it in the{' '}
+          <Link to="/apps" className="text-primary hover:underline">API Keys</Link> section.
         </p>
         <p className="text-sm text-muted-foreground mb-4">
           API keys follow this format:
@@ -152,11 +155,8 @@ X-RateLimit-Reset: 1234567890`}
           </li>
           <li className="flex items-start gap-2">
             <span className="text-primary">•</span>
-            Use separate API keys for development and production
-          </li>
-          <li className="flex items-start gap-2">
-            <span className="text-primary">•</span>
-            Regularly rotate your API keys
+            Revoke a key you no longer use — Alia cannot replace one, so a leaked key is revoked
+            and succeeded by an Oxy credential
           </li>
           <li className="flex items-start gap-2">
             <span className="text-primary">•</span>
