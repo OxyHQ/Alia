@@ -23,6 +23,8 @@ import {
   webScraperTool,
 } from '../lib/tools/index.js';
 import { oxyServiceAuth, oxyClient } from '../middleware/auth.js';
+import { setPlanModelIds } from '../db/billing/planRepository.js';
+import { isAliaModel } from '../lib/gateway-client.js';
 import type { User as OxyUser } from '@oxyhq/core';
 import { getDb } from '../db/index.js';
 import { findUserMemory, type UserMemoryProfile } from '../db/memory/userMemoryRepository.js';
@@ -264,6 +266,109 @@ router.post('/trigger', oxyServiceAuth, async (req, res) => {
       details: getSafeErrorMessage(error, 'Trigger processing failed'),
       responseTime,
     });
+  }
+});
+
+/**
+ * PUT /internal/plans/:planId/models — which models a plan grants
+ * (#139 workstream 14, *"allow the product team to select which Oxy/Relay models
+ * are available per plan/surface"*).
+ *
+ * ## Why the plan, and why only the model list
+ *
+ * `plans.model_ids` is the input to `lib/plan-access.ts`, which decides whether
+ * a request may name a model at all. It is the ONE runtime surface in this
+ * repository where "which models are available" is data rather than a commit,
+ * and until now it had no writer: the row was hand-editable in the database and
+ * nothing recorded who changed it, which
+ * `lib/routing/__tests__/routing-config-audit.test.ts` measured and called a
+ * gap. This is the writer that closes it.
+ *
+ * The SURFACE half of that checkbox is not here and must not arrive here.
+ * Which entries a picker offers is `lib/product-modes.ts` `VISIBLE_PROFILES` —
+ * a `const` in a committed file, whose audit trail is git, exactly like
+ * `PRODUCT_MODES` and `ROUTING_PRESETS`. `routing-config-audit.test.ts` asserts
+ * no route names it, and that assertion is correct: a second runtime authority
+ * for product configuration is what this epic is removing, not adding.
+ *
+ * ## What it may write
+ *
+ * `model_ids` and nothing else, as a property of the SIGNATURE rather than of
+ * this handler's care: `setPlanModelIds` takes a list, not an updates object,
+ * so there is no field to widen and no `req.body` to spread. Price, Stripe
+ * identifiers, the plan's own id and its product are all unreachable through
+ * here — the mass-assignment shape is absent rather than guarded against.
+ *
+ * Every identifier is checked against the registered model set before the
+ * write. An unregistered id in `model_ids` is not a harmless typo: it grants
+ * nothing, and it grants nothing SILENTLY, which is a plan that looks like it
+ * sells a model and does not.
+ *
+ * ## Who may call it
+ *
+ * `oxyServiceAuth`, like every other route on this router — a verified Oxy
+ * service credential and nothing else. Alia has no admin role of its own and
+ * inventing one here would be the mass-assignment hazard in a different place.
+ * A finer gate belongs in the contract's own vocabulary
+ * (`inference:routing:write`, `@oxyhq/contracts` `INFERENCE_SCOPES`) and is not
+ * applied yet, because the credential that reaches this router today carries
+ * the scope `internal` and nothing else; requiring a scope no reachable
+ * credential holds would be a refusal wearing a feature's name.
+ */
+router.put('/plans/:planId/models', oxyServiceAuth, async (req, res) => {
+  const serviceApp = req.serviceApp;
+  if (!serviceApp) {
+    // `oxyServiceAuth` does not reach here without one. Read rather than
+    // asserted, because the actor is REQUIRED by the audit record and a
+    // non-null assertion would be the one place it could become `system`.
+    res.status(403).json({ error: 'A verified service credential is required' });
+    return;
+  }
+
+  const planId = req.params.planId;
+  const body: unknown = req.body;
+  const submitted =
+    body !== null && typeof body === 'object' ? (body as Record<string, unknown>).model_ids : undefined;
+
+  if (!Array.isArray(submitted) || submitted.some((id) => typeof id !== 'string')) {
+    res.status(400).json({ error: 'model_ids must be an array of model identifiers' });
+    return;
+  }
+  const modelIds = submitted as string[];
+
+  // Duplicates are a caller mistake that produces a list whose length lies.
+  if (new Set(modelIds).size !== modelIds.length) {
+    res.status(400).json({ error: 'model_ids contains duplicates' });
+    return;
+  }
+
+  const unknownIds: string[] = [];
+  for (const id of modelIds) {
+    if (!(await isAliaModel(id))) unknownIds.push(id);
+  }
+  if (unknownIds.length > 0) {
+    res.status(400).json({
+      error: 'model_ids names identifiers that do not exist',
+      // The caller's own input, echoed back. Not through `sanitizeMessage`: it
+      // is theirs and reveals nothing about Alia's routing.
+      unknown: unknownIds,
+    });
+    return;
+  }
+
+  try {
+    const row = await setPlanModelIds(getDb(), planId, modelIds, {
+      kind: 'service',
+      id: serviceApp.appId,
+    });
+    if (row === null) {
+      res.status(404).json({ error: 'No such plan' });
+      return;
+    }
+    res.json({ plan_id: row.planId, model_ids: row.modelIds });
+  } catch (error: unknown) {
+    log.general.error({ err: error, planId }, 'Failed to set plan model access');
+    res.status(500).json({ error: getSafeErrorMessage(error, 'Could not update plan model access') });
   }
 });
 

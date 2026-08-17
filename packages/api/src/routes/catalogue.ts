@@ -56,9 +56,13 @@ import {
   buildCatalogue,
   type CatalogueEntitlement,
   type CatalogueEntry,
+  type CatalogueFilterReport,
   type TokenBound,
 } from '../lib/catalogue.js';
 import { PRODUCT_MODES, type ProductMode } from '../lib/product-modes.js';
+import { resolveCallerAudience, type EntryScopeVerdict } from '../lib/availability-scope.js';
+import type { RequiredAttribution } from '../lib/model-attribution.js';
+import { getSurface, SURFACES, type Surface } from '../lib/surface-capability.js';
 
 const router = Router();
 
@@ -80,6 +84,59 @@ function wireEntitlement(entitlement: CatalogueEntitlement): Record<string, unkn
     granted_by: entitlement.grantedBy,
     products: entitlement.products,
     entitled: entitlement.entitled,
+  };
+}
+
+function wireScope(scope: EntryScopeVerdict): Record<string, unknown> {
+  if (scope.state === 'unscoped') return { state: 'unscoped' };
+  if (scope.state === 'admitted') return { state: 'admitted', values: scope.scopes };
+  return { state: 'withheld', reason: scope.reason };
+}
+
+/**
+ * The one field on this response permitted to name a model identity.
+ *
+ * Every other field is subject to the catalogue leak census in
+ * `__tests__/architectureGates.test.ts` gate 5, which fails on a provider name
+ * or a provider model id anywhere in the body. This one is excluded from it,
+ * because an open-weight licence can require the naming as a condition of
+ * serving the model at all — and the census still runs over everything else, so
+ * a model id moved into a neighbouring field is caught.
+ *
+ * What keeps the exclusion narrow rather than a hole is `requiredAttributions`
+ * in `lib/model-attribution.ts`: nothing reaches this function unless a licence
+ * record says `requiresAttribution`. `requires_attribution` is serialized so a
+ * reader can check that claim in the response instead of taking it on trust.
+ */
+function wireAttribution(attribution: RequiredAttribution): Record<string, unknown> {
+  return {
+    attributed_model: attribution.attributedModel,
+    license: {
+      license_id: attribution.license.licenseId,
+      display_name: attribution.license.displayName,
+      url: attribution.license.url ?? null,
+      requires_attribution: attribution.license.requiresAttribution,
+      commercial_use_allowed: attribution.license.commercialUseAllowed,
+      acceptable_use_policy_url: attribution.license.acceptableUsePolicyUrl ?? null,
+    },
+  };
+}
+
+function wireFilters(filters: CatalogueFilterReport): Record<string, unknown> {
+  return {
+    // Routes CLASSIFIED, never entries withheld — see `CatalogueFilterReport`.
+    availability_scope: { declared_routes: filters.availabilityScope.declaredRoutes },
+    platform_capability: {
+      surface: filters.platformCapability.surface,
+      withheld_entries: filters.platformCapability.withheldEntries,
+    },
+    // Not applied, and saying so is the point. A region filter needs a
+    // catalogue that knows which deployment is where; `lib/routing/presets.ts`
+    // `DELEGATED_TO_RELAY` records that this is Relay's, and answering "no
+    // region restriction" would be a stub no caller could tell from a working
+    // filter with nothing to filter.
+    region: { applied: false, delegated_to: filters.region.delegatedTo },
+    attributed_routes: filters.attributedRoutes,
   };
 }
 
@@ -111,7 +168,12 @@ function serializeEntry(entry: CatalogueEntry): Record<string, unknown> {
       // does not answer, and saying so is cheaper than being wrong quietly.
       under_policy: entry.capabilities.underPolicy,
     },
-    availability: { status: entry.availability.status, legacy: entry.availability.legacy },
+    availability: {
+      status: entry.availability.status,
+      legacy: entry.availability.legacy,
+      scope: wireScope(entry.availability.scope),
+    },
+    attribution: entry.attribution.map(wireAttribution),
     entitlement: wireEntitlement(entry.entitlement),
     pricing: { credit_multiplier: entry.pricing.creditMultiplier },
   };
@@ -179,6 +241,20 @@ function parseProduct(raw: unknown): PlanProduct | null | 'invalid' {
 }
 
 /**
+ * The declared client surface.
+ *
+ * An unrecognised value is `'invalid'` and gets a 400, not a silently
+ * unfiltered catalogue: a client that mistypes its own name would otherwise be
+ * told nothing and receive entries it cannot render, which is the bug this
+ * filter exists to prevent.
+ */
+function parseSurface(raw: unknown): Surface | null | 'invalid' {
+  if (raw === undefined) return null;
+  if (typeof raw !== 'string') return 'invalid';
+  return getSurface(raw) ?? 'invalid';
+}
+
+/**
  * GET /catalogue
  *
  * Query params:
@@ -188,6 +264,13 @@ function parseProduct(raw: unknown): PlanProduct | null | 'invalid' {
  *   through `lib/plan-access.ts` — the entitlement read model ADR 0005 keeps in
  *   Alia. Requires authentication, because there is no such thing as an
  *   anonymous entitlement: answering with the free tier would be inventing one.
+ * - `surface`: restrict to entries the calling client can be offered
+ *   (`lib/surface-capability.ts`), so a terminal is not handed a voice entry.
+ *
+ * One restriction is NOT a query parameter, because it is not the caller's to
+ * ask for: an entry is withheld when no route behind it has an availability
+ * scope admitting the caller's own credential (#139 workstream 17). The
+ * `filters` block in the response reports what each did.
  *
  * Filters that cannot be evaluated refuse with 503 rather than serving an
  * unfiltered list. Annotations that cannot be computed report `unknown`.
@@ -201,6 +284,19 @@ router.get('/', optionalAuth, async (req: Request, res: Response) => {
         type: 'invalid_request_error',
         param: 'product',
         code: 'invalid_product',
+      },
+    });
+    return;
+  }
+
+  const surface = parseSurface(req.query.surface);
+  if (surface === 'invalid') {
+    res.status(400).json({
+      error: {
+        message: `Unknown surface. Expected one of: ${SURFACES.join(', ')}.`,
+        type: 'invalid_request_error',
+        param: 'surface',
+        code: 'invalid_surface',
       },
     });
     return;
@@ -223,7 +319,9 @@ router.get('/', optionalAuth, async (req: Request, res: Response) => {
   try {
     const result = await buildCatalogue({
       userId,
+      audience: resolveCallerAudience(req),
       ...(product === null ? {} : { product }),
+      ...(surface === null ? {} : { surface }),
       entitledOnly,
     });
 
@@ -243,6 +341,7 @@ router.get('/', optionalAuth, async (req: Request, res: Response) => {
       object: 'list',
       data: result.entries.map(serializeEntry),
       entitlements_known: result.entitlementsKnown,
+      filters: wireFilters(result.filters),
     });
   } catch (e: unknown) {
     log.models.error({ err: e }, 'Error building the catalogue');

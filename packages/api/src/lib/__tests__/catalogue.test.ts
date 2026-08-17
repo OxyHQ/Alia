@@ -21,6 +21,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { DEFAULT_FALLBACK_POLICY } from '../routing/policy.js';
+import type { CallerAudience } from '../availability-scope.js';
 import {
   CAPABILITY_POLICY,
   buildEntry,
@@ -31,6 +32,13 @@ import {
   type CatalogueSource,
   type PlanGrant,
 } from '../catalogue.js';
+
+/**
+ * The weakest audience, so nothing in this file is measured from a position of
+ * privilege. The scope decision itself is measured in
+ * `availability-scope.test.ts` across all four.
+ */
+const PUBLIC: CallerAudience = 'public';
 
 const KNOWN: CatalogueEntitlement = {
   state: 'known',
@@ -56,8 +64,16 @@ function source(overrides: Partial<CatalogueSource> = {}): CatalogueSource {
   };
 }
 
-function candidate(modelId: string, capabilities: Record<string, unknown>): Candidate {
-  return { modelId, capabilities };
+function candidate(
+  modelId: string,
+  capabilities: Record<string, unknown>,
+  route: Partial<Pick<Candidate, 'availabilityScope' | 'attribution'>> = {},
+): Candidate {
+  // Both default to `null`, which is what every route in this repository
+  // carries: an availability scope and a licence record belong to a deployment
+  // in Relay's catalogue and nothing here has one. A fixture that wants either
+  // says so, which is the only way the consumption is measurable today.
+  return { modelId, capabilities, availabilityScope: null, attribution: null, ...route };
 }
 
 /** A capability record with every field this repository actually records. */
@@ -77,7 +93,7 @@ function caps(overrides: Record<string, unknown> = {}): Record<string, unknown> 
 
 describe('ADR 0003 invariant 1: type follows fan-out, in both directions', () => {
   it('serializes a single-model identifier as a model, never as a profile', () => {
-    const entry = buildEntry(source(), [candidate('one-model', caps())], KNOWN);
+    const entry = buildEntry(source(), [candidate('one-model', caps())], KNOWN, PUBLIC);
     expect(entry.kind).toBe('model');
     // The two halves of `<publisher>/<model>`, carried apart from whoever serves
     // it. Null here because this repository holds no publisher attribution —
@@ -94,6 +110,7 @@ describe('ADR 0003 invariant 1: type follows fan-out, in both directions', () =>
       source({ tier: 'lite' }),
       [candidate('a', caps()), candidate('b', caps()), candidate('c', caps())],
       KNOWN,
+      PUBLIC,
     );
     expect(entry.kind).toBe('routing_profile');
     if (entry.kind !== 'routing_profile') throw new Error('unreachable');
@@ -109,12 +126,12 @@ describe('ADR 0003 invariant 1: type follows fan-out, in both directions', () =>
     // change the model. Two providers offering the same model id is exactly
     // that case, and counting mappings instead of models would misclassify it
     // as a policy — inventing a routing decision that is not one.
-    const entry = buildEntry(source(), [candidate('same', caps()), candidate('same', caps())], KNOWN);
+    const entry = buildEntry(source(), [candidate('same', caps()), candidate('same', caps())], KNOWN, PUBLIC);
     expect(entry.kind).toBe('model');
   });
 
   it('treats an emptied candidate list as a profile selecting among nothing', () => {
-    const entry = buildEntry(source({ tier: 'ghost' }), [], KNOWN);
+    const entry = buildEntry(source({ tier: 'ghost' }), [], KNOWN, PUBLIC);
     expect(entry.kind).toBe('routing_profile');
     if (entry.kind !== 'routing_profile') throw new Error('unreachable');
     expect(entry.selectsAmong).toBe(0);
@@ -322,7 +339,7 @@ describe('the catalogue carries no deprecation signal, because it serves nothing
     // still is: `middleware/alias-deprecation.ts` sets `Deprecation` and `Link`
     // on any response to a request NAMING an alias, and emits
     // `alia.deprecation` on a stream. A caller still holding one is still told.
-    const entry = buildEntry(source({ id: 'profile:lite' }), [candidate('a', caps())], KNOWN);
+    const entry = buildEntry(source({ id: 'profile:lite' }), [candidate('a', caps())], KNOWN, PUBLIC);
     expect(entry).not.toHaveProperty('deprecation');
 
     // The control: the entry is real and fully built, so "no property" is a

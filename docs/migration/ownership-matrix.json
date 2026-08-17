@@ -2128,19 +2128,18 @@
       "id": "dead-seed-plans",
       "kind": "module",
       "domain": "data-billing",
-      "currentPath": "packages/api/src/internal/providers/lib/seed-plans.ts",
+      "currentPath": "packages/api/src/lib/seed-plans.ts",
       "owner": "alia",
       "targetPath": "alia: whatever populates the plan catalogue after the split",
-      "summary": "Seeds the plans table, including which Alia model ids each PAID plan grants. Reachable only from runStartupSeed, which has no caller.",
+      "summary": "Seeds the plans table on boot, including which Alia model ids each PAID plan grants on FIRST INSERT. INSERT-only since #139 ws14: which models a plan grants is owned at runtime by PUT /internal/plans/:planId/models, and a boot writer that re-asserted the list would revert it on every deploy.",
       "removalGate": "The plan catalogue is confirmed to be populated another way (row count on `plans`) BEFORE deletion. This file is the only in-repo statement of which ids a paid plan includes, so deleting it discards the entitlement definition as well as the dead code.",
-      "evidence": "packages/api/src/internal/providers/lib/seed-plans.ts:35 (paid-plan model ids), :168 (upsert); sole caller runStartupSeed at seed-model-configs.ts:258, which has zero callers repo-wide",
+      "evidence": "packages/api/src/lib/seed-plans.ts:60 (paid-plan model ids), :186 (insert-only upsert); called from src/index.ts startBackgroundServices, beside seedSkills/seedSuggestions/seedBots",
       "dependsOn": [
-        "dead-startup-seed",
         "table-plans"
       ],
       "provenance": "re-derived",
       "workstream": "12",
-      "reachable": "dead"
+      "reachable": "live"
     },
     {
       "id": "dead-spend-credits-paid-first",
@@ -2401,7 +2400,7 @@
       "workstream": "19",
       "domain": "product-api",
       "kind": "doc",
-      "currentPath": "packages/api/src/internal/providers/lib/seed-plans.ts",
+      "currentPath": "packages/api/src/lib/seed-plans.ts",
       "reachable": "live",
       "owner": "alia",
       "targetPath": "keep-alia-product",
@@ -2410,7 +2409,7 @@
       ],
       "removalGate": "seed-plans.ts is a BILLING artefact: an id retired here silently removes entitlement from paying customers. Treat it as production data, not seed fixtures.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/internal/providers/lib/seed-plans.ts:35,137,153; packages/api/src/routes/v1/__tests__/chat-completions-timeout.test.ts:188"
+      "evidence": "packages/api/src/lib/seed-plans.ts:35,137,153; packages/api/src/routes/v1/__tests__/chat-completions-timeout.test.ts:188"
     },
     {
       "id": "doc-translation-strings-clean",

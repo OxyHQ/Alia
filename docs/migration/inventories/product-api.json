@@ -1306,7 +1306,7 @@
       "id": "doc-seed-and-test-model-ids",
       "kind": "doc",
       "name": "Seed data (21 matches) and tests (39 matches) pinning model ids",
-      "currentPath": "packages/api/src/internal/providers/lib/seed-plans.ts",
+      "currentPath": "packages/api/src/lib/seed-plans.ts",
       "summary": "seed-plans.ts (19 matches) defines which ids each PAID PLAN grants - alia-v1-pro, alia-v1-thinking, alia-v1-pro-max, alia-v1-voice-pro on Pro; seed-model-configs.ts (2). Tests pin ids in 11 files, heaviest in routes/v1/__tests__/chat-completions-timeout.test.ts (14).",
       "proposedOwner": "alia",
       "targetPath": "keep-alia-product",
@@ -1314,7 +1314,7 @@
         "alia-models-registry"
       ],
       "removalGate": "seed-plans.ts is a BILLING artefact: an id retired here silently removes entitlement from paying customers. Treat it as production data, not seed fixtures.",
-      "evidence": "packages/api/src/internal/providers/lib/seed-plans.ts:35,137,153; packages/api/src/routes/v1/__tests__/chat-completions-timeout.test.ts:188"
+      "evidence": "packages/api/src/lib/seed-plans.ts:35,137,153; packages/api/src/routes/v1/__tests__/chat-completions-timeout.test.ts:188"
     }
   ],
   "counts": {

@@ -25,6 +25,8 @@ import type { PlanFilter } from '../db/billing/planRepository.js';
 import { log } from './logger.js';
 import { getStatusCode } from './errors/index.js';
 import { assertUnreservedModelIdentifier } from './reserved-namespace.js';
+import type { AvailabilityScope } from './availability-scope.js';
+import type { RequiredAttribution } from './model-attribution.js';
 import type { FallbackPolicy } from './routing/policy.js';
 
 // ============== MODE DETECTION ==============
@@ -173,6 +175,23 @@ export interface ModelMapping {
   costPerMinute?: number;
   averageLatencyMs?: number;
   capabilities: Record<string, unknown>;
+  /**
+   * Who this route may be served to (#139 workstream 17).
+   *
+   * Optional and populated by NOTHING in this repository: an availability scope
+   * is a property of a deployment in the Oxy catalogue, and the local branch of
+   * this facade reads `TIER_MODEL_MAPPINGS`, which has no such column. It is
+   * declared here because this module is the seam a Relay catalogue arrives
+   * through, so the field lands where the data will, and `lib/catalogue.ts`
+   * consumes it today against fixtures.
+   *
+   * Absent is UNCLASSIFIED, never "public": `lib/availability-scope.ts` keeps
+   * those apart and `GET /catalogue` publishes how many routes were classified,
+   * so a filter with nothing to filter cannot be mistaken for one that works.
+   */
+  availabilityScope?: AvailabilityScope;
+  /** What this route's licence requires be displayed. Same seam, same absence. */
+  attribution?: RequiredAttribution;
 }
 
 export interface ResolvedModel {
