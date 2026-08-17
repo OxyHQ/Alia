@@ -60,12 +60,18 @@ export const GATEWAY_URL_ENV = 'GATEWAY_API_URL';
 /**
  * Credential variables that do not follow `<PROVIDER>_API_KEY`.
  *
- * Exactly one today: `internal/providers/lib/providers/grok-voice.ts` reads
- * `GROK_API_KEY`, and the provider it belongs to is registered as `xai`. A list
- * derived purely from provider NAMES would miss it, which is the whole reason
- * this list exists and the reason `__tests__/direct-provider-guard.test.ts`
+ * Exactly one today: `GROK_API_KEY`, whose provider is registered as `xai`, so a
+ * list derived purely from provider NAMES would miss it. That is the whole
+ * reason this list exists and the reason `__tests__/direct-provider-guard.test.ts`
  * censuses the provider tree's own `process.env` reads rather than trusting the
  * derivation.
+ *
+ * **No code reads it any more** — `providers/grok-voice.ts` did, inside a
+ * disjunction ending in `|| true`, and #139 ws2/ws15 deleted that read as the
+ * *"Remove provider API keys from Alia deployment environments"* row. The entry
+ * stays: this guard is about what the ENVIRONMENT carries, and an operator can
+ * set a variable no code reads. Removing it would mean a cutover deployment
+ * still holding that credential boots without a word.
  */
 const UNDERIVABLE_CREDENTIAL_ENV: readonly string[] = ['GROK_API_KEY'];
 

@@ -3,6 +3,7 @@ import type { RoutingTarget } from '@oxyhq/contracts';
 
 import type { AliaInferenceCall, AliaInferenceContext } from '../product-seam.js';
 import { relayBootConfigurationFailure, RELAY_PRINCIPAL_ENV } from '../relay-boot-check.js';
+import { RELAY_CREDENTIAL_REQUIRED_ENV } from '../relay-credential.js';
 import { RELAY_CLIENT_ENABLED_ENV } from '../relay-cutover.js';
 import {
   createRelayInferenceClient,
@@ -81,7 +82,14 @@ const DEFAULT_TARGET: RoutingTarget = { kind: 'routing_profile', routingProfile:
 
 const APPROVED = RELAY_ALLOWED_ORIGINS[0];
 
-/** A full principal environment, so the boot check reaches the endpoint rule. */
+/**
+ * A bootable environment, so the boot check reaches the endpoint rule.
+ *
+ * The credential variables (#139 ws2) are derived from the module's own list
+ * rather than written out: the boot check refuses on ANY unset Relay variable
+ * before it looks at the endpoint, so a fixture that missed one would fail every
+ * test below for a reason that has nothing to do with the endpoint.
+ */
 function bootEnv(over: Record<string, string> = {}): NodeJS.ProcessEnv {
   return {
     [RELAY_CLIENT_ENABLED_ENV]: 'true',
@@ -91,6 +99,7 @@ function bootEnv(over: Record<string, string> = {}): NodeJS.ProcessEnv {
     [RELAY_PRINCIPAL_ENV.environment]: 'production',
     [RELAY_PRINCIPAL_ENV.inferenceScopes]: 'inference:invoke',
     [RELAY_BASE_URL_ENV]: APPROVED,
+    ...Object.fromEntries(RELAY_CREDENTIAL_REQUIRED_ENV.map((variable) => [variable, 'configured'])),
     NODE_ENV: 'production',
     ...over,
   };
