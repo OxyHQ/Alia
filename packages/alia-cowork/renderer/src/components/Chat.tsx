@@ -61,12 +61,6 @@ interface ToolExecution {
   result?: string
 }
 
-interface Model {
-  id: string
-  name: string
-  description: string
-}
-
 interface ContextItem {
   type?: 'file' | 'folder'
   path: string
@@ -111,11 +105,6 @@ const toolLabels: Record<string, string> = {
   set_mode: "Mode",
 }
 
-// Default models (fallback until API responds)
-const defaultModels: Model[] = [
-  { id: "alia-v1-cowork", name: "Cowork", description: "Fast assistant" },
-]
-
 // Thinking phrases
 const thinkingPhrases = ["Thinking...", "Pondering...", "Processing...", "Analyzing..."]
 const workingPhrases = ["Working...", "Executing...", "Running...", "Building..."]
@@ -159,12 +148,27 @@ export function Chat() {
   const [input, setInput] = React.useState("")
   const [isGenerating, setIsGenerating] = React.useState(false)
   const [currentMode, setCurrentMode] = React.useState("ask")
-  const [currentModel, setCurrentModel] = React.useState("alia-v1-cowork")
+  /**
+   * The model this window sends with, or `undefined` for "let the main process
+   * choose".
+   *
+   * It was `useState("alia-v1-cowork")` beside a `models` list seeded from a
+   * hardcoded fallback — and neither `models` nor `setCurrentModel` was ever
+   * read, which TypeScript reported as TS6133 on this file before this change.
+   * There is no model picker in this UI; the state was vestigial and the
+   * identifier in it was a second copy of a default the main process already
+   * owns.
+   *
+   * Sending `undefined` makes that explicit: `ChatProvider.handleMessage` falls
+   * back to the stored preference and resolves it against the catalogue, so the
+   * decision lives in exactly one place instead of being duplicated into a
+   * renderer that cannot act on it.
+   */
+  const currentModel = undefined
   const [streamingContent, setStreamingContent] = React.useState("")
   const [userName, setUserName] = React.useState<string | null>(null)
   const [toolExecutions, setToolExecutions] = React.useState<ToolExecution[]>([])
   const [thinkingSteps, setThinkingSteps] = React.useState<string[]>([])
-  const [models, setModels] = React.useState<Model[]>(defaultModels)
   const [attachedFiles, setAttachedFiles] = React.useState<ContextItem[]>([])
   const bottomRef = React.useRef<HTMLDivElement>(null)
   const textareaRef = React.useRef<HTMLTextAreaElement>(null)
@@ -181,13 +185,6 @@ export function Chat() {
     window.api.getUserInfo().then((user) => {
       if (user) {
         setUserName(user.name || user.username || null)
-      }
-    })
-
-    // Get models
-    window.api.getModels().then((data) => {
-      if (data && data.length > 0) {
-        setModels(data)
       }
     })
 

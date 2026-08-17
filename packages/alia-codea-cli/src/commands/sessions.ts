@@ -112,6 +112,6 @@ async function startRestoredSession(session: Session): Promise<void> {
   console.log(chalk.gray('Session restored. Continue the conversation below.'));
   console.log();
 
-  const model = config.get('defaultModel') || 'alia-v1-codea';
+  const model = config.get('defaultModel');
   await startRepl({ model, context: true });
 }

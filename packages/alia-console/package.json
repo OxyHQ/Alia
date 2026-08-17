@@ -8,7 +8,7 @@
     "typecheck": "tsc --noEmit",
     "start": "node .output/server/index.mjs",
     "preview": "vite preview",
-    "test": "vitest run --passWithNoTests",
+    "test": "vitest run",
     "lint": "eslint",
     "format": "prettier",
     "check": "prettier --write . && eslint --fix"
