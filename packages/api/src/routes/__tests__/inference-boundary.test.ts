@@ -467,7 +467,24 @@ describe('model and routing configuration has no unaudited write path (#139 ws15
     'updateProviderKey',
   ];
 
-  /** Writers whose changes are made by a person and therefore need a record. */
+  /**
+   * Writers with a REQUEST-DRIVEN caller, which would need a route-level record
+   * of who asked as well as the repository-level one.
+   *
+   * Still empty, and it means something narrower than it did. Since #139 ws15
+   * every configuration writer emits a `config.change` record from inside the
+   * repository, so the audit itself is no longer this list's job —
+   * `lib/security/__tests__/config-audit.test.ts` owns it, derives the writer
+   * set from what a function DOES to the five tables rather than from its name,
+   * and therefore also covers `rotateProviderKey` and
+   * `replaceProviderMappings`, which the `create|update|delete|upsert|set|reset|mark`
+   * pattern below cannot see.
+   *
+   * What this list still asks is the question that file cannot: whether a writer
+   * has acquired a caller on the request path, which would make the ACTOR a
+   * request's user rather than the seed. That is a caller census, and it stays
+   * here.
+   */
   const AUDITED: readonly string[] = [];
 
   const writers = (): string[] => {

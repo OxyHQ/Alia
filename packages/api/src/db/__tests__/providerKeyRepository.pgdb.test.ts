@@ -29,6 +29,14 @@ import { keyUsageWindows, recordApiUsage } from '../telemetry/apiUsageRepository
 import { providerKeys } from '../schema/providers';
 
 /**
+ * The actor every writer below is called with.
+ *
+ * Required since #139 ws15: a configuration writer emits an audit record, and a
+ * record with no actor is the one thing an audit log must never contain.
+ */
+const ACTOR = { kind: 'script', id: 'providerKeyRepository.pgdb.test' } as const;
+
+/**
  * `provider_keys` and `api_usage`, against a real server.
  *
  * This table decides which upstream credential serves a request, and every way
@@ -77,7 +85,7 @@ function newKey(over: Partial<NewProviderKey> = {}): NewProviderKey {
 
 describe('the safe projection', () => {
   it('never carries the secret or its digest', async () => {
-    const created = await createProviderKey(db, newKey());
+    const created = await createProviderKey(db, newKey(), ACTOR);
 
     for (const row of [created, await findSafeProviderKeyById(db, created.id)]) {
       expect(row).toBeDefined();
@@ -105,7 +113,7 @@ describe('the safe projection', () => {
      * project key, a single repeated letter for a body, nothing to rotate.
      */
     const synthetic = ['sk', 'proj', 'B'.repeat(40) + 'ENDS0043'].join('-');
-    const created = await createProviderKey(db, newKey({ name: 'pk-failure-reason' }));
+    const created = await createProviderKey(db, newKey({ name: 'pk-failure-reason' }), ACTOR);
     const reason = `test-model 401: {"error":{"message":"Incorrect API key provided: ${synthetic}"}}`;
     // The control: what the repository is handed really does carry it, so a
     // clean read below is redaction rather than an empty column.
@@ -123,8 +131,8 @@ describe('the safe projection', () => {
   });
 
   it('reports whether a key HAS a value without returning it', async () => {
-    const withValue = await createProviderKey(db, newKey({ name: 'pk-diag-has' }));
-    const blank = await createProviderKey(db, newKey({ name: 'pk-diag-blank' }));
+    const withValue = await createProviderKey(db, newKey({ name: 'pk-diag-has' }), ACTOR);
+    const blank = await createProviderKey(db, newKey({ name: 'pk-diag-blank' }), ACTOR);
     await db.update(providerKeys).set({ key: null }).where(eq(providerKeys.id, blank.id));
 
     const diagnostics = await listProviderKeyDiagnostics(db);
@@ -142,9 +150,9 @@ describe('the safe projection', () => {
 describe('selection order', () => {
   it('serves FREE keys before paid, and by priority within each group', async () => {
     const provider = 'cohere';
-    const paidLow = await createProviderKey(db, newKey({ provider, isPaid: true, priority: 1 }));
-    const freeHigh = await createProviderKey(db, newKey({ provider, isPaid: false, priority: 90 }));
-    const freeLow = await createProviderKey(db, newKey({ provider, isPaid: false, priority: 2 }));
+    const paidLow = await createProviderKey(db, newKey({ provider, isPaid: true, priority: 1 }), ACTOR);
+    const freeHigh = await createProviderKey(db, newKey({ provider, isPaid: false, priority: 90 }), ACTOR);
+    const freeLow = await createProviderKey(db, newKey({ provider, isPaid: false, priority: 2 }), ACTOR);
 
     const keys = await loadActiveProviderKeys(db, provider);
     const ids = keys.map((k) => k.id);
@@ -155,10 +163,10 @@ describe('selection order', () => {
 
   it('excludes archived and inactive keys', async () => {
     const provider = 'perplexity';
-    const live = await createProviderKey(db, newKey({ provider }));
-    const off = await createProviderKey(db, newKey({ provider }));
-    const gone = await createProviderKey(db, newKey({ provider }));
-    await updateProviderKey(db, off.id, { isActive: false });
+    const live = await createProviderKey(db, newKey({ provider }), ACTOR);
+    const off = await createProviderKey(db, newKey({ provider }), ACTOR);
+    const gone = await createProviderKey(db, newKey({ provider }), ACTOR);
+    await updateProviderKey(db, off.id, { isActive: false }, ACTOR);
     await db.update(providerKeys).set({ isArchived: true }).where(eq(providerKeys.id, gone.id));
 
     const ids = (await loadActiveProviderKeys(db, provider)).map((k) => k.id);
@@ -169,8 +177,8 @@ describe('selection order', () => {
 describe('recording failures', () => {
   it('moves the key to the back of its group and counts the failure', async () => {
     const provider = 'mistral';
-    const key = await createProviderKey(db, newKey({ provider, priority: 5 }));
-    await createProviderKey(db, newKey({ provider, priority: 40 }));
+    const key = await createProviderKey(db, newKey({ provider, priority: 5 }), ACTOR);
+    await createProviderKey(db, newKey({ provider, priority: 40 }), ACTOR);
 
     const max = await maxPriorityInGroup(db, provider, false);
     expect(max).toBe(40);
@@ -183,7 +191,7 @@ describe('recording failures', () => {
   });
 
   it('does NOT count a rate limit toward either failure counter', async () => {
-    const key = await createProviderKey(db, newKey({ provider: 'groq' }));
+    const key = await createProviderKey(db, newKey({ provider: 'groq' }), ACTOR);
 
     const outcome = await recordKeyFailure(db, key.id, '429 rate limit', 20, new Date(), true);
     // The priority still moves — the key goes to the back of the queue either
@@ -194,7 +202,7 @@ describe('recording failures', () => {
   });
 
   it('archives and deactivates once total failures reach the key\'s ceiling', async () => {
-    const key = await createProviderKey(db, newKey({ provider: 'together' }));
+    const key = await createProviderKey(db, newKey({ provider: 'together' }), ACTOR);
     await db.update(providerKeys).set({ maxTotalFailures: 10 }).where(eq(providerKeys.id, key.id));
 
     for (let i = 0; i < 9; i += 1) {
@@ -219,7 +227,7 @@ describe('recording failures', () => {
      * caller swallows errors, so an unclamped write would make failures — and
      * archival with them — silently stop being recorded at the ceiling.
      */
-    const key = await createProviderKey(db, newKey({ provider: 'xai' }));
+    const key = await createProviderKey(db, newKey({ provider: 'xai' }), ACTOR);
 
     const outcome = await recordKeyFailure(db, key.id, 'boom', 1000, new Date(), false);
     expect(outcome?.currentPriority).toBe(1000);
@@ -231,7 +239,7 @@ describe('recording failures', () => {
 
 describe('recording successes', () => {
   it('restores the original priority, clears the run and the cooldown', async () => {
-    const key = await createProviderKey(db, newKey({ provider: 'deepseek', priority: 7 }));
+    const key = await createProviderKey(db, newKey({ provider: 'deepseek', priority: 7 }), ACTOR);
     await recordKeyFailure(db, key.id, 'boom', 300, new Date(), false);
     await db
       .update(providerKeys)
@@ -249,11 +257,11 @@ describe('recording successes', () => {
   });
 
   it('reactivates a merely deactivated key but NEVER an archived one', async () => {
-    const off = await createProviderKey(db, newKey({ provider: 'cerebras' }));
-    await updateProviderKey(db, off.id, { isActive: false });
+    const off = await createProviderKey(db, newKey({ provider: 'cerebras' }), ACTOR);
+    await updateProviderKey(db, off.id, { isActive: false }, ACTOR);
     expect((await recordKeySuccess(db, off.id, new Date()))?.isActive).toBe(true);
 
-    const archived = await createProviderKey(db, newKey({ provider: 'cerebras' }));
+    const archived = await createProviderKey(db, newKey({ provider: 'cerebras' }), ACTOR);
     await db
       .update(providerKeys)
       .set({ isArchived: true, isActive: false })
@@ -269,7 +277,7 @@ describe('recording successes', () => {
 
 describe('usage, spend and credit limits', () => {
   it('increments request and token counters atomically', async () => {
-    const key = await createProviderKey(db, newKey({ provider: 'openai' }));
+    const key = await createProviderKey(db, newKey({ provider: 'openai' }), ACTOR);
 
     await Promise.all(
       Array.from({ length: 10 }, () => recordKeyUsage(db, key.id, 100, new Date())),
@@ -283,15 +291,15 @@ describe('usage, spend and credit limits', () => {
   });
 
   it('accumulates spend rather than overwriting it', async () => {
-    const key = await createProviderKey(db, newKey({ provider: 'anthropic' }));
+    const key = await createProviderKey(db, newKey({ provider: 'anthropic' }), ACTOR);
     await recordKeySpend(db, key.id, 1.5);
     await recordKeySpend(db, key.id, 2.25);
     expect((await findProviderKeyById(db, key.id))?.spentUsd).toBeCloseTo(3.75, 6);
   });
 
   it('marks a key exhausted only when a limit is SET', async () => {
-    const limited = await createProviderKey(db, newKey({ provider: 'google', creditLimitUsd: 25 }));
-    const unlimited = await createProviderKey(db, newKey({ provider: 'google', creditLimitUsd: null }));
+    const limited = await createProviderKey(db, newKey({ provider: 'google', creditLimitUsd: 25 }), ACTOR);
+    const unlimited = await createProviderKey(db, newKey({ provider: 'google', creditLimitUsd: null }), ACTOR);
 
     expect(await markKeyCreditExhausted(db, limited.id)).toBe(true);
     expect((await findProviderKeyById(db, limited.id))?.spentUsd).toBe(25);
@@ -308,9 +316,9 @@ describe('usage, spend and credit limits', () => {
 
 describe('operator actions', () => {
   it('clears cooldowns and failure runs, and counts only the rows it changed', async () => {
-    const cooling = await createProviderKey(db, newKey({ provider: 'novita' }));
-    const failing = await createProviderKey(db, newKey({ provider: 'novita' }));
-    const clean = await createProviderKey(db, newKey({ provider: 'novita' }));
+    const cooling = await createProviderKey(db, newKey({ provider: 'novita' }), ACTOR);
+    const failing = await createProviderKey(db, newKey({ provider: 'novita' }), ACTOR);
+    const clean = await createProviderKey(db, newKey({ provider: 'novita' }), ACTOR);
     await db
       .update(providerKeys)
       .set({ cooldownUntil: new Date(Date.now() + 60_000) })
@@ -320,7 +328,7 @@ describe('operator actions', () => {
       .set({ consecutiveFailures: 3 })
       .where(eq(providerKeys.id, failing.id));
 
-    const reset = await resetAllKeyCooldowns(db);
+    const reset = await resetAllKeyCooldowns(db, ACTOR);
     expect(reset).toBeGreaterThanOrEqual(2);
 
     expect((await findProviderKeyById(db, cooling.id))?.cooldownUntil).toBeNull();
@@ -330,11 +338,11 @@ describe('operator actions', () => {
   });
 
   it('rotates the credential, the digest and the prefix together', async () => {
-    const key = await createProviderKey(db, newKey({ provider: 'fireworks' }));
+    const key = await createProviderKey(db, newKey({ provider: 'fireworks' }), ACTOR);
     const before = await findProviderKeyById(db, key.id);
 
     const replacement = `rotated-${Math.random().toString(36).slice(2)}`;
-    const rotated = await rotateProviderKey(db, key.id, replacement, new Date());
+    const rotated = await rotateProviderKey(db, key.id, replacement, new Date(), ACTOR);
     expect(rotated?.rotatedAt).not.toBeNull();
 
     const after = await findProviderKeyById(db, key.id);
@@ -348,24 +356,24 @@ describe('operator actions', () => {
 
   it('detects a duplicate digest before it reaches the unique index', async () => {
     const secret = `dup-${Math.random().toString(36).slice(2)}`;
-    await createProviderKey(db, newKey({ provider: 'replicate', keyHash: hashProviderKey(secret), key: secret }));
+    await createProviderKey(db, newKey({ provider: 'replicate', keyHash: hashProviderKey(secret), key: secret }), ACTOR);
 
     expect(await providerKeyHashExists(db, hashProviderKey(secret))).toBe(true);
     expect(await providerKeyHashExists(db, hashProviderKey(`${secret}-other`))).toBe(false);
   });
 
   it('deletes a key and returns it, or null when there is nothing to delete', async () => {
-    const key = await createProviderKey(db, newKey({ provider: 'hyperbolic' }));
-    expect((await deleteProviderKey(db, key.id))?.id).toBe(key.id);
+    const key = await createProviderKey(db, newKey({ provider: 'hyperbolic' }), ACTOR);
+    expect((await deleteProviderKey(db, key.id, ACTOR))?.id).toBe(key.id);
     expect(await findProviderKeyById(db, key.id)).toBeNull();
     // A second delete finds nothing — the route turns this into a 404.
-    expect(await deleteProviderKey(db, key.id)).toBeNull();
+    expect(await deleteProviderKey(db, key.id, ACTOR)).toBeNull();
   });
 
   it('counts usable keys, excluding archived and inactive', async () => {
     const before = await countUsableKeys(db);
-    const live = await createProviderKey(db, newKey({ provider: 'sambanova' }));
-    const dead = await createProviderKey(db, newKey({ provider: 'sambanova' }));
+    const live = await createProviderKey(db, newKey({ provider: 'sambanova' }), ACTOR);
+    const dead = await createProviderKey(db, newKey({ provider: 'sambanova' }), ACTOR);
     await db.update(providerKeys).set({ isArchived: true }).where(eq(providerKeys.id, dead.id));
 
     expect(await countUsableKeys(db)).toBe(before + 1);
@@ -375,8 +383,8 @@ describe('operator actions', () => {
 
   it('lists keys filtered, without secrets, priority-ordered', async () => {
     const provider = 'openrouter';
-    await createProviderKey(db, newKey({ provider, priority: 50 }));
-    await createProviderKey(db, newKey({ provider, priority: 3 }));
+    await createProviderKey(db, newKey({ provider, priority: 50 }), ACTOR);
+    await createProviderKey(db, newKey({ provider, priority: 3 }), ACTOR);
 
     const listed = await listSafeProviderKeys(db, { provider });
     expect(listed).toHaveLength(2);
@@ -407,8 +415,8 @@ describe('provider statistics', () => {
 
   it('averages the success rate, counting an UNUSED key as one', async () => {
     const provider = 'cloudflare';
-    const used = await createProviderKey(db, newKey({ provider }));
-    await createProviderKey(db, newKey({ provider })); // never used
+    const used = await createProviderKey(db, newKey({ provider }), ACTOR);
+    await createProviderKey(db, newKey({ provider }), ACTOR); // never used
 
     // Three successes, one failure => 0.75 for this key.
     await db

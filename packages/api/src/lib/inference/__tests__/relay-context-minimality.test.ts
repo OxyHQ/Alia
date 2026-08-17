@@ -10,7 +10,11 @@ import {
   type RelayTransport,
   type RelayTransportRequest,
 } from '../relay-client.js';
+import { assertAllowedRelayOrigin } from '../relay-endpoint.js';
 import { ALIA_SURFACE_LABEL, type RelayRequestPayload } from '../relay-request.js';
+
+/** An approved Relay origin, branded through the one function that produces one. */
+const ENDPOINT = assertAllowedRelayOrigin('https://api.oxy.so', 'development');
 
 /**
  * What Alia sends to Relay, and what it keeps — epic #139 workstream 13,
@@ -124,6 +128,7 @@ async function sendOnce(
     enabled: true,
     transport,
     credential: CREDENTIAL,
+    endpoint: ENDPOINT,
     principal: {
       billing: { accountId: 'acct_alia' },
       applicationId: 'app_alia',

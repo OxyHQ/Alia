@@ -10,7 +10,11 @@ import {
   type RelayTransport,
   type RelayTransportRequest,
 } from '../relay-client.js';
+import { assertAllowedRelayOrigin } from '../relay-endpoint.js';
 import { CAPABILITY_ENFORCEMENT, type RelayRequestPayload } from '../relay-request.js';
+
+/** An approved Relay origin, branded through the one function that produces one. */
+const ENDPOINT = assertAllowedRelayOrigin('https://api.oxy.so', 'development');
 
 /**
  * Epic #139 workstream 3 — *"Support tools, structured output, vision,
@@ -152,6 +156,7 @@ async function drive(
     enabled: true,
     transport,
     credential: CREDENTIAL,
+    endpoint: ENDPOINT,
     principal: {
       billing: { accountId: 'acct_alia' },
       applicationId: 'app_alia',
@@ -185,6 +190,7 @@ async function complete(
     enabled: true,
     transport: new CapturingTransport(frames),
     credential: CREDENTIAL,
+    endpoint: ENDPOINT,
     principal: {
       billing: { accountId: 'acct_alia' },
       applicationId: 'app_alia',
@@ -555,6 +561,7 @@ describe('with no capability source the client refuses nothing', () => {
       enabled: true,
       transport,
       credential: CREDENTIAL,
+      endpoint: ENDPOINT,
       principal: {
         billing: { accountId: 'acct_alia' },
         applicationId: 'app_alia',

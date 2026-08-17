@@ -55,9 +55,11 @@ import { authenticatedPrincipalSchema } from '@oxyhq/contracts';
 
 import {
   assertPrincipalMatchesDeployment,
+  resolveDeploymentEnvironment,
   type RelayPrincipalConfig,
 } from './relay-client.js';
 import { isRelayClientEnabled } from './relay-cutover.js';
+import { RELAY_BASE_URL_ENV, resolveRelayEndpoint } from './relay-endpoint.js';
 
 /**
  * Which environment variable carries each field of the contract's principal.
@@ -110,12 +112,30 @@ export function relayBootConfigurationFailure(
    * fields are `min(1)` in the contract and the fifth must carry
    * `inference:invoke` for the client to invoke anything.
    */
-  const unset = Object.values(RELAY_PRINCIPAL_ENV)
+  const unset = [...Object.values(RELAY_PRINCIPAL_ENV), RELAY_BASE_URL_ENV]
     .filter((variable) => (env[variable] ?? '').trim().length === 0)
     .sort();
   if (unset.length > 0) {
     return `the Relay client is enabled but these variables are not set: ${unset.join(', ')}`;
   }
+
+  /**
+   * Where it may send, before who it says it is.
+   *
+   * `RELAY_BASE_URL` is checked against
+   * {@link import('./relay-endpoint.js').RELAY_ALLOWED_ORIGINS} here — #139
+   * workstream 15's *"pin allowed Relay origins/endpoints"* — and this is the
+   * FAIL-CLOSED half of it: a production task whose base URL was mistyped, or
+   * whose SSM parameter was replaced, does not start. The alternative is a task
+   * that starts and sends a service credential and a user's prompt to whatever
+   * host the value names, once per request, until somebody notices.
+   *
+   * Ordered before the principal parse deliberately. Both can be wrong at once,
+   * and of the two, "you are pointed at the wrong host" is the one an operator
+   * must not act on a partial answer about.
+   */
+  const endpoint = resolveRelayEndpoint(env, resolveDeploymentEnvironment(env));
+  if (endpoint.kind === 'refused') return endpoint.reason;
 
   const parsed = authenticatedPrincipalSchema.safeParse({
     billing: { accountId: env[RELAY_PRINCIPAL_ENV.billing] },

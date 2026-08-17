@@ -72,6 +72,7 @@ import type {
   AliaInferencePort,
 } from './product-seam.js';
 import { reportRelayReachable, reportRelayUnavailableUntil } from './relay-connectivity.js';
+import { relayEndpointRefusal, type RelayEndpoint } from './relay-endpoint.js';
 import {
   createInferenceError,
   INFERENCE_ERROR_POLICY,
@@ -168,6 +169,17 @@ export interface RelayTransportRequest {
   readonly authorization: string;
   /** Echoed as the transport's own idempotency header where the wire supports one. */
   readonly idempotencyKey: string;
+  /**
+   * The base URL this call may be sent to, re-checked against the allow-list on
+   * every attempt.
+   *
+   * A transport receives it rather than reading `RELAY_BASE_URL` itself, which
+   * is what makes {@link import('./relay-endpoint.js').RELAY_ALLOWED_ORIGINS}
+   * enforceable at all: a transport with its own environment read would be a
+   * second, unchecked way to choose a host. The type is branded, so a transport
+   * cannot be handed a plain string either.
+   */
+  readonly endpoint: RelayEndpoint;
   readonly signal: AbortSignal;
 }
 
@@ -242,6 +254,19 @@ export interface RelayClientConfig {
   readonly enabled: boolean;
   readonly transport: RelayTransport;
   readonly credential: RelayServiceCredential;
+  /**
+   * Where the transport may send. Obtained from
+   * {@link import('./relay-endpoint.js').resolveRelayEndpoint} or
+   * {@link import('./relay-endpoint.js').assertAllowedRelayOrigin}, which are the
+   * only producers of the branded type.
+   *
+   * Re-checked before every attempt as well as at construction. That is not
+   * belt-and-braces: `readonly` is a compile-time claim, so a config object
+   * mutated after the client was built — or one assembled through a cast — would
+   * otherwise pass the boot check and send elsewhere for the rest of the
+   * process's life.
+   */
+  readonly endpoint: RelayEndpoint;
   readonly principal: RelayPrincipalConfig;
   /** Where `AliaModelChoice.product_default` resolves to. */
   readonly defaultTarget: RoutingTarget;
@@ -506,8 +531,31 @@ export class RelayInferenceClient implements RelayInferencePort {
     // environment named is the one this process is running in.
     this.principal = authenticatedPrincipalSchema.parse(config.principal);
     assertPrincipalMatchesDeployment(this.principal, config.env ?? process.env);
+    // And where it may send. The brand means this has already passed once, in
+    // whatever produced the value; re-running it here is what makes a client
+    // built by a caller that bypassed the brand with a cast fail immediately
+    // rather than at its first request.
+    const refusal = this.endpointRefusal();
+    if (refusal !== null) throw new Error(refusal);
     this.now = config.now ?? Date.now;
     this.newId = config.newId ?? randomUUID;
+  }
+
+  /**
+   * Why the configured endpoint may not be used right now, or `null`.
+   *
+   * Called at construction AND at the top of every call, in {@link prepare}. The
+   * repetition is the point: `readonly` is erased at runtime, so a config object
+   * mutated after the client was built would otherwise ride a boot-time approval
+   * for the life of the process. That is the "at request time" half of *"pin
+   * allowed Relay origins/endpoints"*, and `__tests__/relay-endpoint.test.ts`
+   * mutates a live client's config to prove it fires.
+   */
+  private endpointRefusal(): string | null {
+    return relayEndpointRefusal(
+      this.config.endpoint,
+      resolveDeploymentEnvironment(this.config.env ?? process.env),
+    );
   }
 
   /* ---------------------------------------------------------------------- */
@@ -775,6 +823,7 @@ export class RelayInferenceClient implements RelayInferencePort {
             request,
             authorization,
             idempotencyKey,
+            endpoint: this.config.endpoint,
             signal: controller.signal,
           }),
           controller.signal,
@@ -917,6 +966,19 @@ export class RelayInferenceClient implements RelayInferencePort {
     | { readonly kind: 'ready'; readonly request: InferenceRequest; readonly target: RoutingTarget }
     | { readonly kind: 'refused'; readonly error: InferenceError } {
     if (!this.config.enabled) {
+      return {
+        kind: 'refused',
+        error: createInferenceError({ code: 'service_unavailable', requestId }),
+      };
+    }
+
+    // Refused HERE rather than inside an attempt, so a client pointed at an
+    // unapproved host fails once instead of being retried: the code is
+    // retryable, and every retry would re-read the same wrong configuration.
+    // The reason is not put on the error — `INFERENCE_ERROR_POLICY` supplies the
+    // user sentence and the operator one, and a host name is not either
+    // audience's business.
+    if (this.endpointRefusal() !== null) {
       return {
         kind: 'refused',
         error: createInferenceError({ code: 'service_unavailable', requestId }),

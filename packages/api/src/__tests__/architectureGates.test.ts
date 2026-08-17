@@ -703,6 +703,12 @@ const EGRESS_HOSTS: readonly string[] = [
   'mcp.notion.com',
   'oauth2.googleapis.com',
   'openrouter.ai',
+  // #139 ws15, *"pin allowed Relay origins/endpoints"*: one of the two entries
+  // in `lib/inference/relay-endpoint.ts`'s allow-list, beside `api.oxy.so`
+  // above. It is a host this package NAMES and does not yet call — the Relay
+  // transport does not exist — and it is here rather than exempted because
+  // naming a host is exactly what this gate exists to make a reviewed diff.
+  'relay.oxy.so',
   'slack.com',
   'www.google.com',
   'www.googleapis.com',
