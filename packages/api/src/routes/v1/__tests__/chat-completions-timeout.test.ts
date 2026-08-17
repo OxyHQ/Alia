@@ -123,7 +123,6 @@ vi.mock('../../../lib/tools/index.js', () => ({
   createGetWhatsAppChatsTool: vi.fn(() => ({ execute: vi.fn() })),
   createGetWhatsAppMessagesTool: vi.fn(() => ({ execute: vi.fn() })),
   createSendWhatsAppMessageTool: vi.fn(() => ({ execute: vi.fn() })),
-  createGatewayAdminTool: vi.fn(() => ({ execute: vi.fn() })),
   webScraperTool: { execute: vi.fn() },
   generateFileTool: { execute: vi.fn() },
   createSearchAgentsTool: vi.fn(() => ({ execute: vi.fn() })),

@@ -2,7 +2,7 @@
 
 The human half of the deliverable for [issue #139](https://github.com/OxyHQ/Alia/issues/139)
 workstreams 0 and 1. The machine-readable half is
-[`ownership-matrix.json`](./ownership-matrix.json) beside it: **356 rows**, one per
+[`ownership-matrix.json`](./ownership-matrix.json) beside it: **358 rows**, one per
 package, module, route, table, column, environment variable, screen, stream event,
 dependency or behaviour in the epic's scope, each with an owner, a target, its
 dependencies and the condition that must hold before it leaves Alia.
@@ -10,15 +10,15 @@ dependencies and the condition that must hold before it leaves Alia.
 |                          | rows |
 | ------------------------ | ---- |
 | stay in **Alia**         | 195  |
-| move to **Relay**        | 87   |
+| move to **Relay**        | 89   |
 | **deleted**              | 57   |
 | move to **Oxy**          | 17   |
 
 |                        | rows |
 | ---------------------- | ---- |
-| `live`                 | 265  |
-| `dead`                 | 52   |
-| `unverified`           | 20   |
+| `live`                 | 262  |
+| `dead`                 | 58   |
+| `unverified`           | 19   |
 | `loaded-not-invoked`   | 19   |
 
 Seven rows carry an `UNDECIDED` gate; they are listed under

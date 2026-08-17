@@ -193,6 +193,80 @@ The correction for both is the same, and it is what the deploy script already
 does at zero capacity (`deploy-ecs-image.sh:538`–`:547`): **repoint explicitly,
 at whatever capacity the service currently has.**
 
+### After the Relay cutover: check the target before you repoint
+
+The section at the top of this runbook states the rule. This is how you satisfy
+it, and it is a check you run **before** `update-service`, not after — repointing
+at a revision that speaks to providers directly is the change you are trying not
+to make, and ECS will carry it out perfectly.
+
+**A revision speaks to Relay when its container environment sets
+`ALIA_RELAY_CLIENT_ENABLED` to exactly `true`.** Not `1`, not `TRUE`:
+`isRelayClientEnabled` (`packages/api/src/lib/inference/relay-client.ts:103`–`:104`)
+compares against the literal string, and `relay-boot-check.ts` refuses to boot
+when the flag is on and the principal is unusable. So the flag is a reliable
+discriminator in both directions: a revision carrying it either speaks to Relay or
+does not start.
+
+```bash
+# The rollback target's inference configuration, in one read. `environment` and
+# `secrets` are separate arrays and a variable can be in either, so both are
+# printed — a value absent from the first is not absent from the task.
+aws ecs describe-task-definition --task-definition <candidate-revision-arn> \
+  --profile oxy --region us-west-2 \
+  --query 'taskDefinition.containerDefinitions[?name==`alia`].[
+      environment[?starts_with(name, `ALIA_RELAY_`)],
+      secrets[?starts_with(name, `ALIA_RELAY_`)],
+      environment[?name==`GATEWAY_API_URL`]
+    ]'
+```
+
+Read it against these three rules:
+
+1. **`ALIA_RELAY_CLIENT_ENABLED` must be present and exactly `true`.** Absent or
+   any other value means that revision calls providers in-process. **Do not roll
+   back to it.** Roll back to an older revision that does carry the flag, or fix
+   forward.
+2. **All five principal variables must be present** —
+   `ALIA_RELAY_ACCOUNT_ID`, `ALIA_RELAY_APPLICATION_ID`, `ALIA_RELAY_CREDENTIAL_ID`,
+   `ALIA_RELAY_ENVIRONMENT`, `ALIA_RELAY_INFERENCE_SCOPES`
+   (`packages/api/src/lib/inference/relay-boot-check.ts:70`–`:76`). A revision with
+   the flag and a missing variable does not start; the task will crash-loop, and
+   the rollback will look like a broken image rather than a missing value.
+   `ALIA_RELAY_ENVIRONMENT` must also match the deployment: a `staging` principal
+   on a production task is refused by construction.
+3. **No direct provider route may be configured beside the flag.** Since #164 this
+   is enforced rather than advised: `directProviderModeFailure`
+   (`packages/api/src/lib/inference/direct-provider-guard.ts:102`) refuses to boot
+   when the flag is on and either `GATEWAY_API_URL` or any provider credential is
+   set, and `provider-egress-policy.ts` refuses outbound requests to provider hosts
+   inside the process. So a revision cannot half-roll-back: it either speaks to
+   Relay or it does not start. Read this column anyway — it turns a crash-loop you
+   would otherwise diagnose as a bad image into a value you can see before you
+   repoint.
+
+**A rollback target that crash-loops is usually rule 2 or rule 3, not the image.**
+Both guards exit the process at boot with the reason in the log, so read the task's
+stopped-reason and the first lines of its log before concluding the build is bad.
+
+**What the ALB polls is unchanged.** `/health/live` does not consult Relay;
+`relay-connectivity.ts` reports into `/health` and `/health/ready` only, and reports
+`disabled` while the flag is off. A rollback across the cutover boundary therefore
+does not change what the target group considers healthy.
+
+**Turning the flag off is not a rollback.** It is a cutover in reverse: it returns
+inference to Alia's in-process provider stack, puts spend back on Alia's own
+provider accounts, and re-exposes the `provider_keys` plaintext to the request
+path. If the Relay version itself is the problem, the rollback target is the
+**previous Relay version**, which is a different image with the flag still on. If
+no such image exists yet, say so and escalate on #139 rather than clearing the
+flag — that decision is larger than the incident.
+
+The one exception, stated so nobody has to infer it: **before** the workstream 8
+cutover no revision carries the flag at all, every revision calls providers
+in-process, and this section does not apply. Use the ordinary image rollback
+above.
+
 ### Rolling back at zero capacity
 
 ```bash
