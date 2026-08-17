@@ -46,6 +46,7 @@ import {
   UnregisteredModelError,
   type FallbackPolicy,
 } from '../../../lib/routing/policy.js';
+import { getRoutingPreset } from '../../../lib/routing/presets.js';
 import { getBestKeyForModel, markKeyCreditExhausted } from './key-manager';
 import { isProviderAvailable } from './provider-health';
 import { recordFallbackEvent as recordFallbackEventRow } from '../../../db/telemetry/fallbackEventRepository.js';
@@ -142,7 +143,29 @@ export async function resolveWithFallback(
 ): Promise<FallbackResult> {
   const startTime = Date.now();
   const attempts: FallbackAttempt[] = [];
-  const policy = options.fallbackPolicy ?? DEFAULT_FALLBACK_POLICY;
+
+  /**
+   * The policy this request resolves under: the CALLER's choice, else the
+   * PRODUCT's for the profile being selected, else the default.
+   *
+   * `lib/routing/presets.ts` describes `fallbackPolicy` as *"enforced by the
+   * fallback engine on every request that selects this preset"*, and until this
+   * line existed nothing read it — `getRoutingPreset` had no caller outside
+   * tests, so the product half of "fallback is an explicit product or user
+   * policy" was a table with no consumer. A mechanism can be green and inert;
+   * this is the entrypoint that makes it neither.
+   *
+   * Nothing changes today: every preset carries `DEFAULT_FALLBACK_POLICY`, so
+   * the middle term always yields the same value the last one would have. What
+   * changes is that narrowing a profile in that table now narrows requests,
+   * which is the point of it being configuration.
+   *
+   * Order matters and is the only ordering that is safe in both directions. A
+   * caller who asked for `no-fallback` gets it even where the product allows
+   * more, and a caller who asked for nothing inherits whatever the product
+   * decided rather than silently the widest thing available.
+   */
+  const policy = options.fallbackPolicy ?? getRoutingPreset(aliasModelId)?.fallbackPolicy ?? DEFAULT_FALLBACK_POLICY;
 
   /**
    * An identifier nobody registered is refused, not rewritten.

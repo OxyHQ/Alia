@@ -160,7 +160,6 @@ export interface AliaModel {
   supportsVision: boolean;
   category: string;
   emoji?: string;
-  chatVisible?: boolean;
 }
 
 export interface ModelMapping {

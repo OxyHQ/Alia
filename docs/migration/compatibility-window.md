@@ -52,25 +52,33 @@ Every compatibility path emits the same two signals while it is inside the windo
 
 A `Sunset` value is emitted only once a removal date has been set. A removal date is set when the gate is satisfied or is credibly close, never as a placeholder — an announced date that then moves teaches callers to ignore the header, which destroys the signal for every future deprecation.
 
-**A product stream event.** `alia.deprecation`, following the existing `alia.*` SSE convention with `eventVersion: 1`, carrying the deprecated identifier, its replacement, and the sunset date where one is set. This event does not exist in the code today; naming it is a decision taken by this document.
+**A product stream event.** `alia.deprecation`, following the existing `alia.*` SSE convention with `eventVersion: 1`, carrying the deprecated identifier, its replacement, and the sunset date where one is set. Naming it was a decision taken by this document; it is implemented for path (a), as recorded below.
 
-**Status of each signal.** The headers exist for path (a) as of workstream 4: `packages/api/src/middleware/alias-deprecation.ts`, mounted app-wide in `src/index.ts` and emitted on any response to a request naming one of the thirteen aliases. `Sunset` support is implemented and no value is emitted, because no removal date is set — see the paragraph above, which is the rule that keeps it that way.
+**Status of each signal.** Path (a) emits both, as of workstream 4.
 
-They exist for path (c) as of workstream 11: `packages/api/src/middleware/credential-deprecation.ts`, mounted app-wide beside the alias signal, emitted on any response to a request that PRESENTS an `alia_sk_*` credential, and emitted again by `refuseIssuance` on every closed creation path. Presentation rather than successful authentication, because the middleware runs ahead of auth and a caller whose key has lapsed is exactly the caller who needs the notice. `Sunset` is implemented and withheld for the same reason as (a). Both modules serialize through the same two functions and point at the same document, so the two signals cannot disagree about a date or a link.
+The headers exist for path (a) as of workstream 4: `packages/api/src/middleware/alias-deprecation.ts`, mounted app-wide in `src/index.ts` and set on any response to a request naming one of the thirteen aliases. `Sunset` support is implemented and no value is emitted, because no removal date is set — see the paragraph above, which is the rule that keeps it that way.
 
-Path (b) emits nothing yet, and neither does the `alia.deprecation` stream event for any path. Emitting them is a prerequisite for starting those clocks, not an optional extra — a window that runs without a signal is a window that surprises its callers at the end.
+The stream event exists for path (a) as of workstream 4 as well: built by `aliasDeprecationEvent` in that same module and written at `packages/api/src/routes/v1/chat-completions.ts:97`, ahead of every other frame on a streaming request, so the deep-research branch carries it too. Its `replacement` is read from `getRoutingPreset` — the preset table `lib/routing/__tests__/routing-policy.test.ts` asserts equal to [`alias-migration-map.json`](./alias-migration-map.json) — rather than copied here, so a routing change moves it instead of leaving a stale instruction. A non-streaming caller has no stream to carry an event and is served by the headers, which every response gets either way.
+
+The headers exist for path (c) as of workstream 11: `packages/api/src/middleware/credential-deprecation.ts`, mounted app-wide beside the alias signal, emitted on any response to a request that PRESENTS an `alia_sk_*` credential, and emitted again by `refuseIssuance` on every closed creation path. Presentation rather than successful authentication, because the middleware runs ahead of auth and a caller whose key has lapsed is exactly the caller who needs the notice. `Sunset` is implemented and withheld for the same reason as (a). Both modules serialize through the same two functions and point at the same document, so the two signals cannot disagree about a date or a link.
+
+**Path (b) emits nothing, and path (c) has no stream event.** Emitting them is a prerequisite for starting those clocks, not an optional extra — a window that runs without a signal is a window that surprises its callers at the end.
+
+**No removal date is set for any path, and this document does not contain one.** A date is set when a gate below is satisfied or credibly close. Anyone looking here for "the agreed sunset date" is looking for something that has deliberately not been decided; setting one is a change to this file, and then a one-line change to `ALIAS_SUNSET` (path a) or `CREDENTIAL_SUNSET` (path c).
 
 ---
 
 ## (a) The `alia-*` model aliases
 
-Thirteen identifiers, defined in `packages/api/src/internal/providers/lib/alia-models.ts:63` through `:212` and serialized with `object: 'model'` and `owned_by: 'alia'` at `packages/api/src/routes/v1/models.ts:24`. ADR 0003 establishes that each is either a concrete model reference or a routing profile, and is not a model owned by Alia.
+Thirteen identifiers, defined in `packages/api/src/internal/providers/lib/alia-models.ts` and still serialized with `object: 'model'` on `GET /v1/models`. ADR 0003 establishes that each is either a concrete model reference or a routing profile, and is not a model owned by Alia; the migration map measured all thirteen and found them all routing profiles.
+
+`owned_by` no longer says `alia` (workstream 4): it is `undisclosed`, because the publisher is not recoverable from this repository's data and the serving provider is not an answer to "who owns this" — ADR 0003 makes the provider a property of the deployment rather than of the model. Route concealment is not the constraint here; `lib/errors/sanitize.ts` rule 2 exempts the model catalogue outright. `object` is unchanged, because it is the value external callers switch on and this section exists to keep their responses working; the truthful type split is served by `GET /catalogue` instead.
 
 **What still works during the window.** Every existing alias continues to resolve and serve requests. Requests naming an alias are answered. `GET /v1/models` continues to list them for as long as the surface serving that listing exists. A migration map from each old alias to either a concrete model or a routing profile is published and applied, so a caller can translate mechanically rather than by guesswork.
 
 **What does not.** No new alias is created — the set is frozen as of ADR 0002. An alias is not extended to cover a new capability, a new surface or a new tier; those get a routing profile or a concrete model reference from the start.
 
-**Deprecation signal.** `Deprecation` and `Sunset` headers on responses to requests naming a deprecated alias, plus `alia.deprecation` on the stream, carrying the alias and its mapped replacement.
+**Deprecation signal.** `Deprecation` and `Sunset` headers on responses to requests naming a deprecated alias, plus `alia.deprecation` on the stream, carrying the alias and its mapped replacement. **Both are delivered** — see *Status of each signal* above for where each is emitted. `Sunset` and the event's `sunsetAt` stay absent until a removal date is set.
 
 **Removal gate.** Per alias, both of:
 

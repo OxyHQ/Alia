@@ -61,8 +61,12 @@ Three consequences of that table are easy to miss:
   `GET /v1/models` or a chat request. Earlier revisions of this page listed them as public
   models; they were not.
 
-Only five identifiers carry `chatVisible: true`, and those are the five the app's picker
-and the `switchModel` tool offer (`packages/api/src/lib/tools/switch-model.ts:18`).
+Five identifiers are offered in a picker, and those are the five the app and the
+`switchModel` tool show (`packages/api/src/lib/tools/switch-model.ts:18`). That decision is
+product configuration and lives in `packages/api/src/lib/product-modes.ts`
+(`VISIBLE_PROFILES`), keyed by routing profile — it used to be a `chatVisible` field inside
+the provider mapping table, which is where a product opinion could not stay once ADR 0001
+started removing that table from this repository.
 
 ## How a request resolves today
 
@@ -190,8 +194,23 @@ Note the two notations are different and stay visually distinct: `alia-*` with a
 the current alias set; `alia/*` with a slash is the reserved publisher namespace in
 canonical `<publisher>/<model>` form.
 
-None of this is implemented yet. The reclassification is workstream 4 of #139, the client
-rendering split is workstream 5, and the enforcement tests are workstream 19.
+What is implemented, as of workstreams 4, 5 and 14 of #139:
+
+- `GET /catalogue` serves each entry with its real kind, `model` or `routing_profile`,
+  derived from live fan-out. `GET /v1/models` still says `object: 'model'` for all
+  thirteen, deliberately, because external callers switch on that value and the
+  compatibility window keeps this surface's shapes; that residue is recorded exactly by
+  gate 5 and retires with the window.
+- `GET /v1/models` no longer claims `owned_by: 'alia'`. It says `undisclosed`.
+- `GET /catalogue/modes` serves the product modes — Automatic, Fast, Balanced, Maximum
+  quality, Coding and Deep research — as `object: 'product_mode'`, which is where a quality
+  tier, a reasoning level or a surface preset belongs instead of in a model identity.
+- Cross-model substitution is a typed policy on the request (`fallbackPolicy`) and on the
+  routing preset a request selects, rather than something the engine decides silently.
+
+What is not: the aliases themselves still exist and still resolve, for the length of the
+compatibility window, and canonical `<publisher>/<model>` identity arrives with Relay's
+catalogue — publisher is not recoverable from this repository's data.
 
 ## Compatibility window
 

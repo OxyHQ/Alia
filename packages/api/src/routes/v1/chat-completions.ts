@@ -16,6 +16,7 @@ import { writeStopChunk, writeContentChunk, makeChunk } from '../../lib/streamin
 import { buildCompletionResponse } from '../../lib/chat/response-shapes.js';
 import { SSEWriter } from '../../lib/chat/sse-writer.js';
 import { buildChatRequestContext } from '../../lib/chat/request-context.js';
+import { ALIAS_SUNSET, aliasDeprecationEvent } from '../../middleware/alias-deprecation.js';
 import type { AgentMessage } from '../../lib/chat/stream-runner.js';
 import { runProviderLoop, type ChatLoopState } from '../../lib/chat/provider-loop.js';
 import type { IAgent } from '../../models/agent.js';
@@ -77,6 +78,25 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
     state.resolved = ctx.resolved;
     state.aliasModelId = ctx.aliasModelId;
     const { autonomyRuntime, recalledMemories } = ctx;
+
+    /**
+     * The compatibility window's stream signal for a deprecated alias
+     * (`docs/migration/compatibility-window.md` section (a), #139 workstream 4).
+     *
+     * Emitted here rather than inside the provider loop so it precedes every
+     * other frame and reaches the deep-research path below too — that branch
+     * returns without ever entering the loop. Streaming only, because there is
+     * no stream to put an event on otherwise; a non-streaming caller is served
+     * by the `Deprecation` and `Link` headers, which the app-wide middleware
+     * sets on every response either way.
+     */
+    if (body.stream === true) {
+      const deprecation = aliasDeprecationEvent(requestedModel, ALIAS_SUNSET);
+      if (deprecation !== null) {
+        sse.ensureHeaders();
+        res.write(`event: alia.deprecation\ndata: ${JSON.stringify(deprecation)}\n\n`);
+      }
+    }
 
     // ── Deep Research Mode ──
     if (deepResearch && req.user?.id) {

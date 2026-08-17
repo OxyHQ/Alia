@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { ALIA_MODELS, TIER_MODEL_MAPPINGS, getAllAliaModels, isAliaModel } from '../internal/providers/lib/alia-models.js';
 import { PROVIDER_NAMES } from '../internal/providers/lib/provider-names.js';
 import { PROVIDER_API_HOSTS } from '../lib/inference/provider-egress-policy.js';
+import { PRODUCT_MODES } from '../lib/product-modes.js';
 import type { SafeProviderKey } from '../db/providers/providerKeyRepository.js';
 
 /**
@@ -392,6 +393,18 @@ const PROVIDER_IMPORT_ALLOWLIST: readonly { from: string; to: string; via: Modul
     why: 'Reads ALIA_MODELS to check the routing presets cover exactly the registered aliases, in both directions (#139 ws14). Test-only; retires when the catalogue moves to Relay.',
   },
   {
+    from: 'packages/api/src/lib/__tests__/product-modes.test.ts',
+    to: 'packages/api/src/internal/providers/lib/alia-models',
+    via: 'import',
+    why: 'Recomputes each product mode’s binding from ALIA_MODELS — category, credit multiplier and the offered set — so a mode cannot become an assignment (#139 ws4). Test-only; retires when the catalogue moves to Relay.',
+  },
+  {
+    from: 'packages/api/src/routes/__tests__/picker-visibility.test.ts',
+    to: 'packages/api/src/internal/providers/lib/alia-models',
+    via: 'dynamic',
+    why: 'Drives both picker surfaces against the real alias set, so "the offered five" is measured over every registered identifier rather than over a fixture (#139 ws4). Test-only.',
+  },
+  {
     from: 'packages/api/src/routes/v1/audio.ts',
     to: 'packages/api/src/internal/providers/lib/digitalocean-async',
     via: 'import',
@@ -421,11 +434,17 @@ const PROVIDER_IMPORT_ALLOWLIST: readonly { from: string; to: string; via: Modul
  * The exact-count assertion the list needs, so it cannot grow one defensible
  * line at a time.
  *
- * 23 → 24 in #139 ws20, the only growth so far, and it is a TEST reading the
- * routing table as data rather than a product module calling an adapter. Every
- * other line is a product module, and the direction of travel for those is down.
+ * 23 → 24 in #139 ws20, then → 26 in ws4. All three additions are TESTS reading
+ * the routing table as data rather than product modules calling an adapter.
+ * Every other line is a product module, and the direction of travel for those
+ * is down.
+ *
+ * The number is COUNTED from the list above rather than reasoned about: two
+ * branches each grew it from 23, one to 24 and one to 25, and the array itself
+ * merged cleanly. Arithmetic on either branch's total would have produced a
+ * plausible wrong answer that still compiled.
  */
-const PROVIDER_IMPORT_ALLOWLIST_SIZE = 24;
+const PROVIDER_IMPORT_ALLOWLIST_SIZE = 26;
 
 function observedProviderImports(): { from: string; to: string; via: ModuleRef['via'] }[] {
   const seen = new Map<string, { from: string; to: string; via: ModuleRef['via'] }>();
@@ -1410,6 +1429,9 @@ const OBJECT_KIND_EMITTERS: Readonly<Record<string, readonly string[]>> = {
   // frozen compatibility violation; `routes/catalogue.ts` emits it only for an
   // entry that resolves to one model, which is what the invariant permits.
   model: ['packages/api/src/routes/catalogue.ts', 'packages/api/src/routes/v1/models.ts'],
+  // #139 workstream 4. A product mode is configuration, never an artifact, so
+  // its own kind is the thing that keeps it out of `model` — see the gate below.
+  product_mode: ['packages/api/src/routes/catalogue.ts'],
   routing_profile: ['packages/api/src/routes/catalogue.ts'],
 };
 
@@ -1445,7 +1467,7 @@ vi.mock('../lib/gateway-client.js', async () => {
 
 interface CapturedResponse {
   status?: number;
-  body?: { object?: string; data?: { id: string; object: string }[] };
+  body?: { object?: string; data?: { id: string; object: string; owned_by?: string }[] };
 }
 
 interface RouterLike {
@@ -1461,14 +1483,14 @@ interface RouterLike {
 }
 
 /**
- * Drive a router's real `GET /` handler and capture what it answered.
+ * Drive a router's real `GET` handler for one path and capture what it answered.
  *
  * The LAST handler in the layer's stack, so any auth middleware in front of it
  * is skipped — these gates measure what the serializer emits, not who may ask.
  */
-async function runListHandler(module: unknown): Promise<CapturedResponse> {
+async function runListHandler(module: unknown, routePath = '/'): Promise<CapturedResponse> {
   const { default: router } = module as RouterLike;
-  const layer = router.stack.find((l) => l.route?.path === '/' && l.route.methods.get);
+  const layer = router.stack.find((l) => l.route?.path === routePath && l.route.methods.get);
   expect(layer?.route).toBeDefined();
   const handle = layer?.route?.stack[layer.route.stack.length - 1].handle;
   expect(handle).toBeTypeOf('function');
@@ -1528,6 +1550,31 @@ describe('gate 5: models versus routing profiles (ADR 0003 invariant 1)', () => 
     const data = captured.body?.data ?? [];
     expect(data.map((entry) => entry.id).sort()).toEqual([...SERVED_AS_MODEL].sort());
     expect(new Set(data.map((entry) => entry.object))).toEqual(new Set(['model']));
+  });
+
+  it('the compatibility surface no longer claims Alia OWNS what it serves', async () => {
+    // The second half of the invariant line: *"a routing policy, quality mode,
+    // prompt preset or provider alias is never presented as an ALIA-OWNED
+    // model."* `object` stays `model` on this surface for the length of the
+    // compatibility window, and it is the frozen violation above; ownership is
+    // a separate claim on a separate field and there is no reason to keep
+    // making it, since every one of these routes to a third party.
+    const captured = await runListHandler(await import('../routes/v1/models.js'));
+    const data = captured.body?.data ?? [];
+    // Vacuity floor: an empty list claims nothing and reads like a clean pass.
+    expect(data).toHaveLength(SERVED_AS_MODEL.length);
+
+    expect(data.filter((entry) => entry.owned_by === 'alia')).toEqual([]);
+    // Every entry still carries the field — removing it is a shape change to a
+    // surface promised its existing shapes — and carries the same value.
+    expect(new Set(data.map((entry) => entry.owned_by))).toEqual(new Set(['undisclosed']));
+
+    // And it must not have become a provider name instead, which would trade a
+    // false claim for a forbidden one.
+    const providers = new Set<string>();
+    for (const list of Object.values(TIER_MODEL_MAPPINGS)) for (const m of list) providers.add(m.provider.toLowerCase());
+    expect(providers.size).toBeGreaterThanOrEqual(10);
+    expect(data.filter((entry) => providers.has((entry.owned_by ?? '').toLowerCase()))).toEqual([]);
   });
 
   it('every identifier served as a model is a routing profile, by measurement', () => {
@@ -1604,6 +1651,33 @@ describe('gate 5: models versus routing profiles (ADR 0003 invariant 1)', () => 
       .filter((entry) => entry.object !== kindOf[published.get(entry.id) ?? ''])
       .map((entry) => `${entry.id}: map says ${String(published.get(entry.id))}, catalogue serves ${entry.object}`);
     expect(disagreements).toEqual([]);
+  });
+
+  it('no product mode is served as object: "model"', async () => {
+    // #139 workstream 19: *"fail when a product mode is serialized as
+    // `object: model`"*. Driven against the real `GET /catalogue/modes`
+    // handler, so it measures the bytes a client receives rather than the
+    // table those bytes are built from.
+    const captured = await runListHandler(await import('../routes/catalogue.js'), '/modes');
+    expect(captured.status).toBeUndefined();
+    expect(captured.body?.object).toBe('list');
+    const data = captured.body?.data ?? [];
+
+    // Vacuity floor: an empty list serializes nothing as a model and reads
+    // exactly like a clean pass. Tied to the shipped table, not to a number.
+    expect(data.length).toBe(PRODUCT_MODES.length);
+    expect(data.length).toBeGreaterThanOrEqual(6);
+
+    expect(data.filter((entry) => entry.object === 'model')).toEqual([]);
+    expect(new Set(data.map((entry) => entry.object))).toEqual(new Set(['product_mode']));
+
+    // A mode must not be able to pass for one of the thirteen either: an id in
+    // the alias namespace would be a mode re-entering the set ADR 0002 froze,
+    // and `alia/` is the reserved publisher namespace.
+    const ids = data.map((entry) => entry.id);
+    expect(ids.filter((id) => FROZEN_ALIASES.includes(id))).toEqual([]);
+    expect(ids.filter((id) => id.startsWith('alia/') || id.startsWith('alia-'))).toEqual([]);
+    expect(ids.every((id) => id.startsWith('mode:'))).toBe(true);
   });
 
   it('no catalogue response names a provider or a provider model id', async () => {

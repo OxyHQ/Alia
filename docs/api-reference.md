@@ -150,6 +150,8 @@ channel emits cache-invalidation events for conversation, trigger and notificati
 
 | Route | Purpose |
 |---|---|
+| `GET /catalogue` | The truthful catalogue: each entry carries its real kind, `model` or `routing_profile` (`routes/catalogue.ts`) |
+| `GET /catalogue/modes` | The product modes a person picks between (`routes/catalogue.ts`) |
 | `GET /models/stats`, `GET /models/stats/:modelId` | Product usage statistics per Alia identifier (`routes/models-stats.ts`) |
 | `GET /external-models`, `/external-models/organizations`, `/external-models/:modelId` | The external-model leaderboard (`routes/external-models.ts`) |
 | `/analytics` | Product analytics |
@@ -226,9 +228,14 @@ forward. Route-by-route is deliberate, because gating the whole surface on its
 least-migrated route keeps the rest alive for no reason.
 
 **Deprecation signal.** `Deprecation` and `Sunset` headers with a `Link` to the migration
-documentation, plus `alia.deprecation` on streaming responses. None of the three exists in
-the API today; emitting them is a prerequisite for starting the clock. Workstream 19 of
-#139.
+documentation, plus `alia.deprecation` on streaming responses — for **this surface**, none
+of the three is emitted, and emitting them is a prerequisite for starting this clock.
+
+The alias deprecation of path (a) is a different subject that happens to be visible here:
+its middleware is mounted app-wide, so a `/v1/*` request naming one of the thirteen
+`alia-*` identifiers already carries `Deprecation` and `Link`, and a streaming one carries
+`alia.deprecation`. That says the alias is deprecated, not the surface. Whether the surface
+signal is per-route or blanket across `/v1/*` is an open question owned by workstream 6.
 
 The clock owner is the owner of workstream 6, recorded on the epic.
 
@@ -242,7 +249,7 @@ The clock owner is the owner of workstream 6, recorded on the epic.
       "id": "alia-v1",
       "object": "model",
       "created": 1755000000,
-      "owned_by": "alia",
+      "owned_by": "undisclosed",
       "name": "Alia V1",
       "category": "general",
       "is_default": true,
@@ -256,12 +263,51 @@ The clock owner is the owner of workstream 6, recorded on the epic.
 ```
 
 Query parameters: `category` (`general | coding | vision | audio | multimodal | voice`),
-`chat=true` for chat-visible entries only.
+`chat=true` for the entries the product offers in a picker — a decision that lives in
+`packages/api/src/lib/product-modes.ts` (`VISIBLE_PROFILES`), keyed by routing profile.
 
-Every entry is serialized `object: 'model'` and `owned_by: 'alia'`
-(`packages/api/src/routes/v1/models.ts:22`, `:24`). Several of them are routing policies
-rather than models; [model abstraction](./model-abstraction.mdx) says which, and ADR 0003
-records the vocabulary that fixes it.
+Every entry is still serialized `object: 'model'`, and all thirteen are routing profiles
+rather than models — `docs/migration/alias-migration-map.json` records the fan-out
+measurement behind that classification. The truthful type split is served by
+`GET /catalogue`; `object` is not changed here because external callers switch on it and
+the compatibility window keeps this response shape working.
+
+`owned_by` is `undisclosed`. It said `alia`, which claimed ownership of weights Alia does
+not have. The publisher would be the true value and is not recoverable from this
+repository's data — the mapping table stores a bare provider model id with no publisher
+segment. Naming the serving provider instead would be wrong on the merits, since the
+provider is a property of the deployment rather than of the model (ADR 0003), so it does
+not answer "who owns this" at all.
+
+Route concealment is **not** the reason: [model abstraction](./model-abstraction.mdx)
+rule 2 explicitly does not apply to the model catalogue, because a caller choosing a model
+has to know whose model it is. What withholds attribution here is the absence of the data,
+and it arrives with Relay's catalogue.
+
+### `GET /catalogue/modes`
+
+The product modes a person picks between. Product configuration, not models: no publisher,
+no revision, no model card, and never `object: 'model'`.
+
+```json
+{
+  "object": "list",
+  "data": [
+    { "id": "mode:automatic", "object": "product_mode", "label": "Automatic",
+      "description": "Alia picks how to answer.",
+      "routing": { "kind": "default" }, "deep_research": false },
+    { "id": "mode:balanced", "object": "product_mode", "label": "Balanced",
+      "description": "The everyday default: quick enough, capable enough.",
+      "routing": { "kind": "profile", "profile_id": "profile:v1" }, "deep_research": false }
+  ]
+}
+```
+
+`routing.kind` is `profile` when the mode pins one, and `default` when it pins none —
+`Automatic` and `Deep research` both change nothing about routing today, and publishing a
+`profile_id` for them would be a routing claim the product does not make. Unauthenticated
+and unfiltered: a mode is the same for everybody, and what a given caller may use is
+entitlement, annotated per entry on `GET /catalogue`.
 
 ---
 

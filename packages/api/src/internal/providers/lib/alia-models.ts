@@ -39,7 +39,6 @@ export interface AliaModel {
   supportsVision: boolean;
   category: ModelCategory;
   emoji?: string;
-  chatVisible?: boolean;
 }
 
 export interface ModelMapping {
@@ -70,7 +69,6 @@ export const ALIA_MODELS: Record<string, AliaModel> = {
     supportsVision: false,
     category: 'general',
     emoji: '⚡',
-    chatVisible: true,
   },
   'alia-v1': {
     id: 'alia-v1',
@@ -83,7 +81,6 @@ export const ALIA_MODELS: Record<string, AliaModel> = {
     supportsVision: true,
     category: 'general',
     emoji: '🎯',
-    chatVisible: true,
   },
   'alia-v1-codea': {
     id: 'alia-v1-codea',
@@ -168,7 +165,6 @@ export const ALIA_MODELS: Record<string, AliaModel> = {
     supportsVision: true,
     category: 'coding',
     emoji: '⭐',
-    chatVisible: true,
   },
   'alia-v1-thinking': {
     id: 'alia-v1-thinking',
@@ -181,7 +177,6 @@ export const ALIA_MODELS: Record<string, AliaModel> = {
     supportsVision: true,
     category: 'coding',
     emoji: '🧠',
-    chatVisible: true,
   },
   'alia-v1-pro-max': {
     id: 'alia-v1-pro-max',
@@ -194,7 +189,6 @@ export const ALIA_MODELS: Record<string, AliaModel> = {
     supportsVision: true,
     category: 'general',
     emoji: '🚀',
-    chatVisible: true,
   },
   'alia-v1-voice': {
     id: 'alia-v1-voice',

@@ -1,0 +1,225 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+/**
+ * A selected concrete model stays concrete through the request path
+ * (#139 workstream 4; ADR 0003 invariants 2 and 4).
+ *
+ * ## What "concrete" means here is not this file's opinion
+ *
+ * `lib/catalogue.ts` decides it, by fan-out: an identifier resolving to ONE
+ * model is a reference to that model, one selecting among several is a policy.
+ * So the same discriminator drives both halves below — `buildEntry` is asked
+ * what the catalogue would SERVE for a candidate set, and `resolveWithFallback`
+ * is asked what the engine actually DOES with it. The property is that they
+ * cannot disagree: whatever the catalogue calls `object: "model"`, the engine
+ * answers from that model or from nothing, under every fallback policy.
+ *
+ * ## Why the routing table is a fixture
+ *
+ * No tier in this repository resolves to a single model today — the migration
+ * map measured all thirteen aliases and every one fans out to at least two
+ * models across at least two providers. A test written against the live table
+ * would therefore assert the concrete-model property over an empty set and
+ * pass without ever exercising it. The fixture supplies one identifier of each
+ * kind; the engine, the policy narrowing and the catalogue's classifier are all
+ * the shipped code.
+ *
+ * The multi-model identifier is not decoration: it is the control that proves
+ * this file can SEE the engine crossing from one model to another, which is the
+ * only thing that makes the concrete case's silence meaningful.
+ */
+
+const getBestKeyForModel = vi.fn();
+const isProviderAvailable = vi.fn();
+
+const CONCRETE = 'fixture-concrete';
+const PROFILE = 'fixture-profile';
+const SOLO_TIER = 'fixture-solo';
+const MULTI_TIER = 'fixture-multi';
+const SOLO_MODEL = 'solo-model';
+
+const capabilities = {
+  vision: false,
+  audio: false,
+  video: false,
+  voice: false,
+  tools: true,
+  codeExecution: false,
+  webSearch: false,
+  computerUse: false,
+  streaming: true,
+  systemPrompts: true,
+  functionCalling: true,
+  promptCaching: false,
+  maxContextTokens: 128000,
+  maxOutputTokens: 8192,
+};
+
+const mapping = (provider: string, modelId: string, priority: number) => ({
+  provider,
+  modelId,
+  priority,
+  qualityScore: 90,
+  pricingTier: 'paid' as const,
+  capabilities,
+});
+
+/**
+ * One model on three deployments, and two models on two. The first is the
+ * concrete reference; the second is the policy.
+ */
+const FIXTURE_TIER_MAPPINGS = {
+  [SOLO_TIER]: [
+    mapping('deployment-one', SOLO_MODEL, 1),
+    mapping('deployment-two', SOLO_MODEL, 2),
+    mapping('deployment-three', SOLO_MODEL, 3),
+  ],
+  [MULTI_TIER]: [mapping('deployment-one', 'model-a', 1), mapping('deployment-two', 'model-b', 2)],
+};
+
+const FIXTURE_MODELS = {
+  [CONCRETE]: {
+    id: CONCRETE,
+    name: 'Fixture Concrete',
+    tier: SOLO_TIER,
+    description: 'One model, several deployments',
+    creditMultiplier: 1,
+    maxTokens: 8192,
+    supportsTools: true,
+    supportsVision: false,
+    category: 'general',
+  },
+  [PROFILE]: {
+    id: PROFILE,
+    name: 'Fixture Profile',
+    tier: MULTI_TIER,
+    description: 'Several models',
+    creditMultiplier: 1,
+    maxTokens: 8192,
+    supportsTools: true,
+    supportsVision: false,
+    category: 'general',
+  },
+};
+
+vi.mock('../alia-models', () => ({
+  ALIA_MODELS: FIXTURE_MODELS,
+  TIER_MODEL_MAPPINGS: FIXTURE_TIER_MAPPINGS,
+  isAliaModel: (id: string) => id in FIXTURE_MODELS,
+  getAliaModel: (id: string) => (FIXTURE_MODELS as Record<string, unknown>)[id] ?? null,
+}));
+
+vi.mock('../key-manager', () => ({
+  getBestKeyForModel: (...args: unknown[]) => getBestKeyForModel(...args),
+  markKeyCreditExhausted: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock('../provider-health', () => ({
+  isProviderAvailable: (...args: unknown[]) => isProviderAvailable(...args),
+}));
+
+vi.mock('../../../../db/telemetry/fallbackEventRepository.js', () => ({
+  recordFallbackEvent: () => Promise.resolve(),
+}));
+
+vi.mock('../../../../db/index.js', () => ({ getDb: () => ({}) }));
+
+// `lib/catalogue.ts` pulls in `gateway-client`, which logs on import under a
+// different channel, so the stub covers every channel rather than one.
+vi.mock('../../../../lib/logger.js', () => {
+  const channel = () => ({ error: vi.fn(), info: vi.fn(), warn: vi.fn(), debug: vi.fn() });
+  return { log: new Proxy({}, { get: channel }) };
+});
+
+const { resolveWithFallback } = await import('../fallback-engine.js');
+const { buildEntry } = await import('../../../../lib/catalogue.js');
+const { FALLBACK_POLICIES } = await import('../../../../lib/routing/policy.js');
+
+const askedModels = () => new Set(getBestKeyForModel.mock.calls.map((call) => call[1] as string));
+
+const aKey = { keyId: 'k1', provider: 'p', modelId: 'm', key: 'secret' };
+
+/** What `GET /catalogue` would serve for a tier, computed by the shipped classifier. */
+const servedKind = (tier: keyof typeof FIXTURE_TIER_MAPPINGS): string =>
+  buildEntry(
+    {
+      id: 'irrelevant',
+      name: 'Irrelevant',
+      description: '',
+      category: 'general',
+      tier,
+      creditMultiplier: 1,
+      isAvailable: true,
+      isLegacy: false,
+    },
+    FIXTURE_TIER_MAPPINGS[tier].map((m) => ({ modelId: m.modelId, capabilities: {} })),
+    { state: 'unknown' },
+  ).kind;
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  isProviderAvailable.mockResolvedValue(true);
+  getBestKeyForModel.mockResolvedValue(null);
+});
+
+describe('the fixture holds one identifier of each kind, by the catalogue’s own classifier', () => {
+  it('classifies the single-model tier as a model and the other as a routing profile', () => {
+    expect(servedKind(SOLO_TIER)).toBe('model');
+    expect(servedKind(MULTI_TIER)).toBe('routing_profile');
+  });
+
+  it('gives the concrete identifier several deployments, so exhaustion is reachable', () => {
+    // Otherwise "never leaves the model" is satisfied by there being nowhere to
+    // go, and the engine's narrowing is never exercised at all.
+    expect(FIXTURE_TIER_MAPPINGS[SOLO_TIER].length).toBeGreaterThan(1);
+    expect(new Set(FIXTURE_TIER_MAPPINGS[SOLO_TIER].map((m) => m.modelId)).size).toBe(1);
+  });
+});
+
+describe('a concrete model stays concrete, under every policy', () => {
+  it.each(FALLBACK_POLICIES)('answers from that model or from nothing under %s', async (policy) => {
+    getBestKeyForModel.mockResolvedValue(null);
+    await resolveWithFallback(CONCRETE, 1000, new Set(), new Set(), { fallbackPolicy: policy }).catch(
+      () => null,
+    );
+    // Every deployment it tried served the one model. A cross-tier widen, a
+    // "try the general tier as a last resort" branch or a substituted default
+    // would all show up here as a second model id.
+    expect(askedModels()).toEqual(new Set([SOLO_MODEL]));
+    expect(askedModels().size).toBeGreaterThan(0);
+  });
+
+  it('reports the identifier the caller sent and the model it resolved', async () => {
+    getBestKeyForModel.mockResolvedValue(aKey);
+    const result = await resolveWithFallback(CONCRETE);
+    expect(result.resolved?.aliasModelId).toBe(CONCRETE);
+    expect(result.resolved?.modelId).toBe(SOLO_MODEL);
+  });
+
+  it('changes deployment but never the model when the first one has no key', async () => {
+    // ADR 0003 invariant 4: which deployment answers is not something a caller
+    // can observe about model identity, so moving between them is permitted
+    // and moving between models is not.
+    getBestKeyForModel.mockResolvedValueOnce(null).mockResolvedValue(aKey);
+    const result = await resolveWithFallback(CONCRETE);
+    expect(result.resolved?.modelId).toBe(SOLO_MODEL);
+    expect(result.resolved?.provider).toBe('deployment-two');
+    expect(result.usedFallback).toBe(true);
+  });
+});
+
+describe('the control: this file can see the engine crossing between models', () => {
+  it('walks two different models for the routing profile', async () => {
+    // Without this, the concrete case above would read exactly the same if the
+    // engine never asked for anything at all.
+    await resolveWithFallback(PROFILE);
+    expect(askedModels()).toEqual(new Set(['model-a', 'model-b']));
+  });
+
+  it('and stops at one of them when the request forbids crossing', async () => {
+    await resolveWithFallback(PROFILE, 1000, new Set(), new Set(), {
+      fallbackPolicy: 'same-model-only',
+    }).catch(() => null);
+    expect(askedModels()).toEqual(new Set(['model-a']));
+  });
+});

@@ -49,7 +49,6 @@ function source(overrides: Partial<CatalogueSource> = {}): CatalogueSource {
     category: 'general',
     tier: 'test-tier',
     emoji: '🧪',
-    chatVisible: true,
     creditMultiplier: 1,
     isAvailable: true,
     isLegacy: false,

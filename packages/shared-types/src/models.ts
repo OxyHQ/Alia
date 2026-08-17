@@ -72,5 +72,4 @@ export interface AliaModel {
   supportsVision: boolean;
   category: ModelCategory;
   emoji?: string;
-  chatVisible?: boolean;
 }

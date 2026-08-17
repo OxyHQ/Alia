@@ -133,6 +133,39 @@ describe('the routing presets are code, not a row (#139 ws15)', () => {
     ).toContain('lib/routing/presets.ts');
   });
 
+  it('so is the product configuration built on top of them (#139 ws4)', () => {
+    // `lib/product-modes.ts` arrived after this census and is a configuration
+    // surface of exactly the kind it counts: `PRODUCT_MODES` decides which
+    // modes exist and `VISIBLE_PROFILES` decides what a picker offers. Both are
+    // `const` in a committed file, so the audit trail is git — and this is the
+    // assertion that goes red the moment somebody puts either behind a table,
+    // which is when the epic's audit-log checkbox becomes a real requirement
+    // rather than a note.
+    const modes = code('lib/product-modes.ts');
+    expect(modes).toContain('export const PRODUCT_MODES');
+    expect(modes).toContain('export const VISIBLE_PROFILES');
+    expect([...modes.matchAll(/id: 'mode:/g)].length).toBeGreaterThanOrEqual(6);
+
+    expect(modes).not.toContain('getDb');
+    expect(modes).not.toContain('Repository');
+    expect(modes).not.toContain('pgTable');
+    expect(modes).not.toMatch(/PRODUCT_MODES\s*(\[|\.push|=[^=])/);
+    expect(modes).not.toMatch(/VISIBLE_PROFILES\s*(\[|\.push|=[^=])/);
+
+    // And no route or repository writes it either. `routes/catalogue.ts` READS
+    // `PRODUCT_MODES` to serialize it, which is the point of it; what would be
+    // new is a route naming the visibility list, because the only reason to do
+    // that is to change it.
+    const offenders = sourceFiles('packages/api/src')
+      .filter((relative) => relative.startsWith('db/') || relative.startsWith('routes/'))
+      .filter((relative) => code(relative).includes('VISIBLE_PROFILES'));
+    expect(offenders).toEqual([]);
+    // The control: the same scan finds the identifier where it lives.
+    expect(
+      sourceFiles('packages/api/src').filter((relative) => code(relative).includes('VISIBLE_PROFILES')),
+    ).toContain('lib/product-modes.ts');
+  });
+
   it('the alias set is a literal, and the table behind it carries one display flag', () => {
     const aliases = code('internal/providers/lib/alia-models.ts');
     expect(aliases).toMatch(/export const ALIA_MODELS: Record<string, AliaModel> = \{/);

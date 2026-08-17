@@ -27,7 +27,6 @@ interface FixtureModel {
   supportsVision: boolean;
   category: string;
   emoji?: string;
-  chatVisible?: boolean;
   isAvailable: boolean;
   isLegacy: boolean;
 }
@@ -134,7 +133,6 @@ function model(overrides: Partial<FixtureModel> = {}): FixtureModel {
     supportsVision: false,
     category: 'general',
     emoji: '⚡',
-    chatVisible: true,
     isAvailable: true,
     isLegacy: false,
     ...overrides,
@@ -180,8 +178,8 @@ async function get(path: string): Promise<{ status: number; body: CatalogueBody 
 beforeEach(() => {
   state.models = [
     model(),
-    model({ id: 'alia-v1-codea', name: 'Codea', tier: 'v1-codea', category: 'coding', creditMultiplier: 1.5, chatVisible: false }),
-    model({ id: 'alia-v1-pro', name: 'Codea Pro', tier: 'v1-pro', creditMultiplier: 3, chatVisible: true }),
+    model({ id: 'alia-v1-codea', name: 'Codea', tier: 'v1-codea', category: 'coding', creditMultiplier: 1.5 }),
+    model({ id: 'alia-v1-pro', name: 'Codea Pro', tier: 'v1-pro', creditMultiplier: 3 }),
   ];
   state.mappings = {
     lite: [mapping('one'), mapping('two', { vision: true })],

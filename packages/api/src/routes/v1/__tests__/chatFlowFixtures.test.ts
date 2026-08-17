@@ -617,6 +617,12 @@ describe('fixture: app chat flow — streaming, direct user session, one server 
       // Memory recall runs here — before the model call, and its result reaches
       // the system prompt (asserted separately below).
       'recall:beforeChatHooks',
+      // The compatibility window's stream signal, ahead of every other frame,
+      // because this request names one of the thirteen deprecated aliases
+      // (#139 workstream 4, `docs/migration/compatibility-window.md` (a)). A
+      // request naming a non-deprecated identifier emits nothing here, which is
+      // asserted in `middleware/__tests__/alias-deprecation.test.ts`.
+      'sse:event:alia.deprecation',
       'observe:agent.start',
       // Turn 1: the model asks for a tool, the SDK runs it, the result is echoed
       // to the client as an Alia product event, then turn 2 speaks.
@@ -716,7 +722,7 @@ describe('fixture: app chat flow — streaming, direct user session, one server 
     // Positive control: the scan sees a named event at all. Without it, "no
     // unexpected events" is what a scan of an empty array also reports.
     const named = res.raw.filter((frame) => frame.startsWith('event: ')).map((frame) => frame.slice(7, frame.indexOf('\n')));
-    expect(named).toEqual(['alia.tool_result', 'alia.title']);
+    expect(named).toEqual(['alia.deprecation', 'alia.tool_result', 'alia.title']);
 
     // The generic half: every `data:` frame that is not the terminator carries
     // the OpenAI chunk envelope, and the model field is the ALIA ALIAS — never
@@ -1058,6 +1064,9 @@ describe('fixture: Cowork flow — API key, streaming, client-supplied editor to
       'sse:comment(keep-alive)',
       'credits:reserve',
       'recall:beforeChatHooks',
+      // `alia-v1-cowork` is a deprecated alias too, so the desktop app is told
+      // so on its own stream rather than only in headers it never reads.
+      'sse:event:alia.deprecation',
       'observe:agent.start',
       'model:doStream',
       'sse:chunk:tool_calls',
