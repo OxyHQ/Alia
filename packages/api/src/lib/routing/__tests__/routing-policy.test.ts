@@ -208,22 +208,30 @@ describe('the refusals say what happened', () => {
     expect(error.requested).toBe('alia-flash');
   });
 
-  it('sanitises a provider model id out of the echo', () => {
+  it('echoes the caller\'s own model id back readable', () => {
     /**
-     * The abstraction rule outranks a tidy message. A client configured for an
-     * OpenAI-compatible endpoint sends its own model id, and echoing it back
-     * verbatim would print a provider's model name in an Alia response.
+     * This assertion is INVERTED from what it used to be, by #139 workstream 20.
+     * The echo used to go through `sanitizeMessage`, so a client configured for
+     * an OpenAI-compatible endpoint was told `"Alia4o" is not an Alia model`.
      *
-     * The assertion is on the ABSENCE of the provider string plus the presence
-     * of the available list, not on the mangled form — pinning the exact mangled
-     * spelling would make this test a description of `sanitizeMessage`'s current
-     * regex rather than of the property that matters.
+     * Route concealment protects Alia's routing decisions on the product
+     * surface. `gpt-4o` here is the string the CALLER just sent; it discloses
+     * nothing about which deployments Alia uses, and mangling it removed the one
+     * piece of information that made the refusal actionable.
      */
     const error = new UnregisteredModelError('gpt-4o', ['alia-v1']);
-    expect(error.userMessage).not.toContain('gpt-4o');
+    expect(error.userMessage).toContain('gpt-4o');
     expect(error.userMessage).toContain('alia-v1');
-    // The internal message keeps the raw value: logs are where it is useful.
     expect(error.message).toContain('gpt-4o');
+  });
+
+  it('still redacts a credential a caller put in the model field', () => {
+    // The absolute half of the rule survives the scoping: an echo is never a
+    // way to get a secret rendered back out of the product.
+    const key = 'sk-proj-abcdefghijklmnopqrstuvwxyz0123456789ABCD';
+    const error = new UnregisteredModelError(key, ['alia-v1']);
+    expect(error.userMessage).not.toContain('abcdefghijklmnop');
+    expect(error.userMessage).toContain('alia-v1');
   });
 
   it('tells a no-fallback caller something different from a same-model caller', () => {

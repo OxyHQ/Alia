@@ -121,4 +121,5 @@ Upstream model credentials are not environment variables — they live in the
 ## Notes
 
 - Keep user-facing errors sanitized through `sanitizeMessage()`.
-- Never expose upstream routing detail in product responses or logs.
+- Keep upstream routing detail off product responses. Logs are the opposite case: they are
+  an operator surface and must name the deployment that failed.

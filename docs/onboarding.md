@@ -79,7 +79,7 @@ Approvals are real-time via Socket.IO (`alia.approval_request` / `alia.approval_
 | `lib/prompt-loader.ts` | Builds the system prompt from fragments | Changing AI behavior/instructions |
 | `lib/chat-core.ts` | `resolveModel()`, `getAIModel()` -- builds the AI SDK client | Model routing changes |
 | `lib/gateway-client.ts` | The seam in front of `internal/providers/`; runs the local path | Model abstraction |
-| `lib/errors/sanitize.ts` | Strips upstream names from error messages | Error handling |
+| `lib/errors/sanitize.ts` | Redacts credentials and endpoints everywhere; conceals operator identity on the product surface | Error handling |
 | `lib/redis.ts` | Shared Redis/Valkey client | Caching, rate limiting |
 | `db/index.ts`, `db/schema/` | Postgres connection and the 80-table drizzle schema | Schema changes |
 | `db/migrate.ts` | The migrator; requires `--target-database` and honours phase markers | Migrations |
@@ -177,13 +177,15 @@ the ADRs landed.
 |-------|-------|------------|
 | Product surface | Thirteen `alia-*` identifiers | Five in the picker, eight addressable; several are routing policies rather than models |
 | Routing | The tier's mapping list, walked in `priority` order | Not price-ordered and not quality-ordered, despite both fields existing |
-| Errors | Generic messages | `sanitizeMessage()` strips upstream names, model ids, error codes and hostnames |
+| Errors | Generic messages | `sanitizeMessage()` redacts credentials and endpoints, then conceals operator names and model ids |
 
 ### The rule, scoped
 
 - **NEVER** put an upstream operator name or upstream model id on the **product surface**:
   product API responses, product errors, the UI, customer-facing analytics.
-- **ALWAYS** use `sanitizeMessage()` from `lib/errors/sanitize.ts` for user-facing errors.
+- **ALWAYS** use `sanitizeMessage()` from `lib/errors/sanitize.ts` for user-facing errors,
+  and `redactUnsafeDetail()` from the same module where the text is the CALLER's own and
+  concealing it would only make the message unactionable.
 - **ALWAYS** resolve display strings via `getAliaModel()`, never from the mapping table.
 - **DO NOT** add an `alia-*` identifier. The set is frozen under
   [ADR 0002](./adr/0002-alia-is-a-relay-consumer-and-future-model-publisher.md).
@@ -199,7 +201,7 @@ the vocabulary.
 - `internal/providers/lib/generate-model-mappings.ts` -- the per-tier routing tables
 - `internal/providers/lib/fallback-engine.ts` -- how one is chosen per request
 - `routes/v1/models.ts` -- the public catalogue
-- `lib/errors/sanitize.ts` -- error sanitization
+- `lib/errors/sanitize.ts` -- the two sanitisation rules, and which surfaces each covers
 
 [Model abstraction](./model-abstraction.mdx) has the full table, and the compatibility
 window that retires it.

@@ -126,7 +126,7 @@ vi.mock('../../../lib/credits-manager.js', () => ({
 
 vi.mock('../../../lib/user-credits-helpers.js', () => ({
   getOrCreateUserCredits: vi.fn(async () => {
-    if (H.state.credits === 'store-down') throw new Error('whisper credit store unreachable');
+    if (H.state.credits === 'store-down') throw new Error('whisper-1 credit store unreachable');
     return { creditsFree: 100, creditsPaid: 0 };
   }),
 }));
@@ -413,13 +413,17 @@ describe('fixture: voice transcription — failover, credits, and the timeout su
     expect(res.body).toEqual({ error: 'Audio data is required (base64 encoded)' });
   });
 
-  it('scrubs the model family out of an error before the user sees it', async () => {
+  it('conceals the upstream model id in an error before the user sees it', async () => {
     // Reachable in production: the credit store is a network dependency, and its
     // failure escapes to the route's own catch (`routes/v1/voice.ts:361`), which
     // is the only path on this route that renders a raw upstream message.
     //
-    // "whisper" is in the sanitiser's pattern list (`lib/errors/sanitize.ts:16`)
-    // precisely because it is the word a transcription failure carries.
+    // The probe carries `whisper-1`, the transcription model id a real failure on
+    // this path names. It used to carry the bare word "whisper": #139 workstream
+    // 20 scoped concealment to identifiers and proper nouns, so an ordinary
+    // lowercase word is deliberately left alone now and the probe would no longer
+    // be testing anything. The property under test is unchanged — this route
+    // renders through the sanitiser, never the raw internal reason.
     H.state.credits = 'store-down';
     const res = capturingRes();
     await transcribe()(voiceReq(audioBody), res, undefined);
@@ -428,7 +432,7 @@ describe('fixture: voice transcription — failover, credits, and the timeout su
     const body = res.body as { error: string };
     // Positive control on the scan: the rest of the message DID survive, so the
     // absence below is redaction rather than an empty string.
-    expect(body.error).toBe('Alia credit store unreachable');
+    expect(body.error).toBe('[model] credit store unreachable');
     expect(body.error).not.toContain('whisper');
   });
 });

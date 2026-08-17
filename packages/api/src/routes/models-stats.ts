@@ -1,8 +1,11 @@
 /**
  * Models Statistics API
  *
- * Provides aggregated statistics for Alia virtual models
- * NEVER exposes internal provider information!
+ * Provides aggregated statistics for Alia virtual models.
+ *
+ * Customer-facing analytics, so route detail is concealed here. The operator
+ * view of the same data lives on the admin surfaces, which name the deployment
+ * deliberately — see `lib/errors/sanitize.ts`.
  */
 
 import { Router, Request, Response } from 'express';

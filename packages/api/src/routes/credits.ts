@@ -4,11 +4,9 @@ import { getRefreshedUserCredits } from '../lib/user-credits-helpers.js';
 import { creditSpendByDay } from '../db/telemetry/apiKeyUsageRepository.js';
 import { getDb } from '../db/index.js';
 import { log } from '../lib/logger.js';
-import { sanitizeMessage } from '../lib/errors/sanitize.js';
+import { getSafeErrorMessage } from '../lib/errors/sanitize.js';
 
 const router = Router();
-const getSafeErrorMessage = (error: unknown, fallback: string): string =>
-  sanitizeMessage(error instanceof Error ? error.message : fallback);
 
 router.get('/', authenticateToken, async (req, res) => {
   try {

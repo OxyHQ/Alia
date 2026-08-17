@@ -288,11 +288,19 @@ All `/automations*` endpoints were removed outright; use `/triggers`.
 ## Error contract
 
 - User-facing errors pass through `sanitizeMessage()`
-  (`packages/api/src/lib/errors/sanitize.ts`), which strips upstream operator names, model
-  ids, error codes and endpoint hostnames.
+  (`packages/api/src/lib/errors/sanitize.ts`). It applies two rules. The first is
+  absolute and holds on every surface: no credential, no internal endpoint and no raw
+  upstream error body. The second conceals upstream operator names and model ids, and is
+  scoped to the product surface.
+- The concealment half is a product decision and best-effort by construction: it matches
+  identifiers — a proper noun, or a `/ . - _ =` joined token — and leaves ordinary prose
+  alone. It is not a security control, and nothing should be designed as if it were.
+- A value the CALLER sent is echoed back readable. `"gpt-4o" is not an Alia model`
+  discloses nothing about Alia's routing, so it takes `redactUnsafeDetail()` — the
+  absolute half alone.
 - Product responses carry Alia identifiers only. See
-  [model abstraction](./model-abstraction.mdx) for the scope of that rule and why it is a
-  product-surface rule rather than a global one.
+  [model abstraction](./model-abstraction.mdx) for the surfaces the second rule covers,
+  and the ones where publisher identity is required instead.
 
 ## Open questions
 

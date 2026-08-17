@@ -11,13 +11,11 @@ import { buildUserContext } from '../../lib/user-context.js';
 import { log } from '../../lib/logger.js';
 import { getUserEntitlements } from '../../lib/plan-access.js';
 import { getVoiceUsageSummary } from '../../lib/voice-usage.js';
-import { sanitizeMessage } from '../../lib/errors/sanitize.js';
+import { getSafeErrorMessage } from '../../lib/errors/sanitize.js';
 import type { Request, Response } from 'express';
 import type { OpenAITool } from '../../internal/providers/lib/types.js';
 
 const router = Router();
-const getSafeErrorMessage = (error: unknown, fallback: string): string =>
-  sanitizeMessage(error instanceof Error ? error.message : fallback);
 
 /**
  * POST /v1/voice/token

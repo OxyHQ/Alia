@@ -284,9 +284,15 @@ const PROVIDER_IMPORT_ALLOWLIST: readonly { from: string; to: string; via: Modul
   },
   {
     from: 'packages/api/src/lib/__tests__/sanitize.test.ts',
+    to: 'packages/api/src/internal/providers/lib/alia-models',
+    via: 'import',
+    why: 'Reads TIER_MODEL_MAPPINGS as DATA: the sanitiser census fails on an upstream model id it cannot conceal (#139 ws20). Repoints at the Relay catalogue with cost-calculator.',
+  },
+  {
+    from: 'packages/api/src/lib/__tests__/sanitize.test.ts',
     to: 'packages/api/src/internal/providers/lib/provider-names',
-    via: 'vi.mock',
-    why: 'Replaces the provider list so the sanitiser suite is independent of which providers exist.',
+    via: 'import',
+    why: 'Same census, operator half. Was a vi.mock until #139 ws20: asserting against a replaced provider list measured the mock, not the sanitiser.',
   },
   {
     from: 'packages/api/src/lib/cost-calculator.ts',
@@ -410,8 +416,15 @@ const PROVIDER_IMPORT_ALLOWLIST: readonly { from: string; to: string; via: Modul
   },
 ];
 
-/** The exact-count assertion the list needs, so it cannot grow one defensible line at a time. */
-const PROVIDER_IMPORT_ALLOWLIST_SIZE = 23;
+/**
+ * The exact-count assertion the list needs, so it cannot grow one defensible
+ * line at a time.
+ *
+ * 23 → 24 in #139 ws20, the only growth so far, and it is a TEST reading the
+ * routing table as data rather than a product module calling an adapter. Every
+ * other line is a product module, and the direction of travel for those is down.
+ */
+const PROVIDER_IMPORT_ALLOWLIST_SIZE = 24;
 
 function observedProviderImports(): { from: string; to: string; via: ModuleRef['via'] }[] {
   const seen = new Map<string, { from: string; to: string; via: ModuleRef['via'] }>();
