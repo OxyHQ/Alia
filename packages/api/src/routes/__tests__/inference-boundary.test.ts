@@ -36,7 +36,8 @@ import { describe, expect, it } from 'vitest';
  * `POST /alia/chat` reached the same inference handler as
  * `POST /v1/chat/completions` with neither authentication nor a rate limiter.
  * The limiter was mounted in the commit that added this file; the authentication
- * gap is a product decision and is pinned below as the state it is.
+ * gap was closed by #139 workstream 6 and the assertion that recorded it is now
+ * the assertion that forbids it.
  */
 
 const REPO_ROOT = path.resolve(fileURLToPath(new URL('../../../../../', import.meta.url)));
@@ -351,31 +352,35 @@ describe('every route that reaches inference is rate limited (#139 ws15)', () =>
     expect(Object.keys(PROTECTION).length).toBeGreaterThanOrEqual(2);
   });
 
-  it('records that /alia/chat still admits an anonymous caller', () => {
+  it('no longer admits an anonymous caller, which is why the limiter is not the only guard', () => {
     /**
-     * The residual, pinned rather than hidden. The limiter bounds the RATE; it
-     * does not restore the ACCOUNTING, and those are different holes:
+     * This test used to RECORD the residual instead of forbidding it, and said
+     * "delete this test when the decision is made, in the same change". #139
+     * workstream 6 made it: `/alia/chat` mounts `authenticateTokenOrApiKey`, the
+     * same middleware `/v1` has always used, so the two mounts of one handler no
+     * longer differ on who may reach it.
      *
-     *  - `apiKeyRateLimit` finds neither `req.apiKey` nor `req.user` on an
-     *    anonymous request and falls through its last branch to `next()`, so an
-     *    anonymous caller is not rate limited at all;
+     * It is not deleted, it is INVERTED, because the two mechanisms that made
+     * the hole expensive are both still there and both still fail open on an
+     * anonymous request:
+     *
+     *  - `apiKeyRateLimit` finds neither `req.apiKey` nor `req.user` and falls
+     *    through its last branch to a bare `next()`;
      *  - `lib/chat/request-context.ts` gates the reservation on
-     *    `(req.user && !req.serviceApp)`, so the same caller gets inference
-     *    METERED TO NOBODY.
+     *    `(req.user && !req.serviceApp)`.
      *
-     * `/v1` refuses the identical request with a 401. Not changed here because
-     * whether this surface is public is a product decision, and it is cheap to
-     * take: nothing in the repository calls it — `packages/app` declares the
-     * path at `lib/api/routes.ts:53` and uses it nowhere — so a usage
-     * measurement comes before the behaviour change.
-     *
-     * Delete this test when the decision is made, in the same change.
+     * So authentication is the ONLY thing standing between an anonymous caller
+     * and unmetered inference on this surface. Reverting the middleware puts the
+     * hole straight back, which is what this asserts.
      */
-    expect(code('routes/chat.ts')).toContain('optionalAuth');
+    const chat = code('routes/chat.ts');
+    expect(chat).toContain('authenticateTokenOrApiKey');
+    expect(chat).not.toMatch(/router\.post\([^)]*optionalAuth/);
     expect(code('routes/v1.ts')).toContain('router.use(authenticateTokenOrApiKey)');
-    // Both halves of the residual, read at the code that produces each. The
-    // limiter's last keyed branch is the signed-in user; below it the function
-    // falls through to a bare `next()`, which is the anonymous case.
+
+    // Both halves of what authentication is now protecting, read at the code
+    // that produces each. The limiter's last keyed branch is the signed-in user;
+    // below it the function falls through to a bare `next()`.
     expect(code('lib/chat/request-context.ts')).toContain('(req.user && !req.serviceApp) ?');
 
     const limiter = code('middleware/api-key-rate-limit.ts');

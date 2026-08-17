@@ -25,8 +25,12 @@ Routes are mounted in `packages/api/src/index.ts:221` through `:257`.
 | Oxy service token | `POST /internal/trigger` only, via `oxyServiceAuth` |
 | `x-channel-bot-secret` + `x-oxy-user-id` | Registered channel bots, validated at `packages/api/src/routes/v1.ts:35` |
 
-`/alia/chat` is mounted with `optionalAuth` (`packages/api/src/routes/chat.ts:8`); `/v1/*`
-with `authenticateTokenOrApiKey` (`routes/v1.ts:59`) plus a per-key rate limit (`:62`).
+`POST /alia/chat` and `/v1/*` are both mounted with `authenticateTokenOrApiKey`
+(`packages/api/src/routes/chat.ts`, `routes/v1.ts:59`) plus the same per-key rate limit
+(`:62`). `POST /alia/chat` carried `optionalAuth` until #139 workstream 6, which meant an
+unauthenticated caller reached the same inference handler with no credit reservation while
+`/v1/chat/completions` refused the identical request with 401; the two surfaces now share
+one session model. `GET /alia/chat` is a status banner and stays public.
 
 ---
 
@@ -40,8 +44,9 @@ Relay.
 ### Chat
 
 **`POST /alia/chat`** — the product runtime. Same handler as `/v1/chat/completions`
-(`packages/api/src/routes/chat.ts:8` dispatches to `handleChatCompletions`), different
-auth.
+(`packages/api/src/routes/chat.ts` dispatches to `handleChatCompletions`) and, since #139
+workstream 6, the same authentication. Every remaining difference between the two surfaces
+is enumerated in `packages/api/src/routes/__tests__/v1-compatibility-surface.test.ts`.
 
 Minimal request:
 

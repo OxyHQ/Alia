@@ -320,7 +320,7 @@
       "kind": "route",
       "name": "POST /alia/chat",
       "currentPath": "packages/api/src/routes/chat.ts",
-      "summary": "Alias of POST /v1/chat/completions - literally the same handleChatCompletions function, but with optionalAuth instead of authenticateTokenOrApiKey, and behind the RESTRICTED internal CORS allowlist rather than /v1's wildcard.",
+      "summary": "Alias of POST /v1/chat/completions - literally the same handleChatCompletions function, behind the RESTRICTED internal CORS allowlist rather than /v1's wildcard. It carried optionalAuth instead of authenticateTokenOrApiKey until #139 ws6, which meant an anonymous POST reached inference with no credit reservation; the two surfaces now share one session model and every remaining difference is enumerated in packages/api/src/routes/__tests__/v1-compatibility-surface.test.ts.",
       "proposedOwner": "alia",
       "targetPath": "keep-alia-product",
       "dependsOn": [
