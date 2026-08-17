@@ -70,10 +70,25 @@ export type ToolPrefix = typeof TOOL_PREFIXES[number];
  * MCP tools (already prefixed with mcp_) and integration tools pass through unchanged.
  */
 export function applyToolPrefixes<T>(tools: Record<string, T>): Record<string, T> {
-  const renamed: Record<string, T> = {};
+  /**
+   * The accumulator has NO PROTOTYPE, and that is the fix rather than a
+   * flourish.
+   *
+   * Tool names come from MCP servers and Oxy service manifests, so a tool may
+   * be called `__proto__`. On a plain object `renamed['__proto__'] = tool` does
+   * not add a key — it REPLACES the object's prototype and the tool vanishes,
+   * silently, with no error and no key to find it under. `Object.create(null)`
+   * has no `__proto__` accessor to trigger, so the assignment is an ordinary
+   * one, and the spread on the way out gives callers back an ordinary object
+   * (spread copies own properties without triggering the setter either).
+   */
+  const renamed: Record<string, T> = Object.create(null) as Record<string, T>;
 
   for (const [oldName, value] of Object.entries(tools)) {
-    const newName = TOOL_RENAME_MAP[oldName];
+    // Same reason as `tool-specs.ts`: a tool set carries MCP and Oxy-service
+    // names. `TOOL_RENAME_MAP['constructor']` is a function, so `if (newName)`
+    // passed and the tool was re-keyed under the function's stringification.
+    const newName = Object.hasOwn(TOOL_RENAME_MAP, oldName) ? TOOL_RENAME_MAP[oldName] : undefined;
     if (newName) {
       renamed[newName] = value;
     } else {
@@ -82,7 +97,7 @@ export function applyToolPrefixes<T>(tools: Record<string, T>): Record<string, T
     }
   }
 
-  return renamed;
+  return { ...renamed };
 }
 
 /**
@@ -123,8 +138,12 @@ export function groupToolsByPrefix<T>(tools: Record<string, T>): Map<string, Rec
 
   for (const [name, tool] of Object.entries(tools)) {
     const prefix = getToolPrefix(name) || 'other_';
-    if (!groups.has(prefix)) groups.set(prefix, {});
-    groups.get(prefix)![name] = tool;
+    // Same reason as `applyToolPrefixes`: a tool named `__proto__` lands in the
+    // `other_` group, and writing it to a plain object would set that group's
+    // prototype instead of adding the tool.
+    if (!groups.has(prefix)) groups.set(prefix, Object.create(null) as Record<string, T>);
+    const group = groups.get(prefix);
+    if (group) group[name] = tool;
   }
 
   return groups;
