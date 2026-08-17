@@ -86,6 +86,30 @@ export interface ConfigAuditActor {
   readonly id: string;
 }
 
+declare const auditedFieldsBrand: unique symbol;
+
+/**
+ * A projection {@link auditedFields} produced, and nothing else.
+ *
+ * The brand exists because the allow-list was one line thick: `after: row`
+ * instead of `after: auditedFields('model_config', row)` compiled, ran, and put
+ * every column of the row into the audit log — including
+ * `model_configs.default_config_system_prompt`, which the allow-list omits on
+ * purpose — with the whole suite green. The census in
+ * `__tests__/config-audit.test.ts` now refuses that shape too; this refuses it
+ * a compiler pass earlier, so the accidental form does not build at all.
+ *
+ * The two are not redundant. A brand is defeated by `as unknown as`, which the
+ * census sees; a census is defeated by a spelling nobody predicted, which the
+ * compiler sees. Neither is defeated by the same edit.
+ *
+ * Type-only: `declare const` emits nothing, so no property is ever written and
+ * the value pino receives is the plain object {@link auditedFields} built.
+ */
+export type AuditedFields = Readonly<Record<string, unknown>> & {
+  readonly [auditedFieldsBrand]: true;
+};
+
 export interface ConfigAuditChange {
   readonly resource: ConfigAuditResource;
   readonly action: ConfigAuditAction;
@@ -93,9 +117,9 @@ export interface ConfigAuditChange {
   readonly target: string;
   readonly actor: ConfigAuditActor;
   /** The audited fields as they were. `null` for a create. */
-  readonly before: Readonly<Record<string, unknown>> | null;
+  readonly before: AuditedFields | null;
   /** The audited fields as they are. `null` for a delete. */
-  readonly after: Readonly<Record<string, unknown>> | null;
+  readonly after: AuditedFields | null;
 }
 
 /**
@@ -172,7 +196,7 @@ export const AUDITED_FIELDS: Readonly<Record<ConfigAuditResource, readonly strin
 export function auditedFields<T extends object>(
   resource: ConfigAuditResource,
   row: T | null | undefined,
-): Readonly<Record<string, unknown>> | null {
+): AuditedFields | null {
   if (row === null || row === undefined) return null;
   const out: Record<string, unknown> = {};
   for (const field of AUDITED_FIELDS[resource]) {
@@ -182,7 +206,10 @@ export function auditedFields<T extends object>(
     // instead of one honest accessor here.
     if (field in row) out[field] = Reflect.get(row, field);
   }
-  return out;
+  // The one place the brand is applied, and a plain downcast rather than
+  // `as unknown as`: `AuditedFields` is an intersection with `Record<string,
+  // unknown>`, so it is a subtype and the assertion needs no widening step.
+  return out as AuditedFields;
 }
 
 /**
