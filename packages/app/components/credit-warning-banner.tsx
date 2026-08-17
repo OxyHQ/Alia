@@ -7,6 +7,8 @@ import { useCredits } from '@/lib/hooks/use-credits';
 import { queryKeys } from '@/lib/hooks/query-keys';
 import React, { useState } from 'react';
 import { useTranslation } from '@/lib/hooks/use-translation';
+import { useCatalogue, type CatalogueEntry } from '@/lib/hooks/use-catalogue';
+import { presentation, useProductModes } from '@/lib/hooks/use-product-modes';
 
 interface UsageWarningData {
   level: string;
@@ -21,18 +23,40 @@ interface CreditWarningBannerProps {
   onSwitchModel: (model: string) => void;
 }
 
-const CHEAPER_ALTERNATIVES: Record<string, { model: string; name: string; multiplier: number }> = {
-  'alia-v1':           { model: 'alia-lite',    name: 'Alia Lite',     multiplier: 0.5 },
-  'alia-v1-codea':     { model: 'alia-lite',    name: 'Alia Lite',     multiplier: 0.5 },
-  'alia-v1-cowork':    { model: 'alia-v1',      name: 'Alia V1',       multiplier: 1 },
-  'alia-v1-browser':   { model: 'alia-v1',      name: 'Alia V1',       multiplier: 1 },
-  'alia-v1-vision':    { model: 'alia-v1',      name: 'Alia V1',       multiplier: 1 },
-  'alia-v1-multimodal':{ model: 'alia-v1',      name: 'Alia V1',       multiplier: 1 },
-  'alia-v1-pro':       { model: 'alia-v1',      name: 'Alia V1',       multiplier: 1 },
-  'alia-v1-thinking':  { model: 'alia-v1',      name: 'Alia V1',       multiplier: 1 },
-  'alia-v1-pro-max':   { model: 'alia-v1',      name: 'Alia V1',       multiplier: 1 },
-  'alia-v1-voice-pro': { model: 'alia-v1-voice', name: 'Alia V1 Voice', multiplier: 2 },
-};
+/**
+ * The cheapest entry the product currently offers below this one.
+ *
+ * Read off the catalogue rather than a table. The table this replaces was
+ * keyed by the thirteen `alia-*` identifiers and mapped each to a hand-picked
+ * alternative; once the picker began sending `profile:*` ids every lookup
+ * missed, and a miss is indistinguishable from "already on the cheapest
+ * option" — so the banner would have stopped suggesting anything, silently and
+ * forever.
+ *
+ * `null` whenever the answer is not known: no catalogue, no multiplier on the
+ * current entry, or nothing cheaper offered. Suggesting a downgrade on missing
+ * data would be a recommendation with nothing behind it.
+ */
+function cheaperAlternative(
+  selectedModel: string,
+  entries: readonly CatalogueEntry[] | undefined,
+): { entry: CatalogueEntry; multiplier: number } | null {
+  if (entries === undefined) return null;
+  const offered = entries.filter((entry) => entry.chatVisible && !entry.unavailable);
+  const current = offered.find((entry) => entry.id === selectedModel);
+  if (current?.creditMultiplier == null) return null;
+
+  let best: CatalogueEntry | null = null;
+  for (const entry of offered) {
+    if (entry.creditMultiplier === null) continue;
+    if (entry.creditMultiplier >= current.creditMultiplier) continue;
+    if (best === null || entry.creditMultiplier < best.creditMultiplier!) best = entry;
+  }
+  if (best === null || best.creditMultiplier === null) return null;
+  // The ENTRY, not a name: naming it here would be a second answer to "what do
+  // we call this", and `presentation` is the one that answers it.
+  return { entry: best, multiplier: best.creditMultiplier };
+}
 
 // Memoized: mounted next to the streaming chat surface, which re-renders per
 // flush; this banner's props never change per token.
@@ -41,6 +65,8 @@ export const CreditWarningBanner = React.memo(function CreditWarningBanner({ sel
   const router = useRouter();
   const { t } = useTranslation();
   const { data: creditsInfo } = useCredits();
+  const { data: catalogue } = useCatalogue();
+  const { data: modes } = useProductModes();
   const [lowCreditsDismissed, setLowCreditsDismissed] = useState(false);
 
   const usageWarning = queryClient.getQueryData<UsageWarningData>(queryKeys.credits.usageWarning);
@@ -68,13 +94,19 @@ export const CreditWarningBanner = React.memo(function CreditWarningBanner({ sel
 
   if (!usageWarning) return null;
 
-  const alt = CHEAPER_ALTERNATIVES[selectedModel];
-  // No cheaper alternative available (e.g. already on alia-lite or alia-v1-voice)
+  // `null` means "no cheaper option, or we cannot tell" — both of which are
+  // reasons to say nothing rather than to guess.
+  const alt = cheaperAlternative(selectedModel, catalogue);
   if (!alt) return null;
 
   const isCritical = usageWarning.level === 'critical';
   const days = Math.round(usageWarning.daysRemaining);
   const showDays = days < 999;
+
+  // The product's word for the alternative, when it has one — the same
+  // Automatic/Fast/Balanced language the picker shows, so the banner and the
+  // menu cannot name the same entry two different ways.
+  const altName = presentation(alt.entry, modes).label;
 
   const currentMultiplier = usageWarning.currentModelMultiplier || 1;
   const savingsRatio = Math.round(currentMultiplier / alt.multiplier);
@@ -93,8 +125,8 @@ export const CreditWarningBanner = React.memo(function CreditWarningBanner({ sel
   }
 
   const suggestionText = savingsRatio > 1
-    ? t('usageLimit.switchToModel', { model: alt.name, ratio: savingsRatio })
-    : t('usageLimit.switchToModelAlt', { model: alt.name });
+    ? t('usageLimit.switchToModel', { model: altName, ratio: savingsRatio })
+    : t('usageLimit.switchToModelAlt', { model: altName });
 
   return (
     <View className="mx-auto w-full max-w-3xl px-4 pb-1">
@@ -103,7 +135,7 @@ export const CreditWarningBanner = React.memo(function CreditWarningBanner({ sel
         <Text className={`text-xs flex-1 ${isCritical ? 'text-destructive' : 'text-yellow-700 dark:text-yellow-400'}`}>
           {statusText} {suggestionText}
         </Text>
-        <Pressable onPress={() => onSwitchModel(alt.model)} className="active:opacity-70">
+        <Pressable onPress={() => onSwitchModel(alt.entry.id)} className="active:opacity-70">
           <Text className="text-xs font-medium text-primary">{t('usageLimit.switchModel')}</Text>
         </Pressable>
         <Pressable onPress={handleDismiss} className="active:opacity-70">

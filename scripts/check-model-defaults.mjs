@@ -76,6 +76,25 @@ const TREES = [
  * substitute a model that cannot do the job, which fails far from its cause.
  * Both modules state the reasoning at length.
  */
+/**
+ * Files whose whole job is SHOWING code to a reader.
+ *
+ * A documentation page that cannot name an identifier cannot document the API,
+ * so a sample here is not a hardcoded default — it is the thing being
+ * documented. The discriminator is the file's ROLE, not the literal's shape:
+ * `examples.tsx` renders a `sampleAgent` object to the screen, it does not send
+ * it.
+ *
+ * Most of the console's samples never reach this list, because they live inside
+ * template literals holding whole code blocks and the matcher below is anchored
+ * to a WHOLE literal. Only the one rendered as real data does.
+ *
+ * Counted, like the preference modules: an exemption that has stopped excusing
+ * anything is an exemption to delete, and this says so rather than letting the
+ * list rot.
+ */
+const SAMPLE_SURFACES = new Set(['packages/alia-console/src/routes/_layout/examples.tsx']);
+
 const PREFERENCE_MODULES = new Map([
   ['packages/alia-chat/src/lib/config.ts', 2],
   ['packages/alia-codea-cli/src/utils/config.ts', 1],
@@ -83,8 +102,20 @@ const PREFERENCE_MODULES = new Map([
   ['packages/alia-cowork/src/main/config.ts', 2],
 ]);
 
-/** An `alia-` identifier, anchored: `alia-v1` matches, `alia-codea-cli` (a package name) does not. */
-const IDENTIFIER = /^alia-(v\d[a-z0-9-]*|lite)$/;
+/**
+ * A routing identifier a client could hardcode, in EITHER vocabulary.
+ *
+ * `profile:*` is what `GET /catalogue` publishes and what a client should send
+ * (`lib/chat/request-context.ts` accepts it, or a legacy `alia-*`, and refuses
+ * anything else). `alia-*` is the frozen legacy set, advertised by nothing since
+ * #178 but still resolving — installed `@alia.onl/sdk` and `@alia-codea/cli`
+ * copies still send them, so it stays a shape this census must recognise.
+ *
+ * Both are matched because the hazard is identical either way: an identifier
+ * baked into a shipped artefact is one a retirement cannot reach. Anchored, so
+ * `alia-codea-cli` (a package name) is not mistaken for one.
+ */
+const IDENTIFIER = /^(profile:[a-z0-9][a-z0-9-]*|alia-(v\d[a-z0-9-]*|lite))$/;
 
 function sourceFiles(dir) {
   const out = [];
@@ -171,6 +202,7 @@ function main() {
 
   const offences = [];
   const preferenceCounts = new Map();
+  let sampleHits = 0;
 
   for (const file of files) {
     const rel = relative(ROOT, file);
@@ -180,7 +212,20 @@ function main() {
       preferenceCounts.set(rel, found.length);
       continue;
     }
+    if (SAMPLE_SURFACES.has(rel)) {
+      sampleHits += 1;
+      continue;
+    }
     for (const { text, line } of found) offences.push(`${rel}:${line} hardcodes ${text}`);
+  }
+
+  // A sample surface that has stopped naming an identifier is an exemption to
+  // delete, not one to keep excusing — the same rule the preference counts get.
+  if (sampleHits === 0) {
+    offences.push(
+      `SAMPLE_SURFACES lists ${SAMPLE_SURFACES.size} file(s) but none names an identifier — ` +
+        'delete the entry rather than leaving it to excuse nothing.',
+    );
   }
 
   // The exemptions, by EXACT count. A preference module that quietly grows a

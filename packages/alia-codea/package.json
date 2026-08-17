@@ -159,8 +159,8 @@
         },
         "codea.model": {
           "type": "string",
-          "default": "alia-v1-codea",
-          "description": "Model to use for completions (available models are fetched from the API)",
+          "default": "profile:v1-codea",
+          "description": "Routing profile to use for completions. Listed by GET /catalogue.",
           "order": 3
         },
         "codea.maxTokens": {

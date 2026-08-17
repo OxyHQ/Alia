@@ -24,7 +24,6 @@ import { toast } from "@oxyhq/bloom/toast";
 import { VoiceOverlay, VoiceControls, useAmbientWave } from "@alia.onl/sdk/voice";
 import { AlertTriangle, Pencil } from "lucide-react-native";
 import { CreditWarningBanner } from "@/components/credit-warning-banner";
-import { THINKING_MODEL_ID } from "@/lib/config";
 import { useModelStore } from "@/lib/stores/model-store";
 import { useEntitlements } from "@/lib/hooks/use-billing";
 import { useCredits } from "@/lib/hooks/use-credits";
@@ -138,9 +137,18 @@ export const ChatPageContent = ({
   const { width: screenWidth } = useWindowDimensions();
   const isNarrowScreen = screenWidth < 640;
   const [activeModes, setActiveModes] = useState<Set<Mode>>(new Set());
-  const thinkingMode = selectedModel === THINKING_MODEL_ID;
-  const baseModel = useModelStore((s) => s.baseModel);
-  const setBaseModel = useModelStore((s) => s.setBaseModel);
+  /**
+   * A request flag, orthogonal to the profile.
+   *
+   * This was `selectedModel === THINKING_MODEL_ID`, and the toggle below SWAPPED
+   * the selected model to reach it. The routing table shows the swap never
+   * changed routing — `alia-v1-thinking` and `alia-v1-pro-max` are two aliases
+   * of one profile — so all it ever changed was the prompt, which is what the
+   * `thinkingMode` request field already carries. `baseModel` existed only to
+   * remember what to swap back to and goes with the swap.
+   */
+  const thinkingMode = useModelStore((s) => s.thinkingMode);
+  const setThinkingMode = useModelStore((s) => s.setThinkingMode);
 
   const isVoiceActive = voice?.isVoiceActive ?? false;
   const { ttsWaveAmplitude, playbackState: ttsPlaybackState } = useTTS();
@@ -160,12 +168,6 @@ export const ChatPageContent = ({
     ttsWaveAmplitude,
     isGenerating: isLoading,
   });
-
-  useEffect(() => {
-    if (selectedModel !== THINKING_MODEL_ID) {
-      setBaseModel(selectedModel);
-    }
-  }, [selectedModel, setBaseModel]);
 
   const [inputValue, setInputValue] = useState("");
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
@@ -271,13 +273,13 @@ export const ChatPageContent = ({
   }, [isLoading, disabled, isAuthenticated, signIn, onSubmit]);
 
   const handleThinkingMode = () => {
-    if (thinkingMode) {
-      onModelChange(baseModel);
-      toast.info(t('modes.thinkingOff'));
-    } else {
-      onModelChange(THINKING_MODEL_ID);
-      toast.info(t('modes.thinkingOn'));
-    }
+    // Sets a flag; it does NOT change the model. Extended reasoning applies on
+    // whichever profile is selected — the backend's prompt builder reads this
+    // flag on any of them — so asking for it no longer silently moves a person
+    // onto the dearest tier.
+    const next = !thinkingMode;
+    setThinkingMode(next);
+    toast.info(next ? t('modes.thinkingOn') : t('modes.thinkingOff'));
   };
 
   const handleAddSources = () => {
