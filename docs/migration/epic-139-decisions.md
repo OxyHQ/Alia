@@ -140,7 +140,7 @@ deliberately **not** changed alongside it — that is the field an existing call
 So "an Alia product API distinct from the generic one" did not exist to preserve. What survives is
 the one runtime; the split is workstream 6's to build, not a thing to protect.
 
-## D6. The `/v1/responses` default model — decided, and **not yet implemented**
+## D6. The `/v1/responses` default model — decided and **implemented** (#178)
 
 **Decided by the team lead rather than asked; recorded here so the user can overrule it.**
 
@@ -148,12 +148,20 @@ the one runtime; the split is workstream 6's to build, not a thing to protect.
 model-less request was billed at a **2× different credit multiplier depending only on which endpoint
 it hit** — `alia-lite` has multiplier 0.5, `alia-v1` has 1.
 
-The decision is that both read the single owner, `getDefaultAliaModel()`
-(`lib/gateway-client.ts:582`, returning `'alia-lite'`).
+The decision was that both resolve to the single owner, `getDefaultAliaModel()`, which answers
+`'alia-lite'`.
 
-**Measured, and this corrects the handoff: only one half has landed.**
-`routes/v1/chat-completions.ts:47` reads `getDefaultAliaModel()`. **`routes/v1/responses.ts:62` still
-reads `body.model || 'alia-v1'`.** The divergence is live.
+**Implemented, and the shape is worth recording, because it is not the one this section originally
+described.** The obvious fix — make `responses.ts` restate `getDefaultAliaModel()` too — would have
+left TWO sites that each know what the default is, which is the condition that produced the
+divergence in the first place. What landed instead removes the adapter's opinion entirely:
+`routes/v1/responses.ts` now forwards `model: body.model` **unresolved**, and the default is applied
+once, downstream, at `lib/chat/request-context.ts:182`. There is nothing left to keep in step.
+
+The census in `packages/api/src/lib/__tests__/defaultChatModel.test.ts` that had frozen the
+divergence lost its `routes/v1/responses.ts` entry in the same change, and now asserts the absence at
+the source — that the file contains `model: body.model,` and matches no `model: body.model ||` at
+all.
 
 **Rationale for resolving toward `alia-lite`:** the alternative — making both default to `alia-v1` —
 doubles the bill on the main path used by the app and every SDK consumer. Production is at
