@@ -11,6 +11,7 @@
     "dev:fresh": "gulp clean:all && gulp dev",
     "build": "gulp build",
     "typecheck": "tsc --noEmit",
+    "test": "vitest run",
     "build:fresh": "gulp clean && gulp build",
     "clean": "gulp clean",
     "clean:all": "gulp clean:all",
@@ -72,6 +73,7 @@
     "postcss-import": "^16.1.1",
     "tailwindcss": "^4.3.2",
     "ts-node": "^10.9.2",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.10"
   }
 }
