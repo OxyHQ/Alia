@@ -92,6 +92,34 @@ describe('src/index.ts boot wiring', () => {
     expect(source).toContain('relayBootConfigurationFailure');
   });
 
+  it('refuses direct provider configuration before the socket opens (#139 ws8)', () => {
+    /**
+     * Same shape and same reason as the Relay configuration check above: the
+     * guard's BEHAVIOUR — and in particular that it reads one variable and
+     * returns while `ALIA_RELAY_CLIENT_ENABLED` is off, which is everywhere
+     * today — is `lib/inference/__tests__/direct-provider-guard.test.ts`. This
+     * is only that the entrypoint calls it, anchored on the top-level CALL
+     * because the name is also a substring of its own declaration.
+     */
+    const checkAt = source.indexOf('\nassertDirectProviderModeOrExit();');
+    const listenAt = source.indexOf('server.listen(PORT');
+    expect(checkAt).toBeGreaterThan(-1);
+    expect(checkAt).toBeLessThan(listenAt);
+    expect(source).toContain('directProviderModeFailure');
+  });
+
+  it('arms the provider egress policy before the socket opens (#139 ws8)', () => {
+    // A policy installed after `listen` would leave a window in which a request
+    // could be served by a process that had not armed it. With the cutover flag
+    // off the call installs nothing and returns null, which
+    // `lib/inference/__tests__/provider-egress-policy.test.ts` asserts by object
+    // identity.
+    const installAt = source.indexOf('\nif (installProviderEgressBlock() !== null)');
+    const listenAt = source.indexOf('server.listen(PORT');
+    expect(installAt).toBeGreaterThan(-1);
+    expect(installAt).toBeLessThan(listenAt);
+  });
+
   it('no longer runs the retired Mongo data-migration ledger', () => {
     // `lib/migrations/` is deleted; a reintroduced call would be a second
     // migration ledger beside `@oxyhq/db`'s, asserting history that never
