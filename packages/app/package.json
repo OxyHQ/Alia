@@ -12,6 +12,7 @@
     "setup-skia-web": "bun x setup-skia-web public",
     "prebuild": "bun run setup-skia-web && bun run generate-sitemap",
     "build": "bun x setup-skia-web public && bun x expo export --platform web",
+    "typecheck": "expo customize tsconfig.json && tsc --noEmit",
     "build:production": "NODE_ENV=production bun x setup-skia-web public && bun x expo export --platform web --clear",
     "build:android": "eas build --platform android",
     "build:ios": "eas build --platform ios"

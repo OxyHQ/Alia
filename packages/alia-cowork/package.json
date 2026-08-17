@@ -10,6 +10,7 @@
     "dev": "gulp dev",
     "dev:fresh": "gulp clean:all && gulp dev",
     "build": "gulp build",
+    "typecheck": "tsc --noEmit",
     "build:fresh": "gulp clean && gulp build",
     "clean": "gulp clean",
     "clean:all": "gulp clean:all",
