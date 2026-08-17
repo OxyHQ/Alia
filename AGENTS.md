@@ -18,21 +18,9 @@ Non-standard layout: this repo does **not** use the three-package
 `frontend`/`backend`/`shared-types` baseline that every other Oxy single-app repo
 uses, so do not assume those paths.
 
-```
-packages/
-  app/                Main Expo + NativeWind app (React Native and Web)
-  api/                Express backend API
-  shared-types/       Shared TypeScript types
-  alia-canvas/        Web canvas app
-  alia-chat/          Published as @alia.onl/sdk (see below)
-  alia-codea/         VS Code extension
-    webview-ui/       Nested workspace of alia-codea, declared separately
-  alia-codea-cli/     Codea CLI
-  alia-console/       Admin console
-  alia-cowork/        Collaborative workspace
-  alia-docker-host/   Docker host integration
-  integrations/       Third-party integrations service (owns the MCP client)
-```
+`ls packages/` is the listing. What it does not tell you: `app` is the Expo +
+NativeWind client, `api` the Express backend, `alia-chat` is published as
+`@alia.onl/sdk`, and `integrations` owns the MCP client.
 
 `packages/alia-codea/webview-ui` is its own workspace entry, so the workspace
 count is one higher than the directory listing under `packages/` suggests.
@@ -49,24 +37,31 @@ resets the version it just wrote.
 `overrides` block. A correct bump touches THREE files: `packages/app/package.json`,
 the root `package.json` `overrides`, and `bun.lock`.
 
-## Model abstraction (CRITICAL)
+## Model identity: scoped, not a global ban
 
-Users and developers must ONLY see Alia-branded model names. Never expose
-internal provider names or provider model ids.
+**No rule says a provider or model name may never appear** — ADR 0003 makes
+`<publisher>/<model>` canonical. What is scoped is where the PRODUCT hides route
+detail: a UX and commercial decision, **not a security control**.
 
-- **User facing:** `alia-lite`, `alia-v1`, `alia-v1-codea`, `alia-v1-pro`,
-  `alia-v1-thinking`, `alia-v1-pro-max`.
-- **Never show** provider names (OpenAI, Anthropic, Google, Groq and so on) or
-  provider model ids in UI, API responses, errors, SEO or docs.
-- Use `sanitizeMessage()` from `packages/api/src/lib/errors/sanitize.ts` for every
-  user-facing error.
-- Analytics resolve via `getAliaModel()` and skip entries that cannot resolve.
+- **Conceal** through `sanitizeMessage()` (`packages/api/src/lib/errors/sanitize.ts`)
+  on product API error bodies, SSE error events, the UI, notifications and
+  customer-facing analytics.
+- **Be truthful, and never `sanitizeMessage()`,** on the catalogue and model
+  cards, licence attribution, operator and audit surfaces (logs,
+  `fallback_events`, admin console), the Relay contract's
+  `providerError.provider`, and engineering docs, ADRs and schema comments.
+- **Separate and absolute on every surface:** no credential, no internal endpoint
+  and no raw upstream error body reaches a user — `redactUnsafeDetail()`, plus
+  redaction at birth (`internal/providers/lib/provider-error-body.ts`). The
+  caller's own echoed input takes that alone, never `sanitizeMessage()`.
+- Concealment matches IDENTIFIERS only, so ordinary prose survives; a new
+  registered operator must be classified in `sanitize.ts` (`sanitize.test.ts`
+  counts both lists and goes red).
+- Analytics resolve via `getAliaModel()`, skipping entries that cannot resolve.
 
-Key files: `packages/api/src/internal/providers/lib/alia-models.ts` (definitions),
-`.../generate-model-mappings.ts` (provider routing),
-`packages/api/src/routes/v1/models.ts` (public API, Alia names only),
-`packages/api/src/lib/errors/sanitize.ts`, and `packages/api/src/internal/` (all
-provider logic, CORS restricted).
+Key files: `internal/providers/lib/alia-models.ts` (the frozen `alia-*` set — see
+`docs/model-abstraction.mdx`), `routes/v1/models.ts`, `lib/errors/sanitize.ts`,
+and `packages/api/src/internal/` (all provider logic, CORS restricted).
 
 ## MongoDB database naming
 
@@ -166,17 +161,13 @@ pipeline. This is SEPARATE from the shared system bot (env `TELEGRAM_BOT_TOKEN`,
 
 ## Gateway and provider keys
 
-**There is no gateway service.** `packages/alia-gateway` was deleted: it was
-never deployed, and 9 of its 11 Mongoose models were duplicates of the API's own
-`internal/providers` models pointed at the same database, so provider changes had
-to be mirrored by hand into code nothing ran. Provider calls happen in-process in
-`packages/api/src/internal/providers`.
+**There is no gateway service** — `packages/alia-gateway` was deleted. Provider
+calls happen in-process in `packages/api/src/internal/providers`.
 
-`packages/api/src/lib/gateway-client.ts` REMAINS and is the seam that made this
-safe to delete: it already ran the LOCAL in-process path unless BOTH
-`SERVICE_SECRET` and `GATEWAY_API_URL` were set, and production sets only the
-former. Do not reintroduce a second copy of the provider logic; if a remote
-provider tier is ever wanted, it goes behind that same client.
+`packages/api/src/lib/gateway-client.ts` REMAINS and is the seam: it runs the
+LOCAL in-process path unless BOTH `SERVICE_SECRET` and `GATEWAY_API_URL` are set,
+and production sets only the former. Do not reintroduce a second copy of the
+provider logic; a remote provider tier, if ever wanted, goes behind that client.
 
 TTS fails over across providers via `packages/api/src/lib/synthesize-speech.ts`
 and `packages/api/src/internal/providers/lib/tts-providers.ts` (the voice

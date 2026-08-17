@@ -4,7 +4,8 @@
  * Provides a standardized error system for the Alia platform with:
  * - Typed error codes for all known failure modes
  * - FailoverReason classification for smart fallback decisions
- * - Separate internal vs user-facing messages (NEVER expose provider names!)
+ * - Separate operator and product messages: the first names the deployment that
+ *   failed, the second does not (`lib/errors/sanitize.ts` has the scope)
  * - SSE-compatible error serialization
  */
 
@@ -70,7 +71,8 @@ const DEFAULT_HTTP_STATUS: Record<AliaErrorCode, number> = {
 };
 
 // ============== DEFAULT USER MESSAGES ==============
-// CRITICAL: These must NEVER contain provider names!
+// The product surface. Constants, so they cannot pick up route detail from an
+// upstream string — which is why they are constants rather than templates.
 
 const DEFAULT_USER_MESSAGES: Record<AliaErrorCode, string> = {
   [AliaErrorCode.RATE_LIMITED]:
@@ -101,9 +103,9 @@ const DEFAULT_USER_MESSAGES: Record<AliaErrorCode, string> = {
 
 export interface AliaErrorParams {
   code: AliaErrorCode;
-  /** Internal message for logging -- may contain provider names */
+  /** Operator-facing. Names the deployment that failed; never rendered. */
   message: string;
-  /** User-facing message -- NEVER expose provider names! */
+  /** Product surface. A constant, or a string already through `sanitizeMessage()`. */
   userMessage?: string;
   retryable: boolean;
   retryAfter?: number;
@@ -118,7 +120,7 @@ export class AliaError extends Error {
   readonly retryAfter?: number;
   readonly reason: FailoverReason;
   readonly httpStatus: number;
-  /** User-safe message (never expose provider names!) */
+  /** Product surface. Route detail is concealed here; `message` is not. */
   readonly userMessage: string;
 
   constructor(params: AliaErrorParams) {

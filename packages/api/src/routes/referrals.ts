@@ -10,14 +10,12 @@ import {
 import { getOrCreateUserCredits } from '../lib/user-credits-helpers.js';
 import { addCredits } from '../db/billing/userCreditsRepository.js';
 import { log } from '../lib/logger.js';
-import { sanitizeMessage } from '../lib/errors/sanitize.js';
+import { getSafeErrorMessage } from '../lib/errors/sanitize.js';
 
 const router = Router();
 
 const REFERRAL_CREDIT_REWARD = 500;
 const BASE_URL = process.env.WEB_URL || 'https://alia.onl';
-const getSafeErrorMessage = (error: unknown, fallback: string): string =>
-  sanitizeMessage(error instanceof Error ? error.message : fallback);
 
 // Get current user's referral info (lazy-creates on first access)
 router.get('/', authenticateToken, async (req, res) => {

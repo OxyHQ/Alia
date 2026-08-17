@@ -218,46 +218,99 @@ prerequisite for starting the clock, tracked by workstream 19.
 
 ## Error sanitization
 
-`sanitizeMessage()` (`packages/api/src/lib/errors/sanitize.ts`) is the sanctioned exit
-point for error strings reaching users. It strips operator names registered in
-`internal/providers/lib/provider-names.ts`, upstream model ids, upstream error codes and
-upstream endpoint hostnames.
+`packages/api/src/lib/errors/sanitize.ts` exports **two** functions, because it enforces
+two rules with different audiences, different failure modes and different scopes.
 
-Use it wherever a thrown error can be serialized into an HTTP response, an SSE event, a
-notification, or a log line that reaches a customer-facing dashboard.
+### Rule 1 — absolute, every surface
+
+`redactUnsafeDetail()` removes what may never reach a user anywhere: credentials, URLs and
+hostnames. Nothing opts out of it. It is a security and privacy control.
+
+Credentials are also redacted at the point an upstream error body becomes a string
+(`internal/providers/lib/provider-error-body.ts`), which is the primary control; this one
+is defence in depth, because an error string can be assembled outside the provider tree.
+
+### Rule 2 — scoped, product surfaces only
+
+`sanitizeMessage()` is rule 1 plus concealment of upstream operator identity and upstream
+model ids. Use it wherever a thrown error can be serialized into a product API response, an
+SSE event, a user-visible notification, or a customer-facing analytics string.
 
 ```ts
-import { sanitizeMessage } from '@/lib/errors/sanitize';
+import { sanitizeMessage } from '../lib/errors/sanitize.js';
 
 try {
   await someUpstreamCall();
 } catch (err) {
-  throw new ApiError(sanitizeMessage(err), { code: 'model_unavailable' });
+  throw new AliaError({
+    code: AliaErrorCode.MODEL_UNAVAILABLE,
+    message: err instanceof Error ? err.message : 'upstream call failed', // operators
+    userMessage: sanitizeMessage('The selected model is unavailable.'),   // the product
+    retryable: true,
+    reason: 'provider_unavailable',
+  });
 }
 ```
 
-### The rule is scoped, not global
+`sanitizeMessage` takes a **string**, not an error. The operator-facing `message` keeps the
+upstream detail on purpose — that is what a log is for.
 
-The sanitization rule protects the **Alia product surface**: UI, product API responses,
-product errors, notifications and customer-facing analytics. It is a product and privacy
-boundary, not a blanket ban on the words.
+### Where rule 2 must NOT run
 
-It does not extend to engineering documentation, ADRs, schema comments or internal
-diagnostics, and it cannot: [ADR 0003](./adr/0003-model-revision-deployment-provider-routing-profile.md)
-makes `<publisher>/<model>` the canonical identifier form, so publisher identity becomes
-part of the vocabulary rather than something to hide. ADR 0001 records the same scoping —
-`sanitizeMessage()` survives the migration but guards the product surface, not the neutral
-platform surface Oxy operates.
+Each of these surfaces is required to be truthful, and concealment destroys the thing it is
+required to say:
 
-What stays absolute on the product surface:
+- **the catalogue and model cards** — a caller choosing a model has to know whose model it
+  is ([ADR 0003](./adr/0003-model-revision-deployment-provider-routing-profile.md) makes
+  `<publisher>/<model>` the canonical identifier form, so publisher identity is part of the
+  vocabulary rather than something to hide);
+- **attribution an open-weight licence requires**, which names the publisher as a condition
+  of use;
+- **operator and audit surfaces** — logs, `fallback_events`, the admin console,
+  `provider_keys.last_failure_reason`. "Which deployment failed" is the question they exist
+  to answer;
+- **anything crossing the Relay contract**, whose `providerError.provider` field is
+  required to carry a real provider slug;
+- **the caller's own input echoed back**. It is theirs, and it discloses nothing about
+  Alia's routing. `UnregisteredModelError` (`lib/routing/policy.ts`) takes
+  `redactUnsafeDetail()` for exactly this reason: the echo used to read `"Alia4o" is not an
+  Alia model`, which removed the only actionable thing in the sentence;
+- **engineering documentation, ADRs and schema comments**, including this page.
 
-1. No upstream operator name or upstream model id in a product API response, a product
-   error, the UI, or a customer-facing analytics event.
+ADR 0001 records the same scoping: `sanitizeMessage()` survives the migration but guards
+the product surface, not the neutral platform surface Oxy operates.
+
+### Rule 2 is best effort, and is not a security control
+
+Concealment recognises the operators registered in `provider-names.ts` and the model
+families present in the live routing table, and it recognises them as **identifiers** — a
+proper noun, or a token joined by `/ . - _ =`. It deliberately leaves ordinary prose alone:
+`llama` is Spanish for a flame and Alia answers in Spanish; `together`, `cohere`,
+`replicate`, `whisper`, `command` and `sonar` are ordinary English words, and rewriting them
+corrupted more messages than it concealed. A lowercase bare-word mention therefore survives.
+
+That is acceptable because rule 2 is a product decision, not a security boundary. The
+things that are a security boundary are rule 1 and the redaction at birth. Do not design
+anything that depends on rule 2 being exhaustive.
+
+`sanitize.test.ts` walks the live routing table and fails on any upstream identifier the
+sanitiser cannot conceal, so the hand-maintained slug lists cannot fall behind the routing
+they describe.
+
+### What stays absolute on the product surface
+
+1. No upstream operator name or upstream model id in a product error, in the chat UI, or
+   in a customer-facing analytics event. The catalogue is the exception, and is the one
+   product response required to attribute truthfully.
 2. No endpoint that maps an Alia identifier back to an upstream model id. The two that
    existed return `410 Gone`; see below.
-3. No model picker that shows upstream attribution.
-4. Display strings come from `ALIA_MODELS` through `getAliaModel()`, never from the mapping
-   table.
+3. The picker renders what the CATALOGUE carries and nothing else — `publisher/model`
+   where the catalogue supplies both, and no attribution where it supplies neither
+   (`packages/app/components/model-selector.tsx:140`,
+   `packages/app/lib/hooks/use-catalogue.ts:89`). Attribution is a decision the catalogue
+   makes; the picker never reaches past it into the mapping table.
+4. Display strings for an `alia-*` identifier come from `ALIA_MODELS` through
+   `getAliaModel()`, never from the mapping table.
 5. User-facing errors go through `sanitizeMessage()`.
 
 ## Removed endpoints

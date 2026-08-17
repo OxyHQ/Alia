@@ -2,7 +2,12 @@
  * Server-Sent Events (SSE) Streaming Handler
  *
  * Provides improved streaming with metadata, events, and proper error handling.
- * NEVER exposes provider information to clients!
+ *
+ * An SSE stream is a product surface, so route detail is concealed on it: every
+ * message here is a constant or has been through `sanitizeMessage()`. That is a
+ * product rule scoped to this surface, not a global ban — see
+ * `lib/errors/sanitize.ts` for the surfaces where publisher identity is required
+ * instead.
  */
 
 import type { Response } from 'express';
@@ -165,13 +170,15 @@ export class SSEStream {
 
   /**
    * Send fallback notification (when switching providers)
-   * IMPORTANT: Message must not expose provider names!
+   * The reason is a product-facing phrase ("high demand"), never the upstream
+   * failure that caused the switch.
    */
   sendFallback(reason: string = 'high demand'): void {
     this.sendEvent('fallback', {
       message: `Using backup model due to ${reason}...`,
       timestamp: Date.now() - this.startTime
-      // NEVER include: actual provider names or model IDs!
+      // No upstream operator name and no upstream model id: this event is read by
+      // the chat client.
     });
   }
 
@@ -212,7 +219,8 @@ export class SSEStream {
   /**
    * Send an AliaError as an SSE error event.
    * Convenience method that converts AliaError to SSEError shape automatically.
-   * The user-facing message from AliaError is used (never exposes provider names).
+   * `AliaError.userMessage` is what is sent — a constant, or already through
+   * `sanitizeMessage()`. `AliaError.message` is for operators and is not sent.
    */
   sendAliaError(error: AliaError): void {
     this.sendError(toSSEError(error));
@@ -221,7 +229,7 @@ export class SSEStream {
   /**
    * Send a directive event to the client.
    * Used to notify about model switches, retries, or rate limiting during streaming.
-   * IMPORTANT: Messages must NEVER expose provider names!
+   * The message reaches the chat client, so it names Alia identifiers only.
    */
   sendDirective(type: DirectiveType, message: string): void {
     this.sendEvent('directive', {

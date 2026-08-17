@@ -25,11 +25,9 @@ import { getOrCreateUserCredits } from '../lib/user-credits-helpers.js';
 import { getUserEntitlements, invalidateEntitlementsCache } from '../lib/plan-access.js';
 import { z } from 'zod';
 import { log } from '../lib/logger.js';
-import { sanitizeMessage } from '../lib/errors/index.js';
+import { getSafeErrorMessage } from '../lib/errors/sanitize.js';
 
 const router = Router();
-const getSafeErrorMessage = (error: unknown, fallback: string): string =>
-  sanitizeMessage(error instanceof Error ? error.message : fallback);
 
 let stripeInstance: Stripe | null = null;
 

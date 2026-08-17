@@ -36,7 +36,7 @@
  */
 
 import { AliaError, AliaErrorCode } from '../errors/error-codes.js';
-import { sanitizeMessage } from '../errors/sanitize.js';
+import { redactUnsafeDetail, sanitizeMessage } from '../errors/sanitize.js';
 
 /**
  * Every fallback policy, in widening order. The order is load-bearing for
@@ -91,17 +91,20 @@ export function isFallbackPolicy(value: unknown): value is FallbackPolicy {
  * this page that is NOT preserved: an identifier nobody registered was never a
  * working request, so there is nothing to preserve.
  *
- * ## The message is sanitised, and that mangles some inputs on purpose
+ * ## The echo is the caller's own text, so it comes back readable
  *
  * The requested identifier is echoed back because a refusal that does not say
- * what it refused is not actionable. But the identifier is caller-supplied, and
- * the commonest wrong value is a provider's own model id (an OpenAI-compatible
- * client pointed at `/v1` sends whatever it was configured with). Alia's model
- * abstraction rule is absolute, so the echo goes through `sanitizeMessage`,
- * which rewrites provider names — `gpt-4o` comes back mangled rather than
- * verbatim. That is the intended trade: the abstraction rule outranks a tidy
- * error string, and the available list beside it is what makes the message
- * actionable either way.
+ * what it refused is not actionable. The commonest wrong value is a provider's
+ * own model id — an OpenAI-compatible client pointed at `/v1` sends whatever it
+ * was configured with — and telling that caller `"gpt-4o" is not an Alia model`
+ * is the whole point of the message.
+ *
+ * The echo therefore takes `redactUnsafeDetail`, not `sanitizeMessage`. Route
+ * concealment protects Alia's ROUTING decisions on the product surface
+ * (`lib/errors/sanitize.ts`), and a string the caller just sent reveals none of
+ * them; running it here only produced `"Alia4o" is not an Alia model`. What
+ * still applies is the absolute half — a caller can put a credential in that
+ * field, and a credential is redacted wherever it appears.
  */
 export class UnregisteredModelError extends AliaError {
   constructor(
@@ -112,7 +115,7 @@ export class UnregisteredModelError extends AliaError {
     super({
       code: AliaErrorCode.INVALID_REQUEST,
       message: `Unregistered model identifier: ${requested}`,
-      userMessage: sanitizeMessage(detail),
+      userMessage: redactUnsafeDetail(detail),
       retryable: false,
       // `format` is the FailoverReason for "would fail again" — the fallback
       // engine's own NON_RETRYABLE_REASONS set. Retrying elsewhere cannot help:
@@ -161,13 +164,16 @@ export class FallbackNotPermittedError extends AliaError {
  * Separate from `UnregisteredModelError` because the two are different mistakes
  * with different fixes, and collapsing them would tell a caller who mistyped a
  * policy to go and look at the model list.
+ *
+ * The echo follows the same rule as `UnregisteredModelError`'s: it is the
+ * caller's own value, so only `redactUnsafeDetail` applies to it.
  */
 export class UnknownFallbackPolicyError extends AliaError {
   constructor(readonly requested: unknown) {
     super({
       code: AliaErrorCode.INVALID_REQUEST,
       message: `Unknown fallback policy: ${String(requested)}`,
-      userMessage: sanitizeMessage(
+      userMessage: redactUnsafeDetail(
         `"${String(requested)}" is not a fallback policy. Accepted values: ${FALLBACK_POLICIES.join(', ')}.`,
       ),
       retryable: false,

@@ -29,6 +29,5 @@ export {
 // Sanitization and formatting (user-facing)
 export {
   sanitizeMessage,
-  sanitizeError,
   formatErrorResponse,
 } from './sanitize';

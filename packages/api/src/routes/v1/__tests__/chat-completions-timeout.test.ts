@@ -162,7 +162,6 @@ vi.mock('../../../lib/errors/index.js', () => ({
     error: { code: e.code, message: e.userMessage, retryable: e.retryable },
   })),
   sanitizeMessage: vi.fn((msg: string) => msg),
-  sanitizeError: vi.fn((e: any) => e),
   AliaError: class AliaError extends Error { code = ''; retryable = false; },
   AliaErrorCode: {},
   classifyError: vi.fn(() => 'unknown'),

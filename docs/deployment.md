@@ -177,8 +177,10 @@ healthy and still receives traffic. Moving the target group to `/health/ready` i
 ## Operational notes
 
 - Keep logs sanitized on customer-facing surfaces. `sanitizeMessage()` is the chokepoint.
-- Do not expose upstream routing detail in product responses, docs or audits. The scope of
-  that rule is in [model abstraction](./model-abstraction.mdx).
+- Do not expose upstream routing detail in product responses. Operator surfaces are the
+  opposite case: a log, an audit record and a `fallback_events` row must name the
+  deployment that failed, or the question they exist to answer cannot be asked. The scope
+  is in [model abstraction](./model-abstraction.mdx).
 
 ## Open questions
 
