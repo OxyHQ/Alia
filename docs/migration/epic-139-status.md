@@ -214,17 +214,42 @@ This is the one inventory box this document earns:
 
 ### Migrations
 
-22 drizzle migrations, `packages/api/drizzle/0000_mature_marauders.sql` through
-`0021_overrated_killraven.sql`. Every one carries an `oxy:deploy-phase` marker; **21 are `pre`
+**24** drizzle migrations, `packages/api/drizzle/0000_mature_marauders.sql` through
+`0023_append_only_receipts.sql`. Every one carries an `oxy:deploy-phase` marker; **23 are `pre`
 (additive) and one is `post`** — `0016_jazzy_justin_hammer.sql`, the only migration in the chain that
 drops anything, and what it drops is `cache_entries` and `cache_stats`, neither of which is in this
 epic's scope.
+
+*(The audit counted 22, through `0021`. #175 added `0022_shocking_firebird` — the `grant_kind`
+columns and their CHECKs — and `0023_append_only_receipts`, the `transactions_append_only` trigger.
+Both are `pre`.)*
 
 **No migration in the tree drops a table any of workstreams 10, 11 or 12 names.** Those drops are
 unwritten.
 
 Because the chain interleaves phases, a from-zero run needs `--phase=all`; an incremental deploy runs
 `pre` then `post` (`packages/api/src/db/migrate.ts:5-24`).
+
+### A green deploy means the migrations ran, not that anything rolled out
+
+**The trap anyone reading this epic will hit.** The `alia` ECS service is parked at
+`desiredCount: 0` and `api.alia.onl` returns 503 — but a green `Deploy to AWS` run still applies
+migrations to the production database. #175's run logged
+`Migration (phase=pre, target=alia) completed successfully` and then ended in the parked-at-zero
+branch of `.github/scripts/deploy-ecs-image.sh:612-614`, which says so in as many words: *"the task
+definition WAS registered and the service now points at it"*, and *"image … is NOT live and `alia` is
+serving NOTHING. This deploy released nothing to users."*
+
+So **"nothing is deployed" and "no schema change has landed" are different statements, and only the
+first is true.** The schema moves while the service does not serve. Two consequences for anyone
+reading the inventory below:
+
+- A table's columns can change under an `UNMEASURED` row count. The counts are unmeasured for want of
+  a credential, not because the schema is frozen — re-read the schema at the commit you are acting
+  on, not at this document's date.
+- A `post` migration that runs at zero capacity is the one case
+  [`rollback.md`](../runbooks/rollback.md) singles out: it leaves the old code against a schema it
+  was not written for, and rolling the image back does not undo it.
 
 ### The 21 tables in scope
 
@@ -372,6 +397,44 @@ The `^0.27.0` range does **not** reach them. Bumping it is the first move on L46
 `internal_alia`, `public_payg`, `enterprise`, `byok_only`, `oxy_hosted` — installed today, at
 `0.27.0`, imported by nothing in Alia. L604 is `ACTIONABLE_NOW` for the type and the refusal; only
 the DATA (which route carries which scope) waits on Relay.
+
+## A tooling hazard, because four of us have now hit it
+
+**`gh pr edit --body-file` does not write the body on this repository.** Recorded here rather than in
+four agents' heads: workstream 4 hit it on #163, workstream 8 on #168 — where a PR carried a
+186-character placeholder through review because the evidence body never landed — and workstream 12
+on #175. I reproduced it on #181 before writing this down.
+
+**Measured, 2026-08-17, against PR #181:**
+
+```
+$ gh pr edit 181 --body-file body.md
+GraphQL: Projects (classic) is being deprecated in favor of the new Projects experience,
+see: ... (repository.pullRequest.projectCards)
+$ echo $?
+1
+```
+
+The body was unchanged — 4579 bytes before and after, read back twice.
+
+**It is not silent; it is mislabelled**, and that distinction is the whole reason it gets through. The
+error names *Projects*, which reads like a harmless deprecation notice about something you were not
+doing. So the cheap defences, in order:
+
+1. **Check the exit code.** It is non-zero, so `set -e` or an explicit check catches it. That alone
+   would have caught all four occurrences.
+2. **Read the field back**, which is the standing rule for `gh` writes — this is the instance that
+   earns it.
+
+**The working path**, measured exit 0 with the new length returned:
+
+```bash
+gh api -X PATCH repos/OxyHQ/Alia/pulls/<n> -F body=@<file>
+```
+
+**A second trap, measured in the same session:** `gh pr view … > body.md` truncates `body.md` *before*
+running, so a failed fetch leaves a 0-byte file — which the next write would publish as an empty
+body. Here only the no-op above prevented exactly that.
 
 ## What this audit does not measure
 
