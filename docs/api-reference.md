@@ -335,8 +335,9 @@ All `/automations*` endpoints were removed outright; use `/triggers`.
 
 - User-facing errors pass through `sanitizeMessage()`
   (`packages/api/src/lib/errors/sanitize.ts`). It applies two rules. The first is
-  absolute and holds on every surface: no credential, no internal endpoint and no raw
-  upstream error body. The second conceals upstream operator names and model ids, and is
+  absolute and holds on every surface: no credential, no internal endpoint, and no raw
+  upstream error body — which includes the upstream error-code vocabulary
+  (`overloaded_error` names one operator as surely as the word does). The second conceals upstream operator names and model ids, and is
   scoped to the product surface.
 - The concealment half is a product decision and best-effort by construction: it matches
   identifiers — a proper noun, or a `/ . - _ =` joined token — and leaves ordinary prose

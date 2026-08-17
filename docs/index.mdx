@@ -157,7 +157,7 @@ The product surface exposes thirteen `alia-*` identifiers and nothing beneath th
 - In the picker: `alia-lite`, `alia-v1`, `alia-v1-pro`, `alia-v1-thinking`, `alia-v1-pro-max`
 - Addressable but not in the picker: `alia-v1-codea`, `alia-v1-cowork`, `alia-v1-browser`, `alia-v1-vision`, `alia-v1-audio`, `alia-v1-multimodal`, `alia-v1-voice`, `alia-v1-voice-pro`
 
-Each identifier carries a tier, and each tier maps to a ranked list of upstream deployments (`ModelMapping` in `packages/api/src/internal/providers/lib/alia-models.ts`). The fallback engine walks that list in `priority` order, skipping any entry whose circuit breaker is open. Errors pass through `sanitizeMessage()` (`packages/api/src/lib/errors/sanitize.ts`) before reaching a user-facing surface: it redacts credentials and endpoints on every surface, and conceals upstream operator names and model ids on the product surface only.
+Each identifier carries a tier, and each tier maps to a ranked list of upstream deployments (`ModelMapping` in `packages/api/src/internal/providers/lib/alia-models.ts`). The fallback engine walks that list in `priority` order, skipping any entry whose circuit breaker is open. Errors pass through `sanitizeMessage()` (`packages/api/src/lib/errors/sanitize.ts`) before reaching a user-facing surface: it redacts credentials, endpoints and the upstream error-code vocabulary on every surface, and conceals upstream operator names and model ids on the product surface only.
 
 Two of those identifiers share a tier, several are routing policies rather than models, and the whole set is frozen and inside a compatibility window. [Model abstraction](./model-abstraction.mdx) has the full table and the retirement gate.
 

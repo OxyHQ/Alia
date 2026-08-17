@@ -955,30 +955,30 @@
     {
       "id": "sanitize-message",
       "kind": "sanitizer",
-      "name": "sanitizeMessage / sanitizeError / sanitizeFull / getSafeErrorMessage / formatErrorResponse",
+      "name": "sanitizeMessage / redactUnsafeDetail / getSafeErrorMessage / formatErrorResponse",
       "currentPath": "packages/api/src/lib/errors/sanitize.ts",
-      "summary": "Scrubs the 19 PROVIDER_NAMES plus gemini/claude/gpt-/llama/whisper from any user-facing string, replacing each with 'Alia', then rewrites gpt-*/claude-*/gemini-* model ids to 'Alia model'.",
+      "summary": "Two rules. redactUnsafeDetail is absolute on every surface: credentials, URLs and hostnames, and the ten upstream error codes failover-error.ts classifies on. sanitizeMessage adds product-surface concealment of the 19 PROVIDER_NAMES and the model families in the live routing table, matched as IDENTIFIERS (a proper noun, or a / . - _ = joined token) so ordinary prose survives. #139 ws20 replaced the previous unanchored replace-with-'Alia' behaviour.",
       "proposedOwner": "alia",
       "targetPath": "keep",
       "dependsOn": [
         "provider-names"
       ],
-      "removalGate": "NEVER REMOVE. Its scrub list is BUILT FROM provider-names.ts, so deleting that array silently reduces the sanitizer to the 5 hardcoded patterns. Anyone deleting the provider directory must keep PROVIDER_NAMES or inline the list here first.",
-      "evidence": "packages/api/src/lib/errors/sanitize.ts:8, :14-17, :23-35"
+      "removalGate": "NEVER REMOVE. Its slug list is BUILT FROM provider-names.ts, so deleting that array silently narrows the sanitizer. Anyone deleting the provider directory must keep PROVIDER_NAMES or inline the list here first. sanitize.test.ts walks the live routing table and goes red when it cannot conceal an upstream identifier.",
+      "evidence": "packages/api/src/lib/errors/sanitize.ts \u2014 module header, WORD_SLUGS/OPAQUE_SLUGS/UPSTREAM_ERROR_CODES, redactUnsafeDetail and sanitizeMessage"
     },
     {
       "id": "sanitize-call-sites",
       "kind": "sanitizer",
-      "name": "Sanitization call sites (16 files)",
-      "currentPath": "packages/api/src/routes/{billing,referrals,credits,internal}.ts, routes/v1/{voice,audio,images,chat-completions,shows}.ts, routes/canvas/execute.ts, lib/show/show-pipeline.ts, lib/chat-modes/deep-research-handler.ts, lib/errors/index.ts, internal/providers/routes/providers.ts",
-      "summary": "16 files reference a sanitizer. Densest: billing.ts (18), referrals.ts (7), v1/voice.ts (5), credits.ts (5), v1/audio.ts (4).",
+      "name": "Sanitization call sites (15 production files, 3 test files)",
+      "currentPath": "packages/api/src/routes/{billing,referrals,credits,internal}.ts, routes/v1/{voice,audio,images,chat-completions,shows}.ts, routes/canvas/execute.ts, lib/show/show-pipeline.ts, lib/chat-modes/deep-research-handler.ts, lib/errors/{index,sanitize}.ts, lib/routing/policy.ts",
+      "summary": "15 production files reference a sanitizer. Densest: billing.ts (16), errors/sanitize.ts (6), routing/policy.ts (5), referrals.ts (5), v1/audio.ts (4). Counted at #139 ws20, comment lines excluded.",
       "proposedOwner": "alia",
       "targetPath": "keep",
       "dependsOn": [
         "sanitize-message"
       ],
       "removalGate": "Coverage must be re-audited after the Relay switch: Relay error strings are a NEW untrusted source, and none of these call sites knows that yet.",
-      "evidence": "grep sanitizeMessage|sanitizeError|sanitizeFull|getSafeErrorMessage|formatErrorResponse across tracked .ts/.tsx, 16 files, comment lines excluded"
+      "evidence": "grep sanitizeMessage|redactUnsafeDetail|getSafeErrorMessage|formatErrorResponse across tracked .ts/.tsx, 18 files, comment lines excluded (#139 ws20; sanitizeError and sanitizeFull were deleted as dead)"
     },
     {
       "id": "leak-provider-api-error",

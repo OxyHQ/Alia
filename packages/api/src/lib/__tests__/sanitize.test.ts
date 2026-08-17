@@ -177,6 +177,53 @@ describe('redactUnsafeDetail strips what may never reach a user anywhere', () =>
     );
   });
 
+  it('redacts every upstream error code the classifier reads, bar one named exception', () => {
+    /**
+     * The corpus is parsed out of `failover-error.ts` rather than restated,
+     * because a restated list agrees with itself forever while the classifier is
+     * what actually grows. Workstream 15 depends on this redaction, so the gate
+     * has to fail when the classifier learns a code the redactor does not know.
+     */
+    const src = readFileSync(path.join(REPO_ROOT, 'packages/api/src/lib/errors/failover-error.ts'), 'utf8');
+    // A census over source must exclude comments: the file explains several of
+    // these codes in prose, and counting the prose would make the census agree
+    // with itself no matter what the code did.
+    const code = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+
+    const found = new Set<string>();
+    for (const m of code.matchAll(/providerData\.\w+ === '([^']+)'/g)) found.add(m[1]);
+    // The BARE `code` identifier only. `(?<![.\w])` is what keeps
+    // `typeof e.code === 'string'` out — an unanchored version admitted
+    // `'string'` as an upstream error code, which is what a census that matches
+    // a spelling rather than a thing does.
+    for (const m of code.matchAll(/(?<![.\w])code === '([^']+)'/g)) found.add(m[1]);
+
+    // Vacuity floor and positive controls: an extractor that matched nothing
+    // would report the same clean pass as a redactor that covered everything,
+    // and the anchoring above is exactly the kind of tightening that silently
+    // drops a real hit.
+    expect(found.size).toBeGreaterThanOrEqual(10);
+    expect(found).toContain('overloaded_error');
+    expect(found).toContain('insufficient_quota');
+    expect(found).toContain('TOOL_USE_FAILED');
+    expect(found).not.toContain('string');
+
+    const uncovered = [...found].filter((c) => redactUnsafeDetail(`upstream said ${c}`).includes(c));
+    // Exact, not a floor. `UNAVAILABLE` is an ordinary English word in capitals
+    // and cannot be told from prose; every other code is covered, and a new one
+    // arriving uncovered lands here.
+    expect(uncovered).toEqual(['UNAVAILABLE']);
+  });
+
+  it('does not redact an ordinary snake_case identifier', () => {
+    // The vacuity floor for the code pass: matching the SHAPE rather than the
+    // list would strip these, and they are what makes an error debuggable.
+    expect(redactUnsafeDetail('failed for request_id abc and user_id 42')).toBe(
+      'failed for request_id abc and user_id 42',
+    );
+    expect(redactUnsafeDetail('connect ETIMEDOUT after 30s')).toBe('connect ETIMEDOUT after 30s');
+  });
+
   it('redacts a URL', () => {
     expect(redactUnsafeDetail('POST https://api.internal.alia/v1/x failed')).toBe('POST [endpoint] failed');
   });

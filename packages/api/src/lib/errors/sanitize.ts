@@ -11,7 +11,8 @@
  *
  * **Rule 1 — absolute, every surface, no exceptions.** No credential, no
  * internal endpoint, and no raw upstream error body reaches a user.
- * {@link redactUnsafeDetail} is this rule's expression here. It is a security
+ * {@link redactUnsafeDetail} is this rule's expression here: credentials,
+ * URLs and hostnames, and the upstream error-code vocabulary. It is a security
  * and privacy control and nothing may opt out of it.
  *
  * **Rule 2 — scoped, product surfaces only.** Which upstream operator and which
@@ -75,6 +76,41 @@ const PROVIDER_MARKER = '[provider]';
 const MODEL_MARKER = '[model]';
 /** Stands in for a concealed URL or hostname. */
 const ENDPOINT_MARKER = '[endpoint]';
+/** Stands in for a concealed upstream error code. */
+const CODE_MARKER = '[code]';
+
+/**
+ * The upstream error-code vocabulary, which is route detail by another name: a
+ * body carrying `overloaded_error` names Anthropic as surely as the word does,
+ * and `insufficient_quota` names OpenAI.
+ *
+ * This is the corpus `failover-error.ts` classifies on. `sanitize.test.ts` parses
+ * that file and fails on a code it reads that is not covered here, so the list
+ * cannot fall behind the classifier.
+ *
+ * **`UNAVAILABLE` is deliberately absent**, and it is the only one. Google's
+ * gRPC status is an ordinary English word in capitals, so it is indistinguishable
+ * from prose — the same reason `together` and `command` are treated as words
+ * rather than slugs. The test asserts that exemption by exact list.
+ *
+ * Node's own network codes (`ETIMEDOUT`, `ECONNRESET`) are NOT here. They name
+ * no operator, and redacting them would cost a reader real diagnostic
+ * information for no privacy gain.
+ */
+const UPSTREAM_ERROR_CODES = new Set<string>([
+  'failed_precondition', 'resource_exhausted', 'permission_denied',
+  'rate_limit_error', 'authentication_error', 'server_error',
+  'billing_hard_limit_reached', 'insufficient_quota', 'overloaded_error',
+  'tool_use_failed',
+]);
+
+/**
+ * A snake_case or SCREAMING_SNAKE identifier. Membership in
+ * {@link UPSTREAM_ERROR_CODES} is what decides, not the shape — otherwise
+ * `request_id` and `user_id` would be redacted out of every message that
+ * carries one.
+ */
+const ERROR_CODE_PATTERN = /\b[a-z][a-z0-9]*(?:_[a-z0-9]+)+\b/gi;
 
 /**
  * Slugs that are ALSO ordinary words in a language Alia answers in, so they are
@@ -193,8 +229,9 @@ function markerFor(token: string): string | null {
 }
 
 /**
- * Rule 1. Strip what may never reach a user on ANY surface: credentials, and
- * the URLs and hostnames that describe Alia's internal topology.
+ * Rule 1. Strip what may never reach a user on ANY surface: credentials, the
+ * URLs and hostnames that describe Alia's internal topology, and the upstream
+ * error-code vocabulary that is a raw upstream body's fingerprint.
  *
  * Defence in depth rather than the primary control for credentials — an
  * upstream body is redacted where it is born
@@ -207,7 +244,10 @@ function markerFor(token: string): string | null {
 export function redactUnsafeDetail(text: string): string {
   return redactSecrets(text)
     .redacted.replace(URL_PATTERN, ENDPOINT_MARKER)
-    .replace(HOSTNAME_PATTERN, ENDPOINT_MARKER);
+    .replace(HOSTNAME_PATTERN, ENDPOINT_MARKER)
+    .replace(ERROR_CODE_PATTERN, (code) =>
+      UPSTREAM_ERROR_CODES.has(code.toLowerCase()) ? CODE_MARKER : code,
+    );
 }
 
 /**

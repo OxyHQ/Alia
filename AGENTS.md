@@ -43,20 +43,20 @@ the root `package.json` `overrides`, and `bun.lock`.
 `<publisher>/<model>` canonical. What is scoped is where the PRODUCT hides route
 detail: a UX and commercial decision, **not a security control**.
 
-- **Conceal** through `sanitizeMessage()` (`packages/api/src/lib/errors/sanitize.ts`)
-  on product API error bodies, SSE error events, the UI, notifications and
-  customer-facing analytics.
-- **Be truthful, and never `sanitizeMessage()`,** on the catalogue and model
+- **Conceal** through `sanitizeMessage()` on product API error bodies, SSE error
+  events, the UI, notifications and customer-facing analytics.
+- **Be truthful, never `sanitizeMessage()`,** on the catalogue and model
   cards, licence attribution, operator and audit surfaces (logs,
   `fallback_events`, admin console), the Relay contract's
   `providerError.provider`, and engineering docs, ADRs and schema comments.
-- **Separate and absolute on every surface:** no credential, no internal endpoint
-  and no raw upstream error body reaches a user — `redactUnsafeDetail()`, plus
-  redaction at birth (`internal/providers/lib/provider-error-body.ts`). The
-  caller's own echoed input takes that alone, never `sanitizeMessage()`.
+- **Separate and absolute on every surface:** `redactUnsafeDetail()` — no
+  credential, no internal endpoint, no upstream error code (`overloaded_error`
+  names an operator as surely as the word does), plus redaction at birth
+  (`internal/providers/lib/provider-error-body.ts`). The caller's own echoed
+  input takes that alone, never `sanitizeMessage()`.
 - Concealment matches IDENTIFIERS only, so ordinary prose survives; a new
-  registered operator must be classified in `sanitize.ts` (`sanitize.test.ts`
-  counts both lists and goes red).
+  operator or upstream error code must be classified in `sanitize.ts`, and
+  `sanitize.test.ts` goes red until it is.
 - Analytics resolve via `getAliaModel()`, skipping entries that cannot resolve.
 
 Key files: `internal/providers/lib/alia-models.ts` (the frozen `alia-*` set — see
