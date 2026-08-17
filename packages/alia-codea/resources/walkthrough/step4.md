@@ -1,5 +1,3 @@
-![Manage Sessions](past.png)
-
 **Access your chat history and start new conversations anytime.**
 
 Your conversations are saved automatically. Click the **Past Conversations** button at the top or type **/resume** to browse past sessions and pick up where you left off.

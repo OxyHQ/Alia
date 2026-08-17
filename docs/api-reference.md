@@ -52,7 +52,7 @@ Minimal request:
 
 ```json
 {
-  "model": "alia-v1",
+  "model": "profile:v1",
   "messages": [{ "role": "user", "content": "Prepare my meeting with Sarah" }],
   "stream": true
 }

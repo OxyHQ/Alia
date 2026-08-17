@@ -141,37 +141,31 @@ Two behaviours of this path are worth knowing:
 
 ## Public API
 
-`GET /v1/models` is mounted before authentication (`packages/api/src/routes/v1.ts:28`) and
-returns the thirteen identifiers above. The serializer is
-`packages/api/src/routes/v1/models.ts:19`; the sample below omits the `emoji` field it also
-returns:
+`GET /v1/models` is mounted before authentication (`packages/api/src/routes/v1.ts`) and
+**lists nothing**. It used to serve the thirteen identifiers above as `object: "model"`, and
+every one of them is a routing profile over third-party models — ADR 0003 invariant 1
+forbids serializing a profile as a model, so #139 workstream 4 emptied it. That is the
+endpoint telling the truth rather than the endpoint being broken: Alia publishes no models,
+and the `alia/*` publisher namespace is reserved and empty.
 
 ```json
-{
-  "object": "list",
-  "data": [
-    {
-      "id": "alia-v1",
-      "object": "model",
-      "created": 1755000000,
-      "owned_by": "alia",
-      "name": "Alia V1",
-      "description": "Balanced performance for everyday tasks",
-      "category": "general",
-      "is_default": true,
-      "is_available": true,
-      "is_legacy": false,
-      "required_plan": null,
-      "capabilities": { "tools": true, "vision": true, "max_tokens": 8192 },
-      "pricing": { "credit_multiplier": 1 }
-    }
-  ]
-}
+{ "object": "list", "data": [] }
 ```
 
-Query parameters: `category` (`general | coding | vision | audio | multimodal | voice`)
-and `chat=true` for chat-visible entries only. `GET /v1/models/:modelId` returns one entry
-in the same shape. Upstream model ids, operators and routing data are not in the response.
+The envelope is unchanged, so a client that parses it keeps parsing it; a client that
+populated a picker from it should read `GET /catalogue` instead, which serves routing
+profiles AS routing profiles. `category` and `chat` are accepted and ignored — the answer is
+the same empty list either way.
+
+`GET /v1/models/:modelId` is the one place that still answers about an alias, because
+introspection is not the request path: naming one returns a typed refusal saying what it
+became, which is more useful than the 404 an empty catalogue would produce.
+
+**Requests are unaffected.** The thirteen aliases still resolve, so every already-installed
+`@alia.onl/sdk` and `@alia-codea/cli` copy keeps working against a surface that no longer
+lists what it sends. `docs/migration/compatibility-window.md` records that closure and its
+evidence. New code should send a product mode — `profile:v1`, `profile:v1-pro` — which is
+what the samples in this repository now teach.
 
 ## What replaces this
 

@@ -117,10 +117,24 @@ export const delegateSubtaskTool = tool({
   inputSchema: z.object({
     subtasks: z.array(z.object({
       task: z.string().describe('The subtask to complete'),
-      // The model reads this on every call, so a wrong statement here is a
-      // wrong statement made repeatedly. It named an identifier that does not
-      // exist and promised a default the tool never used.
-      model: z.string().optional().describe('Optional: which Alia model to use (e.g., "alia-lite", "alia-v1", "alia-v1-pro"). Defaults to alia-v1.'),
+      /**
+       * The model reads this on every call, so a wrong statement here is a
+       * wrong statement made repeatedly. It named an identifier that does not
+       * exist and promised a default the tool never used.
+       *
+       * It also called the `alia-*` set "Alia models" (#139 ws20). All thirteen
+       * are routing profiles over third-party models and `GET /v1/models` lists
+       * nothing, so that was the claim ADR 0003 invariant 1 forbids — told to
+       * the model itself rather than to a person.
+       *
+       * The IDENTIFIERS are unchanged, deliberately. `resolveModel` reaches
+       * `internal/providers/lib/fallback-engine.ts`, which is keyed by the
+       * `alia-*` set; a `profile:*` id is not registered there and would throw
+       * `UnregisteredModelError`. Teaching the model the newer vocabulary would
+       * make every delegated subtask fail, so what changes here is the CLAIM
+       * about what they are, not what a caller may send.
+       */
+      model: z.string().optional().describe('Optional: which routing profile to run the subtask on (e.g., "alia-lite", "alia-v1", "alia-v1-pro"). These are routing profiles over third-party models, not models Alia owns. Defaults to alia-v1.'),
       context: z.string().optional().describe('Optional: additional system context for the subtask'),
     })).min(1).max(MAX_CONCURRENT_SUBTASKS).describe('List of subtasks to run in parallel (max 3)'),
   }),

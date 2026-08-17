@@ -123,7 +123,7 @@ curl -X POST https://api.alia.onl/v1/chat/completions \
   -H "Authorization: Bearer alia_sk_your_key_here" \
   -H "Content-Type: application/json" \
   -d '{
-    "model": "alia-v1",
+    "model": "profile:v1",
     "messages": [{ "role": "user", "content": "Hello, Alia!" }]
   }'
 ```
@@ -136,7 +136,7 @@ const response = await fetch('https://api.alia.onl/v1/chat/completions', {
     'Content-Type': 'application/json',
   },
   body: JSON.stringify({
-    model: 'alia-v1',
+    model: 'profile:v1',
     messages: [{ role: 'user', content: 'Hello!' }],
   }),
 });
