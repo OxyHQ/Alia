@@ -14,8 +14,13 @@
  * documents carried and what a shipped client may key on.
  */
 
-import { and, asc, eq, sql } from 'drizzle-orm';
+import { and, asc, eq, getTableColumns, sql } from 'drizzle-orm';
 import type { Executor } from '../index';
+import {
+  auditedFields,
+  recordConfigChange,
+  type ConfigAuditActor,
+} from '../../lib/security/config-audit.js';
 import { modelConfigs } from '../schema/providers';
 
 export type ModelConfigRow = typeof modelConfigs.$inferSelect;
@@ -283,13 +288,23 @@ export async function findModelConfig(
 export async function createModelConfig(
   db: Executor,
   input: ModelConfigInput,
+  actor: ConfigAuditActor,
 ): Promise<ModelConfigView> {
   const columns = toColumns(input);
   const [row] = await db
     .insert(modelConfigs)
     .values(columns as typeof modelConfigs.$inferInsert)
     .returning();
-  return toModelConfigView(row);
+  const view = toModelConfigView(row);
+  recordConfigChange({
+    resource: 'model_config',
+    action: 'create',
+    target: `${view.provider}/${view.modelId}`,
+    actor,
+    before: null,
+    after: auditedFields('model_config', view),
+  });
+  return view;
 }
 
 export async function updateModelConfig(
@@ -297,7 +312,11 @@ export async function updateModelConfig(
   provider: string,
   modelId: string,
   input: ModelConfigInput,
+  actor: ConfigAuditActor,
 ): Promise<ModelConfigView | null> {
+  // Read BEFORE the write, so the record's `before` is the state this statement
+  // replaced rather than whatever the row held whenever a second query ran.
+  const previous = await findModelConfig(db, provider, modelId);
   const columns = toColumns(input);
   // The route strips `provider` and `modelId` before calling; stripping them
   // again here means the identity cannot move even if a caller forgets.
@@ -309,19 +328,40 @@ export async function updateModelConfig(
     .set({ ...columns, updatedAt: sql`date_trunc('milliseconds', now())` })
     .where(and(eq(modelConfigs.provider, provider), eq(modelConfigs.modelId, modelId)))
     .returning();
-  return row ? toModelConfigView(row) : null;
+  if (!row) return null;
+  const view = toModelConfigView(row);
+  recordConfigChange({
+    resource: 'model_config',
+    action: 'update',
+    target: `${provider}/${modelId}`,
+    actor,
+    before: auditedFields('model_config', previous),
+    after: auditedFields('model_config', view),
+  });
+  return view;
 }
 
 export async function deleteModelConfig(
   db: Executor,
   provider: string,
   modelId: string,
+  actor: ConfigAuditActor,
 ): Promise<ModelConfigView | null> {
   const [row] = await db
     .delete(modelConfigs)
     .where(and(eq(modelConfigs.provider, provider), eq(modelConfigs.modelId, modelId)))
     .returning();
-  return row ? toModelConfigView(row) : null;
+  if (!row) return null;
+  const view = toModelConfigView(row);
+  recordConfigChange({
+    resource: 'model_config',
+    action: 'delete',
+    target: `${provider}/${modelId}`,
+    actor,
+    before: auditedFields('model_config', view),
+    after: null,
+  });
+  return view;
 }
 
 /**
@@ -343,7 +383,9 @@ export async function upsertModelConfig(
   key: { provider: string; modelId: string },
   insertOnly: ModelConfigInput,
   always: ModelConfigInput,
+  actor: ConfigAuditActor,
 ): Promise<{ inserted: boolean }> {
+  const previous = await findModelConfig(db, key.provider, key.modelId);
   const insertColumns = { ...toColumns(insertOnly), ...toColumns(always), ...key };
   const updateColumns = toColumns(always);
 
@@ -354,7 +396,20 @@ export async function upsertModelConfig(
       target: [modelConfigs.provider, modelConfigs.modelId],
       set: { ...updateColumns, updatedAt: sql`date_trunc('milliseconds', now())` },
     })
-    .returning({ inserted: sql<boolean>`(xmax = 0)` });
+    // The whole row beside the flag: the audit record's `after` must be what
+    // the statement wrote, and on the conflict branch only `always` applies.
+    .returning({ ...getTableColumns(modelConfigs), inserted: sql<boolean>`(xmax = 0)` });
 
-  return { inserted: rows[0]?.inserted ?? false };
+  const written = rows[0];
+  if (written !== undefined) {
+    recordConfigChange({
+      resource: 'model_config',
+      action: 'upsert',
+      target: `${key.provider}/${key.modelId}`,
+      actor,
+      before: auditedFields('model_config', previous),
+      after: auditedFields('model_config', toModelConfigView(written)),
+    });
+  }
+  return { inserted: written?.inserted ?? false };
 }

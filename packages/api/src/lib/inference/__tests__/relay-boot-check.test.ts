@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 
 import { RELAY_CLIENT_ENABLED_ENV } from '../relay-cutover.js';
 import { RELAY_PRINCIPAL_ENV, relayBootConfigurationFailure } from '../relay-boot-check.js';
+import { RELAY_ALLOWED_ORIGINS, RELAY_BASE_URL_ENV } from '../relay-endpoint.js';
 
 /**
  * Epic #139 workstream 2 — *"Add startup validation that production cannot boot
@@ -67,6 +68,21 @@ const VALID_PRINCIPAL: Readonly<Record<string, string>> = {
   [RELAY_PRINCIPAL_ENV.inferenceScopes]: 'inference:invoke,inference:models:read',
 };
 
+/**
+ * The endpoint variable, which #139 ws15 made part of a bootable configuration.
+ *
+ * Separate from {@link VALID_PRINCIPAL} because it is not a principal field —
+ * `RELAY_PRINCIPAL_ENV` is `satisfies Record<keyof RelayPrincipalConfig, string>`
+ * and folding a sixth entry into it would break that guarantee, which is the one
+ * that makes an upstream contract change a compile error here.
+ */
+const VALID_ENDPOINT: Readonly<Record<string, string>> = {
+  [RELAY_BASE_URL_ENV]: RELAY_ALLOWED_ORIGINS[0],
+};
+
+/** Everything a flag-on process must have. */
+const VALID_CONFIG: Readonly<Record<string, string>> = { ...VALID_PRINCIPAL, ...VALID_ENDPOINT };
+
 const ENABLED = { [RELAY_CLIENT_ENABLED_ENV]: 'true' } as const;
 
 // ===========================================================================
@@ -75,7 +91,7 @@ const ENABLED = { [RELAY_CLIENT_ENABLED_ENV]: 'true' } as const;
 
 describe('with the flag off, boot does not consult Relay configuration', () => {
   it('reads the flag and nothing else', () => {
-    const recorder = recording({ ...VALID_PRINCIPAL, NODE_ENV: 'production' });
+    const recorder = recording({ ...VALID_CONFIG, NODE_ENV: 'production' });
 
     expect(relayBootConfigurationFailure(recorder.env)).toBeNull();
     // Not "no principal variable was read" — the stronger statement, that the
@@ -108,7 +124,7 @@ describe('the recorder can see a principal being read', () => {
     // The positive control for the three assertions above. Without it, a Proxy
     // whose trap never fired would report "only the flag was read" for a check
     // that read everything.
-    const recorder = recording({ ...ENABLED, ...VALID_PRINCIPAL, NODE_ENV: 'production' });
+    const recorder = recording({ ...ENABLED, ...VALID_CONFIG, NODE_ENV: 'production' });
 
     expect(relayBootConfigurationFailure(recorder.env)).toBeNull();
     for (const variable of Object.values(RELAY_PRINCIPAL_ENV)) {
@@ -123,31 +139,42 @@ describe('the recorder can see a principal being read', () => {
 // ===========================================================================
 
 describe('with the flag on, an unusable principal stops the process', () => {
+  /**
+   * Every variable a flag-on process must have, derived rather than listed.
+   *
+   * `Object.keys(VALID_CONFIG)` rather than a written-out array: the two loops
+   * below are a CENSUS, and a census whose expected set is hand-maintained skips
+   * exactly the variable that was just added — which is how the endpoint
+   * variable would have arrived uncovered.
+   */
+  const REQUIRED = Object.keys(VALID_CONFIG).sort();
+
   it('names every variable that has to be set when none of them are', () => {
     const failure = relayBootConfigurationFailure({ ...ENABLED, NODE_ENV: 'production' });
 
     expect(failure).not.toBeNull();
-    // All FIVE, in one message. Four is the answer the contract alone gives —
-    // an empty `inferenceScopes` parses — and four sends an operator round the
-    // deploy loop a second time for the fifth.
-    for (const variable of Object.values(RELAY_PRINCIPAL_ENV)) {
-      expect(failure).toContain(variable);
+    // All SIX, in one message. Four is the answer the contract alone gives —
+    // an empty `inferenceScopes` parses — and a partial answer sends an operator
+    // round the deploy loop once per variable it left out.
+    expect(REQUIRED).toHaveLength(Object.values(RELAY_PRINCIPAL_ENV).length + 1);
+    for (const variable of REQUIRED) {
+      expect(failure, variable).toContain(variable);
     }
   });
 
-  it('refuses one missing variable as readily as five', () => {
+  it('refuses one missing variable as readily as six', () => {
     // The dangerous shape is the partially-configured deployment, not the empty
-    // one: an operator who set four of five has no reason to suspect the fifth.
-    for (const variable of Object.values(RELAY_PRINCIPAL_ENV)) {
+    // one: an operator who set five of six has no reason to suspect the sixth.
+    for (const variable of REQUIRED) {
       const partial: NodeJS.ProcessEnv = {
         ...ENABLED,
-        ...VALID_PRINCIPAL,
+        ...VALID_CONFIG,
         NODE_ENV: 'production',
       };
       delete partial[variable];
       const failure = relayBootConfigurationFailure(partial);
-      expect(failure).not.toBeNull();
-      expect(failure).toContain(variable);
+      expect(failure, variable).not.toBeNull();
+      expect(failure, variable).toContain(variable);
     }
   });
 
@@ -156,7 +183,7 @@ describe('with the flag on, an unusable principal stops the process', () => {
     // user request, forever. `assertPrincipalMatchesDeployment` owns this rule.
     const failure = relayBootConfigurationFailure({
       ...ENABLED,
-      ...VALID_PRINCIPAL,
+      ...VALID_CONFIG,
       [RELAY_PRINCIPAL_ENV.inferenceScopes]: 'inference:models:read',
       NODE_ENV: 'production',
     });
@@ -170,7 +197,7 @@ describe('with the flag on, an unusable principal stops the process', () => {
     // production account, and no later query separates it out again.
     const failure = relayBootConfigurationFailure({
       ...ENABLED,
-      ...VALID_PRINCIPAL,
+      ...VALID_CONFIG,
       [RELAY_PRINCIPAL_ENV.environment]: 'staging',
       NODE_ENV: 'production',
     });
@@ -182,7 +209,7 @@ describe('with the flag on, an unusable principal stops the process', () => {
   it('refuses an environment the contract does not define, without echoing it', () => {
     const failure = relayBootConfigurationFailure({
       ...ENABLED,
-      ...VALID_PRINCIPAL,
+      ...VALID_CONFIG,
       [RELAY_PRINCIPAL_ENV.environment]: 'prod',
       NODE_ENV: 'production',
     });
@@ -195,7 +222,7 @@ describe('with the flag on, an unusable principal stops the process', () => {
 
   it('accepts a principal the contract and the deployment both accept', () => {
     expect(
-      relayBootConfigurationFailure({ ...ENABLED, ...VALID_PRINCIPAL, NODE_ENV: 'production' }),
+      relayBootConfigurationFailure({ ...ENABLED, ...VALID_CONFIG, NODE_ENV: 'production' }),
     ).toBeNull();
   });
 
@@ -203,7 +230,7 @@ describe('with the flag on, an unusable principal stops the process', () => {
     expect(
       relayBootConfigurationFailure({
         ...ENABLED,
-        ...VALID_PRINCIPAL,
+        ...VALID_CONFIG,
         [RELAY_PRINCIPAL_ENV.environment]: 'staging',
         NODE_ENV: 'staging',
       }),
@@ -217,9 +244,9 @@ describe('with the flag on, an unusable principal stops the process', () => {
     // to `development`, and demanding the environment match would mean every one
     // of them had to name whichever environment its runner happens to have.
     expect(
-      relayBootConfigurationFailure({ ...ENABLED, ...VALID_PRINCIPAL, NODE_ENV: 'test' }),
+      relayBootConfigurationFailure({ ...ENABLED, ...VALID_CONFIG, NODE_ENV: 'test' }),
     ).toBeNull();
-    expect(relayBootConfigurationFailure({ ...ENABLED, ...VALID_PRINCIPAL })).toBeNull();
+    expect(relayBootConfigurationFailure({ ...ENABLED, ...VALID_CONFIG })).toBeNull();
   });
 
   it('still demands a usable principal on a development process', () => {
@@ -231,7 +258,7 @@ describe('with the flag on, an unusable principal stops the process', () => {
   it('treats a whitespace-only scope list as no scopes at all', () => {
     const failure = relayBootConfigurationFailure({
       ...ENABLED,
-      ...VALID_PRINCIPAL,
+      ...VALID_CONFIG,
       [RELAY_PRINCIPAL_ENV.inferenceScopes]: ' , ,  ',
       NODE_ENV: 'production',
     });
@@ -247,7 +274,7 @@ describe('with the flag on, an unusable principal stops the process', () => {
     // swap and every other assertion here would still pass.
     const failure = relayBootConfigurationFailure({
       ...ENABLED,
-      ...VALID_PRINCIPAL,
+      ...VALID_CONFIG,
       [RELAY_PRINCIPAL_ENV.inferenceScopes]: 'inference:invoke,inference:everything',
       NODE_ENV: 'production',
     });
@@ -265,7 +292,7 @@ describe('with the flag on, an unusable principal stops the process', () => {
     expect(
       relayBootConfigurationFailure({
         ...ENABLED,
-        ...VALID_PRINCIPAL,
+        ...VALID_CONFIG,
         [RELAY_PRINCIPAL_ENV.environment]: 'prod',
         NODE_ENV: 'production',
       }),

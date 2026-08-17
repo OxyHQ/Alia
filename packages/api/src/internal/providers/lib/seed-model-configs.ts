@@ -13,6 +13,19 @@
 import { findModelConfig, upsertModelConfig } from '../../../db/providers/modelConfigRepository.js';
 import { upsertAliaModel } from '../../../db/providers/aliaModelRepository.js';
 import { resetAllKeyCooldowns as resetKeyCooldowns } from '../../../db/providers/providerKeyRepository.js';
+import type { ConfigAuditActor } from '../../../lib/security/config-audit.js';
+
+/**
+ * Who the seed is, for the audit record every configuration writer emits.
+ *
+ * `seed` rather than `service`: nobody chose these values in this run, the
+ * module did, and an audit log that attributed a deploy-time re-seed to a
+ * person would be worse than one that says so plainly.
+ */
+const SEED_ACTOR: ConfigAuditActor = {
+  kind: 'seed',
+  id: 'internal/providers/lib/seed-model-configs',
+};
 import { getDb } from '../../../db/index.js';
 import { TIER_MODEL_MAPPINGS, ALIA_MODELS, type ModelCapabilities } from './alia-models.js';
 import { connectDB } from './db.js';
@@ -113,6 +126,7 @@ export async function seedModelConfigs(): Promise<{ seeded: number; skipped: num
             priority: mapping.priority,
             qualityScore: mapping.qualityScore,
           },
+          SEED_ACTOR,
         );
 
         // `inserted` comes from `xmax = 0`, which is Postgres's answer to the
@@ -215,6 +229,7 @@ export async function seedAliaModels(): Promise<{ seeded: number; skipped: numbe
           },
         },
         providerMappings,
+        SEED_ACTOR,
       );
 
       if (result.inserted) {
@@ -247,7 +262,7 @@ export async function resetAllKeyCooldowns(): Promise<number> {
    * a cooldown or a non-zero failure run, and the update clears both — so every
    * matched row necessarily changes and the two counts cannot diverge.
    */
-  const reset = await resetKeyCooldowns(getDb());
+  const reset = await resetKeyCooldowns(getDb(), SEED_ACTOR);
 
   if (reset > 0) {
     log.seed.info({ count: reset }, 'Reset key cooldowns and failure counters');

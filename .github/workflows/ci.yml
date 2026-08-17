@@ -32,7 +32,16 @@ jobs:
     timeout-minutes: 15
 
     steps:
+      # Full history, because `lib/security/__tests__/credential-scan.test.ts`
+      # scans every blob reachable from HEAD for provider credentials. The
+      # default depth is 1, and a one-commit scan of this repository finds none
+      # of the four disclosures the full one does — a clean result for the wrong
+      # reason. `scanGitHistory` REFUSES a shallow clone rather than returning an
+      # empty list, so removing this line turns the job red instead of turning
+      # the check off.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: oven-sh/setup-bun@v2
         with:

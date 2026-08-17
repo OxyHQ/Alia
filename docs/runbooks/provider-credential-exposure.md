@@ -1,4 +1,101 @@
-# Runbook: provider credentials quoted back into logs and `provider_keys`
+# Runbook: provider credentials in the git history, the logs and `provider_keys`
+
+Three places a credential can be, and they need different answers. Read the one that
+applies:
+
+| Where | Status | Section |
+|---|---|---|
+| This repository's PUBLIC git history | **MEASURED, three live keys found** | [The git-history audit](#the-git-history-audit) |
+| CloudWatch, the deployment logs | UNRUN, needs AWS access | [Step 3](#step-3--the-same-question-about-the-logs) |
+| `provider_keys.last_failure_reason` | UNRUN, needs database access | [Step 1](#step-1--does-any-stored-row-contain-key-material) |
+
+---
+
+## The git-history audit
+
+**Run 2026-08-17 over the 1 700 commits reachable from `main` — 9 565 blobs,
+456 MB. Four matches in two blobs. Three of them are live upstream provider
+credentials and this repository is PUBLIC.**
+
+Reproduce it, at any time, with:
+
+```bash
+bun run --filter @alia/api scan:credentials
+```
+
+Exit `0` means every finding is recorded and rotated, `1` means a credential is in
+the history that nobody has recorded, `2` means every finding is recorded and at
+least one is still waiting for a rotation. It prints paths, blobs and eight-character
+prefixes and never a value.
+
+### What was found
+
+`packages/api/src/lib/security/known-disclosures.ts` is the machine-readable ledger
+and is the authority; this table is it in prose. No value appears in either, by
+design — an eight-character prefix is enough to match a row against
+`provider_keys.key_prefix` and is not enough to use.
+
+| What | Where | In | Out | Decision |
+|---|---|---|---|---|
+| Google Generative Language key (Gemini) | `keys.json` | `94a0ba8d` | `3ccbf430` | **Revoke and replace** |
+| Groq key (Llama) | `keys.json` | `94a0ba8d` | `3ccbf430` | **Revoke and replace** |
+| OpenAI project key (`sk-proj-…`, GPT-4o) | `keys.json` | `94a0ba8d` | `3ccbf430` | **Revoke and replace** |
+| Firebase Android client key | `apps/app/google-services.json` | `413ffa3f` | `042baefd` | Restrict, do not rotate |
+
+`keys.json` was a three-entry provider-key fixture (`{provider, modelId, key}`)
+committed and deleted on the same day, 2026-01-14. **Deleting a file removes it from
+the tree and from nothing else** — the blob is in every clone, every fork and every
+archive of this repository, and has been for seven months.
+
+The Firebase entry is a different kind of value and is classified separately rather
+than rotated by reflex: Google ships `google-services.json` inside every APK, so its
+`AIza…` key is a client identifier whose protection is API restrictions in the Cloud
+console, not secrecy. It was removed from the tree and gitignored on 2026-03-11.
+Confirm the key has application and API restrictions; do not treat its presence here
+as a breach.
+
+Not found, and each of these is a claim about a measurement rather than an absence
+nobody looked for: no `.env` file has ever been committed (the only credential-shaped
+paths in the whole history are the two above plus Android's standard `debug.keystore`,
+whose password is the public constant `android`); no AWS key, GitHub token, Stripe key,
+Slack token or private-key block appears in any blob.
+
+### What to do about it
+
+The three provider keys are already public, so there is no safe window and no clean
+handover: **revoke upstream first and accept the outage.** The full procedure —
+including how to find the `provider_keys` row without ever selecting `key`, and what
+to conclude when no row matches — is
+[credential-rotation § Rotating the keys found in git history](./credential-rotation.md#rotating-the-keys-found-in-git-history).
+When each is done, set `rotatedAt` on its entry in `known-disclosures.ts` in the same
+change; that field is the only durable record that it happened.
+
+**Do not try to rewrite the history.** `git filter-repo` changes what this remote
+serves and reaches no fork, no CI cache, no mirror and no archive, while breaking every
+open branch and every commit reference in this repository's own documentation. It
+would not un-publish a single one of these values, and the ledger is written on the
+assumption that it will not be attempted.
+
+### What the audit does NOT cover
+
+- **A credential from one of the seven providers with no distinctive prefix** —
+  Mistral, Cohere, Together, SambaNova, Hyperbolic, Novita, Cloudflare. Their keys are
+  opaque strings and no pattern can recognise one. The same blind spot the runtime
+  redactor has, for the same reason.
+- **Any blob over 2 MB, and any blob containing a NUL byte.** Lockfiles and binaries
+  are skipped; a credential inside a committed archive or an image would not be seen.
+- **Deployment logs.** [Step 3](#step-3--the-same-question-about-the-logs) below is
+  still unrun. What HAS been checked is the workflows that write them: no version of
+  `deploy-aws.yml` has ever echoed a secret VALUE — the `toJSON(secrets)` step that
+  `d9c2a079` replaced piped the context into `jq` and printed only parameter PATHS.
+  One residual worth knowing: `aws ssm put-parameter --value "$value"` passes each
+  secret on a command line, so it is briefly readable in `/proc` on the runner. That is
+  a property of the AWS CLI's interface, not of this workflow, and it is recorded here
+  rather than worked around.
+
+---
+
+## Provider credentials quoted back into logs and `provider_keys`
 
 An upstream provider's error body is text Alia forwards without controlling it, and a
 rejected credential is frequently part of it — OpenAI's 401 body begins

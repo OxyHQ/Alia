@@ -19,7 +19,11 @@ import {
   reportRelayUnavailableUntil,
 } from '../relay-connectivity.js';
 import { RELAY_CLIENT_ENABLED_ENV } from '../relay-cutover.js';
+import { assertAllowedRelayOrigin } from '../relay-endpoint.js';
 import type { RelayRequestPayload } from '../relay-request.js';
+
+/** An approved Relay origin, branded through the one function that produces one. */
+const ENDPOINT = assertAllowedRelayOrigin('https://api.oxy.so', 'development');
 
 /**
  * Epic #139 workstream 8 — *"Make Relay connectivity explicit in
@@ -168,6 +172,7 @@ function client(over: Partial<RelayClientConfig>): ReturnType<typeof createRelay
     enabled: true,
     transport: answering({}),
     credential: CREDENTIAL,
+    endpoint: ENDPOINT,
     principal: {
       billing: { accountId: 'acct_alia' },
       applicationId: 'app_alia',

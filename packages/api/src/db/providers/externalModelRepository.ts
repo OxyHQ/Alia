@@ -16,6 +16,10 @@
 
 import { and, asc, desc, eq, isNotNull, or, sql, type SQL } from 'drizzle-orm';
 import type { Executor } from '../index';
+import {
+  recordConfigChange,
+  type ConfigAuditActor,
+} from '../../lib/security/config-audit.js';
 import { externalModels } from '../schema/providers';
 
 export type ExternalModelRow = typeof externalModels.$inferSelect;
@@ -237,6 +241,7 @@ export type ExternalModelUpsert = Omit<
 export async function upsertExternalModels(
   db: Executor,
   models: ExternalModelUpsert[],
+  actor: ConfigAuditActor,
 ): Promise<{ inserted: number; total: number }> {
   if (models.length === 0) return { inserted: 0, total: 0 };
 
@@ -290,5 +295,18 @@ export async function upsertExternalModels(
     })
     .returning({ inserted: sql<boolean>`(xmax = 0)` });
 
-  return { inserted: rows.filter((r) => r.inserted).length, total: rows.length };
+  const inserted = rows.filter((r) => r.inserted).length;
+  // ONE record for the whole sync, not one per model. This is a bulk import
+  // from an external catalogue: the FACT a person would audit is "a sync ran,
+  // by whom, and how much it touched", and 400 per-row records would bury it.
+  // A per-row diff is available from the source data if it is ever wanted.
+  recordConfigChange({
+    resource: 'external_model',
+    action: 'upsert',
+    target: `sync:${String(rows.length)} rows, ${String(inserted)} new`,
+    actor,
+    before: null,
+    after: null,
+  });
+  return { inserted, total: rows.length };
 }

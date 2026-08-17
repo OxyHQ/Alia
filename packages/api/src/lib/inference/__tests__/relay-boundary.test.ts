@@ -109,9 +109,15 @@ function resolveSpec(fromFile: string, spec: string): string | null {
 
 const sources = trackedSources('packages/api/src');
 
-/** The modules this workstream added. Frozen so a fifth one is a reviewed line. */
+/** The modules this workstream added. Frozen so a sixth one is a reviewed line. */
 const RELAY_MODULES: readonly string[] = [
   `${RELAY_DIR}/relay-client`,
+  // #139 ws15, *"pin allowed Relay origins/endpoints"*: the allow-list and the
+  // branded endpoint type. Added here rather than left outside, so the
+  // no-provider and no-fallback censuses below cover it too — it is the one
+  // relay module that names a host, which makes it the likeliest place for a
+  // provider URL to be added by someone who has stopped reading.
+  `${RELAY_DIR}/relay-endpoint`,
   `${RELAY_DIR}/relay-error`,
   `${RELAY_DIR}/relay-openai-adapter`,
   `${RELAY_DIR}/relay-request`,
@@ -175,6 +181,12 @@ describe('nothing in the API imports the Relay client (#139 ws3, constraint 3)',
    * blocked (OxyHQ/oxy#981), so a client wired in today points at a hole.
    */
   const FROZEN_IMPORTERS: readonly string[] = [
+    // #139 ws15: back on this list, having dropped off it when the cutover flag
+    // moved to `relay-cutover.ts`. The boot check now also refuses an
+    // unapproved `RELAY_BASE_URL`, and `relay-endpoint.ts` is one of the modules
+    // this census covers — so its test names a relay module again, which is what
+    // the list records and nothing more.
+    `${RELAY_DIR}/__tests__/relay-boot-check.test.ts`,
     // #139 ws8: the capability suite drives a real client, because "the client
     // supports tools / structured output / vision / reasoning / prompt caching"
     // is a claim about what the CLIENT does with a request and a stream, not
@@ -195,6 +207,10 @@ describe('nothing in the API imports the Relay client (#139 ws3, constraint 3)',
     // delegated identifier, the routing-policy reference and the single
     // credential on the hop. A test importer, so constraint 3 is untouched.
     `${RELAY_DIR}/__tests__/relay-egress.test.ts`,
+    // #139 ws15, *"pin allowed Relay origins/endpoints"*: drives a real client to
+    // prove the endpoint is re-checked on every call and that a refused one
+    // reaches no transport. A test importer, so constraint 3 is untouched.
+    `${RELAY_DIR}/__tests__/relay-endpoint.test.ts`,
     `${RELAY_DIR}/__tests__/relay-openai-adapter.test.ts`,
     `${RELAY_DIR}/__tests__/relay-request.test.ts`,
     // #139 ws2: the boot refusal. It reads the client's RULES —
@@ -213,6 +229,11 @@ describe('nothing in the API imports the Relay client (#139 ws3, constraint 3)',
     `${RELAY_DIR}/relay-client.ts`,
     `${RELAY_DIR}/relay-openai-adapter.ts`,
     `${RELAY_DIR}/relay-request.ts`,
+    // #139 ws17: reads `resolveRoutingTarget` and the contract's routing target
+    // union to prove a public credential cannot name an internal DEPLOYMENT.
+    // Outside `${RELAY_DIR}` and still a test — it drives no client and mounts
+    // nothing, which is why constraint 3 is untouched by it too.
+    'packages/api/src/routes/__tests__/internal-only-access.test.ts',
   ];
 
   it('is imported by exactly its own modules and its own tests', () => {
