@@ -10,32 +10,42 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-# `bun install` fetches a GIT dependency on every job, and unauthenticated it
-# rate-limits.
+# `bun install` fetches a GIT dependency, and that fetch CANNOT be authenticated.
 #
 # `@whiskeysockets/baileys` (packages/integrations) declares `libsignal` as
 # `git+https://github.com/whiskeysockets/libsignal-node.git`. It is not on npm,
-# so bun downloads a tarball from GitHub — five `bun install` invocations per
-# run, times every branch in flight. Measured 2026-08-17: every job in a run
-# failed at "Install dependencies" with
-# `api.github.com/.../tarball/bcea72d - 504` and then
+# so bun downloads a tarball from GitHub. Measured 2026-08-17: every job in a
+# run failed at "Install dependencies" with
+# `api.github.com/.../tarball/bcea72d - 504`, then
 # `codeload.github.com/.../legacy.tar.gz/bcea72d - 429`, before any repository
-# code ran.
+# code ran. Anonymous GitHub requests are limited per IP and shared with every
+# other runner on that address.
 #
-# `bun --help` documents this variable for exactly this purpose: "Supply a token
-# to download code from GitHub with a higher rate limit". Anonymous GitHub
-# requests are limited per IP and shared with every other runner on that
-# address; an authenticated one is limited per token.
+# THREE LEVERS LOOK LIKE THE FIX AND ALL THREE ARE INERT. Do not reach for them:
 #
-# `github.token` is the automatic per-run token — nothing to rotate, nothing to
-# store, and it is already present in every job.
+#   * `GITHUB_TOKEN` in the environment. `bun install --verbose` prints request
+#     headers, and the `codeload.github.com` request carries only Connection,
+#     User-Agent, Accept, Host and Accept-Encoding — no Authorization — with the
+#     variable set. The positive control is in the same output: every
+#     `registry.npmjs.org` request DOES print `Authorization: Bearer …`, so the
+#     printer prints the header when it exists.
+#   * The `bun --help` line "Supply a token to download code from GitHub with a
+#     higher rate limit" is real, and it is inside the `bun create` block.
+#     `bun install --help` does not mention `GITHUB_TOKEN` at all.
+#   * `GITHUB_API_DOMAIN`, same block, same story. `git config
+#     url."…".insteadOf` likewise: bun fetches with its own HTTP client rather
+#     than shelling out to git, which is why the failures are `GET` lines
+#     naming codeload rather than a git error.
 #
-# NOTE for anyone reaching for `git config url."…".insteadOf` instead: it does
-# nothing here. Bun fetches the tarball with its own HTTP client rather than
-# shelling out to git, which is why the failures are `GET` lines naming
-# `codeload.github.com` rather than a git error.
-env:
-  GITHUB_TOKEN: ${{ github.token }}
+# So the request cannot be made to survive rate limiting. It can only be made
+# not to happen — which is what the cache below does. With `bun.lock` present
+# the git ref is already pinned, so a warm cache satisfies the dependency with
+# ZERO GitHub requests.
+#
+# LIMIT, stated because a cache reads like a fix: a cache MISS still fetches,
+# unauthenticated, and can still be rate-limited. The first run after any
+# `bun.lock` change is a miss. Eliminating the fetch entirely means vendoring
+# the dependency or hosting our own tarball, which is a lockfile change.
 
 jobs:
   # Gates the rollout logic deploy-aws.yml runs against production. The script
@@ -52,6 +62,12 @@ jobs:
         run: |
           bash -n .github/scripts/*.sh
           bash .github/scripts/test-deploy-ecs-image.sh
+
+      # Runs in the one job that installs nothing, so it reports before the jobs
+      # it protects would fail. See the header comment: the cache is the only
+      # thing stopping an unauthenticatable GitHub fetch on every install.
+      - name: Verify bun cache wiring
+        run: node .github/scripts/check-bun-cache-wiring.mjs
 
   lint-and-test:
     name: Lint & Test
