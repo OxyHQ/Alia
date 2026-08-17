@@ -38,6 +38,7 @@ import {
 } from '../db/usage/costEntryRepository.js';
 import { getModelPricing } from '../internal/providers/lib/model-capabilities-data.js';
 import { log } from './logger.js';
+import type { CreditFundingSource } from '../domain/credit-funding.js';
 
 // ============== TYPES ==============
 
@@ -51,6 +52,8 @@ export interface CostEntry {
   outputTokens: number;
   totalTokens: number;
   costUSD: number;
+  /** Which balance the customer's charge came out of. `null` when no reservation backed it. */
+  grantKind: CreditFundingSource | null;
   savedFromCache: boolean;
   timestamp: Date;
 }
@@ -86,6 +89,7 @@ function toCostEntry(row: CostEntryRow): CostEntry {
     outputTokens: row.outputTokens,
     totalTokens: row.totalTokens,
     costUSD: row.costUsd,
+    grantKind: row.grantKind,
     savedFromCache: row.savedFromCache,
     timestamp: row.timestamp,
   };
@@ -141,6 +145,7 @@ export async function recordCost(
   actualModelId: string,
   inputTokens: number,
   outputTokens: number,
+  grantKind: CreditFundingSource | null,
   savedFromCache: boolean = false,
   sessionId?: string
 ): Promise<void> {
@@ -158,11 +163,12 @@ export async function recordCost(
       outputTokens,
       totalTokens,
       costUsd: costUSD,
+      grantKind,
       savedFromCache,
       timestamp: new Date(),
     });
 
-    log.credits.info({ costUSD, aliasModelId, totalTokens, savedFromCache }, 'Recorded cost');
+    log.credits.info({ costUSD, aliasModelId, totalTokens, grantKind, savedFromCache }, 'Recorded cost');
   } catch (error) {
     log.credits.error({ err: error }, 'Error recording cost');
   }

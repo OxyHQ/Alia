@@ -47,6 +47,7 @@ function record(over: Partial<VoiceCallUsageRecord> & { sessionId: string; oxyUs
     endTime: null,
     durationMinutes: 0,
     creditsCharged: 0,
+    grantKind: 'free_allowance',
     costPerMinute: 0.05,
     disconnectReason: null,
     audioFormat: 'pcm16',

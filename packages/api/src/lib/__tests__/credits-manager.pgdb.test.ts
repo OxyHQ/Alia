@@ -133,6 +133,10 @@ describe('reserveCredits', () => {
       creditsReserved: 1,
       initialFreeCredits: 9,
       initialPaidCredits: 10,
+      // The allowance still had room afterwards, so nothing came from the paid
+      // bucket and the cost record can say the customer was not billed for it
+      // (ADR 0005, `domain/credit-funding.ts`).
+      grantKind: 'free_allowance',
     });
     // The ordering is the assertion. Spending paid-first here would leave
     // {free: 10, paid: 9} and every figure above would still look plausible.
@@ -146,8 +150,25 @@ describe('reserveCredits', () => {
 
     expect(result?.initialFreeCredits).toBe(0);
     expect(result?.initialPaidCredits).toBe(8);
+    // The other branch of the funding source, against a real balance rather
+    // than a fixture: a value hardcoded either way fails one of these two.
+    expect(result?.grantKind).toBe('paid_balance');
     // free 3 -> 0, paid absorbs the remaining 2.
     expect(await balanceOf(id)).toEqual({ free: 0, paid: 8 });
+  });
+
+  it('classifies the request that exhausts the allowance as paid, which is the documented imprecision', async () => {
+    // free 4 -> 0 with nothing taken from paid. The statement returns only
+    // post-spend values, so this is indistinguishable from finding the
+    // allowance already empty, and `domain/credit-funding.ts` says so. Pinned
+    // as the behaviour it is: one request per account per refresh, erring
+    // toward NOT claiming a turn was free.
+    const id = await account('cm-reserve-boundary', 4, 6);
+
+    const result = await reserveCredits(id, 4);
+
+    expect(result?.grantKind).toBe('paid_balance');
+    expect(await balanceOf(id)).toEqual({ free: 0, paid: 6 });
   });
 
   it('returns null for insufficient credits and changes NOTHING', async () => {
@@ -177,6 +198,7 @@ describe('finalizeCredits', () => {
     creditsReserved: 5,
     initialFreeCredits: 10,
     initialPaidCredits: 10,
+    grantKind: 'free_allowance',
   });
 
   it('refunds the excess to FREE when actual < reserved', async () => {
@@ -271,7 +293,7 @@ describe('finalizeVoiceCredits', () => {
     const id = await account('cm-voice-refund', 400, 500);
 
     const result = await finalizeVoiceCredits(
-      { userId: id, creditsReserved: 100, initialFreeCredits: 500, initialPaidCredits: 500 },
+      { userId: id, creditsReserved: 100, initialFreeCredits: 500, initialPaidCredits: 500, grantKind: 'free_allowance' },
       0.5,
       'alia-v1-voice',
       0.05,
@@ -292,6 +314,7 @@ describe('refundReservation', () => {
       creditsReserved: 5,
       initialFreeCredits: 10,
       initialPaidCredits: 10,
+      grantKind: 'free_allowance',
     });
 
     // Always to `free`, never to `paid` — a refund of a reservation is not a
@@ -307,6 +330,7 @@ describe('refundReservation', () => {
       creditsReserved: 5,
       initialFreeCredits: 10,
       initialPaidCredits: 10,
+      grantKind: 'free_allowance',
     });
   });
 });
@@ -321,7 +345,7 @@ describe('safeRefund', () => {
   it('refunds a real reservation', async () => {
     const id = await account('cm-saferefund', 10, 10);
     await safeRefund(
-      { userId: id, creditsReserved: 5, initialFreeCredits: 10, initialPaidCredits: 10 },
+      { userId: id, creditsReserved: 5, initialFreeCredits: 10, initialPaidCredits: 10, grantKind: 'free_allowance' },
       'test reason',
     );
     expect(await balanceOf(id)).toEqual({ free: 15, paid: 10 });
@@ -424,6 +448,7 @@ describe('when the store itself fails', () => {
         creditsReserved: OVERFLOW,
         initialFreeCredits: 0,
         initialPaidCredits: 0,
+        grantKind: 'paid_balance',
       }),
     ).resolves.toBeUndefined();
     expect(await balanceOf(id)).toEqual({ free: 2_000_000_000, paid: 0 });
@@ -438,6 +463,7 @@ describe('when the store itself fails', () => {
           creditsReserved: OVERFLOW,
           initialFreeCredits: 0,
           initialPaidCredits: 0,
+          grantKind: 'paid_balance',
         },
         'test',
       ),

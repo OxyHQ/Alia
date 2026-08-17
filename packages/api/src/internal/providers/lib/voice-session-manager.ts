@@ -1246,6 +1246,14 @@ You are now in a live voice conversation with a second AI called "Cohost" and th
         endTime,
         durationMinutes,
         creditsCharged,
+        /**
+         * Written on BOTH the interim and the final record, not only the final
+         * one: a session that ends without a teardown leaves the interim row as
+         * the whole cost record, and an unattributed row is exactly what ADR
+         * 0005 forbids. `?? null` follows the optional the type declares —
+         * `startSession` throws on a null reservation, so it is unreachable.
+         */
+        grantKind: session.creditReservation?.grantKind ?? null,
         costPerMinute: session.costPerMinute,
         disconnectReason: disconnectReason ?? null,
         audioFormat: session.audioFormat,
