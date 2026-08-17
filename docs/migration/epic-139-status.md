@@ -1,53 +1,102 @@
 # Epic #139 status audit
 
-A measurement, not a plan. For every one of the 246 unticked checkboxes in
-[issue #139](https://github.com/OxyHQ/Alia/issues/139) this audit records a verdict and one line of
-evidence — a path, a command output, or the named external artefact that is missing. The
+A measurement, not a plan. For every one of the 246 checkboxes that were unticked in
+[issue #139](https://github.com/OxyHQ/Alia/issues/139) when this was taken, it records a verdict and
+one line of evidence — a path, a command output, or the named external artefact that is missing. The
 machine-readable form, one object per box with the exact checkbox text and its workstream heading, is
 [`epic-139-status.json`](./epic-139-status.json).
 
-**Measured 2026-08-17 against `origin/main` at `975955c4`.** Five agents were landing workstream 4,
-8, 11, 15 and 20 PRs concurrently; every verdict is against that commit, not against their branches.
-Where a concurrent PR is about to change a verdict, the row says so.
+**Measured against `origin/main` at `975955c4`; corrected against `78da61cf`, both on 2026-08-17.**
+Several agents were landing PRs concurrently throughout, so the verdicts are dated rather than
+standing: 35 rows were earned within the day and carry `resolvedSince`, and five carried a claim that
+was wrong or became wrong and are corrected under [Corrections](#corrections).
 
 ## Totals
 
-416 checkboxes: 170 ticked, 246 unticked.
+416 checkboxes: **205 ticked, 211 unticked** as of 2026-08-17 against `78da61cf`. At the audit
+(`975955c4`) it was 170 and 246; **35 of the audited rows have since been earned** by #160, #162,
+#163, #164, #165 and #166, and each carries `resolvedSince` in the JSON.
 
-| verdict | count | meaning |
-| --- | ---: | --- |
-| `BLOCKED_RELAY` | 94 | needs the Relay data plane to exist |
-| `ACTIONABLE_NOW` | 42 | can be earned in this repository today; the row carries a deliverable and the guard that would go red |
-| `DUPLICATE_OF` | 41 | restates another box; the row names it |
-| `BLOCKED_OXY_972` | 27 | needs [OxyHQ/oxy#972](https://github.com/OxyHQ/oxy/issues/972) |
-| `BLOCKED_ALIAMODELS` | 26 | needs the separate AliaModels repository with real trained artifacts |
-| `PRODUCT_DECISION` | 11 | a human product or commercial call, not engineering |
-| `ALREADY_TRUE` | 5 | a landed guard already makes it hold; the row carries the mutation that turns it red |
+| verdict | at audit | still open | meaning |
+| --- | ---: | ---: | --- |
+| `BLOCKED_RELAY` | 94 | 92 | needs the Relay data plane **deployed and reachable** — see [the blocker, named](#the-relay-blocker-named) |
+| `ACTIONABLE_NOW` | 42 | 27 | can be earned in this repository today; the row carries a deliverable and the guard that would go red |
+| `DUPLICATE_OF` | 41 | 28 | restates another box; the row names it |
+| `BLOCKED_OXY_972` | 27 | 26 | needs [OxyHQ/oxy#972](https://github.com/OxyHQ/oxy/issues/972) |
+| `BLOCKED_ALIAMODELS` | 26 | 26 | needs the separate AliaModels repository with real trained artifacts |
+| `PRODUCT_DECISION` | 11 | 9 | a human product or commercial call, not engineering |
+| `ALREADY_TRUE` | 5 | 3 | a landed guard already makes it hold; the row carries the mutation that turns it red |
 
-**41 of the 246 are duplicates**, so the epic's real remaining surface is 205 distinct properties.
-Two clusters account for most of them: the thirteen `alia-*` identifiers served as `object: "model"`
-with `owned_by: "alia"` are one line in `packages/api/src/routes/v1/models.ts` restated across five
-rows (L99, L241, L242, L262, L768), and the sixteen definition-of-done rows are almost entirely
+**41 of the 246 were duplicates, 28 of them still open**, so the epic's real remaining surface is
+**183 distinct properties**. Two clusters accounted for most of them: the thirteen `alia-*`
+identifiers served as `object: "model"` with `owned_by: "alia"` were one line in
+`packages/api/src/routes/v1/models.ts` restated across five rows (L99, L241, L242, L262, L768) —
+four of those five are now ticked — and the sixteen definition-of-done rows are almost entirely
 restatements of the non-negotiable invariants and the workstream rollups.
 
-Four rows duplicate an **already-ticked** box: L265 ↔ ticked L100, L266 ↔ ticked L509,
-L576 ↔ ticked L271, L578 ↔ ticked L117.
+Four rows duplicated an **already-ticked** box: L265 ↔ L100, L266 ↔ L509, L576 ↔ L271,
+L578 ↔ L117. **Three were ticked on that basis; L576 was deliberately held.** "Same subject as a
+ticked box" is weaker than "proven true", and L576 — *"Publish actual models as `alia/<model>`"* — is
+a naming convention for a publication that has not happened: Alia publishes nothing, and
+`lib/reserved-namespace.ts` refuses every `alia/*` identifier at the serving chokepoint
+(`gateway-client.ts:320`) precisely so that stays true. Its ticked partner L271 is the *prohibition*,
+satisfied vacuously. A `DUPLICATE_OF` verdict is not on its own a reason to tick.
+
+## Corrections
+
+Five rows carried a stale or wrong claim. Each is corrected in place in the JSON and says so.
+
+**The rule they cost, stated first because it is the general one: a mechanism can be green and
+inert.** Evidence that names a function, a config table or a module is not evidence that the
+property holds unless the **entrypoint calls it**. Row 266 failed exactly that way.
+
+| row | what was wrong | corrected to |
+| --- | --- | --- |
+| **L266** *"Make cross-model fallback an explicit product/user policy"* | Classified `DUPLICATE_OF` a ticked box on evidence that was half inert. The REQUEST half was live (`fallbackPolicy` crossing the seam), but the PRODUCT half was not: `presets.ts` claimed each preset's policy was enforced on every request that selects it, and **`getRoutingPreset` had no caller outside tests**. | #163 wired it — `fallback-engine.ts:168` now reads `options.fallbackPolicy ?? getRoutingPreset(aliasModelId)?.fallbackPolicy ?? DEFAULT_FALLBACK_POLICY`. The box is earned by #163 and was not before it. Found by the workstream 4 agent, not by this audit. |
+| **L454** *"never expose stored hashes as replacement secrets"* | The `mutation` named a guard that does not cover it: gate 4's response census (`architectureGates.test.ts:1342`) matches the identifier `keyConfig`, **not** `keyHash`. Putting `keyHash` in a `res.json` argument would not fire it. | There is **no guard for this direction**. The property holds by absence, and the row now says that instead of naming a gate. |
+| **L522** *"Remove provider API keys from Alia deployment environments"* | Unchanged in substance, but #164 added `direct-provider-guard.ts` with a `PROVIDER_CREDENTIAL_ENV` list, which reads like a guard. | It is **green and inert**: `directProviderModeFailure` returns `null` immediately unless `ALIA_RELAY_CLIENT_ENABLED` is exactly `true`, and no deployment sets it. The property still holds by absence. |
+| **L459** *"Remove duplicate app/key/usage frontend stores and screens"* | The deliverable said to keep "rotate and revoke". **Rotation has never existed on `/developer`** — its `PATCH` covers name, scopes, the active flag and rate limits only, and the one path that ever replaced a secret was `POST /auth/token`, closed by #160. | Keep **revoke** only. #160 corrected the identical false claim at `compatibility-window.md:111`. |
+| **L212** *"Support tools, structured output, vision, …"* | Line references went stale when #164 moved `violatedCapability`, and the row did not name an entrypoint. | `relay-request.ts:340`, and **`relay-client.ts:931` calls it** — wired within the client, though the client itself is still frozen out of the product graph. |
+
+## The Relay blocker, named
+
+**The audit's blanket "no Relay exists" is stale.** [`OxyHQ/Relay`](https://github.com/OxyHQ/Relay)
+was created on 2026-08-16 — the day after the gap analysis was written — and is public, Go, 82
+files, tracked as **workstream 13 of [OxyHQ/oxy#972](https://github.com/OxyHQ/oxy/issues/972)**. It
+implements `internal/provider/anthropic` and `internal/provider/openaicompat`,
+`internal/provider/conformance` (the suite every adapter must pass), `internal/relay/executor` with
+failover, `internal/rotation`, `internal/providercost`, `internal/sse`, `internal/edgeauth` and
+`internal/httpapi`. So most workstream-7 rows now have a real destination path rather than a
+hypothesis.
+
+**What is missing is a deployment.** The repository carries no Dockerfile, no deploy workflow and no
+infrastructure; its only workflow is `ci.yml`. And Alia has no endpoint to name:
+`packages/api/src/lib/inference/__tests__/relay-egress.test.ts:522` asserts exactly that, and no
+`RELAY_*_URL` exists anywhere in `packages/api/src`.
+
+**`OxyHQ/oxy#981` is not this blocker, and it is CLOSED** (2026-08-15). Its subject is an unmetered
+public inference exposure on Oxy's proxy *into* Alia, not "Oxy API → Relay is not mounted".
+[`relay-client-gap.md`](./relay-client-gap.md) cites it as OPEN, which was already stale when
+written; anyone reasoning from that citation should re-read the issue.
 
 ## The five `ALREADY_TRUE` rows
 
-Each names the file and line that makes it hold, and the edit that turns the guard red.
+Each names the file and line that makes it hold, the entrypoint that calls it, and the edit that
+turns it red — or says plainly that there is no guard. Two have since been ticked.
 
-| box | guard | mutation that turns it red |
+| box | guard, and the entrypoint that calls it | mutation that turns it red |
 | --- | --- | --- |
-| L212 tools/structured output/vision/reasoning/prompt caching/modalities | `packages/api/src/lib/inference/relay-request.ts:211-241` | delete the `capabilities.tools` branch at `:219` → `relay-request.test.ts` fails |
-| L454 never expose stored hashes as replacement secrets | gate 4 of `packages/api/src/__tests__/architectureGates.test.ts:1042-1050`, plus `lib/agent/secret-scanner.ts:77` | put `keyHash` in a `res.json` argument under `routes/` → the response census at `:1235` fires |
-| L522 no provider API key in a deployment environment | **satisfied by absence** — measured, see the premise (d) finding below | none. This holds with **no guard at all**; adding `process.env.OPENAI_API_KEY` to any source file fails nothing today |
-| L618 land shared contracts | `packages/api/package.json:34` (`@oxyhq/contracts@^0.27.0`) plus eight importing modules | remove the dependency → `bun run --filter @alia/api typecheck` fails on eight files |
-| L668 fail when a product mode is serialized as `object: model` | gate 5 of `architectureGates.test.ts:1484-1632` | serve `object: "model"` for a multi-model entry from `GET /catalogue` → two assertions fire, at `:1553` and `:1599` |
+| L212 tools/structured output/vision/… **(ticked since)** | `relay-request.ts:340` (moved by #164), called by `relay-client.ts:931` | replacing the tools condition with `false` failed `relay-request.test.ts:357` — measured, 1 failed / 25 passed |
+| L454 never expose stored hashes as replacement secrets | **no guard.** Holds by absence: no route returns the column, and `routes/developer.ts:224` shows the plaintext once at creation | **none.** The audit named gate 4's response census; that census matches `keyConfig`, **not** `keyHash`, so it would not fire. Corrected above |
+| L522 no provider API key in a deployment environment | **no guard.** Holds by absence — see premise (d). #164's `direct-provider-guard.ts` names provider credentials but is armed only by `ALIA_RELAY_CLIENT_ENABLED`, which no deployment sets | none. Adding `process.env.OPENAI_API_KEY` to any source file still fails nothing |
+| L618 land shared contracts | `packages/api/package.json:34` plus **eleven** importing modules | remove the dependency → `bun run --filter @alia/api typecheck` fails on eleven files |
+| L668 fail when a product mode is serialized as `object: model` **(ticked since)** | gate 5 of `architectureGates.test.ts:1484-1632`, a census that runs in CI | serve `object: "model"` for a multi-model entry from `GET /catalogue` → two assertions fire, at `:1553` and `:1599` — measured |
 
-L522 is the one worth acting on: it is true by absence and nothing keeps it true. The durable form is
-a census over `process.env.*` naming the permitted variables exactly, in the shape gate 2 already
-uses for hostnames.
+**Two of the five hold by ABSENCE with no guard at all** — L454 and L522 — and both now say so in
+place of naming a gate that does not cover them. They are the two worth acting on: the durable form
+of L522 is a census over `process.env.*` naming the permitted variables exactly, in the shape gate 2
+uses for hostnames; the durable form of L454 is gate 4's census widened from `keyConfig` to the
+developer-key columns, written alongside the re-issue endpoint that would need it.
 
 **The two load-bearing rows above were mutation-tested, not asserted.** Baseline: both suites green,
 70 tests. Replacing `payload.tools.length > 0 && !capabilities.tools` with `false` in
@@ -102,8 +151,10 @@ Provider base URLs live in four places, two of them squarely in product code
 - `packages/integrations/src/shared/model-resolver.ts` — a **second service** with its own copy of
   five provider base URLs.
 
-Extracting the nineteen dead files removes no egress. That is row L353
-(*"Any additional adapter discovered by the inventory"*), classified `ACTIONABLE_NOW`.
+Extracting the nineteen dead files removes no egress. That was row L353
+(*"Any additional adapter discovered by the inventory"*), **earned by #166**, which refiled
+`provider-warmup.ts` from workstream 8 to 7, added the row that states the finding, and added the
+gate-2 assertion that every file permitted to name a provider hostname is filed for extraction.
 
 ### (c) "the product runs on `/v1/chat/completions`, not `/alia/chat`" — **TRUE**
 
@@ -320,8 +371,12 @@ the DATA (which route carries which scope) waits on Relay.
 
 - **Runtime behaviour.** Every claim above is source, schema or a published tarball. No production
   request was made beyond one unauthenticated `GET /health`.
-- **The concurrent branches.** Workstreams 4, 8, 11, 15 and 20 had open PRs while this was taken.
-  Re-run the classifier (`docs/migration/epic-139-status.json` is generated from the issue body plus
-  a table of verdicts) after they merge.
 - **External consumers.** Whether anything outside this repository calls `/alia/chat`,
   `/v1/responses` or an `alia_sk_` credential is an access-log question, and the service is parked.
+- **Relay's own repository, beyond its file tree and README.** Whether its adapters pass their
+  conformance suite, and whether anything deploys it, were not run.
+
+**This file goes stale in one direction: the repository moves and the verdicts do not.** 35 of the
+246 rows were earned within a day of the audit, and five carried a claim that was wrong or became
+wrong. Before acting on a row, check its `resolvedSince` and re-read the file:line it cites — a
+verdict is a measurement with a date on it, not a standing fact.
