@@ -1,4 +1,5 @@
 import { Router, Request, Response, NextFunction } from 'express';
+import { getDefaultAliaModel } from '../../lib/gateway-client.js';
 import { log } from '../../lib/logger.js';
 
 const router = Router();
@@ -59,7 +60,13 @@ router.post('/', (req: Request, res: Response, next: NextFunction) => {
 
   // Convert request body to chat completions format
   req.body = {
-    model: body.model || 'alia-v1',
+    // The SAME owner `/v1/chat/completions` reads (ADR decision D6). This used
+    // to restate `'alia-v1'`, so a model-less request was billed at a 2× credit
+    // multiplier — `alia-lite` is 0.5, `alia-v1` is 1 — decided purely by which
+    // endpoint the caller happened to use. Since this handler forwards into the
+    // chat-completions handler with `model` ALREADY SET, that handler's own
+    // default could never correct it.
+    model: body.model || getDefaultAliaModel(),
     messages,
     temperature: body.temperature,
     max_tokens: body.max_tokens || body.max_output_tokens,

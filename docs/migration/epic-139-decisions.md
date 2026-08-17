@@ -140,7 +140,7 @@ deliberately **not** changed alongside it — that is the field an existing call
 So "an Alia product API distinct from the generic one" did not exist to preserve. What survives is
 the one runtime; the split is workstream 6's to build, not a thing to protect.
 
-## D6. The `/v1/responses` default model — decided, and **not yet implemented**
+## D6. The `/v1/responses` default model — decided and **implemented**
 
 **Decided by the team lead rather than asked; recorded here so the user can overrule it.**
 
@@ -151,9 +151,15 @@ it hit** — `alia-lite` has multiplier 0.5, `alia-v1` has 1.
 The decision is that both read the single owner, `getDefaultAliaModel()`
 (`lib/gateway-client.ts:582`, returning `'alia-lite'`).
 
-**Measured, and this corrects the handoff: only one half has landed.**
-`routes/v1/chat-completions.ts:47` reads `getDefaultAliaModel()`. **`routes/v1/responses.ts:62` still
-reads `body.model || 'alia-v1'`.** The divergence is live.
+**Both halves have now landed.** `routes/v1/chat-completions.ts:47` and `routes/v1/responses.ts` both
+read `getDefaultAliaModel()`. Until that second change, `responses.ts` read `body.model || 'alia-v1'`
+and the divergence was live — and it could not be corrected downstream, because `/v1/responses`
+forwards into the chat-completions handler with `model` already set, so that handler's own default
+never applied.
+
+The frozen census that recorded the divergence (`lib/__tests__/defaultChatModel.test.ts`) lost its
+`routes/v1/responses.ts` entry in the same commit, and the assertion that used to prove the two
+disagreed now proves that no general chat-path site disagrees with the owner.
 
 **Rationale for resolving toward `alia-lite`:** the alternative — making both default to `alia-v1` —
 doubles the bill on the main path used by the app and every SDK consumer. Production is at

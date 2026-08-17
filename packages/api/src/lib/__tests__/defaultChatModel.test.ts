@@ -211,11 +211,6 @@ const RESTATED_DEFAULTS: readonly { file: string; value: string; why: string }[]
     why: 'DELIBERATE and documented in place: names the alias the fallback engine already resolved to, so the tool stops reporting a model it did not run. Its comment states it is explicitly not the default.',
   },
   {
-    file: 'packages/api/src/routes/v1/responses.ts',
-    value: 'alia-v1',
-    why: 'LIVE DIVERGENCE, escalated not decided: POST /v1/responses defaults to alia-v1 while POST /v1/chat/completions defaults to alia-lite, a 2x credit multiplier apart for the same "no model named" request. Reconciling it changes what users are billed, which is a product call.',
-  },
-  {
     file: 'packages/api/src/routes/v1/voice.ts',
     value: 'alia-v1-voice',
     why: 'Capability-scoped, and correct: a realtime voice session cannot run on the general chat default.',
@@ -239,10 +234,15 @@ describe('every site that restates an alias default is accounted for', () => {
     // Positive controls, one per spelling. A pattern that misses one prints a
     // clean small number that reads like good news.
     const at = (suffix: string) => observed.filter((o) => o.file.endsWith(suffix)).map((o) => o.value);
-    expect(at('routes/v1/responses.ts')).toContain('alia-v1'); // `||` with a space
+    // Repointed from `routes/v1/responses.ts`, which no longer restates one: it
+    // reads the owner now. The control it provided — the plain `x || 'literal'`
+    // spelling — has to survive its removal, so it moves to another site with
+    // exactly that shape rather than being dropped with the entry.
+    expect(at('routes/webhooks.ts')).toContain('alia-lite'); // `||` with a space
     expect(at('lib/tools/agent-delegate.ts')).toContain('alia-lite'); // `||` after `?.[0]`
     expect(at('lib/credits-manager.ts')).toContain('alia-v1-voice'); // parameter default
-    expect(observed.length).toBeGreaterThanOrEqual(8);
+    // Was 8; one site went away when /v1/responses started reading the owner.
+    expect(observed.length).toBeGreaterThanOrEqual(7);
   });
 
   it('is exactly the frozen list, in both directions', () => {
@@ -254,16 +254,37 @@ describe('every site that restates an alias default is accounted for', () => {
   });
 
   it('the frozen list is as long as it says, so it cannot grow a line at a time', () => {
-    expect(RESTATED_DEFAULTS).toHaveLength(7);
-    expect(new Set(RESTATED_DEFAULTS.map((r) => r.file)).size).toBe(7);
+    expect(RESTATED_DEFAULTS).toHaveLength(6);
+    expect(new Set(RESTATED_DEFAULTS.map((r) => r.file)).size).toBe(6);
     for (const entry of RESTATED_DEFAULTS) expect(entry.why.length).toBeGreaterThan(40);
   });
 
-  it('names the one entry that disagrees with the owner on the general chat path', () => {
-    // The escalation, asserted rather than described: if somebody reconciles
-    // /v1/responses, this goes red and the census line above goes with it.
-    const responses = RESTATED_DEFAULTS.find((r) => r.file.endsWith('routes/v1/responses.ts'));
-    expect(responses?.value).toBe('alia-v1');
-    expect(responses?.value).not.toBe(getDefaultAliaModel());
+  it('no restated default disagrees with the owner on the general chat path', () => {
+    /**
+     * This used to be the escalation — it asserted that `/v1/responses` restated
+     * `'alia-v1'` while the owner returned `'alia-lite'`, and its own comment
+     * said that reconciling the endpoint would turn it red. That happened, so it
+     * is now the inverse: NO general chat-path site may disagree with the owner.
+     *
+     * The four remaining entries are all scoped to something the general chat
+     * default cannot answer — a voice minute, or an alias the fallback engine
+     * already resolved to — so they are excluded by NAME with the reason
+     * recorded beside each, rather than by a value test that would quietly
+     * absorb a new general-path divergence.
+     */
+    const capabilityScoped = [
+      'packages/api/src/lib/credits-manager.ts',
+      'packages/api/src/lib/tools/delegate.ts',
+      'packages/api/src/routes/v1/voice.ts',
+    ];
+    const generalChatPath = RESTATED_DEFAULTS.filter((r) => !capabilityScoped.includes(r.file));
+
+    // The floor: the filter did not reduce the list to nothing, which would make
+    // the assertion below a fact about the exclusion list rather than about the
+    // defaults.
+    expect(generalChatPath).toHaveLength(3);
+    for (const entry of generalChatPath) {
+      expect(entry.value, `${entry.file} disagrees with the owner`).toBe(getDefaultAliaModel());
+    }
   });
 });
