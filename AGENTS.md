@@ -18,24 +18,23 @@ Non-standard layout: this repo does **not** use the three-package
 `frontend`/`backend`/`shared-types` baseline that every other Oxy single-app repo
 uses, so do not assume those paths.
 
-`ls packages/` is the listing. What it does not tell you: `app` is the Expo +
-NativeWind client, `api` the Express backend, `alia-chat` is published as
-`@alia.onl/sdk`, and `integrations` owns the MCP client.
+`ls packages/` doesn't show: `app` is the Expo + NativeWind client, `api` the
+Express backend, `alia-chat` is published as `@alia.onl/sdk`, and
+`integrations` owns the MCP client. `packages/alia-codea/webview-ui` is its
+own workspace entry, one higher than the directory listing suggests.
 
-`packages/alia-codea/webview-ui` is its own workspace entry, so the workspace
-count is one higher than the directory listing under `packages/` suggests.
+**CI is coupled to `api.github.com`** — `libsignal` resolves via a `github:`
+dependency pinned to a commit; a 504 there fails `Install dependencies` or
+`Set up job` with an error that looks nothing like a real dependency problem.
 
 ## Expo SDK override gotcha
 
-The root `package.json` carries an `overrides` block that pins the Expo SDK
-packages tree-wide (`expo`, `expo-font`, `expo-image`, `expo-modules-core`,
-`react-native` and friends). Those pins beat whatever `packages/app/package.json`
-declares, which is why **`bunx expo install --fix` loops forever**: the override
-resets the version it just wrote.
-
-**Rule:** any Expo SDK bump MUST also update the matching entries in the root
-`overrides` block. A correct bump touches THREE files: `packages/app/package.json`,
-the root `package.json` `overrides`, and `bun.lock`.
+The root `package.json`'s `overrides` block pins the Expo SDK tree-wide
+(`expo`, `expo-font`, `expo-image`, `expo-modules-core`, `react-native`…),
+beating whatever `packages/app/package.json` declares — which is why
+**`bunx expo install --fix` loops forever**: the override resets the version
+it just wrote. **Any Expo SDK bump touches THREE files:**
+`packages/app/package.json`, the root `overrides`, and `bun.lock`.
 
 ## Model identity: scoped, not a global ban
 
@@ -58,6 +57,12 @@ detail: a UX and commercial decision, **not a security control**.
   operator or upstream error code must be classified in `sanitize.ts`, and
   `sanitize.test.ts` goes red until it is.
 - Analytics resolve via `getAliaModel()`, skipping entries that cannot resolve.
+- **The thirteen `alia-*` ids are de-advertised (`GET /v1/models` → `[]`, ADR
+  0003) but still ROUTABLE and BILLED** — `alia-models.ts` is untouched,
+  `fallback-engine.ts` throws for anything outside `ALIA_MODELS`, and
+  `credits-manager.ts` reads the alias's `credit_multiplier`. De-advertising
+  satisfies no gate that would catch a REMOVAL. Extended reasoning is now a
+  routing parameter (ADR 0002), not a model.
 
 Key files: `internal/providers/lib/alia-models.ts` (the frozen `alia-*` set — see
 `docs/model-abstraction.mdx`), `routes/v1/models.ts`, `lib/errors/sanitize.ts`,
@@ -74,66 +79,50 @@ Manifest-driven protocol: apps register tool definitions in MongoDB, Alia
 auto-discovers them and exposes them to the AI.
 
 - Service manifests live in the `OxyService` model (tools, events, optional
-  context endpoint).
-- `buildOxyServiceTools()` generates AI SDK `tool()` wrappers (Zod schemas via
-  `jsonSchemaToZod()`) and forwards the user's OxyHQ JWT.
+  context endpoint). `buildOxyServiceTools()` generates AI SDK `tool()`
+  wrappers (Zod schemas via `jsonSchemaToZod()`), forwarding the user's own
+  OxyHQ JWT — no OAuth for first-party services.
 - Events arrive at `POST /webhooks/oxy/:serviceId`, HMAC verified.
 - **Adding a service is a data change:** insert an `OxyService` doc, zero Alia
   code changes.
-- Tool naming is `oxy_{serviceId}__{toolName}`, for example
-  `oxy_inbox__searchEmails`.
-- Auth forwards `req.accessToken` (the user's OxyHQ JWT). No OAuth for
-  first-party services.
+- Tool naming is `oxy_{serviceId}__{toolName}`, e.g. `oxy_inbox__searchEmails`.
 
-Key files: `packages/api/src/models/oxy-service.ts`,
-`packages/api/src/lib/tools/oxy-services.ts` (`buildOxyServiceTools`,
-`callOxyService`, `getOxyServiceContext`, `getOxyServicePromptFragment`),
-`packages/api/src/routes/oxy-service-events.ts`, and
-`packages/api/src/routes/v1/chat-completions.ts`.
+Key files: `models/oxy-service.ts`, `lib/tools/oxy-services.ts`
+(`buildOxyServiceTools`, `callOxyService`), `routes/oxy-service-events.ts`.
 
 ## Connectors (MCP and OAuth): third-party tools for the AI
 
 "Connectors" are **MCP servers** that give the AI tools, surfaced in a
-ChatGPT-plugins-style catalog at `/settings/connectors`. This is the sanctioned
+ChatGPT-plugins-style catalog at `/settings/connectors` — the sanctioned
 substrate for third-party tools. Do NOT add bespoke per-service tool code; the
-old hand-written OAuth "Integrations" were retired, and only Google Calendar and
-Drive remain there because they have no hosted MCP.
+old hand-written OAuth "Integrations" were retired, and only Google Calendar
+and Drive remain there for lack of a hosted MCP.
 
-- **The MCP client is the official `@modelcontextprotocol/sdk`**, living in the
-  `packages/integrations` service (`src/mcp/manager.ts`), not hand-rolled
-  JSON-RPC. `packages/api` never imports the SDK; it proxies over HTTP
-  (`INTEGRATIONS_URL` plus `X-Gateway-Secret`). stdio, streamable-http and sse
-  are all supported.
-- **Registry:** `packages/api/src/lib/mcp-registry.ts` holds the curated
-  connectors. Hosted remote OAuth connectors (Notion `mcp.notion.com`, GitHub,
-  Linear) set `requiresOAuth: true` plus `url`; `featured` drives the Featured
-  section. Adding a connector is one registry entry.
-- **OAuth is SDK native:** the SDK owns discovery, Dynamic Client Registration,
-  PKCE, token use and auto-refresh through an `OAuthClientProvider`
-  (`packages/integrations/src/mcp/oauth-provider.ts`), backed by an encrypted
-  Mongo store (`oauth-store.ts`, `McpConnectorAuth`, tokens `select:false` and
-  encrypted). The per-tool-call hop carries no user token; the SDK refreshes in
-  process.
-- **The OAuth flow is CSRF-safe by construction** because Alia is cookie-less.
-  The public callback `GET /mcp/oauth/callback` does NOT link: it validates the
-  `state` without consuming it and hands `state` plus `code` to the app.
-  Finalization is an AUTHENTICATED `POST /mcp/oauth/complete` that enforces
-  `state.oxyUserId === req.userId`. **NEVER move linking back into an
-  unauthenticated callback**, which is account-linking CSRF. The legacy
-  `integrations-oauth.ts` uses the identical callback-then-complete pattern
-  (`int_oauth_state` / `int_oauth_code`). Frontends read those return params and
-  POST complete (see `ConnectorsSection` and `IntegrationsSection`).
-- `POST /mcp/install` is **idempotent for registry connectors** (a duplicate key
-  returns the existing row with 200) so the Connect flow can ensure-installed
-  before OAuth. Custom installs still 409.
-- **Deploy prerequisites in `oxy-infra`:** the `integrations` service env needs
-  `TOKEN_ENCRYPTION_KEY` (the SAME value as the API, since encrypted tokens are
-  read across processes) and `API_BASE_URL` (the OAuth callback and per-bot
-  webhook base). A missing `TOKEN_ENCRYPTION_KEY` degrades gracefully: only
-  OAuth-connect calls error.
-- The `lib/mcp/` governance layer (McpManager, permissions, health) was deleted
-  as dead code; `buildMcpTools` is called directly. If you reintroduce
-  governance, wire it into that path rather than re-adding it orphaned.
+- **The MCP client is the official `@modelcontextprotocol/sdk`**, living in
+  `packages/integrations` (`src/mcp/manager.ts`), never hand-rolled JSON-RPC.
+  `packages/api` never imports the SDK; it proxies over HTTP
+  (`INTEGRATIONS_URL` plus `X-Gateway-Secret`).
+- **Registry:** one entry in `packages/api/src/lib/mcp-registry.ts` adds a
+  connector. Hosted remote OAuth connectors (Notion, GitHub, Linear) set
+  `requiresOAuth: true` plus `url`.
+- **OAuth is SDK native:** discovery, DCR, PKCE, token use and auto-refresh run
+  through an `OAuthClientProvider` (`packages/integrations/src/mcp/oauth-provider.ts`)
+  backed by an encrypted Mongo store (`McpConnectorAuth`, tokens
+  `select:false`). The per-tool-call hop carries no user token.
+- **CSRF-safe by construction, since Alia is cookie-less.** The public
+  `GET /mcp/oauth/callback` validates `state` WITHOUT consuming it and hands
+  `state` plus `code` to the app; finalization is an AUTHENTICATED
+  `POST /mcp/oauth/complete` enforcing `state.oxyUserId === req.userId`.
+  **NEVER move linking back into an unauthenticated callback** — that is
+  account-linking CSRF. Legacy `integrations-oauth.ts` mirrors the same
+  callback-then-complete pattern.
+- `POST /mcp/install` is idempotent for registry connectors (duplicate key
+  returns the existing row, 200); custom installs still 409.
+- **Deploy prerequisite:** `integrations` needs the SAME `TOKEN_ENCRYPTION_KEY`
+  as the API (tokens are decrypted across processes) plus `API_BASE_URL`. A
+  missing key degrades gracefully — only OAuth-connect calls error.
+- The `lib/mcp/` governance layer was deleted as dead code; `buildMcpTools` is
+  called directly. Wire any reintroduction into that path, not orphaned.
 
 ## Agent bots: an Agent's own Telegram presence
 
@@ -169,14 +158,12 @@ LOCAL in-process path unless BOTH `SERVICE_SECRET` and `GATEWAY_API_URL` are set
 and production sets only the former. Do not reintroduce a second copy of the
 provider logic; a remote provider tier, if ever wanted, goes behind that client.
 
-TTS fails over across providers via `packages/api/src/lib/synthesize-speech.ts`
-and `packages/api/src/internal/providers/lib/tts-providers.ts` (the voice
-translation table).
+TTS fails over across providers via `synthesize-speech.ts` and
+`internal/providers/lib/tts-providers.ts` (the voice translation table).
 
 Do not construct a second `new WebSocketServer({ server, path })` alongside
 socket.io on the same Node `http.Server`. Use `{ noServer: true }` plus one
-`server.on('upgrade')` router. Reference implementation:
-`packages/api/src/lib/mcp-relay.ts`.
+`server.on('upgrade')` router. Reference: `lib/mcp-relay.ts`.
 
 ## UI conventions (packages/app)
 
