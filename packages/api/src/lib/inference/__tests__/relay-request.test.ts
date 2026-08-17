@@ -276,7 +276,7 @@ describe('buildInferenceRequest refuses what the contract refuses', () => {
 // Target resolution
 // ===========================================================================
 
-describe('a product model id becomes a target structurally, never by lookup', () => {
+describe('a product model id becomes a target by grammar, and an alias by its published map', () => {
   const DEFAULT_TARGET: RoutingTarget = { kind: 'routing_profile', routingProfile: 'auto' };
 
   it('the two grammars are disjoint, which is why no precedence rule is needed', () => {
@@ -317,12 +317,46 @@ describe('a product model id becomes a target structurally, never by lookup', ()
     expect(targetPinsRevision(pinned)).toBe(true);
   });
 
-  it("reads today's alia-* alias as a routing profile", () => {
-    // Which is what it has always been: #139 workstream 4 is the change that
-    // makes that honest, and this translation is what carries it.
+  it("translates today's alia-* alias to the profile the migration map publishes", () => {
+    /**
+     * It used to answer `routingProfile: 'alia-v1-pro'` — the grammar's reading,
+     * since an alias has no `/` and therefore parses as a profile slug. That is
+     * well-formed and wrong: `docs/migration/alias-migration-map.json` publishes
+     * `profile:v1-pro` as what this alias becomes, and a profile named after the
+     * alias is one no catalogue outside this repository has heard of.
+     *
+     * Asserted here against the value, and against the published file itself in
+     * `lib/routing/__tests__/alias-translation.test.ts` for all thirteen.
+     */
     expect(
       resolveRoutingTarget({ kind: 'user_selected', productModelId: 'alia-v1-pro' }, DEFAULT_TARGET, 'r'),
-    ).toEqual({ kind: 'routing_profile', routingProfile: 'alia-v1-pro' });
+    ).toEqual({ kind: 'routing_profile', routingProfile: 'v1-pro' });
+
+    // The two identifiers that share a policy resolve to one target.
+    expect(
+      resolveRoutingTarget({ kind: 'user_selected', productModelId: 'alia-v1-thinking' }, DEFAULT_TARGET, 'r'),
+    ).toEqual(
+      resolveRoutingTarget({ kind: 'user_selected', productModelId: 'alia-v1-pro-max' }, DEFAULT_TARGET, 'r'),
+    );
+  });
+
+  it('refuses an alia-namespaced id that is not one of the thirteen', () => {
+    /**
+     * `alia-flash` is the real case: `lib/tools/delegate.ts` defaulted to it for
+     * as long as it did precisely because it is a well-formed slug that every
+     * lenient reading accepts. The grammar below would send it as a routing
+     * profile, asking Relay to route a profile only this repository could have
+     * defined. Alia knows its own namespace exhaustively, so it answers.
+     */
+    expect(() =>
+      resolveRoutingTarget({ kind: 'user_selected', productModelId: 'alia-flash' }, DEFAULT_TARGET, 'r'),
+    ).toThrow(RelayInferenceError);
+
+    // The control: the refusal is about the NAMESPACE, not about every slug.
+    // `auto` is a legitimate profile nobody in this repository owns.
+    expect(
+      resolveRoutingTarget({ kind: 'user_selected', productModelId: 'auto' }, DEFAULT_TARGET, 'r'),
+    ).toEqual({ kind: 'routing_profile', routingProfile: 'auto' });
   });
 
   it('refuses an unparseable id instead of treating it as a profile', () => {
