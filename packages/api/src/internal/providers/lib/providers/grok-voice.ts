@@ -48,9 +48,12 @@ interface GrokSessionUpdate {
 export const grokVoiceProvider: VoiceProvider = {
   name: 'Grok Voice',
 
-  isEnabled: () => {
-    return !!process.env.GROK_API_KEY || true; // Enabled if key pool has grok keys
-  },
+  // As every other adapter in this directory: availability is decided by the key
+  // pool (`provider_keys`), never by an environment variable. What this replaces
+  // was a disjunction ending in `|| true`, so it answered `true` for every
+  // possible environment and nothing here changes — what goes is the last read
+  // of a provider credential from the process environment (#139 ws15).
+  isEnabled: () => true,
 
   voice: {
     capabilities: {

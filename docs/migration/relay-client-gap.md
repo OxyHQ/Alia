@@ -157,6 +157,17 @@ short-lived service token through `@oxyhq/core` and lets the Oxy edge resolve
 brands in `identifiers.ts:38,50` mean the only way to obtain an `OxyAccountId` is
 to parse one through the schema.
 
+**Since 2026-08-17 (#139 ws2).** The replacement half of that edit exists:
+`lib/inference/relay-credential.ts` configures `@oxyhq/core` with the
+ApplicationCredential in `ALIA_RELAY_CREDENTIAL_KEY` / `ALIA_RELAY_CREDENTIAL_SECRET`
+and returns it typed as `RelayClientConfig['credential']`, so the token the
+client presents is minted, cached and refreshed by the SDK — measured against a
+real `/auth/service-token` round trip in `__tests__/relay-credential.test.ts`.
+`relayBootConfigurationFailure` refuses to start a flag-on process that has no
+credential. **The DELETION half has not happened**: `gateway-client.ts` still
+carries the HMAC mode, because removing it means moving the live path, which is
+workstream 8's cutover and not this one's.
+
 ### 3.2 Attach applicationId, credentialId, owner attribution and delegated user
 
 **Contract.** `attribution.ts:107-112` — every request, receipt and ledger record

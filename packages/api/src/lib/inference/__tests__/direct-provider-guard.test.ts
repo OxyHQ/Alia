@@ -224,21 +224,42 @@ describe('the credential variable list covers what the provider tree really read
   };
 
   const reads = treeEnvReads();
+  const CREDENTIAL_SHAPED = /_(KEY|KEYS|TOKEN|SECRET|PASSWORD)$/;
 
-  it('read the tree at all, and found the variable a name-derived list would miss', () => {
-    // The positive control, chosen rather than found: `GROK_API_KEY` is read by
-    // `providers/grok-voice.ts` and belongs to the provider registered as `xai`.
-    expect(reads).toContain('GROK_API_KEY');
-    expect(reads.length).toBeGreaterThanOrEqual(3);
+  it('read the tree at all, so an empty credential census means absence', () => {
+    /**
+     * The positive control had to be REPOINTED, not deleted, in #139 ws2/ws15.
+     *
+     * It used to be `GROK_API_KEY`, read by `providers/grok-voice.ts` — the
+     * variable a derivation from provider NAMES would miss, since that provider
+     * is registered as `xai`. That read is gone: it sat inside a disjunction
+     * ending in `|| true`, so it answered the same for every environment, and
+     * removing it is the *"Remove provider API keys from Alia deployment
+     * environments"* row. `PROVIDER_CREDENTIAL_ENV` still names it, because this
+     * guard reads the ENVIRONMENT and an operator can still set a variable no
+     * code reads — which is the whole point of a boot refusal.
+     *
+     * So the control is now a variable the tree really does read and which is
+     * not a credential at all. Deleting the control instead would have left the
+     * census below unable to tell "the tree reads no provider credential" from
+     * "the scan read nothing".
+     */
+    expect(reads).toContain('NODE_ENV');
+    expect(reads.length).toBeGreaterThanOrEqual(2);
   });
 
-  it('covers every credential-shaped variable the tree reads', () => {
-    const credentialShaped = reads.filter((name) => /_(KEY|KEYS|TOKEN|SECRET|PASSWORD)$/.test(name));
-    const uncovered = credentialShaped.filter((name) => !PROVIDER_CREDENTIAL_ENV.includes(name));
-    expect(uncovered).toEqual([]);
-    // The floor: the filter did not reduce the census to nothing, which would
-    // make the emptiness above a fact about the regex rather than about the list.
-    expect(credentialShaped).toEqual(['GROK_API_KEY']);
+  it('covers every credential-shaped variable the tree reads, of which there are none', () => {
+    const credentialShaped = reads.filter((name) => CREDENTIAL_SHAPED.test(name));
+    // The stronger statement the ws15 deletion made available: the provider tree
+    // reads NO provider credential from the process environment at all.
+    expect(credentialShaped).toEqual([]);
+    // Which makes the coverage check vacuous, so the filter gets its own control
+    // instead: it fires on a planted name, and the list covers that name.
+    const planted = [...reads, 'GROK_API_KEY', 'OPENAI_API_KEY'].filter((name) =>
+      CREDENTIAL_SHAPED.test(name),
+    );
+    expect(planted).toEqual(['GROK_API_KEY', 'OPENAI_API_KEY']);
+    expect(planted.filter((name) => !PROVIDER_CREDENTIAL_ENV.includes(name))).toEqual([]);
   });
 
   it('derives one pair of variables per registered provider', () => {
