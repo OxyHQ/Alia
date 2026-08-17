@@ -10,7 +10,23 @@ export interface Session {
 }
 
 interface ConfigSchema {
-  apiKey: string;
+  /**
+   * A credential previous versions stored here, kept in the schema for ONE
+   * reason: so `signOut` can erase it.
+   *
+   * It is never read. Versions before the Oxy device-flow migration wrote an
+   * `alia_sk_*` developer key into this file, which is world-readable and shared
+   * with ordinary preferences. Alia stopped issuing those in #160 and nothing
+   * accepts one from here any more — but dropping the field silently would
+   * leave the secret sitting on every existing user's disk forever, because
+   * `Conf` only rewrites keys it knows about. Declaring it is what lets it be
+   * deleted.
+   *
+   * The NAME must stay `apiKey`, because that is the key already written on
+   * disk — renaming it to something tidier would delete a key nobody has and
+   * leave the real credential in place.
+   */
+  apiKey?: string;
   apiBaseUrl: string;
   defaultModel: string;
   sessions: Session[];
@@ -20,7 +36,6 @@ interface ConfigSchema {
 export const config = new Conf<ConfigSchema>({
   projectName: 'alia-codea-cli',
   defaults: {
-    apiKey: '',
     apiBaseUrl: 'https://api.alia.onl',
     defaultModel: 'alia-v1-codea',
     sessions: [],

@@ -68,9 +68,16 @@ declare global {
       // Auth
       signIn: () => Promise<void>
       signOut: () => void
-      getAuthState: () => Promise<{ isAuthenticated: boolean; apiKey?: string }>
+      getAuthState: () => Promise<{
+        isAuthenticated: boolean
+        username?: string
+        preferredModel: string
+      }>
       getUserInfo: () => Promise<UserProfile | null>
-      onAuthSuccess: (callback: (data: { token: string; userInfo: UserProfile }) => void) => () => void
+      onAuthCode: (
+        callback: (data: { code: string; url: string; expiresAt: number }) => void
+      ) => () => void
+      onAuthSuccess: (callback: (data: { userInfo: UserProfile }) => void) => () => void
       onAuthError: (callback: (data: { message: string }) => void) => () => void
       onAuthSignedOut: (callback: () => void) => () => void
 

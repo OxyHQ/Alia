@@ -2,6 +2,7 @@ import OpenAI from 'openai';
 import { config } from './config.js';
 import type { Message, ToolCall } from './conversation.js';
 import { resolveModelId } from './catalogue.js';
+import { accessToken, restoreSession } from './oxy-session.js';
 
 interface StreamCallbacks {
   onContent: (content: string) => void;
@@ -127,13 +128,24 @@ export async function streamChat(
   model: string,
   callbacks: StreamCallbacks
 ): Promise<void> {
-  const apiKey = config.get('apiKey');
-  if (!apiKey) throw new Error('No API key configured. Run `codea login` first.');
+  /**
+   * The bearer is the Oxy session token, restored from this machine's device
+   * credential — no longer an `alia_sk_*` developer key, which Alia stopped
+   * issuing in #160.
+   *
+   * `restoreSession()` runs the cold boot, so a command invoked minutes or days
+   * after `codea login` re-mints from the persisted device secret rather than
+   * asking the user to sign in again. Read AFTER the restore, never captured at
+   * module load: the scheduler rotates the token in the background.
+   */
+  await restoreSession();
+  const token = accessToken();
+  if (!token) throw new Error('Not signed in. Run `codea login` first.');
 
   const baseUrl = config.get('apiBaseUrl') || 'https://api.alia.onl';
 
   const openai = new OpenAI({
-    apiKey,
+    apiKey: token,
     baseURL: `${baseUrl}/v1`
   });
 

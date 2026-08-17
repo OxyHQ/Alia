@@ -1,6 +1,12 @@
 import * as vscode from 'vscode';
 import * as crypto from 'crypto';
-import { OxyServices } from '@oxyhq/core';
+import {
+  OxyServices,
+  createNativeAuthStateStore,
+  installAuthRefreshHandler,
+  startTokenRefreshScheduler,
+  type AuthStateStore,
+} from '@oxyhq/core';
 import { jwtDecode } from 'jwt-decode';
 import { errorMessage } from './errors';
 
@@ -9,7 +15,6 @@ const OXY_PLATFORM_URL = 'https://api.oxy.so';
 const OXY_CLIENT_ID = 'oxy_dk_06488927793f96922ef4f366a9800547b34c6aec025fece3';
 const CALLBACK_PATH = '/auth-callback';
 const SIGN_IN_TIMEOUT_MS = 5 * 60 * 1000;
-const DEFAULT_TOKEN_LIFETIME_MS = 15 * 60 * 1000;
 // Refresh a planted access token this long before its JWT `exp` so an in-flight
 // request never races the boundary.
 const REFRESH_BUFFER_MS = 60 * 1000;
@@ -18,171 +23,20 @@ const REFRESH_BUFFER_MS = 60 * 1000;
 // so the extension owns its own persistence and refresh loop.
 const SESSION_STORAGE_KEY = 'alia.session.v1';
 
-/** The `grant_type` this client uses — RFC 6749 §4.1.3. */
-const AUTHORIZATION_CODE_GRANT = 'authorization_code';
-
 /**
- * The user document the token response carries alongside the standard members.
- * Mirrors the wire shape Oxy emits; only the members this extension reads are
- * modelled, because RFC 6749 §5.1 lets the endpoint carry more and a client
- * must ignore whatever it does not recognise.
+ * The extension's own display state, NOT the credential.
+ *
+ * `refreshToken` is deliberately gone. Under the device-first model there is no
+ * app-held refresh token to rotate: `{ deviceId, deviceSecret }` mints a short
+ * access token via `POST /session/device/token`, and `@oxyhq/core`'s
+ * `AuthStateStore` owns that credential. What stays here is what VS Code's
+ * session list needs and core does not model — the display name.
  */
-interface OAuthTokenUser {
-  id?: string;
-  username?: string;
-  /**
-   * The canonical composed display name. Present only for accounts that have a
-   * real name — username-only accounts carry no `name.displayName` and fall
-   * back to the handle.
-   */
-  name?: { displayName?: string };
-}
-
-/**
- * A successful RFC 6749 §5.1 token response.
- *
- * Every member sits at the TOP LEVEL of the document — there is no `data`
- * wrapper. `access_token` and `token_type` are the required standard members;
- * `expires_in` is RECOMMENDED rather than required, so it is optional here and
- * the caller falls back to {@link DEFAULT_TOKEN_LIFETIME_MS}.
- *
- * `session_id` and `user` are Oxy's device-first extras, which §5.1 permits as
- * additional parameters. The response also carries `deviceId` / `deviceSecret`
- * — the zero-cookie restore credentials — which this extension does not
- * consume, so they are deliberately absent from this model.
- *
- * The endpoint issues NO refresh token: §5.1 makes `refresh_token` optional and
- * Oxy's device-first model replaces it with the device secret.
- */
-interface OAuthTokenResponse {
-  access_token: string;
-  token_type: string;
-  expires_in?: number;
-  session_id?: string;
-  user?: OAuthTokenUser;
-}
-
-/** An RFC 6749 §5.2 error document, as the token endpoint emits on failure. */
-interface OAuthErrorResponse {
-  error: string;
-  error_description?: string;
-}
-
 interface PersistedSession {
   accessToken: string;
-  refreshToken?: string;
   expiresAt: string;
   userId: string;
   username: string;
-}
-
-/** True for a plain JSON object — the shape both OAuth documents take. */
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-/** A non-empty string member, or undefined for anything else. */
-function stringMember(value: unknown): string | undefined {
-  return typeof value === 'string' && value.length > 0 ? value : undefined;
-}
-
-/**
- * Read a response body as JSON, or null when it is not JSON at all.
- *
- * An intermediary between the extension and the API (corporate proxy, captive
- * portal) can answer with HTML. That must surface as the HTTP status the caller
- * already has, not as a parse error about a body we never expected to read.
- */
-async function readJsonBody(response: Response): Promise<unknown> {
-  try {
-    return await response.json();
-  } catch {
-    // Body was absent or not JSON; the status alone describes the failure.
-    return null;
-  }
-}
-
-/**
- * Narrow a parsed body to {@link OAuthTokenUser}, keeping only the members this
- * extension reads.
- */
-function parseTokenUser(user: Record<string, unknown>): OAuthTokenUser {
-  const name = isRecord(user.name)
-    ? { displayName: stringMember(user.name.displayName) }
-    : undefined;
-
-  return {
-    id: stringMember(user.id),
-    username: stringMember(user.username),
-    name,
-  };
-}
-
-/**
- * Narrow a parsed body to a successful RFC 6749 §5.1 token response.
- *
- * Members are read from the TOP LEVEL of the document. Anything the endpoint
- * sends beyond the modelled members is ignored, as §5.1 requires of a client.
- */
-function parseTokenResponse(payload: unknown): OAuthTokenResponse {
-  if (!isRecord(payload)) {
-    throw new Error('OAuth token exchange returned a malformed response.');
-  }
-
-  const accessToken = stringMember(payload.access_token);
-  if (!accessToken) {
-    throw new Error('OAuth token exchange returned no access token.');
-  }
-
-  // The token is used unconditionally as a bearer credential, so a grant of any
-  // other type is unusable here. RFC 6749 §7.1 makes the value case-insensitive.
-  const tokenType = stringMember(payload.token_type);
-  if (!tokenType || tokenType.toLowerCase() !== 'bearer') {
-    throw new Error(
-      `OAuth token exchange returned an unsupported token type (${tokenType ?? 'none'}).`,
-    );
-  }
-
-  return {
-    access_token: accessToken,
-    token_type: tokenType,
-    expires_in: typeof payload.expires_in === 'number' ? payload.expires_in : undefined,
-    session_id: stringMember(payload.session_id),
-    user: isRecord(payload.user) ? parseTokenUser(payload.user) : undefined,
-  };
-}
-
-/**
- * Narrow a parsed body to an RFC 6749 §5.2 error document, or null when the
- * response carries no such document (an HTML error page from a proxy, or a
- * body that simply has no `error` member).
- */
-function parseErrorResponse(payload: unknown): OAuthErrorResponse | null {
-  if (!isRecord(payload)) { return null; }
-
-  const error = stringMember(payload.error);
-  if (!error) { return null; }
-
-  return { error, error_description: stringMember(payload.error_description) };
-}
-
-/**
- * Describe a failed token exchange for the sign-in error notification.
- *
- * The §5.2 `error` code is the part a client can act on (`invalid_grant` means
- * "start sign-in again", `invalid_client` means "this build's client_id is
- * wrong"), so it is always shown, with the server's description when there is
- * one. A failure carrying no §5.2 document falls back to the HTTP status.
- */
-function describeTokenFailure(status: number, payload: unknown): string {
-  const failure = parseErrorResponse(payload);
-  if (!failure) {
-    return `OAuth token exchange failed (${status}).`;
-  }
-
-  return failure.error_description
-    ? `${failure.error_description} (${failure.error})`
-    : `OAuth token exchange failed: ${failure.error}`;
 }
 
 export class AliaAuthenticationProvider
@@ -196,6 +50,9 @@ export class AliaAuthenticationProvider
   private readonly _disposable: vscode.Disposable;
   private readonly _oxyServices: OxyServices;
   private readonly _secrets: vscode.SecretStorage;
+  private readonly _authStore: AuthStateStore;
+  private _disposeRefresh: (() => void) | null = null;
+  private _scheduler: { dispose(): void } | null = null;
   private readonly _ready: Promise<void>;
 
   private _sessions: vscode.AuthenticationSession[] = [];
@@ -205,15 +62,33 @@ export class AliaAuthenticationProvider
   private _pendingAuthTimeout: ReturnType<typeof setTimeout> | null = null;
   private _pendingCodeVerifier: string | null = null;
   private _pendingRedirectUri: string | null = null;
-  // Single-flight guard for token rotation. Concurrent callers share one
-  // in-flight refresh instead of each rotating the same refresh token — a
-  // double rotation trips the server's refresh-token reuse-detection and
-  // revokes the whole family.
-  private _refreshInFlight: Promise<boolean> | null = null;
 
   constructor(context: vscode.ExtensionContext) {
     this._oxyServices = new OxyServices({ baseURL: OXY_PLATFORM_URL });
     this._secrets = context.secrets;
+
+    /**
+     * The device credential, in VS Code's own secret storage.
+     *
+     * `createNativeAuthStateStore` takes any async key/value backing — its own
+     * doc says the factory is injected "so `@oxyhq/core` never imports
+     * `expo-secure-store`" — and `vscode.SecretStorage` is exactly that shape,
+     * backed by the OS keychain. So the extension supplies the one
+     * platform-specific piece and inherits the cold boot, the re-mint lane and
+     * the rotation scheduler unchanged.
+     */
+    // `vscode.SecretStorage` returns `Thenable`, not `Promise`; core's contract
+    // asks for `Promise`. `Promise.resolve` adapts it rather than widening the
+    // contract, which keeps `.catch`/`.finally` available to core's internals.
+    this._authStore = createNativeAuthStateStore({
+      getItem: async (key) => (await this._secrets.get(key)) ?? null,
+      setItem: async (key, value) => {
+        await this._secrets.store(key, value);
+      },
+      removeItem: async (key) => {
+        await this._secrets.delete(key);
+      },
+    });
 
     this._ready = this.initialize();
 
@@ -274,20 +149,33 @@ export class AliaAuthenticationProvider
         return;
       }
 
-      const tokenData = await this.exchangeAuthorizationCode(
+      /**
+       * Core's own exchange, not a hand-rolled `fetch`.
+       *
+       * The difference that matters is the RESPONSE: `exchangeOAuthCode`
+       * returns a `LoginSessionResult` carrying `deviceId` and `deviceSecret`,
+       * which is the credential the whole device-first restore is built on. The
+       * raw form POST this replaced returned only an access token, so every
+       * cold start after it had nothing to re-mint from and fell back to
+       * rotating a refresh token that the endpoint does not issue.
+       */
+      const result = await this._oxyServices.exchangeOAuthCode({
         code,
-        this._pendingRedirectUri,
-        this._pendingCodeVerifier,
-      );
-      const token = tokenData.access_token;
+        clientId: OXY_CLIENT_ID,
+        redirectUri: this._pendingRedirectUri,
+        codeVerifier: this._pendingCodeVerifier,
+      });
+      const token = result.accessToken;
+      if (!token) {
+        this.rejectPending('Oxy returned no access token for this sign-in.');
+        return;
+      }
       this._oxyServices.setTokens(token);
 
-      let userId = tokenData.user?.id || '';
-      let username = tokenData.user?.username || tokenData.user?.name?.displayName || '';
-      let resolvedSessionId = tokenData.session_id || `browser-${Date.now()}`;
-      const expiresAt = new Date(
-        Date.now() + (tokenData.expires_in || DEFAULT_TOKEN_LIFETIME_MS / 1000) * 1000,
-      ).toISOString();
+      let userId = '';
+      let username = '';
+      let resolvedSessionId = result.sessionId;
+      const expiresAt = result.expiresAt;
 
       try {
         const payload = jwtDecode<{ userId?: string; sub?: string; id?: string; username?: string; sessionId?: string }>(token);
@@ -299,9 +187,32 @@ export class AliaAuthenticationProvider
       const displayName = (await this.resolveDisplayName()) || username || 'Oxy User';
       if (!userId) { userId = `user-${Date.now()}`; }
 
-      // No `refreshToken`: the token endpoint issues no refresh token (RFC 6749
-      // §5.1 makes it optional), so a session minted by browser sign-in carries
-      // only the access token until it is rotated.
+      /**
+       * Two stores, and they hold different things on purpose.
+       *
+       * `_authStore` holds the CREDENTIAL — `{ deviceId, deviceSecret }` plus
+       * the warm token — and is the only thing a cold boot re-mints from. It is
+       * written FIRST and its durability is checked, because advertising a
+       * session built on a secret that did not land is what signs people out on
+       * restart.
+       *
+       * `persistSession` holds the DISPLAY state VS Code's session list needs
+       * and core does not model.
+       */
+      const durable = await this._authStore.save({
+        sessionId: result.sessionId,
+        userId,
+        deviceId: result.deviceId,
+        deviceSecret: result.deviceSecret,
+        accessToken: token,
+        expiresAt,
+      });
+      if (!durable) {
+        this.rejectPending('Could not save the session to the OS keychain.');
+        return;
+      }
+      this.installRefresh();
+
       await this.persistSession({
         accessToken: token,
         expiresAt,
@@ -360,14 +271,38 @@ export class AliaAuthenticationProvider
 
   // --- Session lifecycle ---
 
+  /**
+   * Install core's re-mint handler and its proactive scheduler.
+   *
+   * Idempotent: a second call disposes the first, so signing in after a restore
+   * never leaves two schedulers racing on one token.
+   */
+  private installRefresh(): void {
+    this._disposeRefresh?.();
+    this._scheduler?.dispose();
+    this._disposeRefresh = installAuthRefreshHandler({
+      oxy: this._oxyServices,
+      store: this._authStore,
+    });
+    this._scheduler = startTokenRefreshScheduler(this._oxyServices);
+  }
+
   private async initialize(): Promise<void> {
+    // The handler goes on FIRST: a token planted below can expire while the
+    // window is open, and the reactive 401 lane must already be installed when
+    // it does.
+    this.installRefresh();
+
     const persisted = await this.readPersistedSession();
     if (!persisted) { return; }
 
     this._oxyServices.setTokens(persisted.accessToken);
 
     if (!this.isPlantedTokenFresh(persisted.expiresAt)) {
-      // Expired on cold start — try to rotate before surfacing a session.
+      // Expired on cold start — re-mint from the device secret before surfacing
+      // a session. `refreshToken` now delegates to core's mint lane, so a
+      // failure here means the device credential is gone or revoked, not that a
+      // rotation raced.
       const refreshed = await this.refreshToken();
       if (!refreshed) {
         await this.clearPersistedSession();
@@ -428,65 +363,24 @@ export class AliaAuthenticationProvider
     return apiKey?.startsWith('alia_sk_') ? apiKey : null;
   }
 
+  /**
+   * Re-mint the access token.
+   *
+   * This used to be a hand-rolled rotation: read a persisted `refreshToken`,
+   * call `OxyServices.refreshWithToken`, plant and re-persist the pair, all
+   * behind a single-flight promise this class maintained itself. Two things
+   * were wrong with it. `refreshWithToken` does not exist in `@oxyhq/core@19`
+   * — it was the pre-device-first API, and calling it was the single type error
+   * that kept this package out of CI. And the single-flight guard duplicated
+   * `HttpService`, which already coalesces the timer, the request-time
+   * preflight and a 401 into one network attempt with its own cooldown.
+   *
+   * So this delegates. `refreshAccessToken` runs the handler installed by
+   * {@link installRefresh}, which is core's device-secret mint lane.
+   */
   public async refreshToken(): Promise<boolean> {
-    // Coalesce concurrent rotations: a stampede of near-expiry callers (e.g. two
-    // AI requests firing at once) must share a single rotation. Rotating the
-    // same refresh token twice trips server-side reuse-detection and revokes the
-    // family. The in-flight promise resolves only after the rotated pair is
-    // planted + persisted, so every awaiter observes the new token.
-    if (this._refreshInFlight) { return this._refreshInFlight; }
-
-    // `.catch(() => false)` before caching guarantees the shared promise
-    // RESOLVES (never rejects): a keychain/storage read failure inside
-    // `rotateRefreshToken` (e.g. `readPersistedSession`, which runs before its
-    // own try/catch) must surface as a normal `false` to every awaiter — some
-    // callers (`initialize`, session restore) `await refreshToken()` without a
-    // catch, and a rejected shared promise would become an unhandled rejection
-    // and could stall extension init. The `.finally` still clears the cache so a
-    // later attempt can retry.
-    const inFlight = this.rotateRefreshToken()
-      .catch(() => false)
-      .finally(() => {
-        this._refreshInFlight = null;
-      });
-    this._refreshInFlight = inFlight;
-    return inFlight;
-  }
-
-  private async rotateRefreshToken(): Promise<boolean> {
-    const persisted = await this.readPersistedSession();
-    if (!persisted?.refreshToken) { return false; }
-
-    try {
-      const rotated = await this._oxyServices.refreshWithToken(persisted.refreshToken);
-      this._oxyServices.setTokens(rotated.accessToken);
-
-      const next: PersistedSession = {
-        accessToken: rotated.accessToken,
-        // A rotation that omits a new refresh token must NOT wipe the stored
-        // one — otherwise a single optional-rotation response would force a full
-        // re-sign-in on the next cold start.
-        refreshToken: rotated.refreshToken || persisted.refreshToken,
-        expiresAt: rotated.expiresAt,
-        userId: persisted.userId,
-        username: persisted.username,
-      };
-      await this.persistSession(next);
-
-      const session = this.buildSession(
-        `alia-session-${next.userId}`, next.accessToken, next.userId, next.username,
-      );
-      const wasActive = this._sessions.length > 0;
-      this._sessions = [session];
-      this._sessionChangeEmitter.fire(
-        wasActive
-          ? { added: [], removed: [], changed: [session] }
-          : { added: [session], removed: [], changed: [] },
-      );
-      return true;
-    } catch {
-      return false;
-    }
+    const token = await this._oxyServices.httpService.refreshAccessToken('preflight');
+    return token !== null;
   }
 
   public getOxyServices(): OxyServices {
@@ -602,40 +496,6 @@ export class AliaAuthenticationProvider
    * the wire. Once core 17 is published and the workspace pin is raised, this
    * method can be replaced by that single call.
    */
-  private async exchangeAuthorizationCode(
-    code: string,
-    redirectUri: string,
-    codeVerifier: string,
-  ): Promise<OAuthTokenResponse> {
-    const form = new URLSearchParams({
-      grant_type: AUTHORIZATION_CODE_GRANT,
-      code,
-      redirect_uri: redirectUri,
-      client_id: OXY_CLIENT_ID,
-      code_verifier: codeVerifier,
-    });
-
-    const response = await fetch(`${OXY_PLATFORM_URL}/auth/oauth/token`, {
-      method: 'POST',
-      headers: {
-        Accept: 'application/json',
-        'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
-      },
-      // Serialised explicitly rather than handed to `fetch` as a
-      // `URLSearchParams`, so the body matches the Content-Type set above
-      // regardless of which fetch implementation the extension host provides.
-      body: form.toString(),
-    });
-
-    const payload = await readJsonBody(response);
-
-    if (!response.ok) {
-      throw new Error(describeTokenFailure(response.status, payload));
-    }
-
-    return parseTokenResponse(payload);
-  }
-
   private rejectPending(message: string): void {
     this._pendingAuthReject?.(new Error(message));
     this.clearPendingAuth();

@@ -86,12 +86,7 @@ const CHECKED_ELSEWHERE: Readonly<Record<string, string>> = {
  * recorded so that a package getting WORSE is visible, and so that "we excluded
  * two packages" cannot quietly become "we excluded two packages and 300 errors".
  */
-const EXCLUDED: Readonly<Record<string, { readonly errors: number; readonly why: string }>> = {
-  'alia-codea': {
-    errors: 1,
-    why: 'src/authProvider.ts calls OxyServices.refreshWithToken, which @oxyhq/core@19 does not have — the device-first session migration, #139 ws11',
-  },
-};
+const EXCLUDED: Readonly<Record<string, { readonly errors: number; readonly why: string }>> = {};
 
 /** Has no `typecheck` script, and why that is the right answer for it. */
 const NO_TYPECHECK: Readonly<Record<string, string>> = {
@@ -160,7 +155,7 @@ function main(): void {
   const counts: readonly [string, number, number][] = [
     ['workspaces', workspaces.length, 12],
     ['CHECKED_ELSEWHERE', Object.keys(CHECKED_ELSEWHERE).length, 3],
-    ['EXCLUDED', Object.keys(EXCLUDED).length, 1],
+    ['EXCLUDED', Object.keys(EXCLUDED).length, 0],
     ['NO_TYPECHECK', Object.keys(NO_TYPECHECK).length, 4],
   ];
   const countProblems = counts

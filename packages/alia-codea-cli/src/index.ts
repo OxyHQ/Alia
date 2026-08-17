@@ -8,6 +8,7 @@ import { runPrompt } from './commands/run.js';
 import { login, logout } from './commands/auth.js';
 import { listSessions, resumeSession } from './commands/sessions.js';
 import chalk from 'chalk';
+import { restoreSession } from './utils/oxy-session.js';
 
 const require = createRequire(import.meta.url);
 const { version: VERSION } = require('../package.json') as { version: string };
@@ -31,9 +32,16 @@ program
     const command = program.args[0];
     if (command === 'login' || command === 'logout' || command === 'help') return;
 
-    if (!config.get('apiKey')) {
+    /**
+     * "Signed in" is now a question only the cold boot can answer: the device
+     * secret on disk may still re-mint, or may have been revoked server-side.
+     * Reading a stored key out of the config file would answer a different
+     * question — whether a string is present — which is how a revoked
+     * credential used to reach the first request and fail there instead.
+     */
+    if (!(await restoreSession())) {
       console.log(banner);
-      console.log(chalk.yellow('No API key found. Let\'s get you logged in.\n'));
+      console.log(chalk.yellow('Not signed in. Let\'s get you logged in.\n'));
       const success = await login();
       if (!success) {
         process.exit(1);
@@ -83,7 +91,7 @@ program
 // Login/configure
 program
   .command('login')
-  .description('Configure your Alia API key')
+  .description('Sign in to Oxy')
   .action(async () => {
     await login();
   });
@@ -91,9 +99,9 @@ program
 // Logout
 program
   .command('logout')
-  .description('Remove saved credentials')
-  .action(() => {
-    logout();
+  .description('Sign out of Oxy on this machine')
+  .action(async () => {
+    await logout();
   });
 
 // Session management

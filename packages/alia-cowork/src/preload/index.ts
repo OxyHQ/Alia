@@ -88,7 +88,11 @@ const api = {
   onModeChanged: (callback: (data: { mode: string }) => void) => subscribe('chat:modeChanged', callback),
   onFullScreenChanged: (callback: (isFullScreen: boolean) => void) =>
     subscribe('window:fullscreen-changed', callback),
-  onAuthSuccess: (callback: (data: { token: string; userInfo: unknown }) => void) =>
+  onAuthCode: (callback: (data: { code: string; url: string; expiresAt: number }) => void) =>
+    subscribe('auth:code', callback),
+  // No token crosses this boundary any more: the main process holds the session
+  // and answers `auth:getState`, so a compromised renderer has nothing to leak.
+  onAuthSuccess: (callback: (data: { userInfo: unknown }) => void) =>
     subscribe('auth:success', callback),
   onAuthError: (callback: (data: { message: string }) => void) => subscribe('auth:error', callback),
   onAuthSignedOut: (callback: () => void) => subscribe<void>('auth:signedOut', callback)
