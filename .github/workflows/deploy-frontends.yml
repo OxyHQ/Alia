@@ -40,6 +40,18 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.3.14
+      # The git dependency `libsignal` is fetched from GitHub unauthenticated and
+      # cannot be authenticated; a warm cache is what stops that request being
+      # made. See the comment at the top of ci.yml for the measurement, and
+      # .github/scripts/check-bun-cache-wiring.mjs, which fails if this is removed.
+      - name: Cache bun install cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: bun-cache-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+          restore-keys: |
+            bun-cache-${{ runner.os }}-
+
       # bun 1.3.14's --frozen-lockfile falsely reports drift for this monorepo, so we
       # assert lockfile stability via `git diff --exit-code bun.lock`. --ignore-scripts
       # skips electron/playwright/node-pty postinstalls (alia-cowork) that hang deploys.
@@ -73,6 +85,18 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.3.14
+      # The git dependency `libsignal` is fetched from GitHub unauthenticated and
+      # cannot be authenticated; a warm cache is what stops that request being
+      # made. See the comment at the top of ci.yml for the measurement, and
+      # .github/scripts/check-bun-cache-wiring.mjs, which fails if this is removed.
+      - name: Cache bun install cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: bun-cache-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+          restore-keys: |
+            bun-cache-${{ runner.os }}-
+
       # bun 1.3.14's --frozen-lockfile falsely reports drift for this monorepo, so we
       # assert lockfile stability via `git diff --exit-code bun.lock`. --ignore-scripts
       # skips electron/playwright/node-pty postinstalls (alia-cowork) that hang deploys.
