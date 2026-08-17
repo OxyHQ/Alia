@@ -114,15 +114,24 @@ interface MatrixRow {
  * commit — which is the only thing standing between "the epic is deleting
  * things" and "the matrix has quietly stopped describing anything".
  *
- * 39 as of #166, over 36 distinct paths: 18 rows on 16 paths under
+ * 40 as of #139 ws7, over 37 distinct paths: 18 rows on 16 paths under
  * `internal/providers/**`, 20 rows on 19 paths under
- * `packages/alia-gateway-admin/`, and one on
+ * `packages/alia-gateway-admin/`, one on
  * `packages/api/src/lib/tools/gateway-admin.ts` — the AI-callable tool that
- * proxied provider-key CRUD to the deleted gateway, removed by #166. Three
- * paths carry two rows each, because two separate migration subjects lived in
- * one file.
+ * proxied provider-key CRUD to the deleted gateway, removed by #166 — and one
+ * on `packages/integrations/src/shared/model-resolver.ts`, the SECOND service's
+ * copy of provider construction, removed by #184. Three paths carry two rows
+ * each, because two separate migration subjects lived in one file.
+ *
+ * The row that did NOT move is `sdk-integrations-ai-sdk`: the three `@ai-sdk/*`
+ * dependencies it covers went in the same commit, but its `currentPath` is a
+ * `package.json` that still exists, so it may not claim `removedIn` — the
+ * existence check would fail it, correctly. Gate 7 of
+ * `src/__tests__/architectureGates.test.ts` verifies that row instead, by
+ * asserting `packages/api` is the only manifest declaring a provider SDK. A
+ * dependency row is the one shape this file's existence check cannot see.
  */
-const REMOVED_ROW_COUNT = 39;
+const REMOVED_ROW_COUNT = 40;
 
 const OWNERS = new Set(['alia', 'oxy', 'relay', 'delete']);
 const REACHABLE = new Set(['live', 'dead', 'unverified', 'loaded-not-invoked']);
