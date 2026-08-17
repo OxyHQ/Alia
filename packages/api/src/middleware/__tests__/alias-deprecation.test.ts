@@ -18,12 +18,22 @@ import {
   ALIAS_DEPRECATION,
   ALIAS_SUNSET,
   DEPRECATED_ALIASES,
+  aliasDeprecationEvent,
   aliasDeprecationHeaders,
   createAliasDeprecationHeaders,
   namedIdentifiers,
   toHttpDate,
   toStructuredFieldDate,
 } from '../alias-deprecation.js';
+import { CHAT_EVENT_VERSION } from '../../lib/chat-events.js';
+
+/** The classification the compatibility window publishes to callers, read from disk. */
+const MIGRATION_MAP = JSON.parse(
+  readFileSync(
+    fileURLToPath(new URL('../../../../../docs/migration/alias-migration-map.json', import.meta.url)),
+    'utf8',
+  ),
+) as { aliases: { alias: string; becomes: { id: string } }[] };
 
 interface Call {
   headers: Record<string, string>;
@@ -171,6 +181,59 @@ describe('Sunset is absent until a removal date is set', () => {
       path: '/v1/chat/completions',
     });
     expect(call.headers).toEqual({});
+  });
+});
+
+describe('the stream event carries the same notice to a caller that reads only the body', () => {
+  /**
+   * `docs/migration/compatibility-window.md` names two signals for path (a) and
+   * counted only one as delivered: *"paths (b) and (c) emit nothing yet, and
+   * neither does the `alia.deprecation` stream event for any path."* This is
+   * that event.
+   *
+   * The replacement is the interesting field. It must be the routing profile
+   * the migration map publishes — a caller acts on it — and it must never be a
+   * model identity, because ADR 0003 classifies all thirteen as profiles.
+   */
+  it('names the profile the migration map publishes, for every one of the thirteen', () => {
+    const published = new Map<string, string>();
+    for (const entry of MIGRATION_MAP.aliases) published.set(entry.alias, entry.becomes.id);
+    // Vacuity floor: an unparsed map agrees with everything.
+    expect(published.size).toBe(DEPRECATED_ALIASES.length);
+
+    for (const alias of DEPRECATED_ALIASES) {
+      const event = aliasDeprecationEvent(alias, null);
+      expect(event, alias).not.toBeNull();
+      expect(event?.identifier).toBe(alias);
+      expect(event?.replacement).toBe(published.get(alias));
+      // A profile id, never a model identity in `<publisher>/<model>` form.
+      expect(event?.replacement.startsWith('profile:')).toBe(true);
+      expect(event?.replacement).not.toContain('/');
+    }
+  });
+
+  it('follows the alia.* SSE convention and the deprecation date the headers use', () => {
+    const event = aliasDeprecationEvent('alia-v1', null);
+    expect(event?.eventVersion).toBe(CHAT_EVENT_VERSION);
+    expect(event?.deprecatedAt).toBe(ALIAS_DEPRECATION.toISOString());
+    expect(event?.documentation).toContain('compatibility-window');
+  });
+
+  it('withholds a sunset date exactly as the header does, and carries one when set', () => {
+    // Both branches, because a test that only ever sees `null` proves nothing
+    // about the branch that ships the day a removal date is agreed.
+    expect(aliasDeprecationEvent('alia-v1', ALIAS_SUNSET)?.sunsetAt).toBeNull();
+    const removal = new Date('2033-12-31T23:59:59.000Z');
+    expect(aliasDeprecationEvent('alia-v1', removal)?.sunsetAt).toBe('2033-12-31T23:59:59.000Z');
+  });
+
+  it('says nothing about an identifier that is not deprecated', () => {
+    // The negative control. Without it, a builder that returned an event for
+    // everything would pass every case above.
+    expect(aliasDeprecationEvent('gpt-4o', null)).toBeNull();
+    expect(aliasDeprecationEvent('', null)).toBeNull();
+    expect(aliasDeprecationEvent('alia-flash', null)).toBeNull();
+    expect(aliasDeprecationEvent('mode:fast', null)).toBeNull();
   });
 });
 

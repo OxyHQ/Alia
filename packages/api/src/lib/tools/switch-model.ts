@@ -9,6 +9,7 @@
 import { tool } from 'ai';
 import { z } from 'zod';
 import { getAliaModel } from '../gateway-client.js';
+import { isAliasVisible } from '../product-modes.js';
 import { log } from '../logger.js';
 
 /**
@@ -35,7 +36,7 @@ export function createSwitchModelTool(onSwitch: (modelId: string, modelName: str
       if (!aliaModel) {
         return { error: `Model "${model}" not found. Available: alia-lite, alia-v1, alia-v1-pro, alia-v1-thinking, alia-v1-pro-max.` };
       }
-      if (!aliaModel.chatVisible) {
+      if (!isAliasVisible(model)) {
         return { error: `Model "${model}" is not available for chat.` };
       }
 

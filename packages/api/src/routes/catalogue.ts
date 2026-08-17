@@ -58,6 +58,7 @@ import {
   type CatalogueEntry,
   type TokenBound,
 } from '../lib/catalogue.js';
+import { PRODUCT_MODES, type ProductMode } from '../lib/product-modes.js';
 
 const router = Router();
 
@@ -129,6 +130,51 @@ function serializeEntry(entry: CatalogueEntry): Record<string, unknown> {
     selects_among: entry.selectsAmong,
   };
 }
+
+/**
+ * The one place in this package that serializes a product mode.
+ *
+ * `object` is the constant `'product_mode'` with no branch above it, which is
+ * the shape ADR 0003 invariant 1 requires and #139's architecture-test
+ * checkbox *"fail when a product mode is serialized as `object: model`"*
+ * measures: gate 5 drives this handler and reads the value back, so a branch
+ * that could emit `model` fails there rather than shipping.
+ *
+ * `routing` is published rather than resolved to a profile id, because the two
+ * `default` modes genuinely pin no profile and flattening them to whichever
+ * profile the default happens to be today would publish a routing claim the
+ * product does not make. A client renders the discriminant.
+ */
+function serializeMode(mode: ProductMode): Record<string, unknown> {
+  return {
+    id: mode.id,
+    object: 'product_mode',
+    label: mode.label,
+    description: mode.description,
+    routing:
+      mode.routing.kind === 'profile'
+        ? { kind: 'profile', profile_id: mode.routing.profile }
+        : { kind: 'default' },
+    deep_research: mode.deepResearch,
+  };
+}
+
+/**
+ * GET /catalogue/modes
+ *
+ * The product modes a person picks between — Automatic, Fast, Balanced, Maximum
+ * quality, Coding and Deep research. Product configuration, not models: nothing
+ * here has a publisher, a revision or a model card, and none of it is
+ * serialized `object: 'model'`.
+ *
+ * Unauthenticated and unfiltered. A mode is a product decision that is the same
+ * for everybody; what a given caller may USE is entitlement, which is annotated
+ * per entry on `GET /catalogue` and belongs to the entries a mode routes
+ * through rather than to the mode.
+ */
+router.get('/modes', (_req: Request, res: Response) => {
+  res.json({ object: 'list', data: PRODUCT_MODES.map(serializeMode) });
+});
 
 function parseProduct(raw: unknown): PlanProduct | null | 'invalid' {
   if (raw === undefined) return null;

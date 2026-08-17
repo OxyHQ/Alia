@@ -75,6 +75,10 @@ const GOVERNED_PREFIX = 'packages/api/src/internal/providers/';
 const NOT_APPLICABLE: Readonly<Record<string, string>> = {
   'packages/api/src/internal/providers/lib/__tests__/fallback-engine-policy.test.ts':
     'Test of fallback-engine.ts, which is mapped (row `fallback-engine`). Moves or dies with it.',
+  'packages/api/src/internal/providers/lib/__tests__/fallback-engine-preset.test.ts':
+    'Test of fallback-engine.ts, which is mapped (row `fallback-engine`). Moves or dies with it.',
+  'packages/api/src/internal/providers/lib/__tests__/fallback-engine-concrete-model.test.ts':
+    'Test of fallback-engine.ts, which is mapped (row `fallback-engine`), against the catalogue’s own classifier. Moves or dies with it.',
   'packages/api/src/internal/providers/lib/__tests__/provider-health.test.ts':
     'Test of provider-health.ts, which is mapped (row `provider-health`). Moves or dies with it.',
   'packages/api/src/internal/providers/lib/__tests__/tts-providers.test.ts':
@@ -84,7 +88,7 @@ const NOT_APPLICABLE: Readonly<Record<string, string>> = {
   'packages/api/src/internal/providers/lib/__tests__/credential-redaction.test.ts':
     'Test of provider-error-body.ts, which is mapped (row `provider-error-body`), and of lib/logger.ts, which is not in this subtree. Moves or dies with them.',
 };
-const NOT_APPLICABLE_COUNT = 5;
+const NOT_APPLICABLE_COUNT = 7;
 
 interface MatrixRow {
   readonly id: string;

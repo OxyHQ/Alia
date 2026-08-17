@@ -61,6 +61,7 @@ import { getAvailableModels, getTierMappings, getPlans, type PlanData } from './
 import { getUserEntitlements } from './plan-access.js';
 import { ALIAS_DEPRECATION, ALIAS_SUNSET, DEPRECATED_ALIASES } from '../middleware/alias-deprecation.js';
 import { PLAN_PRODUCTS, type PlanProduct } from '../domain/plan.js';
+import { isAliasVisible } from './product-modes.js';
 import type { FallbackPolicy } from './routing/policy.js';
 import { log } from './logger.js';
 
@@ -178,7 +179,12 @@ interface CatalogueEntryCommon {
   readonly description: string;
   readonly category: string;
   readonly emoji: string | null;
-  /** Product policy: whether the chat picker surfaces this entry. */
+  /**
+   * Product policy: whether the picker surfaces this entry. Read from
+   * `product-modes.ts` `VISIBLE_PROFILES`, which is the product's own
+   * configuration — never from the provider mapping table, where it used to sit
+   * as a `chatVisible` field on five alias definitions.
+   */
   readonly chatVisible: boolean;
   readonly capabilities: CatalogueCapabilities;
   readonly availability: { readonly status: 'available' | 'unavailable'; readonly legacy: boolean };
@@ -253,7 +259,6 @@ export interface CatalogueSource {
   readonly category: string;
   readonly tier: string;
   readonly emoji?: string;
-  readonly chatVisible?: boolean;
   readonly creditMultiplier: number;
   readonly isAvailable: boolean;
   readonly isLegacy: boolean;
@@ -343,7 +348,7 @@ export function buildEntry(
     description: source.description,
     category: source.category,
     emoji: source.emoji ?? null,
-    chatVisible: source.chatVisible === true,
+    chatVisible: isAliasVisible(source.id),
     capabilities: deriveCapabilities(candidates),
     availability: { status: source.isAvailable ? 'available' : 'unavailable', legacy: source.isLegacy },
     entitlement,
