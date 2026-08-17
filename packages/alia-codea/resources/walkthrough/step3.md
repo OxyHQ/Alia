@@ -1,5 +1,3 @@
-![Chat with Codea](chat.png)
-
 **Ask questions, request changes, or get help understanding your code.**
 
 Type your message in the input field and press Enter. Codea can help you:

@@ -14,8 +14,12 @@ not a service**: nothing here is mounted on the HTTP server.
   `../../lib/gateway-client.ts`, which every consumer imports. There are no
   provider routes to call, and none should be added — expose a public endpoint
   in `routes/` that abstracts the provider details instead.
-- **Never publicly documented**: provider names and provider model ids stay
-  inside this directory. Everything that crosses the boundary is Alia-branded.
+- **Concealed on the PRODUCT surface, not everywhere**: provider names and
+  provider model ids do not reach product API responses, product errors, the UI
+  or customer-facing analytics — that is a product and privacy boundary, not a
+  global ban on the words. Engineering docs, ADRs, operator surfaces and schema
+  comments name them, because ADR 0003 makes `<publisher>/<model>` the canonical
+  identifier form. See AGENTS.md, "Model identity: scoped, not a global ban".
 - **Virtual Alia Models**: used exclusively for internal Alia model resolution
   (alia-v1, alia-lite, etc.)
 

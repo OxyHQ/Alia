@@ -12,7 +12,9 @@ AI coding assistant for Visual Studio Code, powered by [Alia](https://alia.onl).
 Codea uses the same unified chat runtime as app and Cowork:
 
 - Endpoint: `POST /v1/chat/completions`
-- Model IDs: Alia IDs only (`alia-v1-codea`, `alia-v1-pro`, etc.)
+- Model IDs: a catalogue id or a product mode (`profile:v1-codea`, `profile:v1-pro`).
+  The `alia-*` identifiers this extension has always sent still resolve, but they are
+  routing profiles rather than models Alia owns, and `GET /v1/models` no longer lists them
 - Streaming events: standardized named events with `eventVersion: 1`
 - Removed endpoints (`/codea/resolve-model`, `/codea/report-usage`) are no longer used by clients
 
