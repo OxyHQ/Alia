@@ -121,7 +121,11 @@ export const AGENT_TOOL_SPECS: Record<string, ToolSpec> = {
  * Build an enhanced description by combining base description with spec guidance.
  */
 export function enhanceDescription(toolName: string, baseDescription: string): string {
-  const spec = AGENT_TOOL_SPECS[toolName];
+  // Tool names reach here from MCP servers and Oxy service manifests, so
+  // `toolName` is third-party input. `AGENT_TOOL_SPECS['constructor']` is a
+  // function: truthy, so `if (!spec)` passed, and the next line threw on
+  // `spec.whenToUse.length`.
+  const spec = Object.hasOwn(AGENT_TOOL_SPECS, toolName) ? AGENT_TOOL_SPECS[toolName] : undefined;
   if (!spec) return baseDescription;
 
   const parts = [baseDescription];

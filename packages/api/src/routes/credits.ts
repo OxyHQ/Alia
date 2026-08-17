@@ -31,7 +31,12 @@ router.get('/usage', authenticateToken, async (req, res) => {
   try {
     const period = (req.query.period as string) || '7d';
     const periodMap: Record<string, number> = { '24h': 1, '48h': 2, '72h': 3, '7d': 7, '30d': 30 };
-    const days = periodMap[period] ?? 7;
+    // `Object.hasOwn`, not `??`. `period` is the caller's own query string and
+    // `periodMap` is an object literal: `periodMap['constructor']` is a
+    // function, which `??` passes straight through, and `days` then reached
+    // `since.setDate(since.getDate() - days)` as a function — an Invalid Date,
+    // handed to a database query.
+    const days = Object.hasOwn(periodMap, period) ? periodMap[period] : 7;
     const since = new Date();
     since.setDate(since.getDate() - days);
     since.setHours(0, 0, 0, 0);

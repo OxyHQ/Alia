@@ -64,12 +64,18 @@ function isElevenLabsVoiceId(voice: string): boolean {
  */
 export function resolveVoiceForProvider(provider: string, requested: string | undefined): string {
   const voice = (requested || '').trim();
-  const entry = OPENAI_VOICE_MAP[voice.toLowerCase()];
+  // `requested` is the caller's own voice name. `OPENAI_VOICE_MAP` is an object
+  // literal, so `OPENAI_VOICE_MAP['constructor']` is a function — truthy, so
+  // every `entry ? … : default` below took the wrong branch, and the `google`
+  // branch returned `entry.gemini`, which is `undefined` from a signature that
+  // says `string`.
+  const requestedKey = voice.toLowerCase();
+  const entry = Object.hasOwn(OPENAI_VOICE_MAP, requestedKey) ? OPENAI_VOICE_MAP[requestedKey] : undefined;
 
   switch (provider) {
     case 'openai':
     case 'openrouter':
-      return entry ? voice.toLowerCase() : OPENAI_DEFAULT_VOICE;
+      return entry ? requestedKey : OPENAI_DEFAULT_VOICE;
     case 'google':
       return entry ? entry.gemini : GEMINI_DEFAULT_VOICE.female;
     case 'digitalocean':

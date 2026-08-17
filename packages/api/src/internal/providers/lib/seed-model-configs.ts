@@ -56,7 +56,10 @@ const MODEL_DISPLAY_NAMES: Record<string, string> = {
 };
 
 function getDisplayName(provider: string, modelId: string): string {
-  if (MODEL_DISPLAY_NAMES[modelId]) return MODEL_DISPLAY_NAMES[modelId];
+  // Truthiness followed by a read is the shape: for an inherited name the test
+  // passes and the read returns a function from a `string` signature. Not
+  // reachable — `modelId` comes from the seed table — but it is one line.
+  if (Object.hasOwn(MODEL_DISPLAY_NAMES, modelId)) return MODEL_DISPLAY_NAMES[modelId];
   // Auto-generate from modelId
   return modelId
     .replace(/[-_]/g, ' ')
