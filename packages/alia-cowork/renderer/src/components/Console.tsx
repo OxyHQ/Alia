@@ -11,7 +11,11 @@ import { useConsole } from "@/contexts/ConsoleContext"
 
 export function Console() {
   const { logs, addLog, clearLogs: clearConsoleLogs } = useConsole()
-  const [authState, setAuthState] = React.useState<{ isAuthenticated: boolean; apiKey?: string } | null>(null)
+  const [authState, setAuthState] = React.useState<{
+    isAuthenticated: boolean
+    username?: string
+    preferredModel: string
+  } | null>(null)
   const [apiTest, setApiTest] = React.useState<{ status: string; message: string } | null>(null)
 
   // Fetch auth state
@@ -85,11 +89,9 @@ export function Console() {
                 </span>
               </div>
               <div className="flex items-center justify-between">
-                <Label>API Key</Label>
+                <Label>Account</Label>
                 <code className="text-xs text-muted-foreground font-mono">
-                  {authState?.apiKey
-                    ? `${authState.apiKey.substring(0, 20)}...`
-                    : "Not set"}
+                  {authState?.username ?? "Not signed in"}
                 </code>
               </div>
             </CardContent>
@@ -120,8 +122,8 @@ export function Console() {
               </div>
               <div className="space-y-1 text-xs text-muted-foreground">
                 <div>Base URL: https://api.alia.onl</div>
-                <div>Auth URL: https://alia.onl/authorize/codea</div>
-                <div>Model: alia-v1-codea</div>
+                <div>Sign-in: Oxy device flow</div>
+                <div>Model: {authState?.preferredModel ?? "—"}</div>
               </div>
             </CardContent>
           </Card>

@@ -10,6 +10,7 @@ import { spawn, type ChildProcess } from 'child_process'
 import Store from 'electron-store'
 import { errorMessage } from './errors'
 import { createLogger } from './logger'
+import { currentAccessToken } from './auth'
 
 const store = new Store()
 const logger = createLogger('MCP')
@@ -87,7 +88,7 @@ export class McpLocalClient {
    * Start the MCP client: fetch local servers, spawn them, and connect to relay.
    */
   async start(): Promise<void> {
-    const apiKey = store.get('apiKey') as string
+    const apiKey = currentAccessToken()
     if (!apiKey) return
 
     try {

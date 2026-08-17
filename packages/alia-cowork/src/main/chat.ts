@@ -11,6 +11,7 @@ import { errorMessage, errorName, errorStack } from './errors'
 import { createLogger } from './logger'
 import { PREFERRED_CHAT_MODEL_ID } from './config'
 import { fetchCatalogue, resolveModelId, type CatalogueEntry } from './catalogue'
+import { currentAccessToken } from './auth'
 
 /** A file/folder context item attached to a chat message from the renderer. */
 interface ContextItem {
@@ -27,7 +28,6 @@ const logger = createLogger('ChatProvider')
 
 const store = new Store({
   defaults: {
-    apiKey: '',
     apiBaseUrl: 'https://api.alia.onl',
     model: PREFERRED_CHAT_MODEL_ID,
     enableTools: true
@@ -60,7 +60,7 @@ export class ChatProvider {
   ): Promise<void> {
     if (this.isProcessing) return
 
-    const apiKey = store.get('apiKey') as string
+    const apiKey = currentAccessToken()
     const baseUrl = store.get('apiBaseUrl') as string
     /**
      * Resolved once, here, and then carried through the whole conversation
@@ -71,7 +71,7 @@ export class ChatProvider {
     const selectedModel = await resolveModelId(
       store.get('apiBaseUrl') as string,
       requestedModel,
-      store.get('apiKey') as string,
+      currentAccessToken() ?? '',
     )
     const enableTools = store.get('enableTools') as boolean
 
@@ -1073,7 +1073,7 @@ export class ChatProvider {
   }
 
   async getUserInfo(): Promise<unknown> {
-    const apiKey = store.get('apiKey') as string
+    const apiKey = currentAccessToken()
     const baseUrl = store.get('apiBaseUrl') as string
 
     if (!apiKey) return null
@@ -1109,7 +1109,7 @@ export class ChatProvider {
     try {
       return (await fetchCatalogue(
         store.get('apiBaseUrl') as string,
-        store.get('apiKey') as string,
+        currentAccessToken() ?? '',
       )).filter((entry) => entry.chatVisible)
     } catch {
       return []
@@ -1117,7 +1117,7 @@ export class ChatProvider {
   }
 
   async getUserMemory(): Promise<unknown> {
-    const apiKey = store.get('apiKey') as string
+    const apiKey = currentAccessToken()
     const baseUrl = store.get('apiBaseUrl') as string
 
     if (!apiKey) return null
