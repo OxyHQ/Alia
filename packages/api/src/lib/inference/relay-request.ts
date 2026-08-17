@@ -12,10 +12,19 @@
  *
  * There is no ranking, no candidate list, no provider anywhere in this file.
  * Choosing among routes is Relay's — ADR 0001 and #139's first invariant — and
- * the translation below is structural: a product model id is a MODEL REFERENCE
+ * the translation below decides nothing: a product model id is a MODEL REFERENCE
  * if it parses as one and a ROUTING PROFILE if it parses as one, and the two
  * grammars are disjoint (`identifiers.ts`: a reference requires a `/`, a profile
  * forbids it), so nothing here has to guess.
+ *
+ * One id shape is translated by LOOKUP rather than by grammar, and it is the
+ * compatibility case: the thirteen `alia-*` aliases become the profiles
+ * `docs/migration/alias-migration-map.json` publishes for them (#139 workstream
+ * 18). Structurally an alias parses as a profile slug named after itself, which
+ * is a profile no catalogue outside this repository has ever heard of — so the
+ * grammar gives a well-formed answer that is wrong, which is why the lookup goes
+ * first. It is not a ranking: `lib/routing/alias-translation.ts` maps one
+ * identifier to one published replacement, and refuses everything else.
  *
  * There is also no catalogue. {@link violatedCapability} takes the capabilities
  * it checks against as an argument; looking them up is #139 workstream 5's.
@@ -34,6 +43,7 @@ import {
   type RoutingTarget,
 } from '@oxyhq/contracts';
 
+import { translateAlias } from '../routing/alias-translation.js';
 import type { AliaInferenceSurface, AliaModelChoice } from './product-seam.js';
 import { createInferenceError, RelayInferenceError } from './relay-error.js';
 
@@ -152,10 +162,14 @@ export function buildInferenceRequest(
  * hardcoded one: the default is a deployment decision, and a default baked in
  * here is a silent model choice living in a translation function.
  *
- * A `productModelId` that parses as neither a reference nor a profile is
- * `invalid_request`. It is NOT quietly treated as a profile — that fallback is
- * how a typo becomes "Oxy chose something for you", which is the substitution
- * ADR 0003 forbids.
+ * A legacy `alia-*` alias is translated first, into the profile the published
+ * migration map names. Ahead of the grammars because it is the one case where
+ * the grammars answer confidently and wrongly — see the module header.
+ *
+ * A `productModelId` that is neither an alias nor a parseable reference nor a
+ * parseable profile is `invalid_request`. It is NOT quietly treated as a profile
+ * — that fallback is how a typo becomes "Oxy chose something for you", which is
+ * the substitution ADR 0003 forbids.
  */
 export function resolveRoutingTarget(
   choice: AliaModelChoice,
@@ -165,6 +179,17 @@ export function resolveRoutingTarget(
   if (choice.kind === 'product_default') return productDefault;
 
   const id = choice.productModelId;
+  const alias = translateAlias(id);
+  if (alias.kind === 'translated') return alias.translation.target;
+  if (alias.kind === 'unregistered_alias') {
+    // An identifier in Alia's own namespace that Alia does not define. It parses
+    // as a profile slug, so the grammars below would send it — asking Relay to
+    // route a profile only this repository could ever have defined.
+    throw new RelayInferenceError(
+      createInferenceError({ code: 'invalid_request', requestId, param: 'model' }),
+    );
+  }
+
   if (modelReferenceSchema.safeParse(id).success) {
     return { kind: 'model', modelReference: id };
   }

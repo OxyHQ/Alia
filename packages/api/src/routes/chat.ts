@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { optionalAuth } from '../middleware/auth.js';
+import { authenticateTokenOrApiKey } from '../middleware/auth.js';
 import { apiKeyRateLimit } from '../middleware/api-key-rate-limit.js';
 import { handleChatCompletions } from './v1/chat-completions.js';
 
@@ -15,13 +15,39 @@ const router = Router();
  * workstream 15, *"Add rate limits and circuit protection at the Alia
  * boundary"*, and pinned by `routes/__tests__/inference-boundary.test.ts`.
  *
- * `optionalAuth` and not `authenticateTokenOrApiKey`: an anonymous POST here
- * still reaches inference with no credit reservation, which is a real gap and a
- * PRODUCT decision (whether this surface is public) rather than a rate-limiting
- * one. It is recorded at the assertion in that test rather than changed here.
+ * ## Why this is `authenticateTokenOrApiKey` and not `optionalAuth`
+ *
+ * It was `optionalAuth` until #139 workstream 6, and the consequence was not a
+ * lenient session model — it was free inference. An anonymous POST reached this
+ * handler, `apiKeyRateLimit` found neither `req.apiKey` nor `req.user` and fell
+ * through to a bare `next()`, and `lib/chat/request-context.ts` gates the credit
+ * reservation on `(req.user && !req.serviceApp)`, so the work ran unlimited and
+ * METERED TO NOBODY. `/v1/chat/completions` — the identical handler — answered
+ * the identical request with 401 the whole time.
+ *
+ * Closed rather than split, because ADR 0004 rejects the split by name:
+ * *"Keep one handler for both surfaces and gate behaviour on the caller's
+ * credential type. Rejected."* An auth difference between two mounts of one
+ * handler IS such a gate, and it is the divergence that ADR asks not to exist
+ * silently. Every remaining difference between the two surfaces is enumerated in
+ * `routes/__tests__/v1-compatibility-surface.test.ts`.
+ *
+ * The cost of closing it in this repository is zero — nothing calls this route
+ * (`packages/app/lib/api/routes.ts` declares `API_ROUTES.chat.alia` and no file
+ * reads it) — and outside it the affected population is callers who were not
+ * authenticating, which is the same set as callers whose usage was attributed to
+ * nobody and whose conversations were never persisted.
  */
-router.post('/', optionalAuth, apiKeyRateLimit, handleChatCompletions);
+router.post('/', authenticateTokenOrApiKey, apiKeyRateLimit, handleChatCompletions);
 
+/**
+ * The status banner stays public.
+ *
+ * It reaches no inference, spends nothing and names no user, and ws1's inventory
+ * records that its `runtime: 'autonomy-v1'` string may be what an uptime monitor
+ * matches on (`docs/migration/inventories/product-api.json`, `alia-chat-get`).
+ * Authenticating a liveness probe would break that for no gain.
+ */
 router.get('/', async (_req, res) => {
   res.json({
     status: '🟢 Online',

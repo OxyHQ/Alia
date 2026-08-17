@@ -78,21 +78,23 @@ describe('both public chat surfaces run the same handler object', () => {
     expect(postHandlers(aliaChatRouter, '/')).not.toContain(lookalike);
   });
 
-  it('/alia/chat puts its auth middleware in front of the shared handler', async () => {
-    // The surfaces share the runtime AND the session model: an anonymous caller
-    // reaches the same handler with no user, which is what makes the handler's
-    // own `isDirectUserSession` branch the single place that decides what a
-    // session may do (`lib/chat/request-context.ts:160`). A surface that lost
-    // its middleware would reach the handler with a session it never checked.
+  it('/alia/chat puts the SAME auth middleware in front of the shared handler as /v1', async () => {
+    // The surfaces share the runtime AND the session model, which is what makes
+    // the handler's own `isDirectUserSession` branch the single place that
+    // decides what a session may do (`lib/chat/request-context.ts:160`). A
+    // surface that lost its middleware would reach the handler with a session it
+    // never checked — and until #139 workstream 6 this one did: it mounted
+    // `optionalAuth`, so an anonymous caller reached the handler with no user at
+    // all and spent nothing, while `/v1` refused the identical request with 401.
     //
     // `apiKeyRateLimit` sits between them because the limit belongs to the WORK
     // this route reaches, not to the URL that asked for it — `/v1` has applied it
     // to the same handler all along (`routes/v1.ts`). It is asserted here by
     // EXACT equality rather than by containment so that any future change to this
     // stack has to be looked at, which is how the limiter's absence was found.
-    const { optionalAuth } = await import('../../middleware/auth.js');
+    const { authenticateTokenOrApiKey } = await import('../../middleware/auth.js');
     const { apiKeyRateLimit } = await import('../../middleware/api-key-rate-limit.js');
     const handlers = postHandlers(aliaChatRouter, '/');
-    expect(handlers).toEqual([optionalAuth, apiKeyRateLimit, handleChatCompletions]);
+    expect(handlers).toEqual([authenticateTokenOrApiKey, apiKeyRateLimit, handleChatCompletions]);
   });
 });
