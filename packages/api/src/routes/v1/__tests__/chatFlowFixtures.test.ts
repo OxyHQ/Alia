@@ -59,6 +59,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const H = vi.hoisted(() => {
   const timeline: string[] = [];
 
+  /**
+   * Every `AfterChatContext` the route handed the hook chain, so the OBSERVABLE
+   * fields of a turn can be asserted at the route rather than only at the hook.
+   */
+  const afterChat: Array<Record<string, unknown>> = [];
+
   interface ScriptedPart {
     type: string;
     [key: string]: unknown;
@@ -111,7 +117,7 @@ const H = vi.hoisted(() => {
     outputTokens: { total: 5, text: 5, reasoning: 0 },
   };
 
-  return { timeline, state, emptyQuery, UPSTREAM_PROVIDER, UPSTREAM_MODEL_ID, V3_USAGE };
+  return { timeline, afterChat, state, emptyQuery, UPSTREAM_PROVIDER, UPSTREAM_MODEL_ID, V3_USAGE };
 });
 
 const { UPSTREAM_PROVIDER, UPSTREAM_MODEL_ID, V3_USAGE } = H;
@@ -193,7 +199,8 @@ vi.mock('../../../lib/hooks/index.js', () => ({
     H.timeline.push('recall:beforeChatHooks');
     return { metadata: { recalledMemories: H.state.recalledMemories } };
   }),
-  runAfterChatHooks: vi.fn(async () => {
+  runAfterChatHooks: vi.fn(async (ctx: Record<string, unknown>) => {
+    H.afterChat.push(ctx);
     H.timeline.push('hooks:afterChat');
   }),
 }));
@@ -280,7 +287,7 @@ vi.mock('../../../lib/observability/index.js', () => ({
 
 vi.mock('../../../lib/logger.js', () => {
   const child = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() };
-  return { log: { v1: child, chat: child, general: child, providers: child, codea: child } };
+  return { log: { v1: child, chat: child, general: child, providers: child, codea: child, correlation: child } };
 });
 
 // ── Import the route AFTER the mocks ───────────────────────────────────────
@@ -488,6 +495,7 @@ const EDITOR_TOOLS = [
 
 beforeEach(() => {
   H.timeline.length = 0;
+  H.afterChat.length = 0;
   H.state.streamTurns = [];
   H.state.generateContent = [];
   H.state.generateFinishReason = 'stop';
@@ -838,6 +846,57 @@ describe('fixture: what a failure surfaces to the user', () => {
     expect(bytes).not.toContain(UPSTREAM_PROVIDER);
     expect(bytes).not.toContain(UPSTREAM_MODEL_ID);
     expect(bytes).toContain('alia-v1');
+  });
+
+  /**
+   * #139 workstream 19: *"Record ... error class and cancellation."*
+   *
+   * The mechanism-green-and-inert check for the failure half. Before this, the
+   * after-chat hooks ran on the two SUCCESS paths only, so a turn that
+   * exhausted every provider left no usage record at all — the `error_class`
+   * column would have been null on every row that existed, and a repository
+   * test writing a class it was handed would have said nothing about it.
+   */
+  it('records the failed turn, with the class it failed as', async () => {
+    H.state.resolveAnswers = [RESOLVED, null];
+    H.state.streamTurns = [[streamStart, { type: 'error', error: new Error('upstream exploded') }]];
+
+    await run(
+      recordingReq({
+        body: { messages: [{ role: 'user', content: 'summarise this file' }], model: 'alia-v1', stream: true },
+      }),
+      recordingRes(),
+    );
+
+    expect(H.afterChat).toHaveLength(1);
+    const [recorded] = H.afterChat;
+    expect(recorded.errorClass).toBe('PROVIDER_UNAVAILABLE');
+    // The response is empty because nothing usable reached the caller, which is
+    // also what the autonomy learner reads to score the run.
+    expect(recorded.response).toBe('');
+    expect(recorded.requestedModel).toBe('alia-v1');
+    expect(recorded.cancelled).toBe(false);
+  });
+
+  it('records a successful turn with no error class and a first-token time', async () => {
+    // The discriminator for the case above. Without it, `errorClass` being set
+    // is equally consistent with a route that stamps a class on every turn.
+    H.state.streamTurns = [[streamStart, ...say('t1', 'Here you go.'), finish('stop')]];
+
+    await run(
+      recordingReq({ body: { messages: [{ role: 'user', content: 'hello' }], model: 'alia-v1', stream: true } }),
+      recordingRes(),
+    );
+
+    expect(H.afterChat).toHaveLength(1);
+    const [recorded] = H.afterChat;
+    expect(recorded.errorClass).toBeNull();
+    expect(recorded.cancelled).toBe(false);
+    // A number, not null: the streaming path timed a first chunk. `>= 0`
+    // because a test process can produce the whole stream inside one
+    // millisecond, and the property under test is that it was MEASURED.
+    expect(typeof recorded.timeToFirstTokenMs).toBe('number');
+    expect(recorded.timeToFirstTokenMs as number).toBeGreaterThanOrEqual(0);
   });
 
   it('answers in the language of the last user message', async () => {

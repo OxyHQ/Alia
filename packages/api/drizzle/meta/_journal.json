@@ -169,6 +169,20 @@
       "when": 1786962807507,
       "tag": "0023_append_only_receipts",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1786975054854,
+      "tag": "0024_furry_unicorn",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1786975076350,
+      "tag": "0025_opposite_cyclops",
+      "breakpoints": true
     }
   ]
 }

@@ -32,13 +32,25 @@ import { chatAnalytics } from '../schema/usage';
 export interface ChatAnalyticsRecord {
   readonly oxyUserId: string;
   readonly conversationId?: string;
-  readonly model: string;
-  readonly aliaModelId?: string;
-  readonly provider: string;
+  /** What the caller asked for, verbatim. Required, so a row cannot fail to say. */
+  readonly requestedModelId: string;
+  /** Which of the four shapes that identifier is. Required for the same reason. */
+  readonly requestedModelKind: string;
+  /** The product mode it selects, when it selects one. */
+  readonly requestedProfileId: string | null;
+  /** The reasoning parameter, kept out of the model identifier. */
+  readonly reasoningEffort: string | null;
+  /** The alias that served the turn. Required for the same reason. */
+  readonly aliaModelId: string;
   readonly promptTokens: number;
   readonly completionTokens: number;
   readonly totalTokens: number;
   readonly latencyMs: number;
+  /** Null where a turn produced no first token, never zero. */
+  readonly timeToFirstTokenMs: number | null;
+  /** The `AliaErrorCode` the turn ended with, or null when it succeeded. */
+  readonly errorClass: string | null;
+  readonly cancelled: boolean;
   readonly platform: string;
   readonly skillId?: string;
 }
@@ -50,13 +62,18 @@ export async function insertChatAnalytics(
   await db.insert(chatAnalytics).values({
     oxyUserId: record.oxyUserId,
     conversationId: record.conversationId ?? null,
-    model: record.model,
-    aliaModelId: record.aliaModelId ?? null,
-    provider: record.provider,
+    requestedModelId: record.requestedModelId,
+    requestedModelKind: record.requestedModelKind,
+    requestedProfileId: record.requestedProfileId,
+    reasoningEffort: record.reasoningEffort,
+    aliaModelId: record.aliaModelId,
     promptTokens: record.promptTokens,
     completionTokens: record.completionTokens,
     totalTokens: record.totalTokens,
     latencyMs: record.latencyMs,
+    timeToFirstTokenMs: record.timeToFirstTokenMs,
+    errorClass: record.errorClass,
+    cancelled: record.cancelled,
     platform: record.platform,
     skillId: record.skillId ?? null,
   });
@@ -97,31 +114,53 @@ export async function aggregateUsageByDay(
 }
 
 export interface UsageByModel {
-  readonly _id: string;
+  /**
+   * The Alia alias the group is named by.
+   *
+   * `null` is reachable and typed rather than assumed away: `alia_model_id` is
+   * nullable (see `db/schema/usage.ts` on why it is not narrowed), so a row
+   * written without one groups under NULL. The route drops that group, which is
+   * the same answer the old `coalesce` produced by a longer route.
+   */
+  readonly _id: string | null;
   readonly count: number;
   readonly totalTokens: number;
   readonly avgLatency: number;
 }
 
 /**
- * One row per model, busiest first.
+ * One row per Alia model, busiest first.
  *
- * Grouped by `coalesce(alia_model_id, model)`, which is the source's
- * `$ifNull: ['$aliaModelId', '$model']`. The caller resolves each key through
- * `getAliaModel()`, which is keyed by the ALIAS — so grouping by `model` alone
- * would resolve nothing and the route would return an empty list.
+ * Grouped by `alia_model_id` ALONE. It was `coalesce(alia_model_id, model)`,
+ * ported from the source's `$ifNull`, and the fallback arm is gone: `model`
+ * holds a provider model id for rows from a 29-day window in early 2026 and a
+ * second copy of the alias for every row since (see the table comment), so the
+ * coalesce could only ever surface a key `getAliaModel()` refuses — the route
+ * drops it either way. A null alias is therefore dropped by the route rather
+ * than shown under a provider's own name, which is the same answer with one
+ * fewer way to be wrong.
+ *
+ * The caller resolves each key through `getAliaModel()`, which is keyed by the
+ * ALIAS, and DROPS what will not resolve — which is why this groups by the
+ * alias and not by `requested_model_id`: a caller may ask for any string, and
+ * grouping by what they asked for would answer an empty list for a caller who
+ * asked for something unregistered and was served an alias anyway.
  */
 export async function aggregateUsageByModel(
   db: ApiDatabase,
   oxyUserId: string,
   since: Date,
 ): Promise<UsageByModel[]> {
-  const modelKey = sql<string>`coalesce(${chatAnalytics.aliaModelId}, ${chatAnalytics.model})`;
   return db
-    .select({ _id: modelKey, count: rowCount, totalTokens: sumTokens, avgLatency })
+    .select({
+      _id: chatAnalytics.aliaModelId,
+      count: rowCount,
+      totalTokens: sumTokens,
+      avgLatency,
+    })
     .from(chatAnalytics)
     .where(ownedSince(oxyUserId, since))
-    .groupBy(modelKey)
+    .groupBy(chatAnalytics.aliaModelId)
     .orderBy(desc(rowCount));
 }
 

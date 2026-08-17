@@ -216,7 +216,7 @@ vi.mock('../../../lib/tools/oxy-services.js', () => ({
 vi.mock('../../../lib/observability/index.js', () => ({ recordEvent: vi.fn() }));
 vi.mock('../../../lib/logger.js', () => {
   const child = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() };
-  return { log: { v1: child, chat: child, general: child, providers: child, codea: child } };
+  return { log: { v1: child, chat: child, general: child, providers: child, codea: child, correlation: child } };
 });
 
 import { handleChatCompletions } from '../chat-completions.js';

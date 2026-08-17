@@ -216,6 +216,7 @@ vi.mock('../../../lib/logger.js', () => {
       chat: child,
       general: child,
       providers: child,
+      correlation: child,
     },
   };
 });
@@ -290,6 +291,16 @@ function createMockReq(overrides: Record<string, any> = {}) {
       stream: true,
     },
     headers: {},
+    /**
+     * An `IncomingMessage` is an EventEmitter and the provider loop registers a
+     * `close` listener to notice a caller who walked away. This double had
+     * neither method, so `req.on(...)` threw inside the per-attempt try — which
+     * every assertion below silently tolerated, because the throw was
+     * classified as a provider failure and the loop retried. Two of the cases
+     * here were reading that accident as the behaviour they name.
+     */
+    on: vi.fn(),
+    off: vi.fn(),
     ...overrides,
   };
 }
