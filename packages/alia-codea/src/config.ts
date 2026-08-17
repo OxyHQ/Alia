@@ -18,4 +18,4 @@
  */
 
 /** What a request asks for when the user has expressed no preference. */
-export const PREFERRED_MODEL_ID = 'alia-v1-codea';
+export const PREFERRED_MODEL_ID = 'profile:v1-codea';

@@ -14,6 +14,7 @@ import {
   type CatalogueEntry,
   type TokenBound,
 } from "@/lib/hooks/use-catalogue";
+import { presentation, useProductModes, type ProductMode } from "@/lib/hooks/use-product-modes";
 
 /**
  * The chat model picker, driven by `GET /catalogue`.
@@ -159,11 +160,13 @@ function CapabilityChipView({ chip }: { chip: Chip }) {
 
 function EntryRow({
   entry,
+  modes,
   selected,
   isLocked,
   onSelect,
 }: {
   entry: CatalogueEntry;
+  modes: readonly ProductMode[] | undefined;
   selected: boolean;
   isLocked: boolean;
   onSelect: () => void;
@@ -172,13 +175,14 @@ function EntryRow({
   const chips = capabilityChips(entry, t);
   const kind = kindLine(entry, t);
   const sunset = sunsetLine(entry, t);
+  const { label, description } = presentation(entry, modes);
 
   if (Platform.OS !== 'web') {
     // The native menu is the system's, so a row is a title and a subtitle. The
     // kind and the capability states go into the subtitle rather than being
     // dropped: they are the part a user cannot infer from the name.
     const subtitle = [
-      entry.description,
+      description,
       kind,
       entry.unavailable ? t('models.unavailable') : null,
       ...chips.map((chip) => chip.label),
@@ -194,7 +198,7 @@ function EntryRow({
       >
         <DropdownMenu.ItemIndicator />
         <DropdownMenu.ItemTitle>
-          {`${isLocked ? '🔒 ' : ''}${entry.emoji === null ? '' : `${entry.emoji} `}${entry.displayName}${entry.requiredPlan === null ? '' : ` (${entry.requiredPlan})`}`}
+          {`${isLocked ? '🔒 ' : ''}${entry.emoji === null ? '' : `${entry.emoji} `}${label}${entry.requiredPlan === null ? '' : ` (${entry.requiredPlan})`}`}
         </DropdownMenu.ItemTitle>
         <DropdownMenu.ItemSubtitle>{subtitle}</DropdownMenu.ItemSubtitle>
       </DropdownMenu.CheckboxItem>
@@ -210,7 +214,7 @@ function EntryRow({
       <View className={`flex-col gap-1 flex-1 ${isLocked ? 'opacity-50' : ''}`}>
         <View className="flex-row items-center gap-1.5">
           {entry.emoji !== null && <Text className="text-sm">{entry.emoji}</Text>}
-          <Text className="text-sm font-medium text-foreground">{entry.displayName}</Text>
+          <Text className="text-sm font-medium text-foreground">{label}</Text>
           {isLocked && <Lock size={11} className="text-muted-foreground" />}
           {entry.requiredPlan !== null && (
             <View className="bg-primary/10 px-1.5 py-0.5 rounded-full">
@@ -225,8 +229,8 @@ function EntryRow({
             </View>
           )}
         </View>
-        {entry.description !== '' && (
-          <Text className="text-xs text-muted-foreground">{entry.description}</Text>
+        {description !== '' && (
+          <Text className="text-xs text-muted-foreground">{description}</Text>
         )}
         <Text className="text-[11px] text-muted-foreground">{kind}</Text>
         <View className="flex-row flex-wrap gap-1">
@@ -244,6 +248,7 @@ export function ModelSelector({ selectedModel, onModelChange }: ModelSelectorPro
   const { t } = useTranslation();
   const router = useRouter();
   const { data: entries, isPending } = useCatalogue();
+  const { data: modes } = useProductModes();
   const { data: entitlements } = useEntitlements();
 
   // `null` is "we do not know what this caller may use", and it does not lock
@@ -287,6 +292,7 @@ export function ModelSelector({ selectedModel, onModelChange }: ModelSelectorPro
       <EntryRow
         key={entry.id}
         entry={entry}
+        modes={modes}
         selected={entry.id === selection.effectiveId}
         isLocked={isLocked(entry.id)}
         onSelect={() => handleSelect(entry)}
@@ -298,7 +304,9 @@ export function ModelSelector({ selectedModel, onModelChange }: ModelSelectorPro
       <DropdownMenu.Trigger>
         <Pressable accessibilityLabel="Select model" accessibilityRole="button" className="flex-row items-center gap-1.5 px-3 py-1.5 rounded-full bg-muted active:opacity-70">
           <Text className="text-sm font-medium text-foreground">
-            {selection.entry?.displayName ?? selection.effectiveId}
+            {selection.entry === null
+              ? selection.effectiveId
+              : presentation(selection.entry, modes).label}
           </Text>
           <ChevronDown size={14} className="text-muted-foreground" />
         </Pressable>
@@ -323,7 +331,10 @@ export function ModelSelector({ selectedModel, onModelChange }: ModelSelectorPro
               <DropdownMenu.Item key="replaced" disabled>
                 <DropdownMenu.ItemTitle>
                   {t('models.selectionReplaced', {
-                    model: selection.entry?.displayName ?? selection.effectiveId,
+                    model:
+                      selection.entry === null
+                        ? selection.effectiveId
+                        : presentation(selection.entry, modes).label,
                   })}
                 </DropdownMenu.ItemTitle>
               </DropdownMenu.Item>

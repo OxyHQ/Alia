@@ -66,6 +66,22 @@ interface CatalogueEntryCommon {
   /** Name of the cheapest plan that grants this entry, or `null` when free or unknown. */
   readonly requiredPlan: string | null;
   /**
+   * What a request on this entry costs, relative to the base rate.
+   *
+   * Served on every entry (`routes/catalogue.ts`, `pricing.credit_multiplier`),
+   * and the key the server ORDERS the list by. Read here so a client can answer
+   * "is there a cheaper option" from the catalogue instead of from a hardcoded
+   * table — the table `components/credit-warning-banner.tsx` used to carry was
+   * keyed by the thirteen aliases and went stale the moment the vocabulary
+   * changed, silently, because a lookup miss reads exactly like "no cheaper
+   * option exists".
+   *
+   * `null` when absent or unreadable, which callers must treat as "unknown"
+   * rather than "free": suggesting a downgrade on missing data would be a
+   * recommendation with nothing behind it.
+   */
+  readonly creditMultiplier: number | null;
+  /**
    * The date the identifier stops working, when one has been announced.
    *
    * All thirteen identifiers carry a deprecation today and none carries a
@@ -109,6 +125,14 @@ function asObject(value: unknown): JsonObject | null {
 
 function asText(value: unknown): string | null {
   return typeof value === 'string' ? value : null;
+}
+
+/** `pricing.credit_multiplier`, or `null` when the server did not say. */
+function asMultiplier(value: unknown): number | null {
+  const pricing = asObject(value);
+  if (pricing === null) return null;
+  const multiplier = pricing.credit_multiplier;
+  return typeof multiplier === 'number' && Number.isFinite(multiplier) ? multiplier : null;
 }
 
 function asCapability(value: unknown): CapabilityAvailability {
@@ -155,6 +179,7 @@ function parseEntry(value: unknown): CatalogueEntry | null {
     unavailable: availability.status === 'unavailable',
     legacy: availability.legacy === true,
     requiredPlan: entitlement?.state === 'known' ? asText(entitlement.required_plan) : null,
+    creditMultiplier: asMultiplier(raw.pricing),
     sunsetAt: deprecation === null ? null : asText(deprecation.sunset_at),
   };
 

@@ -9,7 +9,6 @@ import { UsageLimitDialog } from "@/components/usage-limit-dialog";
 import { UsageLimitError } from "@/lib/errors/usage-limit-error";
 import { useModelStore } from "@/lib/stores/model-store";
 import { resolveSelection, useCatalogue } from "@/lib/hooks/use-catalogue";
-import { THINKING_MODEL_ID } from "@/lib/config";
 import { useVoiceMode } from "@/lib/hooks/use-voice-mode";
 import { useVoiceSoundEffects } from "@/lib/hooks/use-sound-effects";
 import { ContentPanel } from "@oxyhq/bloom/content-panel";
@@ -29,9 +28,16 @@ const ChatConversationPage = () => {
   const { data: catalogue } = useCatalogue();
   const selection = resolveSelection(selectedModel, catalogue);
   const [activeRoleId, setActiveRoleId] = useState<string | undefined>(roleId);
-  // Off the effective identifier, not the requested one: this flag travels in
-  // the request body beside the model, so it has to describe what is sent.
-  const thinkingMode = selection.effectiveId === THINKING_MODEL_ID;
+  /**
+   * A request flag, read from the store rather than inferred from the model.
+   *
+   * It used to be `selection.effectiveId === THINKING_MODEL_ID`, which made
+   * extended reasoning a property of WHICH model was chosen. The routing table
+   * shows that was never true: `alia-v1-thinking` and `alia-v1-pro-max` are two
+   * aliases of one profile, so the "thinking model" and the "maximum quality
+   * model" routed identically and differed only by the prompt this flag selects.
+   */
+  const thinkingMode = useModelStore((s) => s.thinkingMode);
   const activeRole = activeRoleId ? roles.find(r => r.id === activeRoleId) : undefined;
 
   const {

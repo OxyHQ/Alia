@@ -15,7 +15,7 @@
  */
 
 /** What a chat request asks for when the user has expressed no preference. */
-export const PREFERRED_CHAT_MODEL_ID = 'alia-v1-cowork';
+export const PREFERRED_CHAT_MODEL_ID = 'profile:v1-cowork';
 
 /**
  * The model the browser-automation agent drives Stagehand with.
@@ -32,4 +32,4 @@ export const PREFERRED_CHAT_MODEL_ID = 'alia-v1-cowork';
  * first-class filter. That is workstream 5's business, not something to fake
  * here.
  */
-export const PREFERRED_BROWSER_MODEL_ID = 'alia-v1-browser';
+export const PREFERRED_BROWSER_MODEL_ID = 'profile:v1-browser';
