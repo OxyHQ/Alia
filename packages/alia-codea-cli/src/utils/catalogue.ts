@@ -26,6 +26,7 @@
  */
 
 import { config } from './config.js';
+import { accessToken } from './oxy-session.js';
 
 export interface CatalogueEntry {
   readonly id: string;
@@ -83,10 +84,12 @@ let cached: Promise<CatalogueEntry[]> | null = null;
  */
 export function fetchCatalogue(): Promise<CatalogueEntry[]> {
   if (cached !== null) return cached;
-  const apiKey = config.get('apiKey');
   const request = (async () => {
+    // The catalogue takes optional auth: signed out it still lists what the
+    // product offers, and the entitlement annotations simply describe nobody.
+    const token = accessToken();
     const response = await fetch(`${config.get('apiBaseUrl')}/catalogue`, {
-      headers: apiKey ? { Authorization: `Bearer ${apiKey}` } : {},
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
     });
     if (!response.ok) throw new Error(`The model catalogue request failed (${response.status}).`);
     return parseCatalogue(await response.json());

@@ -14,6 +14,7 @@ import Store from 'electron-store'
 import { errorMessage, errorCode } from './errors'
 import { createLogger } from './logger'
 import { PREFERRED_BROWSER_MODEL_ID } from './config'
+import { currentAccessToken } from './auth'
 
 const execAsync = promisify(exec)
 const store = new Store()
@@ -447,7 +448,7 @@ export class ToolExecutor {
           logger.debug(`Creating agent for action: ${normalizedArgs.action}`)
 
           // Get Alia API credentials
-          const apiKey = store.get('apiKey') as string
+          const apiKey = currentAccessToken() ?? ''
           const baseUrl = store.get('apiBaseUrl') as string
 
           const agent = this.stagehand.agent({

@@ -89,6 +89,9 @@ function createWindow(): void {
   toolExecutor = new ToolExecutor(mainWindow)
   chatProvider = new ChatProvider(mainWindow, toolExecutor)
   authProvider = new AuthProvider(mainWindow)
+  // Restore before the renderer asks: the device secret on disk re-mints a
+  // token, so a returning user is signed in without touching the sign-in flow.
+  void authProvider.restore()
 
   // Start local MCP client (non-blocking)
   mcpClient = new McpLocalClient()
@@ -442,8 +445,8 @@ function setupIPC(): void {
     await authProvider.startAuth()
   })
 
-  ipcMain.handle('auth:signOut', () => {
-    authProvider.signOut()
+  ipcMain.handle('auth:signOut', async () => {
+    await authProvider.signOut()
   })
 
   ipcMain.handle('auth:getState', () => {

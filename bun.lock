@@ -135,6 +135,7 @@
         "codea": "./dist/index.js",
       },
       "dependencies": {
+        "@oxyhq/core": "^19.1.2",
         "chalk": "^5.6.2",
         "commander": "^15.0.0",
         "conf": "^15.1.0",
@@ -279,6 +280,7 @@
         "@browserbasehq/stagehand": "^3.7.0",
         "@hugeicons/core-free-icons": "^3.3.0",
         "@hugeicons/react": "^1.1.9",
+        "@oxyhq/core": "^19.1.2",
         "@radix-ui/react-alert-dialog": "^1.1.19",
         "@radix-ui/react-avatar": "^1.2.2",
         "@radix-ui/react-dialog": "^1.1.19",
