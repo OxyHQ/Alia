@@ -227,8 +227,11 @@ export const createOrchestrateAgentsTool = () => tool({
   execute: async ({ task, agents }: { task: string; agents: AgentTask[] }): Promise<OrchestrationResult> => {
     const orchestrationStart = Date.now();
 
+    // `task` is the model's restatement of what the user asked for, so its text
+    // is message content and only its SIZE may be logged (#139 ws19). The role
+    // labels beside it come from this tool's own schema, not from the user.
     log.general.info(
-      { task: task.slice(0, 100), agentCount: agents.length, roles: agents.map(a => a.role) },
+      { taskChars: task.length, agentCount: agents.length, roles: agents.map(a => a.role) },
       'Starting multi-agent orchestration',
     );
 
@@ -295,7 +298,7 @@ export const createOrchestrateAgentsTool = () => tool({
     const hasErrors = allResults.some(r => r.error);
 
     log.general.info(
-      { task: task.slice(0, 100), totalTokens, totalDurationMs, agentCount: agents.length, errors: hasErrors },
+      { taskChars: task.length, totalTokens, totalDurationMs, agentCount: agents.length, errors: hasErrors },
       'Multi-agent orchestration completed',
     );
 

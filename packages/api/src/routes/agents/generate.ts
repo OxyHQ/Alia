@@ -85,7 +85,10 @@ Do not include any text outside the JSON object.`,
       if (!jsonMatch) throw new Error('No JSON found');
       parsed = JSON.parse(jsonMatch[0]);
     } catch {
-      log.agents.error({ responseText }, 'Failed to parse AI-generated agent config');
+      // The whole model output, at `error`, on a path a malformed generation
+      // reaches every time (#139 ws19). Its length separates "the model said
+      // nothing" from "the model said something that is not JSON".
+      log.agents.error({ responseChars: responseText.length }, 'Failed to parse AI-generated agent config');
       return res.status(500).json({ error: 'Failed to generate agent configuration' });
     }
 

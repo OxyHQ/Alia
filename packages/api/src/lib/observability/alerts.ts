@@ -47,9 +47,19 @@ function emit(level: Alert['level'], type: string, message: string, metadata?: R
     recentAlerts.shift();
   }
 
-  // Log the alert
-  const logFn = level === 'critical' ? log.agents.error : log.agents.warn;
-  logFn({ alert: type, ...metadata }, `ALERT: ${message}`);
+  // Log the alert.
+  //
+  // Called ON the logger, never through a detached reference. pino's level
+  // methods live on the child's prototype and read `this`, so
+  // `const logFn = log.agents.error; logFn(...)` throws
+  // `undefined is not an object (evaluating 'this[msgPrefixSym]')` — which is
+  // what this line did, so every alert this module has ever emitted threw here,
+  // after pushing to `recentAlerts` and BEFORE notifying a single handler. No
+  // check in this file had a caller, so nothing noticed (#139 ws19).
+  const payload = { alert: type, ...metadata };
+  const text = `ALERT: ${message}`;
+  if (level === 'critical') log.agents.error(payload, text);
+  else log.agents.warn(payload, text);
 
   // Notify handlers
   for (const handler of alertHandlers) {

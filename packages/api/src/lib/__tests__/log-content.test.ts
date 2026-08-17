@@ -45,6 +45,27 @@ import { describe, expect, it } from 'vitest';
  * so four of those shipped every request and the rest were one environment
  * variable away. All twenty-nine were removed in the same commit as this file.
  *
+ * ## The second measurement, and why the key list is the fragile part
+ *
+ * The list below is the whole reach of this file, and a key it does not name is
+ * a leak it reports as absence. Four such keys were found by re-deriving the
+ * census from scratch (#139 ws19) and reading every distinct property name the
+ * package logs rather than only the ones already listed:
+ *
+ *  - `reasoning` — 100 characters of the model's chain of thought, twice, in
+ *    `lib/chat/stream-runner.ts`;
+ *  - `responseText` — the WHOLE model output at `error`, three times, on the
+ *    JSON-parse failure path of the agent, skill and suggestion generators;
+ *  - `userContext` — the user's own memories, preferences and writing style, at
+ *    `info`, in `services/chat.service.ts`;
+ *  - `task` — the task text handed to a multi-agent run, at `info`, twice.
+ *
+ * All nine call sites shipped, all nine were emitting at or below the default
+ * production level, and this file was green throughout. That is what a guard
+ * measuring nothing looks like from the inside, and it is the reason the key
+ * list is deliberately BROAD and narrowed by exemptions rather than the other
+ * way round.
+ *
  * ## The cheapest way to make this green
  *
  * Add a triple to {@link ALLOWED}. That is a reviewed diff in a file whose
@@ -97,17 +118,21 @@ const CONTENT_KEYS: readonly string[] = [
   'prompts',
   'query',
   'question',
+  'reasoning',
   'reply',
   'response',
+  'responseText',
   'result',
   'results',
   'summary',
   'systemPrompt',
+  'task',
   'text',
   'title',
   'toolArgs',
   'toolResult',
   'transcript',
+  'userContext',
   'value',
 ];
 
@@ -322,6 +347,30 @@ describe('no logger call carries message content (#139 ws15)', () => {
     expect(found.length).toBeGreaterThanOrEqual(6);
   });
 
+  it('the key list itself cannot silently shrink', () => {
+    /**
+     * A key with no offenders left is a key nothing defends.
+     *
+     * Measured: deleting `userContext` from {@link CONTENT_KEYS} failed NOTHING
+     * before this assertion existed. The equality above compares offenders to
+     * exemptions, and once a leak is fixed there is no offender behind its key —
+     * so the key can be removed, and the next `{ userContext: … }` sails past a
+     * green census. That is the failure this whole file is about, one level up:
+     * the control that measures the code has no control measuring it.
+     *
+     * An exact count plus the names, rather than the whole list restated: the
+     * list is MEANT to grow, and freezing it would make every addition a
+     * two-place edit. What must not happen silently is a REMOVAL, and a count
+     * catches that whichever key goes. The four named ones are called out
+     * because they are the ones with no offender left to notice their absence.
+     */
+    expect(CONTENT_KEYS).toHaveLength(45);
+    expect(new Set(CONTENT_KEYS).size).toBe(CONTENT_KEYS.length);
+    for (const key of ['reasoning', 'responseText', 'task', 'userContext']) {
+      expect(CONTENT_KEYS, `${key} was dropped from the key list`).toContain(key);
+    }
+  });
+
   it('the key list can actually fire, on every key in it', () => {
     // A positive control per key, in the same currency as the measurement: if
     // `CONTENT_KEYS` were misspelled or the property reader broke, this fails
@@ -352,6 +401,32 @@ describe('no logger call carries message content (#139 ws15)', () => {
     expect(text('lib/sse-stream.ts')).toContain('Failed to parse SSE chunk');
     expect(text('internal/providers/lib/voice-session-manager.ts')).toContain('Executing voice tool');
     expect(text('lib/chat/stream-runner.ts')).toContain('Unhandled chunk type');
+  });
+
+  it('the nine leaks the second measurement found are gone', () => {
+    // Named for the same reason the four above are: these were emitting at or
+    // below the default production level while this file was green, and the
+    // equality alone would let one back in under a key the list still does not
+    // have. Each pair is an absence plus the floor that proves the file was
+    // read.
+    const text = (file: string): string => readFileSync(path.join(REPO_ROOT, PACKAGE_PREFIX, file), 'utf8');
+
+    expect(text('lib/chat/stream-runner.ts')).not.toContain('reasoning: content.slice');
+    expect(text('lib/chat/stream-runner.ts')).not.toContain('reasoning: reasoningText.slice');
+    expect(text('lib/chat/stream-runner.ts')).toContain('Reasoning chunk (provider)');
+
+    expect(text('routes/agents/generate.ts')).not.toContain('{ responseText }');
+    expect(text('routes/agents/generate.ts')).toContain('Failed to parse AI-generated agent config');
+    expect(text('routes/skills.ts')).not.toContain('{ responseText }');
+    expect(text('routes/skills.ts')).toContain('Failed to parse AI-generated skill config');
+    expect(text('routes/suggestions.ts')).not.toContain('{ responseText }');
+    expect(text('routes/suggestions.ts')).toContain('Failed to parse AI-generated suggestions');
+
+    expect(text('services/chat.service.ts')).not.toContain('userContext: userContextParts');
+    expect(text('services/chat.service.ts')).toContain('Personalization applied');
+
+    expect(text('lib/tools/agent-orchestrator.ts')).not.toContain('task: task.slice');
+    expect(text('lib/tools/agent-orchestrator.ts')).toContain('Multi-agent orchestration completed');
   });
 
   it('no debug-only payload preview survives', () => {
