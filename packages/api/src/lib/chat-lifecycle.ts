@@ -15,13 +15,51 @@ export interface LifecycleContext {
   userId?: string;
   conversationId?: string;
   messages: ChatMessage[];
+  /** The alias the provider loop settled on. */
   aliasModelId: string;
+  /** What the caller asked for, before resolution. */
+  requestedModel: string;
+  /**
+   * The reasoning parameter, computed where `thinkingMode` is in scope.
+   *
+   * Recorded beside the model choice rather than inside it: `alia-v1-thinking`
+   * and `alia-v1-pro-max` are one routing preset with two names, so a reasoning
+   * request buried in a model identifier is a request nothing can count.
+   */
+  reasoningEffort: string | null;
   creditReservation: CreditReservation | null;
   tokenUsage: CreditUsage;
   requestStartTime: number;
   skillId?: string;
   isApiKey: boolean;
   autonomyRuntime: AutonomyRuntimeContext | null;
+}
+
+/**
+ * What one turn observed while it ran, shared BY REFERENCE with the streaming
+ * and non-streaming branches — the same reason `StreamRunnerState` crosses that
+ * boundary mutable: the writes happen inside the branch and the reads happen
+ * after it, including on the paths where the branch threw.
+ *
+ * Both fields exist because a turn is not only "how long did it take": a first
+ * token at 400ms followed by a 30-second answer and a first token at 30s are
+ * the same `latencyMs` and completely different products, and a turn the user
+ * walked away from is not a turn that failed.
+ */
+export interface TurnObservation {
+  /**
+   * Milliseconds from the request arriving to the first chunk the MODEL
+   * produced — measured where the provider stream is consumed, which is
+   * upstream of Alia's own SSE write. Everything below that write (proxy
+   * buffering, Nagle, a slow client) is invisible to it; see the column comment
+   * in `db/schema/usage.ts`.
+   *
+   * Null until a chunk arrives, and null forever on the non-streaming path,
+   * which has no first token to time.
+   */
+  timeToFirstTokenMs: number | null;
+  /** Set when the caller's socket closed before the turn finished. */
+  cancelled: boolean;
 }
 
 /**
@@ -143,12 +181,25 @@ export async function finalizeChatCredits(
 
 /**
  * Run after-chat hooks and autonomy learning (fire-and-forget).
+ *
+ * Called on FAILED turns as well as successful ones (#139 ws19). That is what
+ * gives `chat_analytics.error_class` values: before it, the only call sites
+ * were the two success paths, so a turn that exhausted every provider or timed
+ * out left no usage record at all and the failure classes `lib/errors` already
+ * computes aggregated nowhere.
+ *
+ * One consequence to state rather than discover: `runAutonomyAfterChat` scores
+ * a run by `!!assistantResponse`, so a failed turn is now learned as an
+ * unsuccessful run instead of not being learned at all. That is the more
+ * correct signal, and it is a behaviour change.
  */
 export function runPostChatHooks(
   ctx: LifecycleContext,
   assistantResponse: string,
+  observation: TurnObservation,
+  errorClass: string | null,
 ): void {
-  const { userId, messages, aliasModelId, tokenUsage, requestStartTime, skillId, isApiKey, autonomyRuntime } = ctx;
+  const { userId, messages, aliasModelId, requestedModel, reasoningEffort, tokenUsage, requestStartTime, skillId, isApiKey, autonomyRuntime } = ctx;
 
   runAfterChatHooks({
     userId,
@@ -161,7 +212,12 @@ export function runPostChatHooks(
     response: assistantResponse,
     tokenUsage,
     modelUsed: aliasModelId,
+    requestedModel,
+    reasoningEffort,
     latencyMs: Date.now() - requestStartTime,
+    timeToFirstTokenMs: observation.timeToFirstTokenMs,
+    errorClass,
+    cancelled: observation.cancelled,
   }).catch(err => log.v1.error({ err }, 'Error in afterChat hooks'));
 
   runAutonomyAfterChat({

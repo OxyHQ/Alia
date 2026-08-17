@@ -54,6 +54,11 @@ router.get('/models', async (req: Request, res: Response) => {
      * resolves; grouping by the provider id alone would drop everything.
      */
     const models = (await Promise.all(raw.map(async (m) => {
+      // The null group first, explicitly: `alia_model_id` is nullable, so a row
+      // written without one groups under NULL and `getAliaModel` has nothing to
+      // be asked. Dropping it here is the same rule as below, stated where the
+      // type makes it reachable rather than left to a coercion.
+      if (m._id === null) return null;
       const aliaModel = await getAliaModel(m._id);
       if (!aliaModel) return null;
       return {

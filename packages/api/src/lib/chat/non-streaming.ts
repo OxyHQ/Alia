@@ -23,6 +23,7 @@ import {
   finalizeChatCredits,
   runPostChatHooks,
   type LifecycleContext,
+  type TurnObservation,
 } from '../chat-lifecycle.js';
 import { buildCompletionResponse } from './response-shapes.js';
 import { log } from '../logger.js';
@@ -39,6 +40,10 @@ export interface NonStreamingParams {
   baseConfig: any;
   clearFirstByteTimer: () => void;
   aliasModelId: string;
+  /** What the caller asked for, before resolution. Recorded in analytics. */
+  requestedModel: string;
+  /** The reasoning parameter, computed once by the provider loop. */
+  reasoningEffort: string | null;
   conversationId: string | undefined;
   messages: ChatMessage[];
   creditReservation: CreditReservation | null;
@@ -47,14 +52,22 @@ export interface NonStreamingParams {
   skillId: string | undefined;
   autonomyRuntime: AutonomyRuntimeContext | null;
   toolNameMapping: Map<string, string>;
+  /**
+   * Owned by the provider loop and shared by reference. This path never sets
+   * `timeToFirstTokenMs` — `generateText` returns one whole answer, so there is
+   * no first token to time — and reads `cancelled`, which the loop's own
+   * disconnect listener writes.
+   */
+  observation: TurnObservation;
 }
 
 /** Handle one non-streaming provider attempt end to end; writes the JSON response. */
 export async function runNonStreaming(params: NonStreamingParams): Promise<void> {
   const {
     req, res, requestId, globalTimer, baseConfig, clearFirstByteTimer,
-    aliasModelId, conversationId, messages, creditReservation,
+    aliasModelId, requestedModel, reasoningEffort, conversationId, messages, creditReservation,
     systemPromptTokens, requestStartTime, skillId, autonomyRuntime, toolNameMapping,
+    observation,
   } = params;
 
   log.v1.info('Non-streaming request, using generateText');
@@ -100,6 +113,8 @@ export async function runNonStreaming(params: NonStreamingParams): Promise<void>
     conversationId,
     messages,
     aliasModelId,
+    requestedModel,
+    reasoningEffort,
     creditReservation,
     tokenUsage,
     requestStartTime,
@@ -118,7 +133,7 @@ export async function runNonStreaming(params: NonStreamingParams): Promise<void>
   const { creditsCharged, creditsRemaining, creditWarning } = await finalizeChatCredits(lifecycleCtx, req);
 
   // Fire afterChat hooks (non-blocking)
-  runPostChatHooks(lifecycleCtx, assistantResponse);
+  runPostChatHooks(lifecycleCtx, assistantResponse, observation, null);
 
   // Build tool_calls array if there were any tool calls
   const toolCalls = result.toolCalls?.map((tc: { toolCallId?: string; toolName: string; args?: unknown }, index: number) => {

@@ -34,11 +34,13 @@ import {
   runPostChatHooks,
   notifyDisconnectedClient,
   type LifecycleContext,
+  type TurnObservation,
 } from '../chat-lifecycle.js';
 import { log } from '../logger.js';
 import { recordEvent } from '../observability/index.js';
-import { classifyError, getRetryAfterHeader } from '../errors/index.js';
-import type { FailoverReason } from '../errors/error-codes.js';
+import { reasoningEffortOf } from '../observability/requested-model.js';
+import { classifyError, getRetryAfterHeader, toAliaError } from '../errors/index.js';
+import { AliaErrorCode, type FailoverReason } from '../errors/error-codes.js';
 import type { ChatMessage } from '../message-converter.js';
 import type { AutonomyRuntimeContext } from '../autonomy/runtime.js';
 import type { SSEWriter } from './sse-writer.js';
@@ -122,6 +124,68 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
   // Tool tracking for observability
   let toolCallCount = 0;
 
+  /**
+   * What this turn observed, shared with the stream runner and the
+   * non-streaming branch.
+   *
+   * The disconnect listener is registered ONCE, here, rather than per attempt
+   * inside the loop: it used to be added after the non-streaming early return,
+   * so a non-streaming turn tracked no cancellation at all and a retried
+   * streaming turn accumulated one listener per attempt.
+   */
+  const observation: TurnObservation = { timeToFirstTokenMs: null, cancelled: false };
+
+  /**
+   * The reasoning parameter, read once from the two places a caller can express
+   * it — the `thinkingMode` flag and the `alia-v1-thinking` alias.
+   */
+  const reasoningEffort = reasoningEffortOf({ thinkingMode, requestedModel });
+  const onClientClose = (): void => { observation.cancelled = true; };
+  req.on('close', onClientClose);
+
+  /**
+   * The lifecycle context AS IT STANDS, read fresh at each call because the
+   * retry loop reassigns `state.aliasModelId` and `state.creditReservation` and
+   * `tokenUsage` is captured asynchronously by `onFinish`.
+   */
+  const lifecycleContext = (): LifecycleContext => ({
+    userId: req.user?.id,
+    conversationId,
+    messages,
+    aliasModelId: state.aliasModelId,
+    requestedModel,
+    reasoningEffort,
+    creditReservation: state.creditReservation,
+    tokenUsage,
+    requestStartTime,
+    skillId: body.skillId,
+    isApiKey: !!req.apiKey,
+    autonomyRuntime,
+  });
+
+  /**
+   * The error class this turn ends with if it never completes.
+   *
+   * Reassigned as the loop learns more: it starts as the answer for "every
+   * provider was tried and none worked" and becomes the specific class the last
+   * provider failure classified into, so the analytics row names the failure
+   * that actually happened rather than the shape of the loop that contained it.
+   */
+  let failureClass: AliaErrorCode = AliaErrorCode.FALLBACK_EXHAUSTED;
+
+  /**
+   * The usage record for a turn that did not complete.
+   *
+   * The empty assistant response is the fact rather than a placeholder: nothing
+   * usable reached the caller, which is what `runAutonomyAfterChat` reads to
+   * score the run. The listener comes off here because this is the last thing
+   * that happens on every failing exit.
+   */
+  const recordFailedTurn = (errorClass: AliaErrorCode): void => {
+    req.off('close', onClientClose);
+    runPostChatHooks(lifecycleContext(), '', observation, errorClass);
+  };
+
   // Provider fallback retry loop
   // Dynamic retry budget: try every configured provider in the tier, minimum 5
   const MAX_PROVIDER_RETRIES = Math.max(tierMappingsLength, 5);
@@ -133,12 +197,16 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
 
   for (let providerAttempt = 0; providerAttempt < MAX_PROVIDER_RETRIES; providerAttempt++) {
     // Check global timeout before each provider attempt
-    if (state.globalTimedOut) break;
+    if (state.globalTimedOut) {
+      failureClass = AliaErrorCode.TIMEOUT;
+      break;
+    }
 
     // Check time budget before each attempt (leave 5s for last-resort response)
     const elapsedMs = Date.now() - requestStartTime;
     if (elapsedMs > globalTimeoutMs - 10_000) {
       log.v1.warn({ elapsedMs }, 'Time budget nearly exhausted, breaking retry loop');
+      failureClass = AliaErrorCode.TIMEOUT;
       break;
     }
 
@@ -188,6 +256,8 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
           baseConfig,
           clearFirstByteTimer,
           aliasModelId,
+          requestedModel,
+          reasoningEffort,
           conversationId,
           messages,
           creditReservation: state.creditReservation,
@@ -196,7 +266,9 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
           skillId: body.skillId,
           autonomyRuntime,
           toolNameMapping,
+          observation,
         });
+        req.off('close', onClientClose);
         return { status: 'completed' };
       }
 
@@ -213,11 +285,6 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
       // during multi-step LLM calls (e.g. the follow-up request after tool execution).
       sse.startKeepAlive();
 
-      // Track client disconnect so we can send a push notification if the response completes after they leave
-      let clientDisconnected = false;
-      const onClientClose = () => { clientDisconnected = true; };
-      req.on('close', onClientClose);
-
       // Stream OpenAI-compatible chunks
       const streamResult = await runStream({
         result,
@@ -233,7 +300,18 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
         isSpanish,
         toolCallCount,
         state: streamState,
-        onFirstChunk: clearFirstByteTimer,
+        onFirstChunk: () => {
+          // Called on EVERY chunk, so the first one wins: time to FIRST token,
+          // not time to the most recent one.
+          //
+          // Timed HERE, where the provider stream is consumed, rather than after
+          // the SSE frame is written — so the number is the model's latency and
+          // not the model's latency plus this process's own write path. Both are
+          // worth knowing and they are different questions; conflating them is
+          // how a socket-buffering problem gets attributed to a provider.
+          observation.timeToFirstTokenMs ??= Date.now() - requestStartTime;
+          clearFirstByteTimer();
+        },
       });
       let assistantResponse = streamResult.assistantResponse;
       const toolInvocations = streamResult.toolInvocations;
@@ -258,18 +336,7 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
       })).assistantResponse;
 
       // Build lifecycle context for post-stream operations
-      const lifecycleCtx: LifecycleContext = {
-        userId: req.user?.id,
-        conversationId,
-        messages,
-        aliasModelId,
-        creditReservation: state.creditReservation,
-        tokenUsage,
-        requestStartTime,
-        skillId: body.skillId,
-        isApiKey: !!req.apiKey,
-        autonomyRuntime,
-      };
+      const lifecycleCtx = lifecycleContext();
 
       // Save conversation
       await saveConversationResult(lifecycleCtx, assistantResponse, toolInvocations, agentMessages);
@@ -322,7 +389,7 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
       }
 
       // Fire afterChat hooks + autonomy (non-blocking)
-      runPostChatHooks(lifecycleCtx, assistantResponse);
+      runPostChatHooks(lifecycleCtx, assistantResponse, observation, null);
 
       // Record agent.end for observability (success path)
       recordEvent({
@@ -341,7 +408,7 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
       clearTimeout(globalTimer);
 
       // If the client disconnected before the stream finished, send a push notification
-      if (clientDisconnected && req.user?.id && body.conversationId) {
+      if (observation.cancelled && req.user?.id && body.conversationId) {
         notifyDisconnectedClient(req.user.id, body.conversationId, assistantResponse);
       }
 
@@ -358,14 +425,24 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
       const retryAfterMs = retryAfterSec ? retryAfterSec * 1000 : undefined;
       await reportModelUsage(resolved.keyConfig?.keyId, resolved.provider, resolved.modelId, false, 0, errorReason, retryAfterMs);
 
+      // The class this failure would end the turn with, if nothing after it
+      // succeeds. `toAliaError` owns the reason -> code table, so this is the
+      // same classification the client is answered with rather than a second
+      // one that can disagree with it.
+      failureClass = toAliaError(providerError).code;
+
       // Non-retryable errors: stop immediately (would fail on any provider)
       if (NON_RETRYABLE_STREAM.has(errorReason)) {
-        if (streamState.hasStreamedContent) throw providerError;
+        if (streamState.hasStreamedContent) {
+          recordFailedTurn(failureClass);
+          throw providerError;
+        }
         break; // Fall through to last-resort response
       }
 
       // If content already streamed, can't retry — fall to outer handler
       if (streamState.hasStreamedContent) {
+        recordFailedTurn(failureClass);
         throw providerError;
       }
 
@@ -394,5 +471,8 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
 
   } // End of provider retry loop
 
+  // Every exit from the loop above that is not `completed` is a turn that
+  // failed, and this is the only place it gets a usage record.
+  recordFailedTurn(failureClass);
   return { status: 'exhausted', attemptedProviders: skipProviders.size + failedKeyIds.size };
 }

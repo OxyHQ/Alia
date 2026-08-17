@@ -132,6 +132,25 @@ export function checkSessionRunaway(sessionId: string, durationMs: number, maxEx
 }
 
 /**
+ * An outbound connection to a host the egress policy does not permit — epic
+ * #139 workstream 19.
+ *
+ * `critical`, not `warning`: after the Relay cutover the only thing that can
+ * produce one is a direct provider call, which is the invariant the whole epic
+ * exists to establish. Before the cutover it fires on Alia's own provider
+ * traffic, which is the honest reading — the traffic is real and it is what has
+ * to stop.
+ *
+ * Called once per host per process by `egress-monitor.ts`; the running count
+ * lives there, because an alert per request is an alert nobody reads.
+ */
+export function alertDirectProviderEgress(host: string): void {
+  emit('critical', 'unpermitted_egress', `Outbound connection to a host the egress policy does not permit: ${host}`, {
+    host,
+  });
+}
+
+/**
  * Clean up alert state for a completed session.
  */
 export function cleanupSessionAlerts(sessionId: string): void {

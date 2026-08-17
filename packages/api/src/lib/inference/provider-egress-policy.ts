@@ -42,6 +42,7 @@
 import http from 'node:http';
 import https from 'node:https';
 
+import { recordDirectProviderEgress } from '../observability/direct-provider-egress.js';
 import { isRelayClientEnabled } from './relay-cutover.js';
 
 /* -------------------------------------------------------------------------- */
@@ -143,6 +144,26 @@ export class ProviderEgressRefusal extends Error {
     super('outbound request refused by the inference egress policy');
     this.name = 'ProviderEgressRefusal';
   }
+}
+
+/**
+ * Refuse one call, and record that somebody tried — #139 workstream 19.
+ *
+ * The two are one action rather than two, and the constructor is the wrong
+ * place for the second half: an error can be constructed by a test, by a
+ * serializer or by whatever `structuredClone` is doing this week, and a counter
+ * that ticks on construction counts those too. This runs at the five doors,
+ * once per refused call, and nowhere else.
+ *
+ * The observation is deliberately NOT an injectable hook. A settable observer is
+ * a mechanism that can be green and inert — nothing installs it, everything
+ * still compiles, and the alert nobody wired up is indistinguishable from an
+ * attempt that never happened.
+ */
+function refuse(host: string | null): ProviderEgressRefusal {
+  const named = host ?? '';
+  recordDirectProviderEgress(named);
+  return new ProviderEgressRefusal(named);
 }
 
 /* -------------------------------------------------------------------------- */
@@ -250,7 +271,7 @@ export function installProviderEgressBlock(
     if (providerEgressDecision(host, env) === 'refuse') {
       // Rejected rather than thrown synchronously: `fetch` returns a promise,
       // and a caller written against that contract would not catch a throw.
-      return Promise.reject(new ProviderEgressRefusal(host ?? ''));
+      return Promise.reject(refuse(host));
     }
     return originals.fetch(input, init);
   };
@@ -267,7 +288,7 @@ export function installProviderEgressBlock(
       apply(target, thisArg, argArray) {
         const host = nodeRequestHost(argArray);
         if (providerEgressDecision(host, env) === 'refuse') {
-          throw new ProviderEgressRefusal(host ?? '');
+          throw refuse(host);
         }
         return Reflect.apply(target, thisArg, argArray);
       },

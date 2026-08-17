@@ -32,12 +32,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const H = vi.hoisted(() => {
   const timeline: string[] = [];
+  /** Every analytics row the hook wrote, so its FIELDS can be asserted too. */
+  const rows: Record<string, unknown>[] = [];
   const state = {
     recalled: [] as Array<{ title: string; summary: string; score: number }>,
     /** What `proactive-hook` is told the classifier said. */
     classification: '{"category":"none"}',
   };
-  return { timeline, state };
+  return { timeline, rows, state };
 });
 
 // ── Stores and the model, mocked. Everything between them runs. ─────────────
@@ -62,6 +64,7 @@ vi.mock('../../db/memory/userMemoryRepository.js', () => ({
 
 vi.mock('../../db/usage/chatAnalyticsRepository.js', () => ({
   insertChatAnalytics: vi.fn(async (_db: unknown, row: Record<string, unknown>) => {
+    H.rows.push(row);
     H.timeline.push(`learn:analytics(${String(row.aliaModelId)},${String(row.totalTokens)})`);
   }),
 }));
@@ -130,8 +133,9 @@ vi.mock('../logger.js', () => {
 });
 
 import { runAfterChatHooks, runBeforeChatHooks } from '../hooks/index.js';
-import { runPostChatHooks, type LifecycleContext } from '../chat-lifecycle.js';
+import { runPostChatHooks, type LifecycleContext, type TurnObservation } from '../chat-lifecycle.js';
 import { runAutonomyAfterChat, runAutonomyBeforeChat } from '../autonomy/runtime.js';
+import { AliaErrorCode } from '../errors/error-codes.js';
 
 /**
  * Chosen so `classifyIntent` lands on `research` and nothing else: the rules are
@@ -151,6 +155,8 @@ function lifecycleContext(overrides: Partial<LifecycleContext> = {}): LifecycleC
     conversationId: 'conv-ws13',
     messages: MESSAGES,
     aliasModelId: 'alia-v1',
+    requestedModel: 'alia-v1-pro',
+    reasoningEffort: null,
     creditReservation: null,
     tokenUsage: { promptTokens: 40, completionTokens: 20, totalTokens: 60, systemPromptTokens: 10 },
     requestStartTime: Date.now() - 1_500,
@@ -159,6 +165,9 @@ function lifecycleContext(overrides: Partial<LifecycleContext> = {}): LifecycleC
     ...overrides,
   } as LifecycleContext;
 }
+
+/** A turn that streamed its first chunk quickly and was not cancelled. */
+const OBSERVED: TurnObservation = { timeToFirstTokenMs: 120, cancelled: false };
 
 /** `runPostChatHooks` is fire-and-forget by design; drain what it spawned. */
 async function settle(): Promise<void> {
@@ -170,6 +179,7 @@ async function settle(): Promise<void> {
 
 beforeEach(() => {
   H.timeline.length = 0;
+  H.rows.length = 0;
   H.state.recalled = [{ title: 'Roadmap', summary: 'Canvas ships before console.', score: 0.8 }];
   H.state.classification = '{"category":"none"}';
   vi.clearAllMocks();
@@ -248,7 +258,7 @@ describe('the after-run entrypoint drives every learning path there is', () => {
     });
     H.timeline.length = 0;
 
-    runPostChatHooks(lifecycleContext({ autonomyRuntime: runtime }), 'You decided to ship the canvas first.');
+    runPostChatHooks(lifecycleContext({ autonomyRuntime: runtime }), 'You decided to ship the canvas first.', OBSERVED, null);
     await settle();
 
     // A floor first: an empty timeline is what a `runPostChatHooks` that
@@ -265,6 +275,85 @@ describe('the after-run entrypoint drives every learning path there is', () => {
     ]);
   });
 
+  /**
+   * #139 workstream 19, *"Record requested model/profile, resolved revision,
+   * latency, time to first token, error class and cancellation"*, and
+   * workstream 5's *"Record the requested model/profile and actual resolved
+   * model revision in product analytics"* — the same write seen from two sides.
+   *
+   * At the ENTRYPOINT rather than at the repository, because the repository
+   * writing a field it is handed says nothing about whether the turn hands it
+   * one: `runPostChatHooks` could drop `observation` on the floor and every
+   * repository test would still pass.
+   */
+  describe('the analytics row carries the per-turn observations, from the entrypoint', () => {
+    it('records the requested model separately from the alias that served it', async () => {
+      runPostChatHooks(
+        lifecycleContext({ requestedModel: 'alia-v1-pro', aliasModelId: 'alia-lite' }),
+        'answer',
+        OBSERVED,
+        null,
+      );
+      await settle();
+
+      const [row] = H.rows;
+      expect(row).toBeDefined();
+      // The two are DIFFERENT values in this fixture on purpose: a hook that
+      // wrote the alias into both fields would pass an assertion that only
+      // checked they were present.
+      expect(row.requestedModelId).toBe('alia-v1-pro');
+      expect(row.aliaModelId).toBe('alia-lite');
+    });
+
+    it('records time to first token, error class and cancellation', async () => {
+      runPostChatHooks(
+        lifecycleContext(),
+        'answer',
+        { timeToFirstTokenMs: 240, cancelled: true },
+        AliaErrorCode.CONTENT_FILTERED,
+      );
+      await settle();
+
+      const [row] = H.rows;
+      expect(row).toBeDefined();
+      expect(row.timeToFirstTokenMs).toBe(240);
+      expect(row.errorClass).toBe(AliaErrorCode.CONTENT_FILTERED);
+      expect(row.cancelled).toBe(true);
+      // Latency is the field that was already recorded; asserted beside the
+      // three new ones so "the row has the new fields" is not compatible with
+      // "the row lost the old one".
+      expect(typeof row.latencyMs).toBe('number');
+    });
+
+    it('leaves the three null-or-false when the turn was ordinary', async () => {
+      // The discriminator. Without it the assertions above are also satisfied by
+      // a hook that writes those three constants whatever it is handed.
+      runPostChatHooks(lifecycleContext(), 'answer', { timeToFirstTokenMs: null, cancelled: false }, null);
+      await settle();
+
+      const [row] = H.rows;
+      expect(row).toBeDefined();
+      expect(row.timeToFirstTokenMs).toBeNull();
+      expect(row.errorClass).toBeNull();
+      expect(row.cancelled).toBe(false);
+    });
+
+    it('every AliaErrorCode reaches the row unchanged', async () => {
+      // The census the checkbox asks for: the column is `text` with no CHECK
+      // precisely so a new member of the enum is recordable the day it is added,
+      // and this is what would notice a mapping table growing in between.
+      const codes = Object.values(AliaErrorCode);
+      expect(codes.length).toBeGreaterThanOrEqual(11);
+
+      for (const code of codes) {
+        H.rows.length = 0;
+        runPostChatHooks(lifecycleContext(), '', OBSERVED, code);
+        await settle();
+        expect(H.rows[0]?.errorClass, `${code} did not reach the row`).toBe(code);
+      }
+    });
+  });
+
   it('samples the proactive classifier at 20%, and the gate is real', async () => {
     // `proactive-hook.ts:89` is a cost control, and it is the reason the run
     // above cannot assert on this hook. Both sides are measured, because "it
@@ -272,13 +361,13 @@ describe('the after-run entrypoint drives every learning path there is', () => {
     const random = vi.spyOn(Math, 'random');
 
     random.mockReturnValue(0.05);
-    runPostChatHooks(lifecycleContext(), 'You decided to ship the canvas first.');
+    runPostChatHooks(lifecycleContext(), 'You decided to ship the canvas first.', OBSERVED, null);
     await settle();
     expect(H.timeline).toContain('proactive:classify');
 
     H.timeline.length = 0;
     random.mockReturnValue(0.95);
-    runPostChatHooks(lifecycleContext(), 'You decided to ship the canvas first.');
+    runPostChatHooks(lifecycleContext(), 'You decided to ship the canvas first.', OBSERVED, null);
     await settle();
     expect(H.timeline).not.toContain('proactive:classify');
     // ...and the un-sampled hooks still ran, so the second half is a statement
@@ -331,7 +420,7 @@ describe('the after-run entrypoint drives every learning path there is', () => {
   });
 
   it('learns nothing about an anonymous turn', async () => {
-    runPostChatHooks(lifecycleContext({ userId: undefined, autonomyRuntime: null }), 'answer');
+    runPostChatHooks(lifecycleContext({ userId: undefined, autonomyRuntime: null }), 'answer', OBSERVED, null);
     await settle();
     expect(H.timeline).toEqual([]);
   });
@@ -352,7 +441,12 @@ describe('the after-run entrypoint drives every learning path there is', () => {
       response: 'answer',
       tokenUsage: { promptTokens: 1, completionTokens: 1, totalTokens: 2 },
       modelUsed: 'alia-v1',
+      requestedModel: 'alia-v1',
+      reasoningEffort: null,
       latencyMs: 5,
+      timeToFirstTokenMs: 5,
+      errorClass: null,
+      cancelled: false,
     });
 
     // The analytics hook has priority 100 and style-learning 200, so the
