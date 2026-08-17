@@ -91,10 +91,6 @@ const EXCLUDED: Readonly<Record<string, { readonly errors: number; readonly why:
     errors: 1,
     why: 'src/authProvider.ts calls OxyServices.refreshWithToken, which @oxyhq/core@19 does not have — the device-first session migration, #139 ws11',
   },
-  'alia-cowork': {
-    errors: 10,
-    why: 'src/preload/index.ts passes unwrapped callbacks to ipcRenderer.removeListener (9) and src/main/index.ts calls ToolExecutor.execute (1)',
-  },
 };
 
 /** Has no `typecheck` script, and why that is the right answer for it. */
@@ -164,7 +160,7 @@ function main(): void {
   const counts: readonly [string, number, number][] = [
     ['workspaces', workspaces.length, 12],
     ['CHECKED_ELSEWHERE', Object.keys(CHECKED_ELSEWHERE).length, 3],
-    ['EXCLUDED', Object.keys(EXCLUDED).length, 2],
+    ['EXCLUDED', Object.keys(EXCLUDED).length, 1],
     ['NO_TYPECHECK', Object.keys(NO_TYPECHECK).length, 4],
   ];
   const countProblems = counts
