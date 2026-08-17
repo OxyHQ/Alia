@@ -47,6 +47,9 @@ import { profileIdFor } from '../../lib/product-modes.js';
 
 const router = Router();
 
+/** The surface that serves what this one used to claim to. */
+const CATALOGUE_PATH = '/catalogue';
+
 /**
  * GET /v1/models
  *
@@ -56,6 +59,28 @@ const router = Router();
  * answer is the same empty list either way.
  */
 router.get('/', (_req, res) => {
+  /**
+   * Where the catalogue went, in a header a client can follow.
+   *
+   * An empty list is honest but it is also indistinguishable from an outage to
+   * a developer poking the API, and the OpenAI envelope has no field to explain
+   * itself in. RFC 8288 `Link` is the mechanism that does, and `alternate` is
+   * the accurate relation: `/catalogue` is another listing of the same subject,
+   * serving it truthfully.
+   *
+   * Deliberately NOT `Deprecation`. That header announces the deprecation of
+   * THIS ENDPOINT, which is not the decision that was taken — `/v1/*` has its
+   * own clock under `docs/migration/compatibility-window.md` section (b), owned
+   * by workstream 6. Announcing someone else's sunset from here would set a date
+   * this change has no standing to set. The endpoint is not deprecated; it is
+   * empty, and those are different claims.
+   *
+   * The alias signal is separate and already works: a request that NAMES one of
+   * the thirteen gets `Deprecation` and `Link` from the app-wide middleware, so
+   * `GET /v1/models/alia-v1` carries both. A bare listing names none, which is
+   * exactly why it needed this.
+   */
+  res.setHeader('Link', `<${CATALOGUE_PATH}>; rel="alternate"`);
   res.json({ object: 'list', data: [] });
 });
 

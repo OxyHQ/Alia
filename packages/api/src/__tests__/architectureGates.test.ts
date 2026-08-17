@@ -1704,6 +1704,9 @@ vi.mock('../lib/gateway-client.js', async () => {
 
 interface CapturedResponse {
   status?: number;
+  // #139 ws4: the empty `/v1/models` listing points at the catalogue in a
+  // header, so the harness has to capture headers as well as the body.
+  headers: Record<string, string>;
   body?: { object?: string; data?: CapturedEntry[] };
 }
 
@@ -1761,8 +1764,12 @@ async function runListHandler(module: unknown, routePath = '/'): Promise<Capture
   const handle = layer?.route?.stack[layer.route.stack.length - 1].handle;
   expect(handle).toBeTypeOf('function');
 
-  const captured: CapturedResponse = {};
+  const captured: CapturedResponse = { headers: {} };
   const res = {
+    setHeader(name: string, value: string) {
+      captured.headers[name] = value;
+      return res;
+    },
     status(code: number) {
       captured.status = code;
       return res;
@@ -1815,6 +1822,13 @@ describe('gate 5: models versus routing profiles (ADR 0003 invariant 1)', () => 
     expect(captured.body?.object).toBe('list');
     expect(captured.body?.data).toEqual([]);
     expect(SERVED_AS_MODEL).toEqual([]);
+
+    // An empty list reads as an outage to a developer poking the API, and the
+    // OpenAI envelope has no field to explain itself in, so the pointer is a
+    // header. NOT `Deprecation`: this endpoint is not deprecated, it is empty,
+    // and its own clock belongs to workstream 6.
+    expect(captured.headers.Link).toBe('</catalogue>; rel="alternate"');
+    expect(captured.headers.Deprecation).toBeUndefined();
   });
 
   it('no alia-* identifier is advertised on any served surface', async () => {
