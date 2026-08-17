@@ -58,8 +58,11 @@ describe('a configuration audit record (#139 ws15)', () => {
       action: 'update',
       target: 'alia-v1-pro',
       actor: { kind: 'user', id: 'oxy-user-1' },
-      before: { isActive: true },
-      after: { isActive: false },
+      // Through the projection, as a real caller does. Since `AuditedFields` is
+      // branded, an object literal no longer compiles here — which is the point
+      // of the brand, and makes this fixture the shape the writers produce.
+      before: auditedFields('alia_model', { isActive: true }),
+      after: auditedFields('alia_model', { isActive: false }),
     });
 
     expect(emitted).toHaveLength(1);
@@ -310,19 +313,199 @@ describe('every configuration writer emits a record (#139 ws15)', () => {
     }
   });
 
-  it('no caller can omit the actor, because it is not optional', () => {
-    // A `actor?: ConfigAuditActor` would satisfy the signature census above and
-    // record `undefined` for every change. Read off the source text of the four
-    // files rather than the AST, because the hazard is one character.
+  /**
+   * Every `actor` parameter across the four repositories, as AST nodes.
+   *
+   * The two ways TypeScript makes a parameter omissible are a `questionToken`
+   * (`actor?: T`) and an `initializer` (`actor: T = {…}`), and they are separate
+   * fields on the node. Both are read here so neither has to be predicted as a
+   * spelling.
+   */
+  function actorParameters(): { file: string; fn: string; optional: boolean; defaulted: boolean }[] {
+    const out: { file: string; fn: string; optional: boolean; defaulted: boolean }[] = [];
     for (const file of REPOSITORIES) {
       const text = readFileSync(path.join(PROVIDERS_DIR, file), 'utf8');
-      expect(text, `${file} made the actor optional`).not.toMatch(/actor\?\s*:/);
+      const source = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true);
+      for (const statement of source.statements) {
+        if (!ts.isFunctionDeclaration(statement) || statement.name === undefined) continue;
+        for (const parameter of statement.parameters) {
+          if (!ts.isIdentifier(parameter.name) || parameter.name.text !== 'actor') continue;
+          out.push({
+            file,
+            fn: statement.name.text,
+            optional: parameter.questionToken !== undefined,
+            defaulted: parameter.initializer !== undefined,
+          });
+        }
+      }
     }
-    // The floor: the files were read and DO name the actor.
-    const named = REPOSITORIES.filter((file) =>
-      readFileSync(path.join(PROVIDERS_DIR, file), 'utf8').includes('actor: ConfigAuditActor'),
-    );
-    expect(named).toEqual([...REPOSITORIES]);
+    return out;
+  }
+
+  it('no caller can omit the actor: it is neither optional nor defaulted', () => {
+    /**
+     * ## This assertion used to be a regex, and the regex was wrong
+     *
+     * It read `not.toMatch(/actor\?\s*:/)` and said its hazard was "one
+     * character". It was wrong about WHICH character. `actor: ConfigAuditActor
+     * = { kind: 'seed', id: 'seed' }` carries no `?`, still contains the literal
+     * `actor: ConfigAuditActor` the floor looked for, still names a parameter
+     * called `actor` for the signature census above — and makes the argument
+     * OMISSIBLE at every call site. Measured: with that edit in
+     * `createProviderKey`, a probe module calling it with no actor argument at
+     * all compiled with ZERO `tsc` errors, and this file stayed 9/9 green.
+     *
+     * The failure direction is the expensive one. The audit log keeps being
+     * written, so nothing looks broken; it just attributes real changes to a
+     * fabricated `seed` actor, which is the one thing an audit log must not do.
+     *
+     * ## Why the AST rather than a wider regex
+     *
+     * A regex is a census over SOURCE TEXT answering a question about the TYPE
+     * SYSTEM. Widening it answers this one spelling and loses to the next —
+     * a destructured parameter with a default, an overload, a wrapper that
+     * supplies the argument. `questionToken` and `initializer` are the two
+     * fields that MAKE a parameter omissible, so reading them asks the question
+     * the property is actually about.
+     */
+    const parameters = actorParameters();
+    for (const parameter of parameters) {
+      expect(
+        parameter.optional,
+        `${parameter.file}: ${parameter.fn} made the actor optional`,
+      ).toBe(false);
+      expect(
+        parameter.defaulted,
+        `${parameter.file}: ${parameter.fn} gave the actor a default, which makes it omissible`,
+      ).toBe(false);
+    }
+
+    // The floor, in both currencies: the scan found real parameters in every
+    // repository, so "none is optional" is a measurement rather than an empty
+    // loop. Asserted per file, because a scan that read three of four would
+    // otherwise satisfy a total count.
+    expect(parameters.length).toBeGreaterThanOrEqual(13);
+    expect([...new Set(parameters.map((p) => p.file))].sort()).toEqual([...REPOSITORIES].sort());
+  });
+
+  it('the actor scan can SEE both spellings of omissible, so the check above is not empty', () => {
+    // The positive control, against literal buffers rather than the tree: a scan
+    // that reported `false` for everything would pass the assertion above
+    // whatever the repositories contained.
+    const probe = (parameter: string) => {
+      const source = ts.createSourceFile(
+        'probe.ts',
+        `export function w(db: Db, ${parameter}): void {}`,
+        ts.ScriptTarget.Latest,
+        true,
+      );
+      const fn = source.statements[0];
+      if (!ts.isFunctionDeclaration(fn)) throw new Error('probe is not a function declaration');
+      const found = fn.parameters.find((p) => ts.isIdentifier(p.name) && p.name.text === 'actor');
+      if (found === undefined) throw new Error('probe has no actor parameter');
+      return { optional: found.questionToken !== undefined, defaulted: found.initializer !== undefined };
+    };
+
+    expect(probe('actor: ConfigAuditActor')).toEqual({ optional: false, defaulted: false });
+    expect(probe('actor?: ConfigAuditActor')).toEqual({ optional: true, defaulted: false });
+    expect(probe("actor: ConfigAuditActor = { kind: 'seed', id: 'seed' }")).toEqual({
+      optional: false,
+      defaulted: true,
+    });
+  });
+
+  /**
+   * Every `recordConfigChange({…})` call, with the SOURCE TEXT of what its
+   * `before` and `after` were set FROM.
+   *
+   * The initializer rather than the presence of the key: the question is not
+   * whether a record has a `before`, it is whether that `before` went through
+   * the allow-list.
+   */
+  function auditArguments(): { file: string; field: string; from: string }[] {
+    const out: { file: string; field: string; from: string }[] = [];
+    for (const file of REPOSITORIES) {
+      const text = readFileSync(path.join(PROVIDERS_DIR, file), 'utf8');
+      const source = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true);
+      const visit = (node: ts.Node): void => {
+        if (
+          ts.isCallExpression(node) &&
+          ts.isIdentifier(node.expression) &&
+          node.expression.text === 'recordConfigChange'
+        ) {
+          const [argument] = node.arguments;
+          if (argument !== undefined && ts.isObjectLiteralExpression(argument)) {
+            for (const property of argument.properties) {
+              if (!ts.isPropertyAssignment(property)) continue;
+              if (!ts.isIdentifier(property.name)) continue;
+              if (property.name.text !== 'before' && property.name.text !== 'after') continue;
+              out.push({ file, field: property.name.text, from: property.initializer.getText(source) });
+            }
+          }
+        }
+        ts.forEachChild(node, visit);
+      };
+      visit(source);
+    }
+    return out;
+  }
+
+  it('every recorded field went through the allow-list, or is null', () => {
+    /**
+     * ## The hole this closes
+     *
+     * `every configuration writer emits a record` proves the CALL exists. It
+     * never proved what the call was made WITH. Measured: replacing
+     * `after: auditedFields('model_config', view)` with `after: view` put
+     * `model_configs.default_config_system_prompt` — a system prompt, omitted
+     * from `AUDITED_FIELDS` on purpose — into the audit record, and **93 test
+     * files and 1283 tests stayed green**, including this file and the
+     * `API (Postgres)` suites.
+     *
+     * `provider_key` escaped that particular leak, and only because
+     * `createProviderKey` reads back through `.returning(safeColumns)`, which
+     * already excludes `key` and `key_hash`. Its own comment says that second
+     * defence exists precisely "because one of them is a projection somebody
+     * could widen". `model_config` and `alia_model` audit off a bare
+     * `.returning()` and have no such second defence — which is why the check
+     * belongs here rather than being left to the projection alone.
+     *
+     * ## Two defences, defeated by different edits
+     *
+     * `AuditedFields` is branded, so `after: view` no longer compiles. This
+     * census catches the form a brand cannot: `as unknown as AuditedFields`,
+     * which is loud in review and silent to `tsc`.
+     */
+    const PERMITTED = /^(null|auditedFields\()/;
+    const argumentsFound = auditArguments();
+
+    for (const argument of argumentsFound) {
+      expect(
+        PERMITTED.test(argument.from),
+        `${argument.file}: a record's \`${argument.field}\` is set from \`${argument.from}\`, ` +
+          'which did not go through auditedFields()',
+      ).toBe(true);
+    }
+
+    // The floors. A scan finding nothing satisfies the loop above, and a scan
+    // finding only `null`s would satisfy it while measuring no projection.
+    expect(argumentsFound.length).toBeGreaterThanOrEqual(26);
+    expect(argumentsFound.filter((a) => a.from.startsWith('auditedFields(')).length)
+      .toBeGreaterThanOrEqual(18);
+    // Both shapes occur, so neither branch of the predicate is dead: the bulk
+    // sync and the cooldown reset legitimately record no fields at all.
+    expect(argumentsFound.filter((a) => a.from === 'null').length).toBeGreaterThanOrEqual(6);
+    expect([...new Set(argumentsFound.map((a) => a.file))].sort()).toEqual([...REPOSITORIES].sort());
+  });
+
+  it('the projection scan can SEE a bypass, so the check above is not empty', () => {
+    // The positive control for the predicate, in the same currency: it accepts
+    // the two legitimate shapes and rejects a bare row.
+    const PERMITTED = /^(null|auditedFields\()/;
+    expect(PERMITTED.test("auditedFields('model_config', view)")).toBe(true);
+    expect(PERMITTED.test('null')).toBe(true);
+    expect(PERMITTED.test('view')).toBe(false);
+    expect(PERMITTED.test('row as unknown as AuditedFields')).toBe(false);
   });
 
   it('nothing outside the repositories writes these tables directly', () => {
