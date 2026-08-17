@@ -7,7 +7,7 @@
     "commit": "975955c4beb958610a5715bd562367179546da0a",
     "note": "Original verdicts were measured against 975955c4. Corrected against 78da61cf: 35 of the 246 boxes were ticked in between (#160, #162, #163, #164, #165, #166) and now carry `resolvedSince`; rows 212, 266, 454, 459 and 522 carried a stale or wrong claim and are corrected in place, each saying so; and the Relay blocker is renamed now that OxyHQ/Relay exists.",
     "correctedAt": "2026-08-17",
-    "correctedAgainst": "origin/main at e8927b7c",
+    "correctedAgainst": "origin/main at fb57b88f",
     "resolvedStateSync": "The `resolvedSince` flags are synced from the issue body in BOTH directions. A one-way sync let L243 keep the flag after the box was re-opened — a record that can only say \"done\" reports an epic as further along than it is."
   },
   "checkboxes": {
@@ -18,11 +18,11 @@
     "untickedNow": 189
   },
   "verdictCounts": {
-    "ACTIONABLE_NOW": 42,
+    "ACTIONABLE_NOW": 39,
     "ALREADY_TRUE": 5,
     "BLOCKED_ALIAMODELS": 26,
     "BLOCKED_OXY_972": 27,
-    "BLOCKED_RELAY": 94,
+    "BLOCKED_RELAY": 97,
     "DUPLICATE_OF": 41,
     "PRODUCT_DECISION": 11
   },
@@ -193,9 +193,10 @@
       "section": "Remove fake model ownership",
       "text": "Stop describing `alia-lite`, `alia-v1`, `alia-v1-pro`, `alia-v1-pro-max`, `alia-v1-codea`, etc. as Alia-owned models when they route to third-party models.",
       "verdict": "ACTIONABLE_NOW",
-      "evidence": "RE-OPENED, and it was ticked in error. #171 and #178 cleared the API surfaces; neither cleared the console, which is what this row is about. Measured on main: packages/alia-console/src/routes/_layout/documentation/models.tsx:76 still reads \"Alia offers a range of models optimized for different use cases\", :101 is a heading \"Available Models\", and :13-43 hardcode four aliases — alia-lite, alia-v1, alia-v1-pro, alia-v1-pro-max — with context windows that match nothing in the routing table. That page is Alia describing the aliases as its own models, which is the row verbatim. Workstream 4 is landing it.",
+      "evidence": "DONE, landed by #188 and verified on main at fb57b88f. packages/alia-console/src/routes/_layout/documentation/models.tsx:127 now calls `useCatalogue()`, the hardcoded four-alias array is GONE (zero matches for `id: 'alia-`), and the one surviving \"Alia offers a range of models\" is at :5, inside the file's own header comment explaining the removal — which the guard's comment-stripping deliberately excludes. All four remaining `alia-v1`/`alia-lite` strings in packages/alia-console are likewise inside comments recording what was taken out.",
       "deliverable": "Rewrite the four alia-console documentation routes to describe routing profiles and point at GET /catalogue. The /v1/models half of this row is L242 and is frozen by docs/migration/compatibility-window.md section (a).",
-      "guard": "No CI job typechecks or lints packages/alia-console today (.github/workflows/ci.yml runs only @alia/api, @alia.onl/sdk and @alia/integrations), so the guard must be a content census in the API suite over the console sources, or a new console job. Naming that gap is part of the deliverable."
+      "guard": "No CI job typechecks or lints packages/alia-console today (.github/workflows/ci.yml runs only @alia/api, @alia.onl/sdk and @alia/integrations), so the guard must be a content census in the API suite over the console sources, or a new console job. Naming that gap is part of the deliverable.",
+      "resolvedSince": "2026-08-17"
     },
     {
       "line": 242,
@@ -383,9 +384,9 @@
       "section": "",
       "text": "Show “Automatic/Fast/Quality” language for routing profiles without pretending they are models.",
       "verdict": "ACTIONABLE_NOW",
-      "evidence": "The picker distinguishes the two kinds and says how widely a profile chooses (model-selector.tsx:130-142, `models.routingProfile` / `models.routingProfileSelects`), but the strings are per-alias display names from ALIA_MODELS, not \"Automatic/Fast/Quality\" product language — because those modes do not exist yet (L255).",
-      "deliverable": "Once L255 names the modes, render them with that language in the picker and add the translation strings. Small, and strictly downstream of L255.",
-      "guard": "A translation-completeness check over packages/app locales for the new keys; today no CI job builds or typechecks packages/app at all."
+      "evidence": "RE-MEASURED, and HALF of this row is already earned — worth knowing before anyone rebuilds it. The picker does NOT pretend profiles are models: `kindLine` (packages/app/components/model-selector.tsx:134-142) renders a routing profile as \"Routing profile · picks among {count} models per message\" (en.json:814, es.json:776) and a concrete model as `publisher/model`, and the list is split into separate sections at :339 and :349 (`routingProfilesSection` / `modelsSection`). WHAT IS MISSING IS THE \"Automatic/Fast/Quality\" LANGUAGE ITSELF. The six product modes exist server-side (lib/product-modes.ts) and are already SERVED — `GET /catalogue/modes` (routes/catalogue.ts:233-235) returns each with an `id` and a `label` and its routing target — and packages/app consumes none of it: a repo-wide scan of that package for `mode:automatic`, `PRODUCT_MODES`, `productMode` or the literal `mode:` returns ZERO hits, and the `models.*` translation keys contain no mode names.",
+      "deliverable": "Consume GET /catalogue/modes in the picker and render the six labels. The endpoint, the labels and the profile-vs-model rendering all exist; what does not exist is the client fetch. Do NOT rebuild the profile labelling — it is there.",
+      "guard": "A translation-completeness check over packages/app locales for the six mode labels, plus an assertion that the picker renders a mode from the endpoint rather than a literal. Mutation: drop one mode from the response and the picker must show five, not six."
     },
     {
       "line": 285,
@@ -411,10 +412,8 @@
       "workstream": "5. Update the Alia model picker and product configuration",
       "section": "",
       "text": "Record the requested model/profile and actual resolved model revision in product analytics without leaking unsafe provider details to end users.",
-      "verdict": "ACTIONABLE_NOW",
-      "evidence": "Half of it is already recorded and half is wrong-by-design. `chat_analytics` carries BOTH (packages/api/src/db/schema/usage.ts:88-114): `alia_model_id` is the requested alias and `model` is the PROVIDER's model id, with `provider` beside it at :114. There is no resolved-REVISION field because no revision exists (L287). The leak risk is contained today: GET /analytics/models groups by `coalesce(alia_model_id, model)` and resolves each group through `getAliaModel()`, skipping what cannot resolve (schema comment at usage.ts:92-95).",
-      "deliverable": "Record the requested model/profile explicitly as its own column rather than relying on `coalesce`, so a row whose alias is null is a defect rather than a silent fallback to a provider id.",
-      "guard": "A pgdb test on chatAnalyticsRepository asserting every written row carries a resolvable requested identifier. Mutation: write a row with a null alias -> red.",
+      "verdict": "BLOCKED_RELAY",
+      "evidence": "RE-MEASURED after #179, and the requested half is DONE. chat_analytics carries `requested_model_id` (usage.ts:195, NOT NULL), `requested_model_kind` (:207, NOT NULL) and `requested_profile_id` (:216), so the row no longer depends on `coalesce(alia_model_id, model)`. The leak half is also closed: `model` (:171) and `provider` (:179) are now NULLABLE and have ZERO readers — a repo-wide scan for `chatAnalytics.model` and `chatAnalytics.provider` outside tests returns nothing. What remains is the RESOLVED REVISION, and it is BLOCKED_RELAY rather than unbuilt: no revision exists anywhere in Alia to record, which packages/api/src/db/schema/usage.ts:151 states in the schema itself — \"absent because no revision exists to record\". It arrives with the Relay catalogue (row 287).",
       "residual": "Replacing the `provider`/`model` columns themselves is L442."
     },
     {
@@ -904,8 +903,7 @@
       "section": "",
       "text": "Make Relay connectivity explicit in health/readiness checks.",
       "verdict": "BLOCKED_RELAY",
-      "evidence": "packages/api/src/routes/health.ts checks the datastores, not Relay, and there is no Relay endpoint to probe. Also note the ordering rule in ~/Oxy/AGENTS.md: a new health probe must land LIVE before the removal PR, because the ALB health check depends on this route.",
-      "resolvedSince": "2026-08-17"
+      "evidence": "packages/api/src/routes/health.ts checks the datastores, not Relay, and there is no Relay endpoint to probe. Also note the ordering rule in ~/Oxy/AGENTS.md: a new health probe must land LIVE before the removal PR, because the ALB health check depends on this route. RE-OPENED by the team lead after the workstream 8 agent found the guard could not fail. `expect(source).toContain('relayBlocksReadiness()')` proves the route NAMES the function, not that it acts on its answer: keeping the call and inverting the condition to `if (!relayBlocksReadiness())` makes the task report not-ready exactly when Relay IS reachable, and 1387 tests still pass. See verdictHazards.textCannotSeeAnInvertedCondition."
     },
     {
       "line": 395,
@@ -1071,10 +1069,8 @@
       "workstream": "10. Data-model migration and cleanup",
       "section": "Usage and cost",
       "text": "Replace provider/model fields in product analytics with requested model/profile plus safe resolved revision references.",
-      "verdict": "ACTIONABLE_NOW",
-      "evidence": "`chat_analytics` carries `model` (the PROVIDER's model id) and `provider` as NOT NULL columns (packages/api/src/db/schema/usage.ts:110-114), written by lib/analytics-hook.ts. `voice_call_usage` carries `provider` and `provider_model` (:189-190). The safe requested identifier is already there beside them (`alia_model_id`), and GET /analytics/models already resolves through `getAliaModel()` and skips what cannot resolve.",
-      "deliverable": "Drop or nullify the provider-identifying columns once the read paths are on `alia_model_id` alone; the resolved-revision half waits on L287.",
-      "guard": "packages/api/src/db/__tests__/chatAnalyticsRepository.pgdb.test.ts plus gate 4's serialization census widened to analytics responses. Mutation: return `provider` from an analytics route -> red."
+      "verdict": "BLOCKED_RELAY",
+      "evidence": "RE-MEASURED after #179. The REPLACEMENT half is done for chat_analytics: the requested model/profile fields exist and are the ones read, and `model`/`provider` were left present but UNREAD and nullable rather than dropped — which is the right order, since dropping a column whose production rows are UNMEASURED is the one step this epic cannot take back. RESIDUAL, and it is not chat_analytics: `voice_call_usage.provider` and `voice_call_usage.provider_model` (usage.ts:340, :341) are still NOT NULL, so that table still REQUIRES provider identity on every write, and both are equally unread. What remains is the RESOLVED REVISION, and it is BLOCKED_RELAY rather than unbuilt: no revision exists anywhere in Alia to record, which packages/api/src/db/schema/usage.ts:151 states in the schema itself — \"absent because no revision exists to record\". It arrives with the Relay catalogue (row 287)."
     },
     {
       "line": 443,
@@ -2073,10 +2069,8 @@
       "workstream": "19. Tests and enforcement",
       "section": "Observability",
       "text": "Record requested model/profile, resolved revision, latency, time to first token, error class and cancellation.",
-      "verdict": "ACTIONABLE_NOW",
-      "evidence": "Partly recorded, partly absent. `chat_analytics` carries latency and the alias (packages/api/src/db/schema/usage.ts:88-119); `cost_entries` carries the alias and tokens. Time-to-first-token, error CLASS and cancellation are recorded nowhere — lib/errors/error-codes.ts defines the classes and nothing aggregates them. Resolved revision waits on L287.",
-      "deliverable": "Record TTFT, error class and cancellation on the existing analytics write, using the error codes that already exist.",
-      "guard": "A pgdb test on chatAnalyticsRepository asserting the new columns are written on the streaming path, and a census that every `AliaErrorCode` is representable. Mutation: drop the TTFT write -> red."
+      "verdict": "BLOCKED_RELAY",
+      "evidence": "RE-MEASURED after #179: five of the six named fields now exist on chat_analytics — requested model/profile (usage.ts:195, :207, :216), latency (pre-existing), time to first token (`time_to_first_token_ms`, :247), error class (`error_class`, :256) and cancellation (`cancelled`, :265, NOT NULL default false, with the schema comment noting the contract's `finishReason: 'cancelled'` lands on the same column). `reasoning_effort` (:227) landed beside them. What remains is the RESOLVED REVISION, and it is BLOCKED_RELAY rather than unbuilt: no revision exists anywhere in Alia to record, which packages/api/src/db/schema/usage.ts:151 states in the schema itself — \"absent because no revision exists to record\". It arrives with the Relay catalogue (row 287)."
     },
     {
       "line": 704,
@@ -2121,8 +2115,8 @@
       "section": "",
       "text": "Update every code sample, screenshot and translation string.",
       "verdict": "ACTIONABLE_NOW",
-      "evidence": "Measured: `alia-v1`/`alia-lite` appear as model ids in twelve places across packages/alia-console (examples.tsx, quickstart.tsx, chat-completions.tsx, models.tsx, authentication.tsx, sdks.tsx, playground.tsx) and as hardcoded defaults in alia-codea, alia-codea-cli, alia-cowork and alia-chat. Screenshots: none survive for gateway-admin (deleted in #141). Translation strings: packages/app gained `models.routingProfile` and `models.routingProfileSelects` in #156 and the other surfaces have none.",
-      "deliverable": "Update the code samples in the four alia-console documentation routes and the defaults in the four client packages (the same edit as L291 and L241 from the docs side), and add the routing-profile vocabulary to every locale.",
+      "evidence": "RE-MEASURED after #171, #185 and #188, and the count moved a long way. packages/alia-console is DONE: four `alia-v1`/`alia-lite` strings remain and ALL FOUR are inside comments recording what was removed (models.tsx:8, :9; hooks/use-catalogue.ts:8; playground.tsx:106). The audit's twelve live console occurrences are gone. WHAT REMAINS is in the other clients, and it is now a NAMED CONSTANT per package rather than scattered literals — alia-codea/src/config.ts:21 `PREFERRED_MODEL_ID`, alia-codea-cli/src/utils/config.ts:40 `defaultModel`, alia-cowork/src/main/config.ts:18 and :35, alia-chat/src/lib/config.ts:19 and :38, app/lib/config.ts:41 and :53 (the last four all env-overridable). The sharpest residue is packages/app/components/credit-warning-banner.tsx:25-28, a hardcoded alias-to-alias downgrade table carrying its own credit multipliers, which duplicates the routing table.",
+      "deliverable": "The console half is done. What is left: the per-package default constants, and above all the downgrade table in credit-warning-banner.tsx, which restates multipliers the server owns.",
       "guard": "A translation-key completeness census plus the alias census from L291. Mutation: leave one sample naming an alias as a model -> red. Requires a CI job that covers the console, which does not exist today."
     },
     {
@@ -2240,14 +2234,16 @@
     "wrongArtefact": "Rows 266 and 654 were wrong in the same direction and neither was caught by this audit. 266 cited a mechanism nothing called; 654 cited an absence that was not absent, because the scan read headings rather than prose. Both are corrections to the same habit: measure the artefact the claim is about. A heading census answers \"is there a section named X\", never \"is the rule written\"; an import census answers \"does this module exist\", never \"does the entrypoint call it\".",
     "emptyTableReadsCorrect": "Row 475 asserted that a write happened because the code path that would write existed. It did not: `recordCost` has no caller, so `cost_entries` is empty and every aggregate over it returns zero. A correct read of an empty table and a broken switch are indistinguishable without a positive control, which is why the standing gate for it carries one.",
     "ratchetNotSynchroniser": "A synchronising process that only ever ADDS is not a synchroniser, it is a ratchet. This file's `resolvedSince` sync could mark a row resolved and never unmark it, so a re-opened box stayed \"done\" — and the epic read as further along than it was, which is the precise failure the file exists to prevent. Caught only because a count disagreed by one. Same family as a floor that a gate's own work erodes until it asserts nothing, and as a matrix row that outlives the file it names. The fix is always the same: make the check answer BOTH directions and assert the exact count, never a floor.",
-    "typeSystemViaTextCensus": "A census over source TEXT cannot answer a question about the TYPE SYSTEM. Found by the workstream 12 agent in #167's audit guard: packages/api/src/lib/security/__tests__/config-audit.test.ts:319 asserts no caller can omit the actor by testing `not.toMatch(/actor\\?\\s*:/)` — and a DEFAULT PARAMETER (`actor: ConfigAuditActor = {…}`) defeats it completely. There is no `?`, so the regex misses; the signature census still sees a parameter named `actor` typed `ConfigAuditActor`; and TypeScript treats it as optional at every call site. Proven rather than argued: a probe calling the writer with no actor typechecks with zero errors. This is the same family as `wrongArtefact` — a property enforced by the type system needs a gate IN the type system, or at minimum an AST check that reads the parameter's optionality rather than its spelling. L544 stays ticked: the mechanism holds, only that sub-property's coverage was hollow."
+    "typeSystemViaTextCensus": "A census over source TEXT cannot answer a question about the TYPE SYSTEM. Found by the workstream 12 agent in #167's audit guard: packages/api/src/lib/security/__tests__/config-audit.test.ts:319 asserts no caller can omit the actor by testing `not.toMatch(/actor\\?\\s*:/)` — and a DEFAULT PARAMETER (`actor: ConfigAuditActor = {…}`) defeats it completely. There is no `?`, so the regex misses; the signature census still sees a parameter named `actor` typed `ConfigAuditActor`; and TypeScript treats it as optional at every call site. Proven rather than argued: a probe calling the writer with no actor typechecks with zero errors. This is the same family as `wrongArtefact` — a property enforced by the type system needs a gate IN the type system, or at minimum an AST check that reads the parameter's optionality rather than its spelling. L544 stays ticked: the mechanism holds, only that sub-property's coverage was hollow.",
+    "mentionIsNotACall": "A guard that survives its own mutation because an IMPORT LINE satisfies it. The workstream 4 agent's first version asserted models.tsx contains `useCatalogue`; replacing the hook call with a literal empty array SURVIVED, because the import statement still contained the identifier. A component can satisfy \"imports X\" while never calling X. Fixed by asserting `useCatalogue(` with the parenthesis. Sibling of greenAndInert and distinct from it: there the MECHANISM had no caller, here the ASSERTION could not tell a call from a mention.",
+    "textCannotSeeAnInvertedCondition": "A source-text entrypoint assertion cannot see an inverted condition. `expect(source).toContain('relayBlocksReadiness()')` proves the route NAMES the function, never that it acts on the answer — keep the call and invert to `if (!relayBlocksReadiness())` and the task reports not-ready exactly when Relay IS reachable, with 1387 tests passing. Found by the workstream 8 agent; the box (394) was un-ticked. THE GENERALISATION MATTERS MORE THAN THE INSTANCE: src/index.ts is asserted only by source TEXT because nothing imports it — it opens a socket, arms timers and connects a database at import — so EVERY boot-path guard in this epic shares this shape and none of them can see a negation. The escape is the one relay-boot-check.ts already took: put the decision in a FUNCTION that a test can call with an environment, and leave index.ts holding only the log line and the exit."
   },
   "openVerdictCounts": {
-    "ACTIONABLE_NOW": 8,
+    "ACTIONABLE_NOW": 4,
     "ALREADY_TRUE": 1,
     "BLOCKED_ALIAMODELS": 25,
     "BLOCKED_OXY_972": 26,
-    "BLOCKED_RELAY": 92,
+    "BLOCKED_RELAY": 96,
     "DUPLICATE_OF": 28,
     "PRODUCT_DECISION": 9
   },
