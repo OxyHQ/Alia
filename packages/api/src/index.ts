@@ -6,7 +6,8 @@ import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { connectDB } from './lib/db.js';
-import { closePostgres, connectPostgres, getDb } from './db/index.js';
+import { closePostgres, getDb } from './db/index.js';
+import { runBootGuards } from './lib/boot-guards.js';
 import { failOrphanedAudioJobs } from './db/notifications/audioJobRepository.js';
 import { startExpirySweeper, stopExpirySweeper } from './db/expirySweeper.js';
 import { log } from './lib/logger.js';
@@ -68,9 +69,6 @@ import { seedPlans } from './lib/seed-plans.js';
 import { startTriggerEngine, stopTriggerEngine } from './lib/trigger-engine.js';
 import { warmupProviders } from './lib/provider-warmup.js';
 import { warmupGatewayClient } from './lib/gateway-client.js';
-import { relayBootConfigurationFailure } from './lib/inference/relay-boot-check.js';
-import { assertDirectProviderModeOrExit } from './lib/inference/direct-provider-guard.js';
-import { installProviderEgressBlock } from './lib/inference/provider-egress-policy.js';
 import { initChannels } from './lib/channels/index.js';
 // Socket.io
 import { initSocket } from './socket.js';
@@ -444,81 +442,29 @@ function connectWithRetry(attempt = 1): void {
     });
 }
 
-/**
- * Postgres is REQUIRED, and it is required BEFORE the socket opens.
- *
- * Not "connect in the background and hope": a deployment without `DATABASE_URL`
- * must never reach a state where it accepts a request, because half-configured
- * has to be OFF rather than a service that answers some routes and 500s the
- * rest. `createDatabase` also resolves the connection string here, so a bad one
- * fails at boot instead of on whichever request happens to touch it first.
- */
-function connectPostgresOrExit(): void {
-  const db = connectPostgres(process.env.DATABASE_URL);
-  if (!db) {
-    log.general.error('DATABASE_URL is required — Postgres is this service\'s database');
-    process.exit(1);
-  }
-  log.general.info('Postgres connected');
-}
-
-/**
- * Refuse to start when the Relay client is enabled and cannot work — #139
- * workstream 2.
- *
- * Same shape and same reason as `connectPostgresOrExit` above: half-configured
- * has to be OFF rather than a service that accepts requests and then fails every
- * model call. What it costs when `ALIA_RELAY_CLIENT_ENABLED` is not exactly
- * `'true'` — which is everywhere today — is one read of that one variable;
- * `relayBootConfigurationFailure` consults no Relay configuration at all on that
- * path, and `lib/inference/__tests__/relay-boot-check.test.ts` pins it with a
- * recording environment rather than by inspection.
- */
-function assertRelayConfigurationOrExit(): void {
-  const failure = relayBootConfigurationFailure();
-  if (failure === null) return;
-  log.general.error({ failure }, 'Relay client configuration is invalid — refusing to start');
-  process.exit(1);
-}
-
-connectPostgresOrExit();
-assertRelayConfigurationOrExit();
-
 /*
- * Refuse to start when the cutover is on and a direct provider route is still
- * configured — #139 workstream 8.
+ * Every refusal that must happen before the socket opens — #139 workstreams 2
+ * and 8, plus the Postgres requirement.
  *
- * Sits beside the Relay configuration check because the two are halves of one
- * question: with `ALIA_RELAY_CLIENT_ENABLED` set, that one requires Relay to be
- * usable and this one requires nothing else to be. With the flag off — every
- * deployment today — `directProviderModeFailure` reads that one variable and
- * returns, so this costs a pre-cutover boot nothing and can change nothing about
- * it.
+ * The bodies live in `lib/boot-guards.ts` rather than here, because nothing
+ * imports this file and anything written in it can only be guarded by a
+ * source-text census. That proved insufficient: the direct-provider guard was
+ * measurably able to lose its `process.exit` while every suite in the repo
+ * stayed green. `lib/__tests__/boot-guards.test.ts` now asserts the refusals,
+ * their ORDER, and that each one terminates.
  *
- * The decision lives in `lib/inference/direct-provider-guard.ts` rather than
- * here, so that "a refusal terminates the process" is a property a test can
- * assert. Nothing imports this file, so anything written in it is guarded only
- * by a source-text census — and this guard was measurably able to lose its
- * `process.exit` while every suite stayed green.
+ * What only `db/__tests__/bootWiring.test.ts` can still see is that this call
+ * exists, precedes `listen`, and hands over the REAL `process.exit` — a call
+ * site passing a no-op would satisfy every behavioural test.
  */
-assertDirectProviderModeOrExit(
-  (failure) => {
-    log.general.error({ failure }, 'Direct provider mode is configured after the Relay cutover — refusing to start');
+runBootGuards({
+  reportFatal: (message, detail) => {
+    if (detail === undefined) log.general.error(message);
+    else log.general.error(detail, message);
   },
-  (code) => process.exit(code),
-);
-
-/**
- * Arm the egress policy before the socket opens — #139 workstream 8.
- *
- * With the cutover flag off this touches nothing at all and returns `null`; with
- * it on, a request to a provider API host is refused inside this process. It
- * runs here rather than at import time so the ordering is visible, and before
- * `listen` so no request can be served by a process that skipped it.
- */
-if (installProviderEgressBlock() !== null) {
-  log.general.info('Provider egress policy armed — provider API hosts are unreachable from this process');
-}
+  reportInfo: (message) => log.general.info(message),
+  exit: (code) => process.exit(code),
+});
 
 // Start listening immediately — do not block on external dependencies.
 server.listen(PORT, '0.0.0.0', () => {
