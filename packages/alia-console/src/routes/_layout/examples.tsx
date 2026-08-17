@@ -34,7 +34,7 @@ const examples = {
     'Content-Type': 'application/json',
   },
   body: JSON.stringify({
-    model: 'alia-v1',
+    model: 'profile:v1',
     messages: [
       { role: 'user', content: 'Hello!' }
     ],
@@ -52,7 +52,7 @@ client = openai.OpenAI(
 )
 
 response = client.chat.completions.create(
-    model="alia-v1",
+    model="profile:v1",
     messages=[
         {"role": "user", "content": "Hello!"}
     ]
@@ -68,7 +68,7 @@ const openai = new OpenAI({
 });
 
 const completion = await openai.chat.completions.create({
-  model: 'alia-v1',
+  model: 'profile:v1',
   messages: [
     { role: 'user', content: 'Hello!' }
   ],
@@ -80,7 +80,7 @@ console.log(completion.choices[0].message.content);`,
   -H "Authorization: Bearer alia_sk_YOUR_API_KEY" \\
   -H "Content-Type: application/json" \\
   -d '{
-    "model": "alia-v1",
+    "model": "profile:v1",
     "messages": [
       {"role": "user", "content": "Hello!"}
     ]
@@ -93,7 +93,7 @@ console.log(completion.choices[0].message.content);`,
     'Content-Type': 'application/json',
   },
   body: JSON.stringify({
-    model: 'alia-v1',
+    model: 'profile:v1',
     messages: [{ role: 'user', content: 'Hello!' }],
     stream: true,
   }),
@@ -143,7 +143,7 @@ const tools = [
 ];
 
 const completion = await openai.chat.completions.create({
-  model: 'alia-v1',
+  model: 'profile:v1',
   messages: [{ role: 'user', content: 'What is the weather in Madrid?' }],
   tools,
   tool_choice: 'auto',
@@ -173,7 +173,7 @@ const languageMap: Record<ExampleKey, BundledLanguage> = {
 // Sample agent configuration
 const sampleAgent = {
   name: 'Weather Assistant',
-  model: 'alia-v1',
+  model: 'profile:v1',
   instructions: `You are a helpful weather assistant. When the user asks about the weather, use the get_weather tool to fetch current conditions. Always be friendly and provide helpful weather-related advice.`,
   tools: {
     get_weather: {

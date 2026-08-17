@@ -67,7 +67,7 @@ import { Slider } from '@/components/ui/slider';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { useModelsStats } from '@/hooks/use-developer';
+import { useCatalogue } from '@/hooks/use-catalogue';
 import config from '@/lib/config';
 
 export const Route = createFileRoute('/_layout/playground')({
@@ -86,7 +86,7 @@ interface UsageStats {
 }
 
 function PlaygroundPage() {
-  const { data: modelsData, isLoading: modelsLoading } = useModelsStats();
+  const { data: catalogue, isPending: modelsLoading } = useCatalogue();
   const { oxyServices, isAuthenticated } = useAuth();
 
   // Chat state
@@ -99,14 +99,26 @@ function PlaygroundPage() {
   const [streamingContent, setStreamingContent] = useState('');
   const [usage, setUsage] = useState<UsageStats | null>(null);
 
-  // Settings state
-  const [selectedModel, setSelectedModel] = useState('alia-lite');
+  /**
+   * Settings state.
+   *
+   * `null` means "nothing chosen yet", and the selection is DERIVED from it
+   * below rather than seeded by an effect — a hardcoded `'alia-lite'` seed is
+   * both a client baking in an identifier (`scripts/check-model-defaults.mjs`)
+   * and, since #139 workstream 4, an identifier the catalogue does not
+   * advertise.
+   */
+  const [chosenModel, setChosenModel] = useState<string | null>(null);
   const [temperature, setTemperature] = useState([0.7]);
   const [maxTokens, setMaxTokens] = useState(1024);
 
   const abortControllerRef = useRef<AbortController | null>(null);
 
-  const models = modelsData?.models ?? [];
+  // Derived, not stored: the first entry is the cheapest, because the catalogue
+  // is sorted by credit multiplier. No effect, so there is no render where the
+  // selection is empty and no stale read after the catalogue loads.
+  const models = catalogue ?? [];
+  const selectedModel = chosenModel ?? models[0]?.id ?? '';
   const currentModel = models.find((m) => m.id === selectedModel);
 
   const handleSend = useCallback(async () => {
@@ -253,7 +265,7 @@ function PlaygroundPage() {
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" className="gap-2">
                 <HugeiconsIcon icon={AiBrain01Icon} size={16} />
-                {currentModel?.name || 'Select Model'}
+                {currentModel?.displayName || 'Select a profile'}
                 <HugeiconsIcon
                   icon={ArrowDown01Icon}
                   size={14}
@@ -267,7 +279,7 @@ function PlaygroundPage() {
               </DropdownMenuLabel>
               <DropdownMenuRadioGroup
                 value={selectedModel}
-                onValueChange={setSelectedModel}
+                onValueChange={setChosenModel}
               >
                 {modelsLoading ? (
                   <div className="flex items-center gap-2 p-2">
@@ -280,13 +292,13 @@ function PlaygroundPage() {
                       <Item size="xs" className="p-0">
                         <ItemContent>
                           <ItemTitle className="flex items-center gap-2">
-                            {model.name}
+                            {model.displayName}
                             <Badge variant="secondary" className="text-xs">
-                              {model.tier}
+                              {model.kind === 'model' ? 'Model' : 'Profile'}
                             </Badge>
                           </ItemTitle>
                           <ItemDescription className="text-xs">
-                            {model.maxTokens.toLocaleString()} tokens max
+                            {model.creditMultiplier}x credits
                           </ItemDescription>
                         </ItemContent>
                       </Item>
