@@ -23,6 +23,25 @@
  * Callers used `_id.toString()`. The column is `text`, so the conversion is gone
  * rather than ported — but an app id from an OLD client is an ObjectId hex
  * string that matches nothing, which is a 404 rather than a crash.
+ *
+ * ## There is no INSERT here, and that is the point
+ *
+ * ADR 0001 gives developer applications and credentials to Oxy, and #139
+ * workstream 11 closes issuance on this side. `insertApp` and `insertApiKey` are
+ * deleted rather than left unused behind a refusing route: an exported writer
+ * with no caller is a re-opened door one import away, and it reads as ordinary
+ * infrastructure to anyone who arrives later. The two by-name lookups that fed
+ * the desktop auto-registration (`findOwnedAppByName`, `findOwnedKeyByName`) go
+ * with it — the flow they served is closed, so they answered a question nobody
+ * asks.
+ *
+ * Read, update, revoke and delete all remain: section (c) of
+ * `docs/migration/compatibility-window.md` keeps every issued credential working
+ * and explicitly keeps revocation available, because taking that away during a
+ * migration would be a security regression.
+ *
+ * The Postgres suite seeds its own rows with SQL for the same reason. A fixture
+ * that inserts is a fixture; an exported function that inserts is an API.
  */
 
 import { and, count, desc, eq, inArray, sql, type SQL } from 'drizzle-orm';
@@ -117,28 +136,6 @@ export async function findAppById(
 ): Promise<DeveloperAppRow | null> {
   const [row] = await db.select().from(developerApps).where(eq(developerApps.id, appId));
   return row ?? null;
-}
-
-/** An owner's app with this exact name, for the idempotent auto-registration. */
-export async function findOwnedAppByName(
-  db: ApiDatabase,
-  oxyUserId: string,
-  name: string,
-): Promise<DeveloperAppRow | null> {
-  const [row] = await db
-    .select()
-    .from(developerApps)
-    .where(and(eq(developerApps.oxyUserId, oxyUserId), eq(developerApps.name, name)));
-  return row ?? null;
-}
-
-export async function insertApp(
-  db: ApiDatabase,
-  values: DeveloperAppInsert,
-): Promise<DeveloperAppRow> {
-  const [row] = await db.insert(developerApps).values(values).returning();
-  if (!row) throw new Error('insert returned no row');
-  return row;
 }
 
 export type DeveloperAppUpdate = Partial<
@@ -270,35 +267,30 @@ export async function findActiveKeyByHash(
   return row ?? null;
 }
 
-/** One owner's key by name within an app, for the idempotent auto-registration. */
-export async function findOwnedKeyByName(
-  db: ApiDatabase,
-  appId: string,
-  oxyUserId: string,
-  name: string,
-): Promise<DeveloperApiKeyRow | null> {
-  const [row] = await db
-    .select()
-    .from(developerApiKeys)
-    .where(
-      and(
-        eq(developerApiKeys.appId, appId),
-        eq(developerApiKeys.oxyUserId, oxyUserId),
-        eq(developerApiKeys.name, name),
-      ),
-    );
-  return row ?? null;
-}
-
-export async function insertApiKey(
-  db: ApiDatabase,
-  values: DeveloperApiKeyInsert,
-): Promise<DeveloperApiKeyRow> {
-  const [row] = await db.insert(developerApiKeys).values(values).returning();
-  if (!row) throw new Error('insert returned no row');
-  return row;
-}
-
+/**
+ * What may be changed about an existing key.
+ *
+ * `keyHash`, `keyPrefix` and `lastUsedAt` are ABSENT ON PURPOSE, and their
+ * absence is a gate rather than a tidy-up.
+ *
+ * Under #139 workstream 11 Alia issues no new `alia_sk_*` credential. Writing a
+ * fresh `keyHash` over an existing row issues one — the caller walks away holding
+ * a secret that did not exist a moment ago — and it is the shape that reads as
+ * maintenance rather than as minting, so it is the one most likely to come back.
+ * `POST /auth/token` did exactly that, and rejecting it at the route alone would
+ * leave the door standing open one import away. `keyPrefix` follows because it is
+ * derived from the same secret and a prefix that disagrees with the digest turns
+ * every support conversation into a wrong answer. `lastUsedAt` follows because
+ * the same path reset it to `null` to disguise a replaced key as a new one;
+ * `touchKeyLastUsed` is the only legitimate writer, and it takes no caller input.
+ *
+ * `Pick` is what enforces this: naming a column here is the only way to write it
+ * through {@link updateOwnedKey}, so a reintroduced rotation fails to compile
+ * rather than shipping. `bun run --filter @alia/api typecheck` is the check —
+ * `middleware/__tests__/credential-deprecation.test.ts` asserts the same property
+ * with a compile-time `AssertNever`, because a runtime test cannot observe the
+ * absence of a type.
+ */
 export type DeveloperApiKeyUpdate = Partial<
   Pick<
     DeveloperApiKeyInsert,
@@ -306,9 +298,6 @@ export type DeveloperApiKeyUpdate = Partial<
     | 'scopes'
     | 'isActive'
     | 'expiresAt'
-    | 'keyHash'
-    | 'keyPrefix'
-    | 'lastUsedAt'
     | 'rateLimitRequestsPerMinute'
     | 'rateLimitRequestsPerDay'
     | 'rateLimitTokensPerMinute'
