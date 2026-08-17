@@ -197,6 +197,14 @@ jobs:
       - name: Check no client hardcodes a model default
         run: node scripts/check-model-defaults.mjs
 
+      # The picker labels a routing profile with the product's own words —
+      # Fast, Balanced, Maximum quality, Coding — rather than the display name
+      # of the alias it came from. The server half is gated by
+      # architectureGates gate 5; this is the client half, which nothing
+      # covered because `packages/app` has no test runner.
+      - name: Check the picker speaks the product's language
+        run: node scripts/check-picker-language.mjs
+
   build-api:
     name: Build API
     runs-on: ubuntu-latest

@@ -16,7 +16,7 @@
 
 /** What a chat request asks for when the caller names no model. Checked against the catalogue. */
 export const PREFERRED_CHAT_MODEL_ID =
-  process.env.EXPO_PUBLIC_ALIA_DEFAULT_MODEL ?? 'alia-v1';
+  process.env.EXPO_PUBLIC_ALIA_DEFAULT_MODEL ?? 'profile:v1';
 
 /**
  * What speech synthesis and the voice session ask for.
@@ -35,4 +35,4 @@ export const PREFERRED_CHAT_MODEL_ID =
  * first-class filter; that is workstream 5's business, not a thing to fake here.
  */
 export const PREFERRED_VOICE_MODEL_ID =
-  process.env.EXPO_PUBLIC_ALIA_VOICE_MODEL ?? 'alia-v1-voice';
+  process.env.EXPO_PUBLIC_ALIA_VOICE_MODEL ?? 'profile:v1-voice';

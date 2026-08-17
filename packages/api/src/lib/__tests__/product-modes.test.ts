@@ -128,37 +128,46 @@ describe('the three general-purpose modes are an ORDERING, not three assignments
 describe('Coding is read off the coding product, not chosen', () => {
   it('pins the profile every Codea surface already defaults to', () => {
     /**
-     * Where the Codea default actually lives.
+     * Where the Codea default actually lives, and in which vocabulary.
      *
-     * `packages/alia-codea/src/inlineCompletionProvider.ts` used to be the third
-     * entry and no longer names an identifier: #139 workstream 5 moved the
-     * extension's default out of its three providers into one preference module,
-     * so that the clients read `GET /catalogue` instead of baking an alias into
-     * a marketplace build. The FACT this asserts is unchanged — every Codea
-     * surface defaults to one identifier — but the file that states it moved, so
-     * the list moved with it in the same change. `scripts/check-model-defaults.mjs`
-     * is what now forbids the identifier reappearing in the providers.
+     * Two moves have happened here, each recorded when it happened rather than
+     * discovered later. #139 workstream 5 first moved the extension's default
+     * out of its three providers into one preference module. It then moved the
+     * VOCABULARY: the surfaces now name `profile:v1-codea`, the id
+     * `GET /catalogue` publishes and `lib/chat/request-context.ts` accepts,
+     * instead of the `alia-v1-codea` alias that #178 stopped advertising.
+     *
+     * The FACT asserted is unchanged — every Codea surface defaults to one
+     * identifier, and it is the coding profile. Only its spelling moved, so the
+     * scan moved with it in the same change.
+     *
+     * `packages/alia-codea/package.json` matters more than it looks: VS Code
+     * returns a setting's DECLARED default when the user has not set one, so a
+     * manifest still naming the alias would make the extension's own
+     * `PREFERRED_MODEL_ID` unreachable. The two agreeing is the thing this
+     * checks, not either one alone.
      */
     const defaults = [
       repoFile('packages/alia-codea/package.json'),
       repoFile('packages/alia-codea-cli/src/utils/config.ts'),
       repoFile('packages/alia-codea/src/config.ts'),
     ];
-    // Greedy whole-token matching, never `includes`: `alia-v1` is a PREFIX of
-    // `alia-v1-codea`, so a substring scan reports both and the "one
-    // identifier" assertion below would fail on a file that names exactly one.
-    const registered = new Set(Object.keys(ALIA_MODELS));
+    // Anchored on the `profile:` prefix, which cannot collide the way the alias
+    // vocabulary did — `alia-v1` was a PREFIX of `alia-v1-codea`, so a substring
+    // scan reported both and the "one identifier" assertion failed on a file
+    // naming exactly one.
+    const presets = new Set<string>(ROUTING_PRESETS.map((preset) => preset.id));
     const namedIn = (source: string): string[] =>
-      [...source.matchAll(/alia-[a-z0-9-]+/g)].map((m) => m[0]).filter((id) => registered.has(id));
+      [...source.matchAll(/profile:[a-z0-9-]+/g)].map((m) => m[0]).filter((id) => presets.has(id));
 
-    // Positive control: the scan can see an alias in these files at all. A
+    // Positive control: the scan can see an identifier in these files at all. A
     // renamed file would otherwise report "no default found" as agreement.
     for (const source of defaults) expect(namedIn(source).length).toBeGreaterThan(0);
 
     const named = new Set(defaults.flatMap(namedIn));
     // One identifier across all three, or "the default" is not a single fact.
-    expect([...named]).toEqual(['alia-v1-codea']);
-    expect(pinned('mode:coding')).toBe(getRoutingPreset('alia-v1-codea')?.id);
+    expect([...named]).toEqual(['profile:v1-codea']);
+    expect(pinned('mode:coding')).toBe('profile:v1-codea');
   });
 
   it('is a coding-category profile, which the general-purpose three are not', () => {
