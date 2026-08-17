@@ -188,6 +188,140 @@ export interface CapabilityViolation {
 }
 
 /**
+ * Where one contract capability is answered — #139 workstream 3, *"Support
+ * tools, structured output, vision, reasoning, prompt caching and modality
+ * capabilities."*
+ *
+ * Three answers, because the eleven capabilities really do divide three ways and
+ * flattening them would produce either checks that cannot be written or silence
+ * about the ones that are not checked here:
+ *
+ *  - `request` — expressible in `InferenceRequest`, so a target that lacks it
+ *    can be refused BEFORE anything is sent. `refuse` is that check.
+ *  - `response` — not a request field at all. The capability shows up in what
+ *    comes back, and the client's job is to carry it through undamaged;
+ *    `carriedBy` names where. Refusing such a request would be inventing a
+ *    restriction the contract does not express.
+ *  - `relay` — undecidable here without provider knowledge this client must not
+ *    hold. Relay answers it, and the caller sees a contract error code.
+ */
+export type CapabilityEnforcement =
+  | {
+      readonly where: 'request';
+      readonly refuse: (
+        payload: RelayRequestPayload,
+        capabilities: ModelCapabilities,
+      ) => CapabilityViolation | null;
+    }
+  | { readonly where: 'response'; readonly carriedBy: string }
+  | { readonly where: 'relay'; readonly why: string };
+
+/**
+ * Every capability the contract defines, and this client's answer to it.
+ *
+ * The `satisfies Record<keyof ModelCapabilities, …>` is load-bearing in both
+ * directions: a capability ADDED to `modelCapabilitiesSchema` upstream becomes a
+ * compile error here rather than a field the client silently ignores, and
+ * `__tests__/relay-capabilities.test.ts` compares the keys against the live
+ * schema at runtime so a field RENAMED or REMOVED there fails too. Before this
+ * table existed `parallelToolCalls` was neither checked nor mentioned anywhere,
+ * which is exactly the omission the type now prevents.
+ *
+ * Insertion order is the evaluation order of {@link violatedCapability}, and
+ * `streaming` is deliberately first: a target that cannot stream cannot serve
+ * ANY call this client makes, so reporting a narrower violation ahead of it
+ * would send a caller to fix the wrong thing.
+ */
+export const CAPABILITY_ENFORCEMENT = {
+  streaming: {
+    where: 'request',
+    // The client's only wire read path is the stream event union, so it always
+    // asks for a stream — see `buildInferenceRequest`. A non-streaming target is
+    // therefore unusable rather than merely limited.
+    refuse: (_payload: RelayRequestPayload, capabilities: ModelCapabilities) =>
+      capabilities.streaming ? null : { code: 'unsupported_modality' as const, param: 'stream' },
+  },
+  tools: {
+    where: 'request',
+    refuse: (payload: RelayRequestPayload, capabilities: ModelCapabilities) =>
+      payload.tools.length > 0 && !capabilities.tools
+        ? { code: 'invalid_request' as const, param: 'tools' }
+        : null,
+  },
+  structuredOutput: {
+    where: 'request',
+    refuse: (payload: RelayRequestPayload, capabilities: ModelCapabilities) =>
+      payload.responseFormat?.type === 'json_schema' && !capabilities.structuredOutput
+        ? { code: 'invalid_request' as const, param: 'responseFormat' }
+        : null,
+  },
+  jsonMode: {
+    where: 'request',
+    // Separate from `structuredOutput` because the contract separates them: a
+    // model can be asked for syntactically valid JSON without being able to
+    // honour a schema, and collapsing the two would refuse requests Relay serves.
+    refuse: (payload: RelayRequestPayload, capabilities: ModelCapabilities) =>
+      payload.responseFormat?.type === 'json_object' && !capabilities.jsonMode
+        ? { code: 'invalid_request' as const, param: 'responseFormat' }
+        : null,
+  },
+  maxOutputTokens: {
+    where: 'request',
+    refuse: (payload: RelayRequestPayload, capabilities: ModelCapabilities) =>
+      payload.maxOutputTokens !== undefined && payload.maxOutputTokens > capabilities.maxOutputTokens
+        ? { code: 'output_limit_exceeded' as const, param: 'maxOutputTokens' }
+        : null,
+  },
+  outputModalities: {
+    where: 'request',
+    refuse: (payload: RelayRequestPayload, capabilities: ModelCapabilities) =>
+      capabilities.outputModalities.includes(payload.modality)
+        ? null
+        : { code: 'unsupported_modality' as const, param: 'modality' },
+  },
+  inputModalities: {
+    where: 'request',
+    // Vision is this one: an `image` content part is an image INPUT modality,
+    // and there is no separate `vision` flag in the contract to check.
+    refuse: (payload: RelayRequestPayload, capabilities: ModelCapabilities) => {
+      for (const required of requiredInputModalities(payload)) {
+        if (!capabilities.inputModalities.includes(required)) {
+          return { code: 'unsupported_modality' as const, param: 'input' };
+        }
+      }
+      return null;
+    },
+  },
+  reasoning: {
+    where: 'response',
+    // No request field asks for reasoning, so a target that cannot reason is not
+    // a refusal — it simply sends no reasoning. What the client must not do is
+    // lose it: `delta` events on the `reasoning` channel fold into
+    // `RelayCompletion.reasoningText`, and `reasoning_tokens` survives in `usage`.
+    carriedBy: 'RelayCompletion.reasoningText and the reasoning_tokens usage unit',
+  },
+  promptCaching: {
+    where: 'response',
+    // Likewise unrequestable: caching is Relay's and the provider's business,
+    // and the only thing Alia needs is the receipt. `cached_input_tokens` is a
+    // usage unit, and the client hands the last usage event's units through
+    // untouched — a client that summed or dropped them would make the product's
+    // cost attribution wrong with no error anywhere.
+    carriedBy: 'the cached_input_tokens usage unit on RelayCompletion.usage',
+  },
+  parallelToolCalls: {
+    where: 'response',
+    // Observable as two tool calls with distinct ids inside one generation. The
+    // client folds by `toolCallId`, so concurrent calls stay separate.
+    carriedBy: 'RelayCompletion.toolCalls, keyed by toolCallId',
+  },
+  maxContextTokens: {
+    where: 'relay',
+    why: 'counting a prompt requires a tokenizer for the resolved revision, which is provider knowledge this client must not hold; Relay answers with context_length_exceeded',
+  },
+} as const satisfies Record<keyof ModelCapabilities, CapabilityEnforcement>;
+
+/**
  * Refuse a request the named target cannot serve, before it is sent.
  *
  * This is not routing. The target is already chosen — by the caller, or by the
@@ -200,44 +334,17 @@ export interface CapabilityViolation {
  * is the current state and is honest about it: the alternative, a hardcoded
  * table, would be a second catalogue.
  *
- * `maxContextTokens` is NOT checked: counting a prompt's tokens requires a
- * tokenizer for the resolved revision, which is exactly the provider knowledge
- * this client must not hold. `context_length_exceeded` comes back from Relay.
- * `promptCaching` and `reasoning` are not checked either, because neither is a
- * request FIELD in this contract — they change what the usage report contains,
- * not what the caller may write.
+ * Driven by {@link CAPABILITY_ENFORCEMENT} rather than by a sequence of `if`s,
+ * so the table is the code rather than a description of it that can drift.
  */
 export function violatedCapability(
   payload: RelayRequestPayload,
   capabilities: ModelCapabilities,
 ): CapabilityViolation | null {
-  if (!capabilities.streaming) {
-    // The client only ever reads the stream event union, so a target that
-    // cannot stream cannot serve any call it makes.
-    return { code: 'unsupported_modality', param: 'stream' };
-  }
-  if (payload.tools.length > 0 && !capabilities.tools) {
-    return { code: 'invalid_request', param: 'tools' };
-  }
-  if (payload.responseFormat?.type === 'json_schema' && !capabilities.structuredOutput) {
-    return { code: 'invalid_request', param: 'responseFormat' };
-  }
-  if (payload.responseFormat?.type === 'json_object' && !capabilities.jsonMode) {
-    return { code: 'invalid_request', param: 'responseFormat' };
-  }
-  if (
-    payload.maxOutputTokens !== undefined &&
-    payload.maxOutputTokens > capabilities.maxOutputTokens
-  ) {
-    return { code: 'output_limit_exceeded', param: 'maxOutputTokens' };
-  }
-  if (!capabilities.outputModalities.includes(payload.modality)) {
-    return { code: 'unsupported_modality', param: 'modality' };
-  }
-  for (const required of requiredInputModalities(payload)) {
-    if (!capabilities.inputModalities.includes(required)) {
-      return { code: 'unsupported_modality', param: 'input' };
-    }
+  for (const enforcement of Object.values(CAPABILITY_ENFORCEMENT)) {
+    if (enforcement.where !== 'request') continue;
+    const violation = enforcement.refuse(payload, capabilities);
+    if (violation !== null) return violation;
   }
   return null;
 }

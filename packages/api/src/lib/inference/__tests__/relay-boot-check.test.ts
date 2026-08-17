@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { authenticatedPrincipalSchema } from '@oxyhq/contracts';
 import { describe, expect, it } from 'vitest';
 
-import { RELAY_CLIENT_ENABLED_ENV } from '../relay-client.js';
+import { RELAY_CLIENT_ENABLED_ENV } from '../relay-cutover.js';
 import { RELAY_PRINCIPAL_ENV, relayBootConfigurationFailure } from '../relay-boot-check.js';
 
 /**

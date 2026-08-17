@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 
 import { ALIA_MODELS, TIER_MODEL_MAPPINGS, getAllAliaModels, isAliaModel } from '../internal/providers/lib/alia-models.js';
 import { PROVIDER_NAMES } from '../internal/providers/lib/provider-names.js';
+import { PROVIDER_API_HOSTS } from '../lib/inference/provider-egress-policy.js';
 import type { SafeProviderKey } from '../db/providers/providerKeyRepository.js';
 
 /**
@@ -507,32 +508,23 @@ describe('gate 1: no product module imports a provider adapter (ADR 0001)', () =
 
 /**
  * One upstream hostname per registered provider, keyed by the provider name the
- * catalogue uses. Keyed rather than listed so the map is checked against
+ * catalogue uses. Keyed rather than listed so the map can be checked against
  * `PROVIDER_NAMES` below: registering a twentieth provider without recording its
  * hostname fails, which is the only way this gate can notice a provider it has
  * never heard of.
+ *
+ * Imported rather than restated: the same map is the RUNTIME deny list of
+ * `lib/inference/provider-egress-policy.ts` (#139 ws8), and two copies of it
+ * would drift in exactly the direction that matters — a host this gate froze and
+ * the egress policy did not refuse.
+ *
+ * That module holds the names WITHOUT a scheme, because a deny list matches
+ * hosts rather than URLs. So it does not appear in the per-host allowlist below
+ * and its absence there is not an oversight: `URL_HOST` only matches a hostname
+ * that follows `https://`, and naming a host in order to REFUSE it is not the
+ * thing ADR 0001 rule 2 forbids.
  */
-const PROVIDER_HOSTS: Readonly<Record<string, string>> = {
-  openai: 'api.openai.com',
-  anthropic: 'api.anthropic.com',
-  google: 'generativelanguage.googleapis.com',
-  groq: 'api.groq.com',
-  mistral: 'api.mistral.ai',
-  deepseek: 'api.deepseek.com',
-  together: 'api.together.ai',
-  replicate: 'api.replicate.com',
-  cerebras: 'api.cerebras.ai',
-  cloudflare: 'api.cloudflare.com',
-  openrouter: 'openrouter.ai',
-  cohere: 'api.cohere.ai',
-  fireworks: 'api.fireworks.ai',
-  perplexity: 'api.perplexity.ai',
-  xai: 'api.x.ai',
-  sambanova: 'api.sambanova.ai',
-  hyperbolic: 'api.hyperbolic.xyz',
-  novita: 'api.novita.ai',
-  digitalocean: 'inference.do-ai.run',
-};
+const PROVIDER_HOSTS = PROVIDER_API_HOSTS;
 
 /**
  * Which files may name each provider hostname, frozen exactly.

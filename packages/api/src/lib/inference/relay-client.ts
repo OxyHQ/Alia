@@ -14,8 +14,9 @@
  *     what Relay chose (`start`) and when it changed its mind (`route_switch`).
  *  2. **It never falls back to a direct provider call.** Not behind a flag, not
  *     in development. The only egress is {@link RelayTransport}.
- *  3. **It is not the live path.** {@link isRelayClientEnabled} defaults to
- *     false and nothing in `packages/api` imports this module. `Oxy API → Relay`
+ *  3. **It is not the live path.** {@link import('./relay-cutover.js').isRelayClientEnabled}
+ *     defaults to false and nothing in `packages/api` imports this module for
+ *     anything but its rules. `Oxy API → Relay`
  *     does not exist yet — see `docs/migration/relay-client-gap.md` §1 and
  *     OxyHQ/oxy#981 — so a client wired in today would be pointed at a hole.
  *  4. **It ships no HTTP transport.** {@link RelayTransport} is an interface and
@@ -70,6 +71,7 @@ import type {
   AliaInferenceContext,
   AliaInferencePort,
 } from './product-seam.js';
+import { reportRelayReachable, reportRelayUnavailableUntil } from './relay-connectivity.js';
 import {
   createInferenceError,
   INFERENCE_ERROR_POLICY,
@@ -84,25 +86,6 @@ import {
   violatedCapability,
   type RelayRequestPayload,
 } from './relay-request.js';
-
-/* -------------------------------------------------------------------------- */
-/*  The flag                                                                  */
-/* -------------------------------------------------------------------------- */
-
-/**
- * The one environment variable that can make this client answer a call.
- *
- * Default OFF, and off means every call returns `service_unavailable` before a
- * transport is touched. #139 workstream 8 owns the cutover; until it happens a
- * deployment that sets this by accident degrades loudly rather than routing
- * production traffic at a service that is not mounted.
- */
-export const RELAY_CLIENT_ENABLED_ENV = 'ALIA_RELAY_CLIENT_ENABLED';
-
-/** Exactly `'true'` enables it. Any other value, including `'1'`, does not. */
-export function isRelayClientEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
-  return env[RELAY_CLIENT_ENABLED_ENV] === 'true';
-}
 
 /* -------------------------------------------------------------------------- */
 /*  Scope and environment                                                     */
@@ -252,7 +235,10 @@ export interface RelayCircuitConfig {
 }
 
 export interface RelayClientConfig {
-  /** Usually {@link isRelayClientEnabled}. Passed in so tests need no env. */
+  /**
+   * Usually {@link import('./relay-cutover.js').isRelayClientEnabled}. Passed in
+   * so tests need no env.
+   */
   readonly enabled: boolean;
   readonly transport: RelayTransport;
   readonly credential: RelayServiceCredential;
@@ -1036,6 +1022,10 @@ export class RelayInferenceClient implements RelayInferencePort {
   private recordSuccess(): void {
     this.consecutiveFailures = 0;
     this.openUntil = 0;
+    // The same fact `/health` needs. Reported from here rather than derived by
+    // the health route because the route has no client to ask — see
+    // `relay-connectivity.ts`.
+    reportRelayReachable();
   }
 
   /**
@@ -1051,6 +1041,10 @@ export class RelayInferenceClient implements RelayInferencePort {
     if (this.consecutiveFailures >= this.config.circuit.failureThreshold) {
       this.openUntil = this.now() + this.config.circuit.cooldownMs;
       this.consecutiveFailures = 0;
+      // An open circuit is this process's considered statement that Relay is not
+      // answering, and it is the only such statement anything can make before a
+      // transport exists. `/health` reports it; `/health/ready` acts on it.
+      reportRelayUnavailableUntil(this.openUntil);
     }
   }
 }

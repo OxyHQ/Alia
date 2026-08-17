@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
@@ -563,11 +563,27 @@ describe('the hop carries exactly one auth mechanism (#139 ws15)', () => {
   });
 });
 
-/** The four relay modules, read off disk so a fifth is scanned automatically. */
+/**
+ * Every module in `lib/inference/`, enumerated off disk.
+ *
+ * A hand-written list is what this used to be, and #139 ws8 added four modules
+ * to this directory that it would have silently excluded — a gate that skips
+ * what a hand-maintained list omits is not a gate. The directory listing cannot
+ * omit one.
+ *
+ * Two floors, because a `readdir` of a moved directory returns `[]` and an empty
+ * list satisfies every "no offenders" assertion above: the four modules the
+ * scans were written against must still be here, and the total must be
+ * substantial.
+ */
 function relayModuleNames(): string[] {
-  const names = ['relay-client.ts', 'relay-error.ts', 'relay-openai-adapter.ts', 'relay-request.ts'];
-  // The floor: every named module exists. A renamed file would otherwise silence
-  // both scans above with a clean zero.
-  for (const name of names) expect(readFileSync(path.join(RELAY_DIR, name), 'utf8').length).toBeGreaterThan(1_000);
+  const names = readdirSync(RELAY_DIR)
+    .filter((name) => name.endsWith('.ts'))
+    .sort();
+
+  for (const original of ['relay-client.ts', 'relay-error.ts', 'relay-openai-adapter.ts', 'relay-request.ts']) {
+    expect(names, `${original} is missing from ${RELAY_DIR}`).toContain(original);
+  }
+  expect(names.length).toBeGreaterThanOrEqual(8);
   return names;
 }

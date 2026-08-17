@@ -55,9 +55,9 @@ import { authenticatedPrincipalSchema } from '@oxyhq/contracts';
 
 import {
   assertPrincipalMatchesDeployment,
-  isRelayClientEnabled,
   type RelayPrincipalConfig,
 } from './relay-client.js';
+import { isRelayClientEnabled } from './relay-cutover.js';
 
 /**
  * Which environment variable carries each field of the contract's principal.

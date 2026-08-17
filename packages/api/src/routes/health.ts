@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { sql } from 'drizzle-orm';
 import { getDb } from '../db/index.js';
 import { getAllProviderHealth, type HealthMetrics } from '../lib/gateway-client.js';
+import { relayBlocksReadiness, relayConnectivity } from '../lib/inference/relay-connectivity.js';
 import { isQueueActive } from '../lib/task-queue.js';
 import { log } from '../lib/logger.js';
 
@@ -30,6 +31,21 @@ import { log } from '../lib/logger.js';
  * traffic — every request then fails behind a green check. Moving the target
  * group to `/health/ready` lives in `oxy-infra` and must happen BEFORE this
  * service is scaled up again.
+ *
+ * ## Relay is reported, and the report is additive (#139 ws8)
+ *
+ * `/health` and `/health/ready` both name Relay now. Both are ADDITIVE for every
+ * deployment that exists: `relayConnectivity()` returns `'disabled'` while
+ * `ALIA_RELAY_CLIENT_ENABLED` is not exactly `true`, which is everywhere, and
+ * `'disabled'` neither degrades the snapshot nor blocks readiness. The status
+ * code either route returns today is therefore unchanged, and only the response
+ * body gains a field.
+ *
+ * `/health/live` is not touched. It is what the `oxy-alia` target group polls,
+ * so a change to it is a change to whether the ALB keeps a task in rotation —
+ * and the Relay signal has no business in a LIVENESS answer anyway. Only after
+ * the target group moves to `/health/ready` does any of this reach the ALB, and
+ * that move is `oxy-infra`'s.
  *
  * ## Mongo is not reported here any more
  *
@@ -90,9 +106,14 @@ async function getHealthSnapshot() {
 
   const mem = process.memoryUsage();
   const redisStatus = isQueueActive() ? 'connected' : 'unavailable';
+  const relay = relayConnectivity();
 
-  // Only require healthy providers if we could actually reach the gateway
-  const isHealthy = postgresReady && (!providersReachable || providersSummary.healthy > 0);
+  // Only require healthy providers if we could actually reach the gateway.
+  // `relay` degrades the snapshot only when it is `unreachable`, which cannot
+  // happen while the cutover flag is off — so this is the expression it has
+  // always been on every deployment that exists.
+  const isHealthy =
+    postgresReady && (!providersReachable || providersSummary.healthy > 0) && relay !== 'unreachable';
 
   const snapshot = {
     status: isHealthy ? 'healthy' : 'degraded',
@@ -100,6 +121,7 @@ async function getHealthSnapshot() {
     uptime: Math.round(process.uptime()),
     postgres: postgresReady ? 'connected' : 'unavailable',
     redis: redisStatus,
+    relay,
     providers: providersSummary,
     memory: {
       rss: Math.round(mem.rss / 1024 / 1024),       // MB
@@ -133,11 +155,22 @@ router.get('/live', (_req, res) => {
   res.status(200).json({ status: 'alive' });
 });
 
-// Readiness probe: Postgres answers a real query + at least 1 provider healthy.
-// Used by load balancers to decide if this instance should receive traffic.
+// Readiness probe: Postgres answers a real query + Relay reachable + at least 1
+// provider healthy. Used by load balancers to decide if this instance should
+// receive traffic.
 router.get('/ready', async (_req, res) => {
   if (!(await isPostgresReady())) {
     return res.status(503).json({ status: 'not_ready', reason: 'database_unavailable' });
+  }
+
+  /**
+   * Only an OBSERVED open circuit takes a task out of rotation, and only after
+   * the cutover. A cold task reports `unknown` and stays ready on purpose: a
+   * task out of rotation receives no request, so it could never acquire the
+   * evidence that would put it back in. See `lib/inference/relay-connectivity.ts`.
+   */
+  if (relayBlocksReadiness()) {
+    return res.status(503).json({ status: 'not_ready', reason: 'relay_unreachable' });
   }
 
   try {
@@ -150,7 +183,7 @@ router.get('/ready', async (_req, res) => {
     // If we can't check providers, still consider ready if Postgres is up
   }
 
-  res.status(200).json({ status: 'ready' });
+  res.status(200).json({ status: 'ready', relay: relayConnectivity() });
 });
 
 export default router;

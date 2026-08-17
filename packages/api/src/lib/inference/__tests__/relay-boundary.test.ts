@@ -175,14 +175,18 @@ describe('nothing in the API imports the Relay client (#139 ws3, constraint 3)',
    * blocked (OxyHQ/oxy#981), so a client wired in today points at a hole.
    */
   const FROZEN_IMPORTERS: readonly string[] = [
-    // #139 ws2: the boot refusal, and its own test. They read the client's
-    // RULES — the flag, `assertPrincipalMatchesDeployment` and the contract
-    // principal — and construct no client, open no transport and mint no token,
-    // which `relay-boot-check.test.ts` asserts about its own source. `src/index.ts`
-    // imports the boot check, NOT this module, so the constraint below is
-    // unchanged: the product runtime still names the client nowhere.
-    `${RELAY_DIR}/__tests__/relay-boot-check.test.ts`,
+    // #139 ws8: the capability suite drives a real client, because "the client
+    // supports tools / structured output / vision / reasoning / prompt caching"
+    // is a claim about what the CLIENT does with a request and a stream, not
+    // about what `violatedCapability` returns. A test importer, so constraint 3
+    // is untouched.
+    `${RELAY_DIR}/__tests__/relay-capabilities.test.ts`,
     `${RELAY_DIR}/__tests__/relay-client.test.ts`,
+    // #139 ws8: drives a real client so the connectivity the health route reads
+    // has a real producer — a registry nothing writes to is green and inert.
+    // A test importer; `routes/health.ts` imports `relay-connectivity.ts`, which
+    // is not this module.
+    `${RELAY_DIR}/__tests__/relay-connectivity.test.ts`,
     // #139 workstream 13: asserts what the client puts on the wire, so it has to
     // drive one. A test, not a call site — the constraint is that no PRODUCT
     // module imports the client, and this is the fourth of its own tests.
@@ -193,6 +197,18 @@ describe('nothing in the API imports the Relay client (#139 ws3, constraint 3)',
     `${RELAY_DIR}/__tests__/relay-egress.test.ts`,
     `${RELAY_DIR}/__tests__/relay-openai-adapter.test.ts`,
     `${RELAY_DIR}/__tests__/relay-request.test.ts`,
+    // #139 ws2: the boot refusal. It reads the client's RULES —
+    // `assertPrincipalMatchesDeployment` and the contract principal — and
+    // constructs no client, opens no transport and mints no token, which
+    // `relay-boot-check.test.ts` asserts about its source. `src/index.ts` imports
+    // the boot check, NOT this module, so the constraint below is unchanged: the
+    // product runtime still names the client nowhere.
+    //
+    // Its own test dropped off this list when the cutover flag moved to
+    // `relay-cutover.ts` (#139 ws8) — that module is not the client, so the
+    // three product modules the cutover added (`direct-provider-guard.ts`,
+    // `provider-egress-policy.ts`, `relay-connectivity.ts`) ask "has the cutover
+    // happened" without naming the client either.
     `${RELAY_DIR}/relay-boot-check.ts`,
     `${RELAY_DIR}/relay-client.ts`,
     `${RELAY_DIR}/relay-openai-adapter.ts`,
