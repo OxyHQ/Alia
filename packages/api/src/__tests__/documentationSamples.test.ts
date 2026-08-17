@@ -229,21 +229,35 @@ interface MarkdownLine {
   readonly fenced: boolean;
 }
 
-function markdownLines(): MarkdownLine[] {
+/**
+ * Split one document into lines that know which side of a fence they are on.
+ *
+ * Extracted rather than inlined so it can be driven with a KNOWN input, because
+ * an inverted `inFence` is invisible to every aggregate assertion: the fenced
+ * count and the prose count are both large and both smaller than the total, so
+ * swapping them satisfies "fenced is between 1 and everything" exactly as well
+ * as the correct parse does. The control below is the only thing that can tell
+ * the two apart.
+ */
+function splitFences(file: string, text: string): MarkdownLine[] {
   const out: MarkdownLine[] = [];
-  for (const file of tracked('*.md', '*.mdx', '**/*.md', '**/*.mdx')) {
-    let inFence = false;
-    for (const [index, text] of read(file).split('\n').entries()) {
-      // A fence delimiter belongs to neither side; toggling before the push is
-      // what keeps the opening ``` out of the block's own contents.
-      if (/^\s*```/.test(text)) {
-        inFence = !inFence;
-        continue;
-      }
-      out.push({ file, line: index + 1, text, fenced: inFence });
+  let inFence = false;
+  for (const [index, line] of text.split('\n').entries()) {
+    // A fence delimiter belongs to neither side; toggling before the push is
+    // what keeps the opening ``` out of the block's own contents.
+    if (/^\s*```/.test(line)) {
+      inFence = !inFence;
+      continue;
     }
+    out.push({ file, line: index + 1, text: line, fenced: inFence });
   }
   return out;
+}
+
+function markdownLines(): MarkdownLine[] {
+  return tracked('*.md', '*.mdx', '**/*.md', '**/*.mdx').flatMap((file) =>
+    splitFences(file, read(file)),
+  );
 }
 
 const MARKDOWN = markdownLines();
@@ -404,6 +418,37 @@ describe('the census reads what it claims to read', () => {
     );
   });
 
+  it('puts each line on the side of the fence it is really on', () => {
+    /**
+     * The control an inverted `inFence` cannot survive. Aggregate counts cannot
+     * see the inversion — both sides are large — so the parse is driven with a
+     * document whose answer is known line by line.
+     */
+    const parsed = splitFences('probe.md', [
+      'prose before',
+      '```json',
+      '{ "fenced": true }',
+      '```',
+      'prose after',
+      '```',
+      'a second block',
+      '```',
+      'prose at the end',
+    ].join('\n'));
+
+    expect(parsed.map((line) => `${line.fenced ? 'CODE' : 'PROSE'} ${line.text}`)).toEqual([
+      'PROSE prose before',
+      'CODE { "fenced": true }',
+      'PROSE prose after',
+      'CODE a second block',
+      'PROSE prose at the end',
+    ]);
+    // An unterminated fence swallows the rest of the document rather than
+    // silently flipping back, which is the safe direction: a sample is treated
+    // as a sample.
+    expect(splitFences('probe.md', '```\nstill code').map((line) => line.fenced)).toEqual([true]);
+  });
+
   it('separates fenced code from prose', () => {
     // The distinction the alias census turns on: a fenced `"model": "alia-v1"`
     // is a sample teaching a caller, and the same string in prose is a document
@@ -530,7 +575,20 @@ describe('no sample presents an alia-* identifier as a model (#139 ws20)', () =>
       // And the exempted file still exists and still contains what it excuses,
       // so an exemption cannot outlive the line it was written for.
       expect(existsSync(path.join(REPO_ROOT, file)), `${file} is gone`).toBe(true);
-      expect(namesAlias(read(file)), `${file} no longer needs its exemption`).toBe(true);
+      /**
+       * In a FENCED BLOCK of that file, not merely somewhere in it.
+       *
+       * `namesAlias(read(file))` would have been satisfied by an alias in the
+       * file's PROSE — so an exemption written for a code sample would keep
+       * looking justified after the sample was fixed and only the prose
+       * remained. An exemption has to be re-verified in the position it
+       * excuses, the same way an assertion that a component IMPORTS a hook is
+       * satisfied by the import line while the hook is never called.
+       */
+      const fencedAlias = MARKDOWN.some(
+        (line) => line.file === file && line.fenced && namesAlias(line.text),
+      );
+      expect(fencedAlias, `${file} no longer names an alias in a fenced block`).toBe(true);
     }
   });
 
