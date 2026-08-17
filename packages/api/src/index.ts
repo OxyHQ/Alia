@@ -67,6 +67,8 @@ import { startTriggerEngine, stopTriggerEngine } from './lib/trigger-engine.js';
 import { warmupProviders } from './lib/provider-warmup.js';
 import { warmupGatewayClient } from './lib/gateway-client.js';
 import { relayBootConfigurationFailure } from './lib/inference/relay-boot-check.js';
+import { directProviderModeFailure } from './lib/inference/direct-provider-guard.js';
+import { installProviderEgressBlock } from './lib/inference/provider-egress-policy.js';
 import { initChannels } from './lib/channels/index.js';
 // Socket.io
 import { initSocket } from './socket.js';
@@ -465,8 +467,39 @@ function assertRelayConfigurationOrExit(): void {
   process.exit(1);
 }
 
+/**
+ * Refuse to start when the cutover is on and a direct provider route is still
+ * configured — #139 workstream 8.
+ *
+ * Sits beside the Relay configuration check because the two are halves of one
+ * question: with `ALIA_RELAY_CLIENT_ENABLED` set, that one requires Relay to be
+ * usable and this one requires nothing else to be. With the flag off — every
+ * deployment today — `directProviderModeFailure` reads that one variable and
+ * returns, so this costs a pre-cutover boot nothing and can change nothing about
+ * it.
+ */
+function assertDirectProviderModeOrExit(): void {
+  const failure = directProviderModeFailure();
+  if (failure === null) return;
+  log.general.error({ failure }, 'Direct provider mode is configured after the Relay cutover — refusing to start');
+  process.exit(1);
+}
+
 connectPostgresOrExit();
 assertRelayConfigurationOrExit();
+assertDirectProviderModeOrExit();
+
+/**
+ * Arm the egress policy before the socket opens — #139 workstream 8.
+ *
+ * With the cutover flag off this touches nothing at all and returns `null`; with
+ * it on, a request to a provider API host is refused inside this process. It
+ * runs here rather than at import time so the ordering is visible, and before
+ * `listen` so no request can be served by a process that skipped it.
+ */
+if (installProviderEgressBlock() !== null) {
+  log.general.info('Provider egress policy armed — provider API hosts are unreachable from this process');
+}
 
 // Start listening immediately — do not block on external dependencies.
 server.listen(PORT, '0.0.0.0', () => {

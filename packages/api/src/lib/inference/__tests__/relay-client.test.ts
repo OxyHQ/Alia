@@ -14,13 +14,12 @@ import type { AliaInferenceCall, AliaInferenceContext } from '../product-seam.js
 import { INFERENCE_ERROR_POLICY, RelayInferenceError, RelayTransportRefusal } from '../relay-error.js';
 import {
   createRelayInferenceClient,
-  isRelayClientEnabled,
-  RELAY_CLIENT_ENABLED_ENV,
   type RelayClientConfig,
   type RelayServiceCredential,
   type RelayTransport,
   type RelayTransportRequest,
 } from '../relay-client.js';
+import { isRelayClientEnabled, RELAY_CLIENT_ENABLED_ENV } from '../relay-cutover.js';
 import type { RelayRequestPayload } from '../relay-request.js';
 
 /**
