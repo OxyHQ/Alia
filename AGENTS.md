@@ -178,10 +178,10 @@ socket.io on the same Node `http.Server`. Use `{ noServer: true }` plus one
   `useColorScheme().colors` (`lib/useColorScheme`) and `withAlpha` from
   `@oxyhq/bloom/theme`. Never hex-concat alpha (`color + "08"`); fade to
   `withAlpha(surface, 0)`, never the `transparent` keyword.
-- Responsive: pure styling uses NativeWind `md:` classes. JS screen-size checks
-  go through `useIsLargeScreen()` (`lib/hooks/use-is-large-screen.ts`, which
-  exports `MD_BREAKPOINT`) and ONLY for logic (drawer type, handlers,
-  conditionally mounted trees). Never write a raw width comparison.
+- Responsive logic (drawer type, handlers, conditionally mounted trees) goes
+  through `useIsLargeScreen()` (`lib/hooks/use-is-large-screen.ts`, exports
+  `MD_BREAKPOINT`) — the `md:`-classes-for-styling / no-raw-width-comparison
+  rule itself is in `~/Oxy/AGENTS.md`.
 - Web-only CSS in RN styles (transitions, sticky positioning, cursor) goes
   through the typed `asViewStyle` / `asTextStyle` bridge in
   `lib/types/webStyles.ts`.
