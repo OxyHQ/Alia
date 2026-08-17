@@ -152,8 +152,16 @@ const servedKind = (tier: keyof typeof FIXTURE_TIER_MAPPINGS): string =>
       isAvailable: true,
       isLegacy: false,
     },
-    FIXTURE_TIER_MAPPINGS[tier].map((m) => ({ modelId: m.modelId, capabilities: {} })),
+    // No availability scope and no licence record, which is what every route in
+    // this repository carries — the classifier this asserts on reads neither.
+    FIXTURE_TIER_MAPPINGS[tier].map((m) => ({
+      modelId: m.modelId,
+      capabilities: {},
+      availabilityScope: null,
+      attribution: null,
+    })),
     { state: 'unknown' },
+    'public',
   ).kind;
 
 beforeEach(() => {

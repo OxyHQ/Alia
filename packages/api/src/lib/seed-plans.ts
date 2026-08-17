@@ -1,15 +1,43 @@
 /**
- * Seed Plan collection with default subscription plans.
- * Uses $setOnInsert for idempotency — re-running never overwrites admin edits.
+ * Default subscription plans, for a database that has none.
  *
- * Features are now managed via the Feature + PlanFeature collections
- * (see seed-features.ts). This file only seeds plan metadata and modelIds.
+ * Idempotent by INSERT: re-running never overwrites a row that exists, and that
+ * now includes `modelIds`. The header of this file used to say "uses
+ * $setOnInsert for idempotency — re-running never overwrites admin edits",
+ * which stopped being true at the Postgres port — `seedPlan` became an
+ * `ON CONFLICT DO UPDATE` on `modelIds` — and nobody noticed, because nothing
+ * calls this function. `db/billing/planRepository.ts` `seedPlan` is where the
+ * correction lives and why it matters: `setPlanModelIds` is the authority for
+ * which models a plan grants (#139 workstream 14), and a boot writer that
+ * re-asserted the list would revert it on the next deploy.
+ *
+ * Features are managed through the Feature and PlanFeature tables
+ * (see `internal/providers/lib/seed-features.ts`). This file seeds plan
+ * metadata and the initial `modelIds` only.
+ *
+ * ## Why it lives in `lib/` and not under `internal/providers/`
+ *
+ * It never belonged there. It imports `@oxyhq/db`, `db/index.ts`,
+ * `db/billing/planRepository.ts` and this package's logger — nothing from the
+ * provider tree at all — so it was a billing seeder filed inside the subtree
+ * ADR 0001 is emptying. Moving it is what lets `src/index.ts` call it at boot
+ * without a product-module exemption on gate 1's allowlist, a list whose only
+ * permitted direction is down. It now sits beside `seed-skills.ts`,
+ * `seed-suggestions.ts` and `seed-bots.ts`, which is where the boot seeders are.
  */
 
 import { isUniqueViolation } from '@oxyhq/db';
-import { getDb } from '../../../db/index.js';
-import { seedPlan } from '../../../db/billing/planRepository.js';
-import { log } from '../../../lib/logger.js';
+import { getDb } from '../db/index.js';
+import { seedPlan } from '../db/billing/planRepository.js';
+import type { ConfigAuditActor } from './security/config-audit.js';
+import { log } from './logger.js';
+
+/**
+ * Named rather than defaulted, because `seedPlan` requires an actor and an
+ * audit record that says `system` for every change is an audit record nobody
+ * can act on. A plan created here was created by this module, at boot.
+ */
+const SEED_ACTOR: ConfigAuditActor = { kind: 'seed', id: 'lib/seed-plans.ts' };
 
 interface PlanSeed {
   planId: string;
@@ -162,9 +190,8 @@ export async function seedPlans(): Promise<{ seeded: number; skipped: number }> 
 
   for (const planData of SEED_PLANS) {
     try {
-      // `modelIds` is code-managed and re-synced on every run; everything else
-      // is admin-managed and set only when the row is created — the `$set` /
-      // `$setOnInsert` split, as an `ON CONFLICT DO UPDATE` touching one column.
+      // Every field, including `modelIds`, is set only when the row is created.
+      // A plan that exists is left exactly as it is.
       const result = await seedPlan(db, {
         planId: planData.planId,
         modelIds: planData.modelIds,
@@ -181,7 +208,7 @@ export async function seedPlans(): Promise<{ seeded: number; skipped: number }> 
         sortOrder: planData.sortOrder,
         isFree: planData.isFree,
         isActive: true,
-      });
+      }, SEED_ACTOR);
 
       if (result.inserted) {
         seeded++;

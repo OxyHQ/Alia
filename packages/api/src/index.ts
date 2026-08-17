@@ -64,6 +64,7 @@ import { syncZeroEval } from './scripts/sync-zeroeval.js';
 import { seedSkills } from './lib/seed-skills.js';
 import { seedSuggestions } from './lib/seed-suggestions.js';
 import { seedBots } from './lib/seed-bots.js';
+import { seedPlans } from './lib/seed-plans.js';
 import { startTriggerEngine, stopTriggerEngine } from './lib/trigger-engine.js';
 import { warmupProviders } from './lib/provider-warmup.js';
 import { warmupGatewayClient } from './lib/gateway-client.js';
@@ -385,6 +386,11 @@ function startBackgroundServices(): void {
   seedSkills().catch((err) => log.general.error({ err }, '[Skills] Seed error'));
   seedSuggestions().catch((err) => log.general.error({ err }, '[Suggestions] Seed error'));
   seedBots().catch((err) => log.general.error({ err }, '[Bots] Seed error'));
+  // Plans, so a fresh database has a catalogue to sell. INSERT-only: which
+  // models a plan grants is owned at runtime by
+  // `PUT /internal/plans/:planId/models`, and a boot writer that re-asserted
+  // the list would revert it on every deploy (#139 ws14).
+  seedPlans().catch((err) => log.general.error({ err }, '[Plans] Seed error'));
   // Sync external models in background (non-blocking)
   syncZeroEval().catch((err) => log.general.error({ err }, '[ZeroEval] Background sync error'));
   // Start trigger engine under leader election (non-blocking) — only the

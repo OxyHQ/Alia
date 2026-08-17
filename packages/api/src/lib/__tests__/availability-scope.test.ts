@@ -25,6 +25,11 @@
  * observable.
  */
 
+import { execFileSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import ts from 'typescript';
 import type { Request } from 'express';
 import { availabilityScopeSchema } from '@oxyhq/contracts';
 import { describe, expect, it } from 'vitest';
@@ -184,5 +189,90 @@ describe('a credential is classified by its strongest half', () => {
     // `createOptionalOxyAuth` leaves `req.user` null on an unauthenticated
     // request, and `null` is present-but-empty rather than absent.
     expect(resolveCallerAudience(request({ user: null }))).toBe('public');
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/*  Where the decision is applied                                              */
+/* -------------------------------------------------------------------------- */
+
+const REPO_ROOT = path.resolve(fileURLToPath(new URL('../../../../../', import.meta.url)));
+const API_SRC = path.join(REPO_ROOT, 'packages/api/src');
+
+/** Source with comments stripped, so a census cannot read this repo's prose. */
+function code(relative: string): string {
+  const text = readFileSync(path.join(API_SRC, relative), 'utf8');
+  const source = ts.createSourceFile(relative, text, ts.ScriptTarget.Latest, true);
+  const ranges: [number, number][] = [];
+  const visit = (node: ts.Node): void => {
+    for (const comment of [
+      ...(ts.getLeadingCommentRanges(text, node.getFullStart()) ?? []),
+      ...(ts.getTrailingCommentRanges(text, node.getEnd()) ?? []),
+    ]) {
+      ranges.push([comment.pos, comment.end]);
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(source);
+  let out = text;
+  for (const [start, end] of ranges.sort((a, b) => b[0] - a[0])) {
+    out = out.slice(0, start) + ' '.repeat(end - start) + out.slice(end);
+  }
+  return out;
+}
+
+function sourceFiles(pathspec: string): string[] {
+  return execFileSync('git', ['ls-files', '--', pathspec], { cwd: REPO_ROOT, encoding: 'utf8' })
+    .split('\n')
+    .filter((file) => file.endsWith('.ts') && !file.includes('/__tests__/'))
+    .map((file) => path.relative(API_SRC, path.join(REPO_ROOT, file)));
+}
+
+describe('the decision has one enforcement point, and it is not optional', () => {
+  it('is called from the catalogue and from nowhere else', () => {
+    // A second surface serving scope-bearing entries would have to reach
+    // `admitEntry`, so its caller list IS the list of enforcement points — and
+    // the behavioural tests in `routes/__tests__/catalogue.test.ts` cover
+    // exactly one surface, which is only sufficient while this stays true.
+    const callers = sourceFiles('packages/api/src').filter(
+      (relative) => relative !== 'lib/availability-scope.ts' && /\badmitEntry\s*\(/.test(code(relative)),
+    );
+    expect(callers).toEqual(['lib/catalogue.ts']);
+
+    // …and exactly one route reaches THAT.
+    const consumers = sourceFiles('packages/api/src/routes').filter((relative) =>
+      /\bbuildCatalogue\s*\(/.test(code(relative)),
+    );
+    expect(consumers).toEqual(['routes/catalogue.ts']);
+  });
+
+  it('applies the refusal unconditionally, not behind a query parameter', () => {
+    // `product`, `entitled` and `surface` are filters a caller opts into. A
+    // scope refusal is not one, and making it optional is the tidy-looking
+    // change that reopens the hole: `?scoped=false` would serve the lot.
+    const catalogue = code('lib/catalogue.ts');
+    const at = catalogue.indexOf("if (entry.availability.scope.state === 'withheld')");
+    expect(at).toBeGreaterThan(-1);
+    const statement = catalogue.slice(at, at + 120);
+    expect(statement).toContain('continue;');
+    expect(statement).not.toContain('options.');
+  });
+
+  it('takes no scope, and no surface, off the request body or params', () => {
+    // What a caller may name is a product identifier and a closed vocabulary of
+    // filter values. If an inbound field ever names a ROUTE, the refusal needs
+    // a second home and `routes/__tests__/internal-only-access.test.ts` — which
+    // proves the request envelope cannot name a deployment — stops covering it.
+    const routes = sourceFiles('packages/api/src/routes');
+    expect(routes.length).toBeGreaterThan(20);
+
+    const selector =
+      /\breq\.(?:body|query|params)(?:\.|\[')(?:provider|providers|deployment|deploymentId|deployment_id|route|routeId|upstream|availabilityScope|scope)\b/;
+    expect(routes.filter((relative) => selector.test(code(relative)))).toEqual([]);
+
+    // The control: the same shape of read IS found where one exists, so an
+    // empty offender list is absence and not a broken pattern.
+    const control = /\breq\.(?:body|query|params)(?:\.|\[')(?:product)\b/;
+    expect(routes.filter((relative) => control.test(code(relative)))).toContain('routes/catalogue.ts');
   });
 });

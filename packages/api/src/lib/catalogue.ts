@@ -536,9 +536,18 @@ export interface CatalogueOptions {
  */
 export interface CatalogueFilterReport {
   readonly availabilityScope: {
-    /** Candidate routes across the whole catalogue that declared a scope. */
+    /**
+     * Candidate routes across the whole catalogue that declared a scope.
+     *
+     * A COUNT OF ROUTES, deliberately, and not a count of entries withheld from
+     * this caller. The first says whether Relay has classified anything yet,
+     * which is what tells an unfiltered answer apart from an absent filter. The
+     * second would tell a public caller how many entries Alia operates and does
+     * not sell it, which is commercially sensitive and is a step toward finding
+     * an internal deployment — the disclosure
+     * `routes/__tests__/internal-only-access.test.ts` exists to prevent.
+     */
     readonly declaredRoutes: number;
-    readonly withheldEntries: number;
   };
   readonly platformCapability: {
     readonly surface: string | null;
@@ -591,7 +600,6 @@ export async function buildCatalogue(options: CatalogueOptions): Promise<Catalog
   const entries: CatalogueEntry[] = [];
   let declaredRoutes = 0;
   let attributedRoutes = 0;
-  let scopeWithheld = 0;
   let surfaceWithheld = 0;
 
   /**
@@ -653,10 +661,7 @@ export async function buildCatalogue(options: CatalogueOptions): Promise<Catalog
     // and `entitled` this is not a filter the caller asked for, so it is not
     // conditional on an option: a route the caller's credential does not admit
     // is not theirs to see whatever they asked for.
-    if (entry.availability.scope.state === 'withheld') {
-      scopeWithheld += 1;
-      continue;
-    }
+    if (entry.availability.scope.state === 'withheld') continue;
     entries.push(entry);
   }
 
@@ -666,7 +671,7 @@ export async function buildCatalogue(options: CatalogueOptions): Promise<Catalog
     entries,
     entitlementsKnown: plans !== null,
     filters: {
-      availabilityScope: { declaredRoutes, withheldEntries: scopeWithheld },
+      availabilityScope: { declaredRoutes },
       platformCapability: {
         surface: options.surface?.name ?? null,
         withheldEntries: surfaceWithheld,

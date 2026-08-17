@@ -157,7 +157,7 @@ interface CatalogueBody {
   entitlements_known?: boolean;
   data?: Record<string, unknown>[];
   filters?: {
-    availability_scope?: { declared_routes?: number; withheld_entries?: number };
+    availability_scope?: { declared_routes?: number };
     platform_capability?: { surface?: string | null; withheld_entries?: number };
     region?: { applied?: boolean; delegated_to?: string };
     attributed_routes?: number;
@@ -451,13 +451,11 @@ describe('a route whose availability scope does not admit the caller is withheld
    * is why the first test is about the count that tells the two states apart.
    */
   it('reports how many routes declared a scope, so an unfiltered answer is not mistaken for a filtered one', async () => {
-    // Production's state: nothing classified, nothing withheld. On its own this
-    // is indistinguishable from a filter that does not exist.
+    // Production's state: nothing classified. On its own an unfiltered list is
+    // indistinguishable from a filter that does not exist, and this count is
+    // the whole difference.
     const unclassified = await get('/catalogue');
-    expect(unclassified.body.filters?.availability_scope).toEqual({
-      declared_routes: 0,
-      withheld_entries: 0,
-    });
+    expect(unclassified.body.filters?.availability_scope).toEqual({ declared_routes: 0 });
     // And every entry says so, rather than claiming to be public.
     for (const entry of unclassified.body.data ?? []) {
       expect(entry.availability).toMatchObject({ scope: { state: 'unscoped' } });
@@ -471,12 +469,67 @@ describe('a route whose availability scope does not admit the caller is withheld
       'v1-pro': [mapping('four'), mapping('five'), mapping('six')],
     };
     const classified = await get('/catalogue');
-    expect(classified.body.filters?.availability_scope).toEqual({
-      declared_routes: 1,
-      withheld_entries: 0,
-    });
-    const lite = (classified.body.data ?? []).find((e) => e.id === 'alia-lite');
+    expect(classified.body.filters?.availability_scope).toEqual({ declared_routes: 1 });
+    const lite = (classified.body.data ?? []).find((e) => e.id === 'profile:lite');
     expect(lite?.availability).toMatchObject({ scope: { state: 'admitted', values: ['public_payg'] } });
+  });
+
+  it('counts routes, never entries withheld from the caller', async () => {
+    // The report says whether Relay has classified anything. It must not say
+    // how many entries the caller may not have: that is a count of what Alia
+    // operates and does not sell, and it is a step toward locating an internal
+    // deployment — the disclosure `internal-only-access.test.ts` exists to stop.
+    state.mappings = {
+      lite: [mapping('one', {}, { availabilityScope: 'internal_alia' })],
+      'v1-codea': [mapping('three', {}, { availabilityScope: 'internal_alia' })],
+      'v1-pro': [mapping('four'), mapping('five'), mapping('six')],
+    };
+    const { body } = await get('/catalogue');
+    // Two entries really were withheld, so the absence below is a decision.
+    expect((body.data ?? []).map((e) => e.id)).toEqual(['profile:v1-pro']);
+    expect(body.filters?.availability_scope).toEqual({ declared_routes: 2 });
+    expect(Object.keys(body.filters?.availability_scope ?? {})).toEqual(['declared_routes']);
+  });
+
+  it('names no scope a public caller was not admitted under, anywhere in the body', async () => {
+    // The property ws15's census was reaching for, asserted where it lives: in
+    // the RESPONSE. A lexical ban on the word could never have measured this,
+    // and this fails for any future field that echoes a refused route's scope.
+    state.mappings = {
+      lite: [mapping('one', {}, { availabilityScope: 'internal_alia' }), mapping('two')],
+      'v1-codea': [mapping('three', {}, { availabilityScope: 'internal_alia' })],
+      'v1-pro': [mapping('four', {}, { availabilityScope: 'public_payg' }), mapping('five'), mapping('six')],
+    };
+
+    const anonymous = await get('/catalogue');
+    expect(JSON.stringify(anonymous.body)).not.toContain('internal_alia');
+    // The control, in both directions: the same scan SEES a scope the caller
+    // was admitted under, so the absence above is not an empty body…
+    expect(JSON.stringify(anonymous.body)).toContain('public_payg');
+    // …and it sees `internal_alia` for the caller that may have it, so the
+    // assertion is about the audience and not about the string being absent
+    // from every response Alia can produce.
+    state.serviceAppId = 'alia-internal';
+    expect(JSON.stringify((await get('/catalogue')).body)).toContain('internal_alia');
+  });
+
+  it('leaves a publicly scoped entry reachable by the caller it is sold to', async () => {
+    // The negative direction. Without it a blanket "refuse everything" bug
+    // passes every refusal test in this group.
+    state.mappings = {
+      lite: [mapping('one', {}, { availabilityScope: 'public_payg' })],
+      'v1-codea': [mapping('three', {}, { availabilityScope: 'oxy_hosted' })],
+      'v1-pro': [mapping('four', {}, { availabilityScope: 'internal_alia' }), mapping('five', {}, { availabilityScope: 'internal_alia' })],
+    };
+    const { body } = await get('/catalogue');
+    expect((body.data ?? []).map((e) => e.id)).toEqual(['profile:lite', 'profile:v1-codea']);
+    const byId = new Map((body.data ?? []).map((e) => [String(e.id), e]));
+    expect(byId.get('profile:lite')?.availability).toMatchObject({
+      scope: { state: 'admitted', values: ['public_payg'] },
+    });
+    expect(byId.get('profile:v1-codea')?.availability).toMatchObject({
+      scope: { state: 'admitted', values: ['oxy_hosted'] },
+    });
   });
 
   it('keeps an internal-only entry out of an unauthenticated response, and lets an internal caller have it', async () => {
@@ -494,20 +547,16 @@ describe('a route whose availability scope does not admit the caller is withheld
 
     const anonymous = await get('/catalogue');
     expect(anonymous.status).toBe(200);
-    expect((anonymous.body.data ?? []).map((e) => e.id)).toEqual(['alia-v1-codea', 'alia-v1-pro']);
-    expect(anonymous.body.filters?.availability_scope).toEqual({
-      declared_routes: 2,
-      withheld_entries: 1,
-    });
+    expect((anonymous.body.data ?? []).map((e) => e.id)).toEqual(['profile:v1-codea', 'profile:v1-pro']);
+    expect(anonymous.body.filters?.availability_scope).toEqual({ declared_routes: 2 });
 
     // The positive control. Without it, a filter that withheld EVERY entry —
     // or a fixture that never produced the entry in the first place — would
     // read exactly like the refusal above.
     state.serviceAppId = 'alia-internal';
     const internal = await get('/catalogue');
-    expect((internal.body.data ?? []).map((e) => e.id)).toContain('alia-lite');
-    expect(internal.body.filters?.availability_scope?.withheld_entries).toBe(0);
-    const lite = (internal.body.data ?? []).find((e) => e.id === 'alia-lite');
+    expect((internal.body.data ?? []).map((e) => e.id)).toContain('profile:lite');
+    const lite = (internal.body.data ?? []).find((e) => e.id === 'profile:lite');
     expect(lite?.availability).toMatchObject({ scope: { state: 'admitted', values: ['internal_alia'] } });
   });
 
@@ -524,13 +573,13 @@ describe('a route whose availability scope does not admit the caller is withheld
 
     state.userId = 'user-1';
     const session = await get('/catalogue');
-    expect((session.body.data ?? []).map((e) => e.id)).not.toContain('alia-lite');
+    expect((session.body.data ?? []).map((e) => e.id)).not.toContain('profile:lite');
 
     state.userId = null;
     state.apiKeyId = 'key-1';
     const developer = await get('/catalogue');
-    expect((developer.body.data ?? []).map((e) => e.id)).not.toContain('alia-lite');
-    expect(developer.body.filters?.availability_scope?.withheld_entries).toBe(1);
+    expect((developer.body.data ?? []).map((e) => e.id)).not.toContain('profile:lite');
+    expect(developer.body.filters?.availability_scope).toEqual({ declared_routes: 1 });
   });
 
   it('withholds a scope it cannot evaluate rather than admitting it', async () => {
@@ -548,8 +597,8 @@ describe('a route whose availability scope does not admit the caller is withheld
     const { body } = await get('/catalogue');
     // Even the most privileged audience: the missing fact is commercial, not a
     // question of credential strength.
-    expect((body.data ?? []).map((e) => e.id)).toEqual(['alia-v1-pro']);
-    expect(body.filters?.availability_scope).toEqual({ declared_routes: 2, withheld_entries: 2 });
+    expect((body.data ?? []).map((e) => e.id)).toEqual(['profile:v1-pro']);
+    expect(body.filters?.availability_scope).toEqual({ declared_routes: 2 });
   });
 
   it('leaves an entry reachable through an unclassified route, and publishes only the admitting scope', async () => {
@@ -562,10 +611,10 @@ describe('a route whose availability scope does not admit the caller is withheld
       'v1-pro': [mapping('four'), mapping('five'), mapping('six')],
     };
     const { body } = await get('/catalogue');
-    const lite = (body.data ?? []).find((e) => e.id === 'alia-lite');
+    const lite = (body.data ?? []).find((e) => e.id === 'profile:lite');
     expect(lite).toBeDefined();
     expect(lite?.availability).toMatchObject({ scope: { state: 'admitted', values: [] } });
-    expect(body.filters?.availability_scope).toEqual({ declared_routes: 1, withheld_entries: 0 });
+    expect(body.filters?.availability_scope).toEqual({ declared_routes: 1 });
   });
 });
 
@@ -588,7 +637,7 @@ describe('the catalogue is filtered by what the calling surface can be offered',
   it('does not hand an audio entry to a surface that carries no audio', async () => {
     const terminal = await get('/catalogue?surface=terminal');
     expect(terminal.status).toBe(200);
-    expect((terminal.body.data ?? []).map((e) => e.id)).toEqual(['alia-lite']);
+    expect((terminal.body.data ?? []).map((e) => e.id)).toEqual(['profile:lite']);
     expect(terminal.body.filters?.platform_capability).toEqual({
       surface: 'terminal',
       withheld_entries: 1,
@@ -597,13 +646,13 @@ describe('the catalogue is filtered by what the calling surface can be offered',
     // The positive control: a surface that DOES carry audio receives it, so the
     // empty answer above is the filter working rather than the entry missing.
     const chat = await get('/catalogue?surface=chat');
-    expect((chat.body.data ?? []).map((e) => e.id)).toEqual(['alia-lite', 'alia-v1-voice']);
+    expect((chat.body.data ?? []).map((e) => e.id)).toEqual(['profile:lite', 'profile:v1-voice']);
     expect(chat.body.filters?.platform_capability).toEqual({ surface: 'chat', withheld_entries: 0 });
   });
 
   it('applies no filter when no surface is declared, and says which was declared', async () => {
     const { body } = await get('/catalogue');
-    expect((body.data ?? []).map((e) => e.id)).toEqual(['alia-lite', 'alia-v1-voice']);
+    expect((body.data ?? []).map((e) => e.id)).toEqual(['profile:lite', 'profile:v1-voice']);
     expect(body.filters?.platform_capability).toEqual({ surface: null, withheld_entries: 0 });
   });
 
@@ -648,7 +697,7 @@ describe('attribution an open-weight licence requires survives to the response',
 
     const { body } = await get('/catalogue');
     expect(body.filters?.attributed_routes).toBe(1);
-    const lite = (body.data ?? []).find((e) => e.id === 'alia-lite');
+    const lite = (body.data ?? []).find((e) => e.id === 'profile:lite');
     expect(lite?.attribution).toEqual([
       {
         attributed_model: 'fixturelabs/fixture-70b',
@@ -691,7 +740,7 @@ describe('attribution an open-weight licence requires survives to the response',
     };
 
     const { body } = await get('/catalogue');
-    const lite = (body.data ?? []).find((e) => e.id === 'alia-lite');
+    const lite = (body.data ?? []).find((e) => e.id === 'profile:lite');
     expect(lite?.attribution).toEqual([]);
     expect(JSON.stringify(body)).not.toContain('unattributed-8b');
     // The route still carried a record, which is what the count reports — so a
@@ -716,7 +765,7 @@ describe('attribution an open-weight licence requires survives to the response',
     };
 
     const { body } = await get('/catalogue');
-    const lite = (body.data ?? []).find((e) => e.id === 'alia-lite');
+    const lite = (body.data ?? []).find((e) => e.id === 'profile:lite');
     const attributed = (lite?.attribution as { attributed_model: string }[]).map((a) => a.attributed_model);
     // Three routes, three licence records, two distinct obligations.
     expect(body.filters?.attributed_routes).toBe(3);

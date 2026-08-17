@@ -124,10 +124,8 @@ function wireAttribution(attribution: RequiredAttribution): Record<string, unkno
 
 function wireFilters(filters: CatalogueFilterReport): Record<string, unknown> {
   return {
-    availability_scope: {
-      declared_routes: filters.availabilityScope.declaredRoutes,
-      withheld_entries: filters.availabilityScope.withheldEntries,
-    },
+    // Routes CLASSIFIED, never entries withheld — see `CatalogueFilterReport`.
+    availability_scope: { declared_routes: filters.availabilityScope.declaredRoutes },
     platform_capability: {
       surface: filters.platformCapability.surface,
       withheld_entries: filters.platformCapability.withheldEntries,
