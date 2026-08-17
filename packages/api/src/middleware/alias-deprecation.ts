@@ -39,6 +39,8 @@
  */
 
 import type { NextFunction, Request, Response } from 'express';
+import { CHAT_EVENT_VERSION, type DeprecationEvent } from '../lib/chat-events.js';
+import { getRoutingPreset } from '../lib/routing/presets.js';
 
 /**
  * The thirteen aliases ADR 0002 froze and ADR 0003 reclassifies.
@@ -169,3 +171,38 @@ export function createAliasDeprecationHeaders(
 
 /** The instance `src/index.ts` mounts. No sunset date is set, so none is announced. */
 export const aliasDeprecationHeaders = createAliasDeprecationHeaders(ALIAS_SUNSET);
+
+/**
+ * The stream-side half of the same signal, or `null` when there is nothing to
+ * say about this identifier.
+ *
+ * Lives beside the headers because the two are one notice, and a caller that
+ * gets one and not the other is being told half a story. The compatibility
+ * window requires both for path (a).
+ *
+ * ## The replacement is read, not written down
+ *
+ * From `getRoutingPreset`, whose table `lib/routing/__tests__/routing-policy.test.ts`
+ * asserts equal to `docs/migration/alias-migration-map.json` in both
+ * directions. A second copy of the alias→replacement mapping here would be a
+ * third thing to keep in step with a routing change, and the one most likely to
+ * be missed — it is the only one a caller acts on.
+ *
+ * `null` when no preset claims the identifier, which cannot happen for the
+ * thirteen and must not be papered over if it ever does: an event naming a
+ * replacement that does not exist is worse than no event, because a caller
+ * migrates to it.
+ */
+export function aliasDeprecationEvent(identifier: string, sunset: Date | null): DeprecationEvent | null {
+  if (!DEPRECATED.has(identifier)) return null;
+  const preset = getRoutingPreset(identifier);
+  if (preset === null) return null;
+  return {
+    eventVersion: CHAT_EVENT_VERSION,
+    identifier,
+    replacement: preset.id,
+    deprecatedAt: ALIAS_DEPRECATION.toISOString(),
+    sunsetAt: sunset?.toISOString() ?? null,
+    documentation: DOCS_URL,
+  };
+}

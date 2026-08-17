@@ -137,6 +137,7 @@ Standard OpenAI-style `chat.completion.chunk` events are emitted alongside them.
 
 | Event | Emitted at | Payload fields |
 |---|---|---|
+| `alia.deprecation` | `routes/v1/chat-completions.ts:97` | `eventVersion`, `identifier`, `replacement`, `deprecatedAt`, `sunsetAt`, `documentation` |
 | `alia.plan_preview` | `lib/tool-pipeline.ts:125` | `eventVersion`, `planId`, `steps` |
 | `alia.model_switch` | `lib/tool-pipeline.ts:122` | `eventVersion`, `model`, `modelName` |
 | `alia.reasoning` | `lib/chat/stream-runner.ts:164`, `:182` | `eventVersion`, `content` |
@@ -180,13 +181,27 @@ them to a response stream. A client waiting for them on the SSE connection waits
 `severity` and `timeout`; `alia.approval_result` carries `requestId` and `decision`, one of
 `approved | denied | timeout`.
 
-### Declared but never emitted
+### The deprecation event, and which path it covers
 
 `alia.deprecation` is named by
 [`docs/migration/compatibility-window.md`](./migration/compatibility-window.md) as the
-product stream signal for every deprecated path. It does not exist in the code, and
-emitting it — alongside `Deprecation` and `Sunset` response headers — is a prerequisite for
-starting any compatibility clock. Tracked by workstream 19 of #139.
+product stream signal for every deprecated path. As of #139 workstream 4 it is emitted for
+**path (a) only** — a streaming request naming one of the thirteen `alia-*` aliases — ahead
+of every other frame, so the deep-research branch carries it too. It is built by
+`aliasDeprecationEvent` in `middleware/alias-deprecation.ts`, beside the `Deprecation` and
+`Link` headers, which is the same notice for a caller that reads headers instead of the
+body.
+
+`replacement` is the routing profile the migration map publishes for that alias
+(`profile:*`), never a model identity, and it is read from `getRoutingPreset` rather than
+copied, so a routing change moves it.
+
+`sunsetAt` is `null` and stays `null` until a removal date is agreed: the compatibility
+window forbids a placeholder, because an announced date that then moves teaches callers to
+ignore the signal.
+
+Paths (b) — the `/v1/*` surface — and (c) — `alia_sk_*` credentials — still emit nothing.
+Those clocks belong to workstreams 6 and 11.
 
 ## Conversations and messages
 
