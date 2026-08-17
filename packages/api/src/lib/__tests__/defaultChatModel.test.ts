@@ -281,4 +281,61 @@ describe('every site that restates an alias default is accounted for', () => {
     // The general chat path has exactly one owner, and it is reachable.
     expect(getDefaultAliaModel()).toMatch(/^alia-/);
   });
+
+  /**
+   * The files whose restated default answers a question the chat default cannot.
+   *
+   * Named individually, because "capability-scoped" is a judgement and a
+   * predicate that inferred it — from the value, or from the path — would
+   * quietly absorb the next general-path divergence that happened to look like
+   * one. Each entry's reasoning is already written in its `why` above and is
+   * deliberately not copied here, where it would drift.
+   *
+   *  - `credits-manager.ts` and `routes/v1/voice.ts` price or run a voice
+   *    minute, which the general chat default cannot serve.
+   *  - `lib/tools/delegate.ts` names the alias the fallback engine ALREADY
+   *    resolved to, so the tool stops reporting a model it did not run on. Its
+   *    own comment states it is explicitly not the default.
+   */
+  const CAPABILITY_SCOPED: readonly string[] = [
+    'packages/api/src/lib/credits-manager.ts',
+    'packages/api/src/lib/tools/delegate.ts',
+    'packages/api/src/routes/v1/voice.ts',
+  ];
+
+  it('no general chat-path restatement disagrees with the owner, whichever file it is in', () => {
+    /**
+     * The CLASS, where the test above asserts the INSTANCE.
+     *
+     * That one pins `/v1/responses`: the census has no entry for it and its
+     * source restates nothing. Both are true and neither says anything about a
+     * divergence appearing somewhere else — and a new one arrives complete with
+     * its own census entry, because the exact-equality check above forces the
+     * author to add one. At that point every assertion in this file passes
+     * except this one.
+     *
+     * Measured, not argued: changing `agent-delegate.ts` to `|| 'alia-v1'` and
+     * updating its census entry to match leaves the whole suite green apart
+     * from this test, which names the file and both values.
+     */
+    const generalChatPath = RESTATED_DEFAULTS.filter((r) => !CAPABILITY_SCOPED.includes(r.file));
+
+    // The exemption list needs its own exact count, or it erodes one defensible
+    // entry at a time until every restatement is "capability-scoped" and this
+    // check is vacuous. It may shrink; growing it is a reviewed line.
+    expect(CAPABILITY_SCOPED).toHaveLength(3);
+    // And every exempted file must still BE in the census. A renamed or deleted
+    // entry would otherwise leave a name here that excuses nothing, which is how
+    // an exemption list stops describing the code it exempts.
+    for (const file of CAPABILITY_SCOPED) {
+      expect(RESTATED_DEFAULTS.map((r) => r.file), `${file} is exempted but not in the census`).toContain(file);
+    }
+
+    // The floor: if the filter ever empties, "none disagrees" is a fact about
+    // the exemption list rather than about the defaults.
+    expect(generalChatPath).toHaveLength(3);
+    for (const entry of generalChatPath) {
+      expect(entry.value, `${entry.file} disagrees with the owner`).toBe(getDefaultAliaModel());
+    }
+  });
 });
