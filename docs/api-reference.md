@@ -175,8 +175,12 @@ connection uses `bufferCommands: false`, so those calls throw rather than hang.
 Two mounts are in the product runtime today and are Oxy's under the ADRs:
 
 - **`/developer`** — applications and `alia_sk_*` credentials. ADR 0001 and ADR 0004 assign
-  developer identity to Oxy. See [developer access](./developers-portal.md) for the routes,
-  what still works, and the removal gate. Workstream 11 of #139.
+  developer identity to Oxy. Creation is already closed: `POST /developer/apps`,
+  `POST /developer/apps/:appId/keys` and the three `/auth` routes that were the second
+  minting path (`/authorize/codea`, `/authorize/cowork`, `/token`) all answer `410 Gone`
+  with `"error": "issuance_closed"`. Reading, updating and revoking an existing credential
+  stay. See [developer access](./developers-portal.md) for the routes, what still works,
+  and the removal gate. Workstream 11 of #139.
 - **`/billing`** — Stripe checkout, subscriptions and the financial record. ADR 0005 keeps
   entitlements in Alia as a low-latency read model and moves balances, payments, invoices,
   transactions and the ledger to Oxy. `/credits` stays as an entitlement read.
