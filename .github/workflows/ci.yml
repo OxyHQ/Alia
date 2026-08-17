@@ -6,9 +6,69 @@ on:
   pull_request:
     branches: [main]
 
+# A push to a PR branch supersedes the last one. A push to `main` does not.
+#
+# ## What was wrong, and how it presented
+#
+# This was `group: <workflow>-<ref>` with `cancel-in-progress: true` for every
+# ref, so every merge to `main` killed the run of the merge before it. On
+# 2026-08-17, with merges landing minutes apart, `API (Postgres)`, `Build API`
+# and `Integrations (Postgres)` were CANCELLED on consecutive `main` commits —
+# the real-database suite did not complete a single run on `main` for hours.
+# `Lint & Test` survived only because it finishes fastest.
+#
+# A cancelled check is the worst possible failure of a gate: it is in the check
+# list, it is not red, and it never ran. Two merges are not two attempts at one
+# thing — they are different commits, and cancelling the earlier one destroys
+# the only post-merge evidence that commit will ever have.
+#
+# ## Why the GROUP does the work and the flag is only a backstop
+#
+# Setting `cancel-in-progress: false` for `main` is NOT sufficient, and this is
+# the part that is easy to get wrong. GitHub's own documentation: *"When a
+# concurrent job or workflow is queued, if another job or workflow using the
+# same concurrency group in the repository is in progress, the queued job or
+# workflow will be `pending`. By default, any existing `pending` job or workflow
+# in the same concurrency group will be canceled and the new queued job or
+# workflow will take its place."* `cancel-in-progress` is scoped to runs that
+# are *currently running*; it says nothing about pending ones. So with a shared
+# group, three merges in quick succession still lose the middle one — it is
+# cancelled while pending, not while running.
+#
+# Giving each `main` commit its own group is what fixes that: nothing shares a
+# group, so there is nothing to supersede, running or pending. The flag stays
+# ref-conditional as a backstop for any future event that lands two runs on one
+# `main` SHA.
+#
+# ## What was verified against GitHub's documentation, and what was not
+#
+#  - `cancel-in-progress` accepting an EXPRESSION is documented, with a worked
+#    example whose stated behaviour differs per branch — which is only possible
+#    if the expression is evaluated rather than coerced to a truthy string. The
+#    type `boolean` is declared in GitHub's workflow-parser schema. VERIFIED.
+#  - A pending run being cancelled when a newer one joins the group: documented,
+#    quoted above. VERIFIED.
+#  - That this happens *regardless of* `cancel-in-progress`: strongly implied by
+#    that flag's wording ("currently running") and by the default `queue:
+#    single` description, but not stated in those words. INFERRED — and the
+#    per-commit group makes it moot either way, which is why the fix does not
+#    rest on it.
+#  - `github.sha` inside a concurrency group is not a documented pattern.
+#    GitHub's documented answer to "let runs queue instead of being cancelled"
+#    is `queue: max`, and it CANNOT be used here: the docs state that
+#    `queue: max` with `cancel-in-progress: true` is a workflow validation
+#    error, and this workflow needs `true` on PR branches. So the group carries
+#    the commit instead. `github.run_id` is the documented unique value, but it
+#    is unique per RUN rather than per COMMIT, which would also break the PR
+#    branch behaviour this keeps.
+#
+# `deploy-aws.yml` is deliberately untouched: it serialises production rollouts
+# on one group with `cancel-in-progress: false`, which is a different and
+# correct requirement. `.github/scripts/check-workflow-concurrency.mjs` asserts
+# both this and that, so neither can drift into the other.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: ${{ github.workflow }}-${{ github.ref == 'refs/heads/main' && github.sha || github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 # Least privilege for the token Actions injects into every runner.
 #
@@ -89,6 +149,12 @@ jobs:
       # thing stopping an unauthenticatable GitHub fetch on every install.
       - name: Verify bun cache wiring
         run: node .github/scripts/check-bun-cache-wiring.mjs
+
+      # Same job, same reason: it installs nothing, so it reports before the
+      # jobs it protects would be cancelled. A cancelled check is in the check
+      # list, is not red, and never ran.
+      - name: Verify workflow concurrency
+        run: node .github/scripts/check-workflow-concurrency.mjs
 
   lint-and-test:
     name: Lint & Test
