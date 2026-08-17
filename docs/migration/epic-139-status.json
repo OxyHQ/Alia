@@ -7,15 +7,15 @@
     "commit": "975955c4beb958610a5715bd562367179546da0a",
     "note": "Original verdicts were measured against 975955c4. Corrected against 78da61cf: 35 of the 246 boxes were ticked in between (#160, #162, #163, #164, #165, #166) and now carry `resolvedSince`; rows 212, 266, 454, 459 and 522 carried a stale or wrong claim and are corrected in place, each saying so; and the Relay blocker is renamed now that OxyHQ/Relay exists.",
     "correctedAt": "2026-08-17",
-    "correctedAgainst": "origin/main at 1f7ee01b",
+    "correctedAgainst": "origin/main at e8927b7c",
     "resolvedStateSync": "The `resolvedSince` flags are synced from the issue body in BOTH directions. A one-way sync let L243 keep the flag after the box was re-opened — a record that can only say \"done\" reports an epic as further along than it is."
   },
   "checkboxes": {
     "total": 416,
     "tickedAtAudit": 170,
-    "tickedNow": 219,
+    "tickedNow": 227,
     "untickedAtAudit": 246,
-    "untickedNow": 197
+    "untickedNow": 189
   },
   "verdictCounts": {
     "ACTIONABLE_NOW": 42,
@@ -193,7 +193,7 @@
       "section": "Remove fake model ownership",
       "text": "Stop describing `alia-lite`, `alia-v1`, `alia-v1-pro`, `alia-v1-pro-max`, `alia-v1-codea`, etc. as Alia-owned models when they route to third-party models.",
       "verdict": "ACTIONABLE_NOW",
-      "evidence": "Partly done and partly frozen. DONE: docs/model-abstraction.mdx now opens with \"The namespace is not a catalogue of models\" and tabulates what each of the thirteen actually is; GET /catalogue serves `object: \"routing_profile\"`; the app picker renders profiles as profiles (#156). NOT DONE: packages/alia-console/src/routes/_layout/documentation/models.tsx:13-43 still presents `alia-lite`/`alia-v1`/`alia-v1-pro`/`alia-v1-pro-max` as Alia models, and examples.tsx/quickstart.tsx/chat-completions.tsx repeat them as model ids.",
+      "evidence": "RE-OPENED, and it was ticked in error. #171 and #178 cleared the API surfaces; neither cleared the console, which is what this row is about. Measured on main: packages/alia-console/src/routes/_layout/documentation/models.tsx:76 still reads \"Alia offers a range of models optimized for different use cases\", :101 is a heading \"Available Models\", and :13-43 hardcode four aliases — alia-lite, alia-v1, alia-v1-pro, alia-v1-pro-max — with context windows that match nothing in the routing table. That page is Alia describing the aliases as its own models, which is the row verbatim. Workstream 4 is landing it.",
       "deliverable": "Rewrite the four alia-console documentation routes to describe routing profiles and point at GET /catalogue. The /v1/models half of this row is L242 and is frozen by docs/migration/compatibility-window.md section (a).",
       "guard": "No CI job typechecks or lints packages/alia-console today (.github/workflows/ci.yml runs only @alia/api, @alia.onl/sdk and @alia/integrations), so the guard must be a content census in the API suite over the console sources, or a new console job. Naming that gap is part of the deliverable."
     },
@@ -213,8 +213,10 @@
       "section": "Remove fake model ownership",
       "text": "Stop treating system prompts, reasoning levels, Codea presets or quality modes as model identities.",
       "verdict": "DUPLICATE_OF",
-      "evidence": "The diagnosis whose fix is the product-modes row. Measured: `alia-v1-thinking` and `alia-v1-pro-max` share tier `v1-pro-max` (packages/api/src/lib/routing/presets.ts:106 covers both with one preset), and `alia-v1-codea`/`alia-v1-cowork`/`alia-v1-browser` are surface presets (docs/model-abstraction.mdx table). Twelve presets cover thirteen aliases. RE-OPENED after being ticked: the epic body carried `[x]` on this row on 2026-08-17 and carries `[ ]` again now. The caveat this audit recorded is why — `alia-v1-thinking` and `alia-v1-pro-max` share the tier `v1-pro-max` (gate 5, architectureGates.test.ts:1537), so two identifiers are one policy and a reasoning setting is still wearing a model's name. #163 named the six product modes without removing that pair, and D3 of docs/migration/epic-139-decisions.md records the decision that extended thinking becomes a runtime parameter rather than a seventh mode.",
-      "duplicateOf": "L255 — \"Replace fake aliases with clearly typed product modes/routing presets, for example:\""
+      "evidence": "RE-TICKED, and this time on a located mechanism — the audit and a first re-open both failed to find one. The chat path does not call `prompt-loader.buildSystemPrompt` at all: routes/v1/chat-completions.ts:216 calls `SystemPromptBuilder.build()`, which wraps it. The reasoning LAYER is lib/system-prompt-builder.ts:129-132, applied when `thinkingMode === true`, and it deliberately skips the layer when the caller named the retired alias itself, because `loadBasePrompt` already loaded that same file — layering it twice would tell the model the same thing in two voices. So a reasoning level is a runtime PARAMETER on the request, which is what the box asks for, and D3 of docs/migration/epic-139-decisions.md records the product decision behind it. Guard: lib/__tests__/reasoning-effort.test.ts, 8 `it` blocks. Mutation, re-run live on main content rather than quoted: disabling the condition turns THREE red and leaves two green, and the two that stay green are the fixture controls — which is what makes the three failures mean \"the layer was not added\" rather than \"the marker was never there\".",
+      "duplicateOf": "L255 — \"Replace fake aliases with clearly typed product modes/routing presets, for example:\"",
+      "resolvedSince": "2026-08-17",
+      "residual": "ACCEPTED residue, not an oversight: `alia-v1-thinking` still exists as a registered identifier and still loads its own prompt when named directly, and it still shares tier `v1-pro-max` with `alia-v1-pro-max` (gate 5, architectureGates.test.ts:1537). The box says TREATING, not EXISTING; removing the identifier is the compatibility window's gate (path (a)), not this box's."
     },
     {
       "line": 244,
@@ -393,7 +395,8 @@
       "verdict": "ACTIONABLE_NOW",
       "evidence": "Partly landed. Entitlement filtering EXISTS: GET /catalogue takes `product` and `entitled` query params and resolves through lib/plan-access.ts (routes/catalogue.ts:143-203), refusing to invent an anonymous entitlement. Product policy is L263. REGION and PLATFORM CAPABILITY do not exist at all: packages/api/src/lib/routing/presets.ts:60-64 lists `region` and `data-policy` in `DELEGATED_TO_RELAY` on purpose, so region is BLOCKED_RELAY, but platform capability (what the calling client can actually render) is an Alia-side fact nothing carries today.",
       "deliverable": "Add a platform-capability filter to GET /catalogue driven by the calling surface. Region stays delegated; say so in the response rather than stubbing it.",
-      "guard": "routes/__tests__/catalogue.test.ts, extended so a surface that cannot render audio does not receive an audio-only entry. Mutation: drop the filter -> red."
+      "guard": "routes/__tests__/catalogue.test.ts, extended so a surface that cannot render audio does not receive an audio-only entry. Mutation: drop the filter -> red.",
+      "resolvedSince": "2026-08-17"
     },
     {
       "line": 287,
@@ -1262,7 +1265,7 @@
       "deliverable": "DELIVERED IN PART by #175 (`61e66e73`), migrations applied to the alia database by that commit's deploy run. `cost_entries` and `voice_call_usage` both carry a `grant_kind` column with a CHECK rendered from packages/api/src/domain/credit-funding.ts:39 (`free_allowance` | `paid_balance`); `CreditReservation` carries `grantKind` (credits-manager.ts:40, decided at :134 from the balance the spend returned); `recordCost` accepts it; and the VOICE settlement writes it live (voice-session-manager.ts:1256) — the one settlement where a CreditReservation and the serving provider coexist, and where `voice_call_usage` is both the usage record and the billing figure.",
       "guard": "packages/api/src/__tests__/billingSeparation.test.ts, \"the token-metered ledger still has no writer, and this is the count that says so\" — an exact-set assertion that goes RED the day `recordCost` gains a caller, which is precisely the day this row needs re-reading. It carries its own positive control (the scan finds `recordCost` in cost-tracker.ts) so an empty offender list means absence rather than a scan that read nothing.",
       "resolvedSince": "2026-08-17",
-      "residual": "THE TOKEN PATHS REMAIN UNATTRIBUTED, so the tick rests on the voice settlement plus a guard, not on whole-service coverage. Whether that is enough to call the box earned is a judgement worth re-reading: the box says free usage is \"STILL cost-attributed\", and on the token paths paid usage is not attributed either, so the property holds there by ABSENCE rather than by attribution. Separately, referrals still credit a promotional reward as `paid`."
+      "residual": "THIS TICK IS A JUDGEMENT, NOT A MEASUREMENT, and is recorded as one. It rests on two things: the voice settlement writing `grant_kind` live (voice-session-manager.ts:1256), and the standing assertion in billingSeparation.test.ts that goes red the day `recordCost` gains a caller. It is NOT whole-service coverage: on the token-metered paths nothing is attributed at all, free or paid, so the property holds there by ABSENCE. The team lead reviewed this framing and did not overrule it. Separately, referrals still credit a promotional reward as `paid` (routes/referrals.ts:89, :93)."
     },
     {
       "line": 476,
@@ -1307,7 +1310,8 @@
       "verdict": "ACTIONABLE_NOW",
       "evidence": "Plan-scoped model access already exists as data — `plans.model_ids` — and packages/api/src/lib/routing/__tests__/routing-config-audit.test.ts names it precisely: \"plan model access is an UNAUDITED database row\", with \"the plan seeder would re-assert the model list, but NOTHING RUNS IT\" and \"the seeder has no caller, which is why this is a GAP and not an absence\". So the product team cannot select it: there is no route and no audited writer.",
       "deliverable": "An audited write path for plan/surface model availability, and either wire the seeder or delete it.",
-      "guard": "routing-config-audit.test.ts already asserts \"no route writes plan or model configuration\" and \"every writer is mapped: audited, boot-only, or uncalled\" — a new route must join the audited category or the test fails. Mutation: add an unaudited route -> red."
+      "guard": "routing-config-audit.test.ts already asserts \"no route writes plan or model configuration\" and \"every writer is mapped: audited, boot-only, or uncalled\" — a new route must join the audited category or the test fails. Mutation: add an unaudited route -> red.",
+      "resolvedSince": "2026-08-17"
     },
     {
       "line": 507,
@@ -1544,7 +1548,8 @@
       "section": "Naming",
       "text": "Use runtime parameters/presets for reasoning level where the underlying weights are identical.",
       "verdict": "BLOCKED_ALIAMODELS",
-      "evidence": "Runtime parameters for reasoning level needs the separate AliaModels repository and real trained artifacts. The repository does not exist or is not reachable: `gh repo view OxyHQ/AliaModels` returns \"Could not resolve to a Repository\" (2026-08-17). No training, dataset, evaluation, model-card or release-manifest artefact exists anywhere in this monorepo. The one thing that IS landed is the refusal: packages/api/src/lib/reserved-namespace.ts refuses any `alia/*` identifier at the serving chokepoint (gateway-client.ts:321, above the mode branch so both paths are covered), asserted by lib/__tests__/reserved-namespace.test.ts."
+      "evidence": "Runtime parameters for reasoning level needs the separate AliaModels repository and real trained artifacts. The repository does not exist or is not reachable: `gh repo view OxyHQ/AliaModels` returns \"Could not resolve to a Repository\" (2026-08-17). No training, dataset, evaluation, model-card or release-manifest artefact exists anywhere in this monorepo. The one thing that IS landed is the refusal: packages/api/src/lib/reserved-namespace.ts refuses any `alia/*` identifier at the serving chokepoint (gateway-client.ts:321, above the mode branch so both paths are covered), asserted by lib/__tests__/reserved-namespace.test.ts.",
+      "resolvedSince": "2026-08-17"
     },
     {
       "line": 583,
@@ -1634,7 +1639,8 @@
       "verdict": "ACTIONABLE_NOW",
       "evidence": "The vocabulary is published and installed. @oxyhq/contracts@0.27.0 (node_modules/@oxyhq/contracts/dist/cjs/inference/catalogue.js:144) defines `availabilityScopeSchema` as exactly `internal_alia`, `public_payg`, `enterprise`, `byok_only`, `oxy_hosted` — the five this row names — plus `commercialPermissionSchema` beside it. Nothing in Alia imports either.",
       "deliverable": "Carry `availabilityScope` on catalogue entries and refuse a route whose scope does not admit the caller. The DATA (which route has which scope) comes from Relay, but the type, the refusal and its tests are writable now.",
-      "guard": "A test that a catalogue entry scoped `internal_alia` is absent from an unauthenticated GET /catalogue response, in routes/__tests__/catalogue.test.ts. Mutation: drop the scope filter -> red."
+      "guard": "A test that a catalogue entry scoped `internal_alia` is absent from an unauthenticated GET /catalogue response, in routes/__tests__/catalogue.test.ts. Mutation: drop the scope filter -> red.",
+      "resolvedSince": "2026-08-17"
     },
     {
       "line": 605,
@@ -1669,7 +1675,8 @@
       "verdict": "ACTIONABLE_NOW",
       "evidence": "Attribution is currently forbidden rather than preserved: gate 5 of packages/api/src/__tests__/architectureGates.test.ts:1602 asserts no catalogue response names a provider or a provider model id, and sanitize.ts scrubs them from every error. For an open-weight model the LICENSE may require the attribution the global rule removes — the direct collision this row and L244 share. @oxyhq/contracts ships `modelLicenseSchema` and `modelProvenanceSchema` with `open_weight`, `first_party_original`, `first_party_derived`, `third_party`, `third_party_hosted`.",
       "deliverable": "Carry required attribution on the catalogue entry and exempt it from sanitization, as part of the L244 scoping. Doing L244 without this re-creates the same collision the other way.",
-      "guard": "Widen gate 5's leak census to permit exactly the attribution field and nothing else. Mutation: put a provider model id in a different field -> red."
+      "guard": "Widen gate 5's leak census to permit exactly the attribution field and nothing else. Mutation: put a provider model id in a different field -> red.",
+      "resolvedSince": "2026-08-17"
     },
     {
       "line": 609,
@@ -2058,7 +2065,8 @@
       "verdict": "ACTIONABLE_NOW",
       "evidence": "The Alia half exists and the correlation does not. Alia mints `chatcmpl-${crypto.randomUUID()}` at routes/v1/chat-completions.ts:31, and the Relay client already preserves request and generation ids (ticked L209, contract `requestIdSchema`/`generationIdSchema`). Nothing writes the pair anywhere, and lib/__tests__/log-content.test.ts is the existing census proving message content stays out of the logs — which is the constraint this row attaches.",
       "deliverable": "Log the (conversation id, run id, request id) triple at one chokepoint, and nothing else, so correlation works the day Relay answers.",
-      "guard": "log-content.test.ts, which already scans every logger call and records the VALUE expression, extended to assert the correlation fields are present and that no message content joins them. Mutation: log the prompt beside the ids -> red."
+      "guard": "log-content.test.ts, which already scans every logger call and records the VALUE expression, extended to assert the correlation fields are present and that no message content joins them. Mutation: log the prompt beside the ids -> red.",
+      "resolvedSince": "2026-08-17"
     },
     {
       "line": 703,
@@ -2078,7 +2086,8 @@
       "verdict": "ACTIONABLE_NOW",
       "evidence": "The static half is landed and the RUNTIME half does not exist. Static: gate 2 of packages/api/src/__tests__/architectureGates.test.ts freezes the entire outbound host set in both directions (EGRESS_HOSTS, :659-704), so a new provider hostname in source fails CI. Runtime: nothing observes an actual outbound connection, so a post-cutover attempt through a configured base URL or a dynamically built host would be invisible.",
       "deliverable": "A runtime egress observation — an allowlisting `fetch` wrapper or an infrastructure egress policy — that records and alerts on any connection to a provider host. Note ~/Oxy/oxy-infra owns the network half; the process half belongs here.",
-      "guard": "A test that the wrapper refuses a provider host, with a positive control that it PERMITS the Relay host — otherwise a wrapper that refuses everything passes. Mutation: bypass the wrapper with a raw `fetch` -> a source census like gate 2's fires."
+      "guard": "A test that the wrapper refuses a provider host, with a positive control that it PERMITS the Relay host — otherwise a wrapper that refuses everything passes. Mutation: bypass the wrapper with a raw `fetch` -> a source census like gate 2's fires.",
+      "resolvedSince": "2026-08-17"
     },
     {
       "line": 705,
@@ -2229,15 +2238,17 @@
   "verdictHazards": {
     "greenAndInert": "A mechanism can exist, be tested, and be called by nothing. Evidence that names a function, a config table or a module is not evidence that the property HOLDS unless the ENTRYPOINT calls it. Row 266 failed this way and is corrected above. Every ALREADY_TRUE and DUPLICATE_OF row was re-checked against it on 2026-08-17; the live callers are: reserved-namespace via gateway-client.ts:320, fallback-engine via gateway-client.ts:339, violatedCapability via relay-client.ts:931 (client-internal only), and gates 3/4/5, which are censuses that run in CI. The two rows that hold by ABSENCE with NO guard at all are 454 and 522, and both now say so in their mutation field rather than naming a guard that does not cover them.",
     "wrongArtefact": "Rows 266 and 654 were wrong in the same direction and neither was caught by this audit. 266 cited a mechanism nothing called; 654 cited an absence that was not absent, because the scan read headings rather than prose. Both are corrections to the same habit: measure the artefact the claim is about. A heading census answers \"is there a section named X\", never \"is the rule written\"; an import census answers \"does this module exist\", never \"does the entrypoint call it\".",
-    "emptyTableReadsCorrect": "Row 475 asserted that a write happened because the code path that would write existed. It did not: `recordCost` has no caller, so `cost_entries` is empty and every aggregate over it returns zero. A correct read of an empty table and a broken switch are indistinguishable without a positive control, which is why the standing gate for it carries one."
+    "emptyTableReadsCorrect": "Row 475 asserted that a write happened because the code path that would write existed. It did not: `recordCost` has no caller, so `cost_entries` is empty and every aggregate over it returns zero. A correct read of an empty table and a broken switch are indistinguishable without a positive control, which is why the standing gate for it carries one.",
+    "ratchetNotSynchroniser": "A synchronising process that only ever ADDS is not a synchroniser, it is a ratchet. This file's `resolvedSince` sync could mark a row resolved and never unmark it, so a re-opened box stayed \"done\" — and the epic read as further along than it was, which is the precise failure the file exists to prevent. Caught only because a count disagreed by one. Same family as a floor that a gate's own work erodes until it asserts nothing, and as a matrix row that outlives the file it names. The fix is always the same: make the check answer BOTH directions and assert the exact count, never a floor.",
+    "typeSystemViaTextCensus": "A census over source TEXT cannot answer a question about the TYPE SYSTEM. Found by the workstream 12 agent in #167's audit guard: packages/api/src/lib/security/__tests__/config-audit.test.ts:319 asserts no caller can omit the actor by testing `not.toMatch(/actor\\?\\s*:/)` — and a DEFAULT PARAMETER (`actor: ConfigAuditActor = {…}`) defeats it completely. There is no `?`, so the regex misses; the signature census still sees a parameter named `actor` typed `ConfigAuditActor`; and TypeScript treats it as optional at every call site. Proven rather than argued: a probe calling the writer with no actor typechecks with zero errors. This is the same family as `wrongArtefact` — a property enforced by the type system needs a gate IN the type system, or at minimum an AST check that reads the parameter's optionality rather than its spelling. L544 stays ticked: the mechanism holds, only that sub-property's coverage was hollow."
   },
   "openVerdictCounts": {
-    "ACTIONABLE_NOW": 14,
+    "ACTIONABLE_NOW": 8,
     "ALREADY_TRUE": 1,
-    "BLOCKED_ALIAMODELS": 26,
+    "BLOCKED_ALIAMODELS": 25,
     "BLOCKED_OXY_972": 26,
     "BLOCKED_RELAY": 92,
-    "DUPLICATE_OF": 29,
+    "DUPLICATE_OF": 28,
     "PRODUCT_DECISION": 9
   },
   "toolingHazards": {
