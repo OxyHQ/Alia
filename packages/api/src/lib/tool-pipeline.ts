@@ -26,7 +26,6 @@ import {
   createGetWhatsAppChatsTool,
   createGetWhatsAppMessagesTool,
   createSendWhatsAppMessageTool,
-  createGatewayAdminTool,
   createSearchAgentsTool,
   createDelegateToAgentTool,
   createAgentTool,
@@ -124,11 +123,6 @@ export class ToolPipeline {
         aliaTools.planPreview = createPlanPreviewTool((steps) => {
           sseEmitter.emit('alia.plan_preview', { eventVersion: 1, planId: `plan-${requestId}`, steps });
         });
-      }
-
-      // Admin tools (authorized users only)
-      if (username === 'nate') {
-        aliaTools.gatewayAdmin = createGatewayAdminTool();
       }
     }
 

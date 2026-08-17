@@ -73,9 +73,11 @@ encrypted tokens are written by one process and read by the other.
 - **`GATEWAY_API_URL`.** Setting it *and* `SERVICE_SECRET` flips
   `packages/api/src/lib/gateway-client.ts:32` into remote mode and every provider call goes
   to an HTTP service that no longer exists. `packages/alia-gateway` was deleted. Leave
-  `GATEWAY_API_URL` unset. It is still read by
-  `packages/api/src/lib/tools/gateway-admin.ts`, which is why it has not been deleted
-  outright; removing it is part of workstreams 8 and 9 of #139.
+  `GATEWAY_API_URL` unset. Its second reader, `packages/api/src/lib/tools/gateway-admin.ts`,
+  was deleted by workstream 9 of #139 — an AI-callable tool that proxied provider-key CRUD
+  to `${GATEWAY_API_URL}/gateway/v1/*`, endpoints that had ceased to exist. One reader
+  remains, `gateway-client.ts` itself, so the variable retires with that seam
+  (workstream 8), not before.
 - **`GROK_API_KEY`.** Removed from `packages/api/.env.example`; documented here so nobody
   puts it back. Its only reader is
   `packages/api/src/internal/providers/lib/providers/grok-voice.ts:52`, in the expression

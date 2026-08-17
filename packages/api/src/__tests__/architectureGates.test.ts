@@ -779,6 +779,70 @@ describe('gate 2: no provider hostname outside its allowlist (ADR 0001)', () => 
     const nonTest = [...hostsByFile(false).keys()].sort();
     expect(nonTest).toEqual([...EGRESS_HOSTS].sort());
   });
+
+  it('every file that may dial a provider is filed for extraction (#139 ws7)', () => {
+    /**
+     * The allowlist above says WHERE a provider hostname may appear. This says
+     * that each of those places is also a MIGRATION ITEM, filed under the
+     * workstream that removes it — workstream 7, *"Extract provider execution
+     * into Relay"*.
+     *
+     * The two drifted apart once, and that drift is the whole reason this
+     * exists. `lib/provider-warmup.ts` opens TLS to seven provider hosts at
+     * boot, from `src/index.ts`, before a single request is served — and it was
+     * filed under workstream 8, *"Remove the dual-mode gateway"*, which it has
+     * nothing to do with. So a reader filtering the matrix to workstream 7 saw
+     * the nineteen files under `internal/providers/lib/providers/` and no live
+     * egress at all. Those nineteen have no `proxy()` caller anywhere outside
+     * one test, so extracting every one of them removes nothing.
+     *
+     * The cheapest way to make this green is to add or refile a matrix row,
+     * which is the wanted action. The hazard is the opposite direction: a new
+     * outbound provider call whose removal nobody has written down.
+     *
+     * Test files are excluded for the same reason `EGRESS_HOSTS` excludes them:
+     * a fixture host is not a migration item.
+     */
+    const raw: unknown = JSON.parse(
+      readFileSync(path.join(REPO_ROOT, 'docs/migration/ownership-matrix.json'), 'utf8'),
+    );
+    if (typeof raw !== 'object' || raw === null || !Array.isArray((raw as { rows?: unknown }).rows)) {
+      throw new Error('ownership-matrix.json has no rows array');
+    }
+    const filed = new Set<string>();
+    let total = 0;
+    for (const row of (raw as { rows: unknown[] }).rows) {
+      const r = row as { workstream?: unknown; currentPath?: unknown };
+      if (typeof r.workstream !== 'string' || typeof r.currentPath !== 'string') {
+        throw new Error('malformed ownership-matrix row');
+      }
+      total += 1;
+      if (r.workstream === '7') filed.add(r.currentPath);
+    }
+
+    // Vacuity floors. A matrix that failed to parse into rows, and one in which
+    // every path happens to be filed, produce the same empty offender list.
+    expect(total).toBeGreaterThanOrEqual(300);
+    expect(filed.size).toBeGreaterThanOrEqual(50);
+
+    const egressFiles = [...new Set(Object.values(PROVIDER_HOST_ALLOWLIST).flat())]
+      .filter((file) => !isTestFile(file))
+      .sort();
+    expect(egressFiles.length).toBeGreaterThanOrEqual(20);
+
+    // Positive controls, chosen rather than derived from the thing they check:
+    // the file that actually dials fifteen providers, and one of the nineteen
+    // that dials none. Both must be filed, for opposite reasons.
+    expect(egressFiles).toContain('packages/api/src/lib/chat-core.ts');
+    expect(egressFiles).toContain('packages/api/src/internal/providers/lib/providers/openai.ts');
+
+    expect(egressFiles.filter((file) => !filed.has(file))).toEqual([]);
+
+    // And the predicate can fire. Without this, a `filed` set that somehow
+    // contained everything would report the same clean nothing.
+    const planted = 'packages/api/src/lib/no-such-egress-site.ts';
+    expect([...egressFiles, planted].filter((file) => !filed.has(file))).toEqual([planted]);
+  });
 });
 
 // ===========================================================================
