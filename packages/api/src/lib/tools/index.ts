@@ -8,7 +8,6 @@ import { webSearchTool } from './web-search.js';
 import { saveUserMemoryTool, updateUserMemoryTool, updateUserPreferencesTool, updateUserContextTool } from './user-memory.js';
 import { createGetDeviceInfoTool } from './device-info.js';
 import { createSendTelegramTool } from './telegram.js';
-import { createGatewayAdminTool } from './gateway-admin.js';
 import { createGetWhatsAppChatsTool, createGetWhatsAppMessagesTool, createSendWhatsAppMessageTool } from './whatsapp.js';
 import { webScraperTool } from './web-scraper.js';
 import { browseTool } from './browse.js';
@@ -187,15 +186,6 @@ registerTool({
   category: 'communication',
 });
 
-registerTool({
-  name: 'gatewayAdmin',
-  description: 'Manage AI providers infrastructure (keys, models, usage)',
-  tool: createGatewayAdminTool,   // factory: () => Tool
-  requiredPlan: 'business',
-  enabledByDefault: true,
-  category: 'admin',
-});
-
 // Trigger/routine management tools (natural language automation)
 registerTool({
   name: 'createTrigger',
@@ -239,7 +229,6 @@ export { saveUserMemoryTool, updateUserMemoryTool, updateUserPreferencesTool, up
 export { createGetDeviceInfoTool, type DeviceInfo } from './device-info.js';
 export { createSendTelegramTool } from './telegram.js';
 export { createGetWhatsAppChatsTool, createGetWhatsAppMessagesTool, createSendWhatsAppMessageTool } from './whatsapp.js';
-export { createGatewayAdminTool } from './gateway-admin.js';
 export { webScraperTool } from './web-scraper.js';
 export { browseTool } from './browse.js';
 export { generateFileTool } from './file-generator.js';

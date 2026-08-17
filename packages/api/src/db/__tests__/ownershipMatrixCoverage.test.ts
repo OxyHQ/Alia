@@ -110,12 +110,15 @@ interface MatrixRow {
  * commit — which is the only thing standing between "the epic is deleting
  * things" and "the matrix has quietly stopped describing anything".
  *
- * 38 as of #141 (retire the gateway admin), over 35 distinct paths: 18 rows on
- * 16 paths under `internal/providers/**`, and 20 rows on 19 paths under
- * `packages/alia-gateway-admin/`. Three paths carry two rows each, because two
- * separate migration subjects lived in one file.
+ * 39 as of #166, over 36 distinct paths: 18 rows on 16 paths under
+ * `internal/providers/**`, 20 rows on 19 paths under
+ * `packages/alia-gateway-admin/`, and one on
+ * `packages/api/src/lib/tools/gateway-admin.ts` — the AI-callable tool that
+ * proxied provider-key CRUD to the deleted gateway, removed by #166. Three
+ * paths carry two rows each, because two separate migration subjects lived in
+ * one file.
  */
-const REMOVED_ROW_COUNT = 38;
+const REMOVED_ROW_COUNT = 39;
 
 const OWNERS = new Set(['alia', 'oxy', 'relay', 'delete']);
 const REACHABLE = new Set(['live', 'dead', 'unverified', 'loaded-not-invoked']);

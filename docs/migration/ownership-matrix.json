@@ -198,6 +198,26 @@
       "evidence": "packages/api/src/internal/providers/lib/providers/hyperbolic.ts; registry entry at lib/providers/index.ts:31-53; sole proxy() call site was internal/providers/routes/providers.ts:138 (unmounted), deleted in #141 \u2014 no call site remains"
     },
     {
+      "id": "adapter-live-egress-sites",
+      "workstream": "7",
+      "domain": "provider-runtime",
+      "kind": "behaviour",
+      "currentPath": "packages/api/src/lib/chat-core.ts",
+      "reachable": "live",
+      "owner": "relay",
+      "targetPath": "relay:client (nothing in Alia opens a connection to a provider host)",
+      "dependsOn": [
+        "adapter-registry",
+        "chat-core-get-ai-model",
+        "integrations-model-resolver",
+        "provider-api",
+        "provider-warmup"
+      ],
+      "removalGate": "The ordering constraint for the whole of workstream 7, and the row that answers the epic's \"Any additional adapter discovered by the inventory\". WHICH SITES ACTUALLY EGRESS: lib/chat-core.ts getAIModel() (fifteen hardcoded base URLs, the live text path), lib/provider-warmup.ts (seven hosts, at boot, from src/index.ts), internal/providers/lib/provider-api.ts (five, the live image/audio/TTS path) and internal/providers/lib/digitalocean-async.ts. WHICH DO NOT: the nineteen files under internal/providers/lib/providers/, whose only text method proxy() has zero call sites outside one test, and packages/integrations/src/shared/model-resolver.ts, whose three exports have no importer in that package. Extracting the nineteen therefore removes NO egress and satisfies no removal gate on this row. This row closes only when gate 2 of packages/api/src/__tests__/architectureGates.test.ts records no provider hostname in non-test source at all.",
+      "provenance": "re-derived",
+      "evidence": "docs/migration/epic-139-status.md, premise (b). Measured: repo-wide `.proxy(` returns exactly one site, packages/api/src/internal/providers/lib/__tests__/credential-redaction.test.ts:150. The four egress sites are the non-test files in PROVIDER_HOST_ALLOWLIST (packages/api/src/__tests__/architectureGates.test.ts:543-640). lib/providers/index.ts is imported only by internal/providers/lib/voice-session-manager.ts:30, which reads .voice and nothing else (:148, :229, :695), and only openai and xai carry one."
+    },
+    {
       "id": "adapter-mistral",
       "workstream": "7",
       "domain": "provider-runtime",
@@ -2674,13 +2694,13 @@
       "domain": "frontend-admin",
       "kind": "package",
       "currentPath": ".do/app.yaml",
-      "reachable": "unverified",
+      "reachable": "dead",
       "owner": "delete",
       "targetPath": "delete",
       "dependsOn": [
         "ga-script-build"
       ],
-      "removalGate": "This file is explicitly documentation-only (see its own :2-4), so editing it changes NOTHING in production \u2014 the live spec is dashboard-managed and must be changed there too. Two separate edits here: the static site (:186-197) and the domain (:221-223). While in the file, note the neighbouring pre-existing rot: api.gateway.alia.onl (:218) and the build:gateway/start:gateway commands (:88-89) referencing scripts deleted in bfb2bc18.",
+      "removalGate": "This file is explicitly documentation-only (see its own :2-4), so editing it changes NOTHING in production \u2014 the live spec is dashboard-managed and must be changed there too. Two separate edits here: the static site (:186-197) and the domain (:221-223). While in the file, note the neighbouring pre-existing rot: api.gateway.alia.onl (:218) and the build:gateway/start:gateway commands (:88-89) referencing scripts deleted in bfb2bc18. SATISFIED, and measured on 2026-08-17 rather than assumed: repo-wide, `gateway` matches nothing in the root package.json (no script, no workspace entry) and nothing in .github/workflows/*.yml; `.do/app.yaml` declares four domains and one static site, none of them the admin; and `gateway.alia.onl` appears nowhere in the repository. The row survives only because its currentPath file does - the entries it names are gone, so it cannot carry `removedIn`. DNS itself is not in this repository: ~/Oxy/oxy-infra owns it, and this measurement is about repo configuration only.",
       "provenance": "inventory-frontend-admin",
       "evidence": ".do/app.yaml:186-197, .do/app.yaml:221-223, .do/app.yaml:2-4"
     },
@@ -2949,7 +2969,7 @@
       "domain": "frontend-admin",
       "kind": "package",
       "currentPath": "package.json",
-      "reachable": "live",
+      "reachable": "dead",
       "owner": "delete",
       "targetPath": "delete",
       "dependsOn": [
@@ -2957,7 +2977,7 @@
         "ga-do-spec-root",
         "ga-workflow-deploy"
       ],
-      "removalGate": "DONE in #141: the script and all three callers were removed in one commit, so no deploy ever saw a missing script. README.md:154 updated with it.",
+      "removalGate": "DONE in #141: the script and all three callers were removed in one commit, so no deploy ever saw a missing script. README.md:154 updated with it. SATISFIED, and measured on 2026-08-17 rather than assumed: repo-wide, `gateway` matches nothing in the root package.json (no script, no workspace entry) and nothing in .github/workflows/*.yml; `.do/app.yaml` declares four domains and one static site, none of them the admin; and `gateway.alia.onl` appears nowhere in the repository. The row survives only because its currentPath file does - the entries it names are gone, so it cannot carry `removedIn`. DNS itself is not in this repository: ~/Oxy/oxy-infra owns it, and this measurement is about repo configuration only.",
       "provenance": "inventory-frontend-admin",
       "evidence": "was package.json:39; callers were .github/workflows/deploy-frontends.yml:92, .do/app.yaml:193 and packages/alia-gateway-admin/.do/app.yaml:16 \u2014 all removed in #141"
     },
@@ -2967,13 +2987,13 @@
       "domain": "frontend-admin",
       "kind": "package",
       "currentPath": "package.json",
-      "reachable": "live",
+      "reachable": "dead",
       "owner": "delete",
       "targetPath": "delete",
       "dependsOn": [
         "ga-workspace-entry"
       ],
-      "removalGate": "Removed in the same commit as the package directory. Also update README.md:135, which documents this exact command.",
+      "removalGate": "Removed in the same commit as the package directory. Also update README.md:135, which documents this exact command. SATISFIED, and measured on 2026-08-17 rather than assumed: repo-wide, `gateway` matches nothing in the root package.json (no script, no workspace entry) and nothing in .github/workflows/*.yml; `.do/app.yaml` declares four domains and one static site, none of them the admin; and `gateway.alia.onl` appears nowhere in the repository. The row survives only because its currentPath file does - the entries it names are gone, so it cannot carry `removedIn`. DNS itself is not in this repository: ~/Oxy/oxy-infra owns it, and this measurement is about repo configuration only.",
       "provenance": "inventory-frontend-admin",
       "evidence": "package.json:30"
     },
@@ -3001,13 +3021,13 @@
       "domain": "frontend-admin",
       "kind": "package",
       "currentPath": ".github/workflows/deploy-frontends.yml",
-      "reachable": "live",
+      "reachable": "dead",
       "owner": "delete",
       "targetPath": "delete",
       "dependsOn": [
         "ga-script-build"
       ],
-      "removalGate": "Four separate edits in this one file, all required \u2014 the push path (:11), the paths-filter output declaration (:20), the filter block (:32-34) and the job itself (:72-102). Removing only the job leaves an output referencing a deleted filter. The Cloudflare Pages PROJECT 'alia-gateway-admin' must also be deleted out-of-band; deleting the workflow only stops future deploys and leaves the last build served forever at its pages.dev URL.",
+      "removalGate": "Four separate edits in this one file, all required \u2014 the push path (:11), the paths-filter output declaration (:20), the filter block (:32-34) and the job itself (:72-102). Removing only the job leaves an output referencing a deleted filter. The Cloudflare Pages PROJECT 'alia-gateway-admin' must also be deleted out-of-band; deleting the workflow only stops future deploys and leaves the last build served forever at its pages.dev URL. SATISFIED, and measured on 2026-08-17 rather than assumed: repo-wide, `gateway` matches nothing in the root package.json (no script, no workspace entry) and nothing in .github/workflows/*.yml; `.do/app.yaml` declares four domains and one static site, none of them the admin; and `gateway.alia.onl` appears nowhere in the repository. The row survives only because its currentPath file does - the entries it names are gone, so it cannot carry `removedIn`. DNS itself is not in this repository: ~/Oxy/oxy-infra owns it, and this measurement is about repo configuration only.",
       "provenance": "inventory-frontend-admin",
       "evidence": ".github/workflows/deploy-frontends.yml:11,20,32-34,72-102"
     },
@@ -3017,11 +3037,11 @@
       "domain": "frontend-admin",
       "kind": "package",
       "currentPath": "package.json",
-      "reachable": "live",
+      "reachable": "dead",
       "owner": "delete",
       "targetPath": "delete",
       "dependsOn": [],
-      "removalGate": "Removed together with the directory, and bun.lock regenerated IN THE SAME COMMIT (bun.lock currently records this workspace; a lockfile-vs-manifest mismatch fails the `git diff --exit-code bun.lock` guard that every deploy job runs).",
+      "removalGate": "Removed together with the directory, and bun.lock regenerated IN THE SAME COMMIT (bun.lock currently records this workspace; a lockfile-vs-manifest mismatch fails the `git diff --exit-code bun.lock` guard that every deploy job runs). SATISFIED, and measured on 2026-08-17 rather than assumed: repo-wide, `gateway` matches nothing in the root package.json (no script, no workspace entry) and nothing in .github/workflows/*.yml; `.do/app.yaml` declares four domains and one static site, none of them the admin; and `gateway.alia.onl` appears nowhere in the repository. The row survives only because its currentPath file does - the entries it names are gone, so it cannot carry `removedIn`. DNS itself is not in this repository: ~/Oxy/oxy-infra owns it, and this measurement is about repo configuration only.",
       "provenance": "inventory-frontend-admin",
       "evidence": "package.json:14, package.json:23 and :33 (the --filter '*' fan-outs), bun.lock"
     },
@@ -3031,16 +3051,17 @@
       "domain": "provider-runtime",
       "kind": "module",
       "currentPath": "packages/api/src/lib/tools/gateway-admin.ts",
-      "reachable": "live",
+      "reachable": "dead",
       "owner": "delete",
       "targetPath": "delete",
       "dependsOn": [
         "env-gateway-api-url",
         "env-service-secret"
       ],
-      "removalGate": "Broken today (target service deleted). Deleting it requires removing the registry entry at lib/tools/index.ts:190-197, the tool-pipeline branch at :129-132, the chat.service branch at :256-258 and the re-export at index.ts:242.",
+      "removalGate": "SATISFIED and removed. It was broken on arrival after the gateway service was deleted: it proxied to ${GATEWAY_API_URL}/gateway/v1/{keys,models,alia-models,usage}, endpoints that no longer existed, and production sets no GATEWAY_API_URL so every call returned \"Gateway API not configured\". Removing it took the registry entry (lib/tools/index.ts:190-197), the tool-pipeline branch gated on username === 'nate' (:129-132), the chat.service branch gated on opts.isAdmin (:256-258) and its re-export (index.ts:242). BuildToolsOptions.isAdmin went with it: after the branch, no reader remained and its one caller (routes/webhooks.ts:378) never passed it.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/lib/tools/gateway-admin.ts:7-8, :30-46; packages/api/src/lib/tool-pipeline.ts:129-132 (username === 'nate'); packages/api/src/lib/tools/index.ts:190-197"
+      "evidence": "Deleted in #139 workstream 9. Before removal: packages/api/src/lib/tools/gateway-admin.ts:7-8 (env reads), :52-133 (the tool), :74-79 (the not-configured early return). Wiring removed at packages/api/src/lib/tools/index.ts:11,:190-197,:242; packages/api/src/lib/tool-pipeline.ts:29,:129-132; packages/api/src/services/chat.service.ts:15,:230,:256-258; and the vi.mock entry at packages/api/src/routes/v1/__tests__/chat-completions-timeout.test.ts:126. Post-deletion census: zero occurrences of createGatewayAdminTool, gatewayAdmin or gateway-admin in packages/**/*.ts(x).",
+      "removedIn": "#166"
     },
     {
       "id": "gateway-client",
@@ -4321,7 +4342,7 @@
     },
     {
       "id": "provider-warmup",
-      "workstream": "8",
+      "workstream": "7",
       "domain": "provider-runtime",
       "kind": "module",
       "currentPath": "packages/api/src/lib/provider-warmup.ts",
@@ -4336,7 +4357,7 @@
         "hostname-openai-compatible-others",
         "hostname-openrouter"
       ],
-      "removalGate": "Delete the moment Alia stops making direct provider calls; until then it is 9 unauthenticated outbound requests per boot to provider APIs from Alia's own egress IP.",
+      "removalGate": "Refiled from workstream 8 to 7 by the #139 status audit. It is not part of the dual-mode gateway: it opens direct TLS connections to seven provider hosts from Alia's own egress IP at boot, before a single request is served, so it is provider execution and retires with the rest of it. Delete the moment Alia stops making direct provider calls. Until then, filing it under workstream 8 is what made a reader filtering the matrix to workstream 7 see nineteen dead adapter files and no live egress.",
       "provenance": "re-derived",
       "evidence": "packages/api/src/lib/provider-warmup.ts:13-23, :29-52; called at packages/api/src/index.ts:449 (outside startBackgroundServices)"
     },

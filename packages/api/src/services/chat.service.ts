@@ -12,7 +12,7 @@
 import { type ToolSet } from 'ai';
 import { resolveModel, getDefaultAliaModel } from '../lib/chat-core.js';
 import { markKeyCreditExhausted, getAliaModel, getModelMappingsForTier } from '../lib/gateway-client.js';
-import { getCurrentDateTool, webSearchTool, browseTool, saveUserMemoryTool, updateUserMemoryTool, updateUserPreferencesTool, updateUserContextTool, createGetDeviceInfoTool, createSendTelegramTool, createGatewayAdminTool, webScraperTool, generateFileTool, canvasTool, createTriggerTool, listTriggersTool, updateTriggerTool, deleteTriggerTool, createDeepResearchTool, type DeviceInfo } from '../lib/tools/index.js';
+import { getCurrentDateTool, webSearchTool, browseTool, saveUserMemoryTool, updateUserMemoryTool, updateUserPreferencesTool, updateUserContextTool, createGetDeviceInfoTool, createSendTelegramTool, webScraperTool, generateFileTool, canvasTool, createTriggerTool, listTriggersTool, updateTriggerTool, deleteTriggerTool, createDeepResearchTool, type DeviceInfo } from '../lib/tools/index.js';
 import { buildMcpTools } from '../lib/tools/mcp.js';
 import { buildIntegrationTools } from '../lib/tools/integrations.js';
 import { oxyClient } from '../middleware/auth.js';
@@ -227,7 +227,6 @@ export async function loadAgentPrompt(agentId: string): Promise<string | null> {
 export interface BuildToolsOptions {
   userId?: string;
   deviceInfo?: DeviceInfo | null;
-  isAdmin?: boolean;
 }
 
 export async function buildChatTools(opts: BuildToolsOptions): Promise<ToolSet> {
@@ -252,10 +251,6 @@ export async function buildChatTools(opts: BuildToolsOptions): Promise<ToolSet> 
       deepResearch: createDeepResearchTool(opts.userId),
     } : {}),
   };
-
-  if (opts.isAdmin) {
-    tools.gatewayAdmin = createGatewayAdminTool();
-  }
 
   if (opts.userId) {
     try {
