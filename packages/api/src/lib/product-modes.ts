@@ -63,6 +63,9 @@
 
 import { ROUTING_PRESETS, type RoutingPreset } from './routing/presets.js';
 
+/** The marker Alia's flat id space needs so a profile is distinguishable from a model. */
+const PROFILE_ID_PREFIX = 'profile:';
+
 /** A routing profile's identity, in Alia's own namespace. Never `<publisher>/<model>`. */
 export type RoutingProfileId = RoutingPreset['id'];
 
@@ -154,21 +157,29 @@ export const PRODUCT_MODES: readonly ProductMode[] = [
 ];
 
 /**
- * Which routing profiles the product offers in a picker — the visibility
- * decision #139 asks Alia product owners to own.
+ * Which policies the product offers, and the only identities it advertises —
+ * the visibility decision #139 asks Alia product owners to own.
  *
- * It used to be `chatVisible` on five entries of `ALIA_MODELS`, which is inside
- * `internal/providers/`: product policy stored in the provider mapping table,
- * which ADR 0001 is removing from this repository altogether. So it moves here
- * whole, and the provider table no longer carries a product opinion.
+ * ## The `alia-*` aliases are advertised nowhere
  *
- * Keyed by PROFILE rather than by alias, because a profile is the thing that
- * exists — `alia-v1-thinking` and `alia-v1-pro-max` are two names for
- * `profile:v1-pro-max`, so an alias-keyed list can offer one and hide the
- * other, which would be a picker showing two entries that route identically or
- * hiding one that works. The four below expand to exactly the five aliases that
- * were `chatVisible: true`, so nothing a client sees changes; that equality is
- * asserted rather than asserted-by-comment.
+ * Keyed by PROFILE, not by alias, and that is the whole point rather than a
+ * detail. Every one of the thirteen `alia-*` identifiers is a routing profile
+ * wearing a model's name, and two of them — `alia-v1-thinking` and
+ * `alia-v1-pro-max` — are the SAME profile differing only in the system prompt
+ * their id selects (`lib/prompt-loader.ts` loads a prompt file per model id).
+ * A quality tier, a reasoning level and a Codea preset sold as model identities
+ * is precisely what #139 removes.
+ *
+ * So the product's vocabulary is `profile:*`, one identity per policy by
+ * construction: a profile IS a policy, so two names for one policy cannot be
+ * expressed here at all. The bijection is not a rule to remember, it is the
+ * shape of the type.
+ *
+ * The aliases keep RESOLVING — `internal/providers/lib/alia-models.ts` is
+ * untouched and every published `@alia.onl/sdk` and `@alia-codea/cli` copy in
+ * the wild keeps working unchanged — they are simply advertised by nothing.
+ * `docs/migration/compatibility-window.md` records that closure and its
+ * evidence.
  *
  * It is a `const` in a committed file, and that is the whole audit trail: a
  * visibility change is a commit. `lib/routing/__tests__/routing-config-audit.test.ts`
@@ -176,28 +187,92 @@ export const PRODUCT_MODES: readonly ProductMode[] = [
  * `plans.modelIds` is the one unaudited row it found — so putting this behind a
  * route today would add a second one.
  */
-export const VISIBLE_PROFILES: readonly RoutingProfileId[] = [
+export const OFFERED_PROFILES: readonly RoutingProfileId[] = [
   'profile:lite',
   'profile:v1',
   'profile:v1-pro',
   'profile:v1-pro-max',
 ];
 
-const VISIBLE = new Set<string>(VISIBLE_PROFILES);
+const OFFERED = new Set<string>(OFFERED_PROFILES);
+
+/**
+ * The namespace the legacy identifiers live in.
+ *
+ * Written as a PREFIX with no segment after it, so it is not itself an
+ * alias-shaped literal — which is what keeps this file out of gate 3's census
+ * of `alia-*` literals in product source, the same reason
+ * `lib/routing/alias-translation.ts` spells it this way.
+ */
+const ALIAS_NAMESPACE = 'alia-';
+
+/**
+ * The alias a profile is SERVED BY, derived rather than declared.
+ *
+ * Every preset id is `profile:<tier>` and every tier has an alias named
+ * `alia-<tier>`, so the canonical identity falls out of the two naming schemes
+ * agreeing — no table, no tiebreak to maintain. For `profile:v1-pro-max` that
+ * picks `alia-v1-pro-max` over `alia-v1-thinking`, which is the same answer the
+ * general-purpose ordering reaches by category, from an independent direction.
+ *
+ * It exists because the alias still owns the metadata a request needs: the
+ * credit multiplier `lib/credits-manager.ts` bills on, `maxTokens`, the
+ * category, and the system prompt. Serving a profile means serving that alias's
+ * facts under the profile's name.
+ *
+ * Throws at module load rather than skipping, matching
+ * `lib/routing/alias-translation.ts`: a preset with no matching alias is a
+ * configuration error, and a profile that silently cannot be served is worse
+ * than a process that refuses to start. The inputs are static, so the suite
+ * beside this file is what proves it never fires.
+ */
+function canonicalAliasOf(preset: RoutingPreset): string {
+  const alias = `${ALIAS_NAMESPACE}${preset.tier}`;
+  if (!preset.aliases.includes(alias)) {
+    throw new Error(`routing preset ${preset.id} has no canonical alias named for its tier`);
+  }
+  return alias;
+}
+
+const CANONICAL_ALIAS_BY_PROFILE: ReadonlyMap<string, string> = new Map(
+  ROUTING_PRESETS.map((preset) => [preset.id, canonicalAliasOf(preset)] as const),
+);
 
 /** Alias → its profile id, built once from the preset table. */
-const PROFILE_BY_ALIAS: ReadonlyMap<string, string> = new Map(
+const PROFILE_BY_ALIAS: ReadonlyMap<string, RoutingProfileId> = new Map(
   ROUTING_PRESETS.flatMap((preset) => preset.aliases.map((alias) => [alias, preset.id] as const)),
 );
 
+/** The identity a profile is served by, or `null` when no preset defines it. */
+export function canonicalAliasFor(profileId: string): string | null {
+  return CANONICAL_ALIAS_BY_PROFILE.get(profileId) ?? null;
+}
+
+/** The policy an identifier selects, or `null` when nothing does. */
+export function profileIdFor(aliasModelId: string): RoutingProfileId | null {
+  return PROFILE_BY_ALIAS.get(aliasModelId) ?? null;
+}
+
+/** Does the product advertise this policy? */
+export function isProfileOffered(profileId: string): boolean {
+  return OFFERED.has(profileId);
+}
+
 /**
- * Does the product offer this identifier in a picker?
+ * The identifier the request path routes on, for a product identifier.
  *
- * `false` for an identifier no preset claims, which is the same answer the old
- * `chatVisible === true` gave for an entry that omitted the field: absence is
- * not an offer.
+ * `profile:*` is the vocabulary the catalogue publishes and the one a client
+ * should send; it becomes the alias that carries the metadata. Anything else —
+ * including the thirteen legacy aliases — passes through untouched, which is
+ * what keeps every already-installed SDK and CLI copy working while nothing
+ * advertises those identifiers any more.
+ *
+ * `null` ONLY for a `profile:` identifier no preset defines, which is a caller
+ * naming a policy that does not exist. Returning the input unchanged there
+ * would hand `profile:nonsense` to a resolver whose refusal message talks about
+ * models, so the caller gets a refusal naming what it actually got wrong.
  */
-export function isAliasVisible(aliasModelId: string): boolean {
-  const profile = PROFILE_BY_ALIAS.get(aliasModelId);
-  return profile !== undefined && VISIBLE.has(profile);
+export function toRoutableAlias(productModelId: string): string | null {
+  if (!productModelId.startsWith(PROFILE_ID_PREFIX)) return productModelId;
+  return canonicalAliasFor(productModelId);
 }

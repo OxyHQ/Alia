@@ -226,6 +226,7 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
       linkedAgent: linkedAgent as IAgent | null,
       agentMode,
       autonomyRuntime,
+      thinkingMode,
     });
 
 

@@ -114,10 +114,6 @@ function serializeEntry(entry: CatalogueEntry): Record<string, unknown> {
     availability: { status: entry.availability.status, legacy: entry.availability.legacy },
     entitlement: wireEntitlement(entry.entitlement),
     pricing: { credit_multiplier: entry.pricing.creditMultiplier },
-    deprecation:
-      entry.deprecation === null
-        ? null
-        : { deprecated_at: entry.deprecation.deprecatedAt, sunset_at: entry.deprecation.sunsetAt },
   };
 
   if (entry.kind === 'model') {

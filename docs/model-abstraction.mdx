@@ -64,7 +64,7 @@ Three consequences of that table are easy to miss:
 Five identifiers are offered in a picker, and those are the five the app and the
 `switchModel` tool show (`packages/api/src/lib/tools/switch-model.ts:18`). That decision is
 product configuration and lives in `packages/api/src/lib/product-modes.ts`
-(`VISIBLE_PROFILES`), keyed by routing profile — it used to be a `chatVisible` field inside
+(`OFFERED_ALIASES`), one identity per routing profile — it used to be a `chatVisible` field inside
 the provider mapping table, which is where a product opinion could not stay once ADR 0001
 started removing that table from this repository.
 
@@ -196,21 +196,25 @@ canonical `<publisher>/<model>` form.
 
 What is implemented, as of workstreams 4, 5 and 14 of #139:
 
-- `GET /catalogue` serves each entry with its real kind, `model` or `routing_profile`,
-  derived from live fan-out. `GET /v1/models` still says `object: 'model'` for all
-  thirteen, deliberately, because external callers switch on that value and the
-  compatibility window keeps this surface's shapes; that residue is recorded exactly by
-  gate 5 and retires with the window.
-- `GET /v1/models` no longer claims `owned_by: 'alia'`. It says `undisclosed`.
+- **No `alia-*` identifier is advertised on any surface.** `GET /v1/models` serves an empty
+  list, `GET /catalogue` is keyed by routing profile (`profile:*`), the picker and the
+  `switchModel` tool offer profiles, and no response contains an alias. ADR 0003 invariant 1
+  now holds everywhere with nothing frozen — gate 5 has no violation list left to record.
+- **The aliases still resolve.** They are advertised by nothing, not removed, so every
+  installed `@alia.onl/sdk` and `@alia-codea/cli` copy keeps working. `profile:*` is
+  routable too, translated once at the request boundary to the alias that carries the
+  price, tier and prompt.
+- **One identity per policy, structurally.** A profile appears once because it exists once,
+  so `alia-v1-thinking` and `alia-v1-pro-max` can no longer be two entries for one policy.
 - `GET /catalogue/modes` serves the product modes — Automatic, Fast, Balanced, Maximum
-  quality, Coding and Deep research — as `object: 'product_mode'`, which is where a quality
-  tier, a reasoning level or a surface preset belongs instead of in a model identity.
-- Cross-model substitution is a typed policy on the request (`fallbackPolicy`) and on the
-  routing preset a request selects, rather than something the engine decides silently.
+  quality, Coding and Deep research — as `object: 'product_mode'`.
+- **Extended reasoning is a request parameter**, not an identity. `thinkingMode` selects the
+  reasoning prompt on any profile, which is what made `alia-v1-thinking` redundant rather
+  than merely hidden.
+- Cross-model substitution is a typed policy on the request and on the routing preset.
 
-What is not: the aliases themselves still exist and still resolve, for the length of the
-compatibility window, and canonical `<publisher>/<model>` identity arrives with Relay's
-catalogue — publisher is not recoverable from this repository's data.
+What is not: canonical `<publisher>/<model>` identity arrives with Relay's catalogue —
+publisher is not recoverable from this repository's data.
 
 ## Compatibility window
 

@@ -7,7 +7,7 @@ import { describe, expect, it, vi } from 'vitest';
  *
  * The decision moved out of `internal/providers/lib/alia-models.ts`, where it
  * was a `chatVisible` field on five alias definitions inside the provider
- * mapping table, and into `lib/product-modes.ts` `VISIBLE_PROFILES`. Two
+ * mapping table, and into `lib/product-modes.ts` `OFFERED_ALIASES`. Two
  * serializers read it — `GET /catalogue` annotates every entry with it, and
  * `GET /v1/models?chat=true` filters on it — and a configuration nothing reads
  * is configuration in name only, so both are driven here rather than assumed.
@@ -47,16 +47,25 @@ vi.mock('../../lib/gateway-client.js', async () => {
  * both halves, because "the offered set is right" and "the hidden set is right"
  * are different failures and a list of only the first cannot see the second.
  */
-const OFFERED = ['alia-lite', 'alia-v1', 'alia-v1-pro', 'alia-v1-pro-max', 'alia-v1-thinking'];
+/**
+ * The four policies the product advertises, written out as values.
+ *
+ * Recomputing them from `OFFERED_PROFILES` would ask the list what the list
+ * says and pass against any list, including one that grew an `alia-*` entry
+ * back. The eight policies it does NOT advertise are written out too, because
+ * "the offered set is right" and "the hidden set is right" are different
+ * failures and a list of only the first cannot see the second.
+ */
+const OFFERED = ['profile:lite', 'profile:v1', 'profile:v1-pro', 'profile:v1-pro-max'];
 const HIDDEN = [
-  'alia-v1-audio',
-  'alia-v1-browser',
-  'alia-v1-codea',
-  'alia-v1-cowork',
-  'alia-v1-multimodal',
-  'alia-v1-vision',
-  'alia-v1-voice',
-  'alia-v1-voice-pro',
+  'profile:v1-audio',
+  'profile:v1-browser',
+  'profile:v1-codea',
+  'profile:v1-cowork',
+  'profile:v1-multimodal',
+  'profile:v1-vision',
+  'profile:v1-voice',
+  'profile:v1-voice-pro',
 ];
 
 interface Captured {
@@ -74,10 +83,10 @@ interface RouterLike {
   }[];
 }
 
-/** Drive a router's real `GET /` handler, skipping any auth middleware in front of it. */
-async function get(module: unknown, query: Record<string, string>): Promise<Captured> {
+/** Drive a router's real `GET` handler, skipping any auth middleware in front of it. */
+async function get(module: unknown, routePath: string, query: Record<string, string>): Promise<Captured> {
   const { default: router } = module as { default: RouterLike };
-  const layer = router.stack.find((l) => l.route?.path === '/' && l.route.methods.get);
+  const layer = router.stack.find((l) => l.route?.path === routePath && l.route.methods.get);
   const handle = layer?.route?.stack[layer.route.stack.length - 1].handle;
   expect(handle).toBeTypeOf('function');
 
@@ -92,18 +101,18 @@ async function get(module: unknown, query: Record<string, string>): Promise<Capt
       return res;
     },
   };
-  await handle?.({ query }, res);
+  await handle?.({ query, params: {} }, res);
   return captured;
 }
 
-describe('the product decides what a picker offers, and both surfaces obey it', () => {
-  it('covers every registered identifier between them, so neither list can hide a change', async () => {
-    const { ALIA_MODELS } = await import('../../internal/providers/lib/alia-models.js');
-    expect([...OFFERED, ...HIDDEN].sort()).toEqual(Object.keys(ALIA_MODELS).sort());
+describe('the product advertises policies, and both surfaces agree', () => {
+  it('covers every preset between them, so neither list can hide a change', async () => {
+    const { ROUTING_PRESETS } = await import('../../lib/routing/presets.js');
+    expect([...OFFERED, ...HIDDEN].sort()).toEqual(ROUTING_PRESETS.map((p) => p.id).sort());
   });
 
-  it('annotates GET /catalogue with the offer, per entry', async () => {
-    const captured = await get(await import('../catalogue.js'), {});
+  it('serves GET /catalogue keyed by policy, and annotates the offer per entry', async () => {
+    const captured = await get(await import('../catalogue.js'), '/', {});
     const data = captured.body?.data ?? [];
     // Vacuity floor: an empty catalogue annotates nothing and reads like a pass.
     expect(data).toHaveLength(OFFERED.length + HIDDEN.length);
@@ -112,15 +121,25 @@ describe('the product decides what a picker offers, and both surfaces obey it', 
     expect(data.filter((e) => !e.chat_visible).map((e) => e.id).sort()).toEqual([...HIDDEN].sort());
   });
 
-  it('filters GET /v1/models?chat=true down to the same five', async () => {
-    const captured = await get(await import('../v1/models.js'), { chat: 'true' });
-    expect(captured.body?.data?.map((e) => e.id).sort()).toEqual([...OFFERED].sort());
+  it('names NO alia-* identifier anywhere in the catalogue response', async () => {
+    // The property #139 asks for, asserted on the bytes rather than on the
+    // table that produced them.
+    const { ALIA_MODELS } = await import('../../internal/providers/lib/alia-models.js');
+    const captured = await get(await import('../catalogue.js'), '/', {});
+    const serialized = JSON.stringify(captured.body);
+    expect(captured.body?.data).toHaveLength(OFFERED.length + HIDDEN.length);
+
+    const registered = Object.keys(ALIA_MODELS);
+    expect(registered).toHaveLength(13);
+    expect(registered.filter((alias) => serialized.includes(alias))).toEqual([]);
+
+    // The scan's positive control: it CAN see one of these when present.
+    expect(JSON.stringify({ planted: registered[0] })).toContain(registered[0]);
   });
 
-  it('and the unfiltered list is strictly larger, or the filter is not filtering', async () => {
-    // The control. Without it, a handler that returned five entries whatever it
-    // was asked would satisfy the case above.
-    const captured = await get(await import('../v1/models.js'), {});
-    expect(captured.body?.data?.map((e) => e.id).sort()).toEqual([...OFFERED, ...HIDDEN].sort());
+  it('serves GET /v1/models as an empty list, because Alia publishes no models', async () => {
+    const captured = await get(await import('../v1/models.js'), '/', {});
+    expect(captured.status).toBeUndefined();
+    expect(captured.body?.data).toEqual([]);
   });
 });
