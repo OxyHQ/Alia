@@ -139,7 +139,11 @@ export async function buildChatSystemPrompt(
   }
 
   if (userContextParts.length > 0) {
-    log.chat.info({ userContext: userContextParts }, 'Personalization applied');
+    // The parts themselves are the user's own memories, preferences and writing
+    // style — the most sensitive content this service holds, and this line put
+    // all of it in an ordinary request log at `info` (#139 ws19). How many
+    // fragments were applied is what the line was read for.
+    log.chat.info({ userContextParts: userContextParts.length }, 'Personalization applied');
     prompt = `# USER CONTEXT\n\n${userContextParts.join('\n')}\n\n---\n\n${prompt}`;
   }
 

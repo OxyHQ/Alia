@@ -319,7 +319,7 @@ Return ONLY a valid JSON array, no other text.`,
       if (!Array.isArray(arr)) throw new Error('Not an array');
       rawParsed = arr;
     } catch {
-      log.general.error({ responseText }, 'Failed to parse AI-generated suggestions');
+      log.general.error({ responseChars: responseText.length }, 'Failed to parse AI-generated suggestions');
       return res.status(500).json({ error: 'Failed to generate suggestions' });
     }
 
