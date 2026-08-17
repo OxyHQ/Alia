@@ -7,14 +7,15 @@
     "commit": "975955c4beb958610a5715bd562367179546da0a",
     "note": "Original verdicts were measured against 975955c4. Corrected against 78da61cf: 35 of the 246 boxes were ticked in between (#160, #162, #163, #164, #165, #166) and now carry `resolvedSince`; rows 212, 266, 454, 459 and 522 carried a stale or wrong claim and are corrected in place, each saying so; and the Relay blocker is renamed now that OxyHQ/Relay exists.",
     "correctedAt": "2026-08-17",
-    "correctedAgainst": "origin/main at 78da61cf"
+    "correctedAgainst": "origin/main at 1f7ee01b",
+    "resolvedStateSync": "The `resolvedSince` flags are synced from the issue body in BOTH directions. A one-way sync let L243 keep the flag after the box was re-opened — a record that can only say \"done\" reports an epic as further along than it is."
   },
   "checkboxes": {
     "total": 416,
     "tickedAtAudit": 170,
-    "tickedNow": 205,
+    "tickedNow": 219,
     "untickedAtAudit": 246,
-    "untickedNow": 211
+    "untickedNow": 197
   },
   "verdictCounts": {
     "ACTIONABLE_NOW": 42,
@@ -156,7 +157,8 @@
       "verdict": "ACTIONABLE_NOW",
       "evidence": "@oxyhq/core@19.1.2 (already a dependency, packages/api/package.json:35) exposes `configureServiceAuth()` and `getServiceToken(apiKey, apiSecret) -> {token, expiresIn, appName}` with per-tenant caching and `invalidateServiceToken`. packages/api/src/lib/inference/relay-client.ts:213-231 already declares a `RelayServiceTokenSource` interface whose docstring says it is \"structurally satisfied by @oxyhq/core's OxyServices\", including the invalidate-on-`authentication_failed` hook at :592. The adapter binding the two is not written.",
       "deliverable": "A module that constructs the OxyServices-backed token source and hands it to `RelayClientConfig`. Real credentials are L178 and are not needed to write or test it.",
-      "guard": "Extend relay-client.test.ts: a token source that returns an expired token must be re-minted on the next call, and `invalidateServiceToken` must be called exactly once per `authentication_failed`. Mutation: drop the invalidate call -> the test goes red."
+      "guard": "Extend relay-client.test.ts: a token source that returns an expired token must be re-minted on the next call, and `invalidateServiceToken` must be called exactly once per `authentication_failed`. Mutation: drop the invalidate call -> the test goes red.",
+      "resolvedSince": "2026-08-17"
     },
     {
       "line": 192,
@@ -211,9 +213,8 @@
       "section": "Remove fake model ownership",
       "text": "Stop treating system prompts, reasoning levels, Codea presets or quality modes as model identities.",
       "verdict": "DUPLICATE_OF",
-      "evidence": "The diagnosis whose fix is the product-modes row. Measured: `alia-v1-thinking` and `alia-v1-pro-max` share tier `v1-pro-max` (packages/api/src/lib/routing/presets.ts:106 covers both with one preset), and `alia-v1-codea`/`alia-v1-cowork`/`alia-v1-browser` are surface presets (docs/model-abstraction.mdx table). Twelve presets cover thirteen aliases.",
-      "duplicateOf": "L255 — \"Replace fake aliases with clearly typed product modes/routing presets, for example:\"",
-      "resolvedSince": "2026-08-17"
+      "evidence": "The diagnosis whose fix is the product-modes row. Measured: `alia-v1-thinking` and `alia-v1-pro-max` share tier `v1-pro-max` (packages/api/src/lib/routing/presets.ts:106 covers both with one preset), and `alia-v1-codea`/`alia-v1-cowork`/`alia-v1-browser` are surface presets (docs/model-abstraction.mdx table). Twelve presets cover thirteen aliases. RE-OPENED after being ticked: the epic body carried `[x]` on this row on 2026-08-17 and carries `[ ]` again now. The caveat this audit recorded is why — `alia-v1-thinking` and `alia-v1-pro-max` share the tier `v1-pro-max` (gate 5, architectureGates.test.ts:1537), so two identifiers are one policy and a reasoning setting is still wearing a model's name. #163 named the six product modes without removing that pair, and D3 of docs/migration/epic-139-decisions.md records the decision that extended thinking becomes a runtime parameter rather than a seventh mode.",
+      "duplicateOf": "L255 — \"Replace fake aliases with clearly typed product modes/routing presets, for example:\""
     },
     {
       "line": 244,
@@ -421,7 +422,8 @@
       "verdict": "ACTIONABLE_NOW",
       "evidence": "Measured: every non-app surface still hardcodes an alias. packages/alia-codea-cli/src/utils/config.ts:25 and src/index.ts:49/:62/:77 default `alia-v1-codea`; packages/alia-codea/src/inlineCompletionProvider.ts:23 and chatProvider.ts:592 the same; packages/alia-cowork/src/main/auth.ts:26 `alia-v1-cowork` and renderer/src/components/Console.tsx:124 prints it as literal text; packages/alia-chat/src/hooks/useVoiceRoom.ts:332 `alia-v1-voice` and components/AliaChatSheet.tsx:48 `alia-v1`. Only packages/app reads GET /catalogue (#156).",
       "deliverable": "Point Codea, Cowork, the CLI and @alia.onl/sdk at GET /catalogue the way packages/app/lib/hooks/use-catalogue.ts does, with the same `resolveSelection` fallback for an unavailable identifier.",
-      "guard": "An alias census like gate 3's, widened from packages/api/src to the four client packages: an `alia-`-shaped literal used as a model DEFAULT outside the catalogue fetch fails. Mutation: re-add a hardcoded default -> red."
+      "guard": "An alias census like gate 3's, widened from packages/api/src to the four client packages: an `alia-`-shaped literal used as a model DEFAULT outside the catalogue fetch fails. Mutation: re-add a hardcoded default -> red.",
+      "resolvedSince": "2026-08-17"
     },
     {
       "line": 314,
@@ -465,7 +467,8 @@
       "verdict": "ACTIONABLE_NOW",
       "evidence": "Alia-owned API keys ARE the compatibility route's auth today: packages/api/src/middleware/auth.ts:108/:137/:274 branch on the `alia_sk_` prefix and packages/api/src/routes/developer.ts:224 still mints them. Nothing prevents a NEW key or a new provider-billed path being added to the /v1 surface — there is no guard that says the compatibility surface gains nothing.",
       "deliverable": "A guard freezing the /v1 surface: the exact set of routes, the exact set of auth mechanisms reaching them, and no new provider-cost write from a /v1 handler.",
-      "guard": "Extend packages/api/src/routes/__tests__/inference-boundary.test.ts, which already enumerates every mount reaching inference and asserts the limiter on each, with an exact-set assertion over /v1 routes and their auth. Mutation: add a route under /v1 -> red."
+      "guard": "Extend packages/api/src/routes/__tests__/inference-boundary.test.ts, which already enumerates every mount reaching inference and asserts the limiter on each, with an exact-set assertion over /v1 routes and their auth. Mutation: add a route under /v1 -> red.",
+      "resolvedSince": "2026-08-17"
     },
     {
       "line": 321,
@@ -475,7 +478,8 @@
       "verdict": "ACTIONABLE_NOW",
       "evidence": "They share the handler by identity, not by copy: packages/api/src/routes/chat.ts:23 dispatches POST /alia/chat to `handleChatCompletions`, and packages/api/src/routes/__tests__/unified-product-runtime.test.ts:65 asserts it is the SAME OBJECT. The divergence risk that row names is auth: /alia/chat mounts `optionalAuth` and admits an anonymous caller straight to inference with no credit reservation — recorded, not fixed, at inference-boundary.test.ts:354 and in the routes/chat.ts docstring as a product decision.",
       "deliverable": "Either close the anonymous hole on /alia/chat or split the handlers so the product and generic contracts cannot drift silently. The route has ZERO in-repo callers (measured: 23 occurrences in .ts/.tsx, 9 outside __tests__, only 5 not comments, and the one in a client — packages/app/lib/api/routes.ts:53 — declares `API_ROUTES.chat.alia` and is never read), so closing it is cheap in-repo and only external traffic is at risk.",
-      "guard": "unified-product-runtime.test.ts already pins same-object identity; add an assertion that the two mounts' middleware chains are equal, or that they are deliberately different and the difference is enumerated. Mutation: change one chain -> red."
+      "guard": "unified-product-runtime.test.ts already pins same-object identity; add an assertion that the two mounts' middleware chains are equal, or that they are deliberately different and the difference is enumerated. Mutation: change one chain -> red.",
+      "resolvedSince": "2026-08-17"
     },
     {
       "line": 323,
@@ -1032,7 +1036,8 @@
       "verdict": "ACTIONABLE_NOW",
       "evidence": "It is not a customer billing source today, but nothing says so and nothing stops it becoming one. `cost_entries.cost_usd` is `double precision` deliberately (packages/api/src/db/schema/usage.ts:26 documents it as the ONE such exception in the schema) and is summed at db/usage/costEntryRepository.ts:137 and :177 and divided at :169; `provider_keys.spent_usd` accumulates the same values (providerKeyRepository.ts:525-529). Customer charging runs on `user_credits` integers instead.",
       "deliverable": "A guard that no customer-facing billing path reads `cost_usd` or `spent_usd`, plus a schema comment stating it. This is earnable without Relay because it is a statement about which code may read a column.",
-      "guard": "A census like gate 4's provenance check: the set of files importing `costEntries.costUsd` or `providerKeys.spentUsd`, frozen exactly, with zero of them under routes/billing or lib/credits-manager. Mutation: read it from billing -> red."
+      "guard": "A census like gate 4's provenance check: the set of files importing `costEntries.costUsd` or `providerKeys.spentUsd`, frozen exactly, with zero of them under routes/billing or lib/credits-manager. Mutation: read it from billing -> red.",
+      "resolvedSince": "2026-08-17"
     },
     {
       "line": 439,
@@ -1167,7 +1172,8 @@
       "verdict": "ACTIONABLE_NOW",
       "evidence": "The console still ships the duplicate surface: packages/alia-console/src/routes/_layout/ contains the developer documentation, examples and playground that document and exercise `alia_sk_` keys against api.alia.onl/v1/chat/completions (examples.tsx:30/:79/:89, playground.tsx:141, documentation/authentication.tsx:87, sdks.tsx:169, quickstart.tsx:123, chat-completions.tsx:101).",
       "deliverable": "CORRECTED — the audit said to keep \"rotate and revoke\". ROTATION HAS NEVER EXISTED on /developer: its PATCH covers name, scopes, the active flag and rate limits only, and the sole path that ever replaced a secret was POST /auth/token, closed by #160, which also corrected the same false claim in compatibility-window.md:111. As written the row told the next reader to build a rotate button for an endpoint that does not exist. The deliverable is: remove or redirect the console's developer app/key/usage screens and stores, keeping only REVOKE (delete) for the bounded window.",
-      "guard": "No CI job covers packages/alia-console today; the deliverable includes adding one, or a content census from the API suite. Naming that gap is required — a screen deletion with no job that would notice its return is not gated."
+      "guard": "No CI job covers packages/alia-console today; the deliverable includes adding one, or a content census from the API suite. Naming that gap is required — a screen deletion with no job that would notice its return is not gated.",
+      "resolvedSince": "2026-08-17"
     },
     {
       "line": 460,
@@ -1185,8 +1191,9 @@
       "text": "Audit every Alia plan, credit, subscription and transaction path.",
       "verdict": "ACTIONABLE_NOW",
       "evidence": "Every path is enumerable in-repo today: tables `plans`, `plan_features`, `features`, `credit_packages`, `subscriptions`, `transactions`, `user_credits` (all from packages/api/drizzle/0003_closed_black_queen.sql), the repositories under packages/api/src/db/billing/, lib/credits-manager.ts, lib/entitlements.ts, routes/billing.ts (Stripe, `process.env.STRIPE_SECRET_KEY` at :38/:41) and routes/credits.ts. docs/migration/inventories/data-billing.json covers the tables but no audit of the PATHS exists.",
-      "deliverable": "A path-level audit beside the existing inventories: for each of the seven tables, every writer, its caller, and whether the write is a product entitlement or a financial record.",
-      "guard": "The shape routing-config-audit.test.ts already uses for model/routing writers — \"every writer is mapped: audited, boot-only, or uncalled\" and \"no writer has a caller its map does not name\" — applied to the billing repositories. Mutation: add an unmapped writer -> red."
+      "deliverable": "DELIVERED by #175: docs/migration/inventories/billing-paths.json — 26 writers over the 7 tables (plans 4, features 4, plan_features 4, credit_packages 4, subscriptions 2, transactions 1, user_credits 7), every caller, and the three-way ADR-0005 classification (CATALOGUE / ENTITLEMENT / FINANCIAL, with user_credits recorded as SPLIT). The audit said data-billing.json covered the tables but no audit of the PATHS existed; that gap is closed.",
+      "guard": "packages/api/src/__tests__/billingSeparation.test.ts:511 reads billing-paths.json and re-derives it from source, asserting set equality — so a writer or caller the inventory does not name fails CI. This is the shape routing-config-audit.test.ts uses for model configuration, applied to billing.",
+      "resolvedSince": "2026-08-17"
     },
     {
       "line": 469,
@@ -1196,7 +1203,8 @@
       "verdict": "ACTIONABLE_NOW",
       "evidence": "The contract landed since the gap analysis was written. @oxyhq/contracts@0.29.0 (published; latest as of 2026-08-17) ships an `entitlement` module: `productEntitlementSchema`, `productPlanSchema`, `planAllowanceSchema`, `payAsYouGoEntitlementSchema`, `costCenterSchema`, `costCenterSpendSchema`, `PRODUCT_PLAN_STATUSES`, `COST_CENTER_STATUSES`. packages/api/package.json:34 pins `^0.27.0`, which resolves to 0.27.0 and does NOT include them (0.27.0 ships twelve inference modules; 0.29.0 ships fourteen, adding `entitlement` and `accountBilling`).",
       "deliverable": "Bump @oxyhq/contracts to ^0.29.0 (package.json + bun.lock in the same commit) and express Alia's entitlement read model as the contract's `ProductEntitlement`, the way lib/inference/ already binds the inference contract.",
-      "guard": "packages/api/src/lib/__tests__/entitlements.test.ts, re-pointed at the contract schema so a local re-declaration of an entitlement shape fails — the same rule lib/inference/__tests__/product-seam.test.ts already enforces for payload types. Mutation: declare a local `Entitlement` interface -> red."
+      "guard": "packages/api/src/lib/__tests__/entitlements.test.ts, re-pointed at the contract schema so a local re-declaration of an entitlement shape fails — the same rule lib/inference/__tests__/product-seam.test.ts already enforces for payload types. Mutation: declare a local `Entitlement` interface -> red.",
+      "resolvedSince": "2026-08-17"
     },
     {
       "line": 470,
@@ -1222,7 +1230,8 @@
       "verdict": "ACTIONABLE_NOW",
       "evidence": "The cache already exists and is not minimal: lib/plan-access.ts and lib/entitlements.ts are the read model GET /catalogue consults, but the same process also owns the WRITE side (`user_credits`, `subscriptions`, `transactions`, Stripe webhooks). ADR 0005 draws the line; nothing enforces it.",
       "deliverable": "Separate the entitlement read model from the financial write paths behind an interface, so the write half can be deleted at cutover without touching the read half. This is refactoring inside Alia and needs nothing external.",
-      "guard": "An import census: the modules serving entitlement decisions must not import the Stripe or transaction repositories. Mutation: import transactionRepository from plan-access -> red."
+      "guard": "An import census: the modules serving entitlement decisions must not import the Stripe or transaction repositories. Mutation: import transactionRepository from plan-access -> red.",
+      "resolvedSince": "2026-08-17"
     },
     {
       "line": 473,
@@ -1240,7 +1249,8 @@
       "verdict": "ACTIONABLE_NOW",
       "evidence": "They are already separate columns in separate tables — `cost_entries.cost_usd` is upstream cost (double precision, deliberately, schema/usage.ts:26) and `user_credits` is the product charge — but nothing prevents a billing path reading the cost column, and `provider_keys.spent_usd` aggregates the same figure into the routing catalogue.",
       "deliverable": "Same guard as L438, stated as an invariant: the customer-charge path and the upstream-cost path share no column and no reader.",
-      "guard": "The frozen-reader census from L438. Mutation: read `cost_usd` from lib/credits-manager.ts -> red."
+      "guard": "The frozen-reader census from L438. Mutation: read `cost_usd` from lib/credits-manager.ts -> red.",
+      "resolvedSince": "2026-08-17"
     },
     {
       "line": 475,
@@ -1248,9 +1258,11 @@
       "section": "",
       "text": "Ensure free/promotional Alia usage is still cost-attributed internally.",
       "verdict": "ACTIONABLE_NOW",
-      "evidence": "Free and promotional usage is charged through the same `reserveCredits`/`settle` path (lib/credits-manager.ts) and does write a `cost_entries` row, so cost attribution exists — but nothing asserts it, and nothing distinguishes a promotional grant from a paid one in the cost record.",
-      "deliverable": "A `grant_kind` (or equivalent) on the credit reservation carried into the cost entry, so free usage is attributable rather than merely recorded.",
-      "guard": "packages/api/src/lib/__tests__/credits-manager.pgdb.test.ts extended: a promotional reservation must still produce a cost entry, tagged. Mutation: skip the cost write for a free grant -> red."
+      "evidence": "CORRECTED, on a measurement from the workstream 12 agent that this audit got backwards. The audit said free and promotional usage \"does write a `cost_entries` row, so cost attribution exists\". IT DOES NOT. `recordCost` (lib/cost-tracker.ts:141) is the only wrapper of `insertCostEntry` and has ZERO non-test callers, so NOTHING is cost-attributed on the token-metered paths at all — free or paid — and `cost_entries` is empty in production while `getGlobalCostStats` returns zeros. That is why it was easy to miss: a correct read of an empty table and a broken switch look identical. Confirmed independently three ways, each re-runnable: the file comment at cost-tracker.ts:17 (\"Nothing in this repository calls `recordCost`\"); an AST census over `git ls-files -- packages/api/src` excluding tests and cost-tracker.ts itself, now standing as packages/api/src/__tests__/billingSeparation.test.ts:710-722 with the positive control that the same scan DOES find the symbol where it is defined; and routes/__tests__/v1-compatibility-surface.test.ts:655. The audit's SECOND clause was accurate and stands: routes/referrals.ts:89 and :93 credit a promotional referral reward with `addCredits(..., 'paid')`, so a grant and a purchase are indistinguishable at the balance layer.",
+      "deliverable": "DELIVERED IN PART by #175 (`61e66e73`), migrations applied to the alia database by that commit's deploy run. `cost_entries` and `voice_call_usage` both carry a `grant_kind` column with a CHECK rendered from packages/api/src/domain/credit-funding.ts:39 (`free_allowance` | `paid_balance`); `CreditReservation` carries `grantKind` (credits-manager.ts:40, decided at :134 from the balance the spend returned); `recordCost` accepts it; and the VOICE settlement writes it live (voice-session-manager.ts:1256) — the one settlement where a CreditReservation and the serving provider coexist, and where `voice_call_usage` is both the usage record and the billing figure.",
+      "guard": "packages/api/src/__tests__/billingSeparation.test.ts, \"the token-metered ledger still has no writer, and this is the count that says so\" — an exact-set assertion that goes RED the day `recordCost` gains a caller, which is precisely the day this row needs re-reading. It carries its own positive control (the scan finds `recordCost` in cost-tracker.ts) so an empty offender list means absence rather than a scan that read nothing.",
+      "resolvedSince": "2026-08-17",
+      "residual": "THE TOKEN PATHS REMAIN UNATTRIBUTED, so the tick rests on the voice settlement plus a guard, not on whole-service coverage. Whether that is enough to call the box earned is a judgement worth re-reading: the box says free usage is \"STILL cost-attributed\", and on the token paths paid usage is not attributed either, so the property holds there by ABSENCE rather than by attribution. Separately, referrals still credit a promotional reward as `paid`."
     },
     {
       "line": 476,
@@ -1260,7 +1272,8 @@
       "verdict": "ACTIONABLE_NOW",
       "evidence": "`transactions` is an append-only-by-convention table with no constraint saying so: packages/api/src/db/schema/billing.ts declares it with mutable columns and db/billing/ carries the writers. A plan change today runs through the same repository.",
       "deliverable": "Make historical financial rows immutable at the database: no UPDATE path to a settled transaction, enforced by a trigger or by revoking UPDATE on the app role.",
-      "guard": "A pgdb test asserting an UPDATE to a settled transaction is refused by POSTGRES, not by application code — the class of property ~/Oxy/AGENTS.md says only a real database can assert. Mutation: drop the constraint -> red. (Note: the table OWNER bypasses RLS; use a trigger or FORCE ROW LEVEL SECURITY plus a role split.)"
+      "guard": "A pgdb test asserting an UPDATE to a settled transaction is refused by POSTGRES, not by application code — the class of property ~/Oxy/AGENTS.md says only a real database can assert. Mutation: drop the constraint -> red. (Note: the table OWNER bypasses RLS; use a trigger or FORCE ROW LEVEL SECURITY plus a role split.)",
+      "resolvedSince": "2026-08-17"
     },
     {
       "line": 477,
@@ -1328,7 +1341,8 @@
       "verdict": "ALREADY_TRUE",
       "evidence": "Satisfied by ABSENCE and measured with a positive control. A repo-wide case-insensitive grep for `(OPENAI|ANTHROPIC|GOOGLE|GROQ|MISTRAL|DEEPSEEK|TOGETHER|REPLICATE|CEREBRAS|CLOUDFLARE|OPENROUTER|COHERE|FIREWORKS|PERPLEXITY|XAI|SAMBANOVA|HYPERBOLIC|NOVITA|DIGITALOCEAN|GEMINI)_API_KEY` matches only packages/api/src/lib/agent/secret-scanner.ts (twelve DETECTION patterns — the control proving the grep can match), plus one vestigial `process.env.GROK_API_KEY` at internal/providers/lib/providers/grok-voice.ts:52 inside `!!x || true`, which changes no behaviour. packages/api/.env.example documents no provider key, and .github/workflows/deploy-aws.yml:65-76 syncs exactly ten named secrets, none a provider credential. UPDATE since the audit: #164 added packages/api/src/lib/inference/direct-provider-guard.ts, whose PROVIDER_CREDENTIAL_ENV list refuses to boot when a provider credential is configured. It is GREEN AND INERT today — `directProviderModeFailure` returns `null` immediately unless `ALIA_RELAY_CLIENT_ENABLED` is exactly `true`, and that flag is unset in every environment. So the property still holds by absence, not by that guard.",
       "mutation": "CORRECTED. Adding `process.env.OPENAI_API_KEY` to any non-test source file still fails nothing, because the only guard that names provider credentials is armed by a flag no deployment sets. The durable form remains a census over `process.env.*` naming the permitted variables exactly, in the shape gate 2 uses for hostnames.",
-      "falseAgain": "Any deployment that reintroduces a provider key as an env var. The deliverable that would make it durable is a census over `process.env.*` naming the allowed variables exactly, in the shape gate 2 already uses for hostnames."
+      "falseAgain": "Any deployment that reintroduces a provider key as an env var. The deliverable that would make it durable is a census over `process.env.*` naming the allowed variables exactly, in the shape gate 2 already uses for hostnames.",
+      "resolvedSince": "2026-08-17"
     },
     {
       "line": 525,
@@ -1676,7 +1690,8 @@
       "verdict": "ALREADY_TRUE",
       "evidence": "Landed and stale in the gap analysis. docs/migration/relay-client-gap.md section 0 recorded (2026-08-16, against @oxyhq/contracts@0.26.0) that the inference module was unpublished and that \"Alia adds no @oxyhq/contracts dependency in this workstream\". Both halves have since changed: packages/api/package.json:34 depends on `@oxyhq/contracts@^0.27.0`, the installed 0.27.0 ships twelve inference modules under dist/types/inference/, and ELEVEN Alia modules import them — the five under lib/inference/ (relay-client.ts:64, relay-request.ts:35, relay-error.ts:30, relay-openai-adapter.ts:32, relay-boot-check.ts:54) and six of their test suites. A twelfth file matches the grep and is not an importer: product-seam.test.ts:166 quotes the specifier inside a string, testing that its own scanner ignores a commented-out import.",
       "mutation": "Remove the dependency from packages/api/package.json -> `bun run --filter @alia/api typecheck` fails on eleven files in CI.",
-      "residual": "0.29.0 is the published latest and adds `entitlement` and `accountBilling`, which workstream 12 needs (L469). The `^0.27.0` range does not reach them."
+      "residual": "CORRECTED AND LANDED. The audit said 0.29.0 \"adds `entitlement` and `accountBilling`\", implying an additive bump. It was NOT additive: 0.29.0 also widens `INFERENCE_ERROR_CODES` with `provider_credential_invalid` and `provider_billing_refused`, and the finish reasons with `refusal`, and packages/api holds exhaustive `Record`s over both — `tsc` failed in three places (lib/inference/relay-error.ts twice, lib/inference/relay-openai-adapter.ts once) until each new member was answered, and the two exact-count floors in relay-client.test.ts moved 26 -> 28 (:1135, :1191). Landed in #175: packages/api/package.json:35 now pins `^0.29.0`, bun.lock resolves it, and relay-error.ts:183 and relay-openai-adapter.ts:363 answer the new members. An exhaustive Record over a contract enum is a dependency bump that cannot be reviewed as a version number.",
+      "resolvedSince": "2026-08-17"
     },
     {
       "line": 619,
@@ -1695,7 +1710,8 @@
       "verdict": "ACTIONABLE_NOW",
       "evidence": "Half of it is built and half is not. BUILT: docs/migration/alias-migration-map.json maps all thirteen aliases to `profile:<tier>` ids, recomputed from the live routing table by packages/api/src/__tests__/aliasMigrationMap.test.ts so it cannot drift, and gate 5 asserts the catalogue serves the type the map classifies. NOT BUILT: nothing TRANSLATES at request time — no code turns an `alia-*` id into a contract `ModelReference` or `RoutingTarget` on the way to Relay. relay-request.ts takes a target it is given.",
       "deliverable": "A translation function from the thirteen aliases to the contract's `RoutingTarget`, driven by alias-migration-map.json so it cannot disagree with the published map.",
-      "guard": "aliasMigrationMap.test.ts extended: every alias must translate, and the translation must round-trip to the same profile id the map publishes. Mutation: drop one alias -> red."
+      "guard": "aliasMigrationMap.test.ts extended: every alias must translate, and the translation must round-trip to the same profile id the map publishes. Mutation: drop one alias -> red.",
+      "resolvedSince": "2026-08-17"
     },
     {
       "line": 625,
@@ -2212,15 +2228,16 @@
   },
   "verdictHazards": {
     "greenAndInert": "A mechanism can exist, be tested, and be called by nothing. Evidence that names a function, a config table or a module is not evidence that the property HOLDS unless the ENTRYPOINT calls it. Row 266 failed this way and is corrected above. Every ALREADY_TRUE and DUPLICATE_OF row was re-checked against it on 2026-08-17; the live callers are: reserved-namespace via gateway-client.ts:320, fallback-engine via gateway-client.ts:339, violatedCapability via relay-client.ts:931 (client-internal only), and gates 3/4/5, which are censuses that run in CI. The two rows that hold by ABSENCE with NO guard at all are 454 and 522, and both now say so in their mutation field rather than naming a guard that does not cover them.",
-    "wrongArtefact": "Rows 266 and 654 were wrong in the same direction and neither was caught by this audit. 266 cited a mechanism nothing called; 654 cited an absence that was not absent, because the scan read headings rather than prose. Both are corrections to the same habit: measure the artefact the claim is about. A heading census answers \"is there a section named X\", never \"is the rule written\"; an import census answers \"does this module exist\", never \"does the entrypoint call it\"."
+    "wrongArtefact": "Rows 266 and 654 were wrong in the same direction and neither was caught by this audit. 266 cited a mechanism nothing called; 654 cited an absence that was not absent, because the scan read headings rather than prose. Both are corrections to the same habit: measure the artefact the claim is about. A heading census answers \"is there a section named X\", never \"is the rule written\"; an import census answers \"does this module exist\", never \"does the entrypoint call it\".",
+    "emptyTableReadsCorrect": "Row 475 asserted that a write happened because the code path that would write existed. It did not: `recordCost` has no caller, so `cost_entries` is empty and every aggregate over it returns zero. A correct read of an empty table and a broken switch are indistinguishable without a positive control, which is why the standing gate for it carries one."
   },
   "openVerdictCounts": {
-    "ACTIONABLE_NOW": 27,
-    "ALREADY_TRUE": 3,
+    "ACTIONABLE_NOW": 14,
+    "ALREADY_TRUE": 1,
     "BLOCKED_ALIAMODELS": 26,
     "BLOCKED_OXY_972": 26,
     "BLOCKED_RELAY": 92,
-    "DUPLICATE_OF": 28,
+    "DUPLICATE_OF": 29,
     "PRODUCT_DECISION": 9
   }
 }
