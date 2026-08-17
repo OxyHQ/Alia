@@ -718,7 +718,7 @@ const PROVIDER_HOSTS = PROVIDER_API_HOSTS;
  * Which files may name each provider hostname, frozen exactly.
  *
  * Note what the census actually found, because it is not "the adapters and their
- * tests". Provider base URLs live in FOUR places, two of them squarely in
+ * tests". Provider base URLs live in THREE places, two of them squarely in
  * product code:
  *
  *  - `internal/providers/lib/providers/*.ts` and `provider-api.ts` — the adapters.
@@ -727,8 +727,14 @@ const PROVIDER_HOSTS = PROVIDER_API_HOSTS;
  *    connection to a provider host, which is exactly what ADR 0001 rule 2 ends.
  *  - `lib/provider-warmup.ts` — pre-warms TLS to seven provider hosts at boot
  *    (`src/index.ts`). Egress before a single request is served.
- *  - `packages/integrations/src/shared/model-resolver.ts` — a SECOND service
- *    with its own copy of five provider base URLs.
+ *
+ * **FOUR until #139 ws7.** The fourth was
+ * `packages/integrations/src/shared/model-resolver.ts`, a SECOND service with
+ * its own copy of six provider base URLs; it is deleted, and this list losing
+ * six entries in that commit is the exact-set equality below doing its job in
+ * the removal direction. `packages/integrations/src` now names no provider host
+ * at all — asserted directly in gate 7, because an EMPTY expectation in a
+ * per-host map is not an assertion about the package.
  *
  * No provider hostname appears in any test file. That is measured, not
  * asserted by convention: the scan below covers tests too.
@@ -742,7 +748,6 @@ const PROVIDER_HOST_ALLOWLIST: Readonly<Record<string, readonly string[]>> = {
     'packages/api/src/internal/providers/lib/providers/cerebras.ts',
     'packages/api/src/lib/chat-core.ts',
     'packages/api/src/lib/provider-warmup.ts',
-    'packages/integrations/src/shared/model-resolver.ts',
   ],
   'api.cloudflare.com': [
     'packages/api/src/internal/providers/lib/providers/cloudflare.ts',
@@ -756,7 +761,6 @@ const PROVIDER_HOST_ALLOWLIST: Readonly<Record<string, readonly string[]>> = {
     'packages/api/src/internal/providers/lib/providers/deepseek.ts',
     'packages/api/src/lib/chat-core.ts',
     'packages/api/src/lib/provider-warmup.ts',
-    'packages/integrations/src/shared/model-resolver.ts',
   ],
   'api.fireworks.ai': [
     'packages/api/src/internal/providers/lib/providers/fireworks.ts',
@@ -767,7 +771,6 @@ const PROVIDER_HOST_ALLOWLIST: Readonly<Record<string, readonly string[]>> = {
     'packages/api/src/internal/providers/lib/providers/groq.ts',
     'packages/api/src/lib/chat-core.ts',
     'packages/api/src/lib/provider-warmup.ts',
-    'packages/integrations/src/shared/model-resolver.ts',
   ],
   'api.hyperbolic.xyz': [
     'packages/api/src/internal/providers/lib/providers/hyperbolic.ts',
@@ -777,7 +780,6 @@ const PROVIDER_HOST_ALLOWLIST: Readonly<Record<string, readonly string[]>> = {
     'packages/api/src/internal/providers/lib/providers/mistral.ts',
     'packages/api/src/lib/chat-core.ts',
     'packages/api/src/lib/provider-warmup.ts',
-    'packages/integrations/src/shared/model-resolver.ts',
   ],
   'api.novita.ai': [
     'packages/api/src/internal/providers/lib/providers/novita.ts',
@@ -805,7 +807,6 @@ const PROVIDER_HOST_ALLOWLIST: Readonly<Record<string, readonly string[]>> = {
     'packages/api/src/internal/providers/lib/providers/together.ts',
     'packages/api/src/lib/chat-core.ts',
     'packages/api/src/lib/provider-warmup.ts',
-    'packages/integrations/src/shared/model-resolver.ts',
   ],
   'api.x.ai': [
     'packages/api/src/internal/providers/lib/providers/grok-voice.ts',
@@ -828,7 +829,6 @@ const PROVIDER_HOST_ALLOWLIST: Readonly<Record<string, readonly string[]>> = {
     'packages/api/src/internal/providers/lib/providers/openrouter.ts',
     'packages/api/src/lib/chat-core.ts',
     'packages/api/src/lib/provider-warmup.ts',
-    'packages/integrations/src/shared/model-resolver.ts',
   ],
 };
 
@@ -2503,5 +2503,179 @@ describe('gate 6: no provider credential in the deployment environment (#139 ws1
     // NOT counted, and the scan can see them when they are not comments.
     expect(workflow).toContain('CLOUDFLARE_API_TOKEN');
     expect(referenced).not.toContain('CLOUDFLARE_API_TOKEN');
+  });
+});
+
+// ===========================================================================
+// Gate 7 — a provider client is constructed in one place (ADR 0001, #139 ws7)
+// ===========================================================================
+
+/**
+ * The hole gate 2 cannot see, and the second service that fell through it.
+ *
+ * Gate 2 freezes provider HOSTNAMES, which is a census over string literals. An
+ * AI SDK factory called with no `baseURL` — `createOpenAI({ apiKey })`,
+ * `createAnthropic({ apiKey })`, `createGoogleGenerativeAI({ apiKey })` — dials
+ * `api.openai.com`, `api.anthropic.com` and `generativelanguage.googleapis.com`
+ * with **no hostname anywhere in this repository**. Gate 2 reported those three
+ * files honestly and completely and still could not see three of the nine
+ * providers the deleted module constructed, because the strings were never
+ * there to find. That is not a defect in gate 2; it is the limit of a census
+ * over literals, and this gate is the other half.
+ *
+ * ## What this froze, and what it deleted
+ *
+ * `packages/integrations/src/shared/model-resolver.ts` was a SECOND service
+ * building AI SDK clients for nine providers from a `providerKey` it fetched
+ * over HTTP. It is deleted (#139 ws7), on this evidence:
+ *
+ *  - **Zero importers, repo-wide.** An AST census over all 1310 tracked
+ *    JS/TS files — static, type-only, `import()`, `require()` and `vi.mock` —
+ *    found no reference that resolves to it. Its two sibling modules in the
+ *    same directory were the positive controls: `shared/api-client.ts` has
+ *    eight importers and `shared/chat-handler.ts` three, so the scan does see
+ *    importers inside `packages/integrations`. The three basename hits it did
+ *    return all resolve to `packages/api/src/internal/providers/lib/model-resolver`,
+ *    a different module in a different package.
+ *  - **Both endpoints it called answer `410 Gone`** — `POST /v1/resolve-model`
+ *    and `POST /v1/report-usage` (`routes/v1.ts`), and have since the current
+ *    package layout existed. `middleware/credential-deprecation.ts` cites them
+ *    as this repository's precedent for a withdrawn capability.
+ *  - The live path in that service does no provider resolution at all:
+ *    `shared/chat-handler.ts` posts to `/v1/chat/completions` through
+ *    `shared/api-client.ts`, which is the row `integrations-chat-consumer` in
+ *    the ownership matrix and stays.
+ *
+ * Deleting it also removed the last importer of `@ai-sdk/{openai,anthropic,google}`
+ * in that package, so the three dependencies went with it. `ai` stays:
+ * `browser/tools.ts` and `terminal/tools.ts` use `tool()`, which constructs no
+ * provider client.
+ *
+ * ## The cheapest way to make this gate green
+ *
+ * Add a line to one of the two frozen lists below — a reviewable diff in a file
+ * whose purpose is being read in review, and not the hazard. The hazard is the
+ * opposite direction: a second service, or a second product module, quietly
+ * constructing a provider client again. Both lists are exact equalities, so a
+ * removal fails too and the direction of travel stays visible.
+ */
+
+/** Every `@ai-sdk/*` specifier that constructs a client, by importing file. */
+const PROVIDER_SDK_IMPORTERS: Readonly<Record<string, readonly string[]>> = {
+  'packages/api/src/internal/providers/lib/__tests__/credential-redaction.test.ts': ['@ai-sdk/openai'],
+  'packages/api/src/lib/chat-core.ts': ['@ai-sdk/anthropic', '@ai-sdk/google', '@ai-sdk/openai'],
+};
+
+/**
+ * `@ai-sdk/*` packages that are NOT a provider client.
+ *
+ * `provider-utils` publishes the AI SDK's own shared TYPES (`ToolCallOptions`
+ * and friends). Importing it constructs nothing and reaches no host, so
+ * excluding it is not an exemption — it is the scan being about the right
+ * thing. Exact-count asserted anyway, because the difference between "not a
+ * provider client" and "a provider client we decided not to count" is one
+ * careless line.
+ */
+const NON_PROVIDER_AI_SDK_PACKAGES: Readonly<Record<string, string>> = {
+  '@ai-sdk/provider-utils': 'Shared types for tool calls. Constructs no client and names no host.',
+};
+
+/** Which package manifests may DECLARE a provider SDK. One, and it is the API. */
+const PROVIDER_SDK_MANIFESTS: readonly string[] = ['packages/api/package.json'];
+
+describe('gate 7: a provider client is constructed in one place (#139 ws7)', () => {
+  const everything = trackedSources('packages/api/src', 'packages/integrations/src');
+
+  const importsByFile = new Map<string, string[]>();
+  for (const { file, ast } of everything) {
+    const providerSdk = moduleRefs(ast)
+      .map((r) => r.spec)
+      .filter((spec) => spec.startsWith('@ai-sdk/') && NON_PROVIDER_AI_SDK_PACKAGES[spec] === undefined);
+    if (providerSdk.length > 0) importsByFile.set(file, [...new Set(providerSdk)].sort());
+  }
+
+  it('read both services, so an empty offender list means absence', () => {
+    // Vacuity floor plus a positive control chosen rather than found: the module
+    // ADR 0001 names as the product-side chokepoint must be SEEN importing a
+    // provider SDK. When `chat-core.ts` stops constructing providers — the
+    // cutover, workstream 8 — repoint this control rather than deleting it.
+    expect(everything.length).toBeGreaterThanOrEqual(470);
+    expect(importsByFile.get('packages/api/src/lib/chat-core.ts')).toContain('@ai-sdk/openai');
+  });
+
+  it('constructs a provider client in exactly the files frozen here', () => {
+    const asRecord = Object.fromEntries([...importsByFile.entries()].sort());
+    const expected = Object.fromEntries(
+      Object.entries(PROVIDER_SDK_IMPORTERS).map(([file, specs]) => [file, [...specs].sort()]),
+    );
+    expect(asRecord).toEqual(expected);
+  });
+
+  it('the second service constructs no provider client and names no provider host', () => {
+    /**
+     * The statement gate 2 cannot make. Its per-host allowlist can only say
+     * "these files may name this host"; an empty expectation there is not an
+     * assertion about a package, and it says nothing at all about a client
+     * built against an SDK default.
+     *
+     * Both halves are floored: `integrations` really was scanned, and the
+     * hostname scan really can see a provider host when one is present.
+     */
+    const integrations = everything.filter((s) => s.file.startsWith('packages/integrations/src'));
+    expect(integrations.length).toBeGreaterThanOrEqual(20);
+
+    expect([...importsByFile.keys()].filter((f) => f.startsWith('packages/integrations/'))).toEqual([]);
+
+    const hostsHere = new Set<string>();
+    for (const { ast } of integrations) {
+      for (const literal of stringLiterals(ast)) {
+        for (const match of literal.matchAll(URL_HOST)) hostsHere.add(match[1].toLowerCase());
+      }
+    }
+    expect([...hostsHere].filter((host) => Object.values(PROVIDER_HOSTS).includes(host))).toEqual([]);
+
+    // The scan's own positive control, in the same currency: it finds the hosts
+    // that package DOES name, and it would find a provider host if one were.
+    // `gmail.googleapis.com` is chosen rather than counted — a bare count is
+    // satisfied by `localhost`, which is present in almost any source tree.
+    expect(hostsHere).toContain('gmail.googleapis.com');
+    expect(hostsHere.size).toBeGreaterThanOrEqual(4);
+    const planted = new Set([...hostsHere, 'api.openai.com']);
+    expect([...planted].filter((host) => Object.values(PROVIDER_HOSTS).includes(host))).toEqual([
+      'api.openai.com',
+    ]);
+  });
+
+  it('only the API declares a provider SDK dependency', () => {
+    /**
+     * The manifest half, and the only thing that can verify the ownership
+     * matrix's `sdk-integrations-ai-sdk` row: its `currentPath` is a
+     * `package.json` that still exists, so the matrix's own existence check
+     * cannot tell whether the dependencies it says to delete are gone.
+     */
+    const manifests = execFileSync('git', ['ls-files', '--', 'packages/*/package.json'], {
+      cwd: REPO_ROOT,
+      encoding: 'utf8',
+    })
+      .split('\n')
+      .filter((f) => f !== '');
+    // Floor: a pathspec that matches nothing declares no provider SDK either.
+    expect(manifests.length).toBeGreaterThanOrEqual(10);
+
+    const declaring: string[] = [];
+    for (const manifest of manifests) {
+      const parsed: unknown = JSON.parse(readFileSync(path.join(REPO_ROOT, manifest), 'utf8'));
+      const sections = ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies'];
+      const named = sections.flatMap((section) => {
+        const value = (parsed as Record<string, unknown>)[section];
+        return typeof value === 'object' && value !== null ? Object.keys(value) : [];
+      });
+      if (named.some((dep) => dep.startsWith('@ai-sdk/') && NON_PROVIDER_AI_SDK_PACKAGES[dep] === undefined)) {
+        declaring.push(manifest);
+      }
+    }
+
+    expect(declaring.sort()).toEqual([...PROVIDER_SDK_MANIFESTS].sort());
+    expect(Object.keys(NON_PROVIDER_AI_SDK_PACKAGES)).toHaveLength(1);
   });
 });
