@@ -101,11 +101,19 @@ describe('src/index.ts boot wiring', () => {
      * is only that the entrypoint calls it, anchored on the top-level CALL
      * because the name is also a substring of its own declaration.
      */
-    const checkAt = source.indexOf('\nassertDirectProviderModeOrExit();');
+    const checkAt = source.indexOf('\nassertDirectProviderModeOrExit(');
     const listenAt = source.indexOf('server.listen(PORT');
     expect(checkAt).toBeGreaterThan(-1);
     expect(checkAt).toBeLessThan(listenAt);
-    expect(source).toContain('directProviderModeFailure');
+
+    /*
+     * That the guard EXITS is now asserted behaviourally, in
+     * `lib/inference/__tests__/direct-provider-guard.test.ts`, against the
+     * exported function. What only this file can see is that the real caller
+     * hands it the real terminator: the guard takes `exit` as a parameter, so a
+     * call site passing a no-op would satisfy every behavioural test.
+     */
+    expect(source.slice(checkAt, checkAt + 400)).toContain('process.exit(code)');
   });
 
   it('arms the provider egress policy before the socket opens (#139 ws8)', () => {
