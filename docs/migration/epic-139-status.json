@@ -2239,5 +2239,8 @@
     "BLOCKED_RELAY": 92,
     "DUPLICATE_OF": 29,
     "PRODUCT_DECISION": 9
+  },
+  "toolingHazards": {
+    "ghPrEditBodyFile": "`gh pr edit --body-file` does NOT write the body on this repository. Measured first-hand on 2026-08-17 against PR #181: it exits **1** and prints, on stderr, `GraphQL: Projects (classic) is being deprecated ... (repository.pullRequest.projectCards)` — and the body is unchanged, confirmed by reading it back twice (4579 bytes before and after). Reported independently by three other agents on this epic before I reproduced it, so it is not a one-off. WHY IT GETS THROUGH: the failure is not silent, it is MISLABELLED. The error names Projects, not the body, so a human reads it as a harmless deprecation notice and moves on — and on #168 a PR carried a 186-character placeholder through review because of exactly that. THE WORKING PATH: `gh api -X PATCH repos/<owner>/<repo>/pulls/<n> -F body=@<file>`, measured exit 0 with the new length returned. THE CHEAP DEFENCES, in order: check the exit code (it is non-zero, so `set -e` or an explicit check catches it), then read the field back — which is the general rule for `gh` writes in ~/AGENTS.md, and this is the instance that proves it. A SECOND TRAP MEASURED IN THE SAME SESSION: `gh pr view ... > body.md` truncates `body.md` BEFORE running, so a failed fetch leaves a 0-byte file that the next write would publish as an empty body. Only the no-op above prevented that here."
   }
 }
