@@ -556,7 +556,28 @@ export async function getDefaultModelForCategory(category: string): Promise<Alia
 }
 
 /**
- * Get the default alia model ID.
+ * THE default chat model: what a request that named none runs on.
+ *
+ * This is the single owner. `internal/providers/lib/model-resolver.ts` declared
+ * a second one returning `alia-v1`; it had no importers, so every live path —
+ * `/v1/chat/completions` via `lib/chat/request-context.ts`, `chat.service.ts`,
+ * the agent runner, the Telegram webhook, canvas node execution — has always
+ * reached this one through `chat-core.js`. The other is deleted rather than
+ * reconciled, because a value nobody reads cannot be the right answer.
+ *
+ * Unlike its neighbours this does not branch on `GATEWAY_API_ENABLED`, and that
+ * is correct: which alias a caller gets by default is Alia's product decision,
+ * not something a routing tier may answer differently.
+ *
+ * It agrees with `getDefaultModelForCategory('general')`, which is what
+ * `GET /v1/models?category=general` advertises as `default_model` — the two are
+ * derived independently (this is a constant, that one minimises
+ * `creditMultiplier`), so `defaultChatModel.test.ts` asserts they still match
+ * rather than assuming it.
+ *
+ * Anything needing the default IMPORTS it. Restating the literal is what
+ * produced the divergence this replaced; the frozen census in that test names
+ * every site still holding its own.
  */
 export function getDefaultAliaModel(): string {
   return 'alia-lite';
