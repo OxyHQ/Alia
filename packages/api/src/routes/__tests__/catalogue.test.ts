@@ -31,6 +31,20 @@ interface FixtureModel {
   isLegacy: boolean;
 }
 
+interface FixtureLicense {
+  licenseId: string;
+  displayName: string;
+  url?: string;
+  commercialUseAllowed: boolean;
+  requiresAttribution: boolean;
+  acceptableUsePolicyUrl?: string;
+}
+
+interface FixtureAttribution {
+  license: FixtureLicense;
+  attributedModel: string;
+}
+
 interface FixtureMapping {
   provider: string;
   modelId: string;
@@ -38,6 +52,16 @@ interface FixtureMapping {
   qualityScore: number;
   pricingTier: string;
   capabilities: Record<string, unknown>;
+  /**
+   * The two facts a Relay deployment carries and no route in this repository
+   * does. Absent by default, exactly as production is, so a fixture that sets
+   * either is the only place the consumption is exercised — and the response's
+   * own `filters.availability_scope.declared_routes` distinguishes the two
+   * states, which is the assertion that stops "nothing to filter" reading as
+   * "the filter works".
+   */
+  availabilityScope?: string;
+  attribution?: FixtureAttribution;
 }
 
 interface FixturePlan {
@@ -63,6 +87,10 @@ const state = vi.hoisted(() => ({
   entitlementsThrow: false,
   allowedModelIds: [] as string[],
   userId: null as string | null,
+  /** An `alia_sk_` developer key, as `authenticateApiKey` would leave it. */
+  apiKeyId: null as string | null,
+  /** A verified Oxy service token, as `oxyServiceAuth` would leave it. */
+  serviceAppId: null as string | null,
 }));
 
 vi.mock('../../lib/gateway-client.js', () => ({
@@ -81,10 +109,38 @@ vi.mock('../../lib/plan-access.js', () => ({
   },
 }));
 
+/**
+ * Stands in for the auth middleware by leaving on the request exactly what the
+ * real one leaves: `req.user` for an Oxy session, `req.apiKey` for an
+ * `alia_sk_` developer key, `req.serviceApp` for a verified service token. The
+ * route then runs the SHIPPED `resolveCallerAudience` over it, so what is under
+ * test is the real classification and not a fixture's opinion of it.
+ *
+ * `authenticateApiKey` sets `req.user` as well as `req.apiKey`, and this mock
+ * reproduces that, because a resolver that read `req.user` first would call
+ * every developer key a session — which is the bug the ordering exists to
+ * avoid, and it cannot be measured against a mock that keeps them apart.
+ */
 vi.mock('../../middleware/auth.js', () => ({
   optionalAuth: (req: Request, _res: Response, next: NextFunction) => {
-    if (state.userId !== null) {
-      (req as Request & { user?: { id: string } }).user = { id: state.userId };
+    const typed = req as Request & {
+      user?: { id: string };
+      apiKey?: { id: string; appId: string; userId: string; scopes: string[] };
+      serviceApp?: { appId: string; appName: string; scopes: string[]; credentialId: string; environment: 'development' | 'staging' | 'production' };
+    };
+    if (state.userId !== null) typed.user = { id: state.userId };
+    if (state.apiKeyId !== null) {
+      typed.apiKey = { id: state.apiKeyId, appId: 'app', userId: 'key-owner', scopes: [] };
+      typed.user = { id: 'key-owner' };
+    }
+    if (state.serviceAppId !== null) {
+      typed.serviceApp = {
+        appId: state.serviceAppId,
+        appName: 'Alia',
+        scopes: [],
+        credentialId: 'credential',
+        environment: 'development',
+      };
     }
     next();
   },
@@ -100,6 +156,12 @@ interface CatalogueBody {
   object?: string;
   entitlements_known?: boolean;
   data?: Record<string, unknown>[];
+  filters?: {
+    availability_scope?: { declared_routes?: number };
+    platform_capability?: { surface?: string | null; withheld_entries?: number };
+    region?: { applied?: boolean; delegated_to?: string };
+    attributed_routes?: number;
+  };
   error?: { message?: string; param?: string | null; code?: string | null };
 }
 
@@ -139,7 +201,11 @@ function model(overrides: Partial<FixtureModel> = {}): FixtureModel {
   };
 }
 
-function mapping(modelId: string, capabilities: Record<string, unknown> = {}): FixtureMapping {
+function mapping(
+  modelId: string,
+  capabilities: Record<string, unknown> = {},
+  route: Partial<Pick<FixtureMapping, 'availabilityScope' | 'attribution'>> = {},
+): FixtureMapping {
   return {
     provider: 'acme',
     modelId,
@@ -154,6 +220,19 @@ function mapping(modelId: string, capabilities: Record<string, unknown> = {}): F
       maxOutputTokens: 8192,
       ...capabilities,
     },
+    ...route,
+  };
+}
+
+/** A licence record that requires the base model be named. */
+function license(overrides: Partial<FixtureLicense> = {}): FixtureLicense {
+  return {
+    licenseId: 'fixture-community-1.0',
+    displayName: 'Fixture Community License 1.0',
+    url: 'https://example.invalid/license',
+    commercialUseAllowed: true,
+    requiresAttribution: true,
+    ...overrides,
   };
 }
 
@@ -195,6 +274,8 @@ beforeEach(() => {
   state.entitlementsThrow = false;
   state.allowedModelIds = ['alia-lite'];
   state.userId = null;
+  state.apiKeyId = null;
+  state.serviceAppId = null;
 });
 
 describe('the catalogue distinguishes a model from a routing profile by TYPE', () => {
@@ -354,5 +435,340 @@ describe('the catalogue carries the compatibility-window signal', () => {
     // And no served id is an alias, which is the property that made the field
     // dead in the first place.
     expect(entries.filter((e) => String(e.id).startsWith('alia-'))).toEqual([]);
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/*  Availability scopes (#139 workstream 17)                                   */
+/* -------------------------------------------------------------------------- */
+
+describe('a route whose availability scope does not admit the caller is withheld', () => {
+  /**
+   * The whole group is driven from FIXTURE scopes, because no route in this
+   * repository declares one — an availability scope is a property of a
+   * deployment in the Oxy catalogue and Relay does not exist yet. Written
+   * against production data every assertion below would pass vacuously, which
+   * is why the first test is about the count that tells the two states apart.
+   */
+  it('reports how many routes declared a scope, so an unfiltered answer is not mistaken for a filtered one', async () => {
+    // Production's state: nothing classified. On its own an unfiltered list is
+    // indistinguishable from a filter that does not exist, and this count is
+    // the whole difference.
+    const unclassified = await get('/catalogue');
+    expect(unclassified.body.filters?.availability_scope).toEqual({ declared_routes: 0 });
+    // And every entry says so, rather than claiming to be public.
+    for (const entry of unclassified.body.data ?? []) {
+      expect(entry.availability).toMatchObject({ scope: { state: 'unscoped' } });
+    }
+
+    // The other state, reached by classifying one route. The count moves, which
+    // is the evidence the number is derived from the data rather than declared.
+    state.mappings = {
+      lite: [mapping('one', {}, { availabilityScope: 'public_payg' }), mapping('two')],
+      'v1-codea': [mapping('three')],
+      'v1-pro': [mapping('four'), mapping('five'), mapping('six')],
+    };
+    const classified = await get('/catalogue');
+    expect(classified.body.filters?.availability_scope).toEqual({ declared_routes: 1 });
+    const lite = (classified.body.data ?? []).find((e) => e.id === 'profile:lite');
+    expect(lite?.availability).toMatchObject({ scope: { state: 'admitted', values: ['public_payg'] } });
+  });
+
+  it('counts routes, never entries withheld from the caller', async () => {
+    // The report says whether Relay has classified anything. It must not say
+    // how many entries the caller may not have: that is a count of what Alia
+    // operates and does not sell, and it is a step toward locating an internal
+    // deployment — the disclosure `internal-only-access.test.ts` exists to stop.
+    state.mappings = {
+      lite: [mapping('one', {}, { availabilityScope: 'internal_alia' })],
+      'v1-codea': [mapping('three', {}, { availabilityScope: 'internal_alia' })],
+      'v1-pro': [mapping('four'), mapping('five'), mapping('six')],
+    };
+    const { body } = await get('/catalogue');
+    // Two entries really were withheld, so the absence below is a decision.
+    expect((body.data ?? []).map((e) => e.id)).toEqual(['profile:v1-pro']);
+    expect(body.filters?.availability_scope).toEqual({ declared_routes: 2 });
+    expect(Object.keys(body.filters?.availability_scope ?? {})).toEqual(['declared_routes']);
+  });
+
+  it('names no scope a public caller was not admitted under, anywhere in the body', async () => {
+    // The property ws15's census was reaching for, asserted where it lives: in
+    // the RESPONSE. A lexical ban on the word could never have measured this,
+    // and this fails for any future field that echoes a refused route's scope.
+    state.mappings = {
+      lite: [mapping('one', {}, { availabilityScope: 'internal_alia' }), mapping('two')],
+      'v1-codea': [mapping('three', {}, { availabilityScope: 'internal_alia' })],
+      'v1-pro': [mapping('four', {}, { availabilityScope: 'public_payg' }), mapping('five'), mapping('six')],
+    };
+
+    const anonymous = await get('/catalogue');
+    expect(JSON.stringify(anonymous.body)).not.toContain('internal_alia');
+    // The control, in both directions: the same scan SEES a scope the caller
+    // was admitted under, so the absence above is not an empty body…
+    expect(JSON.stringify(anonymous.body)).toContain('public_payg');
+    // …and it sees `internal_alia` for the caller that may have it, so the
+    // assertion is about the audience and not about the string being absent
+    // from every response Alia can produce.
+    state.serviceAppId = 'alia-internal';
+    expect(JSON.stringify((await get('/catalogue')).body)).toContain('internal_alia');
+  });
+
+  it('leaves a publicly scoped entry reachable by the caller it is sold to', async () => {
+    // The negative direction. Without it a blanket "refuse everything" bug
+    // passes every refusal test in this group.
+    state.mappings = {
+      lite: [mapping('one', {}, { availabilityScope: 'public_payg' })],
+      'v1-codea': [mapping('three', {}, { availabilityScope: 'oxy_hosted' })],
+      'v1-pro': [mapping('four', {}, { availabilityScope: 'internal_alia' }), mapping('five', {}, { availabilityScope: 'internal_alia' })],
+    };
+    const { body } = await get('/catalogue');
+    expect((body.data ?? []).map((e) => e.id)).toEqual(['profile:lite', 'profile:v1-codea']);
+    const byId = new Map((body.data ?? []).map((e) => [String(e.id), e]));
+    expect(byId.get('profile:lite')?.availability).toMatchObject({
+      scope: { state: 'admitted', values: ['public_payg'] },
+    });
+    expect(byId.get('profile:v1-codea')?.availability).toMatchObject({
+      scope: { state: 'admitted', values: ['oxy_hosted'] },
+    });
+  });
+
+  it('keeps an internal-only entry out of an unauthenticated response, and lets an internal caller have it', async () => {
+    // Every route behind this entry is Alia-internal. One unclassified route
+    // would keep it reachable, which is the residual `lib/availability-scope.ts`
+    // states; here there is none, so the entry is the caller's or it is nobody's.
+    state.mappings = {
+      lite: [
+        mapping('one', {}, { availabilityScope: 'internal_alia' }),
+        mapping('two', {}, { availabilityScope: 'internal_alia' }),
+      ],
+      'v1-codea': [mapping('three')],
+      'v1-pro': [mapping('four'), mapping('five'), mapping('six')],
+    };
+
+    const anonymous = await get('/catalogue');
+    expect(anonymous.status).toBe(200);
+    expect((anonymous.body.data ?? []).map((e) => e.id)).toEqual(['profile:v1-codea', 'profile:v1-pro']);
+    expect(anonymous.body.filters?.availability_scope).toEqual({ declared_routes: 2 });
+
+    // The positive control. Without it, a filter that withheld EVERY entry —
+    // or a fixture that never produced the entry in the first place — would
+    // read exactly like the refusal above.
+    state.serviceAppId = 'alia-internal';
+    const internal = await get('/catalogue');
+    expect((internal.body.data ?? []).map((e) => e.id)).toContain('profile:lite');
+    const lite = (internal.body.data ?? []).find((e) => e.id === 'profile:lite');
+    expect(lite?.availability).toMatchObject({ scope: { state: 'admitted', values: ['internal_alia'] } });
+  });
+
+  it('refuses a signed-in user and a developer key, not only an anonymous caller', async () => {
+    // The checkbox names *public/user credentials*, and a developer key is the
+    // sharpest of the three: `authenticateApiKey` sets `req.user` too, so a
+    // resolver that tested the session first would hand every `alia_sk_` key
+    // whatever a session may have.
+    state.mappings = {
+      lite: [mapping('one', {}, { availabilityScope: 'internal_alia' })],
+      'v1-codea': [mapping('three')],
+      'v1-pro': [mapping('four'), mapping('five'), mapping('six')],
+    };
+
+    state.userId = 'user-1';
+    const session = await get('/catalogue');
+    expect((session.body.data ?? []).map((e) => e.id)).not.toContain('profile:lite');
+
+    state.userId = null;
+    state.apiKeyId = 'key-1';
+    const developer = await get('/catalogue');
+    expect((developer.body.data ?? []).map((e) => e.id)).not.toContain('profile:lite');
+    expect(developer.body.filters?.availability_scope).toEqual({ declared_routes: 1 });
+  });
+
+  it('withholds a scope it cannot evaluate rather than admitting it', async () => {
+    // `enterprise` needs a contract record Alia has none of and `byok_only`
+    // needs a BYOK path Alia does not implement. Admitting either would be
+    // assuming the permission this workstream exists to stop assuming, and the
+    // reason travels with the withholding so it is not read as a refusal.
+    state.mappings = {
+      lite: [mapping('one', {}, { availabilityScope: 'enterprise' })],
+      'v1-codea': [mapping('three', {}, { availabilityScope: 'byok_only' })],
+      'v1-pro': [mapping('four'), mapping('five'), mapping('six')],
+    };
+
+    state.serviceAppId = 'alia-internal';
+    const { body } = await get('/catalogue');
+    // Even the most privileged audience: the missing fact is commercial, not a
+    // question of credential strength.
+    expect((body.data ?? []).map((e) => e.id)).toEqual(['profile:v1-pro']);
+    expect(body.filters?.availability_scope).toEqual({ declared_routes: 2 });
+  });
+
+  it('leaves an entry reachable through an unclassified route, and publishes only the admitting scope', async () => {
+    // The residual, pinned rather than left to be discovered. An unclassified
+    // route is not a scope, so it does not exclude anybody; what it must not do
+    // is make the entry look internal-approved to the caller it admitted.
+    state.mappings = {
+      lite: [mapping('one', {}, { availabilityScope: 'internal_alia' }), mapping('two')],
+      'v1-codea': [mapping('three')],
+      'v1-pro': [mapping('four'), mapping('five'), mapping('six')],
+    };
+    const { body } = await get('/catalogue');
+    const lite = (body.data ?? []).find((e) => e.id === 'profile:lite');
+    expect(lite).toBeDefined();
+    expect(lite?.availability).toMatchObject({ scope: { state: 'admitted', values: [] } });
+    expect(body.filters?.availability_scope).toEqual({ declared_routes: 1 });
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/*  Platform capability, and the region that stays delegated (#139 ws5)        */
+/* -------------------------------------------------------------------------- */
+
+describe('the catalogue is filtered by what the calling surface can be offered', () => {
+  beforeEach(() => {
+    // A voice entry alongside the general ones: something a terminal cannot be
+    // offered for what it is.
+    state.models = [
+      model(),
+      model({ id: 'alia-v1-voice', name: 'Voice', tier: 'v1-voice', category: 'voice', creditMultiplier: 2 }),
+    ];
+    state.mappings = { lite: [mapping('one'), mapping('two')], 'v1-voice': [mapping('seven', { audio: true })] };
+    state.plans = [plan({ modelIds: ['alia-lite', 'alia-v1-voice'] })];
+  });
+
+  it('does not hand an audio entry to a surface that carries no audio', async () => {
+    const terminal = await get('/catalogue?surface=terminal');
+    expect(terminal.status).toBe(200);
+    expect((terminal.body.data ?? []).map((e) => e.id)).toEqual(['profile:lite']);
+    expect(terminal.body.filters?.platform_capability).toEqual({
+      surface: 'terminal',
+      withheld_entries: 1,
+    });
+
+    // The positive control: a surface that DOES carry audio receives it, so the
+    // empty answer above is the filter working rather than the entry missing.
+    const chat = await get('/catalogue?surface=chat');
+    expect((chat.body.data ?? []).map((e) => e.id)).toEqual(['profile:lite', 'profile:v1-voice']);
+    expect(chat.body.filters?.platform_capability).toEqual({ surface: 'chat', withheld_entries: 0 });
+  });
+
+  it('applies no filter when no surface is declared, and says which was declared', async () => {
+    const { body } = await get('/catalogue');
+    expect((body.data ?? []).map((e) => e.id)).toEqual(['profile:lite', 'profile:v1-voice']);
+    expect(body.filters?.platform_capability).toEqual({ surface: null, withheld_entries: 0 });
+  });
+
+  it('refuses an unknown surface rather than serving an unfiltered catalogue', async () => {
+    const { status, body } = await get('/catalogue?surface=telepathy');
+    expect(status).toBe(400);
+    expect(body.error?.param).toBe('surface');
+    expect(body.error?.code).toBe('invalid_surface');
+    // The message names the vocabulary, so a mistyped client can fix itself.
+    expect(body.error?.message).toContain('terminal');
+    expect(body.data).toBeUndefined();
+  });
+
+  it('says region is delegated instead of answering that nothing is restricted', async () => {
+    // The stub this epic keeps hitting would be `region: { applied: true,
+    // withheld_entries: 0 }`, which no caller could tell from a working filter.
+    const { body } = await get('/catalogue');
+    expect(body.filters?.region).toEqual({ applied: false, delegated_to: 'relay' });
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/*  Licence attribution (#139 workstream 17)                                   */
+/* -------------------------------------------------------------------------- */
+
+describe('attribution an open-weight licence requires survives to the response', () => {
+  it('names the model the licence covers, and counts the routes that carry one', async () => {
+    // Nothing carries a licence record today, so the default state is empty and
+    // the count says why — the same distinction the scope filter needs.
+    const bare = await get('/catalogue');
+    expect(bare.body.filters?.attributed_routes).toBe(0);
+    for (const entry of bare.body.data ?? []) expect(entry.attribution).toEqual([]);
+
+    state.mappings = {
+      lite: [
+        mapping('one', {}, { attribution: { license: license(), attributedModel: 'fixturelabs/fixture-70b' } }),
+        mapping('two'),
+      ],
+      'v1-codea': [mapping('three')],
+      'v1-pro': [mapping('four'), mapping('five'), mapping('six')],
+    };
+
+    const { body } = await get('/catalogue');
+    expect(body.filters?.attributed_routes).toBe(1);
+    const lite = (body.data ?? []).find((e) => e.id === 'profile:lite');
+    expect(lite?.attribution).toEqual([
+      {
+        attributed_model: 'fixturelabs/fixture-70b',
+        license: {
+          license_id: 'fixture-community-1.0',
+          display_name: 'Fixture Community License 1.0',
+          url: 'https://example.invalid/license',
+          requires_attribution: true,
+          commercial_use_allowed: true,
+          acceptable_use_policy_url: null,
+        },
+      },
+    ]);
+
+    // The point of the whole box: the publisher survives the trip. A sanitiser
+    // run over this response would replace it with a marker.
+    expect(JSON.stringify(body)).toContain('fixturelabs/fixture-70b');
+  });
+
+  it('publishes nothing for a licence that does not require attribution', async () => {
+    // The invariant that keeps the catalogue leak census narrow: this field may
+    // name a model only because a licence requires the naming. A licence record
+    // attached without that requirement is a model identity with no obligation
+    // behind it, and is dropped.
+    state.mappings = {
+      lite: [
+        mapping(
+          'one',
+          {},
+          {
+            attribution: {
+              license: license({ requiresAttribution: false }),
+              attributedModel: 'fixturelabs/unattributed-8b',
+            },
+          },
+        ),
+      ],
+      'v1-codea': [mapping('three')],
+      'v1-pro': [mapping('four'), mapping('five'), mapping('six')],
+    };
+
+    const { body } = await get('/catalogue');
+    const lite = (body.data ?? []).find((e) => e.id === 'profile:lite');
+    expect(lite?.attribution).toEqual([]);
+    expect(JSON.stringify(body)).not.toContain('unattributed-8b');
+    // The route still carried a record, which is what the count reports — so a
+    // reader can see the difference between "no licence data" and "licence data
+    // that required nothing".
+    expect(body.filters?.attributed_routes).toBe(1);
+  });
+
+  it('states one obligation once, however many deployments serve the model', async () => {
+    state.mappings = {
+      lite: [
+        mapping('one', {}, { attribution: { license: license(), attributedModel: 'fixturelabs/fixture-70b' } }),
+        mapping('one-elsewhere', {}, {
+          attribution: { license: license(), attributedModel: 'fixturelabs/fixture-70b' },
+        }),
+        mapping('two', {}, {
+          attribution: { license: license({ licenseId: 'other-1.0' }), attributedModel: 'otherlabs/other-13b' },
+        }),
+      ],
+      'v1-codea': [mapping('three')],
+      'v1-pro': [mapping('four'), mapping('five'), mapping('six')],
+    };
+
+    const { body } = await get('/catalogue');
+    const lite = (body.data ?? []).find((e) => e.id === 'profile:lite');
+    const attributed = (lite?.attribution as { attributed_model: string }[]).map((a) => a.attributed_model);
+    // Three routes, three licence records, two distinct obligations.
+    expect(body.filters?.attributed_routes).toBe(3);
+    expect(attributed).toEqual(['fixturelabs/fixture-70b', 'otherlabs/other-13b']);
   });
 });

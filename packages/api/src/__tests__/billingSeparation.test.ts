@@ -591,7 +591,12 @@ describe('the billing path audit matches the tree it describes (#139 ws12)', () 
     expect(audited).toEqual(derived);
     // The floor. An audit and a scanner that both produced nothing would satisfy
     // the equality above.
-    expect(derived.length).toBe(26);
+    //
+    // 26 -> 27 in #139 ws14: `setPlanModelIds`, the audited writer of
+    // `plans.model_ids`. Read off `derived`, which is the scan of the tree,
+    // rather than incremented — the number this file exists to protect is a
+    // measurement, and arithmetic on it is how a plausible wrong one lands.
+    expect(derived.length).toBe(27);
     expect(audit.tables.length).toBe(7);
   });
 

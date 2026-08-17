@@ -5,10 +5,19 @@
  *
  * ## What counts as such a change, and what does not
  *
- * Five tables decide which model a request can name, which one it resolves to
+ * Six tables decide which model a request can name, which one it resolves to
  * and which credential serves it: `alia_models`, `alia_model_provider_mappings`,
- * `model_configs`, `provider_keys` and `external_models`. A write to any of them
- * is a decision a PERSON made about the product, and it is what this records.
+ * `model_configs`, `provider_keys`, `external_models` and `plans`. A write to
+ * any of them is a decision a PERSON made about the product, and it is what
+ * this records.
+ *
+ * `plans` joined the list in #139 workstream 14. It is the odd one out and
+ * belongs here anyway: it is a BILLING table, but `plans.model_ids` is the
+ * input to `lib/plan-access.ts`, which decides whether a request may name a
+ * model at all — so a write to it changes which model a caller can reach, which
+ * is the property this module is about. Recording it beside the other five
+ * rather than inventing a second mechanism is the point; the alternative was a
+ * parallel audit path for one column.
  *
  * Automatic key HEALTH is deliberately not here. `recordKeyFailure`,
  * `recordKeySuccess`, `recordKeyUsage`, `recordKeySpend`, `setKeyCooldown` and
@@ -52,7 +61,8 @@ export type ConfigAuditResource =
   | 'alia_model_provider_mappings'
   | 'model_config'
   | 'provider_key'
-  | 'external_model';
+  | 'external_model'
+  | 'plan';
 
 /** What happened to it. `upsert` is one statement whose branch is not known. */
 export type ConfigAuditAction = 'create' | 'update' | 'delete' | 'upsert' | 'rotate' | 'reset';
@@ -144,6 +154,11 @@ export const AUDITED_FIELDS: Readonly<Record<ConfigAuditResource, readonly strin
     'rateLimitResetMs',
   ],
   external_model: ['slug', 'organization', 'isActive', 'contextWindow'],
+  // Which models a plan grants, and whether the plan is live at all. Price and
+  // Stripe identifiers are money rather than routing and are deliberately out:
+  // this module records what changes model ACCESS, and a wider list here would
+  // make `plans` the one resource whose records carry unrelated fields.
+  plan: ['planId', 'product', 'modelIds', 'isActive'],
 };
 
 /**

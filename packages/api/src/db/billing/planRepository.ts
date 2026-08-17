@@ -15,9 +15,14 @@
  * happens.
  */
 
-import { and, asc, eq, sql, type SQL } from 'drizzle-orm';
-import type { ApiDatabase } from '../index';
+import { and, asc, eq, type SQL } from 'drizzle-orm';
+import type { ApiDatabase, Executor } from '../index';
 import { plans } from '../schema/billing';
+import {
+  auditedFields,
+  recordConfigChange,
+  type ConfigAuditActor,
+} from '../../lib/security/config-audit.js';
 
 export type PlanRow = typeof plans.$inferSelect;
 export type PlanInsert = typeof plans.$inferInsert;
@@ -57,7 +62,7 @@ export async function selectPlans(db: ApiDatabase, filter: PlanFilter = {}): Pro
     .orderBy(asc(plans.product), asc(plans.sortOrder));
 }
 
-export async function findPlanByPlanId(db: ApiDatabase, planId: string): Promise<PlanRow | null> {
+export async function findPlanByPlanId(db: Executor, planId: string): Promise<PlanRow | null> {
   const [row] = await db.select().from(plans).where(eq(plans.planId, planId));
   return row ?? null;
 }
@@ -94,25 +99,101 @@ export async function deletePlanByPlanId(db: ApiDatabase, planId: string): Promi
 }
 
 /**
- * The seed's upsert: refresh the code-managed `model_ids`, set everything else
- * only on first insert.
+ * Which models a plan grants, changed by a person and recorded as such
+ * (#139 workstream 14).
  *
- * Returns whether a row was INSERTED, which `rowCount` cannot answer — it
- * behaves like Mongo's `matchedCount` and is 1 either way. `xmax` is the id of
- * the transaction that deleted or locked a tuple; one this statement just
- * inserted has none, so `xmax = 0` is true exactly for the insert branch. It is
- * the only way to recover `upsertedCount` from a Postgres upsert.
+ * The ONE runtime writer of `plans.model_ids`, and the reason the seeder below
+ * no longer touches that column. `plan_access.ts` reads `model_ids` to decide
+ * whether a request may name a model at all, so this is a routing decision
+ * wearing a billing table's name — which is why the record goes through
+ * `lib/security/config-audit.ts` beside the five provider tables rather than
+ * through anything of its own.
+ *
+ * `actor` is required and has no default. An audit log whose actor defaults to
+ * `system` says `system` for the one change somebody needs to attribute.
+ *
+ * `modelIds` is the only column this can write. Not by convention — by
+ * signature: there is no `updates` object to widen, so a caller cannot reach
+ * `monthly_price` through here even by passing one. The plan's identity, its
+ * price and its Stripe ids are all unreachable.
+ *
+ * The read and the write share one transaction, so `before` is the state this
+ * statement replaced rather than whatever the row held when a second query
+ * happened to run.
  */
-export async function seedPlan(db: ApiDatabase, values: PlanInsert): Promise<{ inserted: boolean }> {
-  const rows = await db
-    .insert(plans)
-    .values(values)
-    .onConflictDoUpdate({
-      target: plans.planId,
-      // `$set: { modelIds }` in the source: the list is code-managed, so a stale
-      // member is corrected on the next boot rather than persisting.
-      set: { modelIds: values.modelIds ?? [] },
-    })
-    .returning({ inserted: sql<boolean>`(xmax = 0)` });
-  return { inserted: rows[0]?.inserted ?? false };
+export async function setPlanModelIds(
+  db: ApiDatabase,
+  planId: string,
+  modelIds: readonly string[],
+  actor: ConfigAuditActor,
+): Promise<PlanRow | null> {
+  return db.transaction(async (tx) => {
+    const previous = await findPlanByPlanId(tx, planId);
+    if (previous === null) return null;
+
+    const [row] = await tx
+      .update(plans)
+      .set({ modelIds: [...modelIds] })
+      .where(eq(plans.planId, planId))
+      .returning();
+    if (!row) return null;
+
+    recordConfigChange({
+      resource: 'plan',
+      action: 'update',
+      target: row.planId,
+      actor,
+      before: auditedFields('plan', previous),
+      after: auditedFields('plan', row),
+    });
+    return row;
+  });
+}
+
+/**
+ * The seed's insert: create a plan that does not exist, and touch nothing that
+ * does.
+ *
+ * ## It used to refresh `model_ids`, and that was a bug
+ *
+ * The upsert was `onConflictDoUpdate({ set: { modelIds } })`, carrying the
+ * Mongo-era belief that the list is code-managed. Nothing ran the seeder, so
+ * the belief was never tested. Wiring it up while it still overwrote would have
+ * silently reverted every change made through {@link setPlanModelIds} on the
+ * next deploy — a runtime writer and a boot writer cannot both be authoritative
+ * for one column, and the runtime one is, because that is what
+ * *"allow the product team to select which models are available per plan"*
+ * means.
+ *
+ * So this is seed data in the strict sense: a default for a database that has
+ * none, never a correction to one that does.
+ *
+ * ## `DO NOTHING RETURNING` returns NO ROW on conflict
+ *
+ * Which is what makes `inserted` readable without `xmax`: an empty result IS
+ * the conflict branch. The previous version could not use the row count —
+ * `rowCount` is 1 either way, like Mongo's `matchedCount` — and needed
+ * `(xmax = 0)` to recover the insert branch. It does not need it now, and a
+ * caller that wanted the existing row back would have to read it explicitly
+ * rather than assume this returned one.
+ */
+export async function seedPlan(
+  db: ApiDatabase,
+  values: PlanInsert,
+  actor: ConfigAuditActor,
+): Promise<{ inserted: boolean }> {
+  const rows = await db.insert(plans).values(values).onConflictDoNothing({ target: plans.planId }).returning();
+  const row = rows[0];
+  if (row === undefined) return { inserted: false };
+
+  // A create: `before` is null, and the plan's model list starts here.
+  recordConfigChange({
+    resource: 'plan',
+    action: 'create',
+    target: row.planId,
+    actor,
+    before: null,
+    after: auditedFields('plan', row),
+  });
+  return { inserted: true };
 }

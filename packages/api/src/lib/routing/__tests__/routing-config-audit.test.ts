@@ -188,69 +188,154 @@ describe('the routing presets are code, not a row (#139 ws15)', () => {
 /*  3: which models a plan grants                                              */
 /* -------------------------------------------------------------------------- */
 
-describe('plan model access is an UNAUDITED database row (#139 ws15)', () => {
+describe('plan model access is an AUDITED database row (#139 ws14/ws15)', () => {
   /**
-   * Every writer of `plans` and `plan_features`, and its runtime caller.
+   * Every writer of `plans` and `plan_features`, its runtime caller, and which
+   * of three categories it is in.
    *
-   * Exact equality, and the empty list is the interesting entry: `insertPlan`,
-   * `deletePlanByPlanId`, `upsertPlanFeature` and `deletePlanFeature` are
-   * reachable code with nobody calling them. They are the writers a future admin
-   * route would reach for, so a caller appearing is the signal.
+   * This block read *"plan model access is an UNAUDITED database row"* and its
+   * assertions pinned that state: the seeder had no caller, `plans.model_ids`
+   * was a hand-editable row nothing re-asserted and nothing recorded, and the
+   * epic's audit checkbox was unsatisfied. #139 workstream 14 changed the
+   * design, so the assertions are INVERTED rather than deleted — the value that
+   * used to be the pass is now the failure, which is what puts a design change
+   * on the record instead of quietly removing the evidence of the old one.
+   *
+   * The verb list is wider than it was. It matched
+   * `insert|update|delete|seed|upsert` and would have skipped `setPlanModelIds`
+   * entirely — a writer a name-based census cannot see is the exact failure
+   * #167 found twice in the provider repositories (`rotateProviderKey`,
+   * `replaceProviderMappings`). A census that misses the writer this file is
+   * about would have passed while measuring nothing.
    */
-  const PLAN_WRITERS: Readonly<Record<string, readonly string[]>> = {
-    insertPlan: [],
-    deletePlanByPlanId: [],
-    upsertPlanFeature: [],
-    deletePlanFeature: [],
-    // Boot seeding: runs from the process's own start-up, not from a request.
-    seedPlan: ['internal/providers/lib/seed-plans.ts'],
-    seedPlanFeatures: [
-      'internal/providers/lib/seed-features.ts',
-      'internal/providers/lib/seed-model-configs.ts',
-    ],
-    // The one runtime writer, and the next test is about what it may write.
-    updatePlanByPlanId: ['lib/gateway-client.ts'],
+  const AUDITED = 'audited' as const;
+  const BOOT = 'boot' as const;
+  const UNCALLED = 'uncalled' as const;
+
+  const PLAN_WRITERS: Readonly<Record<string, { category: string; callers: readonly string[] }>> = {
+    insertPlan: { category: UNCALLED, callers: [] },
+    deletePlanByPlanId: { category: UNCALLED, callers: [] },
+    upsertPlanFeature: { category: UNCALLED, callers: [] },
+    deletePlanFeature: { category: UNCALLED, callers: [] },
+    // Boot seeding. It RUNS now — `src/index.ts` calls `seedPlans()` beside the
+    // three seeders that always ran — and it is INSERT-only, which is the pair
+    // of facts that makes the audited writer below meaningful rather than a
+    // change the next deploy undoes.
+    seedPlan: { category: BOOT, callers: ['lib/seed-plans.ts'] },
+    seedPlanFeatures: {
+      category: BOOT,
+      callers: ['internal/providers/lib/seed-features.ts', 'internal/providers/lib/seed-model-configs.ts'],
+    },
+    // The Stripe writer. Its safety is its ARGUMENT TYPE, asserted below.
+    updatePlanByPlanId: { category: AUDITED, callers: ['lib/gateway-client.ts'] },
+    // The one that made this block's title change. A route calls it, it emits a
+    // record through `lib/security/config-audit.ts`, and its actor is required.
+    setPlanModelIds: { category: AUDITED, callers: ['routes/internal.ts'] },
   };
 
   it('is exactly the writers this map accounts for', () => {
     const declared = [
       ...code('db/billing/planRepository.ts').matchAll(
-        /export async function ((?:insert|update|delete|seed|upsert)[A-Za-z0-9_]*)/g,
+        /export async function ((?:insert|update|delete|seed|upsert|set|replace|reset|mark|rotate)[A-Za-z0-9_]*)/g,
       ),
       ...code('db/billing/planFeatureRepository.ts').matchAll(
-        /export async function ((?:insert|update|delete|seed|upsert)[A-Za-z0-9_]*)/g,
+        /export async function ((?:insert|update|delete|seed|upsert|set|replace|reset|mark|rotate)[A-Za-z0-9_]*)/g,
       ),
     ].map((match) => match[1]);
 
     // The floor before the equality: the repositories were read.
-    expect(declared.length).toBeGreaterThanOrEqual(7);
+    expect(declared.length).toBeGreaterThanOrEqual(8);
     expect(declared).toContain('seedPlan');
+    // The control for the WIDENED verb list. Under the old pattern this name
+    // was invisible, so this assertion is the one that proves the census can
+    // now see the writer the rest of this block is about.
+    expect(declared).toContain('setPlanModelIds');
     expect([...declared].sort()).toEqual(Object.keys(PLAN_WRITERS).sort());
+
+    // Every writer is in one of the three categories, and each is populated —
+    // a category that emptied would make its own assertions vacuous.
+    const categories = Object.values(PLAN_WRITERS).map((w) => w.category);
+    expect(new Set(categories)).toEqual(new Set([AUDITED, BOOT, UNCALLED]));
   });
 
   it('no writer has a caller its map does not name', () => {
-    for (const [writer, expected] of Object.entries(PLAN_WRITERS)) {
-      expect(callersOf(writer, ['db/billing/']), `${writer} changed callers`).toEqual([...expected].sort());
+    for (const [writer, { callers }] of Object.entries(PLAN_WRITERS)) {
+      expect(callersOf(writer, ['db/billing/']), `${writer} changed callers`).toEqual([...callers].sort());
     }
     // The control: the census can see a caller that is there, and does not count
-    // a mention in prose. `seed-plans.ts` calls `seedPlan`; `db/schema/billing.ts`
-    // names it in a comment and must not be counted.
-    expect(callersOf('seedPlan', ['db/billing/'])).toEqual(['internal/providers/lib/seed-plans.ts']);
+    // a mention in prose. `lib/seed-plans.ts` calls `seedPlan`;
+    // `db/schema/billing.ts` names it in a comment and must not be counted.
+    expect(callersOf('seedPlan', ['db/billing/'])).toEqual(['lib/seed-plans.ts']);
     expect(readFileSync(path.join(API_SRC, 'db/schema/billing.ts'), 'utf8')).toContain('seed-plans.ts');
   });
 
-  it('the one runtime writer cannot touch model access', () => {
+  it('every writer a ROUTE calls is audited, and emits a record', () => {
+    // The rule the epic's checkbox actually asks for, stated as a rule rather
+    // than as a list: a request-driven configuration change leaves a record.
+    // A new route calling an unaudited writer fails here, and the fix is the
+    // record — not a new line in the map.
+    const routes = sourceFiles('packages/api/src/routes');
+    expect(routes.length).toBeGreaterThan(20);
+
+    const repository = code('db/billing/planRepository.ts');
+    let checked = 0;
+    for (const [writer, { category, callers }] of Object.entries(PLAN_WRITERS)) {
+      const reachedByRoute = callers.some((caller) => caller.startsWith('routes/'));
+      if (!reachedByRoute) continue;
+      checked += 1;
+      expect(category, `${writer} is reachable from a route and is not audited`).toBe(AUDITED);
+      // …and "audited" is not a label. The function's own body emits it.
+      const at = repository.indexOf(`export async function ${writer}(`);
+      expect(at, `${writer} is not declared where the map says`).toBeGreaterThan(-1);
+      const body = repository.slice(at, at + 2000);
+      expect(body, `${writer} writes without a record`).toContain('recordConfigChange({');
+      expect(body, `${writer} takes no actor`).toContain('actor: ConfigAuditActor');
+    }
+    // The floor: the loop ran. A map with no route-reachable writer would pass
+    // every assertion above by executing none of them.
+    expect(checked).toBeGreaterThanOrEqual(1);
+
+    // And the census can tell the two apart: `insertPlan` is a writer with no
+    // record, so a predicate that saw one everywhere would be broken.
+    const insertAt = repository.indexOf('export async function insertPlan(');
+    expect(repository.slice(insertAt, insertAt + 400)).not.toContain('recordConfigChange({');
+  });
+
+  it('the audited writer can touch the model list and nothing else', () => {
+    // What keeps it narrow is the SIGNATURE: a list, not an updates object, so
+    // there is no field to widen and no `req.body` to spread. Price, Stripe ids,
+    // the plan's identity and its product are unreachable through it.
+    const repository = code('db/billing/planRepository.ts');
+    expect(repository).toMatch(
+      /export async function setPlanModelIds\(\s*db: ApiDatabase,\s*planId: string,\s*modelIds: readonly string\[\],\s*actor: ConfigAuditActor,\s*\)/,
+    );
+    const at = repository.indexOf('export async function setPlanModelIds(');
+    const body = repository.slice(at, at + 1200);
+    // One `set`, one column, and the column named. A second `.set(` — or a
+    // first one taking a variable instead of this literal — is the change that
+    // would turn a one-column writer into an update-object writer.
+    const sets = [...body.matchAll(/\.set\((?<arg>\{[^}]*\})\)/g)];
+    expect(sets).toHaveLength(1);
+    expect(sets[0].groups?.arg).toBe('{ modelIds: [...modelIds] }');
+    expect([...body.matchAll(/\.set\(/g)]).toHaveLength(1);
+
+    // And its route never spreads a body or builds an update object.
+    const route = code('routes/internal.ts');
+    expect(route).not.toMatch(/\.\.\.req\.body/);
+    expect(route).toContain("(body as Record<string, unknown>).model_ids");
+  });
+
+  it('the one Stripe writer still cannot touch model access', () => {
     // `updatePlanByPlanId` has a caller, so what makes it safe is its ARGUMENT
     // TYPE at that caller: three Stripe identifier fields, none of which is
-    // `modelIds`. Widening this signature is the change that would open a
-    // request-driven path to model-access configuration.
+    // `modelIds`. Widening this signature would open a SECOND request-driven
+    // path to model access, and an unaudited one.
     const client = code('lib/gateway-client.ts');
     expect(client).toMatch(
       /export async function updatePlan\(\s*planId: string,\s*updates: \{ stripeProductId\?: string; stripeMonthlyPriceId\?: string; stripeAnnualPriceId\?: string \},/,
     );
     expect(client).toContain('updatePlanByPlanId(getDb(), planId, updates)');
 
-    // And its only caller writes Stripe price ids, not a model list.
     const prices = code('lib/stripe-prices.ts');
     expect(prices).toContain('updatePlan(plan.planId, { stripeProductId: product.id })');
     expect(prices).not.toContain('modelIds');
@@ -259,74 +344,91 @@ describe('plan model access is an UNAUDITED database row (#139 ws15)', () => {
     ]);
   });
 
-  it('the plan seeder would re-assert the model list, but NOTHING RUNS IT', () => {
-    // Reads as the guard that makes "the audit trail is git" true. It is not:
-    // the seeder it describes is never invoked, so `plans.modelIds` is a source
-    // of truth in the database rather than a cache of the code, and a hand edit
-    // survives every deploy unrecorded.
-    //
-    // The assertion below is kept anyway, because it is the precondition for the
-    // fix: whoever wires `runStartupSeed()` back up needs the seeder to
-    // re-assert rather than skip. Until then this test documents a GAP, and the
-    // assertion that it is a gap is the one immediately after it.
-    //
-    // The failure to watch for is the tidy-looking one: `onConflictDoNothing`,
-    // or dropping `modelIds` from the `set`. Either makes the DATABASE the
-    // authority for which models a plan grants, with no writer requiring
-    // authentication and no record of who changed it — which is precisely the
-    // configuration change this checkbox asks to be audited.
+  it('the plan seeder NEVER overwrites the model list of a row that exists', () => {
+    /**
+     * The inverted assertion, and the one this whole block turns on.
+     *
+     * It used to require the opposite — `onConflictDoUpdate({ set: { modelIds:
+     * values.modelIds ?? [] } })` — with a comment warning that
+     * `onConflictDoNothing` would make the DATABASE the authority for which
+     * models a plan grants, "with no writer requiring authentication and no
+     * record of who changed it".
+     *
+     * That warning was right about the danger and wrong about the fix. The
+     * database IS the authority now, and what makes that safe is the thing the
+     * warning said was missing: `setPlanModelIds` requires a service credential
+     * and emits a record. With that writer in place, a seeder that re-asserted
+     * the list would revert every product-team decision on the next deploy —
+     * silently, because a deploy is not a change anybody reviews as one.
+     *
+     * So `onConflictDoNothing` is now REQUIRED and `onConflictDoUpdate` is
+     * forbidden, which is exactly the reverse of what this file asserted, and
+     * the reversal is the point.
+     */
     const repository = code('db/billing/planRepository.ts');
     expect(repository).toMatch(
-      /export async function seedPlan\([\s\S]{0,400}?onConflictDoUpdate\(\{[\s\S]{0,200}?set: \{ modelIds: values\.modelIds \?\? \[\] \},/,
+      /export async function seedPlan\([\s\S]{0,400}?onConflictDoNothing\(\{ target: plans\.planId \}\)/,
     );
-    expect(repository).not.toContain('onConflictDoNothing');
+    // The forbidden shape, named so the failure says which mistake was made.
+    const at = repository.indexOf('export async function seedPlan(');
+    expect(repository.slice(at, at + 900)).not.toContain('onConflictDoUpdate');
+    expect(repository.slice(at, at + 900)).not.toContain('modelIds:');
 
-    // And the values it re-asserts come from a source file, not from a query.
-    const seed = code('internal/providers/lib/seed-plans.ts');
+    // The values it inserts still come from a source file, not from a query,
+    // and never from a request.
+    const seed = code('lib/seed-plans.ts');
     expect(seed).toMatch(/modelIds: FREE_MODEL_IDS/);
     expect([...seed.matchAll(/modelIds:/g)].length).toBeGreaterThanOrEqual(7);
     expect(seed).not.toContain('req.body');
   });
 
-  it('the seeder has no caller, which is why this is a GAP and not an absence', () => {
-    // Turns the finding above into a guard. `seedPlans()` is reached only from
-    // `runStartupSeed()`, and `runStartupSeed()` is reached from nowhere — so
-    // `plans.modelIds` is unaudited runtime configuration today.
-    //
-    // This goes RED the moment somebody wires the seeder back up, which is
-    // exactly when a reader should return and re-decide whether the epic's audit
-    // checkbox has become satisfiable by absence after all. Failing on the FIX is
-    // deliberate: the alternative is a comment nobody re-reads.
-    const api = sourceFiles('packages/api/src');
-
-    // Vacuity floor and positive control: the scan must see a real tree, and it
-    // must be able to find a boot seeder that IS called, or its zero below means
-    // the scan is broken rather than that the caller is missing.
-    expect(api.length).toBeGreaterThan(200);
+  it('the seeder RUNS, from the entrypoint, beside the three that always did', () => {
+    /**
+     * The other inversion. This assertion read "the seeder has no caller, which
+     * is why this is a GAP and not an absence", and said it would go red the
+     * moment somebody wired it up — "which is exactly when a reader should
+     * return and re-decide whether the epic's audit checkbox has become
+     * satisfiable". This is that return, and the answer is that it is satisfied
+     * by the audited writer rather than by absence.
+     *
+     * Wiring it is only safe BECAUSE it is insert-only, which the assertion
+     * above pins. The two must move together or not at all.
+     */
     const entrypoint = code('index.ts');
+    // Positive control: the scan can see a boot seeder that was always called.
     expect(entrypoint).toContain('seedSkills()');
+    expect(entrypoint).toContain('seedPlans()');
+    expect(entrypoint).toContain("from './lib/seed-plans.js'");
 
-    const callers = api.filter(
-      (f) => !f.includes('__tests__') && !f.endsWith('seed-model-configs.ts') && code(f).includes('runStartupSeed'),
-    );
-    expect(callers).toEqual([]);
-
-    // And the entrypoint seeds only the three it actually seeds.
-    expect(entrypoint).not.toContain('runStartupSeed');
-    expect(entrypoint).not.toContain('seedPlans');
+    // And it is reached from the entrypoint alone. `runStartupSeed()` used to
+    // call it and no longer does — that function still has no caller repo-wide,
+    // so leaving plan seeding inside it would have been wiring it to nothing.
+    const api = sourceFiles('packages/api/src');
+    expect(api.length).toBeGreaterThan(200);
+    expect(api.filter((f) => f !== 'lib/seed-plans.ts' && /\bseedPlans\s*\(/.test(code(f)))).toEqual(['index.ts']);
+    expect(code('internal/providers/lib/seed-model-configs.ts')).not.toContain('seedPlans');
+    expect(
+      api.filter((f) => !f.endsWith('seed-model-configs.ts') && code(f).includes('runStartupSeed')),
+    ).toEqual([]);
   });
 
-  it('no route writes plan or model configuration', () => {
+  it('no route writes plan configuration except through the audited writer', () => {
     // The other direction: a new admin surface arrives as a ROUTE more often
-    // than as a caller of an existing writer.
+    // than as a caller of an existing writer. The unaudited writers stay
+    // unreachable from `routes/`; the audited one is expected there and is
+    // asserted to be there, so this cannot pass by every writer disappearing.
     const routes = sourceFiles('packages/api/src/routes');
     expect(routes.length).toBeGreaterThan(20);
 
     const forbidden =
       /\b(insertPlan|deletePlanByPlanId|upsertPlanFeature|deletePlanFeature|seedPlan|seedPlanFeatures)\s*\(/;
     expect(routes.filter((relative) => forbidden.test(code(relative)))).toEqual([]);
-
     // The control: the same predicate finds the writer where it is called.
-    expect(forbidden.test(code('internal/providers/lib/seed-plans.ts'))).toBe(true);
+    expect(forbidden.test(code('lib/seed-plans.ts'))).toBe(true);
+
+    // And the audited one IS reached from exactly one route.
+    expect(routes.filter((relative) => /\bsetPlanModelIds\s*\(/.test(code(relative)))).toEqual([
+      'routes/internal.ts',
+    ]);
   });
 });

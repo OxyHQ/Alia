@@ -62,6 +62,14 @@ import { getUserEntitlements } from './plan-access.js';
 import { PLAN_PRODUCTS, type PlanProduct } from '../domain/plan.js';
 import { canonicalAliasFor, isProfileOffered } from './product-modes.js';
 import { ROUTING_PRESETS } from './routing/presets.js';
+import {
+  admitEntry,
+  type AvailabilityScope,
+  type CallerAudience,
+  type EntryScopeVerdict,
+} from './availability-scope.js';
+import { requiredAttributions, type RequiredAttribution } from './model-attribution.js';
+import { surfaceCanOffer, type Surface } from './surface-capability.js';
 import type { FallbackPolicy } from './routing/policy.js';
 import { log } from './logger.js';
 
@@ -187,7 +195,25 @@ interface CatalogueEntryCommon {
    */
   readonly chatVisible: boolean;
   readonly capabilities: CatalogueCapabilities;
-  readonly availability: { readonly status: 'available' | 'unavailable'; readonly legacy: boolean };
+  readonly availability: {
+    readonly status: 'available' | 'unavailable';
+    readonly legacy: boolean;
+    /**
+     * Which of the entry's routes the caller's own credential admits
+     * (#139 workstream 17). `unscoped` on every entry today, because no route
+     * declares a scope — see `lib/availability-scope.ts`.
+     */
+    readonly scope: EntryScopeVerdict;
+  };
+  /**
+   * Attribution an open-weight licence requires be displayed
+   * (#139 workstream 17). The ONE field on this entry permitted to name a model
+   * identity, and permitted only because a licence requires the naming —
+   * `lib/model-attribution.ts` for why that condition is what keeps the
+   * permission narrow. Empty on every entry today, because no route carries a
+   * licence record.
+   */
+  readonly attribution: readonly RequiredAttribution[];
   readonly entitlement: CatalogueEntitlement;
   readonly pricing: { readonly creditMultiplier: number };
 }
@@ -243,10 +269,22 @@ export interface ModelEntry extends CatalogueEntryCommon {
 
 export type CatalogueEntry = RoutingProfileEntry | ModelEntry;
 
-/** One routable choice: what the fallback engine may pick, with what it can do. */
+/**
+ * One routable choice: what the fallback engine may pick, with what it can do.
+ *
+ * The last two fields are Relay's to supply and are `null` on every candidate
+ * this repository builds — `lib/gateway-client.ts` `ModelMapping` declares them
+ * optional and nothing populates either. They are declared rather than deferred
+ * so the consumption below is real code with real tests instead of a plan, and
+ * so the day Relay carries them nothing here has to change.
+ */
 export interface Candidate {
   readonly modelId: string;
   readonly capabilities: Record<string, unknown>;
+  /** Who this route may be served to. `null` is unclassified, which is not a scope. */
+  readonly availabilityScope: AvailabilityScope | null;
+  /** What this route's licence requires be displayed, whole or not at all. */
+  readonly attribution: RequiredAttribution | null;
 }
 
 /** The alias-shaped facts an entry is built from, independent of where they came from. */
@@ -336,6 +374,7 @@ export function buildEntry(
   source: CatalogueSource,
   candidates: readonly Candidate[],
   entitlement: CatalogueEntitlement,
+  audience: CallerAudience,
 ): CatalogueEntry {
   const distinctModels = new Set(candidates.map((c) => c.modelId)).size;
   const common: CatalogueEntryCommon = {
@@ -346,7 +385,12 @@ export function buildEntry(
     emoji: source.emoji ?? null,
     chatVisible: isProfileOffered(source.id),
     capabilities: deriveCapabilities(candidates),
-    availability: { status: source.isAvailable ? 'available' : 'unavailable', legacy: source.isLegacy },
+    availability: {
+      status: source.isAvailable ? 'available' : 'unavailable',
+      legacy: source.isLegacy,
+      scope: admitEntry(candidates.map((c) => c.availabilityScope), audience),
+    },
+    attribution: requiredAttributions(candidates.map((c) => c.attribution)),
     entitlement,
     pricing: { creditMultiplier: source.creditMultiplier },
   };
@@ -465,10 +509,54 @@ export async function loadAllowedModelIds(userId: string | null): Promise<string
 export interface CatalogueOptions {
   /** Authenticated caller, or `null`. Decides only the `entitled` field. */
   readonly userId: string | null;
+  /**
+   * What kind of credential is asking. Decides which routes' availability
+   * scopes admit the caller, and is therefore always applied — unlike the two
+   * filters below, which a caller opts into.
+   */
+  readonly audience: CallerAudience;
   /** Restrict to entries granted by an active plan of this product. */
   readonly product?: PlanProduct;
   /** Restrict to entries the authenticated caller may use. Requires `userId`. */
   readonly entitledOnly?: boolean;
+  /** Restrict to entries the calling client surface can be offered. */
+  readonly surface?: Surface;
+}
+
+/**
+ * What each filter did, so a caller can tell an applied filter from an absent
+ * one and a filter from a stub.
+ *
+ * This block is why the two Relay-shaped filters can ship before Relay: an
+ * availability-scope filter that withheld nothing looks exactly like one that
+ * is not wired up, and the difference is `declaredRoutes` — zero means no route
+ * carries a scope yet, non-zero with `withheld: 0` means every scoped route
+ * admitted this caller. Region carries no counts at all because there is
+ * nothing to count; it says who owns it instead.
+ */
+export interface CatalogueFilterReport {
+  readonly availabilityScope: {
+    /**
+     * Candidate routes across the whole catalogue that declared a scope.
+     *
+     * A COUNT OF ROUTES, deliberately, and not a count of entries withheld from
+     * this caller. The first says whether Relay has classified anything yet,
+     * which is what tells an unfiltered answer apart from an absent filter. The
+     * second would tell a public caller how many entries Alia operates and does
+     * not sell it, which is commercially sensitive and is a step toward finding
+     * an internal deployment — the disclosure
+     * `routes/__tests__/internal-only-access.test.ts` exists to prevent.
+     */
+    readonly declaredRoutes: number;
+  };
+  readonly platformCapability: {
+    readonly surface: string | null;
+    readonly withheldEntries: number;
+  };
+  /** Never applied here. `lib/routing/presets.ts` `DELEGATED_TO_RELAY` is the record. */
+  readonly region: { readonly applied: false; readonly delegatedTo: 'relay' };
+  /** Catalogue-wide count of routes carrying a licence record that requires attribution. */
+  readonly attributedRoutes: number;
 }
 
 /**
@@ -486,6 +574,7 @@ export type CatalogueResult =
       readonly entries: readonly CatalogueEntry[];
       /** False when the plan catalogue could not be read, so every entitlement is `unknown`. */
       readonly entitlementsKnown: boolean;
+      readonly filters: CatalogueFilterReport;
     }
   | { readonly ok: false; readonly unavailable: 'plans' | 'entitlements' };
 
@@ -509,6 +598,9 @@ export async function buildCatalogue(options: CatalogueOptions): Promise<Catalog
 
   const byAlias = new Map(sources.map((source) => [source.id, source] as const));
   const entries: CatalogueEntry[] = [];
+  let declaredRoutes = 0;
+  let attributedRoutes = 0;
+  let surfaceWithheld = 0;
 
   /**
    * One entry per POLICY, keyed by the policy's own id.
@@ -538,7 +630,19 @@ export async function buildCatalogue(options: CatalogueOptions): Promise<Catalog
     const candidates: Candidate[] = (tierMappings[preset.tier] ?? []).map((m) => ({
       modelId: m.modelId,
       capabilities: m.capabilities,
+      availabilityScope: m.availabilityScope ?? null,
+      attribution: m.attribution ?? null,
     }));
+    // Counted over every candidate the catalogue looked at, including those on
+    // entries a filter then removed: the question this answers is "does Relay
+    // carry this fact yet", which is a property of the data and not of the
+    // response. Counting only survivors would report zero on a request whose
+    // filters happened to remove every scoped route.
+    for (const candidate of candidates) {
+      if (candidate.availabilityScope !== null) declaredRoutes += 1;
+      if (candidate.attribution !== null) attributedRoutes += 1;
+    }
+
     const entitlement =
       plans === null ? { state: 'unknown' as const } : resolveEntitlement(alias, plans, allowedModelIds);
 
@@ -547,9 +651,33 @@ export async function buildCatalogue(options: CatalogueOptions): Promise<Catalog
       if (options.entitledOnly === true && entitlement.entitled !== true) continue;
     }
 
-    entries.push(buildEntry({ ...source, id: preset.id }, candidates, entitlement));
+    if (options.surface !== undefined && !surfaceCanOffer(options.surface, source.category)) {
+      surfaceWithheld += 1;
+      continue;
+    }
+
+    const entry = buildEntry({ ...source, id: preset.id }, candidates, entitlement, options.audience);
+    // The scope refusal, applied rather than only annotated. Unlike `product`
+    // and `entitled` this is not a filter the caller asked for, so it is not
+    // conditional on an option: a route the caller's credential does not admit
+    // is not theirs to see whatever they asked for.
+    if (entry.availability.scope.state === 'withheld') continue;
+    entries.push(entry);
   }
 
   entries.sort((a, b) => a.pricing.creditMultiplier - b.pricing.creditMultiplier || a.id.localeCompare(b.id));
-  return { ok: true, entries, entitlementsKnown: plans !== null };
+  return {
+    ok: true,
+    entries,
+    entitlementsKnown: plans !== null,
+    filters: {
+      availabilityScope: { declaredRoutes },
+      platformCapability: {
+        surface: options.surface?.name ?? null,
+        withheldEntries: surfaceWithheld,
+      },
+      region: { applied: false, delegatedTo: 'relay' },
+      attributedRoutes,
+    },
+  };
 }

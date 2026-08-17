@@ -590,23 +590,30 @@ const PROVIDER_IMPORT_ALLOWLIST: readonly { from: string; to: string; via: Modul
     via: 'import',
     why: 'A route driving a provider realtime session directly. Moves to Relay (#139 ws7).',
   },
+  {
+    from: 'packages/api/src/lib/__tests__/surface-capability.test.ts',
+    to: 'packages/api/src/internal/providers/lib/alia-models',
+    via: 'import',
+    why: 'Reads ALIA_MODELS to check the platform-capability map covers exactly the categories the alias set uses, in both directions (#139 ws5). An unmapped category is OFFERED to every surface, so a subset check would hide the gap. Test-only; retires when the catalogue moves to Relay.',
+  },
 ];
 
 /**
  * The exact-count assertion the list needs, so it cannot grow one defensible
  * line at a time.
  *
- * 23 → 24 in #139 ws20, then → 26 in ws4. All three additions are TESTS reading
- * the routing table as data rather than product modules calling an adapter.
- * Every other line is a product module, and the direction of travel for those
- * is down.
+ * 23 → 24 in #139 ws20, → 26 in ws4, → 27 in ws5. All four additions are TESTS
+ * reading the routing table as data rather than product modules calling an
+ * adapter. Every other line is a product module, and the direction of travel for
+ * those is down.
  *
- * The number is COUNTED from the list above rather than reasoned about: two
- * branches each grew it from 23, one to 24 and one to 25, and the array itself
- * merged cleanly. Arithmetic on either branch's total would have produced a
- * plausible wrong answer that still compiled.
+ * The number is COUNTED from the list above rather than reasoned about, every
+ * time. Two branches each grew it from 23, one to 24 and one to 25, and the
+ * array itself merged cleanly — arithmetic on either branch's total would have
+ * produced a plausible wrong answer that still compiled. The same trap caught
+ * ws5's rebase, which is why this paragraph is a rule and not a history.
  */
-const PROVIDER_IMPORT_ALLOWLIST_SIZE = 26;
+const PROVIDER_IMPORT_ALLOWLIST_SIZE = 27;
 
 function observedProviderImports(): { from: string; to: string; via: ModuleRef['via'] }[] {
   const seen = new Map<string, { from: string; to: string; via: ModuleRef['via'] }>();
@@ -1697,7 +1704,36 @@ vi.mock('../lib/gateway-client.js', async () => {
 
 interface CapturedResponse {
   status?: number;
-  body?: { object?: string; data?: { id: string; object: string; owned_by?: string }[] };
+  body?: { object?: string; data?: CapturedEntry[] };
+}
+
+interface CapturedEntry {
+  id: string;
+  object: string;
+  owned_by?: string;
+  attribution?: unknown;
+  [key: string]: unknown;
+}
+
+/**
+ * The catalogue body with `data[].attribution` removed, and only that.
+ *
+ * By key PATH: an `attribution` key nested anywhere else survives into the
+ * censused text, so the exemption cannot be widened by moving a leak one level
+ * down. `structuredClone` rather than a spread, so a nested object is not
+ * shared with the caller's copy.
+ */
+function censorAttribution(body: unknown): unknown {
+  if (body === null || typeof body !== 'object') return body;
+  const clone = structuredClone(body) as { data?: unknown };
+  if (!Array.isArray(clone.data)) return clone;
+  clone.data = clone.data.map((entry) => {
+    if (entry === null || typeof entry !== 'object') return entry;
+    const copy = { ...(entry as Record<string, unknown>) };
+    delete copy.attribution;
+    return copy;
+  });
+  return clone;
 }
 
 interface RouterLike {
@@ -1896,16 +1932,38 @@ describe('gate 5: models versus routing profiles (ADR 0003 invariant 1)', () => 
     }
   });
 
-  it('no catalogue response names a provider or a provider model id', async () => {
+  it('no catalogue response names a provider or a provider model id, outside required attribution', async () => {
     // The model-abstraction rule, asserted against the response rather than
     // against the code that builds it. This is what stops a future "carry the
     // publisher" change from filling `publisher` out of `ModelMapping.modelId`,
     // which would be a provider identifier wearing a publisher's field name.
+    //
+    // ONE field is exempt, added by #139 workstream 17: `attribution` on a
+    // catalogue entry, which carries what an open-weight licence requires be
+    // displayed. Some licences make naming the base model a CONDITION of
+    // serving it, so a census that forbade the naming everywhere would forbid
+    // Alia from complying — the collision epic #139 L608 and L244 share.
+    //
+    // The exemption is a KEY PATH, not a field name: exactly `data[].
+    // attribution` is removed before the scan, and an `attribution` key
+    // anywhere else in the tree fails, so a leak cannot be smuggled by nesting
+    // one. Everything else is still scanned, which is the property the widening
+    // had to keep — the positive control below plants a model id in a SIBLING
+    // field and requires the census to catch it.
     const captured = await runListHandler(await import('../routes/catalogue.js'));
     // The response's own vacuity floor: an empty catalogue leaks nothing and
     // reads exactly like a clean one.
-    expect(captured.body?.data ?? []).toHaveLength(ROUTING_PRESETS.length);
-    const serialized = JSON.stringify(captured.body).toLowerCase();
+    const entries = captured.body?.data ?? [];
+    // The catalogue is keyed by routing profile as of #178, so the floor is the
+    // preset table rather than the alias set.
+    expect(entries).toHaveLength(ROUTING_PRESETS.length);
+    // Every entry carries the field, so "no leak" is not "no field".
+    expect(entries.filter((entry) => Array.isArray(entry.attribution))).toHaveLength(entries.length);
+
+    const censored = censorAttribution(captured.body);
+    // The exemption removed something known-shaped and left the rest alone.
+    expect(JSON.stringify(censored)).not.toContain('"attribution"');
+    expect(JSON.stringify(captured.body)).toContain('"attribution"');
 
     const providers = new Set<string>();
     const modelIds = new Set<string>();
@@ -1919,12 +1977,32 @@ describe('gate 5: models versus routing profiles (ADR 0003 invariant 1)', () => 
     expect(providers.size).toBeGreaterThanOrEqual(10);
     expect(modelIds.size).toBeGreaterThanOrEqual(40);
 
-    const leaked = [...providers, ...modelIds].filter((needle) => serialized.includes(needle));
-    expect(leaked).toEqual([]);
+    const scan = (body: unknown): string[] => {
+      const text = JSON.stringify(censorAttribution(body)).toLowerCase();
+      return [...providers, ...modelIds].filter((needle) => text.includes(needle));
+    };
+
+    expect(scan(captured.body)).toEqual([]);
 
     // The scan's positive control: it CAN see one of these strings when present.
-    const withLeak = JSON.stringify({ ...captured.body, planted: [...modelIds][0] }).toLowerCase();
-    expect([...modelIds].filter((needle) => withLeak.includes(needle))).toHaveLength(1);
+    // Without this, a serializer returning `undefined` reads as leak-free.
+    const planted = [...modelIds][0];
+    expect(scan({ ...captured.body, planted })).toEqual([planted]);
+
+    // The widening's own control, and the mutation the status file names: a
+    // provider model id in a DIFFERENT field of the same entry is still a leak.
+    // Without this the exemption could be broadened to the whole entry and
+    // every assertion above would keep passing.
+    const [first, ...rest] = entries;
+    expect(scan({ ...captured.body, data: [{ ...first, publisher: planted }, ...rest] })).toEqual([planted]);
+    // …while the same string inside the exempt field is permitted, which is the
+    // whole point of the exemption and the thing that must stay true.
+    expect(
+      scan({
+        ...captured.body,
+        data: [{ ...first, attribution: [{ attributed_model: planted }] }, ...rest],
+      }),
+    ).toEqual([]);
   });
 });
 
