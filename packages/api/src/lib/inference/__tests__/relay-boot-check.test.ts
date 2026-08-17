@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 
 import { RELAY_CLIENT_ENABLED_ENV } from '../relay-cutover.js';
 import { RELAY_PRINCIPAL_ENV, relayBootConfigurationFailure } from '../relay-boot-check.js';
+import { RELAY_CREDENTIAL_REQUIRED_ENV } from '../relay-credential.js';
 import { RELAY_ALLOWED_ORIGINS, RELAY_BASE_URL_ENV } from '../relay-endpoint.js';
 
 /**
@@ -80,8 +81,25 @@ const VALID_ENDPOINT: Readonly<Record<string, string>> = {
   [RELAY_BASE_URL_ENV]: RELAY_ALLOWED_ORIGINS[0],
 };
 
+/**
+ * The ApplicationCredential the service-token exchange presents (#139 ws2).
+ *
+ * Separate from {@link VALID_PRINCIPAL} for the same reason the endpoint is: a
+ * principal says who this process CLAIMS to be, and these are what let it prove
+ * it. Derived from the module's own list rather than written out, so a fourth
+ * variable added there arrives covered by the census below instead of silently
+ * uncovered.
+ */
+const VALID_CREDENTIAL: Readonly<Record<string, string>> = Object.fromEntries(
+  RELAY_CREDENTIAL_REQUIRED_ENV.map((variable) => [variable, 'configured']),
+);
+
 /** Everything a flag-on process must have. */
-const VALID_CONFIG: Readonly<Record<string, string>> = { ...VALID_PRINCIPAL, ...VALID_ENDPOINT };
+const VALID_CONFIG: Readonly<Record<string, string>> = {
+  ...VALID_PRINCIPAL,
+  ...VALID_ENDPOINT,
+  ...VALID_CREDENTIAL,
+};
 
 const ENABLED = { [RELAY_CLIENT_ENABLED_ENV]: 'true' } as const;
 
@@ -153,18 +171,24 @@ describe('with the flag on, an unusable principal stops the process', () => {
     const failure = relayBootConfigurationFailure({ ...ENABLED, NODE_ENV: 'production' });
 
     expect(failure).not.toBeNull();
-    // All SIX, in one message. Four is the answer the contract alone gives —
+    // All NINE, in one message. Four is the answer the contract alone gives —
     // an empty `inferenceScopes` parses — and a partial answer sends an operator
     // round the deploy loop once per variable it left out.
-    expect(REQUIRED).toHaveLength(Object.values(RELAY_PRINCIPAL_ENV).length + 1);
+    expect(REQUIRED).toHaveLength(
+      Object.values(RELAY_PRINCIPAL_ENV).length + 1 + RELAY_CREDENTIAL_REQUIRED_ENV.length,
+    );
+    // And the credential half is IN that census rather than beside it: without
+    // this, three variables the process refuses to boot without would be covered
+    // by nothing but the loop that follows, which iterates the same fixture.
+    expect(REQUIRED).toEqual(expect.arrayContaining([...RELAY_CREDENTIAL_REQUIRED_ENV]));
     for (const variable of REQUIRED) {
       expect(failure, variable).toContain(variable);
     }
   });
 
-  it('refuses one missing variable as readily as six', () => {
+  it('refuses one missing variable as readily as nine', () => {
     // The dangerous shape is the partially-configured deployment, not the empty
-    // one: an operator who set five of six has no reason to suspect the sixth.
+    // one: an operator who set eight of nine has no reason to suspect the ninth.
     for (const variable of REQUIRED) {
       const partial: NodeJS.ProcessEnv = {
         ...ENABLED,
@@ -176,6 +200,29 @@ describe('with the flag on, an unusable principal stops the process', () => {
       expect(failure, variable).not.toBeNull();
       expect(failure, variable).toContain(variable);
     }
+  });
+
+  it('refuses a contract-valid principal that can mint no token (#139 ws2)', () => {
+    // The whole credential half absent at once, which is what a deployment
+    // configured from the principal section of a template alone looks like. The
+    // rest of the configuration here is the one the assertions below accept, so
+    // the only difference between booting and not is the credential.
+    const withoutCredential: NodeJS.ProcessEnv = {
+      ...ENABLED,
+      ...VALID_CONFIG,
+      NODE_ENV: 'production',
+    };
+    for (const variable of RELAY_CREDENTIAL_REQUIRED_ENV) delete withoutCredential[variable];
+
+    const failure = relayBootConfigurationFailure(withoutCredential);
+    expect(failure).not.toBeNull();
+    for (const variable of RELAY_CREDENTIAL_REQUIRED_ENV) expect(failure).toContain(variable);
+    // Named as unset, not as a value the contract rejects: they are two
+    // different fixes and the message must not send an operator hunting a typo
+    // in a variable they never set.
+    expect(failure).toContain('are not set');
+    // The floor: an empty required list would make every line above vacuous.
+    expect(RELAY_CREDENTIAL_REQUIRED_ENV).toHaveLength(3);
   });
 
   it('refuses a principal that carries no invoke scope', () => {
@@ -335,7 +382,11 @@ describe('the variable map covers exactly the contract principal', () => {
     expect(template).toContain('DATABASE_URL');
     expect(template.length).toBeGreaterThan(3_000);
 
-    for (const variable of [RELAY_CLIENT_ENABLED_ENV, ...Object.values(RELAY_PRINCIPAL_ENV)]) {
+    for (const variable of [
+      RELAY_CLIENT_ENABLED_ENV,
+      ...Object.values(RELAY_PRINCIPAL_ENV),
+      ...RELAY_CREDENTIAL_REQUIRED_ENV,
+    ]) {
       expect(template).toContain(variable);
     }
   });

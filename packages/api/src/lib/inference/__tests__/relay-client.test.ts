@@ -863,6 +863,32 @@ describe('authentication is an Oxy service token, minted per attempt', () => {
     expect(transport.calls).toHaveLength(1);
   });
 
+  it('invalidates once per rejection, and not at all for any other refusal', async () => {
+    // ONCE PER, which is the half a single-call test cannot state: a client that
+    // invalidated in a loop, or on every terminal error, satisfies the assertion
+    // above. Throwing the cached token away on an `invalid_request` would mean
+    // one badly-formed request cost every other in-flight call a fresh mint.
+    const rejecting = new FakeTransport(() =>
+      Promise.resolve(iterate([errorEvent(0, 'authentication_failed', false)])),
+    );
+    const { client, credential } = harness({ transport: rejecting });
+    await collect(client.stream(call(), new AbortController().signal));
+    await collect(client.stream(call(), new AbortController().signal));
+    await collect(client.stream(call(), new AbortController().signal));
+    expect(credential.invalidated).toBe(3);
+
+    const refusing = new FakeTransport(() =>
+      Promise.resolve(iterate([errorEvent(0, 'invalid_request', false)])),
+    );
+    const other = harness({ transport: refusing });
+    await collect(other.client.stream(call(), new AbortController().signal));
+    expect(other.credential.invalidated).toBe(0);
+    // The floor for that zero: the call happened at all, and it did end in the
+    // refusal it was given. An abort before the transport would produce the same
+    // clean zero for a reason unrelated to the rule.
+    expect(refusing.calls).toHaveLength(1);
+  });
+
   it('is structurally satisfied by the SDK client Alia already constructs', () => {
     // A positive control on the interface itself: `RelayServiceCredential` was
     // written against `@oxyhq/core`'s real surface, so if `getServiceToken` or

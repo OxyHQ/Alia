@@ -24,8 +24,9 @@
  * Putting the check there would put `src/index.ts` on that list, which is the
  * one entry the freeze exists to keep off it. Nothing here constructs a
  * {@link import('./relay-client.js').RelayInferenceClient}, opens a transport or
- * mints a token; it reads five environment variables and asks the contract
- * whether they describe a principal.
+ * mints a token; it reads nine environment variables, asks the contract whether
+ * five of them describe a principal, checks the base URL against the pinned
+ * origins, and asks whether the last three are set at all.
  *
  * ## What "valid" means, and where it comes from
  *
@@ -46,9 +47,9 @@
  * prevent. The shape rules are therefore enforced wherever the flag is on, and
  * the environment-match rule keeps the client's own relaxation.
  *
- * A developer who sets the flag and nothing else is refused, and told the five
- * variable names. That is a thirty-second fix with the answer in the message;
- * booting into a process whose every model call fails is not.
+ * A developer who sets the flag and nothing else is refused, and told every
+ * variable name in one sentence. That is a thirty-second fix with the answer in
+ * the message; booting into a process whose every model call fails is not.
  */
 
 import { authenticatedPrincipalSchema } from '@oxyhq/contracts';
@@ -58,6 +59,7 @@ import {
   resolveDeploymentEnvironment,
   type RelayPrincipalConfig,
 } from './relay-client.js';
+import { unsetRelayCredentialVariables } from './relay-credential.js';
 import { isRelayClientEnabled } from './relay-cutover.js';
 import { RELAY_BASE_URL_ENV, resolveRelayEndpoint } from './relay-endpoint.js';
 
@@ -111,10 +113,23 @@ export function relayBootConfigurationFailure(
    * Requiring the variable to be PRESENT invents nothing: four of the five
    * fields are `min(1)` in the contract and the fifth must carry
    * `inference:invoke` for the client to invoke anything.
+   *
+   * The service-token exchange's variables are folded into the SAME list, by
+   * the same argument — this is the sentence that has to name everything.
+   * A principal describes who this process claims to be and proves nothing: a
+   * deployment with a contract-valid principal and no ApplicationCredential
+   * mints no token at all, and every model call ends in `authentication_failed`
+   * after the flag said the client was ready. Their names live in
+   * `relay-credential.ts` because that is the module that uses them; only the
+   * presence question is asked here, and nothing is exchanged (#139 workstream
+   * 2, *"Configure short-lived Oxy service-token exchange"*).
    */
-  const unset = [...Object.values(RELAY_PRINCIPAL_ENV), RELAY_BASE_URL_ENV]
-    .filter((variable) => (env[variable] ?? '').trim().length === 0)
-    .sort();
+  const unset = [
+    ...[...Object.values(RELAY_PRINCIPAL_ENV), RELAY_BASE_URL_ENV].filter(
+      (variable) => (env[variable] ?? '').trim().length === 0,
+    ),
+    ...unsetRelayCredentialVariables(env),
+  ].sort();
   if (unset.length > 0) {
     return `the Relay client is enabled but these variables are not set: ${unset.join(', ')}`;
   }

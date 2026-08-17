@@ -109,9 +109,14 @@ function resolveSpec(fromFile: string, spec: string): string | null {
 
 const sources = trackedSources('packages/api/src');
 
-/** The modules this workstream added. Frozen so a sixth one is a reviewed line. */
+/** The modules this workstream added. Frozen so a seventh one is a reviewed line. */
 const RELAY_MODULES: readonly string[] = [
   `${RELAY_DIR}/relay-client`,
+  // #139 ws2: the service-token exchange. On this list rather than beside the
+  // boot check because it is subject to the same three constraints — it may not
+  // reach a provider, it may not become the live path, and it holds no dialect —
+  // and because the credential is the one thing a fallback would need.
+  `${RELAY_DIR}/relay-credential`,
   // #139 ws15, *"pin allowed Relay origins/endpoints"*: the allow-list and the
   // branded endpoint type. Added here rather than left outside, so the
   // no-provider and no-fallback censuses below cover it too — it is the one
@@ -203,6 +208,10 @@ describe('nothing in the API imports the Relay client (#139 ws3, constraint 3)',
     // drive one. A test, not a call site — the constraint is that no PRODUCT
     // module imports the client, and this is the fourth of its own tests.
     `${RELAY_DIR}/__tests__/relay-context-minimality.test.ts`,
+    // #139 ws2: the service-token exchange's own suite. It drives the real
+    // `@oxyhq/core` client against a loopback edge, so it mints tokens — from a
+    // test, against a socket it opened itself. No product module is involved.
+    `${RELAY_DIR}/__tests__/relay-credential.test.ts`,
     // #139 ws15: drives the client so it can read what the client SENDS — the
     // delegated identifier, the routing-policy reference and the single
     // credential on the hop. A test importer, so constraint 3 is untouched.
@@ -227,6 +236,10 @@ describe('nothing in the API imports the Relay client (#139 ws3, constraint 3)',
     // happened" without naming the client either.
     `${RELAY_DIR}/relay-boot-check.ts`,
     `${RELAY_DIR}/relay-client.ts`,
+    // #139 ws2: reads `RelayClientConfig['credential']` to type what it returns,
+    // so the shape it satisfies is the client's own rather than a copy of it.
+    // Nothing else about the client is touched — no construction, no transport.
+    `${RELAY_DIR}/relay-credential.ts`,
     `${RELAY_DIR}/relay-openai-adapter.ts`,
     `${RELAY_DIR}/relay-request.ts`,
     // #139 ws17: reads `resolveRoutingTarget` and the contract's routing target

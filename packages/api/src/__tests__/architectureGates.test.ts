@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 
 import { ALIA_MODELS, TIER_MODEL_MAPPINGS, getAllAliaModels, isAliaModel } from '../internal/providers/lib/alia-models.js';
 import { PROVIDER_NAMES } from '../internal/providers/lib/provider-names.js';
+import { PROVIDER_CREDENTIAL_ENV } from '../lib/inference/direct-provider-guard.js';
 import { PROVIDER_API_HOSTS } from '../lib/inference/provider-egress-policy.js';
 import { PRODUCT_MODES } from '../lib/product-modes.js';
 import type { SafeProviderKey } from '../db/providers/providerKeyRepository.js';
@@ -172,6 +173,138 @@ function propertyInitializers(sf: ts.SourceFile, name: string): string[] {
   return out;
 }
 
+/**
+ * Every environment variable a file NAMES, and every read whose name it does
+ * not.
+ *
+ * "A read of `process.env`" is not one syntax. Four spellings reach the same
+ * object and all four occur in these two services:
+ *
+ *  - `process.env.X` and `process.env['X']`;
+ *  - `env.X`, where `env` is a parameter, variable or field declared
+ *    `NodeJS.ProcessEnv` — the whole Relay layer is written this way, so a census
+ *    anchored on the word `process` would read the eight `ALIA_RELAY_*`
+ *    variables as absent;
+ *  - `process.env[expr]`, where the name is not in the expression at all.
+ *
+ * The first three produce a NAME. The fourth cannot, and is returned separately
+ * as an `indirect` site rather than silently dropped: a census that ignored them
+ * would report the same clean list whether or not a provider credential were
+ * being read through one.
+ */
+interface EnvUsage {
+  readonly named: Map<string, Set<string>>;
+  /** `file` for each read whose variable name is not in the expression. */
+  readonly indirect: string[];
+}
+
+/** An environment variable NAME, for the resolvers that read names out of literals. */
+const ENV_NAME_SHAPED = /^[A-Z][A-Z0-9_]{2,}$/;
+
+function envUsage(sources: readonly Source[]): EnvUsage {
+  const named = new Map<string, Set<string>>();
+  const indirect: string[] = [];
+  const record = (name: string, file: string): void => {
+    if (!named.has(name)) named.set(name, new Set());
+    named.get(name)?.add(file);
+  };
+
+  for (const { file, ast } of sources) {
+    // Identifiers this file declares to BE a process environment. Collected per
+    // file rather than by name, so a local variable that happens to be called
+    // `env` and is something else entirely is not read as one.
+    const aliases = new Set<string>();
+    const declarations = (n: ts.Node): void => {
+      if (
+        (ts.isParameter(n) || ts.isVariableDeclaration(n) || ts.isPropertySignature(n) || ts.isPropertyDeclaration(n)) &&
+        n.type !== undefined &&
+        n.type.getText(ast).replace(/\s/g, '') === 'NodeJS.ProcessEnv' &&
+        ts.isIdentifier(n.name)
+      ) {
+        aliases.add(n.name.text);
+      }
+      ts.forEachChild(n, declarations);
+    };
+    declarations(ast);
+
+    const isEnv = (n: ts.Node): boolean => {
+      if (ts.isPropertyAccessExpression(n) && n.name.text === 'env' && ts.isIdentifier(n.expression) && n.expression.text === 'process') {
+        return true;
+      }
+      if (ts.isIdentifier(n) && aliases.has(n.text)) return true;
+      return ts.isPropertyAccessExpression(n) && aliases.has(n.name.text);
+    };
+
+    const visit = (n: ts.Node): void => {
+      if (ts.isPropertyAccessExpression(n) && isEnv(n.expression)) record(n.name.text, file);
+      if (ts.isElementAccessExpression(n) && isEnv(n.expression)) {
+        const argument = n.argumentExpression;
+        if (ts.isStringLiteralLike(argument)) record(argument.text, file);
+        else indirect.push(file);
+      }
+
+      /**
+       * Resolver 1 — `envFlag('X')`. `lib/autonomy/flags.ts` reads
+       * `process.env[name]` through a helper, so its five variables are named at
+       * the CALL and nowhere else.
+       */
+      if (ts.isCallExpression(n) && ts.isIdentifier(n.expression) && n.expression.text === 'envFlag') {
+        const first = n.arguments[0];
+        if (first !== undefined && ts.isStringLiteralLike(first) && ENV_NAME_SHAPED.test(first.text)) {
+          record(first.text, file);
+        }
+      }
+
+      /**
+       * Resolver 2 — the OAuth registry. `integration-token.ts` and
+       * `routes/integrations-oauth.ts` index `process.env` with a field read off
+       * `lib/integration-registry.ts`, so the names live in that table.
+       */
+      if (
+        ts.isPropertyAssignment(n) &&
+        (ts.isIdentifier(n.name) || ts.isStringLiteral(n.name)) &&
+        (n.name.text === 'envClientId' || n.name.text === 'envClientSecret') &&
+        ts.isStringLiteralLike(n.initializer) &&
+        ENV_NAME_SHAPED.test(n.initializer.text)
+      ) {
+        record(n.initializer.text, file);
+      }
+
+      /**
+       * Resolver 3 — a `*_ENV` constant. The convention the Relay layer follows
+       * (`RELAY_CLIENT_ENABLED_ENV`, `RELAY_PRINCIPAL_ENV`,
+       * `RELAY_CREDENTIAL_ENV`): a module that indexes an environment with its
+       * own map holds the names as a constant whose binding ends in `_ENV`. That
+       * is what makes those reads resolvable at all, and this check is what
+       * keeps the convention worth following.
+       */
+      if (ts.isVariableDeclaration(n) && ts.isIdentifier(n.name) && n.name.text.endsWith('_ENV') && n.initializer !== undefined) {
+        // `as const satisfies Record<…>` is two wrappers, and unwrapping neither
+        // reads zero names off a map that has five.
+        let initializer: ts.Expression = n.initializer;
+        while (ts.isAsExpression(initializer) || ts.isSatisfiesExpression(initializer) || ts.isParenthesizedExpression(initializer)) {
+          initializer = initializer.expression;
+        }
+        const literals: string[] = [];
+        if (ts.isStringLiteralLike(initializer)) literals.push(initializer.text);
+        if (ts.isObjectLiteralExpression(initializer)) {
+          for (const property of initializer.properties) {
+            if (ts.isPropertyAssignment(property) && ts.isStringLiteralLike(property.initializer)) {
+              literals.push(property.initializer.text);
+            }
+          }
+        }
+        for (const literal of literals) if (ENV_NAME_SHAPED.test(literal)) record(literal, file);
+      }
+
+      ts.forEachChild(n, visit);
+    };
+    visit(ast);
+  }
+
+  return { named, indirect };
+}
+
 // ===========================================================================
 // The scanner's own positive controls
 // ===========================================================================
@@ -230,6 +363,34 @@ describe('the scanner recognises every form it claims to handle', () => {
     expect(propertyInitializers(parse("const o = { 'a': f(x) };"), 'a')).toEqual(['f(x)']);
     expect(propertyInitializers(parse('const o = { a: 1 };\nconst p = { a: 2 };'), 'a')).toEqual(['1', '2']);
     expect(propertyInitializers(parse('/* { a: leak } */ const x = 1;'), 'a')).toEqual([]);
+  });
+
+  it('reads an environment variable however the read is spelled', () => {
+    const probe = (text: string): EnvUsage => envUsage([{ file: 'probe.ts', ast: parse(text) }]);
+    const names = (text: string): string[] => [...probe(text).named.keys()];
+
+    expect(names(`const a = process.env.PLAIN;`)).toEqual(['PLAIN']);
+    expect(names(`const a = process.env['BRACKET'];`)).toEqual(['BRACKET']);
+    expect(names(`function f(env: NodeJS.ProcessEnv) { return env.ALIASED; }`)).toEqual(['ALIASED']);
+    expect(names(`function f(env: NodeJS.ProcessEnv) { return env['ALIASED_BRACKET']; }`)).toEqual(['ALIASED_BRACKET']);
+    expect(names(`interface C { readonly env?: NodeJS.ProcessEnv }\nconst v = c.env.FIELD;`)).toEqual(['FIELD']);
+    expect(names(`const a = envFlag('FROM_HELPER', true);`)).toEqual(['FROM_HELPER']);
+    expect(names(`const r = { envClientId: 'FROM_REGISTRY', envClientSecret: 'FROM_REGISTRY_SECRET' };`)).toEqual([
+      'FROM_REGISTRY',
+      'FROM_REGISTRY_SECRET',
+    ]);
+    expect(names(`const X_ENV = 'FROM_CONSTANT';`)).toEqual(['FROM_CONSTANT']);
+    expect(names(`const X_ENV = { a: 'FROM_MAP_A', b: 'FROM_MAP_B' } as const satisfies Record<string, string>;`)).toEqual([
+      'FROM_MAP_A',
+      'FROM_MAP_B',
+    ]);
+
+    // The negative halves. A comment quoting a read is not a read, an unrelated
+    // `.env` is not an environment, and a name the expression does not carry is
+    // reported as indirect rather than as nothing at all.
+    expect(names(`// const a = process.env.GHOST;\nconst x = 1;`)).toEqual([]);
+    expect(names(`const a = settings.env.NOT_AN_ENVIRONMENT;`)).toEqual([]);
+    expect(probe(`const a = process.env[name];`)).toEqual({ named: new Map(), indirect: ['probe.ts'] });
   });
 
   it('scans a non-trivial number of files, so a clean result means clean', () => {
@@ -1780,5 +1941,505 @@ describe('gate 5: models versus routing profiles (ADR 0003 invariant 1)', () => 
     // Without this, a serializer returning `undefined` reads as leak-free.
     const withLeak = JSON.stringify({ ...captured.body, planted: [...modelIds][0] }).toLowerCase();
     expect([...modelIds].filter((needle) => withLeak.includes(needle))).toHaveLength(1);
+  });
+});
+
+// ===========================================================================
+// Gate 6 — no provider credential in the deployment environment (#139 ws15)
+// ===========================================================================
+
+/**
+ * #139 workstream 15: *"Remove provider API keys from Alia deployment
+ * environments after Relay cutover."*
+ *
+ * ## Why this gate exists even though the property already held
+ *
+ * It held BY ABSENCE. The audit that measured it (`docs/migration/epic-139-status.json`,
+ * the row for the line quoted above) found no provider credential read anywhere
+ * in either backend, verified its own grep against a positive control, and then
+ * recorded the thing that matters more than the finding: **adding
+ * `process.env.OPENAI_API_KEY` to any source file failed nothing.** A property
+ * that nothing enforces is a property that holds until the next PR, and this one
+ * is load-bearing for the whole migration — the point of routing through Relay
+ * is that Alia stops holding upstream credentials.
+ *
+ * Upstream credentials live in the `provider_keys` table, which is gate 4's
+ * subject. This gate is about the OTHER place a credential can sit: the process
+ * environment, where nothing types it, nothing projects it and no repository
+ * mediates access.
+ *
+ * ## Two nets, and they fail for different reasons
+ *
+ *  1. **The permitted list** — every variable either backend reads, frozen by
+ *     exact set equality in both directions. A NEW variable of any kind fails,
+ *     including one this gate has never heard of, which is the only way to catch
+ *     a provider nobody registered (`api.brand-new-provider.example` has the same
+ *     problem in gate 2 and the same answer).
+ *  2. **The prohibition** — no variable anywhere, tests included, may be
+ *     provider-credential SHAPED. This one cannot be satisfied by editing the
+ *     permitted list, which is the point: for net 1 the cheapest green is "add a
+ *     line", and for a provider key that must not be enough.
+ *
+ * ## The cheapest way to make each half green
+ *
+ * Net 1: record the new variable here, a reviewable line in a file whose purpose
+ * is being read in review — and NOT the hazard. Net 2: do not name a provider
+ * credential; the only alternative is an entry in
+ * {@link PROVIDER_CREDENTIAL_EXEMPTIONS}, which holds one line, states why, and
+ * is exact-count asserted. The hazard for both is the same direction — a
+ * credential arriving in the environment with no diff here — and both fail on it.
+ *
+ * ## What this gate cannot see, stated rather than implied
+ *
+ * A variable this repository never names. The ECS task definition and the SSM
+ * parameters live in `~/Oxy/oxy-infra`, so a key injected there and read by
+ * nothing would be invisible here — and harmless for exactly that reason, since
+ * a credential no code reads reaches no provider. The half of that surface which
+ * IS in this repository is `deploy-aws.yml`, and it is asserted below.
+ */
+
+/**
+ * Every environment variable the two deployed services read, frozen exactly.
+ *
+ * Non-test source only, and for the same reason gate 2's egress freeze excludes
+ * tests: fixture variables churn with ordinary test edits, while this list is
+ * meant to be the deployment's own configuration surface. A provider credential
+ * in a TEST is still caught — by the prohibition below, which scans everything.
+ */
+const PERMITTED_ENV_VARS: readonly string[] = [
+  'AGENT_MAX_DURATION_MS',
+  'ALIA_API_URL',
+  'ALIA_RELAY_ACCOUNT_ID',
+  'ALIA_RELAY_APPLICATION_ID',
+  'ALIA_RELAY_CLIENT_ENABLED',
+  'ALIA_RELAY_CREDENTIAL_ID',
+  'ALIA_RELAY_CREDENTIAL_KEY',
+  'ALIA_RELAY_CREDENTIAL_SECRET',
+  'ALIA_RELAY_ENVIRONMENT',
+  'ALIA_RELAY_INFERENCE_SCOPES',
+  'API_BASE_URL',
+  'APP_URL',
+  'AUTONOMY_APPROVALS_ENABLED',
+  'AUTONOMY_APPROVAL_TIMEOUT_MS',
+  'AUTONOMY_CONTEXT_GRAPH_ENABLED',
+  'AUTONOMY_OXY_EVENTS_ENABLED',
+  'AUTONOMY_ROLLBACK_ENABLED',
+  'AUTONOMY_ROLLBACK_WINDOW_MINUTES',
+  'AUTONOMY_RUNTIME_ENABLED',
+  'AWS_ACCESS_KEY_ID',
+  'AWS_CDN_URL',
+  'AWS_ENDPOINT_URL',
+  'AWS_REGION',
+  'AWS_S3_BUCKET',
+  'AWS_SECRET_ACCESS_KEY',
+  'CA_CERT',
+  'CONTAINER_POOL_SIZE',
+  'CROWDSOURCE_BASE_URL',
+  'CROWDSOURCE_ENABLED',
+  'CROWDSOURCE_ENFORCEMENT_MODE',
+  'CROWDSOURCE_OUTBOX_BATCH_SIZE',
+  'CROWDSOURCE_OUTBOX_POLL_INTERVAL_MS',
+  'CROWDSOURCE_SERVICE_KEY',
+  'CROWDSOURCE_WEBHOOK_SECRET',
+  'CROWDSOURCE_WEBHOOK_SECRET_PREVIOUS',
+  'DATABASE_URL',
+  'DEPRECATION_DOCS_URL',
+  'DISCORD_APP_ID',
+  'DISCORD_BOT_ENABLED',
+  'DISCORD_BOT_SECRET',
+  'DISCORD_BOT_TOKEN',
+  'DISCORD_PUBLIC_KEY',
+  'DOCKER_HOST_SECRET',
+  'DOCKER_HOST_URL',
+  'DRY_RUN',
+  'GATEWAY_API_URL',
+  'GMAIL_ENABLED',
+  'GOOGLE_OAUTH_CLIENT_ID',
+  'GOOGLE_OAUTH_CLIENT_SECRET',
+  'INTEGRATIONS_SECRET',
+  'INTEGRATIONS_URL',
+  'LIVEKIT_API_KEY',
+  'LIVEKIT_API_SECRET',
+  'LIVEKIT_INTERNAL_URL',
+  'LIVEKIT_URL',
+  'LOG_LEVEL',
+  'MONGODB_URI',
+  'NODE_ENV',
+  'OXY_API_URL',
+  'PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH',
+  'PORT',
+  'REDIS_CA_CERT',
+  'REDIS_URL',
+  'RELAY_BASE_URL',
+  'SERVICE_SECRET',
+  'SHELL',
+  'SIGNAL_BOT_SECRET',
+  'SIGNAL_CLI_PATH',
+  'SIGNAL_CLI_URL',
+  'SIGNAL_ENABLED',
+  'SIGNAL_PHONE_NUMBER',
+  'SLACK_BOT_SECRET',
+  'SLACK_BOT_TOKEN',
+  'SLACK_SIGNING_SECRET',
+  'STRIPE_SECRET_KEY',
+  'STRIPE_WEBHOOK_SECRET',
+  'TELEGRAM_API_HASH',
+  'TELEGRAM_API_ID',
+  'TELEGRAM_BOT_ENABLED',
+  'TELEGRAM_BOT_SECRET',
+  'TELEGRAM_BOT_TOKEN',
+  'TELEGRAM_GATEWAY_ENABLED',
+  'TEST_DATABASE_URL',
+  'TOKEN_ENCRYPTION_KEY',
+  'VAPID_PRIVATE_KEY',
+  'VAPID_PUBLIC_KEY',
+  'VAPID_SUBJECT',
+  'WEB_URL',
+  'WHATSAPP_ACCESS_TOKEN',
+  'WHATSAPP_APP_SECRET',
+  'WHATSAPP_BOT_SECRET',
+  'WHATSAPP_ENABLED',
+  'WHATSAPP_GATEWAY_SECRET',
+  'WHATSAPP_GATEWAY_URL',
+  'WHATSAPP_PHONE_NUMBER_ID',
+  'WHATSAPP_VERIFY_TOKEN',
+];
+
+/**
+ * The exact-count assertion the list needs, so it cannot grow one defensible
+ * line at a time.
+ *
+ * 96 as of #139 ws2: 96 read today, after this workstream removed one and #139
+ * ws15 added `RELAY_BASE_URL`. The one removed was a vestigial `GROK_API_KEY`
+ * read in `providers/grok-voice.ts`, inside a disjunction ending in `|| true`.
+ * It answered the same for every environment, so deleting it changed nothing
+ * except that the last provider-credential read in either service is gone — and
+ * the prohibition below would now fail on it.
+ */
+const PERMITTED_ENV_VAR_COUNT = 96;
+
+/**
+ * Vendor tokens that name an inference provider but are not in `PROVIDER_NAMES`.
+ *
+ * The registered names are the primary source — a twentieth provider registered
+ * in `provider-names.ts` is forbidden here without anybody editing this file,
+ * which is the same derivation gate 2 uses for hostnames. These two are the
+ * MODEL-FAMILY names the same vendors are also known by, which is what a
+ * credential variable tends to be called in practice: the read this workstream
+ * deleted was `GROK_API_KEY`, not `XAI_API_KEY`.
+ */
+const PROVIDER_VENDOR_ALIASES: Readonly<Record<string, string>> = {
+  grok: 'xAI\'s model family. The name the deleted read used.',
+  gemini: 'Google\'s model family, as `generativelanguage.googleapis.com` serves it.',
+};
+
+/** Segments that make a variable a credential rather than a setting. */
+const CREDENTIAL_SEGMENTS: readonly string[] = [
+  'KEY',
+  'KEYS',
+  'SECRET',
+  'SECRETS',
+  'TOKEN',
+  'TOKENS',
+  'PASSWORD',
+  'CREDENTIAL',
+  'CREDENTIALS',
+  'APIKEY',
+];
+
+/**
+ * Variables that name a vendor and a secret and are still not a provider
+ * credential.
+ *
+ * ONE line, and it is the Google OAuth application secret that authenticates
+ * Alia to Gmail, Calendar and Drive for ACCOUNT LINKING (`integration-registry.ts`).
+ * It reaches `oauth2.googleapis.com`, never `generativelanguage.googleapis.com`,
+ * and it buys no inference.
+ *
+ * This is the list somebody reaches for when the prohibition goes red, which is
+ * why it carries an exact count: a second entry has to be an edit to a number in
+ * a file that is read in review, and it has to survive the question this comment
+ * asks — what does the credential buy?
+ */
+const PROVIDER_CREDENTIAL_EXEMPTIONS: Readonly<Record<string, string>> = {
+  GOOGLE_OAUTH_CLIENT_SECRET: 'OAuth app secret for Gmail/Calendar/Drive account linking. Buys no inference.',
+};
+
+/**
+ * Whether a variable name is one an inference provider would authenticate.
+ *
+ * Segment-based, never substring: `TOGETHER` as a whole segment is the provider,
+ * while a substring match would also fire on a variable that merely contains the
+ * letters. Both halves are required — `GOOGLE_OAUTH_CLIENT_ID` names a vendor
+ * and no secret, `TOKEN_ENCRYPTION_KEY` names a secret and no vendor, and
+ * neither is a provider credential.
+ */
+function namesProviderCredential(variable: string): boolean {
+  const segments = variable.toUpperCase().split('_');
+  const vendors = new Set([...PROVIDER_NAMES, ...Object.keys(PROVIDER_VENDOR_ALIASES)].map((v) => v.toUpperCase()));
+  return (
+    segments.some((segment) => vendors.has(segment)) &&
+    segments.some((segment) => CREDENTIAL_SEGMENTS.includes(segment))
+  );
+}
+
+/**
+ * The files that read an environment variable whose name is not in the
+ * expression, frozen exactly.
+ *
+ * Eight, and each one's names are resolved by a named resolver in
+ * {@link envUsage} — the helper reads them out of the `envFlag` call, the OAuth
+ * registry table or the module's own `*_ENV` constant. The freeze is what stops
+ * a NINTH indirection landing whose names no resolver knows, which would be a
+ * hole in the permitted list rather than an entry in it.
+ */
+const INDIRECT_ENV_READERS: readonly { file: string; namesFrom: string; resolver: string }[] = [
+  {
+    file: 'packages/api/src/lib/autonomy/flags.ts',
+    namesFrom: 'packages/api/src/lib/autonomy/flags.ts',
+    resolver: "`envFlag('X')` arguments, in the same file as the helper that indexes the environment.",
+  },
+  {
+    file: 'packages/api/src/lib/inference/relay-boot-check.ts',
+    namesFrom: 'packages/api/src/lib/inference/relay-boot-check.ts',
+    resolver: 'The `RELAY_PRINCIPAL_ENV` map: five contract fields, five variables.',
+  },
+  {
+    file: 'packages/api/src/lib/inference/relay-cutover.ts',
+    namesFrom: 'packages/api/src/lib/inference/relay-cutover.ts',
+    resolver: 'The `RELAY_CLIENT_ENABLED_ENV` constant: the migration flag (#139 ws8).',
+  },
+  {
+    file: 'packages/api/src/lib/inference/relay-endpoint.ts',
+    namesFrom: 'packages/api/src/lib/inference/relay-endpoint.ts',
+    resolver: 'The `RELAY_BASE_URL_ENV` constant: the pinned endpoint (#139 ws15).',
+  },
+  {
+    file: 'packages/api/src/lib/inference/direct-provider-guard.ts',
+    namesFrom: 'packages/api/src/lib/inference/direct-provider-guard.ts',
+    resolver:
+      'The `GATEWAY_URL_ENV` constant, plus `PROVIDER_CREDENTIAL_ENV` — a DERIVED list of names no source reads, checked below rather than through a resolver.',
+  },
+  {
+    file: 'packages/api/src/lib/inference/relay-credential.ts',
+    namesFrom: 'packages/api/src/lib/inference/relay-credential.ts',
+    resolver: 'The `RELAY_CREDENTIAL_ENV` map and `OXY_API_URL_ENV` (#139 ws2).',
+  },
+  {
+    file: 'packages/api/src/lib/integration-token.ts',
+    namesFrom: 'packages/api/src/lib/integration-registry.ts',
+    resolver: 'The registry\'s `envClientId` / `envClientSecret` fields, in ANOTHER file.',
+  },
+  {
+    file: 'packages/api/src/routes/integrations-oauth.ts',
+    namesFrom: 'packages/api/src/lib/integration-registry.ts',
+    resolver: 'Same registry table, read by the OAuth route.',
+  },
+];
+
+/**
+ * How many such reads there are in total.
+ *
+ * The file list alone would not notice a new indirect read inside a file that is
+ * already on it, and that is precisely where one would land.
+ */
+const INDIRECT_ENV_READ_SITES = 17;
+
+/**
+ * Every secret `deploy-aws.yml` puts into this deployment's environment.
+ *
+ * The closest thing in this repository to the deployment environment itself: the
+ * workflow syncs exactly these ten from GitHub repository secrets into SSM, and
+ * the ECS task definition reads them from there. Frozen because the checkbox is
+ * about what the deployment HOLDS, and a census over source answers a related
+ * but different question — a key can sit in an environment that no line of code
+ * reads, and the day something starts reading it is not the day it arrived.
+ */
+const DEPLOYED_SECRETS: readonly string[] = [
+  'AWS_ACCESS_KEY_ID',
+  'AWS_SECRET_ACCESS_KEY',
+  'DATABASE_URL',
+  'LIVEKIT_API_KEY',
+  'LIVEKIT_API_SECRET',
+  'REDIS_URL',
+  'SERVICE_SECRET',
+  'TOKEN_ENCRYPTION_KEY',
+  'VAPID_PRIVATE_KEY',
+  'VAPID_PUBLIC_KEY',
+];
+
+describe('gate 6: no provider credential in the deployment environment (#139 ws15)', () => {
+  const services = trackedSources('packages/api/src', 'packages/integrations/src');
+  const deployed = services.filter((source) => !isTestFile(source.file));
+  const everywhere = envUsage(services);
+  const production = envUsage(deployed);
+
+  it('read both services, so an empty offender list means absence', () => {
+    // Vacuity floors, in the same currency as the measurement. `git ls-files`
+    // returning nothing, a wrong pathspec or a failed parse all produce a clean
+    // census that is clean about nothing.
+    expect(deployed.length).toBeGreaterThanOrEqual(450);
+    expect(deployed.filter((s) => s.file.startsWith('packages/integrations/src')).length).toBeGreaterThanOrEqual(20);
+    expect(production.named.size).toBeGreaterThanOrEqual(80);
+
+    // Positive controls, CHOSEN rather than found, one per spelling the scanner
+    // has to handle in the real tree:
+    //  - `process.env.LOG_LEVEL` in the logger — the plainest form there is;
+    //  - `ALIA_RELAY_CLIENT_ENABLED`, which is reachable ONLY through an
+    //    injected `NodeJS.ProcessEnv` and a `*_ENV` constant, so its presence
+    //    proves the alias and constant resolvers both ran (it lives in
+    //    `relay-cutover.ts` since #139 ws8 split the flag out of the client);
+    //  - `AUTONOMY_RUNTIME_ENABLED`, which exists only as an `envFlag` argument.
+    expect(production.named.get('LOG_LEVEL')).toContain('packages/api/src/lib/logger.ts');
+    expect(production.named.get('ALIA_RELAY_CLIENT_ENABLED')).toContain(
+      'packages/api/src/lib/inference/relay-cutover.ts',
+    );
+    expect(production.named.get('AUTONOMY_RUNTIME_ENABLED')).toContain('packages/api/src/lib/autonomy/flags.ts');
+  });
+
+  it('the permitted list is exactly as long as it says it is', () => {
+    expect(PERMITTED_ENV_VARS).toHaveLength(PERMITTED_ENV_VAR_COUNT);
+    expect(new Set(PERMITTED_ENV_VARS).size).toBe(PERMITTED_ENV_VAR_COUNT);
+    // Sorted, so a new entry is added where it belongs rather than appended
+    // where nobody reads.
+    expect([...PERMITTED_ENV_VARS]).toEqual([...PERMITTED_ENV_VARS].sort());
+  });
+
+  it('reads exactly the permitted variables, and every permitted one is still read', () => {
+    // Set equality in BOTH directions. A new variable fails, and so does a
+    // removed one — if you deleted the last read of something, delete its line
+    // here too, which is how this list stays a description of the deployment
+    // rather than a wish about it.
+    expect([...production.named.keys()].sort()).toEqual([...PERMITTED_ENV_VARS].sort());
+  });
+
+  it('names no provider credential anywhere, tests included', () => {
+    const offenders = [...everywhere.named.keys()]
+      .filter((variable) => namesProviderCredential(variable))
+      .filter((variable) => PROVIDER_CREDENTIAL_EXEMPTIONS[variable] === undefined)
+      .map((variable) => `${variable} read by ${[...(everywhere.named.get(variable) ?? [])].sort().join(', ')}`);
+    expect(offenders).toEqual([]);
+
+    // The predicate's own positive control. "No offender" is also what a
+    // predicate that answers `false` for everything reports, and that predicate
+    // would be green forever.
+    for (const planted of [
+      'OPENAI_API_KEY',
+      'ANTHROPIC_API_KEY',
+      'GROK_API_KEY',
+      'GEMINI_API_KEY',
+      'XAI_KEY',
+      'TOGETHER_API_TOKEN',
+      'DIGITALOCEAN_TOKEN',
+      'CLOUDFLARE_API_TOKEN',
+    ]) {
+      expect(namesProviderCredential(planted)).toBe(true);
+    }
+    // And the negative half, so the predicate is not simply `true`: a vendor
+    // with no secret, a secret with no vendor, and this deployment's own keys.
+    for (const permitted of [
+      'GOOGLE_OAUTH_CLIENT_ID',
+      'TOKEN_ENCRYPTION_KEY',
+      'AWS_SECRET_ACCESS_KEY',
+      'STRIPE_SECRET_KEY',
+      'ALIA_RELAY_CREDENTIAL_SECRET',
+    ]) {
+      expect(namesProviderCredential(permitted)).toBe(false);
+    }
+  });
+
+  it('holds one exemption, and it is still needed and still not inference', () => {
+    expect(Object.keys(PROVIDER_CREDENTIAL_EXEMPTIONS)).toHaveLength(1);
+    // Each exemption must be BOTH shaped like a provider credential (or it is
+    // exempting nothing and is a stale line) and actually read (or it is
+    // describing a variable that no longer exists).
+    for (const variable of Object.keys(PROVIDER_CREDENTIAL_EXEMPTIONS)) {
+      expect(namesProviderCredential(variable)).toBe(true);
+      expect(everywhere.named.has(variable)).toBe(true);
+    }
+    // The vendor aliases carry the same requirement in the other direction: an
+    // alias that duplicates a registered provider name would be a line that
+    // changes nothing.
+    expect(Object.keys(PROVIDER_VENDOR_ALIASES)).toHaveLength(2);
+    expect(Object.keys(PROVIDER_VENDOR_ALIASES).filter((alias) => PROVIDER_NAMES.includes(alias as never))).toEqual([]);
+  });
+
+  it('resolves every indirect read through a named resolver, from exactly eight files', () => {
+    expect([...new Set(production.indirect)].sort()).toEqual(
+      INDIRECT_ENV_READERS.map((entry) => entry.file).sort(),
+    );
+    expect(production.indirect).toHaveLength(INDIRECT_ENV_READ_SITES);
+    expect(INDIRECT_ENV_READERS).toHaveLength(8);
+
+    // Each indirection's names must actually have been resolved, out of the file
+    // this list says holds them. Asserted per entry rather than in aggregate: a
+    // resolver that stopped working is invisible in a total, and the two OAuth
+    // readers are the case that makes the distinction real — their names live in
+    // `integration-registry.ts`, so "the reader resolved something" would be
+    // false for them even when the census is complete.
+    for (const { file, namesFrom } of INDIRECT_ENV_READERS) {
+      const resolved = [...production.named.entries()]
+        .filter(([, files]) => files.has(namesFrom))
+        .map(([name]) => name);
+      expect({ file, resolved: resolved.length > 0 }).toEqual({ file, resolved: true });
+      expect(resolved.filter((name) => !PERMITTED_ENV_VARS.includes(name))).toEqual([]);
+    }
+  });
+
+  it('agrees with the boot guard that refuses a provider credential at runtime', () => {
+    /**
+     * The two mechanisms for this checkbox, held to each other.
+     *
+     * `PROVIDER_CREDENTIAL_ENV` (`lib/inference/direct-provider-guard.ts`, #139
+     * ws8) is the RUNTIME half: with the cutover flag on, a process whose
+     * ENVIRONMENT carries any of those variables refuses to start. This gate is
+     * the SOURCE half: it runs in CI on every PR, with the flag off everywhere,
+     * and says which variables the code may read. Neither subsumes the other —
+     * the guard cannot see a key a source file reads while the flag is off, and
+     * a census over source cannot see a key set in a task definition that no
+     * code reads.
+     *
+     * What they must agree on is the SHAPE. Every name that guard would refuse
+     * must be one this gate's predicate also rejects, and none of them may be
+     * permitted here. Without this, the two lists drift and each one's authors
+     * believe the other covers what they left out.
+     */
+    expect(PROVIDER_CREDENTIAL_ENV.filter((variable) => !namesProviderCredential(variable))).toEqual([]);
+    expect(PROVIDER_CREDENTIAL_ENV.filter((variable) => PERMITTED_ENV_VARS.includes(variable))).toEqual([]);
+    // Floor: an emptied list satisfies both filters. Two per registered provider
+    // plus the one that does not follow the naming (`GROK_API_KEY`).
+    expect(PROVIDER_CREDENTIAL_ENV.length).toBe(PROVIDER_NAMES.length * 2 + 1);
+    expect(PROVIDER_CREDENTIAL_ENV).toContain('GROK_API_KEY');
+  });
+
+  it('the deploy workflow injects exactly the frozen secrets, and none is a provider key', () => {
+    const workflow = readFileSync(path.join(REPO_ROOT, '.github/workflows/deploy-aws.yml'), 'utf8');
+    // Comments stripped first. This file's own comment block NAMES three
+    // org-wide credentials while explaining why they must not be copied here,
+    // and a census that counted prose would read the explanation as the crime.
+    const active = workflow
+      .split('\n')
+      .filter((line) => !line.trimStart().startsWith('#'))
+      .join('\n');
+
+    // Vacuity floor: a moved or emptied workflow references no secret at all,
+    // which is exactly what "no provider key" looks like.
+    expect(active.length).toBeGreaterThan(1_000);
+    expect(active).toContain('secrets.DATABASE_URL');
+
+    const referenced = [...new Set([...active.matchAll(/secrets\.([A-Z][A-Z0-9_]*)/g)].map((m) => m[1]))].sort();
+    expect(referenced).toEqual([...DEPLOYED_SECRETS].sort());
+    expect(DEPLOYED_SECRETS).toHaveLength(10);
+    expect(referenced.filter((secret) => namesProviderCredential(secret))).toEqual([]);
+
+    // And every secret this deployment carries is one the code actually reads.
+    // A secret in the environment that nothing reads is the shape a leftover
+    // provider key would have — including the day somebody starts reading it.
+    expect(referenced.filter((secret) => !PERMITTED_ENV_VARS.includes(secret))).toEqual([]);
+
+    // The comment-stripping control: the three names the prose mentions are
+    // NOT counted, and the scan can see them when they are not comments.
+    expect(workflow).toContain('CLOUDFLARE_API_TOKEN');
+    expect(referenced).not.toContain('CLOUDFLARE_API_TOKEN');
   });
 });
