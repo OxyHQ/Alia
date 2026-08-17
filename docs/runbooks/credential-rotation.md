@@ -265,6 +265,48 @@ target group health-checks `/health/live`, which consults nothing
 key revoked stays IN the load balancer and keeps accepting requests it cannot
 serve. Readiness will tell you; the load balancer will not act on it.
 
+### Expiry is enforced
+
+Setting `expires_at` on a row takes that key out of service the moment it passes.
+The check is in the selection loop beside the cooldown and credit-limit skips
+(`packages/api/src/internal/providers/lib/key-manager.ts`), so it behaves like
+them: a third expiry-shaped reason a key can be present, active and still not
+chosen.
+
+```sql
+-- Retire a key at a planned time rather than switching it off by hand.
+UPDATE provider_keys SET expires_at = :when WHERE id = :id;
+-- Undo it. NULL means no expiry; it never means "expired long ago".
+UPDATE provider_keys SET expires_at = NULL WHERE id = :id;
+```
+
+Two things to know before you use it:
+
+- **It is not a revocation.** The credential still works upstream and is still
+  stored in `key` — only Alia stops choosing it. To revoke, archive the row and
+  rotate at the provider.
+- **Every refusal logs.** `Key past expires_at, skipping` at WARN, naming
+  `keyPrefix` and `expiresAt`. If routing degrades after a deploy, that line
+  distinguishes an expiry from a cooldown or an exhausted credit limit — which is
+  why the check sits in the selection loop rather than in the SQL that loads the
+  keys. A row filtered out in the query cannot report that it was filtered.
+
+**This was NOT enforced before #139**, so a deployment may hold rows whose
+`expires_at` is already in the past, set by somebody who observed that it did
+nothing. Those keys stop serving the first time a task starts with this change.
+Count them before deploying:
+
+```sql
+SELECT id, name, provider, key_prefix, expires_at
+FROM provider_keys
+WHERE is_active AND NOT is_archived
+  AND expires_at IS NOT NULL AND expires_at <= now();
+```
+
+An empty result means this change alters no behaviour. If it returns rows, decide
+per row whether the expiry was meant — clearing it to `NULL` restores the old
+behaviour for that key without reverting anything.
+
 ---
 
 ## Developer API keys (`alia_sk_*`)
@@ -591,11 +633,8 @@ Named explicitly, because each is a step that looks runnable here and is not:
   has was never built in `packages/api`. *Owner: the #139 epic owner —
   workstream 18's `Remove provider secrets from Alia runtime` may make the
   question moot.*
-- **Is there a rotation schedule?** `provider_keys.rotation_schedule` exists with
-  a `manual` default (`providers.ts:365`–`:367`) and `expires_at` beside it
-  (`:364`). Both appear only in the schema and in the safe projection
-  (`providerKeyRepository.ts:117`–`:118`); no code branches on either — measured
-  against `cooldown_until`, which is read as a routing decision at
-  `key-manager.ts:121`. So an EXPIRED key is still selected and still used. They
-  are recorded intent, not enforcement, and a reader who assumes otherwise will
-  believe expiry is handled. *Owner: the #139 epic owner.*
+- **Is there a rotation SCHEDULE?** `provider_keys.rotation_schedule` exists with
+  a `manual` default (`providers.ts:365`–`:367`) and still nothing branches on
+  it: no sweeper warns that a key is due, and nothing acts when it is. It is
+  recorded intent. `expires_at` beside it is no longer in that category — see
+  *Expiry is enforced* above. *Owner: the #139 epic owner.*

@@ -12,13 +12,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  * Three properties, and each is checked where it can fail:
  *
  *  1. **Every configuration writer emits one.** Derived structurally, from what a
- *     function DOES to the five tables, not from what it is called. The writer
- *     census in `routes/__tests__/inference-boundary.test.ts` matches names
- *     beginning `create|update|delete|upsert|set|reset|mark`, and three real
+ *     function DOES to the five tables, not from what it is called. Six real
  *     mutations of these tables — `replaceProviderMappings`, `rotateProviderKey`
- *     and the four `recordKey*` functions — begin with something else and were
- *     invisible to it. A name-based census cannot see a writer that is not named
- *     like one.
+ *     and the four `recordKey*` functions — are named nothing like a writer, and
+ *     a name-based census cannot see a writer that is not named like one. The
+ *     caller census in `routes/__tests__/inference-boundary.test.ts` was exactly
+ *     that until #139 and so had never asked its question about any of the six;
+ *     it now derives its set with this same predicate.
  *  2. **The record carries no credential and no content.** Enforced by an
  *     allow-list, and tested by feeding it a row that HAS a credential.
  *  3. **The record names an actor.** A required parameter, asserted on every
