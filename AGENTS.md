@@ -23,9 +23,14 @@ Express backend, `alia-chat` is published as `@alia.onl/sdk`, and
 `integrations` owns the MCP client. `packages/alia-codea/webview-ui` is its
 own workspace entry, one higher than the directory listing suggests.
 
-**CI is coupled to `api.github.com`** — `libsignal` resolves via a `github:`
-dependency pinned to a commit; a 504 there fails `Install dependencies` or
-`Set up job` with an error that looks nothing like a real dependency problem.
+**CI is coupled to `api.github.com`/`codeload.github.com`, TRANSITIVELY** —
+`packages/integrations`'s `baileys` dep pulls in `libsignal` via a `github:`
+commit pin; Alia's own manifests never name it (visible only in `bun.lock`,
+not a `github:` grep of `package.json`). A degraded GitHub tarball host fails
+ANY `bun install` job, not just WhatsApp ones, at `Install dependencies` — the
+job name is not diagnostic. Signatures:
+`codeload.github.com/…/legacy.tar.gz/… - 429`,
+`api.github.com/repos/…/tarball/… - 504`.
 
 ## Expo SDK override gotcha
 
@@ -95,8 +100,8 @@ Key files: `models/oxy-service.ts`, `lib/tools/oxy-services.ts`
 "Connectors" are **MCP servers** that give the AI tools, surfaced in a
 ChatGPT-plugins-style catalog at `/settings/connectors` — the sanctioned
 substrate for third-party tools. Do NOT add bespoke per-service tool code; the
-old hand-written OAuth "Integrations" were retired, and only Google Calendar
-and Drive remain there for lack of a hosted MCP.
+old hand-written OAuth "Integrations" were retired; only Google Calendar and
+Drive remain, lacking a hosted MCP.
 
 - **The MCP client is the official `@modelcontextprotocol/sdk`**, living in
   `packages/integrations` (`src/mcp/manager.ts`), never hand-rolled JSON-RPC.
@@ -163,18 +168,16 @@ TTS fails over across providers via `synthesize-speech.ts` and
 
 Do not construct a second `new WebSocketServer({ server, path })` alongside
 socket.io on the same Node `http.Server`. Use `{ noServer: true }` plus one
-`server.on('upgrade')` router. Reference: `lib/mcp-relay.ts`.
+`server.on('upgrade')` router. See `lib/mcp-relay.ts`.
 
 ## UI conventions (packages/app)
 
-- Bloom theming via NativeWind ONLY: surfaces, text and borders use semantic
-  classes (`bg-background`, `text-muted-foreground`, `border-border`) mapped in
-  `global.css` to Bloom tokens. When a JS color VALUE is unavoidable
-  (LinearGradient stops, navigation options, SVG props) use
+- Bloom theming via NativeWind ONLY (semantic classes in `global.css`, e.g.
+  `bg-background`/`text-muted-foreground`/`border-border`). For an unavoidable
+  JS color VALUE (gradient stops, navigation options, SVG props) use
   `useColorScheme().colors` (`lib/useColorScheme`) and `withAlpha` from
-  `@oxyhq/bloom/theme`. Never hex-concat alpha (`color + "08"`), and never use
-  the `transparent` keyword as a fade stop toward a surface; fade to
-  `withAlpha(surface, 0)`.
+  `@oxyhq/bloom/theme`. Never hex-concat alpha (`color + "08"`); fade to
+  `withAlpha(surface, 0)`, never the `transparent` keyword.
 - Responsive: pure styling uses NativeWind `md:` classes. JS screen-size checks
   go through `useIsLargeScreen()` (`lib/hooks/use-is-large-screen.ts`, which
   exports `MD_BREAKPOINT`) and ONLY for logic (drawer type, handlers,
@@ -196,23 +199,22 @@ the package must resolve and typecheck cleanly under a real external install, no
 just inside this monorepo.
 
 - **No phantom deps, no hard-imported optional peers.** Anything `src/` imports
-  unconditionally (a static `import`, a top-level `export * from`) MUST be a
-  regular `dependency` or a REQUIRED peer. An optional peer is not installed by
-  consumers, so a hard import only ever "worked" through orphaned entries in a
-  consumer's own lockfile and fails Metro resolution on a clean install. Truly
-  optional integrations must use lazy `import()` or a guarded `require()`.
+  unconditionally (a static `import`, an `export * from`) MUST be a regular
+  `dependency` or a REQUIRED peer. An optional peer is not installed by
+  consumers, so a hard import only ever "worked" through orphaned lockfile
+  entries and fails Metro resolution on a clean install. Truly optional
+  integrations must use lazy `import()` or a guarded `require()`.
   Promoting a peer to required re-hoists consumers' `node_modules` and can
-  surface TS2742 (non-portable inferred types) on their exported consts. Fix that
-  at the consumer by annotating the export with the package's PUBLIC types, not
-  by reverting the peer to optional.
-- **Never ship an ambient `declare module` shim for a package that has real
-  installed types.** It shadows that package's REAL `.d.ts` program-wide in every
-  consumer, not just locally, which can silently break the consumer's own valid
-  calls against the real package AND mask a real SDK bug (code compiling against
-  an invented export name instead of erroring). Always validate types against the
-  real package's own `.d.ts`. The only sanctioned `/// <reference>` is a real
-  package's own type augmentation such as `nativewind/types`, never a
-  hand-written shim.
+  surface TS2742 (non-portable inferred types) on their exported consts — fix
+  it at the consumer with the package's PUBLIC types, not by reverting the
+  peer.
+- **Never ship an ambient `declare module` shim for a package with real
+  installed types.** It shadows the REAL `.d.ts` program-wide in every
+  consumer, silently breaking the consumer's own valid calls AND masking a
+  real SDK bug (code compiling against an invented export name instead of
+  erroring). Validate types against the package's own `.d.ts`; the only
+  sanctioned `/// <reference>` is a real package's own augmentation (e.g.
+  `nativewind/types`), never a hand-written shim.
 - `package.json` carries a `files` allowlist. Keep it: without one, a stray local
   artifact (a `bun pm pack` tarball left in the package dir, for instance) gets
   swept into the published tarball.
