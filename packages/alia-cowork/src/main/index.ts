@@ -420,10 +420,22 @@ function setupIPC(): void {
     await requestScreenRecordingPermission()
   })
 
-  // Tool execution
-  ipcMain.handle('tool:execute', async (_, toolName, args) => {
-    return toolExecutor.execute(toolName, args)
-  })
+  /*
+   * `tool:execute` is deleted rather than repaired.
+   *
+   * `ToolExecutor` has no `execute` method and never has: it exposes eighteen
+   * named methods (`readFile`, `writeFile`, `browserAction`, …) and `chat.ts`
+   * dispatches on the tool name with an explicit switch over them. So this
+   * handler could only ever have thrown "toolExecutor.execute is not a function"
+   * — and it could not be reached to do it, because nothing invokes the channel:
+   * the preload bridge exposes no caller for it, `src/types` declares none, and
+   * the renderer's only dynamic bridge (`window.electron`) offers `on`/`off` and
+   * no `invoke`. The single reference to `'tool:execute'` in this package was
+   * this registration.
+   *
+   * If a renderer ever needs generic tool execution, the thing to expose is
+   * `chat.ts`'s existing switch, not a method invented to satisfy this line.
+   */
 
   // Authentication
   ipcMain.handle('auth:signIn', async () => {
