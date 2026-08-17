@@ -343,6 +343,12 @@ export interface OpenAIChatCompletionChunk {
  * branch for a cancellation it initiated, and inventing a finish reason outside
  * the dialect's closed set would break the clients this adapter exists to serve.
  * The unlossy record is the contract's `done` event, which the caller still has.
+ *
+ * `refusal` is the same shape with a different neighbour: OpenAI carries a
+ * model's refusal in the message's `refusal` field and still finishes the choice
+ * as `stop`, so `stop` is the dialect's own answer here rather than a
+ * concession — `content_filter` would claim a SAFETY SYSTEM intervened when the
+ * model itself declined.
  */
 const FINISH_REASON: Readonly<
   Record<
@@ -354,6 +360,7 @@ const FINISH_REASON: Readonly<
   length: 'length',
   tool_calls: 'tool_calls',
   content_filter: 'content_filter',
+  refusal: 'stop',
   cancelled: 'stop',
 };
 
