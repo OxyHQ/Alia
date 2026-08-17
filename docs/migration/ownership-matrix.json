@@ -3789,6 +3789,7 @@
       "domain": "provider-runtime",
       "kind": "module",
       "currentPath": "packages/integrations/src/shared/model-resolver.ts",
+      "removedIn": "#184",
       "reachable": "dead",
       "owner": "delete",
       "targetPath": "delete",
@@ -3799,7 +3800,7 @@
       ],
       "removalGate": "NONE. Scoped symbol census over packages/integrations/**/*.ts: resolveModel / createAIModel / reportUsage appear only in this file; positive control \u2014 createOpenAI also appears only here, and browser/tools.ts + terminal/tools.ts prove the scan sees other integrations files. Deleting it also removes the last need for the 3 @ai-sdk/* deps in that package.  || product-api inventory adds: Delete outright. It is the last in-repo artefact of the provider-key-handout model and it names OpenAI/Anthropic/Google/Groq/Together/Cerebras/Mistral/DeepSeek/OpenRouter in shipped source, which is exactly what the model-abstraction rule forbids. No caller to migrate.",
       "provenance": "inventory-provider-runtime",
-      "evidence": "packages/integrations/src/shared/model-resolver.ts:25, :56, :85-108; endpoint now 410 at packages/api/src/routes/v1.ts:109-115 and packages/api/src/routes/codea.ts:235-241; packages/integrations/src/shared/model-resolver.ts:25,71,86-107"
+      "evidence": "packages/integrations/src/shared/model-resolver.ts:25, :56, :85-108; endpoint now 410 at packages/api/src/routes/v1.ts:109-115 and packages/api/src/routes/codea.ts:235-241; packages/integrations/src/shared/model-resolver.ts:25,71,86-107; removed in #184 after an AST census over all 1310 tracked JS/TS files found zero importers (static, type-only, import(), require() and vi.mock), with shared/api-client.ts (8 importers) and shared/chat-handler.ts (3) as positive controls proving the scan sees importers inside that package"
     },
     {
       "id": "internal-readme-gateway-diagram",
@@ -4606,9 +4607,9 @@
       "dependsOn": [
         "integrations-model-resolver"
       ],
-      "removalGate": "NONE beyond deleting model-resolver.ts. `ai` itself must stay (browser/tools.ts:5, terminal/tools.ts:5).",
+      "removalGate": "DONE in #184: the three dependencies are gone from packages/integrations/package.json and from bun.lock. `ai` itself stays (browser/tools.ts:5, terminal/tools.ts:5). This row carries no `removedIn` because its currentPath is a package.json that still exists, so the matrix\u2019s own existence check cannot verify it \u2014 gate 7 of packages/api/src/__tests__/architectureGates.test.ts does instead, asserting that packages/api is the ONLY manifest declaring an @ai-sdk provider package.",
       "provenance": "inventory-provider-runtime",
-      "evidence": "packages/integrations/package.json; sole importer packages/integrations/src/shared/model-resolver.ts:6-8"
+      "evidence": "packages/integrations/package.json (no @ai-sdk/* since #184); the sole importer, packages/integrations/src/shared/model-resolver.ts:6-8, was deleted in the same commit"
     },
     {
       "id": "sdk-livekit-alia-chat",

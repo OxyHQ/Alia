@@ -15,9 +15,6 @@
     "db:migrate": "bun src/db/migrate.ts"
   },
   "dependencies": {
-    "@ai-sdk/anthropic": "^3.0.96",
-    "@ai-sdk/google": "^3.0.91",
-    "@ai-sdk/openai": "^3.0.84",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@oxyhq/core": "^19.1.2",
     "@oxyhq/db": "^0.1.2",
