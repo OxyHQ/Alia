@@ -415,9 +415,19 @@ describe('model and routing configuration has no unaudited write path (#139 ws15
    *
    * The checkbox asks for audit logs on configuration changes. The finding is
    * that **there is no configuration change to audit**: the admin surface that
-   * used to make them was retired (#141), and of the fifteen writers below, nine
-   * have no runtime caller at all, three are boot seeding, one is a script, and
-   * two are automatic key HEALTH rather than configuration a person chose.
+   * used to make them was retired (#141), and of the twenty-one mutations below,
+   * eleven have no runtime caller at all, three are boot seeding, one is a
+   * script, and six are automatic key HEALTH rather than configuration a person
+   * chose.
+   *
+   * Those counts changed without a single line of repository code changing. The
+   * census used to derive its writer set from NAMES, matching
+   * `create|update|delete|upsert|set|reset|mark`, and six real mutations of these
+   * tables begin with something else: `rotateProviderKey`,
+   * `replaceProviderMappings` and the four `recordKey*` functions. They were not
+   * unmapped, they were unSEEN — the caller question was never asked about them
+   * at all, and `rotateProviderKey` replaces a live provider credential. The set
+   * is now derived from what a function DOES to the tables.
    *
    * So the deliverable is this map. A writer gaining a request-driven caller
    * fails here, and the fix at that moment is an audit record plus a line in
@@ -457,6 +467,25 @@ describe('model and routing configuration has no unaudited write path (#139 ws15
       'lib/gateway-client.ts',
       'services/chat.service.ts',
     ],
+    // The four `recordKey*` mutations, invisible to the name-based census this
+    // block used to run and so never caller-checked before. Same classification
+    // as the two above: automatic key HEALTH, written because an upstream said
+    // no rather than because a person configured anything.
+    recordKeyFailure: [
+      'internal/providers/lib/key-manager.ts',
+      'internal/providers/lib/provider-api.ts',
+      'lib/gateway-client.ts',
+    ],
+    recordKeySpend: ['internal/providers/lib/key-manager.ts'],
+    recordKeySuccess: [
+      'internal/providers/lib/key-manager.ts',
+      'internal/providers/lib/provider-api.ts',
+      'lib/gateway-client.ts',
+    ],
+    recordKeyUsage: [
+      'internal/providers/lib/key-manager.ts',
+      'internal/providers/lib/provider-api.ts',
+    ],
   };
 
   /** Writers with no runtime caller. Nothing to audit because nothing calls them. */
@@ -467,6 +496,16 @@ describe('model and routing configuration has no unaudited write path (#139 ws15
     'deleteAliaModel',
     'deleteModelConfig',
     'deleteProviderKey',
+    // Module-private: every caller is inside `db/providers/`, which the caller
+    // census excludes. `config-audit.test.ts` separately requires it to stay
+    // unexported — the moment it is exported it is a public routing mutation
+    // with no record of its own.
+    'replaceProviderMappings',
+    // Exported, replaces a live credential in place, and reached by nothing.
+    // This is the entry the name-based census could not hold, and the reason
+    // the derivation above changed: a rotation acquiring a request-driven
+    // caller is exactly the event this block exists to catch.
+    'rotateProviderKey',
     'updateAliaModel',
     'updateModelConfig',
     'updateProviderKey',
@@ -479,26 +518,66 @@ describe('model and routing configuration has no unaudited write path (#139 ws15
    * Still empty, and it means something narrower than it did. Since #139 ws15
    * every configuration writer emits a `config.change` record from inside the
    * repository, so the audit itself is no longer this list's job —
-   * `lib/security/__tests__/config-audit.test.ts` owns it, derives the writer
-   * set from what a function DOES to the five tables rather than from its name,
-   * and therefore also covers `rotateProviderKey` and
-   * `replaceProviderMappings`, which the `create|update|delete|upsert|set|reset|mark`
-   * pattern below cannot see.
+   * `lib/security/__tests__/config-audit.test.ts` owns it.
    *
    * What this list still asks is the question that file cannot: whether a writer
    * has acquired a caller on the request path, which would make the ACTOR a
    * request's user rather than the seed. That is a caller census, and it stays
-   * here.
+   * here. The two files now derive the same set the same way, which is what
+   * makes their answers comparable — before that, this one was asking its
+   * question of a strictly smaller set and nothing said so.
    */
   const AUDITED: readonly string[] = [];
 
+  /**
+   * The five tables a configuration change touches.
+   *
+   * The predicate is `.insert(<one of these>)` rather than a bare `.update(`,
+   * because `crypto.createHash('sha256').update(key)` is a `.update(` too and
+   * naming the tables is what tells a hash from a write. Deliberately the same
+   * predicate `lib/security/__tests__/config-audit.test.ts` uses: that file asks
+   * whether each mutation AUDITS, this one asks who CALLS it, and the two
+   * questions are only comparable if they are asked of the same set.
+   */
+  const CONFIG_TABLES = [
+    'aliaModels',
+    'aliaModelProviderMappings',
+    'modelConfigs',
+    'providerKeys',
+    'externalModels',
+  ] as const;
+
+  const MUTATES = new RegExp(
+    `\\.(?:insert|update|delete)\\s*\\(\\s*(?:${CONFIG_TABLES.join('|')})\\b`,
+  );
+
+  /**
+   * Every top-level function in the four repositories that MUTATES one of them.
+   *
+   * Derived from what a function DOES, on the AST, rather than from what it is
+   * called. This used to match names beginning
+   * `create|update|delete|upsert|set|reset|mark`, and six real mutations —
+   * `rotateProviderKey`, `replaceProviderMappings` and the four `recordKey*`
+   * functions — begin with something else and were invisible to it. The caller
+   * question below was therefore never asked about them: `rotateProviderKey`
+   * replaces a live credential, and it could have acquired a request-driven
+   * caller without this file noticing.
+   *
+   * A name-based census answers "is it called something that sounds like a
+   * writer", which is not the question. Reading the AST also means a mention in
+   * a comment or a string is not a definition, so `code()`'s comment stripping
+   * is not needed here.
+   */
   const writers = (): string[] => {
     const found: string[] = [];
     for (const repository of REPOSITORIES) {
-      for (const match of code(repository).matchAll(
-        /export async function (create|update|delete|upsert|set|reset|mark)([A-Za-z0-9_]*)/g,
-      )) {
-        found.push(`${match[1]}${match[2]}`);
+      const text = read(repository);
+      const source = ts.createSourceFile(repository, text, ts.ScriptTarget.Latest, true);
+      for (const statement of source.statements) {
+        if (!ts.isFunctionDeclaration(statement) || statement.name === undefined) continue;
+        if (statement.body === undefined) continue;
+        if (!MUTATES.test(statement.body.getText(source))) continue;
+        found.push(statement.name.text);
       }
     }
     return found.sort();
@@ -526,8 +605,15 @@ describe('model and routing configuration has no unaudited write path (#139 ws15
   it('every writer is mapped: audited, boot-only, or uncalled', () => {
     const found = writers();
     // The floor before the equality: the repositories were read.
-    expect(found.length).toBeGreaterThanOrEqual(15);
+    expect(found.length).toBeGreaterThanOrEqual(21);
     expect(found).toContain('upsertModelConfig');
+    // The positive control for the DERIVATION, not just the read: these two are
+    // mutations whose names match no writer verb, so their presence is what
+    // distinguishes the AST census from the name census it replaced. If this
+    // ever regresses to matching names, this line goes red rather than the
+    // count quietly dropping to 15.
+    expect(found).toContain('rotateProviderKey');
+    expect(found).toContain('recordKeyFailure');
 
     const mapped = [...Object.keys(CALLED_BY), ...UNCALLED, ...AUDITED].sort();
     // Exact, not a subset: an unmapped writer fails, and so does a stale entry
@@ -559,6 +645,13 @@ describe('model and routing configuration has no unaudited write path (#139 ws15
     // The other direction: a NEW admin surface would more likely arrive as a
     // route than as a caller of an existing writer. `#141` retired the gateway
     // admin, so the expected count is zero, with the floor proving the scan ran.
+    //
+    // The names come from the census rather than a literal list. The list here
+    // was nine hand-written ones and carried the same blind spot the census did:
+    // a route calling `rotateProviderKey` matched nothing and passed. No route
+    // calls ANY of these today — every caller in the map above is a lib, an
+    // internal module, a service or a script — so the stronger invariant is
+    // also the true one, and it maintains itself as writers come and go.
     const routes = execFileSync('git', ['ls-files', '--', 'packages/api/src/routes'], {
       cwd: REPO_ROOT,
       encoding: 'utf8',
@@ -567,13 +660,12 @@ describe('model and routing configuration has no unaudited write path (#139 ws15
       .filter((file) => file.endsWith('.ts') && !file.includes('/__tests__/'));
 
     expect(routes.length).toBeGreaterThan(20);
+    const mutations = writers();
+    expect(mutations.length).toBeGreaterThanOrEqual(21);
+    const calls = new RegExp(`\\b(?:${mutations.join('|')})\\s*\\(`);
     const offenders = routes
       .map((file) => path.relative(API_SRC, path.join(REPO_ROOT, file)))
-      .filter((relative) =>
-        /\b(createModelConfig|updateModelConfig|deleteModelConfig|createProviderKey|updateProviderKey|deleteProviderKey|createAliaModel|updateAliaModel|deleteAliaModel)\s*\(/.test(
-          code(relative),
-        ),
-      );
+      .filter((relative) => calls.test(code(relative)));
     expect(offenders).toEqual([]);
   });
 });

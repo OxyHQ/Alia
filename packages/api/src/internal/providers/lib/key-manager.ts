@@ -123,6 +123,19 @@ export async function getBestKeyForModel(
       continue;
     }
 
+    // Skip keys whose credential has EXPIRED. Null means NO EXPIRY, never
+    // "expired at the epoch" — nothing writes this column, so nearly every row
+    // is null and getting that wrong empties the pool.
+    //
+    // Here rather than in `loadActiveProviderKeys` for two reasons: it is
+    // `now`-relative runtime state like its two neighbours, and a row filtered
+    // out in SQL cannot be logged as skipped. `warn` rather than their `debug`
+    // because a cooldown clears itself and an expiry needs a person.
+    if (key.expiresAt && key.expiresAt <= now) {
+      log.keys.warn({ keyPrefix: key.keyPrefix, provider: key.provider, expiresAt: key.expiresAt }, 'Key past expires_at, skipping');
+      continue;
+    }
+
     // Skip keys that have exceeded their credit limit. Null means UNLIMITED.
     if (key.creditLimitUsd != null && key.spentUsd >= key.creditLimitUsd) {
       log.keys.debug({ keyPrefix: key.keyPrefix, provider: key.provider, spentUSD: key.spentUsd, creditLimitUSD: key.creditLimitUsd }, 'Key credit exhausted, skipping');
@@ -159,7 +172,11 @@ export async function getBestKeyForModel(
     };
   }
 
-  log.keys.warn({ provider }, 'All keys rate-limited or in cooldown');
+  // Names every reason the loop above can exhaust the pool, not two of them.
+  // The old message said "rate-limited or in cooldown", which sent whoever read
+  // it looking at rate limits when the cause was an exhausted credit limit, a
+  // key with no stored value, or now an expired one.
+  log.keys.warn({ provider }, 'No usable key: all are skipped, expired, rate-limited, in cooldown, credit-exhausted or valueless');
   return null;
 }
 

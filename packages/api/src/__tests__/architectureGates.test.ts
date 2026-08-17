@@ -1332,6 +1332,12 @@ const PROVIDER_KEY_READERS: readonly string[] = [
   'packages/api/src/db/__tests__/providerKeyRepository.pgdb.test.ts',
   'packages/api/src/db/__tests__/providers.pgdb.test.ts',
   'packages/api/src/db/providers/providerKeyRepository.ts',
+  // Names the repository in a `vi.mock` factory rather than reading a row: it
+  // REPLACES the module, so no real key is loaded and the fixtures carry an
+  // invented credential. Listed anyway rather than exempted by a test-file rule,
+  // because the module reference is real and an exemption shaped like "tests are
+  // fine" would also cover a test that genuinely reads one.
+  'packages/api/src/internal/providers/lib/__tests__/key-expiry.test.ts',
   'packages/api/src/internal/providers/lib/key-manager.ts',
   'packages/api/src/internal/providers/lib/seed-model-configs.ts',
 ];
@@ -1445,7 +1451,7 @@ describe('gate 4: no provider secret reaches a public serializer (ADR 0001)', ()
     }
 
     expect([...readers].sort()).toEqual([...PROVIDER_KEY_READERS].sort());
-    expect(PROVIDER_KEY_READERS).toHaveLength(5);
+    expect(PROVIDER_KEY_READERS).toHaveLength(6);
     expect([...readers].filter((f) => f.startsWith('packages/api/src/routes/'))).toEqual([]);
   });
 
