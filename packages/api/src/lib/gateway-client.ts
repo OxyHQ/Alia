@@ -631,7 +631,10 @@ export async function getTierMappings(): Promise<Record<string, ModelMapping[]>>
 export async function getModelMappingsForTier(tier: string): Promise<ModelMapping[]> {
   if (GATEWAY_API_ENABLED) {
     const mappings = await getTierMappings();
-    return mappings[tier] ?? [];
+    // `Object.hasOwn`, not `??`: `tier` derives from a caller-supplied model
+    // identifier, and `mappings` is a plain object, so `mappings['constructor']`
+    // is a function that `??` happily passes through as a mapping list.
+    return Object.hasOwn(mappings, tier) ? mappings[tier] : [];
   }
 
   const { getModelMappingsForTier: localGetMappings } = await import('../internal/providers/lib/alia-models.js');

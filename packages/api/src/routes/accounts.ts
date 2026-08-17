@@ -78,13 +78,25 @@ async function proxyToIntegrations(
 
 const authed = [authenticateToken, requireIntegrations] as const;
 
-// Platform -> integrations service path mapping (adapter name may differ from platform)
-const PLATFORM_PATHS: Record<string, string> = {
-  whatsapp: 'accounts/whatsapp',
-  telegram: 'accounts/telegram-gateway',
-  signal: 'accounts/signal-gateway',
-  gmail: 'accounts/gmail',
-};
+/**
+ * Platform -> integrations service path (the adapter name may differ from the
+ * platform).
+ *
+ * A `Map` rather than an object literal, and that is the fix rather than a
+ * style choice. `platform` is `req.params.platform`, and every one of the eight
+ * reads below is followed by an `if (!servicePath)` refusal — which an object
+ * literal defeats: `PLATFORM_PATHS.get('constructor')` is the `Object` constructor,
+ * truthy, so the guard passed and a function was interpolated into the
+ * integrations URL. `Map.get` cannot return an inherited property, so all eight
+ * sites are correct at once and a ninth added later inherits the fix instead of
+ * having to remember it.
+ */
+const PLATFORM_PATHS = new Map<string, string>([
+  ['whatsapp', 'accounts/whatsapp'],
+  ['telegram', 'accounts/telegram-gateway'],
+  ['signal', 'accounts/signal-gateway'],
+  ['gmail', 'accounts/gmail'],
+]);
 
 // OAuth state store for Gmail connect flow
 const gmailOAuthStates = new Map<string, { userId: string; accountId: string; expiresAt: number }>();
@@ -295,7 +307,7 @@ router.post('/:platform/connect', ...authed, async (req, res) => {
   const db = getDb();
   let account: ConnectedAccountSafeRow | null = null;
   try {
-    const servicePath = PLATFORM_PATHS[platform];
+    const servicePath = PLATFORM_PATHS.get(platform);
     if (!servicePath) {
       return res.status(400).json({ error: `Unsupported platform: ${platform}` });
     }
@@ -361,7 +373,7 @@ router.get('/:id/status', authenticateToken, async (req: express.Request<{ id: s
 
     // If has sessionId, also fetch live status from integrations
     if (account.sessionId) {
-      const servicePath = PLATFORM_PATHS[account.platform];
+      const servicePath = PLATFORM_PATHS.get(account.platform);
       if (servicePath) {
         try {
           const response = await fetch(
@@ -416,7 +428,7 @@ router.get('/:id/qr', ...authed, async (req: express.Request<{ id: string }>, re
       return res.status(404).json({ error: 'Account not found or no active session' });
     }
 
-    const servicePath = PLATFORM_PATHS[account.platform];
+    const servicePath = PLATFORM_PATHS.get(account.platform);
     if (!servicePath) {
       return res.status(400).json({ error: 'Platform does not support QR' });
     }
@@ -445,7 +457,7 @@ router.post('/:id/disconnect', ...authed, async (req: express.Request<{ id: stri
 
     // Disconnect in integrations service
     if (account.sessionId) {
-      const servicePath = PLATFORM_PATHS[account.platform];
+      const servicePath = PLATFORM_PATHS.get(account.platform);
       if (servicePath) {
         try {
           await fetch(`${INTEGRATIONS_URL}/${servicePath}/sessions/${account.sessionId}/disconnect`, {
@@ -477,7 +489,7 @@ router.get('/:id/chats', ...authed, async (req: express.Request<{ id: string }>,
       return res.status(404).json({ error: 'Account not found or not connected' });
     }
 
-    const servicePath = PLATFORM_PATHS[account.platform];
+    const servicePath = PLATFORM_PATHS.get(account.platform);
     if (!servicePath) {
       return res.status(400).json({ error: 'Platform does not support chats' });
     }
@@ -503,7 +515,7 @@ router.get('/:id/chats/:chatId/messages', ...authed, async (req: express.Request
       return res.status(404).json({ error: 'Account not found or not connected' });
     }
 
-    const servicePath = PLATFORM_PATHS[account.platform];
+    const servicePath = PLATFORM_PATHS.get(account.platform);
     if (!servicePath) {
       return res.status(400).json({ error: 'Platform does not support messages' });
     }
@@ -530,7 +542,7 @@ router.post('/:id/send', ...authed, async (req: express.Request<{ id: string }>,
       return res.status(404).json({ error: 'Account not found or not connected' });
     }
 
-    const servicePath = PLATFORM_PATHS[account.platform];
+    const servicePath = PLATFORM_PATHS.get(account.platform);
     if (!servicePath) {
       return res.status(400).json({ error: 'Platform does not support sending' });
     }
@@ -598,7 +610,7 @@ router.delete('/:id', authenticateToken, async (req: express.Request<{ id: strin
 
     // Disconnect in integrations service
     if (account.sessionId) {
-      const servicePath = PLATFORM_PATHS[account.platform];
+      const servicePath = PLATFORM_PATHS.get(account.platform);
       if (servicePath) {
         try {
           await fetch(`${INTEGRATIONS_URL}/${servicePath}/sessions/${account.sessionId}/disconnect`, {

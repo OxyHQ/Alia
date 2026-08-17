@@ -124,7 +124,11 @@ function resolveEndpointPath(
   // Replace {param} placeholders with actual values
   const paramRegex = /\{(\w+)\}/g;
   path = path.replace(paramRegex, (_match, paramName) => {
-    const value = remaining[paramName];
+    // `paramName` is a `{placeholder}` out of the service manifest and `\w+`
+    // matches `constructor` as happily as `id`. `remaining` is a spread, so it
+    // inherits `Object.prototype` — the value would not be `undefined` and the
+    // "missing required path parameter" refusal below would not fire.
+    const value: unknown = Object.hasOwn(remaining, paramName) ? remaining[paramName] : undefined;
     delete remaining[paramName];
     if (value === undefined || value === null) {
       throw new Error(`Missing required path parameter: ${paramName}`);

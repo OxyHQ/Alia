@@ -113,5 +113,10 @@ function getContentType(extension: string): string {
     flac: 'audio/flac',
   };
 
-  return contentTypes[extension.toLowerCase()] || 'application/octet-stream';
+  // The extension comes off an uploaded FILENAME, so it is the caller's string.
+  // `contentTypes['constructor']` is a function, truthy, so `||` never fired and
+  // the S3 object was written with `function Object() { [native code] }` as its
+  // Content-Type.
+  const normalized = extension.toLowerCase();
+  return Object.hasOwn(contentTypes, normalized) ? contentTypes[normalized] : 'application/octet-stream';
 }

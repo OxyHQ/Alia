@@ -242,24 +242,44 @@ import { log } from '../../../lib/logger.js';
 export const TIER_MODEL_MAPPINGS = GENERATED_TIER_MAPPINGS;
 
 /**
- * Get Alia model by ID
+ * Get Alia model by ID.
+ *
+ * `Object.hasOwn` rather than a truthy read, because `modelId` is the caller's
+ * own string — `req.body.model` reaches here — and `ALIA_MODELS` is an object
+ * literal, so it inherits from `Object.prototype`. `ALIA_MODELS['constructor']`
+ * is the `Object` CONSTRUCTOR: truthy, so `|| null` never fires, and the
+ * function returned an `AliaModel`-typed function for five identifiers no
+ * caller registered. `toString`, `valueOf`, `hasOwnProperty` and `__proto__`
+ * are the others.
  */
 export function getAliaModel(modelId: string): AliaModel | null {
-  return ALIA_MODELS[modelId] || null;
+  return Object.hasOwn(ALIA_MODELS, modelId) ? ALIA_MODELS[modelId] : null;
 }
 
 /**
- * Check if a model ID is an Alia model
+ * Check if a model ID is an Alia model.
+ *
+ * `in` walks the prototype chain, so this answered TRUE for those same five
+ * identifiers — and it is the gate `fallback-engine.ts` uses to decide whether
+ * to refuse an unregistered identifier. Passing it sent a request that can
+ * never succeed down the resolution path, where it died as "no mappings for
+ * tier" and surfaced as a 503: precisely the outcome the comment at that
+ * refusal says must not happen, because a 503 is indistinguishable from an
+ * infrastructure failure and invites a retry.
  */
 export function isAliaModel(modelId: string): boolean {
-  return modelId in ALIA_MODELS;
+  return Object.hasOwn(ALIA_MODELS, modelId);
 }
 
 /**
- * Get model mappings for a tier
+ * Get model mappings for a tier.
+ *
+ * `AliaTier` is a closed union, but `lib/gateway-client.ts` calls this through
+ * `localGetMappings(tier as never)` with a plain `string`, so the type is not
+ * the guard it looks like and the same inherited-property read applies.
  */
 export function getModelMappingsForTier(tier: AliaTier): ModelMapping[] {
-  return TIER_MODEL_MAPPINGS[tier] || [];
+  return Object.hasOwn(TIER_MODEL_MAPPINGS, tier) ? TIER_MODEL_MAPPINGS[tier] : [];
 }
 
 /**

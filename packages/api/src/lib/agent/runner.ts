@@ -125,9 +125,12 @@ function selectModelForStep(ctx: StepContext): string {
     'alia-v1-pro-max': 4,
   };
 
-  const sorted = [...allowedModels].sort(
-    (a, b) => (tierOrder[a] ?? 1) - (tierOrder[b] ?? 1),
-  );
+  // `?? 1` does not catch an inherited property: `tierOrder['constructor']` is a
+  // function, and `function - function` is NaN, which makes the comparator
+  // return NaN and the sort order arbitrary. The ids come from the caller's
+  // entitlements, so they are stored user input.
+  const rank = (id: string): number => (Object.hasOwn(tierOrder, id) ? tierOrder[id] : 1);
+  const sorted = [...allowedModels].sort((a, b) => rank(a) - rank(b));
 
   const cheapest = sorted[0];
   const mid = sorted[Math.floor(sorted.length / 2)];

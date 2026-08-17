@@ -591,6 +591,24 @@ const PROVIDER_IMPORT_ALLOWLIST: readonly { from: string; to: string; via: Modul
     why: 'A route driving a provider realtime session directly. Moves to Relay (#139 ws7).',
   },
   {
+    from: 'packages/api/src/__tests__/prototype-keyed-lookups.test.ts',
+    to: 'packages/api/src/internal/providers/lib/alia-models',
+    via: 'dynamic',
+    why: 'Drives the real model-identity gate with the five names an object literal inherits, which is where the worst instance of that bug class lived. Test-only; retires when the catalogue moves to Relay.',
+  },
+  {
+    from: 'packages/api/src/__tests__/prototype-keyed-lookups.test.ts',
+    to: 'packages/api/src/internal/providers/lib/tts-providers',
+    via: 'dynamic',
+    why: 'Same file, same five names, against the voice translation table. Test-only.',
+  },
+  {
+    from: 'packages/api/src/__tests__/prototype-keyed-lookups.test.ts',
+    to: 'packages/api/src/internal/providers/lib/providers/index',
+    via: 'dynamic',
+    why: 'Same file, same five names, against `getProvider`, whose signature promises an `undefined` an object literal could not deliver. Test-only.',
+  },
+  {
     from: 'packages/api/src/lib/__tests__/surface-capability.test.ts',
     to: 'packages/api/src/internal/providers/lib/alia-models',
     via: 'import',
@@ -602,7 +620,8 @@ const PROVIDER_IMPORT_ALLOWLIST: readonly { from: string; to: string; via: Modul
  * The exact-count assertion the list needs, so it cannot grow one defensible
  * line at a time.
  *
- * 23 → 24 in #139 ws20, → 26 in ws4, → 27 in ws5. All four additions are TESTS
+ * 23 → 24 in #139 ws20, → 26 in ws4, → 27 in ws5, → 30 for the
+ * prototype-keyed-lookup sweep. All of the additions are TESTS
  * reading the routing table as data rather than product modules calling an
  * adapter. Every other line is a product module, and the direction of travel for
  * those is down.
@@ -613,7 +632,7 @@ const PROVIDER_IMPORT_ALLOWLIST: readonly { from: string; to: string; via: Modul
  * produced a plausible wrong answer that still compiled. The same trap caught
  * ws5's rebase, which is why this paragraph is a rule and not a history.
  */
-const PROVIDER_IMPORT_ALLOWLIST_SIZE = 27;
+const PROVIDER_IMPORT_ALLOWLIST_SIZE = 30;
 
 function observedProviderImports(): { from: string; to: string; via: ModuleRef['via'] }[] {
   const seen = new Map<string, { from: string; to: string; via: ModuleRef['via'] }>();

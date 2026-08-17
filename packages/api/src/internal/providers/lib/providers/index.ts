@@ -53,7 +53,12 @@ export const providers: Record<string, Provider | VoiceProvider | CombinedProvid
 };
 
 export function getProvider(name: string): Provider | VoiceProvider | undefined {
-  return providers[name];
+  // The `undefined` in this signature is the whole contract, and an object
+  // literal cannot honour it: `providers['constructor']` is the `Object`
+  // constructor, so the one answer callers branch on was unreachable for five
+  // names. Not reachable from a request today — `name` comes from a mapping
+  // row — which is why it is a correctness fix rather than a security one.
+  return Object.hasOwn(providers, name) ? providers[name] : undefined;
 }
 
 export function listProviders(): string[] {

@@ -72,7 +72,14 @@ function dayToCronNumber(day: string): number {
     sunday: 0, monday: 1, tuesday: 2, wednesday: 3,
     thursday: 4, friday: 5, saturday: 6,
   };
-  return dayMap[day.toLowerCase()] ?? -1;
+  // `day` comes from a user-authored trigger schedule. `dayMap['constructor']`
+  // is a function and `??` passes it through, so this returned a function from
+  // a `number` signature. Today the `.filter((d) => d >= 0)` at the call site
+  // discards it — a function compares false against 0 — so the cron string is
+  // unaffected; the fix is here anyway, because the next caller that does not
+  // filter inherits the bug rather than discovering it.
+  const normalized = day.toLowerCase();
+  return Object.hasOwn(dayMap, normalized) ? dayMap[normalized] : -1;
 }
 
 function scheduleToCron(schedule: TriggerSchedule): string | null {
