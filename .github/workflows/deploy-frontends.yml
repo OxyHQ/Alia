@@ -11,6 +11,12 @@ on:
       - 'packages/alia-canvas/**'
       - 'bun.lock'
 
+# `bun install` fetches a git dependency (`libsignal`, via
+# `@whiskeysockets/baileys`) that is not on npm, and unauthenticated it
+# rate-limits — see `ci.yml` for the measurement. Same token, same reason.
+env:
+  GITHUB_TOKEN: ${{ github.token }}
+
 jobs:
   detect-changes:
     runs-on: ubuntu-latest

@@ -10,6 +10,33 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# `bun install` fetches a GIT dependency on every job, and unauthenticated it
+# rate-limits.
+#
+# `@whiskeysockets/baileys` (packages/integrations) declares `libsignal` as
+# `git+https://github.com/whiskeysockets/libsignal-node.git`. It is not on npm,
+# so bun downloads a tarball from GitHub — five `bun install` invocations per
+# run, times every branch in flight. Measured 2026-08-17: every job in a run
+# failed at "Install dependencies" with
+# `api.github.com/.../tarball/bcea72d - 504` and then
+# `codeload.github.com/.../legacy.tar.gz/bcea72d - 429`, before any repository
+# code ran.
+#
+# `bun --help` documents this variable for exactly this purpose: "Supply a token
+# to download code from GitHub with a higher rate limit". Anonymous GitHub
+# requests are limited per IP and shared with every other runner on that
+# address; an authenticated one is limited per token.
+#
+# `github.token` is the automatic per-run token — nothing to rotate, nothing to
+# store, and it is already present in every job.
+#
+# NOTE for anyone reaching for `git config url."…".insteadOf` instead: it does
+# nothing here. Bun fetches the tarball with its own HTTP client rather than
+# shelling out to git, which is why the failures are `GET` lines naming
+# `codeload.github.com` rather than a git error.
+env:
+  GITHUB_TOKEN: ${{ github.token }}
+
 jobs:
   # Gates the rollout logic deploy-aws.yml runs against production. The script
   # and this harness are byte-identical copies of Mention's, so they share its
@@ -50,6 +77,14 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+
+      - name: Cache bun install cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: bun-cache-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+          restore-keys: |
+            bun-cache-${{ runner.os }}-
 
       # bun 1.3.14's --frozen-lockfile falsely reports drift for this monorepo,
       # so we assert lockfile stability via `git diff --exit-code bun.lock` instead.
@@ -99,6 +134,14 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+
+      - name: Cache bun install cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: bun-cache-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+          restore-keys: |
+            bun-cache-${{ runner.os }}-
 
       # bun 1.3.14's --frozen-lockfile falsely reports drift for this monorepo,
       # so we assert lockfile stability via `git diff --exit-code bun.lock` instead.
@@ -155,6 +198,14 @@ jobs:
         with:
           node-version: 22
 
+      - name: Cache bun install cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: bun-cache-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+          restore-keys: |
+            bun-cache-${{ runner.os }}-
+
       # bun 1.3.14's --frozen-lockfile falsely reports drift for this monorepo,
       # so we assert lockfile stability via `git diff --exit-code bun.lock` instead.
       - name: Install dependencies
@@ -201,6 +252,14 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+
+      - name: Cache bun install cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: bun-cache-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+          restore-keys: |
+            bun-cache-${{ runner.os }}-
 
       - name: Install dependencies
         run: |
@@ -257,6 +316,14 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+
+      - name: Cache bun install cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: bun-cache-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+          restore-keys: |
+            bun-cache-${{ runner.os }}-
 
       - name: Install dependencies
         run: |
