@@ -70,6 +70,7 @@ const HIDDEN = [
 
 interface Captured {
   status?: number;
+  headers: Record<string, string>;
   body?: { data?: { id: string; chat_visible?: boolean }[] };
 }
 
@@ -90,8 +91,12 @@ async function get(module: unknown, routePath: string, query: Record<string, str
   const handle = layer?.route?.stack[layer.route.stack.length - 1].handle;
   expect(handle).toBeTypeOf('function');
 
-  const captured: Captured = {};
+  const captured: Captured = { headers: {} };
   const res = {
+    setHeader(name: string, value: string) {
+      captured.headers[name] = value;
+      return res;
+    },
     status(code: number) {
       captured.status = code;
       return res;
@@ -141,5 +146,10 @@ describe('the product advertises policies, and both surfaces agree', () => {
     const captured = await get(await import('../v1/models.js'), '/', {});
     expect(captured.status).toBeUndefined();
     expect(captured.body?.data).toEqual([]);
+
+    // …and says where the catalogue went, since an empty list is otherwise
+    // indistinguishable from an outage.
+    expect(captured.headers.Link).toBe('</catalogue>; rel="alternate"');
+    expect(captured.headers.Deprecation).toBeUndefined();
   });
 });

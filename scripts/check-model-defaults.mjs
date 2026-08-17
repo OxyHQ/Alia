@@ -60,6 +60,7 @@ const TREES = [
   'packages/alia-chat/src',
   'packages/alia-codea/src',
   'packages/alia-codea-cli/src',
+  'packages/alia-console/src',
   'packages/alia-cowork/src',
   'packages/alia-cowork/renderer/src',
 ];

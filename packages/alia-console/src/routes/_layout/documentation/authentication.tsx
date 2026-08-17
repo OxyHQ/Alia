@@ -90,7 +90,7 @@ function AuthenticationPage() {
             code={`curl https://api.alia.onl/v1/chat/completions \\
   -H "Authorization: Bearer alia_sk_your_api_key_here" \\
   -H "Content-Type: application/json" \\
-  -d '{"model": "alia-v1", "messages": [{"role": "user", "content": "Hello"}]}'`}
+  -d '{"model": "profile:v1", "messages": [{"role": "user", "content": "Hello"}]}'`}
           />
         </div>
       </div>
@@ -112,7 +112,7 @@ function AuthenticationPage() {
           </div>
           <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/50">
             <Badge variant="outline" className="font-mono text-xs mt-0.5">models:read</Badge>
-            <p className="text-sm text-muted-foreground">List available models</p>
+            <p className="text-sm text-muted-foreground">Read the catalogue</p>
           </div>
         </div>
       </div>

@@ -126,7 +126,7 @@ const client = new OpenAI({
 
 async function main() {
   const completion = await client.chat.completions.create({
-    model: 'alia-v1',
+    model: 'profile:v1',
     messages: [
       { role: 'system', content: 'You are a helpful assistant.' },
       { role: 'user', content: 'Hello!' },
@@ -152,7 +152,7 @@ client = OpenAI(
 )
 
 completion = client.chat.completions.create(
-    model="alia-v1",
+    model="profile:v1",
     messages=[
         {"role": "system", "content": "You are a helpful assistant."},
         {"role": "user", "content": "Hello!"},
@@ -170,7 +170,7 @@ print(completion.choices[0].message.content)`}
   -H "Authorization: Bearer $ALIA_API_KEY" \\
   -H "Content-Type: application/json" \\
   -d '{
-    "model": "alia-v1",
+    "model": "profile:v1",
     "messages": [
       {"role": "system", "content": "You are a helpful assistant."},
       {"role": "user", "content": "Hello!"}
@@ -202,7 +202,7 @@ const client = new OpenAI({
 
 async function main() {
   const stream = await client.chat.completions.create({
-    model: 'alia-v1',
+    model: 'profile:v1',
     messages: [{ role: 'user', content: 'Tell me a story' }],
     stream: true,
   });
@@ -229,7 +229,7 @@ client = OpenAI(
 )
 
 stream = client.chat.completions.create(
-    model="alia-v1",
+    model="profile:v1",
     messages=[{"role": "user", "content": "Tell me a story"}],
     stream=True,
 )
@@ -264,7 +264,7 @@ const alia = createOpenAI({
 
 // Use with streamText, generateText, etc.
 const result = await streamText({
-  model: alia('alia-v1'),
+  model: alia('profile:v1'),
   prompt: 'Hello!',
 });`}
               />
@@ -283,7 +283,7 @@ const result = await streamText({
                 code={`from langchain_openai import ChatOpenAI
 
 llm = ChatOpenAI(
-    model="alia-v1",
+    model="profile:v1",
     api_key="your-api-key",
     base_url="https://api.alia.onl/v1",
 )

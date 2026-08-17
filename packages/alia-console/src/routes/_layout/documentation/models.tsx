@@ -1,57 +1,134 @@
+/**
+ * The developer-facing catalogue page.
+ *
+ * It used to hold a `const models = [...]` of four `alia-*` identifiers under a
+ * heading "Available Models", introduced by "Alia offers a range of models" —
+ * which is the exact thing #139 forbids, since every one of those identifiers is
+ * a routing profile over third-party models and none is a model Alia owns. Its
+ * numbers were invented too: `alia-lite` was documented at 8K context and
+ * `alia-v1-pro-max` at 200K, matching nothing in the routing table.
+ *
+ * It now reads `GET /catalogue`, so it says what the API says and cannot drift.
+ * See `hooks/use-catalogue.ts`.
+ */
+
 import { Link, createFileRoute } from '@tanstack/react-router';
 import { HugeiconsIcon } from '@hugeicons/react';
 import { ArrowLeft01Icon, ArrowRight01Icon } from '@hugeicons/core-free-icons';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  useCatalogue,
+  type CapabilityAvailability,
+  type CatalogueEntry,
+  type TokenBound,
+} from '@/hooks/use-catalogue';
 
 export const Route = createFileRoute('/_layout/documentation/models')({
   component: ModelsDocPage,
 });
 
-const models = [
-  {
-    id: 'alia-lite',
-    name: 'Alia Lite',
-    description: 'Fast and efficient for simple tasks',
-    tier: 'Free',
-    contextWindow: '8K',
-    maxOutput: '2K',
-    features: ['Fast response time', 'Low cost', 'Basic reasoning'],
-    useCases: ['Simple Q&A', 'Text formatting', 'Quick lookups'],
-  },
-  {
-    id: 'alia-v1',
-    name: 'Alia V1',
-    description: 'Balanced performance and quality for everyday use',
-    tier: 'Free',
-    contextWindow: '32K',
-    maxOutput: '8K',
-    features: ['Balanced performance', 'Good reasoning', 'Multilingual support'],
-    useCases: ['General conversation', 'Content creation', 'Code assistance'],
-  },
-  {
-    id: 'alia-v1-pro',
-    name: 'Alia V1 Pro',
-    description: 'Advanced reasoning capabilities for complex tasks',
-    tier: 'Pro',
-    contextWindow: '128K',
-    maxOutput: '16K',
-    features: ['Advanced reasoning', 'Extended context', 'Better accuracy'],
-    useCases: ['Complex analysis', 'Long documents', 'Research tasks'],
-  },
-  {
-    id: 'alia-v1-pro-max',
-    name: 'Alia V1 Pro Max',
-    description: 'Maximum performance and context for demanding applications',
-    tier: 'Pro',
-    contextWindow: '200K',
-    maxOutput: '32K',
-    features: ['Maximum performance', 'Largest context', 'Best accuracy'],
-    useCases: ['Enterprise applications', 'Large codebases', 'Complex reasoning'],
-  },
-];
+/** `128000` reads as `128K`; an absent bound reads as unknown, never as zero. */
+function formatBound(bound: TokenBound | null): string {
+  if (bound === null) return 'Not recorded';
+  const short = (n: number) => (n >= 1000 ? `${Math.round(n / 1000)}K` : String(n));
+  return bound.guaranteed === bound.upTo
+    ? short(bound.upTo)
+    : `${short(bound.guaranteed)} guaranteed, up to ${short(bound.upTo)}`;
+}
+
+/**
+ * Four states, not a checkmark.
+ *
+ * A routing profile answers from a different model each time, so "does it
+ * support vision" genuinely has three true answers plus "we do not know".
+ * Rendering `unknown` as absent is how a working feature gets greyed out.
+ */
+const CAPABILITY_LABEL: Readonly<Record<CapabilityAvailability, string>> = {
+  always: 'Always',
+  sometimes: 'Sometimes',
+  never: 'No',
+  unknown: 'Unknown',
+};
+
+function CapabilityRow({ label, value }: { label: string; value: CapabilityAvailability }) {
+  return (
+    <div>
+      <p className="text-xs text-muted-foreground mb-1">{label}</p>
+      <p className="text-sm font-medium">{CAPABILITY_LABEL[value]}</p>
+    </div>
+  );
+}
+
+function EntryCard({ entry }: { entry: CatalogueEntry }) {
+  const { capabilities } = entry;
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <CardTitle className="text-base flex items-center gap-2 flex-wrap">
+              {entry.displayName}
+              <Badge variant={entry.kind === 'model' ? 'default' : 'secondary'} className="text-xs">
+                {entry.kind === 'model' ? 'Model' : 'Routing profile'}
+              </Badge>
+              {entry.requiredPlan !== null && (
+                <Badge variant="outline" className="text-xs">
+                  {entry.requiredPlan}
+                </Badge>
+              )}
+              {entry.legacy && (
+                <Badge variant="outline" className="text-xs">
+                  Legacy
+                </Badge>
+              )}
+            </CardTitle>
+            <CardDescription className="mt-1">{entry.description}</CardDescription>
+          </div>
+          <code className="text-xs font-mono bg-muted px-2 py-1 rounded whitespace-nowrap">
+            {entry.id}
+          </code>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+          <div>
+            <p className="text-xs text-muted-foreground mb-1">Context window</p>
+            <p className="text-sm font-medium">{formatBound(capabilities.contextWindow)}</p>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground mb-1">Max output</p>
+            <p className="text-sm font-medium">{formatBound(capabilities.maxOutput)}</p>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground mb-1">Credit multiplier</p>
+            <p className="text-sm font-medium">{entry.creditMultiplier}x</p>
+          </div>
+          {entry.selectsAmong !== null && (
+            <div>
+              <p className="text-xs text-muted-foreground mb-1">Selects among</p>
+              <p className="text-sm font-medium">{entry.selectsAmong} models</p>
+            </div>
+          )}
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+          <CapabilityRow label="Tools" value={capabilities.tools} />
+          <CapabilityRow label="Vision" value={capabilities.vision} />
+          <CapabilityRow label="Audio" value={capabilities.audio} />
+          <CapabilityRow label="Reasoning" value={capabilities.reasoning} />
+          <CapabilityRow label="Structured output" value={capabilities.structuredOutput} />
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
 function ModelsDocPage() {
+  const { data: entries, isPending, isError } = useCatalogue();
+  const offered = entries ?? [];
+  const profiles = offered.filter((entry) => entry.kind === 'routing_profile');
+  const models = offered.filter((entry) => entry.kind === 'model');
+
   return (
     <div className="flex-1 bg-background max-w-4xl">
       {/* Header */}
@@ -63,128 +140,93 @@ function ModelsDocPage() {
           <HugeiconsIcon icon={ArrowLeft01Icon} size={14} />
           Documentation
         </Link>
-        <h1 className="text-2xl font-semibold text-foreground">Models</h1>
+        <h1 className="text-2xl font-semibold text-foreground">Catalogue</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Available models and their capabilities
+          What you can send as <code className="text-xs bg-muted px-1 py-0.5 rounded">model</code>,
+          and what it does
         </p>
       </div>
 
       {/* Overview */}
       <div className="px-6 py-6 border-b border-border">
         <h2 className="text-lg font-semibold text-foreground mb-4">Overview</h2>
-        <p className="text-sm text-muted-foreground mb-4">
-          Alia offers a range of models optimized for different use cases. All models are
-          accessible through the same API endpoint - just change the model parameter.
+        <p className="text-sm text-muted-foreground mb-3">
+          Alia does not publish models of its own. What you select is a{' '}
+          <strong className="text-foreground">routing profile</strong>: a policy that picks
+          among several third-party models on your behalf, so which model answers can differ
+          between two requests under the same profile.
         </p>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <p className="text-sm text-muted-foreground mb-4">
+          Send a profile id as the <code className="text-xs bg-muted px-1 py-0.5 rounded">model</code>{' '}
+          parameter. Everything on this page is served by{' '}
+          <code className="text-xs bg-muted px-1 py-0.5 rounded">GET /catalogue</code> — this page
+          restates nothing, so it cannot fall out of step with what the API will accept.
+        </p>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+          <div className="p-3 rounded-lg bg-muted/50 text-center">
+            <p className="text-2xl font-semibold text-foreground">{profiles.length}</p>
+            <p className="text-xs text-muted-foreground">Routing profiles</p>
+          </div>
           <div className="p-3 rounded-lg bg-muted/50 text-center">
             <p className="text-2xl font-semibold text-foreground">{models.length}</p>
-            <p className="text-xs text-muted-foreground">Models</p>
+            <p className="text-xs text-muted-foreground">Concrete models</p>
           </div>
           <div className="p-3 rounded-lg bg-muted/50 text-center">
-            <p className="text-2xl font-semibold text-foreground">200K</p>
-            <p className="text-xs text-muted-foreground">Max Context</p>
-          </div>
-          <div className="p-3 rounded-lg bg-muted/50 text-center">
-            <p className="text-2xl font-semibold text-foreground">2</p>
-            <p className="text-xs text-muted-foreground">Free Models</p>
-          </div>
-          <div className="p-3 rounded-lg bg-muted/50 text-center">
-            <p className="text-2xl font-semibold text-foreground">2</p>
-            <p className="text-xs text-muted-foreground">Pro Models</p>
+            <p className="text-2xl font-semibold text-foreground">
+              {offered.filter((entry) => entry.requiredPlan === null).length}
+            </p>
+            <p className="text-xs text-muted-foreground">Without a paid plan</p>
           </div>
         </div>
       </div>
 
-      {/* Model List */}
+      {/* Catalogue */}
       <div className="px-6 py-6 border-b border-border">
-        <h2 className="text-lg font-semibold text-foreground mb-4">Available Models</h2>
+        <h2 className="text-lg font-semibold text-foreground mb-4">What you can select</h2>
+        {isPending && <p className="text-sm text-muted-foreground">Loading the catalogue…</p>}
+        {isError && (
+          <p className="text-sm text-muted-foreground">
+            The catalogue could not be loaded. Call{' '}
+            <code className="text-xs bg-muted px-1 py-0.5 rounded">GET /catalogue</code> directly
+            for the current list.
+          </p>
+        )}
+        {!isPending && !isError && offered.length === 0 && (
+          <p className="text-sm text-muted-foreground">The catalogue is currently empty.</p>
+        )}
         <div className="space-y-4">
-          {models.map((model) => (
-            <Card key={model.id}>
-              <CardHeader className="pb-2">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <CardTitle className="text-base flex items-center gap-2">
-                      {model.name}
-                      <Badge
-                        variant={model.tier === 'Pro' ? 'default' : 'secondary'}
-                        className="text-xs"
-                      >
-                        {model.tier}
-                      </Badge>
-                    </CardTitle>
-                    <CardDescription className="mt-1">{model.description}</CardDescription>
-                  </div>
-                  <code className="text-xs font-mono bg-muted px-2 py-1 rounded">
-                    {model.id}
-                  </code>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-                  <div>
-                    <p className="text-xs text-muted-foreground mb-1">Context Window</p>
-                    <p className="text-sm font-medium">{model.contextWindow}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground mb-1">Max Output</p>
-                    <p className="text-sm font-medium">{model.maxOutput}</p>
-                  </div>
-                </div>
-                <div className="mb-3">
-                  <p className="text-xs text-muted-foreground mb-2">Features</p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {model.features.map((feature) => (
-                      <Badge key={feature} variant="outline" className="text-xs">
-                        {feature}
-                      </Badge>
-                    ))}
-                  </div>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground mb-2">Best for</p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {model.useCases.map((useCase) => (
-                      <span
-                        key={useCase}
-                        className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded"
-                      >
-                        {useCase}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+          {offered.map((entry) => (
+            <EntryCard key={entry.id} entry={entry} />
           ))}
         </div>
       </div>
 
-      {/* Model Selection */}
+      {/* Choosing */}
       <div className="px-6 py-6 border-b border-border">
-        <h2 className="text-lg font-semibold text-foreground mb-4">Choosing a Model</h2>
+        <h2 className="text-lg font-semibold text-foreground mb-4">Choosing a profile</h2>
         <div className="space-y-4">
           <div className="p-4 rounded-lg border">
-            <h3 className="text-sm font-medium text-foreground mb-2">For quick tasks</h3>
-            <p className="text-sm text-muted-foreground mb-2">
-              Use <code className="text-xs bg-muted px-1 py-0.5 rounded">alia-lite</code> for
-              simple, fast responses where speed is more important than depth.
+            <h3 className="text-sm font-medium text-foreground mb-2">Order by cost</h3>
+            <p className="text-sm text-muted-foreground">
+              The catalogue is sorted by credit multiplier, cheapest first. The first entry is
+              the least expensive way to answer a request; the last is the most capable.
             </p>
           </div>
           <div className="p-4 rounded-lg border">
-            <h3 className="text-sm font-medium text-foreground mb-2">For general use</h3>
-            <p className="text-sm text-muted-foreground mb-2">
-              Use <code className="text-xs bg-muted px-1 py-0.5 rounded">alia-v1</code> for
-              most applications - it offers a great balance of quality and cost.
+            <h3 className="text-sm font-medium text-foreground mb-2">Read the capabilities</h3>
+            <p className="text-sm text-muted-foreground">
+              A profile reports <strong className="text-foreground">Sometimes</strong> for a
+              capability when only some of the models it selects among support it, and{' '}
+              <strong className="text-foreground">Unknown</strong> when we have no record either
+              way. Unknown is not a no.
             </p>
           </div>
           <div className="p-4 rounded-lg border">
-            <h3 className="text-sm font-medium text-foreground mb-2">For complex tasks</h3>
-            <p className="text-sm text-muted-foreground mb-2">
-              Use <code className="text-xs bg-muted px-1 py-0.5 rounded">alia-v1-pro</code> or{' '}
-              <code className="text-xs bg-muted px-1 py-0.5 rounded">alia-v1-pro-max</code> for
-              tasks requiring advanced reasoning or large context windows.
+            <h3 className="text-sm font-medium text-foreground mb-2">Ask for extended reasoning</h3>
+            <p className="text-sm text-muted-foreground">
+              Reasoning effort is a request parameter, not a separate entry: send{' '}
+              <code className="text-xs bg-muted px-1 py-0.5 rounded">thinkingMode: true</code>{' '}
+              alongside any profile.
             </p>
           </div>
         </div>
