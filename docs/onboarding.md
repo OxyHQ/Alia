@@ -79,7 +79,7 @@ Approvals are real-time via Socket.IO (`alia.approval_request` / `alia.approval_
 | `lib/prompt-loader.ts` | Builds the system prompt from fragments | Changing AI behavior/instructions |
 | `lib/chat-core.ts` | `resolveModel()`, `getAIModel()` -- builds the AI SDK client | Model routing changes |
 | `lib/gateway-client.ts` | The seam in front of `internal/providers/`; runs the local path | Model abstraction |
-| `lib/errors/sanitize.ts` | Redacts credentials and endpoints everywhere; conceals operator identity on the product surface | Error handling |
+| `lib/errors/sanitize.ts` | Redacts credentials, endpoints and upstream error codes everywhere; conceals operator identity on the product surface | Error handling |
 | `lib/redis.ts` | Shared Redis/Valkey client | Caching, rate limiting |
 | `db/index.ts`, `db/schema/` | Postgres connection and the 80-table drizzle schema | Schema changes |
 | `db/migrate.ts` | The migrator; requires `--target-database` and honours phase markers | Migrations |
@@ -177,7 +177,7 @@ the ADRs landed.
 |-------|-------|------------|
 | Product surface | Thirteen `alia-*` identifiers | Five in the picker, eight addressable; several are routing policies rather than models |
 | Routing | The tier's mapping list, walked in `priority` order | Not price-ordered and not quality-ordered, despite both fields existing |
-| Errors | Generic messages | `sanitizeMessage()` redacts credentials and endpoints, then conceals operator names and model ids |
+| Errors | Generic messages | `sanitizeMessage()` redacts credentials, endpoints and upstream error codes, then conceals operator names and model ids |
 
 ### The rule, scoped
 

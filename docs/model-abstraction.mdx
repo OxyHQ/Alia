@@ -224,7 +224,17 @@ two rules with different audiences, different failure modes and different scopes
 ### Rule 1 — absolute, every surface
 
 `redactUnsafeDetail()` removes what may never reach a user anywhere: credentials, URLs and
-hostnames. Nothing opts out of it. It is a security and privacy control.
+hostnames, and the upstream error-code vocabulary. Nothing opts out of it. It is a security
+and privacy control.
+
+The error-code list is the corpus `failover-error.ts` classifies on — `overloaded_error`
+names Anthropic as surely as the word does, and `insufficient_quota` names OpenAI.
+`sanitize.test.ts` parses that file and fails on a code it reads that the redactor does not
+know, so the list cannot fall behind the classifier. `UNAVAILABLE` is the single documented
+exception: Google's gRPC status is an ordinary English word in capitals and cannot be told
+from prose, the same reason `together` and `command` are treated as words. Node's own
+network codes (`ETIMEDOUT`, `ECONNRESET`) are deliberately NOT redacted — they name no
+operator, and losing them costs a reader real diagnostic information for no privacy gain.
 
 Credentials are also redacted at the point an upstream error body becomes a string
 (`internal/providers/lib/provider-error-body.ts`), which is the primary control; this one
