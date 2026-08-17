@@ -235,11 +235,33 @@ describe('there is one interceptor, and the entrypoint arms it', () => {
   const boot = readFileSync(path.join(PACKAGE_SRC, 'index.ts'), 'utf8');
 
   it('src/index.ts arms the policy before the socket opens', () => {
-    // The other half of green-and-inert: the recorder can be wired to a policy
-    // that no process ever installs.
-    expect(boot).toContain("from './lib/inference/provider-egress-policy.js'");
-    expect(boot).toContain('installProviderEgressBlock()');
-    expect(boot.indexOf('installProviderEgressBlock()')).toBeLessThan(boot.indexOf('server.listen('));
+    /*
+     * The other half of green-and-inert: the recorder can be wired to a policy
+     * that no process ever installs.
+     *
+     * The chain is two links now. #139 ws8 moved the four boot refusals out of
+     * `src/index.ts` into `lib/boot-guards.ts`, so that "a refusal actually
+     * terminates the process" could be asserted against a real function instead
+     * of by grepping a file nothing can import. So this checks the entrypoint
+     * reaches the guards before `listen`, and the guards reach the installer.
+     *
+     * That the install HAPPENS, and happens after every refusal has passed
+     * rather than in a process about to exit, is asserted behaviourally in
+     * `lib/__tests__/boot-guards.test.ts`.
+     */
+    const guardsAt = boot.indexOf('runBootGuards({');
+    const listenAt = boot.indexOf('server.listen(');
+    expect(boot).toContain("from './lib/boot-guards.js'");
+    // Both offsets, because `indexOf` answers -1 for absent and -1 is less than
+    // everything: without these the ordering check passes on a file that names
+    // neither.
+    expect(guardsAt).toBeGreaterThan(-1);
+    expect(listenAt).toBeGreaterThan(-1);
+    expect(guardsAt).toBeLessThan(listenAt);
+
+    const guards = readFileSync(path.join(PACKAGE_SRC, 'lib', 'boot-guards.ts'), 'utf8');
+    expect(guards).toContain("from './inference/provider-egress-policy.js'");
+    expect(guards).toContain('installProviderEgressBlock(env)');
   });
 
   it('exactly one module in the package replaces globalThis.fetch', () => {
