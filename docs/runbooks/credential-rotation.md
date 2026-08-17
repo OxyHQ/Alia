@@ -10,13 +10,20 @@ one that applies first: it establishes whether a value reached the logs or the
 `provider_keys.last_failure_reason` column, and rotation is only its step 2. The
 two are meant to be read in that order, and nothing here repeats what it covers.
 
-**There is a live reason this document exists.** #139's own audit checkbox —
-`Audit git history and deployment logs for exposed credentials; rotate where
-necessary.` — is open, and the audit that produced the epic's findings reports
-provider API keys present in this repository's PUBLIC git history. Rewriting
-history does not un-publish them; only rotation does. [Provider API
-keys](#provider-api-keys-provider_keys) below is written to be followed for
-exactly that job today.
+**There is a live reason this document exists, and it now has names.** The audit
+#139 asked for has been RUN — 2026-08-17, over the 1 700 commits reachable from
+`main` — and it found **three live provider credentials in this repository's
+PUBLIC git history**: a Google Generative Language key, a Groq key and an OpenAI
+project key, all three in a `keys.json` committed and deleted on 2026-01-14.
+Rewriting history does not un-publish them; only rotation does.
+
+The findings, the blobs and the commits are in
+[provider-credential-exposure § The git-history audit](./provider-credential-exposure.md#the-git-history-audit);
+the machine-readable ledger is
+`packages/api/src/lib/security/known-disclosures.ts`, and
+`bun run --filter @alia/api scan:credentials` reproduces the scan. [Rotating the
+keys found in git history](#rotating-the-keys-found-in-git-history) below is
+written to be followed for exactly that job today.
 
 ## Two facts that govern everything below
 
@@ -182,7 +189,17 @@ If the `alia` ECS service is still parked at `desiredCount: 0`, there is no
 outage to accept — nothing is calling providers. Check before you plan around one
 ([rollback](./rollback.md) opens with the command).
 
-For each key the audit named:
+**The three keys, and where each is revoked.** Their eight-character prefixes are
+in `known-disclosures.ts`; the values are not, anywhere, and must not be pasted
+into a ticket or a chat while doing this.
+
+| Provider | Model it was minted for | Revoke at |
+|---|---|---|
+| `google` | a Gemini model | Google Cloud console → APIs & Services → Credentials |
+| `groq` | a Llama model | console.groq.com → API Keys |
+| `openai` | GPT-4o | platform.openai.com → API keys (a project key: check the project it belongs to) |
+
+For each of them:
 
 1. Revoke it in the provider's console. It is disclosed; nothing done in this
    repository changes that.
@@ -202,8 +219,12 @@ For each key the audit named:
    with `SELECT count(*) FROM provider_keys WHERE provider = :provider` and the
    `rotated_at` values on those rows. Either way, revoking it upstream is
    required; only the second case has nothing left to update.
-4. Record the row count and the date. `rotated_at` is the only durable evidence
-   the rotation happened.
+4. Record the row count and the date. `rotated_at` on the row is the durable
+   evidence inside the database; **set `rotatedAt` on the matching entry in
+   `packages/api/src/lib/security/known-disclosures.ts` in the same change**,
+   which is the evidence anyone reading this repository can see. Until it is set,
+   `bun run --filter @alia/api scan:credentials` exits `2` and names the key as
+   pending.
 
 ### Revoking a provider key
 
@@ -554,11 +575,12 @@ Named explicitly, because each is a step that looks runnable here and is not:
 
 ## Open questions
 
-- **Has the git-history provider-key rotation been performed?** The #139 checkbox
-  `Audit git history and deployment logs for exposed credentials; rotate where
-  necessary.` is open. Nothing in this repository records a rotation date; the
-  evidence would be `rotated_at` on the affected `provider_keys` rows.
-  *Owner: the #139 epic owner.*
+- **Has the git-history provider-key rotation been performed?** The AUDIT half of
+  #139's checkbox is done and its findings are recorded; the ROTATION half is not.
+  Three entries in `packages/api/src/lib/security/known-disclosures.ts` carry
+  `rotatedAt: null`, and `scan:credentials` exits `2` while they do. Rotation needs
+  an account on each of the three provider consoles, which this repository and its
+  CI do not have. *Owner: whoever holds those provider accounts.*
 - **What is in the live task definition's `secrets[]`?** The table above is
   derived from the deploy workflow and from `process.env` readers in source, which
   is a claim about the CODE, not about the deployment. *Owner: whoever holds AWS

@@ -25,9 +25,14 @@
  * caller had dropped, quietly routing to a provider the operator removed.
  */
 
-import { and, asc, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, eq, getTableColumns, inArray, sql } from 'drizzle-orm';
 import type { ApiDatabase, Executor } from '../index';
 import { assertUnreservedModelIdentifier } from '../../lib/reserved-namespace.js';
+import {
+  auditedFields,
+  recordConfigChange,
+  type ConfigAuditActor,
+} from '../../lib/security/config-audit.js';
 import { aliaModelProviderMappings, aliaModels, modelConfigs } from '../schema/providers';
 
 export type AliaModelRow = typeof aliaModels.$inferSelect;
@@ -224,8 +229,16 @@ function toColumns(input: AliaModelInput): Partial<typeof aliaModels.$inferInser
  *
  * In a transaction, because the delete and the insert are one fact: a failure
  * between them would leave the model with NO providers and nothing to say so.
+ *
+ * **Module-private since #139 ws15.** It mutates the routing table and its only
+ * callers were the three writers below, which audit the whole change including
+ * the mappings. Exported, it was a public routing mutation that emitted no
+ * audit record and that the writer census in
+ * `routes/__tests__/inference-boundary.test.ts` could not see, because that
+ * census matches names beginning `create|update|delete|upsert|set|reset|mark`
+ * and this one begins `replace`.
  */
-export async function replaceProviderMappings(
+async function replaceProviderMappings(
   tx: Executor,
   aliaModelId: string,
   mappings: ProviderMappingInput[],
@@ -251,6 +264,7 @@ export async function createAliaModel(
   db: ApiDatabase,
   input: AliaModelInput,
   mappings: ProviderMappingInput[],
+  actor: ConfigAuditActor,
 ): Promise<AliaModelView> {
   // ADR 0002: nothing may occupy the reserved `alia/*` publisher namespace.
   // Refused before the transaction opens, so a rejected registration costs no
@@ -264,6 +278,14 @@ export async function createAliaModel(
       .returning();
     await replaceProviderMappings(tx, row.id, mappings);
     const [view] = await withMappings(tx, [row]);
+    recordConfigChange({
+      resource: 'alia_model',
+      action: 'create',
+      target: view.aliasModelId,
+      actor,
+      before: null,
+      after: auditedFields('alia_model', view),
+    });
     return view;
   });
 }
@@ -283,9 +305,14 @@ export async function updateAliaModel(
   db: ApiDatabase,
   aliasModelId: string,
   input: AliaModelInput,
+  actor: ConfigAuditActor,
   mappings?: ProviderMappingInput[],
 ): Promise<AliaModelView | null> {
   return db.transaction(async (tx) => {
+    // Read BEFORE the write, inside the same transaction, so the record's
+    // `before` is the state this statement replaced rather than whatever the row
+    // held whenever a second query happened to run.
+    const previous = await findAliaModel(tx, aliasModelId);
     const columns = toColumns(input);
     // The identity does not move through an update.
     delete columns.aliasModelId;
@@ -301,6 +328,14 @@ export async function updateAliaModel(
       await replaceProviderMappings(tx, row.id, mappings);
     }
     const [view] = await withMappings(tx, [row]);
+    recordConfigChange({
+      resource: 'alia_model',
+      action: 'update',
+      target: view.aliasModelId,
+      actor,
+      before: auditedFields('alia_model', previous),
+      after: auditedFields('alia_model', view),
+    });
     return view;
   });
 }
@@ -312,11 +347,20 @@ export async function updateAliaModel(
 export async function deleteAliaModel(
   db: ApiDatabase,
   aliasModelId: string,
+  actor: ConfigAuditActor,
 ): Promise<AliaModelView | null> {
   return db.transaction(async (tx) => {
     const existing = await findAliaModel(tx, aliasModelId);
     if (!existing) return null;
     await tx.delete(aliaModels).where(eq(aliaModels.aliasModelId, aliasModelId));
+    recordConfigChange({
+      resource: 'alia_model',
+      action: 'delete',
+      target: aliasModelId,
+      actor,
+      before: auditedFields('alia_model', existing),
+      after: null,
+    });
     return existing;
   });
 }
@@ -337,6 +381,7 @@ export async function upsertAliaModel(
   insertOnly: AliaModelInput,
   always: AliaModelInput,
   mappings: ProviderMappingInput[],
+  actor: ConfigAuditActor,
 ): Promise<{ inserted: boolean }> {
   // ADR 0002, same reservation as `createAliaModel`. All three identifiers are
   // checked, not just the parameter: `always.aliasModelId` reaches the
@@ -347,6 +392,7 @@ export async function upsertAliaModel(
   if (always.aliasModelId !== undefined) assertUnreservedModelIdentifier(always.aliasModelId);
 
   return db.transaction(async (tx) => {
+    const previous = await findAliaModel(tx, aliasModelId);
     const insertColumns = {
       ...toColumns(insertOnly),
       ...toColumns(always),
@@ -360,9 +406,21 @@ export async function upsertAliaModel(
         target: aliaModels.aliasModelId,
         set: { ...toColumns(always), updatedAt: sql`date_trunc('milliseconds', now())` },
       })
-      .returning({ id: aliaModels.id, inserted: sql<boolean>`(xmax = 0)` });
+      // The whole row, not just the id: the audit record's `after` has to be
+      // what the statement actually wrote. `insertColumns` is what was ASKED
+      // for, and on the conflict branch only `always` is applied — recording the
+      // request instead of the result would report changes that did not happen.
+      .returning({ ...getTableColumns(aliaModels), inserted: sql<boolean>`(xmax = 0)` });
 
     await replaceProviderMappings(tx, row.id, mappings);
+    recordConfigChange({
+      resource: 'alia_model',
+      action: 'upsert',
+      target: aliasModelId,
+      actor,
+      before: auditedFields('alia_model', previous),
+      after: auditedFields('alia_model', row),
+    });
     return { inserted: row.inserted };
   });
 }

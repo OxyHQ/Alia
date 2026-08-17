@@ -48,6 +48,11 @@ import { and, asc, desc, eq, isNotNull, or, sql } from 'drizzle-orm';
 import crypto from 'crypto';
 import type { Executor } from '../index';
 import { redactSecrets } from '../../lib/agent/secret-scanner';
+import {
+  auditedFields,
+  recordConfigChange,
+  type ConfigAuditActor,
+} from '../../lib/security/config-audit.js';
 import { providerKeys } from '../schema/providers';
 
 /** The CHECK's ceiling on `current_priority`. Named so the clamp cannot drift. */
@@ -253,6 +258,7 @@ export interface NewProviderKey {
 export async function createProviderKey(
   db: Executor,
   entry: NewProviderKey,
+  actor: ConfigAuditActor,
 ): Promise<SafeProviderKey> {
   const [row] = await db
     .insert(providerKeys)
@@ -280,6 +286,17 @@ export async function createProviderKey(
       isActive: true,
     })
     .returning(safeColumns);
+  // `safeColumns` already excludes `key` and `key_hash`, and `AUDITED_FIELDS`
+  // excludes them again. Two independent reasons a credential cannot reach the
+  // record, because one of them is a projection somebody could widen.
+  recordConfigChange({
+    resource: 'provider_key',
+    action: 'create',
+    target: row.id,
+    actor,
+    before: null,
+    after: auditedFields('provider_key', row),
+  });
   return row;
 }
 
@@ -309,21 +326,42 @@ export async function updateProviderKey(
   db: Executor,
   id: string,
   updates: ProviderKeyUpdate,
+  actor: ConfigAuditActor,
 ): Promise<SafeProviderKey | null> {
+  const previous = await findSafeProviderKeyById(db, id);
   const [row] = await db
     .update(providerKeys)
     .set({ ...updates, updatedAt: sql`date_trunc('milliseconds', now())` })
     .where(eq(providerKeys.id, id))
     .returning(safeColumns);
-  return row ?? null;
+  if (!row) return null;
+  recordConfigChange({
+    resource: 'provider_key',
+    action: 'update',
+    target: id,
+    actor,
+    before: auditedFields('provider_key', previous),
+    after: auditedFields('provider_key', row),
+  });
+  return row;
 }
 
 export async function deleteProviderKey(
   db: Executor,
   id: string,
+  actor: ConfigAuditActor,
 ): Promise<SafeProviderKey | null> {
   const [row] = await db.delete(providerKeys).where(eq(providerKeys.id, id)).returning(safeColumns);
-  return row ?? null;
+  if (!row) return null;
+  recordConfigChange({
+    resource: 'provider_key',
+    action: 'delete',
+    target: id,
+    actor,
+    before: auditedFields('provider_key', row),
+    after: null,
+  });
+  return row;
 }
 
 /** Replace the credential in place, recording when. */
@@ -332,7 +370,9 @@ export async function rotateProviderKey(
   id: string,
   newKey: string,
   now: Date,
+  actor: ConfigAuditActor,
 ): Promise<SafeProviderKey | null> {
+  const previous = await findSafeProviderKeyById(db, id);
   const [row] = await db
     .update(providerKeys)
     .set({
@@ -344,7 +384,19 @@ export async function rotateProviderKey(
     })
     .where(eq(providerKeys.id, id))
     .returning(safeColumns);
-  return row ?? null;
+  if (!row) return null;
+  // The `before`/`after` differ only in `keyPrefix`, which is exactly the point:
+  // the prefix is what `docs/runbooks/credential-rotation.md` matches a rotated
+  // row by, and the record is the evidence the rotation happened.
+  recordConfigChange({
+    resource: 'provider_key',
+    action: 'rotate',
+    target: id,
+    actor,
+    before: auditedFields('provider_key', previous),
+    after: auditedFields('provider_key', row),
+  });
+  return row;
 }
 
 // ============== ROTATION STATE ==============
@@ -552,7 +604,7 @@ export async function markKeyCreditExhausted(db: Executor, id: string): Promise<
 }
 
 /** Clear every cooldown and failure run. The operator's reload button. */
-export async function resetAllKeyCooldowns(db: Executor): Promise<number> {
+export async function resetAllKeyCooldowns(db: Executor, actor: ConfigAuditActor): Promise<number> {
   const result = await db
     .update(providerKeys)
     .set({
@@ -563,6 +615,23 @@ export async function resetAllKeyCooldowns(db: Executor): Promise<number> {
     .where(
       or(isNotNull(providerKeys.cooldownUntil), sql`${providerKeys.consecutiveFailures} > 0`),
     );
+  // Audited, unlike `setKeyCooldown` and `markKeyCreditExhausted` beside it: a
+  // key cools DOWN because an upstream said no, and it is cleared because a
+  // person decided to clear it. The first is a metric and the second is a
+  // configuration change, and only the second is here.
+  //
+  // Row-level `before`/`after` are `null` because the statement is a bulk
+  // update over an unknown set; the count IS the change, and inventing a
+  // per-row diff would mean reading every affected row first for a record
+  // nobody reads per-row.
+  recordConfigChange({
+    resource: 'provider_key',
+    action: 'reset',
+    target: `cooldowns:${String(result.count)}`,
+    actor,
+    before: null,
+    after: null,
+  });
   return result.count;
 }
 

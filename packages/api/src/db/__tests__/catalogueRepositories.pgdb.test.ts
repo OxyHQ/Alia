@@ -32,6 +32,16 @@ import { ReservedNamespaceError } from '../../lib/reserved-namespace';
 import { aliaModelProviderMappings, modelConfigs } from '../schema/providers';
 
 /**
+ * The actor every writer below is called with.
+ *
+ * Required since #139 ws15: a configuration writer emits an audit record, and a
+ * record with no actor is the one thing an audit log must never contain. A test
+ * constant rather than a default value in the repository — a default is how
+ * every real change comes to be attributed to nobody.
+ */
+const ACTOR = { kind: 'script', id: 'catalogueRepositories.pgdb.test' } as const;
+
+/**
  * The routing catalogue — `model_configs`, `alia_models`, its mappings child
  * table and `external_models` — against a real server.
  *
@@ -79,7 +89,7 @@ describe('model_configs: the nested wire shape', () => {
       pricing: { tier: 'paid', costPer1MInput: 3, costPer1MOutput: 15, averageLatencyMs: 900 },
       defaultConfig: { temperature: 0.7, maxTokens: 1024 },
     });
-    const created = await createModelConfig(db, input);
+    const created = await createModelConfig(db, input, ACTOR);
 
     expect(created.capabilities.vision).toBe(true);
     expect(created.capabilities.promptCaching).toBe(true);
@@ -111,11 +121,11 @@ describe('model_configs: the nested wire shape', () => {
 
   it('a PATCH of one capability leaves its nine siblings alone', async () => {
     const input = modelInput({ capabilities: { vision: true, audio: true } });
-    await createModelConfig(db, input);
+    await createModelConfig(db, input, ACTOR);
 
     const updated = await updateModelConfig(db, 'openai', String(input.modelId), {
       capabilities: { webSearch: true },
-    });
+    }, ACTOR);
 
     /**
      * The trap this guards. A naive implementation writes the whole
@@ -130,8 +140,8 @@ describe('model_configs: the nested wire shape', () => {
   it('finds, lists by tier and deletes by (provider, modelId)', async () => {
     const mine = modelInput({ aliaTier: 'v1', priority: 5 });
     const other = modelInput({ aliaTier: 'v1', priority: 1, isDeprecated: true });
-    await createModelConfig(db, mine);
-    await createModelConfig(db, other);
+    await createModelConfig(db, mine, ACTOR);
+    await createModelConfig(db, other, ACTOR);
 
     expect((await findModelConfig(db, 'openai', String(mine.modelId)))?.priority).toBe(5);
 
@@ -141,7 +151,7 @@ describe('model_configs: the nested wire shape', () => {
     // priority — so a missing filter would put it at the head, not hide it.
     expect(tier.some((m) => m.modelId === other.modelId)).toBe(false);
 
-    expect((await deleteModelConfig(db, 'openai', String(mine.modelId)))?.modelId).toBe(mine.modelId);
+    expect((await deleteModelConfig(db, 'openai', String(mine.modelId), ACTOR))?.modelId).toBe(mine.modelId);
     expect(await findModelConfig(db, 'openai', String(mine.modelId))).toBeNull();
   });
 
@@ -149,8 +159,8 @@ describe('model_configs: the nested wire shape', () => {
     const provider = 'mistral';
     const mapped = modelInput({ provider, priority: 50 });
     const unmapped = modelInput({ provider, priority: null });
-    await createModelConfig(db, mapped);
-    await createModelConfig(db, unmapped);
+    await createModelConfig(db, mapped, ACTOR);
+    await createModelConfig(db, unmapped, ACTOR);
 
     const listed = (await listModelConfigs(db, { provider })).map((m) => m.modelId);
     /**
@@ -173,11 +183,11 @@ describe('model_configs: the seed upsert', () => {
       limits: { maxContextTokens: 4096, maxOutputTokens: 2048 },
     };
 
-    const first = await upsertModelConfig(db, key, insertOnly, { aliaTier: 'lite', priority: 1 });
+    const first = await upsertModelConfig(db, key, insertOnly, { aliaTier: 'lite', priority: 1 }, ACTOR);
     // `xmax = 0` is Postgres's answer to `upsertedCount`.
     expect(first.inserted).toBe(true);
 
-    const second = await upsertModelConfig(db, key, insertOnly, { aliaTier: 'lite', priority: 9 });
+    const second = await upsertModelConfig(db, key, insertOnly, { aliaTier: 'lite', priority: 9 }, ACTOR);
     expect(second.inserted).toBe(false);
 
     const row = await findModelConfig(db, key.provider, key.modelId);
@@ -193,15 +203,15 @@ describe('model_configs: the seed upsert', () => {
       pricing: { tier: 'free', costPer1MInput: 0, costPer1MOutput: 0, averageLatencyMs: 100 },
       limits: { maxContextTokens: 4096, maxOutputTokens: 2048 },
     };
-    await upsertModelConfig(db, key, insertOnly, { aliaTier: 'lite', priority: 1 });
+    await upsertModelConfig(db, key, insertOnly, { aliaTier: 'lite', priority: 1 }, ACTOR);
 
     // An operator retunes the pricing by hand.
     await updateModelConfig(db, key.provider, key.modelId, {
       displayName: 'Hand tuned',
       pricing: { costPer1MInput: 42 },
-    });
+    }, ACTOR);
 
-    await upsertModelConfig(db, key, insertOnly, { aliaTier: 'lite', priority: 2 });
+    await upsertModelConfig(db, key, insertOnly, { aliaTier: 'lite', priority: 2 }, ACTOR);
 
     const row = await findModelConfig(db, key.provider, key.modelId);
     /**
@@ -218,7 +228,7 @@ describe('model_configs: the seed upsert', () => {
 describe('alia_models and their provider mappings', () => {
   async function seedConfig(provider: string) {
     const input = modelInput({ provider });
-    const created = await createModelConfig(db, input);
+    const created = await createModelConfig(db, input, ACTOR);
     return created;
   }
 
@@ -234,6 +244,7 @@ describe('alia_models and their provider mappings', () => {
         { modelConfigId: b.id, provider: 'anthropic', modelId: b.modelId, priority: 5, qualityScore: 80 },
         { modelConfigId: a.id, provider: 'openai', modelId: a.modelId, priority: 1, qualityScore: 90 },
       ],
+      ACTOR,
     );
 
     expect(created.providerMappings).toHaveLength(2);
@@ -266,7 +277,7 @@ describe('alia_models and their provider mappings', () => {
 
     for (const reserved of ['alia/atlas', 'alia/atlas@2026-08-01', 'ALIA/Atlas', 'alia/']) {
       await expect(
-        createAliaModel(db, { aliasModelId: reserved, displayName: 'X', tier: 'v1' }, mappings),
+        createAliaModel(db, { aliasModelId: reserved, displayName: 'X', tier: 'v1' }, mappings, ACTOR),
       ).rejects.toBeInstanceOf(ReservedNamespaceError);
       expect(await findAliaModel(db, reserved)).toBeNull();
     }
@@ -274,14 +285,14 @@ describe('alia_models and their provider mappings', () => {
     // The upsert path too, including the identifier that reaches the
     // ON CONFLICT ... SET clause and could otherwise RENAME an existing row.
     await expect(
-      upsertAliaModel(db, 'alia/atlas', { displayName: 'X', tier: 'v1' }, {}, mappings),
+      upsertAliaModel(db, 'alia/atlas', { displayName: 'X', tier: 'v1' }, {}, mappings, ACTOR),
     ).rejects.toBeInstanceOf(ReservedNamespaceError);
     expect(await findAliaModel(db, 'alia/atlas')).toBeNull();
 
     const existing = nextId('alia-rename-target');
-    await createAliaModel(db, { aliasModelId: existing, displayName: 'T', tier: 'v1' }, mappings);
+    await createAliaModel(db, { aliasModelId: existing, displayName: 'T', tier: 'v1' }, mappings, ACTOR);
     await expect(
-      upsertAliaModel(db, existing, {}, { aliasModelId: 'alia/atlas' }, mappings),
+      upsertAliaModel(db, existing, {}, { aliasModelId: 'alia/atlas' }, mappings, ACTOR),
     ).rejects.toBeInstanceOf(ReservedNamespaceError);
     expect(await findAliaModel(db, existing)).not.toBeNull();
 
@@ -289,7 +300,7 @@ describe('alia_models and their provider mappings', () => {
     // must still register. Without this, a guard refusing every identifier
     // would pass everything above and take the catalogue down.
     const hyphenated = nextId('alia-v1-not-reserved');
-    const ok = await createAliaModel(db, { aliasModelId: hyphenated, displayName: 'T', tier: 'v1' }, mappings);
+    const ok = await createAliaModel(db, { aliasModelId: hyphenated, displayName: 'T', tier: 'v1' }, mappings, ACTOR);
     expect(ok.aliasModelId).toBe(hyphenated);
   });
 
@@ -300,9 +311,9 @@ describe('alia_models and their provider mappings', () => {
     await createAliaModel(db, { aliasModelId, displayName: 'T', tier: 'v1' }, [
       { modelConfigId: a.id, provider: 'openai', modelId: a.modelId, priority: 1, qualityScore: 50 },
       { modelConfigId: b.id, provider: 'google', modelId: b.modelId, priority: 2, qualityScore: 50 },
-    ]);
+    ], ACTOR);
 
-    const updated = await updateAliaModel(db, aliasModelId, {}, [
+    const updated = await updateAliaModel(db, aliasModelId, {}, ACTOR, [
       { modelConfigId: b.id, provider: 'google', modelId: b.modelId, priority: 1, qualityScore: 99 },
     ]);
 
@@ -323,15 +334,15 @@ describe('alia_models and their provider mappings', () => {
     const aliasModelId = nextId('alia-keep');
     await createAliaModel(db, { aliasModelId, displayName: 'T', tier: 'v1' }, [
       { modelConfigId: a.id, provider: 'openai', modelId: a.modelId, priority: 1, qualityScore: 50 },
-    ]);
+    ], ACTOR);
 
-    const renamed = await updateAliaModel(db, aliasModelId, { displayName: 'Renamed' });
+    const renamed = await updateAliaModel(db, aliasModelId, { displayName: 'Renamed' }, ACTOR);
     // `undefined` means "leave them"; collapsing it with `[]` would make a
     // rename silently unroute the model.
     expect(renamed?.displayName).toBe('Renamed');
     expect(renamed?.providerMappings).toHaveLength(1);
 
-    const cleared = await updateAliaModel(db, aliasModelId, {}, []);
+    const cleared = await updateAliaModel(db, aliasModelId, {}, ACTOR, []);
     expect(cleared?.providerMappings).toHaveLength(0);
   });
 
@@ -340,9 +351,9 @@ describe('alia_models and their provider mappings', () => {
     const aliasModelId = nextId('alia-cascade');
     const created = await createAliaModel(db, { aliasModelId, displayName: 'T', tier: 'v1' }, [
       { modelConfigId: a.id, provider: 'openai', modelId: a.modelId, priority: 1, qualityScore: 50 },
-    ]);
+    ], ACTOR);
 
-    const deleted = await deleteAliaModel(db, aliasModelId);
+    const deleted = await deleteAliaModel(db, aliasModelId, ACTOR);
     // The response still carries the mappings — read before the delete.
     expect(deleted?.providerMappings).toHaveLength(1);
 
@@ -364,6 +375,7 @@ describe('alia_models and their provider mappings', () => {
       { displayName: 'Original', tier: 'v1' },
       { aggregatedCapabilities: { vision: false } },
       [{ modelConfigId: a.id, provider: 'openai', modelId: a.modelId, priority: 1, qualityScore: 50 }],
+      ACTOR,
     );
     expect(first.inserted).toBe(true);
 
@@ -373,6 +385,7 @@ describe('alia_models and their provider mappings', () => {
       { displayName: 'Ignored on update', tier: 'v1' },
       { aggregatedCapabilities: { vision: true } },
       [{ modelConfigId: b.id, provider: 'deepseek', modelId: b.modelId, priority: 1, qualityScore: 70 }],
+      ACTOR,
     );
     expect(second.inserted).toBe(false);
 
@@ -390,8 +403,8 @@ describe('alia_models and their provider mappings', () => {
     const second = nextId('alia-list-b');
     await createAliaModel(db, { aliasModelId: first, displayName: 'A', tier: 'lite' }, [
       { modelConfigId: a.id, provider: 'openai', modelId: a.modelId, priority: 1, qualityScore: 50 },
-    ]);
-    await createAliaModel(db, { aliasModelId: second, displayName: 'B', tier: 'lite' }, []);
+    ], ACTOR);
+    await createAliaModel(db, { aliasModelId: second, displayName: 'B', tier: 'lite' }, [], ACTOR);
 
     const listed = await listAliaModels(db, { tier: 'lite' });
     const one = listed.find((m) => m.aliasModelId === first);
@@ -426,7 +439,7 @@ describe('alia_models and their provider mappings', () => {
 
   it('validates plan model ids against aliasModelId — the field the source missed', async () => {
     const present = nextId('alia-plan');
-    await createAliaModel(db, { aliasModelId: present, displayName: 'P', tier: 'v1' }, []);
+    await createAliaModel(db, { aliasModelId: present, displayName: 'P', tier: 'v1' }, [], ACTOR);
 
     /**
      * `plans.ts` filtered `AliaModel.find({ modelId: ... })`. `modelId` belongs
@@ -457,7 +470,7 @@ describe('external_models', () => {
 
   it('nests the eighteen benchmarks and round-trips all of them', async () => {
     const m = model({ benchmarkGpqa: 80, benchmarkAime2025: 60, benchmarkArcAgiV2: 12 });
-    await upsertExternalModels(db, [m]);
+    await upsertExternalModels(db, [m], ACTOR);
 
     const read = await findExternalModel(db, m.modelId);
     expect(read?.benchmarks.gpqa).toBe(80);
@@ -475,22 +488,22 @@ describe('external_models', () => {
 
   it('reports how many rows were INSERTED as opposed to updated', async () => {
     const m = model();
-    expect(await upsertExternalModels(db, [m])).toEqual({ inserted: 1, total: 1 });
+    expect(await upsertExternalModels(db, [m], ACTOR)).toEqual({ inserted: 1, total: 1 });
     // The same id again is an update, not an insert — which is what the sync
     // logs, and what a naive `total` would misreport.
-    expect(await upsertExternalModels(db, [{ ...m, name: 'Renamed' }])).toEqual({
+    expect(await upsertExternalModels(db, [{ ...m, name: 'Renamed' }], ACTOR)).toEqual({
       inserted: 0,
       total: 1,
     });
     expect((await findExternalModel(db, m.modelId))?.name).toBe('Renamed');
-    expect(await upsertExternalModels(db, [])).toEqual({ inserted: 0, total: 0 });
+    expect(await upsertExternalModels(db, [], ACTOR)).toEqual({ inserted: 0, total: 0 });
   });
 
   it('sorts a null benchmark LAST under a descending sort', async () => {
     const orgId = nextId('org-sort');
     const scored = model({ organizationId: orgId, benchmarkGpqa: 42 });
     const unscored = model({ organizationId: orgId, benchmarkGpqa: null });
-    await upsertExternalModels(db, [scored, unscored]);
+    await upsertExternalModels(db, [scored, unscored], ACTOR);
 
     const listed = await listExternalModels(db, { organizationId: orgId, sort: 'gpqa' });
     expect(listed).toHaveLength(2);
@@ -507,7 +520,7 @@ describe('external_models', () => {
     // Scored on a benchmark the filter does NOT test, so it must be excluded —
     // a filter checking "any benchmark" would keep it.
     const otherBench = model({ organizationId: orgId, benchmarkOsworld: 30 });
-    await upsertExternalModels(db, [withBench, otherBench]);
+    await upsertExternalModels(db, [withBench, otherBench], ACTOR);
 
     const filtered = await listExternalModels(db, { organizationId: orgId, hasBenchmarks: true });
     expect(filtered.map((m) => m.modelId)).toEqual([withBench.modelId]);
@@ -521,7 +534,7 @@ describe('external_models', () => {
     await upsertExternalModels(db, [
       model({ organizationId: orgId, organization: 'Zeta', organizationCountry: 'FR' }),
       model({ organizationId: orgId, organization: 'Zeta', organizationCountry: 'FR' }),
-    ]);
+    ], ACTOR);
 
     const orgs = await listExternalOrganizations(db);
     const mine = orgs.find((o) => o._id === orgId);

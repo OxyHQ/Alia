@@ -119,7 +119,10 @@ export async function syncZeroEval(): Promise<void> {
     // `modifiedCount` excluded rows a re-sync left byte-identical and Postgres
     // has no equivalent, so inventing one from `total - inserted` would silently
     // change what the number means.
-    const result = await upsertExternalModels(getDb(), models.map(mapToRow));
+    const result = await upsertExternalModels(getDb(), models.map(mapToRow), {
+      kind: 'script',
+      id: 'scripts/sync-zeroeval',
+    });
     log.general.info({ inserted: result.inserted, total: result.total }, 'ZeroEval sync complete');
   } catch (error) {
     log.general.error({ err: error }, 'ZeroEval sync failed');

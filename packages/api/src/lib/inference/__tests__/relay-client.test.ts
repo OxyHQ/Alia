@@ -21,6 +21,14 @@ import {
 } from '../relay-client.js';
 import { isRelayClientEnabled, RELAY_CLIENT_ENABLED_ENV } from '../relay-cutover.js';
 import type { RelayRequestPayload } from '../relay-request.js';
+import { assertAllowedRelayOrigin } from '../relay-endpoint.js';
+
+/**
+ * An approved Relay origin, branded through the one function that can produce
+ * one. Every fixture below shares it, so a test that cares about the endpoint
+ * says so by overriding it rather than by being the only one that sets it.
+ */
+const ENDPOINT = assertAllowedRelayOrigin('https://api.oxy.so', 'development');
 
 /**
  * The Relay client's behavioural suite — epic #139 workstream 3.
@@ -207,6 +215,7 @@ function harness(over: Partial<RelayClientConfig> = {}): Harness {
     enabled: true,
     transport,
     credential,
+    endpoint: ENDPOINT,
     principal: {
       billing: { accountId: 'acct_relay_test' },
       applicationId: 'app_alia',

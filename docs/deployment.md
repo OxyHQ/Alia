@@ -88,10 +88,10 @@ encrypted tokens are written by one process and read by the other.
 
 ### Relay client
 
-Six variables, all unset in every environment today, and **all or nothing**: when
+Seven variables, all unset in every environment today, and **all or nothing**: when
 `ALIA_RELAY_CLIENT_ENABLED` is exactly the literal `true`, the process refuses to start
-unless the other five describe a principal `@oxyhq/contracts` accepts
-(`packages/api/src/lib/inference/relay-boot-check.ts`).
+unless the other six describe a principal `@oxyhq/contracts` accepts and an approved Relay
+origin (`packages/api/src/lib/inference/relay-boot-check.ts`).
 
 ```bash
 ALIA_RELAY_CLIENT_ENABLED=true        # exactly `true`; `1` and `TRUE` do not enable it
@@ -100,6 +100,7 @@ ALIA_RELAY_APPLICATION_ID=<oxy-app>
 ALIA_RELAY_CREDENTIAL_ID=<oxy-credential>
 ALIA_RELAY_ENVIRONMENT=production     # development | staging | production
 ALIA_RELAY_INFERENCE_SCOPES=inference:invoke
+RELAY_BASE_URL=https://api.oxy.so     # must be an approved origin; see below
 ```
 
 `ALIA_RELAY_ENVIRONMENT` is the environment the **credential** was issued into, and on a
@@ -107,6 +108,16 @@ production or staging task it must match `NODE_ENV`: a staging credential presen
 production task bills test traffic to the production account, and no later query separates
 it out again. A development process is left alone, so a local run may point wherever it was
 configured.
+
+`RELAY_BASE_URL` is **pinned to an allow-list**, not merely read
+(`packages/api/src/lib/inference/relay-endpoint.ts`, `RELAY_ALLOWED_ORIGINS`). A production
+or staging process accepts only an approved Oxy origin and refuses to start on anything
+else — a near miss such as `https://api.oxy.so.example`, a scheme downgrade, a URL carrying
+credentials, and loopback are all refused. A **development** process may additionally point
+at `localhost` or `127.0.0.1`; that is the only relaxation, it is keyed on `NODE_ENV`, and
+there is deliberately no variable that widens the list. The client re-checks the value on
+every call as well, so a configuration mutated after boot cannot ride a boot-time approval.
+Adding a host is an edit to `RELAY_ALLOWED_ORIGINS` and therefore a reviewed diff.
 
 Deliberately absent from `.do/app.yaml` and from `deploy-aws.yml`'s secret list. Adding
 them there before `Oxy API → Relay` is mounted would be configuration for a service that
@@ -183,6 +194,30 @@ healthy and still receives traffic. Moving the target group to `/health/ready` i
   opposite case: a log, an audit record and a `fallback_events` row must name the
   deployment that failed, or the question they exist to answer cannot be asked. The scope
   is in [model abstraction](./model-abstraction.mdx).
+
+### Auditing a change to model or routing configuration
+
+Every write to `alia_models`, `alia_model_provider_mappings`, `model_configs`,
+`provider_keys` or `external_models` emits a structured record on the `config-audit`
+subsystem, from inside the repository function rather than from a caller — so any future
+caller is audited without being changed
+(`packages/api/src/lib/security/config-audit.ts`). In CloudWatch:
+
+```
+{ $.subsystem = "config-audit" && $.event = "config.change" }
+```
+
+Each record carries `resource`, `action`, `target`, `actor`, `before`, `after` and `at`.
+Two things it deliberately never carries, both enforced by an allow-list rather than by
+care: **no prompt or response content**, and **no credential** — `provider_keys.key` and
+`key_hash` are excluded, and `key_prefix` is the identifier a record names a key by, the
+same form [credential-rotation](./runbooks/credential-rotation.md) matches rows on.
+
+Automatic key health — a cooldown, a failure run, a credit exhaustion — is **not** here.
+Nobody configured it; it is a metric, and `lib/observability/metrics.ts` is where it
+belongs. `packages/api/src/lib/security/__tests__/config-audit.test.ts` derives the writer
+list from what each function does to those five tables rather than from its name, so a new
+writer that emits nothing fails the build.
 
 ## Open questions
 

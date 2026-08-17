@@ -20,7 +20,11 @@ import {
   type RelayTransport,
   type RelayTransportRequest,
 } from '../relay-client.js';
+import { assertAllowedRelayOrigin, RELAY_ALLOWED_ORIGINS } from '../relay-endpoint.js';
 import { ALIA_SURFACE_LABEL, type RelayRequestPayload } from '../relay-request.js';
+
+/** An approved Relay origin, branded through the one function that produces one. */
+const ENDPOINT = assertAllowedRelayOrigin('https://api.oxy.so', 'development');
 
 /**
  * What crosses the Alia→Relay boundary, and what authenticates it — epic #139
@@ -38,8 +42,10 @@ import { ALIA_SURFACE_LABEL, type RelayRequestPayload } from '../relay-request.j
  *  - *product conversation storage stays Alia's, not duplicated by Relay* — the
  *    envelope has no field that could ask Relay to keep anything;
  *  - *validate scopes and environment* — checked once, at construction;
- *  - *pin allowed Relay origins/endpoints* — there is no origin to pin yet, and
- *    this file freezes that fact so one cannot arrive unnoticed;
+ *  - *pin allowed Relay origins/endpoints* — an allow-list, enforced at boot and
+ *    on every call; the RULE lives in `relay-endpoint.ts` and its own test, and
+ *    what this file keeps is the structural half: no relay module may name a
+ *    host except that one;
  *  - *request signing/mTLS only if the finalized contract requires it* —
  *    `@oxyhq/contracts@0.27.0` requires neither, so the egress carries exactly
  *    one credential and this file fails if a second appears.
@@ -147,6 +153,7 @@ function client(over: Partial<RelayClientConfig> = {}): {
     enabled: true,
     transport,
     credential: CREDENTIAL,
+    endpoint: ENDPOINT,
     principal: PRINCIPAL,
     defaultTarget: DEFAULT_TARGET,
     routingPolicies: {},
@@ -324,6 +331,7 @@ describe('data-retention policy travels as a reference, and Alia invents none', 
       enabled: true,
       transport,
       credential: CREDENTIAL,
+    endpoint: ENDPOINT,
       principal: PRINCIPAL,
       defaultTarget: DEFAULT_TARGET,
       routingPolicies: {},
@@ -351,6 +359,7 @@ describe('data-retention policy travels as a reference, and Alia invents none', 
       enabled: true,
       transport: accepting,
       credential: CREDENTIAL,
+    endpoint: ENDPOINT,
       principal: PRINCIPAL,
       defaultTarget: DEFAULT_TARGET,
       routingPolicies: { strict: { routingPolicyId: 'alia-strict', policyVersion: 2 } },
@@ -433,6 +442,7 @@ describe('the configured principal is validated at construction (#139 ws15)', ()
         enabled: true,
         transport: new CapturingTransport(),
         credential: CREDENTIAL,
+        endpoint: ENDPOINT,
         principal: { ...PRINCIPAL, environment: 'development' },
         defaultTarget: DEFAULT_TARGET,
         routingPolicies: {},
@@ -452,8 +462,20 @@ describe('the configured principal is validated at construction (#139 ws15)', ()
 describe('the hop carries exactly one auth mechanism (#139 ws15)', () => {
   it('hands the transport an authorization value and nothing else auth-shaped', async () => {
     const sent = await client().send({ context: context(), payload: payload() });
-    expect(Object.keys(sent).sort()).toEqual(['authorization', 'idempotencyKey', 'request', 'signal']);
+    // An EXACT key set, so a second credential — a signature, a shared secret, a
+    // second header value — fails here rather than being ignored. `endpoint`
+    // joined it in #139 ws15 and is not a credential: it is the allow-listed
+    // base URL, checked before this object is built, and the assertion below is
+    // what says it carries a checked value rather than whatever a caller wrote.
+    expect(Object.keys(sent).sort()).toEqual([
+      'authorization',
+      'endpoint',
+      'idempotencyKey',
+      'request',
+      'signal',
+    ]);
     expect(sent.authorization).toBe('oxy-service-token-synthetic');
+    expect(RELAY_ALLOWED_ORIGINS).toContain(sent.endpoint);
   });
 
   /**
@@ -505,22 +527,20 @@ describe('the hop carries exactly one auth mechanism (#139 ws15)', () => {
   /**
    * *"Pin allowed Relay origins/endpoints."*
    *
-   * There is nothing to pin yet, and that is the honest state rather than an
-   * omission: `RelayTransport` ships no base URL on purpose (`relay-client.ts`
-   * constraint 4), `Oxy API → Relay` is not mounted, and neither
-   * `RelayClientConfig` nor `RelayTransportRequest` has a field an endpoint
-   * could arrive in. So the pin this workstream can write is the one below — no
-   * relay module names a host at all, so a URL cannot appear without editing
-   * this list.
+   * This was previously answered by freezing an ABSENCE — no relay module named
+   * a host, and no config field an origin could arrive in — with a note saying
+   * to retire it when an endpoint appeared. It has, in `relay-endpoint.ts`, so
+   * the two halves have moved:
    *
-   * **Retire this when the transport lands.** At that point the allow-list
-   * belongs beside the transport's own configuration, this test's forbidden-URL
-   * scan narrows to "the only host named is the configured one", and the
-   * assertion that the config carries no origin is DELETED rather than
-   * weakened.
+   *  - the RULE (which origins, what a production process may not point at, what
+   *    happens at boot and on every call) is `__tests__/relay-endpoint.test.ts`;
+   *  - the STRUCTURAL half is here, narrowed rather than deleted: exactly one
+   *    relay module may name a host, and the hosts it names are exactly the
+   *    allow-list. A URL literal appearing in `relay-client.ts` — a hardcoded
+   *    fallback base, say — still fails.
    */
-  it('names no origin, because there is no endpoint to name yet', () => {
-    const offenders: string[] = [];
+  it('one module names a host, and the hosts it names are the allow-list', () => {
+    const byModule = new Map<string, string[]>();
     let linesScanned = 0;
 
     for (const name of relayModuleNames()) {
@@ -529,30 +549,46 @@ describe('the hop carries exactly one auth mechanism (#139 ws15)', () => {
         if (trimmed.startsWith('*') || trimmed.startsWith('//') || trimmed.startsWith('/*')) continue;
         linesScanned += 1;
         for (const match of line.matchAll(/['"`](https?:\/\/[^'"`]+)['"`]/g)) {
-          offenders.push(`${name} -> ${match[1]}`);
+          const found = byModule.get(name) ?? [];
+          found.push(match[1]);
+          byModule.set(name, found);
         }
       }
     }
 
     expect(linesScanned).toBeGreaterThan(500);
-    expect(offenders).toEqual([]);
+    // Exactly one module, named, and exactly the origins the allow-list holds.
+    expect([...byModule.keys()]).toEqual(['relay-endpoint.ts']);
+    expect((byModule.get('relay-endpoint.ts') ?? []).sort()).toEqual(
+      [...RELAY_ALLOWED_ORIGINS].sort(),
+    );
 
     // The control: the scan does see a URL literal when there is one.
-    const probe = `const base = 'https://relay.oxy.so/v1';`;
+    const probe = `const base = 'https://relay.example.invalid/v1';`;
     expect([...probe.matchAll(/['"`](https?:\/\/[^'"`]+)['"`]/g)].map((m) => m[1])).toEqual([
-      'https://relay.oxy.so/v1',
+      'https://relay.example.invalid/v1',
     ]);
   });
 
-  it('neither the config nor the transport request has a field an origin fits in', () => {
+  it('the endpoint reaches the transport, and only as a checked value', () => {
+    // The field the previous version of this test forbade. It exists now, and
+    // what replaces the prohibition is its TYPE: `RelayEndpoint` is branded, so
+    // the only way to populate either interface is through the allow-list check.
+    // A plain `string` in either position is a compile error, which is where a
+    // property enforced by the type system has to be gated.
     const source = readFileSync(path.join(RELAY_DIR, 'relay-client.ts'), 'utf8');
     const configBlock = /export interface RelayClientConfig \{([\s\S]*?)\n\}/.exec(source)?.[1] ?? '';
     const transportBlock = /export interface RelayTransportRequest \{([\s\S]*?)\n\}/.exec(source)?.[1] ?? '';
-    // Floors before the negatives: both interfaces were found and have members.
+    // Floors before the assertions: both interfaces were found and have members.
     expect(configBlock).toContain('readonly transport: RelayTransport');
     expect(transportBlock).toContain('readonly request: InferenceRequest');
 
-    for (const field of ['baseUrl', 'baseURL', 'endpoint', 'origin', 'host', 'url']) {
+    expect(configBlock).toContain('readonly endpoint: RelayEndpoint');
+    expect(transportBlock).toContain('readonly endpoint: RelayEndpoint');
+
+    // And no OTHER way for a host to arrive, which is what keeps the branded
+    // field from becoming decorative beside an unchecked one.
+    for (const field of ['baseUrl', 'baseURL', 'origin', 'host', 'url']) {
       expect(configBlock, `RelayClientConfig gained ${field}`).not.toMatch(
         new RegExp(`\\breadonly ${field}\\??:`),
       );
@@ -585,5 +621,8 @@ function relayModuleNames(): string[] {
     expect(names, `${original} is missing from ${RELAY_DIR}`).toContain(original);
   }
   expect(names.length).toBeGreaterThanOrEqual(8);
+  expect(names, 'relay-endpoint.ts is missing; the origin allow-list is unscanned').toContain(
+    'relay-endpoint.ts',
+  );
   return names;
 }

@@ -1,0 +1,213 @@
+/**
+ * The audit record for a configuration change that affects model or routing
+ * behaviour — epic #139 workstream 15, *"Add audit logs for configuration
+ * changes that affect model/routing behavior."*
+ *
+ * ## What counts as such a change, and what does not
+ *
+ * Five tables decide which model a request can name, which one it resolves to
+ * and which credential serves it: `alia_models`, `alia_model_provider_mappings`,
+ * `model_configs`, `provider_keys` and `external_models`. A write to any of them
+ * is a decision a PERSON made about the product, and it is what this records.
+ *
+ * Automatic key HEALTH is deliberately not here. `recordKeyFailure`,
+ * `recordKeySuccess`, `recordKeyUsage`, `recordKeySpend`, `setKeyCooldown` and
+ * `markKeyCreditExhausted` change routing too, but they change it because an
+ * upstream said no — nobody configured anything, and an audit log of them is a
+ * METRIC, which `lib/observability/metrics.ts` is where it belongs. The
+ * distinction is asserted in `__tests__/config-audit.test.ts` rather than left
+ * to the reader.
+ *
+ * ## Why a structured log line rather than a table
+ *
+ * `docs/migration/ownership.md` assigns `provider_keys`, `model_configs` and the
+ * mappings **to Relay**. An Alia-owned audit table for rows that are leaving is
+ * a schema, a migration and an ownership entry for something with a known end
+ * date, and it would have to be migrated or abandoned at the cutover. A
+ * structured record on its own pino channel is machine-parseable, lands in the
+ * same CloudWatch group as everything else, and costs nothing to retire.
+ *
+ * When the tables move, this module moves with them or is deleted; either way
+ * nothing has to be un-migrated.
+ *
+ * ## Two rules the shape enforces
+ *
+ * 1. **No prompt or response content, ever.** Nothing here takes a message, a
+ *    conversation or a completion; the payload is a per-resource FIELD
+ *    ALLOW-LIST ({@link AUDITED_FIELDS}) applied to a row, so a field added
+ *    upstream is absent from the record until somebody adds it here on purpose.
+ * 2. **No credential material.** The allow-list is what makes that structural
+ *    rather than careful: `provider_keys.key` and `key_hash` are not in it, so a
+ *    caller passing a whole row cannot leak the credential even by accident.
+ *    `key_prefix` IS in it, because the prefix is the only identifier
+ *    `docs/runbooks/credential-rotation.md` considers safe to display and
+ *    without it a record about a key names no key.
+ */
+
+import { createLogger } from '../logger.js';
+
+/** Which of the five configuration tables the record is about. */
+export type ConfigAuditResource =
+  | 'alia_model'
+  | 'alia_model_provider_mappings'
+  | 'model_config'
+  | 'provider_key'
+  | 'external_model';
+
+/** What happened to it. `upsert` is one statement whose branch is not known. */
+export type ConfigAuditAction = 'create' | 'update' | 'delete' | 'upsert' | 'rotate' | 'reset';
+
+/**
+ * Who made the change.
+ *
+ * A required argument on every audited writer rather than something read from an
+ * ambient context, because there is no request context in this package to read
+ * from — and an actor that defaults to `system` is an audit log that says
+ * `system` for the one change somebody needs to attribute.
+ *
+ *  - `user` — an authenticated person, `id` is their Oxy user id;
+ *  - `service` — an internal caller authenticated by `SERVICE_SECRET` or an Oxy
+ *    service token, `id` names which;
+ *  - `seed` — the boot seeding, `id` names the module;
+ *  - `script` — a one-shot run by an operator, `id` names the script.
+ */
+export interface ConfigAuditActor {
+  readonly kind: 'user' | 'service' | 'seed' | 'script';
+  readonly id: string;
+}
+
+export interface ConfigAuditChange {
+  readonly resource: ConfigAuditResource;
+  readonly action: ConfigAuditAction;
+  /** The row's own identifier, in whatever form the table's key takes. */
+  readonly target: string;
+  readonly actor: ConfigAuditActor;
+  /** The audited fields as they were. `null` for a create. */
+  readonly before: Readonly<Record<string, unknown>> | null;
+  /** The audited fields as they are. `null` for a delete. */
+  readonly after: Readonly<Record<string, unknown>> | null;
+}
+
+/**
+ * The fields recorded for each resource, and nothing else.
+ *
+ * An allow-list rather than a deny-list, which is the whole reason a credential
+ * cannot reach a record: a deny-list has to be updated when a column is added
+ * and fails OPEN when it is not.
+ *
+ * Chosen as "what changes routing or visibility". `created_at`, `updated_at` and
+ * every counter are omitted — the record carries its own timestamp, and a
+ * counter moving is not a configuration change.
+ */
+export const AUDITED_FIELDS: Readonly<Record<ConfigAuditResource, readonly string[]>> = {
+  alia_model: [
+    'aliasModelId',
+    'displayName',
+    'tier',
+    'creditMultiplier',
+    'isFreeTier',
+    'isActive',
+    'isDeprecated',
+    'isLegacy',
+    'deprecationDate',
+    'replacementModelId',
+  ],
+  alia_model_provider_mappings: ['provider', 'modelId', 'priority', 'qualityScore', 'isActive'],
+  model_config: [
+    'provider',
+    'modelId',
+    'tier',
+    'priority',
+    'isActive',
+    'contextWindow',
+    'maxTokens',
+    'supportsTools',
+    'supportsVision',
+    'inputCostPer1M',
+    'outputCostPer1M',
+  ],
+  provider_key: [
+    // NOT `key` and NOT `keyHash`. The prefix is the only safe identifier, and
+    // a hash is an exact-match oracle — `docs/runbooks/credential-rotation.md`
+    // says so about this exact column.
+    'name',
+    'provider',
+    'keyPrefix',
+    'environment',
+    'tier',
+    'isPaid',
+    'isActive',
+    'isArchived',
+    'currentPriority',
+    'originalPriority',
+    'creditLimitUsd',
+    'rateLimitResetMs',
+  ],
+  external_model: ['slug', 'organization', 'isActive', 'contextWindow'],
+};
+
+/**
+ * Project a row onto the fields this resource records.
+ *
+ * `null` in, `null` out, so a create's `before` and a delete's `after` need no
+ * special case at the call site. A field the row does not carry is omitted
+ * rather than recorded as `undefined`: "absent" and "present and undefined" are
+ * different claims and only one of them is true.
+ */
+export function auditedFields<T extends object>(
+  resource: ConfigAuditResource,
+  row: T | null | undefined,
+): Readonly<Record<string, unknown>> | null {
+  if (row === null || row === undefined) return null;
+  const out: Record<string, unknown> = {};
+  for (const field of AUDITED_FIELDS[resource]) {
+    // `Reflect.get` rather than an index read: the callers pass repository VIEW
+    // interfaces, which have no index signature, and widening them to
+    // `Record<string, unknown>` at every call site would be a cast per caller
+    // instead of one honest accessor here.
+    if (field in row) out[field] = Reflect.get(row, field);
+  }
+  return out;
+}
+
+/**
+ * The channel, built on FIRST USE rather than at import.
+ *
+ * Not a micro-optimisation. Every `db/providers/*Repository.ts` imports this
+ * module, so it is in the import graph of most of the package — and a
+ * `createLogger(...)` at module scope is an import-time side effect that runs in
+ * every test whose graph reaches a repository. Two suites that mock
+ * `lib/logger.js` with only its `log` export broke on exactly that, at IMPORT,
+ * before a single test ran. A module that does nothing until it is called cannot
+ * do that to anyone.
+ */
+let auditLog: ReturnType<typeof createLogger> | null = null;
+
+/**
+ * Emit one record.
+ *
+ * Deliberately not `async` and deliberately unable to fail the write it
+ * describes: an audit that can reject a configuration change turns a logging
+ * outage into a product outage, and pino's write is synchronous and
+ * non-throwing. The trade is stated rather than hidden — if the process dies
+ * between the commit and this call, the change happened and is unrecorded.
+ *
+ * `event` is a constant so a log query can select these without pattern-matching
+ * a message.
+ */
+export function recordConfigChange(change: ConfigAuditChange): void {
+  auditLog ??= createLogger('config-audit');
+  auditLog.info(
+    {
+      event: 'config.change',
+      resource: change.resource,
+      action: change.action,
+      target: change.target,
+      actor: change.actor,
+      before: change.before,
+      after: change.after,
+      at: new Date().toISOString(),
+    },
+    'configuration change',
+  );
+}

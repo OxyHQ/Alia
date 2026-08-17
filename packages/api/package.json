@@ -19,7 +19,8 @@
     "test:coverage": "vitest run --coverage",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "bun src/db/migrate.ts",
-    "test:pg": "vitest run --config vitest.pg.config.ts"
+    "test:pg": "vitest run --config vitest.pg.config.ts",
+    "scan:credentials": "bun src/scripts/scan-credential-history.ts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.96",
