@@ -19,6 +19,7 @@ import { buildChatRequestContext } from '../../lib/chat/request-context.js';
 import { ALIAS_SUNSET, aliasDeprecationEvent } from '../../middleware/alias-deprecation.js';
 import type { AgentMessage } from '../../lib/chat/stream-runner.js';
 import { runProviderLoop, type ChatLoopState } from '../../lib/chat/provider-loop.js';
+import { getDefaultAliaModel } from '../../lib/chat-core.js';
 import type { IAgent } from '../../models/agent.js';
 
 const router = Router();
@@ -34,9 +35,16 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
 
   // Retry-mutable state shared with the provider loop, the global-timeout timer,
   // the outer catch, and the last-resort synthetic response.
+  //
+  // The seed value is READ, not merely overwritten: the global-timeout timer is
+  // armed below at :44 and reports `state.aliasModelId` back to the client,
+  // while `ctx.aliasModelId` only lands at :78. A request that times out during
+  // resolution therefore names this value. It used to restate `'alia-v1'`, so
+  // that report named a model the request would not have run on — the default
+  // is `alia-lite`. It reads the owner now instead of restating a literal.
   const state: ChatLoopState = {
     resolved: null,
-    aliasModelId: 'alia-v1',
+    aliasModelId: getDefaultAliaModel(),
     creditReservation: null,
     globalTimedOut: false,
   };

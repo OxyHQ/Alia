@@ -73,19 +73,23 @@ export async function resolveAliaModelWithAttempts(
   return resolveWithFallback(requestedModel, tokens, skipProviders, skipKeyIds, options);
 }
 
-/**
- * Get the default Alia model ID
+/*
+ * There is deliberately NO `getDefaultAliaModel` here.
+ *
+ * This file used to export one returning `alia-v1`, alongside the live one in
+ * `lib/gateway-client.ts` returning `alia-lite`. Nothing imported this copy —
+ * `gateway-client.ts` destructures only `resolveAliaModel` from this module —
+ * so it was a second answer to "what does a request with no model get" that was
+ * never returned to anyone, and it disagreed with the answer that was.
+ *
+ * Which model a request defaults to is a PRODUCT decision, and `internal/
+ * providers/` is the routing tree ADR 0001 moves to Relay. A default declared
+ * here would migrate with the routing and leave the product without one.
+ * `defaultChatModel.test.ts` asserts this module declares no default.
+ *
+ * `isValidModel` went with it: also unimported, and a one-line alias for the
+ * `isAliaModel` re-exported two lines below.
  */
-export function getDefaultAliaModel(): string {
-  return 'alia-v1';
-}
-
-/**
- * Validate if a model ID is a valid Alia model
- */
-export function isValidModel(modelId: string): boolean {
-  return isAliaModel(modelId);
-}
 
 // Re-export utilities from alia-models
 export { isAliaModel, getAliaModel, ALIA_MODELS, type AliaModel, type AliaTier };
