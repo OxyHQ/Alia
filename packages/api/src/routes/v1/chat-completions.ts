@@ -12,6 +12,7 @@ import { estimateMessageTokens } from '../../lib/token-counter.js';
 import { wrapToolsWithTruncation, getToolResultBudget } from '../../lib/tools/result-truncation.js';
 import { log } from '../../lib/logger.js';
 import { recordEvent } from '../../lib/observability/index.js';
+import { recordInferenceCorrelation } from '../../lib/observability/inference-correlation.js';
 import { writeStopChunk, writeContentChunk, makeChunk } from '../../lib/streaming-helpers.js';
 import { buildCompletionResponse } from '../../lib/chat/response-shapes.js';
 import { SSEWriter } from '../../lib/chat/sse-writer.js';
@@ -105,6 +106,16 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
         res.write(`event: alia.deprecation\ndata: ${JSON.stringify(deprecation)}\n\n`);
       }
     }
+
+    // The correlation record for this turn, before the first branch below can
+    // take a request somewhere else. `relay` is null because Alia serves this
+    // in process; `relayCorrelationOf(event)` fills it the day workstream 8
+    // wires the client in.
+    recordInferenceCorrelation({
+      conversationId: conversationId ?? null,
+      runId: requestId,
+      relay: null,
+    });
 
     // ── Deep Research Mode ──
     if (deepResearch && req.user?.id) {

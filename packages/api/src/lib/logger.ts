@@ -171,6 +171,8 @@ export const log = {
   canvas: createLogger('canvas'),
   agents: createLogger('agents'),
   triggers: createLogger('triggers'),
+  /** One record per turn: the Alia and Relay ids for it. Nothing else. */
+  correlation: createLogger('correlation'),
   general: rootLogger,
 };
 

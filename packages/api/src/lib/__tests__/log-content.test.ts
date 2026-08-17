@@ -32,6 +32,27 @@ import { describe, expect, it } from 'vitest';
  *
  * ## The measurement that produced the frozen list
  *
+ * ## The second measurement, and why the key list is the fragile part
+ *
+ * The list below is the whole reach of this file, and a key it does not name is
+ * a leak it reports as absence. Four such keys were found by re-deriving the
+ * census from scratch (#139 ws19) and reading every distinct property name the
+ * package logs rather than only the ones already listed:
+ *
+ *  - `reasoning` — 100 characters of the model's chain of thought, twice, in
+ *    `lib/chat/stream-runner.ts`;
+ *  - `responseText` — the WHOLE model output at `error`, three times, on the
+ *    JSON-parse failure path of the agent, skill and suggestion generators;
+ *  - `userContext` — the user's own memories, preferences and writing style, at
+ *    `info`, in `services/chat.service.ts`;
+ *  - `task` — the task text handed to a multi-agent run, at `info`, twice.
+ *
+ * All nine call sites shipped, all nine were emitting at or below the default
+ * production level, and this file was green throughout. That is what a guard
+ * measuring nothing looks like from the inside, and it is the reason the key
+ * list is deliberately BROAD and narrowed by exemptions rather than the other
+ * way round.
+ *
  * On `main` at `a1b74a6b` this census found **39** content-shaped properties
  * across 1027 logger calls. Twenty-nine were real: the first 100 characters of
  * every inbound Telegram/WhatsApp message at `info`
@@ -441,6 +462,61 @@ describe('no logger call carries message content (#139 ws15)', () => {
     expect(offenders).toEqual([]);
     // The control: the file it lived in is still being read.
     expect(sources.map((entry) => entry.file)).toContain(`${PACKAGE_PREFIX}/lib/chat/stream-runner.ts`);
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/*  The correlation record                                                     */
+/* -------------------------------------------------------------------------- */
+
+describe('the Alia/Relay correlation record is one line of identifiers (#139 ws19)', () => {
+  const MODULE = `${PACKAGE_PREFIX}/lib/observability/inference-correlation.ts`;
+  const ENTRYPOINT = `${PACKAGE_PREFIX}/routes/v1/chat-completions.ts`;
+
+  /**
+   * The properties of the ONE logger call in the correlation module.
+   *
+   * Frozen as an exact list rather than a superset, because both directions are
+   * regressions: losing `relayRequestId` makes correlation impossible the day
+   * Relay answers, and GAINING a field is how a prompt gets into the one log
+   * line whose whole purpose is that it carries no content. The census records
+   * the value expression too, so `runId: prompt` fails here even though the KEY
+   * is innocent.
+   */
+  const CORRELATION_PROPERTIES: readonly string[] = [
+    `${MODULE} | conversationId | correlation.conversationId`,
+    `${MODULE} | relayGenerationId | correlation.relay?.generationId ?? null`,
+    `${MODULE} | relayRequestId | correlation.relay?.requestId ?? null`,
+    `${MODULE} | runId | correlation.runId`,
+  ];
+
+  it('logs exactly the four identifiers, and their exact expressions', () => {
+    const emitted = properties.filter((property) => property.file === MODULE).map(triple).sort();
+    expect(emitted).toEqual([...CORRELATION_PROPERTIES].sort());
+  });
+
+  it('is the module\'s only logger call, so there is one record per turn', () => {
+    expect(calls.filter((call) => call.file === MODULE)).toHaveLength(1);
+  });
+
+  it('is called from exactly one place, and that place is the request entrypoint', () => {
+    // The chokepoint half. A second caller would double-count every turn and
+    // make the record useless for the thing it exists for; zero callers is the
+    // green-and-inert shape, which is why the entrypoint is NAMED rather than
+    // counted.
+    // `recordInferenceCorrelation(` rather than the bare name, so an IMPORT
+    // does not read as a call. Measured: deleting the call while leaving the
+    // import satisfied the bare-name version of this list, and only the floor
+    // below noticed.
+    const callers = sources
+      .filter(({ file, source }) => file !== MODULE && source.text.includes('recordInferenceCorrelation('))
+      .map(({ file }) => file);
+    expect(callers).toEqual([ENTRYPOINT]);
+
+    // The floor: the entrypoint really contains the call, so the equality above
+    // is not two lists that happen to agree on a file nobody reads.
+    const entrypoint = sources.find(({ file }) => file === ENTRYPOINT);
+    expect(entrypoint?.source.text).toContain('recordInferenceCorrelation({');
   });
 });
 
