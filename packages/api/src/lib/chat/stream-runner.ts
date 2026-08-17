@@ -45,7 +45,8 @@ interface DelegateAgentToolOutput {
 }
 
 /**
- * How big a tool argument or result was, which is all a log may say about it.
+ * How big a tool argument, tool result or reasoning chunk was, which is all a
+ * log may say about it.
  *
  * This replaced a 500-character PREVIEW of the same value (epic #139 workstream
  * 15). A tool's arguments are model output and its result is usually user data
@@ -53,6 +54,10 @@ interface DelegateAgentToolOutput {
  * request log — reachable in production behind one `LOG_LEVEL=debug`, and on by
  * default in development. The size is what the line was actually read for:
  * telling an empty payload from a truncated one from a huge one.
+ *
+ * The two REASONING lines are the same shape and were missed then (#139 ws19):
+ * they logged 100 characters of the model's chain of thought under the key
+ * `reasoning`, which the census's key list did not name, so nothing went red.
  *
  * `-1` for a value that cannot be measured, so a circular structure reports a
  * fact rather than throwing inside a log call.
@@ -166,7 +171,7 @@ export async function runStream<TOOLS extends ToolSet>(params: RunStreamParams<T
           const content = match.replace(/<\/?thinking>/g, '').trim();
           if (content) {
             res.write(`event: alia.reasoning\ndata: ${JSON.stringify({ eventVersion: 1, content })}\n\n`);
-            log.v1.debug({ reasoning: content.slice(0, 100) }, 'Reasoning chunk (thinking tag)');
+            log.v1.debug({ reasoningBytes: sizeForLog(content) }, 'Reasoning chunk (thinking tag)');
           }
         });
       }
@@ -184,7 +189,7 @@ export async function runStream<TOOLS extends ToolSet>(params: RunStreamParams<T
       const reasoningText = (chunk as ExtendedChunk).text || (chunk as ExtendedChunk).thoughtDelta || (chunk as ExtendedChunk).reasoningDelta;
       if (reasoningText && typeof reasoningText === 'string' && reasoningText.trim()) {
         res.write(`event: alia.reasoning\ndata: ${JSON.stringify({ eventVersion: 1, content: reasoningText.trim() })}\n\n`);
-        log.v1.debug({ reasoning: reasoningText.slice(0, 100) }, 'Reasoning chunk (provider)');
+        log.v1.debug({ reasoningBytes: sizeForLog(reasoningText) }, 'Reasoning chunk (provider)');
       }
     } else if (chunk.type === 'tool-call') {
       sse.ensureHeaders();

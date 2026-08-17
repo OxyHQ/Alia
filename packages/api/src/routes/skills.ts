@@ -150,7 +150,7 @@ Do not include any text outside the JSON object.`,
       if (!jsonMatch) throw new Error('No JSON found');
       parsed = JSON.parse(jsonMatch[0]);
     } catch {
-      log.skills.error({ responseText }, 'Failed to parse AI-generated skill config');
+      log.skills.error({ responseChars: responseText.length }, 'Failed to parse AI-generated skill config');
       return res.status(500).json({ error: 'Failed to generate skill configuration' });
     }
 
