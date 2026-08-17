@@ -19,6 +19,8 @@
 
 import { boolean, doublePrecision, index, integer, pgTable, text, uniqueIndex } from 'drizzle-orm/pg-core';
 import { createdAt, generatedId, timestamptz, updatedAt } from '@oxyhq/db';
+import { checkOneOf } from './columns';
+import { CREDIT_FUNDING_SOURCES } from '../../domain/credit-funding.js';
 
 /**
  * One request's cost, in USD.
@@ -60,6 +62,23 @@ export const costEntries = pgTable(
     outputTokens: integer().notNull(),
     totalTokens: integer().notNull(),
     costUsd: doublePrecision().notNull(),
+    /**
+     * Which balance funded the credits the customer was charged for this
+     * request — `domain/credit-funding.ts` for what each value asserts.
+     *
+     * It is here rather than beside the balance because of what the two columns
+     * mean TOGETHER: `cost_usd` is what the request cost Alia and `grant_kind`
+     * is who paid for it, so a free-tier turn stays a row with a real cost and a
+     * label saying the customer was not billed. ADR 0005: "not billed to the
+     * customer" and "not attributed" are different statements, and only the
+     * first is ever true.
+     *
+     * **Nullable, and NULL is not "free".** It means the row was written by a
+     * path that held no credit reservation, or before this column existed. A
+     * default would invent a funding source for rows nobody measured, which is
+     * the one reading that turns an attribution gap into a false claim.
+     */
+    grantKind: text({ enum: CREDIT_FUNDING_SOURCES }),
     savedFromCache: boolean().notNull().default(false),
     timestamp: timestamptz().notNull(),
     createdAt: createdAt(),
@@ -69,6 +88,9 @@ export const costEntries = pgTable(
     index('cost_entries_alias_model_timestamp_idx').on(t.aliasModelId, t.timestamp.desc()),
     index('cost_entries_user_alias_model_idx').on(t.userId, t.aliasModelId),
     index('cost_entries_session_id_idx').on(t.sessionId),
+    // `col in (…)` is NULL for a NULL column and a CHECK rejects only FALSE, so
+    // this constrains the value without making the column required.
+    checkOneOf('cost_entries_grant_kind_check', t.grantKind, CREDIT_FUNDING_SOURCES),
   ],
 );
 
@@ -197,6 +219,23 @@ export const voiceCallUsage = pgTable(
 
     creditsCharged: integer().notNull().default(0),
     /**
+     * Which balance funded `credits_charged` — `domain/credit-funding.ts`.
+     *
+     * This table is the ONE place in the service where a cost record and the
+     * reservation that paid for it already coexist: it is both the usage record
+     * and the billing figure (see the file comment), and
+     * `voice-session-manager.ts` holds the `CreditReservation` while it writes
+     * the row. `cost_entries` carries the same column and no writer yet.
+     *
+     * **Nullable for the same reason as `cost_entries.grant_kind`**, plus one of
+     * its own: `saveUsageRecord` reads `session.creditReservation` through an
+     * optional, and inventing a funding source for a record that had none would
+     * be a lie about who paid. A session cannot actually reach that state —
+     * `startSession` throws on a null reservation before the session object
+     * exists — so NULL is unreachable rather than merely rare.
+     */
+    grantKind: text({ enum: CREDIT_FUNDING_SOURCES }),
+    /**
      * `required` in Mongoose with no default. A `required` binds only writes
      * made after it was added, so a session predating it may have none —
      * a backfill audit item, listed in CONVENTIONS.md.
@@ -227,6 +266,7 @@ export const voiceCallUsage = pgTable(
     index('voice_call_usage_oxy_user_start_time_idx').on(t.oxyUserId, t.startTime.desc()),
     index('voice_call_usage_provider_start_time_idx').on(t.provider, t.startTime.desc()),
     index('voice_call_usage_alia_model_start_time_idx').on(t.aliaModelId, t.startTime.desc()),
+    checkOneOf('voice_call_usage_grant_kind_check', t.grantKind, CREDIT_FUNDING_SOURCES),
     // Mongoose also declared single-field indexes on `oxyUserId`, `aliaModelId`
     // and `provider`; each is the PREFIX of a compound above, so the compound
     // serves it and a separate index would only cost writes. Its fourth,

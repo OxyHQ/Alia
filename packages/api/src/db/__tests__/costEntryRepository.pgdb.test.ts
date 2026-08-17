@@ -72,6 +72,7 @@ async function seed(row: {
   timestamp: Date;
   savedFromCache?: boolean;
   sessionId?: string | null;
+  grantKind?: 'free_allowance' | 'paid_balance' | null;
 }): Promise<void> {
   await insertCostEntry(db, {
     userId: row.userId,
@@ -83,6 +84,7 @@ async function seed(row: {
     outputTokens: row.outputTokens,
     totalTokens: row.inputTokens + row.outputTokens,
     costUsd: row.costUsd,
+    grantKind: row.grantKind ?? null,
     savedFromCache: row.savedFromCache ?? false,
     timestamp: row.timestamp,
   });
@@ -93,7 +95,7 @@ describe('recordCost', () => {
     const userId = 'ce-record-roundtrip';
 
     // 1,000,000 input tokens at $20/1M = $20.00 exactly.
-    await recordCost(userId, 'alia-v1-pro', 'ce-provider', PAID_MODEL, 1_000_000, 0, false, 'sess-1');
+    await recordCost(userId, 'alia-v1-pro', 'ce-provider', PAID_MODEL, 1_000_000, 0, 'paid_balance', false, 'sess-1');
 
     const summary = await getUserCostSummary(userId);
 
@@ -114,7 +116,7 @@ describe('recordCost', () => {
   it('records a zero cost for a model the pricing table does not know, and counts it as free-tier saving', async () => {
     const userId = 'ce-record-free';
 
-    await recordCost(userId, 'alia-lite', 'ce-provider', FREE_MODEL, 1_000_000, 1_000_000);
+    await recordCost(userId, 'alia-lite', 'ce-provider', FREE_MODEL, 1_000_000, 1_000_000, 'free_allowance');
 
     const summary = await getUserCostSummary(userId);
     expect(summary.totalSpent).toBe(0);
@@ -127,7 +129,7 @@ describe('recordCost', () => {
   it('re-prices a cache hit into cacheSavings without charging for it', async () => {
     const userId = 'ce-record-cached';
 
-    await recordCost(userId, 'alia-v1', 'ce-provider', PAID_MODEL, 1_000_000, 0, true);
+    await recordCost(userId, 'alia-v1', 'ce-provider', PAID_MODEL, 1_000_000, 0, 'paid_balance', true);
 
     const summary = await getUserCostSummary(userId);
     // The row still carries its computed cost; `savedFromCache` is what makes

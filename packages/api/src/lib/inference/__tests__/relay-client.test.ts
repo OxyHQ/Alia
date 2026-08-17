@@ -1106,7 +1106,7 @@ describe('degradation is a decision about the surface, not about the error', () 
       expect(client.degrade(context({ visibility: 'derived' }), errorFor(code)).kind).toBe('silent');
     }
     // The floor: an empty code list would pass the loop above trivially.
-    expect(INFERENCE_ERROR_CODES.length).toBe(26);
+    expect(INFERENCE_ERROR_CODES.length).toBe(28);
   });
 
   it('answers every code on a waiting surface, and answers it the same way twice', () => {
@@ -1162,7 +1162,7 @@ describe('degradation is a decision about the surface, not about the error', () 
       expect(sanitizeMessage(message)).toBe(message);
       checked += 1;
     }
-    expect(checked).toBe(26);
+    expect(checked).toBe(28);
     // The oracle's own positive control: it must be capable of rewriting
     // something, or "unchanged" means the sanitiser is inert rather than the
     // messages being clean.

@@ -3,6 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { PRODUCT_PLAN_STATUSES, productEntitlementSchema } from '@oxyhq/contracts';
 
 /**
  * Plan and entitlement checks — epic #139 workstream 6, *"`/alia/chat` or its
@@ -32,9 +33,26 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
  *    few minutes, retries, and it works.
  */
 
+/**
+ * A row `findActiveSubscriptions` could really return.
+ *
+ * Only the columns the read model reads, and all of them: `plan-access.ts`
+ * renders the contract's `ProductPlan` from this row, so a fixture carrying
+ * `planSnapshotPlanId` alone would make every assertion below a statement about
+ * a shape the repository never produces.
+ */
+const subscription = (planSnapshotPlanId: string | null) => ({
+  planSnapshotPlanId,
+  planSnapshotName: `${planSnapshotPlanId ?? 'none'} plan`,
+  status: 'active',
+  currentPeriodStart: new Date('2026-08-01T00:00:00.000Z'),
+  currentPeriodEnd: new Date('2026-09-01T00:00:00.000Z'),
+  cancelAtPeriodEnd: false,
+});
+
 const H = vi.hoisted(() => ({
   /** Rows `findActiveSubscriptions` returns, and how many times it was asked. */
-  subscriptions: [] as Array<{ planSnapshotPlanId: string | null }>,
+  subscriptions: [] as Array<ReturnType<typeof subscription>>,
   subscriptionReads: 0,
   plans: [] as Array<{ planId: string; modelIds?: string[] }>,
   planFeatures: [] as Array<{ planId: string; featureId: string; enabled?: boolean; limitValue?: number | null }>,
@@ -96,6 +114,148 @@ afterEach(() => {
 });
 
 /* -------------------------------------------------------------------------- */
+/*  The interface between Oxy and Alia                                         */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Epic #139 workstream 12, *"Define the final entitlement API between Oxy and
+ * Alia"*, and ADR 0005's *"Alia keeps entitlements as a low-latency read
+ * model"*.
+ *
+ * The shape is `@oxyhq/contracts`'s `productEntitlementSchema` rather than a
+ * local interface, so what is asserted here is that the read model really
+ * produces a value that schema accepts — not that a local type compiles.
+ *
+ * `productEntitlementSchema` is imported from the package and NOT mocked: the
+ * whole value of the check is that a third party owns the shape. The parse
+ * already happens inside `plan-access.ts`, so a run that never reaches it would
+ * also pass every assertion below; each one therefore names a FIELD.
+ */
+describe('the entitlement read model publishes the Oxy contract shape (#139 ws12)', () => {
+  it('produces a value the contract schema accepts, and the schema can refuse one', () => {
+    // The oracle's own positive control first: a schema that accepted anything
+    // would make the assertion after it worthless. `strict` on every object is
+    // what makes an invented field a failure rather than a passenger.
+    const drifted = productEntitlementSchema.safeParse({
+      schemaVersion: 1,
+      accountId: 'acc',
+      plan: null,
+      allowances: [{ key: 'seats', included: 3, price: 900 }],
+      payAsYouGo: null,
+      costCenter: null,
+      resolvedAt: new Date().toISOString(),
+    });
+    expect(drifted.success, 'the contract accepted a price on an allowance').toBe(false);
+
+    // And it refuses a fractional allowance, which is the rule that keeps an
+    // allowance from ever being money: `z.number().int()`, never a decimal.
+    expect(
+      productEntitlementSchema.safeParse({
+        schemaVersion: 1,
+        accountId: 'acc',
+        plan: null,
+        allowances: [{ key: 'seats', included: 2.5 }],
+        payAsYouGo: null,
+        costCenter: null,
+        resolvedAt: new Date().toISOString(),
+      }).success,
+    ).toBe(false);
+
+    return getUserEntitlements(account()).then((entitlements) => {
+      expect(productEntitlementSchema.safeParse(entitlements.entitlement).success).toBe(true);
+      expect(entitlements.entitlement.schemaVersion).toBe(1);
+      expect(entitlements.entitlement.plan).toBeNull();
+      expect(typeof entitlements.entitlement.resolvedAt).toBe('string');
+    });
+  });
+
+  it('renders a held plan from the subscription, with its allowances', async () => {
+    H.subscriptions = [subscription('pro')];
+    H.plans = [{ planId: 'pro' }];
+    H.planFeatures = [
+      { planId: 'pro', featureId: 'voice-minutes', limitValue: 600 },
+      { planId: 'pro', featureId: 'voice-mode', enabled: true },
+    ];
+
+    const { entitlement } = await getUserEntitlements(account());
+
+    expect(entitlement.plan).toEqual({
+      id: 'pro',
+      name: 'pro plan',
+      status: 'active',
+      live: true,
+      currentPeriodStart: '2026-08-01T00:00:00.000Z',
+      currentPeriodEnd: '2026-09-01T00:00:00.000Z',
+      cancelAtPeriodEnd: false,
+      allowances: [{ key: 'voice_minutes', included: 600 }],
+    });
+    // A numeric LIMIT is an allowance; a boolean CAPABILITY is not. Rendering
+    // `voice-mode` as `included: 1` would invent a quantity nothing counts down,
+    // so its absence here is the assertion.
+    // The key is the CONTRACT's namespace, not Alia's: `voice-minutes` has a
+    // hyphen and `planAllowanceSchema.key` does not permit one.
+    expect(entitlement.allowances).toEqual([{ key: 'voice_minutes', included: 600 }]);
+    expect(entitlement.allowances.map((a) => a.key)).not.toContain('voice_mode');
+  });
+
+  it('keeps the boolean capability in the Alia-local view the product gate reads', async () => {
+    // The other half of the split above, so "allowances omit it" cannot be
+    // satisfied by the capability having been dropped altogether.
+    H.subscriptions = [subscription('pro')];
+    H.plans = [{ planId: 'pro' }];
+    H.planFeatures = [
+      { planId: 'pro', featureId: 'voice-minutes', limitValue: 600 },
+      { planId: 'pro', featureId: 'voice-mode', enabled: true },
+    ];
+
+    const entitlements = await getUserEntitlements(account());
+    expect(entitlements.features).toEqual({ 'voice-minutes': 600, 'voice-mode': true });
+  });
+
+  it('reports no pay-as-you-go position and no cost centre, because Alia holds neither', async () => {
+    H.subscriptions = [subscription('pro')];
+    H.plans = [{ planId: 'pro' }];
+
+    const { entitlement } = await getUserEntitlements(account());
+
+    /**
+     * Both nulls are load-bearing. The contract's `payAsYouGo` carries MONEY as
+     * exact decimal strings; Alia's `user_credits` carries a COUNT of AI
+     * credits, and the two are not the same quantity. Synthesising one from the
+     * other would merge the halves ADR 0005 separates, in the one object whose
+     * job is keeping them apart — and it would read as a working feature.
+     *
+     * `billingSeparation.test.ts` holds the structural half: `plan-access.ts`
+     * cannot import a balance to synthesise it from.
+     */
+    expect(entitlement.payAsYouGo).toBeNull();
+    expect(entitlement.costCenter).toBeNull();
+  });
+
+  it('cannot render a status the contract has no word for', () => {
+    // `planFrom` narrows `subscriptions.status` through the contract's enum and
+    // THROWS rather than dropping the plan, because a silently absent plan is a
+    // paying customer refused their models. That throw is unreachable only while
+    // this containment holds — the read model reads live subscriptions alone.
+    const repository = code('db/billing/subscriptionRepository.ts');
+    const declaration = repository.match(
+      /export const LIVE_SUBSCRIPTION_STATUSES = \[([^\]]*)\] as const;/,
+    );
+    const live = (declaration?.[1] ?? '')
+      .split(',')
+      .map((entry) => entry.trim().replace(/^'|'$/g, ''))
+      .filter((entry) => entry !== '');
+    expect(live.length).toBeGreaterThan(0);
+    for (const status of live) {
+      expect(PRODUCT_PLAN_STATUSES as readonly string[], `${status} has no contract spelling`).toContain(status);
+    }
+    // The floor: the tuple being compared against is not empty, so the loop is
+    // not passing by having nothing to check.
+    expect(PRODUCT_PLAN_STATUSES.length).toBe(8);
+  });
+});
+
+/* -------------------------------------------------------------------------- */
 /*  What an account is entitled to                                             */
 /* -------------------------------------------------------------------------- */
 
@@ -116,7 +276,7 @@ describe('entitlements are derived from live subscriptions (#139 ws6)', () => {
     // The additive shape is load-bearing: a paid plan lists only what it ADDS,
     // so a replacement would silently strip `alia-lite` from every paying
     // customer — the cheapest model, and the one titling uses.
-    H.subscriptions = [{ planSnapshotPlanId: 'pro' }];
+    H.subscriptions = [subscription('pro')];
     H.plans = [
       { planId: 'pro', modelIds: ['alia-v1-pro', 'alia-v1-thinking'] },
       { planId: 'go', modelIds: ['alia-v1-codea'] },
@@ -171,7 +331,7 @@ describe('entitlements are derived from live subscriptions (#139 ws6)', () => {
   });
 
   it('drops a disabled feature and keeps the highest limit across plans', async () => {
-    H.subscriptions = [{ planSnapshotPlanId: 'go' }, { planSnapshotPlanId: 'pro' }];
+    H.subscriptions = [subscription('go'), subscription('pro')];
     H.plans = [{ planId: 'go' }, { planId: 'pro' }];
     H.planFeatures = [
       { planId: 'go', featureId: 'voice', enabled: true },
@@ -195,7 +355,7 @@ describe('entitlements are derived from live subscriptions (#139 ws6)', () => {
 describe('the entitlement cache is cleared by the writes that invalidate it (#139 ws6)', () => {
   it('serves a repeat read from cache and re-reads after an invalidation', async () => {
     const userId = account();
-    H.subscriptions = [{ planSnapshotPlanId: 'go' }];
+    H.subscriptions = [subscription('go')];
     H.plans = [{ planId: 'go', modelIds: ['alia-v1-codea'] }];
 
     await getUserEntitlements(userId);

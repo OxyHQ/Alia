@@ -27,6 +27,7 @@
 import { and, desc, eq, gte, lte, sql, type SQL } from 'drizzle-orm';
 import type { ApiDatabase } from '../index';
 import { costEntries } from '../schema/usage';
+import type { CreditFundingSource } from '../../domain/credit-funding.js';
 
 /** One row as written. `cost-tracker.ts` owns the arithmetic that produced it. */
 export interface CostEntryRow {
@@ -39,6 +40,8 @@ export interface CostEntryRow {
   readonly outputTokens: number;
   readonly totalTokens: number;
   readonly costUsd: number;
+  /** Which balance the customer's charge came out of. `null` when no reservation backed it. */
+  readonly grantKind: CreditFundingSource | null;
   readonly savedFromCache: boolean;
   readonly timestamp: Date;
 }
@@ -54,6 +57,7 @@ export async function insertCostEntry(db: ApiDatabase, entry: CostEntryRow): Pro
     outputTokens: entry.outputTokens,
     totalTokens: entry.totalTokens,
     costUsd: entry.costUsd,
+    grantKind: entry.grantKind,
     savedFromCache: entry.savedFromCache,
     timestamp: entry.timestamp,
   });
@@ -101,6 +105,7 @@ export async function selectCostEntries(
       outputTokens: costEntries.outputTokens,
       totalTokens: costEntries.totalTokens,
       costUsd: costEntries.costUsd,
+      grantKind: costEntries.grantKind,
       savedFromCache: costEntries.savedFromCache,
       timestamp: costEntries.timestamp,
     })
@@ -198,6 +203,7 @@ export async function selectRecentCostEntries(
       outputTokens: costEntries.outputTokens,
       totalTokens: costEntries.totalTokens,
       costUsd: costEntries.costUsd,
+      grantKind: costEntries.grantKind,
       savedFromCache: costEntries.savedFromCache,
       timestamp: costEntries.timestamp,
     })

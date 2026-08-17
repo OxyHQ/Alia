@@ -1,0 +1,127 @@
+{
+  "epic": 139,
+  "workstream": "12. Separate Alia product plans from Oxy financial billing",
+  "checkbox": "Audit every Alia plan, credit, subscription and transaction path.",
+  "measuredAt": "2026-08-17",
+  "measuredAgainst": "38862bb97c61676d5d952e882e7d9d2400b9c5e8",
+  "adr": "docs/adr/0005-product-entitlements-versus-financial-ledger.md",
+  "note": "data-billing.json inventories the seven TABLES. This file inventories the PATHS that write them: every writer, every caller of that writer, and which half of ADR 0005's split the write belongs to. Re-derived and asserted by packages/api/src/__tests__/billingSeparation.test.ts, which fails on a writer or a caller this file does not name AND on one it names that no longer exists.",
+  "method": {
+    "writers": "Every exported function declared under packages/api/src/db/billing/ whose body reaches db.insert()/update()/delete() on one of the seven tables, found through the TypeScript AST. An AST rather than grep: a comment quoting a call reads identical to the call, and db/schema/billing.ts names addCredits in prose.",
+    "callers": "Every non-test module OUTSIDE db/billing/ that imports that writer by name, static or awaited-dynamic, resolving an `as` alias back to the exported name.",
+    "residual": "Every site the census does not claim is explained rather than dropped. One false positive was found and resolved this way: a grep for seedPlanFeatures reports internal/providers/lib/seed-model-configs.ts:271, which imports a DIFFERENT function of the same name from ./seed-features.js — the seeder wrapper, not the repository writer. The AST census attributes it correctly and the grep does not.",
+    "positiveControl": "The scanner is pinned against a literal buffer containing one writing and one non-writing exported function, so an empty result cannot pass as a clean one. Its floor in the live tree is 26 writers over 7 tables, asserted exactly."
+  },
+  "classification": {
+    "CATALOGUE": "What is for sale. A product concept ADR 0005 leaves with Alia; it survives cutover unchanged.",
+    "ENTITLEMENT": "What an account may do and how much of its allowance is left. The low-latency read model, also Alia's.",
+    "FINANCIAL": "What a customer was charged or owes. Oxy's under ADR 0001/0005; these paths are what workstream 12 removes, and they are BLOCKED_OXY_972 until Oxy is authoritative."
+  },
+  "finding": {
+    "userCreditsIsTheOnlySharedTable": "Six of the seven tables fall wholly on one side. `user_credits` does not: `credits_free` is the daily allowance (ENTITLEMENT) and `credits_paid` is bought or granted balance (FINANCIAL), in one row. The split runs through addCredits's `type` argument rather than through the table, which is why a table-level inventory cannot see it and this path-level one can. At cutover the FINANCIAL writers of this table are the ones that go; the ENTITLEMENT writers stay.",
+    "unreachableWriters": "12 of the 26 writers have no caller anywhere in the package. Eleven are the catalogue's insert/update/delete set, orphaned when the never-mounted /internal/gateway admin routes were deleted (see db/schema/CONVENTIONS.md on deleteProviderKey, the same event). The twelfth is spendCreditsPaidFirst, which userCreditsRepository.ts keeps deliberately — it is the ported `deductCredits`, spending PAID first, and the file says it is named apart so the difference from spendCreditsFreeFirst cannot be collapsed by accident. Unreachable is recorded, not repaired: this audit's job is to say which paths exist, and a writer nothing calls is a fact about the cutover's blast radius.",
+    "priceLivesOnTheAliasToo": "A reader looking for where Alia's price lives will find `plans.monthly_price` and `credit_packages.price` and stop, and be wrong. What a REQUEST costs a customer is `alia_models.credit_multiplier`: lib/credits-manager.ts:52 reads it off the resolved alias inside getCreditMultiplier, and every credit figure — chat, voice, images, audio — is that multiplier times a token or minute count. So the alias catalogue is a third price surface beside the two obvious ones, and it is the one on the request path. Two consequences for the cutover: retiring an alias from ADVERTISED surfaces must leave it RESOLVING, because the multiplier is read after resolution; and moving product pricing to Oxy is not finished when `plans` and `credit_packages` move, because the per-request rate is not in either of them. It is still not upstream cost — `cost_entries.cost_usd` is that, in a different table with no shared reader (see the disjointness gate) — so this widens where product price lives without weakening the separation from provider cost.",
+    "singleStripeSurface": "Every FINANCIAL write outside the credit balance enters through routes/billing.ts. There is exactly one Stripe webhook surface (POST /billing/webhook) and one Stripe client (getStripe, lib/stripe-prices.ts shares it by parameter), which is what makes `Remove duplicate Stripe webhooks` a one-file change when Oxy is authoritative."
+  },
+  "tables": [
+    {
+      "table": "plans",
+      "half": "CATALOGUE",
+      "note": "What is offered. Carries Stripe product and price ids, which are a POINTER to the processor's catalogue rather than a charge — updatePlanByPlanId writes only those three columns.",
+      "writers": [
+        { "fn": "insertPlan", "module": "db/billing/planRepository.ts", "classification": "CATALOGUE", "callers": [], "reachable": false },
+        { "fn": "updatePlanByPlanId", "module": "db/billing/planRepository.ts", "classification": "CATALOGUE", "callers": ["lib/gateway-client.ts"], "reachable": true, "entrypoint": "lib/stripe-prices.ts ensureStripePriceId, reached from POST /billing/checkout/subscription and POST /billing/subscription/change-plan. Persists an auto-created Stripe product/price id onto the plan; writes no amount." },
+        { "fn": "deletePlanByPlanId", "module": "db/billing/planRepository.ts", "classification": "CATALOGUE", "callers": [], "reachable": false },
+        { "fn": "seedPlan", "module": "db/billing/planRepository.ts", "classification": "CATALOGUE", "callers": ["internal/providers/lib/seed-plans.ts"], "reachable": true, "entrypoint": "boot seed. ON CONFLICT DO NOTHING for the row; model_ids is rewritten wholesale so the list stays code-managed while prices stay admin-managed." }
+      ]
+    },
+    {
+      "table": "features",
+      "half": "CATALOGUE",
+      "note": "Capabilities a plan may grant, for the pricing table. No money anywhere in the row.",
+      "writers": [
+        { "fn": "insertFeature", "module": "db/billing/featureRepository.ts", "classification": "CATALOGUE", "callers": [], "reachable": false },
+        { "fn": "updateFeatureByFeatureId", "module": "db/billing/featureRepository.ts", "classification": "CATALOGUE", "callers": [], "reachable": false },
+        { "fn": "deleteFeatureByFeatureId", "module": "db/billing/featureRepository.ts", "classification": "CATALOGUE", "callers": [], "reachable": false },
+        { "fn": "seedFeature", "module": "db/billing/featureRepository.ts", "classification": "CATALOGUE", "callers": ["internal/providers/lib/seed-features.ts"], "reachable": true, "entrypoint": "boot seed." }
+      ]
+    },
+    {
+      "table": "plan_features",
+      "half": "CATALOGUE",
+      "note": "The junction, and the source of every ALLOWANCE the entitlement read model publishes: a row with a limit_value becomes a contract PlanAllowance, a row without one becomes a boolean capability.",
+      "writers": [
+        { "fn": "upsertPlanFeature", "module": "db/billing/planFeatureRepository.ts", "classification": "CATALOGUE", "callers": [], "reachable": false },
+        { "fn": "bulkUpsertPlanFeatures", "module": "db/billing/planFeatureRepository.ts", "classification": "CATALOGUE", "callers": [], "reachable": false },
+        { "fn": "deletePlanFeature", "module": "db/billing/planFeatureRepository.ts", "classification": "CATALOGUE", "callers": [], "reachable": false },
+        { "fn": "seedPlanFeatures", "module": "db/billing/planFeatureRepository.ts", "classification": "CATALOGUE", "callers": ["internal/providers/lib/seed-features.ts"], "reachable": true, "entrypoint": "boot seed, imported there as insertSeedPlanFeatures. NOT the same function as seed-features.ts's own exported seedPlanFeatures, which seed-model-configs.ts calls — see method.residual." }
+      ]
+    },
+    {
+      "table": "credit_packages",
+      "half": "CATALOGUE",
+      "note": "A price LIST, not a receipt. `price` is bigint cents handed to Stripe as unit_amount; nothing here records that anybody paid it.",
+      "writers": [
+        { "fn": "insertCreditPackage", "module": "db/billing/creditPackageRepository.ts", "classification": "CATALOGUE", "callers": [], "reachable": false },
+        { "fn": "updateCreditPackageByPackageId", "module": "db/billing/creditPackageRepository.ts", "classification": "CATALOGUE", "callers": [], "reachable": false },
+        { "fn": "deleteCreditPackageByPackageId", "module": "db/billing/creditPackageRepository.ts", "classification": "CATALOGUE", "callers": [], "reachable": false },
+        { "fn": "seedCreditPackage", "module": "db/billing/creditPackageRepository.ts", "classification": "CATALOGUE", "callers": ["internal/providers/lib/seed-credit-packages.ts"], "reachable": true, "entrypoint": "boot seed." }
+      ]
+    },
+    {
+      "table": "subscriptions",
+      "half": "FINANCIAL",
+      "note": "A mirror of Stripe, including plan_snapshot_* — the frozen record of what the customer agreed to pay. Oxy's under ADR 0005; the entitlement read model consumes it through findActiveSubscriptions, which writes nothing.",
+      "writers": [
+        { "fn": "upsertSubscriptionByStripeId", "module": "db/billing/subscriptionRepository.ts", "classification": "FINANCIAL", "callers": ["routes/billing.ts"], "reachable": true, "entrypoint": "POST /billing/webhook — customer.subscription.created/updated, checkout.session.completed (subscription mode) and invoice.payment_succeeded, all funnelling through handleSubscriptionUpdate." },
+        { "fn": "updateSubscriptionByStripeId", "module": "db/billing/subscriptionRepository.ts", "classification": "FINANCIAL", "callers": ["routes/billing.ts"], "reachable": true, "entrypoint": "POST /billing/subscription/cancel, POST /billing/subscription/change-plan, and the webhook's customer.subscription.deleted and invoice.payment_failed. Four of the five subscription write sites entitlements.test.ts accounts for." }
+      ]
+    },
+    {
+      "table": "transactions",
+      "half": "FINANCIAL",
+      "note": "The receipt. Append-only: the repository exports exactly one writer and no update or delete, and migration 0022 makes that structural rather than conventional.",
+      "writers": [
+        { "fn": "insertTransaction", "module": "db/billing/transactionRepository.ts", "classification": "FINANCIAL", "callers": ["routes/billing.ts"], "reachable": true, "entrypoint": "POST /billing/webhook — a credit purchase (checkout.session.completed) and a subscription renewal (handleSubscriptionUpdate). The renewal writes the transaction FIRST as a lock, on the dedup_key generated column, and only then adds credits." }
+      ]
+    },
+    {
+      "table": "user_credits",
+      "half": "SPLIT",
+      "note": "The one table both halves write. See finding.userCreditsIsTheOnlySharedTable.",
+      "writers": [
+        { "fn": "getOrCreateUserCredits", "module": "db/billing/userCreditsRepository.ts", "classification": "ENTITLEMENT", "callers": ["lib/user-credits-helpers.ts"], "reachable": true, "entrypoint": "One direct caller, and thirteen surfaces behind it — see balanceSurfaces. Mints the row with the default free allowance; touches no paid balance." },
+        { "fn": "refreshFreeCreditsIfDue", "module": "db/billing/userCreditsRepository.ts", "classification": "ENTITLEMENT", "callers": ["lib/user-credits-helpers.ts"], "reachable": true, "entrypoint": "getRefreshedUserCredits, the balance-display path. A compare-and-set that tops credits_free back to credits_free_limit once a day." },
+        { "fn": "spendCreditsFreeFirst", "module": "db/billing/userCreditsRepository.ts", "classification": "ENTITLEMENT", "callers": ["lib/credits-manager.ts"], "reachable": true, "entrypoint": "reserveCredits and the under-reserved branch of _adjustReservation — every chat, image, audio, voice, show and agent turn. Consumes the allowance free-first, which is why a request is funded by the free bucket wherever it can be." },
+        { "fn": "spendCreditsPaidFirst", "module": "db/billing/userCreditsRepository.ts", "classification": "ENTITLEMENT", "callers": [], "reachable": false, "entrypoint": "None. The ported deductCredits; kept deliberately, see finding.unreachableWriters." },
+        { "fn": "zeroCredits", "module": "db/billing/userCreditsRepository.ts", "classification": "ENTITLEMENT", "callers": ["lib/credits-manager.ts"], "reachable": true, "entrypoint": "_adjustReservation, when the true cost exceeded the whole remaining balance. Floors the account at zero rather than going negative." },
+        { "fn": "addCredits", "module": "db/billing/userCreditsRepository.ts", "classification": "SPLIT", "callers": ["lib/credits-manager.ts", "routes/billing.ts", "routes/referrals.ts"], "reachable": true, "entrypoint": "Three callers, and the `type` argument decides which half each is. ENTITLEMENT: lib/credits-manager.ts refunds the unused part of a reservation to 'free'. FINANCIAL: routes/billing.ts adds 'paid' credits on a completed purchase and on a subscription renewal, and routes/referrals.ts grants 'paid' credits to both sides of a referral — a PROMOTIONAL grant landing in the purchased bucket, which is why the bucket alone cannot tell a promotion from a purchase." },
+        { "fn": "setStripeCustomerId", "module": "db/billing/userCreditsRepository.ts", "classification": "FINANCIAL", "callers": ["routes/billing.ts"], "reachable": true, "entrypoint": "getOrCreateStripeCustomer and the webhook's customer-id backfill. Pure processor linkage." }
+      ]
+    }
+  ],
+  "balanceSurfaces": {
+    "note": "Every non-test module reaching the balance row through lib/user-credits-helpers.ts, which is the one hop between the repository and the product. Listed separately because the writer census sees only the helper: a table-level or writer-level inventory reports ONE caller here and the blast radius is thirteen. Asserted as an exact set.",
+    "modules": [
+      "internal/providers/lib/voice-session-manager.ts",
+      "lib/chat/request-context.ts",
+      "lib/show/show-pipeline.ts",
+      "routes/billing.ts",
+      "routes/codea.ts",
+      "routes/credits.ts",
+      "routes/referrals.ts",
+      "routes/v1.ts",
+      "routes/v1/audio.ts",
+      "routes/v1/images.ts",
+      "routes/v1/voice.ts",
+      "routes/webhooks.ts",
+      "services/chat.service.ts"
+    ]
+  },
+  "readSideEntrypoints": {
+    "note": "Reads are listed because ADR 0005's cutover deletes the write half and must leave these working. None of them writes.",
+    "entitlementReadModel": "lib/plan-access.ts — findActiveSubscriptions + getPlans + getPlanFeatures, cached 5 minutes per account. Publishes the contract's ProductEntitlement.",
+    "consumers": ["routes/catalogue.ts", "lib/catalogue.ts", "lib/chat/request-context.ts", "routes/v1/voice.ts", "internal/providers/lib/voice-session-manager.ts", "GET /billing/entitlements", "GET /billing/voice-usage"],
+    "balanceReads": ["lib/credits-manager.ts getUserCredits", "lib/credit-anomaly.ts", "GET /credits", "GET /billing/transactions"]
+  }
+}

@@ -80,6 +80,12 @@ export interface InferenceErrorPolicy {
 const BUSY = 'All available models are currently busy. Please try again in a few moments.';
 
 /**
+ * For a platform-side failure a retry cannot clear. Separate from {@link BUSY}
+ * precisely because that one promises waiting will help.
+ */
+const OUR_FAULT = 'Something went wrong on our side. We are looking into it.';
+
+/**
  * Exhaustive over `InferenceErrorCode`, deliberately: a `Record` keyed by the
  * closed union means a code added to the contract fails `tsc` here instead of
  * falling into a default branch that shows a user the wrong sentence.
@@ -166,6 +172,16 @@ export const INFERENCE_ERROR_POLICY: Readonly<Record<InferenceErrorCode, Inferen
   provider_error: { userMessage: BUSY, httpStatus: null },
   provider_timeout: { userMessage: BUSY, httpStatus: null },
   provider_overloaded: { userMessage: BUSY, httpStatus: null },
+  /**
+   * Both of these are the PLATFORM's own account with an upstream failing, and
+   * both are non-retryable — so neither may say `BUSY`, which promises the wait
+   * will help. `httpStatus: null` all the same: the request failed for a reason
+   * that is Alia's problem rather than the caller's, and a customer told to
+   * check their balance for `provider_billing_refused` would be topping up an
+   * account that is not the one at fault (`@oxyhq/contracts` `errors.ts`).
+   */
+  provider_credential_invalid: { userMessage: OUR_FAULT, httpStatus: null },
+  provider_billing_refused: { userMessage: OUR_FAULT, httpStatus: null },
   service_unavailable: { userMessage: BUSY, httpStatus: null },
   internal_error: {
     userMessage: 'Something went wrong on our side. Please try again.',
@@ -206,6 +222,8 @@ const OPERATOR_MESSAGE: Readonly<Record<InferenceErrorCode, string>> = {
   provider_error: 'the serving provider failed',
   provider_timeout: 'the serving provider did not answer within the budget',
   provider_overloaded: 'the serving provider is overloaded',
+  provider_credential_invalid: 'the serving provider rejected the platform credential',
+  provider_billing_refused: 'the serving provider declined to bill the platform account',
   service_unavailable: 'the inference service could not be reached',
   internal_error: 'the inference call failed for an unclassified reason',
 };
