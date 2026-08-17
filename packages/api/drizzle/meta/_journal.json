@@ -155,6 +155,20 @@
       "when": 1786821479500,
       "tag": "0021_overrated_killraven",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1786962768416,
+      "tag": "0022_shocking_firebird",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1786962807507,
+      "tag": "0023_append_only_receipts",
+      "breakpoints": true
     }
   ]
 }

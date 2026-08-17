@@ -25,6 +25,7 @@
 import { and, eq, gte, isNotNull, sql } from 'drizzle-orm';
 import type { ApiDatabase } from '../index';
 import { voiceCallUsage } from '../schema/usage';
+import type { CreditFundingSource } from '../../domain/credit-funding.js';
 
 /** One session's record. Mirrors what the voice manager assembles. */
 export interface VoiceCallUsageRecord {
@@ -37,6 +38,8 @@ export interface VoiceCallUsageRecord {
   readonly endTime: Date | null;
   readonly durationMinutes: number;
   readonly creditsCharged: number;
+  /** Which balance funded `creditsCharged`. `null` when no reservation backed the session. */
+  readonly grantKind: CreditFundingSource | null;
   readonly costPerMinute: number;
   readonly disconnectReason: string | null;
   readonly audioFormat: string;

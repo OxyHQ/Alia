@@ -8,6 +8,7 @@ import {
 } from '../db/billing/userCreditsRepository.js';
 import { getAliaModel } from './chat-core.js';
 import { log } from './logger.js';
+import type { CreditFundingSource } from '../domain/credit-funding.js';
 
 /**
  * Credits Manager
@@ -27,6 +28,16 @@ export interface CreditReservation {
   creditsReserved: number;
   initialFreeCredits: number;
   initialPaidCredits: number;
+  /**
+   * Which balance funded this reservation, carried to whatever cost record the
+   * request produces. ADR 0005: free and promotional usage is still
+   * cost-attributed internally, so a settlement must be able to say the customer
+   * was not billed WITHOUT that meaning nobody measured the cost.
+   *
+   * `domain/credit-funding.ts` states exactly what each value asserts and the
+   * two things it deliberately does not.
+   */
+  grantKind: CreditFundingSource;
 }
 
 /**
@@ -106,7 +117,24 @@ export async function reserveCredits(
       return null;
     }
 
-    log.credits.info({ amount, userId }, 'Reserved credits for user');
+    /**
+     * The funding source, decided by the one value the statement can report.
+     *
+     * `spendCreditsFreeFirst` takes the free allowance first, so a NON-ZERO
+     * remainder proves the whole reservation came out of it and the paid bucket
+     * was untouched. Zero does not prove the opposite — the allowance may have
+     * been emptied by exactly this reservation — and that is the documented
+     * imprecision in `domain/credit-funding.ts`, which errs toward not claiming
+     * a turn was free.
+     *
+     * Derived here rather than in the repository because it is an ATTRIBUTION
+     * decision, not a balance one, and the repository's whole contract is that
+     * each balance change is one statement returning the row it wrote.
+     */
+    const grantKind: CreditFundingSource =
+      reserveResult.creditsFree > 0 ? 'free_allowance' : 'paid_balance';
+
+    log.credits.info({ amount, userId, grantKind }, 'Reserved credits for user');
     log.credits.info({ free: reserveResult.creditsFree, paid: reserveResult.creditsPaid }, 'Remaining credits');
 
     return {
@@ -114,6 +142,7 @@ export async function reserveCredits(
       creditsReserved: amount,
       initialFreeCredits: reserveResult.creditsFree,
       initialPaidCredits: reserveResult.creditsPaid,
+      grantKind,
     };
   } catch (error) {
     log.credits.error({ err: error }, 'Error reserving credits');
