@@ -1,0 +1,2164 @@
+{
+  "epic": "https://github.com/OxyHQ/Alia/issues/139",
+  "measuredAt": "2026-08-17",
+  "measuredAgainst": {
+    "repo": "OxyHQ/Alia",
+    "ref": "origin/main",
+    "commit": "975955c4beb958610a5715bd562367179546da0a",
+    "note": "Five agents were landing workstream 4, 8, 11, 15 and 20 PRs concurrently; every verdict below is against this commit, not against their branches."
+  },
+  "checkboxes": {
+    "total": 416,
+    "ticked": 170,
+    "unticked": 246
+  },
+  "verdictCounts": {
+    "ACTIONABLE_NOW": 42,
+    "ALREADY_TRUE": 5,
+    "BLOCKED_ALIAMODELS": 26,
+    "BLOCKED_OXY_972": 27,
+    "BLOCKED_RELAY": 94,
+    "DUPLICATE_OF": 41,
+    "PRODUCT_DECISION": 11
+  },
+  "verdicts": {
+    "ACTIONABLE_NOW": "Can be earned inside this repository today. Carries deliverable and guard.",
+    "ALREADY_TRUE": "A landed guard already makes it hold. Carries the mutation that turns it red.",
+    "DUPLICATE_OF": "Restates another box. Carries that box.",
+    "BLOCKED_RELAY": "Needs the Relay data plane to exist.",
+    "BLOCKED_OXY_972": "Needs OxyHQ/oxy#972.",
+    "BLOCKED_ALIAMODELS": "Needs the separate AliaModels repository with real trained artifacts.",
+    "PRODUCT_DECISION": "A human product or commercial call, not engineering."
+  },
+  "rows": [
+    {
+      "line": 92,
+      "workstream": "Non-negotiable invariants",
+      "section": "",
+      "text": "Alia remains a product, not the generic inference control plane.",
+      "verdict": "BLOCKED_RELAY",
+      "evidence": "Alia still IS the inference control plane: packages/api/src/routes/v1.ts:127 mounts a generic OpenAI-compatible /v1/chat/completions and packages/api/src/lib/gateway-client.ts:339 resolves every model in-process via internal/providers/lib/model-resolver.js. Ceasing to be one requires a Relay data plane to serve the requests instead; none exists (docs/migration/relay-client-gap.md section 1: zero of Oxy's 155 route files match `inference` or `relay`).",
+      "residual": "The umbrella statement of workstreams 6 and 8; it flips when L635 and L387 land."
+    },
+    {
+      "line": 93,
+      "workstream": "Non-negotiable invariants",
+      "section": "",
+      "text": "Alia does not own customer organizations, applications, API keys, balances or financial ledger after migration.",
+      "verdict": "BLOCKED_OXY_972",
+      "evidence": "Alia owns them today: 15 developer routes in packages/api/src/routes/developer.ts, tables `developer_apps` and `developer_api_keys` (packages/api/drizzle/0004_ambitious_payback.sql), and the financial tables `subscriptions`/`transactions`/`user_credits`/`plans` (0003_closed_black_queen.sql). Oxy Applications/Console and the Oxy ledger are OxyHQ/oxy#972 (OPEN, updated 2026-08-17)."
+    },
+    {
+      "line": 94,
+      "workstream": "Non-negotiable invariants",
+      "section": "",
+      "text": "Alia uses Oxy Accounts, Applications, ApplicationCredentials, scopes and billing.",
+      "verdict": "BLOCKED_OXY_972",
+      "evidence": "The consuming half is built: packages/api/src/lib/inference/relay-boot-check.ts:54 parses the contract's `authenticatedPrincipalSchema` from five env vars, and @oxyhq/core@19.1.2 exposes `configureServiceAuth()`/`getServiceToken()`. What is missing is the Oxy Application and its ApplicationCredentials — see L177/L178, which nothing in this repo can create."
+    },
+    {
+      "line": 95,
+      "workstream": "Non-negotiable invariants",
+      "section": "",
+      "text": "Alia calls Relay for every model invocation after cutover.",
+      "verdict": "BLOCKED_RELAY",
+      "evidence": "packages/api/src/lib/inference/__tests__/relay-boundary.test.ts asserts by exact set equality that NOTHING in packages/api imports the Relay client; the live invocation path is gateway-client.ts:339 -> internal/providers/lib/model-resolver.js. There is no Relay endpoint to call (docs/migration/relay-client-gap.md section 1)."
+    },
+    {
+      "line": 96,
+      "workstream": "Non-negotiable invariants",
+      "section": "",
+      "text": "No local/direct provider fallback remains in Alia production code.",
+      "verdict": "BLOCKED_RELAY",
+      "evidence": "Three live local-fallback branches remain: gateway-client.ts:339 (model resolution), :383 (provider API), :439 (usage/health reporting). All three are the ONLY path in production, because GATEWAY_API_ENABLED requires both SERVICE_SECRET and GATEWAY_API_URL and production sets only the former (AGENTS.md, \"Gateway and provider keys\")."
+    },
+    {
+      "line": 97,
+      "workstream": "Non-negotiable invariants",
+      "section": "",
+      "text": "No upstream provider secret remains in Alia environment variables, application tables or admin responses.",
+      "verdict": "BLOCKED_RELAY",
+      "evidence": "Two of the three clauses already hold and one does not. ENVIRONMENT VARIABLES: a repo-wide case-insensitive grep for `<PROVIDER>_API_KEY` returns zero reads outside packages/api/src/lib/agent/secret-scanner.ts (detection patterns; they are the grep's positive control) and one vestigial `process.env.GROK_API_KEY` at internal/providers/lib/providers/grok-voice.ts:52 inside `!!x || true`, which decides nothing. ADMIN RESPONSES: gate 4 of packages/api/src/__tests__/architectureGates.test.ts plus #141, which deleted the provider router entirely. APPLICATION TABLES: `provider_keys.key` still stores the upstream credential — that is the blocked third, gated on Relay holding the credentials instead (L521).",
+      "residual": "Deleting the dead GROK_API_KEY read is a one-line ACTIONABLE_NOW sub-task."
+    },
+    {
+      "line": 99,
+      "workstream": "Non-negotiable invariants",
+      "section": "",
+      "text": "A routing policy, quality mode, prompt preset or provider alias is never presented as an Alia-owned model.",
+      "verdict": "DUPLICATE_OF",
+      "evidence": "Same single change as the canonical row: packages/api/src/routes/v1/models.ts serves all thirteen aliases with `object: \"model\"` (:22) and `owned_by: \"alia\"` (:24). The truthful surface already exists at GET /catalogue and gate 5 of packages/api/src/__tests__/architectureGates.test.ts asserts the biconditional there.",
+      "duplicateOf": "L242 — \"Stop returning `owned_by: alia` for provider aliases.\""
+    },
+    {
+      "line": 102,
+      "workstream": "Non-negotiable invariants",
+      "section": "",
+      "text": "Availability inside Alia does not imply that Oxy may publicly resell the same provider route.",
+      "verdict": "DUPLICATE_OF",
+      "evidence": "The commercial-permission property, stated as an invariant here and as an action in workstream 17. @oxyhq/contracts@0.27.0 ships `commercialPermissionSchema` and `availabilityScopeSchema` (values `internal_alia`, `public_payg`, `enterprise`, `byok_only`, `oxy_hosted`), so the vocabulary exists; nothing in Alia reads it yet.",
+      "duplicateOf": "L607 — \"Do not assume that an API key obtained from a provider authorizes public resale.\""
+    },
+    {
+      "line": 103,
+      "workstream": "Non-negotiable invariants",
+      "section": "",
+      "text": "Alia product billing/entitlements are separated from provider cost and generic inference billing.",
+      "verdict": "DUPLICATE_OF",
+      "evidence": "Restates the price/margin separation workstream 12 owns. `cost_entries.cost_usd` (packages/api/src/db/schema/usage.ts:62, `double precision`) is upstream provider cost and is read by lib/cost-tracker.ts:88 and db/usage/costEntryRepository.ts:137/:177; product entitlement lives in lib/entitlements.ts and the `plans`/`user_credits` tables.",
+      "duplicateOf": "L474 — \"Keep product price/margin separate from provider upstream cost.\""
+    },
+    {
+      "line": 160,
+      "workstream": "1. Full inventory and dependency graph",
+      "section": "Data and billing",
+      "text": "Inventory data migrations and production rows before schema removal.",
+      "verdict": "ACTIONABLE_NOW",
+      "evidence": "No inventory of migrations, tables or row counts existed before this PR. docs/migration/ownership-matrix.json classifies 21 tables under workstreams 10/11/12 but records no counts and no migration mapping.",
+      "deliverable": "docs/migration/epic-139-status.md section \"Task 2\" — 22 migrations, 21 tables, the migration that creates each, the fresh-schema baseline (all 21 are 0 rows after a from-zero run of every drizzle migration, measured 2026-08-17 in a throwaway postgis/postgis:17-3.5 container) and the exact production count command, recorded UNMEASURED because no Alia database credential exists under ~/.config/oxy/tokens/.",
+      "guard": "packages/api/src/db/__tests__/ownershipMatrixCoverage.test.ts already fails when a schema table has no matrix row; the counts themselves are an operator measurement, not a gate."
+    },
+    {
+      "line": 177,
+      "workstream": "2. Register Alia correctly in Oxy",
+      "section": "",
+      "text": "Register or confirm the Alia first-party/internal Oxy Application under the correct Oxy account.",
+      "verdict": "BLOCKED_OXY_972",
+      "evidence": "Nothing in this repo can register an Oxy Application. No application id appears anywhere: relay-boot-check.ts declares RELAY_PRINCIPAL_ENV naming five variables and packages/api/.env.example documents them, but no value is configured and no deployment sets them (.github/workflows/deploy-aws.yml syncs exactly ten secrets, none of them an Oxy application id)."
+    },
+    {
+      "line": 178,
+      "workstream": "2. Register Alia correctly in Oxy",
+      "section": "",
+      "text": "Create separate development, staging and production ApplicationCredentials.",
+      "verdict": "BLOCKED_OXY_972",
+      "evidence": "Same: ApplicationCredentials are minted in the Oxy control plane. @oxyhq/contracts@0.27.0 ships `oxyCredentialIdSchema` so the shape exists; the credentials do not."
+    },
+    {
+      "line": 179,
+      "workstream": "2. Register Alia correctly in Oxy",
+      "section": "",
+      "text": "Grant only required inference scopes.",
+      "verdict": "BLOCKED_OXY_972",
+      "evidence": "The scope vocabulary is published — `INFERENCE_SCOPES` in @oxyhq/contracts, and relay-client.ts:163 already refuses a principal missing the required invoke scope — but granting a scope is an act in the Oxy account."
+    },
+    {
+      "line": 180,
+      "workstream": "2. Register Alia correctly in Oxy",
+      "section": "",
+      "text": "Configure short-lived Oxy service-token exchange through `@oxyhq/core`.",
+      "verdict": "ACTIONABLE_NOW",
+      "evidence": "@oxyhq/core@19.1.2 (already a dependency, packages/api/package.json:35) exposes `configureServiceAuth()` and `getServiceToken(apiKey, apiSecret) -> {token, expiresIn, appName}` with per-tenant caching and `invalidateServiceToken`. packages/api/src/lib/inference/relay-client.ts:213-231 already declares a `RelayServiceTokenSource` interface whose docstring says it is \"structurally satisfied by @oxyhq/core's OxyServices\", including the invalidate-on-`authentication_failed` hook at :592. The adapter binding the two is not written.",
+      "deliverable": "A module that constructs the OxyServices-backed token source and hands it to `RelayClientConfig`. Real credentials are L178 and are not needed to write or test it.",
+      "guard": "Extend relay-client.test.ts: a token source that returns an expired token must be re-minted on the next call, and `invalidateServiceToken` must be called exactly once per `authentication_failed`. Mutation: drop the invalidate call -> the test goes red."
+    },
+    {
+      "line": 192,
+      "workstream": "2. Register Alia correctly in Oxy",
+      "section": "",
+      "text": "Remove static cross-service secrets such as the current gateway HMAC mode after service-token cutover.",
+      "verdict": "BLOCKED_RELAY",
+      "evidence": "The HMAC is gateway-client.ts:64-77 (`generateAuthHeaders`, signing timestamp/service/method/path/body-hash with SERVICE_SECRET). It is only reachable when GATEWAY_API_ENABLED, and removing SERVICE_SECRET is gated on the service-token cutover this row names. SERVICE_SECRET is also the highest-privilege value in docs/runbooks/credential-rotation.md:451 and is used elsewhere, so this is a removal of the HMAC MODE, not of the variable."
+    },
+    {
+      "line": 212,
+      "workstream": "3. Introduce a typed Relay client boundary",
+      "section": "Client responsibilities",
+      "text": "Support tools, structured output, vision, reasoning, prompt caching and modality capabilities.",
+      "verdict": "ALREADY_TRUE",
+      "evidence": "packages/api/src/lib/inference/relay-request.ts:211-241 (`violatedCapability`) refuses a request the target cannot serve on `streaming`, `tools`, `structuredOutput` (json_schema), `jsonMode` (json_object), output modality and every input modality used — vision included, since vision is an input modality in this contract. Tool definitions, tool choice and response format cross the seam as the contract's own `toolDefinitionSchema`/`toolChoiceSchema`/`responseFormatSchema` (@oxyhq/contracts@0.27.0, imported at relay-request.ts:35).",
+      "mutation": "MEASURED: replacing the condition at relay-request.ts:219 with `false` failed packages/api/src/lib/inference/__tests__/relay-request.test.ts:357. Baseline 26 passed; mutated 1 failed, 25 passed.",
+      "residual": "`promptCaching` and `reasoning` are deliberately unchecked (relay-request.ts:206-208): neither is a request FIELD in this contract, they change what the usage report contains. Separately, prompt caching on the LIVE path is still a hardcoded `cached_tokens: 0` (lib/chat/provider-loop.ts) — a workstream 8 cutover item, not a client one. And `capabilities` has no source until workstream 5 supplies a Relay-backed catalogue."
+    },
+    {
+      "line": 230,
+      "workstream": "3. Introduce a typed Relay client boundary",
+      "section": "Package boundaries",
+      "text": "Product modules import only the new Relay client/interface.",
+      "verdict": "BLOCKED_RELAY",
+      "evidence": "Deliberately false today and guarded as such: relay-boundary.test.ts asserts the Relay client is imported by \"exactly its own modules and its own tests\", so wiring it in is a reviewed diff. Product modules import lib/gateway-client.ts instead, and gate 1 of packages/api/src/__tests__/architectureGates.test.ts freezes the 23 (importer, imported) pairs crossing into internal/providers/. Flipping this needs Relay to serve."
+    },
+    {
+      "line": 241,
+      "workstream": "4. Correct the model semantics",
+      "section": "Remove fake model ownership",
+      "text": "Stop describing `alia-lite`, `alia-v1`, `alia-v1-pro`, `alia-v1-pro-max`, `alia-v1-codea`, etc. as Alia-owned models when they route to third-party models.",
+      "verdict": "ACTIONABLE_NOW",
+      "evidence": "Partly done and partly frozen. DONE: docs/model-abstraction.mdx now opens with \"The namespace is not a catalogue of models\" and tabulates what each of the thirteen actually is; GET /catalogue serves `object: \"routing_profile\"`; the app picker renders profiles as profiles (#156). NOT DONE: packages/alia-console/src/routes/_layout/documentation/models.tsx:13-43 still presents `alia-lite`/`alia-v1`/`alia-v1-pro`/`alia-v1-pro-max` as Alia models, and examples.tsx/quickstart.tsx/chat-completions.tsx repeat them as model ids.",
+      "deliverable": "Rewrite the four alia-console documentation routes to describe routing profiles and point at GET /catalogue. The /v1/models half of this row is L242 and is frozen by docs/migration/compatibility-window.md section (a).",
+      "guard": "No CI job typechecks or lints packages/alia-console today (.github/workflows/ci.yml runs only @alia/api, @alia.onl/sdk and @alia/integrations), so the guard must be a content census in the API suite over the console sources, or a new console job. Naming that gap is part of the deliverable."
+    },
+    {
+      "line": 242,
+      "workstream": "4. Correct the model semantics",
+      "section": "Remove fake model ownership",
+      "text": "Stop returning `owned_by: alia` for provider aliases.",
+      "verdict": "PRODUCT_DECISION",
+      "evidence": "One line: packages/api/src/routes/v1/models.ts:24 emits `owned_by: \"alia\"` for all thirteen. Changing it is a response-shape change on the compatibility surface that docs/migration/compatibility-window.md section (a) and ADR 0004 (\"their existing request and response shapes\") exist to prevent, and its removal gate is a usage measurement over `chat_analytics.alia_model_id` and `cost_entries.alias_model_id` with a positive control — which needs production access this repo does not have. Gate 5 of packages/api/src/__tests__/architectureGates.test.ts records the violation at EXACTLY thirteen ids in one file so it cannot grow.",
+      "residual": "The engineering half is already built and shipped beside it: GET /catalogue tells the truth and gate 5 asserts the biconditional there. What is left is the commercial call to break external callers, plus the measurement."
+    },
+    {
+      "line": 243,
+      "workstream": "4. Correct the model semantics",
+      "section": "Remove fake model ownership",
+      "text": "Stop treating system prompts, reasoning levels, Codea presets or quality modes as model identities.",
+      "verdict": "DUPLICATE_OF",
+      "evidence": "The diagnosis whose fix is the product-modes row. Measured: `alia-v1-thinking` and `alia-v1-pro-max` share tier `v1-pro-max` (packages/api/src/lib/routing/presets.ts:106 covers both with one preset), and `alia-v1-codea`/`alia-v1-cowork`/`alia-v1-browser` are surface presets (docs/model-abstraction.mdx table). Twelve presets cover thirteen aliases.",
+      "duplicateOf": "L255 — \"Replace fake aliases with clearly typed product modes/routing presets, for example:\""
+    },
+    {
+      "line": 244,
+      "workstream": "4. Correct the model semantics",
+      "section": "Remove fake model ownership",
+      "text": "Remove the global rule that provider/model identity must never appear anywhere; limit sanitization to Alia product surfaces where hiding route detail is an intentional UX/privacy decision.",
+      "verdict": "ACTIONABLE_NOW",
+      "evidence": "The global rule is live in three places: packages/api/src/lib/errors/sanitize.ts:3-5 (\"Users must NEVER see provider names\"), whose `sanitizeMessage` rewrites every registered provider name plus `gemini|claude|gpt-|llama|whisper` anywhere in any string; AGENTS.md \"Model abstraction (CRITICAL)\"; and docs/model-abstraction.mdx. Gate 5 already asserts the narrower, correct rule — no provider or provider model id in a CATALOGUE RESPONSE — which is the scoped form this row asks for.",
+      "deliverable": "Scope the rule to user-facing product surfaces (errors shown to end users, the catalogue response, the app UI) and drop the blanket prohibition from AGENTS.md and the docs. Note: agent ws20-sanitization-scope is landing this concurrently.",
+      "guard": "Gate 5's \"no catalogue response names a provider or a provider model id\" (packages/api/src/__tests__/architectureGates.test.ts:1602) is the surviving scoped guard; it already carries its own positive control (a planted model id must be seen)."
+    },
+    {
+      "line": 248,
+      "workstream": "4. Correct the model semantics",
+      "section": "Canonical model IDs",
+      "text": "Consume actual canonical model IDs from Oxy/Relay using `<publisher>/<model>`.",
+      "verdict": "BLOCKED_RELAY",
+      "evidence": "The TYPE exists and the DATA does not. @oxyhq/contracts@0.27.0 ships `modelIdSchema`, `modelReferenceSchema`, `publisherSlugSchema` and `modelSlugSchema`; docs/migration/relay-client-gap.md section 1 measured that Oxy mounts no inference or catalogue route at all (zero of 155 route files match, positive control: 155 match `a`). There is nothing to consume."
+    },
+    {
+      "line": 255,
+      "workstream": "4. Correct the model semantics",
+      "section": "Product modes",
+      "text": "Replace fake aliases with clearly typed product modes/routing presets, for example:",
+      "verdict": "ACTIONABLE_NOW",
+      "evidence": "packages/api/src/lib/routing/presets.ts already IS product configuration — twelve `RoutingPreset` entries with no provider name, no upstream model id and no ranking — but they are keyed `profile:<tier>` and named after the aliases, not after the product modes this row lists. GET /catalogue already serves `object: \"routing_profile\"` for them.",
+      "deliverable": "Add the named product modes (Automatic, Fast, Balanced, Maximum quality, Coding, Deep research) as preset identities, map each to the tier(s) it selects, and serve them from GET /catalogue. This is the one deliverable behind L255-L262.",
+      "guard": "packages/api/src/lib/routing/__tests__/routing-policy.test.ts asserts the preset table equals docs/migration/alias-migration-map.json in BOTH directions; extend it so a mode with no alias mapping, or an alias with no mode, fails. Mutation: drop one mode -> red."
+    },
+    {
+      "line": 256,
+      "workstream": "4. Correct the model semantics",
+      "section": "Product modes",
+      "text": "Automatic",
+      "verdict": "DUPLICATE_OF",
+      "evidence": "An indented example under its parent row, not a separate deliverable. Today packages/api/src/lib/routing/presets.ts:96-113 names none of the six; it names twelve `profile:<tier>` ids.",
+      "duplicateOf": "L255 — \"Replace fake aliases with clearly typed product modes/routing presets, for example:\""
+    },
+    {
+      "line": 257,
+      "workstream": "4. Correct the model semantics",
+      "section": "Product modes",
+      "text": "Fast",
+      "verdict": "DUPLICATE_OF",
+      "evidence": "An indented example under its parent row, not a separate deliverable. Today packages/api/src/lib/routing/presets.ts:96-113 names none of the six; it names twelve `profile:<tier>` ids.",
+      "duplicateOf": "L255 — \"Replace fake aliases with clearly typed product modes/routing presets, for example:\""
+    },
+    {
+      "line": 258,
+      "workstream": "4. Correct the model semantics",
+      "section": "Product modes",
+      "text": "Balanced",
+      "verdict": "DUPLICATE_OF",
+      "evidence": "An indented example under its parent row, not a separate deliverable. Today packages/api/src/lib/routing/presets.ts:96-113 names none of the six; it names twelve `profile:<tier>` ids.",
+      "duplicateOf": "L255 — \"Replace fake aliases with clearly typed product modes/routing presets, for example:\""
+    },
+    {
+      "line": 259,
+      "workstream": "4. Correct the model semantics",
+      "section": "Product modes",
+      "text": "Maximum quality",
+      "verdict": "DUPLICATE_OF",
+      "evidence": "An indented example under its parent row, not a separate deliverable. Today packages/api/src/lib/routing/presets.ts:96-113 names none of the six; it names twelve `profile:<tier>` ids.",
+      "duplicateOf": "L255 — \"Replace fake aliases with clearly typed product modes/routing presets, for example:\""
+    },
+    {
+      "line": 260,
+      "workstream": "4. Correct the model semantics",
+      "section": "Product modes",
+      "text": "Coding",
+      "verdict": "DUPLICATE_OF",
+      "evidence": "An indented example under its parent row, not a separate deliverable. Today packages/api/src/lib/routing/presets.ts:96-113 names none of the six; it names twelve `profile:<tier>` ids.",
+      "duplicateOf": "L255 — \"Replace fake aliases with clearly typed product modes/routing presets, for example:\""
+    },
+    {
+      "line": 261,
+      "workstream": "4. Correct the model semantics",
+      "section": "Product modes",
+      "text": "Deep research",
+      "verdict": "DUPLICATE_OF",
+      "evidence": "An indented example under its parent row, not a separate deliverable. Today packages/api/src/lib/routing/presets.ts:96-113 names none of the six; it names twelve `profile:<tier>` ids.",
+      "duplicateOf": "L255 — \"Replace fake aliases with clearly typed product modes/routing presets, for example:\""
+    },
+    {
+      "line": 262,
+      "workstream": "4. Correct the model semantics",
+      "section": "Product modes",
+      "text": "Represent those modes as product configuration or `routing_profile`, never `object: model`.",
+      "verdict": "DUPLICATE_OF",
+      "evidence": "Half already holds and the other half is the one frozen line. GET /catalogue emits `object: \"routing_profile\"` for every entry that fans out to more than one model, asserted as a biconditional recomputed from the live routing table by gate 5 of packages/api/src/__tests__/architectureGates.test.ts:1540. /v1/models emits `object: \"model\"` for all thirteen, frozen at exactly that.",
+      "duplicateOf": "L242 — \"Stop returning `owned_by: alia` for provider aliases.\""
+    },
+    {
+      "line": 263,
+      "workstream": "4. Correct the model semantics",
+      "section": "Product modes",
+      "text": "Allow Alia product owners to configure which actual models or routing profiles are visible.",
+      "verdict": "ACTIONABLE_NOW",
+      "evidence": "Visibility is a hardcoded literal, not configuration: `chatVisible` is a field on the frozen `ALIA_MODELS` record (packages/api/src/internal/providers/lib/alia-models.ts:42, set at :73, :86, :171, :184), and the `alia_models` table carries only an `isLegacy` display flag — packages/api/src/lib/routing/__tests__/routing-config-audit.test.ts says so explicitly (\"the alias set is a literal, and the table behind it carries one display flag\").",
+      "deliverable": "Move catalogue visibility into product configuration a product owner can change (a row or a config module), and have GET /catalogue filter on it.",
+      "guard": "routing-config-audit.test.ts already enumerates every writer of routing configuration and requires each to be audited, boot-only or uncalled; a new visibility writer must join that map or the test fails."
+    },
+    {
+      "line": 264,
+      "workstream": "4. Correct the model semantics",
+      "section": "Product modes",
+      "text": "Permit the product UI to show selected actual Anthropic, Google, OpenAI, Meta/open-weight, Mistral or other models where appropriate.",
+      "verdict": "BLOCKED_RELAY",
+      "evidence": "Two things block it. There are no concrete models in the catalogue — all thirteen entries fan out to two or more upstream models, measured by gate 5 (packages/api/src/__tests__/architectureGates.test.ts:1526, `expect(fanOut.filter(f => f.models < 2)).toEqual([])`) — so there is nothing concrete to show. And the catalogue response is asserted to name no provider and no provider model id (packages/api/src/__tests__/architectureGates.test.ts:1602), which is the rule L244 scopes.",
+      "residual": "Once L244 lands and Relay supplies concrete models, packages/app/components/model-selector.tsx:141 already renders `${publisher}/${model}` when the catalogue carries them."
+    },
+    {
+      "line": 265,
+      "workstream": "4. Correct the model semantics",
+      "section": "Product modes",
+      "text": "Ensure a selected concrete model remains concrete through the request path.",
+      "verdict": "DUPLICATE_OF",
+      "evidence": "Satisfied by absence AND by a landed guard. Absence: no concrete model can be selected today (all thirteen entries are routing profiles, gate 5:1526). Guard: internal/providers/lib/fallback-engine.ts throws `UnregisteredModelError` instead of rewriting an unknown identifier, asserted by gate 3 (packages/api/src/__tests__/architectureGates.test.ts:974) with `expect(rewrites).toEqual([])` and the vacuity floor `expect(refusals).toBe(1)`. It would become false again the day a concrete model enters the catalogue without a same-model-only default.",
+      "duplicateOf": "TICKED L100 — \"A concrete requested model is not silently replaced with another model.\""
+    },
+    {
+      "line": 266,
+      "workstream": "4. Correct the model semantics",
+      "section": "Product modes",
+      "text": "Make cross-model fallback an explicit product/user policy rather than hidden behavior.",
+      "verdict": "DUPLICATE_OF",
+      "evidence": "Landed in #147: `fallbackPolicy` is a property of the REQUEST, carried across the seam at gateway-client.ts:309-341 and defaulted by `DEFAULT_FALLBACK_POLICY` (packages/api/src/lib/routing/policy.ts); every preset states its policy explicitly (presets.ts:96-113) and the frozen table in routing-policy.test.ts fails if any entry narrows.",
+      "duplicateOf": "TICKED L509 — \"Support `no fallback`, `same model only` and explicit cross-model fallback modes.\""
+    },
+    {
+      "line": 274,
+      "workstream": "4. Correct the model semantics",
+      "section": "Reserve `alia/*`",
+      "text": "Add deprecation headers/events and a sunset date for external clients still using old aliases.",
+      "verdict": "ACTIONABLE_NOW",
+      "evidence": "The headers half is landed: packages/api/src/middleware/alias-deprecation.ts emits `Deprecation` (RFC 9745 structured-field Date) and `Link` with rel=deprecation on any response to a request naming one of the thirteen, mounted app-wide below the body parsers and above every router (src/index.ts:230), and alias-deprecation.test.ts asserts that mount ORDER by showing the signal disappears when mounted above the parser. The EVENT half does not exist: docs/migration/compatibility-window.md names `alia.deprecation` (eventVersion 1) and says \"This event does not exist in the code today\". The DATE half is deliberately withheld — `Sunset` is implemented and emits nothing because no removal date is set, and docs/migration/compatibility-window.md forbids setting one as a placeholder.",
+      "deliverable": "Emit the `alia.deprecation` SSE event alongside the headers, following the existing `alia.*` convention in packages/api/src/lib/chat-events.ts.",
+      "guard": "alias-deprecation.test.ts extended with an event assertion; packages/api/src/__tests__/socketProductEvents.test.ts is the existing census over product stream events. Mutation: emit the event for a non-alias request -> red.",
+      "residual": "The sunset DATE is a PRODUCT_DECISION gated on a production usage measurement (docs/migration/compatibility-window.md removal gate (a).1), which no repo change can satisfy."
+    },
+    {
+      "line": 282,
+      "workstream": "5. Update the Alia model picker and product configuration",
+      "section": "",
+      "text": "Show publisher/model name for concrete models.",
+      "verdict": "BLOCKED_RELAY",
+      "evidence": "The rendering exists and the data does not. packages/app/components/model-selector.tsx:141 returns `${publisher}/${model}` when both are present, and routes/catalogue.ts:123 serves `publisher` and `model` on an `object: \"model\"` entry. No entry is one: all thirteen fan out to two or more upstream models (gate 5, packages/api/src/__tests__/architectureGates.test.ts:1526). The selector comment states the residual itself — \"publisher attribution does not exist in Alia's data\"."
+    },
+    {
+      "line": 283,
+      "workstream": "5. Update the Alia model picker and product configuration",
+      "section": "",
+      "text": "Show “Automatic/Fast/Quality” language for routing profiles without pretending they are models.",
+      "verdict": "ACTIONABLE_NOW",
+      "evidence": "The picker distinguishes the two kinds and says how widely a profile chooses (model-selector.tsx:130-142, `models.routingProfile` / `models.routingProfileSelects`), but the strings are per-alias display names from ALIA_MODELS, not \"Automatic/Fast/Quality\" product language — because those modes do not exist yet (L255).",
+      "deliverable": "Once L255 names the modes, render them with that language in the picker and add the translation strings. Small, and strictly downstream of L255.",
+      "guard": "A translation-completeness check over packages/app locales for the new keys; today no CI job builds or typechecks packages/app at all."
+    },
+    {
+      "line": 285,
+      "workstream": "5. Update the Alia model picker and product configuration",
+      "section": "",
+      "text": "Filter the catalogue by Alia product policy, plan entitlement, region and platform capability.",
+      "verdict": "ACTIONABLE_NOW",
+      "evidence": "Partly landed. Entitlement filtering EXISTS: GET /catalogue takes `product` and `entitled` query params and resolves through lib/plan-access.ts (routes/catalogue.ts:143-203), refusing to invent an anonymous entitlement. Product policy is L263. REGION and PLATFORM CAPABILITY do not exist at all: packages/api/src/lib/routing/presets.ts:60-64 lists `region` and `data-policy` in `DELEGATED_TO_RELAY` on purpose, so region is BLOCKED_RELAY, but platform capability (what the calling client can actually render) is an Alia-side fact nothing carries today.",
+      "deliverable": "Add a platform-capability filter to GET /catalogue driven by the calling surface. Region stays delegated; say so in the response rather than stubbing it.",
+      "guard": "routes/__tests__/catalogue.test.ts, extended so a surface that cannot render audio does not receive an audio-only entry. Mutation: drop the filter -> red."
+    },
+    {
+      "line": 287,
+      "workstream": "5. Update the Alia model picker and product configuration",
+      "section": "",
+      "text": "Support revision pinning for evaluation/internal builds without exposing confusing revision detail to ordinary users.",
+      "verdict": "BLOCKED_RELAY",
+      "evidence": "Revision pinning has a contract (`modelRevisionLabelSchema`, `modelReferenceSchema` in @oxyhq/contracts@0.27.0) and no data: nothing in Alia has a revision to pin. internal/providers/lib/alia-models.ts maps an alias to a TIER, and the tier to a list of upstream model ids with no revision anywhere."
+    },
+    {
+      "line": 290,
+      "workstream": "5. Update the Alia model picker and product configuration",
+      "section": "",
+      "text": "Record the requested model/profile and actual resolved model revision in product analytics without leaking unsafe provider details to end users.",
+      "verdict": "ACTIONABLE_NOW",
+      "evidence": "Half of it is already recorded and half is wrong-by-design. `chat_analytics` carries BOTH (packages/api/src/db/schema/usage.ts:88-114): `alia_model_id` is the requested alias and `model` is the PROVIDER's model id, with `provider` beside it at :114. There is no resolved-REVISION field because no revision exists (L287). The leak risk is contained today: GET /analytics/models groups by `coalesce(alia_model_id, model)` and resolves each group through `getAliaModel()`, skipping what cannot resolve (schema comment at usage.ts:92-95).",
+      "deliverable": "Record the requested model/profile explicitly as its own column rather than relying on `coalesce`, so a row whose alias is null is a defect rather than a silent fallback to a provider id.",
+      "guard": "A pgdb test on chatAnalyticsRepository asserting every written row carries a resolvable requested identifier. Mutation: write a row with a null alias -> red.",
+      "residual": "Replacing the `provider`/`model` columns themselves is L442."
+    },
+    {
+      "line": 291,
+      "workstream": "5. Update the Alia model picker and product configuration",
+      "section": "",
+      "text": "Update Codea, Cowork, CLI and SDK pickers consistently.",
+      "verdict": "ACTIONABLE_NOW",
+      "evidence": "Measured: every non-app surface still hardcodes an alias. packages/alia-codea-cli/src/utils/config.ts:25 and src/index.ts:49/:62/:77 default `alia-v1-codea`; packages/alia-codea/src/inlineCompletionProvider.ts:23 and chatProvider.ts:592 the same; packages/alia-cowork/src/main/auth.ts:26 `alia-v1-cowork` and renderer/src/components/Console.tsx:124 prints it as literal text; packages/alia-chat/src/hooks/useVoiceRoom.ts:332 `alia-v1-voice` and components/AliaChatSheet.tsx:48 `alia-v1`. Only packages/app reads GET /catalogue (#156).",
+      "deliverable": "Point Codea, Cowork, the CLI and @alia.onl/sdk at GET /catalogue the way packages/app/lib/hooks/use-catalogue.ts does, with the same `resolveSelection` fallback for an unavailable identifier.",
+      "guard": "An alias census like gate 3's, widened from packages/api/src to the four client packages: an `alia-`-shaped literal used as a model DEFAULT outside the catalogue fetch fails. Mutation: re-add a hardcoded default -> red."
+    },
+    {
+      "line": 314,
+      "workstream": "6. Split product API from generic inference API",
+      "section": "Generic inference API",
+      "text": "Stop treating Alia's `/v1/chat/completions` as the canonical generic inference endpoint.",
+      "verdict": "BLOCKED_RELAY",
+      "evidence": "It is canonical today by measurement, not by intent: every shipped client posts to it — packages/app/lib/hooks/use-chat-conversation.ts:44, packages/alia-chat/src/hooks/useAliaChat.ts:217, packages/alia-codea/src/chatParticipant.ts:177 and inlineCompletionProvider.ts:93, packages/integrations/src/shared/api-client.ts:198/:260 — and Oxy itself proxies INTO it (docs/migration/relay-client-gap.md section 1: Oxy's routes/alia.ts:65 `axios.post` to https://api.alia.onl/v1/chat/completions). It stops being canonical when Oxy has somewhere else to send them."
+    },
+    {
+      "line": 315,
+      "workstream": "6. Split product API from generic inference API",
+      "section": "Generic inference API",
+      "text": "Move generic inference access to `api.oxy.so/v1` backed by Relay.",
+      "verdict": "BLOCKED_OXY_972",
+      "evidence": "api.oxy.so/v1 is not backed by Relay: docs/migration/relay-client-gap.md section 1 measured that Oxy mounts /v1 on `aliaRoutes` with only `userRateLimiter`, and its /v1/chat/completions is a static-key proxy back into Alia. The arrow points the wrong way. OxyHQ/oxy#972 owns the replacement."
+    },
+    {
+      "line": 317,
+      "workstream": "6. Split product API from generic inference API",
+      "section": "Generic inference API",
+      "text": "returns a documented redirect/proxy during migration,",
+      "verdict": "PRODUCT_DECISION",
+      "evidence": "The decision this row is one option of has already been MADE and recorded: the parent row L316 is ticked and the chosen option — \"remains a product-specific compatibility endpoint for a bounded period\" (L318) — is ticked, in docs/migration/compatibility-window.md section (b) and ADR 0004. Ticking this row would contradict L318.",
+      "residual": "Not earnable as written; the epic body would need to strike it. Not edited here, per instruction."
+    },
+    {
+      "line": 319,
+      "workstream": "6. Split product API from generic inference API",
+      "section": "Generic inference API",
+      "text": "is removed with a fixed sunset.",
+      "verdict": "PRODUCT_DECISION",
+      "evidence": "The other rejected option of the same already-made decision. docs/migration/compatibility-window.md section (b) keeps api.alia.onl/v1/* for a bounded period with a measured removal gate; ADR 0004 keeps it at its existing shapes. Ticking this contradicts the ticked L318.",
+      "residual": "Not earnable as written; same note as L317."
+    },
+    {
+      "line": 320,
+      "workstream": "6. Split product API from generic inference API",
+      "section": "Generic inference API",
+      "text": "Ensure compatibility routes do not reintroduce Alia-owned API keys or provider billing.",
+      "verdict": "ACTIONABLE_NOW",
+      "evidence": "Alia-owned API keys ARE the compatibility route's auth today: packages/api/src/middleware/auth.ts:108/:137/:274 branch on the `alia_sk_` prefix and packages/api/src/routes/developer.ts:224 still mints them. Nothing prevents a NEW key or a new provider-billed path being added to the /v1 surface — there is no guard that says the compatibility surface gains nothing.",
+      "deliverable": "A guard freezing the /v1 surface: the exact set of routes, the exact set of auth mechanisms reaching them, and no new provider-cost write from a /v1 handler.",
+      "guard": "Extend packages/api/src/routes/__tests__/inference-boundary.test.ts, which already enumerates every mount reaching inference and asserts the limiter on each, with an exact-set assertion over /v1 routes and their auth. Mutation: add a route under /v1 -> red."
+    },
+    {
+      "line": 321,
+      "workstream": "6. Split product API from generic inference API",
+      "section": "Generic inference API",
+      "text": "Keep `/alia/chat` and `/v1/chat/completions` from silently sharing incompatible product semantics after the split.",
+      "verdict": "ACTIONABLE_NOW",
+      "evidence": "They share the handler by identity, not by copy: packages/api/src/routes/chat.ts:23 dispatches POST /alia/chat to `handleChatCompletions`, and packages/api/src/routes/__tests__/unified-product-runtime.test.ts:65 asserts it is the SAME OBJECT. The divergence risk that row names is auth: /alia/chat mounts `optionalAuth` and admits an anonymous caller straight to inference with no credit reservation — recorded, not fixed, at inference-boundary.test.ts:354 and in the routes/chat.ts docstring as a product decision.",
+      "deliverable": "Either close the anonymous hole on /alia/chat or split the handlers so the product and generic contracts cannot drift silently. The route has ZERO in-repo callers (measured: 23 occurrences in .ts/.tsx, 9 outside __tests__, only 5 not comments, and the one in a client — packages/app/lib/api/routes.ts:53 — declares `API_ROUTES.chat.alia` and is never read), so closing it is cheap in-repo and only external traffic is at risk.",
+      "guard": "unified-product-runtime.test.ts already pins same-object identity; add an assertion that the two mounts' middleware chains are equal, or that they are deliberately different and the difference is enumerated. Mutation: change one chain -> red."
+    },
+    {
+      "line": 323,
+      "workstream": "6. Split product API from generic inference API",
+      "section": "Generic inference API",
+      "text": "Update SDKs so product clients use the Alia runtime and generic developers use Oxy.",
+      "verdict": "BLOCKED_OXY_972",
+      "evidence": "There is no Oxy generic endpoint for a developer SDK to point at (docs/migration/relay-client-gap.md section 1). Meanwhile @alia.onl/sdk posts to Alia's /v1/chat/completions (packages/alia-chat/src/hooks/useAliaChat.ts:217) and the console documents that URL in six places."
+    },
+    {
+      "line": 324,
+      "workstream": "6. Split product API from generic inference API",
+      "section": "Generic inference API",
+      "text": "Remove generic model catalogue ownership from Alia after Oxy catalogue launch.",
+      "verdict": "BLOCKED_OXY_972",
+      "evidence": "Alia owns the only catalogue: GET /catalogue (packages/api/src/routes/catalogue.ts) and GET /v1/models. Removing that ownership presupposes an Oxy catalogue launch; @oxyhq/contracts ships `modelCatalogueEntrySchema` but no Oxy route serves it."
+    },
+    {
+      "line": 334,
+      "workstream": "7. Extract provider execution into Relay",
+      "section": "Adapter extraction",
+      "text": "Anthropic.",
+      "verdict": "BLOCKED_RELAY",
+      "evidence": "packages/api/src/internal/providers/lib/providers/anthropic.ts exists and is LOADED in production — lib/providers/index.ts is imported by the live voice-session-manager.ts:30 — but its `proxy()` has no call site: a repo-wide scan for `.proxy(` returns exactly one hit, packages/api/src/internal/providers/lib/__tests__/credential-redaction.test.ts:150. Extraction needs a Relay adapter contract to extract INTO; none exists.",
+      "residual": "Only openai and xai contribute anything live, and only their `.voice` half (voice-session-manager.ts:148/:229/:695 read `providerImpl.voice.connect`). The live text path is lib/chat-core.ts `getAIModel()` and internal/providers/lib/provider-api.ts, neither of which uses these files."
+    },
+    {
+      "line": 335,
+      "workstream": "7. Extract provider execution into Relay",
+      "section": "Adapter extraction",
+      "text": "OpenAI and OpenAI voice/realtime.",
+      "verdict": "BLOCKED_RELAY",
+      "evidence": "packages/api/src/internal/providers/lib/providers/openai.ts + openai-voice.ts exists and is LOADED in production — lib/providers/index.ts is imported by the live voice-session-manager.ts:30 — but its `proxy()` has no call site: a repo-wide scan for `.proxy(` returns exactly one hit, packages/api/src/internal/providers/lib/__tests__/credential-redaction.test.ts:150. Extraction needs a Relay adapter contract to extract INTO; none exists.",
+      "residual": "Only openai and xai contribute anything live, and only their `.voice` half (voice-session-manager.ts:148/:229/:695 read `providerImpl.voice.connect`). The live text path is lib/chat-core.ts `getAIModel()` and internal/providers/lib/provider-api.ts, neither of which uses these files."
+    },
+    {
+      "line": 336,
+      "workstream": "7. Extract provider execution into Relay",
+      "section": "Adapter extraction",
+      "text": "Google.",
+      "verdict": "BLOCKED_RELAY",
+      "evidence": "packages/api/src/internal/providers/lib/providers/google.ts exists and is LOADED in production — lib/providers/index.ts is imported by the live voice-session-manager.ts:30 — but its `proxy()` has no call site: a repo-wide scan for `.proxy(` returns exactly one hit, packages/api/src/internal/providers/lib/__tests__/credential-redaction.test.ts:150. Extraction needs a Relay adapter contract to extract INTO; none exists.",
+      "residual": "Only openai and xai contribute anything live, and only their `.voice` half (voice-session-manager.ts:148/:229/:695 read `providerImpl.voice.connect`). The live text path is lib/chat-core.ts `getAIModel()` and internal/providers/lib/provider-api.ts, neither of which uses these files."
+    },
+    {
+      "line": 337,
+      "workstream": "7. Extract provider execution into Relay",
+      "section": "Adapter extraction",
+      "text": "xAI/Grok voice where applicable.",
+      "verdict": "BLOCKED_RELAY",
+      "evidence": "packages/api/src/internal/providers/lib/providers/xai.ts + grok-voice.ts exists and is LOADED in production — lib/providers/index.ts is imported by the live voice-session-manager.ts:30 — but its `proxy()` has no call site: a repo-wide scan for `.proxy(` returns exactly one hit, packages/api/src/internal/providers/lib/__tests__/credential-redaction.test.ts:150. Extraction needs a Relay adapter contract to extract INTO; none exists.",
+      "residual": "Only openai and xai contribute anything live, and only their `.voice` half (voice-session-manager.ts:148/:229/:695 read `providerImpl.voice.connect`). The live text path is lib/chat-core.ts `getAIModel()` and internal/providers/lib/provider-api.ts, neither of which uses these files."
+    },
+    {
+      "line": 338,
+      "workstream": "7. Extract provider execution into Relay",
+      "section": "Adapter extraction",
+      "text": "Cerebras.",
+      "verdict": "BLOCKED_RELAY",
+      "evidence": "packages/api/src/internal/providers/lib/providers/cerebras.ts exists and is LOADED in production — lib/providers/index.ts is imported by the live voice-session-manager.ts:30 — but its `proxy()` has no call site: a repo-wide scan for `.proxy(` returns exactly one hit, packages/api/src/internal/providers/lib/__tests__/credential-redaction.test.ts:150. Extraction needs a Relay adapter contract to extract INTO; none exists.",
+      "residual": "Only openai and xai contribute anything live, and only their `.voice` half (voice-session-manager.ts:148/:229/:695 read `providerImpl.voice.connect`). The live text path is lib/chat-core.ts `getAIModel()` and internal/providers/lib/provider-api.ts, neither of which uses these files."
+    },
+    {
+      "line": 339,
+      "workstream": "7. Extract provider execution into Relay",
+      "section": "Adapter extraction",
+      "text": "Cloudflare.",
+      "verdict": "BLOCKED_RELAY",
+      "evidence": "packages/api/src/internal/providers/lib/providers/cloudflare.ts exists and is LOADED in production — lib/providers/index.ts is imported by the live voice-session-manager.ts:30 — but its `proxy()` has no call site: a repo-wide scan for `.proxy(` returns exactly one hit, packages/api/src/internal/providers/lib/__tests__/credential-redaction.test.ts:150. Extraction needs a Relay adapter contract to extract INTO; none exists.",
+      "residual": "Only openai and xai contribute anything live, and only their `.voice` half (voice-session-manager.ts:148/:229/:695 read `providerImpl.voice.connect`). The live text path is lib/chat-core.ts `getAIModel()` and internal/providers/lib/provider-api.ts, neither of which uses these files."
+    },
+    {
+      "line": 340,
+      "workstream": "7. Extract provider execution into Relay",
+      "section": "Adapter extraction",
+      "text": "Cohere.",
+      "verdict": "BLOCKED_RELAY",
+      "evidence": "packages/api/src/internal/providers/lib/providers/cohere.ts exists and is LOADED in production — lib/providers/index.ts is imported by the live voice-session-manager.ts:30 — but its `proxy()` has no call site: a repo-wide scan for `.proxy(` returns exactly one hit, packages/api/src/internal/providers/lib/__tests__/credential-redaction.test.ts:150. Extraction needs a Relay adapter contract to extract INTO; none exists.",
+      "residual": "Only openai and xai contribute anything live, and only their `.voice` half (voice-session-manager.ts:148/:229/:695 read `providerImpl.voice.connect`). The live text path is lib/chat-core.ts `getAIModel()` and internal/providers/lib/provider-api.ts, neither of which uses these files."
+    },
+    {
+      "line": 341,
+      "workstream": "7. Extract provider execution into Relay",
+      "section": "Adapter extraction",
+      "text": "DeepSeek.",
+      "verdict": "BLOCKED_RELAY",
+      "evidence": "packages/api/src/internal/providers/lib/providers/deepseek.ts exists and is LOADED in production — lib/providers/index.ts is imported by the live voice-session-manager.ts:30 — but its `proxy()` has no call site: a repo-wide scan for `.proxy(` returns exactly one hit, packages/api/src/internal/providers/lib/__tests__/credential-redaction.test.ts:150. Extraction needs a Relay adapter contract to extract INTO; none exists.",
+      "residual": "Only openai and xai contribute anything live, and only their `.voice` half (voice-session-manager.ts:148/:229/:695 read `providerImpl.voice.connect`). The live text path is lib/chat-core.ts `getAIModel()` and internal/providers/lib/provider-api.ts, neither of which uses these files."
+    },
+    {
+      "line": 342,
+      "workstream": "7. Extract provider execution into Relay",
+      "section": "Adapter extraction",
+      "text": "DigitalOcean.",
+      "verdict": "BLOCKED_RELAY",
+      "evidence": "packages/api/src/internal/providers/lib/providers/digitalocean.ts exists and is LOADED in production — lib/providers/index.ts is imported by the live voice-session-manager.ts:30 — but its `proxy()` has no call site: a repo-wide scan for `.proxy(` returns exactly one hit, packages/api/src/internal/providers/lib/__tests__/credential-redaction.test.ts:150. Extraction needs a Relay adapter contract to extract INTO; none exists.",
+      "residual": "Only openai and xai contribute anything live, and only their `.voice` half (voice-session-manager.ts:148/:229/:695 read `providerImpl.voice.connect`). The live text path is lib/chat-core.ts `getAIModel()` and internal/providers/lib/provider-api.ts, neither of which uses these files."
+    },
+    {
+      "line": 343,
+      "workstream": "7. Extract provider execution into Relay",
+      "section": "Adapter extraction",
+      "text": "Fireworks.",
+      "verdict": "BLOCKED_RELAY",
+      "evidence": "packages/api/src/internal/providers/lib/providers/fireworks.ts exists and is LOADED in production — lib/providers/index.ts is imported by the live voice-session-manager.ts:30 — but its `proxy()` has no call site: a repo-wide scan for `.proxy(` returns exactly one hit, packages/api/src/internal/providers/lib/__tests__/credential-redaction.test.ts:150. Extraction needs a Relay adapter contract to extract INTO; none exists.",
+      "residual": "Only openai and xai contribute anything live, and only their `.voice` half (voice-session-manager.ts:148/:229/:695 read `providerImpl.voice.connect`). The live text path is lib/chat-core.ts `getAIModel()` and internal/providers/lib/provider-api.ts, neither of which uses these files."
+    },
+    {
+      "line": 344,
+      "workstream": "7. Extract provider execution into Relay",
+      "section": "Adapter extraction",
+      "text": "Groq.",
+      "verdict": "BLOCKED_RELAY",
+      "evidence": "packages/api/src/internal/providers/lib/providers/groq.ts exists and is LOADED in production — lib/providers/index.ts is imported by the live voice-session-manager.ts:30 — but its `proxy()` has no call site: a repo-wide scan for `.proxy(` returns exactly one hit, packages/api/src/internal/providers/lib/__tests__/credential-redaction.test.ts:150. Extraction needs a Relay adapter contract to extract INTO; none exists.",
+      "residual": "Only openai and xai contribute anything live, and only their `.voice` half (voice-session-manager.ts:148/:229/:695 read `providerImpl.voice.connect`). The live text path is lib/chat-core.ts `getAIModel()` and internal/providers/lib/provider-api.ts, neither of which uses these files."
+    },
+    {
+      "line": 345,
+      "workstream": "7. Extract provider execution into Relay",
+      "section": "Adapter extraction",
+      "text": "Hyperbolic.",
+      "verdict": "BLOCKED_RELAY",
+      "evidence": "packages/api/src/internal/providers/lib/providers/hyperbolic.ts exists and is LOADED in production — lib/providers/index.ts is imported by the live voice-session-manager.ts:30 — but its `proxy()` has no call site: a repo-wide scan for `.proxy(` returns exactly one hit, packages/api/src/internal/providers/lib/__tests__/credential-redaction.test.ts:150. Extraction needs a Relay adapter contract to extract INTO; none exists.",
+      "residual": "Only openai and xai contribute anything live, and only their `.voice` half (voice-session-manager.ts:148/:229/:695 read `providerImpl.voice.connect`). The live text path is lib/chat-core.ts `getAIModel()` and internal/providers/lib/provider-api.ts, neither of which uses these files."
+    },
+    {
+      "line": 346,
+      "workstream": "7. Extract provider execution into Relay",
+      "section": "Adapter extraction",
+      "text": "Mistral.",
+      "verdict": "BLOCKED_RELAY",
+      "evidence": "packages/api/src/internal/providers/lib/providers/mistral.ts exists and is LOADED in production — lib/providers/index.ts is imported by the live voice-session-manager.ts:30 — but its `proxy()` has no call site: a repo-wide scan for `.proxy(` returns exactly one hit, packages/api/src/internal/providers/lib/__tests__/credential-redaction.test.ts:150. Extraction needs a Relay adapter contract to extract INTO; none exists.",
+      "residual": "Only openai and xai contribute anything live, and only their `.voice` half (voice-session-manager.ts:148/:229/:695 read `providerImpl.voice.connect`). The live text path is lib/chat-core.ts `getAIModel()` and internal/providers/lib/provider-api.ts, neither of which uses these files."
+    },
+    {
+      "line": 347,
+      "workstream": "7. Extract provider execution into Relay",
+      "section": "Adapter extraction",
+      "text": "Novita.",
+      "verdict": "BLOCKED_RELAY",
+      "evidence": "packages/api/src/internal/providers/lib/providers/novita.ts exists and is LOADED in production — lib/providers/index.ts is imported by the live voice-session-manager.ts:30 — but its `proxy()` has no call site: a repo-wide scan for `.proxy(` returns exactly one hit, packages/api/src/internal/providers/lib/__tests__/credential-redaction.test.ts:150. Extraction needs a Relay adapter contract to extract INTO; none exists.",
+      "residual": "Only openai and xai contribute anything live, and only their `.voice` half (voice-session-manager.ts:148/:229/:695 read `providerImpl.voice.connect`). The live text path is lib/chat-core.ts `getAIModel()` and internal/providers/lib/provider-api.ts, neither of which uses these files."
+    },
+    {
+      "line": 348,
+      "workstream": "7. Extract provider execution into Relay",
+      "section": "Adapter extraction",
+      "text": "OpenRouter, only if commercially and architecturally approved as an upstream route.",
+      "verdict": "BLOCKED_RELAY",
+      "evidence": "packages/api/src/internal/providers/lib/providers/openrouter.ts is loaded-not-invoked like the other eighteen (zero `.proxy(` call sites outside one test), and openrouter.ai additionally appears live in lib/chat-core.ts, lib/provider-warmup.ts, internal/providers/lib/provider-api.ts and packages/integrations/src/shared/model-resolver.ts (packages/api/src/__tests__/architectureGates.test.ts PROVIDER_HOST_ALLOWLIST). The \"only if commercially and architecturally approved\" clause is a separate, undecided PRODUCT_DECISION: @oxyhq/contracts ships `commercialPermissionSchema` with `public_resale_approved` and `wholesale_contract` and nothing has been decided."
+    },
+    {
+      "line": 349,
+      "workstream": "7. Extract provider execution into Relay",
+      "section": "Adapter extraction",
+      "text": "Perplexity.",
+      "verdict": "BLOCKED_RELAY",
+      "evidence": "packages/api/src/internal/providers/lib/providers/perplexity.ts exists and is LOADED in production — lib/providers/index.ts is imported by the live voice-session-manager.ts:30 — but its `proxy()` has no call site: a repo-wide scan for `.proxy(` returns exactly one hit, packages/api/src/internal/providers/lib/__tests__/credential-redaction.test.ts:150. Extraction needs a Relay adapter contract to extract INTO; none exists.",
+      "residual": "Only openai and xai contribute anything live, and only their `.voice` half (voice-session-manager.ts:148/:229/:695 read `providerImpl.voice.connect`). The live text path is lib/chat-core.ts `getAIModel()` and internal/providers/lib/provider-api.ts, neither of which uses these files."
+    },
+    {
+      "line": 350,
+      "workstream": "7. Extract provider execution into Relay",
+      "section": "Adapter extraction",
+      "text": "Replicate.",
+      "verdict": "BLOCKED_RELAY",
+      "evidence": "packages/api/src/internal/providers/lib/providers/replicate.ts exists and is LOADED in production — lib/providers/index.ts is imported by the live voice-session-manager.ts:30 — but its `proxy()` has no call site: a repo-wide scan for `.proxy(` returns exactly one hit, packages/api/src/internal/providers/lib/__tests__/credential-redaction.test.ts:150. Extraction needs a Relay adapter contract to extract INTO; none exists.",
+      "residual": "Only openai and xai contribute anything live, and only their `.voice` half (voice-session-manager.ts:148/:229/:695 read `providerImpl.voice.connect`). The live text path is lib/chat-core.ts `getAIModel()` and internal/providers/lib/provider-api.ts, neither of which uses these files."
+    },
+    {
+      "line": 351,
+      "workstream": "7. Extract provider execution into Relay",
+      "section": "Adapter extraction",
+      "text": "SambaNova.",
+      "verdict": "BLOCKED_RELAY",
+      "evidence": "packages/api/src/internal/providers/lib/providers/sambanova.ts exists and is LOADED in production — lib/providers/index.ts is imported by the live voice-session-manager.ts:30 — but its `proxy()` has no call site: a repo-wide scan for `.proxy(` returns exactly one hit, packages/api/src/internal/providers/lib/__tests__/credential-redaction.test.ts:150. Extraction needs a Relay adapter contract to extract INTO; none exists.",
+      "residual": "Only openai and xai contribute anything live, and only their `.voice` half (voice-session-manager.ts:148/:229/:695 read `providerImpl.voice.connect`). The live text path is lib/chat-core.ts `getAIModel()` and internal/providers/lib/provider-api.ts, neither of which uses these files."
+    },
+    {
+      "line": 352,
+      "workstream": "7. Extract provider execution into Relay",
+      "section": "Adapter extraction",
+      "text": "Together.",
+      "verdict": "BLOCKED_RELAY",
+      "evidence": "packages/api/src/internal/providers/lib/providers/together.ts exists and is LOADED in production — lib/providers/index.ts is imported by the live voice-session-manager.ts:30 — but its `proxy()` has no call site: a repo-wide scan for `.proxy(` returns exactly one hit, packages/api/src/internal/providers/lib/__tests__/credential-redaction.test.ts:150. Extraction needs a Relay adapter contract to extract INTO; none exists.",
+      "residual": "Only openai and xai contribute anything live, and only their `.voice` half (voice-session-manager.ts:148/:229/:695 read `providerImpl.voice.connect`). The live text path is lib/chat-core.ts `getAIModel()` and internal/providers/lib/provider-api.ts, neither of which uses these files."
+    },
+    {
+      "line": 353,
+      "workstream": "7. Extract provider execution into Relay",
+      "section": "Adapter extraction",
+      "text": "Any additional adapter discovered by the inventory.",
+      "verdict": "ACTIONABLE_NOW",
+      "evidence": "The inventory DID discover more, and they are the live ones. lib/chat-core.ts `getAIModel()` builds an AI SDK provider against a hardcoded base URL for fifteen providers; lib/provider-warmup.ts opens TLS to seven provider hosts at boot from src/index.ts; internal/providers/lib/provider-api.ts holds five more base URLs; and packages/integrations/src/shared/model-resolver.ts is a SECOND SERVICE with its own copy of five. All four are enumerated in packages/api/src/__tests__/architectureGates.test.ts PROVIDER_HOST_ALLOWLIST (lines 543-640).",
+      "deliverable": "Record these four as adapters in docs/migration/ownership-matrix.json under workstream 7 with their own removal gates — chat-core.getAIModel() and provider-warmup are the two that actually egress today, so they, not the nineteen dead files, are the extraction that matters.",
+      "guard": "gate 2 of packages/api/src/__tests__/architectureGates.test.ts already freezes the whole outbound host set (EGRESS_HOSTS) in both directions, so an added or removed host fails. Mutation: add a hostname to chat-core.ts -> red."
+    },
+    {
+      "line": 357,
+      "workstream": "7. Extract provider execution into Relay",
+      "section": "Shared behavior to move",
+      "text": "Request transformation.",
+      "verdict": "BLOCKED_RELAY",
+      "evidence": "Request transformation lives in packages/api/src/lib/chat/request-context.ts and lib/chat/model-config.ts today. Moving it needs a Relay service to move it into; docs/migration/relay-client-gap.md section 1 measured that no Oxy inference or relay route exists (zero of 155, positive control 155 match `a`)."
+    },
+    {
+      "line": 358,
+      "workstream": "7. Extract provider execution into Relay",
+      "section": "Shared behavior to move",
+      "text": "Streaming event normalization.",
+      "verdict": "BLOCKED_RELAY",
+      "evidence": "Streaming event normalization lives in packages/api/src/lib/streaming-helpers.ts and lib/chat/provider-loop.ts today. Moving it needs a Relay service to move it into; docs/migration/relay-client-gap.md section 1 measured that no Oxy inference or relay route exists (zero of 155, positive control 155 match `a`)."
+    },
+    {
+      "line": 359,
+      "workstream": "7. Extract provider execution into Relay",
+      "section": "Shared behavior to move",
+      "text": "Tool-call normalization.",
+      "verdict": "BLOCKED_RELAY",
+      "evidence": "Tool-call normalization lives in packages/api/src/lib/tool-pipeline.ts and lib/chat/provider-loop.ts today. Moving it needs a Relay service to move it into; docs/migration/relay-client-gap.md section 1 measured that no Oxy inference or relay route exists (zero of 155, positive control 155 match `a`)."
+    },
+    {
+      "line": 360,
+      "workstream": "7. Extract provider execution into Relay",
+      "section": "Shared behavior to move",
+      "text": "Structured-output handling.",
+      "verdict": "BLOCKED_RELAY",
+      "evidence": "Structured-output handling lives in packages/api/src/lib/agent/planner-agent.ts and lib/agent/verifier-agent.ts (`generateObject`) today. Moving it needs a Relay service to move it into; docs/migration/relay-client-gap.md section 1 measured that no Oxy inference or relay route exists (zero of 155, positive control 155 match `a`)."
+    },
+    {
+      "line": 361,
+      "workstream": "7. Extract provider execution into Relay",
+      "section": "Shared behavior to move",
+      "text": "Usage normalization.",
+      "verdict": "BLOCKED_RELAY",
+      "evidence": "Usage normalization lives in packages/api/src/lib/chat/provider-loop.ts and lib/cost-tracker.ts today. Moving it needs a Relay service to move it into; docs/migration/relay-client-gap.md section 1 measured that no Oxy inference or relay route exists (zero of 155, positive control 155 match `a`)."
+    },
+    {
+      "line": 362,
+      "workstream": "7. Extract provider execution into Relay",
+      "section": "Shared behavior to move",
+      "text": "Provider error normalization.",
+      "verdict": "BLOCKED_RELAY",
+      "evidence": "Provider error normalization lives in packages/api/src/lib/errors/failover-error.ts and internal/providers/lib/provider-error-body.ts today. Moving it needs a Relay service to move it into; docs/migration/relay-client-gap.md section 1 measured that no Oxy inference or relay route exists (zero of 155, positive control 155 match `a`)."
+    },
+    {
+      "line": 363,
+      "workstream": "7. Extract provider execution into Relay",
+      "section": "Shared behavior to move",
+      "text": "Timeouts and cancellation.",
+      "verdict": "BLOCKED_RELAY",
+      "evidence": "Timeouts and cancellation lives in packages/api/src/routes/v1/chat-completions.ts (GLOBAL_TIMEOUT_MS) and lib/gateway-client.ts:346 today. Moving it needs a Relay service to move it into; docs/migration/relay-client-gap.md section 1 measured that no Oxy inference or relay route exists (zero of 155, positive control 155 match `a`)."
+    },
+    {
+      "line": 364,
+      "workstream": "7. Extract provider execution into Relay",
+      "section": "Shared behavior to move",
+      "text": "Key rotation/selection.",
+      "verdict": "BLOCKED_RELAY",
+      "evidence": "Key rotation/selection lives in packages/api/src/internal/providers/lib/key-manager.ts today. Moving it needs a Relay service to move it into; docs/migration/relay-client-gap.md section 1 measured that no Oxy inference or relay route exists (zero of 155, positive control 155 match `a`)."
+    },
+    {
+      "line": 365,
+      "workstream": "7. Extract provider execution into Relay",
+      "section": "Shared behavior to move",
+      "text": "Rate-limit handling.",
+      "verdict": "BLOCKED_RELAY",
+      "evidence": "Rate-limit handling lives in packages/api/src/internal/providers/lib/key-manager.ts (RATE_LIMIT_PATTERN) and db/telemetry/apiUsageRepository.ts today. Moving it needs a Relay service to move it into; docs/migration/relay-client-gap.md section 1 measured that no Oxy inference or relay route exists (zero of 155, positive control 155 match `a`)."
+    },
+    {
+      "line": 366,
+      "workstream": "7. Extract provider execution into Relay",
+      "section": "Shared behavior to move",
+      "text": "Provider health.",
+      "verdict": "BLOCKED_RELAY",
+      "evidence": "Provider health lives in packages/api/src/internal/providers/lib/provider-health.ts and the `provider_health` table today. Moving it needs a Relay service to move it into; docs/migration/relay-client-gap.md section 1 measured that no Oxy inference or relay route exists (zero of 155, positive control 155 match `a`)."
+    },
+    {
+      "line": 367,
+      "workstream": "7. Extract provider execution into Relay",
+      "section": "Shared behavior to move",
+      "text": "Circuit breakers.",
+      "verdict": "BLOCKED_RELAY",
+      "evidence": "Circuit breakers lives in packages/api/src/internal/providers/lib/provider-health.ts (`circuitState`) today. Moving it needs a Relay service to move it into; docs/migration/relay-client-gap.md section 1 measured that no Oxy inference or relay route exists (zero of 155, positive control 155 match `a`)."
+    },
+    {
+      "line": 368,
+      "workstream": "7. Extract provider execution into Relay",
+      "section": "Shared behavior to move",
+      "text": "Same-model fallback.",
+      "verdict": "BLOCKED_RELAY",
+      "evidence": "Same-model fallback lives in packages/api/src/internal/providers/lib/fallback-engine.ts and lib/routing/policy.ts today. Moving it needs a Relay service to move it into; docs/migration/relay-client-gap.md section 1 measured that no Oxy inference or relay route exists (zero of 155, positive control 155 match `a`)."
+    },
+    {
+      "line": 369,
+      "workstream": "7. Extract provider execution into Relay",
+      "section": "Shared behavior to move",
+      "text": "Async image/audio job handling.",
+      "verdict": "BLOCKED_RELAY",
+      "evidence": "Async image/audio job handling lives in packages/api/src/internal/providers/lib/digitalocean-async.ts and the `audio_jobs` table today. Moving it needs a Relay service to move it into; docs/migration/relay-client-gap.md section 1 measured that no Oxy inference or relay route exists (zero of 155, positive control 155 match `a`)."
+    },
+    {
+      "line": 370,
+      "workstream": "7. Extract provider execution into Relay",
+      "section": "Shared behavior to move",
+      "text": "Provider cost measurement.",
+      "verdict": "BLOCKED_RELAY",
+      "evidence": "Provider cost measurement lives in packages/api/src/lib/cost-tracker.ts and the `cost_entries` table today. Moving it needs a Relay service to move it into; docs/migration/relay-client-gap.md section 1 measured that no Oxy inference or relay route exists (zero of 155, positive control 155 match `a`)."
+    },
+    {
+      "line": 371,
+      "workstream": "7. Extract provider execution into Relay",
+      "section": "Shared behavior to move",
+      "text": "Conformance fixtures/tests.",
+      "verdict": "BLOCKED_RELAY",
+      "evidence": "Conformance fixtures/tests lives in packages/api/src/internal/providers/lib/__tests__/ (five suites) today. Moving it needs a Relay service to move it into; docs/migration/relay-client-gap.md section 1 measured that no Oxy inference or relay route exists (zero of 155, positive control 155 match `a`)."
+    },
+    {
+      "line": 377,
+      "workstream": "7. Extract provider execution into Relay",
+      "section": "Removal gates",
+      "text": "Relay adapter passes conformance tests.",
+      "verdict": "BLOCKED_RELAY",
+      "evidence": "No Relay adapter exists to run conformance tests against, and no conformance suite is defined. The nearest artefact is internal/providers/lib/__tests__/ (five suites over the CURRENT stack)."
+    },
+    {
+      "line": 378,
+      "workstream": "7. Extract provider execution into Relay",
+      "section": "Removal gates",
+      "text": "Alia integration tests pass through Relay.",
+      "verdict": "BLOCKED_RELAY",
+      "evidence": "No Relay to integrate against. Alia's own integration fixtures exist and pass against the current path (routes/v1/__tests__/chatFlowFixtures.test.ts, voiceFlowFixtures.test.ts, #146), which is what they will be re-run through."
+    },
+    {
+      "line": 379,
+      "workstream": "7. Extract provider execution into Relay",
+      "section": "Removal gates",
+      "text": "Traffic is canaried.",
+      "verdict": "BLOCKED_RELAY",
+      "evidence": "No Relay, and no traffic: api.alia.onl/health returns HTTP 503 (measured 2026-08-17), so the service is parked at zero capacity and there is nothing to canary."
+    },
+    {
+      "line": 380,
+      "workstream": "7. Extract provider execution into Relay",
+      "section": "Removal gates",
+      "text": "Provider secrets are removed from Alia.",
+      "verdict": "DUPLICATE_OF",
+      "evidence": "The per-provider spelling of the secrets invariant. `provider_keys` still holds the upstream credentials, read only by internal/providers/lib/key-manager.ts and two repositories (gate 4 PROVIDER_KEY_READERS, exactly five files, zero of them under routes/).",
+      "duplicateOf": "L521 — \"Remove provider API keys from Alia databases.\""
+    },
+    {
+      "line": 381,
+      "workstream": "7. Extract provider execution into Relay",
+      "section": "Removal gates",
+      "text": "Direct adapter code is removed from Alia or reduced to a temporary compatibility shim with an owner and sunset.",
+      "verdict": "BLOCKED_RELAY",
+      "evidence": "The nineteen adapter files are already dead code (zero `.proxy(` call sites) so removing them is nearly free, BUT lib/providers/index.ts is imported by the LIVE voice-session-manager, so deleting a file means editing a live registry — recorded per adapter in docs/migration/ownership-matrix.json (`reachable: \"loaded-not-invoked\"`). The live provider code (chat-core.getAIModel, provider-api.ts, provider-warmup.ts) cannot be removed until Relay serves."
+    },
+    {
+      "line": 387,
+      "workstream": "8. Remove the dual-mode gateway and local fallback",
+      "section": "",
+      "text": "Delete `GATEWAY_API_ENABLED` dual-mode behavior.",
+      "verdict": "BLOCKED_RELAY",
+      "evidence": "The dual mode itself is at lib/gateway-client.ts:32-40 (`GATEWAY_API_ENABLED = !!(SERVICE_SECRET && GATEWAY_API_URL)`), branched on at :323, :370, :423, :461, :477, :490, :503, :522, :536, :549, :572, :593, :608, :620, :634, :650, :665, :679, :697, :714, :728. It is the ONLY live path: production sets SERVICE_SECRET and not GATEWAY_API_URL, so `GATEWAY_API_ENABLED` is false and every call takes the local branch. Deleting it before Relay serves removes inference entirely."
+    },
+    {
+      "line": 388,
+      "workstream": "8. Remove the dual-mode gateway and local fallback",
+      "section": "",
+      "text": "Delete dynamic imports of `internal/providers` from the product runtime.",
+      "verdict": "BLOCKED_RELAY",
+      "evidence": "The dynamic imports is at lib/gateway-client.ts:339, :383, :439 (x2), :469, :482, :495, :528, :541, :555, :585, :598, :612, :624, :718 — gate 1 of packages/api/src/__tests__/architectureGates.test.ts freezes them as five sanctioned (importer, imported) pairs. It is the ONLY live path: production sets SERVICE_SECRET and not GATEWAY_API_URL, so `GATEWAY_API_ENABLED` is false and every call takes the local branch. Deleting it before Relay serves removes inference entirely."
+    },
+    {
+      "line": 389,
+      "workstream": "8. Remove the dual-mode gateway and local fallback",
+      "section": "",
+      "text": "Delete local `resolveAliaModel` fallback.",
+      "verdict": "BLOCKED_RELAY",
+      "evidence": "The local `resolveAliaModel` fallback is at lib/gateway-client.ts:339. It is the ONLY live path: production sets SERVICE_SECRET and not GATEWAY_API_URL, so `GATEWAY_API_ENABLED` is false and every call takes the local branch. Deleting it before Relay serves removes inference entirely."
+    },
+    {
+      "line": 390,
+      "workstream": "8. Remove the dual-mode gateway and local fallback",
+      "section": "",
+      "text": "Delete local provider API fallback.",
+      "verdict": "BLOCKED_RELAY",
+      "evidence": "The local provider API fallback is at lib/gateway-client.ts:383. It is the ONLY live path: production sets SERVICE_SECRET and not GATEWAY_API_URL, so `GATEWAY_API_ENABLED` is false and every call takes the local branch. Deleting it before Relay serves removes inference entirely."
+    },
+    {
+      "line": 391,
+      "workstream": "8. Remove the dual-mode gateway and local fallback",
+      "section": "",
+      "text": "Delete local usage reporting fallback.",
+      "verdict": "BLOCKED_RELAY",
+      "evidence": "The local usage reporting fallback is at lib/gateway-client.ts:437-452; docs/migration/relay-client-gap.md section 5.1 records that `reportModelUsage` has NO destination under the contract and is deleted at cutover along with its six call sites, not ported. It is the ONLY live path: production sets SERVICE_SECRET and not GATEWAY_API_URL, so `GATEWAY_API_ENABLED` is false and every call takes the local branch. Deleting it before Relay serves removes inference entirely."
+    },
+    {
+      "line": 392,
+      "workstream": "8. Remove the dual-mode gateway and local fallback",
+      "section": "",
+      "text": "Delete local model/mapping caches that duplicate Relay catalogue state.",
+      "verdict": "BLOCKED_RELAY",
+      "evidence": "The local model/mapping caches is at lib/gateway-client.ts:289-295 (`modelsCache`, `tierMappingsCache`, 60s TTL) plus internal/providers/lib/key-manager.ts:35-37 (`keyCache`, 10s TTL). It is the ONLY live path: production sets SERVICE_SECRET and not GATEWAY_API_URL, so `GATEWAY_API_ENABLED` is false and every call takes the local branch. Deleting it before Relay serves removes inference entirely."
+    },
+    {
+      "line": 393,
+      "workstream": "8. Remove the dual-mode gateway and local fallback",
+      "section": "",
+      "text": "Replace `SERVICE_SECRET`/`GATEWAY_API_URL` assumptions with the finalized Oxy service-auth and Relay endpoint configuration.",
+      "verdict": "BLOCKED_OXY_972",
+      "evidence": "The replacement is half-built and half-missing. BUILT: packages/api/src/lib/inference/relay-boot-check.ts declares RELAY_PRINCIPAL_ENV from the contract's `authenticatedPrincipalSchema` with `satisfies Record<keyof RelayPrincipalConfig, string>` so an upstream field addition is a compile error. MISSING: the Relay endpoint value, which relay-egress.test.ts records as absent (\"names no origin, because there is no endpoint to name yet\"), and the credentials (L178)."
+    },
+    {
+      "line": 394,
+      "workstream": "8. Remove the dual-mode gateway and local fallback",
+      "section": "",
+      "text": "Make Relay connectivity explicit in health/readiness checks.",
+      "verdict": "BLOCKED_RELAY",
+      "evidence": "packages/api/src/routes/health.ts checks the datastores, not Relay, and there is no Relay endpoint to probe. Also note the ordering rule in ~/Oxy/AGENTS.md: a new health probe must land LIVE before the removal PR, because the ALB health check depends on this route."
+    },
+    {
+      "line": 395,
+      "workstream": "8. Remove the dual-mode gateway and local fallback",
+      "section": "",
+      "text": "Add a production guard that fails CI or startup when direct provider mode is enabled.",
+      "verdict": "ACTIONABLE_NOW",
+      "evidence": "The STARTUP half landed in #158: relay-boot-check.ts refuses to boot when the migration flag is on and the principal is unusable, and src/index.ts:69 wires it to `process.exit(1)`. The CI half does not exist — nothing fails a build because direct provider mode is configured, and the flag is off by default so the boot check is inert on every current deployment.",
+      "deliverable": "A CI assertion that the deployed configuration cannot select direct provider mode: assert the deploy workflow and the task definition never set GATEWAY_API_URL to a provider host, and that the migration flag is on for production once cutover starts.",
+      "guard": "A new test beside db/__tests__/deployWorkflow.test.ts, which already reads .github/workflows/deploy-aws.yml as source. Mutation: add a provider host to the workflow env -> red."
+    },
+    {
+      "line": 396,
+      "workstream": "8. Remove the dual-mode gateway and local fallback",
+      "section": "",
+      "text": "Add an egress policy/test proving the Alia service can contact Relay/Oxy dependencies but not provider API hosts after cutover.",
+      "verdict": "ACTIONABLE_NOW",
+      "evidence": "The Relay client side is already proven not to egress: relay-boundary.test.ts asserts the four relay modules \"name no provider tree, no gateway seam and no provider SDK\", with an explicit \"the forbidden-specifier check can actually fire\" control. What is missing is the SERVICE-level statement: gate 2 of packages/api/src/__tests__/architectureGates.test.ts freezes the whole outbound host set including all nineteen provider hosts, so today the policy would say the opposite of what this row wants.",
+      "deliverable": "A post-cutover egress allowlist expressed as a test over EGRESS_HOSTS: after cutover the nineteen provider hostnames must be ABSENT from non-test source, and the Relay and Oxy hosts present. Write it now, gated on the migration flag, so it goes green as extraction proceeds rather than being invented at cutover.",
+      "guard": "gate 2 of packages/api/src/__tests__/architectureGates.test.ts:754 is the existing both-directions freeze; the new assertion is its mirror image. Mutation: leave one provider host in source -> red."
+    },
+    {
+      "line": 406,
+      "workstream": "9. Retire or relocate Alia Gateway Admin",
+      "section": "",
+      "text": "Move customer-facing application, credential, usage, billing, model and routing controls to Oxy Console.",
+      "verdict": "BLOCKED_OXY_972",
+      "evidence": "The Alia-side package is gone: `packages/alia-gateway-admin` is absent from the workspace (#141, ticked L410) and the only surviving references are in inventories and one AI tool, packages/api/src/lib/tools/gateway-admin.ts (still exported from lib/tools/index.ts:11 and gated to one username). The DESTINATION — Oxy Console screens for applications, credentials, usage, billing, models and routing — is OxyHQ/oxy#972."
+    },
+    {
+      "line": 407,
+      "workstream": "9. Retire or relocate Alia Gateway Admin",
+      "section": "",
+      "text": "Move provider/deployment operational controls to an internal Relay operations surface if still required.",
+      "verdict": "BLOCKED_RELAY",
+      "evidence": "Same: the package is deleted, and an \"internal Relay operations surface\" cannot receive controls until Relay exists. docs/migration/inventories/frontend-admin.json holds the screen-by-screen inventory (ticked L405) that a receiving surface would be built from."
+    },
+    {
+      "line": 411,
+      "workstream": "9. Retire or relocate Alia Gateway Admin",
+      "section": "",
+      "text": "Remove root scripts, deployment workflows, DNS and environment configuration for the package.",
+      "verdict": "ACTIONABLE_NOW",
+      "evidence": "Measured remnants after #141: no root script and no workflow references the package — .github/workflows/deploy-frontends.yml deploys exactly two Cloudflare Pages projects, `alia-app` and `alia-canvas` — but packages/api/src/lib/tools/gateway-admin.ts survives and is exported at lib/tools/index.ts:11/:242, packages/api/.env.example:91 keeps GATEWAY_API_URL documented \"because lib/tools/gateway-admin.ts reads it\", and docs/deployment.md:77 says the same. DNS is not in this repo (~/Oxy/oxy-infra owns it).",
+      "deliverable": "Delete lib/tools/gateway-admin.ts and its two exports, then remove the .env.example and docs/deployment.md paragraphs that exist only to explain it. Note docs/migration/inventories/provider-runtime.json:1721 warns that repointing GATEWAY_API_URL at Relay would silently re-enable this broken tool — deal with the tool first, which is exactly this row.",
+      "guard": "gate 1 of packages/api/src/__tests__/architectureGates.test.ts is exact-set in both directions over provider-tree importers, so removing a file requires deleting its line there too; add an assertion that no tool named in lib/tools/index.ts is gated on a hardcoded username. Mutation: re-add the tool -> red."
+    },
+    {
+      "line": 412,
+      "workstream": "9. Retire or relocate Alia Gateway Admin",
+      "section": "",
+      "text": "Archive migration screenshots/runbooks for operators.",
+      "verdict": "ACTIONABLE_NOW",
+      "evidence": "Two of the three operator runbooks exist — docs/runbooks/credential-rotation.md and docs/runbooks/rollback.md (#159) — plus docs/runbooks/provider-credential-exposure.md. None covers the gateway-admin screens, and the screenshots are unrecoverable: the package was deleted in #141, so only git history and docs/migration/inventories/frontend-admin.json describe them.",
+      "deliverable": "An archive note under docs/migration/ recording, per screen, what an operator did there and where that action goes now — sourced from frontend-admin.json and the pre-#141 tree, since the screens cannot be re-screenshotted.",
+      "guard": "docs-only; the honest guard is that frontend-admin.json's screen list and the archive note must have equal cardinality, asserted like ownershipMatrixCoverage.test.ts does."
+    },
+    {
+      "line": 420,
+      "workstream": "10. Data-model migration and cleanup",
+      "section": "Routing catalogue",
+      "text": "Stop writing new rows to Alia-owned `model_configs`, `alia_models`, provider mappings and provider keys after Relay cutover.",
+      "verdict": "BLOCKED_RELAY",
+      "evidence": "Writers exist and are live: internal/providers/lib/seed-model-configs.ts writes `model_configs` and `alia_model_provider_mappings`, and db/providers/providerKeyRepository.ts writes `provider_keys` (recordKeySuccess/Failure/Usage/Spend, setKeyCooldown, markKeyCreditExhausted), reached on every request through key-manager.ts. Stopping the writes means Relay owns the catalogue."
+    },
+    {
+      "line": 421,
+      "workstream": "10. Data-model migration and cleanup",
+      "section": "Routing catalogue",
+      "text": "Export/migrate required configuration to Relay using a reviewed one-time migration.",
+      "verdict": "BLOCKED_RELAY",
+      "evidence": "No destination. @oxyhq/contracts@0.27.0 ships the target shapes (`catalogueModelSchema`, `modelDeploymentSchema`, `routingProfileSchema`, `inferenceProviderSchema`) so the migration could be WRITTEN against them, but there is no Relay store to write into and no Oxy route that accepts a catalogue (docs/migration/relay-client-gap.md section 1)."
+    },
+    {
+      "line": 422,
+      "workstream": "10. Data-model migration and cleanup",
+      "section": "Routing catalogue",
+      "text": "Reconcile migrated counts and active routes.",
+      "verdict": "BLOCKED_RELAY",
+      "evidence": "Reconciliation presupposes a migration (L421). The Alia-side half of the arithmetic is available now — this PR records the fresh-schema baseline (0 rows for all 21 tables) and the exact production count command — but the production counts are UNMEASURED: no Alia database credential exists under ~/.config/oxy/tokens/."
+    },
+    {
+      "line": 423,
+      "workstream": "10. Data-model migration and cleanup",
+      "section": "Routing catalogue",
+      "text": "Preserve historical IDs only where required for old analytics/receipts.",
+      "verdict": "PRODUCT_DECISION",
+      "evidence": "Which historical ids matter is a retention/legal call, not an engineering one. The candidates are measurable: `cost_entries.alias_model_id` and `chat_analytics.alia_model_id` are the two instruments docs/migration/compatibility-window.md names, and neither appears in packages/api/src/db/expiryTargets.ts, so nothing sweeps them today."
+    },
+    {
+      "line": 424,
+      "workstream": "10. Data-model migration and cleanup",
+      "section": "Routing catalogue",
+      "text": "Remove provider key plaintext from Alia before dropping tables.",
+      "verdict": "BLOCKED_RELAY",
+      "evidence": "The credential column is `provider_keys.key`. Gate 4 of packages/api/src/__tests__/architectureGates.test.ts proves nothing can serialize it — `SafeProviderKey = Omit<ProviderKeyRow, 'key' | 'keyHash'>` enforced in the TYPE SYSTEM at packages/api/src/__tests__/architectureGates.test.ts:1063, exactly five readers, zero under routes/ — but the plaintext is still needed to make provider calls until Relay holds it."
+    },
+    {
+      "line": 425,
+      "workstream": "10. Data-model migration and cleanup",
+      "section": "Routing catalogue",
+      "text": "Drop routing tables only after all readers/writers are removed and production data is audited.",
+      "verdict": "BLOCKED_RELAY",
+      "evidence": "Readers and writers are live (L420). The \"production data is audited\" half is what this PR's Task 2 inventory begins and cannot finish: all 21 counts are UNMEASURED for want of a credential."
+    },
+    {
+      "line": 431,
+      "workstream": "10. Data-model migration and cleanup",
+      "section": "External models leaderboard",
+      "text": "Decide whether it remains an Alia research/catalogue feature, moves to Oxy's model discovery surface or is retired.",
+      "verdict": "PRODUCT_DECISION",
+      "evidence": "`external_models` is a read-only mirror of a third-party leaderboard (api.zeroeval.com), and its separation from routing is already proven: packages/api/src/routes/__tests__/external-models-boundary.test.ts asserts it is referenced by exactly five mirroring/serving files, that no module between a model id and a provider names it, that its table has no foreign key out of it, and that its route is read-only and mounted outside the catalogue. Whether it stays, moves or retires is a product call."
+    },
+    {
+      "line": 434,
+      "workstream": "10. Data-model migration and cleanup",
+      "section": "External models leaderboard",
+      "text": "Remove duplicate model catalogue UI if Oxy becomes the sole customer-facing catalogue.",
+      "verdict": "BLOCKED_OXY_972",
+      "evidence": "Presupposes \"if Oxy becomes the sole customer-facing catalogue\", which is #972. The duplicate UI today is packages/alia-console/src/routes/_layout/documentation/models.tsx (four aliases hardcoded) beside packages/app's catalogue-driven picker."
+    },
+    {
+      "line": 438,
+      "workstream": "10. Data-model migration and cleanup",
+      "section": "Usage and cost",
+      "text": "Stop using `cost_entries.costUsd` or other floating-point estimates as a customer billing source.",
+      "verdict": "ACTIONABLE_NOW",
+      "evidence": "It is not a customer billing source today, but nothing says so and nothing stops it becoming one. `cost_entries.cost_usd` is `double precision` deliberately (packages/api/src/db/schema/usage.ts:26 documents it as the ONE such exception in the schema) and is summed at db/usage/costEntryRepository.ts:137 and :177 and divided at :169; `provider_keys.spent_usd` accumulates the same values (providerKeyRepository.ts:525-529). Customer charging runs on `user_credits` integers instead.",
+      "deliverable": "A guard that no customer-facing billing path reads `cost_usd` or `spent_usd`, plus a schema comment stating it. This is earnable without Relay because it is a statement about which code may read a column.",
+      "guard": "A census like gate 4's provenance check: the set of files importing `costEntries.costUsd` or `providerKeys.spentUsd`, frozen exactly, with zero of them under routes/billing or lib/credits-manager. Mutation: read it from billing -> red."
+    },
+    {
+      "line": 439,
+      "workstream": "10. Data-model migration and cleanup",
+      "section": "Usage and cost",
+      "text": "Move upstream provider cost measurement to Relay.",
+      "verdict": "BLOCKED_RELAY",
+      "evidence": "Provider cost is measured in lib/cost-tracker.ts against internal/providers/lib/model-capabilities-data.ts per-token pricing (a frozen gate-1 pair). Relay must exist to measure it instead."
+    },
+    {
+      "line": 440,
+      "workstream": "10. Data-model migration and cleanup",
+      "section": "Usage and cost",
+      "text": "Move exact customer charges and durable receipts to Oxy Billing.",
+      "verdict": "BLOCKED_OXY_972",
+      "evidence": "The contract for it now exists and the service does not: @oxyhq/contracts@0.29.0 ships `billingInvoiceSchema`, `externalPaymentSchema`, `accountBillingStateSchema` and `reconciliationReportSchema`. Alia is pinned to ^0.27.0 (packages/api/package.json:34), which does not include them. Oxy Billing itself is #972."
+    },
+    {
+      "line": 441,
+      "workstream": "10. Data-model migration and cleanup",
+      "section": "Usage and cost",
+      "text": "Decide which Alia analytics remain useful as product analytics.",
+      "verdict": "PRODUCT_DECISION",
+      "evidence": "A keep/discard call over `chat_analytics`, `voice_call_usage`, `api_usage`, `api_key_usage`, `fallback_events` and `routing_logs`. The classification framework is already ticked (L154-L158) and docs/migration/inventories/data-billing.json holds the per-table analysis; what is missing is the decision."
+    },
+    {
+      "line": 442,
+      "workstream": "10. Data-model migration and cleanup",
+      "section": "Usage and cost",
+      "text": "Replace provider/model fields in product analytics with requested model/profile plus safe resolved revision references.",
+      "verdict": "ACTIONABLE_NOW",
+      "evidence": "`chat_analytics` carries `model` (the PROVIDER's model id) and `provider` as NOT NULL columns (packages/api/src/db/schema/usage.ts:110-114), written by lib/analytics-hook.ts. `voice_call_usage` carries `provider` and `provider_model` (:189-190). The safe requested identifier is already there beside them (`alia_model_id`), and GET /analytics/models already resolves through `getAliaModel()` and skips what cannot resolve.",
+      "deliverable": "Drop or nullify the provider-identifying columns once the read paths are on `alia_model_id` alone; the resolved-revision half waits on L287.",
+      "guard": "packages/api/src/db/__tests__/chatAnalyticsRepository.pgdb.test.ts plus gate 4's serialization census widened to analytics responses. Mutation: return `provider` from an analytics route -> red."
+    },
+    {
+      "line": 443,
+      "workstream": "10. Data-model migration and cleanup",
+      "section": "Usage and cost",
+      "text": "Migrate or retain historical data according to legal/product requirements.",
+      "verdict": "PRODUCT_DECISION",
+      "evidence": "A legal/retention call. The measurable inputs exist: packages/api/src/db/expiryTargets.ts is the sweep registry, `api_key_usage` is swept at 90 days (:107) and `chat_analytics`/`cost_entries` appear in no entry, so nothing deletes them today."
+    },
+    {
+      "line": 444,
+      "workstream": "10. Data-model migration and cleanup",
+      "section": "Usage and cost",
+      "text": "Remove duplicate usage hooks once Oxy/Relay receipts are authoritative.",
+      "verdict": "BLOCKED_RELAY",
+      "evidence": "`reportModelUsage` has six call sites (lib/chat/provider-loop.ts, lib/chat/stream-runner.ts, lib/agent/runner.ts, routes/webhooks.ts, routes/agents-avatar.ts, routes/internal.ts) and, per docs/migration/relay-client-gap.md section 5.1, NO destination under the contract: usage flows data-plane to control-plane, never consumer to data-plane. It is deleted at cutover, not ported — which needs the cutover."
+    },
+    {
+      "line": 450,
+      "workstream": "11. Remove duplicate developer identity and credentials",
+      "section": "",
+      "text": "Stop creating Alia-specific developer applications for generic inference.",
+      "verdict": "ACTIONABLE_NOW",
+      "evidence": "POST /developer/apps (packages/api/src/routes/developer.ts:85) creates them with no gate at all. Stopping CREATION is separable from migrating what exists, and is one route change plus a guard.",
+      "deliverable": "Refuse new developer-app creation (410 or 403 with a pointer to Oxy Console), leaving read, rotate and delete working for existing owners through the bounded window docs/migration/compatibility-window.md section (c) defines.",
+      "guard": "A route census asserting POST /developer/apps returns a terminal status, beside the existing routes/__tests__ suites. Mutation: restore creation -> red."
+    },
+    {
+      "line": 451,
+      "workstream": "11. Remove duplicate developer identity and credentials",
+      "section": "",
+      "text": "Stop issuing new `alia_sk_*` keys.",
+      "verdict": "ACTIONABLE_NOW",
+      "evidence": "POST /developer/apps/:appId/keys (developer.ts:208, minting `alia_sk_` at :224) is the only issuer. docs/migration/compatibility-window.md section (c) already defines the compatibility window for existing credentials, so refusing NEW ones is inside the plan.",
+      "deliverable": "Refuse new key issuance while leaving verification (middleware/auth.ts:108/:137/:274) and rotation working for the window.",
+      "guard": "middleware/__tests__/auth-middleware.test.ts already exercises the `alia_sk_` path; add a route assertion that issuance is terminal. Mutation: restore issuance -> red."
+    },
+    {
+      "line": 452,
+      "workstream": "11. Remove duplicate developer identity and credentials",
+      "section": "",
+      "text": "Move developer application and credential management to Oxy Applications/Console.",
+      "verdict": "BLOCKED_OXY_972",
+      "evidence": "The destination is Oxy Applications/Console, which is #972."
+    },
+    {
+      "line": 453,
+      "workstream": "11. Remove duplicate developer identity and credentials",
+      "section": "",
+      "text": "Map existing Alia developer apps to Oxy Applications where migration is required.",
+      "verdict": "BLOCKED_OXY_972",
+      "evidence": "Mapping needs Oxy Application ids to map ONTO. The Alia side is enumerable now: `developer_apps` and `developer_api_keys` (packages/api/drizzle/0004_ambitious_payback.sql), both counted UNMEASURED in this PR's Task 2 inventory."
+    },
+    {
+      "line": 454,
+      "workstream": "11. Remove duplicate developer identity and credentials",
+      "section": "",
+      "text": "Map/reissue credentials securely; never expose stored hashes as replacement secrets.",
+      "verdict": "ALREADY_TRUE",
+      "evidence": "The hash is structurally unreachable as a replacement secret. `developer_api_keys.key_hash` is never returned: developer.ts:224 shows the plaintext exactly once at creation and stores only the hash and a 16-char prefix; gate 4 of packages/api/src/__tests__/architectureGates.test.ts:1042-1050 records the deliberate distinction between `provider_keys` (upstream, this gate's subject) and `developer_api_keys` (Alia's own, legitimately shown to their owner), and packages/api/src/lib/agent/secret-scanner.ts:77 redacts any `alia_sk_` that reaches a log.",
+      "mutation": "Return `keyHash` from any developer route -> gate 4's \"no response body built in a product route names a key config\" census and the secret-scanner suite both have to be edited; more directly, add `keyHash` to a `res.json` argument in routes/ and the response census at packages/api/src/__tests__/architectureGates.test.ts:1235 fires.",
+      "falseAgain": "A future \"re-issue your key\" endpoint that echoes the stored hash as the new secret. The gate as written watches `keyConfig`, not `keyHash`, so widen it when the migration endpoint is built."
+    },
+    {
+      "line": 455,
+      "workstream": "11. Remove duplicate developer identity and credentials",
+      "section": "",
+      "text": "Notify users and provide a bounded credential migration period.",
+      "verdict": "PRODUCT_DECISION",
+      "evidence": "Notification and the length of the window are commercial calls. The mechanism is specified: docs/migration/compatibility-window.md section (c) defines the window for `alia_sk_*` and says it emits nothing yet — \"Paths (b) and (c) emit nothing yet, and neither does the `alia.deprecation` stream event for any path\"."
+    },
+    {
+      "line": 456,
+      "workstream": "11. Remove duplicate developer identity and credentials",
+      "section": "",
+      "text": "Deprecate Alia developer-app/key endpoints.",
+      "verdict": "ACTIONABLE_NOW",
+      "evidence": "Nothing marks the fifteen developer routes as deprecated: packages/api/src/middleware/alias-deprecation.ts covers path (a) only, keyed on the model id in the body, query or path. docs/migration/compatibility-window.md says paths (b) and (c) emit nothing yet and that emitting is a PREREQUISITE for starting their clocks, not an optional extra.",
+      "deliverable": "Emit `Deprecation` and `Link` on /developer/* responses using the same middleware shape, keyed on the mount rather than on a model id. `Sunset` stays absent until a date is set, per the same document.",
+      "guard": "alias-deprecation.test.ts is the template, including its mount-ORDER assertion. Mutation: mount the new middleware above the router -> the header disappears -> red."
+    },
+    {
+      "line": 457,
+      "workstream": "11. Remove duplicate developer identity and credentials",
+      "section": "",
+      "text": "Remove Alia developer key auth middleware after migration.",
+      "verdict": "BLOCKED_OXY_972",
+      "evidence": "middleware/auth.ts:108, :137 and :274 branch on the `alia_sk_` prefix and packages/api/src/lib/mcp-relay.ts:245 does too. Removing them strands every existing developer credential until Oxy issues the replacement."
+    },
+    {
+      "line": 459,
+      "workstream": "11. Remove duplicate developer identity and credentials",
+      "section": "",
+      "text": "Remove duplicate app/key/usage frontend stores and screens.",
+      "verdict": "ACTIONABLE_NOW",
+      "evidence": "The console still ships the duplicate surface: packages/alia-console/src/routes/_layout/ contains the developer documentation, examples and playground that document and exercise `alia_sk_` keys against api.alia.onl/v1/chat/completions (examples.tsx:30/:79/:89, playground.tsx:141, documentation/authentication.tsx:87, sdks.tsx:169, quickstart.tsx:123, chat-completions.tsx:101).",
+      "deliverable": "Remove or redirect the console's developer app/key/usage screens and stores, keeping only what the compatibility window needs (rotate and revoke).",
+      "guard": "No CI job covers packages/alia-console today; the deliverable includes adding one, or a content census from the API suite. Naming that gap is required — a screen deletion with no job that would notice its return is not gated."
+    },
+    {
+      "line": 460,
+      "workstream": "11. Remove duplicate developer identity and credentials",
+      "section": "",
+      "text": "Preserve an Alia product API only if it provides product-specific assistant functionality and still authenticates through Oxy.",
+      "verdict": "PRODUCT_DECISION",
+      "evidence": "A scoping call about which Alia API is product-specific enough to keep. The measured input: /alia/chat and /v1/chat/completions are the SAME handler (routes/chat.ts:23, unified-product-runtime.test.ts:65) and /alia/chat has ZERO in-repo callers, so \"an Alia product API\" does not exist as a distinct thing today."
+    },
+    {
+      "line": 468,
+      "workstream": "12. Separate Alia product plans from Oxy financial billing",
+      "section": "",
+      "text": "Audit every Alia plan, credit, subscription and transaction path.",
+      "verdict": "ACTIONABLE_NOW",
+      "evidence": "Every path is enumerable in-repo today: tables `plans`, `plan_features`, `features`, `credit_packages`, `subscriptions`, `transactions`, `user_credits` (all from packages/api/drizzle/0003_closed_black_queen.sql), the repositories under packages/api/src/db/billing/, lib/credits-manager.ts, lib/entitlements.ts, routes/billing.ts (Stripe, `process.env.STRIPE_SECRET_KEY` at :38/:41) and routes/credits.ts. docs/migration/inventories/data-billing.json covers the tables but no audit of the PATHS exists.",
+      "deliverable": "A path-level audit beside the existing inventories: for each of the seven tables, every writer, its caller, and whether the write is a product entitlement or a financial record.",
+      "guard": "The shape routing-config-audit.test.ts already uses for model/routing writers — \"every writer is mapped: audited, boot-only, or uncalled\" and \"no writer has a caller its map does not name\" — applied to the billing repositories. Mutation: add an unmapped writer -> red."
+    },
+    {
+      "line": 469,
+      "workstream": "12. Separate Alia product plans from Oxy financial billing",
+      "section": "",
+      "text": "Define the final entitlement API between Oxy and Alia.",
+      "verdict": "ACTIONABLE_NOW",
+      "evidence": "The contract landed since the gap analysis was written. @oxyhq/contracts@0.29.0 (published; latest as of 2026-08-17) ships an `entitlement` module: `productEntitlementSchema`, `productPlanSchema`, `planAllowanceSchema`, `payAsYouGoEntitlementSchema`, `costCenterSchema`, `costCenterSpendSchema`, `PRODUCT_PLAN_STATUSES`, `COST_CENTER_STATUSES`. packages/api/package.json:34 pins `^0.27.0`, which resolves to 0.27.0 and does NOT include them (0.27.0 ships twelve inference modules; 0.29.0 ships fourteen, adding `entitlement` and `accountBilling`).",
+      "deliverable": "Bump @oxyhq/contracts to ^0.29.0 (package.json + bun.lock in the same commit) and express Alia's entitlement read model as the contract's `ProductEntitlement`, the way lib/inference/ already binds the inference contract.",
+      "guard": "packages/api/src/lib/__tests__/entitlements.test.ts, re-pointed at the contract schema so a local re-declaration of an entitlement shape fails — the same rule lib/inference/__tests__/product-seam.test.ts already enforces for payload types. Mutation: declare a local `Entitlement` interface -> red."
+    },
+    {
+      "line": 470,
+      "workstream": "12. Separate Alia product plans from Oxy financial billing",
+      "section": "",
+      "text": "Move Stripe customer, payment, invoice, balance and transaction source-of-truth responsibilities to Oxy.",
+      "verdict": "BLOCKED_OXY_972",
+      "evidence": "Alia runs Stripe directly: packages/api/src/routes/billing.ts reads `STRIPE_SECRET_KEY` at :38 and :41, and src/index.ts:186 mounts the raw-body webhook at /billing/webhook. Moving source-of-truth requires the Oxy ledger to exist (#972); the shapes now exist (@oxyhq/contracts@0.29.0 `accountBilling`), the service does not."
+    },
+    {
+      "line": 471,
+      "workstream": "12. Separate Alia product plans from Oxy financial billing",
+      "section": "",
+      "text": "Move exact inference usage charging to the Oxy ledger.",
+      "verdict": "BLOCKED_OXY_972",
+      "evidence": "The contract's usage module (`usageReservationSchema`, `usageReceiptSchema`, `normalizedUsageReportSchema`) is published and imported by Alia already, but docs/migration/relay-client-gap.md section 4.3 records the reservation as \"the sharpest mismatch on this page\": lib/credits-manager.ts:88 reserves with NO amount. There is no Oxy ledger to charge."
+    },
+    {
+      "line": 472,
+      "workstream": "12. Separate Alia product plans from Oxy financial billing",
+      "section": "",
+      "text": "Keep only the minimum Alia-side entitlement/read-model cache needed for low-latency product decisions.",
+      "verdict": "ACTIONABLE_NOW",
+      "evidence": "The cache already exists and is not minimal: lib/plan-access.ts and lib/entitlements.ts are the read model GET /catalogue consults, but the same process also owns the WRITE side (`user_credits`, `subscriptions`, `transactions`, Stripe webhooks). ADR 0005 draws the line; nothing enforces it.",
+      "deliverable": "Separate the entitlement read model from the financial write paths behind an interface, so the write half can be deleted at cutover without touching the read half. This is refactoring inside Alia and needs nothing external.",
+      "guard": "An import census: the modules serving entitlement decisions must not import the Stripe or transaction repositories. Mutation: import transactionRepository from plan-access -> red."
+    },
+    {
+      "line": 473,
+      "workstream": "12. Separate Alia product plans from Oxy financial billing",
+      "section": "",
+      "text": "Define how Alia plan allowances consume Oxy-recorded inference usage.",
+      "verdict": "BLOCKED_OXY_972",
+      "evidence": "Presupposes Oxy-recorded inference usage. docs/migration/relay-client-gap.md section 4.3 measured that Alia reserves credits with no amount (lib/credits-manager.ts:88) and settles from its own cost estimate, so there is no Oxy figure to consume."
+    },
+    {
+      "line": 474,
+      "workstream": "12. Separate Alia product plans from Oxy financial billing",
+      "section": "",
+      "text": "Keep product price/margin separate from provider upstream cost.",
+      "verdict": "ACTIONABLE_NOW",
+      "evidence": "They are already separate columns in separate tables — `cost_entries.cost_usd` is upstream cost (double precision, deliberately, schema/usage.ts:26) and `user_credits` is the product charge — but nothing prevents a billing path reading the cost column, and `provider_keys.spent_usd` aggregates the same figure into the routing catalogue.",
+      "deliverable": "Same guard as L438, stated as an invariant: the customer-charge path and the upstream-cost path share no column and no reader.",
+      "guard": "The frozen-reader census from L438. Mutation: read `cost_usd` from lib/credits-manager.ts -> red."
+    },
+    {
+      "line": 475,
+      "workstream": "12. Separate Alia product plans from Oxy financial billing",
+      "section": "",
+      "text": "Ensure free/promotional Alia usage is still cost-attributed internally.",
+      "verdict": "ACTIONABLE_NOW",
+      "evidence": "Free and promotional usage is charged through the same `reserveCredits`/`settle` path (lib/credits-manager.ts) and does write a `cost_entries` row, so cost attribution exists — but nothing asserts it, and nothing distinguishes a promotional grant from a paid one in the cost record.",
+      "deliverable": "A `grant_kind` (or equivalent) on the credit reservation carried into the cost entry, so free usage is attributable rather than merely recorded.",
+      "guard": "packages/api/src/lib/__tests__/credits-manager.pgdb.test.ts extended: a promotional reservation must still produce a cost entry, tagged. Mutation: skip the cost write for a free grant -> red."
+    },
+    {
+      "line": 476,
+      "workstream": "12. Separate Alia product plans from Oxy financial billing",
+      "section": "",
+      "text": "Ensure a plan change cannot rewrite historical financial receipts.",
+      "verdict": "ACTIONABLE_NOW",
+      "evidence": "`transactions` is an append-only-by-convention table with no constraint saying so: packages/api/src/db/schema/billing.ts declares it with mutable columns and db/billing/ carries the writers. A plan change today runs through the same repository.",
+      "deliverable": "Make historical financial rows immutable at the database: no UPDATE path to a settled transaction, enforced by a trigger or by revoking UPDATE on the app role.",
+      "guard": "A pgdb test asserting an UPDATE to a settled transaction is refused by POSTGRES, not by application code — the class of property ~/Oxy/AGENTS.md says only a real database can assert. Mutation: drop the constraint -> red. (Note: the table OWNER bypasses RLS; use a trigger or FORCE ROW LEVEL SECURITY plus a role split.)"
+    },
+    {
+      "line": 477,
+      "workstream": "12. Separate Alia product plans from Oxy financial billing",
+      "section": "",
+      "text": "Migrate active subscriptions and balances without double-crediting or double-charging.",
+      "verdict": "BLOCKED_OXY_972",
+      "evidence": "No Oxy ledger to migrate into (#972). The Alia-side row counts for `subscriptions`, `transactions` and `user_credits` are UNMEASURED in this PR for want of a production credential."
+    },
+    {
+      "line": 478,
+      "workstream": "12. Separate Alia product plans from Oxy financial billing",
+      "section": "",
+      "text": "Remove duplicate Stripe webhooks and checkout flows from Alia after Oxy cutover.",
+      "verdict": "BLOCKED_OXY_972",
+      "evidence": "src/index.ts:186 mounts the raw-body Stripe webhook and routes/billing.ts owns checkout. Removing them after \"Oxy cutover\" needs the cutover."
+    },
+    {
+      "line": 479,
+      "workstream": "12. Separate Alia product plans from Oxy financial billing",
+      "section": "",
+      "text": "Remove Alia financial tables only after reconciliation and retention review.",
+      "verdict": "BLOCKED_OXY_972",
+      "evidence": "Reconciliation needs the Oxy side to reconcile against; @oxyhq/contracts@0.29.0 ships `reconciliationRunSchema` and `reconciliationReportSchema`, which is the shape, not the data. The retention review is the same call as L443."
+    },
+    {
+      "line": 506,
+      "workstream": "14. Routing behavior inside Alia",
+      "section": "",
+      "text": "Allow the product team to select which Oxy/Relay models are available per plan/surface.",
+      "verdict": "ACTIONABLE_NOW",
+      "evidence": "Plan-scoped model access already exists as data — `plans.model_ids` — and packages/api/src/lib/routing/__tests__/routing-config-audit.test.ts names it precisely: \"plan model access is an UNAUDITED database row\", with \"the plan seeder would re-assert the model list, but NOTHING RUNS IT\" and \"the seeder has no caller, which is why this is a GAP and not an absence\". So the product team cannot select it: there is no route and no audited writer.",
+      "deliverable": "An audited write path for plan/surface model availability, and either wire the seeder or delete it.",
+      "guard": "routing-config-audit.test.ts already asserts \"no route writes plan or model configuration\" and \"every writer is mapped: audited, boot-only, or uncalled\" — a new route must join the audited category or the test fails. Mutation: add an unaudited route -> red."
+    },
+    {
+      "line": 507,
+      "workstream": "14. Routing behavior inside Alia",
+      "section": "",
+      "text": "Allow region/data-policy restrictions to flow from account/user/product policy.",
+      "verdict": "BLOCKED_RELAY",
+      "evidence": "Deliberately not built, and named as such: packages/api/src/lib/routing/presets.ts:60-64 lists `region` and `data-policy` in `DELEGATED_TO_RELAY`, with the docstring \"a preset field that silently does nothing is worse than an absent one\". ADR 0003 invariant 4 puts deployment placement on Relay's side."
+    },
+    {
+      "line": 508,
+      "workstream": "14. Routing behavior inside Alia",
+      "section": "",
+      "text": "Support provider allow/deny policy only through the Oxy/Relay routing contract.",
+      "verdict": "BLOCKED_RELAY",
+      "evidence": "Same list, and the sharpest entry: presets.ts:53-58 quotes this row's own wording — \"support provider allow/deny policy ONLY through the Oxy/Relay routing contract\" — and concludes an Alia-side implementation would be the violation, not the feature. @oxyhq/contracts ships `routingPolicySchema`; no Relay accepts it."
+    },
+    {
+      "line": 521,
+      "workstream": "15. Security and privacy hardening",
+      "section": "Provider secrets",
+      "text": "Remove provider API keys from Alia databases.",
+      "verdict": "BLOCKED_RELAY",
+      "evidence": "`provider_keys.key` holds the upstream credential and is read by exactly five files — db/__tests__/providerKeyRepository.pgdb.test.ts, db/__tests__/providers.pgdb.test.ts, db/providers/providerKeyRepository.ts, internal/providers/lib/key-manager.ts, internal/providers/lib/seed-model-configs.ts — frozen by gate 4 of packages/api/src/__tests__/architectureGates.test.ts:1066, zero of them under routes/. The plaintext is read in exactly two files (provider-api.ts, chat-core.ts). Removing the rows removes inference until Relay holds them."
+    },
+    {
+      "line": 522,
+      "workstream": "15. Security and privacy hardening",
+      "section": "Provider secrets",
+      "text": "Remove provider API keys from Alia deployment environments after Relay cutover.",
+      "verdict": "ALREADY_TRUE",
+      "evidence": "Satisfied by ABSENCE and measured with a positive control. A repo-wide case-insensitive grep for `(OPENAI|ANTHROPIC|GOOGLE|GROQ|MISTRAL|DEEPSEEK|TOGETHER|REPLICATE|CEREBRAS|CLOUDFLARE|OPENROUTER|COHERE|FIREWORKS|PERPLEXITY|XAI|SAMBANOVA|HYPERBOLIC|NOVITA|DIGITALOCEAN|GEMINI)_API_KEY` matches only packages/api/src/lib/agent/secret-scanner.ts (twelve DETECTION patterns — the control proving the grep can match), plus one vestigial `process.env.GROK_API_KEY` at internal/providers/lib/providers/grok-voice.ts:52 inside `!!x || true`, which changes no behaviour. packages/api/.env.example documents no provider key, and .github/workflows/deploy-aws.yml:65-76 syncs exactly ten named secrets, none a provider credential.",
+      "mutation": "Add `process.env.OPENAI_API_KEY` to any non-test source file — nothing in CI fails today. That is the gap: this row holds by absence with NO guard.",
+      "falseAgain": "Any deployment that reintroduces a provider key as an env var. The deliverable that would make it durable is a census over `process.env.*` naming the allowed variables exactly, in the shape gate 2 already uses for hostnames."
+    },
+    {
+      "line": 525,
+      "workstream": "15. Security and privacy hardening",
+      "section": "Provider secrets",
+      "text": "Audit git history and deployment logs for exposed credentials; rotate where necessary.",
+      "verdict": "ACTIONABLE_NOW",
+      "evidence": "The runbook exists — docs/runbooks/provider-credential-exposure.md, plus docs/runbooks/credential-rotation.md:174 \"Rotating the keys found in git history\", which by its existence records that keys WERE found in git history — but the audit itself is an operator action against the real repository history and deployment logs, and no record of a completed audit or rotation exists.",
+      "deliverable": "Run the audit the runbook describes and record its result and date on #139: the history scan (a `git log -p` sweep with secret-scanner.ts's own twelve patterns as the instrument), the CloudWatch log scan, and which keys were rotated.",
+      "guard": "A CI secret scan over new commits using packages/api/src/lib/agent/secret-scanner.ts's patterns, so the audit's result cannot silently regress. Mutation: commit a string matching `sk-ant-` -> red."
+    },
+    {
+      "line": 538,
+      "workstream": "15. Security and privacy hardening",
+      "section": "Service security",
+      "text": "Verify Oxy service-token signatures; never trust decoded claims alone.",
+      "verdict": "BLOCKED_OXY_972",
+      "evidence": "Recorded as a deliberate absence: packages/api/src/routes/__tests__/inference-boundary.test.ts asserts \"nothing in the API decodes a JWT itself\" and separately \"records that Alia configures no service-token verification secret\". Alia PRESENTS a token to Relay rather than verifying one (relay-client.ts:222-224: \"Alia never constructs the contract's AuthenticatedPrincipal from a token\"). If Oxy ever calls INTO Alia with a service token, the verification key is #972's to publish."
+    },
+    {
+      "line": 540,
+      "workstream": "15. Security and privacy hardening",
+      "section": "Service security",
+      "text": "Pin allowed Relay origins/endpoints.",
+      "verdict": "BLOCKED_RELAY",
+      "evidence": "There is no origin to pin, and that is asserted rather than assumed: packages/api/src/lib/inference/__tests__/relay-egress.test.ts has \"names no origin, because there is no endpoint to name yet\" and \"neither the config nor the transport request has a field an origin fits in\". The guard is pre-built; the value is missing."
+    },
+    {
+      "line": 544,
+      "workstream": "15. Security and privacy hardening",
+      "section": "Service security",
+      "text": "Add audit logs for configuration changes that affect model/routing behavior.",
+      "verdict": "ACTIONABLE_NOW",
+      "evidence": "The gap is measured, named and unfixed. routing-config-audit.test.ts asserts the routing PRESETS are a frozen literal with no table behind them and no repository or route names one — so those need no audit — and then asserts the opposite for plan model access: \"plan model access is an UNAUDITED database row\". packages/api/src/routes/audit.ts exists and is mounted (src/index.ts:284), so the audit sink is already there.",
+      "deliverable": "Write an audit record from every writer of plan/model/routing configuration into the existing audit surface.",
+      "guard": "routing-config-audit.test.ts, flipped: the writer map's \"unaudited\" category must be EMPTY. Mutation: add a writer without an audit call -> red."
+    },
+    {
+      "line": 554,
+      "workstream": "16. Future real Alia models",
+      "section": "Repository and provenance",
+      "text": "Create repository structure for training, dataset manifests, evaluations, safety, model cards, release manifests and serving configuration.",
+      "verdict": "BLOCKED_ALIAMODELS",
+      "evidence": "Repository structure needs the separate AliaModels repository and real trained artifacts. The repository does not exist or is not reachable: `gh repo view OxyHQ/AliaModels` returns \"Could not resolve to a Repository\" (2026-08-17). No training, dataset, evaluation, model-card or release-manifest artefact exists anywhere in this monorepo. The one thing that IS landed is the refusal: packages/api/src/lib/reserved-namespace.ts refuses any `alia/*` identifier at the serving chokepoint (gateway-client.ts:321, above the mode branch so both paths are covered), asserted by lib/__tests__/reserved-namespace.test.ts."
+    },
+    {
+      "line": 555,
+      "workstream": "16. Future real Alia models",
+      "section": "Repository and provenance",
+      "text": "Keep large datasets/artifacts outside Git; commit manifests, hashes, transformations, provenance and licenses.",
+      "verdict": "BLOCKED_ALIAMODELS",
+      "evidence": "Dataset/artifact handling and manifests needs the separate AliaModels repository and real trained artifacts. The repository does not exist or is not reachable: `gh repo view OxyHQ/AliaModels` returns \"Could not resolve to a Repository\" (2026-08-17). No training, dataset, evaluation, model-card or release-manifest artefact exists anywhere in this monorepo. The one thing that IS landed is the refusal: packages/api/src/lib/reserved-namespace.ts refuses any `alia/*` identifier at the serving chokepoint (gateway-client.ts:321, above the mode branch so both paths are covered), asserted by lib/__tests__/reserved-namespace.test.ts."
+    },
+    {
+      "line": 556,
+      "workstream": "16. Future real Alia models",
+      "section": "Repository and provenance",
+      "text": "Distinguish derived/fine-tuned models from models pretrained from scratch.",
+      "verdict": "BLOCKED_ALIAMODELS",
+      "evidence": "Derived-versus-pretrained distinction needs the separate AliaModels repository and real trained artifacts. The repository does not exist or is not reachable: `gh repo view OxyHQ/AliaModels` returns \"Could not resolve to a Repository\" (2026-08-17). No training, dataset, evaluation, model-card or release-manifest artefact exists anywhere in this monorepo. The one thing that IS landed is the refusal: packages/api/src/lib/reserved-namespace.ts refuses any `alia/*` identifier at the serving chokepoint (gateway-client.ts:321, above the mode branch so both paths are covered), asserted by lib/__tests__/reserved-namespace.test.ts."
+    },
+    {
+      "line": 557,
+      "workstream": "16. Future real Alia models",
+      "section": "Repository and provenance",
+      "text": "Record base model, license and attribution requirements for derived models.",
+      "verdict": "BLOCKED_ALIAMODELS",
+      "evidence": "Base-model/license/attribution records needs the separate AliaModels repository and real trained artifacts. The repository does not exist or is not reachable: `gh repo view OxyHQ/AliaModels` returns \"Could not resolve to a Repository\" (2026-08-17). No training, dataset, evaluation, model-card or release-manifest artefact exists anywhere in this monorepo. The one thing that IS landed is the refusal: packages/api/src/lib/reserved-namespace.ts refuses any `alia/*` identifier at the serving chokepoint (gateway-client.ts:321, above the mode branch so both paths are covered), asserted by lib/__tests__/reserved-namespace.test.ts."
+    },
+    {
+      "line": 558,
+      "workstream": "16. Future real Alia models",
+      "section": "Repository and provenance",
+      "text": "Prevent release names that violate base-model license naming requirements.",
+      "verdict": "BLOCKED_ALIAMODELS",
+      "evidence": "Release-name license validation needs the separate AliaModels repository and real trained artifacts. The repository does not exist or is not reachable: `gh repo view OxyHQ/AliaModels` returns \"Could not resolve to a Repository\" (2026-08-17). No training, dataset, evaluation, model-card or release-manifest artefact exists anywhere in this monorepo. The one thing that IS landed is the refusal: packages/api/src/lib/reserved-namespace.ts refuses any `alia/*` identifier at the serving chokepoint (gateway-client.ts:321, above the mode branch so both paths are covered), asserted by lib/__tests__/reserved-namespace.test.ts."
+    },
+    {
+      "line": 562,
+      "workstream": "16. Future real Alia models",
+      "section": "Release pipeline",
+      "text": "Training run produces a candidate artifact.",
+      "verdict": "BLOCKED_ALIAMODELS",
+      "evidence": "A candidate training artifact needs the separate AliaModels repository and real trained artifacts. The repository does not exist or is not reachable: `gh repo view OxyHQ/AliaModels` returns \"Could not resolve to a Repository\" (2026-08-17). No training, dataset, evaluation, model-card or release-manifest artefact exists anywhere in this monorepo. The one thing that IS landed is the refusal: packages/api/src/lib/reserved-namespace.ts refuses any `alia/*` identifier at the serving chokepoint (gateway-client.ts:321, above the mode branch so both paths are covered), asserted by lib/__tests__/reserved-namespace.test.ts."
+    },
+    {
+      "line": 563,
+      "workstream": "16. Future real Alia models",
+      "section": "Release pipeline",
+      "text": "Capability evaluations pass.",
+      "verdict": "BLOCKED_ALIAMODELS",
+      "evidence": "Capability evaluations needs the separate AliaModels repository and real trained artifacts. The repository does not exist or is not reachable: `gh repo view OxyHQ/AliaModels` returns \"Could not resolve to a Repository\" (2026-08-17). No training, dataset, evaluation, model-card or release-manifest artefact exists anywhere in this monorepo. The one thing that IS landed is the refusal: packages/api/src/lib/reserved-namespace.ts refuses any `alia/*` identifier at the serving chokepoint (gateway-client.ts:321, above the mode branch so both paths are covered), asserted by lib/__tests__/reserved-namespace.test.ts."
+    },
+    {
+      "line": 564,
+      "workstream": "16. Future real Alia models",
+      "section": "Release pipeline",
+      "text": "Safety/red-team evaluations pass.",
+      "verdict": "BLOCKED_ALIAMODELS",
+      "evidence": "Safety/red-team evaluations needs the separate AliaModels repository and real trained artifacts. The repository does not exist or is not reachable: `gh repo view OxyHQ/AliaModels` returns \"Could not resolve to a Repository\" (2026-08-17). No training, dataset, evaluation, model-card or release-manifest artefact exists anywhere in this monorepo. The one thing that IS landed is the refusal: packages/api/src/lib/reserved-namespace.ts refuses any `alia/*` identifier at the serving chokepoint (gateway-client.ts:321, above the mode branch so both paths are covered), asserted by lib/__tests__/reserved-namespace.test.ts."
+    },
+    {
+      "line": 565,
+      "workstream": "16. Future real Alia models",
+      "section": "Release pipeline",
+      "text": "Dataset/license/copyright review passes.",
+      "verdict": "BLOCKED_ALIAMODELS",
+      "evidence": "Dataset/license/copyright review needs the separate AliaModels repository and real trained artifacts. The repository does not exist or is not reachable: `gh repo view OxyHQ/AliaModels` returns \"Could not resolve to a Repository\" (2026-08-17). No training, dataset, evaluation, model-card or release-manifest artefact exists anywhere in this monorepo. The one thing that IS landed is the refusal: packages/api/src/lib/reserved-namespace.ts refuses any `alia/*` identifier at the serving chokepoint (gateway-client.ts:321, above the mode branch so both paths are covered), asserted by lib/__tests__/reserved-namespace.test.ts."
+    },
+    {
+      "line": 566,
+      "workstream": "16. Future real Alia models",
+      "section": "Release pipeline",
+      "text": "A signed release manifest is generated.",
+      "verdict": "BLOCKED_ALIAMODELS",
+      "evidence": "A signed release manifest needs the separate AliaModels repository and real trained artifacts. The repository does not exist or is not reachable: `gh repo view OxyHQ/AliaModels` returns \"Could not resolve to a Repository\" (2026-08-17). No training, dataset, evaluation, model-card or release-manifest artefact exists anywhere in this monorepo. The one thing that IS landed is the refusal: packages/api/src/lib/reserved-namespace.ts refuses any `alia/*` identifier at the serving chokepoint (gateway-client.ts:321, above the mode branch so both paths are covered), asserted by lib/__tests__/reserved-namespace.test.ts."
+    },
+    {
+      "line": 567,
+      "workstream": "16. Future real Alia models",
+      "section": "Release pipeline",
+      "text": "Artifact and tokenizer digests are recorded.",
+      "verdict": "BLOCKED_ALIAMODELS",
+      "evidence": "Artifact and tokenizer digests needs the separate AliaModels repository and real trained artifacts. The repository does not exist or is not reachable: `gh repo view OxyHQ/AliaModels` returns \"Could not resolve to a Repository\" (2026-08-17). No training, dataset, evaluation, model-card or release-manifest artefact exists anywhere in this monorepo. The one thing that IS landed is the refusal: packages/api/src/lib/reserved-namespace.ts refuses any `alia/*` identifier at the serving chokepoint (gateway-client.ts:321, above the mode branch so both paths are covered), asserted by lib/__tests__/reserved-namespace.test.ts."
+    },
+    {
+      "line": 568,
+      "workstream": "16. Future real Alia models",
+      "section": "Release pipeline",
+      "text": "Model card and limitations are published.",
+      "verdict": "BLOCKED_ALIAMODELS",
+      "evidence": "A published model card needs the separate AliaModels repository and real trained artifacts. The repository does not exist or is not reachable: `gh repo view OxyHQ/AliaModels` returns \"Could not resolve to a Repository\" (2026-08-17). No training, dataset, evaluation, model-card or release-manifest artefact exists anywhere in this monorepo. The one thing that IS landed is the refusal: packages/api/src/lib/reserved-namespace.ts refuses any `alia/*` identifier at the serving chokepoint (gateway-client.ts:321, above the mode branch so both paths are covered), asserted by lib/__tests__/reserved-namespace.test.ts."
+    },
+    {
+      "line": 569,
+      "workstream": "16. Future real Alia models",
+      "section": "Release pipeline",
+      "text": "Canary deployment is created in Relay.",
+      "verdict": "BLOCKED_RELAY",
+      "evidence": "Doubly blocked: there is no Relay to deploy into (docs/migration/relay-client-gap.md section 1) AND no artifact to deploy. The repository does not exist or is not reachable: `gh repo view OxyHQ/AliaModels` returns \"Could not resolve to a Repository\" (2026-08-17). No training, dataset, evaluation, model-card or release-manifest artefact exists anywhere in this monorepo. The one thing that IS landed is the refusal: packages/api/src/lib/reserved-namespace.ts refuses any `alia/*` identifier at the serving chokepoint (gateway-client.ts:321, above the mode branch so both paths are covered), asserted by lib/__tests__/reserved-namespace.test.ts."
+    },
+    {
+      "line": 570,
+      "workstream": "16. Future real Alia models",
+      "section": "Release pipeline",
+      "text": "Production revision is approved.",
+      "verdict": "BLOCKED_ALIAMODELS",
+      "evidence": "Production revision approval needs the separate AliaModels repository and real trained artifacts. The repository does not exist or is not reachable: `gh repo view OxyHQ/AliaModels` returns \"Could not resolve to a Repository\" (2026-08-17). No training, dataset, evaluation, model-card or release-manifest artefact exists anywhere in this monorepo. The one thing that IS landed is the refusal: packages/api/src/lib/reserved-namespace.ts refuses any `alia/*` identifier at the serving chokepoint (gateway-client.ts:321, above the mode branch so both paths are covered), asserted by lib/__tests__/reserved-namespace.test.ts."
+    },
+    {
+      "line": 571,
+      "workstream": "16. Future real Alia models",
+      "section": "Release pipeline",
+      "text": "Stable alias is advanced explicitly.",
+      "verdict": "BLOCKED_ALIAMODELS",
+      "evidence": "Explicit stable-alias advancement needs the separate AliaModels repository and real trained artifacts. The repository does not exist or is not reachable: `gh repo view OxyHQ/AliaModels` returns \"Could not resolve to a Repository\" (2026-08-17). No training, dataset, evaluation, model-card or release-manifest artefact exists anywhere in this monorepo. The one thing that IS landed is the refusal: packages/api/src/lib/reserved-namespace.ts refuses any `alia/*` identifier at the serving chokepoint (gateway-client.ts:321, above the mode branch so both paths are covered), asserted by lib/__tests__/reserved-namespace.test.ts."
+    },
+    {
+      "line": 572,
+      "workstream": "16. Future real Alia models",
+      "section": "Release pipeline",
+      "text": "Rollback to the previous revision is supported.",
+      "verdict": "BLOCKED_ALIAMODELS",
+      "evidence": "Revision rollback needs the separate AliaModels repository and real trained artifacts. The repository does not exist or is not reachable: `gh repo view OxyHQ/AliaModels` returns \"Could not resolve to a Repository\" (2026-08-17). No training, dataset, evaluation, model-card or release-manifest artefact exists anywhere in this monorepo. The one thing that IS landed is the refusal: packages/api/src/lib/reserved-namespace.ts refuses any `alia/*` identifier at the serving chokepoint (gateway-client.ts:321, above the mode branch so both paths are covered), asserted by lib/__tests__/reserved-namespace.test.ts."
+    },
+    {
+      "line": 576,
+      "workstream": "16. Future real Alia models",
+      "section": "Naming",
+      "text": "Publish actual models as `alia/<model>`.",
+      "verdict": "DUPLICATE_OF",
+      "evidence": "The positive form of an already-ticked prohibition, plus the landed refusal: reserved-namespace.ts refuses every `alia/*` identifier at the serving chokepoint today, so nothing CAN be published under it. The repository does not exist or is not reachable: `gh repo view OxyHQ/AliaModels` returns \"Could not resolve to a Repository\" (2026-08-17). No training, dataset, evaluation, model-card or release-manifest artefact exists anywhere in this monorepo. The one thing that IS landed is the refusal: packages/api/src/lib/reserved-namespace.ts refuses any `alia/*` identifier at the serving chokepoint (gateway-client.ts:321, above the mode branch so both paths are covered), asserted by lib/__tests__/reserved-namespace.test.ts.",
+      "duplicateOf": "TICKED L271 — \"Do not publish any `alia/*` entry until a real artifact/revision and model card exist.\""
+    },
+    {
+      "line": 577,
+      "workstream": "16. Future real Alia models",
+      "section": "Naming",
+      "text": "Publish immutable revisions as `alia/<model>@<revision>`.",
+      "verdict": "BLOCKED_ALIAMODELS",
+      "evidence": "Publishing `alia/<model>@<revision>` needs the separate AliaModels repository and real trained artifacts. The repository does not exist or is not reachable: `gh repo view OxyHQ/AliaModels` returns \"Could not resolve to a Repository\" (2026-08-17). No training, dataset, evaluation, model-card or release-manifest artefact exists anywhere in this monorepo. The one thing that IS landed is the refusal: packages/api/src/lib/reserved-namespace.ts refuses any `alia/*` identifier at the serving chokepoint (gateway-client.ts:321, above the mode branch so both paths are covered), asserted by lib/__tests__/reserved-namespace.test.ts."
+    },
+    {
+      "line": 578,
+      "workstream": "16. Future real Alia models",
+      "section": "Naming",
+      "text": "Do not create separate model IDs merely for a system prompt or reasoning-effort setting.",
+      "verdict": "DUPLICATE_OF",
+      "evidence": "The `alia/*` restatement of the alias freeze. The `alia-*` half is enforced: gate 3 of packages/api/src/__tests__/architectureGates.test.ts asserts exactly thirteen registered aliases by exact set equality and that no unregistered identifier is used as a default anywhere. The repository does not exist or is not reachable: `gh repo view OxyHQ/AliaModels` returns \"Could not resolve to a Repository\" (2026-08-17). No training, dataset, evaluation, model-card or release-manifest artefact exists anywhere in this monorepo. The one thing that IS landed is the refusal: packages/api/src/lib/reserved-namespace.ts refuses any `alia/*` identifier at the serving chokepoint (gateway-client.ts:321, above the mode branch so both paths are covered), asserted by lib/__tests__/reserved-namespace.test.ts.",
+      "duplicateOf": "TICKED L117 — \"Freeze creation of new `alia-*` provider aliases immediately.\""
+    },
+    {
+      "line": 579,
+      "workstream": "16. Future real Alia models",
+      "section": "Naming",
+      "text": "Use runtime parameters/presets for reasoning level where the underlying weights are identical.",
+      "verdict": "BLOCKED_ALIAMODELS",
+      "evidence": "Runtime parameters for reasoning level needs the separate AliaModels repository and real trained artifacts. The repository does not exist or is not reachable: `gh repo view OxyHQ/AliaModels` returns \"Could not resolve to a Repository\" (2026-08-17). No training, dataset, evaluation, model-card or release-manifest artefact exists anywhere in this monorepo. The one thing that IS landed is the refusal: packages/api/src/lib/reserved-namespace.ts refuses any `alia/*` identifier at the serving chokepoint (gateway-client.ts:321, above the mode branch so both paths are covered), asserted by lib/__tests__/reserved-namespace.test.ts."
+    },
+    {
+      "line": 583,
+      "workstream": "16. Future real Alia models",
+      "section": "Serving",
+      "text": "Publish the model to Relay through the same deployment abstraction used by other models.",
+      "verdict": "BLOCKED_RELAY",
+      "evidence": "The \"same deployment abstraction used by other models\" is Relay's, and no Relay exists. @oxyhq/contracts@0.27.0 ships `modelDeploymentSchema`, which is the shape. The repository does not exist or is not reachable: `gh repo view OxyHQ/AliaModels` returns \"Could not resolve to a Repository\" (2026-08-17). No training, dataset, evaluation, model-card or release-manifest artefact exists anywhere in this monorepo. The one thing that IS landed is the refusal: packages/api/src/lib/reserved-namespace.ts refuses any `alia/*` identifier at the serving chokepoint (gateway-client.ts:321, above the mode branch so both paths are covered), asserted by lib/__tests__/reserved-namespace.test.ts."
+    },
+    {
+      "line": 584,
+      "workstream": "16. Future real Alia models",
+      "section": "Serving",
+      "text": "Use established inference runtimes such as vLLM or SGLang rather than building an engine from scratch.",
+      "verdict": "BLOCKED_ALIAMODELS",
+      "evidence": "vLLM/SGLang runtime selection needs the separate AliaModels repository and real trained artifacts. The repository does not exist or is not reachable: `gh repo view OxyHQ/AliaModels` returns \"Could not resolve to a Repository\" (2026-08-17). No training, dataset, evaluation, model-card or release-manifest artefact exists anywhere in this monorepo. The one thing that IS landed is the refusal: packages/api/src/lib/reserved-namespace.ts refuses any `alia/*` identifier at the serving chokepoint (gateway-client.ts:321, above the mode branch so both paths are covered), asserted by lib/__tests__/reserved-namespace.test.ts."
+    },
+    {
+      "line": 585,
+      "workstream": "16. Future real Alia models",
+      "section": "Serving",
+      "text": "Select runtime per model revision through benchmarks.",
+      "verdict": "BLOCKED_ALIAMODELS",
+      "evidence": "Per-revision runtime benchmarking needs the separate AliaModels repository and real trained artifacts. The repository does not exist or is not reachable: `gh repo view OxyHQ/AliaModels` returns \"Could not resolve to a Repository\" (2026-08-17). No training, dataset, evaluation, model-card or release-manifest artefact exists anywhere in this monorepo. The one thing that IS landed is the refusal: packages/api/src/lib/reserved-namespace.ts refuses any `alia/*` identifier at the serving chokepoint (gateway-client.ts:321, above the mode branch so both paths are covered), asserted by lib/__tests__/reserved-namespace.test.ts."
+    },
+    {
+      "line": 586,
+      "workstream": "16. Future real Alia models",
+      "section": "Serving",
+      "text": "Introduce KServe or equivalent orchestration only when operational scale justifies it.",
+      "verdict": "BLOCKED_ALIAMODELS",
+      "evidence": "KServe or equivalent orchestration needs the separate AliaModels repository and real trained artifacts. The repository does not exist or is not reachable: `gh repo view OxyHQ/AliaModels` returns \"Could not resolve to a Repository\" (2026-08-17). No training, dataset, evaluation, model-card or release-manifest artefact exists anywhere in this monorepo. The one thing that IS landed is the refusal: packages/api/src/lib/reserved-namespace.ts refuses any `alia/*` identifier at the serving chokepoint (gateway-client.ts:321, above the mode branch so both paths are covered), asserted by lib/__tests__/reserved-namespace.test.ts."
+    },
+    {
+      "line": 587,
+      "workstream": "16. Future real Alia models",
+      "section": "Serving",
+      "text": "Support Oxy-hosted regional and dedicated deployments.",
+      "verdict": "BLOCKED_ALIAMODELS",
+      "evidence": "Regional and dedicated deployments needs the separate AliaModels repository and real trained artifacts. The repository does not exist or is not reachable: `gh repo view OxyHQ/AliaModels` returns \"Could not resolve to a Repository\" (2026-08-17). No training, dataset, evaluation, model-card or release-manifest artefact exists anywhere in this monorepo. The one thing that IS landed is the refusal: packages/api/src/lib/reserved-namespace.ts refuses any `alia/*` identifier at the serving chokepoint (gateway-client.ts:321, above the mode branch so both paths are covered), asserted by lib/__tests__/reserved-namespace.test.ts."
+    },
+    {
+      "line": 591,
+      "workstream": "16. Future real Alia models",
+      "section": "Documentation/compliance",
+      "text": "Include model provenance and base-model disclosure.",
+      "verdict": "BLOCKED_ALIAMODELS",
+      "evidence": "Provenance and base-model disclosure needs the separate AliaModels repository and real trained artifacts. The repository does not exist or is not reachable: `gh repo view OxyHQ/AliaModels` returns \"Could not resolve to a Repository\" (2026-08-17). No training, dataset, evaluation, model-card or release-manifest artefact exists anywhere in this monorepo. The one thing that IS landed is the refusal: packages/api/src/lib/reserved-namespace.ts refuses any `alia/*` identifier at the serving chokepoint (gateway-client.ts:321, above the mode branch so both paths are covered), asserted by lib/__tests__/reserved-namespace.test.ts."
+    },
+    {
+      "line": 592,
+      "workstream": "16. Future real Alia models",
+      "section": "Documentation/compliance",
+      "text": "Include capabilities, limitations and evaluation results.",
+      "verdict": "BLOCKED_ALIAMODELS",
+      "evidence": "Capabilities/limitations/evaluation results needs the separate AliaModels repository and real trained artifacts. The repository does not exist or is not reachable: `gh repo view OxyHQ/AliaModels` returns \"Could not resolve to a Repository\" (2026-08-17). No training, dataset, evaluation, model-card or release-manifest artefact exists anywhere in this monorepo. The one thing that IS landed is the refusal: packages/api/src/lib/reserved-namespace.ts refuses any `alia/*` identifier at the serving chokepoint (gateway-client.ts:321, above the mode branch so both paths are covered), asserted by lib/__tests__/reserved-namespace.test.ts."
+    },
+    {
+      "line": 593,
+      "workstream": "16. Future real Alia models",
+      "section": "Documentation/compliance",
+      "text": "Include training-content summary and copyright policy artifacts needed for GPAI compliance.",
+      "verdict": "BLOCKED_ALIAMODELS",
+      "evidence": "Training-content summary and GPAI artifacts needs the separate AliaModels repository and real trained artifacts. The repository does not exist or is not reachable: `gh repo view OxyHQ/AliaModels` returns \"Could not resolve to a Repository\" (2026-08-17). No training, dataset, evaluation, model-card or release-manifest artefact exists anywhere in this monorepo. The one thing that IS landed is the refusal: packages/api/src/lib/reserved-namespace.ts refuses any `alia/*` identifier at the serving chokepoint (gateway-client.ts:321, above the mode branch so both paths are covered), asserted by lib/__tests__/reserved-namespace.test.ts."
+    },
+    {
+      "line": 594,
+      "workstream": "16. Future real Alia models",
+      "section": "Documentation/compliance",
+      "text": "Include downstream integrator documentation.",
+      "verdict": "BLOCKED_ALIAMODELS",
+      "evidence": "Downstream integrator documentation needs the separate AliaModels repository and real trained artifacts. The repository does not exist or is not reachable: `gh repo view OxyHQ/AliaModels` returns \"Could not resolve to a Repository\" (2026-08-17). No training, dataset, evaluation, model-card or release-manifest artefact exists anywhere in this monorepo. The one thing that IS landed is the refusal: packages/api/src/lib/reserved-namespace.ts refuses any `alia/*` identifier at the serving chokepoint (gateway-client.ts:321, above the mode branch so both paths are covered), asserted by lib/__tests__/reserved-namespace.test.ts."
+    },
+    {
+      "line": 595,
+      "workstream": "16. Future real Alia models",
+      "section": "Documentation/compliance",
+      "text": "Include transparency/content-provenance metadata for generated media where applicable.",
+      "verdict": "BLOCKED_ALIAMODELS",
+      "evidence": "Transparency/content-provenance metadata needs the separate AliaModels repository and real trained artifacts. The repository does not exist or is not reachable: `gh repo view OxyHQ/AliaModels` returns \"Could not resolve to a Repository\" (2026-08-17). No training, dataset, evaluation, model-card or release-manifest artefact exists anywhere in this monorepo. The one thing that IS landed is the refusal: packages/api/src/lib/reserved-namespace.ts refuses any `alia/*` identifier at the serving chokepoint (gateway-client.ts:321, above the mode branch so both paths are covered), asserted by lib/__tests__/reserved-namespace.test.ts."
+    },
+    {
+      "line": 604,
+      "workstream": "17. Commercial availability coordination",
+      "section": "",
+      "text": "Consume Oxy catalogue availability scopes such as `internal_alia`, `public_payg`, `enterprise`, `byok_only` and `oxy_hosted`.",
+      "verdict": "ACTIONABLE_NOW",
+      "evidence": "The vocabulary is published and installed. @oxyhq/contracts@0.27.0 (node_modules/@oxyhq/contracts/dist/cjs/inference/catalogue.js:144) defines `availabilityScopeSchema` as exactly `internal_alia`, `public_payg`, `enterprise`, `byok_only`, `oxy_hosted` — the five this row names — plus `commercialPermissionSchema` beside it. Nothing in Alia imports either.",
+      "deliverable": "Carry `availabilityScope` on catalogue entries and refuse a route whose scope does not admit the caller. The DATA (which route has which scope) comes from Relay, but the type, the refusal and its tests are writable now.",
+      "guard": "A test that a catalogue entry scoped `internal_alia` is absent from an unauthenticated GET /catalogue response, in routes/__tests__/catalogue.test.ts. Mutation: drop the scope filter -> red."
+    },
+    {
+      "line": 605,
+      "workstream": "17. Commercial availability coordination",
+      "section": "",
+      "text": "Allow Alia internal routing to use only routes approved for Alia/internal application use.",
+      "verdict": "BLOCKED_RELAY",
+      "evidence": "Presupposes routes carrying an approval scope, which is Relay catalogue data. The Alia-side enforcement point exists (lib/routing/presets.ts, GET /catalogue) and has nothing to enforce."
+    },
+    {
+      "line": 606,
+      "workstream": "17. Commercial availability coordination",
+      "section": "",
+      "text": "Do not expose an internal-only route through Alia's compatibility API to external customers.",
+      "verdict": "DUPLICATE_OF",
+      "evidence": "The compatibility-API half of the same scope enforcement, and it is where the risk actually lives: /v1/chat/completions is reachable with an `alia_sk_` key (middleware/auth.ts:108) and applies no scope check of any kind.",
+      "duplicateOf": "L604 — \"Consume Oxy catalogue availability scopes such as `internal_alia`, `public_payg`, `enterprise`, `byok_only` and `oxy_hosted`.\""
+    },
+    {
+      "line": 607,
+      "workstream": "17. Commercial availability coordination",
+      "section": "",
+      "text": "Do not assume that an API key obtained from a provider authorizes public resale.",
+      "verdict": "PRODUCT_DECISION",
+      "evidence": "A commercial call about the provider contracts Alia holds, not an engineering one. The contract gives it a home: `commercialPermissionSchema` (@oxyhq/contracts@0.27.0) carries `public_resale_approved`, `wholesale_contract`, `customer_byok`, `open_weight_hosting`, `standard_application_use`, `provider_default`. Nothing records Alia's answer per provider."
+    },
+    {
+      "line": 608,
+      "workstream": "17. Commercial availability coordination",
+      "section": "",
+      "text": "Preserve required model/provider attribution for open-weight licenses.",
+      "verdict": "ACTIONABLE_NOW",
+      "evidence": "Attribution is currently forbidden rather than preserved: gate 5 of packages/api/src/__tests__/architectureGates.test.ts:1602 asserts no catalogue response names a provider or a provider model id, and sanitize.ts scrubs them from every error. For an open-weight model the LICENSE may require the attribution the global rule removes — the direct collision this row and L244 share. @oxyhq/contracts ships `modelLicenseSchema` and `modelProvenanceSchema` with `open_weight`, `first_party_original`, `first_party_derived`, `third_party`, `third_party_hosted`.",
+      "deliverable": "Carry required attribution on the catalogue entry and exempt it from sanitization, as part of the L244 scoping. Doing L244 without this re-creates the same collision the other way.",
+      "guard": "Widen gate 5's leak census to permit exactly the attribution field and nothing else. Mutation: put a provider model id in a different field -> red."
+    },
+    {
+      "line": 609,
+      "workstream": "17. Commercial availability coordination",
+      "section": "",
+      "text": "Add tests that public/user credentials cannot access internal-only deployments through an Alia route.",
+      "verdict": "ACTIONABLE_NOW",
+      "evidence": "No such test exists, and there is nothing to stop the hole: internal-only deployments do not exist yet, but the CHECK does not exist either, so the day a scope arrives it will be unguarded. inference-boundary.test.ts already enumerates every credential type reaching inference (`api_key`, `session`, `internal`), which is the input this test needs.",
+      "deliverable": "A test that a public/user credential cannot reach an `internal_alia`-scoped entry through any Alia route, written against a fixture scope so it is meaningful before Relay supplies real ones.",
+      "guard": "Itself. Mutation: remove the scope check from the route -> red. Written now it starts green-and-vacuous, so it must carry a positive control: a fixture entry scoped `internal_alia` MUST be refused, proving the check fires."
+    },
+    {
+      "line": 618,
+      "workstream": "18. Migration and rollout",
+      "section": "Preparation",
+      "text": "Land shared contracts.",
+      "verdict": "ALREADY_TRUE",
+      "evidence": "Landed and stale in the gap analysis. docs/migration/relay-client-gap.md section 0 recorded (2026-08-16, against @oxyhq/contracts@0.26.0) that the inference module was unpublished and that \"Alia adds no @oxyhq/contracts dependency in this workstream\". Both halves have since changed: packages/api/package.json:34 depends on `@oxyhq/contracts@^0.27.0`, the installed 0.27.0 ships twelve inference modules under dist/types/inference/, and ELEVEN Alia modules import them — the five under lib/inference/ (relay-client.ts:64, relay-request.ts:35, relay-error.ts:30, relay-openai-adapter.ts:32, relay-boot-check.ts:54) and six of their test suites. A twelfth file matches the grep and is not an importer: product-seam.test.ts:166 quotes the specifier inside a string, testing that its own scanner ignores a commented-out import.",
+      "mutation": "Remove the dependency from packages/api/package.json -> `bun run --filter @alia/api typecheck` fails on eleven files in CI.",
+      "residual": "0.29.0 is the published latest and adds `entitlement` and `accountBilling`, which workstream 12 needs (L469). The `^0.27.0` range does not reach them."
+    },
+    {
+      "line": 619,
+      "workstream": "18. Migration and rollout",
+      "section": "Preparation",
+      "text": "Register Oxy applications/credentials.",
+      "verdict": "DUPLICATE_OF",
+      "evidence": "The rollout-plan restatement of the workstream 2 registration rows. Nothing in this repo can perform it.",
+      "duplicateOf": "L177 — \"Register or confirm the Alia first-party/internal Oxy Application under the correct Oxy account.\""
+    },
+    {
+      "line": 621,
+      "workstream": "18. Migration and rollout",
+      "section": "Preparation",
+      "text": "Implement route/model ID translation for compatibility.",
+      "verdict": "ACTIONABLE_NOW",
+      "evidence": "Half of it is built and half is not. BUILT: docs/migration/alias-migration-map.json maps all thirteen aliases to `profile:<tier>` ids, recomputed from the live routing table by packages/api/src/__tests__/aliasMigrationMap.test.ts so it cannot drift, and gate 5 asserts the catalogue serves the type the map classifies. NOT BUILT: nothing TRANSLATES at request time — no code turns an `alia-*` id into a contract `ModelReference` or `RoutingTarget` on the way to Relay. relay-request.ts takes a target it is given.",
+      "deliverable": "A translation function from the thirteen aliases to the contract's `RoutingTarget`, driven by alias-migration-map.json so it cannot disagree with the published map.",
+      "guard": "aliasMigrationMap.test.ts extended: every alias must translate, and the translation must round-trip to the same profile id the map publishes. Mutation: drop one alias -> red."
+    },
+    {
+      "line": 625,
+      "workstream": "18. Migration and rollout",
+      "section": "Shadow and canary",
+      "text": "Shadow requests to Relay without affecting user responses where privacy and provider terms permit.",
+      "verdict": "BLOCKED_RELAY",
+      "evidence": "Nothing to shadow to. Also gated on the provider-terms question the epic itself flags (\"where privacy and provider terms permit\"), which is L607."
+    },
+    {
+      "line": 626,
+      "workstream": "18. Migration and rollout",
+      "section": "Shadow and canary",
+      "text": "Compare output contract, stream behavior, usage units, latency and errors.",
+      "verdict": "BLOCKED_RELAY",
+      "evidence": "Comparison presupposes two paths cannot run without a Relay path to compare against or canary onto. Additionally the service is parked: api.alia.onl/health returned HTTP 503 on 2026-08-17, so there is no production traffic to cohort."
+    },
+    {
+      "line": 627,
+      "workstream": "18. Migration and rollout",
+      "section": "Shadow and canary",
+      "text": "Canary internal evaluations.",
+      "verdict": "BLOCKED_RELAY",
+      "evidence": "Internal evaluations cannot run without a Relay path to compare against or canary onto. Additionally the service is parked: api.alia.onl/health returned HTTP 503 on 2026-08-17, so there is no production traffic to cohort."
+    },
+    {
+      "line": 628,
+      "workstream": "18. Migration and rollout",
+      "section": "Shadow and canary",
+      "text": "Canary Alia development.",
+      "verdict": "BLOCKED_RELAY",
+      "evidence": "Alia development cannot run without a Relay path to compare against or canary onto. Additionally the service is parked: api.alia.onl/health returned HTTP 503 on 2026-08-17, so there is no production traffic to cohort."
+    },
+    {
+      "line": 629,
+      "workstream": "18. Migration and rollout",
+      "section": "Shadow and canary",
+      "text": "Canary staging.",
+      "verdict": "BLOCKED_RELAY",
+      "evidence": "Staging cannot run without a Relay path to compare against or canary onto. Additionally the service is parked: api.alia.onl/health returned HTTP 503 on 2026-08-17, so there is no production traffic to cohort."
+    },
+    {
+      "line": 630,
+      "workstream": "18. Migration and rollout",
+      "section": "Shadow and canary",
+      "text": "Canary a small production cohort.",
+      "verdict": "BLOCKED_RELAY",
+      "evidence": "A production cohort cannot run without a Relay path to compare against or canary onto. Additionally the service is parked: api.alia.onl/health returned HTTP 503 on 2026-08-17, so there is no production traffic to cohort."
+    },
+    {
+      "line": 631,
+      "workstream": "18. Migration and rollout",
+      "section": "Shadow and canary",
+      "text": "Compare product regressions for memory, tools, agents and research.",
+      "verdict": "BLOCKED_RELAY",
+      "evidence": "Product-regression comparison cannot run without a Relay path to compare against or canary onto. Additionally the service is parked: api.alia.onl/health returned HTTP 503 on 2026-08-17, so there is no production traffic to cohort."
+    },
+    {
+      "line": 635,
+      "workstream": "18. Migration and rollout",
+      "section": "Cutover",
+      "text": "Make Relay the default inference path.",
+      "verdict": "BLOCKED_RELAY",
+      "evidence": "No Relay to make the default. relay-boundary.test.ts freezes the client out of the import graph precisely so this is a reviewed diff rather than an accident."
+    },
+    {
+      "line": 636,
+      "workstream": "18. Migration and rollout",
+      "section": "Cutover",
+      "text": "Disable direct provider mode in production.",
+      "verdict": "DUPLICATE_OF",
+      "evidence": "The rollout-plan spelling of deleting the dual mode. `GATEWAY_API_ENABLED` is false in production today (only SERVICE_SECRET is set), so \"direct provider mode\" is not merely enabled, it is the only mode.",
+      "duplicateOf": "L387 — \"Delete `GATEWAY_API_ENABLED` dual-mode behavior.\""
+    },
+    {
+      "line": 637,
+      "workstream": "18. Migration and rollout",
+      "section": "Cutover",
+      "text": "Remove provider secrets from Alia runtime.",
+      "verdict": "DUPLICATE_OF",
+      "evidence": "Runtime spelling of the same removal. `provider_keys` rows are the runtime store; env vars already hold none (L522).",
+      "duplicateOf": "L521 — \"Remove provider API keys from Alia databases.\""
+    },
+    {
+      "line": 638,
+      "workstream": "18. Migration and rollout",
+      "section": "Cutover",
+      "text": "Move customer usage/billing attribution to Oxy.",
+      "verdict": "DUPLICATE_OF",
+      "evidence": "Rollout-plan spelling of moving charges and receipts to Oxy Billing.",
+      "duplicateOf": "L440 — \"Move exact customer charges and durable receipts to Oxy Billing.\""
+    },
+    {
+      "line": 639,
+      "workstream": "18. Migration and rollout",
+      "section": "Cutover",
+      "text": "Enable Oxy catalogue/model picker integration.",
+      "verdict": "DUPLICATE_OF",
+      "evidence": "Rollout-plan spelling of consuming the Oxy catalogue. The Alia-side picker is already catalogue-driven (#156); the catalogue it reads is Alia's own.",
+      "duplicateOf": "L248 — \"Consume actual canonical model IDs from Oxy/Relay using `<publisher>/<model>`.\""
+    },
+    {
+      "line": 640,
+      "workstream": "18. Migration and rollout",
+      "section": "Cutover",
+      "text": "Start compatibility deprecation clocks.",
+      "verdict": "DUPLICATE_OF",
+      "evidence": "Starting a clock IS emitting the signal and setting the date. docs/migration/compatibility-window.md is explicit that emitting is a prerequisite, not an optional extra, and that a date is never set as a placeholder.",
+      "duplicateOf": "L274 — \"Add deprecation headers/events and a sunset date for external clients still using old aliases.\""
+    },
+    {
+      "line": 644,
+      "workstream": "18. Migration and rollout",
+      "section": "Cleanup",
+      "text": "Delete local fallback.",
+      "verdict": "DUPLICATE_OF",
+      "evidence": "Rollout-plan rollup of the six workstream 8 deletion rows.",
+      "duplicateOf": "L387 — \"Delete `GATEWAY_API_ENABLED` dual-mode behavior.\""
+    },
+    {
+      "line": 645,
+      "workstream": "18. Migration and rollout",
+      "section": "Cleanup",
+      "text": "Delete/move adapters.",
+      "verdict": "DUPLICATE_OF",
+      "evidence": "Rollout-plan rollup of the twenty workstream 7 adapter rows.",
+      "duplicateOf": "L381 — \"Direct adapter code is removed from Alia or reduced to a temporary compatibility shim with an owner and sunset.\""
+    },
+    {
+      "line": 647,
+      "workstream": "18. Migration and rollout",
+      "section": "Cleanup",
+      "text": "Delete duplicate developer portal/keys.",
+      "verdict": "DUPLICATE_OF",
+      "evidence": "Rollout-plan rollup of the workstream 11 developer-portal removal rows.",
+      "duplicateOf": "L459 — \"Remove duplicate app/key/usage frontend stores and screens.\""
+    },
+    {
+      "line": 648,
+      "workstream": "18. Migration and rollout",
+      "section": "Cleanup",
+      "text": "Delete duplicate financial billing paths after reconciliation.",
+      "verdict": "DUPLICATE_OF",
+      "evidence": "Rollout-plan rollup of the workstream 12 Stripe/webhook removal rows.",
+      "duplicateOf": "L478 — \"Remove duplicate Stripe webhooks and checkout flows from Alia after Oxy cutover.\""
+    },
+    {
+      "line": 649,
+      "workstream": "18. Migration and rollout",
+      "section": "Cleanup",
+      "text": "Drop obsolete tables only after production audit.",
+      "verdict": "DUPLICATE_OF",
+      "evidence": "Rollout-plan rollup of the drop-after-audit rows in workstreams 10, 11 and 12. The audit this row names is Task 2 of this PR, whose 21 production counts are UNMEASURED for want of a credential.",
+      "duplicateOf": "L425 — \"Drop routing tables only after all readers/writers are removed and production data is audited.\""
+    },
+    {
+      "line": 650,
+      "workstream": "18. Migration and rollout",
+      "section": "Cleanup",
+      "text": "Remove stale environment variables, deployment components and documentation.",
+      "verdict": "DUPLICATE_OF",
+      "evidence": "Rollout-plan rollup. The env half of it is already ticked (L397); the deployment-component half is the gateway-admin remnant row.",
+      "duplicateOf": "L411 — \"Remove root scripts, deployment workflows, DNS and environment configuration for the package.\""
+    },
+    {
+      "line": 654,
+      "workstream": "18. Migration and rollout",
+      "section": "Rollback",
+      "text": "Define rollback that returns traffic to the last known Relay version, not to direct providers inside Alia.",
+      "verdict": "ACTIONABLE_NOW",
+      "evidence": "docs/runbooks/rollback.md (#159) is thorough about rolling back an ECS release — it distinguishes \"schema advanced\" from \"code is serving\", covers the zero-capacity case, names what cannot be rolled back and states decision thresholds — and it mentions Relay eight times, but it defines rollback in terms of TASK DEFINITION revisions, not Relay versions. The specific prohibition this row states, that rollback must never return traffic to direct providers inside Alia, is not written anywhere as a rule.",
+      "deliverable": "A section in docs/runbooks/rollback.md stating that the rollback target after cutover is the previous Relay version and never `GATEWAY_API_ENABLED=false`, with the commands.",
+      "guard": "A test that the rollback runbook names no command that re-enables direct provider mode, in the shape db/__tests__/deployWorkflow.test.ts already uses for reading a workflow as source. Mutation: add such a command to the runbook -> red."
+    },
+    {
+      "line": 655,
+      "workstream": "18. Migration and rollout",
+      "section": "Rollback",
+      "text": "Preserve financial event idempotency during rollback/retry.",
+      "verdict": "BLOCKED_OXY_972",
+      "evidence": "Idempotency across rollback needs the Oxy ledger to be idempotent against. @oxyhq/contracts ships `idempotencyKeySchema` and `usageRefundSchema`; docs/migration/relay-client-gap.md section 4.2 records that Alia's current retry rules are about tool duplication, not financial replay (pinned by routes/v1/__tests__/retryToolDuplication.test.ts)."
+    },
+    {
+      "line": 656,
+      "workstream": "18. Migration and rollout",
+      "section": "Rollback",
+      "text": "Preserve credential revocation and routing policy enforcement.",
+      "verdict": "BLOCKED_RELAY",
+      "evidence": "Credential revocation across a rollback presupposes the credentials (L178) and the routing policy enforcement presupposes Relay (L508). The Alia-side revocation runbook exists: docs/runbooks/credential-rotation.md."
+    },
+    {
+      "line": 668,
+      "workstream": "19. Tests and enforcement",
+      "section": "Architecture tests",
+      "text": "Fail when a product mode is serialized as `object: model`.",
+      "verdict": "ALREADY_TRUE",
+      "evidence": "Gate 5 of packages/api/src/__tests__/architectureGates.test.ts does exactly this, in two halves that fail for different reasons. The BICONDITIONAL half (:1540) recomputes the expected `object` from the live routing table on every run and asserts an entry is `model` exactly when it fans out to one upstream model, plus the named direction `policiesCalledModels` must be empty. The FROZEN half records the deliberate /v1/models violation at exactly thirteen ids in one file, so a fourteenth fails. `OBJECT_KIND_EMITTERS` (:1381) additionally freezes which files may emit any `object:` literal at all.",
+      "mutation": "MEASURED, not asserted: replacing `entry.kind === 'model'` with `true` at packages/api/src/routes/catalogue.ts:122 failed two gate 5 assertions — architectureGates.test.ts:1553 (the fan-out biconditional) and :1599 (disagreement with alias-migration-map.json, naming all thirteen aliases). Baseline was 44 passed; mutated was 2 failed, 42 passed. Adding a fourteenth id to /v1/models fires :1516; emitting `object:` from a new file fires :1485.",
+      "residual": "Serving `alia-*` as `object: \"model\"` on /v1/models is still live; it is recorded as a frozen violation rather than prevented, and retires with docs/migration/compatibility-window.md section (a)."
+    },
+    {
+      "line": 674,
+      "workstream": "19. Tests and enforcement",
+      "section": "Unit/contract tests",
+      "text": "Oxy service-token claim/scopes handling.",
+      "verdict": "BLOCKED_OXY_972",
+      "evidence": "Alia handles no service-token claims: inference-boundary.test.ts asserts \"nothing in the API decodes a JWT itself\" and \"records that Alia configures no service-token verification secret\". The scope half IS tested — relay-boot-check.test.ts drives `authenticatedPrincipalSchema` through seventeen cases including \"refuses a principal that carries no invoke scope\" and \"refuses a scope the contract does not define\" — so what is missing is claim handling, which arrives with #972."
+    },
+    {
+      "line": 683,
+      "workstream": "19. Tests and enforcement",
+      "section": "End-to-end tests",
+      "text": "App chat through Relay.",
+      "verdict": "BLOCKED_RELAY",
+      "evidence": "App chat cannot be exercised \"through Relay\" because no Relay exists (docs/migration/relay-client-gap.md section 1). The behaviour is already pinned against the CURRENT path — routes/v1/__tests__/chatFlowFixtures.test.ts and voiceFlowFixtures.test.ts (#146), lib/agent/__tests__/approval-flow.test.ts, routes/__tests__/conversation-lifecycle.test.ts, routes/v1/__tests__/retryToolDuplication.test.ts and routes/v1/__tests__/chat-completions-timeout.test.ts — which is the baseline these will be re-run against, so this is re-pointing rather than writing."
+    },
+    {
+      "line": 684,
+      "workstream": "19. Tests and enforcement",
+      "section": "End-to-end tests",
+      "text": "Codea coding flow through Relay.",
+      "verdict": "BLOCKED_RELAY",
+      "evidence": "The Codea coding flow cannot be exercised \"through Relay\" because no Relay exists (docs/migration/relay-client-gap.md section 1). The behaviour is already pinned against the CURRENT path — routes/v1/__tests__/chatFlowFixtures.test.ts and voiceFlowFixtures.test.ts (#146), lib/agent/__tests__/approval-flow.test.ts, routes/__tests__/conversation-lifecycle.test.ts, routes/v1/__tests__/retryToolDuplication.test.ts and routes/v1/__tests__/chat-completions-timeout.test.ts — which is the baseline these will be re-run against, so this is re-pointing rather than writing."
+    },
+    {
+      "line": 685,
+      "workstream": "19. Tests and enforcement",
+      "section": "End-to-end tests",
+      "text": "Cowork flow through Relay.",
+      "verdict": "BLOCKED_RELAY",
+      "evidence": "The Cowork flow cannot be exercised \"through Relay\" because no Relay exists (docs/migration/relay-client-gap.md section 1). The behaviour is already pinned against the CURRENT path — routes/v1/__tests__/chatFlowFixtures.test.ts and voiceFlowFixtures.test.ts (#146), lib/agent/__tests__/approval-flow.test.ts, routes/__tests__/conversation-lifecycle.test.ts, routes/v1/__tests__/retryToolDuplication.test.ts and routes/v1/__tests__/chat-completions-timeout.test.ts — which is the baseline these will be re-run against, so this is re-pointing rather than writing."
+    },
+    {
+      "line": 686,
+      "workstream": "19. Tests and enforcement",
+      "section": "End-to-end tests",
+      "text": "Tool-call round trip.",
+      "verdict": "BLOCKED_RELAY",
+      "evidence": "A tool-call round trip cannot be exercised \"through Relay\" because no Relay exists (docs/migration/relay-client-gap.md section 1). The behaviour is already pinned against the CURRENT path — routes/v1/__tests__/chatFlowFixtures.test.ts and voiceFlowFixtures.test.ts (#146), lib/agent/__tests__/approval-flow.test.ts, routes/__tests__/conversation-lifecycle.test.ts, routes/v1/__tests__/retryToolDuplication.test.ts and routes/v1/__tests__/chat-completions-timeout.test.ts — which is the baseline these will be re-run against, so this is re-pointing rather than writing."
+    },
+    {
+      "line": 687,
+      "workstream": "19. Tests and enforcement",
+      "section": "End-to-end tests",
+      "text": "Approval request/result flow.",
+      "verdict": "BLOCKED_RELAY",
+      "evidence": "The approval request/result flow cannot be exercised \"through Relay\" because no Relay exists (docs/migration/relay-client-gap.md section 1). The behaviour is already pinned against the CURRENT path — routes/v1/__tests__/chatFlowFixtures.test.ts and voiceFlowFixtures.test.ts (#146), lib/agent/__tests__/approval-flow.test.ts, routes/__tests__/conversation-lifecycle.test.ts, routes/v1/__tests__/retryToolDuplication.test.ts and routes/v1/__tests__/chat-completions-timeout.test.ts — which is the baseline these will be re-run against, so this is re-pointing rather than writing."
+    },
+    {
+      "line": 688,
+      "workstream": "19. Tests and enforcement",
+      "section": "End-to-end tests",
+      "text": "Deep research progress flow.",
+      "verdict": "BLOCKED_RELAY",
+      "evidence": "The deep-research progress flow cannot be exercised \"through Relay\" because no Relay exists (docs/migration/relay-client-gap.md section 1). The behaviour is already pinned against the CURRENT path — routes/v1/__tests__/chatFlowFixtures.test.ts and voiceFlowFixtures.test.ts (#146), lib/agent/__tests__/approval-flow.test.ts, routes/__tests__/conversation-lifecycle.test.ts, routes/v1/__tests__/retryToolDuplication.test.ts and routes/v1/__tests__/chat-completions-timeout.test.ts — which is the baseline these will be re-run against, so this is re-pointing rather than writing."
+    },
+    {
+      "line": 689,
+      "workstream": "19. Tests and enforcement",
+      "section": "End-to-end tests",
+      "text": "Vision input.",
+      "verdict": "BLOCKED_RELAY",
+      "evidence": "Vision input cannot be exercised \"through Relay\" because no Relay exists (docs/migration/relay-client-gap.md section 1). The behaviour is already pinned against the CURRENT path — routes/v1/__tests__/chatFlowFixtures.test.ts and voiceFlowFixtures.test.ts (#146), lib/agent/__tests__/approval-flow.test.ts, routes/__tests__/conversation-lifecycle.test.ts, routes/v1/__tests__/retryToolDuplication.test.ts and routes/v1/__tests__/chat-completions-timeout.test.ts — which is the baseline these will be re-run against, so this is re-pointing rather than writing."
+    },
+    {
+      "line": 690,
+      "workstream": "19. Tests and enforcement",
+      "section": "End-to-end tests",
+      "text": "Structured output.",
+      "verdict": "BLOCKED_RELAY",
+      "evidence": "Structured output cannot be exercised \"through Relay\" because no Relay exists (docs/migration/relay-client-gap.md section 1). The behaviour is already pinned against the CURRENT path — routes/v1/__tests__/chatFlowFixtures.test.ts and voiceFlowFixtures.test.ts (#146), lib/agent/__tests__/approval-flow.test.ts, routes/__tests__/conversation-lifecycle.test.ts, routes/v1/__tests__/retryToolDuplication.test.ts and routes/v1/__tests__/chat-completions-timeout.test.ts — which is the baseline these will be re-run against, so this is re-pointing rather than writing."
+    },
+    {
+      "line": 691,
+      "workstream": "19. Tests and enforcement",
+      "section": "End-to-end tests",
+      "text": "Voice/audio path.",
+      "verdict": "BLOCKED_RELAY",
+      "evidence": "The voice/audio path cannot be exercised \"through Relay\" because no Relay exists (docs/migration/relay-client-gap.md section 1). The behaviour is already pinned against the CURRENT path — routes/v1/__tests__/chatFlowFixtures.test.ts and voiceFlowFixtures.test.ts (#146), lib/agent/__tests__/approval-flow.test.ts, routes/__tests__/conversation-lifecycle.test.ts, routes/v1/__tests__/retryToolDuplication.test.ts and routes/v1/__tests__/chat-completions-timeout.test.ts — which is the baseline these will be re-run against, so this is re-pointing rather than writing."
+    },
+    {
+      "line": 692,
+      "workstream": "19. Tests and enforcement",
+      "section": "End-to-end tests",
+      "text": "Same-model deployment fallback.",
+      "verdict": "BLOCKED_RELAY",
+      "evidence": "Same-model deployment fallback cannot be exercised \"through Relay\" because no Relay exists (docs/migration/relay-client-gap.md section 1). The behaviour is already pinned against the CURRENT path — routes/v1/__tests__/chatFlowFixtures.test.ts and voiceFlowFixtures.test.ts (#146), lib/agent/__tests__/approval-flow.test.ts, routes/__tests__/conversation-lifecycle.test.ts, routes/v1/__tests__/retryToolDuplication.test.ts and routes/v1/__tests__/chat-completions-timeout.test.ts — which is the baseline these will be re-run against, so this is re-pointing rather than writing."
+    },
+    {
+      "line": 693,
+      "workstream": "19. Tests and enforcement",
+      "section": "End-to-end tests",
+      "text": "Concrete model with fallback disabled.",
+      "verdict": "BLOCKED_RELAY",
+      "evidence": "Doubly blocked: no Relay, and no concrete model to select — all thirteen catalogue entries fan out to two or more upstream models (gate 5, packages/api/src/__tests__/architectureGates.test.ts:1526). The fallback-disabled half already has a unit test: internal/providers/lib/__tests__/fallback-engine-policy.test.ts drives the real resolver under each policy."
+    },
+    {
+      "line": 694,
+      "workstream": "19. Tests and enforcement",
+      "section": "End-to-end tests",
+      "text": "Client disconnect cancellation.",
+      "verdict": "BLOCKED_RELAY",
+      "evidence": "Client-disconnect cancellation cannot be exercised \"through Relay\" because no Relay exists (docs/migration/relay-client-gap.md section 1). The behaviour is already pinned against the CURRENT path — routes/v1/__tests__/chatFlowFixtures.test.ts and voiceFlowFixtures.test.ts (#146), lib/agent/__tests__/approval-flow.test.ts, routes/__tests__/conversation-lifecycle.test.ts, routes/v1/__tests__/retryToolDuplication.test.ts and routes/v1/__tests__/chat-completions-timeout.test.ts — which is the baseline these will be re-run against, so this is re-pointing rather than writing."
+    },
+    {
+      "line": 695,
+      "workstream": "19. Tests and enforcement",
+      "section": "End-to-end tests",
+      "text": "Relay outage degradation.",
+      "verdict": "BLOCKED_RELAY",
+      "evidence": "Relay outage degradation cannot be exercised \"through Relay\" because no Relay exists (docs/migration/relay-client-gap.md section 1). The behaviour is already pinned against the CURRENT path — routes/v1/__tests__/chatFlowFixtures.test.ts and voiceFlowFixtures.test.ts (#146), lib/agent/__tests__/approval-flow.test.ts, routes/__tests__/conversation-lifecycle.test.ts, routes/v1/__tests__/retryToolDuplication.test.ts and routes/v1/__tests__/chat-completions-timeout.test.ts — which is the baseline these will be re-run against, so this is re-pointing rather than writing."
+    },
+    {
+      "line": 696,
+      "workstream": "19. Tests and enforcement",
+      "section": "End-to-end tests",
+      "text": "Credential rotation/revocation.",
+      "verdict": "BLOCKED_OXY_972",
+      "evidence": "The credentials to rotate do not exist (L178). docs/runbooks/credential-rotation.md covers every credential Alia holds TODAY — provider keys, `alia_sk_*`, bot tokens, OAuth tokens, webhook HMAC keys, SERVICE_SECRET, TOKEN_ENCRYPTION_KEY — and none of them is an Oxy ApplicationCredential."
+    },
+    {
+      "line": 697,
+      "workstream": "19. Tests and enforcement",
+      "section": "End-to-end tests",
+      "text": "Oxy usage receipt attribution.",
+      "verdict": "BLOCKED_OXY_972",
+      "evidence": "No Oxy ledger issues receipts. The contract shape is published (`usageReceiptSchema`) and Alia already imports the usage module; there is nothing to attribute against."
+    },
+    {
+      "line": 698,
+      "workstream": "19. Tests and enforcement",
+      "section": "End-to-end tests",
+      "text": "No duplicate charge on retry.",
+      "verdict": "BLOCKED_OXY_972",
+      "evidence": "The TOOL half is already guarded — routes/v1/__tests__/retryToolDuplication.test.ts, and relay-client.test.ts guards the same property for the client — but the CHARGE half needs the Oxy ledger. docs/migration/relay-client-gap.md section 4.3: Alia reserves credits with no amount (lib/credits-manager.ts:88), so \"double charge\" has no current meaning to test."
+    },
+    {
+      "line": 702,
+      "workstream": "19. Tests and enforcement",
+      "section": "Observability",
+      "text": "Correlate Alia conversation/run ID with Oxy/Relay `requestId` without exposing message content.",
+      "verdict": "ACTIONABLE_NOW",
+      "evidence": "The Alia half exists and the correlation does not. Alia mints `chatcmpl-${crypto.randomUUID()}` at routes/v1/chat-completions.ts:31, and the Relay client already preserves request and generation ids (ticked L209, contract `requestIdSchema`/`generationIdSchema`). Nothing writes the pair anywhere, and lib/__tests__/log-content.test.ts is the existing census proving message content stays out of the logs — which is the constraint this row attaches.",
+      "deliverable": "Log the (conversation id, run id, request id) triple at one chokepoint, and nothing else, so correlation works the day Relay answers.",
+      "guard": "log-content.test.ts, which already scans every logger call and records the VALUE expression, extended to assert the correlation fields are present and that no message content joins them. Mutation: log the prompt beside the ids -> red."
+    },
+    {
+      "line": 703,
+      "workstream": "19. Tests and enforcement",
+      "section": "Observability",
+      "text": "Record requested model/profile, resolved revision, latency, time to first token, error class and cancellation.",
+      "verdict": "ACTIONABLE_NOW",
+      "evidence": "Partly recorded, partly absent. `chat_analytics` carries latency and the alias (packages/api/src/db/schema/usage.ts:88-119); `cost_entries` carries the alias and tokens. Time-to-first-token, error CLASS and cancellation are recorded nowhere — lib/errors/error-codes.ts defines the classes and nothing aggregates them. Resolved revision waits on L287.",
+      "deliverable": "Record TTFT, error class and cancellation on the existing analytics write, using the error codes that already exist.",
+      "guard": "A pgdb test on chatAnalyticsRepository asserting the new columns are written on the streaming path, and a census that every `AliaErrorCode` is representable. Mutation: drop the TTFT write -> red."
+    },
+    {
+      "line": 704,
+      "workstream": "19. Tests and enforcement",
+      "section": "Observability",
+      "text": "Monitor direct-provider egress and alert on any post-cutover attempt.",
+      "verdict": "ACTIONABLE_NOW",
+      "evidence": "The static half is landed and the RUNTIME half does not exist. Static: gate 2 of packages/api/src/__tests__/architectureGates.test.ts freezes the entire outbound host set in both directions (EGRESS_HOSTS, :659-704), so a new provider hostname in source fails CI. Runtime: nothing observes an actual outbound connection, so a post-cutover attempt through a configured base URL or a dynamically built host would be invisible.",
+      "deliverable": "A runtime egress observation — an allowlisting `fetch` wrapper or an infrastructure egress policy — that records and alerts on any connection to a provider host. Note ~/Oxy/oxy-infra owns the network half; the process half belongs here.",
+      "guard": "A test that the wrapper refuses a provider host, with a positive control that it PERMITS the Relay host — otherwise a wrapper that refuses everything passes. Mutation: bypass the wrapper with a raw `fetch` -> a source census like gate 2's fires."
+    },
+    {
+      "line": 705,
+      "workstream": "19. Tests and enforcement",
+      "section": "Observability",
+      "text": "Monitor migration parity and fallback rates.",
+      "verdict": "BLOCKED_RELAY",
+      "evidence": "Parity has no second path to compare against, and fallback rates are already recorded for the current path (`fallback_events` table, db/__tests__/fallbackEventRepository.pgdb.test.ts). The row is about the migration itself."
+    },
+    {
+      "line": 706,
+      "workstream": "19. Tests and enforcement",
+      "section": "Observability",
+      "text": "Add product dashboards separate from Relay operational/provider dashboards.",
+      "verdict": "PRODUCT_DECISION",
+      "evidence": "Dashboards are an operational choice about a tool outside this repo (the API is instrumented toward api.zeroeval.com, an allowlisted egress host). Nothing in packages/ defines a dashboard."
+    },
+    {
+      "line": 719,
+      "workstream": "20. Documentation cleanup",
+      "section": "",
+      "text": "Replace “never expose any provider/model name anywhere” with scoped product/privacy rules.",
+      "verdict": "DUPLICATE_OF",
+      "evidence": "The documentation spelling of scoping the sanitization rule. The rule text lives in AGENTS.md \"Model abstraction (CRITICAL)\", docs/model-abstraction.mdx and the sanitize.ts docstring; the code that implements it is sanitize.ts:22-34.",
+      "duplicateOf": "L244 — \"Remove the global rule that provider/model identity must never appear anywhere; limit sanitization to Alia product surfaces where hiding route detail is an intentional UX/privacy decision.\""
+    },
+    {
+      "line": 723,
+      "workstream": "20. Documentation cleanup",
+      "section": "",
+      "text": "Update every code sample, screenshot and translation string.",
+      "verdict": "ACTIONABLE_NOW",
+      "evidence": "Measured: `alia-v1`/`alia-lite` appear as model ids in twelve places across packages/alia-console (examples.tsx, quickstart.tsx, chat-completions.tsx, models.tsx, authentication.tsx, sdks.tsx, playground.tsx) and as hardcoded defaults in alia-codea, alia-codea-cli, alia-cowork and alia-chat. Screenshots: none survive for gateway-admin (deleted in #141). Translation strings: packages/app gained `models.routingProfile` and `models.routingProfileSelects` in #156 and the other surfaces have none.",
+      "deliverable": "Update the code samples in the four alia-console documentation routes and the defaults in the four client packages (the same edit as L291 and L241 from the docs side), and add the routing-profile vocabulary to every locale.",
+      "guard": "A translation-key completeness census plus the alias census from L291. Mutation: leave one sample naming an alias as a model -> red. Requires a CI job that covers the console, which does not exist today."
+    },
+    {
+      "line": 762,
+      "workstream": "Definition of done",
+      "section": "",
+      "text": "Every inference request leaves Alia through the typed Relay client with verified Oxy attribution.",
+      "verdict": "DUPLICATE_OF",
+      "evidence": "The definition-of-done spelling of the calls-Relay invariant.",
+      "duplicateOf": "L95 — \"Alia calls Relay for every model invocation after cutover.\""
+    },
+    {
+      "line": 763,
+      "workstream": "Definition of done",
+      "section": "",
+      "text": "No Alia production process can call a third-party model provider directly.",
+      "verdict": "DUPLICATE_OF",
+      "evidence": "The definition-of-done spelling of the no-direct-provider invariant.",
+      "duplicateOf": "L96 — \"No local/direct provider fallback remains in Alia production code.\""
+    },
+    {
+      "line": 764,
+      "workstream": "Definition of done",
+      "section": "",
+      "text": "No provider secret remains in Alia runtime storage/configuration.",
+      "verdict": "DUPLICATE_OF",
+      "evidence": "The definition-of-done spelling of the no-provider-secret invariant.",
+      "duplicateOf": "L97 — \"No upstream provider secret remains in Alia environment variables, application tables or admin responses.\""
+    },
+    {
+      "line": 765,
+      "workstream": "Definition of done",
+      "section": "",
+      "text": "Oxy owns developer applications, credentials, usage, billing and Console UX.",
+      "verdict": "DUPLICATE_OF",
+      "evidence": "The definition-of-done spelling of the Oxy-ownership invariant.",
+      "duplicateOf": "L93 — \"Alia does not own customer organizations, applications, API keys, balances or financial ledger after migration.\""
+    },
+    {
+      "line": 766,
+      "workstream": "Definition of done",
+      "section": "",
+      "text": "Generic inference is served through Oxy/Relay, not through Alia's infrastructure API.",
+      "verdict": "DUPLICATE_OF",
+      "evidence": "The definition-of-done spelling of the generic-inference-endpoint move.",
+      "duplicateOf": "L315 — \"Move generic inference access to `api.oxy.so/v1` backed by Relay.\""
+    },
+    {
+      "line": 767,
+      "workstream": "Definition of done",
+      "section": "",
+      "text": "Fake Alia model aliases are removed or completed through a documented sunset.",
+      "verdict": "DUPLICATE_OF",
+      "evidence": "The definition-of-done spelling of the alias sunset. The documented sunset EXISTS (docs/migration/compatibility-window.md section (a), alias-migration-map.json, the Deprecation/Link headers); completing it is the removal gate.",
+      "duplicateOf": "L274 — \"Add deprecation headers/events and a sunset date for external clients still using old aliases.\""
+    },
+    {
+      "line": 768,
+      "workstream": "Definition of done",
+      "section": "",
+      "text": "Product modes are represented as routing profiles/presets, not models.",
+      "verdict": "DUPLICATE_OF",
+      "evidence": "The definition-of-done spelling of the object-kind change. Already true on GET /catalogue by measurement (gate 5 biconditional); frozen on /v1/models.",
+      "duplicateOf": "L242 — \"Stop returning `owned_by: alia` for provider aliases.\""
+    },
+    {
+      "line": 770,
+      "workstream": "Definition of done",
+      "section": "",
+      "text": "Alia plan entitlements consume Oxy-managed financial/usage state without duplicating the ledger.",
+      "verdict": "DUPLICATE_OF",
+      "evidence": "The definition-of-done spelling of the entitlement/ledger separation.",
+      "duplicateOf": "L473 — \"Define how Alia plan allowances consume Oxy-recorded inference usage.\""
+    },
+    {
+      "line": 771,
+      "workstream": "Definition of done",
+      "section": "",
+      "text": "Provider adapters, routing, health, fallback and upstream cost are no longer owned by Alia.",
+      "verdict": "DUPLICATE_OF",
+      "evidence": "The definition-of-done rollup of workstream 7.",
+      "duplicateOf": "L381 — \"Direct adapter code is removed from Alia or reduced to a temporary compatibility shim with an owner and sunset.\""
+    },
+    {
+      "line": 772,
+      "workstream": "Definition of done",
+      "section": "",
+      "text": "Gateway Admin and duplicate developer/billing surfaces are moved or retired.",
+      "verdict": "DUPLICATE_OF",
+      "evidence": "The definition-of-done rollup of workstreams 9 and 11. Half is already done: `packages/alia-gateway-admin` is gone from the workspace (#141, ticked L410).",
+      "duplicateOf": "L406 — \"Move customer-facing application, credential, usage, billing, model and routing controls to Oxy Console.\""
+    },
+    {
+      "line": 773,
+      "workstream": "Definition of done",
+      "section": "",
+      "text": "Architecture, security, migration, rollback and deprecation tests/docs are complete.",
+      "verdict": "DUPLICATE_OF",
+      "evidence": "A rollup of all of workstreams 19 and 20 with no independent content. Its unticked components are, exactly: L668 (architecture tests), L674 (contract tests), L683-L698 (end-to-end), L702-L706 (observability), L719 and L723 (docs), plus the security rows L521-L544 and the rollback rows L654-L656.",
+      "duplicateOf": "L668 — \"Fail when a product mode is serialized as `object: model`.\""
+    }
+  ]
+}
