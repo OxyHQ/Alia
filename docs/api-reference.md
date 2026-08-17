@@ -247,47 +247,33 @@ The clock owner is the owner of workstream 6, recorded on the epic.
 ### `GET /v1/models`
 
 ```json
-{
-  "object": "list",
-  "data": [
-    {
-      "id": "alia-v1",
-      "object": "model",
-      "created": 1755000000,
-      "owned_by": "undisclosed",
-      "name": "Alia V1",
-      "category": "general",
-      "is_default": true,
-      "is_available": true,
-      "required_plan": null,
-      "capabilities": { "tools": true, "vision": true, "max_tokens": 8192 },
-      "pricing": { "credit_multiplier": 1 }
-    }
-  ]
-}
+{ "object": "list", "data": [] }
 ```
 
-Query parameters: `category` (`general | coding | vision | audio | multimodal | voice`),
-`chat=true` for the entries the product offers in a picker — a decision that lives in
-`packages/api/src/lib/product-modes.ts` (`VISIBLE_PROFILES`), keyed by routing profile.
+**Empty, and that is the honest answer.** It listed thirteen `alia-*` identifiers as
+`object: 'model'`, and every one of them is a routing profile rather than a model —
+`docs/migration/alias-migration-map.json` records the fan-out measurement. Alia publishes no
+models, the `alia/*` publisher namespace is reserved and empty, so there is nothing for an
+OpenAI-shaped model list to name.
 
-Every entry is still serialized `object: 'model'`, and all thirteen are routing profiles
-rather than models — `docs/migration/alias-migration-map.json` records the fan-out
-measurement behind that classification. The truthful type split is served by
-`GET /catalogue`; `object` is not changed here because external callers switch on it and
-the compatibility window keeps this response shape working.
+Read [`GET /catalogue`](#catalogue-and-analytics) for routing profiles and
+`GET /catalogue/modes` for the product modes a person picks between.
 
-`owned_by` is `undisclosed`. It said `alia`, which claimed ownership of weights Alia does
-not have. The publisher would be the true value and is not recoverable from this
-repository's data — the mapping table stores a bare provider model id with no publisher
-segment. Naming the serving provider instead would be wrong on the merits, since the
-provider is a property of the deployment rather than of the model (ADR 0003), so it does
-not answer "who owns this" at all.
+**Requests are unaffected.** The aliases still resolve; they are advertised by nothing.
+Every installed `@alia.onl/sdk` and `@alia-codea/cli` copy keeps working.
+`docs/migration/compatibility-window.md` records that closure, its date and its evidence.
 
-Route concealment is **not** the reason: [model abstraction](./model-abstraction.mdx)
-rule 2 explicitly does not apply to the model catalogue, because a caller choosing a model
-has to know whose model it is. What withholds attribution here is the absence of the data,
-and it arrives with Relay's catalogue.
+`GET /v1/models/:modelId` answers `410` for a retired alias, naming the routing profile it
+became, and `404` for anything else — a bare 404 for an identifier that worked last week is
+indistinguishable from a typo or an outage.
+
+### `GET /catalogue`
+
+One entry per routing profile, keyed by `profile:*` — the same identifier the migration map
+publishes as each alias's replacement, and the one a client sends as `model`. Entries carry
+their real kind: `object: "routing_profile"` when the profile selects among several models,
+`object: "model"` when it resolves to exactly one. No `alia-*` identifier appears anywhere in
+the response.
 
 ### `GET /catalogue/modes`
 

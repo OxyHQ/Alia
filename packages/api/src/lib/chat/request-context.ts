@@ -11,6 +11,7 @@
  */
 import type { Request, Response } from 'express';
 import { resolveModel, getDefaultAliaModel, type RoutingOptions } from '../chat-core.js';
+import { toRoutableAlias } from '../product-modes.js';
 import {
   isFallbackPolicy,
   FallbackNotPermittedError,
@@ -158,7 +159,42 @@ export async function buildChatRequestContext(
   // Determine if this is a direct user session (not API key)
   // API key requests should be neutral and not include creator's personal info
   const isDirectUserSession = !!req.user && !req.apiKey;
-  const requestedModel = body.model || getDefaultAliaModel();
+  /**
+   * The identifier this request routes on.
+   *
+   * `profile:*` is the vocabulary `GET /catalogue` publishes and the one a
+   * client should send; `toRoutableAlias` turns it into the alias that carries
+   * the metadata the rest of this path needs — the credit multiplier
+   * `credits-manager.ts` bills on, the entitlement id `plan-access.ts` checks,
+   * the tier the fallback engine walks, and the system prompt the id selects.
+   * Translating ONCE here, at the boundary, is what keeps every one of those
+   * from needing to learn a second vocabulary.
+   *
+   * A legacy `alia-*` identifier passes through untouched and keeps working,
+   * which is what nothing-advertises-them means in practice: every installed
+   * `@alia.onl/sdk` and `@alia-codea/cli` copy still resolves.
+   *
+   * `null` is only ever a `profile:` id no preset defines. That is a caller
+   * naming a policy that does not exist, and it is refused HERE rather than
+   * downstream, because the resolver's refusal talks about models and would
+   * send them to the wrong list.
+   */
+  const routable = toRoutableAlias(body.model || getDefaultAliaModel());
+  if (routable === null) {
+    const unknownProfile = {
+      message: `"${String(body.model)}" is not a routing profile. List them at GET /catalogue.`,
+      type: 'invalid_request_error',
+      param: 'model',
+      code: 'unknown_routing_profile',
+    };
+    if (sse.sent) {
+      sse.writeError(unknownProfile);
+    } else {
+      res.status(400).json({ error: unknownProfile });
+    }
+    return null;
+  }
+  const requestedModel = routable;
 
   // Extract client context from first system message if present (from editor/client)
   let clientContext: string | undefined;

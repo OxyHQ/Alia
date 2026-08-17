@@ -59,7 +59,23 @@ router.post('/', (req: Request, res: Response, next: NextFunction) => {
 
   // Convert request body to chat completions format
   req.body = {
-    model: body.model || 'alia-v1',
+    /**
+     * Passed through UNRESOLVED, so the default is applied once, downstream.
+     *
+     * This restated `|| 'alia-v1'` while `lib/chat/request-context.ts` applies
+     * `getDefaultAliaModel()`, which answers `alia-lite`. The two are a 2x
+     * credit multiplier apart, so the identical "no model named" request was
+     * billed at twice the rate for choosing this endpoint over
+     * `/v1/chat/completions` — and this endpoint forwards INTO that one, so the
+     * divergence was invisible from either side alone.
+     *
+     * Not reconciled by restating the owner's value here: a second copy of a
+     * default is the thing that diverged in the first place. `undefined`
+     * reaches the one site that owns it, and there is now nothing to keep in
+     * step. `lib/__tests__/defaultChatModel.test.ts` no longer carries a census
+     * line for this file, because there is no longer a literal to freeze.
+     */
+    model: body.model,
     messages,
     temperature: body.temperature,
     max_tokens: body.max_tokens || body.max_output_tokens,

@@ -117,7 +117,7 @@ export class ToolPipeline {
 
       // SSE-emitting tools (need the emitter to push events to the client)
       if (sseEmitter) {
-        aliaTools.switchModel = createSwitchModelTool((modelId, modelName) => {
+        aliaTools.switchModel = await createSwitchModelTool((modelId, modelName) => {
           sseEmitter.emit('alia.model_switch', { eventVersion: 1, model: modelId, modelName });
         });
         aliaTools.planPreview = createPlanPreviewTool((steps) => {

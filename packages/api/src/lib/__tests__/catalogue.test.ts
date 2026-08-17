@@ -310,16 +310,25 @@ describe('entitlement comes from the plan catalogue', () => {
   });
 });
 
-describe('an entry carries the compatibility-window signal for the identifiers inside it', () => {
-  it('marks a deprecated alias and leaves an unknown identifier unmarked', () => {
-    const deprecated = buildEntry(source({ id: 'alia-lite' }), [candidate('a', caps())], KNOWN);
-    expect(deprecated.deprecation).not.toBeNull();
-    // No placeholder removal date: the compatibility window forbids announcing
-    // one before its gate is satisfied.
-    expect(deprecated.deprecation?.sunsetAt).toBeNull();
+describe('the catalogue carries no deprecation signal, because it serves nothing deprecated', () => {
+  it('an entry has no deprecation field at all', () => {
+    // It used to carry one, and every entry set it, because every entry WAS one
+    // of the thirteen deprecated aliases. The catalogue is now keyed by routing
+    // profile — the thing an alias BECOMES — so nothing it serves is inside the
+    // compatibility window and a permanently-null field would be a declaration
+    // nothing enforces.
+    //
+    // The signal did not disappear, it moved to where the deprecated identifier
+    // still is: `middleware/alias-deprecation.ts` sets `Deprecation` and `Link`
+    // on any response to a request NAMING an alias, and emits
+    // `alia.deprecation` on a stream. A caller still holding one is still told.
+    const entry = buildEntry(source({ id: 'profile:lite' }), [candidate('a', caps())], KNOWN);
+    expect(entry).not.toHaveProperty('deprecation');
 
-    // The negative control, which also proves the check above is not simply
-    // marking everything.
-    expect(buildEntry(source({ id: 'not-an-alias' }), [candidate('a', caps())], KNOWN).deprecation).toBeNull();
+    // The control: the entry is real and fully built, so "no property" is a
+    // fact about the shape and not about an empty object.
+    expect(entry.id).toBe('profile:lite');
+    expect(entry.capabilities).toBeDefined();
+    expect(entry.entitlement).toEqual(KNOWN);
   });
 });

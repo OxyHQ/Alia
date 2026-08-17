@@ -59,9 +59,9 @@
 
 import { getAvailableModels, getTierMappings, getPlans, type PlanData } from './gateway-client.js';
 import { getUserEntitlements } from './plan-access.js';
-import { ALIAS_DEPRECATION, ALIAS_SUNSET, DEPRECATED_ALIASES } from '../middleware/alias-deprecation.js';
 import { PLAN_PRODUCTS, type PlanProduct } from '../domain/plan.js';
-import { isAliasVisible } from './product-modes.js';
+import { canonicalAliasFor, isProfileOffered } from './product-modes.js';
+import { ROUTING_PRESETS } from './routing/presets.js';
 import type { FallbackPolicy } from './routing/policy.js';
 import { log } from './logger.js';
 
@@ -181,7 +181,7 @@ interface CatalogueEntryCommon {
   readonly emoji: string | null;
   /**
    * Product policy: whether the picker surfaces this entry. Read from
-   * `product-modes.ts` `VISIBLE_PROFILES`, which is the product's own
+   * `product-modes.ts` `OFFERED_PROFILES`, which is the product's own
    * configuration — never from the provider mapping table, where it used to sit
    * as a `chatVisible` field on five alias definitions.
    */
@@ -190,8 +190,6 @@ interface CatalogueEntryCommon {
   readonly availability: { readonly status: 'available' | 'unavailable'; readonly legacy: boolean };
   readonly entitlement: CatalogueEntitlement;
   readonly pricing: { readonly creditMultiplier: number };
-  /** Present while the identifier is inside the compatibility window (all thirteen aliases are). */
-  readonly deprecation: { readonly deprecatedAt: string; readonly sunsetAt: string | null } | null;
 }
 
 /**
@@ -263,8 +261,6 @@ export interface CatalogueSource {
   readonly isAvailable: boolean;
   readonly isLegacy: boolean;
 }
-
-const DEPRECATED = new Set(DEPRECATED_ALIASES);
 
 function booleanCapability(candidates: readonly Candidate[], key: string): CapabilityAvailability {
   if (candidates.length === 0) return 'unknown';
@@ -348,14 +344,11 @@ export function buildEntry(
     description: source.description,
     category: source.category,
     emoji: source.emoji ?? null,
-    chatVisible: isAliasVisible(source.id),
+    chatVisible: isProfileOffered(source.id),
     capabilities: deriveCapabilities(candidates),
     availability: { status: source.isAvailable ? 'available' : 'unavailable', legacy: source.isLegacy },
     entitlement,
     pricing: { creditMultiplier: source.creditMultiplier },
-    deprecation: DEPRECATED.has(source.id)
-      ? { deprecatedAt: ALIAS_DEPRECATION.toISOString(), sunsetAt: ALIAS_SUNSET?.toISOString() ?? null }
-      : null,
   };
 
   // ADR 0003's discriminator, applied rather than looked up. One model means a
@@ -514,21 +507,47 @@ export async function buildCatalogue(options: CatalogueOptions): Promise<Catalog
   if (options.product !== undefined && plans === null) return { ok: false, unavailable: 'plans' };
   if (options.entitledOnly === true && allowedModelIds === null) return { ok: false, unavailable: 'entitlements' };
 
+  const byAlias = new Map(sources.map((source) => [source.id, source] as const));
   const entries: CatalogueEntry[] = [];
-  for (const source of sources) {
-    const candidates: Candidate[] = (tierMappings[source.tier] ?? []).map((m) => ({
+
+  /**
+   * One entry per POLICY, keyed by the policy's own id.
+   *
+   * It used to be one entry per alias, which served thirteen entries for twelve
+   * policies — `alia-v1-thinking` and `alia-v1-pro-max` are one profile under
+   * two names. Iterating the preset table instead makes the bijection
+   * structural: a profile appears once because it exists once.
+   *
+   * The alias has not stopped mattering, it has stopped being the IDENTITY. It
+   * still carries every fact an entry needs — price, tier, category, emoji,
+   * availability — so the entry serves that alias's facts under the profile's
+   * name, and `entitlement` is still resolved against the ALIAS because
+   * `plans.modelIds` and the entitlement read model are both keyed by alias.
+   * Resolving entitlement against the profile id would silently report every
+   * entry as granted by no plan.
+   */
+  for (const preset of ROUTING_PRESETS) {
+    const alias = canonicalAliasFor(preset.id);
+    if (alias === null) continue;
+    const source = byAlias.get(alias);
+    // An alias the runtime catalogue does not know is a preset pointing at
+    // nothing. Skipping keeps the response honest rather than inventing an
+    // entry with no price and no availability.
+    if (source === undefined) continue;
+
+    const candidates: Candidate[] = (tierMappings[preset.tier] ?? []).map((m) => ({
       modelId: m.modelId,
       capabilities: m.capabilities,
     }));
     const entitlement =
-      plans === null ? { state: 'unknown' as const } : resolveEntitlement(source.id, plans, allowedModelIds);
+      plans === null ? { state: 'unknown' as const } : resolveEntitlement(alias, plans, allowedModelIds);
 
     if (entitlement.state === 'known') {
       if (options.product !== undefined && !entitlement.products.includes(options.product)) continue;
       if (options.entitledOnly === true && entitlement.entitled !== true) continue;
     }
 
-    entries.push(buildEntry(source, candidates, entitlement));
+    entries.push(buildEntry({ ...source, id: preset.id }, candidates, entitlement));
   }
 
   entries.sort((a, b) => a.pricing.creditMultiplier - b.pricing.creditMultiplier || a.id.localeCompare(b.id));

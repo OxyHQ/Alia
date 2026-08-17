@@ -78,6 +78,16 @@ Thirteen identifiers, defined in `packages/api/src/internal/providers/lib/alia-m
 
 **What does not.** No new alias is created — the set is frozen as of ADR 0002. An alias is not extended to cover a new capability, a new surface or a new tier; those get a routing profile or a concrete model reference from the start.
 
+**CLOSED FOR ADVERTISEMENT — 2026-08-17.** The thirteen aliases are advertised by nothing. `GET /v1/models` serves an empty list, `GET /catalogue` is keyed by routing profile, the picker and the `switchModel` tool offer `profile:*` ids, and no response from any surface contains an `alia-*` identifier. They **still resolve**: `internal/providers/lib/alia-models.ts` is untouched, so a request naming one is answered exactly as before.
+
+That distinction is the whole shape of this closure. Removal — a request naming an alias being refused — has **not** happened and is not scheduled, because the removal gate below is not satisfied.
+
+**The evidence, and what it does not prove.** `https://api.alia.onl/v1/models` and `/health` both returned HTTP 503 from the ALB when this was taken (2026-08-17): the service is parked at desired count 0, so no external caller is being served and nothing breaks at the moment of the cut.
+
+**That proves nobody is served TODAY. It does not prove nobody uses these identifiers.** Two published npm packages hardcode them — `@alia.onl/sdk` (which ships raw source, so every consumer compiles `src/` directly and sends `model: 'alia-v1'` or `'alia-v1-voice'`) and `@alia-codea/cli` (`alia-v1-codea`), plus the VS Code extension's own default. Editing this repository cannot migrate an installed copy, and those copies resume sending aliases the moment the service scales up. Stored per-conversation selections are not measurable from here at all, and the two usage instruments named above were unreachable with the database down. **Anyone reading "production was 503" as "there were no users" is reading it wrong.**
+
+De-advertising needs none of that evidence, which is why it could happen now: it breaks no caller. Removal needs all of it.
+
 **Deprecation signal.** `Deprecation` and `Sunset` headers on responses to requests naming a deprecated alias, plus `alia.deprecation` on the stream, carrying the alias and its mapped replacement. **Both are delivered** — see *Status of each signal* above for where each is emitted. `Sunset` and the event's `sunsetAt` stay absent until a removal date is set.
 
 **Removal gate.** Per alias, both of:

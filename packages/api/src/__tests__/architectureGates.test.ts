@@ -10,6 +10,7 @@ import { PROVIDER_NAMES } from '../internal/providers/lib/provider-names.js';
 import { PROVIDER_CREDENTIAL_ENV } from '../lib/inference/direct-provider-guard.js';
 import { PROVIDER_API_HOSTS } from '../lib/inference/provider-egress-policy.js';
 import { PRODUCT_MODES } from '../lib/product-modes.js';
+import { ROUTING_PRESETS } from '../lib/routing/presets.js';
 import type { SafeProviderKey } from '../db/providers/providerKeyRepository.js';
 
 /**
@@ -1610,29 +1611,26 @@ describe('gate 4: no provider secret reaches a public serializer (ADR 0001)', ()
  * ADR 0003 invariant 1: *a routing profile is never serialized as
  * `object: "model"`.*
  *
- * As of #139 workstream 5 this gate asserts the invariant itself on the surface
- * that can hold it, and freezes the one surface that cannot.
+ * **The invariant now holds everywhere, with nothing frozen.** It used to have
+ * two halves: the truthful catalogue, where the invariant was asserted, and
+ * `GET /v1/models`, which violated it for all thirteen aliases and had that
+ * violation recorded exactly so it could not grow. As of #139 workstream 4 the
+ * second half is gone — `/v1/models` serves an empty list, because a product
+ * that owns no models has no models to list, and `GET /catalogue` is keyed by
+ * routing profile rather than by alias.
  *
- *  - **`GET /catalogue`** is the truthful catalogue. There the invariant is
- *    asserted as a BICONDITIONAL against the live routing table: an entry is
- *    served `object: "model"` exactly when it resolves to one model, and
- *    `object: "routing_profile"` exactly when it selects among several. Nothing
- *    is frozen — change the routing and the expected answer changes with it.
+ * So this gate asserts one thing in one way: an entry is served `object:
+ * "model"` exactly when it resolves to one model, and `object:
+ * "routing_profile"` exactly when it selects among several, recomputed from the
+ * live routing table on every run. There is no list to edit and no exemption to
+ * maintain, which is the state a frozen-violation record is supposed to reach.
  *
- *  - **`GET /v1/models`** violates the invariant for all thirteen aliases, and
- *    that is deliberate: `docs/migration/compatibility-window.md` section (a)
- *    keeps those identifiers and that response shape working for external
- *    callers, and ADR 0004 keeps the `/v1` surface at its existing shapes.
- *    Changing `object` there is the breaking change both documents exist to
- *    prevent. So the violation is recorded EXACTLY — thirteen ids, one file —
- *    and cannot grow. It retires when that section's removal gate is satisfied,
- *    not before.
- *
- * The two halves fail for different reasons on purpose. A fourteenth entry on
- * the compatibility surface fails the frozen half; a serializer that starts
- * calling a policy a model fails the asserted half, with no list to edit.
+ * `SERVED_AS_MODEL` is therefore empty, and it is kept as a named, asserted
+ * emptiness rather than deleted: "no identifier is served as a model" is the
+ * property that was won, and a check that simply stopped looking would read
+ * identically to one that never looked.
  */
-const SERVED_AS_MODEL: readonly string[] = FROZEN_ALIASES;
+const SERVED_AS_MODEL: readonly string[] = [];
 
 /** Every `object: '<literal>'` in the package. The three chat kinds are OpenAI wire-shape kinds. */
 const OBJECT_KIND_EMITTERS: Readonly<Record<string, readonly string[]>> = {
@@ -1656,10 +1654,11 @@ const OBJECT_KIND_EMITTERS: Readonly<Record<string, readonly string[]>> = {
     'packages/api/src/lib/streaming-helpers.ts',
   ],
   list: ['packages/api/src/routes/catalogue.ts', 'packages/api/src/routes/v1/models.ts'],
-  // Two emitters, and they mean opposite things. `routes/v1/models.ts` is the
-  // frozen compatibility violation; `routes/catalogue.ts` emits it only for an
-  // entry that resolves to one model, which is what the invariant permits.
-  model: ['packages/api/src/routes/catalogue.ts', 'packages/api/src/routes/v1/models.ts'],
+  // ONE emitter. `routes/v1/models.ts` used to be the second, and it was the
+  // frozen compatibility violation; it now serves an empty list and emits no
+  // `model` kind at all. `routes/catalogue.ts` emits it only for an entry that
+  // resolves to one model, which is what the invariant permits.
+  model: ['packages/api/src/routes/catalogue.ts'],
   // #139 workstream 4. A product mode is configuration, never an artifact, so
   // its own kind is the thing that keeps it out of `model` — see the gate below.
   product_mode: ['packages/api/src/routes/catalogue.ts'],
@@ -1760,70 +1759,50 @@ describe('gate 5: models versus routing profiles (ADR 0003 invariant 1)', () => 
       visit(ast);
     }
 
-    // Positive controls, one per surface this gate is about, named explicitly
-    // rather than derived from the record below — a control computed from the
-    // thing it controls proves nothing. The compatibility surface must still be
-    // caught emitting `model`, and the truthful catalogue must be caught
-    // emitting the type that keeps the invariant.
-    expect(found.get('model')).toContain('packages/api/src/routes/v1/models.ts');
+    // Positive controls, named explicitly rather than derived from the record
+    // below — a control computed from the thing it controls proves nothing.
     expect(found.get('routing_profile')).toContain('packages/api/src/routes/catalogue.ts');
+    expect(found.get('product_mode')).toContain('packages/api/src/routes/catalogue.ts');
 
     const asRecord = Object.fromEntries([...found.entries()].map(([k, v]) => [k, [...v].sort()]));
     const expected = Object.fromEntries(Object.entries(OBJECT_KIND_EMITTERS).map(([k, v]) => [k, [...v].sort()]));
     expect(asRecord).toEqual(expected);
   });
 
-  it('serves exactly the thirteen frozen identifiers as object: "model"', async () => {
+  it('the compatibility listing serves NOTHING, because Alia publishes no models', async () => {
+    // The invariant's second half, won rather than frozen. This endpoint served
+    // thirteen routing profiles as `object: "model"`; it now serves an empty
+    // list, so there is no violation left to record.
     const captured = await runListHandler(await import('../routes/v1/models.js'));
 
     expect(captured.status).toBeUndefined();
     expect(captured.body?.object).toBe('list');
-    const data = captured.body?.data ?? [];
-    expect(data.map((entry) => entry.id).sort()).toEqual([...SERVED_AS_MODEL].sort());
-    expect(new Set(data.map((entry) => entry.object))).toEqual(new Set(['model']));
+    expect(captured.body?.data).toEqual([]);
+    expect(SERVED_AS_MODEL).toEqual([]);
   });
 
-  it('the compatibility surface no longer claims Alia OWNS what it serves', async () => {
-    // The second half of the invariant line: *"a routing policy, quality mode,
-    // prompt preset or provider alias is never presented as an ALIA-OWNED
-    // model."* `object` stays `model` on this surface for the length of the
-    // compatibility window, and it is the frozen violation above; ownership is
-    // a separate claim on a separate field and there is no reason to keep
-    // making it, since every one of these routes to a third party.
-    const captured = await runListHandler(await import('../routes/v1/models.js'));
-    const data = captured.body?.data ?? [];
-    // Vacuity floor: an empty list claims nothing and reads like a clean pass.
-    expect(data).toHaveLength(SERVED_AS_MODEL.length);
+  it('no alia-* identifier is advertised on any served surface', async () => {
+    // The property #139 workstream 4 asks for, over the BYTES of both
+    // surfaces. A single scan of one endpoint would miss the other, and the
+    // catalogue is the one with entries in it.
+    const listing = await runListHandler(await import('../routes/v1/models.js'));
+    const catalogue = await runListHandler(await import('../routes/catalogue.js'));
 
-    expect(data.filter((entry) => entry.owned_by === 'alia')).toEqual([]);
-    // Every entry still carries the field — removing it is a shape change to a
-    // surface promised its existing shapes — and carries the same value.
-    expect(new Set(data.map((entry) => entry.owned_by))).toEqual(new Set(['undisclosed']));
+    // Vacuity floor: an empty catalogue leaks nothing and reads exactly like a
+    // clean one. The listing is legitimately empty, so only this one is floored.
+    expect((catalogue.body?.data ?? []).length).toBeGreaterThanOrEqual(12);
 
-    // And it must not have become a provider name instead, which would trade a
-    // false claim for a forbidden one.
-    const providers = new Set<string>();
-    for (const list of Object.values(TIER_MODEL_MAPPINGS)) for (const m of list) providers.add(m.provider.toLowerCase());
-    expect(providers.size).toBeGreaterThanOrEqual(10);
-    expect(data.filter((entry) => providers.has((entry.owned_by ?? '').toLowerCase()))).toEqual([]);
-  });
+    const serialized = JSON.stringify(listing.body) + JSON.stringify(catalogue.body);
+    const aliases = Object.keys(ALIA_MODELS);
+    expect(aliases).toHaveLength(13);
+    expect(aliases.filter((alias) => serialized.includes(alias))).toEqual([]);
 
-  it('every identifier served as a model is a routing profile, by measurement', () => {
-    // The reason the record above is a violation list. `alia-v1-thinking` and
-    // `alia-v1-pro-max` additionally share one tier, so they are the SAME policy
-    // under two identifiers — the case ADR 0002 describes as a reasoning
-    // setting wearing a model's name.
-    const fanOut = SERVED_AS_MODEL.map((id) => {
-      const tier = ALIA_MODELS[id].tier;
-      return { id, tier, models: new Set((TIER_MODEL_MAPPINGS[tier] ?? []).map((m) => m.modelId)).size };
-    });
-
-    expect(fanOut.filter((f) => f.models < 2)).toEqual([]);
-    expect(new Set(fanOut.map((f) => f.tier)).size).toBe(SERVED_AS_MODEL.length - 1);
+    // The scan's positive control: it CAN see one of these when present.
+    expect(JSON.stringify({ planted: aliases[0] })).toContain(aliases[0]);
   });
 
   it('the truthful catalogue serializes by fan-out, in BOTH directions', async () => {
-    // The invariant itself, not a frozen list. Nothing here names an alias: the
+    // The invariant itself, not a frozen list. Nothing here names an entry: the
     // expected type is recomputed from the routing table on every run, so a
     // routing change that turned a policy into a single-model reference would
     // move the expectation with it rather than fail.
@@ -1832,14 +1811,19 @@ describe('gate 5: models versus routing profiles (ADR 0003 invariant 1)', () => 
     expect(captured.body?.object).toBe('list');
     const data = captured.body?.data ?? [];
 
+    const tierOf = new Map<string, string>(ROUTING_PRESETS.map((preset) => [preset.id, preset.tier] as const));
+    const byTier: Readonly<Record<string, { modelId: string }[]>> = TIER_MODEL_MAPPINGS;
+    const distinctModels = (tier: string): number =>
+      new Set((byTier[tier] ?? []).map((m) => m.modelId)).size;
+
     // Floors, so an empty or half-built catalogue cannot satisfy the checks
     // below by having nothing to violate them.
-    expect(data.length).toBe(SERVED_AS_MODEL.length);
+    expect(data.length).toBe(ROUTING_PRESETS.length);
     expect(data.filter((e) => e.object === 'routing_profile').length).toBeGreaterThanOrEqual(1);
 
     const wrong = data
       .map((entry) => {
-        const models = new Set((TIER_MODEL_MAPPINGS[ALIA_MODELS[entry.id].tier] ?? []).map((m) => m.modelId)).size;
+        const models = distinctModels(tierOf.get(entry.id) ?? '');
         const expected = models === 1 ? 'model' : 'routing_profile';
         return entry.object === expected ? null : `${entry.id}: ${models} model(s) served as ${entry.object}`;
       })
@@ -1850,31 +1834,33 @@ describe('gate 5: models versus routing profiles (ADR 0003 invariant 1)', () => 
     // failure names the invariant rather than a mismatch.
     const policiesCalledModels = data
       .filter((e) => e.object === 'model')
-      .filter((e) => new Set((TIER_MODEL_MAPPINGS[ALIA_MODELS[e.id].tier] ?? []).map((m) => m.modelId)).size >= 2)
+      .filter((e) => distinctModels(tierOf.get(e.id) ?? '') >= 2)
       .map((e) => e.id);
     expect(policiesCalledModels).toEqual([]);
   });
 
   it('serves the type the published migration map classifies, for every alias', async () => {
     // `docs/migration/alias-migration-map.json` is the classification the
-    // compatibility window publishes to callers as removal gate 2, and it is an
-    // INPUT here rather than something this code may revise. The catalogue
-    // derives its type from live fan-out and the map records the same
-    // discriminator, so the two must agree — and if a routing change ever moves
-    // one, this fails rather than letting the served type and the published
-    // translation drift apart with nothing to notice.
+    // compatibility window publishes to callers, and it is an INPUT here rather
+    // than something this code may revise. The catalogue is now keyed by the
+    // profile the map says each alias BECOMES, so the agreement is checked
+    // through `becomes.id` — which is also what proves the two vocabularies
+    // meet: the map's replacement is an id the catalogue actually serves.
     const raw: unknown = JSON.parse(readFileSync(path.join(REPO_ROOT, 'docs/migration/alias-migration-map.json'), 'utf8'));
     if (typeof raw !== 'object' || raw === null || !Array.isArray((raw as { aliases?: unknown }).aliases)) {
       throw new Error('alias-migration-map.json has no aliases array');
     }
     const published = new Map<string, string>();
     for (const entry of (raw as { aliases: unknown[] }).aliases) {
-      const e = entry as { alias?: unknown; becomes?: { kind?: unknown } };
-      if (typeof e.alias !== 'string' || typeof e.becomes?.kind !== 'string') throw new Error('malformed alias entry');
-      published.set(e.alias, e.becomes.kind);
+      const e = entry as { alias?: unknown; becomes?: { kind?: unknown; id?: unknown } };
+      if (typeof e.alias !== 'string' || typeof e.becomes?.kind !== 'string' || typeof e.becomes.id !== 'string') {
+        throw new Error('malformed alias entry');
+      }
+      published.set(e.becomes.id, e.becomes.kind);
     }
-    // Vacuity floor: an unparsed or emptied map agrees with everything.
-    expect(published.size).toBe(SERVED_AS_MODEL.length);
+    // Vacuity floor: an unparsed or emptied map agrees with everything. Twelve
+    // profiles for thirteen aliases, because two aliases share one.
+    expect(published.size).toBe(ROUTING_PRESETS.length);
 
     const served = await runListHandler(await import('../routes/catalogue.js'));
     const kindOf: Readonly<Record<string, string>> = { 'routing-profile': 'routing_profile', 'concrete-model': 'model' };
@@ -1890,25 +1876,24 @@ describe('gate 5: models versus routing profiles (ADR 0003 invariant 1)', () => 
     // handler, so it measures the bytes a client receives rather than the
     // table those bytes are built from.
     const captured = await runListHandler(await import('../routes/catalogue.js'), '/modes');
-    expect(captured.status).toBeUndefined();
-    expect(captured.body?.object).toBe('list');
-    const data = captured.body?.data ?? [];
+    {
+      expect(captured.status).toBeUndefined();
+      expect(captured.body?.object).toBe('list');
+      const data = captured.body?.data ?? [];
 
-    // Vacuity floor: an empty list serializes nothing as a model and reads
-    // exactly like a clean pass. Tied to the shipped table, not to a number.
-    expect(data.length).toBe(PRODUCT_MODES.length);
-    expect(data.length).toBeGreaterThanOrEqual(6);
+      // Vacuity floor: an empty list serializes nothing as a model and reads
+      // exactly like a clean pass. Tied to the shipped table, not to a number.
+      expect(data.length).toBe(PRODUCT_MODES.length);
+      expect(data.length).toBeGreaterThanOrEqual(6);
 
-    expect(data.filter((entry) => entry.object === 'model')).toEqual([]);
-    expect(new Set(data.map((entry) => entry.object))).toEqual(new Set(['product_mode']));
+      expect(data.filter((entry) => entry.object === 'model')).toEqual([]);
+      expect(new Set(data.map((entry) => entry.object))).toEqual(new Set(['product_mode']));
 
-    // A mode must not be able to pass for one of the thirteen either: an id in
-    // the alias namespace would be a mode re-entering the set ADR 0002 froze,
-    // and `alia/` is the reserved publisher namespace.
-    const ids = data.map((entry) => entry.id);
-    expect(ids.filter((id) => FROZEN_ALIASES.includes(id))).toEqual([]);
-    expect(ids.filter((id) => id.startsWith('alia/') || id.startsWith('alia-'))).toEqual([]);
-    expect(ids.every((id) => id.startsWith('mode:'))).toBe(true);
+      const ids = data.map((entry) => entry.id);
+      expect(ids.filter((id) => FROZEN_ALIASES.includes(id))).toEqual([]);
+      expect(ids.filter((id) => id.startsWith('alia/') || id.startsWith('alia-'))).toEqual([]);
+      expect(ids.every((id) => id.startsWith('mode:'))).toBe(true);
+    }
   });
 
   it('no catalogue response names a provider or a provider model id', async () => {
@@ -1919,7 +1904,7 @@ describe('gate 5: models versus routing profiles (ADR 0003 invariant 1)', () => 
     const captured = await runListHandler(await import('../routes/catalogue.js'));
     // The response's own vacuity floor: an empty catalogue leaks nothing and
     // reads exactly like a clean one.
-    expect(captured.body?.data ?? []).toHaveLength(SERVED_AS_MODEL.length);
+    expect(captured.body?.data ?? []).toHaveLength(ROUTING_PRESETS.length);
     const serialized = JSON.stringify(captured.body).toLowerCase();
 
     const providers = new Set<string>();
@@ -1938,7 +1923,6 @@ describe('gate 5: models versus routing profiles (ADR 0003 invariant 1)', () => 
     expect(leaked).toEqual([]);
 
     // The scan's positive control: it CAN see one of these strings when present.
-    // Without this, a serializer returning `undefined` reads as leak-free.
     const withLeak = JSON.stringify({ ...captured.body, planted: [...modelIds][0] }).toLowerCase();
     expect([...modelIds].filter((needle) => withLeak.includes(needle))).toHaveLength(1);
   });

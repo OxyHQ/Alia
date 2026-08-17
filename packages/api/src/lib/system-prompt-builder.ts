@@ -10,7 +10,24 @@ import { buildIdentityGuard } from './identity-guard.js';
 import { getOxyServicePromptFragment, getOxyServiceContext } from './tools/oxy-services.js';
 import { buildArchetypeSystemPrompt } from './agent/archetype-prompts.js';
 import { buildAutonomyPromptFragment, type AutonomyRuntimeContext } from './autonomy/runtime.js';
-import { buildSystemPrompt as loadBasePrompt } from './prompt-loader.js';
+import { buildSystemPrompt as loadBasePrompt, loadPrompt } from './prompt-loader.js';
+
+/**
+ * The extended-reasoning layer, selected by the `thinkingMode` REQUEST
+ * PARAMETER rather than by a model id (#139 workstream 4).
+ *
+ * `alia-v1-thinking` and `alia-v1-pro-max` route to the same nine candidates at
+ * the same price and differed only in which of these files their id loaded, so
+ * the reasoning level was an identity when it should have been a setting. It is
+ * a setting now, and any profile can carry it.
+ *
+ * The file keeps its historical name because the retired alias still resolves
+ * and still loads it directly by model id: one file, two ways in, no copy to
+ * keep in step. That sharing is what makes the alias REDUNDANT rather than
+ * merely unadvertised — everything it did is now expressible as
+ * `model: profile:v1-pro-max` plus `thinkingMode: true`.
+ */
+const EXTENDED_REASONING_PROMPT = 'alia-v1-thinking';
 import { log } from './logger.js';
 import type { IAgent } from '../models/agent.js';
 
@@ -52,6 +69,12 @@ export interface SystemPromptOptions {
   linkedAgent?: IAgent | null;
   /** Whether agent mode is active */
   agentMode?: boolean;
+  /**
+   * Whether the request asked for extended reasoning — the runtime parameter
+   * that replaced `alia-v1-thinking` as a model identity. Any profile can carry
+   * it, which is the whole point of it being a parameter.
+   */
+  thinkingMode?: boolean;
   /** Autonomy runtime context */
   autonomyRuntime?: AutonomyRuntimeContext | null;
 }
@@ -92,10 +115,21 @@ export class SystemPromptBuilder {
       linkedAgent,
       agentMode,
       autonomyRuntime,
+      thinkingMode,
     } = opts;
 
     // 1. Base prompt
     let systemMessage = await loadBasePrompt(aliasModelId, clientContext);
+
+    // 1b. Extended reasoning, when the request asked for it.
+    //
+    // Skipped when the caller named the retired alias, because `loadBasePrompt`
+    // already loaded this exact file for that id — layering it twice would tell
+    // the model the same thing in two voices.
+    if (thinkingMode === true && aliasModelId !== EXTENDED_REASONING_PROMPT) {
+      const reasoning = await loadPrompt(EXTENDED_REASONING_PROMPT);
+      if (reasoning !== '') systemMessage += `\n\n---\n\n${reasoning}`;
+    }
 
     // 2. Current date
     systemMessage += `\n\nToday is ${new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}.`;

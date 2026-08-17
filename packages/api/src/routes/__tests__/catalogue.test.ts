@@ -204,23 +204,23 @@ describe('the catalogue distinguishes a model from a routing profile by TYPE', (
     expect(body.object).toBe('list');
 
     const byId = new Map((body.data ?? []).map((e) => [String(e.id), e]));
-    expect([...byId.keys()].sort()).toEqual(['alia-lite', 'alia-v1-codea', 'alia-v1-pro']);
+    expect([...byId.keys()].sort()).toEqual(['profile:lite', 'profile:v1-codea', 'profile:v1-pro']);
 
     // Two candidates: a policy over two models.
-    expect(byId.get('alia-lite')?.object).toBe('routing_profile');
-    expect(byId.get('alia-lite')?.profile_id).toBe('profile:lite');
-    expect(byId.get('alia-lite')?.selects_among).toBe(2);
+    expect(byId.get('profile:lite')?.object).toBe('routing_profile');
+    expect(byId.get('profile:lite')?.profile_id).toBe('profile:lite');
+    expect(byId.get('profile:lite')?.selects_among).toBe(2);
 
     // One candidate: a reference to that model, so it keeps `model` — the value
     // a client already switches on.
-    expect(byId.get('alia-v1-codea')?.object).toBe('model');
-    expect(byId.get('alia-v1-codea')?.publisher).toBeNull();
-    expect(byId.get('alia-v1-codea')?.profile_id).toBeUndefined();
+    expect(byId.get('profile:v1-codea')?.object).toBe('model');
+    expect(byId.get('profile:v1-codea')?.publisher).toBeNull();
+    expect(byId.get('profile:v1-codea')?.profile_id).toBeUndefined();
   });
 
   it('reports capability availability per entry, with unknown distinct from never', async () => {
     const { body } = await get('/catalogue');
-    const lite = (body.data ?? []).find((e) => e.id === 'alia-lite');
+    const lite = (body.data ?? []).find((e) => e.id === 'profile:lite');
     expect(lite?.capabilities).toEqual({
       // One of two candidates has vision, so neither `true` nor `false` is the
       // honest answer. The fixture alias declares `supportsVision: false`, which
@@ -244,7 +244,7 @@ describe('entitlement comes from the plan catalogue, and says so when it cannot'
     const { body } = await get('/catalogue');
     expect(body.entitlements_known).toBe(true);
     const byId = new Map((body.data ?? []).map((e) => [String(e.id), e]));
-    expect(byId.get('alia-lite')?.entitlement).toEqual({
+    expect(byId.get('profile:lite')?.entitlement).toEqual({
       state: 'known',
       access: 'free',
       required_plan: null,
@@ -252,7 +252,7 @@ describe('entitlement comes from the plan catalogue, and says so when it cannot'
       products: ['alia'],
       entitled: null,
     });
-    expect(byId.get('alia-v1-pro')?.entitlement).toMatchObject({
+    expect(byId.get('profile:v1-pro')?.entitlement).toMatchObject({
       access: 'plan',
       required_plan: 'Codea Pro',
       products: ['codea'],
@@ -263,8 +263,8 @@ describe('entitlement comes from the plan catalogue, and says so when it cannot'
     state.userId = 'user-1';
     const { body } = await get('/catalogue');
     const byId = new Map((body.data ?? []).map((e) => [String(e.id), e]));
-    expect((byId.get('alia-lite')?.entitlement as { entitled?: unknown }).entitled).toBe(true);
-    expect((byId.get('alia-v1-pro')?.entitlement as { entitled?: unknown }).entitled).toBe(false);
+    expect((byId.get('profile:lite')?.entitlement as { entitled?: unknown }).entitled).toBe(true);
+    expect((byId.get('profile:v1-pro')?.entitlement as { entitled?: unknown }).entitled).toBe(false);
     // Not entitled is not hidden: a picker needs the locked entry to explain the
     // upgrade. Filtering is opt-in, below.
     expect(body.data).toHaveLength(3);
@@ -284,7 +284,7 @@ describe('a filter that cannot be evaluated refuses instead of answering', () =>
   it('filters by Alia product policy', async () => {
     const { status, body } = await get('/catalogue?product=codea');
     expect(status).toBe(200);
-    expect((body.data ?? []).map((e) => e.id).sort()).toEqual(['alia-v1-codea', 'alia-v1-pro']);
+    expect((body.data ?? []).map((e) => e.id).sort()).toEqual(['profile:v1-codea', 'profile:v1-pro']);
   });
 
   it('rejects a product outside the plan vocabulary', async () => {
@@ -297,7 +297,7 @@ describe('a filter that cannot be evaluated refuses instead of answering', () =>
     state.userId = 'user-1';
     const { status, body } = await get('/catalogue?entitled=true');
     expect(status).toBe(200);
-    expect((body.data ?? []).map((e) => e.id)).toEqual(['alia-lite']);
+    expect((body.data ?? []).map((e) => e.id)).toEqual(['profile:lite']);
   });
 
   it('refuses to filter by entitlement without a caller, rather than inventing a free tier', async () => {
@@ -341,15 +341,18 @@ describe('a filter that cannot be evaluated refuses instead of answering', () =>
 });
 
 describe('the catalogue carries the compatibility-window signal', () => {
-  it('marks the deprecated aliases and announces no removal date', async () => {
+  it('carries no deprecation field, because nothing it serves is deprecated', async () => {
+    // Entries are keyed by routing profile — what an alias BECOMES — so no
+    // entry is inside the compatibility window and there is nothing to mark.
+    // The signal moved to where the deprecated identifier still is: the headers
+    // and stream event on a request that NAMES an alias.
     const { body } = await get('/catalogue');
-    const lite = (body.data ?? []).find((e) => e.id === 'alia-lite');
-    expect(lite?.deprecation).toEqual({ deprecated_at: '2026-08-15T00:00:00.000Z', sunset_at: null });
+    const entries = body.data ?? [];
+    expect(entries.length).toBeGreaterThanOrEqual(3);
+    for (const entry of entries) expect(entry).not.toHaveProperty('deprecation');
 
-    // Negative control, so "everything is marked" cannot pass for "the right
-    // things are marked".
-    state.models = [model({ id: 'not-an-alias', tier: 'lite' })];
-    const other = await get('/catalogue');
-    expect(other.body.data?.[0].deprecation).toBeNull();
+    // And no served id is an alias, which is the property that made the field
+    // dead in the first place.
+    expect(entries.filter((e) => String(e.id).startsWith('alia-'))).toEqual([]);
   });
 });

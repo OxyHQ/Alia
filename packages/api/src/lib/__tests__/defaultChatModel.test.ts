@@ -211,11 +211,6 @@ const RESTATED_DEFAULTS: readonly { file: string; value: string; why: string }[]
     why: 'DELIBERATE and documented in place: names the alias the fallback engine already resolved to, so the tool stops reporting a model it did not run. Its comment states it is explicitly not the default.',
   },
   {
-    file: 'packages/api/src/routes/v1/responses.ts',
-    value: 'alia-v1',
-    why: 'LIVE DIVERGENCE, escalated not decided: POST /v1/responses defaults to alia-v1 while POST /v1/chat/completions defaults to alia-lite, a 2x credit multiplier apart for the same "no model named" request. Reconciling it changes what users are billed, which is a product call.',
-  },
-  {
     file: 'packages/api/src/routes/v1/voice.ts',
     value: 'alia-v1-voice',
     why: 'Capability-scoped, and correct: a realtime voice session cannot run on the general chat default.',
@@ -239,10 +234,14 @@ describe('every site that restates an alias default is accounted for', () => {
     // Positive controls, one per spelling. A pattern that misses one prints a
     // clean small number that reads like good news.
     const at = (suffix: string) => observed.filter((o) => o.file.endsWith(suffix)).map((o) => o.value);
-    expect(at('routes/v1/responses.ts')).toContain('alia-v1'); // `||` with a space
+    expect(at('lib/tools/delegate.ts')).toContain('alia-v1'); // `||` with a space
     expect(at('lib/tools/agent-delegate.ts')).toContain('alia-lite'); // `||` after `?.[0]`
     expect(at('lib/credits-manager.ts')).toContain('alia-v1-voice'); // parameter default
-    expect(observed.length).toBeGreaterThanOrEqual(8);
+    // 8 -> 7 because `/v1/responses` stopped restating a default, not because
+    // the scanner got weaker. A floor that a gate's own work erodes ends at
+    // `>= 0`, so it moves by exactly the number of restatements deleted and the
+    // exact-equality check below is what actually holds the line.
+    expect(observed.length).toBeGreaterThanOrEqual(7);
   });
 
   it('is exactly the frozen list, in both directions', () => {
@@ -254,16 +253,32 @@ describe('every site that restates an alias default is accounted for', () => {
   });
 
   it('the frozen list is as long as it says, so it cannot grow a line at a time', () => {
-    expect(RESTATED_DEFAULTS).toHaveLength(7);
-    expect(new Set(RESTATED_DEFAULTS.map((r) => r.file)).size).toBe(7);
+    expect(RESTATED_DEFAULTS).toHaveLength(6);
+    expect(new Set(RESTATED_DEFAULTS.map((r) => r.file)).size).toBe(6);
     for (const entry of RESTATED_DEFAULTS) expect(entry.why.length).toBeGreaterThan(40);
   });
 
-  it('names the one entry that disagrees with the owner on the general chat path', () => {
-    // The escalation, asserted rather than described: if somebody reconciles
-    // /v1/responses, this goes red and the census line above goes with it.
-    const responses = RESTATED_DEFAULTS.find((r) => r.file.endsWith('routes/v1/responses.ts'));
-    expect(responses?.value).toBe('alia-v1');
-    expect(responses?.value).not.toBe(getDefaultAliaModel());
+  it('no entry disagrees with the owner on the general chat path', () => {
+    // This test used to assert the OPPOSITE: it named `/v1/responses` as a live
+    // divergence, escalated rather than decided, because reconciling it changes
+    // what users are billed. The decision was taken, so the assertion inverts
+    // with it rather than being deleted — a census that merely stopped
+    // mentioning the defect would look identical to one that never saw it.
+    //
+    // Every remaining entry is capability-scoped (a voice minute cannot be
+    // priced by the chat default) or deliberate and documented in place. None
+    // is a second answer to "what does the general chat path default to".
+    expect(RESTATED_DEFAULTS.find((r) => r.file.endsWith('routes/v1/responses.ts'))).toBeUndefined();
+
+    // And the route now restates nothing at all, so there is no value left to
+    // agree or disagree with the owner. Asserted on the source, because
+    // "absent" is the whole claim.
+    const responses = SOURCES.find((s) => s.file.endsWith('routes/v1/responses.ts'));
+    expect(responses).toBeDefined();
+    expect(responses?.code).toContain('model: body.model,');
+    expect(responses?.code).not.toMatch(/model:\s*body\.model\s*\|\|/);
+
+    // The general chat path has exactly one owner, and it is reachable.
+    expect(getDefaultAliaModel()).toMatch(/^alia-/);
   });
 });
