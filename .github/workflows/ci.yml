@@ -10,6 +10,23 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# Least privilege for the token Actions injects into every runner.
+#
+# Nothing here sets `GITHUB_TOKEN` deliberately — see the note below on why the
+# fetch cannot be authenticated — but Actions provides one regardless, and
+# `actions/checkout` persists it into `.git/config` by default. `bun install`
+# then runs lifecycle scripts for ~2,861 packages in the same environment, so
+# the default repository scope would be a repo-scoped write credential reachable
+# by every postinstall in the tree.
+#
+# `contents: read` is sufficient and was verified rather than assumed: every job
+# in this workflow uses only `actions/checkout`, `actions/cache`,
+# `actions/setup-node` and `oven-sh/setup-bun`. Nothing pushes, comments, opens a
+# release or calls `gh`. `actions/cache` is authorised by the cache service
+# rather than by this scope, so restoring and saving still work.
+permissions:
+  contents: read
+
 # `bun install` fetches a GIT dependency, and that fetch CANNOT be authenticated.
 #
 # `@whiskeysockets/baileys` (packages/integrations) declares `libsignal` as
