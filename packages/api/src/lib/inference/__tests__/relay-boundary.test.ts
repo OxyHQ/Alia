@@ -186,6 +186,20 @@ describe('nothing in the API imports the Relay client (#139 ws3, constraint 3)',
    * blocked (OxyHQ/oxy#981), so a client wired in today points at a hole.
    */
   const FROZEN_IMPORTERS: readonly string[] = [
+    /*
+     * #139 ws8: the boot-guard suite. It imports `relay-credential` and
+     * `relay-endpoint` for their VARIABLE-NAME maps only —
+     * `RELAY_CREDENTIAL_REQUIRED_ENV`, `RELAY_BASE_URL_ENV`,
+     * `RELAY_ALLOWED_ORIGINS` — so that its "a Relay configuration that boots"
+     * fixture is derived rather than hand-copied. A hand-copied one was already
+     * wrong once: #176 added four required variables and the fixture silently
+     * refused at the wrong guard.
+     *
+     * A test importer, and the product module it drives (`lib/boot-guards.ts`)
+     * imports none of these, so constraint 3 is untouched: the boot path still
+     * names neither the client nor its credential.
+     */
+    'packages/api/src/lib/__tests__/boot-guards.test.ts',
     // #139 ws15: back on this list, having dropped off it when the cutover flag
     // moved to `relay-cutover.ts`. The boot check now also refuses an
     // unapproved `RELAY_BASE_URL`, and `relay-endpoint.ts` is one of the modules
