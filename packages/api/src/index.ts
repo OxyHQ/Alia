@@ -69,7 +69,7 @@ import { startTriggerEngine, stopTriggerEngine } from './lib/trigger-engine.js';
 import { warmupProviders } from './lib/provider-warmup.js';
 import { warmupGatewayClient } from './lib/gateway-client.js';
 import { relayBootConfigurationFailure } from './lib/inference/relay-boot-check.js';
-import { directProviderModeFailure } from './lib/inference/direct-provider-guard.js';
+import { assertDirectProviderModeOrExit } from './lib/inference/direct-provider-guard.js';
 import { installProviderEgressBlock } from './lib/inference/provider-egress-policy.js';
 import { initChannels } from './lib/channels/index.js';
 // Socket.io
@@ -481,7 +481,10 @@ function assertRelayConfigurationOrExit(): void {
   process.exit(1);
 }
 
-/**
+connectPostgresOrExit();
+assertRelayConfigurationOrExit();
+
+/*
  * Refuse to start when the cutover is on and a direct provider route is still
  * configured — #139 workstream 8.
  *
@@ -491,17 +494,19 @@ function assertRelayConfigurationOrExit(): void {
  * deployment today — `directProviderModeFailure` reads that one variable and
  * returns, so this costs a pre-cutover boot nothing and can change nothing about
  * it.
+ *
+ * The decision lives in `lib/inference/direct-provider-guard.ts` rather than
+ * here, so that "a refusal terminates the process" is a property a test can
+ * assert. Nothing imports this file, so anything written in it is guarded only
+ * by a source-text census — and this guard was measurably able to lose its
+ * `process.exit` while every suite stayed green.
  */
-function assertDirectProviderModeOrExit(): void {
-  const failure = directProviderModeFailure();
-  if (failure === null) return;
-  log.general.error({ failure }, 'Direct provider mode is configured after the Relay cutover — refusing to start');
-  process.exit(1);
-}
-
-connectPostgresOrExit();
-assertRelayConfigurationOrExit();
-assertDirectProviderModeOrExit();
+assertDirectProviderModeOrExit(
+  (failure) => {
+    log.general.error({ failure }, 'Direct provider mode is configured after the Relay cutover — refusing to start');
+  },
+  (code) => process.exit(code),
+);
 
 /**
  * Arm the egress policy before the socket opens — #139 workstream 8.

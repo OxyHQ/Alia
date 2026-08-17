@@ -6,6 +6,8 @@ import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
 
 import {
+  assertDirectProviderModeOrExit,
+  DIRECT_PROVIDER_EXIT_CODE,
   directProviderModeFailure,
   GATEWAY_URL_ENV,
   PROVIDER_CREDENTIAL_ENV,
@@ -168,6 +170,75 @@ describe('with the cutover flag on, direct provider configuration stops the proc
     // provider configuration rather than about the flag: with the flag on and no
     // provider route configured, the guard is silent.
     expect(directProviderModeFailure({ ...ENABLED, NODE_ENV: 'production' })).toBeNull();
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/*  The refusal TERMINATES, which is the half a call-site census cannot see     */
+/* -------------------------------------------------------------------------- */
+
+describe('a refused boot stops the process, not just the log line', () => {
+  /** Records what the guard did instead of logging and exiting for real. */
+  function drive(env: NodeJS.ProcessEnv): { reports: string[]; exits: number[] } {
+    const reports: string[] = [];
+    const exits: number[] = [];
+    assertDirectProviderModeOrExit(
+      (failure) => reports.push(failure),
+      (code) => exits.push(code),
+      env,
+    );
+    return { reports, exits };
+  }
+
+  it('exits with a failure code when direct provider configuration is present', () => {
+    /*
+     * The assertion that did not exist. `bootWiring.test.ts` asserts the CALL is
+     * there and precedes `listen`; measured on `main`, changing this guard's body
+     * from `process.exit(1)` to a warning log left both suites green. A guard
+     * that reports and starts anyway is the outcome the box forbids.
+     */
+    const { reports, exits } = drive({ ...ENABLED, OPENAI_API_KEY: 'sk-not-a-real-key' });
+    expect(exits).toEqual([DIRECT_PROVIDER_EXIT_CODE]);
+    expect(reports).toHaveLength(1);
+    expect(reports[0]).toContain('OPENAI_API_KEY');
+  });
+
+  it('exits on a configured gateway tier too', () => {
+    expect(drive({ ...ENABLED, [GATEWAY_URL_ENV]: 'https://gw.invalid' }).exits).toEqual([
+      DIRECT_PROVIDER_EXIT_CODE,
+    ]);
+  });
+
+  it('does NOT exit, and reports nothing, when the configuration is clean', () => {
+    // The control that makes the exits above about the configuration rather than
+    // about the guard exiting unconditionally — which would be an outage.
+    const { reports, exits } = drive({ ...ENABLED, NODE_ENV: 'production' });
+    expect(exits).toEqual([]);
+    expect(reports).toEqual([]);
+  });
+
+  it('does NOT exit with the cutover flag off, whatever else is configured', () => {
+    // Every deployment that exists today runs this path with provider
+    // configuration present and the flag absent. An exit here is a total outage.
+    const { reports, exits } = drive({
+      [GATEWAY_URL_ENV]: 'https://gw.invalid',
+      OPENAI_API_KEY: 'sk-not-a-real-key',
+      NODE_ENV: 'production',
+    });
+    expect(exits).toEqual([]);
+    expect(reports).toEqual([]);
+  });
+
+  it('reports before it exits, so the reason survives the termination', () => {
+    // Order is behaviour: an exit that preceded the log would terminate with no
+    // record of why, which is the failure mode an operator meets at 3am.
+    const order: string[] = [];
+    assertDirectProviderModeOrExit(
+      () => order.push('report'),
+      () => order.push('exit'),
+      { ...ENABLED, OPENAI_API_KEY: 'sk-not-a-real-key' },
+    );
+    expect(order).toEqual(['report', 'exit']);
   });
 });
 

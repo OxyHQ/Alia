@@ -122,3 +122,42 @@ export function directProviderModeFailure(
   // credential or a route to one, and a boot log is not a secret store.
   return `the Relay cutover is enabled and direct provider configuration is still present: ${offenders.join(', ')}`;
 }
+
+/** The exit code a refused boot uses, matching `connectPostgresOrExit`. */
+export const DIRECT_PROVIDER_EXIT_CODE = 1;
+
+/**
+ * Refuse to start, or return — the decision itself, not just the reason.
+ *
+ * ## Why this lives here rather than in `src/index.ts`
+ *
+ * It used to be four lines there, and that made the only thing that matters —
+ * **that a refusal actually terminates the process** — unassertable. Nothing
+ * imports `src/index.ts`: it opens a socket, arms timers and connects a database
+ * on import. So the guard was covered by a source-text assertion in
+ * `db/__tests__/bootWiring.test.ts` that the call exists and precedes `listen`.
+ *
+ * Measured: with that assertion in place, changing the body from
+ * `process.exit(1)` to a warning log left **both** suites green. A guard that
+ * reports and then starts anyway is exactly the outcome the box forbids, and
+ * nothing could see it.
+ *
+ * `report` and `exit` are parameters rather than direct calls to `log` and
+ * `process.exit` for that one reason: a test can pass its own and assert the
+ * termination happened. Injecting them is cheaper and less invasive than making
+ * a test monkey-patch a global that every other suite in the process shares.
+ *
+ * What is STILL only source-text is that the real caller passes the real
+ * `process.exit` — `bootWiring.test.ts` asserts that, and it is the residue that
+ * cannot be closed without making `src/index.ts` importable.
+ */
+export function assertDirectProviderModeOrExit(
+  report: (failure: string) => void,
+  exit: (code: number) => void,
+  env: NodeJS.ProcessEnv = process.env,
+): void {
+  const failure = directProviderModeFailure(env);
+  if (failure === null) return;
+  report(failure);
+  exit(DIRECT_PROVIDER_EXIT_CODE);
+}
