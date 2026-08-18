@@ -155,9 +155,20 @@ const LIVE_REQUIREMENTS: readonly UniqueRequirement[] = [
  * archaeology recorded per entry.
  */
 interface RetiredUnique extends UniqueRequirement {
-  /** The file it lived in, so `git show <retiredBy>^:<file>` re-verifies the row. */
+  /** The file it lived in, so the row can be re-verified against git history. */
   readonly file: string;
-  /** The commit that deleted it. */
+  /**
+   * WHO retired it — a short sha for the pre-freeze rows, and the SLICE NAME for
+   * everything since.
+   *
+   * The convention changed on purpose. A sha here names a BRANCH commit, and
+   * this repository squash-merges: the moment the pull request lands, that
+   * object is unreachable from `main` and `git show <sha>^:<file>` fails for
+   * anyone who did not have the branch. The pre-freeze rows carry shas because
+   * they were filled in AFTER their merge and name main's own squash commits,
+   * which are permanent — an option a slice writing its own row does not have.
+   * A slice name is findable with `git log --grep` forever.
+   */
   readonly retiredBy: string;
 }
 
@@ -505,7 +516,7 @@ const UNIQUES_RETIRED_SINCE: readonly RetiredUnique[] = [
   {
     model: 'Conversation',
     file: 'src/models/conversation.ts',
-    retiredBy: '3cb93647',
+    retiredBy: 'S9 chat',
     table: 'conversations',
     constraint: 'conversations_oxy_user_conversation_id_key',
     mongooseKey: ['oxyUserId', 'conversationId'],
@@ -513,7 +524,7 @@ const UNIQUES_RETIRED_SINCE: readonly RetiredUnique[] = [
   {
     model: 'Message',
     file: 'src/models/message.ts',
-    retiredBy: '3cb93647',
+    retiredBy: 'S9 chat',
     table: 'messages',
     constraint: 'messages_oxy_user_conversation_seq_key',
     mongooseKey: ['oxyUserId', 'conversationId', 'seq'],
