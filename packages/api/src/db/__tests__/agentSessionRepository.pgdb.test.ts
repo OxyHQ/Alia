@@ -406,6 +406,53 @@ describe('the task listings', () => {
     expect(children.map((c) => c.agent.name)).toEqual(['Child']);
   });
 
+  /**
+   * The order is ON SCREEN, so it is asserted with TWO rows.
+   *
+   * `task-card.tsx` iterates `childAgents` to draw a row of avatars and the
+   * tasks list polls every ten seconds, so an unordered `inArray` shows as
+   * avatars reshuffling between polls. A single-child fixture cannot see that —
+   * any order is the right order for one row — which is why this seeds three
+   * and pins the sequence.
+   *
+   * The `created_at` values are stamped explicitly: the column is truncated to
+   * milliseconds, and three inserts in one millisecond would tie and make this
+   * assert the clock rather than the ORDER BY.
+   */
+  it('returns a parent’s children in delegation order, not in plan order', async () => {
+    const user = `oxy-order-${suffix()}`;
+    const parentAgent = await seedAgent();
+    const first = await seedAgent({ name: 'First' });
+    const second = await seedAgent({ name: 'Second' });
+    const third = await seedAgent({ name: 'Third' });
+
+    const parent = await createAgentSession(db, {
+      agentId: parentAgent,
+      oxyUserId: user,
+      task: 'p',
+    });
+
+    const base = Date.now();
+    // Inserted NEWEST first, so a query that simply returns insertion order
+    // would produce the reverse of what this expects.
+    for (const [offset, agentId] of [
+      [2000, third],
+      [1000, second],
+      [0, first],
+    ] as const) {
+      await db.insert(agentSessions).values({
+        agentId,
+        oxyUserId: user,
+        task: 'child',
+        parentSessionId: parent._id,
+        createdAt: new Date(base + offset),
+      });
+    }
+
+    const children = await listChildAgentSessions(db, [parent._id], user);
+    expect(children.map((c) => c.agent.name)).toEqual(['First', 'Second', 'Third']);
+  });
+
   it('does not attach another account’s children', async () => {
     const user = `oxy-children-${suffix()}`;
     const agentId = await seedAgent();
