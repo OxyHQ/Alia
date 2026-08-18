@@ -4,13 +4,17 @@ import { ResourceSchema } from '@oxyhq/crowdsource-contracts';
 
 vi.mock('../../../models/agent.js', () => ({ Agent: { findById: vi.fn() } }));
 vi.mock('../../../models/agent-review.js', () => ({ AgentReview: { findById: vi.fn() } }));
-vi.mock('../../../models/skill.js', () => ({
-  Skill: { findById: vi.fn(), findOne: vi.fn() },
+vi.mock('../../../db/index.js', () => ({ getDb: vi.fn(() => ({})) }));
+vi.mock('../../../db/agents/skillRepository.js', () => ({
+  findReportedSkill: vi.fn(),
 }));
 
 import { Agent } from '../../../models/agent.js';
 import { AgentReview } from '../../../models/agent-review.js';
-import { Skill } from '../../../models/skill.js';
+import {
+  findReportedSkill,
+  type ModerationSkill,
+} from '../../../db/agents/skillRepository.js';
 import { createAgentSubjectProvider } from '../subjects/agent-subject.js';
 import { createAgentReviewSubjectProvider } from '../subjects/agent-review-subject.js';
 import { createSkillSubjectProvider } from '../subjects/skill-subject.js';
@@ -19,7 +23,7 @@ import type { ModerationResource } from '../subjects/types.js';
 type Mocked = Record<string, ReturnType<typeof vi.fn>>;
 const agentModel = Agent as unknown as Mocked;
 const reviewModel = AgentReview as unknown as Mocked;
-const skillModel = Skill as unknown as Mocked;
+const findReportedSkillMock = vi.mocked(findReportedSkill);
 
 const AGENT_ID = '507f1f77bcf86cd799439011';
 const REVIEW_ID = '507f1f77bcf86cd799439012';
@@ -243,22 +247,32 @@ describe('skill subject provider', () => {
 
   beforeEach(() => vi.clearAllMocks());
 
-  function communitySkill(overrides: Record<string, unknown> = {}) {
+  /**
+   * A row as `findReportedSkill` hands it back — every column NOT NULL except
+   * `oxy_user_id`, which is null for a built-in.
+   *
+   * The fixture is typed, so a column the repository stops selecting fails this
+   * file rather than surfacing as an `undefined` the provider quietly formats.
+   */
+  function communitySkill(overrides: Partial<ModerationSkill> = {}): ModerationSkill {
     return {
-      _id: new mongoose.Types.ObjectId(SKILL_ID),
+      id: SKILL_ID,
       skillId: 'my-skill',
       title: 'My Skill',
       tagline: 'A tagline',
       description: 'A description',
       systemPrompt: 'Do the thing.',
+      category: 'community',
+      language: 'en-US',
       isBuiltIn: false,
-      oxyUserId: new mongoose.Types.ObjectId(AUTHOR_ID),
+      oxyUserId: AUTHOR_ID,
+      createdAt: new Date('2026-01-01T00:00:00.000Z'),
       ...overrides,
     };
   }
 
   it('describes the listing, with the prompt as evidence', async () => {
-    skillModel.findOne.mockReturnValue(chain(communitySkill()));
+    findReportedSkillMock.mockResolvedValue(communitySkill());
 
     const snapshot = await provider.snapshot('my-skill');
     expect(snapshot?.subject.type).toBe('custom.alia.skill');
@@ -279,7 +293,7 @@ describe('skill subject provider', () => {
    * an invented currency is Alia asserting something nobody said.
    */
   it('emits no price on the listing', async () => {
-    skillModel.findOne.mockReturnValue(chain(communitySkill()));
+    findReportedSkillMock.mockResolvedValue(communitySkill());
     const content = (await provider.snapshot('my-skill'))?.content as ModerationResource;
     expect(content).not.toHaveProperty('data.price');
     expect(content).not.toHaveProperty('data.currency');
@@ -291,16 +305,30 @@ describe('skill subject provider', () => {
    * either side of a rename must reach the same case.
    */
   it('keys the subject on the immutable id, not on the editable slug', async () => {
-    skillModel.findOne.mockReturnValue(chain(communitySkill()));
+    findReportedSkillMock.mockResolvedValue(communitySkill());
     const snapshot = await provider.snapshot('my-skill');
     expect(snapshot?.subject.externalId).toBe(SKILL_ID);
     expect(snapshot?.subject.permalink).toContain('/skills/my-skill');
   });
 
-  it('resolves a skill by its ObjectId as well as by its slug', async () => {
-    skillModel.findOne.mockReturnValue(chain(null));
-    skillModel.findById.mockReturnValue(chain(communitySkill()));
-    expect((await provider.snapshot(SKILL_ID))?.subject.externalId).toBe(SKILL_ID);
+  /**
+   * Resolving a report by EITHER identifier is now one SQL statement, so the
+   * assertion that both work lives where the statement does —
+   * `skillRepository.pgdb.test.ts`, against a real server. Mocking
+   * `findReportedSkill` here could only prove that this file's mock returns what
+   * it was told to.
+   *
+   * What is still this file's to check is that the provider passes the reported
+   * id THROUGH rather than assuming a slug: it is the only caller.
+   */
+  it('hands the reported id to the repository unchanged, whichever form it is', async () => {
+    findReportedSkillMock.mockResolvedValue(communitySkill());
+    await provider.snapshot(SKILL_ID);
+    expect(findReportedSkillMock).toHaveBeenCalledWith(expect.anything(), SKILL_ID);
+
+    findReportedSkillMock.mockClear();
+    await provider.snapshot('my-skill');
+    expect(findReportedSkillMock).toHaveBeenCalledWith(expect.anything(), 'my-skill');
   });
 
   /**
@@ -309,12 +337,12 @@ describe('skill subject provider', () => {
    * to judge a person.
    */
   it('declines a built-in skill', async () => {
-    skillModel.findOne.mockReturnValue(chain(communitySkill({ isBuiltIn: true })));
+    findReportedSkillMock.mockResolvedValue(communitySkill({ isBuiltIn: true }));
     expect(await provider.snapshot('my-skill')).toBeNull();
   });
 
   it('declines a corrupted row with no title rather than inventing one', async () => {
-    skillModel.findOne.mockReturnValue(chain(communitySkill({ title: '  ' })));
+    findReportedSkillMock.mockResolvedValue(communitySkill({ title: '  ' }));
     expect(await provider.snapshot('my-skill')).toBeNull();
   });
 });

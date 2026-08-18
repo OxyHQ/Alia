@@ -739,7 +739,7 @@ export async function runAgentSession(sessionId: string): Promise<void> {
       session.status = 'cancelled';
       session.result = session.result || 'Session cancelled';
     } else {
-      await terminalSession.idle(24);
+      await terminalSession.idle();
       await browserSession.close();
 
       if (taskCompleted) {

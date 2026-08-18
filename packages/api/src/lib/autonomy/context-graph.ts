@@ -1,4 +1,3 @@
-import mongoose from 'mongoose';
 import { getDb } from '../../db/index.js';
 import {
   createStrategyIfAbsent,
@@ -12,7 +11,10 @@ import {
 } from '../../db/autonomy/contextGraphRepository.js';
 import { type ContextSourceKind } from '../../domain/context-source.js';
 import { type AutonomyIntent } from '../../domain/retrieval-strategy.js';
-import { LearningRule } from '../../models/learning-rule.js';
+import {
+  createLearningRule,
+  findActiveLearningRules,
+} from '../../db/autonomy/learningRuleRepository.js';
 import { log } from '../logger.js';
 import { autonomyFlags } from './flags.js';
 
@@ -40,16 +42,6 @@ const DEFAULT_SOURCE_PATHS: Record<AutonomyIntent, string[]> = {
   research: ['web', 'files', 'notes'],
   general: ['notes', 'files'],
 };
-
-/**
- * Only `LearningRule` still needs this. The four context-graph tables are on
- * Postgres, where `oxy_user_id` is `text` and takes the Oxy id verbatim;
- * `learning_rules` has a Postgres table but no repository yet — it belongs to
- * the agents slice — so this file writes two stores until that lands.
- */
-function toObjectId(userId: string): mongoose.Types.ObjectId {
-  return new mongoose.Types.ObjectId(userId);
-}
 
 /** The kind a default source key implies. Was duplicated at both write sites. */
 function sourceKindFor(sourceKey: string): ContextSourceKind {
@@ -174,18 +166,14 @@ export async function recallContextForIntent(params: {
 
   const [sourceRows, ruleRows] = await Promise.all([
     ensureSources(params.userId, params.intent),
-    LearningRule.find({ oxyUserId: toObjectId(params.userId), active: true, $or: [{ intent: params.intent }, { intent: 'general' }] })
-      .sort({ priority: -1, updatedAt: -1 })
-      .limit(8)
-      .select('priority ruleText ruleType')
-      .lean(),
+    findActiveLearningRules(getDb(), params.userId, params.intent),
   ]);
 
   const rankedSources = rankSources(sourceRows);
   return {
     intent: params.intent,
     confidence: params.confidence,
-    rules: ruleRows.map((r) => ({ id: String(r._id), priority: r.priority, text: r.ruleText, type: r.ruleType })),
+    rules: ruleRows.map((r) => ({ id: r.id, priority: r.priority, text: r.ruleText, type: r.ruleType })),
     rankedSources,
   };
 }
@@ -283,16 +271,14 @@ export async function saveUserCorrection(params: {
 }): Promise<void> {
   if (!autonomyFlags.contextGraphEnabled || !params.userId || !params.correctionText.trim()) return;
 
-  const oxyUserId = toObjectId(params.userId);
-  await LearningRule.create({
-    oxyUserId,
+  await createLearningRule(getDb(), {
+    oxyUserId: params.userId,
     intent: params.intent,
     ruleType: 'correction',
     priority: 100,
     title: 'User correction',
     ruleText: params.correctionText.trim().slice(0, 800),
     source: 'user_feedback',
-    active: true,
   }).catch((err) => {
     log.general.warn({ err }, 'Failed to persist user correction');
   });

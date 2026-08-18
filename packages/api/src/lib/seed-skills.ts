@@ -1,7 +1,15 @@
-import { Skill } from '../models/skill.js';
+import { getDb } from '../db/index.js';
+import { upsertBuiltInSkill, type BuiltInSkill } from '../db/agents/skillRepository.js';
 import { log } from './logger.js';
 
-const BUILT_IN_SKILLS = [
+/**
+ * Typed `BuiltInSkill[]` rather than inferred.
+ *
+ * The annotation is what makes a typo in `category` a compile error instead of a
+ * CHECK violation on the first boot after a deploy — `skills_category_check`
+ * closes that column, and a seed runs before anything else can report it.
+ */
+const BUILT_IN_SKILLS: BuiltInSkill[] = [
   {
     skillId: 'code-reviewer',
     title: 'Code Reviewer',
@@ -513,12 +521,9 @@ For release notes: group by type, highlight breaking changes, include migration 
 
 export async function seedSkills(): Promise<void> {
   try {
+    const db = getDb();
     for (const skill of BUILT_IN_SKILLS) {
-      await Skill.findOneAndUpdate(
-        { skillId: skill.skillId },
-        { $set: { ...skill, isBuiltIn: true } },
-        { upsert: true }
-      );
+      await upsertBuiltInSkill(db, skill);
     }
     log.seed.info({ count: BUILT_IN_SKILLS.length }, 'Seeded built-in skills');
   } catch (error) {

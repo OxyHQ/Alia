@@ -16,6 +16,7 @@
 import { boolean, index, integer, jsonb, pgTable, text, uniqueIndex } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 import { createdAt, generatedId, updatedAt } from '@oxyhq/db';
+import type { CanvasComponent } from '../../domain/canvas-session.js';
 import { CONVERSATION_SOURCES, MESSAGE_ROLES, MESSAGE_VOTES } from '../../domain/conversation.js';
 import { checkOneOf } from './columns';
 
@@ -211,7 +212,7 @@ export const canvasSessions = pgTable(
     /** An Oxy account. No foreign key: Oxy owns identity. */
     oxyUserId: text().notNull(),
     conversationId: text().notNull(),
-    components: jsonb().notNull().default([]),
+    components: jsonb().$type<CanvasComponent[]>().notNull().default([]),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },

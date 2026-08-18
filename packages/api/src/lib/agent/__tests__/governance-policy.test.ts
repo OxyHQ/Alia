@@ -17,7 +17,7 @@ import type { ToolCallOptions, ToolSet } from 'ai';
  *
  * The seam is therefore the two things that leave the process — the approval
  * round trip (`action-approval.ts`, which reaches Socket.IO) and the rollback
- * row (`models/rollback-record.ts`). `governance.ts`, `threat-detector.ts` and
+ * row (`db/agents/rollbackRecordRepository.ts`). `governance.ts`, `threat-detector.ts` and
  * the wrapper itself all run for real.
  *
  * ## Where R0 and R1 come from, and why that is honest
@@ -53,14 +53,13 @@ vi.mock('../action-approval.js', () => ({
   }),
 }));
 
-vi.mock('../../../models/rollback-record.js', () => ({
-  RollbackRecord: {
-    create: vi.fn(async (row: Record<string, unknown>) => {
-      H.timeline.push('rollback:create');
-      H.state.rollbackRows.push(row);
-      return row;
-    }),
-  },
+vi.mock('../../../db/index.js', () => ({ getDb: vi.fn() }));
+
+vi.mock('../../../db/agents/rollbackRecordRepository.js', () => ({
+  insertRollbackRecord: vi.fn(async (_db: unknown, row: Record<string, unknown>) => {
+    H.timeline.push('rollback:create');
+    H.state.rollbackRows.push(row);
+  }),
 }));
 
 vi.mock('../../tools/integrations.js', () => ({
@@ -101,7 +100,7 @@ vi.mock('../../logger.js', () => {
 import { buildActions, type ActionContext } from '../actions.js';
 import { classifyActionRisk } from '../governance.js';
 import { requestApproval } from '../action-approval.js';
-import { RollbackRecord } from '../../../models/rollback-record.js';
+import { insertRollbackRecord } from '../../../db/agents/rollbackRecordRepository.js';
 
 // ── Doubles for the session-scoped collaborators ───────────────────────────
 
@@ -304,7 +303,7 @@ describe('the governance wrapper enforces the level it classified', () => {
     expect(result).toBe('file contents');
     expect(H.timeline).toEqual(['exec:read_file']);
     expect(vi.mocked(requestApproval)).not.toHaveBeenCalled();
-    expect(vi.mocked(RollbackRecord.create)).not.toHaveBeenCalled();
+    expect(vi.mocked(insertRollbackRecord)).not.toHaveBeenCalled();
   });
 });
 

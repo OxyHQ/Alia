@@ -11,7 +11,15 @@
 
 import { getSandboxProvider, type SandboxProvider, type ExecResult } from '../sandbox/index.js';
 import { getContainerPool } from '../sandbox/container-pool.js';
-import { Container } from '../../models/container.js';
+import { getDb } from '../../db/index.js';
+import {
+  createContainer,
+  idleContainer,
+  markContainerDestroyed,
+  ownedContainerIsAttachable,
+  resumeContainer,
+  touchContainer,
+} from '../../db/agents/containerRepository.js';
 import { WorkspaceMemory } from './workspace-memory.js';
 import { log } from '../logger.js';
 
@@ -113,12 +121,12 @@ export class TerminalSession {
     this.containerId = info.id;
 
     // Record in DB
-    await Container.create({
+    await createContainer(getDb(), {
       containerId: info.id,
       name: info.name,
       sessionId: this.sessionId,
       agentId: this.agentId,
-      userId: this.userId,
+      oxyUserId: this.userId,
       image: this.image,
       size: 'small',
       status: 'running',
@@ -188,7 +196,9 @@ export class TerminalSession {
     this.trackEnvChanges(command);
 
     // Update last activity
-    Container.updateOne({ containerId: id }, { lastActivityAt: new Date() }).catch(() => {});
+    touchContainer(getDb(), id, this.userId).catch((err) => {
+      log.agents.warn({ err, containerId: id }, 'Terminal: failed to record container activity');
+    });
 
     // Truncate very long output
     if (cleanOutput.length > MAX_OUTPUT_CHARS) {
@@ -218,21 +228,31 @@ export class TerminalSession {
   }
 
   /**
-   * Mark the container as idle instead of destroying it.
-   * The container persists for `ttlHours` so the user can browse workspace files
-   * or resume the session. A background cleanup job handles expiry.
+   * Mark the container as idle instead of destroying it, so the user can browse
+   * workspace files or resume the session.
+   *
+   * ## There is no TTL, and there never was one
+   *
+   * This took a `ttlHours = 24` and wrote `expiresAt` alongside the status.
+   * `ContainerSchema` declared no `expiresAt` path, so Mongoose's `strict`
+   * dropped it on every write — no document has ever carried one — and nothing
+   * queried it: there is no expiry sweeper over this collection and
+   * `db/expiryTargets.ts` has no entry for the table. The parameter therefore
+   * decided nothing; it named a deadline that was discarded at the driver.
+   *
+   * It is gone rather than given a column, because a column would turn a value
+   * silently discarded for the life of the feature into a retention deadline
+   * nothing implements. What DOES reap a container is
+   * `lib/sandbox/container-pool.ts`, on its own in-memory idle clock, and that
+   * is unaffected either way.
    */
-  async idle(ttlHours = 24): Promise<string | null> {
+  async idle(): Promise<string | null> {
     if (!this.containerId) return null;
 
     const id = this.containerId;
     try {
-      const expiresAt = new Date(Date.now() + ttlHours * 3600_000);
-      await Container.updateOne(
-        { containerId: id },
-        { status: 'idle', persistent: true, expiresAt },
-      );
-      log.agents.info({ containerId: id, ttlHours }, 'Terminal: container set to idle (persistent)');
+      await idleContainer(getDb(), id, this.userId);
+      log.agents.info({ containerId: id }, 'Terminal: container set to idle (persistent)');
     } catch (err) {
       log.agents.warn({ err, containerId: id }, 'Terminal: failed to mark container idle');
     }
@@ -246,13 +266,12 @@ export class TerminalSession {
    */
   async reattach(containerId: string): Promise<boolean> {
     try {
-      // Verify container still exists and is running/idle
-      const record = await Container.findOne({ containerId, status: { $in: ['running', 'idle'] } });
-      if (!record) return false;
+      // Verify the container still exists, belongs to this user, and is running/idle
+      if (!(await ownedContainerIsAttachable(getDb(), containerId, this.userId))) return false;
 
       this.containerId = containerId;
       // Mark as running again
-      await Container.updateOne({ containerId }, { status: 'running', lastActivityAt: new Date() });
+      await resumeContainer(getDb(), containerId, this.userId);
       log.agents.info({ containerId }, 'Terminal: reattached to existing container');
       return true;
     } catch (err) {
@@ -267,10 +286,7 @@ export class TerminalSession {
 
     try {
       await this.sandbox.destroy(this.containerId);
-      await Container.updateOne(
-        { containerId: this.containerId },
-        { status: 'destroyed', destroyedAt: new Date() },
-      );
+      await markContainerDestroyed(getDb(), this.containerId, this.userId);
       log.agents.info({ containerId: this.containerId }, 'Terminal: container destroyed');
     } catch (err) {
       log.agents.warn({ err, containerId: this.containerId }, 'Terminal: failed to destroy container');
