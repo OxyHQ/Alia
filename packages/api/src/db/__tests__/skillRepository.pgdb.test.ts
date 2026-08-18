@@ -187,13 +187,21 @@ describe('updating a skill', () => {
 
   it('refuses a stranger and refuses a built-in, indistinguishably from absent', async () => {
     /**
-     * The built-in fixture is OWNED, and that is not a contrivance.
+     * The built-in fixture is OWNED, and it is built with a direct UPDATE
+     * rather than through the seed.
      *
-     * `upsertBuiltInSkill` conflicts on `skill_id` and its `DO UPDATE` sets
-     * `is_built_in` while leaving `oxy_user_id` alone — so a user skill whose
-     * slug collides with one of Alia's becomes a built-in that still has an
-     * owner. The `isBuiltIn` guard is what stops that account editing Alia's
-     * seeded text from then on.
+     * That combination — `oxy_user_id` set AND `is_built_in` true — used to be
+     * reachable through `upsertBuiltInSkill`, whose `DO UPDATE` flipped the flag
+     * on a colliding user row while leaving the owner alone. That was data loss
+     * and the seed now DECLINES such a row, so no code path mints this state any
+     * more; the only source left is a legacy row.
+     *
+     * The guard stays anyway and is still tested, for two reasons: the Mongoose
+     * filter carried all three conditions, and it is the only thing standing
+     * between a future writer of `is_built_in` and an account editing Alia's
+     * seeded text. What changed is that the fixture must now be CONSTRUCTED —
+     * building it out of a bug is how a test starts passing for the wrong reason
+     * the moment the bug is fixed, which is exactly what happened here.
      *
      * With an UNOWNED built-in this case passes with the guard deleted, because
      * the owner clause already refuses it: measured, by deleting
@@ -201,7 +209,10 @@ describe('updating a skill', () => {
      */
     await createSkill(db, newSkill('skr-patch-scoped', { title: 'Mine' }));
     await createSkill(db, newSkill('skr-patch-builtin', { title: 'Alia\'s' }));
-    await upsertBuiltInSkill(db, builtIn('skr-patch-builtin', { title: 'Alia\'s' }));
+    await db
+      .update(skills)
+      .set({ isBuiltIn: true })
+      .where(eq(skills.skillId, 'skr-patch-builtin'));
     const [collided] = await db
       .select({ oxyUserId: skills.oxyUserId, isBuiltIn: skills.isBuiltIn })
       .from(skills)
@@ -252,9 +263,10 @@ describe('deleting a skill', () => {
   it('deletes only the owner\'s non-built-in skill, reporting count', async () => {
     await createSkill(db, newSkill('skr-delete'));
     // OWNED and built-in, for the reason the patch case states: only that
-    // combination exercises the `isBuiltIn` guard rather than the owner clause.
+    // combination exercises the `isBuiltIn` guard rather than the owner clause,
+    // and the seed no longer mints it, so it is constructed here.
     await createSkill(db, newSkill('skr-delete-builtin'));
-    await upsertBuiltInSkill(db, builtIn('skr-delete-builtin'));
+    await db.update(skills).set({ isBuiltIn: true }).where(eq(skills.skillId, 'skr-delete-builtin'));
 
     expect(await deleteOwnedSkill(db, 'skr-delete', STRANGER)).toBe(0);
     expect(await deleteOwnedSkill(db, 'skr-delete-builtin', OWNER)).toBe(0);
@@ -335,6 +347,93 @@ describe('the built-in seed', () => {
     for (const [key, value] of Object.entries(second)) {
       expect({ [key]: row?.[key as keyof typeof row] }).toEqual({ [key]: value });
     }
+  });
+
+  /**
+   * The property the seed contract now rests on, and the reason the contract
+   * could be narrowed rather than abandoned.
+   *
+   * `scripts/seed.ts` guarantees its seeders never overwrite a hand-edited row.
+   * `skills` is the one exception, and the exception is NARROWER than the
+   * seeder: `upsertBuiltInSkill` may overwrite a row that is ALREADY built-in
+   * and must never touch a user-created one. Those are different claims and only
+   * the second protects what the contract was written for.
+   *
+   * The collision is reachable, not theoretical. `skill_id` is the conflict
+   * target and users mint it too — `POST /skills` derives a slug from the title
+   * and only suffixes one that is already TAKEN, so a user who names a skill
+   * before the seed has ever run owns that slug when it does. That is exactly
+   * the state production is in: an empty table and a seeder that has never
+   * executed.
+   *
+   * Measured before `setWhere` existed: a user's row came back carrying Alia's
+   * `title` and `system_prompt`, `is_built_in` flipped to `true`, and
+   * `oxy_user_id` still naming the user — who is then locked out of it, because
+   * `updateOwnedSkill` and `deleteOwnedSkill` both require `is_built_in = false`.
+   */
+  it('DECLINES a user-created skill holding the slug, leaving it byte-identical', async () => {
+    const created = await createSkill(
+      db,
+      newSkill('skr-seed-collision', {
+        title: 'MY TITLE',
+        tagline: 'my tagline',
+        description: 'my description',
+        systemPrompt: 'MY PROMPT',
+        author: 'someuser',
+        icon: '🙂',
+        color: '#000000',
+        category: 'community',
+        triggers: ['mine'],
+        goodAt: ['mine'],
+      }),
+    );
+
+    // The WHOLE row before, so the comparison cannot miss a column the seed
+    // touched but this file forgot to name.
+    const [before] = await db.select().from(skills).where(eq(skills.id, created._id));
+
+    const result = await upsertBuiltInSkill(
+      db,
+      builtIn('skr-seed-collision', {
+        title: 'ALIA TITLE',
+        tagline: 'alia tagline',
+        description: 'alia description',
+        systemPrompt: 'ALIA PROMPT',
+        icon: '🤖',
+        color: '#ffffff',
+        category: 'featured',
+        triggers: ['alia'],
+        goodAt: ['alia'],
+      }),
+    );
+
+    expect(result).toBe('declined');
+
+    const [after] = await db.select().from(skills).where(eq(skills.id, created._id));
+    // Byte-identical, `updated_at` included: a decline is not a no-op write.
+    expect(after).toEqual(before);
+
+    /**
+     * The consequence that made the old behaviour data loss rather than an
+     * overwrite: with `is_built_in` flipped, the author could no longer edit or
+     * delete the row that still named them as its owner. Asserted through the
+     * real owner-scoped paths, not by reading the flag.
+     */
+    expect(await updateOwnedSkill(db, 'skr-seed-collision', OWNER, { title: 'Still mine' }))
+      .toMatchObject({ title: 'Still mine' });
+    expect(await deleteOwnedSkill(db, 'skr-seed-collision', OWNER)).toBe(1);
+  });
+
+  it('DOES refresh a row that is already built-in, which is the other half', async () => {
+    // The positive control. Without it, "declines a user row" is also what a
+    // seeder that writes nothing at all would report.
+    expect(await upsertBuiltInSkill(db, builtIn('skr-seed-refresh', { title: 'First' })))
+      .toBe('inserted');
+    expect(await upsertBuiltInSkill(db, builtIn('skr-seed-refresh', { title: 'Second' })))
+      .toBe('updated');
+
+    const [row] = await db.select().from(skills).where(eq(skills.skillId, 'skr-seed-refresh'));
+    expect(row).toMatchObject({ title: 'Second', isBuiltIn: true, oxyUserId: null });
   });
 
   /**

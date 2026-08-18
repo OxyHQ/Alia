@@ -331,29 +331,64 @@ export interface BuiltInSkill {
 }
 
 /**
- * Seed or refresh one built-in skill.
+ * What one built-in skill's seed did.
  *
- * This is a `$set` upsert, NOT the `$setOnInsert` shape most seeds in this
- * package take: `seedSkills` runs on every boot and its whole job is to push the
- * current text of Alia's own skills, so an existing row is OVERWRITTEN. `DO
- * UPDATE` is therefore right and `DO NOTHING` would freeze the catalogue at
- * whatever shipped first.
+ * `declined` is the interesting one and the reason this is not `void`: a seed
+ * that silently writes nothing is indistinguishable from one that worked, and
+ * `lib/seed-skills.ts` logs which slugs were withheld so an operator can see a
+ * built-in missing from the catalogue and know why.
+ */
+export type BuiltInSkillSeedResult = 'inserted' | 'updated' | 'declined';
+
+/**
+ * Seed or refresh one built-in skill, and NEVER touch a user's.
+ *
+ * ## The `DO UPDATE` is deliberate; its `WHERE` is what makes it safe
+ *
+ * This is a `$set` upsert, not the `$setOnInsert` shape most seeds in this
+ * package take: the seed's job is to push the current text of Alia's own skills
+ * on every release, so an existing BUILT-IN row is overwritten and `DO NOTHING`
+ * would freeze the catalogue at whatever shipped first.
+ *
+ * But the conflict target is `skill_id`, which is not Alia's to own. A user
+ * creates a skill through `POST /skills`, whose slug is derived from the title;
+ * the route suffixes a slug that is already TAKEN, so a user cannot take a
+ * built-in's slug after the fact — but nothing stops the reverse, and the
+ * reverse is the state production is in right now: the table is empty, this
+ * seeder has never run, and the first release that runs it meets whatever users
+ * created in the meantime.
+ *
+ * **Measured before the `setWhere` existed.** A user's `probe-collide` met the
+ * seed and came back with Alia's `title` and `system_prompt`, `is_built_in`
+ * flipped to `true`, and `oxy_user_id` still pointing at the user. That is worse
+ * than losing the text: `updateOwnedSkill` and `deleteOwnedSkill` both require
+ * `is_built_in = false`, so the author is locked out of the row that still names
+ * them as its owner.
+ *
+ * `setWhere` scopes the update to rows that are ALREADY built-in. A colliding
+ * user row makes the statement conflict, decline, and return nothing — which is
+ * what `declined` reports. The built-in is then simply absent from the
+ * catalogue, which is the correct trade: a missing built-in is visible and
+ * recoverable, a destroyed user skill is neither.
  *
  * `excluded.<col>` is spelled out for every column. Drizzle offers no "all
  * columns" shorthand, and a column added to `BuiltInSkill` but missed here would
- * seed correctly on an empty database and never update afterwards — which is the
- * failure that survives review, because the first deploy looks perfect.
+ * seed correctly on an empty database and never update afterwards — the failure
+ * that survives review, because the first deploy looks perfect.
  *
- * `oxy_user_id` is NOT in the conflict clause. A built-in has no author account,
- * and a community skill can never collide with one: `skill_id` is unique and the
- * seed's slugs are Alia's.
+ * `oxy_user_id` is NOT in the `set`. A built-in has no author account, and a row
+ * that already has one is exactly the row this refuses to write.
  */
-export async function upsertBuiltInSkill(db: ApiDatabase, input: BuiltInSkill): Promise<void> {
-  await db
+export async function upsertBuiltInSkill(
+  db: ApiDatabase,
+  input: BuiltInSkill,
+): Promise<BuiltInSkillSeedResult> {
+  const [row] = await db
     .insert(skills)
     .values({ ...input, isBuiltIn: true })
     .onConflictDoUpdate({
       target: skills.skillId,
+      setWhere: eq(skills.isBuiltIn, true),
       set: {
         title: sql`excluded.title`,
         tagline: sql`excluded.tagline`,
@@ -372,7 +407,19 @@ export async function upsertBuiltInSkill(db: ApiDatabase, input: BuiltInSkill): 
         isBuiltIn: sql`excluded.is_built_in`,
         updatedAt: new Date(),
       },
-    });
+    })
+    /**
+     * `xmax = 0` is the ONLY way to tell an insert from an update here:
+     * `INSERT … ON CONFLICT DO UPDATE` reports one row affected on both, so
+     * `rowCount` cannot discriminate. CONVENTIONS.md names this shape.
+     *
+     * An EMPTY result is the third answer and needs no column: `setWhere`
+     * declined, so no row was inserted and none updated.
+     */
+    .returning({ inserted: sql<boolean>`xmax = 0` });
+
+  if (!row) return 'declined';
+  return row.inserted ? 'inserted' : 'updated';
 }
 
 /** The projection `lib/crowdsource/subjects/skill-subject.ts` snapshots. */
