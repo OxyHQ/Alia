@@ -351,6 +351,31 @@ const RETIRED_MONGO_TTLS: readonly RetiredMongoTtl[] = [
     expireAfterSeconds: 30 * 24 * 60 * 60,
     retiredBy: 'S8 automation — trigger_executions',
   },
+  {
+    model: 'OrganizationInvite',
+    collection: 'organizationinvites',
+    /**
+     * `OrganizationInviteSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 30
+     * * 24 * 60 * 60 })`, read off `src/models/organization-invite.ts:70` before
+     * it was deleted. The collection name was MEASURED by registering the schema
+     * (`mongoose.model('OrganizationInvite', …).collection.name`), not derived —
+     * see the map's comment for why nothing computes one from the other.
+     *
+     * **The LAST live TTL declaration in this service, and the only one measured
+     * from a deadline with a NON-ZERO retention.** Every other `expires_at` TTL
+     * here — `cache_entries`, `moderation_outboxes`, `moderation_events`,
+     * `oauth_states` — is retention 0, so the pattern a reader arrives with
+     * deletes an invitation the moment it expires and takes with it the window
+     * in which the UI can say "this invitation expired" rather than 404ing
+     * somebody who followed a link from their inbox.
+     *
+     * Its retirement also empties `walked`, which is why the walk's own vacuity
+     * floor is now a registered POSITIVE CONTROL rather than a count. See below.
+     */
+    path: 'expiresAt',
+    expireAfterSeconds: 30 * 24 * 60 * 60,
+    retiredBy: 'S9 organizations — organization_invites',
+  },
 ];
 
 const walked = declaredMongoTtls();
@@ -371,7 +396,7 @@ describe('every ported TTL index has a matching expiry-sweep target', () => {
     expect(tables.size).toBeGreaterThanOrEqual(5);
   });
 
-  it('the WALK itself is still non-vacuous, independently of the retired list', () => {
+  it('the WALK itself still works, independently of the retired list', () => {
     /**
      * `RETIRED_MONGO_TTLS` props up the total, so the floor above would keep
      * passing on a walk that had broken ENTIRELY — a stale `dist/`, a rename
@@ -379,28 +404,50 @@ describe('every ported TTL index has a matching expiry-sweep target', () => {
      * "found less" / "there is less" collapse the floor exists to prevent, one
      * level up, and it arrives the moment a retired list exists at all.
      *
-     * So the walk is floored on its own. This number goes DOWN by exactly as
-     * many models as a slice deletes, and each of those must appear in
-     * `RETIRED_MONGO_TTLS` in the same commit — which is what keeps the two
-     * halves adding up to 13.
+     * ## The count that used to do this job reached ZERO, so it was replaced
      *
-     * 11 after S1 retired two; 9 once S5 retired `AudioJob` and `Notification`;
-     * 8 once S2 retired `AuthHealthMetric`, 7 once it retired `FallbackEvent`, 6
-     * once it retired `RoutingLog`, 5 once it retired `ApiKeyUsage`, 4 once it
-     * retired `ApiUsage`, 3 once S8 retired `TriggerExecution` — the only TTL
-     * among its eight models — 2 once S4 retired `OAuthState`, 1 once S4 deleted
-     * the `McpOAuthState` MODEL.
-     * Lowering it is legitimate ONLY in the same change that adds the matching
-     * retired entries, and the exact-sum assertion below is what makes that
-     * mechanical rather than a judgement call — the two numbers cannot drift
-     * apart without one of them going red.
+     * This was `expect(walked.length).toBeGreaterThanOrEqual(1)`, decremented
+     * once per slice: 11 after S1 retired two; 9 once S5 retired `AudioJob` and
+     * `Notification`; 8, 7, 6, 5, 4 as S2 retired its five; 3 once S8 retired
+     * `TriggerExecution`; 2 and then 1 as S4 retired `OAuthState` and
+     * `McpOAuthState`. S9 retired `OrganizationInvite`, the LAST live TTL
+     * declaration in the service, and `walked.length` is now legitimately 0.
      *
-     * S4 is the case that shows the walk is not a `src/models/` census: nothing
-     * under that directory changed, and the number still moved, because
-     * `OAuthState` was declared inline in a ROUTE file — which is also why
-     * `modelFiles()` above includes `src/routes/`.
+     * A floor of `>= 0` is a check that cannot fail — precisely the terminus the
+     * conserved total below exists to avoid — and the honest alternative is not
+     * a smaller number but a different instrument. A count of production
+     * declarations can no longer distinguish "the walk broke" from "there is
+     * nothing left to walk", because those two states now produce the same
+     * number. A POSITIVE CONTROL can: register a schema with a TTL index and
+     * assert `declaredMongoTtls()` reports it, with the retention and the path it
+     * was given. That fails for every reason a broken walk fails —
+     * `schema.indexes()` changing shape, `modelNames()` not being consulted, the
+     * `expireAfterSeconds` key being read from the wrong place — and it keeps
+     * working after the last production model is gone.
+     *
+     * `walked` was computed at module load, ABOVE, so the control cannot
+     * contaminate it; the model is deregistered immediately so it cannot
+     * contaminate anything else that counts registered models.
      */
-    expect(walked.length).toBeGreaterThanOrEqual(1);
+    const name = '__ttl_walk_control__';
+    const schema = new mongoose.Schema({ expiresAt: Date });
+    schema.index({ expiresAt: 1 }, { expireAfterSeconds: 4242 });
+    mongoose.model(name, schema);
+    try {
+      const found = declaredMongoTtls().filter((t) => t.model === name);
+      expect(
+        found,
+        'the walk did not see a TTL index it was just handed, so it sees nothing ' +
+          'about the schemas either — every "no gaps" verdict below is vacuous.',
+      ).toHaveLength(1);
+      expect(found[0]?.path).toBe('expiresAt');
+      expect(found[0]?.expireAfterSeconds).toBe(4242);
+    } finally {
+      mongoose.deleteModel(name);
+    }
+
+    // The conserved total. It cannot drift: a deletion moves a declaration from
+    // the walk into `RETIRED_MONGO_TTLS` and the sum is unchanged.
     expect(walked.length + RETIRED_MONGO_TTLS.length).toBe(13);
   });
 
