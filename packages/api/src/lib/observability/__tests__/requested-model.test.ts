@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 import { ALIAS_TRANSLATIONS } from '../../routing/alias-translation.js';
@@ -16,6 +19,8 @@ import { classifyRequestedModel, reasoningEffortOf } from '../requested-model.js
  * only the identifier makes them one. Each case below therefore pairs a shape
  * with a discriminator that fails if the classifier collapses it into another.
  */
+
+const REPO_ROOT = path.resolve(fileURLToPath(new URL('../../../../../../', import.meta.url)));
 
 describe('classifyRequestedModel', () => {
   it('reads all thirteen legacy aliases as aliases, not as product modes', () => {
@@ -123,5 +128,63 @@ describe('reasoningEffortOf', () => {
     expect(reasoningEffortOf({ requestedModel: 'alia-v1' })).toBeNull();
     expect(reasoningEffortOf({ thinkingMode: false, requestedModel: 'alia-v1-pro' })).toBeNull();
     expect(reasoningEffortOf({ requestedModel: 'profile:v1-pro-max' })).toBeNull();
+  });
+
+  it('the effort vocabulary is exactly one named level, and a UI may not offer more', () => {
+    /**
+     * The ceiling on how many levels a picker can honestly show.
+     *
+     * `thinkingMode` is a BOOLEAN on the request body, so the request path can
+     * express reasoning-or-not and nothing else. A `normal | thinking | high`
+     * control — the shape ChatGPT uses and the one this product has been asked
+     * for — would be three labels for two transmissible states, and the third
+     * would promise a reasoning budget the request never carries.
+     *
+     * Two things have to land before that control can mean anything:
+     *
+     *  1. the reasoning options have to be sent under a key the SDK reads —
+     *     `lib/chat/model-config.ts` wrote AI SDK v4 names against an `ai@6`
+     *     install, so the second state does not currently reach a provider at
+     *     all;
+     *  2. a LEVEL has to replace the boolean, and the catalogue has to say
+     *     which models offer which levels — there is no per-model reasoning
+     *     capability anywhere the router can read.
+     *
+     * ## Read off the TYPE, not off sampled calls
+     *
+     * The first version of this test collected `reasoningEffortOf` over four
+     * hand-picked inputs and asserted the resulting set. It SURVIVED the
+     * mutation it exists to catch: adding `'high'` to the union and returning
+     * it for `pro-max` left all four samples unchanged, because none of them
+     * was a `pro-max` id. A census over chosen inputs measures the inputs.
+     *
+     * The vocabulary is a property of the union, so the union is what is read.
+     */
+    const source = readFileSync(
+      path.join(REPO_ROOT, 'packages/api/src/lib/observability/requested-model.ts'),
+      'utf8',
+    );
+    const declaration = /export type ReasoningEffort =([^;]+);/.exec(source);
+    // Positive control: a renamed or reformatted declaration must fail loudly
+    // rather than leave the assertion below reading `undefined`.
+    expect(declaration, 'ReasoningEffort is no longer declared in the expected shape').not.toBeNull();
+
+    const levels = (declaration?.[1] ?? '')
+      .split('|')
+      .map((part) => part.trim().replace(/^'|'$/g, ''))
+      .filter((part) => part.length > 0);
+    expect(levels).toEqual(['extended']);
+
+    // And the runtime agrees with the type: `null` plus that one level is the
+    // whole range. Kept beside the union check rather than instead of it —
+    // this half is what catches a level added without widening the type.
+    const observed = new Set(
+      ROUTING_PRESETS.flatMap((preset) => preset.aliases).flatMap((alias) => [
+        String(reasoningEffortOf({ thinkingMode: true, requestedModel: alias })),
+        String(reasoningEffortOf({ thinkingMode: false, requestedModel: alias })),
+        String(reasoningEffortOf({ requestedModel: alias })),
+      ]),
+    );
+    expect([...observed].sort()).toEqual(['extended', 'null']);
   });
 });

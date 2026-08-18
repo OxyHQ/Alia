@@ -37,6 +37,29 @@ interface ModelState {
    * can ask for extended thinking on the cheap profile or the dear one. It is a
    * boolean rather than a level because the backend supports two states and a
    * `low | medium | high` control would be three labels for two behaviours.
+   *
+   * ## A third level would promise something the request does not carry
+   *
+   * Measured rather than assumed, and it is worse than "the backend supports
+   * two states": as of this writing the second state does not reach a provider
+   * either. `lib/chat/model-config.ts` wrote the reasoning options under
+   * `experimental_thinking` and `experimental_providerMetadata`, which are AI
+   * SDK **v4** names against an `ai@6` install — neither string occurs anywhere
+   * in the installed package. So `thinkingMode`'s only live effect anywhere is
+   * a sentence in the system prompt.
+   *
+   * Two things therefore have to land before a `normal | thinking | high`
+   * control can mean anything, and neither is a UI change:
+   *
+   *  1. the options have to be sent under `providerOptions`, which is a spend
+   *     decision because thinking tokens bill as output;
+   *  2. the request has to carry a LEVEL rather than a boolean, and the
+   *     catalogue has to say which models offer which levels — there is no
+   *     per-model reasoning capability today, in either the routing table's
+   *     `ModelCapabilities` or anywhere the router can read.
+   *
+   * Shipping three labels first would be an interface promising a reasoning
+   * budget that is never transmitted.
    */
   thinkingMode: boolean;
 
