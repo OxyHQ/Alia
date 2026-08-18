@@ -31,6 +31,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { getDefaultAliaModel, getDefaultModelForCategory } from '../gateway-client.js';
+import { profileIdFor } from '../product-modes.js';
 
 const REPO_ROOT = path.resolve(fileURLToPath(new URL('../../../../../', import.meta.url)));
 
@@ -337,5 +338,82 @@ describe('every site that restates an alias default is accounted for', () => {
     for (const entry of generalChatPath) {
       expect(entry.value, `${entry.file} disagrees with the owner`).toBe(getDefaultAliaModel());
     }
+  });
+});
+
+// ===========================================================================
+// Gate 4: the APP's default and the server's default are different models
+// ===========================================================================
+
+/**
+ * The chat app ships its own default, and it is not this one.
+ *
+ * `packages/app/lib/config.ts` `DEFAULT_MODEL_ID` is what the picker stores for
+ * a device that has never chosen, and `getDefaultAliaModel()` is what a request
+ * carrying no `model` at all resolves to. Both answer "what runs when the user
+ * expressed no preference", from opposite ends, and **they name different
+ * models**: `profile:v1` against `alia-lite`, which is `profile:lite`.
+ *
+ * That divergence is not a bug to fix here — which of the two the product wants
+ * is a product decision, and reconciling it moves what every un-chosen request
+ * costs. It is a TRAP, and the trap is specific: the picker now offers an
+ * "Automatic" row whose whole meaning is "send no model and let the server
+ * decide". Making that row the app's DEFAULT — the obvious next step, and what
+ * the reference design does — would move every user who never chose from
+ * Balanced to Fast, silently, with no migration and nothing in the UI to show
+ * it happened.
+ *
+ * So it is frozen rather than described. Change either end and this fails, and
+ * whoever changed it reads the paragraph above before deciding what to do about
+ * it. A comment cannot do that.
+ *
+ * Deliberately NOT asserted as equality-once-fixed: writing the gate as
+ * `toBe(appDefault)` today would be a red suite describing a decision nobody
+ * has taken.
+ */
+const APP_CONFIG = 'packages/app/lib/config.ts';
+
+/** The literal fallback, not the env override: `?? 'profile:v1'`. */
+const APP_DEFAULT = /DEFAULT_MODEL_ID\s*=\s*process\.env\.[A-Z_]+\s*\?\?\s*'([^']+)'/;
+
+describe('the app default and the server default are a known, frozen divergence', () => {
+  const source = readFileSync(path.join(REPO_ROOT, APP_CONFIG), 'utf8');
+  const matched = stripComments(source).match(APP_DEFAULT);
+
+  it('reads the app constant it claims to read', () => {
+    /**
+     * The control this gate cannot do without. "They differ" is satisfied by
+     * `undefined !== 'profile:lite'`, so a renamed constant, a moved file or a
+     * changed spelling would make the divergence assertion below pass while
+     * measuring nothing at all — the exact shape of a check that stops working
+     * and keeps reporting good news.
+     */
+    expect(matched, `${APP_CONFIG} no longer declares DEFAULT_MODEL_ID in the expected shape`)
+      .not.toBeNull();
+    expect(matched?.[1]).toMatch(/^profile:/);
+  });
+
+  it('still names two different models, so the trap above is still live', () => {
+    const appDefault = matched?.[1];
+    const serverDefault = profileIdFor(getDefaultAliaModel());
+
+    // Both sides resolved to the SAME vocabulary before comparing. Comparing
+    // `profile:v1` against `alia-lite` would "differ" even after somebody
+    // reconciled them, which is a gate that can never go green.
+    expect(serverDefault, 'the server default resolves to no routing profile').not.toBeNull();
+    expect(appDefault).not.toBe(serverDefault);
+
+    // Frozen values, so a change on EITHER side lands here rather than
+    // silently redefining what an un-chosen request runs on.
+    expect(appDefault).toBe('profile:v1');
+    expect(serverDefault).toBe('profile:lite');
+  });
+
+  it('the app default is a profile the product actually offers', () => {
+    // Because the picker falls back to it, an unoffered value would leave a
+    // device that never chose pointing at a row that is not in the menu.
+    const offered = SOURCES.find((s) => s.file.endsWith('lib/product-modes.ts'))?.code;
+    expect(offered).toBeDefined();
+    expect(offered).toContain(`'${matched?.[1]}'`);
   });
 });
