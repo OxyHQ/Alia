@@ -62,7 +62,6 @@ import { credentialDeprecationHeaders } from './middleware/credential-deprecatio
 import { authenticateToken } from './middleware/auth.js';
 import { resolveWorkspace } from './middleware/workspace.js';
 import { syncZeroEval } from './scripts/sync-zeroeval.js';
-import { seedSkills } from './lib/seed-skills.js';
 import { seedBots } from './lib/seed-bots.js';
 import { startTriggerEngine, stopTriggerEngine } from './lib/trigger-engine.js';
 import { warmupProviders } from './lib/provider-warmup.js';
@@ -379,19 +378,17 @@ function startBackgroundServices(): void {
   // Warm up gateway client cache (non-blocking)
   warmupGatewayClient().catch((err) => log.general.error({ err }, '[Gateway] Client warmup error'));
   /*
-   * `suggestions` and `plans` are seeded by `scripts/seed.ts` on the deploy
-   * boundary, NOT here. Everything in this function is reached only from
+   * Seeding does not happen here. `scripts/seed.ts` runs it on the deploy
+   * boundary, because everything in this function is reached only from
    * `connectDB().then(...)` — a Mongo connection that no longer exists and never
    * resolves — so a seeder placed here runs never, which is why production holds
    * 0 `plans` and every account falls to the free floor.
    *
-   * `skills` and `bots` stay, and stay dead, deliberately: `skills` is mid-port
-   * in `port/containers-skills`, and `bots` derives its id from
-   * `TELEGRAM_BOT_TOKEN` / `DISCORD_APP_ID`, which the task definition does not
-   * set — seeding it now writes placeholder-keyed rows that look right. Both
-   * move to the one-shot when their blockers clear.
+   * `bots` is the last one still here, and it is still dead: `lib/seed-bots.ts`
+   * derives its id from `TELEGRAM_BOT_TOKEN` / `DISCORD_APP_ID`, which the task
+   * definition does not set, so running it writes placeholder-keyed rows that
+   * look right. It moves to the one-shot when real credentials land.
    */
-  seedSkills().catch((err) => log.general.error({ err }, '[Skills] Seed error'));
   seedBots().catch((err) => log.general.error({ err }, '[Bots] Seed error'));
   // Sync external models in background (non-blocking)
   syncZeroEval().catch((err) => log.general.error({ err }, '[ZeroEval] Background sync error'));

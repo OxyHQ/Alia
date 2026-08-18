@@ -519,14 +519,42 @@ For release notes: group by type, highlight breaking changes, include migration 
   },
 ];
 
+/**
+ * Push the current text of Alia's built-in skills.
+ *
+ * ## It THROWS, and that is the change that came with moving it
+ *
+ * This used to swallow every error into `log.seed.error`, which was right while
+ * it was a fire-and-forget call in `startBackgroundServices()` — a boot that
+ * half-seeded should still serve traffic. It is now a step of
+ * `scripts/seed.ts`, which runs at the deploy boundary and whose own header
+ * says a seed that reports and exits 0 is the shape that entrypoint exists to
+ * replace. A caught error there is a release that reports success having
+ * written nothing.
+ *
+ * ## A DECLINED skill is logged by name, not counted
+ *
+ * `upsertBuiltInSkill` refuses to overwrite a user's skill that holds the same
+ * slug, so a built-in can be legitimately absent from the catalogue. A count
+ * alone would leave an operator looking at a missing skill with no way to tell
+ * that from a seeder that never ran — which is the defect this whole move is
+ * about. The slugs are logged so the answer is in the deploy log.
+ */
 export async function seedSkills(): Promise<void> {
-  try {
-    const db = getDb();
-    for (const skill of BUILT_IN_SKILLS) {
-      await upsertBuiltInSkill(db, skill);
-    }
-    log.seed.info({ count: BUILT_IN_SKILLS.length }, 'Seeded built-in skills');
-  } catch (error) {
-    log.seed.error({ err: error }, 'Error seeding skills');
+  const db = getDb();
+  const declined: string[] = [];
+  for (const skill of BUILT_IN_SKILLS) {
+    if ((await upsertBuiltInSkill(db, skill)) === 'declined') declined.push(skill.skillId);
   }
+
+  if (declined.length > 0) {
+    log.seed.warn(
+      { declined, count: declined.length },
+      'Built-in skills withheld: a user-created skill holds the slug',
+    );
+  }
+  log.seed.info(
+    { count: BUILT_IN_SKILLS.length, seeded: BUILT_IN_SKILLS.length - declined.length },
+    'Seeded built-in skills',
+  );
 }
