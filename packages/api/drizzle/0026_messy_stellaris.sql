@@ -1,0 +1,54 @@
+-- oxy:deploy-phase=pre
+--
+-- At most one owner per organization, enforced by the DATABASE.
+--
+-- `organization_members_role_check` admits `owner` — it must, the creator's row
+-- is one — so until now the only thing between a live request and a second owner
+-- was a zod enum in `routes/organization.ts`. Measured: widening that enum by one
+-- word makes `PATCH /organization/:id/members/:memberId` answer 200 and mint a
+-- second owner, and `updateMemberRole`'s `Exclude<OrganizationRole, 'owner'>`
+-- does not help, because a type is erased before a request arrives. An owner can
+-- delete the organization and rewrite every role in it.
+--
+-- ## `pre`, and the test is the one 0023 states
+--
+-- A `pre` migration's test is whether it is safe while the PREVIOUS image still
+-- serves. That image is `0c339f3b`, and it has exactly three writers of
+-- `organization_members.role`, all of which were read rather than recalled:
+--
+--   * `createOrganization` inserts one `owner` into a brand-new organization, so
+--     it cannot collide with a row that does not exist;
+--   * `acceptInvite` inserts `invite.role`, which
+--     `organization_invites_role_check` restricts to `admin` or `member`;
+--   * `updateMemberRole` is reached only through `z.enum(['admin', 'member'])`.
+--
+-- None can produce a second owner, so nothing the previous image does starts
+-- failing when this index appears. The build cannot fail on existing data either:
+-- all four organization tables held 0 rows, established in #207 from the absence
+-- of any `INSERT` in this directory and of any writer before that PR.
+--
+-- `post` would have been the habit — the phase rule says narrowings go there —
+-- and it would have been WRONG in the dangerous direction. This service is parked
+-- at `desiredCount: 0`, and a zero-capacity deploy exits before its post-migration
+-- step: the marker would read as applied and the index would never exist. 0023
+-- names that trap for the same reason.
+--
+-- ## What this costs a future ownership transfer
+--
+-- There is no transfer path and there never has been: the only writer of
+-- `role = 'owner'` in this repository's whole history is the creation insert, and
+-- `transferOwnership` appears in no commit reachable from any ref. When one is
+-- written it must DEMOTE BEFORE IT PROMOTES, in one transaction. Verified against
+-- a real server: demote-then-promote works; promote-then-demote fails `23505` and
+-- the error aborts the rest of the transaction (`25P02`) so the demote never runs;
+-- a single `UPDATE ... SET role = CASE ...` swapping both rows fails too, and
+-- cannot be deferred — a partial unique index may not be `DEFERRABLE` and a unique
+-- CONSTRAINT may not be partial, both syntax errors.
+--
+-- The deferrable alternative exists and was rejected deliberately:
+-- `EXCLUDE USING btree (organization_id WITH =) WHERE (role = 'owner') DEFERRABLE`
+-- needs no extension and still refuses a genuine second owner at COMMIT, but
+-- drizzle 0.45 cannot express an exclusion constraint, so it would live only here
+-- — absent from `db/schema/organizations.ts` and from every snapshot, invisible to
+-- `drizzle-kit generate`. See the schema comment.
+CREATE UNIQUE INDEX "organization_members_one_owner_key" ON "organization_members" USING btree ("organization_id") WHERE "organization_members"."role" = 'owner';
