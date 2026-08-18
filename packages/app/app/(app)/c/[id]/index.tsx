@@ -54,7 +54,7 @@ const ChatConversationPage = () => {
     setMessages,
     approvePlan,
     rejectPlan,
-  } = useChatConversation({ conversationId: id, activeRole, thinkingMode, selectedModel: selection.effectiveId, skillId: activeSkillId, agentId });
+  } = useChatConversation({ conversationId: id, activeRole, thinkingMode, selectedModel: selection.effectiveId ?? undefined, skillId: activeSkillId, agentId });
 
   const saveConversation = useSaveConversation();
 

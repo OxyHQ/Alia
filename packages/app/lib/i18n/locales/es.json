@@ -773,14 +773,30 @@
   "models": {
     "selectModel": "Seleccionar modelo",
     "loadingModels": "Cargando modelos...",
+    "loadingModes": "Cargando...",
     "legacyModels": "Modelos anteriores",
     "catalogueUnavailable": "No se pudieron cargar los modelos",
     "noModels": "No hay modelos disponibles",
-    "routingProfilesSection": "Perfiles de enrutado · Alia elige el modelo en cada mensaje",
-    "modelsSection": "Modelos · un solo modelo responde cada mensaje",
+    "automatic": {
+      "label": "Automático",
+      "description": "Alia elige cómo responder."
+    },
+    "categories": {
+      "general": "General",
+      "coding": "Programación",
+      "vision": "Imágenes",
+      "audio": "Audio",
+      "voice": "Voz",
+      "multimodal": "Multimodal"
+    },
+    "uncategorised": "Otros",
     "routingProfile": "Perfil de enrutado, no un modelo concreto",
-    "routingProfileSelects": "Perfil de enrutado · elige entre {{count}} modelos en cada mensaje",
+    "picksAmong": "Elige entre {{count}} modelos",
     "concreteModel": "Un modelo concreto",
+    "capabilitySometimes": "{{capability}} a veces",
+    "contextOf": "{{tokens}} de contexto",
+    "maxOutputOf": "{{tokens}} de respuesta",
+    "unknownOf": "{{capabilities}}: se desconoce",
     "unavailable": "No disponible",
     "retiringOn": "Deja de funcionar el {{date}}",
     "selectionReplaced": "Tu elección anterior ya no se ofrece. Se usará {{model}}.",
@@ -792,12 +808,6 @@
       "structuredOutput": "Salida estructurada",
       "context": "Contexto",
       "maxOutput": "Respuesta máx."
-    },
-    "availability": {
-      "always": "sí",
-      "sometimes": "a veces",
-      "never": "no",
-      "unknown": "se desconoce"
     }
   },
   "modes": {
