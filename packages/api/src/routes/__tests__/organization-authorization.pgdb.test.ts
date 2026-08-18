@@ -28,7 +28,7 @@
 import express, { type Express, type NextFunction, type Request, type Response } from 'express';
 import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
-import { inArray } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
 /**
@@ -56,7 +56,10 @@ const {
   findMemberRole,
   findOrganizationById,
 } = await import('../../db/organizations/organizationRepository.js');
-const { organizationMembers, organizations } = await import('../../db/schema/organizations.js');
+const { organizationAgents, organizationMembers, organizations } = await import(
+  '../../db/schema/organizations.js'
+);
+const { agents } = await import('../../db/schema/agents.js');
 const organizationRouter = (await import('../organization.js')).default;
 const { log } = await import('../../lib/logger.js');
 
@@ -277,6 +280,82 @@ describe('only the owner may delete the organization or change a role', () => {
   });
 });
 
+/**
+ * Nobody sets their own role.
+ *
+ * On a membership table mass assignment is privilege escalation rather than
+ * merely IDOR, so this is checked as a property of the surface rather than left
+ * to the reading of each handler. Three independent things have to hold, and any
+ * one of them alone would be a single edit away from failing:
+ *
+ *  1. no route spreads `req.body` into a row — the create takes four named
+ *     fields and `role` is not one of them;
+ *  2. the only route that writes a role requires the caller to BE the owner;
+ *  3. the role it may write is `'admin' | 'member'` by TYPE, in the zod schema
+ *     AND in `updateMemberRole`'s signature, so `owner` cannot be minted even by
+ *     the owner.
+ */
+describe('a caller cannot set their own role', () => {
+  it('refuses a member promoting themselves, and an admin promoting themselves', async () => {
+    const id = await aStaffedOrganization();
+    const members = (await call('GET', `/organization/${id}/members`, OWNER)).body
+      .members as { _id: string; oxyUserId: string }[];
+    const asMember = members.find((m) => m.oxyUserId === MEMBER);
+    const asAdmin = members.find((m) => m.oxyUserId === ADMIN);
+    if (!asMember || !asAdmin) throw new Error('the fixture membership is incomplete');
+
+    expect((await call('PATCH', `/organization/${id}/members/${asMember._id}`, MEMBER, { role: 'admin' })).status).toBe(403);
+    expect((await call('PATCH', `/organization/${id}/members/${asAdmin._id}`, ADMIN, { role: 'admin' })).status).toBe(403);
+
+    expect(await findMemberRole(db, id, MEMBER)).toBe('member');
+    expect(await findMemberRole(db, id, ADMIN)).toBe('admin');
+  });
+
+  it('refuses `owner` as a role, even from the owner', async () => {
+    // The one caller who passes the permission gate still cannot mint a second
+    // owner: the value set is narrower than the membership one.
+    const id = await aStaffedOrganization();
+    const members = (await call('GET', `/organization/${id}/members`, OWNER)).body
+      .members as { _id: string; oxyUserId: string }[];
+    const target = members.find((m) => m.oxyUserId === MEMBER);
+    if (!target) throw new Error('the fixture member is missing');
+
+    const answer = await call('PATCH', `/organization/${id}/members/${target._id}`, OWNER, {
+      role: 'owner',
+    });
+
+    expect(answer.status).toBe(400);
+    expect(await findMemberRole(db, id, MEMBER)).toBe('member');
+  });
+
+  it('ignores a role smuggled into the CREATE body', async () => {
+    /**
+     * `createOrganization` takes four named fields; nothing spreads the request.
+     * The creator is seated `owner` because the repository says so, and a body
+     * asking for something else changes neither the organization nor the seat.
+     */
+    slugCounter += 1;
+    const slug = `orgauth-slug-${String(slugCounter)}`;
+    const answer = await call('POST', '/organization', OUTSIDER, {
+      name: 'Smuggled',
+      slug,
+      ownerId: OWNER,
+      credits: { paid: 9999 },
+      creditsPaid: 9999,
+      stripeCustomerId: 'cus_evil',
+    });
+
+    expect(answer.status).toBe(201);
+    const organization = answer.body.organization as Record<string, unknown>;
+    created.push(organization.id as string);
+    expect(organization.ownerId).toBe(OUTSIDER);
+    expect(organization.credits).toEqual({ paid: 0 });
+    expect(organization.stripeCustomerId).toBeNull();
+    expect(await findMemberRole(db, organization.id as string, OUTSIDER)).toBe('owner');
+    expect(await findMemberRole(db, organization.id as string, OWNER)).toBeNull();
+  });
+});
+
 describe('removing a member', () => {
   it('lets an admin remove an ordinary member but never the owner', async () => {
     const id = await aStaffedOrganization();
@@ -311,6 +390,131 @@ describe('removing a member', () => {
     expect((await call('PATCH', `/organization/${mine}/members/${victim._id}`, OWNER, { role: 'admin' })).status).toBe(404);
 
     expect(await findMemberRole(db, theirs, MEMBER)).toBe('member');
+  });
+});
+
+/**
+ * Listing the agents an organization shares.
+ *
+ * ## This is the ONLY exercise `findAgentsByIds` has anywhere
+ *
+ * `agentRepository.ts` is 775 lines that nothing called until this router did,
+ * and its own pgdb suite imports `findAgentById` (ten call sites) and **not**
+ * `findAgentsByIds` — measured, not assumed. A repository function with no
+ * caller and no test is indistinguishable from one that does not work.
+ *
+ * Worse, the obvious test does not reach it: the function early-returns `[]` for
+ * an empty id list without touching the database, so a fixture with no shared
+ * agents exercises the guard and never the query. That is the same
+ * empty-result-set blindness that let the `.populate()` fault reach production
+ * one directory over. The fixture here is deliberately NON-EMPTY.
+ *
+ * The seed goes in with the schema rather than through a repository because
+ * creating agents belongs to another slice; this asserts the READ its route
+ * performs.
+ */
+describe('the agents an organization shares', () => {
+  const FIRST = '01900000-0000-7000-8000-0000000000a1';
+  const SECOND = '01900000-0000-7000-8000-0000000000a2';
+
+  async function seedAgent(id: string, name: string, handle: string): Promise<void> {
+    await db.insert(agents).values({
+      id,
+      name,
+      handle,
+      tagline: 'a tagline',
+      description: 'a description',
+      authorOxyUserId: OWNER,
+      authorName: 'Owner',
+      category: 'general',
+    });
+  }
+
+  afterEach(async () => {
+    await db.delete(agents).where(inArray(agents.id, [FIRST, SECOND]));
+  });
+
+  it('serves the shared agents, most recently shared FIRST', async () => {
+    const id = await aStaffedOrganization();
+    await seedAgent(FIRST, 'First', 'orgauth-first');
+    await seedAgent(SECOND, 'Second', 'orgauth-second');
+    expect((await call('POST', `/organization/${id}/agents`, ADMIN, { agentId: FIRST })).status).toBe(200);
+    expect((await call('POST', `/organization/${id}/agents`, ADMIN, { agentId: SECOND })).status).toBe(200);
+    // Two shares written in the same millisecond tie on `created_at`, and an
+    // ordering assertion over a tie cannot fail.
+    await db
+      .update(organizationAgents)
+      .set({ createdAt: new Date('2026-01-01T00:00:00Z') })
+      .where(eq(organizationAgents.agentId, FIRST));
+    await db
+      .update(organizationAgents)
+      .set({ createdAt: new Date('2026-02-01T00:00:00Z') })
+      .where(eq(organizationAgents.agentId, SECOND));
+
+    const listed = await call('GET', `/organization/${id}/agents`, MEMBER);
+
+    expect(listed.status).toBe(200);
+    const served = listed.body.agents as { _id: string; id: string; name: string }[];
+    /**
+     * The ORDER is the route's, not the query's. `listSharedAgentIds` sorts by
+     * when the agent was SHARED — which is what the Mongo `.sort({ createdAt: -1 })`
+     * sorted by, the join row's timestamp rather than the agent's — while
+     * `findAgentsByIds` is an `inArray` with no `ORDER BY` at all, so Postgres may
+     * answer in any order. Serving that directly reshuffles the list on an
+     * unrelated day: nobody reports it and nobody can reproduce it.
+     */
+    expect(served.map((a) => a.id)).toEqual([SECOND, FIRST]);
+    // `_id` beside `id`, the shape `res.json({ agent })` has always answered.
+    expect(served.map((a) => a._id)).toEqual([SECOND, FIRST]);
+    expect(served.map((a) => a.name)).toEqual(['Second', 'First']);
+  });
+
+  it('drops a share whose agent no longer exists, rather than serving a null', async () => {
+    /**
+     * `organization_agents.agent_id` carries no foreign key — `agents` was a
+     * later batch — so a share can outlive its agent. Mongo `.populate()` yielded
+     * null and the route filtered it; `findAgentsByIds` answers with the agents
+     * that exist, which is the same set, and this is what says so.
+     */
+    const id = await aStaffedOrganization();
+    await seedAgent(FIRST, 'First', 'orgauth-first');
+    await call('POST', `/organization/${id}/agents`, ADMIN, { agentId: FIRST });
+    await db.insert(organizationAgents).values({
+      organizationId: id,
+      agentId: '01900000-0000-7000-8000-0000000000ff',
+      addedBy: OWNER,
+    });
+
+    const served = (await call('GET', `/organization/${id}/agents`, MEMBER)).body.agents as {
+      id: string;
+    }[];
+
+    expect(served.map((a) => a.id)).toEqual([FIRST]);
+  });
+
+  it('refuses to share an agent that does not exist', async () => {
+    const id = await aStaffedOrganization();
+
+    const answer = await call('POST', `/organization/${id}/agents`, ADMIN, {
+      agentId: '01900000-0000-7000-8000-0000000000fe',
+    });
+
+    expect(answer.status).toBe(404);
+  });
+
+  it('lets an admin share and unshare, and refuses an ordinary member', async () => {
+    const id = await aStaffedOrganization();
+    await seedAgent(FIRST, 'First', 'orgauth-first');
+
+    expect((await call('POST', `/organization/${id}/agents`, MEMBER, { agentId: FIRST })).status).toBe(403);
+    expect((await call('DELETE', `/organization/${id}/agents/${FIRST}`, MEMBER)).status).toBe(403);
+
+    expect((await call('POST', `/organization/${id}/agents`, ADMIN, { agentId: FIRST })).status).toBe(200);
+    // Idempotent, as the Mongo upsert was.
+    expect((await call('POST', `/organization/${id}/agents`, ADMIN, { agentId: FIRST })).status).toBe(200);
+    expect((await call('DELETE', `/organization/${id}/agents/${FIRST}`, ADMIN)).status).toBe(200);
+    // And the second removal finds nothing to remove.
+    expect((await call('DELETE', `/organization/${id}/agents/${FIRST}`, ADMIN)).status).toBe(404);
   });
 });
 
