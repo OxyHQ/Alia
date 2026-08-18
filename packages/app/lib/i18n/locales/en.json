@@ -546,7 +546,13 @@
   },
   "welcome": {
     "greetingNamed": "Hi {{name}}, what's on your mind?",
-    "greeting": "Hi, what's on your mind?"
+    "greeting": "Hi, what's on your mind?",
+    "intro": {
+      "headline": "Meet Alia",
+      "subtitle": "An assistant that remembers what matters, works across your tools, and picks the right model for the job.",
+      "cta": "Get started",
+      "skip": "Continue without an account"
+    }
   },
   "notifications": {
     "title": "Notifications",

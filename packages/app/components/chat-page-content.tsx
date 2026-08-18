@@ -21,8 +21,9 @@ import { ChatHeader } from "@/components/chat-header";
 import { useAuth } from "@oxyhq/services";
 import type { Message } from "@/types/chat";
 import { toast } from "@oxyhq/bloom/toast";
-import { VoiceOverlay, VoiceControls, useAmbientWave } from "@alia.onl/sdk/voice";
+import { VoiceControls, useAmbientWave } from "@alia.onl/sdk/voice";
 import { AlertTriangle, Pencil } from "lucide-react-native";
+import { AmbientField } from "@/components/ambient-field";
 import { CreditWarningBanner } from "@/components/credit-warning-banner";
 import { useModelStore } from "@/lib/stores/model-store";
 import { useEntitlements } from "@/lib/hooks/use-billing";
@@ -366,6 +367,16 @@ export const ChatPageContent = ({
   return (
     <View className="flex-1 bg-background">
       <View className="flex-1 relative">
+        {/* Ambient field — subtle at idle, swelling with speech. Rendered before
+            the message list so it genuinely sits behind it: it now covers the
+            whole panel rather than a band at the bottom. */}
+        <AmbientField
+          waveAmplitude={wave.waveAmplitude}
+          agentState={wave.agentState}
+          intensity={wave.intensity}
+          isDarkMode={isDarkMode}
+        />
+
         <ChatInterface
           messages={messages}
           scrollViewRef={scrollViewRef}
@@ -380,15 +391,6 @@ export const ChatPageContent = ({
           agentSessionId={agentSessionId}
           onApprovePlan={onApprovePlan}
           onRejectPlan={onRejectPlan}
-        />
-
-        {/* Persistent ambient wave overlay — subtle at idle, intensifies on speech */}
-        <VoiceOverlay
-          waveAmplitude={wave.waveAmplitude}
-          agentState={wave.agentState}
-          intensity={wave.intensity}
-          primaryColor={colors.primary}
-          isDarkMode={isDarkMode}
         />
 
         <LinearGradient

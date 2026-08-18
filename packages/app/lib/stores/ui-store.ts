@@ -23,6 +23,12 @@ interface UIState {
   canvasArtifacts: CanvasArtifact[];
   activeAgentSessionId: string | null;
   activeAgentId: string | null;
+  /**
+   * Whether the intro screen has been answered on this device — by signing in
+   * or by choosing to continue without an account. Persisted, so the home
+   * route only ever redirects to /welcome on a genuine first run.
+   */
+  welcomeSeen: boolean;
 
   // Actions
   toggleSidebar: () => void;
@@ -36,6 +42,7 @@ interface UIState {
   toggleShortcutsDialog: () => void;
   addCanvasArtifact: (artifact: CanvasArtifact) => void;
   clearCanvasArtifacts: () => void;
+  markWelcomeSeen: () => void;
 }
 
 export const useUIStore = create<UIState>()(
@@ -49,6 +56,7 @@ export const useUIStore = create<UIState>()(
   canvasArtifacts: [],
   activeAgentSessionId: null,
   activeAgentId: null,
+  welcomeSeen: false,
 
   toggleSidebar: () =>
     set((state) => ({ sidebarOpen: !state.sidebarOpen })),
@@ -85,12 +93,19 @@ export const useUIStore = create<UIState>()(
 
   clearCanvasArtifacts: () =>
     set({ canvasArtifacts: [] }),
+
+  markWelcomeSeen: () =>
+    set({ welcomeSeen: true }),
 }),
     {
       name: 'alia-ui',
       storage: createJSONStorage(() => AsyncStorage),
-      // Only the sidebar collapse survives reloads; the rest is session state.
-      partialize: (state) => ({ sidebarOpen: state.sidebarOpen }),
+      // Only the sidebar collapse and the intro answer survive reloads; the
+      // rest is session state.
+      partialize: (state) => ({
+        sidebarOpen: state.sidebarOpen,
+        welcomeSeen: state.welcomeSeen,
+      }),
     },
   ),
 );
