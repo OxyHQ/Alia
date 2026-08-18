@@ -2,8 +2,9 @@
  * The alias deprecation signal.
  *
  * Two things are easy to get wrong here and neither errors at runtime: the two
- * headers have DIFFERENT date syntaxes, and the absence of `Sunset` is a
- * deliberate state rather than a missing feature. Both are asserted directly.
+ * headers have DIFFERENT date syntaxes, and the `Sunset` value is a commitment
+ * made to callers rather than a configuration detail. Both are asserted
+ * directly, and the branch that SHIPS is driven through the mounted instance.
  */
 
 import express, { type Express, type NextFunction, type Request, type Response } from 'express';
@@ -33,7 +34,7 @@ const MIGRATION_MAP = JSON.parse(
     fileURLToPath(new URL('../../../../../docs/migration/alias-migration-map.json', import.meta.url)),
     'utf8',
   ),
-) as { aliases: { alias: string; becomes: { id: string } }[] };
+) as { sunsetAt: string | null; aliases: { alias: string; becomes: { id: string } }[] };
 
 interface Call {
   headers: Record<string, string>;
@@ -151,36 +152,88 @@ describe('the signal is emitted for a deprecated alias and only for one', () => 
   });
 });
 
-describe('Sunset is absent until a removal date is set', () => {
-  it('emits no Sunset from the instance the server mounts', () => {
-    // The assertion that protects production. The compatibility window forbids
-    // a placeholder removal date, so the shipped middleware must announce none.
-    expect(ALIAS_SUNSET).toBeNull();
+describe('Sunset announces the removal date the product owner set', () => {
+  it('emits it from the instance the server mounts, in RFC 8594 HTTP-date form', () => {
+    // The assertion that protects production, driven through the MOUNTED
+    // instance rather than a factory the suite built for itself: this is the
+    // branch that ships, and a factory call proves nothing about it.
     const call = run(aliasDeprecationHeaders, { body: { model: 'alia-v1' }, path: '/v1/chat/completions' });
+    expect(call.headers.Sunset).toBe('Thu, 01 Oct 2026 00:00:00 GMT');
+    expect(call.headers.Sunset).toBe(toHttpDate(ALIAS_SUNSET));
+    expect(call.headers.Deprecation).toBe(toStructuredFieldDate(ALIAS_DEPRECATION));
+    // Literal, not `toHttpDate(x) === toHttpDate(x)`, which is true of any two
+    // reads of one value and would survive the serializers being swapped.
+    expect(call.headers.Deprecation).toBe('@1786752000');
+    expect(call.headers.Deprecation).not.toBe(call.headers.Sunset);
+    expect(Object.keys(call.headers).sort()).toEqual(['Deprecation', 'Link', 'Sunset']);
+  });
+
+  it('is the exact instant the migration map publishes to callers', () => {
+    // Two artefacts, one date. A header a caller acts on and a map a caller
+    // reads must not disagree, and nothing else in this file would notice.
+    expect(ALIAS_SUNSET.toISOString()).toBe('2026-10-01T00:00:00.000Z');
+    expect(MIGRATION_MAP.sunsetAt).toBe(ALIAS_SUNSET.toISOString());
+  });
+
+  it('emits none when no date is configured, which is still a live state', () => {
+    // The other branch, kept driven rather than deleted: the credentials in
+    // `middleware/credential-deprecation.ts` ship `null` through these same two
+    // serializers today, and a suite that stopped exercising the absent case the
+    // moment (a) got a date would stop measuring the path that is still live.
+    const call = run(createAliasDeprecationHeaders(null), {
+      body: { model: 'alia-v1' },
+      path: '/v1/chat/completions',
+    });
     expect(call.headers.Deprecation).toBeDefined();
     expect(call.headers.Sunset).toBeUndefined();
     expect(Object.keys(call.headers).sort()).toEqual(['Deprecation', 'Link']);
   });
 
-  it('emits one, correctly serialized, once a date IS configured', () => {
-    // The other branch, driven for real rather than promised. A test that could
-    // only ever observe the absent case would report "Sunset support works"
-    // while the code that emits it had never run.
-    const removal = new Date('2033-12-31T23:59:59.000Z');
-    const call = run(createAliasDeprecationHeaders(removal), {
-      body: { model: 'alia-v1' },
-      path: '/v1/chat/completions',
-    });
-    expect(call.headers.Sunset).toBe('Sat, 31 Dec 2033 23:59:59 GMT');
-    expect(call.headers.Deprecation).toBe(toStructuredFieldDate(ALIAS_DEPRECATION));
-  });
-
-  it('still emits no Sunset for a request naming no alias, even with a date set', () => {
-    const call = run(createAliasDeprecationHeaders(new Date('2033-12-31T23:59:59.000Z')), {
+  it('still emits no Sunset for a request naming no alias', () => {
+    // The negative control survives the date being set: a middleware that had
+    // started announcing a removal on every response would pass everything above.
+    const call = run(aliasDeprecationHeaders, {
       body: { model: 'openai/gpt-4o' },
       path: '/v1/chat/completions',
     });
     expect(call.headers).toEqual({});
+  });
+});
+
+describe('the announced date does not quietly become a lie', () => {
+  /**
+   * RFC 8594 §3: the value "SHOULD be a timestamp in the future", and a past one
+   * is to be read as "the resource is expected to become unavailable at any
+   * time". The aliases still resolve — epic #139 D2 keeps them resolving on
+   * purpose, because two published packages have them compiled into installed
+   * copies this repository cannot reach — so the day this instant passes, every
+   * response advertises a removal that did not happen.
+   *
+   * Nothing removes them on that date; removal is a separate, unscheduled
+   * decision. So this assertion goes RED on 2026-10-01, deliberately. It is not
+   * a gate — `compatibility-window.md` is explicit that a date passing is not a
+   * gate — it is the alarm that stops the date sliding unremarked, and it forces
+   * the choice that document already names: remove, or re-decide on #139 with a
+   * stated risk.
+   */
+  it('the announced sunset is still in the future', () => {
+    expect(
+      ALIAS_SUNSET.getTime(),
+      'The announced alias sunset has PASSED and the aliases still resolve, so every ' +
+        'response now advertises a removal that did not happen. Either execute the ' +
+        'removal (epic #139 D2: a resolver that accepts profile:* ids, a credit ' +
+        'multiplier that hangs off the profile, and a published SDK and CLI major), ' +
+        'or re-decide the date on #139 with a stated risk. Moving this constant on ' +
+        'its own is the failure compatibility-window.md exists to prevent.',
+    ).toBeGreaterThan(Date.now());
+  });
+
+  it('the same comparison is red for a date in the past', () => {
+    // Positive control for the alarm, over a real constant from the module
+    // rather than a literal: `ALIAS_DEPRECATION` is 2026-08-15 and is meant to
+    // be past. Without this, a comparison written against the wrong operand
+    // would pass forever and the alarm could never fire.
+    expect(ALIAS_DEPRECATION.getTime()).not.toBeGreaterThan(Date.now());
   });
 });
 
@@ -219,12 +272,21 @@ describe('the stream event carries the same notice to a caller that reads only t
     expect(event?.documentation).toContain('compatibility-window');
   });
 
-  it('withholds a sunset date exactly as the header does, and carries one when set', () => {
-    // Both branches, because a test that only ever sees `null` proves nothing
-    // about the branch that ships the day a removal date is agreed.
-    expect(aliasDeprecationEvent('alia-v1', ALIAS_SUNSET)?.sunsetAt).toBeNull();
-    const removal = new Date('2033-12-31T23:59:59.000Z');
-    expect(aliasDeprecationEvent('alia-v1', removal)?.sunsetAt).toBe('2033-12-31T23:59:59.000Z');
+  it('carries the same removal date the header announces, for every one of the thirteen', () => {
+    // The event and the header are one notice. A caller reading only the stream
+    // and a caller reading only the headers must get the same date, and nothing
+    // else in the codebase compares them.
+    for (const alias of DEPRECATED_ALIASES) {
+      expect(aliasDeprecationEvent(alias, ALIAS_SUNSET)?.sunsetAt, alias).toBe('2026-10-01T00:00:00.000Z');
+    }
+    expect(toHttpDate(new Date(String(aliasDeprecationEvent('alia-v1', ALIAS_SUNSET)?.sunsetAt)))).toBe(
+      toHttpDate(ALIAS_SUNSET),
+    );
+  });
+
+  it('still carries null when no date is set, the state path (c) ships today', () => {
+    // The absent branch, kept driven for the same reason as the header's.
+    expect(aliasDeprecationEvent('alia-v1', null)?.sunsetAt).toBeNull();
   });
 
   it('says nothing about an identifier that is not deprecated', () => {
@@ -283,7 +345,9 @@ describe('the signal survives the real request pipeline, in the order index.ts m
     const headers = await post(app);
     expect(headers.get('deprecation')).toBe(toStructuredFieldDate(ALIAS_DEPRECATION));
     expect(headers.get('link')).toMatch(/rel="deprecation"/);
-    expect(headers.get('sunset')).toBeNull();
+    // On real response bytes, through Node's own header serializer, rather than
+    // on a stub that records whatever it was handed.
+    expect(headers.get('sunset')).toBe('Thu, 01 Oct 2026 00:00:00 GMT');
   });
 
   it('disappears when mounted ABOVE the body parser, which is why the order is asserted', async () => {

@@ -34,15 +34,29 @@
  * It never inspects the credential beyond its prefix, so nothing here can log or
  * echo key material.
  *
- * ## Why no `Sunset` value is emitted
+ * ## Why no `Sunset` value is emitted, now that the ALIASES have one
  *
- * The same rule that governs the aliases: a removal date is set when the gate in
- * the window document is satisfied or credibly close, "never as a placeholder —
- * an announced date that then moves teaches callers to ignore the header".
- * Section (c)'s gate requires every key owner notified and a measured zero over
- * `api_key_usage`, and neither has been done. So {@link CREDENTIAL_SUNSET} is
- * `null`, no `Sunset` header appears, and setting the constant is the whole
- * change when it is.
+ * `ALIAS_SUNSET` was set on 2026-08-18 when the product owner closed section
+ * (a)'s window. {@link CREDENTIAL_SUNSET} deliberately did NOT move with it, and
+ * the two constants disagreeing is the correct state rather than an oversight:
+ * they answer to different gates, and only (a)'s was decided.
+ *
+ * Three reasons, each of them a fact rather than a preference:
+ *
+ *  1. **The two deprecations fail differently.** An alias past its sunset still
+ *     resolves, so a caller who ignores the notice keeps working. A credential
+ *     past its sunset authenticates nothing, so the same caller is locked out.
+ *  2. **Section (c)'s gate opens with "every key owner has been notified, with
+ *     the notification recorded", and the channel for that notification is still
+ *     an open question in the window document.** Zero owners have been notified.
+ *     A deadline is not a notice.
+ *  3. **There is nowhere to migrate to yet.** No rotation path has ever existed
+ *     on `/developer`, so "migrate" can only mean "obtain an Oxy credential",
+ *     and OxyHQ/oxy#972 has not issued one. A date set before the replacement
+ *     exists is a deadline holders cannot meet, whatever the date is.
+ *
+ * So this stays `null`, no `Sunset` header appears on the credential path, and
+ * setting the constant remains the whole change on the day (c)'s gate is met.
  */
 
 import type { NextFunction, Request, Response } from 'express';
@@ -60,7 +74,9 @@ export const CREDENTIAL_DEPRECATION = new Date('2026-08-15T00:00:00.000Z');
 /**
  * The removal date, once section (c)'s gate sets one. `null` until then, and
  * `null` is why no `Sunset` header is emitted. Read the note above before
- * replacing it with a value.
+ * replacing it with a value — in particular, it is `null` for reasons of its
+ * own and not merely because nobody has got round to it, so the alias sunset
+ * moving is not an argument for moving this.
  */
 export const CREDENTIAL_SUNSET: Date | null = null;
 

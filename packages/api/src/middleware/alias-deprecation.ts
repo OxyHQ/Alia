@@ -24,18 +24,50 @@
  * Serializing one as the other is the mistake this comment exists to prevent:
  * both are "a date in a header", and both look plausible in a log.
  *
- * ## Why no `Sunset` value is emitted today
+ * ## The sunset date, and why it is that instant
  *
- * The compatibility window sets a removal date only when the gate is satisfied
- * or credibly close, "never as a placeholder — an announced date that then moves
- * teaches callers to ignore the header, which destroys the signal for every
- * future deprecation". No date is set for the aliases, so {@link ALIAS_SUNSET}
- * is `null` and the header is absent. The support is implemented and tested;
- * only the value is withheld. Setting the constant is the whole change.
+ * The compatibility window sets a removal date "when the gate is satisfied or is
+ * credibly close, never as a placeholder — an announced date that then moves
+ * teaches callers to ignore the header". Path (a)'s gate is a production usage
+ * measurement that cannot be taken: the service is parked at desired count 0 and
+ * no Alia database credential exists outside it. That case is also in the
+ * document — "a gate that cannot be satisfied is escalated on #139 and
+ * re-decided; it is not left open by default" — and the product owner re-decided
+ * it on 2026-08-18, closing the window. {@link ALIAS_SUNSET} is therefore a
+ * decision with an owner, which is the one thing a placeholder is not.
  *
- * An absent header is a deliberate state here, so it is asserted as one: the
- * suite beside this file fails if `Sunset` appears while no date is set, and
- * fails if it does NOT appear once one is.
+ * The instruction was "now", and "now" is when the ANNOUNCEMENT happens: this
+ * header, from this deploy. It is not the VALUE, because RFC 8594 §3 says the
+ * timestamp "SHOULD be a timestamp in the future" and says what a past one means:
+ *
+ *     It is safest to consider timestamps in the past mean the present time,
+ *     meaning that the resource is expected to become unavailable at any time.
+ *
+ * That is false here, deliberately: the aliases keep resolving, because two
+ * published packages have them compiled into installed copies this repository
+ * cannot reach — `@alia.onl/sdk`, which ships raw source, and `@alia-codea/cli`.
+ * A caller reading a past `Sunset` stops retrying a path that works.
+ *
+ * So the value is the close of the first full calendar month after the
+ * announcement: `2026-10-01T00:00:00Z`. The unit is the compatibility window's
+ * own — its removal gate measures "at least one full monthly billing cycle" and
+ * its review cadence reports "at the close of each monthly billing cycle" —
+ * rather than a round number picked here, which is the failure the placeholder
+ * rule is about.
+ *
+ * ## What stops that date from quietly becoming a lie
+ *
+ * Nothing removes the aliases on 2026-10-01; that removal is a separate,
+ * unscheduled decision (epic #139, D2). So once the instant passes, every
+ * response carries a removal that did not happen. The suite beside this file
+ * asserts the announced date is still in the FUTURE and goes red on 2026-10-01,
+ * by design: a date passing is not a gate, it is an alarm, and it forces the
+ * choice the window document already names — execute the removal, or re-decide
+ * on #139 with a stated risk — instead of letting the date slide unremarked.
+ *
+ * Both branches of the emit stay measured. `null` is still live for the
+ * credentials in `middleware/credential-deprecation.ts`, through these same two
+ * serializers, so the suite drives the absent case as well as the present one.
  */
 
 import type { NextFunction, Request, Response } from 'express';
@@ -78,11 +110,13 @@ const DEPRECATED = new Set(DEPRECATED_ALIASES);
 export const ALIAS_DEPRECATION = new Date('2026-08-15T00:00:00.000Z');
 
 /**
- * The removal date, once the compatibility window's gate sets one. `null` until
- * then, and `null` is why no `Sunset` header is emitted. See the note above
- * before replacing it with a value.
+ * The removal date for the thirteen, announced from this deploy onward.
+ *
+ * The close of the first full calendar month after the product owner closed the
+ * window on 2026-08-18. Read the note above before changing it: it is a
+ * commitment made to callers, and a date that moves is worse than no date.
  */
-export const ALIAS_SUNSET: Date | null = null;
+export const ALIAS_SUNSET = new Date('2026-10-01T00:00:00.000Z');
 
 /**
  * Where a caller reads what to do about it.
@@ -169,7 +203,7 @@ export function createAliasDeprecationHeaders(
   };
 }
 
-/** The instance `src/index.ts` mounts. No sunset date is set, so none is announced. */
+/** The instance `src/index.ts` mounts, announcing {@link ALIAS_SUNSET}. */
 export const aliasDeprecationHeaders = createAliasDeprecationHeaders(ALIAS_SUNSET);
 
 /**

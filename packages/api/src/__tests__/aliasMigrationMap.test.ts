@@ -191,14 +191,19 @@ describe('the alias migration map covers exactly the frozen alias set', () => {
     expect(map.aliases.filter((a) => a.becomes.kind === 'routing-profile').length).toBeGreaterThanOrEqual(13);
   });
 
-  it('agrees with the deprecation signal on the dates, and announces no sunset', () => {
+  it('agrees with the deprecation signal on BOTH dates, including the sunset', () => {
     expect(new Date(map.deprecatedAt).getTime()).toBe(ALIAS_DEPRECATION.getTime());
 
-    // The compatibility window forbids a placeholder removal date. Both halves
-    // are asserted so that setting one without the other is red: a map date the
-    // header does not emit is a promise nobody is keeping, and a header date the
-    // map does not carry is a date with no published gate behind it.
-    expect(map.sunsetAt).toBeNull();
-    expect(ALIAS_SUNSET).toBeNull();
+    // Both halves of the removal date, so that setting one without the other is
+    // red: a map date the header does not emit is a promise nobody is keeping,
+    // and a header date the map does not carry is a date with no published gate
+    // behind it. The product owner set this one on 2026-08-18 (D1).
+    expect(map.sunsetAt).toBe('2026-10-01T00:00:00.000Z');
+    expect(map.sunsetAt).toBe(ALIAS_SUNSET.toISOString());
+
+    // Vacuity floor. `toBe` between two reads of the same absent value is what
+    // the previous shape of this test asserted, and `null === null` passes
+    // whether or not either side is wired to anything.
+    expect(map.sunsetAt).not.toBeNull();
   });
 });
