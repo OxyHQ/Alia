@@ -1,7 +1,7 @@
-import mongoose from 'mongoose';
 import { CONTRACT_LIMITS } from '@oxyhq/crowdsource-contracts';
-import { Agent } from '../../../models/agent.js';
-import { AgentReview } from '../../../models/agent-review.js';
+import { getDb } from '../../../db/index.js';
+import { findAgentById } from '../../../db/agents/agentRepository.js';
+import { findAgentReviewById } from '../../../db/agents/agentReviewRepository.js';
 import { ReportedType } from '../../../domain/report.js';
 import type {
   ModerationContextResource,
@@ -39,33 +39,20 @@ import type {
 
 const WEB_ORIGIN = process.env.WEB_URL || 'https://alia.onl';
 
-interface SnapshotReview {
-  _id: mongoose.Types.ObjectId;
-  agentId?: mongoose.Types.ObjectId;
-  userId?: mongoose.Types.ObjectId;
-  rating?: number;
-  comment?: string;
-  createdAt?: Date;
-}
-
-interface ReviewedAgent {
-  _id: mongoose.Types.ObjectId;
-  name?: string;
-  tagline?: string;
-}
-
-/** The agent being reviewed, as the minimum a jury needs to read the review. */
-async function agentContext(
-  agentId: mongoose.Types.ObjectId | undefined,
-): Promise<ModerationContextResource | null> {
-  if (agentId === undefined) return null;
-  const agent = await Agent.findById(agentId)
-    .select('name tagline')
-    .lean<ReviewedAgent | null>();
+/**
+ * The agent being reviewed, as the minimum a jury needs to read the review.
+ *
+ * `agent_reviews.agent_id` is `notNull` with a foreign key that CASCADES, so
+ * the id is always present and the agent is always there — the `undefined`
+ * branch this used to open with is now unreachable, and the remaining `null`
+ * answer is for a review read inside the window of a concurrent agent delete.
+ */
+async function agentContext(agentId: string): Promise<ModerationContextResource | null> {
+  const agent = await findAgentById(getDb(), agentId);
   if (!agent) return null;
 
-  const name = agent.name?.trim();
-  const tagline = agent.tagline?.trim();
+  const name = agent.name.trim();
+  const tagline = agent.tagline.trim();
   const text = [name, tagline].filter((part): part is string => Boolean(part)).join(' — ');
   if (!text) return null;
 
@@ -82,46 +69,37 @@ export function createAgentReviewSubjectProvider(): ModerationSubjectProvider {
     subjectType: 'commerce.review',
 
     async snapshot(reportedId: string): Promise<ModerationSubjectSnapshot | null> {
-      if (!mongoose.isValidObjectId(reportedId)) return null;
-      const review = await AgentReview.findById(reportedId)
-        .select('agentId userId rating comment createdAt')
-        .lean<SnapshotReview | null>();
+      // No `isValidObjectId` guard — see `agent-subject.ts` for why it had to go.
+      const review = await findAgentReviewById(getDb(), reportedId);
       if (!review) return null;
 
-      const comment = review.comment?.trim();
+      const comment = review.comment.trim();
       const content: ModerationResource = comment
         ? {
             type: 'text',
             data: { text: comment.slice(0, CONTRACT_LIMITS.TEXT_RESOURCE_MAX_LENGTH) },
-            ...(review.createdAt === undefined
-              ? {}
-              : { createdAt: new Date(review.createdAt) }),
+            createdAt: review.createdAt,
           }
         : {
             type: 'metadata',
-            data: {
-              commentText: 'absent',
-              ...(review.rating === undefined ? {} : { rating: review.rating }),
-            },
+            data: { commentText: 'absent', rating: review.rating },
           };
 
       const context = await agentContext(review.agentId);
-      const reviewerId = review.userId?.toString();
-      const agentId = review.agentId?.toHexString();
+      const reviewerId = review.userId;
+      const agentId = review.agentId;
 
       return {
         subject: {
-          externalId: review._id.toHexString(),
+          externalId: review._id,
           type: 'commerce.review',
           /**
            * The agent's page, because that is where Alia's own users see the
            * review — there is no per-review URL. Omitted when the agent reference
            * is missing rather than pointing at a page that cannot exist.
            */
-          ...(agentId === undefined
-            ? {}
-            : { permalink: `${WEB_ORIGIN}/agents/${agentId}` }),
-          ...(reviewerId === undefined ? {} : { author: { oxyUserId: reviewerId } }),
+          permalink: `${WEB_ORIGIN}/agents/${agentId}`,
+          author: { oxyUserId: reviewerId },
         },
         content,
         ...(context === null ? {} : { context: [context] }),

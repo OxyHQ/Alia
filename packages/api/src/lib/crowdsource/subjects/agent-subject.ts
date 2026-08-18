@@ -1,6 +1,6 @@
-import mongoose from 'mongoose';
 import { CONTRACT_LIMITS } from '@oxyhq/crowdsource-contracts';
-import { Agent } from '../../../models/agent.js';
+import { getDb } from '../../../db/index.js';
+import { findAgentById, type AgentRecord } from '../../../db/agents/agentRepository.js';
 import { ReportedType } from '../../../domain/report.js';
 import type {
   ModerationContextResource,
@@ -57,24 +57,15 @@ function claim(value: string | undefined | null): string | undefined {
   return bounded(value, CONTRACT_LIMITS.METADATA_STRING_VALUE_MAX_LENGTH);
 }
 
-interface SnapshotAgent {
-  _id: mongoose.Types.ObjectId;
-  name?: string;
-  handle?: string;
-  tagline?: string;
-  description?: string;
-  category?: string;
-  archetype?: string;
-  tags?: string[];
-  avatar?: string | null;
-  systemPrompt?: string;
-  author?: mongoose.Types.ObjectId;
-  authorName?: string;
-  createdAt?: Date;
-}
-
-const SNAPSHOT_PROJECTION =
-  'name handle tagline description category archetype tags avatar systemPrompt author authorName createdAt';
+/**
+ * The whole record, where a projection used to narrow it.
+ *
+ * `.select('name handle tagline …')` bought nothing here: every field it named
+ * is read below, the row is one agent, and a projection that drifts from the
+ * fields the snapshot uses fails by handing a jury a listing with pieces
+ * missing rather than by erroring.
+ */
+type SnapshotAgent = AgentRecord;
 
 /**
  * The instructions the agent runs on, as supporting material.
@@ -99,10 +90,14 @@ export function createAgentSubjectProvider(): ModerationSubjectProvider {
     subjectType: 'custom.alia.agent',
 
     async snapshot(reportedId: string): Promise<ModerationSubjectSnapshot | null> {
-      if (!mongoose.isValidObjectId(reportedId)) return null;
-      const agent = await Agent.findById(reportedId)
-        .select(SNAPSHOT_PROJECTION)
-        .lean<SnapshotAgent | null>();
+      /**
+       * No `isValidObjectId` guard. Ids are uuid v7 now, so that check rejected
+       * every real agent — and its failure mode was a `null` snapshot, which the
+       * delivery worker reads as "the object was deleted" and closes the report
+       * on. A moderation pipeline reporting success while never looking at
+       * anything.
+       */
+      const agent = await findAgentById(getDb(), reportedId);
       if (!agent) return null;
 
       /**
@@ -119,7 +114,7 @@ export function createAgentSubjectProvider(): ModerationSubjectProvider {
       if (category !== undefined) claims.category = category;
       const archetype = claim(agent.archetype);
       if (archetype !== undefined) claims.archetype = archetype;
-      const tags = claim(agent.tags?.join(', '));
+      const tags = claim(agent.tags.join(', '));
       if (tags !== undefined) claims.tags = tags;
       /**
        * The author's DISPLAY name as the listing shows it — a distinct claim from
@@ -132,7 +127,7 @@ export function createAgentSubjectProvider(): ModerationSubjectProvider {
       claims.avatarPresent = agent.avatar ? 'true' : 'false';
 
       const context = instructionsContext(agent);
-      const ownerId = agent.author?.toString();
+      const ownerId = agent.author;
       /**
        * Read straight off the record and never recomposed. What a jury judges has
        * to be what the marketplace actually shows; a name this code assembled
@@ -143,10 +138,10 @@ export function createAgentSubjectProvider(): ModerationSubjectProvider {
 
       return {
         subject: {
-          externalId: agent._id.toHexString(),
+          externalId: agent._id,
           type: 'custom.alia.agent',
-          permalink: `${WEB_ORIGIN}/agents/${agent._id.toHexString()}`,
-          ...(ownerId === undefined ? {} : { author: { oxyUserId: ownerId } }),
+          permalink: `${WEB_ORIGIN}/agents/${agent._id}`,
+          author: { oxyUserId: ownerId },
         },
         content: {
           type: 'profile',

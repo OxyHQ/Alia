@@ -59,30 +59,30 @@ vi.mock('../../logger.js', () => {
   return { log: { agents: child, chat: child, general: child, v1: child, providers: child, codea: child } };
 });
 
-vi.mock('../../../models/agent.js', () => ({
-  Agent: { findOne: vi.fn(async () => null) },
+vi.mock('../../../db/index.js', () => ({ getDb: vi.fn(() => ({})) }));
+
+vi.mock('../../../db/agents/agentRepository.js', () => ({
+  findHireableAgentByHandle: vi.fn(async () => null),
 }));
 
-vi.mock('../../../models/agent-session.js', () => ({
-  AgentSession: {
-    create: vi.fn(async (values: { task: string }) => {
-      const id = `exec-${H.created.length + 1}`;
-      H.created.push({ id, task: values.task });
-      return { _id: { toString: () => id } };
-    }),
-    // `_id` reaches this as the object `create` returned, not as a string —
-    // coerced here, because a silent miss would fall to the default result and
-    // read exactly like a dependency whose output was never forwarded.
-    findById: vi.fn((id: { toString(): string }) => ({
-      select: () => ({
-        lean: async () => ({
-          status: 'completed',
-          result: H.results.get(String(id)) ?? `output of ${String(id)}`,
-        }),
-      }),
-    })),
-    updateOne: vi.fn(() => ({ catch: () => undefined })),
-  },
+vi.mock('../../../db/agents/agentSessionRepository.js', () => ({
+  createAgentSession: vi.fn(async (_db: unknown, values: { task: string }) => {
+    const id = `exec-${H.created.length + 1}`;
+    H.created.push({ id, task: values.task });
+    return { _id: id };
+  }),
+  /**
+   * The id reaches this as the STRING the repository returns, where it used to
+   * be the ObjectId-shaped object `AgentSession.create` handed back — so the
+   * coercion the mock needed is gone. The `??` default remains, because a silent
+   * miss would fall to it and read exactly like a dependency whose output was
+   * never forwarded.
+   */
+  findAgentSessionById: vi.fn(async (_db: unknown, id: string) => ({
+    status: 'completed',
+    result: H.results.get(id) ?? `output of ${id}`,
+  })),
+  cancelUnsettledAgentSession: vi.fn(async () => true),
 }));
 
 /**
@@ -90,7 +90,7 @@ vi.mock('../../../models/agent-session.js', () => ({
  * scheduling. Each call parks until the test releases it, which is what makes
  * "these two ran at the same time" and "this one waited" observable at all.
  */
-vi.mock('../../agent-runner.js', () => ({
+vi.mock('../runner.js', () => ({
   runAgentSession: vi.fn(
     (sessionId: string) =>
       new Promise<void>((resolve) => {

@@ -1,18 +1,15 @@
 import { Router } from 'express';
-import { AgentSession } from '../../models/agent-session.js';
 import { getDb } from '../../db/index.js';
+import {
+  agentSessionIsOwnedBy,
+  findAgentSessionContainerId,
+} from '../../db/agents/agentSessionRepository.js';
 import { findSessionContainerId } from '../../db/agents/containerRepository.js';
 import { authenticateToken } from '../../middleware/auth.js';
 import { log } from '../../lib/logger.js';
 import type { Request, Response } from 'express';
 
 const router = Router();
-
-type SessionResourceLike = {
-  type: string;
-  resourceId: string;
-  status: string;
-};
 
 function resolveWorkspaceFilePath(inputPath: string): string | null {
   let normalized = inputPath.replace(/\\/g, '/').trim();
@@ -43,17 +40,24 @@ function safeDownloadName(filePath: string): string {
   return fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
 }
 
+/**
+ * The container a session's workspace files live in.
+ *
+ * Two sources, in the order the source had them: the session's own claimed
+ * resources first, then the `containers` table. The first used to also accept a
+ * resource whose status was `idle` — a value `agent_session_resources.status`
+ * cannot hold, since the CHECK admits `active` and `destroyed` only — so that
+ * half of the predicate matched nothing and is not carried. The `containers`
+ * fallback DOES have an `idle` state and keeps it.
+ */
 async function resolveSessionContainerId(
   sessionId: string,
-  userId: string,
-  resources: SessionResourceLike[] | undefined,
+  oxyUserId: string,
 ): Promise<string | null> {
-  const resourceContainer = resources?.find(
-    r => r.type === 'container' && (r.status === 'active' || r.status === 'idle'),
-  );
-  if (resourceContainer?.resourceId) return resourceContainer.resourceId;
+  const claimed = await findAgentSessionContainerId(getDb(), sessionId);
+  if (claimed !== null) return claimed;
 
-  return await findSessionContainerId(getDb(), sessionId, userId);
+  return await findSessionContainerId(getDb(), sessionId, oxyUserId);
 }
 
 // GET /agents/sessions/:sid/files - list workspace files
@@ -63,22 +67,12 @@ router.get('/sessions/:sid/files', authenticateToken, async (req: Request, res: 
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const session = await AgentSession.findOne({
-      _id: req.params.sid,
-      userId: req.user.id,
-    })
-      .select('resources')
-      .lean();
-
-    if (!session) {
+    const sessionId = String(req.params.sid);
+    if (!(await agentSessionIsOwnedBy(getDb(), sessionId, req.user.id))) {
       return res.status(404).json({ error: 'Session not found' });
     }
 
-    const containerId = await resolveSessionContainerId(
-      String(req.params.sid),
-      String(req.user.id),
-      session.resources as SessionResourceLike[] | undefined,
-    );
+    const containerId = await resolveSessionContainerId(sessionId, req.user.id);
 
     if (!containerId) {
       return res.json({ files: [], message: 'No workspace container found' });
@@ -120,22 +114,12 @@ router.get('/sessions/:sid/files/*', authenticateToken, async (req: Request, res
       return res.status(400).json({ error: 'File path is required' });
     }
 
-    const session = await AgentSession.findOne({
-      _id: req.params.sid,
-      userId: req.user.id,
-    })
-      .select('resources')
-      .lean();
-
-    if (!session) {
+    const sessionId = String(req.params.sid);
+    if (!(await agentSessionIsOwnedBy(getDb(), sessionId, req.user.id))) {
       return res.status(404).json({ error: 'Session not found' });
     }
 
-    const containerId = await resolveSessionContainerId(
-      String(req.params.sid),
-      String(req.user.id),
-      session.resources as SessionResourceLike[] | undefined,
-    );
+    const containerId = await resolveSessionContainerId(sessionId, req.user.id);
 
     if (!containerId) {
       return res.status(404).json({ error: 'No workspace container found' });

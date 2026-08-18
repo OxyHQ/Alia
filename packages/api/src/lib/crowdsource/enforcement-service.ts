@@ -1,7 +1,13 @@
-import mongoose from 'mongoose';
 import type { Decision } from '@oxyhq/crowdsource-contracts';
-import { Agent } from '../../models/agent.js';
-import { AgentReview } from '../../models/agent-review.js';
+import {
+  findAgentModerationState,
+  setAgentCatalogueFlags,
+} from '../../db/agents/agentRepository.js';
+import {
+  findAgentReviewById,
+  recalculateAgentRating,
+  setAgentReviewHidden,
+} from '../../db/agents/agentReviewRepository.js';
 import { getDb } from '../../db/index.js';
 import {
   findSkillPublication,
@@ -17,7 +23,6 @@ import {
   type ModerationPreviousState,
 } from '../../db/moderation/enforcementRepository.js';
 import { type ModerationEnforcementAction } from '../../domain/moderation-enforcement.js';
-import { recalculateAgentRating } from '../agent-rating.js';
 import { crowdSourceConfig, type ModerationEnforcementMode } from './config.js';
 import { planEnforcement, type PlannedEnforcementAction } from './enforcement-plan.js';
 import { log } from '../logger.js';
@@ -110,10 +115,7 @@ async function loadPublishable(
   subject: EnforcementSubject,
 ): Promise<PublishableState | null> {
   if (subject.type === ReportedType.AGENT) {
-    if (!mongoose.isValidObjectId(subject.id)) return null;
-    return await Agent.findById(subject.id)
-      .select('isPublished isFeatured isTrending')
-      .lean<PublishableState | null>();
+    return await findAgentModerationState(getDb(), subject.id);
   }
   if (subject.type === ReportedType.SKILL) {
     return await findSkillPublication(getDb(), subject.id) ?? null;
@@ -140,7 +142,7 @@ async function updatePublishable(
   update: PublishableState,
 ): Promise<void> {
   if (subject.type === ReportedType.AGENT) {
-    await Agent.updateOne({ _id: subject.id }, { $set: update });
+    await setAgentCatalogueFlags(getDb(), subject.id, update);
     return;
   }
   if (update.isPublished !== undefined) {
@@ -180,10 +182,7 @@ async function demote(subject: EnforcementSubject): Promise<EffectResult> {
   if (current.isFeatured !== true && current.isTrending !== true) {
     return { changed: false, reason: 'The agent carried no editorial promotion' };
   }
-  await Agent.updateOne(
-    { _id: subject.id },
-    { $set: { isFeatured: false, isTrending: false } },
-  );
+  await setAgentCatalogueFlags(getDb(), subject.id, { isFeatured: false, isTrending: false });
   return {
     changed: true,
     previousState: {
@@ -195,36 +194,26 @@ async function demote(subject: EnforcementSubject): Promise<EffectResult> {
 
 /** Withhold a review from the public listing and from the agent's rating. */
 async function hideReview(subject: EnforcementSubject): Promise<EffectResult> {
-  if (!mongoose.isValidObjectId(subject.id)) {
-    return { changed: false, reason: 'The reported review no longer exists' };
-  }
-  const review = await AgentReview.findById(subject.id)
-    .select('agentId hiddenByModeration')
-    .lean<{ agentId?: mongoose.Types.ObjectId; hiddenByModeration?: boolean } | null>();
+  const review = await findAgentReviewById(getDb(), subject.id);
   if (!review) return { changed: false, reason: 'The reported review no longer exists' };
-  if (review.hiddenByModeration === true) {
+  if (review.hiddenByModeration) {
     return { changed: false, reason: 'The review was already withheld' };
   }
-  await AgentReview.updateOne({ _id: subject.id }, { $set: { hiddenByModeration: true } });
+  await setAgentReviewHidden(getDb(), subject.id, true);
   // The rating is computed from visible reviews, so it has to move with them.
-  if (review.agentId) await recalculateAgentRating(review.agentId);
+  await recalculateAgentRating(getDb(), review.agentId);
   return { changed: true, previousState: { hiddenByModeration: false } };
 }
 
 /** Put a withheld review back, only if MODERATION withheld it. */
 async function unhideReview(subject: EnforcementSubject): Promise<EffectResult> {
-  if (!mongoose.isValidObjectId(subject.id)) {
-    return { changed: false, reason: 'The reported review no longer exists' };
-  }
-  const review = await AgentReview.findById(subject.id)
-    .select('agentId hiddenByModeration')
-    .lean<{ agentId?: mongoose.Types.ObjectId; hiddenByModeration?: boolean } | null>();
+  const review = await findAgentReviewById(getDb(), subject.id);
   if (!review) return { changed: false, reason: 'The reported review no longer exists' };
-  if (review.hiddenByModeration !== true) {
+  if (!review.hiddenByModeration) {
     return { changed: false, reason: 'The review was not withheld' };
   }
-  await AgentReview.updateOne({ _id: subject.id }, { $set: { hiddenByModeration: false } });
-  if (review.agentId) await recalculateAgentRating(review.agentId);
+  await setAgentReviewHidden(getDb(), subject.id, false);
+  await recalculateAgentRating(getDb(), review.agentId);
   return { changed: true, previousState: { hiddenByModeration: true } };
 }
 

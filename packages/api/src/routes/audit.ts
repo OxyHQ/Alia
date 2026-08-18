@@ -7,13 +7,34 @@
 
 import { Router } from 'express';
 import { authenticateToken } from '../middleware/auth.js';
-import { AgentSession } from '../models/agent-session.js';
-import { EventStreamEntry } from '../models/event-stream-entry.js';
-import { Agent } from '../models/agent.js';
+import { getDb } from '../db/index.js';
+import { findAgentsByIds } from '../db/agents/agentRepository.js';
+import {
+  listAgentSessionsForAudit,
+  type AuditSessionRef,
+} from '../db/agents/agentSessionRepository.js';
+import {
+  countEventStreamEntriesByType,
+  listAuditEventStreamEntries,
+  listThreatEventStreamEntries,
+} from '../db/agents/eventStreamEntryRepository.js';
 import { log } from '../lib/logger.js';
 import type { Request, Response } from 'express';
 
 const router = Router();
+
+/** A `Date` from a query parameter, or nothing — never an Invalid Date. */
+function parseDate(value: unknown): Date | undefined {
+  if (typeof value !== 'string' || value === '') return undefined;
+  const parsed = new Date(value);
+  /**
+   * An unparseable date used to reach the filter as `NaN`, which Mongo compared
+   * against and matched nothing. Against a `bigint` column it is a driver
+   * serialisation error instead — a 500 on a typo'd query string — so it is
+   * rejected here and the window simply stays open on that side.
+   */
+  return Number.isNaN(parsed.getTime()) ? undefined : parsed;
+}
 
 // GET /audit/export — Export agent activity logs
 router.get('/export', authenticateToken, async (req: Request, res: Response) => {
@@ -30,48 +51,27 @@ router.get('/export', authenticateToken, async (req: Request, res: Response) => 
     } = req.query;
 
     // Find sessions belonging to this user
-    const sessionFilter: any = { userId: req.user.id };
-    if (agentId && typeof agentId === 'string') {
-      sessionFilter.agentId = agentId;
-    }
-
-    const sessions = await AgentSession.find(sessionFilter)
-      .select('_id agentId task status stats')
-      .lean();
+    const sessions = await listAgentSessionsForAudit(getDb(), req.user.id, {
+      ...(typeof agentId === 'string' && agentId !== '' && { agentId }),
+    });
 
     if (sessions.length === 0) {
       return res.json({ entries: [], total: 0 });
     }
 
-    const sessionIds = sessions.map(s => s._id);
-    const sessionMap = new Map(sessions.map(s => [s._id.toString(), s]));
-
-    // Build event filter
-    const eventFilter: any = { sessionId: { $in: sessionIds } };
-
-    if (from || to) {
-      eventFilter.timestamp = {};
-      if (from) eventFilter.timestamp.$gte = new Date(from as string).getTime();
-      if (to) eventFilter.timestamp.$lte = new Date(to as string).getTime();
-    }
-
-    if (type && typeof type === 'string') {
-      eventFilter.type = { $in: type.split(',') };
-    }
-
+    const sessionMap = new Map<string, AuditSessionRef>(sessions.map((s) => [s._id, s]));
     const limitNum = Math.min(10000, Math.max(1, parseInt(limit as string, 10) || 1000));
 
-    const entries = await EventStreamEntry
-      .find(eventFilter)
-      .sort({ timestamp: 1 })
-      .limit(limitNum)
-      .lean();
-
-    const total = await EventStreamEntry.countDocuments(eventFilter);
+    const { entries, total } = await listAuditEventStreamEntries(getDb(), [...sessionMap.keys()], {
+      ...(parseDate(from) !== undefined && { from: parseDate(from) }),
+      ...(parseDate(to) !== undefined && { to: parseDate(to) }),
+      ...(typeof type === 'string' && type !== '' && { types: type.split(',') }),
+      limit: limitNum,
+    });
 
     // Enrich with session info
     const enriched = entries.map(entry => {
-      const session = sessionMap.get(entry.sessionId.toString());
+      const session = sessionMap.get(entry.sessionId);
       return {
         id: entry._id,
         sessionId: entry.sessionId,
@@ -126,33 +126,25 @@ router.get('/summary', authenticateToken, async (req: Request, res: Response) =>
 
     const { from, to } = req.query;
 
-    const sessionFilter: any = { userId: req.user.id };
-    if (from || to) {
-      sessionFilter.createdAt = {};
-      if (from) sessionFilter.createdAt.$gte = new Date(from as string);
-      if (to) sessionFilter.createdAt.$lte = new Date(to as string);
-    }
-
-    const sessions = await AgentSession.find(sessionFilter)
-      .select('_id status stats agentId')
-      .lean();
-
-    const sessionIds = sessions.map(s => s._id);
+    const sessions = await listAgentSessionsForAudit(getDb(), req.user.id, {
+      ...(parseDate(from) !== undefined && { from: parseDate(from) }),
+      ...(parseDate(to) !== undefined && { to: parseDate(to) }),
+    });
 
     // Count events by type
-    const typeCounts = await EventStreamEntry.aggregate([
-      { $match: { sessionId: { $in: sessionIds } } },
-      { $group: { _id: '$type', count: { $sum: 1 } } },
-    ]);
+    const typeCounts = await countEventStreamEntriesByType(
+      getDb(),
+      sessions.map((s) => s._id),
+    );
 
-    const typeMap = Object.fromEntries(typeCounts.map(t => [t._id, t.count]));
+    const typeMap = Object.fromEntries(typeCounts.map(t => [t.type, t.count]));
 
     res.json({
       totalSessions: sessions.length,
       completedSessions: sessions.filter(s => s.status === 'completed').length,
       failedSessions: sessions.filter(s => s.status === 'failed').length,
-      totalSteps: sessions.reduce((sum, s) => sum + (s.stats?.totalSteps || 0), 0),
-      totalTokens: sessions.reduce((sum, s) => sum + (s.stats?.totalTokens || 0), 0),
+      totalSteps: sessions.reduce((sum, s) => sum + s.stats.totalSteps, 0),
+      totalTokens: sessions.reduce((sum, s) => sum + s.stats.totalTokens, 0),
       eventsByType: typeMap,
       threatDetections: typeMap.threat_detected || 0,
     });
@@ -171,53 +163,33 @@ router.get('/threats', authenticateToken, async (req: Request, res: Response) =>
     const limitNum = Math.min(100, Math.max(1, parseInt(limit as string, 10) || 20));
 
     // Find user's sessions
-    const sessions = await AgentSession.find({ userId: req.user.id })
-      .select('_id agentId task')
-      .lean();
+    const sessions = await listAgentSessionsForAudit(getDb(), req.user.id, {});
 
     if (sessions.length === 0) {
       return res.json({ threats: [], total: 0 });
     }
 
-    const sessionIds = sessions.map(s => s._id);
-    const sessionMap = new Map(sessions.map(s => [s._id.toString(), s]));
+    const sessionMap = new Map<string, AuditSessionRef>(sessions.map((s) => [s._id, s]));
 
-    // Find threat/warning events
-    const entries = await EventStreamEntry
-      .find({
-        sessionId: { $in: sessionIds },
-        $or: [
-          { type: 'threat_detected' },
-          { type: 'system_message', content: { $regex: /THREAT/ } },
-        ],
-      })
-      .sort({ timestamp: -1 })
-      .limit(limitNum)
-      .lean();
-
-    const total = await EventStreamEntry.countDocuments({
-      sessionId: { $in: sessionIds },
-      $or: [
-        { type: 'threat_detected' },
-        { type: 'system_message', content: { $regex: /THREAT/ } },
-      ],
-    });
+    const { entries, total } = await listThreatEventStreamEntries(
+      getDb(),
+      [...sessionMap.keys()],
+      limitNum,
+    );
 
     // Look up agent names
-    const agentIds = [...new Set(sessions.map(s => s.agentId?.toString()).filter(Boolean))];
-    const agents = agentIds.length > 0
-      ? await Agent.find({ _id: { $in: agentIds } }).select('name handle').lean()
-      : [];
-    const agentMap = new Map(agents.map(a => [a._id.toString(), a]));
+    const agentIds = [...new Set(sessions.map(s => s.agentId))];
+    const agents = await findAgentsByIds(getDb(), agentIds);
+    const agentMap = new Map(agents.map(a => [a._id, a]));
 
     const threats = entries.map(entry => {
-      const session = sessionMap.get(entry.sessionId.toString());
-      const agent = session?.agentId ? agentMap.get(session.agentId.toString()) : undefined;
-      const isBlocked = entry.content?.includes('BLOCKED');
+      const session = sessionMap.get(entry.sessionId);
+      const agent = session ? agentMap.get(session.agentId) : undefined;
+      const isBlocked = entry.content.includes('BLOCKED');
       return {
         id: entry._id,
         timestamp: new Date(entry.timestamp).toISOString(),
-        severity: isBlocked ? 'critical' : entry.content?.includes('WARNING') ? 'warning' : 'info',
+        severity: isBlocked ? 'critical' : entry.content.includes('WARNING') ? 'warning' : 'info',
         agentName: agent?.name || agent?.handle || 'Unknown',
         description: entry.content,
         sessionId: entry.sessionId,

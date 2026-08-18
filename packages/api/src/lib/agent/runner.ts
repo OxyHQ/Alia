@@ -14,8 +14,24 @@
  */
 
 import { generateText, stepCountIs, type ModelMessage } from 'ai';
-import { AgentSession, type IAgentSession } from '../../models/agent-session.js';
-import { Agent, type IAgent } from '../../models/agent.js';
+import { getDb } from '../../db/index.js';
+import {
+  claimAgentSessionResource,
+  createAgentSession,
+  findAgentSessionById,
+  findAgentSessionStatus,
+  updateAgentSession,
+  type AgentSessionConfig,
+} from '../../db/agents/agentSessionRepository.js';
+import {
+  findAgentById,
+  findHireableAgentByHandle,
+  type AgentRecord,
+} from '../../db/agents/agentRepository.js';
+import {
+  listRecentEventStreamEntries,
+  type EventStreamEntryMetadata,
+} from '../../db/agents/eventStreamEntryRepository.js';
 import { resolveModel, getAIModel, reportModelUsage, getDefaultAliaModel } from '../chat-core.js';
 import { markKeyCreditExhausted } from '../gateway-client.js';
 import { cleanupSessionResources } from './tools.js';
@@ -49,7 +65,7 @@ const CONTINUATION_PROMPTS = [
 
 // ── System Prompt Builder (v3 — simplified for 5 actions) ──
 
-function buildSystemPrompt(agent: IAgent, config: IAgentSession['config']): string {
+function buildSystemPrompt(agent: AgentRecord, config: AgentSessionConfig): string {
   if (agent.systemPrompt) {
     return agent.systemPrompt;
   }
@@ -236,7 +252,7 @@ function buildContextMessages(
 // ── Main Runner ──
 
 export async function runAgentSession(sessionId: string): Promise<void> {
-  const session = await AgentSession.findById(sessionId);
+  const session = await findAgentSessionById(getDb(), sessionId);
   if (!session) {
     log.agents.error({ sessionId }, 'Session not found');
     return;
@@ -248,16 +264,27 @@ export async function runAgentSession(sessionId: string): Promise<void> {
     return;
   }
 
-  const agent = await Agent.findById(session.agentId);
+  const agent = await findAgentById(getDb(), session.agentId);
   if (!agent) {
-    session.status = 'failed';
-    session.result = 'Agent not found';
-    await session.save();
+    await updateAgentSession(getDb(), sessionId, { status: 'failed', result: 'Agent not found' });
     return;
   }
 
-  const agentId = agent._id.toString();
-  const userId = session.userId.toString();
+  const agentId = agent._id;
+  const userId = session.oxyUserId;
+
+  /**
+   * The two fields this function both writes and later READS.
+   *
+   * Everything else it writes is write-only within one run, so it goes straight
+   * to a statement. These two do not: the cancelled branch answers
+   * `session.result || 'Session cancelled'`, and the plan is validated before
+   * the failure save. Keeping them as locals is what makes the loss of the
+   * hydrated document harmless — a stale field on the record would read as
+   * current and there would be nothing to notice.
+   */
+  let sessionResult: string | null = session.result;
+  const sessionPlan = session.plan;
 
   // ── Initialize core components ──
 
@@ -270,21 +297,18 @@ export async function runAgentSession(sessionId: string): Promise<void> {
     agentId,
     userId,
     workspaceMemory,
-    image: inferImage(session.task, agent.preferredImage),
+    image: inferImage(session.task, agent.preferredImage ?? undefined),
     onContainerCreated: async (containerId: string) => {
-      const alreadyTracked = session.resources.some((r) => r.type === 'container' && r.resourceId === containerId);
-      if (!alreadyTracked) {
-        session.resources.push({
+      // `ON CONFLICT DO NOTHING`, where this used to be a `.some()` over the
+      // in-memory array followed by a push — a read-then-write two concurrent
+      // tool calls both passed.
+      try {
+        await claimAgentSessionResource(getDb(), sessionId, {
           type: 'container',
           resourceId: containerId,
-          status: 'active',
-          createdAt: new Date(),
         });
-        try {
-          await session.save();
-        } catch (saveErr: unknown) {
-          log.agents.warn({ saveErr, sessionId, containerId }, 'Failed to persist container resource on session');
-        }
+      } catch (saveErr: unknown) {
+        log.agents.warn({ saveErr, sessionId, containerId }, 'Failed to persist container resource on session');
       }
     },
   });
@@ -297,15 +321,16 @@ export async function runAgentSession(sessionId: string): Promise<void> {
 
   // Restore event stream and plan if resuming
   await eventStream.loadFromDB();
-  if (session.plan) {
-    todoManager.loadFromPersisted(session.plan);
+  if (sessionPlan) {
+    todoManager.loadFromPersisted(sessionPlan);
   }
 
   // Mark session as running
-  session.status = 'running';
-  session.stats.startedAt = new Date();
-  session.stats.lastActivityAt = new Date();
-  await session.save();
+  const startedAt = new Date();
+  await updateAgentSession(getDb(), sessionId, {
+    status: 'running',
+    stats: { startedAt, lastActivityAt: startedAt },
+  });
 
   eventStream.append('system_message', `Task received: ${session.task}`);
   eventStream.append('user_message', session.task);
@@ -322,7 +347,7 @@ export async function runAgentSession(sessionId: string): Promise<void> {
   // Agent-to-agent hiring
   const onHireAgent = session.depth < MAX_DELEGATION_DEPTH
     ? async (handle: string, task: string): Promise<string> => {
-        const targetAgent = await Agent.findOne({ handle, isPublished: true, status: 'active' });
+        const targetAgent = await findHireableAgentByHandle(getDb(), handle);
         if (!targetAgent) throw new Error(`Agent @${handle} not found or not available`);
 
         eventStream.append('action', `Hiring agent @${handle}: ${task.slice(0, 200)}`, {
@@ -330,9 +355,9 @@ export async function runAgentSession(sessionId: string): Promise<void> {
           args: { handle, task: task.slice(0, 200) },
         });
 
-        const childSession = await AgentSession.create({
+        const childSession = await createAgentSession(getDb(), {
           agentId: targetAgent._id,
-          userId: session.userId,
+          oxyUserId: session.oxyUserId,
           parentSessionId: session._id,
           task,
           status: 'queued',
@@ -344,9 +369,9 @@ export async function runAgentSession(sessionId: string): Promise<void> {
           },
         });
 
-        await runAgentSession(childSession._id.toString());
+        await runAgentSession(childSession._id);
 
-        const completed = await AgentSession.findById(childSession._id);
+        const completed = await findAgentSessionById(getDb(), childSession._id);
         const result = completed?.result || 'No result returned';
 
         eventStream.append('observation', `Agent @${handle} returned: ${result.slice(0, 500)}`, {
@@ -410,7 +435,7 @@ export async function runAgentSession(sessionId: string): Promise<void> {
         task: session.task,
         session: {
           _id: session._id,
-          userId: session.userId,
+          userId: session.oxyUserId,
           agentId: session.agentId,
           depth: session.depth,
           config: session.config,
@@ -421,16 +446,21 @@ export async function runAgentSession(sessionId: string): Promise<void> {
       });
 
       if (orchResult.executorResults.length > 0) {
-        session.status = orchResult.success ? 'completed' : 'failed';
-        session.result = orchResult.result;
+        sessionResult = orchResult.result;
         await eventStream.flush();
-        session.eventStream = eventStream.toJSON();
-        session.stats.completedAt = new Date();
-        session.stats.totalSteps = orchResult.executorResults.length;
-        session.stats.lastActivityAt = new Date();
-        await session.save();
+        const finishedAt = new Date();
+        await updateAgentSession(getDb(), sessionId, {
+          status: orchResult.success ? 'completed' : 'failed',
+          result: orchResult.result,
+          eventStream: eventStream.toJSON(),
+          stats: {
+            completedAt: finishedAt,
+            totalSteps: orchResult.executorResults.length,
+            lastActivityAt: finishedAt,
+          },
+        });
 
-        await cleanupSessionResources(session);
+        await cleanupSessionResources(sessionId, userId);
         await terminalSession.destroy();
         await browserSession.close();
         return;
@@ -442,8 +472,8 @@ export async function runAgentSession(sessionId: string): Promise<void> {
 
     while (!stateMachine.isTerminal() && totalSteps < session.config.maxSteps && totalTokens < session.config.maxTokens) {
       // Check for cancellation
-      const currentSession = await AgentSession.findById(sessionId);
-      if (!currentSession || currentSession.status === 'cancelled') {
+      const currentStatus = await findAgentSessionStatus(getDb(), sessionId);
+      if (currentStatus === null || currentStatus === 'cancelled') {
         eventStream.append('system_message', 'Session cancelled');
         stateMachine.transition('cancelled');
         break;
@@ -499,9 +529,15 @@ export async function runAgentSession(sessionId: string): Promise<void> {
       if (!activeResolved) {
         eventStream.append('error', 'No AI models available');
         stateMachine.transition('error');
-        session.status = 'failed';
-        session.result = 'No AI models available';
-        try { await session.save(); } catch { /* ignore save errors */ }
+        sessionResult = 'No AI models available';
+        try {
+          await updateAgentSession(getDb(), sessionId, {
+            status: 'failed',
+            result: 'No AI models available',
+          });
+        } catch (saveErr: unknown) {
+          log.agents.warn({ saveErr, sessionId }, 'Failed to record the no-models failure');
+        }
         throw new Error('No AI models available');
       }
 
@@ -678,11 +714,12 @@ export async function runAgentSession(sessionId: string): Promise<void> {
 
         // Persist event stream and stats
         await eventStream.flush();
-        session.eventStream = eventStream.toJSON();
-        session.stats.totalSteps = totalSteps;
-        session.stats.totalTokens = totalTokens;
-        session.stats.lastActivityAt = new Date();
-        try { await session.save(); } catch (saveErr: unknown) {
+        try {
+          await updateAgentSession(getDb(), sessionId, {
+            eventStream: eventStream.toJSON(),
+            stats: { totalSteps, totalTokens, lastActivityAt: new Date() },
+          });
+        } catch (saveErr: unknown) {
           log.agents.warn({ saveErr, sessionId }, 'Failed to save session mid-loop');
         }
 
@@ -732,51 +769,69 @@ export async function runAgentSession(sessionId: string): Promise<void> {
     // ── Session Complete ──
 
     const machineState = stateMachine.current();
+    /**
+     * `undefined` means no terminal branch was taken, which is a real outcome:
+     * the loop can exit on a cancellation the state machine already recorded, or
+     * with neither budget exhausted and no completion. The source expressed that
+     * by simply not assigning `session.status`, so the field kept whatever it
+     * held — `running`. Left undefined here, the SET clause omits it and the
+     * stored value is likewise untouched.
+     */
+    let finalStatus: 'completed' | 'cancelled' | undefined;
     if (machineState === 'CANCELLED') {
       // Cancelled sessions should not keep idle workspaces around.
       await terminalSession.destroy().catch(() => {});
       await browserSession.close().catch(() => {});
-      session.status = 'cancelled';
-      session.result = session.result || 'Session cancelled';
+      finalStatus = 'cancelled';
+      sessionResult = sessionResult || 'Session cancelled';
     } else {
       await terminalSession.idle();
       await browserSession.close();
 
       if (taskCompleted) {
-        session.status = 'completed';
-        session.result = taskResult;
+        finalStatus = 'completed';
+        sessionResult = taskResult;
         eventStream.append('complete', 'Task completed.');
       } else if (totalSteps >= session.config.maxSteps) {
-        session.status = 'completed';
-        session.result = 'Step limit reached. Partial progress was made.';
+        finalStatus = 'completed';
+        sessionResult = 'Step limit reached. Partial progress was made.';
         eventStream.append('system_message', 'Step limit reached - session ending');
       } else if (totalTokens >= session.config.maxTokens) {
-        session.status = 'completed';
-        session.result = 'Token budget exhausted. Partial progress was made.';
+        finalStatus = 'completed';
+        sessionResult = 'Token budget exhausted. Partial progress was made.';
         eventStream.append('system_message', 'Token budget exhausted - session ending');
       }
     }
 
     // Finalize credits based on actual token usage (Manus-style billing)
+    let creditsCharged: number | undefined;
     if (session.creditReservation) {
       try {
-        const { creditsCharged } = await finalizeCredits(
+        const finalized = await finalizeCredits(
           session.creditReservation as CreditReservation,
           { totalTokens, promptTokens: 0, completionTokens: 0 },
         );
-        session.stats.creditsCharged = creditsCharged;
-        eventStream.append('system_message', `Credits charged: ${creditsCharged}`);
+        creditsCharged = finalized.creditsCharged;
+        eventStream.append('system_message', `Credits charged: ${finalized.creditsCharged}`);
       } catch (creditErr: unknown) {
         log.agents.warn({ creditErr, sessionId }, 'Failed to finalize credits');
       }
     }
 
     await eventStream.flush();
-    session.eventStream = eventStream.toJSON();
-    session.stats.completedAt = new Date();
-    session.stats.totalSteps = totalSteps;
-    session.stats.totalTokens = totalTokens;
-    try { await session.save(); } catch (saveErr: unknown) {
+    try {
+      await updateAgentSession(getDb(), sessionId, {
+        ...(finalStatus !== undefined && { status: finalStatus }),
+        ...(sessionResult !== null && { result: sessionResult }),
+        eventStream: eventStream.toJSON(),
+        stats: {
+          completedAt: new Date(),
+          totalSteps,
+          totalTokens,
+          ...(creditsCharged !== undefined && { creditsCharged }),
+        },
+      });
+    } catch (saveErr: unknown) {
       log.agents.warn({ saveErr, sessionId }, 'Failed to save session on completion');
     }
 
@@ -786,7 +841,7 @@ export async function runAgentSession(sessionId: string): Promise<void> {
     // Cleanup resources
     await terminalSession.destroy().catch(() => {});
     await browserSession.close().catch(() => {});
-    await cleanupSessionResources(session);
+    await cleanupSessionResources(sessionId, userId);
 
     // Refund credits on failure
     if (session.creditReservation) {
@@ -796,22 +851,30 @@ export async function runAgentSession(sessionId: string): Promise<void> {
     const sessionErrMsg = getErrorMessage(err);
     eventStream.append('error', `Session failed: ${sessionErrMsg}`);
 
-    session.status = 'failed';
-    session.result = sessionErrMsg;
-
-    // Sanitize plan before save — malformed data causes ValidationError
-    if (session.plan?.items?.length) {
-      const planValid = session.plan.items.every((item) => item.text && item.id != null);
-      if (!planValid) {
-        session.plan = undefined;
-      }
-    }
+    /**
+     * Sanitize the plan before the save.
+     *
+     * Mongoose rejected a malformed sub-document with a ValidationError, and the
+     * plan is built from model output. There is no validator on `plan_items` —
+     * it is `jsonb` — so a malformed plan would be STORED rather than refused,
+     * and the next resume would hand it to `todoManager.loadFromPersisted`. The
+     * check therefore has to be here, and clearing it writes NULL to both plan
+     * columns, which the CHECK requires as a pair.
+     */
+    const clearedPlan =
+      sessionPlan !== undefined &&
+      sessionPlan.items.length > 0 &&
+      !sessionPlan.items.every((item) => item.text && item.id != null);
 
     try {
       await eventStream.flush();
-      session.eventStream = eventStream.toJSON();
-      session.stats.completedAt = new Date();
-      await session.save();
+      await updateAgentSession(getDb(), sessionId, {
+        status: 'failed',
+        result: sessionErrMsg,
+        ...(clearedPlan && { plan: null }),
+        eventStream: eventStream.toJSON(),
+        stats: { completedAt: new Date() },
+      });
     } catch (saveErr: unknown) {
       log.agents.error({ saveErr, sessionId }, 'Failed to save session in outer catch');
     }
@@ -823,38 +886,60 @@ export async function runAgentSession(sessionId: string): Promise<void> {
  * Reads from the EventStreamEntry collection (preferred) or falls back
  * to the embedded eventStream array (legacy).
  */
-export async function getRecentActivity(sessionId: string) {
-  const { EventStreamEntry: ESEntry } = await import('../../models/event-stream-entry.js');
-  const dbEntries = await ESEntry.find({ sessionId }).sort({ seq: -1 }).limit(50).lean();
+export async function getRecentActivity(sessionId: string): Promise<AgentActivityItem[]> {
+  const dbEntries = await listRecentEventStreamEntries(getDb(), sessionId, 50);
 
   if (dbEntries.length > 0) {
-    return dbEntries.reverse().map((entry: any) => ({
-      type: mapEventTypeToActivity(entry.type),
-      content: entry.content,
-      timestamp: entry.timestamp,
-      sessionId,
-      metadata: entry.metadata ? {
-        toolName: entry.metadata.toolName,
-        args: entry.metadata.args,
-        duration: entry.metadata.durationMs,
-      } : undefined,
-    }));
+    return dbEntries.reverse().map((entry) => toActivityItem(sessionId, entry));
   }
 
-  const session = await AgentSession.findById(sessionId).select('eventStream').lean();
-  if (!session?.eventStream) return [];
+  const session = await findAgentSessionById(getDb(), sessionId);
+  if (!session) return [];
 
-  return session.eventStream.map((entry: any) => ({
+  return session.eventStream.map((entry) =>
+    toActivityItem(sessionId, {
+      type: entry.type,
+      content: entry.content,
+      timestamp: entry.timestamp,
+      metadata: (entry.metadata ?? null) as EventStreamEntryMetadata | null,
+    }),
+  );
+}
+
+/** One activity row, as the agent panel renders it. */
+interface AgentActivityItem {
+  type: string;
+  content: string;
+  timestamp: number;
+  sessionId: string;
+  metadata?: { toolName?: string; args?: Record<string, unknown>; duration?: number };
+}
+
+function toActivityItem(
+  sessionId: string,
+  entry: {
+    type: string;
+    content: string;
+    timestamp: number;
+    metadata: EventStreamEntryMetadata | null;
+  },
+): AgentActivityItem {
+  const metadata = entry.metadata;
+  return {
     type: mapEventTypeToActivity(entry.type),
     content: entry.content,
     timestamp: entry.timestamp,
     sessionId,
-    metadata: entry.metadata ? {
-      toolName: entry.metadata.toolName,
-      args: entry.metadata.args,
-      duration: entry.metadata.durationMs,
-    } : undefined,
-  }));
+    ...(metadata === null
+      ? {}
+      : {
+          metadata: {
+            ...(metadata.toolName !== undefined && { toolName: metadata.toolName }),
+            ...(metadata.args !== undefined && { args: metadata.args }),
+            ...(metadata.durationMs !== undefined && { duration: metadata.durationMs }),
+          },
+        }),
+  };
 }
 
 function mapEventTypeToActivity(type: string): string {

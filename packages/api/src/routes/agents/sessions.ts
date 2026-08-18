@@ -1,42 +1,64 @@
 import { Router } from 'express';
-import { Agent } from '../../models/agent.js';
-import { AgentSession } from '../../models/agent-session.js';
 import { authenticateToken } from '../../middleware/auth.js';
-import { cleanupSessionResources } from '../../lib/agent-tools.js';
+import { cleanupSessionResources } from '../../lib/agent/tools.js';
 import { getJobStatus, cancelJob } from '../../lib/task-queue.js';
-import { EventStreamEntry as EventStreamEntryModel } from '../../models/event-stream-entry.js';
+import { getDb } from '../../db/index.js';
+import { findAgentOwnedBy, updateAgent } from '../../db/agents/agentRepository.js';
+import {
+  findAgentSessionOwnedBy,
+  listActiveAgentSessions,
+  listAgentSessionHistory,
+  listAgentSessionsForOwner,
+  listChildAgentSessions,
+  listUnfinishedAgentSessions,
+  updateAgentSession,
+  type AgentSessionAgentRef,
+  type AgentSessionListing,
+} from '../../db/agents/agentSessionRepository.js';
+import { listRecentEventStreamEntries } from '../../db/agents/eventStreamEntryRepository.js';
+import { AGENT_STATUSES, type AgentStatus } from '../../domain/agent.js';
 import { log } from '../../lib/logger.js';
 import type { Request, Response } from 'express';
 
 const router = Router();
 
-/** Batch-attach child agent info to parent sessions (for delegation display). Mutates in place. */
-async function attachChildAgents(sessions: Record<string, any>[], userId: string): Promise<void> {
-  const sessionIds = sessions.map(s => s._id);
-  if (sessionIds.length === 0) return;
+/** A listing plus the agents its delegated children ran, as the task cards render it. */
+interface SessionWithChildren extends AgentSessionListing {
+  childAgents?: AgentSessionAgentRef[];
+}
 
-  const childSessions = await AgentSession.find({
-    parentSessionId: { $in: sessionIds },
-    userId,
-  })
-    .populate('agentId', 'name handle avatar')
-    .select('agentId parentSessionId')
-    .lean();
+/**
+ * Attach child agent info to a page of parent sessions, in ONE query.
+ *
+ * Returns a NEW array rather than mutating the argument in place, which is what
+ * the Mongoose version did to `.lean()` documents. A mutation in place is
+ * invisible at the call site and only worked because those objects were plain;
+ * doing it here would mean writing an extra property onto a repository record
+ * whose type does not have one.
+ */
+async function withChildAgents(
+  sessions: AgentSessionListing[],
+  oxyUserId: string,
+): Promise<SessionWithChildren[]> {
+  if (sessions.length === 0) return [];
+  const children = await listChildAgentSessions(
+    getDb(),
+    sessions.map((session) => session._id),
+    oxyUserId,
+  );
+  if (children.length === 0) return sessions;
 
-  const childMap = new Map<string, typeof childSessions>();
-  for (const child of childSessions) {
-    if (!child.parentSessionId || !child.agentId) continue;
-    const key = child.parentSessionId.toString();
-    if (!childMap.has(key)) childMap.set(key, []);
-    childMap.get(key)!.push(child);
+  const byParent = new Map<string, AgentSessionAgentRef[]>();
+  for (const child of children) {
+    const existing = byParent.get(child.parentSessionId);
+    if (existing) existing.push(child.agent);
+    else byParent.set(child.parentSessionId, [child.agent]);
   }
 
-  for (const session of sessions) {
-    const children = childMap.get(session._id.toString());
-    if (children?.length) {
-      session.childAgents = children.map(c => c.agentId);
-    }
-  }
+  return sessions.map((session) => {
+    const childAgents = byParent.get(session._id);
+    return childAgents === undefined ? session : { ...session, childAgents };
+  });
 }
 
 // GET /agents/:id/sessions - list sessions for an agent
@@ -46,14 +68,12 @@ router.get('/:id/sessions', authenticateToken, async (req: Request, res: Respons
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const sessions = await AgentSession.find({
-      agentId: req.params.id,
-      userId: req.user.id,
-    })
-      .sort({ createdAt: -1 })
-      .limit(50)
-      .select('status task result stats config createdAt')
-      .lean();
+    const sessions = await listAgentSessionsForOwner(
+      getDb(),
+      String(req.params.id),
+      req.user.id,
+      50,
+    );
 
     res.json({ sessions });
   } catch (error: unknown) {
@@ -70,44 +90,49 @@ router.patch('/:id/status', authenticateToken, async (req: Request, res: Respons
     }
 
     const { status } = req.body;
-    if (!status || !['active', 'idle', 'offline'].includes(status)) {
+    if (!isAgentStatus(status)) {
       return res.status(400).json({ error: 'status must be active, idle, or offline' });
     }
 
-    const agent = await Agent.findOne({
-      _id: req.params.id,
-      author: req.user.id,
-    });
+    const id = String(req.params.id);
+    const agent = await findAgentOwnedBy(getDb(), id, req.user.id);
 
     if (!agent) {
       return res.status(404).json({ error: 'Agent not found or not owned by you' });
     }
 
-    agent.status = status;
-    await agent.save();
+    /**
+     * The OWNER's availability toggle, through the owner-scoped patch — not
+     * through `setAgentCatalogueFlags`, which is enforcement's narrow power and
+     * has no ownership predicate. The two must not become one function that
+     * either caller can reach.
+     */
+    await updateAgent(getDb(), id, req.user.id, { status });
 
     // If setting to idle/offline, cancel running sessions
     if (status !== 'active') {
-      const runningSessions = await AgentSession.find({
-        agentId: agent._id,
-        status: { $in: ['queued', 'running'] },
-      });
+      const running = await listUnfinishedAgentSessions(getDb(), id);
 
-      for (const session of runningSessions) {
-        session.status = 'cancelled';
-        session.stats.completedAt = new Date();
-        await cancelJob(session._id.toString()).catch(() => false);
-        await cleanupSessionResources(session);
-        await session.save();
+      for (const session of running) {
+        await cancelJob(session._id).catch(() => false);
+        await cleanupSessionResources(session._id, session.oxyUserId);
+        await updateAgentSession(getDb(), session._id, {
+          status: 'cancelled',
+          stats: { completedAt: new Date() },
+        });
       }
     }
 
-    res.json({ agent, cancelledSessions: status !== 'active' ? true : false });
+    res.json({ agent: { ...agent, status }, cancelledSessions: status !== 'active' });
   } catch (error: unknown) {
     log.agents.error({ err: error }, 'Error updating agent status');
     res.status(500).json({ error: 'Failed to update status' });
   }
 });
+
+function isAgentStatus(value: unknown): value is AgentStatus {
+  return typeof value === 'string' && (AGENT_STATUSES as readonly string[]).includes(value);
+}
 
 // POST /agents/:id/sessions/:sid/cancel - cancel a session
 router.post('/:id/sessions/:sid/cancel', authenticateToken, async (req: Request, res: Response) => {
@@ -116,13 +141,10 @@ router.post('/:id/sessions/:sid/cancel', authenticateToken, async (req: Request,
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const session = await AgentSession.findOne({
-      _id: req.params.sid,
-      agentId: req.params.id,
-      userId: req.user.id,
-    });
+    const sessionId = String(req.params.sid);
+    const session = await findAgentSessionOwnedBy(getDb(), sessionId, req.user.id);
 
-    if (!session) {
+    if (!session || session.agentId !== String(req.params.id)) {
       return res.status(404).json({ error: 'Session not found' });
     }
 
@@ -130,11 +152,12 @@ router.post('/:id/sessions/:sid/cancel', authenticateToken, async (req: Request,
       return res.status(400).json({ error: 'Session is not running' });
     }
 
-    await cancelJob(session._id.toString()).catch(() => false);
-    session.status = 'cancelled';
-    session.stats.completedAt = new Date();
-    await cleanupSessionResources(session);
-    await session.save();
+    await cancelJob(sessionId).catch(() => false);
+    await cleanupSessionResources(sessionId, session.oxyUserId);
+    await updateAgentSession(getDb(), sessionId, {
+      status: 'cancelled',
+      stats: { completedAt: new Date() },
+    });
 
     res.json({ cancelled: true });
   } catch (error: unknown) {
@@ -150,30 +173,29 @@ router.get('/sessions/:sid/status', authenticateToken, async (req: Request, res:
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const session = await AgentSession.findOne({
-      _id: req.params.sid,
-      userId: req.user.id,
-    })
-      .select('agentId status task result plan stats config depth createdAt updatedAt')
-      .populate('agentId', 'name handle avatar')
-      .lean();
+    const sessionId = String(req.params.sid);
+    const session = await findAgentSessionOwnedBy(getDb(), sessionId, req.user.id);
 
     if (!session) {
       return res.status(404).json({ error: 'Session not found' });
     }
 
     // Get recent events from the separate collection
-    const recentEvents = await EventStreamEntryModel
-      .find({ sessionId: req.params.sid })
-      .sort({ seq: -1 })
-      .limit(30)
-      .lean();
+    const recentEvents = await listRecentEventStreamEntries(getDb(), sessionId, 30);
 
     // Get job queue status (if Redis is available)
-    const jobStatus = await getJobStatus(String(req.params.sid));
+    const jobStatus = await getJobStatus(sessionId);
+
+    /**
+     * `eventStream` and `messages` are dropped, which is what the projection
+     * did. Both are `jsonb` that grows all run — the event stream is the largest
+     * column in the table — and this endpoint is polled every five seconds by
+     * the agent panel.
+     */
+    const { eventStream: _eventStream, messages: _messages, ...visible } = session;
 
     res.json({
-      session,
+      session: visible,
       recentEvents: recentEvents.reverse(),
       jobStatus,
     });
@@ -190,17 +212,8 @@ router.get('/sessions/active', authenticateToken, async (req: Request, res: Resp
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const sessions = await AgentSession.find({
-      userId: req.user.id,
-      status: { $in: ['queued', 'running'] },
-    })
-      .populate('agentId', 'name handle avatar')
-      .sort({ createdAt: -1 })
-      .limit(20)
-      .select('agentId status task plan stats createdAt')
-      .lean();
-
-    await attachChildAgents(sessions, req.user.id);
+    const listing = await listActiveAgentSessions(getDb(), req.user.id, 20);
+    const sessions = await withChildAgents(listing, req.user.id);
 
     res.json({ sessions });
   } catch (error: unknown) {
@@ -220,24 +233,11 @@ router.get('/sessions/history', authenticateToken, async (req: Request, res: Res
     const pageNum = Math.max(1, parseInt(page as string, 10) || 1);
     const limitNum = Math.min(50, Math.max(1, parseInt(limit as string, 10) || 20));
 
-    const [sessions, total] = await Promise.all([
-      AgentSession.find({
-        userId: req.user.id,
-        status: { $in: ['completed', 'failed', 'cancelled'] },
-      })
-        .populate('agentId', 'name handle avatar')
-        .sort({ 'stats.completedAt': -1, createdAt: -1 })
-        .skip((pageNum - 1) * limitNum)
-        .limit(limitNum)
-        .select('agentId status task result plan stats createdAt')
-        .lean(),
-      AgentSession.countDocuments({
-        userId: req.user.id,
-        status: { $in: ['completed', 'failed', 'cancelled'] },
-      }),
-    ]);
-
-    await attachChildAgents(sessions, req.user.id);
+    const { sessions: listing, total } = await listAgentSessionHistory(getDb(), req.user.id, {
+      limit: limitNum,
+      offset: (pageNum - 1) * limitNum,
+    });
+    const sessions = await withChildAgents(listing, req.user.id);
 
     res.json({ sessions, total, page: pageNum, limit: limitNum });
   } catch (error: unknown) {

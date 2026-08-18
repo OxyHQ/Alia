@@ -1,7 +1,16 @@
 import { Router, Request, Response } from 'express';
 import { authenticateToken } from '../middleware/auth.js';
-import { AgentTeam } from '../models/agent-team.js';
-import { Agent } from '../models/agent.js';
+import { getDb } from '../db/index.js';
+import { findAgentById } from '../db/agents/agentRepository.js';
+import {
+  addAgentToTeam,
+  createAgentTeam,
+  deleteAgentTeamOwnedBy,
+  findAgentTeamOwnedBy,
+  listAgentTeams,
+  removeAgentFromTeam,
+  updateAgentTeam,
+} from '../db/agents/agentTeamRepository.js';
 import { z } from 'zod';
 import { log } from '../lib/logger.js';
 
@@ -15,11 +24,7 @@ router.get('/', async (req: Request, res: Response) => {
   try {
     const userId = req.user!.id;
 
-    const teams = await AgentTeam.find({ creator: userId })
-      .populate('agents', 'name handle avatar tagline status')
-      .populate('skills', 'skillId title icon color')
-      .populate('knowledge', 'name type category url')
-      .sort({ createdAt: -1 });
+    const teams = await listAgentTeams(getDb(), userId);
 
     res.json({ teams });
   } catch (error: unknown) {
@@ -34,10 +39,7 @@ router.get('/:id', async (req: Request, res: Response) => {
     const userId = req.user!.id;
     const { id } = req.params;
 
-    const team = await AgentTeam.findOne({ _id: id, creator: userId })
-      .populate('agents')
-      .populate('skills', 'skillId title icon color')
-      .populate('knowledge', 'name type category url');
+    const team = await findAgentTeamOwnedBy(getDb(), String(id), userId);
 
     if (!team) {
       return res.status(404).json({ error: 'Agent team not found' });
@@ -64,17 +66,14 @@ router.post('/', async (req: Request, res: Response) => {
     const userId = req.user!.id;
     const data = createTeamSchema.parse(req.body);
 
-    const team = new AgentTeam({
+    const team = await createAgentTeam(getDb(), {
       name: data.name,
-      description: data.description,
-      creator: userId,
-      agents: data.agents || [],
-      skills: data.skills || [],
-      knowledge: data.knowledge || [],
+      ...(data.description !== undefined && { description: data.description }),
+      creatorOxyUserId: userId,
+      agentIds: data.agents ?? [],
+      skillIds: data.skills ?? [],
+      libraryFileIds: data.knowledge ?? [],
     });
-
-    await team.save();
-    await team.populate('agents', 'name handle avatar tagline status');
 
     res.status(201).json({ team });
   } catch (error: unknown) {
@@ -100,11 +99,12 @@ router.patch('/:id', async (req: Request, res: Response) => {
     const { id } = req.params;
     const data = updateTeamSchema.parse(req.body);
 
-    const team = await AgentTeam.findOneAndUpdate(
-      { _id: id, creator: userId },
-      { $set: data },
-      { returnDocument: 'after' },
-    ).populate('agents', 'name handle avatar tagline status');
+    const team = await updateAgentTeam(getDb(), String(id), userId, {
+      ...(data.name !== undefined && { name: data.name }),
+      ...(data.description !== undefined && { description: data.description }),
+      ...(data.skills !== undefined && { skillIds: data.skills }),
+      ...(data.knowledge !== undefined && { libraryFileIds: data.knowledge }),
+    });
 
     if (!team) {
       return res.status(404).json({ error: 'Agent team not found' });
@@ -126,9 +126,9 @@ router.delete('/:id', async (req: Request, res: Response) => {
     const userId = req.user!.id;
     const { id } = req.params;
 
-    const team = await AgentTeam.findOneAndDelete({ _id: id, creator: userId });
+    const deleted = await deleteAgentTeamOwnedBy(getDb(), String(id), userId);
 
-    if (!team) {
+    if (deleted === 0) {
       return res.status(404).json({ error: 'Agent team not found' });
     }
 
@@ -146,21 +146,24 @@ router.post('/:id/agents', async (req: Request, res: Response) => {
     const { id } = req.params;
     const { agentId } = req.body;
 
-    if (!agentId) {
+    if (typeof agentId !== 'string' || agentId === '') {
       return res.status(400).json({ error: 'agentId is required' });
     }
 
-    // Verify agent exists
-    const agent = await Agent.findById(agentId);
+    /**
+     * The existence check stays, and it is not redundant with the foreign key.
+     *
+     * `agent_team_agents.agent_id` references `agents.id`, so a missing agent
+     * would be refused anyway — but as a `foreign_key_violation` inside a
+     * transaction, which reaches the client as a 500. The read turns that into
+     * the 404 the route has always answered.
+     */
+    const agent = await findAgentById(getDb(), agentId);
     if (!agent) {
       return res.status(404).json({ error: 'Agent not found' });
     }
 
-    const team = await AgentTeam.findOneAndUpdate(
-      { _id: id, creator: userId },
-      { $addToSet: { agents: agentId } },
-      { returnDocument: 'after' },
-    ).populate('agents', 'name handle avatar tagline status');
+    const team = await addAgentToTeam(getDb(), String(id), userId, agentId);
 
     if (!team) {
       return res.status(404).json({ error: 'Agent team not found' });
@@ -179,11 +182,7 @@ router.delete('/:id/agents/:agentId', async (req: Request, res: Response) => {
     const userId = req.user!.id;
     const { id, agentId } = req.params;
 
-    const team = await AgentTeam.findOneAndUpdate(
-      { _id: id, creator: userId },
-      { $pull: { agents: agentId } },
-      { returnDocument: 'after' },
-    ).populate('agents', 'name handle avatar tagline status');
+    const team = await removeAgentFromTeam(getDb(), String(id), userId, String(agentId));
 
     if (!team) {
       return res.status(404).json({ error: 'Agent team not found' });

@@ -4,9 +4,12 @@ import http from 'http';
 import { getRedisClient, getRedisSubClient } from './lib/redis.js';
 import { log } from './lib/logger.js';
 import { oxyClient } from './middleware/auth.js';
-import { AgentSession } from './models/agent-session.js';
-import { Agent } from './models/agent.js';
 import { getDb } from './db/index.js';
+import { agentIsOwnedBy } from './db/agents/agentRepository.js';
+import {
+  accountHasSessionWithAgent,
+  agentSessionIsOwnedBy,
+} from './db/agents/agentSessionRepository.js';
 import { canvasSessionExists } from './db/chat/canvasSessionRepository.js';
 import { findExecutionOwner } from './db/automation/workflowRepository.js';
 
@@ -17,11 +20,20 @@ function socketUserId(socket: Socket): string | null {
   return null;
 }
 
-/** True if the authenticated user owns the given agent session. */
+/**
+ * True if the authenticated user owns the given agent session.
+ *
+ * The `/^[a-f0-9]{24}$/` shape check this opened with is GONE with the ids it
+ * described. Ids are uuid v7 now, so it rejected every real session — and its
+ * failure mode is silent: a `subscribe-agent-session` that returns without
+ * joining and without an error, so the agent panel simply never receives an
+ * event and looks like a stalled run.
+ *
+ * An EXISTS, not a fetch-then-compare: a permission gate that hands back the row
+ * is one edit from being a leak.
+ */
 async function ownsAgentSession(userId: string, sessionId: string): Promise<boolean> {
-  if (!/^[a-f0-9]{24}$/i.test(sessionId)) return false;
-  const session = await AgentSession.findById(sessionId).select('userId').lean();
-  return !!session && session.userId?.toString() === userId;
+  return await agentSessionIsOwnedBy(getDb(), sessionId, userId);
 }
 
 const ALLOWED_ORIGINS = [
@@ -90,14 +102,14 @@ export function initSocket(server: http.Server) {
 
     socket.on('subscribe-agent', async (agentId: string) => {
       if (typeof agentId !== 'string' || agentId.length === 0 || agentId.length > 256) return;
-      if (!userId || !/^[a-f0-9]{24}$/i.test(agentId)) return;
+      if (!userId) return;
       // A user may observe an agent's activity room only if they authored it or
       // currently have a session with it. Agent-activity events carry tool calls,
       // file changes, and screenshots from a running (owned) session.
-      const authored = await Agent.exists({ _id: agentId, author: userId });
-      const hasSession = authored
-        ? true
-        : !!(await AgentSession.exists({ agentId, userId }));
+      // The 24-hex shape check that used to gate this is gone with the ObjectIds
+      // it described — see `ownsAgentSession`.
+      const authored = await agentIsOwnedBy(getDb(), agentId, userId);
+      const hasSession = authored || (await accountHasSessionWithAgent(getDb(), agentId, userId));
       if (!authored && !hasSession) return;
       Promise.resolve(socket.join(`agent:${agentId}`)).catch((err) => log.general.warn({ err }, 'socket.join agent failed'));
     });

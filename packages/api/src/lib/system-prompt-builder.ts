@@ -29,7 +29,7 @@ import { buildSystemPrompt as loadBasePrompt, loadPrompt } from './prompt-loader
  */
 const EXTENDED_REASONING_PROMPT = 'alia-v1-thinking';
 import { log } from './logger.js';
-import type { IAgent } from '../models/agent.js';
+import type { AgentRecord } from '../db/agents/agentRepository.js';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -66,7 +66,7 @@ export interface SystemPromptOptions {
   /** Active skill document */
   skill?: { title?: string; systemPrompt?: string } | null;
   /** Linked agent (for archetype prompt injection) */
-  linkedAgent?: IAgent | null;
+  linkedAgent?: AgentRecord | null;
   /** Whether agent mode is active */
   agentMode?: boolean;
   /**

@@ -403,7 +403,7 @@ describe('counters and the catalogue', () => {
 });
 
 describe('soul evolution', () => {
-  it('dedupes $addToSet and caps in one visible step', async () => {
+  it('dedupes $addToSet and caps to the NEWEST, as a negative $slice did', async () => {
     const created = await createAgent(db, newAgentInput());
     await evolveAgentSoul(
       db,
@@ -421,9 +421,54 @@ describe('soul evolution', () => {
       { expertise: 3, vibe: 2 },
     );
     read = await findAgentById(db, created._id);
-    // deduped against what was already there, then capped at 3
-    expect(read?.soul?.expertise).toEqual(['a', 'b', 'c']);
+    /**
+     * `['a','b'] ∪ ['b','c','d']` is `['a','b','c','d']`, and the cap keeps the
+     * LAST three. This assertion previously read `['a','b','c']`, which is what
+     * `soul_expertise[1:3]` produces and what `$slice: [..., -3]` does not:
+     * Mongo's negative slice takes from the tail, so the agent kept what it had
+     * learned most recently. The old expectation was written against the
+     * implementation instead of against the source, so the port's one silent
+     * behaviour change was asserted as correct.
+     */
+    expect(read?.soul?.expertise).toEqual(['b', 'c', 'd']);
     expect(read?.soul?.interactionCount).toBe(2);
+  });
+
+  /**
+   * The cap used to live in a SECOND statement whose `WHERE soul_expertise IS
+   * NOT NULL` guard decided whether `soul_vibe` was capped too. An agent that
+   * only ever gained vibes therefore never had them capped, and the array grew
+   * without bound. This case has no expertise at all, so it goes red against
+   * that arrangement and passes against a per-column expression.
+   */
+  it('caps vibe on an agent that has no expertise at all', async () => {
+    const created = await createAgent(db, newAgentInput());
+    await evolveAgentSoul(
+      db,
+      created._id,
+      { interactionCount: 1, lastEvolvedAt: new Date(), newVibe: ['v1', 'v2', 'v3', 'v4'] },
+      { expertise: 3, vibe: 2 },
+    );
+    const read = await findAgentById(db, created._id);
+    expect(read?.soul?.vibe).toEqual(['v3', 'v4']);
+    expect(read?.soul?.expertise).toEqual([]);
+  });
+
+  /**
+   * `array_length(col, 1)` is NULL on an empty array, so a cap expressed with it
+   * slices with a NULL bound and erases the column. `cardinality()` answers 0.
+   * The first evolution of a fresh agent is exactly that degenerate input.
+   */
+  it('does not erase the array when the stored value is absent', async () => {
+    const created = await createAgent(db, newAgentInput());
+    await evolveAgentSoul(
+      db,
+      created._id,
+      { interactionCount: 1, lastEvolvedAt: new Date(), newExpertise: ['only'] },
+      { expertise: 15, vibe: 8 },
+    );
+    const read = await findAgentById(db, created._id);
+    expect(read?.soul?.expertise).toEqual(['only']);
   });
 });
 

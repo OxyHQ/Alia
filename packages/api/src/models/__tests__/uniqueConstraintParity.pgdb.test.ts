@@ -102,33 +102,15 @@ interface UniqueRequirement {
  * Adding a `unique` to a live model without a row here fails the coverage
  * assertion below, which is the point — the map cannot silently lag the schema.
  */
-const LIVE_REQUIREMENTS: readonly UniqueRequirement[] = [
-{
-    model: 'AgentReview',
-    table: 'agent_reviews',
-    constraint: 'agent_reviews_agent_user_key',
-    mongooseKey: ['agentId', 'userId'],
-    note: 'RENAMED in the port: Mongoose `userId` is the column `oxy_user_id`. Deriving the column from the Mongoose path would report a false gap here forever.',
-  },
-  {
-    model: 'Agent',
-    table: 'agents',
-    constraint: 'agents_handle_key',
-    mongooseKey: ['handle'],
-  },
-  {
-    model: 'EventStreamEntry',
-    table: 'event_stream_entries',
-    constraint: 'event_stream_entries_session_seq_key',
-    mongooseKey: ['sessionId', 'seq'],
-  },
-  {
-    model: 'OrganizationAgent',
-    table: 'organization_agents',
-    constraint: 'organization_agents_org_agent_key',
-    mongooseKey: ['organizationId', 'agentId'],
-  },
-];
+/**
+ * Live models: their `unique` declarations, and the constraint each requires.
+ *
+ * EMPTY, and that is the retirement this file predicted: the agents slice
+ * retired the last Mongoose model in the service, so there is no live
+ * declaration left to map. The list stays rather than going, because it is what
+ * a returning model would be added to — and the equality below reads it.
+ */
+const LIVE_REQUIREMENTS: readonly UniqueRequirement[] = [];
 
 /**
  * A uniqueness declared by a model the port has already DELETED.
@@ -155,20 +137,9 @@ const LIVE_REQUIREMENTS: readonly UniqueRequirement[] = [
  * archaeology recorded per entry.
  */
 interface RetiredUnique extends UniqueRequirement {
-  /** The file it lived in, so the row can be re-verified against git history. */
+  /** The file it lived in, so `git show <retiredBy>^:<file>` re-verifies the row. */
   readonly file: string;
-  /**
-   * WHO retired it — a short sha for the pre-freeze rows, and the SLICE NAME for
-   * everything since.
-   *
-   * The convention changed on purpose. A sha here names a BRANCH commit, and
-   * this repository squash-merges: the moment the pull request lands, that
-   * object is unreachable from `main` and `git show <sha>^:<file>` fails for
-   * anyone who did not have the branch. The pre-freeze rows carry shas because
-   * they were filled in AFTER their merge and name main's own squash commits,
-   * which are permanent — an option a slice writing its own row does not have.
-   * A slice name is findable with `git log --grep` forever.
-   */
+  /** The commit that deleted it. */
   readonly retiredBy: string;
 }
 
@@ -288,7 +259,40 @@ const UNIQUES_AT_FREEZE: readonly RetiredUnique[] = [
  * with one more step.
  */
 const UNIQUES_RETIRED_SINCE: readonly RetiredUnique[] = [
-{
+  {
+    model: 'AgentReview',
+    file: 'src/models/agent-review.ts',
+    retiredBy: 'S9 agents',
+    table: 'agent_reviews',
+    constraint: 'agent_reviews_agent_user_key',
+    mongooseKey: ['agentId', 'userId'],
+    note: 'RENAMED in the port: Mongoose `userId` is the column `oxy_user_id`. Deriving the column from the Mongoose path would report a false gap here forever.',
+  },
+  {
+    model: 'Agent',
+    file: 'src/models/agent.ts',
+    retiredBy: 'S9 agents',
+    table: 'agents',
+    constraint: 'agents_handle_key',
+    mongooseKey: ['handle'],
+  },
+  {
+    model: 'EventStreamEntry',
+    file: 'src/models/event-stream-entry.ts',
+    retiredBy: 'S9 agents',
+    table: 'event_stream_entries',
+    constraint: 'event_stream_entries_session_seq_key',
+    mongooseKey: ['sessionId', 'seq'],
+  },
+  {
+    model: 'OrganizationAgent',
+    file: 'src/models/organization-agent.ts',
+    retiredBy: 'S9 agents',
+    table: 'organization_agents',
+    constraint: 'organization_agents_org_agent_key',
+    mongooseKey: ['organizationId', 'agentId'],
+  },
+  {
     model: 'Plan',
     file: 'src/internal/providers/models/plan.ts',
     retiredBy: '3a778261',
@@ -516,7 +520,7 @@ const UNIQUES_RETIRED_SINCE: readonly RetiredUnique[] = [
   {
     model: 'Conversation',
     file: 'src/models/conversation.ts',
-    retiredBy: 'S9 chat',
+    retiredBy: '3cb93647',
     table: 'conversations',
     constraint: 'conversations_oxy_user_conversation_id_key',
     mongooseKey: ['oxyUserId', 'conversationId'],
@@ -524,7 +528,7 @@ const UNIQUES_RETIRED_SINCE: readonly RetiredUnique[] = [
   {
     model: 'Message',
     file: 'src/models/message.ts',
-    retiredBy: 'S9 chat',
+    retiredBy: '3cb93647',
     table: 'messages',
     constraint: 'messages_oxy_user_conversation_seq_key',
     mongooseKey: ['oxyUserId', 'conversationId', 'seq'],
@@ -540,6 +544,13 @@ const UNIQUES_RETIRED_SINCE: readonly RetiredUnique[] = [
  * statement somebody has verified. Each was read at its deleting commit.
  */
 const MODELS_RETIRED_WITHOUT_UNIQUES: readonly string[] = [
+  /**
+   * S9 agents' two. Read at this commit: `AgentSessionSchema` declares
+   * `{agentId, status, createdAt}` NON-unique, and `AgentTeamSchema` declares
+   * `{creator, createdAt}` non-unique. Neither declared a `unique` anywhere.
+   */
+  'AgentSession',
+  'AgentTeam',
   'ConnectedAccount',
   'DeveloperApp',
   'Integration',
@@ -810,7 +821,7 @@ describe('the walk itself found something', () => {
    * file retires along with Mongoose, and that is the retirement condition —
    * not a number to relax.
    */
-  it('finds exactly the live declarations the map claims', () => {
+  it('finds exactly the live declarations the map claims — now zero of each', () => {
     const declared = scanLiveModels().reduce((n, m) => n + m.keys.length, 0);
 
     expect(
@@ -820,6 +831,21 @@ describe('the walk itself found something', () => {
         'reports 0 here, which is what stops the coverage assertion below passing ' +
         'because it found nothing to check.',
     ).toBe(LIVE_REQUIREMENTS.length);
+
+    /**
+     * Both sides are zero, and the equality above therefore proves nothing on
+     * its own any more — which the file's own note anticipated: "when the port
+     * empties it, this whole file retires along with Mongoose".
+     *
+     * It does not retire, because only its LIVE half went vacuous. What still
+     * has teeth is the retired half — "has every constraint the RETIRED models
+     * required, on the named table" reads `pg_indexes` and would catch a
+     * uniqueness dropped from the schema tomorrow, with no Mongoose anywhere.
+     * So the emptiness is asserted deliberately, as the fact it is, rather than
+     * being the silent state in which an equality holds by accident.
+     */
+    expect(scanLiveModels()).toEqual([]);
+    expect(UNIQUES_AT_FREEZE.length + UNIQUES_RETIRED_SINCE.length).toBeGreaterThan(0);
   });
 
   /**

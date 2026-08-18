@@ -216,8 +216,10 @@ describe('event_stream_entries', () => {
 
   it('closes the event type against the tuple the OTHER model also uses', async () => {
     // One vocabulary, one tuple: `EVENT_STREAM_ENTRY_TYPES` lives in
-    // `models/event-stream-entry.ts` and `models/agent-session.ts` imports it.
-    // It was two identical fourteen-value literals before this batch.
+    // `domain/event-stream-entry.ts`, and the schema renders this CHECK from it.
+    // It was two identical fourteen-value literals in two Mongoose models before
+    // batch 9 — both of which are gone; the tuple outlived them, which is why it
+    // was moved out of `models/` in the first place.
     const bad = db.execute(sql`
       insert into ${eventStreamEntries} (id, session_id, seq, timestamp, type, content)
       values ('ese-bad', 'cs-events', 99, 1700000000000, 'daydream', 'x')

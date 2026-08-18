@@ -1,6 +1,7 @@
 import { tool } from 'ai';
 import { z } from 'zod';
-import { Agent } from '../../models/agent.js';
+import { getDb } from '../../db/index.js';
+import { createAgent, findAgentByHandle } from '../../db/agents/agentRepository.js';
 import { log } from '../logger.js';
 import { getErrorMessage } from '../errors/index.js';
 
@@ -37,7 +38,7 @@ export const createAgentTool = (userId: string, username?: string) => tool({
         .replace(/-+/g, '-');
 
       // Check uniqueness, append suffix if taken
-      const existing = await Agent.findOne({ handle }).select('_id').lean();
+      const existing = await findAgentByHandle(getDb(), handle);
       if (existing) {
         handle = `${handle}-${Date.now().toString(36).slice(-4)}`;
       }
@@ -48,19 +49,21 @@ export const createAgentTool = (userId: string, username?: string) => tool({
       // Auto-generate system prompt if not provided
       const finalSystemPrompt = systemPrompt || `You are ${name}. ${description}`;
 
-      const agent = await Agent.create({
+      const agent = await createAgent(getDb(), {
         name,
         handle,
         tagline,
         description,
-        author: userId,
+        authorOxyUserId: userId,
         authorName: username || 'Unknown',
-        authorVerified: false,
         category: category || 'Assistant',
         tags: tags || [],
         capabilities: capabilities || [],
         isPublished: true,
         systemPrompt: finalSystemPrompt,
+        // Restated rather than left to the column default, because the source
+        // stated it: an agent built by this tool is pinned to these two whatever
+        // the default becomes.
         allowedModels: ['alia-v1', 'alia-v1-pro'],
       });
 
@@ -69,7 +72,7 @@ export const createAgentTool = (userId: string, username?: string) => tool({
       return {
         success: true,
         agent: {
-          id: agent._id.toString(),
+          id: agent._id,
           name: agent.name,
           handle: agent.handle,
           tagline: agent.tagline,

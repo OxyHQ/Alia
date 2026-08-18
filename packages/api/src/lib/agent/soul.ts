@@ -14,20 +14,15 @@
  */
 
 import { generateText } from 'ai';
-import { Agent } from '../../models/agent.js';
+import { getDb } from '../../db/index.js';
+import {
+  bumpAgentSoulInteractions,
+  evolveAgentSoul as persistSoulEvolution,
+  findAgentById,
+  type AgentSoul,
+} from '../../db/agents/agentRepository.js';
 import { resolveModel, getAIModel } from '../chat-core.js';
 import { log } from '../logger.js';
-
-// ============== TYPES ==============
-
-export interface AgentSoul {
-  vibe: string[];
-  expertise: string[];
-  worldview: string[];
-  currentFocus: string[];
-  interactionCount: number;
-  lastEvolvedAt: Date | null;
-}
 
 // ============== FORMATTING ==============
 
@@ -79,10 +74,36 @@ Rules:
 - Respond ONLY with the JSON object, no other text`;
 
 /**
+ * The caps `$slice` applied, and the direction it applied them in.
+ *
+ * `$slice: [..., -15]` keeps the LAST fifteen — the most recently demonstrated
+ * expertise — which is what the repository reproduces. The numbers live here,
+ * beside the prompt that produces the values they bound, rather than inside the
+ * statement that applies them.
+ */
+const SOUL_CAPS = { expertise: 15, vibe: 8 } as const;
+
+/** What the evolution model is allowed to contribute in one turn. */
+const PER_TURN_LIMITS = { expertise: 3, currentFocus: 3, vibe: 2 } as const;
+
+/** A bounded list of short strings, or nothing. Anything else is discarded. */
+function stringList(value: unknown, max: number): string[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const items = value.filter((item): item is string => typeof item === 'string' && item !== '');
+  return items.length > 0 ? items.slice(0, max) : undefined;
+}
+
+/**
  * Evolve an agent's soul based on a completed interaction.
+ *
  * Runs on alia-lite for cost efficiency. Fire-and-forget.
  *
- * @param agentId - The agent's MongoDB ID
+ * The model's answer is parsed into a KNOWN shape rather than spread: it is
+ * generated text reaching a write path, and the columns behind it are `text[]`.
+ * A non-array, or an array of objects, would previously have been handed
+ * straight to `$addToSet`.
+ *
+ * @param agentId - The agent's id
  * @param task - The task that was delegated
  * @param response - The agent's response text
  */
@@ -92,106 +113,70 @@ export async function evolveAgentSoul(
   response: string,
 ): Promise<void> {
   try {
-    const agent = await Agent.findById(agentId).select('soul name').lean();
+    const db = getDb();
+    const agent = await findAgentById(db, agentId);
     if (!agent) return;
 
-    const soul: AgentSoul = agent.soul || {
-      vibe: [],
-      expertise: [],
-      worldview: [],
-      currentFocus: [],
-      interactionCount: 0,
-      lastEvolvedAt: null,
-    };
+    const newCount = (agent.soul?.interactionCount ?? 0) + 1;
 
-    // Increment interaction count
-    const newCount = (soul.interactionCount || 0) + 1;
-
-    // Build the evolution prompt
     const prompt = EVOLUTION_PROMPT
       .replace('{{TASK}}', task.slice(0, 500))
       .replace('{{RESPONSE}}', response.slice(0, 500));
 
-    // Resolve alia-lite for cheapest possible evolution
+    // alia-lite, for the cheapest possible evolution.
     const resolved = await resolveModel('alia-lite');
     if (!resolved) {
-      // Just update interaction count
-      await Agent.updateOne(
-        { _id: agentId },
-        { $set: { 'soul.interactionCount': newCount } },
-      );
+      await bumpAgentSoulInteractions(db, agentId, newCount);
       return;
     }
 
-    const model = getAIModel(resolved.keyConfig);
-
     const result = await generateText({
-      model,
+      model: getAIModel(resolved.keyConfig),
       prompt,
       maxOutputTokens: 200,
       temperature: 0.3,
     });
 
-    // Parse the evolution response
-    let updates: any;
-    try {
-      // Extract JSON from response (handle markdown code blocks)
-      const jsonMatch = result.text.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) {
-        await Agent.updateOne(
-          { _id: agentId },
-          { $set: { 'soul.interactionCount': newCount } },
-        );
-        return;
-      }
-      updates = JSON.parse(jsonMatch[0]);
-    } catch {
-      await Agent.updateOne(
-        { _id: agentId },
-        { $set: { 'soul.interactionCount': newCount } },
-      );
+    const jsonMatch = result.text.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      await bumpAgentSoulInteractions(db, agentId, newCount);
       return;
     }
 
-    // Apply updates
-    const $set: Record<string, any> = {
-      'soul.interactionCount': newCount,
-      'soul.lastEvolvedAt': new Date(),
-    };
-
-    if (updates.currentFocus?.length) {
-      $set['soul.currentFocus'] = updates.currentFocus.slice(0, 3);
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(jsonMatch[0]);
+    } catch {
+      await bumpAgentSoulInteractions(db, agentId, newCount);
+      return;
     }
 
-    const $addToSet: Record<string, any> = {};
+    const updates = parsed as Record<string, unknown>;
+    const currentFocus = stringList(updates.currentFocus, PER_TURN_LIMITS.currentFocus);
+    const newExpertise = stringList(updates.newExpertise, PER_TURN_LIMITS.expertise);
+    const newVibe = stringList(updates.newVibe, PER_TURN_LIMITS.vibe);
 
-    if (updates.newExpertise?.length) {
-      $addToSet['soul.expertise'] = { $each: updates.newExpertise.slice(0, 3) };
-    }
-
-    if (updates.newVibe?.length) {
-      $addToSet['soul.vibe'] = { $each: updates.newVibe.slice(0, 2) };
-    }
-
-    const updateOp: Record<string, any> = { $set };
-    if (Object.keys($addToSet).length > 0) {
-      updateOp.$addToSet = $addToSet;
-    }
-
-    await Agent.updateOne({ _id: agentId }, updateOp);
-
-    // Cap arrays to prevent unbounded growth
-    await Agent.updateOne({ _id: agentId }, [
+    await persistSoulEvolution(
+      db,
+      agentId,
       {
-        $set: {
-          'soul.expertise': { $slice: ['$soul.expertise', -15] },
-          'soul.vibe': { $slice: ['$soul.vibe', -8] },
-        },
+        interactionCount: newCount,
+        lastEvolvedAt: new Date(),
+        ...(currentFocus !== undefined && { currentFocus }),
+        ...(newExpertise !== undefined && { newExpertise }),
+        ...(newVibe !== undefined && { newVibe }),
       },
-    ]);
+      SOUL_CAPS,
+    );
 
     log.general.info(
-      { agentId, agentName: agent.name, newCount, hasUpdates: Object.keys(updates).length > 0 },
+      {
+        agentId,
+        agentName: agent.name,
+        newCount,
+        hasUpdates:
+          currentFocus !== undefined || newExpertise !== undefined || newVibe !== undefined,
+      },
       'Agent soul evolved',
     );
   } catch (err) {

@@ -20,8 +20,8 @@
  *   is the same shape — an append-only record of what something DID.
  * - **`agent_reviews.agent_id` CASCADES.** A review's entire content is an
  *   opinion of one agent; there is nothing left to read once it is gone, and
- *   `lib/agent-rating.ts` already returns `null` rather than recomputing when the
- *   agent has been deleted. The `plan_features` case.
+ *   `recalculateAgentRating` already returns `null` rather than recomputing when
+ *   the agent has been deleted. The `plan_features` case.
  * - **`agent_session_resources.session_id` CASCADES**, and it is the least
  *   arguable in the batch: these rows WERE the session document in Mongo, an
  *   embedded array, so they cannot outlive it by construction.
@@ -47,13 +47,16 @@
  * elements have no identity anything exercises. `event_stream_entries` (batch
  * 9d) is where they do, and it gets the indexes.
  *
- * ## `agent_sessions.messages` is written by NOTHING and read by NOTHING
+ * ## `agent_sessions.messages` has ONE writer and NO reader
  *
- * A whole-package grep for `session.messages` returns no site at all — the only
- * `messages:` hits are unrelated AI SDK call payloads. It is ported so the shape
- * is faithful, not because it carries anything: the
- * `voice_call_usage.average_latency_ms` call. Confirm it is empty before anybody
- * reads one as meaningful.
+ * The earlier note here said no site wrote it, from a grep for `session.messages`
+ * — and that grep was blind to the only writer, which never names a session
+ * variable: `routes/oxy-service-events.ts` passes `messages: [{role, content,
+ * timestamp}]` to `AgentSession.create`, one system turn recording that the
+ * session came from an autonomous Oxy event. Nothing reads it back, in that file
+ * or anywhere else. So it is a write-only column with a real writer, not an
+ * empty one — ported faithfully, and the correction is recorded because "confirm
+ * it is empty" would have been checked against a table that is not.
  */
 
 import {
@@ -75,6 +78,34 @@ import { AGENT_SESSION_RESOURCE_STATUSES, AGENT_SESSION_RESOURCE_TYPES, AGENT_SE
 import { agents } from './agents';
 import { skills } from './agents-support';
 import { libraryFiles } from './library';
+
+/** One item of a session's plan, as `TodoManager` serialises it. */
+export interface AgentSessionPlanItem {
+  id: number;
+  text: string;
+  status: 'pending' | 'in_progress' | 'completed' | 'blocked';
+}
+
+/** One turn of the declared-but-unread `messages` array. See the file comment. */
+export interface AgentSessionMessage {
+  role: 'system' | 'user' | 'assistant' | 'tool';
+  content: string;
+  timestamp: string | Date;
+}
+
+/**
+ * One entry of the LEGACY embedded event stream.
+ *
+ * `event_stream_entries` is the live store and carries the same vocabulary;
+ * this is the copy `lib/agent/runner.ts` still writes whole on every save.
+ */
+export interface AgentSessionEventStreamEntry {
+  seq: number;
+  timestamp: number;
+  type: string;
+  content: string;
+  metadata?: Record<string, unknown>;
+}
 
 /**
  * One run of an agent against one task.
@@ -115,12 +146,12 @@ export const agentSessions = pgTable(
 
     planObjective: text(),
     /** `{id, text, status}[]`, read and written whole. See the table comment. */
-    planItems: jsonb(),
+    planItems: jsonb().$type<AgentSessionPlanItem[]>(),
 
     /** Declared, written by nothing, read by nothing. See the file comment. */
-    messages: jsonb().notNull().default([]),
+    messages: jsonb().$type<AgentSessionMessage[]>().notNull().default([]),
     /** The LEGACY copy of the events, still written on every save. */
-    eventStream: jsonb().notNull().default([]),
+    eventStream: jsonb().$type<AgentSessionEventStreamEntry[]>().notNull().default([]),
 
     creditReservationOxyUserId: text(),
     creditReservationCreditsReserved: integer(),
@@ -236,7 +267,7 @@ export const agentSessionResources = pgTable(
  *
  * `hidden_by_moderation` is a flag rather than a delete, and the model's own
  * comment explains why: every moderation effect has to be reversible, so an
- * appeal that succeeds can put the review back. `lib/agent-rating.ts` excludes
+ * appeal that succeeds can put the review back. `recalculateAgentRating` excludes
  * hidden reviews from the aggregate, which is why the flag has to be readable
  * in SQL rather than implied by absence.
  *

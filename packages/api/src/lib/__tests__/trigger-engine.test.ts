@@ -28,7 +28,10 @@ vi.mock('../agent/routing-handler.js', () => ({ handleRoutingDecision: vi.fn() }
 vi.mock('../../middleware/auth.js', () => ({ oxyClient: { getUserById: vi.fn() } }));
 vi.mock('../../db/index.js', () => ({ getDb: vi.fn(() => ({})) }));
 vi.mock('../../db/memory/userMemoryRepository.js', () => ({ findUserMemory: vi.fn() }));
-vi.mock('../../models/agent.js', () => ({ Agent: { find: vi.fn() } }));
+vi.mock('../../db/agents/agentRepository.js', () => ({
+  findAgentById: vi.fn(async () => null),
+  listAgentsWithHeartbeat: vi.fn(async () => []),
+}));
 // The engine reads triggers through the repository now, so THAT is what is
 // stubbed. A `vi.mock` specifier is a plain string that neither tsc nor vitest
 // checks against a real module, so a stale path here would silently stub
@@ -61,14 +64,14 @@ import {
   findTriggerById,
   listSchedulableTriggerVersions,
 } from '../../db/automation/triggerRepository.js';
-import { Agent } from '../../models/agent.js';
+import { listAgentsWithHeartbeat } from '../../db/agents/agentRepository.js';
 import cron from 'node-cron';
 
 type MockFn = ReturnType<typeof vi.fn>;
 const schedulable = findSchedulableTriggers as unknown as MockFn;
 const versions = listSchedulableTriggerVersions as unknown as MockFn;
 const byIdFn = findTriggerById as unknown as MockFn;
-const agentModel = Agent as unknown as { find: MockFn };
+const heartbeatAgents = listAgentsWithHeartbeat as unknown as MockFn;
 const cronMock = cron as unknown as { schedule: MockFn; validate: MockFn };
 
 interface FakeTrigger {
@@ -78,16 +81,6 @@ interface FakeTrigger {
   type: string;
   schedule: { type: string; intervalMinutes: number };
   updatedAt: Date;
-}
-
-// A Mongoose-Query-like value: awaitable (for the scheduler's `await find(...)`)
-// and chainable via `.select().lean()` (for the reconcile query).
-function makeQuery<T>(result: T) {
-  return {
-    select: () => ({ lean: () => Promise.resolve(result) }),
-    then: (onFulfilled?: ((v: T) => unknown) | null, onRejected?: ((e: unknown) => unknown) | null) =>
-      Promise.resolve(result).then(onFulfilled, onRejected),
-  };
 }
 
 const trig = (id: string, updatedAt: Date): FakeTrigger => ({
@@ -103,7 +96,8 @@ describe('trigger-engine reconcile loop', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     cronMock.validate.mockReturnValue(true);
-    agentModel.find.mockReturnValue(makeQuery([]));
+    // The heartbeat sync runs at startup and is not what this file measures.
+    heartbeatAgents.mockResolvedValue([]);
   });
 
   afterEach(() => {

@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { generateText } from 'ai';
-import { Agent } from '../../models/agent.js';
+import { getDb } from '../../db/index.js';
+import { findAgentByHandle } from '../../db/agents/agentRepository.js';
 import { AGENT_ARCHETYPES } from '../../domain/agent.js';
 import { authenticateToken } from '../../middleware/auth.js';
 import { resolveModel, getAIModel, getDefaultAliaModel } from '../../lib/chat-core.js';
@@ -101,7 +102,7 @@ Do not include any text outside the JSON object.`,
       .replace(/-+/g, '-');
 
     // Check handle uniqueness, append suffix if needed
-    const existing = await Agent.findOne({ handle });
+    const existing = await findAgentByHandle(getDb(), handle);
     if (existing) {
       handle = `${handle}-${Date.now().toString(36).slice(-4)}`;
     }

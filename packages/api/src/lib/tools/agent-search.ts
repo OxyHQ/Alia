@@ -5,7 +5,8 @@
 
 import { tool } from 'ai';
 import { z } from 'zod';
-import { Agent } from '../../models/agent.js';
+import { getDb } from '../../db/index.js';
+import { searchActiveAgents } from '../../db/agents/agentRepository.js';
 import { log } from '../logger.js';
 import { getErrorMessage } from '../errors/index.js';
 
@@ -20,44 +21,12 @@ export const createSearchAgentsTool = () => tool({
 
   execute: async ({ query }) => {
     try {
-      // Build regex for flexible matching across multiple fields
-      const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const words = escapedQuery.split(/\s+/).filter(Boolean);
-      const regexPattern = words.map(w => `(?=.*${w})`).join('') + '.*';
-      const regex = new RegExp(regexPattern, 'i');
-
-      const agents = await Agent.find({
-        isPublished: true,
-        status: 'active',
-        $or: [
-          { name: regex },
-          { handle: regex },
-          { tagline: regex },
-          { description: regex },
-          { category: regex },
-          { tags: { $in: words.map(w => new RegExp(w, 'i')) } },
-          { capabilities: { $in: words.map(w => new RegExp(w, 'i')) } },
-        ],
-      })
-        .select('name handle avatar tagline category capabilities')
-        .limit(MAX_RESULTS)
-        .lean();
+      const agents = await searchActiveAgents(getDb(), query, MAX_RESULTS);
 
       // The query is model output derived from the user's prompt.
       log.general.info({ resultCount: agents.length }, 'Agent search completed');
 
-      return {
-        agents: agents.map((a: any) => ({
-          id: a._id.toString(),
-          name: a.name,
-          handle: a.handle,
-          avatar: a.avatar,
-          tagline: a.tagline,
-          category: a.category,
-          capabilities: a.capabilities || [],
-        })),
-        count: agents.length,
-      };
+      return { agents, count: agents.length };
     } catch (error: unknown) {
       log.general.error({ err: error }, 'Agent search failed');
       return { agents: [], count: 0, error: getErrorMessage(error) };

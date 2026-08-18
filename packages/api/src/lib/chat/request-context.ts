@@ -29,7 +29,7 @@ import { oxyClient } from '../../middleware/auth.js';
 import { findSkillPrompt } from '../../db/agents/skillRepository.js';
 import { runBeforeChatHooks } from '../hooks/index.js';
 import { log } from '../logger.js';
-import { Agent as AgentModel, type IAgent } from '../../models/agent.js';
+import { findAgentById, type AgentRecord } from '../../db/agents/agentRepository.js';
 import { runAutonomyBeforeChat, type AutonomyRuntimeContext } from '../autonomy/runtime.js';
 import type { ChatMessage } from '../message-converter.js';
 import type { OpenAITool } from '../tool-converter.js';
@@ -62,7 +62,7 @@ export interface ChatRequestContext {
   oxyUser: OxyUserProfile | null;
   skill: SkillDoc | null;
   entitlements: Entitlements | null;
-  linkedAgent: IAgent | null;
+  linkedAgent: AgentRecord | null;
   /** Initial values for the handler's retry-mutable state. */
   creditReservation: CreditReservation | null;
   resolved: Awaited<ReturnType<typeof resolveModel>>;
@@ -275,9 +275,9 @@ export async function buildChatRequestContext(
     (conversationId && isDirectUserSession)
       ? findConversationAgentById(getDb(), conversationId)
           .then(conv => conv?.agentId
-            ? AgentModel.findById(conv.agentId).select('name archetype archetypeConfig systemPrompt knowledge').lean()
+            ? findAgentById(getDb(), conv.agentId)
             : null)
-          .catch(() => null) as Promise<IAgent | null>
+          .catch(() => null) as Promise<AgentRecord | null>
       : Promise.resolve(null),
   ]);
 

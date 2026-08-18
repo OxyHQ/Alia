@@ -25,7 +25,7 @@ import {
   upsertBotUser,
   type BotRow,
 } from '../db/integrations/botRepository.js';
-import { Agent } from '../models/agent.js';
+import { findAgentById } from '../db/agents/agentRepository.js';
 import type { ChannelId } from '../lib/channels/types.js';
 import { log } from '../lib/logger.js';
 
@@ -119,11 +119,11 @@ router.post('/telegram', authenticateToken, async (req, res) => {
     const db = getDb();
     let boundAgentId: string | undefined;
     if (agentId) {
-      const agent = await Agent.findById(agentId).select('author').lean();
+      const agent = await findAgentById(db, agentId);
       if (!agent) {
         return res.status(404).json({ error: 'Agent not found' });
       }
-      if (agent.author.toString() !== req.userId) {
+      if (agent.author !== req.userId) {
         return res.status(403).json({ error: 'You do not own this agent' });
       }
       boundAgentId = agentId;
@@ -224,11 +224,11 @@ router.patch('/:id', authenticateToken, async (req: express.Request<{ id: string
     if (agentId === null || agentId === '') {
       nextAgentId = null;
     } else if (typeof agentId === 'string') {
-      const agent = await Agent.findById(agentId).select('author').lean();
+      const agent = await findAgentById(db, agentId);
       if (!agent) {
         return res.status(404).json({ error: 'Agent not found' });
       }
-      if (agent.author.toString() !== req.userId) {
+      if (agent.author !== req.userId) {
         return res.status(403).json({ error: 'You do not own this agent' });
       }
       nextAgentId = agentId;

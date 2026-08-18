@@ -32,13 +32,14 @@ import type { ThreatResult } from './threat-detector.js';
 import { requestApproval } from './action-approval.js';
 import { classifyActionRisk, createRollbackRecord } from './governance.js';
 import { autonomyFlags } from '../autonomy/flags.js';
-import type { IAgent } from '../../models/agent.js';
-import type { IAgentSession } from '../../models/agent-session.js';
+import { getDb } from '../../db/index.js';
+import { updateAgentSession, type AgentSessionRecord } from '../../db/agents/agentSessionRepository.js';
+import type { AgentRecord } from '../../db/agents/agentRepository.js';
 import type { EventStream } from './event-stream.js';
 
 export interface ActionContext {
-  agent: IAgent;
-  session: IAgentSession;
+  agent: AgentRecord;
+  session: AgentSessionRecord;
   onComplete: (result: string) => void;
   onHireAgent?: (handle: string, task: string) => Promise<string>;
   todoManager: TodoManager;
@@ -60,7 +61,7 @@ export async function buildActions(ctx: ActionContext) {
     eventStream,
   } = ctx;
 
-  const userId = session.userId.toString();
+  const userId = session.oxyUserId;
   const actions: ToolSet = {};
 
   // ── 1. shell — Persistent terminal ──
@@ -187,9 +188,8 @@ export async function buildActions(ctx: ActionContext) {
         todoManager.update(objective, items, completed_items);
 
         // Persist to session
-        session.plan = todoManager.toJSON();
         try {
-          await session.save();
+          await updateAgentSession(getDb(), session._id, { plan: todoManager.toJSON() });
         } catch (saveErr: unknown) {
           log.agents.warn({ saveErr }, 'Failed to save plan to session');
         }
@@ -323,7 +323,7 @@ export async function buildActions(ctx: ActionContext) {
 
       if (risk.riskLevel === 'R3') {
         eventStream?.append('system_message', `POLICY BLOCKED [R3]: ${risk.reason}`);
-        log.agents.warn({ toolName: name, risk: risk.riskLevel, reason: risk.reason, sessionId: session._id.toString() }, 'Agent action blocked by governance policy');
+        log.agents.warn({ toolName: name, risk: risk.riskLevel, reason: risk.reason, sessionId: session._id }, 'Agent action blocked by governance policy');
         return `Error: Action blocked by policy — ${risk.reason}`;
       }
 
@@ -346,8 +346,8 @@ export async function buildActions(ctx: ActionContext) {
         };
 
         const approval = await requestApproval({
-          sessionId: session._id.toString(),
-          agentId: session.agentId.toString(),
+          sessionId: session._id,
+          agentId: session.agentId,
           toolName: name,
           args: inputArgs,
           threat: syntheticThreat,
@@ -365,7 +365,7 @@ export async function buildActions(ctx: ActionContext) {
       if (threat.shouldBlock) {
         const summary = formatThreatSummary(threat);
         eventStream?.append('system_message', `THREAT BLOCKED: ${summary}`);
-        log.agents.warn({ toolName: name, threat: summary, sessionId: session._id.toString() }, 'Agent action blocked by threat detector');
+        log.agents.warn({ toolName: name, threat: summary, sessionId: session._id }, 'Agent action blocked by threat detector');
         return `Error: Action blocked by security policy — ${threat.threats[0]?.pattern.description || 'security violation'}`;
       }
 
@@ -373,8 +373,8 @@ export async function buildActions(ctx: ActionContext) {
         const summary = formatThreatSummary(threat);
         if (autonomyFlags.approvalsEnabled) {
           const approval = await requestApproval({
-            sessionId: session._id.toString(),
-            agentId: session.agentId.toString(),
+            sessionId: session._id,
+            agentId: session.agentId,
             toolName: name,
             args: inputArgs,
             threat,
@@ -387,7 +387,7 @@ export async function buildActions(ctx: ActionContext) {
           }
         } else {
           eventStream?.append('system_message', `THREAT WARNING: ${summary}. Action allowed but flagged.`);
-          log.agents.info({ toolName: name, threat: summary, sessionId: session._id.toString() }, 'Agent action flagged by threat detector');
+          log.agents.info({ toolName: name, threat: summary, sessionId: session._id }, 'Agent action flagged by threat detector');
         }
       }
 
@@ -396,7 +396,7 @@ export async function buildActions(ctx: ActionContext) {
       if (risk.riskLevel === 'R1' && autonomyFlags.rollbackEnabled) {
         await createRollbackRecord({
           userId,
-          sessionId: session._id.toString(),
+          sessionId: session._id,
           toolName: name,
           args: inputArgs,
           afterState: { resultPreview: typeof result === 'string' ? result.slice(0, 600) : result },
