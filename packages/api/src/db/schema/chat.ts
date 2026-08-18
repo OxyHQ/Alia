@@ -10,7 +10,7 @@
  *
  * None declared a TTL index, so none appears in `db/expiryTargets.ts`. This is
  * user content: a conversation is deleted when its owner deletes it
- * (`routes/conversations.ts:262`) and never on a timer.
+ * (`DELETE /conversations/:id`) and never on a timer.
  */
 
 import { boolean, index, integer, jsonb, pgTable, text, uniqueIndex } from 'drizzle-orm/pg-core';
@@ -28,12 +28,12 @@ import { checkOneOf } from './columns';
  * `conversation_id` and the schema must let them.
  *
  * **Neither `folder_id` nor `agent_id` gets a foreign key, for different
- * reasons.** `folder_id` is declared `ref: 'Folder'` and **no `Folder` model
- * exists in this service at all** — `models/__tests__/foreign-ref-populate.test.ts`
- * names it as a known dangling ref, so the column is a bare id pointing at
- * nothing this schema could target. `agent_id` names a real model whose table is
- * a later batch; it gets one when `agents` lands, if a deletion answer exists
- * then.
+ * reasons.** `folder_id` was declared `ref: 'Folder'` and **no `Folder` model
+ * ever existed in this service** — it was the one non-`User` dangling ref
+ * `models/__tests__/foreign-ref-populate.test.ts` had to name, and it left with
+ * the Mongoose model, so the column is a bare id pointing at nothing this schema
+ * could target. `agent_id` names a real model whose table is a later batch; it
+ * gets one when `agents` lands, if a deletion answer exists then.
  */
 export const conversations = pgTable(
   'conversations',
@@ -74,25 +74,23 @@ export const conversations = pgTable(
  * ## `conversation_id` gets NO foreign key, and that is a deliberate refusal
  *
  * The relation is real — every message names a conversation, on the business
- * key pair. A constraint is still wrong, because **two existing write paths
- * create the parent and the child concurrently**:
- * `routes/conversations.ts:187-188` puts the conversation upsert and the message
- * insert in ONE `Promise.all`, so whichever statement Postgres serves first
- * decides whether the parent exists yet. Under a foreign key that is a
- * race-dependent `23503` on a request that works today.
+ * key pair. A constraint is still wrong, because **one write path creates the
+ * parent and the child concurrently**: `POST /conversations` puts
+ * `upsertConversation` and `replaceMessages` in ONE `Promise.all`, so whichever
+ * statement Postgres serves first decides whether the parent exists yet. Under a
+ * foreign key that is a race-dependent `23503` on a request that works today.
  *
- * The other three writers (`webhooks.ts:251/270` and `:404/419`,
- * `conversation-saver.ts:143`) do await the conversation first, so a reader
- * checking only those would conclude the constraint is safe. It is the parallel
- * one that governs. This is `api_usage.key_id`'s reasoning applied to an
- * ORDERING rather than to a deletion: every available answer is worse than
- * none, so the absence is written down rather than left to look like an
- * oversight.
+ * The other three writers (both webhook paths and `lib/conversation-saver.ts`)
+ * do await the conversation first, so a reader checking only those would
+ * conclude the constraint is safe. It is the parallel one that governs. This is
+ * `api_usage.key_id`'s reasoning applied to an ORDERING rather than to a
+ * deletion: every available answer is worse than none, so the absence is written
+ * down rather than left to look like an oversight.
  *
  * The consequence is that a conversation delete must keep removing messages by
- * hand, which is what `routes/conversations.ts:268-277` already does — and note
- * it deletes messages even when no conversation row matched, so orphans are
- * already reachable in Mongo today.
+ * hand, which is what `DELETE /conversations/:id` already does — and note it
+ * deletes messages even when no conversation row matched, so orphans left by an
+ * earlier failure are still reachable.
  *
  * ## `client_message_id` is the AI SDK's id, and it collides with `id`
  *
@@ -100,15 +98,18 @@ export const conversations = pgTable(
  * SDK assigned on the client. `id` here is the primary key holding Mongo's
  * `_id`, per this schema's rule, so the client's needs its own name.
  *
- * It is not decoration: `routes/v1/audio.ts:130` and `:302` look a message up by
+ * It is not decoration: `routes/v1/audio.ts` looks a message up by
  * `(conversation_id, oxy_user_id, client_message_id)` to attach a generated
  * audio URL. Mongo had no index covering it and neither does this — the
  * `(oxy_user_id, conversation_id, …)` unique below is a prefix of that
  * predicate, so the lookup is served and then filtered, exactly as before. A
  * dedicated index is a performance decision with numbers attached, and this port
- * is not the place to guess at one. It is nullable because only
- * `routes/conversations.ts:190` writes it; `conversation-saver.ts`'s
- * `buildStoredMessage` does not.
+ * is not the place to guess at one.
+ *
+ * It is nullable because `routes/webhooks.ts` appends bot turns without one:
+ * both `routes/conversations.ts` (from the client's `id`) and
+ * `lib/conversation-saver.ts` (falling back to `msg-<seq>`) always write one, so
+ * the webhook path is the only producer of a NULL here.
  *
  * ## No `updated_at`, on purpose
  *
@@ -158,10 +159,10 @@ export const messages = pgTable(
     index('messages_conversation_created_at_idx').on(t.conversationId, t.createdAt),
     /**
      * The append-ordering unique, and it is load-bearing:
-     * `conversation-saver.ts:177-185` inserts optimistically and treats a
-     * duplicate-key error as "a concurrent append claimed this seq", falling
-     * back to a full rewrite. Without this index that race silently produces two
-     * messages at one position.
+     * `saveConversation` inserts optimistically and treats a duplicate-key error
+     * as "a concurrent append claimed this seq", falling back to a full rewrite.
+     * Without this index that race silently produces two messages at one
+     * position — `lib/__tests__/conversation-saver.pgdb.test.ts` produces it.
      *
      * **The `WHERE seq IS NOT NULL` predicate does NO correctness work here, and
      * is kept anyway.** Mongo needed it: `partialFilterExpression` existed
@@ -190,15 +191,15 @@ export const messages = pgTable(
  * The canvas components attached to one conversation.
  *
  * **This table has no writer.** All three call sites are reads or a delete —
- * `socket.ts:84` and `routes/canvas/sessions.ts:14` load it,
- * `routes/canvas/sessions.ts:34` deletes it — and nothing in the package
- * creates or updates one. Recorded because a table with only readers looks
+ * `socket.ts`'s `subscribe-canvas` check and `GET /api/sessions/:conversationId`
+ * load it, `DELETE /api/sessions/:conversationId` clears it — and nothing in the
+ * package creates or updates one. Recorded because a table with only readers looks
  * active from any single call site, and because it decides the column below: the
  * question "should `components` be a child table" cannot turn on how elements
  * are written when nothing writes them.
  *
- * `components` is therefore `jsonb`: `routes/canvas/sessions.ts:23` returns the
- * array verbatim as the response body and nothing addresses an element. Its
+ * `components` is therefore `jsonb`: `GET /api/sessions/:conversationId` returns
+ * the array verbatim as the response body and nothing addresses an element. Its
  * `data` is `Mixed` per component, so a child table would hold an opaque value
  * anyway — the `fallback_events.attempts` precedent.
  *

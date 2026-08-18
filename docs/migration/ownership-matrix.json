@@ -2520,9 +2520,9 @@
         "dead-providers-mongoose-db",
         "hazard-mongo-gated-boot"
       ],
-      "removalGate": "Not the provider workstream's call alone \u2014 routes/v1/audio.ts and other product code still use Mongoose Message models. Flagged because the provider cleanup will surface it.",
+      "removalGate": "Not the provider workstream's call alone \u2014 other product code still holds Mongoose models. NARROWED by the chat port: routes/v1/audio.ts, routes/conversations.ts, lib/conversation-saver.ts, routes/webhooks.ts and socket.ts are all on Postgres and the Conversation/Message/CanvasSession models are deleted. What still holds MONGODB_URI open is the agents, organizations and skills domain.",
       "provenance": "inventory-provider-runtime",
-      "evidence": "packages/api/.env.example:35; packages/api/src/index.ts:435-446; packages/api/src/routes/v1/audio.ts:58, :136"
+      "evidence": "packages/api/.env.example:35; packages/api/src/index.ts:435-446; routes/v1/audio.ts now calls db/chat/messageRepository"
     },
     {
       "id": "env-service-secret",

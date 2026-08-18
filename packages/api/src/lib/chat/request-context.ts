@@ -21,7 +21,7 @@ import {
 import { getDb } from '../../db/index.js';
 import { findUserMemory, type UserMemoryProfile } from '../../db/memory/userMemoryRepository.js';
 import { getOrCreateUserCredits } from '../user-credits-helpers.js';
-import { Conversation } from '../../models/conversation.js';
+import { findConversationAgentById } from '../../db/chat/conversationRepository.js';
 import { reserveCredits, refundReservation, type CreditReservation } from '../credits-manager.js';
 import { getUserEntitlements, type Entitlements } from '../plan-access.js';
 import type { OxyUserProfile } from '../system-prompt-builder.js';
@@ -264,8 +264,16 @@ export async function buildChatRequestContext(
       : Promise.resolve(null),
 
     // Linked agent (for archetype prompt injection — Q&A agents, etc.)
+    /**
+     * `findConversationAgentById` addresses the PRIMARY KEY, and
+     * `conversationId` is the client's business key — so this resolves nothing,
+     * exactly as the Mongoose `findById` it replaces did (it threw a CastError
+     * on a uuid, which the `.catch` below swallowed). The repository's docblock
+     * records why the port keeps it that way rather than quietly switching the
+     * agent-escalation branch on.
+     */
     (conversationId && isDirectUserSession)
-      ? Conversation.findById(conversationId).select('agentId').lean()
+      ? findConversationAgentById(getDb(), conversationId)
           .then(conv => conv?.agentId
             ? AgentModel.findById(conv.agentId).select('name archetype archetypeConfig systemPrompt knowledge').lean()
             : null)

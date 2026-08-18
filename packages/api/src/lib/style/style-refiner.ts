@@ -8,7 +8,8 @@ import { generateText } from 'ai';
 import { resolveModel, getAIModel } from '../chat-core.js';
 import { log } from '../logger.js';
 import type { IWritingStyleProfile } from '../../domain/writing-style.js';
-import { Message } from '../../models/message.js';
+import { getDb } from '../../db/index.js';
+import { listRecentUserText } from '../../db/chat/messageRepository.js';
 
 /**
  * Refine the writing style profile using an LLM.
@@ -23,17 +24,9 @@ export async function refineStyleWithLLM(
     // If no recent messages provided, fetch from conversation history
     let messages = recentMessages;
     if (messages.length === 0) {
-      const recentUserMsgs = await Message.find({
-        oxyUserId: userId,
-        role: 'user',
-        content: { $type: 'string' },
-      })
-        .sort({ createdAt: -1 })
-        .limit(30)
-        .select('content')
-        .lean();
-
-      messages = recentUserMsgs.reverse().map((m: any) => m.content);
+      // `{ $type: 'string' }` becomes `jsonb_typeof(content) = 'string'`, and
+      // the newest-30-then-reverse is the source's own shape.
+      messages = await listRecentUserText(getDb(), userId, 'user', 30);
     }
 
     if (messages.length < 5) {

@@ -123,8 +123,10 @@ vi.mock('../credit-anomaly.js', () => ({ detectCreditAnomaly: vi.fn(async () => 
 vi.mock('../gateway-client.js', () => ({ getAliaModel: vi.fn(async () => null) }));
 vi.mock('../../middleware/api-key-rate-limit.js', () => ({ recordUsage: vi.fn(async () => undefined) }));
 vi.mock('../notification-service.js', () => ({ sendNotification: vi.fn(async () => undefined) }));
-vi.mock('../../models/conversation.js', () => ({
-  Conversation: { findOne: vi.fn(() => ({ lean: async () => null })) },
+vi.mock('../../db/chat/conversationRepository.js', () => ({
+  conversationExists: vi.fn(async () => false),
+  updateConversationTitle: vi.fn(async () => 1),
+  upsertConversation: vi.fn(async () => ({})),
 }));
 
 vi.mock('../logger.js', () => {

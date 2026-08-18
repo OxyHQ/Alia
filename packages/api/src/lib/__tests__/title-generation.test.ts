@@ -29,14 +29,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
  */
 
 const H = vi.hoisted(() => ({
-  /** What `Conversation.findOne` answers, per test. */
+  /** What `findConversation` answers, per test. */
   conversation: null as { isManualTitle?: boolean } | null,
-  /** What `Message.countDocuments` answers, per test. */
+  /** What `countMessagesInConversation` answers, per test. */
   messageCount: 0,
-  /** Whether a `Message` row exists for the conversation (streaming path). */
+  /** Whether a message row exists for the conversation (streaming path). */
   messageExists: false,
-  /** Every `Conversation.updateOne` call, as (filter, update). */
-  updates: [] as Array<{ filter: unknown; update: unknown }>,
+  /** Every `updateConversationTitle` call, with all three of its arguments. */
+  updates: [] as Array<{ oxyUserId: string; conversationId: string; title: string }>,
   /** Every prompt handed to the title model. */
   titlePrompts: [] as string[],
   /** What the title model returns. */
@@ -48,25 +48,20 @@ vi.mock('../logger.js', () => {
   return { log: { agents: child, chat: child, general: child, v1: child, providers: child, codea: child } };
 });
 
-vi.mock('../../models/conversation.js', () => ({
-  Conversation: {
-    findOne: vi.fn((_filter: unknown, projection?: unknown) =>
-      projection
-        ? { lean: async () => H.conversation }
-        : Promise.resolve(H.conversation),
-    ),
-    updateOne: vi.fn(async (filter: unknown, update: unknown) => {
-      H.updates.push({ filter, update });
-      return { matchedCount: H.conversation ? 1 : 0 };
-    }),
-  },
+vi.mock('../../db/index.js', () => ({ getDb: vi.fn(() => ({})) }));
+
+vi.mock('../../db/chat/conversationRepository.js', () => ({
+  findConversation: vi.fn(async () => H.conversation ?? undefined),
+  conversationExists: vi.fn(async () => H.conversation !== null),
+  updateConversationTitle: vi.fn(async (_db: unknown, oxyUserId: string, conversationId: string, title: string) => {
+    H.updates.push({ oxyUserId, conversationId, title });
+    return H.conversation ? 1 : 0;
+  }),
 }));
 
-vi.mock('../../models/message.js', () => ({
-  Message: {
-    countDocuments: vi.fn(async () => H.messageCount),
-    exists: vi.fn(async () => (H.messageExists ? { _id: 'm1' } : null)),
-  },
+vi.mock('../../db/chat/messageRepository.js', () => ({
+  countMessagesInConversation: vi.fn(async () => H.messageCount),
+  messageExistsInConversation: vi.fn(async () => H.messageExists),
 }));
 
 vi.mock('../chat-core.js', () => ({
@@ -86,7 +81,7 @@ vi.mock('ai', () => ({
   }),
 }));
 
-import { Conversation } from '../../models/conversation.js';
+import { findConversation } from '../../db/chat/conversationRepository.js';
 import { generateConversationTitle, generateTitle } from '../conversation-saver.js';
 import { generateTitleAsync, startParallelTitleGeneration } from '../chat-lifecycle.js';
 import type { ChatMessage } from '../message-converter.js';
@@ -223,7 +218,9 @@ describe('the streaming path titles a new conversation only (#139 ws6)', () => {
     expect(loop).toContain('export async function runProviderLoop');
     expect(loop).toMatch(/titlePromise = startParallelTitleGeneration\(req\.user\.id, conversationId, messages\)/);
     expect(loop).toMatch(/res\.write\(`event: alia\.title/);
-    expect(loop).toMatch(/await Conversation\.updateOne\(\s*\{ oxyUserId: req\.user\.id, conversationId \},\s*\{ \$set: \{ title \} \},/);
+    expect(loop).toMatch(
+      /await updateConversationTitle\(getDb\(\), req\.user\.id, conversationId, title\);/,
+    );
   });
 });
 
@@ -238,16 +235,14 @@ describe('the non-streaming path titles without clobbering (#139 ws6)', () => {
 
     await generateConversationTitle('user-ws6', 'conv-1', 'what do I take in my coffee');
 
-    // Both halves of the filter. `conversationId` alone is not an owner check:
-    // the id is a client-supplied string and the unique index is on the PAIR
+    // Both halves of the key. `conversationId` alone is not an owner check: the
+    // id is a client-supplied string and the unique index is on the PAIR
     // (`db/__tests__/chat.pgdb.test.ts`, "two people can hold seq 0 in the same
-    // conversation id"), so a filter missing `oxyUserId` can title a stranger's
-    // conversation.
+    // conversation id"), so a call missing `oxyUserId` can title a stranger's
+    // conversation. `chatRepositories.pgdb.test.ts` proves the repository really
+    // scopes on both; this asserts the caller passes both.
     expect(H.updates).toEqual([
-      {
-        filter: { oxyUserId: 'user-ws6', conversationId: 'conv-1' },
-        update: { $set: { title: 'Oat milk preferences' } },
-      },
+      { oxyUserId: 'user-ws6', conversationId: 'conv-1', title: 'Oat milk preferences' },
     ]);
   });
 
@@ -294,7 +289,7 @@ describe('the non-streaming path titles without clobbering (#139 ws6)', () => {
 
     // And a rejection does not become an unhandled rejection, because nothing
     // awaits this call.
-    vi.mocked(Conversation.findOne).mockImplementationOnce(() => {
+    vi.mocked(findConversation).mockImplementationOnce(() => {
       throw new Error('database down');
     });
     expect(() => generateTitleAsync('user-ws6', 'conv-2', USER_TURN)).not.toThrow();

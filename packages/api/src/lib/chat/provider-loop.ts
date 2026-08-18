@@ -25,7 +25,8 @@
 import type { Request, Response } from 'express';
 import { streamText, type ToolSet } from 'ai';
 import { resolveModel, reportModelUsage, type ResolvedModel, type RoutingOptions } from '../chat-core.js';
-import { Conversation } from '../../models/conversation.js';
+import { getDb } from '../../db/index.js';
+import { updateConversationTitle } from '../../db/chat/conversationRepository.js';
 import type { CreditReservation, CreditUsage } from '../credits-manager.js';
 import {
   saveConversationResult,
@@ -347,10 +348,7 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
           const title = await titlePromise;
           if (title) {
             res.write(`event: alia.title\ndata: ${JSON.stringify({ eventVersion: 1, title, conversationId })}\n\n`);
-            await Conversation.updateOne(
-              { oxyUserId: req.user.id, conversationId },
-              { $set: { title } },
-            );
+            await updateConversationTitle(getDb(), req.user.id, conversationId, title);
             // The title is a model summary of the user's own conversation.
             log.v1.info({ conversationId }, 'Auto-generated conversation title');
           }

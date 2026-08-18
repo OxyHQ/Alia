@@ -309,8 +309,9 @@ decides what happens when a retention policy eventually does.
 
 **A relation is NOT always a foreign key, and `messages` is where this batch says
 no.** Its `conversation_id` names a real parent, on the business key rather than
-on `_id`, and there is no constraint — because `routes/conversations.ts:187-188`
-creates the conversation and inserts the messages inside ONE `Promise.all`.
+on `_id`, and there is no constraint — because `POST /conversations` in
+`routes/conversations.ts` creates the conversation and inserts the messages
+inside ONE `Promise.all`.
 Parent and child are written concurrently, so a foreign key would convert a
 working write into a race-dependent `23503` on whichever statement lost. The
 `api_usage.key_id` reasoning applied to an ordering rather than to a deletion:
@@ -833,19 +834,25 @@ every later statement fails, including a plain read, until it rolls back. Mongo
 has no equivalent — a duplicate-key error leaves the session usable, so "insert
 optimistically, catch the duplicate, recover" degrades cleanly there.
 
-`lib/conversation-saver.ts:177-185` is exactly that shape and it is deliberate,
-not sloppy: it appends messages with `insertMany`, reads a duplicate key on
-`messages_oxy_user_conversation_seq_key` as "a concurrent append claimed this
-seq", and converges with a `deleteMany` + full re-insert. It works today because
-that sequence is NOT inside a transaction.
+`saveConversation` in `lib/conversation-saver.ts` is exactly that shape and it is
+deliberate, not sloppy: it appends messages optimistically, reads a duplicate key
+on `messages_oxy_user_conversation_seq_key` as "a concurrent append claimed this
+seq", and converges with a delete + full re-insert.
 
-This is a DESTINATION note — no call site moved in this batch. Whoever ports it
-has two options and needs to pick deliberately: wrap the optimistic insert in a
-`SAVEPOINT` so the failure rolls back only to it and the recovery can still run,
-or keep the sequence outside a transaction as it is now. What must not happen is
-the natural-looking refactor that puts the whole function in a
-`db.transaction(...)` and leaves the `catch` in place — the recovery then fails
-with `25P02` and the message history is left deleted.
+**PORTED, and the choice made was the second one: the sequence stays OUTSIDE a
+transaction.** The append, the delete and the re-insert are three separate
+statements on the pool, so the refused insert aborts nothing and the recovery
+runs on a clean session. `isUniqueViolation(err, APPEND_SEQ_INDEX)` from
+`@oxyhq/db` reads the SQLSTATE off `cause` — where drizzle puts it — and names
+the index, so a future unique on `messages` cannot start triggering the rewrite
+for an unrelated reason. `lib/__tests__/conversation-saver.pgdb.test.ts` produces
+the race for real, by claiming the seq between the read and the insert.
+
+What must not happen is the natural-looking refactor that puts the whole function
+in a `db.transaction(...)` and leaves the `catch` in place — the recovery then
+fails with `25P02` and the message history is left deleted. Note that the delete
+and the re-insert INSIDE `replaceMessages` are one transaction, which is a
+different statement pair and safe: nothing catches across it.
 
 ## Mongo's three write counts do not survive the port — decide per call site
 

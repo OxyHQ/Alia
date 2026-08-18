@@ -5,9 +5,28 @@
  */
 
 import { generateText } from 'ai';
-import { Conversation } from '../models/conversation.js';
-import { type ConversationSource } from '../domain/conversation.js';
-import { Message } from '../models/message.js';
+import { isUniqueViolation } from '@oxyhq/db';
+import { getDb } from '../db/index.js';
+import {
+  findConversation,
+  updateConversationTitle,
+  upsertConversation,
+} from '../db/chat/conversationRepository.js';
+import {
+  countMessages,
+  countMessagesInConversation,
+  deleteMessages,
+  findLastMessage,
+  insertMessages,
+  type NewMessage,
+} from '../db/chat/messageRepository.js';
+import {
+  type AgentInfo,
+  type ConversationSource,
+  type MessageContent,
+  type MessageRole,
+  type ToolInvocation,
+} from '../domain/conversation.js';
 import { resolveModel, getAIModel } from './chat-core.js';
 import { log } from './logger.js';
 
@@ -15,27 +34,6 @@ import { log } from './logger.js';
 const TAG = String.raw`ALIA_TITLE|TITLE|TÍTULO|TITRE|TITOLO|TITEL|ЗАГОЛОВОК`;
 const TITLE_EXTRACT_RE = new RegExp(String.raw`\[(${TAG})\](.*?)\[\/\1\]|<(${TAG})>(.*?)<\/\3>`, 'i');
 const TITLE_STRIP_RE = new RegExp(String.raw`\[(${TAG})\].*?\[\/\1\]|<(${TAG})>.*?<\/\2>`, 'gi');
-
-interface MessageContentPart {
-  type: string;
-  [key: string]: unknown;
-}
-type MessageContent = string | MessageContentPart[];
-
-interface ToolInvocation {
-  toolCallId: string;
-  toolName: string;
-  state: string;
-  args?: unknown;
-  result?: unknown;
-}
-
-interface AgentInfo {
-  id: string;
-  name: string;
-  avatar: string | null;
-  handle: string;
-}
 
 /** The shape callers actually pass (a subset of ChatMessage / stored message fields). */
 interface InputMessage {
@@ -78,15 +76,8 @@ export interface SaveConversationParams {
   agentMessages?: Array<{ role: 'assistant'; content: string; agentInfo: AgentInfo }>;
 }
 
-/** A message read back from storage while deciding whether we can append. */
-interface StoredTail {
-  seq?: number;
-  role: string;
-  content: unknown;
-}
-
 /** Two messages are equal for append purposes if role and content match. */
-function sameMessage(a: StoredTail, b: InputMessage): boolean {
+function sameMessage(a: { role: string; content: unknown }, b: InputMessage): boolean {
   if (a.role !== b.role) return false;
   if (a.content === b.content) return true;
   try {
@@ -96,13 +87,17 @@ function sameMessage(a: StoredTail, b: InputMessage): boolean {
   }
 }
 
-/** True for a MongoDB duplicate-key error (E11000), single or bulk. */
-function isDuplicateKeyError(err: unknown): boolean {
-  if (err == null || typeof err !== 'object') return false;
-  const e = err as { code?: number; writeErrors?: Array<{ code?: number; err?: { code?: number } }> };
-  if (e.code === 11000) return true;
-  return Array.isArray(e.writeErrors) && e.writeErrors.some(w => w?.code === 11000 || w?.err?.code === 11000);
-}
+/**
+ * The one index whose violation means "a concurrent append claimed this seq".
+ *
+ * Named, not just "some unique fired": `isUniqueViolation(error)` alone cannot
+ * tell this index from any other on the table, so a future one would quietly
+ * start triggering the full-rewrite recovery for an unrelated reason. It is also
+ * why the SQLSTATE is read with `@oxyhq/db`'s helper rather than off
+ * `error.code` — drizzle wraps the driver failure, so the code lives on `cause`
+ * and a direct read matches nothing.
+ */
+const APPEND_SEQ_INDEX = 'messages_oxy_user_conversation_seq_key';
 
 /**
  * Save or update a conversation in the database.
@@ -141,27 +136,18 @@ export async function saveConversation(params: SaveConversationParams): Promise<
   const title = extractConversationTitle(assistantResponse, messages);
 
   // Update conversation metadata
-  await Conversation.findOneAndUpdate(
-    { oxyUserId: userId, conversationId },
-    {
-      $set: {
-        lastMessage: stripTitleTags(assistantResponse).slice(0, 100),
-      },
-      $setOnInsert: {
-        oxyUserId: userId,
-        conversationId,
-        title,
-        source: source || 'app',
-        ...(agentId && { agentId }),
-      },
-    },
-    { upsert: true },
-  );
+  await upsertConversation(getDb(), {
+    oxyUserId: userId,
+    conversationId,
+    lastMessage: stripTitleTags(assistantResponse).slice(0, 100),
+    titleOnInsert: title,
+    source: source || 'app',
+    ...(agentId ? { agentId } : {}),
+  });
 
-  const filter = { conversationId, oxyUserId: userId };
   const [storedCount, lastStored] = await Promise.all([
-    Message.countDocuments(filter),
-    Message.findOne(filter).sort({ seq: -1, createdAt: -1 }).select('seq role content').lean<StoredTail | null>(),
+    countMessages(getDb(), userId, conversationId),
+    findLastMessage(getDb(), userId, conversationId),
   ]);
 
   // Fast path: stored history is exactly the client history minus the new turn,
@@ -175,24 +161,24 @@ export async function saveConversation(params: SaveConversationParams): Promise<
     const toAppend = [...clientHistory.slice(storedCount), ...turnTail];
     if (toAppend.length === 0) return;
     try {
-      await Message.insertMany(
+      await insertMessages(
+        getDb(),
         toAppend.map((message, i) => buildStoredMessage(message, userId, conversationId, storedCount + i)),
-        { ordered: true },
       );
       return;
     } catch (err) {
       // Concurrent append claimed the same seq → converge via full rewrite below.
-      if (!isDuplicateKeyError(err)) throw err;
+      if (!isUniqueViolation(err, APPEND_SEQ_INDEX)) throw err;
     }
   }
 
   // Divergence / legacy / no-seq / race → full rewrite. seq is the absolute index.
   const allMessages = [...clientHistory, ...turnTail];
-  await Message.deleteMany(filter);
+  await deleteMessages(getDb(), userId, conversationId);
   if (allMessages.length > 0) {
-    await Message.insertMany(
+    await insertMessages(
+      getDb(),
       allMessages.map((message, index) => buildStoredMessage(message, userId, conversationId, index)),
-      { ordered: false },
     );
   }
 }
@@ -239,17 +225,14 @@ export async function generateConversationTitle(
   userMessage: string,
 ): Promise<void> {
   try {
-    const conv = await Conversation.findOne({ oxyUserId: userId, conversationId });
+    const conv = await findConversation(getDb(), userId, conversationId);
     if (!conv || conv.isManualTitle) return;
-    const messageCount = await Message.countDocuments({ conversationId });
+    const messageCount = await countMessagesInConversation(getDb(), conversationId);
     if (messageCount > 3) return;
 
     const title = await generateTitle(userMessage);
     if (title) {
-      await Conversation.updateOne(
-        { oxyUserId: userId, conversationId },
-        { $set: { title } },
-      );
+      await updateConversationTitle(getDb(), userId, conversationId, title);
       // The title is a model summary of the user's own conversation.
       log.chat.info({ conversationId }, 'Auto-generated conversation title');
     }
@@ -258,32 +241,33 @@ export async function generateConversationTitle(
   }
 }
 
+/**
+ * One message, ready for `messages`.
+ *
+ * `role` and `content` are narrowed here rather than validated: every caller of
+ * `saveConversation` is server-side (`lib/chat/provider-loop.ts` and the
+ * non-streaming branch beside it), and `clientHistory` is the SAME array the
+ * request was answered from — so a role outside the tuple would already have
+ * been refused by the model call. The cast records that, and the column's CHECK
+ * is what catches it if a future caller is not.
+ */
 function buildStoredMessage(
   message: InputMessage,
   userId: string,
   conversationId: string,
   seq: number,
-): Record<string, unknown> {
-  const base = {
+): NewMessage {
+  return {
     conversationId,
     oxyUserId: userId,
-    role: message.role,
-    content: message.content,
+    role: message.role as MessageRole,
+    content: message.content ?? '',
     seq,
     createdAt: new Date(),
+    ...(message.toolInvocations ? { toolInvocations: message.toolInvocations } : {}),
+    ...(message.agentInfo ? { agentInfo: message.agentInfo } : {}),
+    // seq is the absolute position, so the id fallback stays globally consistent
+    // whether the message was written via append or full rewrite.
+    clientMessageId: message.id ? message.id : `msg-${seq}`,
   };
-
-  const withToolInvocations = message.toolInvocations
-    ? { ...base, toolInvocations: message.toolInvocations }
-    : base;
-
-  const withAgentInfo = message.agentInfo
-    ? { ...withToolInvocations, agentInfo: message.agentInfo }
-    : withToolInvocations;
-
-  // seq is the absolute position, so the id fallback stays globally consistent
-  // whether the message was written via append or full rewrite.
-  const id = message.id ? message.id : `msg-${seq}`;
-
-  return { ...withAgentInfo, id };
 }

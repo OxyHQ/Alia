@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { Agent } from '../../models/agent.js';
 import { AgentSession } from '../../models/agent-session.js';
-import { Conversation } from '../../models/conversation.js';
+import { countConversationsPerDayForAgent } from '../../db/chat/conversationRepository.js';
 import { authenticateToken, optionalAuth } from '../../middleware/auth.js';
 import { getRecentActivity } from '../../lib/agent-runner.js';
 import { EventStreamEntry as EventStreamEntryModel } from '../../models/event-stream-entry.js';
@@ -55,20 +55,24 @@ router.get('/:id/activity-grid', optionalAuth, async (req: Request, res: Respons
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - weeks * 7);
 
+    /**
+     * The two halves now come from different stores, and they must agree on what
+     * a "day" is. `$dateToString` with no timezone renders UTC, so the Postgres
+     * side renders UTC explicitly — `to_char` on a `timestamptz` would otherwise
+     * follow the session's `TimeZone` and bucket the same instant into a
+     * different day from the Mongo half, which reads as a plausible heatmap.
+     */
     const [sessionResult, conversationResult] = await Promise.all([
       AgentSession.aggregate([
         { $match: { agentId: agent._id, createdAt: { $gte: startDate } } },
         { $group: { _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } }, count: { $sum: 1 } } },
       ]),
-      Conversation.aggregate([
-        { $match: { agentId: agent._id, createdAt: { $gte: startDate } } },
-        { $group: { _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } }, count: { $sum: 1 } } },
-      ]),
+      countConversationsPerDayForAgent(getDb(), String(agent._id), startDate),
     ]);
 
     const countMap = new Map<string, number>();
     for (const r of sessionResult) countMap.set(r._id, (countMap.get(r._id) || 0) + r.count);
-    for (const r of conversationResult) countMap.set(r._id, (countMap.get(r._id) || 0) + r.count);
+    for (const r of conversationResult) countMap.set(r.day, (countMap.get(r.day) || 0) + r.count);
 
     const grid = Array.from(countMap.entries())
       .sort(([a], [b]) => a.localeCompare(b))

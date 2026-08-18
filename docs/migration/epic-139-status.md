@@ -433,14 +433,20 @@ order by t;"
 #     ESTIMATE, and reads 0 for any table autovacuum has not visited.
 #
 #     The replacement is a value that is independently predictable: the migration
-#     ledger must hold exactly one row per entry in
+#     ledger must hold exactly one row per APPLIED entry in
 #     `packages/api/drizzle/meta/_journal.json` (26 as of 2026-08-18). A
 #     connection that could not see data would not return that number, and a
 #     schema-only database returns it while every application table is legitimately
-#     empty. Compare the two numbers; they must be equal.
+#     empty. Compare the two numbers.
+#
+#     The ledger may legitimately be SHORTER than the journal, and only by that
+#     much: a checkout carrying migrations the deploy has not applied yet reads
+#     `ledger < journal`, which is "these are pending", not "this connection is
+#     blind". `ledger > journal` is the reading that is never legitimate — a
+#     database ahead of the tree it is being compared against.
 psql "$DATABASE_URL" -tA -c "select count(*) from drizzle.__drizzle_migrations;"
 jq '.entries | length' packages/api/drizzle/meta/_journal.json
-# The two numbers must be equal. They were, on 2026-08-18: 26 and 26.
+# They were equal on 2026-08-18, at 26 and 26, with nothing pending.
 
 # C — the vacuity floor for the sweep. Count EVERY table in every non-system
 #     schema, not just the 21, and assert that empty + non-empty equals scanned.

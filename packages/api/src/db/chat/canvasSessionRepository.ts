@@ -14,8 +14,10 @@
  *   only if a row exists, and none does. That is the behaviour being ported, not
  *   a bug introduced here — a room join that started succeeding because the port
  *   "fixed" the lookup would be a new subscription path nobody reviewed.
- * - `GET /canvas/:conversationId` answers `{ components: [] }` for every
- *   conversation, and did before.
+ * - The read route answers `{ components: [] }` for every conversation, and did
+ *   before. It is `GET /api/sessions/:conversationId`, not `/canvas/…`:
+ *   `index.ts` mounts `routes/canvas/index.js` at `/api` and that router mounts
+ *   `sessions.js` at `/sessions`, so the directory name never reaches the URL.
  *
  * There is deliberately no `upsertCanvasSession` waiting for a caller. An unused
  * write against a table whose shape nothing exercises is the least reviewed code

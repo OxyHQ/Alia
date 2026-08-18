@@ -1,7 +1,8 @@
 import crypto from 'crypto';
 import { Router, Request, Response } from 'express';
 import { getAliaModel, getModelMappingsForTier } from '../../lib/gateway-client.js';
-import { Conversation } from '../../models/conversation.js';
+import { getDb } from '../../db/index.js';
+import { findConversationAgentById } from '../../db/chat/conversationRepository.js';
 import { refundReservation } from '../../lib/credits-manager.js';
 import { handleDeepResearch } from '../../lib/chat-modes/deep-research-handler.js';
 import { ToolPipeline } from '../../lib/tool-pipeline.js';
@@ -155,7 +156,9 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
       // Check if this conversation is linked to a specific agent — enable full agent execution
       if (conversationId && req.user?.id) {
         try {
-          const conv = await Conversation.findById(conversationId).select('agentId').lean();
+          // Addresses the PRIMARY KEY, not the client's business key. See
+          // `findConversationAgentById` — this branch has never been reachable.
+          const conv = await findConversationAgentById(getDb(), conversationId);
           if (conv?.agentId) {
             const { Agent } = await import('../../models/agent.js');
             const { AgentSession } = await import('../../models/agent-session.js');
