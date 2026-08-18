@@ -86,6 +86,26 @@ await esbuild.build({
   logLevel: 'info',
 });
 
+// The seeder, bundled for the same reason the migrator is: the deploy's
+// post-rollout one-shot invokes a FILE PATH, and the runtime stage is
+// `node:*-slim` with no bun and no `src/`. A seeder that exists only as
+// TypeScript is a deploy step that cannot run — and this one fails the same way
+// the migrator's entrypoint did: silently, because nothing complains until the
+// day the command is actually issued. `db/__tests__/deployWorkflow.test.ts`
+// asserts this outfile and the workflow's use of it together.
+await esbuild.build({
+  entryPoints: ['src/scripts/seed.ts'],
+  bundle: true,
+  platform: 'node',
+  target: 'node20',
+  format: 'esm',
+  outfile: 'dist/scripts/seed.js',
+  plugins: [externalizeNodeModules],
+  sourcemap: false,
+  minify: false,
+  logLevel: 'info',
+});
+
 // Copy prompts directory to dist
 try {
   await cp('prompts', 'dist/prompts', { recursive: true });
