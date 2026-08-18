@@ -793,6 +793,8 @@
     "routingProfile": "Perfil de enrutado, no un modelo concreto",
     "picksAmong": "Elige entre {{count}} modelos",
     "concreteModel": "Un modelo concreto",
+    "answersFrom": "Responde con modelos de {{publishers}}",
+    "answersFromAndOthers": "Responde con modelos de {{publishers}}, y otros",
     "capabilitySometimes": "{{capability}} a veces",
     "contextOf": "{{tokens}} de contexto",
     "maxOutputOf": "{{tokens}} de respuesta",

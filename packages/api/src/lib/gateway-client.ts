@@ -166,6 +166,19 @@ export interface AliaModel {
 
 export interface ModelMapping {
   provider: string;
+  /**
+   * Who RELEASED this model, which is never who serves it.
+   *
+   * Optional for the same reason `availabilityScope` is: this module is the
+   * seam a Relay catalogue arrives through, and Relay does not carry the field
+   * yet. The LOCAL branch reads `TIER_MODEL_MAPPINGS`, where every one of the
+   * 115 mappings has it (`internal/providers/lib/model-publishers.ts`).
+   *
+   * Absent is UNKNOWN, never a guess. `lib/catalogue.ts` counts the routes that
+   * arrived without one and publishes the count, so a provenance list built
+   * from half a table cannot be mistaken for a complete one.
+   */
+  publisher?: string;
   modelId: string;
   priority: number;
   qualityScore: number;

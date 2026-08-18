@@ -831,6 +831,8 @@
     "routingProfile": "Routing profile, not a single model",
     "picksAmong": "Picks among {{count}} models",
     "concreteModel": "A single model",
+    "answersFrom": "Answers from {{publishers}}",
+    "answersFromAndOthers": "Answers from {{publishers}}, and others",
     "capabilitySometimes": "{{capability}} sometimes",
     "contextOf": "{{tokens}} context",
     "maxOutputOf": "{{tokens}} reply",

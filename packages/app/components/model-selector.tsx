@@ -241,6 +241,51 @@ function CapabilityChipView({ chip }: { chip: Chip }) {
   );
 }
 
+/**
+ * How a publisher's name is written, for the handful whose casing a reader
+ * would notice.
+ *
+ * A DISPLAY map, and the duplication with the server's own is deliberate and
+ * bounded: identity stays server-owned — the catalogue decides which publishers
+ * exist and this file never invents one — while casing is presentation. A
+ * publisher missing from here title-cases, which is what the server's fallback
+ * does too, so a new publisher renders acceptably the day it appears instead of
+ * waiting for this map. The worst drift is a cosmetic one.
+ */
+const PUBLISHER_DISPLAY_NAME: Record<string, string> = {
+  'black-forest-labs': 'Black Forest Labs',
+  deepseek: 'DeepSeek',
+  elevenlabs: 'ElevenLabs',
+  openai: 'OpenAI',
+  xai: 'xAI',
+};
+
+function publisherName(publisher: string): string {
+  const explicit = PUBLISHER_DISPLAY_NAME[publisher];
+  if (explicit !== undefined) return explicit;
+  return publisher
+    .split('-')
+    .map((part) => part.charAt(0).toLocaleUpperCase() + part.slice(1))
+    .join(' ');
+}
+
+/**
+ * Who can answer, in one line, or `null` when the catalogue did not say.
+ *
+ * `null` rather than "unknown": an entry whose provenance is empty is one the
+ * server told us nothing about, and a row that announced its own ignorance on
+ * every line would be noise. The UNATTRIBUTED count is different and IS shown,
+ * because it changes the meaning of the names beside it from "these" to "these
+ * and possibly others".
+ */
+function provenanceLine(entry: CatalogueEntry, t: Translate): string | null {
+  const names = entry.provenance.publishers.map(publisherName);
+  if (names.length === 0) return null;
+  const joined = names.join(', ');
+  if (entry.provenance.unattributedRoutes === 0) return t('models.answersFrom', { publishers: joined });
+  return t('models.answersFromAndOthers', { publishers: joined });
+}
+
 /** A sunset date, when one has been announced and can be read. */
 function sunsetLine(entry: CatalogueEntry, t: Translate): string | null {
   if (entry.sunsetAt === null) return null;
@@ -456,6 +501,7 @@ function EntryRow({
     const subtitle = [
       description,
       categoryLabel(entry.category, t),
+      provenanceLine(entry, t),
       facts,
       entry.unavailable ? t('models.unavailable') : null,
       sunset,
@@ -529,10 +575,14 @@ function DetailPanel({
 
   const { label } = presentation(entry, modes);
   const sunset = sunsetLine(entry, t);
+  const provenance = provenanceLine(entry, t);
   return (
     <View className="border-t border-border px-2.5 pt-2 pb-1.5 gap-1.5">
       <Text className="text-xs font-medium text-foreground">{label}</Text>
       <Text className="text-[11px] text-muted-foreground">{kindLine(entry, t)}</Text>
+      {provenance !== null && (
+        <Text className="text-[11px] text-muted-foreground">{provenance}</Text>
+      )}
       <View className="flex-row flex-wrap gap-1">
         {capabilityChips(entry, t).map((chip) => (
           <CapabilityChipView key={chip.key} chip={chip} />
