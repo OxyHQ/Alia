@@ -92,24 +92,34 @@ interface PublishableState {
 }
 
 /**
- * `Agent` and `Skill` are read and written through explicit branches rather than
+ * Agents and skills are read and written through explicit branches rather than
  * through one "catalog model" abstraction.
  *
- * A generic `Model<{ isPublished?: boolean }>` looks tidier and is how this was
- * first written, but reaching it needs a double cast through `unknown` — the two
- * document types genuinely are not assignable to a common one — and a cast there
- * would silently keep compiling if either dropped the field. Two branches of
- * three lines each cost nothing and stay honest with the schemas.
+ * A generic helper over `{ isPublished?: boolean }` looks tidier and is how this
+ * was first written. It does not survive contact with the two tables: `agents`
+ * carries `is_featured` and `is_trending` and `skills` carries neither, so the
+ * common type is the intersection and every caller that wants more has to widen
+ * it back. Two branches of three lines each cost nothing and stay honest with
+ * the schemas.
  *
- * ## `isValidObjectId` guards the AGENT branch only, and moving it was the point
+ * ## There is no `isValidObjectId` here, and its whole lifetime is the lesson
  *
- * It used to guard both, at the top. `skills` is on Postgres now and its `id` is
- * `text`: a row created after the port carries a `generatedId()` uuid, which
- * `isValidObjectId` REJECTS. Leaving the guard where it was would have answered
- * "the reported object no longer exists" to every report about a skill made from
- * the port onwards — a permissive-direction failure that no test of today's rows
- * can see, because today's rows are all ObjectIds. `Agent` is still Mongoose and
- * still needs it, so the guard moved rather than went.
+ * One guarded BOTH branches, at the top, back when both models were Mongoose.
+ * It was moved into the agent branch when `skills` moved to Postgres, because a
+ * skill row minted after that port carries a `generatedId()` uuid and
+ * `isValidObjectId` REJECTS one — leaving it above both would have answered
+ * "the reported object no longer exists" to every report about a skill made
+ * from then on.
+ *
+ * Then `agents` moved too, and the same guard on the agent branch became the
+ * same fault pointed the other way. So it is gone rather than moved again.
+ *
+ * Both failures are silent and permissive, and neither is visible to a test
+ * whose fixtures predate the port it belongs to: while the rows are all
+ * ObjectIds the guard is invisible, and by the time one is not, the endpoint is
+ * quietly reporting that real objects do not exist. A shape-checking guard on an
+ * id whose shape the storage layer owns has no correct resting place — the
+ * lookup itself is the check, and a `text` column simply does not match.
  */
 async function loadPublishable(
   subject: EnforcementSubject,
