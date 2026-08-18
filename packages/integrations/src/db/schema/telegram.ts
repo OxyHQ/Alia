@@ -6,7 +6,7 @@
  */
 
 import { bigint, boolean, index, integer, pgTable, text, uniqueIndex } from 'drizzle-orm/pg-core';
-import { createdAt, timestamptz, updatedAt } from '@oxyhq/db';
+import { createdAt, generatedId, timestamptz, updatedAt } from '@oxyhq/db';
 import { checkOneOf } from './columns';
 
 /**
@@ -58,7 +58,7 @@ export const telegramSessions = pgTable(
 export const telegramChats = pgTable(
   'telegram_chats',
   {
-    id: text().primaryKey(),
+    id: generatedId(),
     sessionId: text()
       .notNull()
       .references(() => telegramSessions.sessionId, { onDelete: 'cascade' }),
@@ -81,7 +81,7 @@ export const telegramChats = pgTable(
 export const telegramMessages = pgTable(
   'telegram_messages',
   {
-    id: text().primaryKey(),
+    id: generatedId(),
     sessionId: text()
       .notNull()
       .references(() => telegramSessions.sessionId, { onDelete: 'cascade' }),

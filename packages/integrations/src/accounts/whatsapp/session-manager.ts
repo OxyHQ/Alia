@@ -9,9 +9,35 @@ import makeWASocket, {
   type SignalKeyStore,
   type WASocket,
 } from '@whiskeysockets/baileys';
-import { errorCode } from '../../shared/utils';
 import { randomUUID } from 'node:crypto';
-import { WhatsAppSession, WhatsAppChat, WhatsAppMessage, type IWhatsAppSession } from './models';
+import { getDb } from '../../db';
+import {
+  createWhatsAppSession,
+  deleteWhatsAppChat,
+  deleteWhatsAppMessage,
+  deleteWhatsAppMessagesForChat,
+  findRestorableWhatsAppSessions,
+  findWhatsAppSession,
+  findWhatsAppSessionOwner,
+  findWhatsAppSessionQr,
+  insertWhatsAppMessages,
+  listWhatsAppSessions,
+  listWhatsAppSessionsForUser,
+  markWhatsAppConnected,
+  markWhatsAppDisconnected,
+  markWhatsAppFailed,
+  markWhatsAppLoggedOut,
+  markWhatsAppQrPending,
+  readWhatsAppAuthKeys,
+  readWhatsAppAuthState,
+  saveWhatsAppAuthState,
+  updateWhatsAppMessageText,
+  upsertWhatsAppChat,
+  upsertWhatsAppChats,
+  writeWhatsAppAuthKeys,
+  type WhatsAppChatSync,
+  type WhatsAppMessageInsert,
+} from './repository';
 import { handleIncomingMessage } from '../../shared/chat-handler';
 import { APIClient } from '../../shared/api-client';
 import { createLogger } from '../../shared/logger';
@@ -27,19 +53,14 @@ function toUnixSeconds(ts: number | LongLike | null | undefined, fallback: numbe
   return fallback;
 }
 
-/** Convert Buffers to base64 JSON objects before MongoDB storage (avoids BSON Binary). */
+/** Convert Buffers to base64 JSON objects before storage (jsonb holds no bytes). */
 function serialize(data: unknown): unknown {
   return JSON.parse(JSON.stringify(data, BufferJSON.replacer));
 }
 
-/** Restore Buffers from MongoDB (handles both base64 JSON and legacy BSON Binary). */
+/** Restore Buffers from the stored jsonb. */
 function deserialize<T = unknown>(data: unknown): T {
-  return JSON.parse(JSON.stringify(data, (_key, value) => {
-    if (value?._bsontype === 'Binary') {
-      return { type: 'Buffer', data: Buffer.from(value.buffer).toString('base64') };
-    }
-    return value;
-  }), BufferJSON.reviver);
+  return JSON.parse(JSON.stringify(data), BufferJSON.reviver) as T;
 }
 
 /**
@@ -65,13 +86,11 @@ class SessionManager {
   private static readonly JITTER_MAX_MS = 1000;
 
   /**
-   * On startup, load all 'connected' or 'disconnected' sessions from MongoDB
-   * and attempt to reconnect them.
+   * On startup, load all 'connected' or 'disconnected' sessions and attempt to
+   * reconnect them.
    */
   async initialize(): Promise<void> {
-    const activeSessions = await WhatsAppSession.find({
-      status: { $in: ['connected', 'disconnected'] },
-    });
+    const activeSessions = await findRestorableWhatsAppSessions(getDb());
     logger.info(`Found ${activeSessions.length} active session(s) to restore`);
 
     for (const session of activeSessions) {
@@ -90,15 +109,7 @@ class SessionManager {
   async createSession(oxyUserId: string): Promise<{ sessionId: string; qrPromise: Promise<string> }> {
     const sessionId = randomUUID();
 
-    // Create a new MongoDB document for this session
-    await WhatsAppSession.create({
-      sessionId,
-      oxyUserId,
-      status: 'qr-pending',
-      authState: null,
-      authKeys: new Map(),
-      lastQR: null,
-    });
+    await createWhatsAppSession(getDb(), { sessionId, oxyUserId });
 
     // Set up a QR promise that the HTTP handler can await
     let qrResolve!: (qr: string) => void;
@@ -125,21 +136,19 @@ class SessionManager {
   }
 
   /**
-   * Start or reconnect an existing session using auth stored in MongoDB.
+   * Start or reconnect an existing session using the stored auth state.
    */
   async startSession(sessionId: string): Promise<void> {
-    const sessionData = await WhatsAppSession.findOne({ sessionId });
-    if (!sessionData) {
+    const oxyUserId = await findWhatsAppSessionOwner(getDb(), sessionId);
+    if (!oxyUserId) {
       throw new Error(`No session record found for sessionId ${sessionId}`);
     }
-
-    const oxyUserId = sessionData.oxyUserId;
 
     // Clean up any existing socket for this sessionId
     await this.cleanupSocket(sessionId);
 
-    // Build MongoDB-backed auth state
-    const { state, saveCreds } = await this.createMongoAuthState(sessionId, sessionData);
+    // Build Postgres-backed auth state
+    const { state, saveCreds } = await this.createAuthState(sessionId);
 
     const { version } = await fetchLatestBaileysVersion();
 
@@ -160,10 +169,7 @@ class SessionManager {
 
       if (qr) {
         // Store QR for polling endpoint and resolve the pending promise
-        await WhatsAppSession.updateOne(
-          { sessionId },
-          { $set: { status: 'qr-pending', lastQR: qr } }
-        );
+        await markWhatsAppQrPending(getDb(), sessionId, qr);
 
         const pending = this.pendingQRs.get(sessionId);
         if (pending) {
@@ -181,18 +187,7 @@ class SessionManager {
         const phoneNumber = sock.user?.id?.split(':')[0] || '';
         const displayName = sock.user?.name || '';
 
-        await WhatsAppSession.updateOne(
-          { sessionId },
-          {
-            $set: {
-              status: 'connected',
-              lastConnected: new Date(),
-              phoneNumber,
-              displayName,
-              lastQR: null,
-            },
-          }
-        );
+        await markWhatsAppConnected(getDb(), sessionId, { phoneNumber, displayName });
         logger.info(`Session ${sessionId} connected for user ${oxyUserId} (${phoneNumber})`);
       }
 
@@ -207,10 +202,7 @@ class SessionManager {
           this.reconnectAttempts.set(sessionId, attempts);
 
           if (attempts > SessionManager.MAX_RECONNECT_ATTEMPTS) {
-            await WhatsAppSession.updateOne(
-              { sessionId },
-              { $set: { status: 'failed', lastDisconnected: new Date() } }
-            );
+            await markWhatsAppFailed(getDb(), sessionId);
             this.reconnectAttempts.delete(sessionId);
             logger.error(
               `Session ${sessionId} for ${oxyUserId} failed after ${SessionManager.MAX_RECONNECT_ATTEMPTS} reconnect attempts`
@@ -221,10 +213,7 @@ class SessionManager {
               SessionManager.MAX_RECONNECT_MS,
             ) + Math.floor(Math.random() * SessionManager.JITTER_MAX_MS);
 
-            await WhatsAppSession.updateOne(
-              { sessionId },
-              { $set: { status: 'disconnected', lastDisconnected: new Date() } }
-            );
+            await markWhatsAppDisconnected(getDb(), sessionId);
             logger.info(
               `Session ${sessionId} disconnected for user ${oxyUserId} (status ${statusCode}), reconnecting in ${Math.round(delay / 1000)}s (attempt ${attempts}/${SessionManager.MAX_RECONNECT_ATTEMPTS})...`
             );
@@ -242,17 +231,7 @@ class SessionManager {
             this.reconnectTimers.set(sessionId, timer);
           }
         } else {
-          await WhatsAppSession.updateOne(
-            { sessionId },
-            {
-              $set: {
-                status: 'logged-out',
-                authState: null,
-                authKeys: new Map(),
-                lastQR: null,
-              },
-            }
-          );
+          await markWhatsAppLoggedOut(getDb(), sessionId);
           logger.info(`Session ${sessionId} logged out for user ${oxyUserId}`);
         }
       }
@@ -263,37 +242,31 @@ class SessionManager {
 
     // ---- Incoming messages ----
     sock.ev.on('messages.upsert', async ({ messages, type }) => {
-      // Persist all messages to MongoDB (both notify and history sync)
+      // Persist all messages (both notify and history sync)
+      const rows: WhatsAppMessageInsert[] = [];
       for (const msg of messages) {
         const text = msg.message?.conversation
           || msg.message?.extendedTextMessage?.text
           || '';
         if (!text || !msg.key.id || !msg.key.remoteJid) continue;
 
-        const ts = msg.messageTimestamp;
-        const timestamp = toUnixSeconds(ts, Math.floor(Date.now() / 1000));
+        rows.push({
+          sessionId,
+          oxyUserId,
+          jid: msg.key.remoteJid,
+          messageId: msg.key.id,
+          fromMe: msg.key.fromMe || false,
+          timestamp: toUnixSeconds(msg.messageTimestamp, Math.floor(Date.now() / 1000)),
+          text,
+          pushName: msg.pushName || undefined,
+        });
+      }
 
+      if (rows.length > 0) {
         try {
-          await WhatsAppMessage.updateOne(
-            { sessionId, messageId: msg.key.id },
-            {
-              $setOnInsert: {
-                sessionId,
-                oxyUserId,
-                jid: msg.key.remoteJid,
-                messageId: msg.key.id,
-                fromMe: msg.key.fromMe || false,
-                timestamp,
-                text,
-                pushName: msg.pushName || undefined,
-              },
-            },
-            { upsert: true }
-          );
-        } catch (err: unknown) {
-          if (errorCode(err) !== 11000) { // ignore duplicate key
-            logger.error(`Error persisting message for session ${sessionId}:`, err);
-          }
+          await insertWhatsAppMessages(getDb(), rows);
+        } catch (err) {
+          logger.error(`Error persisting messages for session ${sessionId}:`, err);
         }
       }
 
@@ -315,9 +288,9 @@ class SessionManager {
         const remoteJid = msg.key?.remoteJid;
         if (!remoteJid) continue;
 
-        // Look up the oxyUserId from the session document
-        const sessionDoc = await WhatsAppSession.findOne({ sessionId }).lean();
-        if (!sessionDoc) {
+        // Look up the oxyUserId from the session record
+        const owner = await findWhatsAppSessionOwner(getDb(), sessionId);
+        if (!owner) {
           logger.error(`Chat: No session found for sessionId ${sessionId}`);
           continue;
         }
@@ -326,7 +299,7 @@ class SessionManager {
           await handleIncomingMessage({
             platform: 'whatsapp',
             sessionId,
-            oxyUserId: sessionDoc.oxyUserId,
+            oxyUserId: owner,
             chatId: remoteJid,
             messageText: text,
             sendResponse: async (text) => { await sock.sendMessage(remoteJid, { text }); },
@@ -343,26 +316,20 @@ class SessionManager {
       }
     });
 
-    // ---- Chat sync (persist chats to MongoDB) ----
+    // ---- Chat sync ----
     sock.ev.on('chats.upsert', async (chats) => {
       for (const chat of chats) {
         if (!chat.id || chat.id === 'status@broadcast') continue;
-        const ts = chat.conversationTimestamp;
-        const timestamp = toUnixSeconds(ts, 0);
 
         try {
-          await WhatsAppChat.updateOne(
-            { sessionId, jid: chat.id },
-            {
-              $set: {
-                name: chat.name || chat.id.split('@')[0],
-                unreadCount: chat.unreadCount || 0,
-                conversationTimestamp: timestamp,
-              },
-              $setOnInsert: { sessionId, oxyUserId, jid: chat.id },
-            },
-            { upsert: true }
-          );
+          await upsertWhatsAppChat(getDb(), {
+            sessionId,
+            oxyUserId,
+            jid: chat.id,
+            name: chat.name || chat.id.split('@')[0],
+            unreadCount: chat.unreadCount || 0,
+            conversationTimestamp: toUnixSeconds(chat.conversationTimestamp, 0),
+          });
         } catch (err) {
           logger.error(`Error persisting chat for session ${sessionId}:`, err);
         }
@@ -372,21 +339,30 @@ class SessionManager {
     sock.ev.on('chats.update', async (updates) => {
       for (const update of updates) {
         if (!update.id || update.id === 'status@broadcast') continue;
-        const $set: Record<string, unknown> = {};
-        if (update.name) $set.name = update.name;
-        if (update.unreadCount !== undefined) $set.unreadCount = update.unreadCount;
+
+        // Baileys reports only what changed; an absent field must stay absent so
+        // the upsert leaves the stored value alone rather than nulling it.
+        const changes: {
+          name?: string;
+          unreadCount?: number;
+          conversationTimestamp?: number;
+        } = {};
+        if (update.name) changes.name = update.name;
+        if (update.unreadCount !== undefined && update.unreadCount !== null) {
+          changes.unreadCount = update.unreadCount;
+        }
         if (update.conversationTimestamp) {
-          const ts = update.conversationTimestamp;
-          $set.conversationTimestamp = toUnixSeconds(ts, 0);
+          changes.conversationTimestamp = toUnixSeconds(update.conversationTimestamp, 0);
         }
 
-        if (Object.keys($set).length > 0) {
+        if (Object.keys(changes).length > 0) {
           try {
-            await WhatsAppChat.updateOne(
-              { sessionId, jid: update.id },
-              { $set, $setOnInsert: { sessionId, oxyUserId, jid: update.id } },
-              { upsert: true }
-            );
+            await upsertWhatsAppChat(getDb(), {
+              sessionId,
+              oxyUserId,
+              jid: update.id,
+              ...changes,
+            });
           } catch (err) {
             logger.error(`Error updating chat for session ${sessionId}:`, err);
           }
@@ -394,12 +370,12 @@ class SessionManager {
       }
     });
 
-    // ---- Deletions (keep MongoDB in sync) ----
+    // ---- Deletions ----
     sock.ev.on('chats.delete', async (deletedJids) => {
       for (const jid of deletedJids) {
         try {
-          await WhatsAppChat.deleteOne({ sessionId, jid });
-          await WhatsAppMessage.deleteMany({ sessionId, jid });
+          await deleteWhatsAppChat(getDb(), sessionId, jid);
+          await deleteWhatsAppMessagesForChat(getDb(), sessionId, jid);
         } catch (err) {
           logger.error(`Error deleting chat ${jid} for session ${sessionId}:`, err);
         }
@@ -412,7 +388,7 @@ class SessionManager {
         for (const key of item.keys) {
           if (!key.id) continue;
           try {
-            await WhatsAppMessage.deleteOne({ sessionId, messageId: key.id });
+            await deleteWhatsAppMessage(getDb(), sessionId, key.id);
           } catch (err) {
             logger.error(`Error deleting message for session ${sessionId}:`, err);
           }
@@ -420,7 +396,7 @@ class SessionManager {
       } else if ('jid' in item && item.all) {
         // All messages in chat cleared
         try {
-          await WhatsAppMessage.deleteMany({ sessionId, jid: item.jid });
+          await deleteWhatsAppMessagesForChat(getDb(), sessionId, item.jid);
         } catch (err) {
           logger.error(`Error clearing messages for session ${sessionId}:`, err);
         }
@@ -435,10 +411,7 @@ class SessionManager {
           || update.update?.message?.extendedTextMessage?.text;
         if (newText) {
           try {
-            await WhatsAppMessage.updateOne(
-              { sessionId, messageId: update.key.id },
-              { $set: { text: newText } }
-            );
+            await updateWhatsAppMessageText(getDb(), sessionId, update.key.id, newText);
           } catch (err) {
             logger.error(`Error updating message for session ${sessionId}:`, err);
           }
@@ -450,100 +423,70 @@ class SessionManager {
     sock.ev.on('messaging-history.set', async ({ chats, messages, isLatest }) => {
       logger.info(`History sync for session ${sessionId}: ${chats.length} chats, ${messages.length} messages (isLatest: ${isLatest})`);
 
-      // Bulk upsert chats
-      if (chats.length > 0) {
-        const chatOps = chats
-          .filter((c) => c.id !== 'status@broadcast')
-          .map((c) => {
-            const ts = c.conversationTimestamp;
-            const timestamp = toUnixSeconds(ts, 0);
-            return {
-              updateOne: {
-                filter: { sessionId, jid: c.id },
-                update: {
-                  $set: {
-                    name: c.name || c.id.split('@')[0],
-                    unreadCount: c.unreadCount || 0,
-                    conversationTimestamp: timestamp,
-                  },
-                  $setOnInsert: { sessionId, oxyUserId, jid: c.id },
-                },
-                upsert: true,
-              },
-            };
-          });
+      const chatRows: WhatsAppChatSync[] = chats
+        .filter((c) => c.id !== 'status@broadcast')
+        .map((c) => ({
+          sessionId,
+          oxyUserId,
+          jid: c.id,
+          name: c.name || c.id.split('@')[0],
+          unreadCount: c.unreadCount || 0,
+          conversationTimestamp: toUnixSeconds(c.conversationTimestamp, 0),
+        }));
 
-        if (chatOps.length > 0) {
-          try {
-            await WhatsAppChat.bulkWrite(chatOps, { ordered: false });
-          } catch (err) {
-            logger.error(`Error bulk upserting chats for session ${sessionId}:`, err);
-          }
+      if (chatRows.length > 0) {
+        try {
+          await upsertWhatsAppChats(getDb(), chatRows);
+        } catch (err) {
+          logger.error(`Error bulk upserting chats for session ${sessionId}:`, err);
         }
       }
 
-      // Bulk upsert messages
-      if (messages.length > 0) {
-        const msgOps = messages
-          .filter((m) => {
-            const text = m.message?.conversation || m.message?.extendedTextMessage?.text || '';
-            return text && m.key?.id && m.key?.remoteJid;
-          })
-          .map((m) => {
-            const text = m.message?.conversation || m.message?.extendedTextMessage?.text || '';
-            const ts = m.messageTimestamp;
-            const timestamp = toUnixSeconds(ts, Math.floor(Date.now() / 1000));
-            const messageId = m.key.id ?? undefined;
-            const jid = m.key.remoteJid ?? undefined;
-            return {
-              updateOne: {
-                filter: { sessionId, messageId },
-                update: {
-                  $setOnInsert: {
-                    sessionId,
-                    oxyUserId,
-                    jid,
-                    messageId,
-                    fromMe: m.key.fromMe || false,
-                    timestamp,
-                    text,
-                    pushName: m.pushName || undefined,
-                  },
-                },
-                upsert: true,
-              },
-            };
-          });
+      const messageRows: WhatsAppMessageInsert[] = [];
+      for (const m of messages) {
+        const text = m.message?.conversation || m.message?.extendedTextMessage?.text || '';
+        if (!text || !m.key?.id || !m.key?.remoteJid) continue;
 
-        if (msgOps.length > 0) {
-          try {
-            await WhatsAppMessage.bulkWrite(msgOps, { ordered: false });
-            logger.info(`Persisted ${msgOps.length} messages for session ${sessionId}`);
-          } catch (err) {
-            logger.error(`Error bulk upserting messages for session ${sessionId}:`, err);
-          }
+        messageRows.push({
+          sessionId,
+          oxyUserId,
+          jid: m.key.remoteJid,
+          messageId: m.key.id,
+          fromMe: m.key.fromMe || false,
+          timestamp: toUnixSeconds(m.messageTimestamp, Math.floor(Date.now() / 1000)),
+          text,
+          pushName: m.pushName || undefined,
+        });
+      }
+
+      if (messageRows.length > 0) {
+        try {
+          await insertWhatsAppMessages(getDb(), messageRows);
+          logger.info(`Persisted ${messageRows.length} messages for session ${sessionId}`);
+        } catch (err) {
+          logger.error(`Error bulk upserting messages for session ${sessionId}:`, err);
         }
       }
     });
   }
 
   /**
-   * Build a Baileys-compatible AuthenticationState backed by MongoDB.
+   * Build a Baileys-compatible AuthenticationState backed by Postgres.
    *
-   * - `creds` are stored in sessionData.authState
-   * - signal keys (pre-keys, sessions, sender-keys, app-state-sync-keys, etc.)
-   *   are stored in sessionData.authKeys as a Map<string, Mixed>
-   *   where each key is `${type}-${id}` and the value is the serialized key data.
+   * - `creds` live in `whatsapp_sessions.auth_state`
+   * - signal keys (pre-keys, sessions, sender-keys, app-state-sync-keys) live in
+   *   `whatsapp_sessions.auth_keys`, one jsonb object whose keys are Baileys'
+   *   own type-and-id strings and whose values are the serialized key data.
    */
-  async createMongoAuthState(
+  async createAuthState(
     sessionId: string,
-    sessionData: IWhatsAppSession
   ): Promise<{ state: AuthenticationState; saveCreds: () => void }> {
-    // Load creds from DB or initialize fresh ones for a new session.
+    // Load creds from the database or initialize fresh ones for a new session.
     // initAuthCreds() generates the identity keys that Baileys needs to
     // perform the Noise handshake with WhatsApp servers.
-    let creds: AuthenticationCreds = sessionData.authState
-      ? deserialize<AuthenticationCreds>(sessionData.authState)
+    const storedCreds = await readWhatsAppAuthState(getDb(), sessionId);
+    const creds: AuthenticationCreds = storedCreds
+      ? deserialize<AuthenticationCreds>(storedCreds)
       : initAuthCreds();
 
     const store: SignalKeyStore = {
@@ -551,11 +494,10 @@ class SessionManager {
       // opaque JSON, so the per-type value shape is recovered via the SDK's own typing.
       get: (async (type: string, ids: string[]) => {
         const result: Record<string, unknown> = {};
-        const fresh = await WhatsAppSession.findOne({ sessionId }).lean();
-        const authKeys = fresh?.authKeys as Record<string, unknown> | undefined;
+        const authKeys = await readWhatsAppAuthKeys(getDb(), sessionId);
 
         for (const id of ids) {
-          const value = authKeys?.[`${type}-${id}`];
+          const value = authKeys[`${type}-${id}`];
           if (value) {
             result[id] = deserialize(value);
           }
@@ -564,36 +506,30 @@ class SessionManager {
       }) as SignalKeyStore['get'],
 
       set: async (data: Record<string, Record<string, unknown>>) => {
-        const $set: Record<string, unknown> = {};
-        const $unset: Record<string, unknown> = {};
+        const set: Record<string, unknown> = {};
+        const remove: string[] = [];
 
         for (const [type, entries] of Object.entries(data)) {
           for (const [id, value] of Object.entries(entries)) {
-            const key = `authKeys.${type}-${id}`;
+            const key = `${type}-${id}`;
             if (value) {
-              $set[key] = serialize(value);
+              set[key] = serialize(value);
             } else {
-              $unset[key] = '';
+              remove.push(key);
             }
           }
         }
 
-        const ops: Record<string, unknown> = {};
-        if (Object.keys($set).length > 0) ops['$set'] = $set;
-        if (Object.keys($unset).length > 0) ops['$unset'] = $unset;
-
-        if (Object.keys(ops).length > 0) {
-          await WhatsAppSession.updateOne({ sessionId }, ops);
-        }
+        await writeWhatsAppAuthKeys(getDb(), sessionId, { set, remove });
       },
     };
 
-    // In-memory cache reduces MongoDB reads for frequently-accessed signal keys
+    // In-memory cache reduces reads for frequently-accessed signal keys
     const keys = makeCacheableSignalKeyStore(store);
 
     const saveCreds = () => {
       this.credsSaveQueue = this.credsSaveQueue
-        .then(() => WhatsAppSession.updateOne({ sessionId }, { $set: { authState: serialize(creds) } }))
+        .then(() => saveWhatsAppAuthState(getDb(), sessionId, serialize(creds)))
         .then(() => {})
         .catch((err) => logger.error(`Failed to save creds for session ${sessionId}:`, err));
     };
@@ -625,33 +561,28 @@ class SessionManager {
     }
     this.reconnectAttempts.delete(sessionId);
 
-    await WhatsAppSession.updateOne(
-      { sessionId },
-      {
-        $set: {
-          status: 'logged-out',
-          authState: null,
-          authKeys: new Map(),
-          lastQR: null,
-        },
-      }
-    );
+    await markWhatsAppLoggedOut(getDb(), sessionId);
   }
 
   /**
-   * Get session status from MongoDB by sessionId.
+   * Session status by sessionId, without the Baileys credentials.
    */
   async getStatus(sessionId: string) {
-    return WhatsAppSession.findOne({ sessionId }).lean();
+    return findWhatsAppSession(getDb(), sessionId);
+  }
+
+  /**
+   * The pairing QR for a session that is awaiting a scan.
+   */
+  async getQr(sessionId: string) {
+    return findWhatsAppSessionQr(getDb(), sessionId);
   }
 
   /**
    * Get all sessions for a specific user.
    */
   async getUserSessions(oxyUserId: string) {
-    return WhatsAppSession.find({ oxyUserId })
-      .select('sessionId oxyUserId phoneNumber displayName status lastConnected lastDisconnected createdAt')
-      .lean();
+    return listWhatsAppSessionsForUser(getDb(), oxyUserId);
   }
 
   /**
@@ -662,12 +593,10 @@ class SessionManager {
   }
 
   /**
-   * List all sessions from MongoDB.
+   * List all sessions.
    */
   async listSessions() {
-    return WhatsAppSession.find()
-      .select('sessionId oxyUserId phoneNumber displayName status lastConnected lastDisconnected createdAt')
-      .lean();
+    return listWhatsAppSessions(getDb());
   }
 
   /**

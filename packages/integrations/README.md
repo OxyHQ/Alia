@@ -44,9 +44,8 @@ Bot adapters authenticate with the API using per-channel secrets (`X-Channel-Bot
 
 ```bash
 # Required
-DATABASE_URL=postgres://...          # PostgreSQL; the pool opens once from main()
-MONGODB_URI=mongodb+srv://...        # Shared cluster (DB: integrations-{NODE_ENV}), for
-                                     # the domains not yet ported to PostgreSQL
+DATABASE_URL=postgres://...          # PostgreSQL; the pool opens once from main(),
+                                     # so a bad URL fails at boot, not on first use
 INTEGRATIONS_SECRET=<hex-32>         # Internal auth for the REST endpoints the API calls
 TOKEN_ENCRYPTION_KEY=<hex-32>        # MUST equal the API's value: encrypted OAuth tokens
                                      # are written by one process and read by the other

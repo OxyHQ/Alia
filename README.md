@@ -100,6 +100,15 @@ operator one-shot,
 which strips persisted IPs out of a restored backup; `packages/api/src/db/__tests__/bootWiring.test.ts`
 freezes the set of files allowed to import it at exactly that one.
 
+`@alia/integrations` is on PostgreSQL too, under its own schema and its own migration
+ledger: the WhatsApp, Telegram and Signal gateways plus the MCP connector OAuth records.
+It declares no `mongoose` dependency at all, and
+[`packages/integrations/src/db/__tests__/protectedReads.test.ts`](packages/integrations/src/db/__tests__/protectedReads.test.ts)
+holds that to zero. Its OAuth secrets are encrypted by the provider rather than by the
+column — plain `text` holding `iv:authTag:ciphertext` under the same
+`TOKEN_ENCRYPTION_KEY` the API uses — because that is the format they were already
+stored in and both processes have to keep agreeing on it.
+
 ## Packages
 
 Twelve workspaces across eleven directories — `packages/alia-codea/webview-ui` is its own
@@ -114,7 +123,7 @@ workspace entry. Everything lives under `packages/`.
 | Path | Package | Stack |
 |---|---|---|
 | [`packages/api`](packages/api/) | `@alia/api` | Express, drizzle + PostgreSQL |
-| [`packages/integrations`](packages/integrations/) | `@alia/integrations` | Express, drizzle + PostgreSQL, Mongoose, MCP client |
+| [`packages/integrations`](packages/integrations/) | `@alia/integrations` | Express, drizzle + PostgreSQL, MCP client |
 | [`packages/alia-docker-host`](packages/alia-docker-host/) | `@alia/docker-host` | Express |
 | [`packages/shared-types`](packages/shared-types/) | `@alia/shared-types` | TypeScript |
 

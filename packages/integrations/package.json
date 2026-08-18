@@ -28,7 +28,6 @@
     "dotenv": "^16.6.1",
     "drizzle-orm": "0.45.2",
     "express": "^4.22.2",
-    "mongoose": "^8.24.1",
     "node-pty": "^1.1.0",
     "playwright": "^1.61.1",
     "postgres": "3.4.9",
