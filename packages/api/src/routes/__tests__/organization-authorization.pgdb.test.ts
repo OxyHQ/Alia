@@ -270,6 +270,49 @@ describe('only the owner may delete the organization or change a role', () => {
     expect(await findMemberRole(db, id, MEMBER)).toBe('admin');
   });
 
+  it('refuses the owner demoting THEMSELVES, with a 400 that says why', async () => {
+    /**
+     * Reachable today by one PATCH: the route's only check is that the caller is
+     * the owner, and nothing stopped them naming their own membership row. The
+     * organization was then unadministerable forever — this route and
+     * `DELETE /organization/:id` both require `owner`, and no route can grant it.
+     *
+     * A 400 rather than the 404 the statement-level exclusion alone would give:
+     * the member exists and the caller may administer them, so the refusal is
+     * about WHICH member, and it reads the same as the delete route's refusal one
+     * route down.
+     */
+    const id = await aStaffedOrganization();
+    const members = (await call('GET', `/organization/${id}/members`, OWNER)).body
+      .members as { _id: string; oxyUserId: string }[];
+    const own = members.find((m) => m.oxyUserId === OWNER);
+    if (!own) throw new Error('the owner is missing from their own member list');
+
+    const answer = await call('PATCH', `/organization/${id}/members/${own._id}`, OWNER, {
+      role: 'admin',
+    });
+
+    expect(answer.status).toBe(400);
+    expect(answer.body.error).toBe('Cannot change the role of the organization owner');
+    expect(await findMemberRole(db, id, OWNER)).toBe('owner');
+    // And the organization is still administerable, which is the property that
+    // was actually at risk.
+    expect((await call('PATCH', `/organization/${id}`, OWNER, { name: 'Still Ours' })).status).toBe(200);
+  });
+
+  it('still lets the owner change an ADMIN role, which the refusal must not break', async () => {
+    // The positive control at the route: a refusal that also blocked ordinary
+    // role changes would pass every assertion above.
+    const id = await aStaffedOrganization();
+    const members = (await call('GET', `/organization/${id}/members`, OWNER)).body
+      .members as { _id: string; oxyUserId: string }[];
+    const target = members.find((m) => m.oxyUserId === ADMIN);
+    if (!target) throw new Error('the fixture admin is missing');
+
+    expect((await call('PATCH', `/organization/${id}/members/${target._id}`, OWNER, { role: 'member' })).status).toBe(200);
+    expect(await findMemberRole(db, id, ADMIN)).toBe('member');
+  });
+
   it('lets the owner delete it', async () => {
     // The positive control: without it every refusal above passes on a route
     // that refuses everybody.
@@ -292,7 +335,7 @@ describe('only the owner may delete the organization or change a role', () => {
  *     fields and `role` is not one of them;
  *  2. the only route that writes a role requires the caller to BE the owner;
  *  3. the role it may write is `'admin' | 'member'` by TYPE, in the zod schema
- *     AND in `updateMemberRole`'s signature, so `owner` cannot be minted even by
+ *     AND in `updateNonOwnerMemberRole`'s signature, so `owner` cannot be minted even by
  *     the owner.
  */
 describe('a caller cannot set their own role', () => {
