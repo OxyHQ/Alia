@@ -505,7 +505,7 @@ const UNIQUES_RETIRED_SINCE: readonly RetiredUnique[] = [
   {
     model: 'Conversation',
     file: 'src/models/conversation.ts',
-    retiredBy: 'port/conversations',
+    retiredBy: '3cb93647',
     table: 'conversations',
     constraint: 'conversations_oxy_user_conversation_id_key',
     mongooseKey: ['oxyUserId', 'conversationId'],
@@ -513,7 +513,7 @@ const UNIQUES_RETIRED_SINCE: readonly RetiredUnique[] = [
   {
     model: 'Message',
     file: 'src/models/message.ts',
-    retiredBy: 'port/conversations',
+    retiredBy: '3cb93647',
     table: 'messages',
     constraint: 'messages_oxy_user_conversation_seq_key',
     mongooseKey: ['oxyUserId', 'conversationId', 'seq'],
