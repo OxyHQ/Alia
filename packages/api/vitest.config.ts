@@ -30,8 +30,17 @@ export default defineConfig({
       include: ['src/**/*.ts'],
       exclude: ['src/**/__tests__/**', 'src/**/*.test.ts', 'src/index.ts'],
     },
-    globalSetup: [fileURLToPath(new URL('./vitest.globalSetup.ts', import.meta.url))],
-    // The replica set takes a while to come up on a cold cache.
+    /**
+     * There is no `globalSetup` here any more, and its removal is a deletion of
+     * dead work rather than a loosening. It stood up a `mongodb-memory-server`
+     * replica set on every run and published the URI as `ALIA_TEST_MONGODB_URI`,
+     * which **no test ever read** — the Mongo suites that needed it were deleted
+     * with their domains during the Postgres port, and the setup outlived them.
+     * Every run paid a mongod binary download and a replica-set election for a
+     * variable with zero consumers.
+     *
+     * `vitest.pg.globalSetup.ts` is the one that survives, on the other config.
+     */
     testTimeout: 30_000,
     hookTimeout: 60_000,
   },

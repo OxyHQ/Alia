@@ -254,14 +254,17 @@ describe('the credential variable list covers what the provider tree really read
    * NAMES alone would miss `GROK_API_KEY` — the provider is registered as `xai`
    * — which is precisely the trap this census exists to close.
    */
-  const treeEnvReads = (): string[] => {
-    const found = new Set<string>();
-    const files = execFileSync('git', ['ls-files', '--', 'packages/api/src/internal/providers'], {
+  const treeFiles = (): string[] =>
+    execFileSync('git', ['ls-files', '--', 'packages/api/src/internal/providers'], {
       cwd: REPO_ROOT,
       encoding: 'utf8',
     })
       .split('\n')
       .filter((file) => file.endsWith('.ts') && !file.includes('/__tests__/'));
+
+  const treeEnvReads = (): string[] => {
+    const found = new Set<string>();
+    const files = treeFiles();
 
     for (const file of files) {
       const ast = ts.createSourceFile(
@@ -294,6 +297,7 @@ describe('the credential variable list covers what the provider tree really read
     return [...found].sort();
   };
 
+  const files = treeFiles();
   const reads = treeEnvReads();
   const CREDENTIAL_SHAPED = /_(KEY|KEYS|TOKEN|SECRET|PASSWORD)$/;
 
@@ -314,9 +318,26 @@ describe('the credential variable list covers what the provider tree really read
      * not a credential at all. Deleting the control instead would have left the
      * census below unable to tell "the tree reads no provider credential" from
      * "the scan read nothing".
+     *
+     * ## The second floor is on the INPUT, and that was forced
+     *
+     * It read `reads.length >= 2`, and the second member was `MONGODB_URI` in
+     * `lib/db.ts` — a leftover `mongoose.connect()` with zero importers, deleted
+     * with the Mongo boot gate. **A floor that the epic's own deletions erode
+     * terminates at `>= 0`**, and lowering it to `>= 1` would have made it a
+     * restatement of the line above it.
+     *
+     * A floor on the FILE LIST cannot be eroded that way and catches the failure
+     * the count was aimed at: a broken pathspec, a moved directory or a wrong
+     * cwd all yield an empty enumeration, which reports "the tree reads no
+     * credential" in exactly the voice of a clean tree. 20 against the 41 files
+     * of the day — the 22 adapters under `lib/providers/` are the last thing
+     * this epic retires, so a floor below that measures a subtree that has
+     * already finished migrating.
      */
     expect(reads).toContain('NODE_ENV');
-    expect(reads.length).toBeGreaterThanOrEqual(2);
+    expect(files.length).toBeGreaterThanOrEqual(20);
+    expect(files).toContain('packages/api/src/internal/providers/lib/providers/openai.ts');
   });
 
   it('covers every credential-shaped variable the tree reads, of which there are none', () => {

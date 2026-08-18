@@ -11,9 +11,12 @@ import { fileURLToPath } from 'node:url';
  * ## The defect this exists for has now happened TWICE
  *
  * A seeder whose caller cannot fire reads as WIRED from any single call site.
- * `startBackgroundServices()` in `src/index.ts` is reached only from
- * `connectDB().then(...)` — a Mongo connection that no longer exists and never
- * resolves — so everything placed there runs never.
+ * `startBackgroundServices()` was reached only from `connectDB().then(...)` — a
+ * Mongo connection that no longer existed and never resolved — so everything
+ * placed there ran never. That gate is gone and the function now runs on every
+ * boot, which makes the boot-path assertion at the bottom of this file matter
+ * MORE rather than less: a seeder called from there today would actually
+ * execute, once per task, racing every sibling.
  *
  * `plans` was the first instance: production holds 0 rows and every account
  * falls to the free floor, with a green deploy throughout. `skills` was the
@@ -154,22 +157,51 @@ describe('every table seeder reaches the entrypoint that runs', () => {
     expect(unreasoned).toEqual([]);
   });
 
-  it('does not leave a seeder call on the boot path that cannot fire', () => {
+  it('does not leave a seeder call on the boot path', () => {
     /**
-     * The other half, and the one that would have caught both instances. A
-     * seeder can be wired to `scripts/seed.ts` AND still be called from
-     * `startBackgroundServices()`, where it runs never — two callers, one of
-     * which is a lie. The exemption above is about which seeders RUN; this is
-     * about where they are called FROM.
+     * The other half, and the one that would have caught both instances. The
+     * exemption above is about which seeders RUN; this is about where they are
+     * called FROM.
+     *
+     * **Both files, and the second one is the whole point of this edit.** The
+     * boot path used to be `src/index.ts` alone; `startBackgroundServices()`
+     * moved to `lib/background-services.ts` when the Mongo gate came off, and a
+     * scan that still read only `index.ts` would report clean for a seeder added
+     * to the module the boot path actually runs. `seedBots()` was called from
+     * exactly that code and is now called from nowhere — which is what the
+     * exemption above records.
      */
-    const index = readFileSync(path.join(PACKAGE_ROOT, 'src/index.ts'), 'utf8');
-    const called = [...index.matchAll(/\b(seed[A-Za-z]+)\(\)/g)].map((m) => m[1]);
+    const bootPath = ['src/index.ts', 'src/lib/background-services.ts'];
+    /*
+     * Comment-stripped, and it was measured rather than assumed: the first
+     * version of this scan failed on `background-services.ts`, whose module
+     * comment SAYS `seedBots()` used to be called from there. A census that
+     * cannot tell prose from code convicts its own documentation, and the fix
+     * an author reaches for under that pressure is to soften the regex.
+     */
+    const seederCalls = (source: string): string[] =>
+      [
+        ...source
+          .replace(/\/\*[\s\S]*?\*\//g, '')
+          .split('\n')
+          .filter((line) => !line.trimStart().startsWith('//'))
+          .join('\n')
+          .matchAll(/\b(seed[A-Za-z]+)\(\)/g),
+      ].map((m) => m[1]);
 
-    // Positive control: `seedBots` IS still called here, so an empty match means
-    // the matcher broke rather than that the boot path is clean.
-    expect(called).toContain('seedBots');
+    /*
+     * Positive control on the MATCHER, not on the tree. `seedBots` used to serve
+     * as one — it was really called from `index.ts` — and it cannot any more,
+     * because the expected answer is now EMPTY. An empty result from a correct
+     * scan and an empty result from a broken regex are the same string.
+     */
+    expect(seederCalls('void seedBots();\nawait seedPlans()')).toEqual(['seedBots', 'seedPlans']);
 
-    const wired = new Set(wiredSeeders());
-    expect(called.filter((name) => wired.has(name))).toEqual([]);
+    for (const file of bootPath) {
+      const source = readFileSync(path.join(PACKAGE_ROOT, file), 'utf8');
+      // Vacuity floor per file: a moved or emptied file reads as clean.
+      expect(source.length, file).toBeGreaterThan(1_000);
+      expect(seederCalls(source), file).toEqual([]);
+    }
   });
 });
