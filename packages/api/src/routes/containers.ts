@@ -3,12 +3,25 @@
  *
  * These are NOT used by agents (agents use tools via agent-tools.ts).
  * These endpoints are for users to view/manage their containers.
+ *
+ * Every handler refuses a request without `req.user.id`, which three of them did
+ * not before. `authenticateToken` is mounted on the router so the guard never
+ * fires — but the Mongoose filters read `{ userId }` and Mongo DROPS an
+ * `undefined` key, so an unauthenticated request reaching any of them would have
+ * matched EVERY account's container rather than none. The repository takes a
+ * `string`, so that shape is now unrepresentable.
  */
 
 import { Router } from 'express';
 import { authenticateToken } from '../middleware/auth.js';
-import { Container } from '../models/container.js';
-import { ContainerTemplate } from '../models/container-template.js';
+import { getDb } from '../db/index.js';
+import {
+  deleteOwnedContainerTemplate,
+  findOwnedContainer,
+  listOwnedContainerTemplates,
+  listOwnedContainers,
+  markContainerDestroyed,
+} from '../db/agents/containerRepository.js';
 import * as containerManager from '../lib/container-manager.js';
 import { log } from '../lib/logger.js';
 
@@ -27,10 +40,7 @@ router.get('/', async (req, res) => {
       return;
     }
 
-    const containers = await Container.find({
-      userId,
-      status: { $ne: 'destroyed' },
-    }).sort({ createdAt: -1 }).lean();
+    const containers = await listOwnedContainers(getDb(), userId);
 
     res.json({ containers });
   } catch (err: unknown) {
@@ -44,10 +54,12 @@ router.get('/', async (req, res) => {
 router.get('/:id', async (req, res) => {
   try {
     const userId = req.user?.id;
-    const container = await Container.findOne({
-      containerId: req.params.id,
-      userId,
-    }).lean();
+    if (!userId) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    const container = await findOwnedContainer(getDb(), req.params.id, userId);
 
     if (!container) {
       res.status(404).json({ error: 'Container not found' });
@@ -66,10 +78,12 @@ router.get('/:id', async (req, res) => {
 router.delete('/:id', async (req, res) => {
   try {
     const userId = req.user?.id;
-    const container = await Container.findOne({
-      containerId: req.params.id,
-      userId,
-    });
+    if (!userId) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    const container = await findOwnedContainer(getDb(), req.params.id, userId);
 
     if (!container) {
       res.status(404).json({ error: 'Container not found' });
@@ -78,9 +92,7 @@ router.delete('/:id', async (req, res) => {
 
     if (container.status !== 'destroyed') {
       await containerManager.destroyContainer(container.containerId);
-      container.status = 'destroyed';
-      container.destroyedAt = new Date();
-      await container.save();
+      await markContainerDestroyed(getDb(), container.containerId, userId);
     }
 
     res.json({ destroyed: true });
@@ -95,7 +107,12 @@ router.delete('/:id', async (req, res) => {
 router.get('/templates/list', async (req, res) => {
   try {
     const userId = req.user?.id;
-    const templates = await ContainerTemplate.find({ userId }).sort({ createdAt: -1 }).lean();
+    if (!userId) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    const templates = await listOwnedContainerTemplates(getDb(), userId);
     res.json({ templates });
   } catch (err: unknown) {
     log.general.error({ err }, 'Failed to list templates');
@@ -108,12 +125,14 @@ router.get('/templates/list', async (req, res) => {
 router.delete('/templates/:id', async (req, res) => {
   try {
     const userId = req.user?.id;
-    const template = await ContainerTemplate.findOneAndDelete({
-      _id: req.params.id,
-      userId,
-    });
+    if (!userId) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
 
-    if (!template) {
+    const deleted = await deleteOwnedContainerTemplate(getDb(), req.params.id, userId);
+
+    if (deleted === 0) {
       res.status(404).json({ error: 'Template not found' });
       return;
     }

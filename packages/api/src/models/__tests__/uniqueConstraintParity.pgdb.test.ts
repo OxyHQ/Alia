@@ -117,18 +117,6 @@ const LIVE_REQUIREMENTS: readonly UniqueRequirement[] = [
     mongooseKey: ['handle'],
   },
   {
-    model: 'CanvasSession',
-    table: 'canvas_sessions',
-    constraint: 'canvas_sessions_oxy_user_conversation_id_key',
-    mongooseKey: ['oxyUserId', 'conversationId'],
-  },
-  {
-    model: 'ContainerTemplate',
-    table: 'container_templates',
-    constraint: 'container_templates_snapshot_tag_key',
-    mongooseKey: ['snapshotTag'],
-  },
-  {
     model: 'Conversation',
     table: 'conversations',
     constraint: 'conversations_oxy_user_conversation_id_key',
@@ -151,12 +139,6 @@ const LIVE_REQUIREMENTS: readonly UniqueRequirement[] = [
     table: 'organization_agents',
     constraint: 'organization_agents_org_agent_key',
     mongooseKey: ['organizationId', 'agentId'],
-  },
-  {
-    model: 'Skill',
-    table: 'skills',
-    constraint: 'skills_skill_id_key',
-    mongooseKey: ['skillId'],
   },
 ];
 
@@ -506,6 +488,31 @@ const UNIQUES_RETIRED_SINCE: readonly RetiredUnique[] = [
     mongooseKey: ['token'],
     note: 'The token is the bearer credential that joins an organization; two rows sharing one is two organizations behind one link.',
   },
+  {
+    model: 'ContainerTemplate',
+    file: 'src/models/container-template.ts',
+    retiredBy: 'S9 containers/skills',
+    table: 'container_templates',
+    constraint: 'container_templates_snapshot_tag_key',
+    mongooseKey: ['snapshotTag'],
+  },
+  {
+    model: 'CanvasSession',
+    file: 'src/models/canvas-session.ts',
+    retiredBy: 'S9 containers/skills',
+    table: 'canvas_sessions',
+    constraint: 'canvas_sessions_oxy_user_conversation_id_key',
+    mongooseKey: ['oxyUserId', 'conversationId'],
+  },
+  {
+    model: 'Skill',
+    file: 'src/models/skill.ts',
+    retiredBy: 'S9 containers/skills',
+    table: 'skills',
+    constraint: 'skills_skill_id_key',
+    mongooseKey: ['skillId'],
+    note: 'The constraint is a `uniqueIndex()` rather than a `unique()` because nothing references `skill_id`: `agent_skills` points at `skills.id`. It is still what `lib/seed-skills.ts` upserts on, so the uniqueness is load-bearing, not decorative.',
+  },
 ];
 
 /**
@@ -522,6 +529,14 @@ const MODELS_RETIRED_WITHOUT_UNIQUES: readonly string[] = [
   'Trigger',
   'TriggerExecution',
   'UserCredits',
+  // `Container.containerId` is the lookup key every writer uses and is declared
+  // `index: true` only — two independent creation paths write it, so the port
+  // kept it a plain index rather than tightening a column nobody has audited
+  // for duplicates. `containers.pgdb.test.ts` asserts the duplicate is PERMITTED
+  // so that adding the constraint later is a deliberate change, not a silent one.
+  'Container',
+  'LearningRule',
+  'RollbackRecord',
 ];
 
 /**

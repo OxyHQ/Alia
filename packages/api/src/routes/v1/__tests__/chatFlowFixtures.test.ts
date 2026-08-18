@@ -253,7 +253,9 @@ vi.mock('../../../db/memory/userMemoryRepository.js', () => ({
 vi.mock('../../../models/conversation.js', () => ({
   Conversation: { findById: vi.fn(H.emptyQuery), findOne: vi.fn(H.emptyQuery), updateOne: vi.fn(async () => ({})) },
 }));
-vi.mock('../../../models/skill.js', () => ({ Skill: { findOne: vi.fn(H.emptyQuery) } }));
+vi.mock('../../../db/agents/skillRepository.js', () => ({
+  findSkillPrompt: vi.fn(async () => undefined),
+}));
 vi.mock('../../../models/agent.js', () => ({ Agent: { findById: vi.fn(H.emptyQuery) } }));
 
 vi.mock('../../../lib/tools/mcp.js', () => ({ buildMcpTools: vi.fn(async () => ({})) }));

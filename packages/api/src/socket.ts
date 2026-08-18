@@ -6,8 +6,8 @@ import { log } from './lib/logger.js';
 import { oxyClient } from './middleware/auth.js';
 import { AgentSession } from './models/agent-session.js';
 import { Agent } from './models/agent.js';
-import { CanvasSession } from './models/canvas-session.js';
 import { getDb } from './db/index.js';
+import { canvasSessionExists } from './db/chat/canvasSessionRepository.js';
 import { findExecutionOwner } from './db/automation/workflowRepository.js';
 
 /** Read the authenticated user id planted on the socket by `oxy.authSocket()`. */
@@ -84,8 +84,7 @@ export function initSocket(server: http.Server) {
     socket.on('subscribe-canvas', async (conversationId: string) => {
       if (typeof conversationId !== 'string' || conversationId.length === 0 || conversationId.length > 256) return;
       if (!userId) return;
-      const canvas = await CanvasSession.findOne({ oxyUserId: userId, conversationId }).select('_id').lean();
-      if (!canvas) return;
+      if (!(await canvasSessionExists(getDb(), userId, conversationId))) return;
       Promise.resolve(socket.join(`canvas:${conversationId}`)).catch((err) => log.general.warn({ err }, 'socket.join canvas failed'));
     });
 

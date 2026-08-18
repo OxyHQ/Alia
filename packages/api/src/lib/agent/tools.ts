@@ -30,8 +30,15 @@ import { log } from '../logger.js';
 import { getErrorMessage } from '../errors/index.js';
 import { getSandboxProvider, isSandboxAvailable } from '../sandbox/index.js';
 import { executeCode } from './codeact/index.js';
-import { Container } from '../../models/container.js';
-import { ContainerTemplate } from '../../models/container-template.js';
+import { getDb } from '../../db/index.js';
+import {
+  createContainer,
+  createContainerTemplate,
+  exposeContainerPort,
+  findOwnedContainer,
+  markContainerDestroyed,
+  touchContainer,
+} from '../../db/agents/containerRepository.js';
 import { TodoManager, type TodoStatus } from './todo-manager.js';
 import { WorkspaceMemory } from './workspace-memory.js';
 import type { IAgent } from '../../models/agent.js';
@@ -240,12 +247,12 @@ export async function buildAgentTools(ctx: BuildToolsContext) {
           });
           await session.save();
 
-          await Container.create({
+          await createContainer(getDb(), {
             containerId: info.id,
             name: info.name,
-            sessionId: session._id,
-            agentId: session.agentId,
-            userId: session.userId,
+            sessionId: session._id.toString(),
+            agentId: session.agentId.toString(),
+            oxyUserId: userId,
             image,
             size: size || 'small',
             status: 'running',
@@ -278,7 +285,7 @@ export async function buildAgentTools(ctx: BuildToolsContext) {
 
         try {
           const result = await sandbox.exec(containerId, command, Math.min(timeout || 30, 300));
-          await Container.updateOne({ containerId }, { lastActivityAt: new Date() });
+          await touchContainer(getDb(), containerId, userId);
           return result;
         } catch (err: unknown) {
           return { error: getErrorMessage(err) };
@@ -356,10 +363,7 @@ export async function buildAgentTools(ctx: BuildToolsContext) {
 
         try {
           const previewUrl = await sandbox.exposePort(containerId, port);
-          await Container.updateOne(
-            { containerId },
-            { previewUrl, $addToSet: { exposedPorts: port } },
-          );
+          await exposeContainerPort(getDb(), containerId, userId, previewUrl, port);
           resource.previewUrl = previewUrl;
           await session.save();
           return { previewUrl, port };
@@ -383,16 +387,16 @@ export async function buildAgentTools(ctx: BuildToolsContext) {
         try {
           const tag = name.replace(/[^a-zA-Z0-9._-]/g, '-').toLowerCase();
           const imageTag = await sandbox.snapshot(containerId, tag);
-          const containerDoc = await Container.findOne({ containerId });
-          const template = await ContainerTemplate.create({
+          const container = await findOwnedContainer(getDb(), containerId, userId);
+          const templateId = await createContainerTemplate(getDb(), {
             name,
-            description,
-            baseImage: containerDoc?.image || 'unknown',
+            ...(description === undefined ? {} : { description }),
+            baseImage: container?.image || 'unknown',
             snapshotTag: tag,
-            userId: session.userId,
-            agentId: session.agentId,
+            oxyUserId: userId,
+            agentId: session.agentId.toString(),
           });
-          return { templateId: template._id.toString(), name, imageTag };
+          return { templateId, name, imageTag };
         } catch (err: unknown) {
           return { error: getErrorMessage(err) };
         }
@@ -412,10 +416,7 @@ export async function buildAgentTools(ctx: BuildToolsContext) {
             resource.status = 'destroyed';
             await session.save();
           }
-          await Container.updateOne(
-            { containerId },
-            { status: 'destroyed', destroyedAt: new Date() },
-          );
+          await markContainerDestroyed(getDb(), containerId, userId);
           return { destroyed: true, containerId };
         } catch (err: unknown) {
           return { error: getErrorMessage(err) };
@@ -487,15 +488,13 @@ export async function cleanupSessionResources(session: IAgentSession): Promise<v
   if (!isSandboxAvailable()) return;
 
   const sandbox = getSandboxProvider();
+  const oxyUserId = session.userId.toString();
   for (const resource of session.resources) {
     if (resource.status === 'active') {
       try {
         await sandbox.destroy(resource.resourceId);
         resource.status = 'destroyed';
-        await Container.updateOne(
-          { containerId: resource.resourceId },
-          { status: 'destroyed', destroyedAt: new Date() },
-        );
+        await markContainerDestroyed(getDb(), resource.resourceId, oxyUserId);
         log.agents.info({ containerId: resource.resourceId }, 'Cleaned up agent container');
       } catch (err) {
         log.agents.warn({ err, containerId: resource.resourceId }, 'Failed to clean up container');

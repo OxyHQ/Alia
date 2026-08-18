@@ -1,4 +1,5 @@
-import { RollbackRecord } from '../../models/rollback-record.js';
+import { getDb } from '../../db/index.js';
+import { insertRollbackRecord } from '../../db/agents/rollbackRecordRepository.js';
 import { autonomyFlags } from '../autonomy/flags.js';
 
 export type RiskLevel = 'R0' | 'R1' | 'R2' | 'R3';
@@ -121,16 +122,16 @@ export async function createRollbackRecord(params: {
   const expiryMinutes = Math.max(5, Number(process.env.AUTONOMY_ROLLBACK_WINDOW_MINUTES || 30));
   const expiresAt = new Date(Date.now() + expiryMinutes * 60 * 1000);
 
-  await RollbackRecord.create({
+  await insertRollbackRecord(getDb(), {
     oxyUserId: params.userId,
     sessionId: params.sessionId,
     toolName: params.toolName,
     riskLevel: 'R1',
     args: params.args,
-    beforeState: params.beforeState,
-    afterState: params.afterState,
-    diff: params.diff,
-    rollbackAction: params.rollbackAction,
+    ...(params.beforeState === undefined ? {} : { beforeState: params.beforeState }),
+    ...(params.afterState === undefined ? {} : { afterState: params.afterState }),
+    ...(params.diff === undefined ? {} : { diff: params.diff }),
+    ...(params.rollbackAction === undefined ? {} : { rollbackAction: params.rollbackAction }),
     status: 'open',
     expiresAt,
     executedAt: new Date(),
