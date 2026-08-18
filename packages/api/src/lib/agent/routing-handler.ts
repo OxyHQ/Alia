@@ -6,10 +6,9 @@
  * and dispatches tasks to the appropriate targets.
  */
 
-import type { IAgent } from '../../models/agent.js';
 import type { TriggerRecord } from '../../db/automation/triggerRepository.js';
-import { Agent } from '../../models/agent.js';
-import { AgentSession } from '../../models/agent-session.js';
+import { findAgentById, type AgentRecord } from '../../db/agents/agentRepository.js';
+import { createAgentSession } from '../../db/agents/agentSessionRepository.js';
 import { createRoutingLog } from '../../db/telemetry/routingLogRepository.js';
 import { getDb } from '../../db/index.js';
 import { enqueueAgentSession } from '../task-queue.js';
@@ -70,7 +69,7 @@ function parseRoutingDecision(aiResult: string): RoutingDecision | null {
  * Creates a routing log, dispatches to the target, and notifies.
  */
 export async function handleRoutingDecision(
-  agent: IAgent,
+  agent: AgentRecord,
   aiResult: string,
   trigger: TriggerRecord,
 ): Promise<void> {
@@ -83,15 +82,15 @@ export async function handleRoutingDecision(
     return;
   }
 
-  const userId = trigger.oxyUserId.toString();
+  const userId = trigger.oxyUserId;
 
   // Create routing log entry. The ids are stringified because the Postgres
   // columns are `text` — Oxy owns identity and an agent id is only ever compared
   // for equality, so there is nothing an ObjectId column would buy.
   const routingLog = await createRoutingLog(getDb(), {
-    agentId: String(agent._id),
+    agentId: agent._id,
     oxyUserId: userId,
-    triggerId: String(trigger._id),
+    triggerId: trigger._id,
     inboundChannel: trigger.type === 'webhook' ? 'webhook' : trigger.type,
     inboundSummary: decision.summary.slice(0, 500),
     classification: {
@@ -106,7 +105,7 @@ export async function handleRoutingDecision(
 
   log.triggers.info(
     {
-      agentId: agent._id?.toString(),
+      agentId: agent._id,
       category: decision.category,
       priority: decision.priority,
       routedTo: decision.assignTo,
@@ -121,22 +120,22 @@ export async function handleRoutingDecision(
       case 'agent': {
         // Hire the target agent for this task
         try {
-          const targetAgent = await Agent.findById(decision.assignTo.id);
+          const targetAgent = await findAgentById(getDb(), decision.assignTo.id);
           if (targetAgent && targetAgent.isPublished && targetAgent.status === 'active') {
             const credits = await reserveCredits(userId, targetAgent.price || 15);
             if (credits) {
-              const session = await AgentSession.create({
+              const session = await createAgentSession(getDb(), {
                 agentId: targetAgent._id,
-                userId,
+                oxyUserId: userId,
                 task: `[Routed by ${agent.name}] ${decision.summary}\n\nPriority: ${decision.priority}\nCategory: ${decision.category}`,
                 status: 'queued',
                 depth: 0,
                 creditReservation: credits,
               });
               await enqueueAgentSession({
-                sessionId: session._id.toString(),
+                sessionId: session._id,
                 userId,
-                agentId: targetAgent._id.toString(),
+                agentId: targetAgent._id,
                 agentName: targetAgent.name,
               });
               log.triggers.info({ targetAgentId: targetAgent._id }, 'Task delegated to agent');

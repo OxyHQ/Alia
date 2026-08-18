@@ -1,8 +1,14 @@
 import { Router } from 'express';
-import { Agent } from '../../models/agent.js';
-import { AgentReview } from '../../models/agent-review.js';
 import { authenticateToken, optionalAuth } from '../../middleware/auth.js';
-import { recalculateAgentRating, VISIBLE_REVIEW_MATCH } from '../../lib/agent-rating.js';
+import { getDb } from '../../db/index.js';
+import { findAgentById } from '../../db/agents/agentRepository.js';
+import {
+  deleteOwnAgentReview,
+  findOwnAgentReview,
+  listVisibleAgentReviews,
+  recalculateAgentRating,
+  upsertAgentReview,
+} from '../../db/agents/agentReviewRepository.js';
 import { hydrateOxyUsers } from '../../lib/oxy-user-hydration.js';
 import { log } from '../../lib/logger.js';
 import type { Request, Response } from 'express';
@@ -16,37 +22,25 @@ router.get('/:id/reviews', optionalAuth, async (req: Request, res: Response) => 
     const pageNum = Math.max(1, parseInt(page as string, 10));
     const limitNum = Math.min(50, Math.max(1, parseInt(limit as string, 10)));
 
-    const rows = await AgentReview.find({
-      agentId: req.params.id,
-      ...VISIBLE_REVIEW_MATCH,
-    })
-      .sort({ createdAt: -1 })
-      .skip((pageNum - 1) * limitNum)
-      .limit(limitNum)
-      .lean();
+    const agentId = String(req.params.id);
+    const { reviews: rows, total } = await listVisibleAgentReviews(getDb(), agentId, {
+      limit: limitNum,
+      offset: (pageNum - 1) * limitNum,
+    });
 
     // `userId` names an Oxy account, not a local document — see
     // lib/oxy-user-hydration.ts. One batch call for the whole page.
-    const authors = await hydrateOxyUsers(rows.map((row) => row.userId?.toString()));
+    const authors = await hydrateOxyUsers(rows.map((row) => row.userId));
     const reviews = rows.map((row) => ({
       ...row,
-      userId: authors.get(row.userId?.toString() ?? '') ?? row.userId,
+      userId: authors.get(row.userId) ?? row.userId,
     }));
-
-    const total = await AgentReview.countDocuments({
-      agentId: req.params.id,
-      ...VISIBLE_REVIEW_MATCH,
-    });
 
     // The author of a withheld review still sees it — a moderation decision must
     // not make somebody's own words vanish without a trace from their side.
-    let userReview = null;
-    if (req.user?.id) {
-      userReview = await AgentReview.findOne({
-        agentId: req.params.id,
-        userId: req.user.id,
-      }).lean();
-    }
+    const userReview = req.user?.id
+      ? await findOwnAgentReview(getDb(), agentId, req.user.id)
+      : null;
 
     res.json({ reviews, total, userReview });
   } catch (error: unknown) {
@@ -64,28 +58,31 @@ router.post('/:id/reviews', authenticateToken, async (req: Request, res: Respons
 
     const { rating, comment } = req.body;
 
-    if (!rating || rating < 1 || rating > 5) {
+    if (typeof rating !== 'number' || rating < 1 || rating > 5) {
       return res.status(400).json({ error: 'Rating must be between 1 and 5' });
     }
 
-    const agent = await Agent.findById(req.params.id);
+    const agentId = String(req.params.id);
+    const agent = await findAgentById(getDb(), agentId);
     if (!agent) {
       return res.status(404).json({ error: 'Agent not found' });
     }
 
     // Don't allow reviewing your own agent
-    if (agent.author.toString() === req.user.id) {
+    if (agent.author === req.user.id) {
       return res.status(400).json({ error: 'Cannot review your own agent' });
     }
 
-    // Upsert review (one per user per agent)
-    const review = await AgentReview.findOneAndUpdate(
-      { agentId: req.params.id, userId: req.user.id },
-      { rating: Math.round(rating), comment: (comment || '').slice(0, 1000) },
-      { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true },
-    );
+    const review = await upsertAgentReview(getDb(), {
+      agentId,
+      oxyUserId: req.user.id,
+      rating: Math.round(rating),
+      // `maxlength: 1000` shaped INPUT at the write path and is deliberately not
+      // a CHECK, so the clamp stays here — see the schema's note on it.
+      comment: (typeof comment === 'string' ? comment : '').slice(0, 1000),
+    });
 
-    const stats = await recalculateAgentRating(agent._id);
+    const stats = await recalculateAgentRating(getDb(), agentId);
 
     res.json({
       review,
@@ -105,19 +102,16 @@ router.delete('/:id/reviews', authenticateToken, async (req: Request, res: Respo
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const result = await AgentReview.findOneAndDelete({
-      agentId: req.params.id,
-      userId: req.user.id,
-    });
+    const deleted = await deleteOwnAgentReview(getDb(), String(req.params.id), req.user.id);
 
-    if (!result) {
+    if (!deleted) {
       return res.status(404).json({ error: 'Review not found' });
     }
 
-    // The deleted review's own `agentId`, not the path parameter — it is already
-    // an ObjectId, so the rating is recomputed for the agent the review actually
-    // belonged to rather than for whatever the URL claimed.
-    await recalculateAgentRating(result.agentId);
+    // The deleted review's own `agentId`, not the path parameter — so the rating
+    // is recomputed for the agent the review actually belonged to rather than
+    // for whatever the URL claimed.
+    await recalculateAgentRating(getDb(), deleted.agentId);
 
     res.json({ deleted: true });
   } catch (error: unknown) {

@@ -9,9 +9,8 @@
  * an account in Oxy, which owns identity. Mongoose declared four of them
  * `Schema.Types.ObjectId, ref: 'User'` — a join against a model this service
  * never registers, inert since #83 replaced the populates with HTTP hydration —
- * and S9 deleted those three model files along with their refs. The fifth,
- * `organization_agents.added_by`, still has its declaration in
- * `models/organization-agent.ts`, which is the last Mongoose file in this domain.
+ * and the port deleted all five model files along with their refs —
+ * `organization_agents.added_by`, the last of them, went with the agents slice.
  *
  * `ObjectId` there was a naming accident rather than a type:
  * `DeveloperApp.oxyUserId` was a `String` for the same kind of value. Both port

@@ -276,7 +276,7 @@ vi.mock('../../../db/chat/messageRepository.js', () => ({
 vi.mock('../../../db/agents/skillRepository.js', () => ({
   findSkillPrompt: vi.fn(async () => undefined),
 }));
-vi.mock('../../../models/agent.js', () => ({ Agent: { findById: vi.fn(H.emptyQuery) } }));
+vi.mock('../../../db/agents/agentRepository.js', () => ({ findAgentById: vi.fn(async () => null) }));
 
 vi.mock('../../../lib/tools/mcp.js', () => ({ buildMcpTools: vi.fn(async () => ({})) }));
 vi.mock('../../../lib/tools/integrations.js', () => ({ buildIntegrationTools: vi.fn(async () => ({})) }));

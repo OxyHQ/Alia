@@ -347,11 +347,12 @@ export async function listOwnedContainerTemplates(
  * rather than a formality.
  *
  * `lib/agent/tools.ts`'s `snapshot_create` writes `session.agentId`, so a
- * snapshot cannot be recorded until that agent exists as a Postgres row — which
- * it does not while `models/agent.ts` is still Mongoose. The whole agent-session
- * flow is unreachable in that state, so nothing regresses today; it is stated
- * because a foreign key failing on a WRITE nobody can currently reach is exactly
- * the fault that presents as normal operation the day somebody can.
+ * snapshot cannot be recorded until that agent exists as a Postgres row. That
+ * was unreachable while `models/agent.ts` was still Mongoose — the whole
+ * agent-session flow was — and the agents slice is what made it reachable, which
+ * is why the coupling is asserted rather than assumed: a foreign key failing on
+ * a write nobody could reach is exactly the fault that presents as normal
+ * operation the day somebody can.
  *
  * `agentId` is required here even though the column is nullable, because the one
  * caller always has one. The nullability exists for `ON DELETE SET NULL`: the

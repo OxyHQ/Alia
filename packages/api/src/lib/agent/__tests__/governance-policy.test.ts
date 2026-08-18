@@ -105,8 +105,8 @@ import { insertRollbackRecord } from '../../../db/agents/rollbackRecordRepositor
 // ── Doubles for the session-scoped collaborators ───────────────────────────
 
 /**
- * `buildActions` reads a handful of fields off types (`IAgent`, `IAgentSession`,
- * `TerminalSession`, …) that cannot be constructed here without a database and a
+ * `buildActions` reads a handful of fields off types (`AgentRecord`,
+ * `AgentSessionRecord`, `TerminalSession`, …) that cannot be constructed here without a database and a
  * container. Each double carries exactly the surface the function touches, and
  * the cast is `unknown`-mediated rather than `any`.
  */
@@ -114,11 +114,17 @@ function actionContext(overrides: { permissions?: Record<string, boolean> } = {}
   const ctx = {
     agent: { permissions: overrides.permissions },
     session: {
-      _id: { toString: () => 'sess-ws13' },
-      agentId: { toString: () => 'agent-ws13' },
-      userId: { toString: () => 'user-ws13' },
+      /**
+       * Plain STRINGS. These were `{toString: () => 'sess-ws13'}` doubles for
+       * Mongoose ObjectIds, and the code called `.toString()` on them; against
+       * `agent_sessions` they are `text` columns and the record carries them as
+       * they are, so a double that still needed stringifying would have written
+       * the OBJECT into a rollback record and matched nothing.
+       */
+      _id: 'sess-ws13',
+      agentId: 'agent-ws13',
+      oxyUserId: 'user-ws13',
       plan: undefined as unknown,
-      save: async () => undefined,
     },
     onComplete: () => undefined,
     todoManager: {

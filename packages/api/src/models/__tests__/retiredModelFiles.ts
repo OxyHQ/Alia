@@ -184,4 +184,34 @@ export const RETIRED_MODEL_FILES: readonly RetiredModelFile[] = [
   },
   { model: 'Conversation', file: 'src/models/conversation.ts', retiredBy: 'S9 chat — conversations' },
   { model: 'Message', file: 'src/models/message.ts', retiredBy: 'S9 chat — messages' },
+  {
+    model: 'Agent',
+    file: 'src/models/agent.ts',
+    retiredBy: 'S9 agents — agents',
+  },
+  {
+    model: 'AgentSession',
+    file: 'src/models/agent-session.ts',
+    retiredBy: 'S9 agents — agent_sessions',
+  },
+  {
+    model: 'AgentReview',
+    file: 'src/models/agent-review.ts',
+    retiredBy: 'S9 agents — agent_reviews',
+  },
+  {
+    model: 'AgentTeam',
+    file: 'src/models/agent-team.ts',
+    retiredBy: 'S9 agents — agent_teams',
+  },
+  {
+    model: 'EventStreamEntry',
+    file: 'src/models/event-stream-entry.ts',
+    retiredBy: 'S9 agents — event_stream_entries',
+  },
+  {
+    model: 'OrganizationAgent',
+    file: 'src/models/organization-agent.ts',
+    retiredBy: 'S9 agents — organization_agents',
+  },
 ];

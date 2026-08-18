@@ -93,12 +93,13 @@ export async function startWorker(): Promise<void> {
 
       try {
         // Lazy import to avoid circular deps
-        const { runAgentSession } = await import('./agent-runner.js');
+        const { runAgentSession } = await import('./agent/runner.js');
         await runAgentSession(sessionId);
 
         // Read final status from DB
-        const { AgentSession } = await import('../models/agent-session.js');
-        const session = await AgentSession.findById(sessionId).select('status result').lean();
+        const { getDb } = await import('../db/index.js');
+        const { findAgentSessionById } = await import('../db/agents/agentSessionRepository.js');
+        const session = await findAgentSessionById(getDb(), sessionId);
 
         const status = session?.status === 'completed' ? 'completed' : 'failed';
         const result = session?.result || 'Task finished.';
@@ -190,7 +191,7 @@ export async function enqueueAgentSession(
   }
 
   // Fallback: direct execution (fire-and-forget)
-  const { runAgentSession } = await import('./agent-runner.js');
+  const { runAgentSession } = await import('./agent/runner.js');
   runAgentSession(data.sessionId).catch(err => {
     log.agents.error({ err, sessionId: data.sessionId }, 'Direct agent session failed');
   });

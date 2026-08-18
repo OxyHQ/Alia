@@ -29,7 +29,7 @@ vi.mock('../../db/integrations/botRepository.js', () => ({
   setBotUserConversation: vi.fn(),
   upsertBotUser: vi.fn(),
 }));
-vi.mock('../../models/agent.js', () => ({ Agent: {} }));
+vi.mock('../../db/agents/agentRepository.js', () => ({ findAgentById: vi.fn(async () => null) }));
 vi.mock('../../lib/user-credits-helpers.js', () => ({ getOrCreateUserCredits: vi.fn() }));
 vi.mock('../../lib/credits-manager.js', () => ({ reserveCredits: vi.fn(), finalizeCredits: vi.fn() }));
 vi.mock('../../lib/logger.js', () => ({

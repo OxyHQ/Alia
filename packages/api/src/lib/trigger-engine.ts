@@ -27,7 +27,12 @@ import {
   type TriggerRecord,
   type TriggerSchedule,
 } from '../db/automation/triggerRepository.js';
-import { Agent, type IAgent } from '../models/agent.js';
+import {
+  findAgentById,
+  listAgentsWithHeartbeat,
+  type AgentRecord,
+} from '../db/agents/agentRepository.js';
+import { readArchetypeConfig } from '../domain/agent.js';
 import { resolveModel, getAIModel, getDefaultAliaModel } from './chat-core.js';
 import {
   getCurrentDateTool,
@@ -251,8 +256,8 @@ export async function executeTrigger(
       findUserMemory(getDb(), userId).then(m => m ?? null).catch(() => null),
       oxyClient.getUserById(userId).catch(() => null) as Promise<OxyUser | null>,
       trigger.action.agentId
-        ? Agent.findById(trigger.action.agentId).select('name archetype archetypeConfig systemPrompt').lean().catch(() => null)
-        : Promise.resolve(null),
+        ? findAgentById(getDb(), trigger.action.agentId).catch(() => null)
+        : Promise.resolve<AgentRecord | null>(null),
     ]);
 
     // Resolve AI model
@@ -267,7 +272,7 @@ export async function executeTrigger(
     // Use archetype system prompt if the linked agent has one
     let systemPrompt: string;
     if (linkedAgent?.archetype && linkedAgent.archetype !== 'general') {
-      const archetypePrompt = linkedAgent.systemPrompt || buildArchetypeSystemPrompt(linkedAgent as IAgent);
+      const archetypePrompt = linkedAgent.systemPrompt || buildArchetypeSystemPrompt(linkedAgent);
       systemPrompt = archetypePrompt || buildTriggerSystemPrompt(trigger, oxyUser, memory, context.source);
     } else {
       systemPrompt = buildTriggerSystemPrompt(trigger, oxyUser, memory, context.source);
@@ -283,7 +288,10 @@ export async function executeTrigger(
     }
 
     // Previous report comparison for status_update agents
-    if (linkedAgent?.archetype === 'status_update' && linkedAgent.archetypeConfig?.compareWithPrevious) {
+    if (
+      linkedAgent?.archetype === 'status_update' &&
+      readArchetypeConfig(linkedAgent.archetypeConfig).compareWithPrevious === true
+    ) {
       const previousExecution = await findLastSuccessfulExecution(getDb(), triggerId);
 
       if (previousExecution?.result) {
@@ -343,7 +351,7 @@ export async function executeTrigger(
     // Task router: process routing decision
     if (linkedAgent?.archetype === 'task_router') {
       try {
-        await handleRoutingDecision(linkedAgent as IAgent, resultText, trigger);
+        await handleRoutingDecision(linkedAgent, resultText, trigger);
       } catch (routingErr) {
         log.triggers.error({ err: routingErr, triggerId }, 'Failed to process routing decision');
       }
@@ -352,12 +360,16 @@ export async function executeTrigger(
     // Deliver notification if enabled
     if (trigger.action.notify) {
       // Multi-channel delivery for status_update agents
-      const deliveryChannels: NotificationChannel[] | undefined = linkedAgent?.archetype === 'status_update'
-        && linkedAgent.archetypeConfig?.deliveryChannels?.length
-        ? [...linkedAgent.archetypeConfig.deliveryChannels, 'in_app'] as NotificationChannel[]
-        : trigger.action.channelId
-          ? [trigger.action.channelId as NotificationChannel, 'in_app']
+      const agentChannels =
+        linkedAgent?.archetype === 'status_update'
+          ? readArchetypeConfig(linkedAgent.archetypeConfig).deliveryChannels
           : undefined;
+      const deliveryChannels: NotificationChannel[] | undefined =
+        agentChannels !== undefined && agentChannels.length > 0
+          ? ([...agentChannels, 'in_app'] as NotificationChannel[])
+          : trigger.action.channelId
+            ? [trigger.action.channelId as NotificationChannel, 'in_app']
+            : undefined;
 
       sendNotification({
         userId,
@@ -705,10 +717,7 @@ Keep your response to 2-3 sentences. Say "All clear" if nothing needs attention.
 async function startAgentHeartbeatScheduler(): Promise<void> {
   try {
     // Find all agents with a scheduleInterval set
-    const agents = await Agent.find({
-      scheduleInterval: { $exists: true, $gt: 0 },
-      isPublished: true,
-    }).select('_id name author scheduleInterval systemPrompt').lean();
+    const agents = await listAgentsWithHeartbeat(getDb());
 
     if (agents.length === 0) {
       log.triggers.info('No agents with heartbeat schedules found');
@@ -719,7 +728,7 @@ async function startAgentHeartbeatScheduler(): Promise<void> {
 
     for (const agent of agents) {
       // Check if a heartbeat trigger already exists for this agent
-      const existing = await findAgentHeartbeatTrigger(getDb(), String(agent._id));
+      const existing = await findAgentHeartbeatTrigger(getDb(), agent._id);
 
       if (existing) {
         // Ensure schedule matches agent's interval
@@ -734,14 +743,14 @@ async function startAgentHeartbeatScheduler(): Promise<void> {
 
       // Create a new heartbeat trigger for this agent
       const trigger = await createTrigger(getDb(), {
-        oxyUserId: String(agent.author),
+        oxyUserId: agent.author,
         name: `${agent.name} Heartbeat`,
         description: `Periodic heartbeat check for ${agent.name}`,
         type: 'agent_heartbeat',
         enabled: true,
         action: {
           prompt: HEARTBEAT_PROMPT,
-          agentId: String(agent._id),
+          agentId: agent._id,
           useTools: false,
           notify: true,
         },

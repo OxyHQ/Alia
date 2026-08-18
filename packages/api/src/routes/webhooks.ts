@@ -18,7 +18,7 @@ import {
   type BotUserRow,
   type InboundUserBotRow,
 } from '../db/integrations/botRepository.js';
-import { Agent } from '../models/agent.js';
+import { findAgentById } from '../db/agents/agentRepository.js';
 import { upsertConversation } from '../db/chat/conversationRepository.js';
 import { insertMessages, listRecentTurns } from '../db/chat/messageRepository.js';
 import { getOrCreateUserCredits } from '../lib/user-credits-helpers.js';
@@ -347,10 +347,10 @@ async function processAgentBotMessage(
 
     // Resolve the bound agent's configuration (prompt + preferred model).
     const agent = bot.agentId
-      ? await Agent.findById(bot.agentId).select('systemPrompt allowedModels').lean()
+      ? await findAgentById(getDb(), bot.agentId)
       : null;
 
-    const aliasModelId = agent?.allowedModels?.[0] || getDefaultAliaModel();
+    const aliasModelId = agent?.allowedModels[0] || getDefaultAliaModel();
     const resolved = await resolveModel(aliasModelId);
     if (!resolved) {
       await sendChannelMessage(channelType, message.chatId, 'Sorry, no AI models are available right now.', outboundOpts);

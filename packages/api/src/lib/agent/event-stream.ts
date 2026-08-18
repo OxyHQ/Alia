@@ -14,9 +14,13 @@
  */
 
 import { emitAgentActivity, type AgentActivityEvent } from '../../socket.js';
-import { EventStreamEntry as EventStreamEntryModel } from '../../models/event-stream-entry.js';
+import { getDb } from '../../db/index.js';
+import {
+  appendEventStreamEntries,
+  archiveEventStreamEntriesBelow,
+  listEventStreamEntries,
+} from '../../db/agents/eventStreamEntryRepository.js';
 import { log } from '../logger.js';
-import { isDuplicateKeyError } from '../errors/index.js';
 
 export type EventType =
   | 'user_message'
@@ -125,36 +129,42 @@ export class EventStream {
   }
 
   /**
-   * Flush pending entries to the MongoDB EventStreamEntry collection.
-   * Called automatically when batch size is reached, and explicitly
-   * at the end of each iteration or session.
+   * Flush pending entries to the `event_stream_entries` table.
+   *
+   * Called automatically when the batch fills, and explicitly at the end of each
+   * iteration and of the session.
+   *
+   * The duplicate a RESUMED session produces is answered by `ON CONFLICT
+   * (session_id, seq) DO NOTHING` inside the statement, not by a `catch` here.
+   * Ported as a catch it would answer "already persisted" to a dropped
+   * connection too — Postgres cannot tell a duplicate from an infrastructure
+   * failure once you are inside the handler — and the events would be silently
+   * dropped instead of retried. Everything that still throws is a real failure
+   * and goes back on the pending list.
    */
   async flush(): Promise<void> {
     if (this.pendingFlush.length === 0 || !this.sessionId) return;
 
+    const sessionId = this.sessionId;
     const toFlush = [...this.pendingFlush];
     this.pendingFlush = [];
 
     try {
-      await EventStreamEntryModel.insertMany(
+      await appendEventStreamEntries(
+        getDb(),
+        sessionId,
         toFlush.map(entry => ({
-          sessionId: this.sessionId,
           seq: entry.seq,
           timestamp: entry.timestamp,
           type: entry.type,
           content: entry.content,
-          metadata: entry.metadata,
-          archived: false,
+          ...(entry.metadata !== undefined && { metadata: entry.metadata }),
         })),
-        { ordered: false },
       );
     } catch (err: unknown) {
-      // On duplicate key (from resume), ignore — entries are already persisted
-      if (!isDuplicateKeyError(err)) {
-        log.agents.warn({ err, count: toFlush.length }, 'EventStream: flush failed');
-        // Re-add to pending for retry
-        this.pendingFlush.unshift(...toFlush);
-      }
+      log.agents.warn({ err, count: toFlush.length }, 'EventStream: flush failed');
+      // Re-add to pending for retry
+      this.pendingFlush.unshift(...toFlush);
     }
   }
 
@@ -223,24 +233,21 @@ export class EventStream {
   }
 
   /**
-   * Load entries from the persistent MongoDB collection.
+   * Load entries from the persistent table.
    * Used when resuming a session after restart.
    */
   async loadFromDB(): Promise<void> {
     if (!this.sessionId) return;
 
     try {
-      const entries = await EventStreamEntryModel
-        .find({ sessionId: this.sessionId })
-        .sort({ seq: 1 })
-        .lean();
+      const entries = await listEventStreamEntries(getDb(), this.sessionId);
 
       this.entries = entries.map(e => ({
         seq: e.seq,
         timestamp: e.timestamp,
         type: e.type as EventType,
         content: e.content,
-        metadata: e.metadata as EventStreamEntry['metadata'],
+        ...(e.metadata === null ? {} : { metadata: e.metadata }),
       }));
 
       this.seq = this.entries.length > 0 ? this.entries[this.entries.length - 1].seq + 1 : 0;
@@ -266,11 +273,7 @@ export class EventStream {
     if (!this.sessionId) return 0;
 
     try {
-      const result = await EventStreamEntryModel.updateMany(
-        { sessionId: this.sessionId, seq: { $lt: seq }, archived: false },
-        { $set: { archived: true } },
-      );
-      return result.modifiedCount;
+      return await archiveEventStreamEntriesBelow(getDb(), this.sessionId, seq);
     } catch (err) {
       log.agents.warn({ err }, 'EventStream: failed to archive entries');
       return 0;
