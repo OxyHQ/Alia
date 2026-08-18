@@ -14,12 +14,12 @@
  */
 
 import { pgTable, text, uniqueIndex } from 'drizzle-orm/pg-core';
-import { createdAt, updatedAt } from '@oxyhq/db';
+import { createdAt, generatedId, updatedAt } from '@oxyhq/db';
 
 export const mcpConnectorAuths = pgTable(
   'mcp_connector_auths',
   {
-    id: text().primaryKey(),
+    id: generatedId(),
     oxyUserId: text().notNull(),
     serverId: text().notNull(),
     /** Encrypted JSON of the DCR client information. */

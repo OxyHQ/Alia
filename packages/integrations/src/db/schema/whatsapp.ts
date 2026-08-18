@@ -9,7 +9,7 @@
  */
 
 import { bigint, boolean, index, integer, jsonb, pgTable, text, uniqueIndex } from 'drizzle-orm/pg-core';
-import { createdAt, timestamptz, updatedAt } from '@oxyhq/db';
+import { createdAt, generatedId, timestamptz, updatedAt } from '@oxyhq/db';
 import { checkOneOf } from './columns';
 
 /**
@@ -61,7 +61,7 @@ export const whatsappSessions = pgTable(
 export const whatsappChats = pgTable(
   'whatsapp_chats',
   {
-    id: text().primaryKey(),
+    id: generatedId(),
     sessionId: text()
       .notNull()
       .references(() => whatsappSessions.sessionId, { onDelete: 'cascade' }),
@@ -89,7 +89,7 @@ export const whatsappChats = pgTable(
 export const whatsappMessages = pgTable(
   'whatsapp_messages',
   {
-    id: text().primaryKey(),
+    id: generatedId(),
     sessionId: text()
       .notNull()
       .references(() => whatsappSessions.sessionId, { onDelete: 'cascade' }),

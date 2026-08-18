@@ -112,8 +112,12 @@ Drive remain, lacking a hosted MCP.
   `requiresOAuth: true` plus `url`.
 - **OAuth is SDK native:** discovery, DCR, PKCE, token use and auto-refresh run
   through an `OAuthClientProvider` (`packages/integrations/src/mcp/oauth-provider.ts`)
-  backed by an encrypted Mongo store (`McpConnectorAuth`, tokens
-  `select:false`). The per-tool-call hop carries no user token.
+  backed by `mcp_connector_auths` in Postgres. **Encryption lives in the
+  PROVIDER, never in the column** — plain `text` holding
+  `iv:authTag:ciphertext`, exactly as the Mongoose version stored it. Adding an
+  `encryptedText` codec to those columns double-encrypts silently; removing the
+  provider's `encrypt()` stores live tokens in the clear, also silently. The
+  per-tool-call hop carries no user token.
 - **CSRF-safe by construction, since Alia is cookie-less.** The public
   `GET /mcp/oauth/callback` validates `state` WITHOUT consuming it and hands
   `state` plus `code` to the app; finalization is an AUTHENTICATED
