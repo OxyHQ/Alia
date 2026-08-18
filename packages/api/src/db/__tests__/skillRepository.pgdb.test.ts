@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { eq, getTableColumns } from 'drizzle-orm';
+import { eq, getTableColumns, sql } from 'drizzle-orm';
 import { closePostgres, connectPostgres, type ApiDatabase } from '../index';
 import {
   createSkill,
@@ -367,6 +367,91 @@ describe('the built-in seed', () => {
     expect(columns.filter((c) => !seeded.has(c) && !deliberatelyUnseeded.has(c))).toEqual([]);
     // The exemption list gets its own exact count, so it cannot grow quietly.
     expect(deliberatelyUnseeded.size).toBe(6);
+  });
+});
+
+describe('the five array columns admit an EMPTY array, and no CHECK says otherwise', () => {
+  /**
+   * ## Why there is no cardinality constraint, and what would happen if one
+   * were added in the obvious wrong shape
+   *
+   * Mongoose declared `triggers`, `includes`, `goodAt` and `notGoodAt` as bare
+   * `[{ type: String }]` with no `minlength` and no validator, so an empty list
+   * has always been legal and CONVENTIONS.md's rule applies: where the source
+   * constrained nothing, neither does this schema. A `>= 1` invented here would
+   * fail on the first legacy row that never filled one in.
+   *
+   * The hazard is worth naming because the FIX for it is also a trap.
+   * `array_length(col, 1)` returns NULL on an empty array, `NULL >= 1` is NULL,
+   * and a CHECK rejects only FALSE — so `array_length(col,1) >= 1` ADMITS
+   * exactly the value it exists to forbid. Measured on this suite's own server:
+   * a table with `check (array_length(arr,1) >= 1)` accepted `'{}'` (1 row in);
+   * the same table with `check (cardinality(arr) >= 1)` rejected it (0 rows in).
+   * `reports_categories_not_empty_check` is the one place in this schema that
+   * needs such a rule, and it already uses `cardinality`.
+   *
+   * So this pair of cases is the ratchet: the first proves `{}` is accepted
+   * TODAY on every array column, and the second reads `pg_constraint` so that a
+   * constraint appearing later — in either spelling — is a red test rather than
+   * a silent narrowing. A `cardinality` rule added deliberately would update
+   * this test; an `array_length` rule added by accident would pass the first
+   * case and fail the second, which is the right way round.
+   */
+  const ARRAY_COLUMNS = ['triggers', 'includes', 'good_at', 'not_good_at'] as const;
+
+  it('stores a skill with every array column empty', async () => {
+    const created = await createSkill(
+      db,
+      newSkill('skr-empty-arrays', {
+        triggers: [],
+        includes: [],
+        goodAt: [],
+        notGoodAt: [],
+      }),
+    );
+
+    expect(created).toMatchObject({
+      triggers: [],
+      includes: [],
+      goodAt: [],
+      notGoodAt: [],
+    });
+
+    /**
+     * Read back through raw SQL as well as the builder. An empty Postgres array
+     * and a NULL are different values that both render as falsy in JavaScript,
+     * and the columns are NOT NULL — so this is what tells "stored `{}`" from
+     * "the driver handed back nothing".
+     */
+    const raw = await db.execute(sql`
+      select ${sql.join(
+        ARRAY_COLUMNS.map((c) => sql`cardinality(${sql.identifier(c)}) as ${sql.identifier(c)}`),
+        sql`, `,
+      )}
+      from skills where skill_id = 'skr-empty-arrays'
+    `);
+    expect(raw.length).toBe(1);
+    for (const column of ARRAY_COLUMNS) {
+      expect({ [column]: raw[0]?.[column] }).toEqual({ [column]: 0 });
+    }
+  });
+
+  it('carries no CHECK constraint over any array column', async () => {
+    const rows = await db.execute(sql`
+      select conname, pg_get_constraintdef(oid) as def
+      from pg_constraint
+      where conrelid = 'skills'::regclass and contype = 'c'
+    `);
+
+    // Vacuity floor: `skills` DOES have a CHECK, so an empty result here would
+    // mean the query is wrong rather than that the table is unconstrained.
+    const names = rows.map((r) => String(r.conname));
+    expect(names).toContain('skills_category_check');
+
+    const overArrays = rows.filter((r) =>
+      ARRAY_COLUMNS.some((column) => String(r.def).includes(column)),
+    );
+    expect(overArrays).toEqual([]);
   });
 });
 
