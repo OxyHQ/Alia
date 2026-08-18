@@ -609,6 +609,24 @@ const PROVIDER_IMPORT_ALLOWLIST: readonly { from: string; to: string; via: Modul
     why: 'Same file, same five names, against `getProvider`, whose signature promises an `undefined` an object literal could not deliver. Test-only.',
   },
   {
+    from: 'packages/api/src/scripts/seed.ts',
+    to: 'packages/api/src/internal/providers/lib/seed-model-configs',
+    via: 'import',
+    why: 'The deploy one-shot that triggers seeding. The seeders live in the provider tree and move to Relay with it (#139 ws10); the TRIGGER is the product\'s, which is why it is here and not there.',
+  },
+  {
+    from: 'packages/api/src/scripts/seed.ts',
+    to: 'packages/api/src/internal/providers/lib/seed-features',
+    via: 'import',
+    why: 'Same one-shot, `features` and `plan_features`. Billing seeding sits under `internal/providers/` for historical reasons only — it writes `db/billing/`.',
+  },
+  {
+    from: 'packages/api/src/scripts/seed.ts',
+    to: 'packages/api/src/internal/providers/lib/seed-credit-packages',
+    via: 'import',
+    why: 'Same one-shot, `credit_packages`. Same historical placement.',
+  },
+  {
     from: 'packages/api/src/lib/__tests__/surface-capability.test.ts',
     to: 'packages/api/src/internal/providers/lib/alia-models',
     via: 'import',
@@ -621,7 +639,10 @@ const PROVIDER_IMPORT_ALLOWLIST: readonly { from: string; to: string; via: Modul
  * line at a time.
  *
  * 23 → 24 in #139 ws20, → 26 in ws4, → 27 in ws5, → 30 for the
- * prototype-keyed-lookup sweep. All of the additions are TESTS
+ * prototype-keyed-lookup sweep, → 33 for the deploy seeder. The last three are
+ * the only PRODUCT additions since ws5 and they are one module —
+ * `scripts/seed.ts` is an operational entrypoint, not part of the serving
+ * process. Every other addition is a TEST
  * reading the routing table as data rather than product modules calling an
  * adapter. Every other line is a product module, and the direction of travel for
  * those is down.
@@ -632,7 +653,7 @@ const PROVIDER_IMPORT_ALLOWLIST: readonly { from: string; to: string; via: Modul
  * produced a plausible wrong answer that still compiled. The same trap caught
  * ws5's rebase, which is why this paragraph is a rule and not a history.
  */
-const PROVIDER_IMPORT_ALLOWLIST_SIZE = 30;
+const PROVIDER_IMPORT_ALLOWLIST_SIZE = 33;
 
 function observedProviderImports(): { from: string; to: string; via: ModuleRef['via'] }[] {
   const seen = new Map<string, { from: string; to: string; via: ModuleRef['via'] }>();
@@ -1358,7 +1379,6 @@ const PROVIDER_KEY_READERS: readonly string[] = [
   // fine" would also cover a test that genuinely reads one.
   'packages/api/src/internal/providers/lib/__tests__/key-expiry.test.ts',
   'packages/api/src/internal/providers/lib/key-manager.ts',
-  'packages/api/src/internal/providers/lib/seed-model-configs.ts',
 ];
 
 /**
@@ -1470,7 +1490,9 @@ describe('gate 4: no provider secret reaches a public serializer (ADR 0001)', ()
     }
 
     expect([...readers].sort()).toEqual([...PROVIDER_KEY_READERS].sort());
-    expect(PROVIDER_KEY_READERS).toHaveLength(6);
+    // 6 → 5: `seed-model-configs.ts` stopped reading the repository when the
+    // cooldown reset left it with the startup-seed aggregator that had no caller.
+    expect(PROVIDER_KEY_READERS).toHaveLength(5);
     expect([...readers].filter((f) => f.startsWith('packages/api/src/routes/'))).toEqual([]);
   });
 

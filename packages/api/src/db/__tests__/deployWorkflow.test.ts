@@ -107,4 +107,33 @@ describe('deploy-aws.yml migration wiring', () => {
     expect(build).toContain("outfile: 'dist/db/migrate.js'");
     expect(workflow).toContain('packages/api/dist/db/migrate.js');
   });
+
+  /**
+   * The seeder has the migrator's failure mode exactly: the one-shot names a
+   * file path, the runtime stage carries no `src/`, and nothing complains until
+   * the command is issued against a real cluster.
+   *
+   * It differs in one way worth asserting separately — it runs on EVERY release,
+   * not only when a post-phase migration exists. A seeder wired to the migration
+   * marker would be a seeder that usually does not run, which is the shape this
+   * whole change exists to remove.
+   */
+  it('invokes the seed entrypoint build.ts actually emits, on every release', () => {
+    const build = readFileSync(fileURLToPath(new URL('../../../build.ts', import.meta.url)), 'utf8');
+    expect(build).toContain("entryPoints: ['src/scripts/seed.ts']");
+    expect(build).toContain("outfile: 'dist/scripts/seed.js'");
+    expect(workflow).toContain('packages/api/dist/scripts/seed.js');
+
+    // Unconditional: the seed command is assigned OUTSIDE the branch that tests
+    // for a post-phase migration. If it moved inside, it would run only on
+    // releases that happen to carry one.
+    const step = workflow.slice(workflow.indexOf('id: phases'));
+    const seedLine = step.slice(0, step.indexOf('>>"$GITHUB_OUTPUT"'));
+    expect(seedLine).toMatch(/SEED='node packages\/api\/dist\/scripts\/seed\.js[^']*'/);
+    expect(seedLine.indexOf('SEED=')).toBeLessThan(seedLine.indexOf('if grep -rlE'));
+
+    // It must state its target, for the same reason the migrator must: `alia`
+    // shares an instance with five other services.
+    expect(workflow).toContain('dist/scripts/seed.js --target-database=alia');
+  });
 });

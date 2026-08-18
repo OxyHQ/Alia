@@ -166,16 +166,37 @@ jobs:
       # deferred, it is DEADLOCKED — the ledger is a high-water mark, so the next
       # release's `pre` run is refused behind the unapplied `post` one and that
       # deploy fails at its migration step.
-      - name: Detect a post-rollout migration in this release
+      # Two things run after the rollout, and deploy-ecs-image.sh takes exactly
+      # ONE command, so they are chained through the image's own `/bin/sh`
+      # (present in `node:*-bookworm-slim`, verified). `&&` is load-bearing:
+      # `sh -c 'a && b'` exits non-zero if EITHER fails, so a failed migration
+      # neither runs the seeder nor reports success.
+      #
+      # The seeder runs UNCONDITIONALLY; the migration only when this release
+      # carries a post-phase file. That asymmetry is the point — seeding is
+      # idempotent (`onConflictDoNothing` throughout), so running it on every
+      # release costs nothing, while making it conditional on an unrelated
+      # migration marker is how a seeder ends up wired to something that is
+      # usually absent.
+      #
+      # NOT chained into the `pre` migration instead: `pre` runs BEFORE the
+      # rollout, against the schema the OLD image is still serving, and a seeder
+      # writing rows the new schema expects does not belong there.
+      - name: Build the post-rollout command
         id: phases
         run: |
+          SEED='node packages/api/dist/scripts/seed.js --target-database=alia'
           if grep -rlE '^-- oxy:deploy-phase=post$' packages/api/drizzle >/dev/null 2>&1; then
-            echo "post_command=[\"node\",\"packages/api/dist/db/migrate.js\",\"--target-database=alia\",\"--phase=post\"]" >>"$GITHUB_OUTPUT"
+            MIGRATE='node packages/api/dist/db/migrate.js --target-database=alia --phase=post'
             echo "this release carries at least one post-rollout migration"
           else
-            echo "post_command=" >>"$GITHUB_OUTPUT"
+            MIGRATE=''
             echo "no post-rollout migration in this release"
           fi
+          if [ -n "$MIGRATE" ]; then CMD="$MIGRATE && $SEED"; else CMD="$SEED"; fi
+          # jq builds the JSON array, so quoting inside the command cannot break
+          # the string-array contract deploy-ecs-image.sh validates.
+          printf 'post_command=%s\n' "$(jq -cn --arg c "$CMD" '["/bin/sh","-c",$c]')" >>"$GITHUB_OUTPUT"
 
       # RUN_MIGRATIONS is what turns on machinery deploy-ecs-image.sh has always
       # had and nothing has ever enabled — so until now NOTHING applied Alia's

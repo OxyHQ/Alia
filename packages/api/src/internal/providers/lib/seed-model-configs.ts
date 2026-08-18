@@ -3,7 +3,12 @@
  *
  * Populates the `model_configs` and `alia_models` PostgreSQL tables from the
  * hardcoded tier mappings, through the repositories in `db/providers/`. Uses
- * upsert for idempotency. Also resets any open circuit breakers on startup.
+ * upsert for idempotency.
+ *
+ * These two functions are TRIGGERED BY `src/scripts/seed.ts`, the deploy
+ * one-shot. They used to be reached from a startup-seed aggregator in this file
+ * that had zero callers repo-wide and therefore ran never; it is deleted — see
+ * that script's header for why the trigger lives on the deploy boundary now.
  *
  * Under ADR 0001 these tables stop being written by Alia and become migration
  * inputs rather than live state; they are dropped under the gates in workstream
@@ -12,7 +17,6 @@
 
 import { findModelConfig, upsertModelConfig } from '../../../db/providers/modelConfigRepository.js';
 import { upsertAliaModel } from '../../../db/providers/aliaModelRepository.js';
-import { resetAllKeyCooldowns as resetKeyCooldowns } from '../../../db/providers/providerKeyRepository.js';
 import type { ConfigAuditActor } from '../../../lib/security/config-audit.js';
 
 /**
@@ -28,8 +32,6 @@ const SEED_ACTOR: ConfigAuditActor = {
 };
 import { getDb } from '../../../db/index.js';
 import { TIER_MODEL_MAPPINGS, ALIA_MODELS, type ModelCapabilities } from './alia-models.js';
-import { connectDB } from './db.js';
-import { resetAllCircuitBreakers } from './provider-health.js';
 import { log } from '../../../lib/logger.js';
 import { isDuplicateKeyError } from '../../../lib/errors/index.js';
 
@@ -67,8 +69,6 @@ function getDisplayName(provider: string, modelId: string): string {
 }
 
 export async function seedModelConfigs(): Promise<{ seeded: number; skipped: number }> {
-  await connectDB();
-
   let seeded = 0;
   let skipped = 0;
 
@@ -170,8 +170,6 @@ export async function seedModelConfigs(): Promise<{ seeded: number; skipped: num
  * those rows exist.
  */
 export async function seedAliaModels(): Promise<{ seeded: number; skipped: number }> {
-  await connectDB();
-
   let seeded = 0;
   let skipped = 0;
 
@@ -252,51 +250,4 @@ export async function seedAliaModels(): Promise<{ seeded: number; skipped: numbe
 
   log.seed.info({ seeded, skipped }, 'AliaModel seeding complete');
   return { seeded, skipped };
-}
-
-/**
- * Reset all key cooldowns and consecutive failure counters.
- * Prevents stale lockouts from persisting across deploys.
- */
-export async function resetAllKeyCooldowns(): Promise<number> {
-  /**
-   * `rowCount` standing in for `modifiedCount`, and sound here for a reason
-   * worth checking rather than assuming: the filter selects only rows that HAVE
-   * a cooldown or a non-zero failure run, and the update clears both — so every
-   * matched row necessarily changes and the two counts cannot diverge.
-   */
-  const reset = await resetKeyCooldowns(getDb(), SEED_ACTOR);
-
-  if (reset > 0) {
-    log.seed.info({ count: reset }, 'Reset key cooldowns and failure counters');
-  }
-
-  return reset;
-}
-
-/**
- * Run all seed operations on startup
- */
-export async function runStartupSeed(): Promise<void> {
-  try {
-    log.seed.info('Running startup seed operations...');
-    await seedModelConfigs();
-    await seedAliaModels();
-    const { seedCreditPackages } = await import('./seed-credit-packages.js');
-    await seedCreditPackages();
-    const { seedFeatures, seedPlanFeatures } = await import('./seed-features.js');
-    await seedFeatures();
-    await seedPlanFeatures();
-    // Owned by `provider-health.ts`, the one module that touches
-    // `provider_health`. It used to be defined here and reach the collection
-    // through `mongoose.models.ProviderHealth`, bypassing that chokepoint.
-    const closed = await resetAllCircuitBreakers();
-    if (closed > 0) {
-      log.seed.info({ count: closed }, 'Reset open circuit breakers to closed');
-    }
-    await resetAllKeyCooldowns();
-    log.seed.info('Startup seed complete');
-  } catch (error) {
-    log.seed.error({ err: error }, 'Error during startup seed');
-  }
 }
