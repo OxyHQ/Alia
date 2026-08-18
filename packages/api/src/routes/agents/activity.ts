@@ -56,11 +56,27 @@ router.get('/:id/activity-grid', optionalAuth, async (req: Request, res: Respons
     startDate.setDate(startDate.getDate() - weeks * 7);
 
     /**
-     * The two halves now come from different stores, and they must agree on what
-     * a "day" is. `$dateToString` with no timezone renders UTC, so the Postgres
-     * side renders UTC explicitly — `to_char` on a `timestamptz` would otherwise
-     * follow the session's `TimeZone` and bucket the same instant into a
-     * different day from the Mongo half, which reads as a plausible heatmap.
+     * ## The two halves now come from different stores, and this grid UNDER-COUNTS
+     *
+     * The conversation half is Postgres; the session half is still
+     * `AgentSession.aggregate` against a Mongo instance that was decommissioned,
+     * so it contributes nothing. Stated rather than left to be discovered,
+     * because an under-count is the failure mode that looks like a working
+     * feature: the heatmap renders, the numbers are plausible, and only the
+     * agent's own sessions are missing from them.
+     *
+     * It is not a regression this port introduces — BOTH halves read Mongo
+     * before it, so the whole grid was empty — and it is not fixable here: the
+     * session half is `agent_sessions`, which has no Postgres writer and belongs
+     * to a later slice. It resolves when that slice lands, and the `Promise.all`
+     * is left in the shape that will take it.
+     *
+     * ## The two halves must agree on what a "day" is
+     *
+     * `$dateToString` with no timezone renders UTC, so the Postgres side renders
+     * UTC explicitly — `to_char` on a `timestamptz` would otherwise follow the
+     * session's `TimeZone` and bucket the same instant into a different day from
+     * the Mongo half, which reads as a plausible heatmap in a second way.
      */
     const [sessionResult, conversationResult] = await Promise.all([
       AgentSession.aggregate([

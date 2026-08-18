@@ -60,7 +60,14 @@ afterAll(async () => {
   await closePostgres();
 });
 
-/** A message row written straight to the table, so `seq` can be NULL on purpose. */
+/**
+ * A message row written straight to the table, so `seq` can be NULL on purpose.
+ *
+ * `createdAt` is settable because a default of `now()` gives several rows
+ * inserted in one test the SAME millisecond, and any assertion about an ordering
+ * keyed on `created_at` is then asserting whatever the planner did. A fixture
+ * that cannot distinguish its own rows cannot test an order.
+ */
 const rawMessage = (
   id: string,
   oxyUserId: string,
@@ -68,10 +75,12 @@ const rawMessage = (
   seq: number | null,
   content: unknown = 'hello',
   role = 'user',
+  createdAt?: string,
 ) =>
   db.execute(sql`
-    insert into ${messages} (id, conversation_id, oxy_user_id, role, content, seq)
-    values (${id}, ${conversationId}, ${oxyUserId}, ${role}, ${JSON.stringify(content)}::jsonb, ${seq})
+    insert into ${messages} (id, conversation_id, oxy_user_id, role, content, seq, created_at)
+    values (${id}, ${conversationId}, ${oxyUserId}, ${role}, ${JSON.stringify(content)}::jsonb, ${seq},
+            coalesce(${createdAt ?? null}::timestamptz, now()))
   `);
 
 describe('upsertConversation', () => {
@@ -313,7 +322,8 @@ describe('the activity heatmap buckets in UTC, whatever the session says', () =>
       insert into ${conversations} (id, oxy_user_id, conversation_id, agent_id, created_at)
       values ('grid-1', 'grid-user', 'grid-conv-1', 'grid-agent', '2026-03-01T20:00:00Z'),
              ('grid-2', 'grid-user', 'grid-conv-2', 'grid-agent', '2026-03-01T23:30:00Z'),
-             ('grid-3', 'grid-user', 'grid-conv-3', 'grid-other', '2026-03-01T20:00:00Z')
+             ('grid-3', 'grid-user', 'grid-conv-3', 'grid-agent', '2026-03-02T04:00:00Z'),
+             ('grid-4', 'grid-user', 'grid-conv-4', 'grid-other', '2026-03-01T20:00:00Z')
     `);
 
     const rows = await db.transaction(async (tx) => {
@@ -327,7 +337,24 @@ describe('the activity heatmap buckets in UTC, whatever the session says', () =>
       return countConversationsPerDayForAgent(tx, 'grid-agent', new Date('2026-01-01T00:00:00Z'));
     });
 
-    expect(rows).toEqual([{ day: '2026-03-01', count: 2 }]);
+    /**
+     * TWO days, so the grouping is doing something — a `group by` that collapsed
+     * everything, or one that grouped per row, both answer a one-day fixture
+     * convincingly. The third row is 2026-03-02T04:00Z, which is the same LOCAL
+     * day as the first two under the pinned zone and a different UTC day: it is
+     * the row that separates the two readings rather than merely adding volume.
+     *
+     * Compared as a SORTED array, and that is a statement about the contract
+     * rather than a way of dodging one: this query has no `ORDER BY` because its
+     * only caller (`routes/agents/activity.ts`) merges it with the agent-session
+     * half into a `Map` and sorts the result itself. Asserting an order here
+     * would pin something the repository does not promise; asserting a SET where
+     * an order IS promised is what #210 caught in `findAgentsByIds`.
+     */
+    expect([...rows].sort((a, b) => a.day.localeCompare(b.day))).toEqual([
+      { day: '2026-03-01', count: 2 },
+      { day: '2026-03-02', count: 1 },
+    ]);
     expect(typeof rows[0].count).toBe('number');
   });
 });
@@ -612,13 +639,34 @@ describe('the text-only reads the bots and the style refiner use', () => {
     ]);
   });
 
-  it('samples one account’s user text, unscoped by conversation', async () => {
-    await rawMessage('sty-a', 'sty-user', 'sty-conv-1', 0, 'about cats', 'user');
-    await rawMessage('sty-b', 'sty-user', 'sty-conv-2', 0, 'about dogs', 'user');
-    await rawMessage('sty-c', 'sty-user', 'sty-conv-2', 1, 'a reply', 'assistant');
-    await rawMessage('sty-d', 'sty-other', 'sty-conv-3', 0, 'somebody else', 'user');
+  it('samples one account’s NEWEST user text, oldest-first, unscoped by conversation', async () => {
+    /**
+     * The window AND its direction, because `lib/style/style-refiner.ts` depends
+     * on both: it takes `messages.slice(-20)` and numbers them into the prompt,
+     * so a reversed result feeds the model the OLDEST twenty in backwards order
+     * and still produces a plausible style profile.
+     *
+     * This assertion used to be `expect([...sample].sort()).toEqual([...])`,
+     * which is membership and not order — the exact shape #210 found in
+     * `findAgentsByIds`, where an `inArray` with no `ORDER BY` returned rows
+     * reversed and a set-comparison never noticed. Timestamps are explicit
+     * because four rows inserted in one test otherwise share a millisecond and
+     * the ordering is the planner's.
+     */
+    await rawMessage('sty-a', 'sty-user', 'sty-conv-1', 0, 'oldest', 'user', '2026-03-01T10:00:00Z');
+    await rawMessage('sty-b', 'sty-user', 'sty-conv-2', 0, 'middle', 'user', '2026-03-01T11:00:00Z');
+    await rawMessage('sty-c', 'sty-user', 'sty-conv-2', 1, 'newest', 'user', '2026-03-01T12:00:00Z');
+    // Excluded by role, and by account.
+    await rawMessage('sty-d', 'sty-user', 'sty-conv-2', 2, 'a reply', 'assistant', '2026-03-01T13:00:00Z');
+    await rawMessage('sty-e', 'sty-other', 'sty-conv-3', 0, 'somebody else', 'user', '2026-03-01T14:00:00Z');
 
-    const sample = await listRecentUserText(db, 'sty-user', 'user', 30);
-    expect([...sample].sort()).toEqual(['about cats', 'about dogs']);
+    // The newest TWO, handed back oldest-first.
+    expect(await listRecentUserText(db, 'sty-user', 'user', 2)).toEqual(['middle', 'newest']);
+    // The whole sample, so the limit above is narrowing something real.
+    expect(await listRecentUserText(db, 'sty-user', 'user', 30)).toEqual([
+      'oldest',
+      'middle',
+      'newest',
+    ]);
   });
 });
