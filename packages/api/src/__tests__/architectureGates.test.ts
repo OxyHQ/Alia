@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 
 import { ALIA_MODELS, TIER_MODEL_MAPPINGS, getAllAliaModels, isAliaModel } from '../internal/providers/lib/alia-models.js';
 import { PROVIDER_NAMES } from '../internal/providers/lib/provider-names.js';
+import { MODEL_PUBLISHERS, isModelPublisher } from '../internal/providers/lib/model-publishers.js';
 import { PROVIDER_CREDENTIAL_ENV } from '../lib/inference/direct-provider-guard.js';
 import { PROVIDER_API_HOSTS } from '../lib/inference/provider-egress-policy.js';
 import { PRODUCT_MODES } from '../lib/product-modes.js';
@@ -1774,16 +1775,32 @@ interface CapturedEntry {
   object: string;
   owned_by?: string;
   attribution?: unknown;
+  provenance?: { publishers?: unknown; unattributed_routes?: unknown };
   [key: string]: unknown;
 }
 
 /**
- * The catalogue body with `data[].attribution` removed, and only that.
+ * The catalogue body with the two permitted identity fields removed, and only
+ * those.
  *
- * By key PATH: an `attribution` key nested anywhere else survives into the
- * censused text, so the exemption cannot be widened by moving a leak one level
- * down. `structuredClone` rather than a spread, so a nested object is not
- * shared with the caller's copy.
+ * Both exemptions are narrow, and they are narrow in DIFFERENT ways:
+ *
+ *  - **`data[].attribution` — by key PATH.** An `attribution` key nested
+ *    anywhere else survives into the censused text, so the exemption cannot be
+ *    widened by moving a leak one level down. It may name a MODEL, because an
+ *    open-weight licence can require the naming as a condition of serving.
+ *  - **`data[].provenance.publishers` — by VOCABULARY.** Only strings that are
+ *    members of `MODEL_PUBLISHERS` are removed; anything else in that array
+ *    stays and is scanned. A path exemption would have been the obvious
+ *    spelling and is the wrong one: it would permit a provider model id to be
+ *    parked in a publisher list, which is precisely the leak the census exists
+ *    for. Eight publisher names are also provider names (`openai`, `google`,
+ *    `anthropic`, `mistral`, `deepseek`, `cohere`, `xai`, `perplexity`), which
+ *    is why the field needs an exemption at all and why the exemption must be
+ *    over a vocabulary rather than a location.
+ *
+ * `structuredClone` rather than a spread, so a nested object is not shared with
+ * the caller's copy.
  */
 function censorAttribution(body: unknown): unknown {
   if (body === null || typeof body !== 'object') return body;
@@ -1793,6 +1810,19 @@ function censorAttribution(body: unknown): unknown {
     if (entry === null || typeof entry !== 'object') return entry;
     const copy = { ...(entry as Record<string, unknown>) };
     delete copy.attribution;
+
+    const provenance = copy.provenance;
+    if (provenance !== null && typeof provenance === 'object') {
+      const p = { ...(provenance as Record<string, unknown>) };
+      if (Array.isArray(p.publishers)) {
+        // Removed by membership, not by position: an entry that is not a known
+        // publisher is left in place to be scanned.
+        p.publishers = p.publishers.filter(
+          (value) => typeof value !== 'string' || !isModelPublisher(value),
+        );
+      }
+      copy.provenance = p;
+    }
     return copy;
   });
   return clone;
@@ -2076,6 +2106,104 @@ describe('gate 5: models versus routing profiles (ADR 0003 invariant 1)', () => 
         data: [{ ...first, attribution: [{ attributed_model: planted }] }, ...rest],
       }),
     ).toEqual([]);
+  });
+
+  /** The publisher list off a captured entry, as strings, or empty. */
+  const publishersOf = (entry: CapturedEntry): string[] => {
+    const list = entry.provenance?.publishers;
+    return Array.isArray(list) ? list.map(String) : [];
+  };
+
+  it('a publisher may be named in provenance, and nothing else may hide there', async () => {
+    /**
+     * The second exemption, and the reason it is a VOCABULARY rather than a
+     * path.
+     *
+     * Eight publishers are also providers, so `provenance.publishers` must be
+     * allowed to contain `openai` — and the obvious way to allow that, deleting
+     * the whole array before scanning, would turn the field into a hole any
+     * leak could be parked in. The four assertions below are the difference,
+     * and the third is the one a path exemption fails.
+     */
+    const captured = await runListHandler(await import('../routes/catalogue.js'));
+    const entries = captured.body?.data ?? [];
+    expect(entries).toHaveLength(ROUTING_PRESETS.length);
+
+    // Every entry carries the field, so "no leak" is not "no field" — and the
+    // set is non-empty somewhere, so the exemption is exercised at all.
+    expect(entries.filter((e) => Array.isArray(e.provenance?.publishers))).toHaveLength(entries.length);
+    expect(entries.some((e) => publishersOf(e).length > 0)).toBe(true);
+
+    // The names really are publishers, and at least one of them is a string the
+    // census would otherwise refuse. Without this the exemption could be
+    // unnecessary and nobody would notice.
+    const named = new Set(entries.flatMap(publishersOf));
+    for (const publisher of named) expect(isModelPublisher(String(publisher))).toBe(true);
+    expect([...named].some((p) => (PROVIDER_NAMES as readonly string[]).includes(String(p)))).toBe(true);
+
+    const providers = new Set<string>();
+    const modelIds = new Set<string>();
+    for (const list of Object.values(TIER_MODEL_MAPPINGS)) {
+      for (const m of list) {
+        providers.add(m.provider.toLowerCase());
+        modelIds.add(m.modelId.toLowerCase());
+      }
+    }
+    const scan = (body: unknown): string[] => {
+      const text = JSON.stringify(censorAttribution(body)).toLowerCase();
+      return [...providers, ...modelIds].filter((needle) => text.includes(needle));
+    };
+
+    // The response as served leaks nothing.
+    expect(scan(captured.body)).toEqual([]);
+
+    // THE assertion. A provider model id parked inside the exempt array is
+    // still a leak, because the exemption is over a vocabulary. A path
+    // exemption passes this and should not.
+    const planted = [...modelIds][0];
+    const [first, ...rest] = entries;
+    expect(
+      scan({
+        ...captured.body,
+        data: [{ ...first, provenance: { publishers: [planted], unattributed_routes: 0 } }, ...rest],
+      }),
+    ).toEqual([planted]);
+
+    // And the permitted case still passes, or the exemption does nothing.
+    const bothNames = MODEL_PUBLISHERS.filter((p) =>
+      (PROVIDER_NAMES as readonly string[]).includes(p),
+    );
+    expect(bothNames.length).toBeGreaterThanOrEqual(6);
+    expect(
+      scan({
+        ...captured.body,
+        data: [
+          { ...first, provenance: { publishers: bothNames, unattributed_routes: 0 } },
+          ...rest,
+        ],
+      }),
+    ).toEqual([]);
+  });
+
+  it('provenance names no operator, which is the half the exemption cannot check', () => {
+    /**
+     * The census above cannot see this: a serving provider that is ALSO a
+     * publisher is an exempt string, so writing `groq` into the publisher list
+     * would be caught only because groq publishes nothing — while writing
+     * `openai` there for a model served by OpenAI but published by somebody
+     * else would sail through.
+     *
+     * So the property is asserted at the source instead: a publisher on the
+     * routing table is never read from the provider column. `model-publishers`
+     * own suite proves the two columns disagree on 50 of 115 rows; this proves
+     * the SERIALIZER passes the publisher through rather than the provider.
+     */
+    const source = readFileSync(
+      path.join(REPO_ROOT, 'packages/api/src/lib/catalogue.ts'),
+      'utf8',
+    );
+    expect(source).toContain('publisher: m.publisher ?? null');
+    expect(source).not.toMatch(/publisher:\s*m\.provider/);
   });
 });
 

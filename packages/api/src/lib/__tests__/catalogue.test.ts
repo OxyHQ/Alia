@@ -67,13 +67,26 @@ function source(overrides: Partial<CatalogueSource> = {}): CatalogueSource {
 function candidate(
   modelId: string,
   capabilities: Record<string, unknown>,
-  route: Partial<Pick<Candidate, 'availabilityScope' | 'attribution'>> = {},
+  route: Partial<Pick<Candidate, 'availabilityScope' | 'attribution' | 'publisher'>> = {},
 ): Candidate {
-  // Both default to `null`, which is what every route in this repository
-  // carries: an availability scope and a licence record belong to a deployment
-  // in Relay's catalogue and nothing here has one. A fixture that wants either
+  // `availabilityScope` and `attribution` default to `null`, which is what
+  // every route in this repository carries: both belong to a deployment in
+  // Relay's catalogue and nothing here has one. A fixture that wants either
   // says so, which is the only way the consumption is measurable today.
-  return { modelId, capabilities, availabilityScope: null, attribution: null, ...route };
+  //
+  // `publisher` is the opposite case and so defaults the other way: the local
+  // routing table attributes all 115 mappings, so an unattributed route is the
+  // EXCEPTION a fixture has to ask for, and defaulting it to `null` here would
+  // make every provenance assertion in this file describe a table that does not
+  // exist.
+  return {
+    modelId,
+    publisher: 'openai',
+    capabilities,
+    availabilityScope: null,
+    attribution: null,
+    ...route,
+  };
 }
 
 /** A capability record with every field this repository actually records. */

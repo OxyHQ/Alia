@@ -174,6 +174,24 @@ function serializeEntry(entry: CatalogueEntry): Record<string, unknown> {
       scope: wireScope(entry.availability.scope),
     },
     attribution: entry.attribution.map(wireAttribution),
+    /**
+     * Who published the models this entry can answer from.
+     *
+     * The SECOND field on this response permitted to name a model identity, and
+     * narrower than the first: `attribution` may name a MODEL because a licence
+     * requires it, this may name only a PUBLISHER. The census in
+     * `__tests__/architectureGates.test.ts` gate 5 exempts exactly the strings
+     * here that are members of `MODEL_PUBLISHERS`, so a provider model id
+     * placed in this field is still caught — the exemption is over a
+     * vocabulary, not over a path.
+     *
+     * It names no operator. Which provider serves a deployment is a property of
+     * the deployment, and nothing on this response says it.
+     */
+    provenance: {
+      publishers: entry.provenance.publishers,
+      unattributed_routes: entry.provenance.unattributedRoutes,
+    },
     entitlement: wireEntitlement(entry.entitlement),
     pricing: { credit_multiplier: entry.pricing.creditMultiplier },
   };

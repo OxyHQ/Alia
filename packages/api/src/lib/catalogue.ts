@@ -214,6 +214,20 @@ interface CatalogueEntryCommon {
    * licence record.
    */
   readonly attribution: readonly RequiredAttribution[];
+  /**
+   * Whose models this entry can answer from.
+   *
+   * A routing profile fans out across organisations — `profile:lite` reaches
+   * Google's, Meta's, DeepSeek's, OpenAI's, xAI's, Mistral's and Cohere's work
+   * — so "who is answering me" has a set as its honest answer, not a name. A
+   * concrete model reference has a set of one.
+   *
+   * This is NOT `attribution`, which is what an open-weight licence REQUIRES be
+   * displayed and is empty unless a licence record says so. Provenance is
+   * published because a person asked, and it names the publisher only, never
+   * the operator serving the deployment.
+   */
+  readonly provenance: CatalogueProvenance;
   readonly entitlement: CatalogueEntitlement;
   readonly pricing: { readonly creditMultiplier: number };
 }
@@ -280,11 +294,54 @@ export type CatalogueEntry = RoutingProfileEntry | ModelEntry;
  */
 export interface Candidate {
   readonly modelId: string;
+  /** Who released this model. `null` is unknown, which is not "none". */
+  readonly publisher: string | null;
   readonly capabilities: Record<string, unknown>;
   /** Who this route may be served to. `null` is unclassified, which is not a scope. */
   readonly availabilityScope: AvailabilityScope | null;
   /** What this route's licence requires be displayed, whole or not at all. */
   readonly attribution: RequiredAttribution | null;
+}
+
+/**
+ * Whose work an entry can answer from, and how much of that is known.
+ *
+ * Two fields rather than one list, for the reason the `filters` report exists:
+ * a list built from half a table looks exactly like a complete list of half as
+ * many publishers. `unattributedRoutes` is what tells them apart.
+ *
+ * Today the local routing table attributes every route, so the count is zero
+ * on every entry. It stops being zero the moment a Relay catalogue arrives
+ * without the field, and a client can then say "these and possibly others"
+ * instead of asserting a set it cannot stand behind.
+ */
+export interface CatalogueProvenance {
+  /** Distinct publishers across the entry's candidates, sorted. Never operators. */
+  readonly publishers: readonly string[];
+  /** Candidates that arrived with no publisher. Not a failure; an unknown. */
+  readonly unattributedRoutes: number;
+}
+
+/**
+ * Sorted, deduplicated, and sorted DELIBERATELY rather than in routing order.
+ *
+ * Candidate order is the fallback ranking, which is an operational fact about
+ * which deployment is tried first. Publishing provenance in that order would
+ * leak the ranking through the back door and invite a reader to treat position
+ * as preference — the same mistake `GET /catalogue` refuses to make when it
+ * says its own price ordering is not a recommendation.
+ */
+export function deriveProvenance(candidates: readonly Candidate[]): CatalogueProvenance {
+  const publishers = new Set<string>();
+  let unattributedRoutes = 0;
+  for (const candidate of candidates) {
+    if (candidate.publisher === null || candidate.publisher === '') {
+      unattributedRoutes += 1;
+      continue;
+    }
+    publishers.add(candidate.publisher);
+  }
+  return { publishers: [...publishers].sort(), unattributedRoutes };
 }
 
 /** The alias-shaped facts an entry is built from, independent of where they came from. */
@@ -391,6 +448,7 @@ export function buildEntry(
       scope: admitEntry(candidates.map((c) => c.availabilityScope), audience),
     },
     attribution: requiredAttributions(candidates.map((c) => c.attribution)),
+    provenance: deriveProvenance(candidates),
     entitlement,
     pricing: { creditMultiplier: source.creditMultiplier },
   };
@@ -630,6 +688,7 @@ export async function buildCatalogue(options: CatalogueOptions): Promise<Catalog
     const candidates: Candidate[] = (tierMappings[preset.tier] ?? []).map((m) => ({
       modelId: m.modelId,
       capabilities: m.capabilities,
+      publisher: m.publisher ?? null,
       availabilityScope: m.availabilityScope ?? null,
       attribution: m.attribution ?? null,
     }));

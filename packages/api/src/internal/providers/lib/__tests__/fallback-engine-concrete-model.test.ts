@@ -57,6 +57,11 @@ const capabilities = {
 
 const mapping = (provider: string, modelId: string, priority: number) => ({
   provider,
+  // A publisher that is NOT the provider, deliberately: these fixtures exist to
+  // separate a model's identity from the deployments serving it, and three
+  // deployments of one model is exactly the case where copying the provider in
+  // would fabricate three publishers for one piece of work.
+  publisher: 'fixture-publisher',
   modelId,
   priority,
   qualityScore: 90,
@@ -156,6 +161,7 @@ const servedKind = (tier: keyof typeof FIXTURE_TIER_MAPPINGS): string =>
     // this repository carries — the classifier this asserts on reads neither.
     FIXTURE_TIER_MAPPINGS[tier].map((m) => ({
       modelId: m.modelId,
+      publisher: m.publisher,
       capabilities: {},
       availabilityScope: null,
       attribution: null,

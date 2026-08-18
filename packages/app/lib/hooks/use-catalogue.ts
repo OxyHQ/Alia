@@ -85,6 +85,24 @@ interface CatalogueEntryCommon {
   /** Name of the cheapest plan that grants this entry, or `null` when free or unknown. */
   readonly requiredPlan: string | null;
   /**
+   * Whose models this entry can answer from.
+   *
+   * The answer to "who is replying to me", which the product had no answer to
+   * at all: a routing profile fans out across organisations, so the honest
+   * answer is a set rather than a name. Publishers only — who RELEASED the
+   * model — never the provider operating the deployment, which the catalogue
+   * does not publish and this client must never infer.
+   *
+   * `unattributedRoutes` is not decoration. A list built from half a table
+   * looks exactly like a complete list of half as many publishers, and this is
+   * what tells them apart, so a consumer can say "these and possibly others"
+   * rather than asserting a set it cannot stand behind.
+   */
+  readonly provenance: {
+    readonly publishers: readonly string[];
+    readonly unattributedRoutes: number;
+  };
+  /**
    * Whether THIS caller may use the entry: `true`, `false`, or `null` for "we
    * are not describing anybody's entitlement".
    *
@@ -174,6 +192,33 @@ function asMultiplier(value: unknown): number | null {
   return typeof multiplier === 'number' && Number.isFinite(multiplier) ? multiplier : null;
 }
 
+/**
+ * A provenance block, or the empty one.
+ *
+ * An absent or unreadable block yields no publishers and no unknown count —
+ * "we were told nothing", which renders as nothing. Defaulting the count to
+ * something non-zero would claim there are publishers we could not read, and
+ * defaulting the list to anything at all would name organisations the server
+ * did not.
+ *
+ * Non-string members are dropped rather than coerced. `String(value)` would
+ * turn a shape break into a plausible-looking publisher name, which is the
+ * failure this module's parsing rules exist to prevent.
+ */
+function asProvenance(value: unknown): { publishers: string[]; unattributedRoutes: number } {
+  const raw = asObject(value);
+  if (raw === null) return { publishers: [], unattributedRoutes: 0 };
+  const list = Array.isArray(raw.publishers) ? raw.publishers : [];
+  const unattributed = raw.unattributed_routes;
+  return {
+    publishers: list.filter((entry): entry is string => typeof entry === 'string' && entry !== ''),
+    unattributedRoutes:
+      typeof unattributed === 'number' && Number.isFinite(unattributed) && unattributed > 0
+        ? unattributed
+        : 0,
+  };
+}
+
 function asCapability(value: unknown): CapabilityAvailability {
   if (value === 'always' || value === 'sometimes' || value === 'never') return value;
   return 'unknown';
@@ -222,6 +267,7 @@ function parseEntry(value: unknown): CatalogueEntry | null {
     unavailable: availability.status === 'unavailable',
     legacy: availability.legacy === true,
     requiredPlan: entitlement?.state === 'known' ? asText(entitlement.required_plan) : null,
+    provenance: asProvenance(raw.provenance),
     // Anything that is not literally `true` or `false` is unknown. A server
     // that omitted the field, or sent something unreadable, has not said the
     // caller is barred — and reading that as `false` is what locks a working
