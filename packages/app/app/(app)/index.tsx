@@ -113,7 +113,7 @@ const ChatPage = () => {
     createNewConversation,
     editMessage,
     clearConversation,
-  } = useChatConversation({ activeRole, selectedModel: selection.effectiveId, skillId: effectiveSkillId });
+  } = useChatConversation({ activeRole, selectedModel: selection.effectiveId ?? undefined, skillId: effectiveSkillId });
 
   const handleSubmit = ghostMode ? sendMessage : createNewConversation;
 

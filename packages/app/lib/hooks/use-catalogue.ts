@@ -57,6 +57,25 @@ interface CatalogueEntryCommon {
   readonly displayName: string;
   readonly description: string;
   readonly emoji: string | null;
+  /**
+   * What the entry is FOR, as the server groups it: `general`, `coding`,
+   * `vision`, `audio`, `voice`, `multimodal` today.
+   *
+   * This is the only grouping axis the catalogue actually carries, and reading
+   * it is what lets the picker offer sections instead of one flat list. The
+   * obvious alternative — grouping by who publishes the model — is not
+   * available and never will be: `publisher` and `model` are served `null` for
+   * every entry (`lib/catalogue.ts`), and `__tests__/architectureGates.test.ts`
+   * fails the build if any catalogue response names a provider or a provider
+   * model id outside the licence-attribution field. So the section axis is
+   * purpose, because purpose is what the data says.
+   *
+   * Kept as a `string` rather than a union of today's six values: a seventh
+   * category added server-side must produce a seventh section, not a dropped
+   * entry, and a union here would turn a widened server into a client that
+   * silently hides models.
+   */
+  readonly category: string;
   /** Product policy: whether the chat picker surfaces this entry. */
   readonly chatVisible: boolean;
   readonly capabilities: CatalogueCapabilities;
@@ -65,6 +84,26 @@ interface CatalogueEntryCommon {
   readonly legacy: boolean;
   /** Name of the cheapest plan that grants this entry, or `null` when free or unknown. */
   readonly requiredPlan: string | null;
+  /**
+   * Whether THIS caller may use the entry: `true`, `false`, or `null` for "we
+   * are not describing anybody's entitlement".
+   *
+   * The server's own answer, and the only one a client should act on. The
+   * picker used to compute this itself, comparing catalogue ids against
+   * `GET /billing/entitlements`' `allowedModelIds` — and the two speak different
+   * vocabularies. The catalogue publishes `profile:*` while entitlements are
+   * keyed by the `alia-*` aliases (`routes/v1/voice.ts` checks
+   * `allowedModelIds.includes(model)` against an alias, and `lib/catalogue.ts`
+   * calls `resolveEntitlement(alias, …)`), so the client-side comparison missed
+   * on EVERY entry: every row rendered locked and every click routed to the
+   * upgrade page instead of selecting a model.
+   *
+   * The server does the same comparison in the same vocabulary and puts the
+   * answer here, so reading it removes the second authority rather than
+   * re-syncing it. `null` when unauthenticated — nobody's entitlement is being
+   * described, which is not "not entitled" and must not lock anything.
+   */
+  readonly entitled: boolean | null;
   /**
    * What a request on this entry costs, relative to the base rate.
    *
@@ -166,6 +205,10 @@ function parseEntry(value: unknown): CatalogueEntry | null {
     displayName,
     description: asText(raw.description) ?? '',
     emoji: asText(raw.emoji),
+    // An entry the server did not categorise is not forced into one. It gets
+    // the empty category, and the picker renders that as an unlabelled group
+    // rather than filing it under whichever section happened to be first.
+    category: asText(raw.category) ?? '',
     chatVisible: raw.chat_visible === true,
     capabilities: {
       tools: asCapability(capabilities.tools),
@@ -179,6 +222,14 @@ function parseEntry(value: unknown): CatalogueEntry | null {
     unavailable: availability.status === 'unavailable',
     legacy: availability.legacy === true,
     requiredPlan: entitlement?.state === 'known' ? asText(entitlement.required_plan) : null,
+    // Anything that is not literally `true` or `false` is unknown. A server
+    // that omitted the field, or sent something unreadable, has not said the
+    // caller is barred — and reading that as `false` is what locks a working
+    // entry away from a paying customer.
+    entitled:
+      entitlement?.state === 'known' && typeof entitlement.entitled === 'boolean'
+        ? entitlement.entitled
+        : null,
     creditMultiplier: asMultiplier(raw.pricing),
     sunsetAt: deprecation === null ? null : asText(deprecation.sunset_at),
   };
@@ -239,11 +290,41 @@ export function useCatalogue() {
   });
 }
 
+/**
+ * "Let Alia decide" — the absence of a choice, stored as one.
+ *
+ * The product publishes this as `mode:automatic` ("Alia picks how to answer.")
+ * in `GET /catalogue/modes`, and it is the one product mode with no routing
+ * profile behind it: its `routing.kind` is `default`. What "default" means is
+ * measurable rather than a guess — `lib/chat/request-context.ts` resolves
+ * `body.model || getDefaultAliaModel()`, so a request that carries NO `model`
+ * is exactly a request routed by the server's own default.
+ *
+ * So this identifier never leaves the device. It is what the store persists and
+ * what the picker checks, and {@link resolveSelection} turns it into a `null`
+ * `effectiveId`, which `use-streaming-chat.ts` omits from the request body.
+ * Sending the string itself would answer `unknown_routing_profile`, which is
+ * why it is defined here beside the resolver that consumes it rather than
+ * anywhere a request body is assembled.
+ *
+ * It cannot collide with a real identifier: the catalogue's are `profile:*` and
+ * the frozen compatibility aliases are `alia-*`.
+ */
+export const AUTOMATIC_SELECTION_ID = 'automatic';
+
 export interface ModelSelection {
   /** What the user chose, which is what the picker keeps showing as chosen. */
   readonly requestedId: string;
-  /** What a request should carry. Differs from `requestedId` only when replaced. */
-  readonly effectiveId: string;
+  /**
+   * What a request should carry, or `null` for "carry no `model` at all".
+   *
+   * `null` is {@link AUTOMATIC_SELECTION_ID} resolved, and it is a distinct
+   * value rather than the default identifier because the two are not the same
+   * request: the app's configured default is `profile:v1` and the server's is
+   * `alia-lite`. Substituting one for the other here would quietly send a
+   * different model than the one the user asked the server to choose.
+   */
+  readonly effectiveId: string | null;
   /** The catalogue entry behind `effectiveId`, or `null` while the catalogue is not readable. */
   readonly entry: CatalogueEntry | null;
   /** `replaced` when the requested identifier is not one the catalogue offers. */
@@ -277,6 +358,14 @@ export function resolveSelection(
   requestedId: string,
   entries: readonly CatalogueEntry[] | undefined,
 ): ModelSelection {
+  // Answered BEFORE the catalogue is consulted, and that order is the point:
+  // automatic is a choice about who decides, not a choice of entry, so it is
+  // valid whether or not the catalogue ever loads. Falling through would send
+  // the literal identifier on a cold start and answer `unknown_routing_profile`.
+  if (requestedId === AUTOMATIC_SELECTION_ID) {
+    return { requestedId, effectiveId: null, entry: null, source: 'requested' };
+  }
+
   if (entries === undefined) {
     return { requestedId, effectiveId: requestedId, entry: null, source: 'requested' };
   }

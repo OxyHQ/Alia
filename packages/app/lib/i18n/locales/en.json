@@ -811,14 +811,30 @@
   "models": {
     "selectModel": "Select Model",
     "loadingModels": "Loading models...",
-    "legacyModels": "Legacy models",
+    "loadingModes": "Loading...",
+    "legacyModels": "Older models",
     "catalogueUnavailable": "Models could not be loaded",
     "noModels": "No models available",
-    "routingProfilesSection": "Routing profiles · Alia picks the model for each message",
-    "modelsSection": "Models · one model answers every message",
+    "automatic": {
+      "label": "Automatic",
+      "description": "Alia picks how to answer."
+    },
+    "categories": {
+      "general": "General",
+      "coding": "Coding",
+      "vision": "Images",
+      "audio": "Audio",
+      "voice": "Voice",
+      "multimodal": "Multimodal"
+    },
+    "uncategorised": "Other",
     "routingProfile": "Routing profile, not a single model",
-    "routingProfileSelects": "Routing profile · picks among {{count}} models per message",
+    "picksAmong": "Picks among {{count}} models",
     "concreteModel": "A single model",
+    "capabilitySometimes": "{{capability}} sometimes",
+    "contextOf": "{{tokens}} context",
+    "maxOutputOf": "{{tokens}} reply",
+    "unknownOf": "{{capabilities}} unknown",
     "unavailable": "Unavailable",
     "retiringOn": "Stops working on {{date}}",
     "selectionReplaced": "Your previous choice is no longer offered. Using {{model}}.",
@@ -830,12 +846,6 @@
       "structuredOutput": "Structured output",
       "context": "Context",
       "maxOutput": "Max reply"
-    },
-    "availability": {
-      "always": "yes",
-      "sometimes": "sometimes",
-      "never": "no",
-      "unknown": "unknown"
     }
   },
   "modes": {
