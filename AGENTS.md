@@ -73,26 +73,33 @@ Key files: `internal/providers/lib/alia-models.ts` (the frozen `alia-*` set — 
 `docs/model-abstraction.mdx`), `routes/v1/models.ts`, `lib/errors/sanitize.ts`,
 and `packages/api/src/internal/` (all provider logic, CORS restricted).
 
-## MongoDB database naming
+## MongoDB is retired, bar one operator script
 
-Database name is `{appName}-{NODE_ENV}`, for example `alia-production`. Pass
-`dbName` to `mongoose.connect()`; do not embed it in `MONGODB_URI`.
+`packages/api` registers no Mongoose model and opens no connection.
+`db/__tests__/bootWiring.test.ts` freezes the files that may import the driver at
+exactly one: `src/scripts/purge-ip-fields.ts`, a one-shot against a RESTORED
+BACKUP whose archives have not expired — evidence in `docs/deployment.md`. A
+second importer is red; deleting that one is what lets `mongoose` leave
+`packages/api/package.json`, same commit.
+
+It takes `MONGODB_URI` and computes `dbName` as `{appName}-{NODE_ENV}`
+(`alia-production`) — **never embed the database name in the URI.**
 
 ## Oxy service connector
 
-Manifest-driven protocol: apps register tool definitions in MongoDB, Alia
-auto-discovers them and exposes them to the AI.
+Manifest-driven protocol: apps register tool definitions in the `oxy_services`
+table, Alia auto-discovers them and exposes them to the AI.
 
-- Service manifests live in the `OxyService` model (tools, events, optional
-  context endpoint). `buildOxyServiceTools()` generates AI SDK `tool()`
-  wrappers (Zod schemas via `jsonSchemaToZod()`), forwarding the user's own
-  OxyHQ JWT — no OAuth for first-party services.
+- A manifest is an `oxy_services` row (tools, events, optional context
+  endpoint). `buildOxyServiceTools()` generates AI SDK `tool()` wrappers (Zod
+  schemas via `jsonSchemaToZod()`), forwarding the user's own OxyHQ JWT — no
+  OAuth for first-party services.
 - Events arrive at `POST /webhooks/oxy/:serviceId`, HMAC verified.
-- **Adding a service is a data change:** insert an `OxyService` doc, zero Alia
+- **Adding a service is a data change:** insert an `oxy_services` row, zero Alia
   code changes.
 - Tool naming is `oxy_{serviceId}__{toolName}`, e.g. `oxy_inbox__searchEmails`.
 
-Key files: `models/oxy-service.ts`, `lib/tools/oxy-services.ts`
+Key files: `db/integrations/oxyServiceRepository.ts`, `lib/tools/oxy-services.ts`
 (`buildOxyServiceTools`, `callOxyService`), `routes/oxy-service-events.ts`.
 
 ## Connectors (MCP and OAuth): third-party tools for the AI
