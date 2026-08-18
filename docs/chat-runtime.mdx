@@ -109,11 +109,9 @@ What happens between request and first SSE chunk:
    usage (`:289`) and fires the `afterChat` hooks and the autonomy `learn` stage
    non-blocking (`:317`).
 
-Conversations and messages are persisted through the Mongoose `Conversation` and `Message`
-models (`packages/api/src/models/conversation.ts`, `models/message.ts`). Equivalent
-`conversations` and `messages` tables exist in the drizzle schema
-(`packages/api/src/db/schema/chat.ts`) but the chat write path does not read them yet;
-moving it is part of the Postgres migration tracked on #139.
+Conversations and messages are persisted to the `conversations` and `messages` tables
+(`packages/api/src/db/schema/chat.ts`) through `db/chat/conversationRepository.ts` and
+`db/chat/messageRepository.ts`, both called from `lib/conversation-saver.ts`.
 
 If an upstream call fails, `resolveWithFallback()` retries against the next entry in the
 tier's ranked list. The client sees one contiguous stream and no event announcing the

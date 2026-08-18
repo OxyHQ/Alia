@@ -2,6 +2,16 @@
 # NOTE: The actual deployment is managed via DO dashboard.
 # This file serves as documentation and reference.
 # Actual app name: alia-production | App ID: 47f815eb-e095-44c9-a0a4-c315307dac22
+#
+# STALE, and knowingly so: api.alia.onl resolves to the AWS ALB and the pipeline
+# is .github/workflows/deploy-aws.yml. Whether to delete this file or keep it as
+# a historical record is the open question in docs/deployment.md.
+#
+# The `db-oxy` MongoDB cluster and the MONGODB_URI / CA_CERT it fed are gone
+# rather than merely stale: the shared instance was archived and destroyed on
+# 2026-08-10 and packages/api reads neither variable. No PostgreSQL resource is
+# declared in their place — this spec never had one, and inventing one here would
+# describe infrastructure that does not exist.
 name: alia-production
 region: ams
 
@@ -32,10 +42,6 @@ services:
     http_port: 8080
 
     envs:
-      - key: MONGODB_URI
-        value: "${db-oxy.DATABASE_URL}"
-      - key: CA_CERT
-        value: "${db-oxy.CA_CERT}"
       - key: REDIS_URL
         value: "${db-valkey.DATABASE_URL}"
       - key: REDIS_CA_CERT
@@ -139,11 +145,6 @@ static_sites:
     catchall_document: index.html
 
 databases:
-  - name: db-oxy
-    engine: MONGODB
-    version: "8"
-    production: true
-    cluster_name: db-oxy
   - name: db-valkey
     engine: REDIS
     version: "7"

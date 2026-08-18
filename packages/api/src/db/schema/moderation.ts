@@ -12,10 +12,10 @@
  *  - a duplicate report is answered with the EXISTING report, which on Postgres
  *    needs a SAVEPOINT — see `db/moderation/reportRepository.ts`.
  *
- * The value tuples are imported from the Mongoose models rather than retyped, so
- * the CHECK and the TypeScript union cannot drift while both stores exist. When
- * the models are deleted at cutover the tuples move here; they do not get
- * duplicated in the meantime.
+ * The value tuples are imported from `domain/`, never retyped here, so the CHECK
+ * and the TypeScript union cannot drift. They were read off the Mongoose models
+ * while both stores existed and moved to `domain/` when those were deleted —
+ * one definition throughout, at no point duplicated.
  */
 
 import { boolean, check, index, integer, jsonb, pgTable, text, uniqueIndex } from 'drizzle-orm/pg-core';

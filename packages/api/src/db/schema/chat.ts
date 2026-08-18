@@ -30,7 +30,7 @@ import { checkOneOf } from './columns';
  * **Neither `folder_id` nor `agent_id` gets a foreign key, for different
  * reasons.** `folder_id` was declared `ref: 'Folder'` and **no `Folder` model
  * ever existed in this service** — it was the one non-`User` dangling ref
- * `models/__tests__/foreign-ref-populate.test.ts` had to name, and it left with
+ * `models/__tests__/retiredModelFiles.test.ts` had to name, and it left with
  * the Mongoose model, so the column is a bare id pointing at nothing this schema
  * could target. `agent_id` names a real model whose table is a later batch; it
  * gets one when `agents` lands, if a deletion answer exists then.

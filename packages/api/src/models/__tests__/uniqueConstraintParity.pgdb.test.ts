@@ -60,7 +60,8 @@ import { RETIRED_MODEL_FILES } from './retiredModelFiles';
  * `retiredModelFiles.ts` is deliberately not a `*.test.ts`. Importing a value
  * from a test file EXECUTES it, and vitest registers the exporter's suites
  * against the IMPORTER — so an earlier draft of this file, which imported the
- * list from `foreign-ref-populate.test.ts`, silently ran that gate's six tests
+ * list from `foreign-ref-populate.test.ts` (since renamed
+ * `retiredModelFiles.test.ts`), silently ran that gate's six tests
  * a second time inside the Postgres suite and reported 20 tests where it
  * declares 14. Measured, not theorised: 14 + 6 = 20.
  *
@@ -621,7 +622,7 @@ const NATURAL_KEY_PRIMARY_KEYS: readonly { table: string; column: string; model:
 ];
 
 /**
- * Live model files, exactly as `foreign-ref-populate.test.ts` enumerates them.
+ * Live model files, exactly as `retiredModelFiles.test.ts` enumerates them.
  *
  * An affirmative filter over tracked files: a model directory has to be added
  * here on purpose rather than being silently uncovered.

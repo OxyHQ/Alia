@@ -9,8 +9,9 @@ Alia is a multi surface context agent platform: one chat runtime behind an Expo 
 - **Bun.** The package manager for every Oxy repository, never npm or yarn. The pinned version is `packageManager` in the root `package.json`, and CI installs that exact version.
 - **Node.js 22.** The runtime the API is built and deployed on. CI pins it alongside bun.
 - **PostgreSQL**, local or remote. `DATABASE_URL` is the one variable the API cannot start without: it exits at boot if it cannot connect.
-- **MongoDB**, optional, for the domains not yet ported. The connection is retried in the background and the routes still backed by a Mongoose model return `500` until it succeeds. The Mongo test suite does not need one; it starts its own in-memory replica set.
 - **Redis**, optional. Caching and rate limiting fall back gracefully without it.
+
+`@alia/api` needs no MongoDB. It registers no Mongoose model, and the driver is a dependency of one operator one-shot (`packages/api/src/scripts/purge-ip-fields.ts`) that the server never imports. `packages/integrations` is a separate process; check its own manifest before assuming the same of it.
 
 Upstream model credentials are not environment variables. They live in the `provider_keys` table, and there is no gateway service to point at — see the `GATEWAY_API_URL` note in `packages/api/.env.example` before setting it.
 
@@ -47,7 +48,7 @@ Three things worth knowing before your first pull request:
 ## Tests
 
 ```bash
-bun run --filter @alia/api test        # Mongo-backed suite; starts its own replica set
+bun run --filter @alia/api test        # Default suite; needs no database
 bun run --filter @alia/api test:pg     # Postgres-backed suite; needs TEST_DATABASE_URL
 bun run --filter @alia/integrations test
 ```
