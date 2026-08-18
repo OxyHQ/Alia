@@ -25,7 +25,7 @@ import { checkOneOf } from './columns';
  * from. Every other table in this schema names the account `oxy_user_id`;
  * `LibraryFile` calls the same thing `owner`, and it is declared
  * `ref: 'User'` — a model this service does not register, per
- * `models/__tests__/foreign-ref-populate.test.ts`. A backfill that pairs
+ * `models/__tests__/retiredModelFiles.test.ts`. A backfill that pairs
  * columns by name would silently leave this one NULL and every file would
  * become unreachable while the copy reported success.
  *

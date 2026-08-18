@@ -15,10 +15,9 @@ import { applyDecisionEnforcement } from '../enforcement-service.js';
  * `observe` mode meaningful in production: what it proves is what will happen
  * when it is switched off.
  *
- * The effects themselves reach `Agent`, `Skill` and `AgentReview`, which belong
- * to a later slice and are still on Mongoose. They are deliberately NOT exercised
- * here; `enforcementRepository.pgdb.test.ts` covers the applied-record shape
- * directly.
+ * The effects themselves reach the `agents`, `skills` and `agent_reviews` tables,
+ * which have their own suites. They are deliberately NOT exercised here;
+ * `enforcementRepository.pgdb.test.ts` covers the applied-record shape directly.
  */
 
 let db: ApiDatabase;

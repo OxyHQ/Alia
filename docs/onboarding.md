@@ -2,7 +2,7 @@
 
 Welcome to Alia -- a multi-surface context-agent platform with autonomous execution and policy controls. This guide gets you productive on day 1.
 
-Read [the ADRs](./adr/README.md) early. Alia is mid-migration: a large epic ([#139](https://github.com/OxyHQ/Alia/issues/139)) is moving inference execution behind a separate data plane, developer identity and billing to Oxy, and the last domains from MongoDB to PostgreSQL. The ADRs say where each responsibility is going, and this guide describes where things are **today**.
+Read [the ADRs](./adr/README.md) early. Alia is mid-migration: a large epic ([#139](https://github.com/OxyHQ/Alia/issues/139)) is moving inference execution behind a separate data plane and developer identity and billing to Oxy. Its MongoDB-to-PostgreSQL half is finished for `packages/api`. The ADRs say where each responsibility is going, and this guide describes where things are **today**.
 
 ## Architecture Overview
 
@@ -33,7 +33,7 @@ Read [the ADRs](./adr/README.md) early. Alia is mid-migration: a large epic ([#1
      +-----------------+
 ```
 
-PostgreSQL is the hard dependency — the API exits at boot without `DATABASE_URL`. A MongoDB connection is opened in the background for the seventeen models still under `packages/api/src/models/`; it is not a readiness dependency, and the routes backed by those models return `500` while it is unreachable.
+PostgreSQL is the hard dependency — the API exits at boot without `DATABASE_URL`. It is also the only one: `packages/api` registers no Mongoose model and opens no MongoDB connection.
 
 ### Autonomy Loop
 
@@ -64,7 +64,7 @@ Approvals are real-time via Socket.IO (`alia.approval_request` / `alia.approval_
 
 | Path | What it does | When you touch it |
 |------|-------------|-------------------|
-| `index.ts` | Express boot: Postgres connect, Mongo retry, route mounting, Socket.IO setup | Adding a new top-level route |
+| `index.ts` | Express boot: Postgres connect, boot guards, route mounting, Socket.IO setup, background services | Adding a new top-level route |
 | `routes/v1/chat-completions.ts` | Main chat handler -- context, tools, provider loop, SSE | Changing chat behavior, adding tools |
 | `lib/chat/request-context.ts` | Per-request context: credits, model, memory, entitlements | Changing what a turn loads |
 | `lib/chat/provider-loop.ts` | The streaming loop, conversation save, credit finalization | Streaming and persistence |
@@ -83,9 +83,8 @@ Approvals are real-time via Socket.IO (`alia.approval_request` / `alia.approval_
 | `lib/redis.ts` | Shared Redis/Valkey client | Caching, rate limiting |
 | `db/index.ts`, `db/schema/` | Postgres connection and the 80-table drizzle schema | Schema changes |
 | `db/migrate.ts` | The migrator; requires `--target-database` and honours phase markers | Migrations |
-| `lib/db.ts` | MongoDB connection, for the domains not yet ported | Mongo config changes |
 | `middleware/auth.ts` | Token verification via OxyHQ, sets `req.user` | Auth changes |
-| `models/` | The Mongoose models the port has not reached yet (conversation, message, agent, container, skill, …). Deliberately uncounted: three slices port in parallel and a number here is stale between them — `models/__tests__/retiredModelFiles.ts` is the ledger of what has already gone, and `ls` is the count | Mongo-backed schema changes |
+| `db/*/…Repository.ts` | One repository per domain — chat, agents, billing, automation, autonomy. `models/` holds no model any more; `models/__tests__/retiredModelFiles.ts` is the ledger of the 43 that were deleted | Reads and writes for a domain |
 | `domain/` | Closed value sets the drizzle CHECK constraints render from | Adding an enum value |
 | `internal/providers/` | Upstream routing, key selection, health, fallback (CORS-restricted) | Routing config |
 
@@ -132,7 +131,7 @@ Frontend                            Backend
                                     15. afterChat hooks + autonomy learn (non-blocking)
 ```
 
-Conversations and messages are still written through the Mongoose `Conversation` and `Message` models. The `conversations` and `messages` tables exist in the drizzle schema; the chat write path does not read them yet.
+Conversations and messages are written to the `conversations` and `messages` tables through `db/chat/conversationRepository.ts` and `db/chat/messageRepository.ts`, both called from `lib/conversation-saver.ts`.
 
 ---
 
@@ -249,7 +248,7 @@ bun run dev:api                          # API only (Express + hot reload)
 bun run dev:app                          # Expo app only (web + tunnel)
 bun run --filter @alia/api lint          # Lint the API
 bun run --filter @alia/api typecheck     # Typecheck the API
-bun run --filter @alia/api test          # API tests (vitest; starts its own Mongo)
+bun run --filter @alia/api test          # API tests (vitest; needs no database)
 bun run --filter @alia/api test:pg       # API tests against a real Postgres
 bun run --filter @alia/api db:generate   # Generate a migration from the schema
 ```

@@ -1,7 +1,8 @@
 /**
  * The ledger of model files the Postgres port has deleted.
  *
- * Extracted from `foreign-ref-populate.test.ts` so a SECOND gate can read it —
+ * Extracted from the gate that owned it — `foreign-ref-populate.test.ts`, since
+ * rewritten as `retiredModelFiles.test.ts` — so a SECOND gate can read it:
  * `uniqueConstraintParity.pgdb.test.ts` needs to know which models are retired,
  * and re-deriving that from git archaeology would give the repo two answers to
  * one question, the archaeology one going quiet the moment a squash merge hides
@@ -11,10 +12,9 @@
  *
  * Importing a value from a `*.test.ts` EXECUTES it, and vitest then registers
  * the exporter's suites against the IMPORTER. Measured: a one-test probe
- * importing `foreign-ref-populate.test.ts` reported **7 tests passed**, running
- * the model-file gate a second time inside the pgdb suite and registering every
- * Mongoose model there. A failure would have been reported under a file that
- * does not contain it.
+ * importing that gate reported **7 tests passed**, running the model-file gate a
+ * second time inside the pgdb suite and registering every Mongoose model there.
+ * A failure would have been reported under a file that does not contain it.
  *
  * This file is deliberately NOT a `.test.ts`, so neither vitest config collects
  * it, and it sits under `__tests__`, so `modelFiles()` excludes it from the very
@@ -28,8 +28,12 @@
  * absorbed.
  *
  * The conserved total that consumes this list lives with its assertion, in
- * `foreign-ref-populate.test.ts` — `MODEL_FILES_EVER`. This file is the data;
- * the invariant is the gate's.
+ * `retiredModelFiles.test.ts` — `MODEL_FILES_EVER`. This file is the data; the
+ * invariant is the gate's.
+ *
+ * The list is CLOSED at 43: `packages/api` registers no Mongoose model and can
+ * register none, which `db/__tests__/bootWiring.test.ts` freezes as an exact set
+ * of driver importers. A 44th entry is only possible after that gate goes red.
  *
  * ## Do not count these rows with `grep`. Read `.length`.
  *
