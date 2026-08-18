@@ -28,7 +28,7 @@
 import express, { type Express, type NextFunction, type Request, type Response } from 'express';
 import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
-import { eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
 /**
@@ -324,8 +324,24 @@ describe('a caller cannot set their own role', () => {
       role: 'owner',
     });
 
+    // The zod enum answers first, with a 400.
     expect(answer.status).toBe(400);
     expect(await findMemberRole(db, id, MEMBER)).toBe('member');
+    /**
+     * And the count is asserted, not just the one role, because this is the
+     * assertion that survives the validator being widened.
+     *
+     * `organization_members_one_owner_key` is the backstop underneath the enum:
+     * measured with the enum widened by one word, this request answers 500
+     * instead of 200 and the second owner is refused by the database, so the
+     * organization still has exactly one. Before the index it answered 200 and
+     * minted one.
+     */
+    const owners = await db
+      .select()
+      .from(organizationMembers)
+      .where(and(eq(organizationMembers.organizationId, id), eq(organizationMembers.role, 'owner')));
+    expect(owners).toHaveLength(1);
   });
 
   it('ignores a role smuggled into the CREATE body', async () => {

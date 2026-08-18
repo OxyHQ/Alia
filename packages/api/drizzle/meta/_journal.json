@@ -183,6 +183,13 @@
       "when": 1786975076350,
       "tag": "0025_opposite_cyclops",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1787086303273,
+      "tag": "0026_messy_stellaris",
+      "breakpoints": true
     }
   ]
 }
