@@ -2,7 +2,7 @@ import { ChevronDown, Lock } from "lucide-react-native";
 import * as DropdownMenu from "@/components/ui/dropdown-menu";
 import { Pressable, View, Platform } from "react-native";
 import { Text } from "@/components/ui/text";
-import { Fragment, useMemo } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { useRouter } from "expo-router";
 import { toast } from "@oxyhq/bloom/toast";
 import { useTranslation } from "@/lib/hooks/use-translation";
@@ -91,6 +91,42 @@ const CAPABILITY_LABEL_KEY: Record<CapabilityKey, string> = {
   structuredOutput: 'models.capabilities.structuredOutput',
 };
 
+/**
+ * The four states, spelled out.
+ *
+ * These live in the DETAIL PANEL rather than on a row. A row that carries five
+ * of these plus two token bounds is a table cell pretending to be a menu item,
+ * which is what the redesign removes — but the words themselves are the whole
+ * point of the four-state model, so they are shown in full where there is room
+ * for them.
+ */
+const AVAILABILITY_LABEL_KEY: Record<CapabilityAvailability, string> = {
+  always: 'models.availability.always',
+  sometimes: 'models.availability.sometimes',
+  never: 'models.availability.never',
+  unknown: 'models.availability.unknown',
+};
+
+/**
+ * Every state gets its own treatment, and `unknown` gets one that reads as a
+ * question rather than as a refusal — a dashed outline rather than the dimmed
+ * fill `never` carries. The word beside it says the same thing, so the
+ * distinction survives for anyone who does not see the difference.
+ */
+const AVAILABILITY_SURFACE: Record<CapabilityAvailability, string> = {
+  always: 'bg-primary/10',
+  sometimes: 'bg-muted',
+  never: 'bg-muted',
+  unknown: 'border border-dashed border-border',
+};
+
+const AVAILABILITY_TEXT: Record<CapabilityAvailability, string> = {
+  always: 'text-primary',
+  sometimes: 'text-foreground',
+  never: 'text-muted-foreground',
+  unknown: 'text-muted-foreground',
+};
+
 type Translate = (key: string, params?: Record<string, unknown>) => string;
 
 function formatTokens(count: number): string {
@@ -133,18 +169,15 @@ function costLabel(entry: CatalogueEntry): string | null {
  * absence can mean, because the unknown ones are spelled out. Dropping the
  * unknown clause is what would turn this into the bug ADR 0003 forbids.
  */
-function factsLine(entry: CatalogueEntry, t: Translate): string {
-  const parts: string[] = [];
+function kindLine(entry: CatalogueEntry, t: Translate): string {
+  if (entry.kind === 'model') return t('models.concreteModel');
+  return entry.selectsAmong === null
+    ? t('models.routingProfile')
+    : t('models.picksAmong', { count: entry.selectsAmong });
+}
 
-  if (entry.kind === 'routing_profile') {
-    parts.push(
-      entry.selectsAmong === null
-        ? t('models.routingProfile')
-        : t('models.picksAmong', { count: entry.selectsAmong }),
-    );
-  } else {
-    parts.push(t('models.concreteModel'));
-  }
+function factsLine(entry: CatalogueEntry, t: Translate): string {
+  const parts: string[] = [kindLine(entry, t)];
 
   const claimed: string[] = [];
   const unknown: string[] = [];
@@ -172,6 +205,40 @@ function factsLine(entry: CatalogueEntry, t: Translate): string {
   if (unknown.length > 0) parts.push(t('models.unknownOf', { capabilities: unknown.join(', ') }));
 
   return parts.join(' · ');
+}
+
+interface Chip {
+  readonly key: string;
+  readonly label: string;
+  readonly state: CapabilityAvailability;
+}
+
+/** The seven figures, each carrying its own certainty. Panel-only. */
+function capabilityChips(entry: CatalogueEntry, t: Translate): Chip[] {
+  const chips: Chip[] = CAPABILITY_KEYS.map((key) => ({
+    key,
+    label: `${t(CAPABILITY_LABEL_KEY[key])}: ${t(AVAILABILITY_LABEL_KEY[entry.capabilities[key]])}`,
+    state: entry.capabilities[key],
+  }));
+  chips.push({
+    key: 'contextWindow',
+    label: `${t('models.capabilities.context')}: ${tokenBoundLabel(entry.capabilities.contextWindow, t) ?? t(AVAILABILITY_LABEL_KEY.unknown)}`,
+    state: entry.capabilities.contextWindow === null ? 'unknown' : 'always',
+  });
+  chips.push({
+    key: 'maxOutput',
+    label: `${t('models.capabilities.maxOutput')}: ${tokenBoundLabel(entry.capabilities.maxOutput, t) ?? t(AVAILABILITY_LABEL_KEY.unknown)}`,
+    state: entry.capabilities.maxOutput === null ? 'unknown' : 'always',
+  });
+  return chips;
+}
+
+function CapabilityChipView({ chip }: { chip: Chip }) {
+  return (
+    <View className={`rounded-full px-1.5 py-0.5 ${AVAILABILITY_SURFACE[chip.state]}`}>
+      <Text className={`text-[10px] ${AVAILABILITY_TEXT[chip.state]}`}>{chip.label}</Text>
+    </View>
+  );
 }
 
 /** A sunset date, when one has been announced and can be read. */
@@ -320,12 +387,15 @@ function EntryRow({
   selected,
   isLocked,
   onSelect,
+  onHighlight,
 }: {
   entry: CatalogueEntry;
   modes: readonly ProductMode[] | undefined;
   selected: boolean;
   isLocked: boolean;
   onSelect: () => void;
+  /** Web only: the menu moved to this row, by pointer or by arrow key. */
+  onHighlight: () => void;
 }) {
   const { t } = useTranslation();
   const facts = factsLine(entry, t);
@@ -370,11 +440,16 @@ function EntryRow({
     );
   }
 
+  // Two lines, and everything else moves to the detail panel. Radix focuses an
+  // item on pointer-move as well as on arrow-key navigation, so `onFocus` is
+  // the one event that covers both ways of arriving at a row — and it is an
+  // event handler, not an effect syncing props into state.
   return (
     <DropdownMenu.CheckboxItem
       key={entry.id}
       value={selected ? 'on' : 'off'}
       onValueChange={onSelect}
+      onFocus={onHighlight}
     >
       <View className={`flex-col gap-0.5 flex-1 py-0.5 ${isLocked ? 'opacity-50' : ''}`}>
         <IdentityLine
@@ -387,10 +462,47 @@ function EntryRow({
         {description !== '' && (
           <Text className="text-xs text-muted-foreground">{description}</Text>
         )}
-        <Text className="text-[11px] text-muted-foreground">{facts}</Text>
-        {sunset !== null && <Text className="text-[10px] text-muted-foreground">{sunset}</Text>}
       </View>
     </DropdownMenu.CheckboxItem>
+  );
+}
+
+/**
+ * What the row no longer says, said once.
+ *
+ * Notion opens a panel per row on hover (`aria-haspopup="dialog"`); this is the
+ * same idea with the primitive this app has. ONE panel, at the foot of the
+ * menu, describing whichever row the menu is on — so the seven capability
+ * figures are still there in full, with their four-state words, and a list of
+ * entries is still scannable by name.
+ *
+ * It falls back to the CHOSEN entry when nothing is highlighted, which is the
+ * state the menu opens in: an empty panel would make the menu jump the first
+ * time a pointer touched a row.
+ */
+function DetailPanel({
+  entry,
+  modes,
+}: {
+  entry: CatalogueEntry | null;
+  modes: readonly ProductMode[] | undefined;
+}) {
+  const { t } = useTranslation();
+  if (entry === null) return null;
+
+  const { label } = presentation(entry, modes);
+  const sunset = sunsetLine(entry, t);
+  return (
+    <View className="border-t border-border px-2.5 pt-2 pb-1.5 gap-1.5">
+      <Text className="text-xs font-medium text-foreground">{label}</Text>
+      <Text className="text-[11px] text-muted-foreground">{kindLine(entry, t)}</Text>
+      <View className="flex-row flex-wrap gap-1">
+        {capabilityChips(entry, t).map((chip) => (
+          <CapabilityChipView key={chip.key} chip={chip} />
+        ))}
+      </View>
+      {sunset !== null && <Text className="text-[10px] text-muted-foreground">{sunset}</Text>}
+    </View>
   );
 }
 
@@ -444,6 +556,17 @@ export function ModelSelector({ selectedModel, onModelChange }: ModelSelectorPro
   const selection = resolveSelection(selectedModel, entries);
   const isAutomatic = selection.requestedId === AUTOMATIC_SELECTION_ID;
 
+  /**
+   * Which row the detail panel describes. `null` is "the menu has not been
+   * moved yet", not "no row".
+   *
+   * Reset when the menu OPENS rather than when it closes: Radix unmounts the
+   * content on close, so state written on the way out would be the first thing
+   * a reopened menu read, and the panel would describe whatever row the pointer
+   * happened to leave from last time.
+   */
+  const [highlightedId, setHighlightedId] = useState<string | null>(null);
+
   // The product mode with no profile behind it, which is what the Automatic row
   // is. Found by routing kind rather than by id, so the row follows the modes
   // table instead of hard-coding `mode:automatic` — and `null` when the table
@@ -484,8 +607,16 @@ export function ModelSelector({ selectedModel, onModelChange }: ModelSelectorPro
         selected={!isAutomatic && entry.id === selection.effectiveId}
         isLocked={isLocked(entry)}
         onSelect={() => handleSelect(entry)}
+        onHighlight={() => setHighlightedId(entry.id)}
       />
     ));
+
+  // The row the panel describes: whichever the menu is on, or the chosen one
+  // before a pointer or an arrow key has moved anywhere. Resolved against the
+  // live list rather than stored as an entry, so a catalogue refetch cannot
+  // leave the panel describing a row that is no longer offered.
+  const detailEntry =
+    (entries ?? []).find((entry) => entry.id === highlightedId) ?? selection.entry;
 
   /**
    * The pill in the header names the current choice — or says nothing about it.
@@ -504,7 +635,7 @@ export function ModelSelector({ selectedModel, onModelChange }: ModelSelectorPro
       : presentation(selection.entry, modes).label;
 
   return (
-    <DropdownMenu.Root>
+    <DropdownMenu.Root onOpenChange={(open) => { if (open) setHighlightedId(null); }}>
       <DropdownMenu.Trigger>
         <Pressable accessibilityLabel="Select model" accessibilityRole="button" className="flex-row items-center gap-1.5 px-3 py-1.5 rounded-full bg-muted active:opacity-70">
           <Text className="text-sm font-medium text-foreground">{triggerLabel}</Text>
@@ -587,6 +718,7 @@ export function ModelSelector({ selectedModel, onModelChange }: ModelSelectorPro
                 </DropdownMenu.Sub>
               </>
             )}
+            {Platform.OS === 'web' && <DetailPanel entry={detailEntry} modes={modes} />}
           </>
         )}
       </DropdownMenu.Content>
