@@ -108,6 +108,53 @@ export const organizationMembers = pgTable(
   },
   (t) => [
     uniqueIndex('organization_members_org_user_key').on(t.organizationId, t.oxyUserId),
+    /**
+     * AT MOST ONE OWNER PER ORGANIZATION, enforced by the database.
+     *
+     * `organization_members_role_check` ADMITS `owner` — it has to, because the
+     * creator's row is one — so the only thing standing between a live request
+     * and a second owner was the `z.enum(['admin', 'member'])` in
+     * `routes/organization.ts`. Measured: widening that enum by one word makes
+     * `PATCH /organization/:id/members/:memberId` answer 200 and mint a second
+     * owner. `updateMemberRole`'s `Exclude<OrganizationRole, 'owner'>` does not
+     * help — a type is erased at runtime, and a property enforced by the type
+     * system needs a gate in the type system, which a request is not.
+     *
+     * An owner can delete the organization and rewrite every role in it, so
+     * "a validator someone will one day simplify" is the wrong last line.
+     *
+     * ## What this costs a FUTURE ownership transfer, measured
+     *
+     * There is no transfer path today and there never has been — the only writer
+     * of `role = 'owner'` in the whole history of this repository is the creation
+     * insert, and `transferOwnership` appears in no commit. When one is written
+     * it MUST demote before it promotes, in one transaction:
+     *
+     *   - demote-then-promote, two statements, one transaction: WORKS;
+     *   - promote-then-demote: fails `23505`, and the error aborts the rest of
+     *       the transaction (`25P02`), so the demote never runs either;
+     *   - a single `UPDATE ... SET role = CASE ...` swapping both rows: fails,
+     *       the classic unique-swap, and it CANNOT be fixed by deferring —
+     *       a partial unique index cannot be `DEFERRABLE` and a unique
+     *       CONSTRAINT cannot be partial. Both were tried against a real server;
+     *       both are syntax errors.
+     *
+     * ## The alternative, and why it was not taken
+     *
+     * `EXCLUDE USING btree (organization_id WITH =) WHERE (role = 'owner')
+     * DEFERRABLE` gives the same guarantee, needs no extension, and — verified —
+     * still refuses a genuine second owner at COMMIT while letting a deferred
+     * transaction pass through a transient two-owner state in any order. It was
+     * rejected because drizzle 0.45 cannot express an exclusion constraint at
+     * all, so it would live only in a hand-written migration, absent from this
+     * file and from every snapshot, invisible to `drizzle-kit generate`. The
+     * freedom it buys is the freedom to write a transfer in an order nobody has
+     * a reason to choose, and a future author has to know the constraint exists
+     * either way — deferral is not automatic, it has to be asked for by name.
+     */
+    uniqueIndex('organization_members_one_owner_key')
+      .on(t.organizationId)
+      .where(sql`${t.role} = 'owner'`),
     index('organization_members_oxy_user_id_idx').on(t.oxyUserId),
     checkOneOf('organization_members_role_check', t.role, ORGANIZATION_ROLES),
   ],

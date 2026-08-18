@@ -1,5 +1,6 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
-import { eq, inArray, sql } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
+import { constraintNameOf, isUniqueViolation } from '@oxyhq/db';
 import { closePostgres, connectPostgres, type ApiDatabase } from '../index';
 import {
   acceptInvite,
@@ -232,6 +233,131 @@ describe('one account holds at most one membership of an organization', () => {
     await seatMember(organization.id, MEMBER, 'member');
 
     await expect(seatMember(organization.id, MEMBER, 'admin')).rejects.toThrow();
+  });
+});
+
+/**
+ * At most one owner per organization, and the guard is the DATABASE.
+ *
+ * These insert through the schema rather than through the repository ON PURPOSE.
+ * The repository refuses `owner` by TYPE and the route refuses it by zod, and
+ * both of those are exactly what this index exists to survive: a type is erased
+ * before a request arrives, and a validator is one word from being widened by
+ * somebody tidying up. A test that went through either would be measuring the
+ * guard it is meant to be the backstop for.
+ */
+describe('an organization has at most one owner, enforced by the database', () => {
+  it('refuses a second owner written straight past every application guard', async () => {
+    const organization = await anOrganization();
+
+    const second = db
+      .insert(organizationMembers)
+      .values({ organizationId: organization.id, oxyUserId: OUTSIDER, role: 'owner' });
+
+    await expect(second).rejects.toSatisfy((error: unknown) => {
+      // The SQLSTATE lives on `cause`, never on `error.code`.
+      expect(isUniqueViolation(error)).toBe(true);
+      expect(constraintNameOf(error)).toBe('organization_members_one_owner_key');
+      return true;
+    });
+  });
+
+  it('refuses PROMOTING a second member to owner, not merely inserting one', async () => {
+    // The escalation path's actual shape is an UPDATE, not an INSERT.
+    const organization = await anOrganization();
+    const member = await seatMember(organization.id, MEMBER, 'member');
+
+    const promote = db
+      .update(organizationMembers)
+      .set({ role: 'owner' })
+      .where(eq(organizationMembers.id, member.id));
+
+    await expect(promote).rejects.toSatisfy((error: unknown) => {
+      expect(constraintNameOf(error)).toBe('organization_members_one_owner_key');
+      return true;
+    });
+    expect(await findMemberRole(db, organization.id, MEMBER)).toBe('member');
+  });
+
+  it('still allows one owner EACH in different organizations', async () => {
+    /**
+     * The index is partial AND scoped. Without the `organization_id` key it would
+     * permit one owner in the entire table; without the `WHERE` it would permit
+     * one MEMBER per organization, which would break every ordinary membership.
+     * Both failures are caught here rather than by reading the index definition.
+     */
+    const first = await anOrganization();
+    const second = await anOrganization({ ownerId: ADMIN });
+
+    expect(await findMemberRole(db, first.id, OWNER)).toBe('owner');
+    expect(await findMemberRole(db, second.id, ADMIN)).toBe('owner');
+    // And ordinary members are unaffected — several per organization.
+    await seatMember(first.id, MEMBER, 'member');
+    await seatMember(first.id, OUTSIDER, 'admin');
+    expect(await listMembers(db, first.id)).toHaveLength(3);
+  });
+
+  /**
+   * The other direction, which is the half a guard like this usually breaks.
+   *
+   * There is no ownership-transfer path today — the only writer of `role =
+   * 'owner'` in this repository's history is the creation insert — so this is
+   * about the one that will be written. A partial unique index cannot be
+   * DEFERRABLE (a syntax error, verified), so the ordering below is not a style
+   * preference, it is the only ordering that works, and finding that out from a
+   * failing production transfer would be the expensive way.
+   */
+  describe('a future ownership transfer', () => {
+    it('SUCCEEDS when it demotes before it promotes, in one transaction', async () => {
+      const organization = await anOrganization();
+      const successor = await seatMember(organization.id, MEMBER, 'admin');
+
+      await db.transaction(async (tx) => {
+        await tx
+          .update(organizationMembers)
+          .set({ role: 'member' })
+          .where(
+            and(
+              eq(organizationMembers.organizationId, organization.id),
+              eq(organizationMembers.oxyUserId, OWNER),
+            ),
+          );
+        await tx
+          .update(organizationMembers)
+          .set({ role: 'owner' })
+          .where(eq(organizationMembers.id, successor.id));
+      });
+
+      expect(await findMemberRole(db, organization.id, MEMBER)).toBe('owner');
+      expect(await findMemberRole(db, organization.id, OWNER)).toBe('member');
+    });
+
+    it('FAILS when it promotes first, and the whole transaction is lost', async () => {
+      const organization = await anOrganization();
+      const successor = await seatMember(organization.id, MEMBER, 'admin');
+
+      const promoteFirst = db.transaction(async (tx) => {
+        await tx
+          .update(organizationMembers)
+          .set({ role: 'owner' })
+          .where(eq(organizationMembers.id, successor.id));
+        await tx
+          .update(organizationMembers)
+          .set({ role: 'member' })
+          .where(
+            and(
+              eq(organizationMembers.organizationId, organization.id),
+              eq(organizationMembers.oxyUserId, OWNER),
+            ),
+          );
+      });
+
+      await expect(promoteFirst).rejects.toThrow();
+      // Nothing moved: the demote never ran, because the failed statement had
+      // already aborted the transaction.
+      expect(await findMemberRole(db, organization.id, OWNER)).toBe('owner');
+      expect(await findMemberRole(db, organization.id, MEMBER)).toBe('admin');
+    });
   });
 });
 
@@ -727,12 +853,13 @@ describe('every index this domain depends on exists on the migrated server', () 
 
     // Vacuity floor: an empty read reports every index missing OR present
     // depending on how the assertion is written, so the count is asserted first.
-    expect(byName.size).toBeGreaterThanOrEqual(10);
+    expect(byName.size).toBeGreaterThanOrEqual(11);
 
     const required = [
       'organizations_slug_lower_key',
       'organizations_owner_id_idx',
       'organization_members_org_user_key',
+      'organization_members_one_owner_key',
       'organization_members_oxy_user_id_idx',
       'organization_invites_token_key',
       'organization_invites_org_email_idx',
