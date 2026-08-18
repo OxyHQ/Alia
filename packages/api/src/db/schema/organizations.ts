@@ -116,7 +116,7 @@ export const organizationMembers = pgTable(
      * and a second owner was the `z.enum(['admin', 'member'])` in
      * `routes/organization.ts`. Measured: widening that enum by one word makes
      * `PATCH /organization/:id/members/:memberId` answer 200 and mint a second
-     * owner. `updateMemberRole`'s `Exclude<OrganizationRole, 'owner'>` does not
+     * owner. `updateNonOwnerMemberRole`'s `Exclude<OrganizationRole, 'owner'>` does not
      * help — a type is erased at runtime, and a property enforced by the type
      * system needs a gate in the type system, which a request is not.
      *
