@@ -265,9 +265,10 @@ So **"nothing is deployed" and "no schema change has landed" are different state
 first is true.** The schema moves while the service does not serve. Two consequences for anyone
 reading the inventory below:
 
-- A table's columns can change under an `UNMEASURED` row count. The counts are unmeasured for want of
-  a credential, not because the schema is frozen — re-read the schema at the commit you are acting
-  on, not at this document's date.
+- A table's columns can change under a row count, and a row count expires. The counts below are
+  measured (2026-08-18) rather than unmeasured, but the schema keeps moving while the service does
+  not serve — re-read the schema at the commit you are acting on, and re-take the count before a
+  drop lands, not at this document's date.
 - A `post` migration that runs at zero capacity is the one case
   [`rollback.md`](../runbooks/rollback.md) singles out: it leaves the old code against a schema it
   was not written for, and rolling the image back does not undo it.
@@ -277,29 +278,29 @@ reading the inventory below:
 From `docs/migration/ownership-matrix.json`, filtered to `kind: "table"` and workstream 10, 11 or 12.
 "Created by" is the migration whose `CREATE TABLE` statement introduces it.
 
-| table | ws | matrix owner | created by | fresh-schema rows | production rows |
+| table | ws | matrix owner | created by | fresh-schema rows | production rows (2026-08-18) |
 | --- | ---: | --- | --- | ---: | --- |
-| `alia_model_provider_mappings` | 10 | relay | `0003_closed_black_queen.sql` | 0 | `UNMEASURED` |
-| `alia_models` | 10 | alia | `0003_closed_black_queen.sql` | 0 | `UNMEASURED` |
-| `api_usage` | 10 | relay | `0000_mature_marauders.sql` | 0 | `UNMEASURED` |
-| `chat_analytics` | 10 | alia | `0001_natural_vulture.sql` | 0 | `UNMEASURED` |
-| `cost_entries` | 10 | relay | `0001_natural_vulture.sql` | 0 | `UNMEASURED` |
-| `external_models` | 10 | alia | `0003_closed_black_queen.sql` | 0 | `UNMEASURED` |
-| `fallback_events` | 10 | relay | `0000_mature_marauders.sql` | 0 | `UNMEASURED` |
-| `model_configs` | 10 | relay | `0003_closed_black_queen.sql` | 0 | `UNMEASURED` |
-| `provider_health` | 10 | relay | `0000_mature_marauders.sql` | 0 | `UNMEASURED` |
-| `provider_keys` | 10 | relay | `0003_closed_black_queen.sql` | 0 | `UNMEASURED` |
-| `voice_call_usage` | 10 | alia | `0008_late_forge.sql` | 0 | `UNMEASURED` |
-| `api_key_usage` | 11 | alia | `0003_closed_black_queen.sql` | 0 | `UNMEASURED` |
-| `developer_api_keys` | 11 | alia | `0004_ambitious_payback.sql` | 0 | `UNMEASURED` |
-| `developer_apps` | 11 | alia | `0004_ambitious_payback.sql` | 0 | `UNMEASURED` |
-| `credit_packages` | 12 | alia | `0003_closed_black_queen.sql` | 0 | `UNMEASURED` |
-| `features` | 12 | alia | `0003_closed_black_queen.sql` | 0 | `UNMEASURED` |
-| `plan_features` | 12 | alia | `0003_closed_black_queen.sql` | 0 | `UNMEASURED` |
-| `plans` | 12 | alia | `0003_closed_black_queen.sql` | 0 | `UNMEASURED` |
-| `subscriptions` | 12 | oxy | `0003_closed_black_queen.sql` | 0 | `UNMEASURED` |
-| `transactions` | 12 | oxy | `0003_closed_black_queen.sql` | 0 | `UNMEASURED` |
-| `user_credits` | 12 | alia | `0003_closed_black_queen.sql` | 0 | `UNMEASURED` |
+| `alia_model_provider_mappings` | 10 | relay | `0003_closed_black_queen.sql` | 0 | 0 |
+| `alia_models` | 10 | alia | `0003_closed_black_queen.sql` | 0 | 0 |
+| `api_usage` | 10 | relay | `0000_mature_marauders.sql` | 0 | 0 |
+| `chat_analytics` | 10 | alia | `0001_natural_vulture.sql` | 0 | 0 |
+| `cost_entries` | 10 | relay | `0001_natural_vulture.sql` | 0 | 0 |
+| `external_models` | 10 | alia | `0003_closed_black_queen.sql` | 0 | 0 |
+| `fallback_events` | 10 | relay | `0000_mature_marauders.sql` | 0 | 0 |
+| `model_configs` | 10 | relay | `0003_closed_black_queen.sql` | 0 | 0 |
+| `provider_health` | 10 | relay | `0000_mature_marauders.sql` | 0 | 0 |
+| `provider_keys` | 10 | relay | `0003_closed_black_queen.sql` | 0 | 0 |
+| `voice_call_usage` | 10 | alia | `0008_late_forge.sql` | 0 | 0 |
+| `api_key_usage` | 11 | alia | `0003_closed_black_queen.sql` | 0 | 0 |
+| `developer_api_keys` | 11 | alia | `0004_ambitious_payback.sql` | 0 | 0 |
+| `developer_apps` | 11 | alia | `0004_ambitious_payback.sql` | 0 | 0 |
+| `credit_packages` | 12 | alia | `0003_closed_black_queen.sql` | 0 | 0 |
+| `features` | 12 | alia | `0003_closed_black_queen.sql` | 0 | 0 |
+| `plan_features` | 12 | alia | `0003_closed_black_queen.sql` | 0 | 0 |
+| `plans` | 12 | alia | `0003_closed_black_queen.sql` | 0 | 0 |
+| `subscriptions` | 12 | oxy | `0003_closed_black_queen.sql` | 0 | 0 |
+| `transactions` | 12 | oxy | `0003_closed_black_queen.sql` | 0 | 0 |
+| `user_credits` | 12 | alia | `0003_closed_black_queen.sql` | 0 | 0 |
 
 **No Mongo collection is in scope.** 17 Mongoose models survive in `packages/api/src/models/`
 (agents, conversations, messages, organizations, skills and friends) and four more in
@@ -319,14 +320,82 @@ The counting statement was mutation-tested on that same database: inserting one 
 inside a transaction moved the count from 0 to 1, and the rollback moved it back. A zero from this
 query therefore means an empty table, not a query that reads nothing.
 
-### Production is UNREACHABLE from this audit
+Re-confirmed at the current chain length on 2026-08-18: all **26** migrations applied from zero to a
+throwaway `postgres:17-bookworm` container (80 relations in `public`), and all 21 tables again held 0
+rows. So the fresh-schema column is still a measurement and still says the same thing — no migration
+seeds any of these tables — two migrations after the run above.
 
-`~/.config/oxy/tokens/` holds no Alia database credential (it carries Cloudflare tokens, keystore
-passphrases and three unrelated app secrets). No production count was taken, and **none is guessed**.
-Separately, `api.alia.onl/health` returns HTTP 503, so the service is parked — historical rows are
-still in the database, but nothing new is accruing.
+### Production was measured on 2026-08-18, and all 21 tables are empty
 
-**The exact command an operator must run.** It never prints the credential.
+**Every `UNMEASURED` in the table above is now a zero, and every zero is a `count(*)`.** Taken
+2026-08-18 by two read-only one-shot ECS tasks on task definition `oxy-alia:86`, both exit 0:
+
+- `arn:aws:ecs:us-west-2:237343248947:task/oxy-cluster/16b116d803354c7c9505b904ba6a6e8d`
+  — the 21-table census plus the provider-key and entitlement detail.
+- `arn:aws:ecs:us-west-2:237343248947:task/oxy-cluster/c09bdd189ef04b34a0ac10e90ef549ec`
+  — the exact whole-database count that makes the zeros trustworthy.
+
+Neither registered a task definition and neither wrote anything; the service stayed at
+`desiredCount: 0` on revision 86 throughout. They ran **in the service's own image, with the
+`DATABASE_URL` secret that task definition injects, in its own subnets and security group**, and
+printed `current_database(): alia` — so what was counted is exactly what the service reads when it
+is scaled up, not a lookalike.
+
+**Whole-database result: 26 rows, all of them in `drizzle.__drizzle_migrations`** — exactly the 26
+applied migrations. 81 tables scanned across every non-system schema, 80 of them empty. The port
+moved the schema; it did not move data.
+
+#### Which control makes the zeros trustworthy — and it is NOT `n_live_tup`
+
+This matters more than the numbers, because the cheap version of this check returns numbers that
+look identical and mean much less.
+
+**`n_live_tup` is an ESTIMATE.** It reads `0` for a table autovacuum has not visited, so a
+`pg_stat_user_tables` sweep cannot distinguish an empty database from uncollected statistics — and
+if every table reads empty, it cannot tell you whether that is the database or the connection. Run
+against this database it reports **one** table with rows, which is a number a reader would have to
+take on trust.
+
+The trustworthy control is the second task: **exact `count(*)` over every table in every non-system
+schema**, built with `query_to_xml` so no table name is hand-maintained. It carries its own vacuity
+floor — 80 empty + 1 non-empty = 81 scanned — so the scan is known to have produced a row per table
+rather than silently short-listing. And the one non-empty table is the migration ledger at exactly
+26 rows, which is an independently predictable number: it matches the 26 entries in
+`packages/api/drizzle/meta/_journal.json`. **That is what turns "everything reads empty" into a
+fact about the database instead of a fact about the query or the credential.**
+
+The counting statement was separately mutation-tested before it was pointed at production: against a
+throwaway database seeded with four `provider_keys` rows, the expired-key clause moved from 0 to 1
+and back on rollback, and the published-credential clause returned the seeded row. A zero from these
+queries means an empty set, not a query that reads nothing.
+
+#### `chat_analytics` is empty, which answers half of why its columns were kept
+
+`0024_furry_unicorn.sql` widened `model` and `provider` to nullable rather than dropping them, and
+`0025_opposite_cyclops.sql` left them alone and declined to narrow `alia_model_id` for the same
+reason: both headers argue that those columns hold **29 days of real provider routing history
+(2026-02-11 to 2026-03-12) that exists nowhere else**, over a table whose row count was `UNMEASURED`.
+
+That count is now measured: **`chat_analytics` holds 0 rows.** The 29 days of history are not in this
+database.
+
+**The decision to keep the columns was still correct on the evidence available**, and it is not
+reversed here — a drop is irreversible, the count was genuinely unknown at the time, and refusing to
+drop under an unknown count is the right call every time. What has changed is that the row-count half
+of the argument is answered. What survives is the *code* half: the two writers named in those
+headers are recorded in git (`899cfd21`, `3fed699a`), so the history of which provider served what is
+recoverable from the commit record, not from these rows. Anyone proposing the physical drop now has
+the number the headers asked for, and should re-take it rather than cite this line.
+
+**The exact command an operator must run**, kept so this measurement is reproducible rather than
+merely asserted. It never prints the credential.
+
+> **The `psql` form below needs a path into the VPC.** `DATABASE_URL` resolves to
+> `postgres.internal.oxy.so`, which does not resolve outside it, so this cannot be run from a
+> developer machine. The reproducible form is the same SQL carried by a one-shot ECS task on the
+> current `oxy-alia` revision — `aws ecs run-task --overrides` with a `node -e` command, which
+> registers no task definition and writes nothing. The image ships `/app/node_modules` and
+> `postgres` is a dependency (`packages/api/package.json`), so the driver resolves.
 
 ```bash
 # The connection string lives in SSM, not in a repo or a dotfile.
@@ -349,31 +418,49 @@ from unnest(array[
 ]) as t
 order by t;"
 
-# The positive controls, both required, in the SAME session.
+# The positive controls, all three required, in the SAME session.
 #
 # A — the statement executed at all. It must print exactly 21 lines. A broken
 #     `unnest` or a `query_to_xml` that failed silently prints fewer, and a
 #     short list of zeros reads exactly like a short list of empty tables.
 #
-# B — the database is not empty. If EVERY table in it is empty then the twenty-one
-#     zeros above are a statement about the connection, not about the schema.
-#     `n_live_tup` is an estimate and that is fine here: this control only has to
-#     distinguish "some data exists" from "none".
+# B — the zeros are about the DATABASE and not about the connection.
 #
-#     Do NOT use `public.conversations` for this. It is a Postgres table with no
-#     repository and no writer — the product still persists conversations through
-#     the Mongoose model at `packages/api/src/routes/conversations.ts:4` — so it
-#     is legitimately empty and would make the control blind.
+#     This control used to be "some table somewhere has rows", read off
+#     `n_live_tup`. That is now known to be the wrong control, because the
+#     condition it treats as suspicious — every application table empty — is the
+#     actual measured state, so it would reject a true reading. It is also an
+#     ESTIMATE, and reads 0 for any table autovacuum has not visited.
+#
+#     The replacement is a value that is independently predictable: the migration
+#     ledger must hold exactly one row per entry in
+#     `packages/api/drizzle/meta/_journal.json` (26 as of 2026-08-18). A
+#     connection that could not see data would not return that number, and a
+#     schema-only database returns it while every application table is legitimately
+#     empty. Compare the two numbers; they must be equal.
+psql "$DATABASE_URL" -tA -c "select count(*) from drizzle.__drizzle_migrations;"
+jq '.entries | length' packages/api/drizzle/meta/_journal.json
+# The two numbers must be equal. They were, on 2026-08-18: 26 and 26.
+
+# C — the vacuity floor for the sweep. Count EVERY table in every non-system
+#     schema, not just the 21, and assert that empty + non-empty equals scanned.
+#     Without it, a sweep that silently short-lists reads exactly like a database
+#     in which the missing tables are empty.
 psql "$DATABASE_URL" -tA -F'|' -c "
-select relname, n_live_tup
-from pg_stat_user_tables
-order by n_live_tup desc
-limit 10;"
+select n.nspname, c.relname,
+       (xpath('/row/c/text()', query_to_xml(
+          format('select count(*) as c from %I.%I', n.nspname, c.relname),
+          false, true, '')))[1]::text::bigint as exact_rows
+from pg_class c join pg_namespace n on n.oid = c.relnamespace
+where c.relkind = 'r' and n.nspname not in ('pg_catalog','information_schema')
+order by 3 desc, 1, 2;"
 ```
 
-Record the result and its date on #139. Per
-[`compatibility-window.md`](./compatibility-window.md), an absence claim expires on its own: a count
-taken today is re-taken before a drop lands.
+The 2026-08-18 result is recorded in the table above and dated in its column header. Per
+[`compatibility-window.md`](./compatibility-window.md), an absence claim expires on its own: **these
+counts are not a standing fact.** A count taken today is re-taken before a drop lands, and the moment
+anyone seeds `provider_keys` or `plans` — which is what a working scale-up requires — the zeros above
+stop being true. Re-run the command; do not cite this section.
 
 ### Two things the counts alone will not answer
 
