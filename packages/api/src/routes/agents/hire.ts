@@ -1,6 +1,7 @@
 import { Router } from 'express';
-import { Agent } from '../../models/agent.js';
-import { AgentSession } from '../../models/agent-session.js';
+import { getDb } from '../../db/index.js';
+import { findAgentById, incrementAgentCounters } from '../../db/agents/agentRepository.js';
+import { createAgentSession } from '../../db/agents/agentSessionRepository.js';
 import { authenticateToken } from '../../middleware/auth.js';
 import { getAgentCapabilities } from '../../lib/agent/health.js';
 import { enqueueAgentSession } from '../../lib/task-queue.js';
@@ -22,7 +23,7 @@ router.post('/:id/hire', authenticateToken, async (req: Request, res: Response) 
       return res.status(400).json({ error: 'task is required' });
     }
 
-    const agent = await Agent.findById(req.params.id);
+    const agent = await findAgentById(getDb(), String(req.params.id));
     if (!agent || !agent.isPublished) {
       return res.status(404).json({ error: 'Agent not found' });
     }
@@ -51,25 +52,29 @@ router.post('/:id/hire', authenticateToken, async (req: Request, res: Response) 
     }
 
     // Create session with credit reservation
-    const session = await AgentSession.create({
+    const session = await createAgentSession(getDb(), {
       agentId: agent._id,
-      userId: req.user.id,
+      oxyUserId: req.user.id,
       task,
       status: 'queued',
       depth: 0,
       creditReservation,
     });
 
-    // Increment counters
-    agent.hireCount += 1;
-    agent.usageCount += 1;
-    await agent.save();
+    /**
+     * One statement, not a read-modify-write.
+     *
+     * `agent.hireCount += 1; await agent.save()` lost a concurrent hire: two
+     * requests read the same value and wrote the same value+1. `$inc` did not,
+     * and neither does this.
+     */
+    await incrementAgentCounters(getDb(), agent._id, { hireCount: 1, usageCount: 1 });
 
     // Enqueue via BullMQ (falls back to direct execution if Redis unavailable)
     const { queued, jobId } = await enqueueAgentSession({
-      sessionId: session._id.toString(),
+      sessionId: session._id,
       userId: req.user.id,
-      agentId: agent._id.toString(),
+      agentId: agent._id,
       agentName: agent.name,
     });
 

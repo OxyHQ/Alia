@@ -39,14 +39,23 @@ import {
   markContainerDestroyed,
   touchContainer,
 } from '../../db/agents/containerRepository.js';
+import {
+  agentSessionHasActiveResource,
+  claimAgentSessionResource,
+  countActiveAgentSessionResources,
+  markAgentSessionResourceDestroyed,
+  markAllAgentSessionResourcesDestroyed,
+  setAgentSessionResourcePreviewUrl,
+  updateAgentSession,
+  type AgentSessionRecord,
+} from '../../db/agents/agentSessionRepository.js';
+import type { AgentRecord } from '../../db/agents/agentRepository.js';
 import { TodoManager, type TodoStatus } from './todo-manager.js';
 import { WorkspaceMemory } from './workspace-memory.js';
-import type { IAgent } from '../../models/agent.js';
-import type { IAgentSession } from '../../models/agent-session.js';
 
 export interface BuildToolsContext {
-  agent: IAgent;
-  session: IAgentSession;
+  agent: AgentRecord;
+  session: AgentSessionRecord;
   onComplete: (result: string) => void;
   onHireAgent?: (handle: string, task: string) => Promise<string>;
   todoManager: TodoManager;
@@ -55,7 +64,7 @@ export interface BuildToolsContext {
 
 export async function buildAgentTools(ctx: BuildToolsContext) {
   const { session, onComplete, onHireAgent, todoManager, workspaceMemory } = ctx;
-  const userId = session.userId.toString();
+  const userId = session.oxyUserId;
 
   const tools: Record<string, any> = {};
 
@@ -127,8 +136,7 @@ export async function buildAgentTools(ctx: BuildToolsContext) {
       todoManager.setItems(objective, items);
 
       // Persist to session
-      session.plan = todoManager.toJSON();
-      await session.save();
+      await updateAgentSession(getDb(), session._id, { plan: todoManager.toJSON() });
 
       // Sync to workspace filesystem if available
       await workspaceMemory.syncTodo(todoManager.serialize());
@@ -221,8 +229,8 @@ export async function buildAgentTools(ctx: BuildToolsContext) {
           .describe('If true, container persists after task completion (24h timeout). If false, destroyed on session end (30min timeout)'),
       }),
       execute: async ({ image, name, size, persistent }) => {
-        const activeContainers = session.resources.filter(r => r.status === 'active');
-        if (activeContainers.length >= session.config.maxVMs) {
+        const activeContainers = await countActiveAgentSessionResources(getDb(), session._id);
+        if (activeContainers >= session.config.maxVMs) {
           return { error: `Container limit reached (${session.config.maxVMs}). Destroy an existing container first.` };
         }
 
@@ -233,25 +241,22 @@ export async function buildAgentTools(ctx: BuildToolsContext) {
             size,
             persistent,
             labels: {
-              'alia.session': session._id.toString(),
-              'alia.agent': session.agentId.toString(),
+              'alia.session': session._id,
+              'alia.agent': session.agentId,
               'alia.user': userId,
             },
           });
 
-          session.resources.push({
+          await claimAgentSessionResource(getDb(), session._id, {
             type: 'container',
             resourceId: info.id,
-            status: 'active',
-            createdAt: new Date(),
           });
-          await session.save();
 
           await createContainer(getDb(), {
             containerId: info.id,
             name: info.name,
-            sessionId: session._id.toString(),
-            agentId: session.agentId.toString(),
+            sessionId: session._id,
+            agentId: session.agentId,
             oxyUserId: userId,
             image,
             size: size || 'small',
@@ -278,8 +283,7 @@ export async function buildAgentTools(ctx: BuildToolsContext) {
         timeout: z.number().optional().default(30).describe('Timeout in seconds (max 300)'),
       }),
       execute: async ({ containerId, command, timeout }) => {
-        const resource = session.resources.find(r => r.resourceId === containerId && r.status === 'active');
-        if (!resource) {
+        if (!(await agentSessionHasActiveResource(getDb(), session._id, containerId))) {
           return { error: 'Container not found or not active in this session' };
         }
 
@@ -301,8 +305,9 @@ export async function buildAgentTools(ctx: BuildToolsContext) {
         content: z.string().describe('File content to write'),
       }),
       execute: async ({ containerId, path, content }) => {
-        const resource = session.resources.find(r => r.resourceId === containerId && r.status === 'active');
-        if (!resource) return { error: 'Container not found or not active' };
+        if (!(await agentSessionHasActiveResource(getDb(), session._id, containerId))) {
+          return { error: 'Container not found or not active' };
+        }
 
         try {
           await sandbox.writeFile(containerId, path, content);
@@ -320,8 +325,9 @@ export async function buildAgentTools(ctx: BuildToolsContext) {
         path: z.string().describe('Absolute file path to read'),
       }),
       execute: async ({ containerId, path }) => {
-        const resource = session.resources.find(r => r.resourceId === containerId && r.status === 'active');
-        if (!resource) return { error: 'Container not found or not active' };
+        if (!(await agentSessionHasActiveResource(getDb(), session._id, containerId))) {
+          return { error: 'Container not found or not active' };
+        }
 
         try {
           const content = await sandbox.readFile(containerId, path);
@@ -339,8 +345,9 @@ export async function buildAgentTools(ctx: BuildToolsContext) {
         dir: z.string().optional().default('/workspace').describe('Directory to list'),
       }),
       execute: async ({ containerId, dir }) => {
-        const resource = session.resources.find(r => r.resourceId === containerId && r.status === 'active');
-        if (!resource) return { error: 'Container not found or not active' };
+        if (!(await agentSessionHasActiveResource(getDb(), session._id, containerId))) {
+          return { error: 'Container not found or not active' };
+        }
 
         try {
           const files = await sandbox.listFiles(containerId, dir);
@@ -358,14 +365,14 @@ export async function buildAgentTools(ctx: BuildToolsContext) {
         port: z.number().describe('The port the app is listening on (e.g. 3000, 8080)'),
       }),
       execute: async ({ containerId, port }) => {
-        const resource = session.resources.find(r => r.resourceId === containerId && r.status === 'active');
-        if (!resource) return { error: 'Container not found or not active' };
+        if (!(await agentSessionHasActiveResource(getDb(), session._id, containerId))) {
+          return { error: 'Container not found or not active' };
+        }
 
         try {
           const previewUrl = await sandbox.exposePort(containerId, port);
           await exposeContainerPort(getDb(), containerId, userId, previewUrl, port);
-          resource.previewUrl = previewUrl;
-          await session.save();
+          await setAgentSessionResourcePreviewUrl(getDb(), session._id, containerId, previewUrl);
           return { previewUrl, port };
         } catch (err: unknown) {
           return { error: getErrorMessage(err) };
@@ -381,8 +388,9 @@ export async function buildAgentTools(ctx: BuildToolsContext) {
         description: z.string().optional().describe('Description of what the snapshot contains'),
       }),
       execute: async ({ containerId, name, description }) => {
-        const resource = session.resources.find(r => r.resourceId === containerId && r.status === 'active');
-        if (!resource) return { error: 'Container not found or not active' };
+        if (!(await agentSessionHasActiveResource(getDb(), session._id, containerId))) {
+          return { error: 'Container not found or not active' };
+        }
 
         try {
           const tag = name.replace(/[^a-zA-Z0-9._-]/g, '-').toLowerCase();
@@ -394,7 +402,7 @@ export async function buildAgentTools(ctx: BuildToolsContext) {
             baseImage: container?.image || 'unknown',
             snapshotTag: tag,
             oxyUserId: userId,
-            agentId: session.agentId.toString(),
+            agentId: session.agentId,
           });
           return { templateId, name, imageTag };
         } catch (err: unknown) {
@@ -411,11 +419,7 @@ export async function buildAgentTools(ctx: BuildToolsContext) {
       execute: async ({ containerId }) => {
         try {
           await sandbox.destroy(containerId);
-          const resource = session.resources.find(r => r.resourceId === containerId);
-          if (resource) {
-            resource.status = 'destroyed';
-            await session.save();
-          }
+          await markAgentSessionResourceDestroyed(getDb(), session._id, containerId);
           await markContainerDestroyed(getDb(), containerId, userId);
           return { destroyed: true, containerId };
         } catch (err: unknown) {
@@ -443,8 +447,7 @@ When NOT to use: For simple web searches or file reads — use the dedicated too
       // say what its code does before writing it shapes the code, but the answer
       // is model output and does not belong in a log or an execution option.
       execute: async ({ containerId, code, timeout }) => {
-        const resource = session.resources.find(r => r.resourceId === containerId && r.status === 'active');
-        if (!resource) {
+        if (!(await agentSessionHasActiveResource(getDb(), session._id, containerId))) {
           return { error: `Container ${containerId} not found or not active. Create one first with shell_create_container.` };
         }
 
@@ -483,24 +486,34 @@ When NOT to use: For simple web searches or file reads — use the dedicated too
 
 /**
  * Destroy all active containers for a session (cleanup on completion/failure).
+ *
+ * Takes a session id and an owner rather than a document. The old signature
+ * needed a hydrated session purely to walk `session.resources`, which meant the
+ * CALLER's copy of that array decided what got destroyed — and the runner's copy
+ * was loaded before the run started, so a container a tool created mid-run was
+ * not in it and survived. The claim now comes from the table.
+ *
+ * The rows are marked destroyed FIRST, in one statement, and the returned ids
+ * are what the sandbox provider is then asked to destroy. That ordering is
+ * deliberate: a crash between the two leaks a container, which its own idle
+ * clock reaps, while the reverse leaves a destroyed container recorded as active
+ * and blocking the session's `maxVMs` budget forever.
  */
-export async function cleanupSessionResources(session: IAgentSession): Promise<void> {
+export async function cleanupSessionResources(
+  sessionId: string,
+  oxyUserId: string,
+): Promise<void> {
   if (!isSandboxAvailable()) return;
 
   const sandbox = getSandboxProvider();
-  const oxyUserId = session.userId.toString();
-  for (const resource of session.resources) {
-    if (resource.status === 'active') {
-      try {
-        await sandbox.destroy(resource.resourceId);
-        resource.status = 'destroyed';
-        await markContainerDestroyed(getDb(), resource.resourceId, oxyUserId);
-        log.agents.info({ containerId: resource.resourceId }, 'Cleaned up agent container');
-      } catch (err) {
-        log.agents.warn({ err, containerId: resource.resourceId }, 'Failed to clean up container');
-      }
+  const claimed = await markAllAgentSessionResourcesDestroyed(getDb(), sessionId);
+  for (const containerId of claimed) {
+    try {
+      await sandbox.destroy(containerId);
+      await markContainerDestroyed(getDb(), containerId, oxyUserId);
+      log.agents.info({ containerId }, 'Cleaned up agent container');
+    } catch (err) {
+      log.agents.warn({ err, containerId }, 'Failed to clean up container');
     }
   }
-
-  await session.save();
 }

@@ -22,7 +22,6 @@ import { ALIAS_SUNSET, aliasDeprecationEvent } from '../../middleware/alias-depr
 import type { AgentMessage } from '../../lib/chat/stream-runner.js';
 import { runProviderLoop, type ChatLoopState } from '../../lib/chat/provider-loop.js';
 import { getDefaultAliaModel } from '../../lib/chat-core.js';
-import type { IAgent } from '../../models/agent.js';
 
 const router = Router();
 
@@ -160,12 +159,16 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
           // `findConversationAgentById` — this branch has never been reachable.
           const conv = await findConversationAgentById(getDb(), conversationId);
           if (conv?.agentId) {
-            const { Agent } = await import('../../models/agent.js');
-            const { AgentSession } = await import('../../models/agent-session.js');
+            const { findAgentById, incrementAgentCounters } = await import(
+              '../../db/agents/agentRepository.js'
+            );
+            const { createAgentSession } = await import(
+              '../../db/agents/agentSessionRepository.js'
+            );
             const { enqueueAgentSession } = await import('../../lib/task-queue.js');
             const { reserveCredits: reserveAgentCredits } = await import('../../lib/credits-manager.js');
 
-            const linkedAgent = await Agent.findById(conv.agentId).lean();
+            const linkedAgent = await findAgentById(getDb(), conv.agentId);
             if (linkedAgent && linkedAgent.isPublished && linkedAgent.status === 'active') {
               // Get the user's latest message as the task
               const lastUserMsg = [...messages].reverse().find(m => m.role === 'user');
@@ -181,9 +184,9 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
 
               if (agentReservation) {
                 // Create agent session
-                const session = await AgentSession.create({
+                const session = await createAgentSession(getDb(), {
                   agentId: linkedAgent._id,
-                  userId: req.user.id,
+                  oxyUserId: req.user.id,
                   task: taskText.slice(0, 2000),
                   status: 'queued',
                   depth: 0,
@@ -192,21 +195,24 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
 
                 // Enqueue for async execution
                 await enqueueAgentSession({
-                  sessionId: session._id.toString(),
+                  sessionId: session._id,
                   userId: req.user.id,
-                  agentId: linkedAgent._id.toString(),
+                  agentId: linkedAgent._id,
                   agentName: linkedAgent.name,
                 });
 
                 // Increment counters
-                await Agent.updateOne({ _id: linkedAgent._id }, { $inc: { hireCount: 1, usageCount: 1 } });
+                await incrementAgentCounters(getDb(), linkedAgent._id, {
+                  hireCount: 1,
+                  usageCount: 1,
+                });
 
                 // Emit agent session event via SSE so frontend can subscribe
                 if (body.stream) {
                   res.write(`event: alia.agent_session\ndata: ${JSON.stringify({
                     eventVersion: 1,
-                    sessionId: session._id.toString(),
-                    agentId: linkedAgent._id.toString(),
+                    sessionId: session._id,
+                    agentId: linkedAgent._id,
                     agentName: linkedAgent.name,
                   })}\n\n`);
                 }
@@ -237,7 +243,7 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
       userMemory,
       recalledMemories,
       skill: skill as { systemPrompt?: string; title?: string } | null,
-      linkedAgent: linkedAgent as IAgent | null,
+      linkedAgent,
       agentMode,
       autonomyRuntime,
       thinkingMode,

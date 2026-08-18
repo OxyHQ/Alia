@@ -5,12 +5,13 @@
  * Called when an agent has an archetype set and no custom systemPrompt override.
  */
 
-import type { IAgent, IArchetypeConfig } from '../../models/agent.js';
+import { readArchetypeConfig, type ArchetypeConfig, type ArchetypeSourceSet } from '../../domain/agent.js';
+import type { AgentRecord } from '../../db/agents/agentRepository.js';
 
-export function buildArchetypeSystemPrompt(agent: IAgent): string | null {
-  if (!agent.archetype || agent.archetype === 'general') return null;
+export function buildArchetypeSystemPrompt(agent: AgentRecord): string | null {
+  if (agent.archetype === 'general') return null;
 
-  const config = agent.archetypeConfig || {};
+  const config = readArchetypeConfig(agent.archetypeConfig);
 
   switch (agent.archetype) {
     case 'qa':
@@ -27,7 +28,7 @@ export function buildArchetypeSystemPrompt(agent: IAgent): string | null {
 // ── Shared helpers ──────────────────────────────────────────────────
 
 function buildSourceLines(
-  sourceDef: { integrations?: string[]; mcpServers?: string[]; oxyServices?: string[] } | undefined,
+  sourceDef: ArchetypeSourceSet | undefined,
   templates: { integration: string; service: string; mcp: string },
 ): string[] {
   if (!sourceDef) return [];
@@ -40,7 +41,7 @@ function buildSourceLines(
 
 // ── Q&A Agent ───────────────────────────────────────────────────────
 
-function buildQAPrompt(agent: IAgent, config: IArchetypeConfig): string {
+function buildQAPrompt(agent: AgentRecord, config: ArchetypeConfig): string {
   const sources: string[] = [];
 
   if (agent.knowledge?.length) {
@@ -84,7 +85,7 @@ ${citationInstructions}
 
 // ── Task Router Agent ───────────────────────────────────────────────
 
-function buildTaskRouterPrompt(agent: IAgent, config: IArchetypeConfig): string {
+function buildTaskRouterPrompt(agent: AgentRecord, config: ArchetypeConfig): string {
   let rulesSection = '';
   if (config.routingRules?.length) {
     const ruleLines = config.routingRules.map((rule, i) => {
@@ -141,7 +142,7 @@ ${rulesSection}${defaultSection}${channels}
 
 // ── Status Update Agent ─────────────────────────────────────────────
 
-function buildStatusUpdatePrompt(agent: IAgent, config: IArchetypeConfig): string {
+function buildStatusUpdatePrompt(agent: AgentRecord, config: ArchetypeConfig): string {
   const sources = buildSourceLines(config.dataSources, {
     integration: 'Use integration tools to gather the latest data.',
     service: 'Query this service for recent updates.',

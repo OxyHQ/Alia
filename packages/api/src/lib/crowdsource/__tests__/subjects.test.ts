@@ -1,16 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import mongoose from 'mongoose';
 import { ResourceSchema } from '@oxyhq/crowdsource-contracts';
 
-vi.mock('../../../models/agent.js', () => ({ Agent: { findById: vi.fn() } }));
-vi.mock('../../../models/agent-review.js', () => ({ AgentReview: { findById: vi.fn() } }));
 vi.mock('../../../db/index.js', () => ({ getDb: vi.fn(() => ({})) }));
-vi.mock('../../../db/agents/skillRepository.js', () => ({
-  findReportedSkill: vi.fn(),
-}));
+vi.mock('../../../db/agents/agentRepository.js', () => ({ findAgentById: vi.fn() }));
+vi.mock('../../../db/agents/agentReviewRepository.js', () => ({ findAgentReviewById: vi.fn() }));
+vi.mock('../../../db/agents/skillRepository.js', () => ({ findReportedSkill: vi.fn() }));
 
-import { Agent } from '../../../models/agent.js';
-import { AgentReview } from '../../../models/agent-review.js';
+import { findAgentById } from '../../../db/agents/agentRepository.js';
+import { findAgentReviewById } from '../../../db/agents/agentReviewRepository.js';
 import {
   findReportedSkill,
   type ModerationSkill,
@@ -20,22 +17,80 @@ import { createAgentReviewSubjectProvider } from '../subjects/agent-review-subje
 import { createSkillSubjectProvider } from '../subjects/skill-subject.js';
 import type { ModerationResource } from '../subjects/types.js';
 
-type Mocked = Record<string, ReturnType<typeof vi.fn>>;
-const agentModel = Agent as unknown as Mocked;
-const reviewModel = AgentReview as unknown as Mocked;
+const findAgent = vi.mocked(findAgentById);
+const findReview = vi.mocked(findAgentReviewById);
 const findReportedSkillMock = vi.mocked(findReportedSkill);
 
-const AGENT_ID = '507f1f77bcf86cd799439011';
-const REVIEW_ID = '507f1f77bcf86cd799439012';
+/**
+ * The agent and review ids are uuid v7; the skill ones stay 24-hex.
+ *
+ * Not cosmetic. Both providers used to open with
+ * `mongoose.isValidObjectId(reportedId)` and answer `null` for anything else —
+ * which, against these ids, is EVERY subject. The delivery worker reads that
+ * null as "the object was deleted" and closes the report locally, so a
+ * moderation pipeline would have reported success while never looking at
+ * anything. Real-shaped ids are what make the guard's removal testable at all:
+ * with 24-hex fixtures the old code passes too.
+ */
+const AGENT_ID = '01996a6f-0000-7000-8000-00000000a9e1';
+const REVIEW_ID = '01996a6f-0000-7000-8000-00000000a9e2';
 const SKILL_ID = '507f1f77bcf86cd799439013';
 const AUTHOR_ID = '507f1f77bcf86cd799439014';
 
-/** A `find`-style chain ending in `.lean()`. */
-function chain(value: unknown) {
+/** A full agent record, with the fields a subject reads overridden. */
+function agentRecord(overrides: Record<string, unknown> = {}) {
   return {
-    select: () => ({ lean: async () => value, populate: () => ({ lean: async () => value }) }),
-    lean: async () => value,
-  };
+    _id: AGENT_ID,
+    id: AGENT_ID,
+    name: 'Helpful Bot',
+    handle: 'helpful',
+    avatar: 'file-1',
+    tagline: 'Does helpful things',
+    description: 'A long description',
+    author: AUTHOR_ID,
+    authorName: 'Nate',
+    authorVerified: false,
+    category: 'productivity',
+    tags: ['a', 'b'],
+    rating: 0,
+    reviewCount: 0,
+    usageCount: 0,
+    hireCount: 0,
+    price: null,
+    capabilities: [],
+    isVerified: false,
+    isFeatured: false,
+    isTrending: false,
+    isPublished: true,
+    status: 'active',
+    creditBalance: 0,
+    allowHiring: false,
+    systemPrompt: 'You are helpful.',
+    preferredImage: null,
+    allowedModels: [],
+    scheduleInterval: null,
+    lastScheduledCheck: null,
+    archetype: 'general',
+    archetypeConfig: null,
+    createdAt: new Date('2026-01-01T00:00:00.000Z'),
+    updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+    ...overrides,
+  } as unknown as Awaited<ReturnType<typeof findAgentById>>;
+}
+
+function reviewRecord(overrides: Record<string, unknown> = {}) {
+  return {
+    _id: REVIEW_ID,
+    id: REVIEW_ID,
+    agentId: AGENT_ID,
+    userId: AUTHOR_ID,
+    rating: 1,
+    comment: 'This is garbage',
+    hiddenByModeration: false,
+    createdAt: new Date('2026-07-01T00:00:00.000Z'),
+    updatedAt: new Date('2026-07-01T00:00:00.000Z'),
+    ...overrides,
+  } as unknown as Awaited<ReturnType<typeof findAgentReviewById>>;
 }
 
 /**
@@ -68,22 +123,7 @@ describe('agent subject provider', () => {
   beforeEach(() => vi.clearAllMocks());
 
   it('describes the listing as a profile and the instructions as evidence', async () => {
-    agentModel.findById.mockReturnValue(
-      chain({
-        _id: new mongoose.Types.ObjectId(AGENT_ID),
-        name: 'Helpful Bot',
-        handle: 'helpful',
-        tagline: 'Does helpful things',
-        description: 'A long description',
-        category: 'productivity',
-        archetype: 'general',
-        tags: ['a', 'b'],
-        avatar: 'file-1',
-        systemPrompt: 'You are helpful.',
-        author: new mongoose.Types.ObjectId(AUTHOR_ID),
-        authorName: 'Nate',
-      }),
-    );
+    findAgent.mockResolvedValue(agentRecord());
 
     const snapshot = await provider.snapshot(AGENT_ID);
     expect(snapshot).not.toBeNull();
@@ -117,18 +157,27 @@ describe('agent subject provider', () => {
   });
 
   /**
+   * The removal of `isValidObjectId`, asserted directly.
+   *
+   * This is the positive control for the fixture ids: it fails against a
+   * provider that still shape-checks its argument, and no other case in this
+   * file distinguishes the two — a lookup that is never reached and a lookup
+   * that misses both produce `null`.
+   */
+  it('looks a uuid subject up instead of refusing it on shape', async () => {
+    findAgent.mockResolvedValue(agentRecord());
+    await provider.snapshot(AGENT_ID);
+    expect(findAgent).toHaveBeenCalledWith(expect.anything(), AGENT_ID);
+  });
+
+  /**
    * Read straight off the record. A display name this code assembled from other
    * fields would be evidence Alia invented, and a jury has to judge what the
    * marketplace actually shows.
    */
   it('omits a display name it does not have rather than composing one', async () => {
-    agentModel.findById.mockReturnValue(
-      chain({
-        _id: new mongoose.Types.ObjectId(AGENT_ID),
-        handle: 'nameless',
-        description: 'has a description',
-        author: new mongoose.Types.ObjectId(AUTHOR_ID),
-      }),
+    findAgent.mockResolvedValue(
+      agentRecord({ name: '', handle: 'nameless', description: 'has a description' }),
     );
 
     const snapshot = await provider.snapshot(AGENT_ID);
@@ -141,16 +190,12 @@ describe('agent subject provider', () => {
 
   /** Declared, not attached: there is no digest for an avatar anywhere in Alia. */
   it('declares whether an avatar exists instead of attaching it', async () => {
-    agentModel.findById.mockReturnValue(
-      chain({ _id: new mongoose.Types.ObjectId(AGENT_ID), name: 'A', avatar: 'file-1' }),
-    );
+    findAgent.mockResolvedValue(agentRecord({ avatar: 'file-1' }));
     const withAvatar = await provider.snapshot(AGENT_ID);
     expect(withAvatar?.content).toMatchObject({ data: { claims: { avatarPresent: 'true' } } });
     expect(withAvatar?.attachments).toBeUndefined();
 
-    agentModel.findById.mockReturnValue(
-      chain({ _id: new mongoose.Types.ObjectId(AGENT_ID), name: 'A', avatar: null }),
-    );
+    findAgent.mockResolvedValue(agentRecord({ avatar: null }));
     const withoutAvatar = await provider.snapshot(AGENT_ID);
     expect(withoutAvatar?.content).toMatchObject({
       data: { claims: { avatarPresent: 'false' } },
@@ -158,16 +203,13 @@ describe('agent subject provider', () => {
   });
 
   it('emits no context when the agent has no system prompt', async () => {
-    agentModel.findById.mockReturnValue(
-      chain({ _id: new mongoose.Types.ObjectId(AGENT_ID), name: 'A', systemPrompt: '  ' }),
-    );
+    findAgent.mockResolvedValue(agentRecord({ systemPrompt: '  ' }));
     expect((await provider.snapshot(AGENT_ID))?.context).toBeUndefined();
   });
 
-  it('returns null for a deleted agent and for an id that is not one', async () => {
-    agentModel.findById.mockReturnValue(chain(null));
+  it('returns null for a deleted agent', async () => {
+    findAgent.mockResolvedValue(null);
     expect(await provider.snapshot(AGENT_ID)).toBeNull();
-    expect(await provider.snapshot('not-an-object-id')).toBeNull();
   });
 });
 
@@ -177,19 +219,8 @@ describe('agent review subject provider', () => {
   beforeEach(() => vi.clearAllMocks());
 
   it('describes the comment, with the agent as context', async () => {
-    reviewModel.findById.mockReturnValue(
-      chain({
-        _id: new mongoose.Types.ObjectId(REVIEW_ID),
-        agentId: new mongoose.Types.ObjectId(AGENT_ID),
-        userId: new mongoose.Types.ObjectId(AUTHOR_ID),
-        rating: 1,
-        comment: 'This is garbage',
-        createdAt: new Date('2026-07-01T00:00:00.000Z'),
-      }),
-    );
-    agentModel.findById.mockReturnValue(
-      chain({ _id: new mongoose.Types.ObjectId(AGENT_ID), name: 'Bot', tagline: 'Tag' }),
-    );
+    findReview.mockResolvedValue(reviewRecord());
+    findAgent.mockResolvedValue(agentRecord({ name: 'Bot', tagline: 'Tag' }));
 
     const snapshot = await provider.snapshot(REVIEW_ID);
     expect(snapshot?.subject.type).toBe('commerce.review');
@@ -217,16 +248,8 @@ describe('agent review subject provider', () => {
    * what the review consisted of without inventing words for it.
    */
   it('describes a rating-only review as metadata rather than as empty text', async () => {
-    reviewModel.findById.mockReturnValue(
-      chain({
-        _id: new mongoose.Types.ObjectId(REVIEW_ID),
-        agentId: new mongoose.Types.ObjectId(AGENT_ID),
-        userId: new mongoose.Types.ObjectId(AUTHOR_ID),
-        rating: 3,
-        comment: '',
-      }),
-    );
-    agentModel.findById.mockReturnValue(chain(null));
+    findReview.mockResolvedValue(reviewRecord({ rating: 3, comment: '' }));
+    findAgent.mockResolvedValue(null);
 
     const content = (await provider.snapshot(REVIEW_ID))?.content as ModerationResource;
     expect(content).toMatchObject({
@@ -237,7 +260,7 @@ describe('agent review subject provider', () => {
   });
 
   it('returns null for a deleted review', async () => {
-    reviewModel.findById.mockReturnValue(chain(null));
+    findReview.mockResolvedValue(null);
     expect(await provider.snapshot(REVIEW_ID)).toBeNull();
   });
 });

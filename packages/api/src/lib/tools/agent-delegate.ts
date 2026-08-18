@@ -12,11 +12,12 @@
 
 import { tool, generateText, stepCountIs } from 'ai';
 import { z } from 'zod';
-import { Agent } from '../../models/agent.js';
+import { getDb } from '../../db/index.js';
+import { findAgentById } from '../../db/agents/agentRepository.js';
 import { resolveModel, getAIModel } from '../chat-core.js';
 import { getCurrentDateTool } from './date.js';
 import { webScraperTool } from './web-scraper.js';
-import { evolveAgentSoul } from '../agent-soul.js';
+import { evolveAgentSoul } from '../agent/soul.js';
 import { log } from '../logger.js';
 import { getErrorMessage } from '../errors/index.js';
 
@@ -47,7 +48,7 @@ export const createDelegateToAgentTool = () => tool({
 
     try {
       // Look up the agent
-      const agent = await Agent.findById(agentId).lean();
+      const agent = await findAgentById(getDb(), agentId);
       if (!agent) {
         return {
           agentId,
@@ -62,10 +63,10 @@ export const createDelegateToAgentTool = () => tool({
 
       // Build system prompt
       const systemPrompt = agent.systemPrompt
-        || `You are ${agent.name}, an AI agent. ${agent.tagline}. ${agent.description}\n\nCapabilities: ${(agent.capabilities || []).join(', ')}`;
+        || `You are ${agent.name}, an AI agent. ${agent.tagline}. ${agent.description}\n\nCapabilities: ${agent.capabilities.join(', ')}`;
 
       // Resolve model (prefer agent's first allowed model, fallback to alia-lite)
-      const preferredModel = agent.allowedModels?.[0] || 'alia-lite';
+      const preferredModel = agent.allowedModels[0] || 'alia-lite';
       let resolved = await resolveModel(preferredModel);
       if (!resolved) {
         resolved = await resolveModel('alia-lite');

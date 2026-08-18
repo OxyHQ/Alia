@@ -66,8 +66,9 @@
  * parent patch and the child replace are one logical write sharing one handle.
  */
 
-import { and, asc, desc, eq, inArray, isNotNull, sql, type SQL } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, sql, type SQL } from 'drizzle-orm';
 import { sqlColumnName } from '@oxyhq/db';
+import type { PgColumn } from 'drizzle-orm/pg-core';
 import type { ApiDatabase, Executor } from '../index';
 import { agentKnowledge, agents, agentSkills } from '../schema/agents';
 import { libraryFiles } from '../schema/library';
@@ -93,6 +94,24 @@ export interface AgentSoul {
   currentFocus: string[];
   interactionCount: number;
   lastEvolvedAt: Date | null;
+}
+
+export interface AgentSkillRef {
+  _id: string;
+  skillId: string;
+  title: string;
+  icon: string;
+  color: string;
+}
+
+/** The four fields `.populate('knowledge', 'name type category url')` selected. */
+export interface AgentKnowledgeRef {
+  _id: string;
+  name: string;
+  type: string;
+  /** `notNull` with a CHECK over `FILE_CATEGORIES` — never absent. */
+  category: string;
+  url: string;
 }
 
 /** An agent in the shape `res.json({ agent })` has always answered. */
@@ -135,9 +154,14 @@ export interface AgentRecord {
   archetypeConfig: unknown;
   createdAt: Date;
   updatedAt: Date;
-  /** Present only on the reads that join them. */
-  skills?: string[];
-  knowledge?: string[];
+  /**
+   * Present only on the reads that JOIN them, and holding the projected
+   * documents rather than ids — which is what `populate('skills', 'skillId
+   * title icon color')` produced and what the agent editor renders. A `string[]`
+   * of ids here would type-check on both sides and draw an empty skill list.
+   */
+  skills?: AgentSkillRef[];
+  knowledge?: AgentKnowledgeRef[];
 }
 
 /**
@@ -392,25 +416,125 @@ export async function listAgentCatalogue(
   };
 }
 
-/* --------------------------- the children --------------------------- */
-
-export interface AgentSkillRef {
-  _id: string;
-  skillId: string;
-  title: string;
-  icon: string;
-  color: string;
-}
-
-/** The four fields `.populate('knowledge', 'name type category url')` selected. */
-export interface AgentKnowledgeRef {
-  _id: string;
+/** The fields `searchAgents` projects for the model to choose between. */
+export interface AgentSearchResult {
+  id: string;
   name: string;
-  type: string;
-  /** `notNull` with a CHECK over `FILE_CATEGORIES` — never absent. */
+  handle: string;
+  avatar: string | null;
+  tagline: string;
   category: string;
-  url: string;
+  capabilities: string[];
 }
+
+/**
+ * The agent-mode search tool, which is NOT the catalogue search.
+ *
+ * `lib/tools/agent-search.ts` built a lookahead regex — `(?=.*w1)(?=.*w2).*` —
+ * and applied it to five scalar fields, plus a `$in` of per-word regexes against
+ * the two arrays. Those are two different questions and the translation keeps
+ * them apart:
+ *
+ *  - a SCALAR field matches when it contains EVERY word (the lookaheads), and
+ *  - an ARRAY matches when ANY element contains ANY word (the `$in`).
+ *
+ * Collapsing either into the other is the quiet failure here: an `and` over the
+ * arrays would make a two-word query match nothing, and an `or` over the scalars
+ * would return the whole catalogue for a query containing the word "a".
+ *
+ * The escaping is redone for `ILIKE`, whose metacharacters (`%`, `_`, the escape
+ * itself) are not a regex's — escaping for the wrong language is how a search
+ * silently stops matching.
+ */
+export async function searchActiveAgents(
+  db: Executor,
+  query: string,
+  limit: number,
+): Promise<AgentSearchResult[]> {
+  const words = query.split(/\s+/).filter((word) => word !== '');
+  if (words.length === 0) return [];
+  const patterns = words.map((word) => `%${escapeLike(word)}%`);
+
+  const allWords = (column: SQL | PgColumn): SQL =>
+    sql.join(
+      patterns.map((pattern) => sql`${column} ilike ${pattern}`),
+      sql` and `,
+    );
+  const anyWordInArray = (column: PgColumn): SQL =>
+    sql`exists (
+      select 1 from unnest(${column}) as e(value)
+      where ${sql.join(
+        patterns.map((pattern) => sql`e.value ilike ${pattern}`),
+        sql` or `,
+      )}
+    )`;
+
+  const rows = await db
+    .select({
+      id: agents.id,
+      name: agents.name,
+      handle: agents.handle,
+      avatar: agents.avatar,
+      tagline: agents.tagline,
+      category: agents.category,
+      capabilities: agents.capabilities,
+    })
+    .from(agents)
+    .where(
+      and(
+        eq(agents.isPublished, true),
+        eq(agents.status, 'active'),
+        sql`(
+          (${allWords(agents.name)})
+          or (${allWords(agents.handle)})
+          or (${allWords(agents.tagline)})
+          or (${allWords(agents.description)})
+          or (${allWords(agents.category)})
+          or ${anyWordInArray(agents.tags)}
+          or ${anyWordInArray(agents.capabilities)}
+        )`,
+      ),
+    )
+    .limit(limit);
+  return rows;
+}
+
+/**
+ * A published, active agent addressed by handle — the delegation lookup.
+ *
+ * The three predicates travel together because every caller wants the same
+ * thing: an agent that can actually be hired right now. Splitting them would let
+ * a caller check two and forget the third.
+ */
+export async function findHireableAgentByHandle(
+  db: Executor,
+  handle: string,
+): Promise<AgentRecord | null> {
+  const [row] = await db
+    .select()
+    .from(agents)
+    .where(
+      and(eq(agents.handle, handle), eq(agents.isPublished, true), eq(agents.status, 'active')),
+    )
+    .limit(1);
+  return row ? toAgentRecord(row) : null;
+}
+
+/**
+ * Agents with a heartbeat interval set, for the boot-time trigger sync.
+ *
+ * `{scheduleInterval: {$exists: true, $gt: 0}}` — `$exists` and `$gt: 0` are one
+ * predicate here, because a NULL fails `> 0` in SQL rather than matching it.
+ */
+export async function listAgentsWithHeartbeat(db: Executor): Promise<AgentRecord[]> {
+  const rows = await db
+    .select()
+    .from(agents)
+    .where(and(eq(agents.isPublished, true), sql`${agents.scheduleInterval} > 0`));
+  return rows.map(toAgentRecord);
+}
+
+/* --------------------------- the children --------------------------- */
 
 /**
  * The join that replaces `.populate('skills', 'skillId title icon color')`.
@@ -518,6 +642,8 @@ export interface CreateAgentInput {
   description: string;
   authorOxyUserId: string;
   authorName: string;
+  /** Alia's own assertion about the author. Only the autonomy runtime sets it. */
+  authorVerified?: boolean;
   category: string;
   tags?: string[];
   price?: number | null;
@@ -526,6 +652,8 @@ export interface CreateAgentInput {
   creditBalance?: number;
   allowHiring?: boolean;
   systemPrompt?: string;
+  /** Omit to take the column default, which is what `POST /agents` does. */
+  allowedModels?: string[];
   archetype?: AgentArchetype;
   archetypeConfig?: unknown;
   skillIds?: string[];
@@ -555,6 +683,7 @@ export async function createAgent(
         description: input.description,
         authorOxyUserId: input.authorOxyUserId,
         authorName: input.authorName,
+        ...(input.authorVerified !== undefined && { authorVerified: input.authorVerified }),
         category: input.category,
         tags: input.tags ?? [],
         price: input.price ?? null,
@@ -563,6 +692,7 @@ export async function createAgent(
         creditBalance: input.creditBalance ?? 0,
         allowHiring: input.allowHiring ?? false,
         ...(input.systemPrompt !== undefined && { systemPrompt: input.systemPrompt }),
+        ...(input.allowedModels !== undefined && { allowedModels: input.allowedModels }),
         ...(input.archetype !== undefined && { archetype: input.archetype }),
         ...(input.archetypeConfig !== undefined && { archetypeConfig: input.archetypeConfig }),
       })
@@ -692,21 +822,59 @@ export async function incrementAgentCounters(
   await db.update(agents).set(patch).where(eq(agents.id, id));
 }
 
+/** The three catalogue flags a moderation decision reads before it changes one. */
+export interface AgentModerationState {
+  isPublished: boolean;
+  isFeatured: boolean;
+  isTrending: boolean;
+}
+
 /**
- * Set the moderation-visible fields, the only ones enforcement writes.
+ * The flags an enforcement action needs, and nothing else.
  *
- * `lib/crowdsource/enforcement-service.ts:123` and `:161` set `isPublished` and
- * `status`. Narrow on purpose: an enforcement path that could set any column is
- * a different power from the one the plan grants it.
+ * A projection rather than the whole row, for the reason the plan gives
+ * enforcement a narrow power: the only fields it may act on are the only fields
+ * it can see.
  */
-export async function setAgentModerationState(
+export async function findAgentModerationState(
   db: Executor,
   id: string,
-  state: { isPublished?: boolean; status?: AgentStatus },
+): Promise<AgentModerationState | null> {
+  const [row] = await db
+    .select({
+      isPublished: agents.isPublished,
+      isFeatured: agents.isFeatured,
+      isTrending: agents.isTrending,
+    })
+    .from(agents)
+    .where(eq(agents.id, id))
+    .limit(1);
+  return row ?? null;
+}
+
+/**
+ * Set the catalogue flags, the only columns enforcement writes.
+ *
+ * Narrow on purpose: an enforcement path that could set any column is a
+ * different power from the one `enforcement-plan.ts` grants it. The three flags
+ * are here together because `restore` puts back whatever an earlier `restrict`
+ * and `demote` changed, in ONE statement — doing it in two would leave a window
+ * in which half a reversal is visible.
+ *
+ * A correction to the note this replaced: it claimed enforcement also writes
+ * `status`. It does not. `agents.status` is the owner's own active/idle/offline
+ * toggle (`PATCH /agents/:id/status`) and no moderation path has ever touched
+ * it, so it is not reachable from here.
+ */
+export async function setAgentCatalogueFlags(
+  db: Executor,
+  id: string,
+  flags: { isPublished?: boolean; isFeatured?: boolean; isTrending?: boolean },
 ): Promise<number> {
   const patch: Record<string, unknown> = {};
-  if (state.isPublished !== undefined) patch.isPublished = state.isPublished;
-  if (state.status !== undefined) patch.status = state.status;
+  if (flags.isPublished !== undefined) patch.isPublished = flags.isPublished;
+  if (flags.isFeatured !== undefined) patch.isFeatured = flags.isFeatured;
+  if (flags.isTrending !== undefined) patch.isTrending = flags.isTrending;
   if (Object.keys(patch).length === 0) return 0;
   const updated = await db
     .update(agents)
@@ -717,12 +885,76 @@ export async function setAgentModerationState(
 }
 
 /**
- * `$addToSet` on the soul arrays, capped.
+ * Record that the agent interacted, WITHOUT evolving anything else.
  *
- * Postgres has no `$addToSet`, so the dedupe is explicit. `lib/agent/soul.ts`
- * follows its `$addToSet` with a SECOND `updateOne` carrying an aggregation
- * pipeline purely to cap the arrays; both collapse into one statement here,
- * which also removes the window in which the uncapped value was visible.
+ * `lib/agent/soul.ts` takes this path three times — no model available, no JSON
+ * in the model's answer, unparseable JSON — and in all three Mongo wrote
+ * `soul.interactionCount` alone and left `soul.lastEvolvedAt` where it was. A
+ * counter that moved and a timestamp that did not is the record of "the agent
+ * was used but learned nothing", so the two are not written together here
+ * either.
+ */
+export async function bumpAgentSoulInteractions(
+  db: Executor,
+  id: string,
+  interactionCount: number,
+): Promise<void> {
+  await db
+    .update(agents)
+    .set({ soulInteractionCount: interactionCount })
+    .where(eq(agents.id, id));
+}
+
+/**
+ * `existing ∪ additions`, in first-seen order, keeping only the LAST `cap`.
+ *
+ * `cardinality()`, not `array_length(col, 1)`: the latter is NULL on an empty
+ * array, and `NULL - cap + 1` is NULL, which makes the whole slice NULL — the
+ * degenerate input silently erasing the column rather than leaving it empty.
+ */
+function addToSetCapped(column: PgColumn, additions: string[], cap: number): SQL {
+  return sql`(
+    select case
+      when cardinality(d.arr) > ${cap}
+        then d.arr[cardinality(d.arr) - ${cap} + 1 : cardinality(d.arr)]
+      else d.arr
+    end
+    from (
+      select coalesce(array_agg(u.v order by u.ord), '{}'::text[]) as arr
+      from (
+        select v, min(ord) as ord
+        from unnest(coalesce(${column}, '{}'::text[]) || ${sql.param(additions)}::text[])
+             with ordinality as t(v, ord)
+        group by v
+      ) u
+    ) d
+  )`;
+}
+
+/**
+ * `$addToSet` on the soul arrays, capped — one statement, keeping the NEWEST.
+ *
+ * Postgres has no `$addToSet`, so the dedupe is explicit: the existing array
+ * concatenated with the additions, one row per distinct value at its FIRST
+ * position, re-aggregated in that order. That is `$addToSet` exactly — it
+ * appends what is new and leaves what is there where it was.
+ *
+ * ## The cap keeps the LAST n, and the first version of this kept the first
+ *
+ * `lib/agent/soul.ts` capped with `$slice: ['$soul.expertise', -15]`. A NEGATIVE
+ * `$slice` returns the LAST n elements, so the cap kept the fifteen most
+ * RECENTLY demonstrated areas of expertise and dropped the oldest. Written here
+ * as `soul_expertise[1:15]` it kept the fifteen OLDEST and dropped everything
+ * learned since — an agent whose soul silently froze at whatever it knew first,
+ * with no error and no symptom other than a personality that stopped evolving.
+ * The repository's own test asserted the wrong direction too, because it was
+ * written against this code rather than against `$slice`.
+ *
+ * So the slice is taken from the tail, and it is folded into the SAME statement
+ * as the dedupe rather than following it. Two statements needed the second to
+ * see the deduped value, and the second one's `WHERE soul_expertise IS NOT NULL`
+ * guard also decided whether `soul_vibe` was capped — so an agent with vibes and
+ * no expertise grew its vibe array without bound.
  */
 export async function evolveAgentSoul(
   db: Executor,
@@ -742,34 +974,10 @@ export async function evolveAgentSoul(
   };
   if (updates.currentFocus !== undefined) patch.soulCurrentFocus = updates.currentFocus;
   if (updates.newExpertise !== undefined && updates.newExpertise.length > 0) {
-    patch.soulExpertise = sql`(
-      select array_agg(v order by ord)
-      from (
-        select distinct on (v) v, min(ord) as ord
-        from unnest(coalesce(${agents.soulExpertise}, '{}') || ${sql.param(updates.newExpertise)}::text[])
-             with ordinality as u(v, ord)
-        group by v
-      ) d
-    )`;
+    patch.soulExpertise = addToSetCapped(agents.soulExpertise, updates.newExpertise, caps.expertise);
   }
   if (updates.newVibe !== undefined && updates.newVibe.length > 0) {
-    patch.soulVibe = sql`(
-      select array_agg(v order by ord)
-      from (
-        select distinct on (v) v, min(ord) as ord
-        from unnest(coalesce(${agents.soulVibe}, '{}') || ${sql.param(updates.newVibe)}::text[])
-             with ordinality as u(v, ord)
-        group by v
-      ) d
-    )`;
+    patch.soulVibe = addToSetCapped(agents.soulVibe, updates.newVibe, caps.vibe);
   }
   await db.update(agents).set(patch).where(eq(agents.id, id));
-  // The cap is a second statement only because it must see the deduped value.
-  await db
-    .update(agents)
-    .set({
-      soulExpertise: sql`${agents.soulExpertise}[1:${caps.expertise}]`,
-      soulVibe: sql`${agents.soulVibe}[1:${caps.vibe}]`,
-    })
-    .where(and(eq(agents.id, id), isNotNull(agents.soulExpertise)));
 }

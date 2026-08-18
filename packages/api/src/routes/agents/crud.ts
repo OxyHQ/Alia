@@ -1,18 +1,49 @@
 import { Router } from 'express';
-import { Agent, type IAgent } from '../../models/agent.js';
 import { authenticateToken, optionalAuth } from '../../middleware/auth.js';
 import { getAgentCapabilities } from '../../lib/agent/health.js';
 import { getDb } from '../../db/index.js';
+import {
+  createAgent,
+  deleteAgentOwnedBy,
+  findAgentByHandle,
+  findAgentById,
+  findAgentKnowledge,
+  findAgentSkills,
+  listAgentCatalogue,
+  listAgentsByAuthor,
+  updateAgent,
+  type AgentRecord,
+} from '../../db/agents/agentRepository.js';
 import {
   createTrigger,
   findAgentTriggerByType,
   updateTrigger,
 } from '../../db/automation/triggerRepository.js';
+import { TRIGGER_SCHEDULE_TYPES, type TriggerScheduleType } from '../../db/schema/automation.js';
 import { reloadTrigger, generateWebhookToken } from '../../lib/trigger-engine.js';
+import {
+  AGENT_ARCHETYPES,
+  AGENT_STATUSES,
+  readArchetypeConfig,
+  type AgentArchetype,
+  type AgentStatus,
+} from '../../domain/agent.js';
 import { log } from '../../lib/logger.js';
 import type { Request, Response } from 'express';
 
 const router = Router();
+
+/**
+ * A stored `archetype_config.schedule.type` the trigger schema accepts.
+ *
+ * `archetype_config` is `jsonb` with nothing validating it, while
+ * `triggers.schedule_type` carries a CHECK — so an unrecognised value falls back
+ * to `daily` rather than becoming a refused write deep inside a fire-and-forget
+ * sync nobody is awaiting.
+ */
+function isTriggerScheduleType(value: unknown): value is TriggerScheduleType {
+  return typeof value === 'string' && (TRIGGER_SCHEDULE_TYPES as readonly string[]).includes(value);
+}
 
 // ── Archetype Trigger Sync ──────────────────────────────────────────
 
@@ -24,16 +55,18 @@ const router = Router();
 async function syncArchetypeTriggers(
   agentId: string,
   userId: string,
-  agent: Pick<IAgent, 'archetype' | 'archetypeConfig' | 'name'>,
+  agent: Pick<AgentRecord, 'archetype' | 'archetypeConfig' | 'name'>,
 ): Promise<void> {
-  const config = agent.archetypeConfig;
-  if (!config) return;
+  const config = readArchetypeConfig(agent.archetypeConfig);
 
   if (agent.archetype === 'status_update' && config.schedule) {
     const existing = await findAgentTriggerByType(getDb(), userId, agentId, 'schedule');
 
     const triggerSchedule = {
-      type: config.schedule.type || 'daily',
+      // A stored `schedule.type` outside the trigger schema's closed set falls
+      // back to `daily` rather than becoming a refused write deep inside a
+      // fire-and-forget sync nobody is awaiting.
+      type: isTriggerScheduleType(config.schedule.type) ? config.schedule.type : 'daily',
       ...(config.schedule.time && { time: config.schedule.time }),
       ...(config.schedule.days && { days: config.schedule.days }),
       ...(config.schedule.intervalMinutes && { intervalMinutes: config.schedule.intervalMinutes }),
@@ -100,54 +133,38 @@ async function syncArchetypeTriggers(
   }
 }
 
+/** The agent's own record plus the two child lists `populate` used to attach. */
+async function withChildLists(agent: AgentRecord): Promise<AgentRecord> {
+  const [skills, knowledge] = await Promise.all([
+    findAgentSkills(getDb(), agent._id),
+    findAgentKnowledge(getDb(), agent._id),
+  ]);
+  return { ...agent, skills, knowledge };
+}
+
+/** A `string[]` of ids from a request body, or nothing. */
+function idList(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  return value.filter((item): item is string => typeof item === 'string');
+}
+
 // GET /agents - list published agents (public, optional auth)
 router.get('/', optionalAuth, async (req: Request, res: Response) => {
   try {
     const { category, search, featured, trending, page = '1', limit = '50' } = req.query;
 
-    const filter: Record<string, unknown> = { isPublished: true };
-
-    if (category && category !== 'all') {
-      filter.category = category;
-    }
-
-    if (req.query.archetype && typeof req.query.archetype === 'string') {
-      filter.archetype = req.query.archetype;
-    }
-
-    if (featured === 'true') {
-      filter.isFeatured = true;
-    }
-
-    if (trending === 'true') {
-      filter.isTrending = true;
-    }
-
-    if (search && typeof search === 'string') {
-      const escaped = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const regex = new RegExp(escaped, 'i');
-      filter.$or = [
-        { name: regex },
-        { handle: regex },
-        { tagline: regex },
-        { category: regex },
-        { tags: regex },
-      ];
-    }
-
     const pageNum = Math.max(1, parseInt(page as string, 10) || 1);
     const limitNum = Math.min(100, Math.max(1, parseInt(limit as string, 10) || 50));
-    const skip = (pageNum - 1) * limitNum;
 
-    const [agents, total] = await Promise.all([
-      Agent.find(filter)
-        .select('-systemPrompt -skills -knowledge')
-        .sort({ isFeatured: -1, createdAt: -1 })
-        .skip(skip)
-        .limit(limitNum)
-        .lean(),
-      Agent.countDocuments(filter),
-    ]);
+    const { agents, total } = await listAgentCatalogue(getDb(), {
+      ...(typeof category === 'string' && { category }),
+      ...(typeof req.query.archetype === 'string' && { archetype: req.query.archetype }),
+      featured: featured === 'true',
+      trending: trending === 'true',
+      ...(typeof search === 'string' && search !== '' && { search }),
+      limit: limitNum,
+      offset: (pageNum - 1) * limitNum,
+    });
 
     res.json({ agents, total, page: pageNum, limit: limitNum });
   } catch (error: unknown) {
@@ -163,11 +180,8 @@ router.get('/me', authenticateToken, async (req: Request, res: Response) => {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const agents = await Agent.find({ author: req.user.id })
-      .populate('skills', 'skillId title icon color')
-      .populate('knowledge', 'name type category url')
-      .sort({ createdAt: -1 })
-      .lean();
+    const owned = await listAgentsByAuthor(getDb(), req.user.id);
+    const agents = await Promise.all(owned.map(withChildLists));
 
     res.json({ agents });
   } catch (error: unknown) {
@@ -190,21 +204,18 @@ router.get('/health', async (_req: Request, res: Response) => {
 // GET /agents/:id - get single agent (public)
 router.get('/:id', optionalAuth, async (req: Request, res: Response) => {
   try {
-    const agent = await Agent.findById(req.params.id)
-      .populate('skills', 'skillId title icon color')
-      .populate('knowledge', 'name type category url')
-      .lean();
+    const found = await findAgentById(getDb(), String(req.params.id));
 
-    if (!agent) {
+    if (!found) {
       return res.status(404).json({ error: 'Agent not found' });
     }
 
     // Allow owner to view unpublished (draft) agents
-    if (!agent.isPublished && (!req.user?.id || agent.author.toString() !== req.user.id)) {
+    if (!found.isPublished && (!req.user?.id || found.author !== req.user.id)) {
       return res.status(404).json({ error: 'Agent not found' });
     }
 
-    res.json({ agent });
+    res.json({ agent: await withChildLists(found) });
   } catch (error: unknown) {
     log.agents.error({ err: error }, 'Error getting agent');
     res.status(500).json({ error: 'Failed to get agent' });
@@ -232,31 +243,30 @@ router.post('/', authenticateToken, async (req: Request, res: Response) => {
       });
     }
 
-    const existing = await Agent.findOne({ handle });
+    const existing = await findAgentByHandle(getDb(), handle);
     if (existing) {
       return res.status(409).json({ error: 'Handle already taken' });
     }
 
-    const agent = await Agent.create({
+    const agent = await createAgent(getDb(), {
       name,
       handle,
       avatar: avatar || null,
       tagline,
       description,
-      author: req.user.id,
+      authorOxyUserId: req.user.id,
       authorName: req.user.username || 'Unknown',
-      authorVerified: false,
       category,
-      tags: tags || [],
+      tags: idList(tags) ?? [],
       price: price ?? null,
-      capabilities: capabilities || [],
-      skills: skills || [],
-      knowledge: knowledge || [],
+      capabilities: idList(capabilities) ?? [],
+      skillIds: idList(skills) ?? [],
+      libraryFileIds: idList(knowledge) ?? [],
       isPublished: isPublished ?? true,
       creditBalance: creditBalance ?? 0,
       allowHiring: allowHiring ?? false,
       ...(systemPrompt && { systemPrompt }),
-      ...(archetype && { archetype }),
+      ...(isAgentArchetype(archetype) && { archetype }),
       ...(archetypeConfig && { archetypeConfig }),
     });
 
@@ -267,6 +277,14 @@ router.post('/', authenticateToken, async (req: Request, res: Response) => {
   }
 });
 
+function isAgentArchetype(value: unknown): value is AgentArchetype {
+  return typeof value === 'string' && (AGENT_ARCHETYPES as readonly string[]).includes(value);
+}
+
+function isAgentStatus(value: unknown): value is AgentStatus {
+  return typeof value === 'string' && (AGENT_STATUSES as readonly string[]).includes(value);
+}
+
 // PATCH /agents/:id - update agent (owner only)
 router.patch('/:id', authenticateToken, async (req: Request, res: Response) => {
   try {
@@ -274,35 +292,58 @@ router.patch('/:id', authenticateToken, async (req: Request, res: Response) => {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const agent = await Agent.findOne({
-      _id: req.params.id,
-      author: req.user.id,
-    });
+    const id = String(req.params.id);
+    const body: Record<string, unknown> = req.body;
+
+    /**
+     * The allow-list, field by field, and NOT a loop over `req.body`.
+     *
+     * The hydrated path assigned every allowed field with `agent.set(field,
+     * value)`, so the schema was the only thing deciding what a value could be —
+     * and `status` and `archetype` are CHECK-constrained columns now, where an
+     * unexpected string is a refused write rather than a stored one. Naming each
+     * field is also what keeps `author` and `handle` unreachable: neither is in
+     * the list, and a spread of `req.body` would put both back.
+     */
+    const patch = {
+      ...(typeof body.name === 'string' && { name: body.name }),
+      ...(body.avatar !== undefined && {
+        avatar: typeof body.avatar === 'string' ? body.avatar : null,
+      }),
+      ...(typeof body.tagline === 'string' && { tagline: body.tagline }),
+      ...(typeof body.description === 'string' && { description: body.description }),
+      ...(typeof body.category === 'string' && { category: body.category }),
+      ...(idList(body.tags) !== undefined && { tags: idList(body.tags) }),
+      ...(body.price !== undefined && {
+        price: typeof body.price === 'number' ? body.price : null,
+      }),
+      ...(idList(body.capabilities) !== undefined && { capabilities: idList(body.capabilities) }),
+      ...(typeof body.isPublished === 'boolean' && { isPublished: body.isPublished }),
+      ...(isAgentStatus(body.status) && { status: body.status }),
+      ...(typeof body.creditBalance === 'number' && { creditBalance: body.creditBalance }),
+      ...(typeof body.allowHiring === 'boolean' && { allowHiring: body.allowHiring }),
+      ...(typeof body.systemPrompt === 'string' && { systemPrompt: body.systemPrompt }),
+      ...(idList(body.allowedModels) !== undefined && {
+        allowedModels: idList(body.allowedModels),
+      }),
+      ...(typeof body.scheduleInterval === 'number' && {
+        scheduleInterval: body.scheduleInterval,
+      }),
+      ...(isAgentArchetype(body.archetype) && { archetype: body.archetype }),
+      ...(body.archetypeConfig !== undefined && { archetypeConfig: body.archetypeConfig }),
+      ...(idList(body.skills) !== undefined && { skillIds: idList(body.skills) }),
+      ...(idList(body.knowledge) !== undefined && { libraryFileIds: idList(body.knowledge) }),
+    };
+
+    const agent = await updateAgent(getDb(), id, req.user.id, patch);
 
     if (!agent) {
       return res.status(404).json({ error: 'Agent not found' });
     }
 
-    const allowedFields = [
-      'name', 'avatar', 'tagline',
-      'description', 'category', 'tags', 'price', 'capabilities',
-      'skills', 'knowledge',
-      'isPublished', 'status', 'creditBalance', 'allowHiring',
-      'systemPrompt', 'allowedModels', 'scheduleInterval',
-      'archetype', 'archetypeConfig',
-    ];
-
-    for (const field of allowedFields) {
-      if (req.body[field] !== undefined) {
-        agent.set(field, req.body[field]);
-      }
-    }
-
-    await agent.save();
-
     // Auto-manage linked triggers for archetype agents (non-blocking, only when relevant fields change)
-    if (req.body.archetype !== undefined || req.body.archetypeConfig !== undefined || req.body.scheduleInterval !== undefined || req.body.status !== undefined) {
-      syncArchetypeTriggers(agent._id.toString(), agent.author.toString(), agent).catch(err => {
+    if (body.archetype !== undefined || body.archetypeConfig !== undefined || body.scheduleInterval !== undefined || body.status !== undefined) {
+      syncArchetypeTriggers(agent._id, agent.author, agent).catch(err => {
         log.agents.error({ err, agentId: agent._id }, 'Failed to sync archetype triggers');
       });
     }
@@ -321,12 +362,9 @@ router.delete('/:id', authenticateToken, async (req: Request, res: Response) => 
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const result = await Agent.deleteOne({
-      _id: req.params.id,
-      author: req.user.id,
-    });
+    const deleted = await deleteAgentOwnedBy(getDb(), String(req.params.id), req.user.id);
 
-    if (result.deletedCount === 0) {
+    if (deleted === 0) {
       return res.status(404).json({ error: 'Agent not found' });
     }
 

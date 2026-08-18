@@ -8,7 +8,6 @@
 
 import crypto from 'crypto';
 import { Router, Request, Response } from 'express';
-import mongoose from 'mongoose';
 import { getDb } from '../db/index.js';
 import { findActiveOxyService } from '../db/integrations/oxyServiceRepository.js';
 import {
@@ -17,8 +16,11 @@ import {
   markOxyServiceEventFailed,
   markOxyServiceEventProcessed,
 } from '../db/integrations/oxyServiceEventLogRepository.js';
-import { Agent } from '../models/agent.js';
-import { AgentSession } from '../models/agent-session.js';
+import { createAgent, findAgentByHandle } from '../db/agents/agentRepository.js';
+import {
+  createAgentSession,
+  updateAgentSession,
+} from '../db/agents/agentSessionRepository.js';
 import {
   recordSourceRun,
   upsertContextNode,
@@ -53,26 +55,38 @@ function buildEventId(req: Request): string {
   return `hash:${hashPayload(req.body)}`;
 }
 
-async function ensureAutonomyAgent(userId: string): Promise<mongoose.Types.ObjectId> {
+/**
+ * This account's autonomy agent, created on first use.
+ *
+ * The lookup is by HANDLE alone, where the source matched `{author, handle}`.
+ * `handle` is UNIQUE across the whole table, so a two-field lookup could miss a
+ * row that a create would then collide with — and the handle already encodes the
+ * account (`alia-autonomy-<last 8 of the id>`), so the author predicate narrowed
+ * nothing it did not already imply.
+ *
+ * `status: 'active'` is not passed because it is the column default and the
+ * source was restating it. `author_verified` IS passed, because the source set
+ * it and a port is not the place to revise what a row asserts.
+ */
+async function ensureAutonomyAgent(userId: string): Promise<string> {
   const handle = `alia-autonomy-${userId.slice(-8).toLowerCase()}`;
 
-  const existing = await Agent.findOne({ author: userId, handle }).select('_id').lean();
-  if (existing?._id) return existing._id;
+  const existing = await findAgentByHandle(getDb(), handle);
+  if (existing) return existing._id;
 
-  const created = await Agent.create({
+  const created = await createAgent(getDb(), {
     name: 'Alia Autonomy Runtime',
     handle,
     avatar: null,
     tagline: 'Autonomous event processor',
     description: 'System agent that processes service events autonomously with policy controls.',
-    author: userId,
+    authorOxyUserId: userId,
     authorName: 'Alia',
     authorVerified: true,
     category: 'automation',
     tags: ['autonomy', 'events', 'system'],
     capabilities: ['event processing', 'context retrieval', 'notification fallback'],
     isPublished: true,
-    status: 'active',
     allowHiring: false,
     price: null,
     allowedModels: ['alia-v1', 'alia-v1-thinking'],
@@ -183,9 +197,9 @@ async function processEvent(params: {
       'Return a concise summary and next actions.',
     ].filter(Boolean).join('\n\n');
 
-    const session = await AgentSession.create({
+    const session = await createAgentSession(getDb(), {
       agentId,
-      userId,
+      oxyUserId: userId,
       status: 'queued',
       task,
       depth: 0,
@@ -194,30 +208,28 @@ async function processEvent(params: {
 
     try {
       await enqueueAgentSession({
-        sessionId: session._id.toString(),
+        sessionId: session._id,
         userId,
-        agentId: agentId.toString(),
+        agentId,
         agentName: 'Alia Autonomy Runtime',
       });
 
-      await markOxyServiceEventProcessed(db, logId, session._id.toString());
+      await markOxyServiceEventProcessed(db, logId, session._id);
     } catch (queueErr: unknown) {
       await notifyFallback({ userId, displayName, event, title, message, data, reason: 'autonomous_queue_failed' });
 
-      await AgentSession.findByIdAndUpdate(session._id, {
-        $set: {
-          status: 'failed',
-          result: 'Failed to enqueue autonomous session; fallback notification sent.',
-          'stats.completedAt': new Date(),
-          'stats.lastActivityAt': new Date(),
-        },
+      const failedAt = new Date();
+      await updateAgentSession(getDb(), session._id, {
+        status: 'failed',
+        result: 'Failed to enqueue autonomous session; fallback notification sent.',
+        stats: { completedAt: failedAt, lastActivityAt: failedAt },
       });
 
       await markOxyServiceEventFailed(
         db,
         logId,
         getErrorMessage(queueErr) || 'autonomous_queue_failed',
-        session._id.toString(),
+        session._id,
       );
     }
 

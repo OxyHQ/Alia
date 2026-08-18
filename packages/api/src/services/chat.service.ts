@@ -20,7 +20,7 @@ import type { User as OxyUser } from '@oxyhq/core';
 import { getRefreshedUserCredits } from '../lib/user-credits-helpers.js';
 import { getDb } from '../db/index.js';
 import { findSkillPrompt } from '../db/agents/skillRepository.js';
-import { Agent } from '../models/agent.js';
+import { findAgentById } from '../db/agents/agentRepository.js';
 import type { UserMemoryProfile } from '../db/memory/userMemoryRepository.js';
 import { processMessagesForPlatform } from '../lib/message-processor.js';
 import { reserveCredits, type CreditReservation } from '../lib/credits-manager.js';
@@ -204,15 +204,15 @@ export async function loadSkillPrompt(skillId: string): Promise<string | null> {
 
 export async function loadAgentPrompt(agentId: string): Promise<string | null> {
   try {
-    const agent = await Agent.findById(agentId).select('name tagline description capabilities systemPrompt soul').lean();
+    const agent = await findAgentById(getDb(), agentId);
     if (agent) {
       log.chat.info({ agentName: agent.name }, 'Agent context activated');
       let prompt = agent.systemPrompt
-        || `You are "${agent.name}". ${agent.tagline}\n\n${agent.description}${agent.capabilities?.length ? `\n\nCapabilities: ${agent.capabilities.join(', ')}` : ''}`;
+        || `You are "${agent.name}". ${agent.tagline}\n\n${agent.description}${agent.capabilities.length > 0 ? `\n\nCapabilities: ${agent.capabilities.join(', ')}` : ''}`;
 
       // Append soul personality data if available
       if (agent.soul) {
-        const { formatSoul } = await import('../lib/agent-soul.js');
+        const { formatSoul } = await import('../lib/agent/soul.js');
         const soulSection = formatSoul(agent.soul);
         if (soulSection) {
           prompt += soulSection;

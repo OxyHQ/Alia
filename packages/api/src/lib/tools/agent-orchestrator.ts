@@ -14,11 +14,12 @@
 
 import { tool, generateText, stepCountIs } from 'ai';
 import { z } from 'zod';
-import { Agent } from '../../models/agent.js';
+import { getDb } from '../../db/index.js';
+import { findAgentById } from '../../db/agents/agentRepository.js';
 import { resolveModel, getAIModel } from '../chat-core.js';
 import { getCurrentDateTool } from './date.js';
 import { webScraperTool } from './web-scraper.js';
-import { formatSoul, type AgentSoul } from '../agent-soul.js';
+import { formatSoul } from '../agent/soul.js';
 import { log } from '../logger.js';
 import { getErrorMessage } from '../errors/index.js';
 
@@ -65,9 +66,7 @@ async function executeAgent(
   const start = Date.now();
 
   try {
-    const agent = await Agent.findById(agentTask.agentId)
-      .select('name handle systemPrompt tagline description capabilities allowedModels soul')
-      .lean();
+    const agent = await findAgentById(getDb(), agentTask.agentId);
 
     if (!agent) {
       return {
@@ -82,10 +81,10 @@ async function executeAgent(
 
     // Build system prompt with soul
     let systemPrompt = agent.systemPrompt
-      || `You are ${agent.name}, an AI agent. ${agent.tagline}. ${agent.description}\n\nCapabilities: ${(agent.capabilities || []).join(', ')}`;
+      || `You are ${agent.name}, an AI agent. ${agent.tagline}. ${agent.description}\n\nCapabilities: ${agent.capabilities.join(', ')}`;
 
     if (agent.soul) {
-      const soulSection = formatSoul(agent.soul as AgentSoul);
+      const soulSection = formatSoul(agent.soul);
       if (soulSection) systemPrompt += soulSection;
     }
 
@@ -96,7 +95,7 @@ async function executeAgent(
     }
 
     // Resolve model
-    const preferredModel = agent.allowedModels?.[0] || 'alia-lite';
+    const preferredModel = agent.allowedModels[0] || 'alia-lite';
     let resolved = await resolveModel(preferredModel);
     if (!resolved) {
       resolved = await resolveModel('alia-lite');

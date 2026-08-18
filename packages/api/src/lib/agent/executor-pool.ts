@@ -5,9 +5,14 @@
  * Respects dependency ordering and resource limits.
  */
 
-import { AgentSession } from '../../models/agent-session.js';
-import { Agent } from '../../models/agent.js';
-import { runAgentSession } from '../agent-runner.js';
+import { getDb } from '../../db/index.js';
+import {
+  cancelUnsettledAgentSession,
+  createAgentSession,
+  findAgentSessionById,
+} from '../../db/agents/agentSessionRepository.js';
+import { findHireableAgentByHandle } from '../../db/agents/agentRepository.js';
+import { runAgentSession } from './runner.js';
 import { log } from '../logger.js';
 import { getErrorMessage } from '../errors/index.js';
 import type { Subtask } from './planner-agent.js';
@@ -32,9 +37,9 @@ export interface ExecutorPoolOptions {
   timeoutMs: number;
   /** Parent session for context */
   parentSession: {
-    _id: any;
-    userId: any;
-    agentId: any;
+    _id: string;
+    userId: string;
+    agentId: string;
     depth: number;
     config: { maxSteps: number; maxTokens: number; maxVMs: number };
   };
@@ -131,11 +136,10 @@ async function executeSubtask(
     // Find the target agent (or use the parent's agent)
     let agentId = opts.parentSession.agentId;
     if (subtask.agentHandle) {
-      const specialistAgent = await Agent.findOne({
-        handle: subtask.agentHandle.replace(/^@/, ''),
-        isPublished: true,
-        status: 'active',
-      });
+      const specialistAgent = await findHireableAgentByHandle(
+        getDb(),
+        subtask.agentHandle.replace(/^@/, ''),
+      );
       if (specialistAgent) {
         agentId = specialistAgent._id;
       }
@@ -147,9 +151,9 @@ async function executeSubtask(
     const maxTokens = Math.max(5000, Math.floor(opts.maxTokensPerExecutor * stepsMultiplier));
 
     // Create executor session
-    const executorSession = await AgentSession.create({
+    const executorSession = await createAgentSession(getDb(), {
       agentId,
-      userId: opts.parentSession.userId,
+      oxyUserId: opts.parentSession.userId,
       parentSessionId: opts.parentSession._id,
       task: taskWithContext,
       status: 'queued',
@@ -161,9 +165,9 @@ async function executeSubtask(
       },
     });
 
-    // Execute with timeout — cancel the session in MongoDB on timeout so the
-    // runner's cancellation check picks it up and stops the orphaned execution.
-    const sessionPromise = runAgentSession(executorSession._id.toString());
+    // Execute with timeout — cancel the session on timeout so the runner's
+    // cancellation check picks it up and stops the orphaned execution.
+    const sessionPromise = runAgentSession(executorSession._id);
     let timeoutHandle: ReturnType<typeof setTimeout>;
     const timeoutPromise = new Promise<never>((_, reject) => {
       timeoutHandle = setTimeout(() => reject(new Error('Executor timeout')), opts.timeoutMs);
@@ -173,11 +177,14 @@ async function executeSubtask(
       await Promise.race([sessionPromise, timeoutPromise]);
     } catch (raceErr: unknown) {
       if (raceErr instanceof Error && raceErr.message === 'Executor timeout') {
-        // Mark the session as cancelled so the running agent loop stops
-        await AgentSession.updateOne(
-          { _id: executorSession._id, status: { $nin: ['completed', 'failed'] } },
-          { status: 'cancelled', result: 'Executor timeout — session cancelled' },
-        ).catch(() => {});
+        // Mark the session cancelled so the running agent loop stops — and only
+        // if it has not already settled, which is a predicate in the statement
+        // rather than a read this handler could lose a race against.
+        await cancelUnsettledAgentSession(
+          getDb(),
+          executorSession._id,
+          'Executor timeout — session cancelled',
+        ).catch(() => false);
       }
       throw raceErr;
     } finally {
@@ -185,7 +192,7 @@ async function executeSubtask(
     }
 
     // Read result
-    const completed = await AgentSession.findById(executorSession._id).select('status result').lean();
+    const completed = await findAgentSessionById(getDb(), executorSession._id);
     const result = completed?.result || 'No result returned';
     const success = completed?.status === 'completed';
 
@@ -194,7 +201,7 @@ async function executeSubtask(
       subtask: subtask.description,
       result,
       success,
-      sessionId: executorSession._id.toString(),
+      sessionId: executorSession._id,
       durationMs: Date.now() - startMs,
     };
   } catch (err: unknown) {

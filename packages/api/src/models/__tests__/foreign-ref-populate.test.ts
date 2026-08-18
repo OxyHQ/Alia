@@ -335,8 +335,28 @@ describe('populating a ref this service does not own', () => {
         .filter(({ ref }) => ref in FOREIGN_REFS)
         .map(({ path: p }) => p),
     );
-    // The gate is only meaningful if there is something foreign to protect.
-    expect(foreignPaths.size).toBeGreaterThan(0);
+
+    /**
+     * There is nothing foreign left to protect, and that is the FINDING.
+     *
+     * This floor read `expect(foreignPaths.size).toBeGreaterThan(0)` — the gate
+     * is meaningless if it is scanning for nothing — and the agents slice
+     * retired the last Mongoose model in the service, so the honest next value
+     * is 0. That is the shape this repo warns about everywhere else: a floor a
+     * gate's own work erodes until it asserts nothing.
+     *
+     * So it is INVERTED rather than lowered. The set is asserted EMPTY, which
+     * says the hazard has no surface left rather than that nobody looked, and it
+     * goes red the day a Mongoose model with a foreign ref comes back — at which
+     * point the scan below has a subject again and the floor should return with
+     * it. The scan itself still runs, against a set that is empty by
+     * construction, because the machinery is what a returning model needs.
+     *
+     * `declaredRefs()` walking to zero for a broken reason is caught by the
+     * conserved `MODEL_FILES_EVER` total above, which does not depend on any
+     * model still existing.
+     */
+    expect([...foreignPaths]).toEqual([]);
 
     const sources = execFileSync('git', ['ls-files', 'src'], {
       cwd: PACKAGE_ROOT,
