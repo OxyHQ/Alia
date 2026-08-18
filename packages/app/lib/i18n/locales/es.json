@@ -808,6 +808,12 @@
       "structuredOutput": "Salida estructurada",
       "context": "Contexto",
       "maxOutput": "Respuesta máx."
+    },
+    "availability": {
+      "always": "sí",
+      "sometimes": "a veces",
+      "never": "no",
+      "unknown": "se desconoce"
     }
   },
   "modes": {

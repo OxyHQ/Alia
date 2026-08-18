@@ -846,6 +846,12 @@
       "structuredOutput": "Structured output",
       "context": "Context",
       "maxOutput": "Max reply"
+    },
+    "availability": {
+      "always": "yes",
+      "sometimes": "sometimes",
+      "never": "no",
+      "unknown": "unknown"
     }
   },
   "modes": {
