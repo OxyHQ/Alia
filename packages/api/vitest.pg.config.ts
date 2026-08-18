@@ -5,16 +5,16 @@ import { defineConfig } from 'vitest/config';
  * The Postgres half of this package's suite, run separately from the default
  * config.
  *
- * Two configs rather than one with both global setups, because they have
- * different PREREQUISITES: the default suite needs only an in-process MongoDB
- * replica set (`mongodb-memory-server` downloads its own binary), while this one
- * needs a real Postgres server reachable over TCP. Merging them would make every
- * `bun run test` — and the existing CI job — fail on a machine without Docker,
+ * Two configs rather than one, because they have different PREREQUISITES: the
+ * default suite needs nothing but a Node process, while this one needs a real
+ * Postgres server reachable over TCP. Merging them would make every `bun run
+ * test` — and the `Lint & Test` CI job — fail on a machine without Docker,
  * which is a good way to get a suite disabled by whoever hits it next.
  *
- * `*.pgdb.test.ts` rather than the Mongo suite's `*-real-db.test.ts`: both are
- * "real database" tests and only the file name says which database, so the two
- * names have to be tellable apart at a glance.
+ * `*.pgdb.test.ts` names the database in the file name. The convention outlived
+ * the Mongo suite it was invented to be tellable apart from, and it stays: the
+ * default config EXCLUDES this glob, so a real-database test that loses the
+ * suffix silently moves into a job with no Postgres.
  *
  *   docker compose -f docker-compose.postgres.yml up -d
  *   TEST_DATABASE_URL=postgres://alia:alia@127.0.0.1:5438/postgres bun run test:pg

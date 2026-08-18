@@ -116,7 +116,7 @@ interface MatrixRow {
  * commit — which is the only thing standing between "the epic is deleting
  * things" and "the matrix has quietly stopped describing anything".
  *
- * 40 as of #139 ws7, over 37 distinct paths: 18 rows on 16 paths under
+ * 41 over 38 distinct paths: 19 rows on 17 paths under
  * `internal/providers/**`, 20 rows on 19 paths under
  * `packages/alia-gateway-admin/`, one on
  * `packages/api/src/lib/tools/gateway-admin.ts` — the AI-callable tool that
@@ -124,6 +124,12 @@ interface MatrixRow {
  * on `packages/integrations/src/shared/model-resolver.ts`, the SECOND service's
  * copy of provider construction, removed by #184. Three paths carry two rows
  * each, because two separate migration subjects lived in one file.
+ *
+ * The 41st is `dead-providers-mongoose-db`, `internal/providers/lib/db.ts`: a
+ * second `mongoose.connect()` on `MONGODB_URI`, left over from the alia-gateway
+ * split, with zero importers. Its row had already read `owner: delete`,
+ * `removalGate: NONE` — it went with `lib/db.ts` when the boot path stopped
+ * waiting on a Mongo connection.
  *
  * The row that did NOT move is `sdk-integrations-ai-sdk`: the three `@ai-sdk/*`
  * dependencies it covers went in the same commit, but its `currentPath` is a
@@ -133,7 +139,7 @@ interface MatrixRow {
  * asserting `packages/api` is the only manifest declaring a provider SDK. A
  * dependency row is the one shape this file's existence check cannot see.
  */
-const REMOVED_ROW_COUNT = 40;
+const REMOVED_ROW_COUNT = 41;
 
 const OWNERS = new Set(['alia', 'oxy', 'relay', 'delete']);
 const REACHABLE = new Set(['live', 'dead', 'unverified', 'loaded-not-invoked']);

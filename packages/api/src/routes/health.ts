@@ -47,13 +47,12 @@ import { log } from '../lib/logger.js';
  * the target group moves to `/health/ready` does any of this reach the ALB, and
  * that move is `oxy-infra`'s.
  *
- * ## Mongo is not reported here any more
+ * ## Mongo is not reported here, and there is nothing left to report
  *
- * Mongoose call sites remain until the last domain is ported, but their failure
- * mode is a 500 on the route that made the call, not a health signal — the
- * connection is opened with `bufferCommands: false`, so those calls throw rather
- * than hang. Reporting a connection that can never be established would pin this
- * service to `degraded` forever and make the whole endpoint uninformative.
+ * This said "Mongoose call sites remain until the last domain is ported". They
+ * do not: the port finished, `lib/db.ts` was deleted with the connection it
+ * opened, and `db/__tests__/bootWiring.test.ts` walks the import graph from
+ * `src/index.ts` and asserts the driver is unreachable from the boot path.
  */
 
 const router = Router();

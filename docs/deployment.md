@@ -30,9 +30,14 @@ migrated by `packages/api/src/db/migrate.ts`, which requires an explicit
 migration; a zero-capacity deploy exits before the post-migration step, so a `post`
 migration does not land on one.
 
-**MongoDB**, where still used, takes its database name from `NODE_ENV` as
-`alia-{NODE_ENV}` and passes it as `dbName` to `mongoose.connect()`
-(`packages/api/src/lib/db.ts:60`). Never embed the database name in `MONGODB_URI`.
+**MongoDB** is no longer part of this service. `lib/db.ts` and the boot-time
+`connectDB()` are deleted; `packages/api/src/db/__tests__/bootWiring.test.ts`
+walks the import graph from `src/index.ts` and asserts no Mongoose driver is
+reachable from it. The one remaining first-party importer is
+`packages/api/src/scripts/purge-ip-fields.ts`, an operator one-shot for a
+RESTORED BACKUP, which takes `MONGODB_URI` and computes `alia-{NODE_ENV}` as its
+`dbName` — so never embed the database name in that URI. The `integrations`
+service is a separate process and still runs on Mongo.
 
 ## Environment
 
@@ -62,7 +67,6 @@ INTEGRATIONS_URL=https://...           # MCP tools and channel proxy
 INTEGRATIONS_SECRET=<32-byte hex>
 DOCKER_HOST_URL=https://...            # agent container sandbox
 DOCKER_HOST_SECRET=<32-byte hex>
-MONGODB_URI=<mongodb-connection-string>
 ```
 
 `TOKEN_ENCRYPTION_KEY` must be the **same value** in the API and the integrations service:

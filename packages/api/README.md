@@ -109,7 +109,7 @@ Key groups:
 
 - Server and CORS (`PORT`, `WEB_URL`, `API_BASE_URL`)
 - PostgreSQL (`DATABASE_URL`) — the one variable the process cannot start without
-- MongoDB (`MONGODB_URI`) — optional, for the domains not yet ported
+- MongoDB (`MONGODB_URI`) — not read by the server at all; only `src/scripts/purge-ip-fields.ts`, a one-shot for a restored backup
 - Identity and internal auth (`OXY_API_URL`, `SERVICE_SECRET`, `TOKEN_ENCRYPTION_KEY`)
 - Queue and async execution (`REDIS_URL`)
 - Integrations and channels (`INTEGRATIONS_URL`, `INTEGRATIONS_SECRET`, channel secrets)

@@ -1,31 +1,11 @@
 import { describe, it, expect, vi } from 'vitest';
 
-// Mock mongoose before importing the module
-vi.mock('mongoose', () => {
-  const mockModel = {
-    findOne: vi.fn(),
-    find: vi.fn(),
-    create: vi.fn(),
-    findOneAndUpdate: vi.fn(),
-    updateOne: vi.fn(),
-  };
-
-  return {
-    default: {
-      Schema: vi.fn().mockImplementation(() => ({
-        index: vi.fn(),
-      })),
-      model: vi.fn(() => mockModel),
-      models: {},
-      connection: { readyState: 1 },
-    },
-  };
-});
-
-vi.mock('../db', () => ({
-  connectDB: vi.fn().mockResolvedValue(undefined),
-}));
-
+/*
+ * The mongoose and `../db` mocks that stood here are gone with the modules they
+ * doubled: `provider-health.ts` reads `db/telemetry/providerHealthRepository.ts`
+ * and `internal/providers/lib/db.ts` — a Mongo connection helper with no
+ * importers left — was deleted.
+ */
 vi.mock('../../../../lib/logger.js', () => ({
   log: {
     providers: { error: vi.fn(), info: vi.fn(), warn: vi.fn(), debug: vi.fn() },
