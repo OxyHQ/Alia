@@ -117,22 +117,10 @@ const LIVE_REQUIREMENTS: readonly UniqueRequirement[] = [
     mongooseKey: ['handle'],
   },
   {
-    model: 'Conversation',
-    table: 'conversations',
-    constraint: 'conversations_oxy_user_conversation_id_key',
-    mongooseKey: ['oxyUserId', 'conversationId'],
-  },
-  {
     model: 'EventStreamEntry',
     table: 'event_stream_entries',
     constraint: 'event_stream_entries_session_seq_key',
     mongooseKey: ['sessionId', 'seq'],
-  },
-  {
-    model: 'Message',
-    table: 'messages',
-    constraint: 'messages_oxy_user_conversation_seq_key',
-    mongooseKey: ['oxyUserId', 'conversationId', 'seq'],
   },
   {
     model: 'OrganizationAgent',
@@ -500,6 +488,7 @@ const UNIQUES_RETIRED_SINCE: readonly RetiredUnique[] = [
     model: 'CanvasSession',
     file: 'src/models/canvas-session.ts',
     retiredBy: 'S9 containers/skills',
+
     table: 'canvas_sessions',
     constraint: 'canvas_sessions_oxy_user_conversation_id_key',
     mongooseKey: ['oxyUserId', 'conversationId'],
@@ -512,6 +501,23 @@ const UNIQUES_RETIRED_SINCE: readonly RetiredUnique[] = [
     constraint: 'skills_skill_id_key',
     mongooseKey: ['skillId'],
     note: 'The constraint is a `uniqueIndex()` rather than a `unique()` because nothing references `skill_id`: `agent_skills` points at `skills.id`. It is still what `lib/seed-skills.ts` upserts on, so the uniqueness is load-bearing, not decorative.',
+  },
+  {
+    model: 'Conversation',
+    file: 'src/models/conversation.ts',
+    retiredBy: 'port/conversations',
+    table: 'conversations',
+    constraint: 'conversations_oxy_user_conversation_id_key',
+    mongooseKey: ['oxyUserId', 'conversationId'],
+  },
+  {
+    model: 'Message',
+    file: 'src/models/message.ts',
+    retiredBy: 'port/conversations',
+    table: 'messages',
+    constraint: 'messages_oxy_user_conversation_seq_key',
+    mongooseKey: ['oxyUserId', 'conversationId', 'seq'],
+    note: 'A PARTIAL unique in both stores, and the predicate does different work in each. Mongo needed `partialFilterExpression: { seq: { $exists: true } }` because legacy seq-less messages would all collide on (user, conversation, null); Postgres treats NULLs as distinct, so `WHERE seq IS NOT NULL` documents that legacy rows are expected rather than enforcing anything.',
   },
 ];
 

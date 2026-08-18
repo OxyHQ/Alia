@@ -182,4 +182,6 @@ export const RETIRED_MODEL_FILES: readonly RetiredModelFile[] = [
     file: 'src/models/rollback-record.ts',
     retiredBy: 'S9 containers/skills — rollback_records',
   },
+  { model: 'Conversation', file: 'src/models/conversation.ts', retiredBy: 'S9 chat — conversations' },
+  { model: 'Message', file: 'src/models/message.ts', retiredBy: 'S9 chat — messages' },
 ];

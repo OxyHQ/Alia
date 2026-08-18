@@ -89,8 +89,24 @@ vi.mock('../../../db/agents/skillRepository.js', () => ({
   findSkillPrompt: vi.fn().mockResolvedValue(undefined),
 }));
 
-vi.mock('../../../models/conversation.js', () => ({
-  Conversation: { findOneAndUpdate: vi.fn().mockResolvedValue({}) },
+/**
+ * `getDb()` is mocked to `{}` above, so an unmocked repository call would throw
+ * on `db.select` inside a `catch`-wrapped save and quietly change what this
+ * suite observes. Stubbed at the module boundary, as the Mongoose model was.
+ */
+vi.mock('../../../db/chat/conversationRepository.js', () => ({
+  findConversationAgentById: vi.fn(async () => undefined),
+  conversationExists: vi.fn(async () => false),
+  updateConversationTitle: vi.fn(async () => 1),
+  upsertConversation: vi.fn(async () => ({})),
+}));
+vi.mock('../../../db/chat/messageRepository.js', () => ({
+  messageExistsInConversation: vi.fn(async () => false),
+  countMessages: vi.fn(async () => 0),
+  countMessagesInConversation: vi.fn(async () => 0),
+  findLastMessage: vi.fn(async () => undefined),
+  insertMessages: vi.fn(async () => undefined),
+  deleteMessages: vi.fn(async () => 0),
 }));
 
 vi.mock('../../../lib/prompt-loader.js', () => ({
