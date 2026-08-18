@@ -2,7 +2,12 @@ import { Router, Request, Response } from 'express';
 import { errorMessage } from '../../shared/utils';
 import type { AccountAdapter } from '../types';
 import { sessionManager } from './session-manager';
-import { WhatsAppChat, WhatsAppMessage } from './models';
+import { getDb } from '../../db';
+import {
+  findLatestWhatsAppMessageText,
+  listWhatsAppChats,
+  listWhatsAppMessages,
+} from './repository';
 import { createLogger } from '../../shared/logger';
 
 const logger = createLogger('WhatsApp');
@@ -62,7 +67,7 @@ export class WhatsAppAdapter implements AccountAdapter {
       const { sessionId } = req.params;
 
       try {
-        const session = await sessionManager.getStatus(sessionId);
+        const session = await sessionManager.getQr(sessionId);
 
         if (!session) {
           return res.status(404).json({ error: 'Session not found' });
@@ -77,7 +82,7 @@ export class WhatsAppAdapter implements AccountAdapter {
           });
         }
 
-        if (!session.lastQR) {
+        if (!session.lastQr) {
           return res.json({
             status: session.status,
             qr: null,
@@ -87,7 +92,7 @@ export class WhatsAppAdapter implements AccountAdapter {
 
         return res.json({
           status: session.status,
-          qr: session.lastQR,
+          qr: session.lastQr,
         });
       } catch (error: unknown) {
         logger.error('QR fetch error:', error);
@@ -177,30 +182,25 @@ export class WhatsAppAdapter implements AccountAdapter {
 
     /**
      * GET /sessions/:sessionId/chats
-     * Returns the session's recent WhatsApp chats from MongoDB.
+     * Returns the session's recent WhatsApp chats.
      */
     router.get('/sessions/:sessionId/chats', async (req: Request, res: Response) => {
       const { sessionId } = req.params;
 
       try {
-        const dbChats = await WhatsAppChat.find({ sessionId })
-          .sort({ conversationTimestamp: -1 })
-          .limit(50)
-          .lean();
+        const dbChats = await listWhatsAppChats(getDb(), sessionId, 50);
 
-        // Enrich with last message preview from MongoDB
+        // Enrich with the last message preview
         const chats = await Promise.all(
           dbChats.map(async (c) => {
-            const lastMsg = await WhatsAppMessage.findOne({ sessionId, jid: c.jid })
-              .sort({ timestamp: -1 })
-              .lean();
+            const lastText = await findLatestWhatsAppMessageText(getDb(), sessionId, c.jid);
 
             return {
               jid: c.jid,
               name: c.name || c.jid.split('@')[0],
               unreadCount: c.unreadCount || 0,
               lastMessageTimestamp: c.conversationTimestamp || null,
-              lastMessagePreview: lastMsg?.text?.slice(0, 100) || '',
+              lastMessagePreview: lastText?.slice(0, 100) || '',
             };
           })
         );
@@ -214,7 +214,7 @@ export class WhatsAppAdapter implements AccountAdapter {
 
     /**
      * GET /sessions/:sessionId/chats/:jid/messages
-     * Returns recent messages from a specific chat (from MongoDB).
+     * Returns recent messages from a specific chat.
      * Query: ?limit=20 (default 20, max 50)
      */
     router.get('/sessions/:sessionId/chats/:jid/messages', async (req: Request, res: Response) => {
@@ -222,10 +222,7 @@ export class WhatsAppAdapter implements AccountAdapter {
       const limit = Math.min(parseInt(req.query.limit as string) || 20, 50);
 
       try {
-        const messages = await WhatsAppMessage.find({ sessionId, jid })
-          .sort({ timestamp: -1 })
-          .limit(limit)
-          .lean();
+        const messages = await listWhatsAppMessages(getDb(), sessionId, jid, limit);
 
         return res.json({
           messages: messages.map((m) => ({

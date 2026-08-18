@@ -1,8 +1,8 @@
 import 'dotenv/config';
 import express from 'express';
-import mongoose from 'mongoose';
 import { Server as WebSocketServer } from 'ws';
 import http from 'http';
+import { closePostgres, connectPostgres } from './db';
 import type { AccountAdapter } from './accounts/types';
 import type { BotAdapter } from './bots/types';
 import { setWss, type SessionWebSocket } from './realtime/wss-global';
@@ -12,13 +12,14 @@ const logger = createLogger('Integrations');
 
 const PORT = Number(process.env.PORT) || 3005;
 const INTERNAL_PORT = 3005; // Must match DO App Platform internal_ports + health_check.port
-const MONGODB_URI = process.env.MONGODB_URI;
+const DATABASE_URL = process.env.DATABASE_URL;
 const APP_NAME = 'integrations';
 
-if (!MONGODB_URI) {
-  logger.error('MONGODB_URI is required');
+if (!DATABASE_URL) {
+  logger.error('DATABASE_URL is required');
   process.exit(1);
 }
+const POSTGRES_URL: string = DATABASE_URL;
 
 if (!process.env.INTEGRATIONS_SECRET) {
   logger.error('INTEGRATIONS_SECRET is required');
@@ -89,10 +90,11 @@ async function initAdapterWithTimeout(adapter: { name: string; initialize(): Pro
 }
 
 async function main() {
-  // Connect to MongoDB
-  const dbName = `${APP_NAME}-${process.env.NODE_ENV || 'development'}`;
-  await mongoose.connect(MONGODB_URI!, { dbName });
-  logger.info(`Connected to MongoDB (${dbName})`);
+  // Build the pool before an adapter can query it. A MALFORMED DATABASE_URL
+  // throws here and takes the boot down; an unreachable server does not —
+  // postgres.js opens a socket lazily, so that surfaces on the first query.
+  connectPostgres(POSTGRES_URL);
+  logger.info('Postgres pool ready');
 
   // Load adapter instances (constructors only — no external calls)
   await loadAdapters();
@@ -256,8 +258,8 @@ async function shutdown(signal: string) {
       await adapter.shutdown();
       logger.info(`${adapter.name} shut down`);
     }
-    await mongoose.disconnect();
-    logger.info('MongoDB disconnected');
+    await closePostgres();
+    logger.info('Postgres pool closed');
   } catch (err) {
     logger.error('Error during shutdown:', err);
   }

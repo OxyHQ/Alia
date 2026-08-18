@@ -1,17 +1,32 @@
 /**
- * AliaOAuthProvider — MCP SDK OAuthClientProvider backed by encrypted Mongo.
+ * AliaOAuthProvider — MCP SDK OAuthClientProvider backed by encrypted Postgres.
  *
  * The official `@modelcontextprotocol/sdk` owns the whole OAuth lifecycle
  * (discovery, Dynamic Client Registration, PKCE, token use, auto-refresh) via
  * an `OAuthClientProvider`. This implementation persists the SDK's artifacts —
- * DCR client info, tokens, and the PKCE code verifier — into the
- * `McpConnectorAuth` collection, encrypted at rest via `../shared/crypto`.
+ * DCR client info, tokens, and the PKCE code verifier — into
+ * `mcp_connector_auths`, encrypted at rest via `../shared/crypto`.
  *
- * One instance is bound to a single (user, server) session. The `stateToken`
- * is the opaque OAuth `state` the API mapped to (user, server) so the public
+ * **Encryption happens HERE, not in the column.** `encrypt()` on the way in and
+ * `decrypt()` on the way out, with the store holding opaque `text`. That is the
+ * arrangement the Mongoose version had and the port keeps it byte-for-byte;
+ * `oauth-store.ts` states what both ways of changing it would break.
+ *
+ * One instance is bound to a single (user, server) session. The `stateToken` is
+ * the opaque OAuth `state` the API mapped to (user, server) so the public
  * callback can be routed back. `redirectToAuthorization` captures the built
  * authorization URL both onto the record and onto the transient
  * `lastAuthorizationUrl` field the start route reads back after `auth()`.
+ *
+ * ## Why the row is loaded once and then tracked in memory
+ *
+ * The Mongoose version held one hydrated document for the provider's lifetime,
+ * mutated it and called `save()`; a read after a write therefore saw the write.
+ * Reads here are served from the same in-memory copy for exactly that reason —
+ * the SDK writes a code verifier and reads it back within one `auth()` call,
+ * and a re-read from the database would be a second round trip that answers the
+ * same question. Each HTTP request builds a fresh provider, so nothing is
+ * cached across requests.
  */
 
 import type { OAuthClientProvider } from '@modelcontextprotocol/sdk/client/auth.js';
@@ -20,8 +35,14 @@ import type {
   OAuthClientMetadata,
   OAuthClientInformationMixed,
 } from '@modelcontextprotocol/sdk/shared/auth.js';
+import { getDb } from '../db';
 import { encrypt, decrypt } from '../shared/crypto';
-import { getOrCreateConnectorAuth, type IMcpConnectorAuth } from './oauth-store';
+import {
+  getOrCreateConnectorAuth,
+  updateConnectorAuth,
+  type ConnectorAuthUpdate,
+  type McpConnectorAuthRow,
+} from './oauth-store';
 
 export interface AliaOAuthProviderOptions {
   oxyUserId: string;
@@ -47,7 +68,7 @@ export class AliaOAuthProvider implements OAuthClientProvider {
    */
   lastAuthorizationUrl?: string;
 
-  private docPromise: Promise<IMcpConnectorAuth> | null = null;
+  private rowPromise: Promise<McpConnectorAuthRow> | null = null;
 
   constructor(options: AliaOAuthProviderOptions) {
     this.oxyUserId = options.oxyUserId;
@@ -57,11 +78,18 @@ export class AliaOAuthProvider implements OAuthClientProvider {
     this.scope = options.scope;
   }
 
-  private doc(): Promise<IMcpConnectorAuth> {
-    if (!this.docPromise) {
-      this.docPromise = getOrCreateConnectorAuth(this.oxyUserId, this.serverId);
+  private row(): Promise<McpConnectorAuthRow> {
+    if (!this.rowPromise) {
+      this.rowPromise = getOrCreateConnectorAuth(getDb(), this.oxyUserId, this.serverId);
     }
-    return this.docPromise;
+    return this.rowPromise;
+  }
+
+  /** Persist one field and keep the in-memory copy in step with it. */
+  private async write(update: ConnectorAuthUpdate): Promise<void> {
+    const row = await this.row();
+    await updateConnectorAuth(getDb(), row.id, update);
+    this.rowPromise = Promise.resolve({ ...row, ...update });
   }
 
   get redirectUrl(): string {
@@ -84,47 +112,39 @@ export class AliaOAuthProvider implements OAuthClientProvider {
   }
 
   async clientInformation(): Promise<OAuthClientInformationMixed | undefined> {
-    const doc = await this.doc();
-    if (!doc.clientInformation) return undefined;
-    return JSON.parse(decrypt(doc.clientInformation)) as OAuthClientInformationMixed;
+    const row = await this.row();
+    if (!row.clientInformation) return undefined;
+    return JSON.parse(decrypt(row.clientInformation)) as OAuthClientInformationMixed;
   }
 
   async saveClientInformation(info: OAuthClientInformationMixed): Promise<void> {
-    const doc = await this.doc();
-    doc.clientInformation = encrypt(JSON.stringify(info));
-    await doc.save();
+    await this.write({ clientInformation: encrypt(JSON.stringify(info)) });
   }
 
   async tokens(): Promise<OAuthTokens | undefined> {
-    const doc = await this.doc();
-    if (!doc.tokens) return undefined;
-    return JSON.parse(decrypt(doc.tokens)) as OAuthTokens;
+    const row = await this.row();
+    if (!row.tokens) return undefined;
+    return JSON.parse(decrypt(row.tokens)) as OAuthTokens;
   }
 
   async saveTokens(tokens: OAuthTokens): Promise<void> {
-    const doc = await this.doc();
-    doc.tokens = encrypt(JSON.stringify(tokens));
-    await doc.save();
+    await this.write({ tokens: encrypt(JSON.stringify(tokens)) });
   }
 
   async redirectToAuthorization(authorizationUrl: URL): Promise<void> {
     this.lastAuthorizationUrl = authorizationUrl.toString();
-    const doc = await this.doc();
-    doc.authorizationUrl = this.lastAuthorizationUrl;
-    await doc.save();
+    await this.write({ authorizationUrl: this.lastAuthorizationUrl });
   }
 
   async saveCodeVerifier(codeVerifier: string): Promise<void> {
-    const doc = await this.doc();
-    doc.codeVerifier = encrypt(codeVerifier);
-    await doc.save();
+    await this.write({ codeVerifier: encrypt(codeVerifier) });
   }
 
   async codeVerifier(): Promise<string> {
-    const doc = await this.doc();
-    if (!doc.codeVerifier) {
+    const row = await this.row();
+    if (!row.codeVerifier) {
       throw new Error('No PKCE code verifier persisted for this OAuth session');
     }
-    return decrypt(doc.codeVerifier);
+    return decrypt(row.codeVerifier);
   }
 }

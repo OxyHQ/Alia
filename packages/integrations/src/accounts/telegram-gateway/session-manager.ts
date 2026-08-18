@@ -3,12 +3,28 @@ import { StringSession } from 'telegram/sessions';
 import { NewMessage } from 'telegram/events';
 import { Api } from 'telegram/tl';
 import { randomUUID } from 'node:crypto';
-import { TelegramSession } from './models';
-import { TelegramChat } from './models';
-import { TelegramMessage } from './models';
+import { getDb } from '../../db';
+import {
+  createTelegramSession,
+  findRestorableTelegramSessions,
+  findTelegramSession,
+  findTelegramSessionCredential,
+  findTelegramSessionOwner,
+  findTelegramSessionQr,
+  insertTelegramMessages,
+  listTelegramSessions,
+  listTelegramSessionsForUser,
+  markTelegramConnected,
+  markTelegramDisconnected,
+  markTelegramLoggedOut,
+  markTelegramLoginFailed,
+  markTelegramQrPending,
+  markTelegramReconnectExhausted,
+  upsertTelegramChat,
+} from './repository';
 import { handleIncomingMessage } from '../../shared/chat-handler';
 import { APIClient } from '../../shared/api-client';
-import { DedupSet, errorCode, errorMessage } from '../../shared/utils';
+import { DedupSet, errorMessage } from '../../shared/utils';
 import { createLogger } from '../../shared/logger';
 
 const apiClient = new APIClient('telegram-gateway', process.env.INTEGRATIONS_SECRET || '');
@@ -45,13 +61,11 @@ class SessionManager {
   }
 
   /**
-   * On startup, load all 'connected' or 'disconnected' sessions from MongoDB
-   * and attempt to reconnect them.
+   * On startup, load all 'connected' or 'disconnected' sessions and attempt to
+   * reconnect them.
    */
   async initialize(): Promise<void> {
-    const activeSessions = await TelegramSession.find({
-      status: { $in: ['connected', 'disconnected'] },
-    });
+    const activeSessions = await findRestorableTelegramSessions(getDb());
     logger.info(`Found ${activeSessions.length} active session(s) to restore`);
 
     for (const session of activeSessions) {
@@ -70,14 +84,7 @@ class SessionManager {
   async createSession(oxyUserId: string): Promise<{ sessionId: string; qrPromise: Promise<string> }> {
     const sessionId = randomUUID();
 
-    // Create a new session document in MongoDB
-    await TelegramSession.create({
-      sessionId,
-      oxyUserId,
-      status: 'qr-pending',
-      sessionString: null,
-      lastQR: null,
-    });
+    await createTelegramSession(getDb(), { sessionId, oxyUserId });
 
     // Set up a QR promise that the HTTP handler can await
     let qrResolve!: (qr: string) => void;
@@ -104,10 +111,10 @@ class SessionManager {
   }
 
   /**
-   * Start or reconnect an existing session using session string stored in MongoDB.
+   * Start or reconnect an existing session using the stored session string.
    */
   async startSession(sessionId: string, isNewSession: boolean = false): Promise<void> {
-    const sessionData = await TelegramSession.findOne({ sessionId });
+    const sessionData = await findTelegramSessionCredential(getDb(), sessionId);
     if (!sessionData) {
       throw new Error(`No session record found for sessionId ${sessionId}`);
     }
@@ -140,10 +147,7 @@ class SessionManager {
               const base64Token = Buffer.from(token.token).toString('base64url');
               const qrUrl = `tg://login?token=${base64Token}`;
 
-              await TelegramSession.updateOne(
-                { sessionId },
-                { $set: { lastQR: qrUrl, status: 'qr-pending' } }
-              );
+              await markTelegramQrPending(getDb(), sessionId, qrUrl);
 
               const pending = this.pendingQRs.get(sessionId);
               if (pending) {
@@ -178,10 +182,7 @@ class SessionManager {
           }
         }
 
-        await TelegramSession.updateOne(
-          { sessionId },
-          { $set: { status: 'failed' } }
-        );
+        await markTelegramLoginFailed(getDb(), sessionId);
         this.sessions.delete(sessionId);
         logger.error(`QR login failed for session ${sessionId}:`, err);
         return;
@@ -193,10 +194,7 @@ class SessionManager {
           await this.onConnected(sessionId, client);
         } else {
           // Session expired
-          await TelegramSession.updateOne(
-            { sessionId },
-            { $set: { status: 'logged-out', sessionString: null, lastQR: null } }
-          );
+          await markTelegramLoggedOut(getDb(), sessionId);
           this.sessions.delete(sessionId);
           logger.warn(`Session ${sessionId} expired, marked as logged-out`);
           return;
@@ -208,10 +206,7 @@ class SessionManager {
           errorMsg.includes('SESSION_REVOKED')
         ) {
           // Session permanently invalidated
-          await TelegramSession.updateOne(
-            { sessionId },
-            { $set: { status: 'logged-out', sessionString: null, lastQR: null } }
-          );
+          await markTelegramLoggedOut(getDb(), sessionId);
           this.sessions.delete(sessionId);
           logger.warn(`Session ${sessionId} revoked, marked as logged-out`);
           return;
@@ -226,7 +221,7 @@ class SessionManager {
 
   /**
    * Called when a session successfully connects/authenticates.
-   * Saves session string and user info to MongoDB, then sets up event handlers.
+   * Saves the session string and user info, then sets up event handlers.
    */
   private async onConnected(sessionId: string, client: TelegramClient): Promise<void> {
     this.reconnectAttempts.delete(sessionId);
@@ -236,20 +231,12 @@ class SessionManager {
     const displayName = [me.firstName, me.lastName].filter(Boolean).join(' ');
     const sessionString = client.session.save() as unknown as string;
 
-    await TelegramSession.updateOne(
-      { sessionId },
-      {
-        $set: {
-          status: 'connected',
-          lastConnected: new Date(),
-          phoneNumber,
-          displayName,
-          telegramUserId: me.id?.toString(),
-          sessionString,
-          lastQR: null,
-        },
-      }
-    );
+    await markTelegramConnected(getDb(), sessionId, {
+      phoneNumber,
+      displayName,
+      telegramUserId: me.id?.toString(),
+      sessionString,
+    });
 
     logger.info(`Session connected for ${sessionId} (${displayName}, +${phoneNumber})`);
 
@@ -288,27 +275,21 @@ class SessionManager {
         // Best-effort sender name resolution
       }
 
-      // Persist to MongoDB
+      // Persist the message
       try {
-        await TelegramMessage.updateOne(
-          { sessionId, messageId: message.id.toString() },
+        await insertTelegramMessages(getDb(), [
           {
-            $setOnInsert: {
-              sessionId,
-              chatId,
-              messageId: message.id.toString(),
-              fromMe: false,
-              timestamp: message.date || Math.floor(Date.now() / 1000),
-              text,
-              senderName,
-            },
+            sessionId,
+            chatId,
+            messageId: message.id.toString(),
+            fromMe: false,
+            timestamp: message.date || Math.floor(Date.now() / 1000),
+            text,
+            senderName,
           },
-          { upsert: true }
-        );
+        ]);
       } catch (err: unknown) {
-        if (errorCode(err) !== 11000) {
-          logger.error(`Error persisting message:`, err);
-        }
+        logger.error(`Error persisting message:`, err);
       }
 
       // Update chat record
@@ -329,29 +310,21 @@ class SessionManager {
         }
 
         const chatName = senderName || chatId;
-        await TelegramChat.updateOne(
-          { sessionId, chatId },
-          {
-            $set: {
-              name: chatName,
-              lastMessageTimestamp: message.date || Math.floor(Date.now() / 1000),
-              chatType,
-            },
-            $inc: { unreadCount: 1 },
-            $setOnInsert: { sessionId, chatId },
-          },
-          { upsert: true }
-        );
+        await upsertTelegramChat(getDb(), {
+          sessionId,
+          chatId,
+          name: chatName,
+          lastMessageTimestamp: message.date || Math.floor(Date.now() / 1000),
+          chatType,
+        });
       } catch (err: unknown) {
-        if (errorCode(err) !== 11000) {
-          logger.error(`Error updating chat:`, err);
-        }
+        logger.error(`Error updating chat:`, err);
       }
 
       // Forward to shared AI handler
       try {
-        const sessionDoc = await TelegramSession.findOne({ sessionId }).lean();
-        if (!sessionDoc || !sessionDoc.oxyUserId) {
+        const oxyUserId = await findTelegramSessionOwner(getDb(), sessionId);
+        if (!oxyUserId) {
           logger.error(`No session or oxyUserId found for ${sessionId}`);
           return;
         }
@@ -359,7 +332,7 @@ class SessionManager {
         await handleIncomingMessage({
           platform: 'telegram-gateway',
           sessionId,
-          oxyUserId: sessionDoc.oxyUserId,
+          oxyUserId,
           chatId: String(chatId),
           messageText: text,
           senderName,
@@ -394,10 +367,7 @@ class SessionManager {
       logger.info(`Client disconnected for session ${sessionId}`);
       this.sessions.delete(sessionId);
 
-      await TelegramSession.updateOne(
-        { sessionId },
-        { $set: { status: 'disconnected', lastDisconnected: new Date() } }
-      );
+      await markTelegramDisconnected(getDb(), sessionId);
 
       this.scheduleReconnect(sessionId);
     });
@@ -411,10 +381,9 @@ class SessionManager {
     this.reconnectAttempts.set(sessionId, attempts);
 
     if (attempts > SessionManager.MAX_RECONNECT_ATTEMPTS) {
-      TelegramSession.updateOne(
-        { sessionId },
-        { $set: { status: 'failed', lastDisconnected: new Date() } }
-      ).catch((err) => logger.error(`Failed to update session status:`, err));
+      markTelegramReconnectExhausted(getDb(), sessionId).catch((err) =>
+        logger.error(`Failed to update session status:`, err),
+      );
 
       this.reconnectAttempts.delete(sessionId);
       logger.error(
@@ -468,32 +437,28 @@ class SessionManager {
     }
     this.reconnectAttempts.delete(sessionId);
 
-    await TelegramSession.updateOne(
-      { sessionId },
-      {
-        $set: {
-          status: 'logged-out',
-          sessionString: null,
-          lastQR: null,
-        },
-      }
-    );
+    await markTelegramLoggedOut(getDb(), sessionId);
   }
 
   /**
-   * Get session status from MongoDB by sessionId.
+   * Session status by sessionId, without the GramJS session string.
    */
   async getStatus(sessionId: string) {
-    return TelegramSession.findOne({ sessionId }).lean();
+    return findTelegramSession(getDb(), sessionId);
+  }
+
+  /**
+   * The login QR for a session that is awaiting a scan.
+   */
+  async getQr(sessionId: string) {
+    return findTelegramSessionQr(getDb(), sessionId);
   }
 
   /**
    * Get all sessions for a given oxyUserId.
    */
   async getUserSessions(oxyUserId: string) {
-    return TelegramSession.find({ oxyUserId })
-      .select('sessionId oxyUserId telegramUserId phoneNumber displayName status lastConnected lastDisconnected createdAt')
-      .lean();
+    return listTelegramSessionsForUser(getDb(), oxyUserId);
   }
 
   /**
@@ -504,12 +469,10 @@ class SessionManager {
   }
 
   /**
-   * List all sessions from MongoDB.
+   * List all sessions.
    */
   async listSessions() {
-    return TelegramSession.find()
-      .select('sessionId oxyUserId telegramUserId phoneNumber displayName status lastConnected lastDisconnected createdAt')
-      .lean();
+    return listTelegramSessions(getDb());
   }
 
   /**

@@ -2,7 +2,12 @@ import { Router, Request, Response } from 'express';
 import { errorMessage } from '../../shared/utils';
 import type { AccountAdapter } from '../types';
 import { sessionManager } from './session-manager';
-import { SignalChat, SignalMessage } from './models';
+import { getDb } from '../../db';
+import {
+  findLatestSignalMessageText,
+  listSignalChats,
+  listSignalMessages,
+} from './repository';
 import { createLogger } from '../../shared/logger';
 
 const logger = createLogger('Signal');
@@ -45,13 +50,13 @@ export class SignalAdapter implements AccountAdapter {
     // GET /sessions/:sessionId/qr
     router.get('/sessions/:sessionId/qr', async (req: Request, res: Response) => {
       try {
-        const session = await sessionManager.getStatus(req.params.sessionId);
+        const session = await sessionManager.getQr(req.params.sessionId);
         if (!session) return res.status(404).json({ error: 'Session not found' });
 
         if (session.status === 'connected') {
           return res.json({ status: 'connected', message: 'Already connected' });
         }
-        return res.json({ status: session.status, qr: session.lastQR || null });
+        return res.json({ status: session.status, qr: session.lastQr || null });
       } catch (error: unknown) {
         return res.status(500).json({ error: errorMessage(error) });
       }
@@ -101,26 +106,19 @@ export class SignalAdapter implements AccountAdapter {
     // GET /sessions/:sessionId/chats
     router.get('/sessions/:sessionId/chats', async (req: Request, res: Response) => {
       try {
-        const dbChats = await SignalChat.find({ sessionId: req.params.sessionId })
-          .sort({ lastMessageTimestamp: -1 })
-          .limit(50)
-          .lean();
+        const sessionId = req.params.sessionId;
+        const dbChats = await listSignalChats(getDb(), sessionId, 50);
 
         const chats = await Promise.all(
           dbChats.map(async (c) => {
-            const lastMsg = await SignalMessage.findOne({
-              sessionId: req.params.sessionId,
-              contactId: c.contactId,
-            })
-              .sort({ timestamp: -1 })
-              .lean();
+            const lastText = await findLatestSignalMessageText(getDb(), sessionId, c.contactId);
 
             return {
               contactId: c.contactId,
               name: c.name || c.contactId,
               unreadCount: c.unreadCount || 0,
               lastMessageTimestamp: c.lastMessageTimestamp || null,
-              lastMessagePreview: lastMsg?.text?.slice(0, 100) || '',
+              lastMessagePreview: lastText?.slice(0, 100) || '',
             };
           }),
         );
@@ -137,14 +135,11 @@ export class SignalAdapter implements AccountAdapter {
       const limit = Math.min(parseInt(req.query.limit as string) || 20, 50);
 
       try {
-        const messages = await SignalMessage.find({ sessionId, contactId })
-          .sort({ timestamp: -1 })
-          .limit(limit)
-          .lean();
+        const messages = await listSignalMessages(getDb(), sessionId, contactId, limit);
 
         return res.json({
           messages: messages.map((m) => ({
-            id: String(m.messageTimestamp || m._id),
+            id: m.messageTimestamp,
             fromMe: m.fromMe,
             timestamp: m.timestamp,
             text: m.text,

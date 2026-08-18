@@ -6,7 +6,7 @@
  */
 
 import { bigint, boolean, index, integer, pgTable, text, uniqueIndex } from 'drizzle-orm/pg-core';
-import { createdAt, timestamptz, updatedAt } from '@oxyhq/db';
+import { createdAt, generatedId, timestamptz, updatedAt } from '@oxyhq/db';
 import { checkOneOf } from './columns';
 
 /**
@@ -59,7 +59,7 @@ export const signalSessions = pgTable(
 export const signalChats = pgTable(
   'signal_chats',
   {
-    id: text().primaryKey(),
+    id: generatedId(),
     sessionId: text()
       .notNull()
       .references(() => signalSessions.sessionId, { onDelete: 'cascade' }),
@@ -81,7 +81,7 @@ export const signalChats = pgTable(
 export const signalMessages = pgTable(
   'signal_messages',
   {
-    id: text().primaryKey(),
+    id: generatedId(),
     sessionId: text()
       .notNull()
       .references(() => signalSessions.sessionId, { onDelete: 'cascade' }),

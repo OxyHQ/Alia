@@ -2,8 +2,31 @@ import { spawn, ChildProcess } from 'child_process';
 import fs from 'fs/promises';
 import path from 'path';
 import { randomUUID } from 'node:crypto';
-import { SignalSession } from './models';
-import { SignalMessage } from './models';
+
+import { getDb } from '../../db';
+import {
+  createSignalSession,
+  findRestorableSignalSessions,
+  findSignalDaemonState,
+  findSignalSession,
+  findSignalSessionOwner,
+  findSignalSessionQr,
+  insertSignalMessages,
+  listSignalSessions,
+  listSignalSessionsForUser,
+  markSignalConnected,
+  markSignalDaemonStarted,
+  markSignalDisconnected,
+  markSignalFailed,
+  markSignalLinked,
+  markSignalUnlinked,
+  saveSignalLinkQr,
+  upsertSignalChat,
+} from './repository';
+import { handleIncomingMessage } from '../../shared/chat-handler';
+import { APIClient } from '../../shared/api-client';
+import { DedupSet, errorName } from '../../shared/utils';
+import { createLogger } from '../../shared/logger';
 
 /** Narrow shape of a signal-cli JSON-RPC `receive` envelope (only fields we read). */
 interface SignalEnvelopeBody {
@@ -19,11 +42,6 @@ interface SignalEnvelopeBody {
 interface SignalReceiveEnvelope {
   envelope?: SignalEnvelopeBody;
 }
-import { SignalChat } from './models';
-import { handleIncomingMessage } from '../../shared/chat-handler';
-import { APIClient } from '../../shared/api-client';
-import { DedupSet, errorCode, errorName } from '../../shared/utils';
-import { createLogger } from '../../shared/logger';
 
 const apiClient = new APIClient('signal', process.env.INTEGRATIONS_SECRET || '');
 const dedup = new DedupSet();
@@ -55,13 +73,11 @@ class SessionManager {
   private static readonly JITTER_MAX_MS = 1000;
 
   /**
-   * On startup, load all 'connected' or 'disconnected' sessions from MongoDB
-   * and attempt to restart their daemons.
+   * On startup, load all 'connected' or 'disconnected' sessions and attempt to
+   * restart their daemons.
    */
   async initialize(): Promise<void> {
-    const activeSessions = await SignalSession.find({
-      status: { $in: ['connected', 'disconnected'] },
-    });
+    const activeSessions = await findRestorableSignalSessions(getDb());
     logger.info(`Found ${activeSessions.length} active session(s) to restore`);
 
     for (const session of activeSessions) {
@@ -82,13 +98,7 @@ class SessionManager {
     const dataDir = path.resolve(`./signal-data/${sessionId}`);
     await fs.mkdir(dataDir, { recursive: true });
 
-    await SignalSession.create({
-      sessionId,
-      oxyUserId,
-      status: 'linking',
-      dataDir,
-      lastQR: null,
-    });
+    await createSignalSession(getDb(), { sessionId, oxyUserId, dataDir });
 
     let qrResolve!: (qr: string) => void;
     let qrReject!: (err: Error) => void;
@@ -120,7 +130,9 @@ class SessionManager {
       const match = outputBuffer.match(/(sgnl:\/\/linkdevice\?[^\s]+)/);
       if (match) {
         const qrUrl = match[1];
-        SignalSession.updateOne({ sessionId }, { $set: { lastQR: qrUrl } }).catch(() => {});
+        saveSignalLinkQr(getDb(), sessionId, qrUrl).catch((err) =>
+          logger.error(`Failed to store link QR for ${sessionId}:`, err),
+        );
 
         const pending = this.pendingQRs.get(sessionId);
         if (pending) {
@@ -144,27 +156,17 @@ class SessionManager {
           const phoneDir = files.find((f) => f.startsWith('+'));
           const phoneNumber = phoneDir || '';
 
-          await SignalSession.updateOne(
-            { sessionId },
-            {
-              $set: {
-                status: 'connected',
-                phoneNumber,
-                lastConnected: new Date(),
-                lastQR: null,
-              },
-            }
-          );
+          await markSignalLinked(getDb(), sessionId, phoneNumber);
 
           // Start the daemon for receiving messages
           await this.startDaemon(sessionId);
         } catch (err) {
           logger.error(`Post-link error for ${sessionId}:`, err);
-          await SignalSession.updateOne({ sessionId }, { $set: { status: 'failed' } });
+          await markSignalFailed(getDb(), sessionId);
         }
       } else {
         logger.error(`Link process exited with code ${code} for ${sessionId}`);
-        await SignalSession.updateOne({ sessionId }, { $set: { status: 'failed' } });
+        await markSignalFailed(getDb(), sessionId);
 
         const pending = this.pendingQRs.get(sessionId);
         if (pending) {
@@ -182,7 +184,7 @@ class SessionManager {
    * Each session gets its own daemon process on a unique HTTP port.
    */
   async startDaemon(sessionId: string): Promise<void> {
-    const session = await SignalSession.findOne({ sessionId });
+    const session = await findSignalDaemonState(getDb(), sessionId);
     if (!session) throw new Error(`No session found: ${sessionId}`);
 
     // Kill existing daemon if running
@@ -204,7 +206,7 @@ class SessionManager {
     }
 
     // Allocate a port
-    const port = await this.allocatePort(sessionId);
+    const port = this.allocatePort(session.daemonPort);
 
     const cliPath = process.env.SIGNAL_CLI_PATH || 'signal-cli';
     const daemon = spawn(
@@ -229,12 +231,7 @@ class SessionManager {
 
     this.daemons.set(sessionId, daemon);
 
-    await SignalSession.updateOne(
-      { sessionId },
-      {
-        $set: { daemonPort: port, daemonPid: daemon.pid },
-      }
-    );
+    await markSignalDaemonStarted(getDb(), sessionId, { port, pid: daemon.pid });
 
     // Listen for daemon ready (it outputs a line when ready)
     await new Promise<void>((resolve) => {
@@ -267,7 +264,7 @@ class SessionManager {
       this.usedPorts.delete(port);
 
       // Check if session still exists and is not intentionally unlinked
-      const currentSession = await SignalSession.findOne({ sessionId });
+      const currentSession = await findSignalDaemonState(getDb(), sessionId);
       if (!currentSession || currentSession.status === 'unlinked') {
         return;
       }
@@ -277,7 +274,7 @@ class SessionManager {
       this.reconnectAttempts.set(sessionId, attempts);
 
       if (attempts > SessionManager.MAX_RECONNECT_ATTEMPTS) {
-        await SignalSession.updateOne({ sessionId }, { $set: { status: 'failed' } });
+        await markSignalFailed(getDb(), sessionId);
         this.reconnectAttempts.delete(sessionId);
         logger.error(
           `Session ${sessionId} failed after ${SessionManager.MAX_RECONNECT_ATTEMPTS} reconnect attempts`
@@ -289,10 +286,7 @@ class SessionManager {
             SessionManager.MAX_RECONNECT_MS
           ) + Math.floor(Math.random() * SessionManager.JITTER_MAX_MS);
 
-        await SignalSession.updateOne(
-          { sessionId },
-          { $set: { status: 'disconnected', lastDisconnected: new Date() } }
-        );
+        await markSignalDisconnected(getDb(), sessionId);
         logger.info(
           `Session ${sessionId} disconnected (code ${code}), reconnecting in ${Math.round(delay / 1000)}s (attempt ${attempts}/${SessionManager.MAX_RECONNECT_ATTEMPTS})...`
         );
@@ -314,10 +308,7 @@ class SessionManager {
     // Reset reconnect counter on successful daemon start
     this.reconnectAttempts.delete(sessionId);
 
-    await SignalSession.updateOne(
-      { sessionId },
-      { $set: { status: 'connected', lastConnected: new Date() } }
-    );
+    await markSignalConnected(getDb(), sessionId);
 
     logger.info(`Daemon started for session ${sessionId} on port ${port}`);
   }
@@ -356,52 +347,38 @@ class SessionManager {
 
           // Persist message
           try {
-            await SignalMessage.updateOne(
-              { sessionId, messageTimestamp: String(timestamp) },
+            await insertSignalMessages(getDb(), [
               {
-                $setOnInsert: {
-                  sessionId,
-                  contactId,
-                  messageTimestamp: String(timestamp),
-                  fromMe: false,
-                  timestamp: Math.floor(timestamp / 1000),
-                  text,
-                  senderName: msg.sourceName || '',
-                },
+                sessionId,
+                contactId,
+                messageTimestamp: String(timestamp),
+                fromMe: false,
+                timestamp: Math.floor(timestamp / 1000),
+                text,
+                senderName: msg.sourceName || '',
               },
-              { upsert: true }
-            );
+            ]);
           } catch (err: unknown) {
-            if (errorCode(err) !== 11000) {
-              logger.error(`Error persisting message:`, err);
-            }
+            logger.error(`Error persisting message:`, err);
           }
 
           // Upsert chat
           try {
-            await SignalChat.updateOne(
-              { sessionId, contactId },
-              {
-                $set: {
-                  lastMessageTimestamp: Math.floor(timestamp / 1000),
-                  name: msg.sourceName || contactId,
-                  chatType: isGroup ? 'group' : 'direct',
-                },
-                $inc: { unreadCount: 1 },
-                $setOnInsert: { sessionId, contactId },
-              },
-              { upsert: true }
-            );
+            await upsertSignalChat(getDb(), {
+              sessionId,
+              contactId,
+              name: msg.sourceName || contactId,
+              lastMessageTimestamp: Math.floor(timestamp / 1000),
+              chatType: isGroup ? 'group' : 'direct',
+            });
           } catch (err: unknown) {
-            if (errorCode(err) !== 11000) {
-              logger.error(`Error upserting chat:`, err);
-            }
+            logger.error(`Error upserting chat:`, err);
           }
 
           // Forward to shared AI handler
           try {
-            const session = await SignalSession.findOne({ sessionId }).lean();
-            if (!session) {
+            const oxyUserId = await findSignalSessionOwner(getDb(), sessionId);
+            if (!oxyUserId) {
               logger.error(`No session found for ${sessionId}`);
               continue;
             }
@@ -409,7 +386,7 @@ class SessionManager {
             await handleIncomingMessage({
               platform: 'signal',
               sessionId,
-              oxyUserId: session.oxyUserId,
+              oxyUserId,
               chatId: contactId,
               messageText: text,
               senderName: msg.sourceName || '',
@@ -441,15 +418,17 @@ class SessionManager {
   }
 
   /**
-   * Allocate a unique port for a session's daemon.
-   * Tries to reuse a previously assigned port from the DB first.
+   * Allocate a unique port for a session's daemon, reusing the one already
+   * recorded for it when nothing else has taken it.
+   *
+   * Takes the stored port rather than re-reading the row: the caller has just
+   * loaded it, and a second read could see a different value than the one the
+   * daemon is about to be started against.
    */
-  private async allocatePort(sessionId: string): Promise<number> {
-    // Try to reuse port from DB first
-    const existing = await SignalSession.findOne({ sessionId });
-    if (existing?.daemonPort && !this.usedPorts.has(existing.daemonPort)) {
-      this.usedPorts.add(existing.daemonPort);
-      return existing.daemonPort;
+  private allocatePort(storedPort: number | null): number {
+    if (storedPort && !this.usedPorts.has(storedPort)) {
+      this.usedPorts.add(storedPort);
+      return storedPort;
     }
 
     while (this.usedPorts.has(this.nextPort)) {
@@ -498,7 +477,7 @@ class SessionManager {
     }
 
     // Get session to find data directory and port
-    const session = await SignalSession.findOne({ sessionId });
+    const session = await findSignalDaemonState(getDb(), sessionId);
     if (session) {
       // Release port
       if (session.daemonPort) {
@@ -513,49 +492,37 @@ class SessionManager {
       }
     }
 
-    // Update DB
-    await SignalSession.updateOne(
-      { sessionId },
-      {
-        $set: {
-          status: 'unlinked',
-          lastQR: null,
-          daemonPort: null,
-          daemonPid: null,
-        },
-      }
-    );
+    await markSignalUnlinked(getDb(), sessionId);
 
     logger.info(`Session ${sessionId} unlinked`);
   }
 
   /**
-   * Get session status from MongoDB.
+   * Session status by sessionId, without the signal-cli data directory.
    */
   async getStatus(sessionId: string) {
-    return SignalSession.findOne({ sessionId }).lean();
+    return findSignalSession(getDb(), sessionId);
+  }
+
+  /**
+   * The linking QR for a session that is awaiting a scan.
+   */
+  async getQr(sessionId: string) {
+    return findSignalSessionQr(getDb(), sessionId);
   }
 
   /**
    * Get all sessions for a user.
    */
   async getUserSessions(oxyUserId: string) {
-    return SignalSession.find({ oxyUserId })
-      .select(
-        'sessionId oxyUserId phoneNumber displayName status daemonPort lastConnected lastDisconnected createdAt updatedAt'
-      )
-      .lean();
+    return listSignalSessionsForUser(getDb(), oxyUserId);
   }
 
   /**
-   * List all sessions from MongoDB.
+   * List all sessions.
    */
   async listSessions() {
-    return SignalSession.find()
-      .select(
-        'sessionId oxyUserId phoneNumber displayName status daemonPort lastConnected lastDisconnected createdAt'
-      )
-      .lean();
+    return listSignalSessions(getDb());
   }
 
   /**
