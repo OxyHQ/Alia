@@ -85,7 +85,7 @@ Approvals are real-time via Socket.IO (`alia.approval_request` / `alia.approval_
 | `db/migrate.ts` | The migrator; requires `--target-database` and honours phase markers | Migrations |
 | `lib/db.ts` | MongoDB connection, for the domains not yet ported | Mongo config changes |
 | `middleware/auth.ts` | Token verification via OxyHQ, sets `req.user` | Auth changes |
-| `models/` | The seventeen remaining Mongoose models (conversation, message, agent, organization, container, skill, …) | Mongo-backed schema changes |
+| `models/` | The Mongoose models the port has not reached yet (conversation, message, agent, container, skill, …). Deliberately uncounted: three slices port in parallel and a number here is stale between them — `models/__tests__/retiredModelFiles.ts` is the ledger of what has already gone, and `ls` is the count | Mongo-backed schema changes |
 | `domain/` | Closed value sets the drizzle CHECK constraints render from | Adding an enum value |
 | `internal/providers/` | Upstream routing, key selection, health, fallback (CORS-restricted) | Routing config |
 

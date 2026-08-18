@@ -153,25 +153,6 @@ const LIVE_REQUIREMENTS: readonly UniqueRequirement[] = [
     mongooseKey: ['organizationId', 'agentId'],
   },
   {
-    model: 'OrganizationInvite',
-    table: 'organization_invites',
-    constraint: 'organization_invites_token_key',
-    mongooseKey: ['token'],
-  },
-  {
-    model: 'OrganizationMember',
-    table: 'organization_members',
-    constraint: 'organization_members_org_user_key',
-    mongooseKey: ['organizationId', 'oxyUserId'],
-  },
-  {
-    model: 'Organization',
-    table: 'organizations',
-    constraint: 'organizations_slug_lower_key',
-    mongooseKey: ['slug'],
-    note: 'A FUNCTIONAL index on `lower(slug)`, upholding the Mongoose setter that lowercased it. Invisible to any bare-column comparison.',
-  },
-  {
     model: 'Skill',
     table: 'skills',
     constraint: 'skills_skill_id_key',
@@ -312,6 +293,18 @@ const UNIQUES_AT_FREEZE: readonly RetiredUnique[] = [
  * change, and the subset assertion below refuses a row whose model is not in that
  * ledger. So the cheapest way to record a new retirement is to record it truly;
  * backdating one into the frozen list instead is a claim git contradicts.
+ *
+ * ## `retiredBy` names a commit where one is knowable, and a slice where it is not
+ *
+ * The earlier rows carry the SQUASH commit of the PR that deleted the file, which
+ * is what makes `git show <retiredBy>^:<file>` re-verify the claim. That sha does
+ * not exist while the change is being written — squashing mints it at merge — so a
+ * row landing WITH its own deletion cannot cite it except by being backfilled
+ * afterwards, and a provenance nobody wrote at the time is a provenance nobody
+ * checked. S9's rows therefore name the SLICE, matching
+ * `RETIRED_MODEL_FILES.retiredBy` exactly; `git log --diff-filter=D -- <file>`
+ * finds the deleting commit from the file alone, which is the same re-derivation
+ * with one more step.
  */
 const UNIQUES_RETIRED_SINCE: readonly RetiredUnique[] = [
 {
@@ -485,6 +478,33 @@ const UNIQUES_RETIRED_SINCE: readonly RetiredUnique[] = [
     table: 'oxy_service_event_logs',
     constraint: 'oxy_service_event_logs_service_user_event_key',
     mongooseKey: ['serviceId', 'oxyUserId', 'eventId'],
+  },
+  {
+    model: 'Organization',
+    file: 'src/models/organization.ts',
+    retiredBy: 'S9 organizations',
+    table: 'organizations',
+    constraint: 'organizations_slug_lower_key',
+    mongooseKey: ['slug'],
+    note: 'A FUNCTIONAL index on `lower(slug)`, upholding the Mongoose `lowercase: true` setter that made `Acme` and `acme` one slug. A plain unique on the stored column passes a bare-column comparison and silently widens the namespace organizations are addressed by.',
+  },
+  {
+    model: 'OrganizationMember',
+    file: 'src/models/organization-member.ts',
+    retiredBy: 'S9 organizations',
+    table: 'organization_members',
+    constraint: 'organization_members_org_user_key',
+    mongooseKey: ['organizationId', 'oxyUserId'],
+    note: 'One account, one membership. `acceptInvite` decides "you are already a member" from an `ON CONFLICT DO NOTHING RETURNING` against exactly this index, so losing it seats a second membership on every replayed invitation link, with no error anywhere.',
+  },
+  {
+    model: 'OrganizationInvite',
+    file: 'src/models/organization-invite.ts',
+    retiredBy: 'S9 organizations',
+    table: 'organization_invites',
+    constraint: 'organization_invites_token_key',
+    mongooseKey: ['token'],
+    note: 'The token is the bearer credential that joins an organization; two rows sharing one is two organizations behind one link.',
   },
 ];
 

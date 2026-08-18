@@ -2,18 +2,20 @@
  * Organizations, their members, their pending invitations and the agents they
  * share.
  *
- * ## Every `ref: 'User'` in these models is INERT, and none becomes a column type
+ * ## Every account id here is `text` with no foreign key, and the `ref: 'User'`
+ * declarations that named them are gone
  *
- * Seven of the eight surviving `ref: 'User'` declarations in this service are in
- * this domain. They are Mongoose declarations for a model this service never
- * registers — #83 replaced the populates with HTTP hydration, so nothing joins on
- * them. They are left in the Mongoose files deliberately (removing them is a
- * separate change with its own review), and here they are simply Oxy account ids:
- * `text`, no foreign key, per `lib/oxy-user-hydration.ts`.
+ * `owner_id`, `oxy_user_id`, `invited_by`, `accepted_by` and `added_by` all name
+ * an account in Oxy, which owns identity. Mongoose declared four of them
+ * `Schema.Types.ObjectId, ref: 'User'` — a join against a model this service
+ * never registers, inert since #83 replaced the populates with HTTP hydration —
+ * and S9 deleted those three model files along with their refs. The fifth,
+ * `organization_agents.added_by`, still has its declaration in
+ * `models/organization-agent.ts`, which is the last Mongoose file in this domain.
  *
- * They are declared `Schema.Types.ObjectId` rather than `String`, which is a
- * naming accident rather than a type: `DeveloperApp.oxyUserId` is a `String` for
- * the same kind of value. Both port to `text`.
+ * `ObjectId` there was a naming accident rather than a type:
+ * `DeveloperApp.oxyUserId` was a `String` for the same kind of value. Both port
+ * to `text`, and `lib/oxy-user-hydration.ts` is how one is resolved.
  *
  * ## `organizations.slug` needs a FUNCTIONAL unique index
  *

@@ -81,8 +81,8 @@ export interface RetiredModelFile {
  *
  * APPEND, never reorder or rewrite. Several slices land entries here and an
  * append conflicts VISIBLY, in one array, where a reorder resolves wrongly by
- * accident. S8's eight follow S3's ten for that reason and no other, and S4's
- * eight follow S8's.
+ * accident. S8's eight follow S3's ten for that reason and no other, S4's eight
+ * follow S8's, and S9's three organization models follow S4's.
  *
  * `OAuthState` is NOT here and is not missing. S4 retired it, but it was
  * declared inline in a ROUTE file rather than under a model directory, so
@@ -141,4 +141,19 @@ export const RETIRED_MODEL_FILES: readonly RetiredModelFile[] = [
   { model: 'BotUser', file: 'src/models/bot-user.ts', retiredBy: 'S4 integrations' },
   { model: 'OxyService', file: 'src/models/oxy-service.ts', retiredBy: 'S4 integrations' },
   { model: 'OxyServiceEventLog', file: 'src/models/oxy-service-event-log.ts', retiredBy: 'S4 integrations' },
+  {
+    model: 'Organization',
+    file: 'src/models/organization.ts',
+    retiredBy: 'S9 organizations',
+  },
+  {
+    model: 'OrganizationMember',
+    file: 'src/models/organization-member.ts',
+    retiredBy: 'S9 organizations',
+  },
+  {
+    model: 'OrganizationInvite',
+    file: 'src/models/organization-invite.ts',
+    retiredBy: 'S9 organizations',
+  },
 ];
