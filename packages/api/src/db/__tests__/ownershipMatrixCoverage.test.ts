@@ -85,12 +85,14 @@ const NOT_APPLICABLE: Readonly<Record<string, string>> = {
     'Test of tts-providers.ts, which is mapped (row `tts-providers`). Moves or dies with it.',
   'packages/api/src/internal/providers/lib/__tests__/routing-capability-coverage.test.ts':
     'Test of generate-model-mappings.ts and model-capabilities-data.ts, both mapped (rows `tier-mappings-generated` and `model-capabilities-data`). Moves or dies with them.',
+  'packages/api/src/internal/providers/lib/__tests__/model-publishers.test.ts':
+    'Test of model-publishers.ts and the publisher column in generate-model-mappings.ts, both mapped (rows `tuple-model-publishers` and `tier-mappings-generated`). Moves or dies with them.',
   'packages/api/src/internal/providers/lib/__tests__/credential-redaction.test.ts':
     'Test of provider-error-body.ts, which is mapped (row `provider-error-body`), and of lib/logger.ts, which is not in this subtree. Moves or dies with them.',
   'packages/api/src/internal/providers/lib/__tests__/key-expiry.test.ts':
     'Test of key-manager.ts, which is mapped (row `key-manager`). Moves or dies with it.',
 };
-const NOT_APPLICABLE_COUNT = 8;
+const NOT_APPLICABLE_COUNT = 9;
 
 interface MatrixRow {
   readonly id: string;
