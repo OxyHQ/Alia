@@ -49,7 +49,16 @@ describe('the census can see the table it claims to measure', () => {
 
 describe('every mapping names a publisher from the closed set', () => {
   it('has no mapping without one', () => {
-    const missing = MAPPINGS.filter((m) => typeof m.publisher !== 'string' || m.publisher === '');
+    /**
+     * Read through a widened `string` on purpose. `publisher` is typed as the
+     * union, so comparing it to `''` is a compile ERROR rather than a check —
+     * and the union is a claim about the source, not about the value a built
+     * table actually holds. Widening asks the runtime question the type cannot.
+     */
+    const missing = MAPPINGS.filter((m) => {
+      const value: string = m.publisher;
+      return value.trim() === '';
+    });
     expect(missing.map((m) => `${m.tier}/${m.modelId}`)).toEqual([]);
   });
 
