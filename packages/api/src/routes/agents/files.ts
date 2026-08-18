@@ -1,7 +1,7 @@
 import { Router } from 'express';
-import mongoose from 'mongoose';
 import { AgentSession } from '../../models/agent-session.js';
-import { Container } from '../../models/container.js';
+import { getDb } from '../../db/index.js';
+import { findSessionContainerId } from '../../db/agents/containerRepository.js';
 import { authenticateToken } from '../../middleware/auth.js';
 import { log } from '../../lib/logger.js';
 import type { Request, Response } from 'express';
@@ -53,13 +53,7 @@ async function resolveSessionContainerId(
   );
   if (resourceContainer?.resourceId) return resourceContainer.resourceId;
 
-  const containerDoc = await Container.findOne({
-    sessionId: new mongoose.Types.ObjectId(sessionId),
-    userId: new mongoose.Types.ObjectId(userId),
-    status: { $in: ['running', 'idle'] },
-  }).sort({ createdAt: -1 }).lean();
-
-  return containerDoc?.containerId || null;
+  return await findSessionContainerId(getDb(), sessionId, userId);
 }
 
 // GET /agents/sessions/:sid/files - list workspace files

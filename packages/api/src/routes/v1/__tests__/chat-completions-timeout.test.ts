@@ -85,14 +85,8 @@ vi.mock('../../../db/memory/userMemoryRepository.js', () => ({
   findUserMemory: vi.fn().mockResolvedValue(undefined),
 }));
 
-vi.mock('../../../models/skill.js', () => ({
-  Skill: {
-    findOne: vi.fn(() => ({
-      select: vi.fn(() => ({
-        lean: vi.fn().mockResolvedValue(null),
-      })),
-    })),
-  },
+vi.mock('../../../db/agents/skillRepository.js', () => ({
+  findSkillPrompt: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock('../../../models/conversation.js', () => ({

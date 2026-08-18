@@ -18,7 +18,8 @@ import { buildIntegrationTools } from '../lib/tools/integrations.js';
 import { oxyClient } from '../middleware/auth.js';
 import type { User as OxyUser } from '@oxyhq/core';
 import { getRefreshedUserCredits } from '../lib/user-credits-helpers.js';
-import { Skill } from '../models/skill.js';
+import { getDb } from '../db/index.js';
+import { findSkillPrompt } from '../db/agents/skillRepository.js';
 import { Agent } from '../models/agent.js';
 import type { UserMemoryProfile } from '../db/memory/userMemoryRepository.js';
 import { processMessagesForPlatform } from '../lib/message-processor.js';
@@ -190,7 +191,7 @@ export async function loadUserContext(userId: string): Promise<UserContext> {
 
 export async function loadSkillPrompt(skillId: string): Promise<string | null> {
   try {
-    const skill = await Skill.findOne({ skillId }).select('systemPrompt title').lean();
+    const skill = await findSkillPrompt(getDb(), skillId);
     if (skill?.systemPrompt) {
       log.chat.info({ skillTitle: skill.title }, 'Skill activated');
       return `# ACTIVE SKILL: ${skill.title}\n\n${skill.systemPrompt}`;

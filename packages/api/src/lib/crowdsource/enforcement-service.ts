@@ -2,7 +2,11 @@ import mongoose from 'mongoose';
 import type { Decision } from '@oxyhq/crowdsource-contracts';
 import { Agent } from '../../models/agent.js';
 import { AgentReview } from '../../models/agent-review.js';
-import { Skill } from '../../models/skill.js';
+import { getDb } from '../../db/index.js';
+import {
+  findSkillPublication,
+  setSkillPublication,
+} from '../../db/agents/skillRepository.js';
 import { ReportedType } from '../../domain/report.js';
 import {
   claimEnforcement,
@@ -88,24 +92,31 @@ interface PublishableState {
  *
  * A generic `Model<{ isPublished?: boolean }>` looks tidier and is how this was
  * first written, but reaching it needs a double cast through `unknown` — the two
- * Mongoose document types genuinely are not assignable to a common one — and a
- * cast there would silently keep compiling if either model dropped the field. Two
- * branches of three lines each cost nothing and stay honest with the schemas.
+ * document types genuinely are not assignable to a common one — and a cast there
+ * would silently keep compiling if either dropped the field. Two branches of
+ * three lines each cost nothing and stay honest with the schemas.
+ *
+ * ## `isValidObjectId` guards the AGENT branch only, and moving it was the point
+ *
+ * It used to guard both, at the top. `skills` is on Postgres now and its `id` is
+ * `text`: a row created after the port carries a `generatedId()` uuid, which
+ * `isValidObjectId` REJECTS. Leaving the guard where it was would have answered
+ * "the reported object no longer exists" to every report about a skill made from
+ * the port onwards — a permissive-direction failure that no test of today's rows
+ * can see, because today's rows are all ObjectIds. `Agent` is still Mongoose and
+ * still needs it, so the guard moved rather than went.
  */
 async function loadPublishable(
   subject: EnforcementSubject,
 ): Promise<PublishableState | null> {
-  if (!mongoose.isValidObjectId(subject.id)) return null;
-  const projection = 'isPublished isFeatured isTrending';
   if (subject.type === ReportedType.AGENT) {
+    if (!mongoose.isValidObjectId(subject.id)) return null;
     return await Agent.findById(subject.id)
-      .select(projection)
+      .select('isPublished isFeatured isTrending')
       .lean<PublishableState | null>();
   }
   if (subject.type === ReportedType.SKILL) {
-    return await Skill.findById(subject.id)
-      .select(projection)
-      .lean<PublishableState | null>();
+    return await findSkillPublication(getDb(), subject.id) ?? null;
   }
   return null;
 }
@@ -115,6 +126,15 @@ function isPublishableType(subjectType: string): boolean {
   return subjectType === ReportedType.AGENT || subjectType === ReportedType.SKILL;
 }
 
+/**
+ * `isFeatured` and `isTrending` reach the AGENT branch only.
+ *
+ * A skill has neither column — `demote` refuses a skill outright and `restore`
+ * reads the demotion row only for an agent — so the skill branch takes the one
+ * field it has. Asserting that rather than passing the whole patch through: a
+ * `skills` table that grew an `is_featured` column would otherwise start
+ * receiving moderation writes nobody decided to send it.
+ */
 async function updatePublishable(
   subject: EnforcementSubject,
   update: PublishableState,
@@ -123,7 +143,9 @@ async function updatePublishable(
     await Agent.updateOne({ _id: subject.id }, { $set: update });
     return;
   }
-  await Skill.updateOne({ _id: subject.id }, { $set: update });
+  if (update.isPublished !== undefined) {
+    await setSkillPublication(getDb(), subject.id, update.isPublished);
+  }
 }
 
 /** Take a published agent or skill out of the catalog. */

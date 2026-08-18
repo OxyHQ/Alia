@@ -156,4 +156,30 @@ export const RETIRED_MODEL_FILES: readonly RetiredModelFile[] = [
     file: 'src/models/organization-invite.ts',
     retiredBy: 'S9 organizations',
   },
+  {
+    model: 'Container',
+    file: 'src/models/container.ts',
+    retiredBy: 'S9 containers/skills — containers',
+  },
+  {
+    model: 'ContainerTemplate',
+    file: 'src/models/container-template.ts',
+    retiredBy: 'S9 containers/skills — container_templates',
+  },
+  {
+    model: 'CanvasSession',
+    file: 'src/models/canvas-session.ts',
+    retiredBy: 'S9 containers/skills — canvas_sessions',
+  },
+  { model: 'Skill', file: 'src/models/skill.ts', retiredBy: 'S9 containers/skills — skills' },
+  {
+    model: 'LearningRule',
+    file: 'src/models/learning-rule.ts',
+    retiredBy: 'S9 containers/skills — learning_rules',
+  },
+  {
+    model: 'RollbackRecord',
+    file: 'src/models/rollback-record.ts',
+    retiredBy: 'S9 containers/skills — rollback_records',
+  },
 ];

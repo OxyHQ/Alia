@@ -1,6 +1,6 @@
-import mongoose from 'mongoose';
 import { CONTRACT_LIMITS } from '@oxyhq/crowdsource-contracts';
-import { Skill } from '../../../models/skill.js';
+import { getDb } from '../../../db/index.js';
+import { findReportedSkill, type ModerationSkill } from '../../../db/agents/skillRepository.js';
 import { ReportedType } from '../../../domain/report.js';
 import type {
   ModerationContextResource,
@@ -32,30 +32,18 @@ import type {
  * channel, not in front of a jury drawn to judge a person — so this returns `null`
  * for one, which the delivery worker treats exactly like a deleted object: the
  * report closes locally with a reason and nothing is sent.
+ *
+ * A skill has TWO public identifiers — the `skillId` slug in every URL and the
+ * `_id` in every payload — and a reporter's client could honestly send either.
+ * Resolving both is `findReportedSkill`'s job; see its note for why the
+ * `isValidObjectId` guard that used to sit here had to go rather than move.
  */
 
 const WEB_ORIGIN = process.env.WEB_URL || 'https://alia.onl';
 
-interface SnapshotSkill {
-  _id: mongoose.Types.ObjectId;
-  skillId?: string;
-  title?: string;
-  tagline?: string;
-  description?: string;
-  systemPrompt?: string;
-  category?: string;
-  language?: string;
-  isBuiltIn?: boolean;
-  oxyUserId?: mongoose.Types.ObjectId;
-  createdAt?: Date;
-}
-
-const SNAPSHOT_PROJECTION =
-  'skillId title tagline description systemPrompt category language isBuiltIn oxyUserId createdAt';
-
 /** The prompt the skill installs, as supporting material. */
-function instructionsContext(skill: SnapshotSkill): ModerationContextResource | null {
-  const prompt = skill.systemPrompt?.trim();
+function instructionsContext(skill: ModerationSkill): ModerationContextResource | null {
+  const prompt = skill.systemPrompt.trim();
   if (!prompt) return null;
   return {
     role: 'evidence',
@@ -64,37 +52,17 @@ function instructionsContext(skill: SnapshotSkill): ModerationContextResource | 
   };
 }
 
-/**
- * Loads by `skillId` first, then by `_id`.
- *
- * A skill has TWO identifiers and both are used as its public handle: the route is
- * `GET /skills/:skillId` and the app links to `/skills/<skillId>`, while every
- * other model in Alia is addressed by `_id`. A reporter's client could honestly
- * send either, and a provider that understood only one would make half the reports
- * about a real skill look like reports about a deleted one.
- */
-async function loadSkill(reportedId: string): Promise<SnapshotSkill | null> {
-  const bySlug = await Skill.findOne({ skillId: reportedId })
-    .select(SNAPSHOT_PROJECTION)
-    .lean<SnapshotSkill | null>();
-  if (bySlug) return bySlug;
-  if (!mongoose.isValidObjectId(reportedId)) return null;
-  return await Skill.findById(reportedId)
-    .select(SNAPSHOT_PROJECTION)
-    .lean<SnapshotSkill | null>();
-}
-
 export function createSkillSubjectProvider(): ModerationSubjectProvider {
   return {
     reportedType: ReportedType.SKILL,
     subjectType: 'custom.alia.skill',
 
     async snapshot(reportedId: string): Promise<ModerationSubjectSnapshot | null> {
-      const skill = await loadSkill(reportedId);
+      const skill = await findReportedSkill(getDb(), reportedId);
       if (!skill) return null;
-      if (skill.isBuiltIn === true) return null;
+      if (skill.isBuiltIn) return null;
 
-      const title = skill.title?.trim();
+      const title = skill.title.trim();
       /**
        * A listing must have a title. A community skill without one cannot be
        * created through `POST /skills` — the route rejects it — so this is a
@@ -103,12 +71,10 @@ export function createSkillSubjectProvider(): ModerationSubjectProvider {
        */
       if (!title) return null;
 
-      const description = [skill.tagline?.trim(), skill.description?.trim()]
-        .filter((part): part is string => Boolean(part))
+      const description = [skill.tagline.trim(), skill.description.trim()]
+        .filter((part) => Boolean(part))
         .join('\n\n');
       const context = instructionsContext(skill);
-      const ownerId = skill.oxyUserId?.toString();
-      const publicId = skill.skillId ?? skill._id.toHexString();
 
       return {
         subject: {
@@ -118,10 +84,10 @@ export function createSkillSubjectProvider(): ModerationSubjectProvider {
            * which the owner can edit. Two reports about one skill either side of a
            * rename must reach the same case.
            */
-          externalId: skill._id.toHexString(),
+          externalId: skill.id,
           type: 'custom.alia.skill',
-          permalink: `${WEB_ORIGIN}/skills/${publicId}`,
-          ...(ownerId === undefined ? {} : { author: { oxyUserId: ownerId } }),
+          permalink: `${WEB_ORIGIN}/skills/${skill.skillId}`,
+          ...(skill.oxyUserId === null ? {} : { author: { oxyUserId: skill.oxyUserId } }),
         },
         content: {
           type: 'listing',
@@ -131,9 +97,7 @@ export function createSkillSubjectProvider(): ModerationSubjectProvider {
               ? { description: description.slice(0, CONTRACT_LIMITS.LONG_TEXT_MAX_LENGTH) }
               : {}),
           },
-          ...(skill.createdAt === undefined
-            ? {}
-            : { createdAt: new Date(skill.createdAt) }),
+          createdAt: skill.createdAt,
         },
         ...(context === null ? {} : { context: [context] }),
       };

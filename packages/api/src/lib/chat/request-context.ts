@@ -26,7 +26,7 @@ import { reserveCredits, refundReservation, type CreditReservation } from '../cr
 import { getUserEntitlements, type Entitlements } from '../plan-access.js';
 import type { OxyUserProfile } from '../system-prompt-builder.js';
 import { oxyClient } from '../../middleware/auth.js';
-import { Skill } from '../../models/skill.js';
+import { findSkillPrompt } from '../../db/agents/skillRepository.js';
 import { runBeforeChatHooks } from '../hooks/index.js';
 import { log } from '../logger.js';
 import { Agent as AgentModel, type IAgent } from '../../models/agent.js';
@@ -255,7 +255,7 @@ export async function buildChatRequestContext(
 
     // Skill loading
     (body.skillId && isDirectUserSession)
-      ? Skill.findOne({ skillId: body.skillId }).select('systemPrompt title').lean().catch(() => null)
+      ? findSkillPrompt(getDb(), body.skillId).then(skill => skill ?? null).catch(() => null)
       : Promise.resolve(null),
 
     // User entitlements (plan-based model access) — parallelized to avoid sequential delay

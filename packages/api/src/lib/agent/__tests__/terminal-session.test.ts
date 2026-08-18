@@ -8,8 +8,17 @@ vi.mock('../../sandbox/container-pool.js', () => ({
   getContainerPool: vi.fn(),
 }));
 
-vi.mock('../../../models/container.js', () => ({
-  Container: {},
+vi.mock('../../../db/index.js', () => ({
+  getDb: vi.fn(),
+}));
+
+vi.mock('../../../db/agents/containerRepository.js', () => ({
+  createContainer: vi.fn(),
+  idleContainer: vi.fn(),
+  markContainerDestroyed: vi.fn(),
+  ownedContainerIsAttachable: vi.fn(),
+  resumeContainer: vi.fn(),
+  touchContainer: vi.fn(),
 }));
 
 vi.mock('../workspace-memory.js', () => ({
