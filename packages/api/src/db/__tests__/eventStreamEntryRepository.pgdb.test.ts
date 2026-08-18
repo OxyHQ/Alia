@@ -314,6 +314,17 @@ describe('the entries are the session’s own log', () => {
     const sessionId = await seedSession();
     await appendEventStreamEntries(db, sessionId, [entry(0), entry(1)]);
 
+    /**
+     * The positive control, and it is not decoration.
+     *
+     * "the cascade removed them" and "nothing was ever written" produce the
+     * IDENTICAL empty read, so this case cannot tell them apart on its own — it
+     * would pass against an append that silently wrote nothing, while claiming
+     * to prove a cascade. The rows are asserted PRESENT before the delete for
+     * that reason, which is the only assertion here that distinguishes the two.
+     */
+    expect(await listEventStreamEntries(db, sessionId)).toHaveLength(2);
+
     await db.delete(agentSessions).where(eq(agentSessions.id, sessionId));
 
     expect(await listEventStreamEntries(db, sessionId)).toEqual([]);

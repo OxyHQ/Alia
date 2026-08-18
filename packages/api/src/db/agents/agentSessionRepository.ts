@@ -442,6 +442,20 @@ export interface AgentSessionChild {
  * kept, because the alternative is a query per row. A child whose agent has been
  * deleted is DROPPED rather than reported with a null agent: the caller renders
  * a row of avatars, and `TaskSession.childAgents[]` is not nullable.
+ *
+ * ## The ORDER BY is not decoration — the caller renders this array
+ *
+ * `packages/app/components/tasks/task-card.tsx:69` iterates `task.childAgents`
+ * to draw a row of avatars, so the order is on screen. An `inArray` with no
+ * `ORDER BY` lets Postgres return rows however the plan happens to produce
+ * them, and the tasks list polls every ten seconds — the visible symptom is
+ * avatars silently reshuffling between polls, which reads as a rendering glitch
+ * rather than as a query with no ordering.
+ *
+ * Delegation order is what the card means, so it is `created_at`, with `id` as
+ * the tiebreak: `created_at` is truncated to milliseconds, and two children
+ * delegated in the same millisecond would otherwise tie and reintroduce exactly
+ * the non-determinism this removes.
  */
 export async function listChildAgentSessions(
   db: Executor,
@@ -458,7 +472,8 @@ export async function listChildAgentSessions(
         inArray(agentSessions.parentSessionId, parentSessionIds),
         eq(agentSessions.oxyUserId, oxyUserId),
       ),
-    );
+    )
+    .orderBy(asc(agentSessions.createdAt), asc(agentSessions.id));
   return rows.flatMap((row) =>
     row.parentSessionId === null
       ? []
