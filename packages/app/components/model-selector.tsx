@@ -1,6 +1,6 @@
 import { ChevronDown, Lock } from "lucide-react-native";
 import * as DropdownMenu from "@/components/ui/dropdown-menu";
-import { Pressable, View, Platform } from "react-native";
+import { Pressable, ScrollView, View, Platform } from "react-native";
 import { Text } from "@/components/ui/text";
 import { Fragment, useMemo, useState } from "react";
 import { useRouter } from "expo-router";
@@ -729,7 +729,13 @@ export function ModelSelector({ selectedModel, onModelChange }: ModelSelectorPro
           <ChevronDown size={14} className="text-muted-foreground" />
         </Pressable>
       </DropdownMenu.Trigger>
-      <DropdownMenu.Content align="start" className="w-96">
+      {/* `overflow-y-hidden` beats the primitive's own `overflow-y-auto` through
+          tailwind-merge, which is what moves the scrolling from the whole menu
+          onto the row list below — so the detail panel can sit outside it and
+          stay put. Without this the panel is inside the scroll region and drops
+          below the fold from about twelve rows. */}
+      <DropdownMenu.Content align="start" className="w-96 p-0 flex flex-col overflow-y-hidden">
+        <ScrollView className="flex-1 p-1">
         <DropdownMenu.Label className="text-xs text-muted-foreground font-normal px-2.5">{t('models.selectModel')}</DropdownMenu.Label>
 
         {/* Automatic and the offered entries come from two independent
@@ -805,9 +811,10 @@ export function ModelSelector({ selectedModel, onModelChange }: ModelSelectorPro
                 </DropdownMenu.Sub>
               </>
             )}
-            {Platform.OS === 'web' && <DetailPanel entry={detailEntry} modes={modes} />}
           </>
         )}
+        </ScrollView>
+        {Platform.OS === 'web' && <DetailPanel entry={detailEntry} modes={modes} />}
       </DropdownMenu.Content>
     </DropdownMenu.Root>
   );
