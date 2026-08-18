@@ -453,6 +453,13 @@ describe('model and routing configuration has no unaudited write path (#139 ws15
     // `onConflictDoNothing`, so it fills gaps and overwrites nothing.
     upsertAliaModel: ['internal/providers/lib/seed-model-configs.ts'],
     upsertModelConfig: ['internal/providers/lib/seed-model-configs.ts'],
+    // The credential one-shot (`scripts/provider-key.ts`), which is the
+    // sanctioned way a provider key enters or is rotated in this table. Both
+    // emit a `config-audit` record, which is what makes a caller acceptable
+    // here at all — and the caller is a deliberate operator action, not a
+    // request. `:536`-`:556` still fails if a ROUTE calls either.
+    createProviderKey: ['scripts/provider-key.ts'],
+    rotateProviderKey: ['scripts/provider-key.ts'],
     // A one-shot script, not part of the serving process.
     upsertExternalModels: ['scripts/sync-zeroeval.ts'],
     // Automatic health state. A key cools down because it failed, not because
@@ -492,7 +499,6 @@ describe('model and routing configuration has no unaudited write path (#139 ws15
   const UNCALLED: readonly string[] = [
     'createAliaModel',
     'createModelConfig',
-    'createProviderKey',
     'deleteAliaModel',
     'deleteModelConfig',
     'deleteProviderKey',
@@ -508,11 +514,6 @@ describe('model and routing configuration has no unaudited write path (#139 ws15
     // unexported — the moment it is exported it is a public routing mutation
     // with no record of its own.
     'replaceProviderMappings',
-    // Exported, replaces a live credential in place, and reached by nothing.
-    // This is the entry the name-based census could not hold, and the reason
-    // the derivation above changed: a rotation acquiring a request-driven
-    // caller is exactly the event this block exists to catch.
-    'rotateProviderKey',
     'updateAliaModel',
     'updateModelConfig',
     'updateProviderKey',

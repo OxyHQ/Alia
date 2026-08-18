@@ -123,10 +123,59 @@ procedure, and it is asserted rather than assumed:
 `packages/api/src/routes/__tests__/inference-boundary.test.ts:458`–`:468` lists
 `createProviderKey`, `updateProviderKey` and `deleteProviderKey` as writers with
 zero runtime callers, and `:536`–`:556` fails if any route file calls one. The
-gateway admin that used to expose them was retired by #141. So rotation is a SQL
-statement, run by someone with production database access — and the repository
-functions in `packages/api/src/db/providers/providerKeyRepository.ts` are the
-reference for what a correct statement writes, not something you can invoke.
+gateway admin that used to expose them was retired by #141. **Do not add one.**
+
+What was missing was not an API but a MECHANISM, and there is one now: the
+one-shot below invokes those same repository functions
+(`packages/api/src/db/providers/providerKeyRepository.ts`) inside the service's
+own image, so nothing has to reproduce what a correct write contains. The SQL
+that follows it remains the reference and the fallback.
+
+### The sanctioned mechanism
+
+`node packages/api/dist/scripts/provider-key.js` is the supported way to put a
+credential into this table or rotate the one that is there. Issue it as a
+one-shot on the service's CURRENT task-definition revision, which registers no
+task definition and changes nothing else:
+
+```bash
+NET=$(aws --profile oxy ecs describe-services --cluster oxy-cluster --services alia \
+  --region us-west-2 --query 'services[0].networkConfiguration' --output json)
+
+aws --profile oxy ecs run-task --cluster oxy-cluster --task-definition <current revision> \
+  --count 1 --launch-type FARGATE --platform-version 1.4.0 --region us-west-2 \
+  --network-configuration "$NET" \
+  --overrides '{"containerOverrides":[{"name":"alia","command":[
+    "node","packages/api/dist/scripts/provider-key.js",
+    "--target-database=alia","--provider=openai","--name=openai primary",
+    "--from-ssm=/oxy/alia/PROVIDER_KEY_OPENAI_PRIMARY"]}]}'
+```
+
+**It takes a parameter NAME, never a value.** The credential is read from SSM
+inside the task, so it appears in no shell history, no task description and no
+CloudWatch record of the invocation. It dispatches on the sha256: an identical
+key already stored is a no-op, a different key under the same
+`(provider, name)` is a ROTATION through `rotateProviderKey` (audited), and
+neither is a create. It refuses a credential whose fingerprint matches a
+`credential` entry in `lib/security/known-disclosures.ts`.
+
+**Prerequisite:** `oxy-ecs-task` needs `ssm:GetParameter` on
+`/oxy/alia/PROVIDER_KEY_*`. It does not have it today —
+`simulate-principal-policy` returns `implicitDeny`, while the EXECUTION role
+returns `allowed`, which is how `secrets` are injected at launch. That grant is
+an `oxy-infra` change.
+
+**DELETE the SSM parameter once the write is confirmed.** This is a step, not a
+suggestion. The parameter is a hand-off buffer: leaving it means the credential
+lives in SSM *and* in the database, two stores to rotate and two to leak from,
+with nothing reconciling them.
+
+```bash
+aws --profile oxy ssm delete-parameter --name /oxy/alia/PROVIDER_KEY_OPENAI_PRIMARY --region us-west-2
+```
+
+The SQL below remains the reference for what a correct write contains, and the
+fallback if the mechanism is unavailable.
 
 ### Rotating one key
 
@@ -144,7 +193,7 @@ reference for what a correct statement writes, not something you can invoke.
    ```sql
    UPDATE provider_keys
    SET key        = :new_key,
-       key_hash   = encode(digest(:new_key, 'sha256'), 'hex'),
+       key_hash   = encode(sha256(:new_key::bytea), 'hex'),
        key_prefix = left(:new_key, 8) || '...',
        rotated_at = now(),
        updated_at = date_trunc('milliseconds', now())
@@ -159,9 +208,16 @@ reference for what a correct statement writes, not something you can invoke.
    '...'` — but that is what the CODE writes, not a measurement of what existing
    rows hold. Check one row before trusting it across a batch.
 
-   `digest()` needs `pgcrypto`. If the extension is not installed, compute the
-   sha256 outside the database rather than installing an extension during a
-   rotation.
+   **`sha256()` and not `digest()`, and the difference is not cosmetic.**
+   `digest()` is `pgcrypto`, and this statement previously used it. Nothing in
+   Alia's migration chain creates that extension and `db/migrate.ts` declares
+   `extensions: []` deliberately — an extension is a privileged act a migration
+   cannot perform on the shared instance. Measured against a database carrying
+   Alia's full migration set: `ERROR: function digest(unknown, unknown) does not
+   exist`. `sha256()` is built into PostgreSQL (11+), needs nothing, and produces
+   the identical value — verified against `hashProviderKey` on the same input.
+   Whether `pgcrypto` happens to be installed on `oxy-postgres` by some other
+   service is not something to rely on during an incident.
 
 3. **Wait ten seconds.** `key-manager.ts:35`–`:37` caches loaded keys per
    provider for 10 000 ms, and `loadProviderKeys` (`:46`–`:58`) serves that cache

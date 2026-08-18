@@ -106,6 +106,24 @@ await esbuild.build({
   logLevel: 'info',
 });
 
+// The provider-credential one-shot. Same reason as the migrator and the seeder:
+// the command names a FILE PATH and the runtime stage carries no `src/`. Unlike
+// those two it is NOT wired into the deploy — a credential is not release-scoped
+// — so nothing would ever reveal a missing bundle except the operator issuing
+// the command during an incident.
+await esbuild.build({
+  entryPoints: ['src/scripts/provider-key.ts'],
+  bundle: true,
+  platform: 'node',
+  target: 'node20',
+  format: 'esm',
+  outfile: 'dist/scripts/provider-key.js',
+  plugins: [externalizeNodeModules],
+  sourcemap: false,
+  minify: false,
+  logLevel: 'info',
+});
+
 // Copy prompts directory to dist
 try {
   await cp('prompts', 'dist/prompts', { recursive: true });
