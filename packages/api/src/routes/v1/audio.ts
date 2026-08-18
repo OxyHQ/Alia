@@ -5,7 +5,7 @@ import { reserveCredits, finalizeCredits } from '../../lib/credits-manager.js';
 import type { CreditReservation } from '../../lib/credits-manager.js';
 import { getOrCreateUserCredits } from '../../lib/user-credits-helpers.js';
 import { uploadToS3 } from '../../lib/s3.js';
-import { Message } from '../../models/message.js';
+import { findMessageAudioUrl, setMessageAudioUrl } from '../../db/chat/messageRepository.js';
 import { getDb } from '../../db/index.js';
 import {
   createAudioJob,
@@ -55,12 +55,9 @@ router.post('/speech', async (req: Request, res: Response) => {
 
     // Check for cached audio on the message
     if (conversationId && messageId) {
-      const existingMsg = await Message.findOne(
-        { conversationId, oxyUserId: userId, id: messageId },
-        { audioUrl: 1 }
-      ).lean();
-      if (existingMsg?.audioUrl) {
-        return res.json({ audioUrl: existingMsg.audioUrl });
+      const cached = await findMessageAudioUrl(getDb(), userId, conversationId, messageId);
+      if (cached) {
+        return res.json({ audioUrl: cached });
       }
     }
 
@@ -133,10 +130,7 @@ router.post('/speech', async (req: Request, res: Response) => {
 
     // Link to message (fire-and-forget, don't block response)
     if (conversationId && messageId) {
-      Message.updateOne(
-        { conversationId, oxyUserId: userId, id: messageId },
-        { $set: { audioUrl } }
-      ).catch((err: any) => {
+      setMessageAudioUrl(getDb(), userId, conversationId, messageId, audioUrl).catch((err: unknown) => {
         log.general.warn({ err, conversationId, messageId }, 'Failed to link audioUrl to message');
       });
     }
@@ -304,10 +298,7 @@ async function processAudioGeneration(input: AudioGenJobInput): Promise<void> {
 
     // Link to message (fire-and-forget)
     if (conversationId && messageId) {
-      Message.updateOne(
-        { conversationId, oxyUserId: userId, id: messageId },
-        { $set: { audioUrl } }
-      ).catch((err: any) => {
+      setMessageAudioUrl(getDb(), userId, conversationId, messageId, audioUrl).catch((err: unknown) => {
         log.general.warn({ err, conversationId, messageId }, 'Failed to link audioUrl to message');
       });
     }

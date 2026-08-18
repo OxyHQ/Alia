@@ -9,12 +9,12 @@ import { RETIRED_MODEL_FILES } from './retiredModelFiles';
 /**
  * `.populate()` on a ref this service does not own is a 500 waiting for traffic.
  *
- * Several schemas declare `ref: 'User'` (and one `ref: 'Folder'`). No such model
- * is registered here and none ever will be: Oxy owns identity, and a local users
- * collection would be a cache free to disagree with it. Mongoose answers a
- * populate on such a path with `MissingSchemaError` — but ONLY once there is at
- * least one document to populate. On an empty result set it never resolves the
- * ref and the query succeeds.
+ * Several schemas declare `ref: 'User'`. No such model is registered here and
+ * none ever will be: Oxy owns identity, and a local users collection would be a
+ * cache free to disagree with it. Mongoose answers a populate on such a path
+ * with `MissingSchemaError` — but ONLY once there is at least one document to
+ * populate. On an empty result set it never resolves the ref and the query
+ * succeeds.
  *
  * That asymmetry is the whole problem. Three endpoints shipped this way and
  * worked in every smoke test, because a fresh organization has no members and a
@@ -22,7 +22,7 @@ import { RETIRED_MODEL_FILES } from './retiredModelFiles';
  * feature. `git log` for the fix has the measurements.
  *
  * So this gate does NOT forbid the declaration — a dangling `ref` is inert, and
- * removing all 41 of them is churn each port batch will do anyway. It forbids
+ * removing every one of them is churn each port batch will do anyway. It forbids
  * the ACT that turns one into an outage, which is also the thing a future author
  * would reach for innocently.
  *
@@ -40,7 +40,6 @@ const PACKAGE_ROOT = path.resolve(fileURLToPath(new URL('../../..', import.meta.
  */
 const FOREIGN_REFS: Readonly<Record<string, string>> = {
   User: 'Oxy owns identity; resolve through lib/oxy-user-hydration.ts.',
-  Folder: 'No Folder model exists in this service; Conversation.folderId is a bare id.',
 };
 
 /** Every model file, so importing them registers every schema. */

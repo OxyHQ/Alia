@@ -9,7 +9,9 @@ import { runAutonomyAfterChat, type AutonomyRuntimeContext } from './autonomy/ru
 import { sendNotification } from './notification-service.js';
 import { log } from './logger.js';
 import type { ChatMessage } from './message-converter.js';
-import { Conversation } from '../models/conversation.js';
+import { getDb } from '../db/index.js';
+import { conversationExists } from '../db/chat/conversationRepository.js';
+import { messageExistsInConversation } from '../db/chat/messageRepository.js';
 
 export interface LifecycleContext {
   userId?: string;
@@ -117,13 +119,15 @@ export async function startParallelTitleGeneration(
   conversationId: string,
   messages: ChatMessage[],
 ): Promise<string | null> {
-  const existing = await Conversation.findOne(
-    { oxyUserId: userId, conversationId },
-    { _id: 1 }
-  ).lean();
-  const hasMessages = existing
-    ? await (await import('../models/message.js')).Message.exists({ conversationId })
-    : false;
+  /**
+   * Two existence checks, and the second is deliberately NOT scoped to the user
+   * — the source counted messages by `conversationId` alone. A conversation id
+   * is a `randomUUID()`, so the cross-account reading is theoretical, but it is
+   * what decides whether a title is generated and tightening it silently would
+   * change when titles appear.
+   */
+  const existing = await conversationExists(getDb(), userId, conversationId);
+  const hasMessages = existing ? await messageExistsInConversation(getDb(), conversationId) : false;
   if (existing && hasMessages) return null;
 
   const firstUserMsgRaw = messages.find((m: ChatMessage) => m.role === 'user')?.content;

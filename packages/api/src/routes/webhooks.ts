@@ -19,8 +19,8 @@ import {
   type InboundUserBotRow,
 } from '../db/integrations/botRepository.js';
 import { Agent } from '../models/agent.js';
-import { Conversation } from '../models/conversation.js';
-import { Message } from '../models/message.js';
+import { upsertConversation } from '../db/chat/conversationRepository.js';
+import { insertMessages, listRecentTurns } from '../db/chat/messageRepository.js';
 import { getOrCreateUserCredits } from '../lib/user-credits-helpers.js';
 import { reserveCredits, finalizeCredits, type CreditUsage } from '../lib/credits-manager.js';
 import type { ChannelId, ChannelInboundMessage } from '../lib/channels/types.js';
@@ -169,28 +169,23 @@ async function processChannelMessage(
       await setBotUserConversation(db, botUser.id, conversationId);
     }
 
-    // Load conversation history from messages collection
+    /**
+     * Load conversation history.
+     *
+     * `listRecentTurns` narrows to string bodies in the DATABASE, so a
+     * multi-part message is dropped rather than rendered as an empty line. Only
+     * this path writes these threads and it writes strings, so nothing that
+     * exists today is affected.
+     */
     let messages: Array<{ role: string; content: string }> = [];
     try {
-      const recentMessages = await Message.find({
-        oxyUserId: botUser.oxyUserId,
-        conversationId,
-      })
-        .sort({ createdAt: -1 })
-        .limit(20)
-        .lean();
-
-      if (recentMessages.length > 0) {
-        messages = recentMessages.reverse().map((m: any) => ({
-          role: m.role,
-          content: m.content,
-        }));
-      }
+      messages = [...await listRecentTurns(db, botUser.oxyUserId, conversationId, 20)];
     } catch (error: unknown) {
       log.webhook.error({ err: error, channelType }, 'Failed to load conversation history');
     }
 
-    // Add the new user message
+    // Add the new user message, stamped when it ARRIVED — see the write below.
+    const userMessageAt = new Date();
     messages.push({ role: 'user', content: message.text });
 
     // Resolve AI model
@@ -254,29 +249,29 @@ async function processChannelMessage(
 
     // Save conversation metadata + append messages
     if (fullResponse) {
-      await Conversation.findOneAndUpdate(
-        { oxyUserId: botUser.oxyUserId, conversationId },
-        {
-          $set: {
-            lastMessage: fullResponse.slice(0, 100),
-            updatedAt: new Date(),
-          },
-          $setOnInsert: {
-            oxyUserId: botUser.oxyUserId,
-            conversationId,
-            source: channelType,
-            title: message.text.slice(0, 50),
-            createdAt: new Date(),
-          },
-        },
-        { upsert: true }
-      );
+      await upsertConversation(db, {
+        oxyUserId: botUser.oxyUserId,
+        conversationId,
+        lastMessage: fullResponse.slice(0, 100),
+        titleOnInsert: message.text.slice(0, 50),
+        source: channelType,
+      });
 
-      // Append user + assistant messages
-      await Message.insertMany([
-        { conversationId, oxyUserId: botUser.oxyUserId, role: 'user', content: message.text, createdAt: new Date() },
+      /**
+       * The two turns carry the times they actually happened — the user's when
+       * the update arrived, the assistant's now — rather than one `new Date()`
+       * for both.
+       *
+       * These rows carry no `seq` (the append-ordering column), so `created_at`
+       * IS the order they are read back in, and two identical timestamps leave
+       * that order undefined on Postgres where Mongo's natural order settled it.
+       * The values are not invented to break a tie: they are when each message
+       * exists, and a model call sits between them.
+       */
+      await insertMessages(db, [
+        { conversationId, oxyUserId: botUser.oxyUserId, role: 'user', content: message.text, createdAt: userMessageAt },
         { conversationId, oxyUserId: botUser.oxyUserId, role: 'assistant', content: fullResponse, createdAt: new Date() },
-      ], { ordered: false });
+      ]);
     }
   } catch (error: unknown) {
     log.webhook.error({ err: error, channelType }, 'Chat processing error');
@@ -341,20 +336,13 @@ async function processAgentBotMessage(
     // Load recent history (owned by the bot owner, keyed by conversation id).
     let messages: Array<{ role: string; content: string }> = [];
     try {
-      const recentMessages = await Message.find({ oxyUserId: bot.userId, conversationId })
-        .sort({ createdAt: -1 })
-        .limit(20)
-        .lean();
-      if (recentMessages.length > 0) {
-        messages = recentMessages.reverse().map((m) => ({
-          role: m.role,
-          content: typeof m.content === 'string' ? m.content : '',
-        }));
-      }
+      messages = [...await listRecentTurns(db, ownerUserId, conversationId, 20)];
     } catch (error: unknown) {
       log.webhook.error({ err: error, channelType }, 'Failed to load agent-bot conversation history');
     }
 
+    // Stamped when it ARRIVED, for the reason the write below gives.
+    const userMessageAt = new Date();
     messages.push({ role: 'user', content: message.text });
 
     // Resolve the bound agent's configuration (prompt + preferred model).
@@ -409,25 +397,19 @@ async function processAgentBotMessage(
     await reportModelUsage(resolved.keyConfig.keyId, resolved.provider, resolved.modelId, true, latencyMs);
 
     if (fullResponse) {
-      await Conversation.findOneAndUpdate(
-        { oxyUserId: bot.userId, conversationId },
-        {
-          $set: { lastMessage: fullResponse.slice(0, 100), updatedAt: new Date() },
-          $setOnInsert: {
-            oxyUserId: bot.userId,
-            conversationId,
-            source: channelType,
-            title: message.text.slice(0, 50),
-            createdAt: new Date(),
-          },
-        },
-        { upsert: true },
-      );
+      await upsertConversation(db, {
+        oxyUserId: ownerUserId,
+        conversationId,
+        lastMessage: fullResponse.slice(0, 100),
+        titleOnInsert: message.text.slice(0, 50),
+        source: channelType,
+      });
 
-      await Message.insertMany([
-        { conversationId, oxyUserId: bot.userId, role: 'user', content: message.text, createdAt: new Date() },
-        { conversationId, oxyUserId: bot.userId, role: 'assistant', content: fullResponse, createdAt: new Date() },
-      ], { ordered: false });
+      // Distinct timestamps, for the reason the system-bot path spells out.
+      await insertMessages(db, [
+        { conversationId, oxyUserId: ownerUserId, role: 'user', content: message.text, createdAt: userMessageAt },
+        { conversationId, oxyUserId: ownerUserId, role: 'assistant', content: fullResponse, createdAt: new Date() },
+      ]);
     }
   } catch (error: unknown) {
     log.webhook.error({ err: error, channelType }, 'Agent-bot processing error');
