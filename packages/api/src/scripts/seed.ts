@@ -41,26 +41,47 @@
  * task by hand — `aws ecs run-task` with a command override on the service's
  * current revision, which registers no task definition and writes nothing else.
  *
- * ## Re-running is free
+ * ## Re-running is safe
  *
- * Every seeder underneath is INSERT-IF-ABSENT, not reconcile: `seedPlan`,
+ * Every seeder underneath is INSERT-IF-ABSENT except `skills`: `seedPlan`,
  * `seedFeature`, `seedCreditPackage` and `seedPlanFeatures` all use
  * `onConflictDoNothing`, and `db/billing/planRepository.ts` records that the
  * plan upsert was deliberately changed away from `onConflictDoUpdate({ set: {
- * modelIds } })`. So this can be run any number of times and can never overwrite
- * a hand-edited row.
+ * modelIds } })`.
  *
  * The corollary matters more: **this does not re-assert configuration.** It
  * fills gaps. A wrong row already in the table stays wrong, and
  * `lib/routing/__tests__/routing-config-audit.test.ts` is the gate that keeps
  * that fact honest.
  *
+ * ## `skills` reconciles, and the exception is NARROWER than the seeder
+ *
+ * `seedSkills` overwrites by design: Alia's built-in skill text is a release
+ * artefact, not a hand-edited row, and freezing it at whatever shipped first
+ * would defeat the seeder while satisfying the letter of the rule above.
+ *
+ * So the guarantee that survives is not "skills reconcile" — it is the narrower
+ * and more useful one: **`upsertBuiltInSkill` may overwrite a row that is
+ * already `is_built_in`, and can never touch a user-created one.** The conflict
+ * target is `skill_id`, which users also mint, so the `DO UPDATE` carries
+ * `setWhere: is_built_in = true` and DECLINES a colliding user row rather than
+ * claiming it. Measured before that clause existed: a user's skill came back
+ * with Alia's title and prompt, `is_built_in` flipped true and `oxy_user_id`
+ * still naming the user — who is then locked out of it, because
+ * `updateOwnedSkill` and `deleteOwnedSkill` both require `is_built_in = false`.
+ *
+ * ## What is ENFORCED here, and what is only prose
+ *
+ * Say this plainly rather than implying a coverage that does not exist. The
+ * "insert-if-absent" property of the other six seeders is **prose** — nothing
+ * asserts it, and a seeder switched to `onConflictDoUpdate` would contradict
+ * this comment silently. The `skills` exception is the one that carries a gate:
+ * `db/__tests__/skillRepository.pgdb.test.ts` asserts a user-created row
+ * survives a seed run byte-identical and that a built-in one is refreshed, in
+ * both mutation directions.
+ *
  * ## What is deliberately NOT seeded here
  *
- *  - **`skills`.** Mid-port: `port/containers-skills` owns
- *    `db/agents/skillRepository.ts`, `models/skill.ts` and `lib/seed-skills.ts`
- *    right now. Seeding a table whose repository is being rewritten in another
- *    branch is how two agents produce one broken schema.
  *  - **`bots`.** `lib/seed-bots.ts` derives the bot id from
  *    `TELEGRAM_BOT_TOKEN` / `DISCORD_APP_ID`, and neither is set on the task
  *    definition. Run today it writes the literal placeholders `telegram-bot`
@@ -81,6 +102,7 @@ import { seedCreditPackages } from '../internal/providers/lib/seed-credit-packag
 import { seedFeatures, seedPlanFeatures } from '../internal/providers/lib/seed-features.js';
 import { seedAliaModels, seedModelConfigs } from '../internal/providers/lib/seed-model-configs.js';
 import { seedPlans } from '../lib/seed-plans.js';
+import { seedSkills } from '../lib/seed-skills.js';
 import { seedSuggestions } from '../lib/seed-suggestions.js';
 
 const logger = log.seed;
@@ -107,6 +129,12 @@ const SEEDERS: readonly { readonly name: string; readonly run: () => Promise<unk
   { name: 'plan_features', run: seedPlanFeatures },
   { name: 'credit_packages', run: seedCreditPackages },
   { name: 'suggestions', run: seedSuggestions },
+  /**
+   * Last, and order-independent: `skills` is referenced by `agent_skills`, which
+   * nothing here seeds, so it has no parent to wait for. Placed at the end so
+   * the foreign-key-ordered prefix above stays readable as one sequence.
+   */
+  { name: 'skills', run: seedSkills },
 ];
 
 /**
