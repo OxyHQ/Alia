@@ -8,6 +8,8 @@
 
 export type AliaTier = 'lite' | 'v1' | 'v1-codea' | 'v1-cowork' | 'v1-browser' | 'v1-vision' | 'v1-audio' | 'v1-tts' | 'v1-image' | 'v1-multimodal' | 'v1-pro' | 'v1-pro-max' | 'v1-voice' | 'v1-voice-pro';
 
+import type { ModelPublisher } from './model-publishers';
+
 export type ModelCategory = 'general' | 'coding' | 'vision' | 'audio' | 'multimodal' | 'voice';
 export type PricingTier = 'free' | 'freemium' | 'paid';
 
@@ -42,7 +44,22 @@ export interface AliaModel {
 }
 
 export interface ModelMapping {
+  /** Whose endpoint the request goes to. One of `PROVIDER_NAMES`. */
   provider: string;
+  /**
+   * Who RELEASED the model, which is not who serves it.
+   *
+   * `{ provider: 'digitalocean', publisher: 'openai', modelId: 'openai-gpt-oss-20b' }`
+   * is the whole distinction in one row. Required rather than optional, and
+   * placed beside `provider` rather than anywhere else, so every mapping states
+   * both and no reader can mistake one for the other.
+   *
+   * Never derived from `modelId`: 97 of the 115 mappings carry a bare model
+   * name with no publisher token, and where a prefix does exist it is sometimes
+   * the inference platform (`fal-ai/fast-sdxl` is Stability's). See
+   * `model-publishers.ts`.
+   */
+  publisher: ModelPublisher;
   modelId: string;
   priority: number;
   qualityScore: number;
