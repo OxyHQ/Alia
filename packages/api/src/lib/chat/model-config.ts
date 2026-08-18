@@ -47,6 +47,21 @@ export interface BaseConfigResult {
   clearFirstByteTimer: () => void;
 }
 
+/**
+ * How many output-billed tokens a reasoning request may spend thinking.
+ *
+ * 2048 against the 8192 `maxOutputTokens` the anthropic-published models carry:
+ * a quarter of the cap for reasoning, three quarters left for the answer, and
+ * above Anthropic's 1024 minimum. Worst case per request at the table's own
+ * prices: 2048 tokens at $15/1M output on Sonnet is $0.031, and at $75/1M on
+ * Opus is $0.154 — and Anthropic is priority 1 on both chat-visible premium
+ * tiers, so those are the models these requests actually reach.
+ */
+const ANTHROPIC_THINKING_BUDGET_TOKENS = 2048;
+
+/** Anthropic needs `max_tokens` strictly above the thinking budget. */
+const ANTHROPIC_MAX_OUTPUT_TOKENS_WITH_THINKING = 8192;
+
 /** Assemble the shared AI SDK config for one provider attempt + its first-byte abort. */
 export function buildBaseConfig(params: BuildBaseConfigParams): BaseConfigResult {
   const { resolved, body, convertedMessages, truncatedTools, thinkingMode, systemPromptTokens, streamState, onUsage } = params;
@@ -83,23 +98,65 @@ export function buildBaseConfig(params: BuildBaseConfigParams): BaseConfigResult
     baseConfig.maxTokens = body.max_tokens;
   }
 
-  // Enable thinking mode for Anthropic if requested
+  /**
+   * Extended reasoning, actually sent this time.
+   *
+   * Both branches below used to write `experimental_thinking` and
+   * `experimental_providerMetadata`, which are AI SDK **v4** option names. This
+   * service runs `ai@6`, whose option is `providerOptions`, and neither old key
+   * appears anywhere in the installed package — measured, with `providerOptions`
+   * (116 occurrences) and `stopWhen` (12) as positive controls, so a zero is a
+   * fact about the SDK rather than about the search. `baseConfig` is typed
+   * `any` with an eslint-disable, so `tsc` had nothing to say about either.
+   *
+   * The consequence was that `thinkingMode` reached no provider at all, in any
+   * of the nineteen, and its only effect anywhere was the extended-reasoning
+   * layer `system-prompt-builder.ts` adds to the system message.
+   */
+  const providerOptions: Record<string, Record<string, unknown>> = {};
+
   if (thinkingMode && resolved.provider === 'anthropic') {
-    baseConfig.experimental_thinking = true;
-    log.v1.info('Enabled Anthropic thinking mode');
+    /**
+     * A budget, because Anthropic requires one and the number IS the cost.
+     *
+     * Thinking tokens are billed as OUTPUT tokens, and the anthropic-published
+     * models in the routing table cap `maxOutputTokens` at 8192, so this budget
+     * is the ceiling on how much a reasoning request can grow: up to +25% of
+     * that cap. It is a named constant rather than a literal precisely so the
+     * cost dial has somewhere to be turned.
+     *
+     * `maxTokens` is set alongside it, and not left to the caller: Anthropic
+     * requires the budget to be strictly below `max_tokens`, so a request that
+     * enabled thinking without one could be refused outright.
+     */
+    providerOptions.anthropic = {
+      thinking: { type: 'enabled', budgetTokens: ANTHROPIC_THINKING_BUDGET_TOKENS },
+    };
+    if (baseConfig.maxTokens === undefined) {
+      baseConfig.maxTokens = ANTHROPIC_MAX_OUTPUT_TOKENS_WITH_THINKING;
+    }
+    log.v1.info(
+      { budgetTokens: ANTHROPIC_THINKING_BUDGET_TOKENS },
+      'Enabled Anthropic extended thinking',
+    );
   }
 
-  // Configure provider-specific features for reasoning
-  const providerMetadata: Record<string, Record<string, unknown>> = {};
-
-  if (resolved.provider === 'google') {
-    // Enable thought summaries for Gemini
-    providerMetadata.google = { includeThoughts: true };
+  /**
+   * Gemini's thought summaries, now gated on the flag.
+   *
+   * This is a SECOND defect and not the same one: the branch was never
+   * conditional, so every Gemini request asked for thought summaries whether or
+   * not the caller wanted reasoning. It was invisible only because the option
+   * was written under a key the SDK does not read — fixing the key alone would
+   * have turned it on for everybody.
+   */
+  if (thinkingMode && resolved.provider === 'google') {
+    providerOptions.google = { thinkingConfig: { includeThoughts: true } };
     log.v1.info('Enabled Gemini thought summaries');
   }
 
-  if (Object.keys(providerMetadata).length > 0) {
-    baseConfig.experimental_providerMetadata = providerMetadata;
+  if (Object.keys(providerOptions).length > 0) {
+    baseConfig.providerOptions = providerOptions;
   }
 
   if (process.env.NODE_ENV !== 'production') {
