@@ -3520,9 +3520,9 @@
         "provider-warmup",
         "script-sync-zeroeval"
       ],
-      "removalGate": "Relevant to the epic because 'we warm the model cache at boot' is false today; any Relay design that assumes a warmed cache is designing against fiction.",
+      "removalGate": "FIXED. `startBackgroundServices()` is called directly from the `server.listen` callback; the `connectDB()` retry loop it hung off is deleted along with `lib/db.ts`. The claim this row was raised against \u2014 'we warm the model cache at boot' \u2014 is now true, so a Relay design may assume a warmed cache.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/index.ts:338-344 (startBackgroundServices), :386-398 (only caller), :435-446 (the comment), :449 (warmupProviders, outside the gate)"
+      "evidence": "packages/api/src/lib/background-services.ts (the nine starters, extracted so they can be asserted); packages/api/src/index.ts, `startBackgroundServices()` inside `server.listen`; packages/api/src/lib/__tests__/background-services.test.ts asserts which services start and in what order; packages/api/src/db/__tests__/bootWiring.test.ts walks the import graph from src/index.ts and asserts no Mongoose driver is reachable"
     },
     {
       "id": "hazard-plaintext-key-in-memory",

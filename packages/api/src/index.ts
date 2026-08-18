@@ -5,10 +5,8 @@ import { createOxyCors } from '@oxyhq/core/server';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
-import { connectDB } from './lib/db.js';
-import { closePostgres, getDb } from './db/index.js';
+import { closePostgres } from './db/index.js';
 import { runBootGuards } from './lib/boot-guards.js';
-import { failOrphanedAudioJobs } from './db/notifications/audioJobRepository.js';
 import { startExpirySweeper, stopExpirySweeper } from './db/expirySweeper.js';
 import { log } from './lib/logger.js';
 import { isAbortError, isFatalError, isTransientNetworkError } from './lib/error-classification.js';
@@ -53,7 +51,6 @@ import auditRouter from './routes/audit.js';
 import oxyServiceEventsRouter from './routes/oxy-service-events.js';
 import reportsRouter from './routes/reports.js';
 import { createCrowdSourceWebhookRoutes } from './routes/crowdsource-webhook.js';
-import { moderationOutboxDispatcher } from './lib/crowdsource/dispatcher.js';
 
 // Register hooks (side-effect import)
 import './lib/hooks/index.js';
@@ -61,20 +58,13 @@ import { aliasDeprecationHeaders } from './middleware/alias-deprecation.js';
 import { credentialDeprecationHeaders } from './middleware/credential-deprecation.js';
 import { authenticateToken } from './middleware/auth.js';
 import { resolveWorkspace } from './middleware/workspace.js';
-import { syncZeroEval } from './scripts/sync-zeroeval.js';
-import { seedBots } from './lib/seed-bots.js';
-import { startTriggerEngine, stopTriggerEngine } from './lib/trigger-engine.js';
+import { startBackgroundServices, stopBackgroundServices } from './lib/background-services.js';
 import { warmupProviders } from './lib/provider-warmup.js';
-import { warmupGatewayClient } from './lib/gateway-client.js';
 import { initChannels } from './lib/channels/index.js';
 // Socket.io
 import { initSocket } from './socket.js';
 // MCP relay for local MCP tool calls via WebSocket
 import { initMcpRelay, shutdownMcpRelay } from './lib/mcp-relay.js';
-// Task queue for async agent sessions (BullMQ + Redis)
-import { initTaskQueue, startWorker, shutdownTaskQueue } from './lib/task-queue.js';
-import { initShowQueue, startShowWorker, shutdownShowQueue } from './lib/show/show-queue.js';
-import { getContainerPool, shutdownContainerPool } from './lib/sandbox/container-pool.js';
 
 // Fix for ES Modules __dirname
 const __filename = fileURLToPath(import.meta.url);
@@ -368,81 +358,6 @@ process.on('uncaughtException', (error) => {
   setTimeout(() => process.exit(1), 5000).unref();
 });
 
-// Background services that depend on a live MongoDB connection. Run once the
-// first connection is established (and re-seeding is idempotent on reconnect).
-let backgroundServicesStarted = false;
-function startBackgroundServices(): void {
-  if (backgroundServicesStarted) return;
-  backgroundServicesStarted = true;
-
-  // Warm up gateway client cache (non-blocking)
-  warmupGatewayClient().catch((err) => log.general.error({ err }, '[Gateway] Client warmup error'));
-  /*
-   * Seeding does not happen here. `scripts/seed.ts` runs it on the deploy
-   * boundary, because everything in this function is reached only from
-   * `connectDB().then(...)` — a Mongo connection that no longer exists and never
-   * resolves — so a seeder placed here runs never, which is why production holds
-   * 0 `plans` and every account falls to the free floor.
-   *
-   * `bots` is the last one still here, and it is still dead: `lib/seed-bots.ts`
-   * derives its id from `TELEGRAM_BOT_TOKEN` / `DISCORD_APP_ID`, which the task
-   * definition does not set, so running it writes placeholder-keyed rows that
-   * look right. It moves to the one-shot when real credentials land.
-   */
-  seedBots().catch((err) => log.general.error({ err }, '[Bots] Seed error'));
-  // Sync external models in background (non-blocking)
-  syncZeroEval().catch((err) => log.general.error({ err }, '[ZeroEval] Background sync error'));
-  // Start trigger engine under leader election (non-blocking) — only the
-  // elected instance runs the scheduler, so triggers fire once across tasks.
-  startTriggerEngine();
-  // Drain the moderation outbox. Deliberately NOT leader-gated: every event is
-  // claimed under a lease with an owner check, so N tasks share the work and a
-  // dead task's lease is reclaimed rather than stranding a report. No-ops when
-  // the integration is disabled — the loop is gated, never the durable record.
-  moderationOutboxDispatcher.start();
-  // Initialize task queue for async agent sessions (non-blocking)
-  initTaskQueue()
-    .then(() => startWorker())
-    .catch((err) => log.general.error({ err }, '[TaskQueue] Startup error'));
-  // Pre-warm agent containers when the Docker host is configured.
-  getContainerPool()
-    .initialize()
-    .catch((err) => log.general.error({ err }, '[ContainerPool] Startup error'));
-  // Clean up orphaned audio jobs from previous process crashes (non-blocking).
-  // Was a dynamic `import()` of the Mongoose model purely to defer loading it;
-  // the repository is an ordinary module, so it is imported at the top now.
-  failOrphanedAudioJobs(getDb())
-    .then((count) => {
-      if (count > 0) log.general.info({ count }, 'Cleaned up orphaned audio jobs');
-    })
-    .catch((err) => log.general.error({ err }, '[AudioJob] Orphan cleanup error'));
-  // Initialize show generation queue (non-blocking)
-  initShowQueue()
-    .then(() => startShowWorker())
-    .catch((err) => log.general.error({ err }, '[ShowQueue] Startup error'));
-}
-
-// Attempt the MongoDB connection in the background with retry. The HTTP server
-// starts listening regardless so liveness probes pass and the process stays up
-// even when Mongo/Redis are unreachable. Readiness is NOT gated on this any
-// more — it asks Postgres a real question — so a task whose remaining Mongoose
-// call sites cannot connect still serves every ported route.
-function connectWithRetry(attempt = 1): void {
-  connectDB()
-    .then(() => {
-      log.general.info('MongoDB ready — starting background services');
-      startBackgroundServices();
-    })
-    .catch((error) => {
-      const delayMs = Math.min(30_000, 2_000 * attempt);
-      log.general.error(
-        { err: error, attempt, retryInMs: delayMs },
-        'MongoDB connection failed — retrying (server remains up; readiness will report not_ready)'
-      );
-      setTimeout(() => connectWithRetry(attempt + 1), delayMs).unref();
-    });
-}
-
 /*
  * Every refusal that must happen before the socket opens — #139 workstreams 2
  * and 8, plus the Postgres requirement.
@@ -473,25 +388,28 @@ server.listen(PORT, '0.0.0.0', () => {
 
   /**
    * Delete rows whose expiry has passed. This replaces 14 Mongo TTL indexes and
-   * had NO caller before this change — the targets were registered and tested,
+   * had NO caller when it was written — the targets were registered and tested,
    * and nothing ever swept them, so every expiry in the Postgres schema was
-   * inert. It depends only on Postgres, so unlike the services below it does not
-   * wait on a Mongo connection that is never coming.
+   * inert.
    */
   startExpirySweeper();
 
   /**
-   * Kick off the MongoDB connection (with retry) and the background services
-   * that depend on it.
+   * The trigger engine, the moderation-outbox dispatcher, both queues and the
+   * container pool.
    *
-   * These stay gated on Mongo until the last domain is ported: the trigger
-   * engine, the moderation outbox dispatcher, the queues and the seeds all still
-   * read Mongoose models, so starting them against Postgres now would only make
-   * them fail in a loop. Mongo no longer exists, so in practice this retries
-   * forever and none of them start — which is the honest current state, not an
-   * oversight. Moving them onto Postgres is the last slice of the port.
+   * These were gated on `connectDB()` resolving, which after the Mongo
+   * decommission it never does, so none of them had started in production since.
+   * The gate is gone rather than relaxed: every one of them reads Postgres or
+   * self-gates on its own dependency, and `db/__tests__/bootWiring.test.ts`
+   * walks the import graph from this file to assert no Mongoose driver is
+   * reachable from it at all.
+   *
+   * Called here, after `listen`, for the same reason the seeders are not called
+   * here at all: nothing on the boot path may stand between the process and
+   * `/health/live` answering.
    */
-  connectWithRetry();
+  startBackgroundServices();
 
   // Pre-warm TLS connections to AI providers (non-blocking, no DB dependency)
   warmupProviders().catch((err) => log.general.error({ err }, '[Warmup] Provider warmup error'));
@@ -537,20 +455,10 @@ const shutdown = async (signal: string) => {
       log.general.info('Socket.IO closed');
     }
 
-    // Release the trigger-engine leadership lease and stop scheduled tasks
-    await stopTriggerEngine();
-    log.general.info('Trigger engine stopped');
-
-    // Stop claiming moderation work, but let the event already in flight reach a
-    // durable state — an abandoned claim is reclaimable, a half-applied one is not.
-    await moderationOutboxDispatcher.stop();
-    log.general.info('Moderation outbox dispatcher stopped');
-
-    // Close task queue (drains in-flight jobs)
-    await shutdownTaskQueue();
-    await shutdownShowQueue();
-    await shutdownContainerPool();
-    log.general.info('Task queues shut down');
+    // Release the leader lease, stop draining the outbox, drain the queues and
+    // tear down the container pool — the mirror of `startBackgroundServices()`,
+    // and asserted to be its exact mirror in `lib/__tests__/background-services.test.ts`.
+    await stopBackgroundServices();
 
     // Close Redis connections
     const { closeRedis } = await import('./lib/redis.js');
@@ -563,11 +471,6 @@ const shutdown = async (signal: string) => {
     // Stop sweeping before the pool closes, so a sweep in flight is not cut off
     // mid-statement by the handle disappearing underneath it.
     stopExpirySweeper();
-
-    // Close MongoDB connection
-    const mongoose = await import('mongoose');
-    await mongoose.default.connection.close();
-    log.general.info('MongoDB connection closed');
 
     // Close the Postgres pool last: it is the store every ported route reads, so
     // it stays open until everything that could still be using it has stopped.

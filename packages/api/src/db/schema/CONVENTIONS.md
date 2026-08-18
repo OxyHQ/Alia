@@ -38,17 +38,23 @@ arbitrarily. Anything needing creation order must sort by an explicit timestamp
 column with the id only as a tiebreaker. Keyset pagination is unaffected — it
 needs a total order, not a meaningful one.
 
-## Postgres is OPTIONAL until cutover, and `tryGetDb()` is why
+## Postgres is REQUIRED at boot, and there is no `tryGetDb()`
 
-The live task definition carries `MONGODB_URI` and no `DATABASE_URL`, so
-`connectPostgres()` returns `null` when unconfigured and `db/index.ts` exposes
-`tryGetDb()` beside the throwing `getDb()`. Integrations has only the throwing
-one because Postgres is its only store.
+Cutover happened. `runBootGuards()` refuses to start the process without
+`DATABASE_URL`, before the socket opens, and `getDb()` is the only accessor —
+it throws rather than returning `null`. `tryGetDb()` is deleted: its single
+caller answered the null by returning early, which turned "the database is
+missing" into "there was nothing to do".
 
-At cutover this becomes required at boot, exactly as in every other Oxy backend.
-Until then a `null` must mean **"not configured"** and never **"not connected
-yet"** — a read that silently fell back to Mongo after its domain had been ported
-would be indistinguishable from success.
+`connectPostgres()` still answers `null` for an unconfigured URL rather than
+throwing, because the decision "this is fatal" belongs to boot rather than to
+the module that opens a pool. What is gone is any code path that CARRIES that
+null.
+
+Mongo is no longer this service's store at all, in either direction: `lib/db.ts`
+and the boot-time `connectDB()` are deleted, and `db/__tests__/bootWiring.test.ts`
+walks the import graph from `src/index.ts` and asserts no Mongoose driver is
+reachable from it. `integrations` is a separate process and still runs on Mongo.
 
 ## Closed value sets, and the ones deliberately left open
 

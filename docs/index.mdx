@@ -67,7 +67,7 @@ The monorepo uses Bun workspaces and Turbo. Bun is the only supported package ma
 bun install
 ```
 
-Copy `packages/api/.env.example` to `packages/api/.env` and fill it in. `DATABASE_URL` is the only variable the API cannot start without. `MONGODB_URI` is optional and covers the domains not yet ported; its database name is computed as `alia-{NODE_ENV}`, so do not embed it in the URI. Upstream model credentials are not environment variables — they live in the `provider_keys` table.
+Copy `packages/api/.env.example` to `packages/api/.env` and fill it in. `DATABASE_URL` is the only variable the API cannot start without — boot refuses without it. `MONGODB_URI` is not read by the server at all; the one first-party importer of the Mongo driver left is `packages/api/src/scripts/purge-ip-fields.ts`, an operator one-shot for a restored backup, whose database name is computed as `alia-{NODE_ENV}` and must not be embedded in the URI. Upstream model credentials are not environment variables — they live in the `provider_keys` table.
 
 ## Quick start
 
