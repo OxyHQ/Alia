@@ -276,6 +276,43 @@ function categoryLabel(category: string, t: Translate): string {
   return category.charAt(0).toLocaleUpperCase() + category.slice(1);
 }
 
+/**
+ * The 16×16 slot every row leads with.
+ *
+ * A row's glyph is the `emoji` its catalogue entry carries, and an entry may
+ * carry none — the field is nullable and the type says so. Rendering nothing in
+ * that case is what the row used to do, and it shifts the name left by the
+ * glyph plus the gap, so a list with one such entry no longer reads down a
+ * single edge. The slot is therefore always there and always the same width;
+ * only its contents vary.
+ *
+ * The fallback is a MONOGRAM of the row's own name, not an asset. There is no
+ * icon set in this repo for what a row denotes, and inventing asset paths for
+ * one would leave a menu of broken images the first time the catalogue names
+ * something the set never anticipated. A letter is honest, ages without
+ * maintenance, and — the reason it is worth building now rather than later —
+ * whatever replaces it plugs into this slot without the row changing shape.
+ */
+function RowGlyph({ emoji, name }: { emoji: string | null; name: string }) {
+  if (emoji !== null && emoji !== '') {
+    return (
+      <View className="w-4 h-4 items-center justify-center">
+        <Text className="text-sm">{emoji}</Text>
+      </View>
+    );
+  }
+  // `[...name]` rather than `name[0]`, because a UTF-16 index splits an
+  // astral character in half and renders a lone surrogate.
+  const initial = [...name.trim()][0] ?? '';
+  return (
+    <View className="w-4 h-4 items-center justify-center rounded bg-muted">
+      <Text className="text-[9px] font-semibold text-muted-foreground">
+        {initial.toLocaleUpperCase()}
+      </Text>
+    </View>
+  );
+}
+
 /** A small pill: a required plan, or an unavailability the server declared. */
 function RowBadge({ label, tone }: { label: string; tone: 'plan' | 'muted' }) {
   return (
@@ -315,7 +352,7 @@ function IdentityLine({
 }) {
   return (
     <View className="flex-row items-center gap-1.5">
-      {emoji !== null && <Text className="text-sm">{emoji}</Text>}
+      <RowGlyph emoji={emoji} name={name} />
       <View className="flex-row items-baseline gap-1">
         <Text className="text-sm font-medium text-foreground">{name}</Text>
         {variant !== null && (
