@@ -1,15 +1,38 @@
 import crypto from 'crypto';
-import mongoose from 'mongoose';
 import { Router, Request, Response } from 'express';
 import multer from 'multer';
 import { authenticateToken } from '../middleware/auth';
-import { Organization } from '../models/organization';
-import { OrganizationMember } from '../models/organization-member';
-import { OrganizationAgent } from '../models/organization-agent';
-import { OrganizationInvite } from '../models/organization-invite';
-import { Agent } from '../models/agent';
+import { getDb } from '../db/index.js';
+import { findAgentById, findAgentsByIds } from '../db/agents/agentRepository.js';
+import {
+  acceptInvite,
+  createInvite,
+  createOrganization,
+  declineInvite,
+  deleteNonOwnerMember,
+  deleteOrganization,
+  findLiveInviteByToken,
+  findMemberOfOrganization,
+  findMemberRole,
+  findOrganizationById,
+  listMembers,
+  listOrganizationsForMember,
+  listPendingInvites,
+  listSharedAgentIds,
+  revokeInvite,
+  shareAgentWithOrganization,
+  toInviteResponse,
+  toMemberResponse,
+  toOrganizationResponse,
+  unshareAgentFromOrganization,
+  updateMemberRole,
+  updateOrganization,
+  type OrganizationMemberResponse,
+  type OrganizationMemberRow,
+  type OrganizationRole,
+} from '../db/organizations/organizationRepository.js';
 import { uploadToS3, deleteFromS3 } from '../lib/s3';
-import { hydrateOxyUsers } from '../lib/oxy-user-hydration.js';
+import { hydrateOxyUsers, type HydratedOxyUser } from '../lib/oxy-user-hydration.js';
 import { z } from 'zod';
 import { log } from '../lib/logger.js';
 
@@ -27,6 +50,44 @@ const router = Router();
 // All routes require authentication
 router.use(authenticateToken);
 
+/**
+ * The roles that may administer an organization.
+ *
+ * Named once so every gate below asks the same question. `findMemberRole`
+ * answers with the caller's own role and nothing else, so a route can compare it
+ * but cannot accidentally serve somebody else's membership row.
+ */
+const ADMIN_ROLES: readonly OrganizationRole[] = ['owner', 'admin'];
+
+/**
+ * A member as the clients receive it: the row, plus `_id`, with `oxyUserId`
+ * replaced by an Oxy profile when one resolved.
+ *
+ * The union on `oxyUserId` is the contract the console already declares
+ * (`string | { _id, username, … }`) and the reason hydration can fail open.
+ */
+type HydratedMemberResponse = Omit<OrganizationMemberResponse, 'oxyUserId'> & {
+  readonly oxyUserId: string | HydratedOxyUser;
+};
+
+/**
+ * Replace each member's `oxyUserId` with a hydrated Oxy profile.
+ *
+ * `oxyUserId` names an account in Oxy, not a row here — see
+ * `lib/oxy-user-hydration.ts`. One batch call for the whole membership, and an
+ * id Oxy cannot resolve stays a bare id rather than removing the member from the
+ * list.
+ */
+async function withHydratedMembers(
+  members: readonly OrganizationMemberRow[],
+): Promise<HydratedMemberResponse[]> {
+  const profiles = await hydrateOxyUsers(members.map((m) => m.oxyUserId));
+  return members.map((member) => ({
+    ...toMemberResponse(member),
+    oxyUserId: profiles.get(member.oxyUserId) ?? member.oxyUserId,
+  }));
+}
+
 // ===========================================
 // INVITE ROUTES (must be before /:id to avoid param conflicts)
 // ===========================================
@@ -36,23 +97,27 @@ const BASE_URL = process.env.WEB_URL || 'https://alia.onl';
 // Get invite info by token (for accept page preview)
 router.get('/invites/:token/info', async (req: Request, res: Response) => {
   try {
-    const { token } = req.params;
+    const token = String(req.params.token);
 
-    const invite = await OrganizationInvite.findOne({
-      token,
-      status: 'pending',
-      expiresAt: { $gt: new Date() },
-    }).populate('organizationId', 'name slug image');
+    const found = await findLiveInviteByToken(getDb(), token);
 
-    if (!invite) {
+    if (!found) {
       return res.status(404).json({ error: 'Invitation not found, expired, or already used' });
     }
 
     res.json({
       invite: {
-        role: invite.role,
-        expiresAt: invite.expiresAt,
-        organization: invite.organizationId,
+        role: found.invite.role,
+        expiresAt: found.invite.expiresAt,
+        // The `.populate('organizationId', 'name slug image')` projection, kept
+        // exactly: this endpoint is reachable by anyone holding a token, so it
+        // answers with the organization's public face and no more.
+        organization: {
+          _id: found.organization.id,
+          name: found.organization.name,
+          slug: found.organization.slug,
+          image: found.organization.image,
+        },
       },
     });
   } catch (error: unknown) {
@@ -65,65 +130,34 @@ router.get('/invites/:token/info', async (req: Request, res: Response) => {
 router.post('/invites/:token/accept', async (req: Request, res: Response) => {
   try {
     const userId = req.user!.id;
-    const { token } = req.params;
+    const token = String(req.params.token);
 
-    const invite = await OrganizationInvite.findOne({
-      token,
-      status: 'pending',
-      expiresAt: { $gt: new Date() },
-    });
+    const result = await acceptInvite(getDb(), token, userId);
 
-    if (!invite) {
+    if (result.status === 'not-found') {
       return res.status(404).json({ error: 'Invitation not found, expired, or already used' });
     }
 
-    // Check if user is already a member
-    const existingMember = await OrganizationMember.findOne({
-      organizationId: invite.organizationId,
-      oxyUserId: userId,
-    });
-
-    if (existingMember) {
-      // Mark invite as accepted even if already a member
-      invite.status = 'accepted';
-      invite.acceptedAt = new Date();
-      invite.acceptedBy = new mongoose.Types.ObjectId(userId);
-      await invite.save();
-
+    if (result.status === 'already-member') {
+      // The invitation is spent either way — it was claimed by the same
+      // statement that discovered this — so a replay cannot seat anybody.
       return res.status(400).json({ error: 'You are already a member of this organization' });
     }
 
-    // Add user as a member with the invited role
-    await OrganizationMember.create({
-      organizationId: invite.organizationId,
-      oxyUserId: userId,
-      role: invite.role,
-      permissions: [],
-    });
-
-    // Mark invite as accepted
-    invite.status = 'accepted';
-    invite.acceptedAt = new Date();
-    invite.acceptedBy = new mongoose.Types.ObjectId(userId);
-    await invite.save();
-
-    // Fetch the organization to return
-    const organization = await Organization.findById(invite.organizationId);
-
     log.organization.info(
-      { organizationId: invite.organizationId, userId, inviteId: invite._id },
+      { organizationId: result.organization.id, userId },
       'Invitation accepted'
     );
 
     res.json({
       message: 'Invitation accepted successfully',
-      organization: organization ? {
-        _id: organization._id,
-        name: organization.name,
-        slug: organization.slug,
-        image: organization.image,
-      } : null,
-      role: invite.role,
+      organization: {
+        _id: result.organization.id,
+        name: result.organization.name,
+        slug: result.organization.slug,
+        image: result.organization.image,
+      },
+      role: result.role,
     });
   } catch (error: unknown) {
     log.organization.error({ err: error }, 'Error accepting invitation');
@@ -135,24 +169,16 @@ router.post('/invites/:token/accept', async (req: Request, res: Response) => {
 router.post('/invites/:token/decline', async (req: Request, res: Response) => {
   try {
     const userId = req.user!.id;
-    const { token } = req.params;
+    const token = String(req.params.token);
 
-    const invite = await OrganizationInvite.findOneAndUpdate(
-      {
-        token,
-        status: 'pending',
-        expiresAt: { $gt: new Date() },
-      },
-      { status: 'declined' },
-      { returnDocument: 'after' }
-    );
+    const invite = await declineInvite(getDb(), token);
 
     if (!invite) {
       return res.status(404).json({ error: 'Invitation not found, expired, or already used' });
     }
 
     log.organization.info(
-      { organizationId: invite.organizationId, userId, inviteId: invite._id },
+      { organizationId: invite.organizationId, userId, inviteId: invite.id },
       'Invitation declined'
     );
 
@@ -172,31 +198,15 @@ router.get('/', async (req: Request, res: Response) => {
   try {
     const userId = req.user!.id;
 
-    // Find all organizations where user is a member
-    const memberships = await OrganizationMember.find({ oxyUserId: userId });
-    const orgIds = memberships.map((m) => m.organizationId);
+    const memberships = await listOrganizationsForMember(getDb(), userId);
 
-    const organizations = await Organization.find({ _id: { $in: orgIds } })
-      .sort({ createdAt: -1 });
-
-    // Get member counts per organization
-    const memberCounts = await OrganizationMember.aggregate([
-      { $match: { organizationId: { $in: orgIds } } },
-      { $group: { _id: '$organizationId', count: { $sum: 1 } } },
-    ]);
-    const countMap = new Map(memberCounts.map((c) => [c._id.toString(), c.count]));
-
-    // Add role and memberCount to each organization
-    const orgsWithRole = organizations.map((org) => {
-      const membership = memberships.find((m) => m.organizationId.toString() === org._id.toString());
-      return {
-        ...org.toObject(),
-        role: membership?.role,
-        memberCount: countMap.get(org._id.toString()) || 0,
-      };
+    res.json({
+      organizations: memberships.map((m) => ({
+        ...toOrganizationResponse(m.organization),
+        role: m.role,
+        memberCount: m.memberCount,
+      })),
     });
-
-    res.json({ organizations: orgsWithRole });
   } catch (error: unknown) {
     log.organization.error({ err: error }, 'Error fetching organizations');
     res.status(500).json({ error: 'Failed to fetch organizations' });
@@ -207,39 +217,33 @@ router.get('/', async (req: Request, res: Response) => {
 router.get('/:id', async (req: Request, res: Response) => {
   try {
     const userId = req.user!.id;
-    const { id } = req.params;
+    const id = String(req.params.id);
 
-    // Check if user is a member
-    const membership = await OrganizationMember.findOne({
-      organizationId: id,
-      oxyUserId: userId,
-    });
+    const role = await findMemberRole(getDb(), id, userId);
 
-    if (!membership) {
+    if (!role) {
       return res.status(403).json({ error: 'Not a member of this organization' });
     }
 
-    const organization = await Organization.findById(id);
+    const organization = await findOrganizationById(getDb(), id);
 
     if (!organization) {
       return res.status(404).json({ error: 'Organization not found' });
     }
 
-    // `oxyUserId` names an Oxy account, not a local document — see
-    // lib/oxy-user-hydration.ts. One batch call for the whole membership.
-    const members = await OrganizationMember.find({ organizationId: id }).sort({ createdAt: -1 });
-    const profiles = await hydrateOxyUsers(members.map((m) => m.oxyUserId?.toString()));
+    const members = await listMembers(getDb(), id);
+    const hydrated = await withHydratedMembers(members);
 
     res.json({
       organization: {
-        ...organization.toObject(),
-        role: membership.role,
-        members: members.map((m) => ({
-          _id: m._id,
-          oxyUserId: profiles.get(m.oxyUserId?.toString() ?? '') ?? m.oxyUserId,
-          role: m.role,
-          permissions: m.permissions,
-          createdAt: m.createdAt,
+        ...toOrganizationResponse(organization),
+        role,
+        members: hydrated.map((member) => ({
+          _id: member._id,
+          oxyUserId: member.oxyUserId,
+          role: member.role,
+          permissions: member.permissions,
+          createdAt: member.createdAt,
         })),
       },
     });
@@ -261,28 +265,22 @@ router.post('/', async (req: Request, res: Response) => {
     const userId = req.user!.id;
     const validatedData = createOrgSchema.parse(req.body);
 
-    // Check if slug is already taken
-    const existing = await Organization.findOne({ slug: validatedData.slug });
-    if (existing) {
-      return res.status(400).json({ error: 'Organization slug already taken' });
-    }
-
-    const organization = new Organization({
-      ...validatedData,
+    // The slug check IS the insert: `organizations_slug_lower_key` refuses a
+    // duplicate, including one differing only in case, and a null result is
+    // that refusal. A `findOne` first would leave a race that seated the loser
+    // as the owner of nothing.
+    const organization = await createOrganization(getDb(), {
+      name: validatedData.name,
+      slug: validatedData.slug,
+      description: validatedData.description,
       ownerId: userId,
     });
 
-    await organization.save();
+    if (!organization) {
+      return res.status(400).json({ error: 'Organization slug already taken' });
+    }
 
-    // Add creator as owner
-    await OrganizationMember.create({
-      organizationId: organization._id,
-      oxyUserId: userId,
-      role: 'owner',
-      permissions: ['*'],
-    });
-
-    res.status(201).json({ organization });
+    res.status(201).json({ organization: toOrganizationResponse(organization) });
   } catch (error: unknown) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: 'Invalid input', details: error.errors });
@@ -306,32 +304,23 @@ const updateOrgSchema = z.object({
 router.patch('/:id', async (req: Request, res: Response) => {
   try {
     const userId = req.user!.id;
-    const { id } = req.params;
+    const id = String(req.params.id);
 
-    // Check if user is admin or owner
-    const membership = await OrganizationMember.findOne({
-      organizationId: id,
-      oxyUserId: userId,
-      role: { $in: ['owner', 'admin'] },
-    });
+    const role = await findMemberRole(getDb(), id, userId);
 
-    if (!membership) {
+    if (!role || !ADMIN_ROLES.includes(role)) {
       return res.status(403).json({ error: 'Insufficient permissions' });
     }
 
     const validatedData = updateOrgSchema.parse(req.body);
 
-    const organization = await Organization.findByIdAndUpdate(
-      id,
-      { $set: validatedData },
-      { returnDocument: 'after' }
-    );
+    const organization = await updateOrganization(getDb(), id, validatedData);
 
     if (!organization) {
       return res.status(404).json({ error: 'Organization not found' });
     }
 
-    res.json({ organization });
+    res.json({ organization: toOrganizationResponse(organization) });
   } catch (error: unknown) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: 'Invalid input', details: error.errors });
@@ -345,15 +334,11 @@ router.patch('/:id', async (req: Request, res: Response) => {
 router.post('/:id/image', upload.single('file'), async (req: Request, res: Response) => {
   try {
     const userId = req.user!.id;
-    const { id } = req.params;
+    const id = String(req.params.id);
 
-    const membership = await OrganizationMember.findOne({
-      organizationId: id,
-      oxyUserId: userId,
-      role: { $in: ['owner', 'admin'] },
-    });
+    const role = await findMemberRole(getDb(), id, userId);
 
-    if (!membership) {
+    if (!role || !ADMIN_ROLES.includes(role)) {
       return res.status(403).json({ error: 'Insufficient permissions' });
     }
 
@@ -363,18 +348,14 @@ router.post('/:id/image', upload.single('file'), async (req: Request, res: Respo
     }
 
     // Delete previous image from S3 if one exists
-    const existingOrg = await Organization.findById(id);
+    const existingOrg = await findOrganizationById(getDb(), id);
     if (existingOrg?.image) {
       await deleteFromS3(existingOrg.image);
     }
 
     const imageUrl = await uploadToS3(file.buffer, file.originalname, `organizations/${id}`, 'logo');
 
-    const organization = await Organization.findByIdAndUpdate(
-      id,
-      { $set: { image: imageUrl } },
-      { returnDocument: 'after' },
-    );
+    const organization = await updateOrganization(getDb(), id, { image: imageUrl });
 
     if (!organization) {
       return res.status(404).json({ error: 'Organization not found' });
@@ -391,21 +372,17 @@ router.post('/:id/image', upload.single('file'), async (req: Request, res: Respo
 router.delete('/:id', async (req: Request, res: Response) => {
   try {
     const userId = req.user!.id;
-    const { id } = req.params;
+    const id = String(req.params.id);
 
     // Only owner can delete
-    const membership = await OrganizationMember.findOne({
-      organizationId: id,
-      oxyUserId: userId,
-      role: 'owner',
-    });
+    const role = await findMemberRole(getDb(), id, userId);
 
-    if (!membership) {
+    if (role !== 'owner') {
       return res.status(403).json({ error: 'Only owner can delete organization' });
     }
 
-    await Organization.findByIdAndDelete(id);
-    await OrganizationMember.deleteMany({ organizationId: id });
+    // Members, invitations and shared agents go with it, by cascade.
+    await deleteOrganization(getDb(), id);
 
     res.json({ message: 'Organization deleted successfully' });
   } catch (error: unknown) {
@@ -422,27 +399,15 @@ router.delete('/:id', async (req: Request, res: Response) => {
 router.get('/:id/members', async (req: Request, res: Response) => {
   try {
     const userId = req.user!.id;
-    const { id } = req.params;
+    const id = String(req.params.id);
 
-    // Check if user is a member
-    const membership = await OrganizationMember.findOne({
-      organizationId: id,
-      oxyUserId: userId,
-    });
+    const role = await findMemberRole(getDb(), id, userId);
 
-    if (!membership) {
+    if (!role) {
       return res.status(403).json({ error: 'Not a member of this organization' });
     }
 
-    // See lib/oxy-user-hydration.ts — `oxyUserId` names an Oxy account.
-    const rows = await OrganizationMember.find({ organizationId: id })
-      .sort({ createdAt: -1 })
-      .lean();
-    const profiles = await hydrateOxyUsers(rows.map((m) => m.oxyUserId?.toString()));
-    const members = rows.map((m) => ({
-      ...m,
-      oxyUserId: profiles.get(m.oxyUserId?.toString() ?? '') ?? m.oxyUserId,
-    }));
+    const members = await withHydratedMembers(await listMembers(getDb(), id));
 
     res.json({ members });
   } catch (error: unknown) {
@@ -463,21 +428,16 @@ router.post('/:id/members', async (req: Request<{ id: string }>, res: Response) 
     const userId = req.user!.id;
     const { id } = req.params;
 
-    // Check if user is admin or owner
-    const membership = await OrganizationMember.findOne({
-      organizationId: id,
-      oxyUserId: userId,
-      role: { $in: ['owner', 'admin'] },
-    });
+    const callerRole = await findMemberRole(getDb(), id, userId);
 
-    if (!membership) {
+    if (!callerRole || !ADMIN_ROLES.includes(callerRole)) {
       return res.status(403).json({ error: 'Insufficient permissions' });
     }
 
     const { role } = inviteMemberSchema.parse(req.body);
 
     // Verify the organization exists
-    const organization = await Organization.findById(id);
+    const organization = await findOrganizationById(getDb(), id);
     if (!organization) {
       return res.status(404).json({ error: 'Organization not found' });
     }
@@ -486,25 +446,24 @@ router.post('/:id/members', async (req: Request<{ id: string }>, res: Response) 
     const token = crypto.randomBytes(32).toString('base64url');
     const expiresAt = new Date(Date.now() + INVITE_EXPIRY_DAYS * 24 * 60 * 60 * 1000);
 
-    const invite = await OrganizationInvite.create({
+    const invite = await createInvite(getDb(), {
       organizationId: id,
       role,
       token,
       invitedBy: userId,
-      status: 'pending',
       expiresAt,
     });
 
     const inviteUrl = `${BASE_URL}/org-invite/${token}`;
 
     log.organization.info(
-      { organizationId: id, role, inviteId: invite._id },
+      { organizationId: id, role, inviteId: invite.id },
       'Organization invite link created'
     );
 
     res.status(201).json({
       invite: {
-        _id: invite._id,
+        _id: invite.id,
         role: invite.role,
         status: invite.status,
         token: invite.token,
@@ -526,26 +485,17 @@ router.post('/:id/members', async (req: Request<{ id: string }>, res: Response) 
 router.get('/:id/invites', async (req: Request, res: Response) => {
   try {
     const userId = req.user!.id;
-    const { id } = req.params;
+    const id = String(req.params.id);
 
-    // Check if user is admin or owner
-    const membership = await OrganizationMember.findOne({
-      organizationId: id,
-      oxyUserId: userId,
-      role: { $in: ['owner', 'admin'] },
-    });
+    const role = await findMemberRole(getDb(), id, userId);
 
-    if (!membership) {
+    if (!role || !ADMIN_ROLES.includes(role)) {
       return res.status(403).json({ error: 'Insufficient permissions' });
     }
 
-    const invites = await OrganizationInvite.find({
-      organizationId: id,
-      status: 'pending',
-      expiresAt: { $gt: new Date() },
-    }).sort({ createdAt: -1 });
+    const invites = await listPendingInvites(getDb(), id);
 
-    res.json({ invites });
+    res.json({ invites: invites.map(toInviteResponse) });
   } catch (error: unknown) {
     log.organization.error({ err: error }, 'Error fetching invitations');
     res.status(500).json({ error: 'Failed to fetch invitations' });
@@ -556,28 +506,16 @@ router.get('/:id/invites', async (req: Request, res: Response) => {
 router.delete('/:id/invites/:inviteId', async (req: Request, res: Response) => {
   try {
     const userId = req.user!.id;
-    const { id, inviteId } = req.params;
+    const id = String(req.params.id);
+    const inviteId = String(req.params.inviteId);
 
-    // Check if user is admin or owner
-    const membership = await OrganizationMember.findOne({
-      organizationId: id,
-      oxyUserId: userId,
-      role: { $in: ['owner', 'admin'] },
-    });
+    const role = await findMemberRole(getDb(), id, userId);
 
-    if (!membership) {
+    if (!role || !ADMIN_ROLES.includes(role)) {
       return res.status(403).json({ error: 'Insufficient permissions' });
     }
 
-    const invite = await OrganizationInvite.findOneAndUpdate(
-      {
-        _id: inviteId,
-        organizationId: id,
-        status: 'pending',
-      },
-      { status: 'expired' },
-      { returnDocument: 'after' }
-    );
+    const invite = await revokeInvite(getDb(), inviteId, id);
 
     if (!invite) {
       return res.status(404).json({ error: 'Invitation not found or already processed' });
@@ -599,32 +537,28 @@ const updateMemberSchema = z.object({
 router.patch('/:id/members/:memberId', async (req: Request, res: Response) => {
   try {
     const userId = req.user!.id;
-    const { id, memberId } = req.params;
+    const id = String(req.params.id);
+    const memberId = String(req.params.memberId);
 
     // Check if user is owner (only owners can change roles)
-    const membership = await OrganizationMember.findOne({
-      organizationId: id,
-      oxyUserId: userId,
-      role: 'owner',
-    });
+    const callerRole = await findMemberRole(getDb(), id, userId);
 
-    if (!membership) {
+    if (callerRole !== 'owner') {
       return res.status(403).json({ error: 'Only owner can change member roles' });
     }
 
     const { role } = updateMemberSchema.parse(req.body);
 
-    const member = await OrganizationMember.findByIdAndUpdate(
-      memberId,
-      { role },
-      { returnDocument: 'after' }
-    );
+    // Scoped to THIS organization: the Mongo statement took the member id alone,
+    // so an owner here could rewrite a role in an organization they have nothing
+    // to do with.
+    const member = await updateMemberRole(getDb(), memberId, id, role);
 
     if (!member) {
       return res.status(404).json({ error: 'Member not found' });
     }
 
-    res.json({ member });
+    res.json({ member: toMemberResponse(member) });
   } catch (error: unknown) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: 'Invalid input', details: error.errors });
@@ -638,20 +572,16 @@ router.patch('/:id/members/:memberId', async (req: Request, res: Response) => {
 router.delete('/:id/members/:memberId', async (req: Request, res: Response) => {
   try {
     const userId = req.user!.id;
-    const { id, memberId } = req.params;
+    const id = String(req.params.id);
+    const memberId = String(req.params.memberId);
 
-    // Check if user is admin or owner
-    const membership = await OrganizationMember.findOne({
-      organizationId: id,
-      oxyUserId: userId,
-      role: { $in: ['owner', 'admin'] },
-    });
+    const callerRole = await findMemberRole(getDb(), id, userId);
 
-    if (!membership) {
+    if (!callerRole || !ADMIN_ROLES.includes(callerRole)) {
       return res.status(403).json({ error: 'Insufficient permissions' });
     }
 
-    const memberToRemove = await OrganizationMember.findById(memberId);
+    const memberToRemove = await findMemberOfOrganization(getDb(), memberId, id);
 
     if (!memberToRemove) {
       return res.status(404).json({ error: 'Member not found' });
@@ -662,7 +592,9 @@ router.delete('/:id/members/:memberId', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Cannot remove organization owner' });
     }
 
-    await OrganizationMember.findByIdAndDelete(memberId);
+    // The exclusion is repeated in the DELETE itself, so a role changing between
+    // the read and the write cannot remove an owner.
+    await deleteNonOwnerMember(getDb(), memberId, id);
 
     res.json({ message: 'Member removed successfully' });
   } catch (error: unknown) {
@@ -679,36 +611,28 @@ router.delete('/:id/members/:memberId', async (req: Request, res: Response) => {
 router.post('/:id/agents', async (req: Request, res: Response) => {
   try {
     const userId = req.user!.id;
-    const { id } = req.params;
-    const { agentId } = req.body;
+    const id = String(req.params.id);
+    const agentId: unknown = req.body?.agentId;
 
-    if (!agentId) {
+    if (typeof agentId !== 'string' || agentId === '') {
       return res.status(400).json({ error: 'agentId is required' });
     }
 
-    // Check if user is admin or owner
-    const membership = await OrganizationMember.findOne({
-      organizationId: id,
-      oxyUserId: userId,
-      role: { $in: ['owner', 'admin'] },
-    });
+    const role = await findMemberRole(getDb(), id, userId);
 
-    if (!membership) {
+    if (!role || !ADMIN_ROLES.includes(role)) {
       return res.status(403).json({ error: 'Insufficient permissions' });
     }
 
-    // Verify agent exists
-    const agent = await Agent.findById(agentId);
+    // Verify agent exists. `organization_agents.agent_id` carries no foreign key
+    // — see the schema comment — so this read is what stops a share naming
+    // nothing.
+    const agent = await findAgentById(getDb(), agentId);
     if (!agent) {
       return res.status(404).json({ error: 'Agent not found' });
     }
 
-    // Upsert to avoid duplicates
-    await OrganizationAgent.findOneAndUpdate(
-      { organizationId: id, agentId },
-      { $setOnInsert: { addedBy: userId } },
-      { upsert: true, returnDocument: 'after' },
-    );
+    await shareAgentWithOrganization(getDb(), id, agentId, userId);
 
     res.json({ added: true });
   } catch (error: unknown) {
@@ -721,25 +645,36 @@ router.post('/:id/agents', async (req: Request, res: Response) => {
 router.get('/:id/agents', async (req: Request, res: Response) => {
   try {
     const userId = req.user!.id;
-    const { id } = req.params;
+    const id = String(req.params.id);
 
-    // Check if user is a member
-    const membership = await OrganizationMember.findOne({
-      organizationId: id,
-      oxyUserId: userId,
-    });
+    const role = await findMemberRole(getDb(), id, userId);
 
-    if (!membership) {
+    if (!role) {
       return res.status(403).json({ error: 'Not a member of this organization' });
     }
 
-    const orgAgents = await OrganizationAgent.find({ organizationId: id })
-      .populate('agentId')
-      .sort({ createdAt: -1 });
-
-    const agents = orgAgents
-      .filter(oa => oa.agentId != null)
-      .map(oa => oa.agentId);
+    /**
+     * `.populate('agentId')` followed by a `!= null` filter — a share whose
+     * agent no longer exists was dropped from the list rather than serving a
+     * null. `findAgentsByIds` answers with exactly the agents that exist, which
+     * is the same set.
+     *
+     * The ORDER is restored here rather than taken from that answer.
+     * `listSharedAgentIds` is sorted by when the agent was SHARED, which is what
+     * the Mongo `.sort({ createdAt: -1 })` sorted by (the join row's timestamp,
+     * not the agent's); `findAgentsByIds` is an `inArray` with no `ORDER BY`, so
+     * Postgres may return any order at all. Serving that directly would reshuffle
+     * the list on an unrelated day, which is the kind of difference nobody
+     * reports and nobody can reproduce.
+     */
+    const agentIds = await listSharedAgentIds(getDb(), id);
+    const byId = new Map(
+      (await findAgentsByIds(getDb(), agentIds)).map((agent) => [agent.id, agent]),
+    );
+    const agents = agentIds.flatMap((agentId) => {
+      const agent = byId.get(agentId);
+      return agent ? [agent] : [];
+    });
 
     res.json({ agents });
   } catch (error: unknown) {
@@ -752,22 +687,18 @@ router.get('/:id/agents', async (req: Request, res: Response) => {
 router.delete('/:id/agents/:agentId', async (req: Request, res: Response) => {
   try {
     const userId = req.user!.id;
-    const { id, agentId } = req.params;
+    const id = String(req.params.id);
+    const agentId = String(req.params.agentId);
 
-    // Check if user is admin or owner
-    const membership = await OrganizationMember.findOne({
-      organizationId: id,
-      oxyUserId: userId,
-      role: { $in: ['owner', 'admin'] },
-    });
+    const role = await findMemberRole(getDb(), id, userId);
 
-    if (!membership) {
+    if (!role || !ADMIN_ROLES.includes(role)) {
       return res.status(403).json({ error: 'Insufficient permissions' });
     }
 
-    const result = await OrganizationAgent.deleteOne({ organizationId: id, agentId });
+    const removed = await unshareAgentFromOrganization(getDb(), id, agentId);
 
-    if (result.deletedCount === 0) {
+    if (!removed) {
       return res.status(404).json({ error: 'Agent not found in organization' });
     }
 

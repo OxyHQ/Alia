@@ -31,7 +31,6 @@ vi.mock('../../middleware/auth.js', () => ({
   },
 }));
 
-const { OrganizationMember } = await import('../../models/organization-member.js');
 const { AgentReview } = await import('../../models/agent-review.js');
 const { hydrateOxyUsers } = await import('../oxy-user-hydration.js');
 
@@ -42,7 +41,7 @@ beforeAll(async () => {
 
 afterEach(async () => {
   getUsersByIds.mockReset();
-  await Promise.all([OrganizationMember.deleteMany({}), AgentReview.deleteMany({})]);
+  await AgentReview.deleteMany({});
 });
 
 afterAll(async () => {
@@ -59,37 +58,26 @@ describe('an Oxy-owned author is read without a Mongoose join', () => {
     // Vacuity floor: if this ever becomes false the suite below proves nothing,
     // because a registered User would let `.populate()` succeed.
     expect(mongoose.modelNames()).not.toContain('User');
-    expect(mongoose.modelNames()).toContain('OrganizationMember');
+    // And a floor on the SUBJECT: these assertions are about a real Mongoose
+    // model resolving a real ref, so the model has to be registered. It named
+    // `OrganizationMember` until S9 deleted that model; `AgentReview` carries the
+    // same `ref: 'User'` and is the remaining subject here.
+    expect(mongoose.modelNames()).toContain('AgentReview');
   });
 
-  it('lists members of a NON-EMPTY organization and hydrates the author', async () => {
-    const organizationId = new mongoose.Types.ObjectId();
-    const oxyUserId = new mongoose.Types.ObjectId();
-    await OrganizationMember.create({ organizationId, oxyUserId, role: 'member' });
-
-    getUsersByIds.mockResolvedValue([
-      {
-        id: oxyUserId.toHexString(),
-        username: 'ada',
-        name: { displayName: 'Ada Lovelace' },
-        avatar: 'file-1',
-      },
-    ]);
-
-    const rows = await OrganizationMember.find({ organizationId }).lean();
-    const profiles = await hydrateOxyUsers(rows.map((m) => m.oxyUserId?.toString()));
-
-    expect(rows).toHaveLength(1);
-    expect(profiles.get(oxyUserId.toHexString())).toEqual({
-      _id: oxyUserId.toHexString(),
-      username: 'ada',
-      displayName: 'Ada Lovelace',
-      avatar: 'file-1',
-    });
-    // One round trip for the page, not one per row.
-    expect(getUsersByIds).toHaveBeenCalledTimes(1);
-  });
-
+  /**
+   * The organization-membership half of this file moved with its model.
+   *
+   * `OrganizationMember` was the second subject here, and S9 deleted it: the
+   * member list is served from `organization_members` now, through
+   * `db/organizations/organizationRepository.ts`, and no `.populate()` exists on
+   * that path to reintroduce the fault. The equivalent coverage — a NON-EMPTY
+   * organization whose members hydrate in one batch call — is
+   * `db/__tests__/organizationRepository.pgdb.test.ts`, "hydrates the members of
+   * a NON-EMPTY organization in one batch call". Deleting the case without
+   * re-establishing it there would have retired a regression test for a bug that
+   * reached production, on the grounds that its fixture changed database.
+   */
   it('lists reviews of a NON-EMPTY agent without throwing MissingSchemaError', async () => {
     const agentId = new mongoose.Types.ObjectId();
     const userId = new mongoose.Types.ObjectId();
