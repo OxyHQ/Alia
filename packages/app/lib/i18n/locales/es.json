@@ -518,7 +518,13 @@
   },
   "welcome": {
     "greetingNamed": "Hola {{name}}, ¿qué tienes en mente?",
-    "greeting": "Hola, ¿qué tienes en mente?"
+    "greeting": "Hola, ¿qué tienes en mente?",
+    "intro": {
+      "headline": "Te presentamos Alia",
+      "subtitle": "Un asistente que recuerda lo que importa, trabaja con tus herramientas y elige el mejor modelo para cada tarea.",
+      "cta": "Empezar",
+      "skip": "Seguir sin cuenta"
+    }
   },
   "notifications": {
     "title": "Notificaciones",
