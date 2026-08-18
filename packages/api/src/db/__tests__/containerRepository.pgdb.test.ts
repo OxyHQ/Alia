@@ -360,6 +360,47 @@ describe('container templates', () => {
   });
 });
 
+describe('exposed_ports admits an EMPTY array, and no CHECK says otherwise', () => {
+  /**
+   * The same ratchet `skillRepository.pgdb.test.ts` carries, for the one array
+   * column on this table. Mongoose declared `exposedPorts: [{ type: Number }]`
+   * with no validator, and a container that has exposed nothing is the NORMAL
+   * case — `port_expose` is an optional tool — so an empty list is not an
+   * anomaly to constrain away.
+   *
+   * `array_length(exposed_ports, 1) >= 1` would ADMIT `{}` anyway: it returns
+   * NULL on an empty array and a CHECK rejects only FALSE. Measured on this
+   * suite's own server — such a constraint accepted `'{}'`, and the
+   * `cardinality` spelling rejected it.
+   */
+  it('defaults to an empty array and stores it as a zero-length array, not NULL', async () => {
+    const id = await seed('ctrr-empty-ports');
+
+    expect((await findOwnedContainer(db, id, OWNER))?.exposedPorts).toEqual([]);
+
+    // Raw, because an empty Postgres array and a NULL are different values that
+    // both read falsy in JavaScript, and the column is NOT NULL.
+    const raw = await db.execute(sql`
+      select cardinality(exposed_ports) as n, exposed_ports is null as is_null
+      from containers where container_id = ${id}
+    `);
+    expect(raw[0]).toMatchObject({ n: 0, is_null: false });
+  });
+
+  it('carries no CHECK constraint over exposed_ports', async () => {
+    const rows = await db.execute(sql`
+      select conname, pg_get_constraintdef(oid) as def
+      from pg_constraint
+      where conrelid = 'containers'::regclass and contype = 'c'
+    `);
+
+    // Vacuity floor: this table DOES have CHECKs, so an empty result would mean
+    // a broken query rather than an unconstrained table.
+    expect(rows.map((r) => String(r.conname))).toContain('containers_status_check');
+    expect(rows.filter((r) => String(r.def).includes('exposed_ports'))).toEqual([]);
+  });
+});
+
 describe('the schema carries no expires_at, because nothing ever stored one', () => {
   /**
    * `terminal-session.ts` used to write `expiresAt` beside `status: 'idle'`.
