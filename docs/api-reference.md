@@ -173,9 +173,9 @@ destination is not decided by this page.
 | `GET /health/ready` | "Can this task serve traffic." Issues a real `select 1` against Postgres (`routes/health.ts:59`) |
 | `GET /health` | Detailed snapshot, cached for 10 seconds |
 
-MongoDB is not reported by any of the three. Mongoose call sites remain until the last
-domain is ported, but their failure mode is a 500 on the route that made the call — the
-connection uses `bufferCommands: false`, so those calls throw rather than hang.
+MongoDB is not reported by any of the three, and there is nothing for them to report:
+`packages/api` registers no Mongoose model and opens no connection. Postgres is the only
+dependency a readiness answer turns on.
 
 ### Moving to Oxy
 

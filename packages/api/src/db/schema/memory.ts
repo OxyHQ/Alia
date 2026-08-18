@@ -11,7 +11,7 @@
  * models directory cannot see it, which is the "finding less looks identical to
  * there being less" failure in its cheapest form. When enumerating models to
  * port, enumerate `mongoose.model(` calls across the package rather than files
- * in one directory — `models/__tests__/foreign-ref-populate.test.ts` already
+ * in one directory — `models/__tests__/retiredModelFiles.test.ts` already
  * has to name a second directory for the same reason.
  *
  * No TTL index on either model, so neither appears in `db/expiryTargets.ts`.

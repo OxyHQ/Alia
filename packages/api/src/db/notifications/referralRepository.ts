@@ -23,13 +23,16 @@
  * a recorded redemption whose credit grant failed — visible, bounded, and the
  * direction anybody would choose.
  *
- * ## The credit grant CANNOT be in this transaction
+ * ## The credit grant is not in this transaction
  *
- * `user_credits` still belongs to the billing slice and is still Mongoose. A
- * Mongo session cannot enlist a Postgres write, so the two stores commit
- * separately. That is not a regression — the source had no transaction at all —
- * but it is why `redeemReferral` returns an outcome and leaves the money to the
- * caller instead of taking a callback.
+ * It could not be while `user_credits` was Mongoose — a Mongo session cannot
+ * enlist a Postgres write — and that is why `redeemReferral` returns an outcome
+ * and leaves the money to the caller instead of taking a callback. `user_credits`
+ * is now a Postgres table (`db/schema/billing.ts`), so the split is a CHOICE
+ * rather than a constraint, and folding the grant into this transaction is a
+ * behaviour change somebody should make deliberately rather than notice here.
+ * Until then the failure mode is unchanged: a recorded redemption whose credit
+ * grant failed — visible, bounded, and not a double payout.
  *
  * ## The counters stay stored, and are now also derivable
  *

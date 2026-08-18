@@ -5,9 +5,9 @@ import { sql } from 'drizzle-orm';
  * The delivery worker's write-back onto the report, against a real Postgres.
  *
  * The CrowdSource client and the evidence snapshot are stubbed — the first is a
- * third party and the second reaches `Agent`/`Skill`/`AgentReview`, which belong
- * to a later slice and are still on Mongoose. What is NOT stubbed is every write
- * this file is about: each `localStatus` transition is a real row read back.
+ * third party and the second reaches the agents, skills and reviews tables,
+ * which have their own suites. What is NOT stubbed is every write this file is
+ * about: each `localStatus` transition is a real row read back.
  *
  * The transitions matter more than they look. `received`, `delivery_failed` and
  * `closed` are three different claims about why a report is not moving, and the

@@ -36,8 +36,7 @@ Persistent entities, read through `db/autonomy/contextGraphRepository.ts`:
 - `context_nodes` - discovered entities (people, projects, docs, threads, etc.).
 - `context_edges` - relationships between nodes.
 - `retrieval_strategies` - per-intent navigation strategy.
-
-Learned corrections, preferences and constraints are still served by the Mongoose `LearningRule` model; that port is in flight.
+- `learning_rules` - learned corrections, preferences and constraints; read through `db/autonomy/learningRuleRepository.ts` rather than the context-graph repository.
 
 Ranking combines freshness, precision, and cost to choose source order.
 

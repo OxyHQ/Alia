@@ -43,7 +43,7 @@ Model access goes through thirteen `alia-*` identifiers. Upstream routing is nev
      +------------------+
 ```
 
-A MongoDB connection is still opened alongside PostgreSQL for the domains that have not been ported — conversations, messages, agents, organizations, containers, skills and a few more. It is not a readiness dependency. Under [ADR 0001](./adr/0001-alia-oxy-relay-responsibility-boundary.md) the in-process model calls move behind one typed client for a separate data plane (working name Relay), which does not exist yet.
+PostgreSQL is the only store. The last domains — conversations, messages, agents, organizations, containers, skills and the rest — are ported, and `packages/api` opens no MongoDB connection and registers no Mongoose model. Under [ADR 0001](./adr/0001-alia-oxy-relay-responsibility-boundary.md) the in-process model calls move behind one typed client for a separate data plane (working name Relay), which does not exist yet.
 
 | App | Stack | Purpose |
 | --- | --- | --- |
@@ -132,8 +132,8 @@ Persistent autonomy state:
 | `context_nodes` | entities discovered during retrieval (people, projects, docs, threads) | `db/autonomy/contextGraphRepository.ts` |
 | `context_edges` | relationships and confidence weights between nodes | `db/autonomy/contextGraphRepository.ts` |
 | `retrieval_strategies` | per-intent source ordering and fallback paths | `db/autonomy/contextGraphRepository.ts` |
-| `learning_rules` | persisted corrections, constraints, and preferences | the Mongoose `LearningRule` model — not ported yet |
-| `rollback_records` | before/after state and rollback payload for `R1` writes | the Mongoose `RollbackRecord` model — not ported yet |
+| `learning_rules` | persisted corrections, constraints, and preferences | `db/autonomy/learningRuleRepository.ts` |
+| `rollback_records` | before/after state and rollback payload for `R1` writes | `db/agents/rollbackRecordRepository.ts` |
 
 User-visible memory (preferences, long-term facts, occupation, tone) lives in `user_memories` and `user_memory_entries`, exposed via `/memory/*`.
 

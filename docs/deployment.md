@@ -14,12 +14,10 @@ image, the environment contract below, and the secret allow-list in the deploy w
 - **PostgreSQL, reachable.** `DATABASE_URL` is required. `packages/api/src/index.ts:411`
   calls `connectPostgresOrExit()` before the server listens; without it the process exits.
 - **Oxy identity service reachable** at `OXY_API_URL` for token verification.
-- **MongoDB, only for the domains not yet ported.** The connection is attempted in the
-  background with retry (`index.ts:381`) and the HTTP server starts regardless. Routes
-  backed by a Mongoose model return `500` while it is unreachable; every ported route
-  serves normally.
 - **Redis or Valkey, optional.** Without `REDIS_URL`, BullMQ tasks run inline and rate
   limiting fails open.
+
+There is no MongoDB precondition. See *Database* below.
 - **Object storage, required for uploads.** S3 or a compatible endpoint.
 
 ## Database
@@ -31,13 +29,26 @@ migration; a zero-capacity deploy exits before the post-migration step, so a `po
 migration does not land on one.
 
 **MongoDB** is no longer part of this service. `lib/db.ts` and the boot-time
-`connectDB()` are deleted; `packages/api/src/db/__tests__/bootWiring.test.ts`
-walks the import graph from `src/index.ts` and asserts no Mongoose driver is
-reachable from it. The one remaining first-party importer is
-`packages/api/src/scripts/purge-ip-fields.ts`, an operator one-shot for a
-RESTORED BACKUP, which takes `MONGODB_URI` and computes `alia-{NODE_ENV}` as its
-`dbName` — so never embed the database name in that URI. The `integrations`
-service is a separate process and still runs on Mongo.
+`connectDB()` are deleted, and no Mongoose model is registered.
+`packages/api/src/db/__tests__/bootWiring.test.ts` asserts this twice, because the
+two failures are different: it walks the import graph from `src/index.ts` and
+finds no Mongoose driver reachable from it, and it freezes the set of files in the
+package that import the driver AT ALL as exactly one. The first is what protects a
+request in production; the second is what catches a model declared today and
+routed next week.
+
+That one file is `packages/api/src/scripts/purge-ip-fields.ts`, an operator
+one-shot for a RESTORED BACKUP, which takes `MONGODB_URI` and computes
+`alia-{NODE_ENV}` as its `dbName` — so never embed the database name in that URI.
+It is kept because the archives it operates on are kept: the shared Mongo
+instance was destroyed on 2026-08-10, but the pre-drop archives sit under the
+`final/` prefix of `s3://oxy-mongo-backups-usw2-<account>`, which the bucket's
+`daily/`-scoped lifecycle rule does not expire, and the archived
+`alia-production` carried 120 `apikeyusages` documents with an `ipAddress` field.
+Deleting the script is what would let `mongoose` leave
+`packages/api/package.json`, and the two go in one commit.
+
+The `integrations` service is a separate process with its own manifest.
 
 ## Environment
 
@@ -152,9 +163,11 @@ number in a document drifts with every edit above it):
 3. Start listening. Nothing below blocks the listener.
 4. Start the expiry sweeper, which deletes rows whose retention has passed. It depends only
    on PostgreSQL.
-5. Attempt the MongoDB connection with backoff. Background services that read Mongoose
-   models — the trigger scheduler, the moderation outbox dispatcher, the queues and the
-   built-in seeds — start only once that connection succeeds.
+5. Start the background services — the trigger engine, the moderation-outbox dispatcher,
+   both queues and the container pool — unconditionally. These were gated on a MongoDB
+   connection resolving, which after the decommission it never did, so none of them had run
+   in production since; the gate is gone rather than relaxed, and each one self-gates on the
+   dependency it actually reads.
 6. Pre-warm TLS connections to upstream endpoints.
 
 ## Health checks

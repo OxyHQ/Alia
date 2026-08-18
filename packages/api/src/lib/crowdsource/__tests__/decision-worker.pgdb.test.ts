@@ -8,9 +8,8 @@ import { sql } from 'drizzle-orm';
  * This worker's own invariant is "one case, one consequence": a hundred reports
  * about the same material produce ONE case and enforcement is called exactly
  * ONCE no matter how many reports are updated. A spy is what can assert a call
- * COUNT; running the real service could not, and would additionally reach
- * `Agent`/`Skill`/`AgentReview`, which belong to a later slice and are still on
- * Mongoose.
+ * COUNT; running the real service could not, and would additionally reach the
+ * agents, skills and reviews tables, which have their own suites.
  *
  * Everything this file asserts about `reports` is real Postgres.
  */

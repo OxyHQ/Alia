@@ -10,7 +10,7 @@ Express + TypeScript API for Alia autonomy runtime.
 - Oxy service event ingestion with idempotency and autonomous session creation.
 - Governance by risk level (`R0` read, `R1` reversible write + rollback record, `R2` approval required, `R3` blocked).
 - Model abstraction on the product surface: only the `alia-*` identifiers are exposed.
-- PostgreSQL through drizzle as the primary store, with a background MongoDB connection for the domains not yet ported.
+- PostgreSQL through drizzle as the only store — no MongoDB connection is opened and no Mongoose model is registered.
 
 ## Runtime Flow
 

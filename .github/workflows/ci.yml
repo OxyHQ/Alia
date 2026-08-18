@@ -400,8 +400,8 @@ jobs:
     # single conditional statement whose whole behaviour is the server's.
     #
     # Separate from `lint-and-test` rather than folded into it: that job runs the
-    # Mongo suite, which needs no Postgres, and merging them would make every
-    # local `bun run test` require Docker.
+    # default suite, which needs no database at all, and merging them would make
+    # every local `bun run test` require Docker.
     services:
       postgres:
         image: postgres:17-alpine

@@ -488,7 +488,7 @@ exactly like there BEING less, so nothing about that result says it is short.
 It was caught only because the batch's table list was written from the feature
 rather than from the directory.
 
-`models/__tests__/foreign-ref-populate.test.ts` already names a second directory
+`models/__tests__/retiredModelFiles.test.ts` already names a second directory
 (`src/internal/providers/models/`) in its affirmative filter for the same
 reason, and would not have found this one either. Enumerate `mongoose.model(`
 across the whole package when deciding what is left to port; a directory listing

@@ -24,8 +24,9 @@
 Context is a persistent graph, not a chat log. `context_nodes`, `context_edges`,
 `context_sources` and `retrieval_strategies` are real PostgreSQL tables
 ([`packages/api/src/db/schema/context-graph.ts`](packages/api/src/db/schema/context-graph.ts)),
-read through `db/autonomy/contextGraphRepository.ts`. Learned rules are still served by the
-Mongoose `LearningRule` model; the port is in flight.
+read through `db/autonomy/contextGraphRepository.ts`. Learned rules are `learning_rules`
+([`packages/api/src/db/schema/agents-support.ts`](packages/api/src/db/schema/agents-support.ts)),
+read through `db/autonomy/learningRuleRepository.ts`.
 
 The autonomy runtime classifies the intent, recalls context for it, and feeds the result
 of the run back in: `classifyIntent`, `recallContextForIntent` and `learnFromRun` in
@@ -89,13 +90,15 @@ PostgreSQL through drizzle is the primary store: 80 tables under
 [`packages/api/src/db/schema/`](packages/api/src/db/schema/), and the API exits at boot if
 it cannot connect. Readiness (`GET /health/ready`) issues a real statement against it.
 
-A Mongoose connection is still opened in the background, with retry, for the domains that
-have not been ported: the seventeen models under
-[`packages/api/src/models/`](packages/api/src/models/) — conversations, messages, agents,
-agent sessions, teams and reviews, organizations and their members and invites, containers
-and templates, skills, learning rules, rollback records, canvas sessions and event-stream
-entries. Readiness does not consult it. Finishing that port is tracked on
-[#139](https://github.com/OxyHQ/Alia/issues/139).
+It is the only store. `@alia/api` opens no MongoDB connection and registers no Mongoose
+model — the last domains (conversations and messages, agents and their sessions, teams and
+reviews, organizations, containers, skills, learning rules, rollback records, canvas
+sessions and event-stream entries) landed in PostgreSQL with the port tracked on
+[#139](https://github.com/OxyHQ/Alia/issues/139). The driver survives as a dependency of one
+operator one-shot,
+[`packages/api/src/scripts/purge-ip-fields.ts`](packages/api/src/scripts/purge-ip-fields.ts),
+which strips persisted IPs out of a restored backup; `packages/api/src/db/__tests__/bootWiring.test.ts`
+freezes the set of files allowed to import it at exactly that one.
 
 ## Packages
 
@@ -110,7 +113,7 @@ workspace entry. Everything lives under `packages/`.
 
 | Path | Package | Stack |
 |---|---|---|
-| [`packages/api`](packages/api/) | `@alia/api` | Express, drizzle + PostgreSQL, Mongoose |
+| [`packages/api`](packages/api/) | `@alia/api` | Express, drizzle + PostgreSQL |
 | [`packages/integrations`](packages/integrations/) | `@alia/integrations` | Express, drizzle + PostgreSQL, Mongoose, MCP client |
 | [`packages/alia-docker-host`](packages/alia-docker-host/) | `@alia/docker-host` | Express |
 | [`packages/shared-types`](packages/shared-types/) | `@alia/shared-types` | TypeScript |
@@ -151,9 +154,8 @@ for shared UI. See [`docs/oxyhq-auth.md`](docs/oxyhq-auth.md).
 ## Quick start
 
 The bun version is pinned in `packageManager` and CI installs that exact version. You also
-need a PostgreSQL instance — the API exits at boot without one. MongoDB is optional
-locally: the API retries in the background and the routes still backed by Mongoose return
-`500` while it is unreachable.
+need a PostgreSQL instance — the API exits at boot without one. Nothing else is required:
+`@alia/api` needs no MongoDB, and Redis is optional.
 
 ```bash
 bun install
