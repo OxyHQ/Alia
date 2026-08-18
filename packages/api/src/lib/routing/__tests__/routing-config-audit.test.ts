@@ -217,14 +217,16 @@ describe('plan model access is an AUDITED database row (#139 ws14/ws15)', () => 
     deletePlanByPlanId: { category: UNCALLED, callers: [] },
     upsertPlanFeature: { category: UNCALLED, callers: [] },
     deletePlanFeature: { category: UNCALLED, callers: [] },
-    // Boot seeding. It RUNS now — `src/index.ts` calls `seedPlans()` beside the
-    // three seeders that always ran — and it is INSERT-only, which is the pair
-    // of facts that makes the audited writer below meaningful rather than a
-    // change the next deploy undoes.
+    // Deploy seeding. It RUNS — `scripts/seed.ts` is issued as a one-shot after
+    // every rollout — and it is INSERT-only, which is the pair of facts that
+    // makes the audited writer below meaningful rather than a change the next
+    // deploy undoes. It said "boot seeding" and named `src/index.ts` until
+    // 2026-08-18; that call sat behind a Mongo connection that never resolves,
+    // so it ran never.
     seedPlan: { category: BOOT, callers: ['lib/seed-plans.ts'] },
     seedPlanFeatures: {
       category: BOOT,
-      callers: ['internal/providers/lib/seed-features.ts', 'internal/providers/lib/seed-model-configs.ts'],
+      callers: ['internal/providers/lib/seed-features.ts'],
     },
     // The Stripe writer. Its safety is its ARGUMENT TYPE, asserted below.
     updatePlanByPlanId: { category: AUDITED, callers: ['lib/gateway-client.ts'] },
@@ -382,34 +384,50 @@ describe('plan model access is an AUDITED database row (#139 ws14/ws15)', () => 
     expect(seed).not.toContain('req.body');
   });
 
-  it('the seeder RUNS, from the entrypoint, beside the three that always did', () => {
+  it('the seeder RUNS, from the deploy one-shot, and from nowhere else', () => {
     /**
-     * The other inversion. This assertion read "the seeder has no caller, which
-     * is why this is a GAP and not an absence", and said it would go red the
-     * moment somebody wired it up — "which is exactly when a reader should
-     * return and re-decide whether the epic's audit checkbox has become
-     * satisfiable". This is that return, and the answer is that it is satisfied
-     * by the audited writer rather than by absence.
+     * The other inversion, corrected a second time — and the correction is the
+     * point of this assertion rather than an edit to it.
      *
-     * Wiring it is only safe BECAUSE it is insert-only, which the assertion
-     * above pins. The two must move together or not at all.
+     * It first read "the seeder has no caller, which is why this is a GAP".
+     * Then plan seeding moved to `src/index.ts` and this asserted the
+     * ENTRYPOINT called it, which read as wired. **It was not.** Everything in
+     * `startBackgroundServices()` is reached only from `connectDB().then(...)`,
+     * a Mongo connection that no longer exists and never resolves, so the call
+     * this assertion pinned ran never — and production holds 0 `plans`,
+     * measured 2026-08-18. A caller is not a trigger, and asserting the call
+     * site could not tell the two apart.
+     *
+     * So it now pins the DEPLOY ONE-SHOT, which is a trigger: `scripts/seed.ts`
+     * is invoked by `deploy-aws.yml` after the rollout. Wiring it is still only
+     * safe BECAUSE seeding is insert-only, which the assertion above pins; the
+     * two must move together or not at all.
      */
-    const entrypoint = code('index.ts');
-    // Positive control: the scan can see a boot seeder that was always called.
-    expect(entrypoint).toContain('seedSkills()');
-    expect(entrypoint).toContain('seedPlans()');
-    expect(entrypoint).toContain("from './lib/seed-plans.js'");
+    const seeder = code('scripts/seed.ts');
+    // Positive control: the scan can see this file at all, and it is the seeder.
+    expect(seeder.length).toBeGreaterThan(1_000);
+    expect(seeder).toContain('seedPlans');
 
-    // And it is reached from the entrypoint alone. `runStartupSeed()` used to
-    // call it and no longer does — that function still has no caller repo-wide,
-    // so leaving plan seeding inside it would have been wiring it to nothing.
+    // The trigger, not merely a caller: the workflow issues the command, and the
+    // build emits the file that command names. Either half missing is a seeder
+    // wired to nothing, which is the exact state this assertion failed to catch
+    // last time.
+    const workflow = readFileSync(path.join(REPO_ROOT, '.github/workflows/deploy-aws.yml'), 'utf8');
+    expect(workflow).toContain('packages/api/dist/scripts/seed.js');
+    expect(readFileSync(path.join(REPO_ROOT, 'packages/api/build.ts'), 'utf8'))
+      .toContain("outfile: 'dist/scripts/seed.js'");
+
+    // And `index.ts` no longer claims to seed plans, because it never did.
     const api = sourceFiles('packages/api/src');
     expect(api.length).toBeGreaterThan(200);
-    expect(api.filter((f) => f !== 'lib/seed-plans.ts' && /\bseedPlans\s*\(/.test(code(f)))).toEqual(['index.ts']);
-    expect(code('internal/providers/lib/seed-model-configs.ts')).not.toContain('seedPlans');
-    expect(
-      api.filter((f) => !f.endsWith('seed-model-configs.ts') && code(f).includes('runStartupSeed')),
-    ).toEqual([]);
+    // A REFERENCE, not a call: `scripts/seed.ts` holds the seeders in a table and
+    // invokes them through it, so a `seedPlans\s*\(` regex would find nothing and
+    // pass while wired to nothing — the precise failure this assertion is being
+    // rewritten to stop making.
+    expect(api.filter((f) => f !== 'lib/seed-plans.ts' && /\bseedPlans\b/.test(code(f)))).toEqual([
+      'scripts/seed.ts',
+    ]);
+    expect(code('index.ts')).not.toContain('seedPlans');
   });
 
   it('no route writes plan configuration except through the audited writer', () => {

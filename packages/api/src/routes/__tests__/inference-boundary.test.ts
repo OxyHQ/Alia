@@ -442,17 +442,17 @@ describe('model and routing configuration has no unaudited write path (#139 ws15
 
   /** Writers reachable at runtime, and the ONE caller each is allowed. */
   const CALLED_BY: Readonly<Record<string, readonly string[]>> = {
-    // Seeding that NOTHING RUNS. Their one caller is `runStartupSeed()` in
-    // `seed-model-configs.ts`, and that function has zero callers repo-wide —
-    // `src/index.ts` seeds skills, suggestions and bots, and never this. So these
-    // three are unreachable in the serving process, not "reached only at boot".
+    // Seeding, reached from the DEPLOY ONE-SHOT (`scripts/seed.ts`) and from
+    // nothing in the serving process. This comment previously said "seeding that
+    // NOTHING RUNS", which was true and is no longer: their caller
+    // `runStartupSeed()` had zero callers repo-wide and is deleted.
     //
-    // The distinction is load-bearing: a reader who believes boot re-asserts the
-    // model list from code would conclude that a hand-edited row cannot survive a
-    // deploy. It can. Nothing overwrites it, because nothing writes at all.
+    // The distinction that stays load-bearing: a reader who believes this
+    // re-asserts the model list from code would conclude a hand-edited row
+    // cannot survive a deploy. It still can — every seeder is
+    // `onConflictDoNothing`, so it fills gaps and overwrites nothing.
     upsertAliaModel: ['internal/providers/lib/seed-model-configs.ts'],
     upsertModelConfig: ['internal/providers/lib/seed-model-configs.ts'],
-    resetAllKeyCooldowns: ['internal/providers/lib/seed-model-configs.ts'],
     // A one-shot script, not part of the serving process.
     upsertExternalModels: ['scripts/sync-zeroeval.ts'],
     // Automatic health state. A key cools down because it failed, not because
@@ -496,6 +496,13 @@ describe('model and routing configuration has no unaudited write path (#139 ws15
     'deleteAliaModel',
     'deleteModelConfig',
     'deleteProviderKey',
+    // Reached by nothing since the deploy one-shot replaced `runStartupSeed()`,
+    // which was its only caller. Resetting a cooldown discards evidence that a
+    // key is failing, so a release boundary is deliberately NOT a reason for it
+    // to happen — see `scripts/seed.ts`. It stays exported for an operator
+    // one-shot; an entry here is what would catch it acquiring a request-driven
+    // caller.
+    'resetAllKeyCooldowns',
     // Module-private: every caller is inside `db/providers/`, which the caller
     // census excludes. `config-audit.test.ts` separately requires it to stay
     // unexported — the moment it is exported it is a public routing mutation

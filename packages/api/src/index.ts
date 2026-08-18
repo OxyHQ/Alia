@@ -63,9 +63,7 @@ import { authenticateToken } from './middleware/auth.js';
 import { resolveWorkspace } from './middleware/workspace.js';
 import { syncZeroEval } from './scripts/sync-zeroeval.js';
 import { seedSkills } from './lib/seed-skills.js';
-import { seedSuggestions } from './lib/seed-suggestions.js';
 import { seedBots } from './lib/seed-bots.js';
-import { seedPlans } from './lib/seed-plans.js';
 import { startTriggerEngine, stopTriggerEngine } from './lib/trigger-engine.js';
 import { warmupProviders } from './lib/provider-warmup.js';
 import { warmupGatewayClient } from './lib/gateway-client.js';
@@ -380,15 +378,21 @@ function startBackgroundServices(): void {
 
   // Warm up gateway client cache (non-blocking)
   warmupGatewayClient().catch((err) => log.general.error({ err }, '[Gateway] Client warmup error'));
-  // Seed built-in skills and suggestions (non-blocking)
+  /*
+   * `suggestions` and `plans` are seeded by `scripts/seed.ts` on the deploy
+   * boundary, NOT here. Everything in this function is reached only from
+   * `connectDB().then(...)` — a Mongo connection that no longer exists and never
+   * resolves — so a seeder placed here runs never, which is why production holds
+   * 0 `plans` and every account falls to the free floor.
+   *
+   * `skills` and `bots` stay, and stay dead, deliberately: `skills` is mid-port
+   * in `port/containers-skills`, and `bots` derives its id from
+   * `TELEGRAM_BOT_TOKEN` / `DISCORD_APP_ID`, which the task definition does not
+   * set — seeding it now writes placeholder-keyed rows that look right. Both
+   * move to the one-shot when their blockers clear.
+   */
   seedSkills().catch((err) => log.general.error({ err }, '[Skills] Seed error'));
-  seedSuggestions().catch((err) => log.general.error({ err }, '[Suggestions] Seed error'));
   seedBots().catch((err) => log.general.error({ err }, '[Bots] Seed error'));
-  // Plans, so a fresh database has a catalogue to sell. INSERT-only: which
-  // models a plan grants is owned at runtime by
-  // `PUT /internal/plans/:planId/models`, and a boot writer that re-asserted
-  // the list would revert it on every deploy (#139 ws14).
-  seedPlans().catch((err) => log.general.error({ err }, '[Plans] Seed error'));
   // Sync external models in background (non-blocking)
   syncZeroEval().catch((err) => log.general.error({ err }, '[ZeroEval] Background sync error'));
   // Start trigger engine under leader election (non-blocking) — only the
