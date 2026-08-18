@@ -25,7 +25,7 @@ import {
   toMemberResponse,
   toOrganizationResponse,
   unshareAgentFromOrganization,
-  updateMemberRole,
+  updateNonOwnerMemberRole,
   updateOrganization,
   type OrganizationMemberResponse,
   type OrganizationMemberRow,
@@ -549,10 +549,35 @@ router.patch('/:id/members/:memberId', async (req: Request, res: Response) => {
 
     const { role } = updateMemberSchema.parse(req.body);
 
-    // Scoped to THIS organization: the Mongo statement took the member id alone,
-    // so an owner here could rewrite a role in an organization they have nothing
-    // to do with.
-    const member = await updateMemberRole(getDb(), memberId, id, role);
+    const memberToChange = await findMemberOfOrganization(getDb(), memberId, id);
+
+    if (!memberToChange) {
+      return res.status(404).json({ error: 'Member not found' });
+    }
+
+    /**
+     * The owner's own role is not changeable, and the answer is a 400 saying so
+     * rather than the 404 a bare statement-level exclusion would produce — the
+     * member exists, the caller may administer them, and the refusal is about
+     * WHICH member. `DELETE …/members/:memberId` one route down answers "Cannot
+     * remove organization owner" for the same reason and in the same shape.
+     *
+     * The only caller who can reach this is the owner naming their own row, and
+     * the result would be an organization with zero owners: both this route and
+     * the delete-organization route require a role that would no longer exist,
+     * so nothing could ever be administered again. Self-demotion could not have
+     * been a step towards handing ownership on, because `owner` is not a role
+     * this route can grant.
+     */
+    if (memberToChange.role === 'owner') {
+      return res.status(400).json({ error: 'Cannot change the role of the organization owner' });
+    }
+
+    // Scoped to THIS organization, and the owner exclusion is repeated in the
+    // UPDATE itself so a role changing between the read and the write cannot
+    // demote an owner. The Mongo statement took the member id alone, so an owner
+    // here could rewrite a role in an organization they have nothing to do with.
+    const member = await updateNonOwnerMemberRole(getDb(), memberId, id, role);
 
     if (!member) {
       return res.status(404).json({ error: 'Member not found' });

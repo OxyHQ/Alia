@@ -21,7 +21,7 @@ import {
   shareAgentWithOrganization,
   toOrganizationResponse,
   unshareAgentFromOrganization,
-  updateMemberRole,
+  updateNonOwnerMemberRole,
   updateOrganization,
 } from '../organizations/organizationRepository';
 import {
@@ -517,7 +517,7 @@ describe('a member lookup is scoped to its organization', () => {
     const theirs = await anOrganization({ ownerId: OUTSIDER });
     const theirMember = await seatMember(theirs.id, MEMBER, 'member');
 
-    const written = await updateMemberRole(db, theirMember.id, mine.id, 'admin');
+    const written = await updateNonOwnerMemberRole(db, theirMember.id, mine.id, 'admin');
 
     expect(written).toBeNull();
     const untouched = await findMemberOfOrganization(db, theirMember.id, theirs.id);
@@ -539,9 +539,44 @@ describe('a member lookup is scoped to its organization', () => {
     const organization = await anOrganization();
     const member = await seatMember(organization.id, MEMBER, 'member');
 
-    const written = await updateMemberRole(db, member.id, organization.id, 'admin');
+    const written = await updateNonOwnerMemberRole(db, member.id, organization.id, 'admin');
 
     expect(written?.role).toBe('admin');
+  });
+
+  it('refuses to change the OWNER own role, so an organization cannot be left ownerless', async () => {
+    /**
+     * The other end of the ownership surface from
+     * `organization_members_one_owner_key`. That index stops a SECOND owner; this
+     * stops ZERO owners, and the two failures are not symmetric: a second owner
+     * is a privilege problem somebody notices, while zero owners is a permanent
+     * brick — both `DELETE /organization/:id` and this route require a role that
+     * no longer exists, so nothing about the organization can ever be
+     * administered again, with no undo and no support path.
+     *
+     * Enforced by the statement, exactly as `deleteNonOwnerMember` enforces its
+     * own, so a role changing between the route's read and this write cannot slip
+     * through.
+     */
+    const organization = await anOrganization();
+    const [owner] = await listMembers(db, organization.id);
+    if (!owner) throw new Error('the fixture owner vanished');
+
+    expect(await updateNonOwnerMemberRole(db, owner.id, organization.id, 'admin')).toBeNull();
+    expect(await findMemberRole(db, organization.id, OWNER)).toBe('owner');
+  });
+
+  it('still changes an ADMIN role, which is the half a blanket refusal would break', async () => {
+    // The positive control for the exclusion itself. A `WHERE false`, or an
+    // exclusion written against the wrong role, refuses the owner AND everybody
+    // else — and every assertion above would still pass.
+    const organization = await anOrganization();
+    const admin = await seatMember(organization.id, ADMIN, 'admin');
+
+    expect((await updateNonOwnerMemberRole(db, admin.id, organization.id, 'member'))?.role).toBe(
+      'member',
+    );
+    expect(await findMemberRole(db, organization.id, ADMIN)).toBe('member');
   });
 });
 

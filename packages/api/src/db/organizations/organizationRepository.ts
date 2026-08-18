@@ -423,15 +423,29 @@ export async function findMemberOfOrganization(
 }
 
 /**
- * Change a member's role.
+ * Change a NON-OWNER member's role.
  *
- * The new role is `admin` or `member` BY TYPE. `owner` is not a role an update
- * may grant: it is the counterpart of `organizations.owner_id`, and letting this
- * write it would mint a second owner from a route whose whole check is "the
- * caller is the owner". The organization scope is required, so an owner of one
- * organization cannot rewrite a role in another.
+ * Two exclusions, and they close opposite ends of the same surface.
+ *
+ * The new role is `admin` or `member` BY TYPE, so this cannot GRANT ownership —
+ * `organization_members_one_owner_key` is the database's backstop for that, and
+ * this signature is the one that fails at compile time instead.
+ *
+ * The target may not BE the owner, and that half is enforced by the statement
+ * exactly as {@link deleteNonOwnerMember} enforces its own. Without it an owner
+ * could demote themselves — the route's only check is that the caller is the
+ * owner, and the caller may name their own membership row. The result is an
+ * organization with zero owners: nobody can delete it and nobody can change any
+ * role in it, permanently, because both routes require a role that no longer
+ * exists. There is no undo and no support path. It is not a capability anybody
+ * loses, because ownership cannot be handed on either — `owner` is unreachable
+ * through this function by type — so self-demotion could never have been a step
+ * in a transfer. It could only ever brick the organization.
+ *
+ * The organization scope is required, so an owner of one organization cannot
+ * rewrite a role in another.
  */
-export async function updateMemberRole(
+export async function updateNonOwnerMemberRole(
   db: ApiDatabase,
   memberId: string,
   organizationId: string,
@@ -444,6 +458,7 @@ export async function updateMemberRole(
       and(
         eq(organizationMembers.id, memberId),
         eq(organizationMembers.organizationId, organizationId),
+        sql`${organizationMembers.role} <> 'owner'`,
       ),
     )
     .returning();
