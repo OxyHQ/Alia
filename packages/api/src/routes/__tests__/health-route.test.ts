@@ -49,15 +49,26 @@ const LAPSED = { unavailableUntilMs: Date.now() - 1 } as const;
  */
 interface ProviderRow {
   readonly provider: string;
+  /** Half the census key: the table is one row per (provider, model). */
+  readonly modelId: string;
   readonly circuitState: string;
   readonly isHealthy: boolean;
   readonly lastSuccess: Date | null;
   readonly lastFailure: Date | null;
 }
 
+/** One entry in the routing table — what `total` is now counted from. */
+interface Mapping {
+  readonly provider: string;
+  readonly modelId: string;
+}
+
+const pairOf = (row: ProviderRow): Mapping => ({ provider: row.provider, modelId: row.modelId });
+
 /** Has completed a request. The positive control for every pessimism check. */
 const SERVED: ProviderRow = {
   provider: 'served',
+  modelId: 'm-served',
   circuitState: 'closed',
   isHealthy: true,
   lastSuccess: new Date(),
@@ -70,6 +81,7 @@ const SERVED: ProviderRow = {
  */
 const NEVER_CALLED: ProviderRow = {
   provider: 'cold',
+  modelId: 'm-cold',
   circuitState: 'closed',
   isHealthy: true,
   lastSuccess: null,
@@ -79,6 +91,7 @@ const NEVER_CALLED: ProviderRow = {
 /** Called, only ever failed, and too few requests for the breaker to have ruled. */
 const ONLY_FAILED: ProviderRow = {
   provider: 'failing',
+  modelId: 'm-failing',
   circuitState: 'closed',
   isHealthy: true,
   lastSuccess: null,
@@ -88,6 +101,7 @@ const ONLY_FAILED: ProviderRow = {
 /** The breaker has ruled: circuit open. */
 const CIRCUIT_OPEN: ProviderRow = {
   provider: 'tripped',
+  modelId: 'm-tripped',
   circuitState: 'open',
   isHealthy: false,
   lastSuccess: new Date(),
@@ -106,20 +120,32 @@ const CIRCUIT_OPEN: ProviderRow = {
  */
 const BREAKER_RULED: ProviderRow = {
   provider: 'flaky',
+  modelId: 'm-flaky',
   circuitState: 'closed',
   isHealthy: false,
   lastSuccess: new Date(),
   lastFailure: new Date(),
 };
 
+/**
+ * The routing table as the gateway returns it: mappings keyed by TIER.
+ *
+ * Spelled out rather than flattened, because the duplication that matters is
+ * ACROSS tiers — the real `TIER_MODEL_MAPPINGS` lists one pair once per tier
+ * that routes to it. A fixture that repeats a pair inside a single tier tests a
+ * shape the data never takes, which is how the dedup mutation first survived.
+ */
+type TierTable = Readonly<Record<string, readonly Mapping[]>>;
+
 interface Dependencies {
   readonly postgresReady: boolean;
   readonly providers: readonly ProviderRow[];
   readonly credentialed: readonly string[];
+  readonly configured: TierTable;
 }
 
-/** Postgres answers, the queue is up, and the gateway answers both provider reads. */
-function mockDependencies({ postgresReady, providers, credentialed }: Dependencies): void {
+/** Postgres answers, the queue is up, and the gateway answers all three reads. */
+function mockDependencies({ postgresReady, providers, credentialed, configured }: Dependencies): void {
   vi.doMock('../../db/index.js', () => ({
     getDb: () => ({
       execute: () =>
@@ -128,6 +154,7 @@ function mockDependencies({ postgresReady, providers, credentialed }: Dependenci
   }));
   vi.doMock('../../lib/task-queue.js', () => ({ isQueueActive: () => true }));
   vi.doMock('../../lib/gateway-client.js', () => ({
+    getTierMappings: () => Promise.resolve(configured),
     getAllProviderHealth: () => Promise.resolve([...providers]),
     providersWithUsableCredentials: () => Promise.resolve(new Set(credentialed)),
   }));
@@ -165,10 +192,13 @@ async function probe(
     relay = 'no observation' as RelayState,
     providers = [SERVED] as readonly ProviderRow[],
     credentialed = providers.map((p) => p.provider) as readonly string[],
+    // Default: one tier configuring exactly the pairs the fixtures carry rows
+    // for, which is the shape every pre-existing case assumed.
+    configured = { 'tier-a': providers.map(pairOf) } as TierTable,
   } = {},
 ): Promise<Probe> {
   vi.resetModules();
-  mockDependencies({ postgresReady, providers, credentialed });
+  mockDependencies({ postgresReady, providers, credentialed, configured });
 
   const connectivity = await import('../../lib/inference/relay-connectivity.js');
   if (relay === 'reachable') connectivity.reportRelayReachable();
@@ -508,6 +538,135 @@ describe('/health tells never-called apart from healthy (and both from unusable)
       unusable: 26,
       unknown: 0,
       openCircuits: 0,
+    });
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/*  `total` counts configuration, not traffic                                  */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Measured in production on 2026-08-19: `/health` reported `total: 26` in the
+ * afternoon and `total: 50` an hour later — same deployment, no configuration
+ * change, nothing deployed in between. Someone browsed a page,
+ * `getOrCreateProviderHealth` inserted rows, and a public endpoint's headline
+ * count nearly doubled while nothing in the system had changed.
+ *
+ * The census now walks the ROUTING TABLE and looks each pair up in telemetry,
+ * so the number moves only when configuration does.
+ */
+describe('the provider census counts what is configured', () => {
+  it('counts a configured pair that has no telemetry row at all', async () => {
+    // The fresh-deployment case, and the one the old census could not express:
+    // walking the rows, a pair nothing had touched simply did not exist.
+    const { body } = await probe('/health', {
+      providers: [],
+      configured: { lite: [{ provider: 'cold', modelId: 'm1' }] },
+      credentialed: ['cold'],
+    });
+    expect(body.providers).toEqual({
+      total: 1,
+      healthy: 0,
+      unhealthy: 0,
+      unusable: 0,
+      unknown: 1,
+      openCircuits: 0,
+    });
+  });
+
+  it('gives the same total whether or not rows have been manufactured', async () => {
+    /**
+     * THE assertion. Identical configuration, two different amounts of
+     * telemetry — the exact difference between the 26 reading and the 50
+     * reading. `total` must not move.
+     */
+    const configured = {
+      lite: [
+        { provider: 'a', modelId: 'm1' },
+        { provider: 'b', modelId: 'm2' },
+        { provider: 'c', modelId: 'm3' },
+      ],
+    };
+    const credentialed = ['a', 'b', 'c'];
+
+    const cold = await probe('/health', { providers: [], configured, credentialed });
+    const browsed = await probe('/health', {
+      providers: [
+        { ...NEVER_CALLED, provider: 'a', modelId: 'm1' },
+        { ...NEVER_CALLED, provider: 'b', modelId: 'm2' },
+      ],
+      configured,
+      credentialed,
+    });
+
+    expect((cold.body.providers as { total: number }).total).toBe(3);
+    expect((browsed.body.providers as { total: number }).total).toBe(3);
+    // ...and the verdict is identical too, because a row created by a READ says
+    // nothing that a missing row does not.
+    expect(cold.body.providers).toEqual(browsed.body.providers);
+  });
+
+  it('ignores a telemetry row for a pair the routing table does not configure', async () => {
+    /**
+     * A stale row — a provider or model no longer mapped. It cannot be routed
+     * to, so it cannot affect whether the service can serve, and counting it
+     * would put the traffic-dependence straight back.
+     */
+    const { body } = await probe('/health', {
+      providers: [SERVED, { ...SERVED, provider: 'retired', modelId: 'm-gone' }],
+      configured: { lite: [pairOf(SERVED)] },
+      credentialed: ['served', 'retired'],
+    });
+    expect(body.providers).toEqual({
+      total: 1,
+      healthy: 1,
+      unhealthy: 0,
+      unusable: 0,
+      unknown: 0,
+      openCircuits: 0,
+    });
+  });
+
+  it('counts a pair once however many tiers route to it', async () => {
+    /**
+     * `TIER_MODEL_MAPPINGS` lists a pair once per TIER: 119 listings across 14
+     * tiers reduce to 58 distinct pairs. Counting listings would report a number
+     * more than twice the truth, and it would grow whenever a tier was added
+     * without a single new provider existing.
+     */
+    const shared = { provider: 'a', modelId: 'm1' };
+    const { body } = await probe('/health', {
+      providers: [],
+      credentialed: ['a'],
+      // Three tiers routing to the same pair, and one of them to a second —
+      // exactly how the real table repeats itself.
+      configured: {
+        lite: [shared],
+        pro: [shared],
+        max: [shared, { provider: 'a', modelId: 'm2' }],
+      },
+    });
+    // Four listings across three tiers, two distinct pairs.
+    expect((body.providers as { total: number }).total).toBe(2);
+  });
+
+  it('still reads the telemetry it does have, for the pairs it counts', async () => {
+    // The positive control for the census as a whole: the lookup really joins
+    // rows to configuration, so the states above are not all reachable through
+    // "no row found" alone.
+    const { body } = await probe('/health', {
+      providers: [SERVED, CIRCUIT_OPEN],
+      configured: { lite: [pairOf(SERVED), pairOf(CIRCUIT_OPEN)], pro: [{ provider: 'served', modelId: 'm-extra' }] },
+      credentialed: ['served', 'tripped'],
+    });
+    expect(body.providers).toEqual({
+      total: 3,
+      healthy: 1,
+      unhealthy: 1,
+      unusable: 0,
+      unknown: 1,
+      openCircuits: 1,
     });
   });
 });
