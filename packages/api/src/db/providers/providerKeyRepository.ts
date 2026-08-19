@@ -44,7 +44,7 @@
  * thousand pool-wide failures to reach.
  */
 
-import { and, asc, desc, eq, isNotNull, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, isNotNull, isNull, lt, or, sql } from 'drizzle-orm';
 import crypto from 'crypto';
 import type { Executor } from '../index';
 import { redactSecrets } from '../../lib/agent/secret-scanner';
@@ -57,6 +57,20 @@ import { providerKeys } from '../schema/providers';
 
 /** The CHECK's ceiling on `current_priority`. Named so the clamp cannot drift. */
 const MAX_CURRENT_PRIORITY = 1000;
+
+/**
+ * A row actually holds a credential: not null AND not blank.
+ *
+ * Both halves matter, and the second is the one SQL will not give you for free.
+ * `getBestKeyForModel` refuses a valueless key with `if (!key.key)`, which is a
+ * JavaScript falsy test and therefore rejects `''` exactly as it rejects `null`.
+ * A bare `is not null` does not, so a row whose secret was blanked to an empty
+ * string rather than nulled reads as credentialed to anything using it — while
+ * routing skips the key. Written once and shared by both readers so the two
+ * cannot drift apart; a `where` and a projection are different enough contexts
+ * that they would.
+ */
+const hasKeyValue = sql<boolean>`(${providerKeys.key} is not null and ${providerKeys.key} <> '')`;
 
 /** sha256 of a credential — the value the unique index is built on. */
 export function hashProviderKey(key: string): string {
@@ -154,6 +168,55 @@ export async function loadActiveProviderKeys(
     .orderBy(asc(providerKeys.isPaid), asc(providerKeys.currentPriority), asc(providerKeys.id));
 }
 
+/**
+ * The NAMES of providers holding at least one credential that could serve a
+ * request now. No row, no prefix and no digest leaves this function.
+ *
+ * ## The predicate is `getBestKeyForModel`'s DURABLE half, deliberately
+ *
+ * That loop skips a key for six reasons. Four of them are properties of the row
+ * that only an operator changes — archived, deactivated, past `expires_at`, over
+ * `credit_limit_usd` — and one is the row being valueless, which is the same
+ * kind of fact. Those five are here, the last through {@link hasKeyValue}, which
+ * carries the empty-string half a bare `is not null` would miss.
+ *
+ * The two that are NOT here are `cooldown_until` and the eight rate limits, and
+ * leaving them out is the whole point rather than an omission. Both clear
+ * themselves within seconds to minutes, so a health report that counted them
+ * would flip a provider between usable and unusable as traffic arrived — a
+ * report that changes with load measures the load, and downstream that is a
+ * probe that flaps. What this answers is the durable question: could this
+ * provider serve at all, or is there nothing installed to serve WITH.
+ *
+ * `null` means UNLIMITED for `credit_limit_usd` and NO EXPIRY for `expires_at`,
+ * matching the selection loop. Getting either backwards empties the result for
+ * almost every row in the table, because almost every row leaves both null.
+ *
+ * Not to be confused with {@link countUsableKeys} below, which shares the word
+ * and answers a different question: how many rows are live across the whole
+ * table, on the two flags alone. It would count an expired, valueless,
+ * credit-exhausted key as usable, which is right for the number it feeds (a
+ * reload response's `keyCount`) and wrong for this one.
+ */
+export async function providersWithUsableKeys(db: Executor, now: Date): Promise<string[]> {
+  const rows = await db
+    .selectDistinct({ provider: providerKeys.provider })
+    .from(providerKeys)
+    .where(
+      and(
+        eq(providerKeys.isActive, true),
+        eq(providerKeys.isArchived, false),
+        hasKeyValue,
+        or(isNull(providerKeys.expiresAt), gt(providerKeys.expiresAt, now)),
+        or(
+          isNull(providerKeys.creditLimitUsd),
+          lt(providerKeys.spentUsd, providerKeys.creditLimitUsd),
+        ),
+      ),
+    );
+  return rows.map((row) => row.provider);
+}
+
 export async function findProviderKeyById(
   db: Executor,
   id: string,
@@ -227,7 +290,7 @@ export async function listProviderKeyDiagnostics(
       ...safeColumns,
       // Computed in SQL so the plaintext never crosses the wire into this
       // process, let alone into a response.
-      hasKeyValue: sql<boolean>`(${providerKeys.key} is not null and ${providerKeys.key} <> '')`,
+      hasKeyValue,
       keyLength: sql<number>`coalesce(length(${providerKeys.key}), 0)::int`,
     })
     .from(providerKeys)
