@@ -1806,10 +1806,15 @@ vi.mock('../lib/gateway-client.js', async () => {
     getTierMappings: async () => actual.TIER_MODEL_MAPPINGS,
     // The plan catalogue needs Postgres and decides nothing this gate measures.
     getPlans: async () => [],
-    // Neither does the health table. An empty one means every route is
-    // reachable, which is what keeps this gate measuring the SERIALIZER rather
-    // than whichever circuit happened to be open when it ran.
+    // Neither does the health table. An empty one means no route is held
+    // against its breaker, which is what keeps this gate measuring the
+    // SERIALIZER rather than whichever circuit happened to be open when it ran.
     getAllProviderHealth: async () => [],
+    // …and every provider is credentialed, for the same reason and a sharper
+    // one: an uncredentialed deployment serves a catalogue in which every entry
+    // is unavailable, which is a perfectly valid response for these gates to
+    // read and tells them nothing about the leak census or the fan-out.
+    providersWithUsableCredentials: async () => new Set(PROVIDER_NAMES),
   };
 });
 
