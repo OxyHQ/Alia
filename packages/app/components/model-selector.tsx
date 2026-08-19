@@ -494,12 +494,17 @@ function EntryRow({
   const cost = costLabel(entry);
   const { label, description } = presentation(entry, modes);
 
+  /**
+   * There is no "Unavailable" badge, and its absence is a decision.
+   *
+   * A row only reaches here if the catalogue says a route behind it could
+   * serve — the menu no longer lists the others at all — so a badge saying
+   * otherwise could not render, and a badge that cannot render is a label
+   * nobody maintains and every reader believes.
+   */
   const badges: { key: string; label: string; tone: 'plan' | 'muted' }[] = [];
   if (entry.requiredPlan !== null) {
     badges.push({ key: 'plan', label: entry.requiredPlan, tone: 'plan' });
-  }
-  if (entry.unavailable) {
-    badges.push({ key: 'unavailable', label: t('models.unavailable'), tone: 'muted' });
   }
 
   if (Platform.OS !== 'web') {
@@ -512,7 +517,6 @@ function EntryRow({
       categoryLabel(entry.category, t),
       provenanceLine(entry, t),
       facts,
-      entry.unavailable ? t('models.unavailable') : null,
       sunset,
     ]
       .filter((part): part is string => part !== null && part !== '')
@@ -727,7 +731,22 @@ export function ModelSelector({ selectedModel, onModelChange }: ModelSelectorPro
    * string.
    */
   const { profileSections, publisherSections, legacy, offeredCount } = useMemo(() => {
-    const offered = (entries ?? []).filter((entry) => entry.chatVisible);
+    /**
+     * An entry with no route that could serve it is not offered at all.
+     *
+     * This used to render with an "Unavailable" badge, on the argument that
+     * availability is a health signal about the models behind an entry and the
+     * server falls back among them. That argument only held while the signal
+     * meant "some of them are struggling". It now means what it says — no route
+     * behind this entry has a credentialed provider and an unbroken circuit —
+     * and choosing one answers with a refusal naming the model, which is the
+     * bug that produced this change.
+     *
+     * The filter is on the catalogue's own answer, so nothing here decides what
+     * "servable" means; `lib/catalogue.ts` does, and the day a credential is
+     * installed these rows come back with no client change.
+     */
+    const offered = (entries ?? []).filter((entry) => entry.chatVisible && !entry.unavailable);
     const live = offered.filter((entry) => !entry.legacy);
     return {
       profileSections: groupByCategory(live.filter((entry) => entry.kind === 'routing_profile'), t),

@@ -297,6 +297,16 @@ what a request on that model is billed at.
 request is a property of the deployment and appears nowhere in this response. No `alia-*`
 identifier appears anywhere in it either.
 
+**`availability.status` means a route could actually serve you.** An entry is `available`
+when at least one route behind it is on a provider holding a usable credential AND has an
+unbroken circuit; otherwise it is `unavailable`, and choosing it answers with a refusal
+rather than a slow reply. Both halves are load-bearing and the first is the one clients
+should not try to infer: a circuit breaker records what happened to traffic and cannot
+record traffic that never left, so a deployment with no provider credential at all reports
+every breaker closed. A catalogue that could not be computed is a `500`, never a catalogue
+in which nothing is available — "we could not find out" and "nothing works" are different
+answers.
+
 ### `GET /catalogue/modes`
 
 The product modes a person picks between. Product configuration, not models: no publisher,

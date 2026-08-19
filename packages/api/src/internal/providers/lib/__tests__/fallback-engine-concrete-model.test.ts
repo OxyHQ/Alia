@@ -162,7 +162,6 @@ const servedKind = (tier: keyof typeof FIXTURE_TIER_MAPPINGS): string =>
       category: 'general',
       tier,
       creditMultiplier: 1,
-      isAvailable: true,
       isLegacy: false,
     },
     // No availability scope and no licence record, which is what every route in
@@ -171,6 +170,10 @@ const servedKind = (tier: keyof typeof FIXTURE_TIER_MAPPINGS): string =>
       modelId: m.modelId,
       publisher: m.publisher,
       model: m.model,
+      // Servable, because this file measures CLASSIFICATION — how many models a
+      // candidate set holds — and an unservable set classifies identically.
+      // Whether a route can answer is measured in `catalogue.test.ts`.
+      servable: true,
       capabilities: {},
       availabilityScope: null,
       attribution: null,

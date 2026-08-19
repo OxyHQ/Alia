@@ -34,14 +34,26 @@ vi.mock('../../lib/gateway-client.js', async () => {
   const actual = await vi.importActual<typeof import('../../internal/providers/lib/alia-models.js')>(
     '../../internal/providers/lib/alia-models.js',
   );
+
   return {
     getAvailableModels: async () =>
       Object.values(actual.ALIA_MODELS).map((m) => ({ ...m, isAvailable: true, isLegacy: false })),
     getTierMappings: async () => actual.TIER_MODEL_MAPPINGS,
     getPlans: async () => [],
-    // Every route reachable, so the availability a model entry reports is not
-    // what this file is measuring.
+    // Every route servable, so the availability an entry reports is not what
+    // this file is measuring — and a catalogue that answered "nothing is
+    // available" would empty the picker and satisfy every list below by having
+    // nothing in it.
     getAllProviderHealth: async () => [],
+    providersWithUsableCredentials: async () =>
+      // Derived from the routing table this mock already reads, rather than
+      // from `PROVIDER_NAMES` — same answer for every route that exists, and it
+      // adds no second module for gate 1 to record.
+      new Set(
+        Object.values(actual.TIER_MODEL_MAPPINGS).flatMap((routes) =>
+          routes.map((route) => route.provider),
+        ),
+      ),
   };
 });
 
