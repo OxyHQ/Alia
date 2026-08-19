@@ -6,7 +6,7 @@ import {
   providersWithUsableCredentials,
   type HealthMetrics,
 } from '../lib/gateway-client.js';
-import { relayBlocksReadiness, relayConnectivity } from '../lib/inference/relay-connectivity.js';
+import { relayConnectivity } from '../lib/inference/relay-connectivity.js';
 import { isQueueActive } from '../lib/task-queue.js';
 import { log } from '../lib/logger.js';
 
@@ -105,52 +105,71 @@ import { log } from '../lib/logger.js';
  * take tasks out of rotation for having been idle. Absence of a credential is
  * the durable fact worth reporting, and it is reported.
  *
- * ## `no_healthy_providers` is GONE, and readiness is now process-local
+ * ## Readiness answers for the TASK, and only one condition qualifies
  *
- * The two questions this endpoint used to conflate:
+ * `/health/ready` used to conflate two questions:
  *
- *  - **can THIS TASK serve the API** — process-local, and the only thing that
- *    may deregister a task;
- *  - **can the FLEET serve inference** — shared state, and a report.
+ *  - **can THIS TASK serve the API** — the only thing that may deregister it;
+ *  - **can the FLEET serve inference** — a report, and nothing more.
  *
- * `/health/ready` answered both, and the second half could only ever be true for
- * every task or for none, because `provider_health` and `provider_keys` are
- * single tables that every task reads. So on the day the fleet records failures
- * across all providers — a bad rotation, an upstream outage, a rate-limit storm
- * classified as failure — every task fails readiness at the same instant, the
- * ALB deregisters all of them, and `api.alia.onl` stops answering ANYTHING:
- * authentication, conversations, billing, MCP, and the admin routes an operator
- * would use to fix the providers. A partial outage becomes a total one.
+ * The test that separates them is NOT "is the signal process-local". It is
+ * **does this task's failure DIFFER from its siblings' failure** — because
+ * deregistering is only ever useful if there is a healthier task to send the
+ * request to instead. A condition every task meets at once does not move
+ * traffic anywhere; it removes every target and turns a partial outage into a
+ * total one, taking authentication, conversations, billing, MCP and the admin
+ * routes down with the feature that actually broke. It also deadlocks: a task
+ * out of rotation gets no request, so no probe is attempted, so nothing
+ * recovers without a human.
  *
- * It is a deadlock as well as an outage. A task out of rotation receives no
- * request, so no half-open probe is ever attempted, so no circuit ever closes,
- * so readiness never recovers on its own. `relay-connectivity.ts` states this
- * argument in full and cites this very provider check as the thing "written to
- * tolerate an unreachable gateway" — it was the one branch that never matched
- * the reasoning its neighbour was designed around.
+ * Two conditions were removed against that test, and one survives it.
  *
- * The two conditions that remain are process-local:
+ * ### `no_healthy_providers` — removed
  *
- *  - **Postgres answers `select 1` through THIS task's pool.** One database
- *    serves every task, so it is shared in a sense — but it differs in KIND: a
- *    task that cannot reach it can serve no route at all, so deregistering
- *    costs the load balancer nothing it could otherwise have delivered.
- *  - **This PROCESS has observed Relay's circuit open.** Module-level state in
- *    `relay-connectivity.ts`, self-expiring, and `'disabled'` while the cutover
- *    flag is off.
+ * Read from `provider_health` and `provider_keys`, single tables every task
+ * shares, so it is true for the whole fleet or for none of it. It could never
+ * distinguish one task from another.
  *
- * Everything about whether the fleet can serve inference stays on `/health`,
- * which is a snapshot and an alerting surface and is not polled by any load
- * balancer. It still answers 503 `degraded` with the honest partition.
+ * ### `relay_unreachable` — removed, and this one LOOKED process-local
  *
- * ### Why this had to land as its own change
+ * The observation is a module-level `let` in `relay-connectivity.ts`, which is
+ * genuinely per-process — but that describes where the EVIDENCE is stored, not
+ * where the FAULT is. If Relay is unreachable it is unreachable for every task,
+ * and each simply discovers the same shared outage independently within a probe
+ * interval. They then deregister together, which is the case above wearing a
+ * different hat.
+ *
+ * Two facts settle it beyond the general argument, and both are checkable:
+ *
+ *  1. **Two of the four codes that open the circuit are not about Relay at
+ *     all.** `CIRCUIT_TRIPPING_CODES` in `relay-client.ts` is
+ *     `service_unavailable`, `deployment_unavailable`, `provider_overloaded`,
+ *     `provider_timeout`. The last two are UPSTREAM PROVIDER conditions, so
+ *     this branch would have deregistered the fleet on exactly the provider
+ *     state the previous section removed — re-entering through the Relay door.
+ *  2. **A task that cannot reach Relay still serves nearly everything.** Relay
+ *     implements `AliaInferencePort` and nothing else; `product-seam.ts` puts
+ *     the catalogue, provider selection, health and keys explicitly outside it.
+ *     Keeping such a task in rotation is worth a great deal, not nothing.
+ *
+ * Relay is still REPORTED, on `/health` and in `/health/ready`'s own body. Only
+ * its power to deregister is gone.
+ *
+ * ### Postgres — kept, and it is the one that passes
+ *
+ * `select 1` through THIS task's pool. One database serves every task, so a
+ * total outage does hit all of them — but a pool can be broken, exhausted or
+ * mid-failover for ONE task while its sibling is fine, and in that case
+ * deregistering moves traffic to something that works. That is the whole
+ * property. And in the total case nothing is lost: a task that cannot reach
+ * Postgres can serve no route at all, so the balancer had nothing to deliver.
+ *
+ * ### Why this is not merely theoretical
  *
  * `oxy-infra#77` moves the `oxy-alia` target group from `/health/live` to
- * `/health/ready`. Until it is applied, this endpoint is not an ALB probe and
- * the branch above was latent; after it, the branch is what decides whether
- * production has any registered targets. Neither change is wrong alone, which
- * is exactly why the composition needed writing down rather than discovering.
- * `__tests__/health-route.test.ts` asserts the result as status codes.
+ * `/health/ready`, so this endpoint is about to decide whether production has
+ * any registered targets. `__tests__/health-route.test.ts` asserts every one of
+ * the above as a status code.
  */
 
 const router = Router();
@@ -309,27 +328,17 @@ router.get('/live', (_req, res) => {
   res.status(200).json({ status: 'alive' });
 });
 
-// Readiness probe: can THIS TASK serve the API. Postgres answers a real query
-// through this task's pool, and this process has not observed Relay's circuit
-// open. Both process-local; nothing shared across tasks decides this answer.
-// Used by load balancers to decide if this instance should receive traffic.
+// Readiness probe: can THIS TASK serve the API. One condition — Postgres
+// answers a real query through this task's own pool. Used by load balancers to
+// decide if this instance should receive traffic.
 router.get('/ready', async (_req, res) => {
   if (!(await isPostgresReady())) {
     return res.status(503).json({ status: 'not_ready', reason: 'database_unavailable' });
   }
 
-  /**
-   * Only an OBSERVED open circuit takes a task out of rotation, and only after
-   * the cutover. A cold task reports `unknown` and stays ready on purpose: a
-   * task out of rotation receives no request, so it could never acquire the
-   * evidence that would put it back in. See `lib/inference/relay-connectivity.ts`.
-   */
-  if (relayBlocksReadiness()) {
-    return res.status(503).json({ status: 'not_ready', reason: 'relay_unreachable' });
-  }
-
-  // Provider state is NOT consulted here. See `no_healthy_providers` in the
-  // module comment for why a shared-state condition may not deregister a task.
+  // Neither provider state nor Relay is consulted. Both are reported — Relay
+  // right here in the body — and neither may deregister a task. See the module
+  // comment for the test that decides which conditions belong in this answer.
   res.status(200).json({ status: 'ready', relay: relayConnectivity() });
 });
 
