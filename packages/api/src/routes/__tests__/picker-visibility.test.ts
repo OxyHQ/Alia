@@ -39,6 +39,9 @@ vi.mock('../../lib/gateway-client.js', async () => {
       Object.values(actual.ALIA_MODELS).map((m) => ({ ...m, isAvailable: true, isLegacy: false })),
     getTierMappings: async () => actual.TIER_MODEL_MAPPINGS,
     getPlans: async () => [],
+    // Every route reachable, so the availability a model entry reports is not
+    // what this file is measuring.
+    getAllProviderHealth: async () => [],
   };
 });
 
@@ -71,7 +74,7 @@ const HIDDEN = [
 interface Captured {
   status?: number;
   headers: Record<string, string>;
-  body?: { data?: { id: string; chat_visible?: boolean }[] };
+  body?: { data?: { id: string; object?: string; chat_visible?: boolean }[] };
 }
 
 interface RouterLike {
@@ -119,11 +122,28 @@ describe('the product advertises policies, and both surfaces agree', () => {
   it('serves GET /catalogue keyed by policy, and annotates the offer per entry', async () => {
     const captured = await get(await import('../catalogue.js'), '/', {});
     const data = captured.body?.data ?? [];
-    // Vacuity floor: an empty catalogue annotates nothing and reads like a pass.
-    expect(data).toHaveLength(OFFERED.length + HIDDEN.length);
+    /**
+     * Scoped to the POLICY entries, because the catalogue now also serves
+     * individually selectable models and those are a different question with a
+     * different answer (`lib/routing/model-selection.ts`). The scoping is
+     * floored in both directions: exactly one entry per preset, and a non-empty
+     * set of the other kind — so a filter that happened to select everything,
+     * or nothing, cannot satisfy the lists below by accident.
+     */
+    const profiles = data.filter((e) => e.object === 'routing_profile');
+    expect(profiles).toHaveLength(OFFERED.length + HIDDEN.length);
+    expect(data.filter((e) => e.object === 'model').length).toBeGreaterThan(0);
+    expect(new Set(data.map((e) => e.object))).toEqual(new Set(['routing_profile', 'model']));
 
-    expect(data.filter((e) => e.chat_visible).map((e) => e.id).sort()).toEqual([...OFFERED].sort());
-    expect(data.filter((e) => !e.chat_visible).map((e) => e.id).sort()).toEqual([...HIDDEN].sort());
+    expect(profiles.filter((e) => e.chat_visible).map((e) => e.id).sort()).toEqual([...OFFERED].sort());
+    expect(profiles.filter((e) => !e.chat_visible).map((e) => e.id).sort()).toEqual([...HIDDEN].sort());
+
+    // A model is never a policy wearing a model's name and never the reverse:
+    // the two id namespaces do not overlap, which is what lets a client switch
+    // on `object` and a person read either list without decoding a prefix.
+    const models = data.filter((e) => e.object === 'model');
+    expect(models.filter((e) => e.id.startsWith('profile:'))).toEqual([]);
+    expect(profiles.filter((e) => e.id.includes('/'))).toEqual([]);
   });
 
   it('names NO alia-* identifier anywhere in the catalogue response', async () => {
@@ -132,7 +152,11 @@ describe('the product advertises policies, and both surfaces agree', () => {
     const { ALIA_MODELS } = await import('../../internal/providers/lib/alia-models.js');
     const captured = await get(await import('../catalogue.js'), '/', {});
     const serialized = JSON.stringify(captured.body);
-    expect(captured.body?.data).toHaveLength(OFFERED.length + HIDDEN.length);
+    const data = captured.body?.data ?? [];
+    // Two floors rather than one total, so neither kind of entry can vanish and
+    // leave this scan reporting a clean response it never looked at.
+    expect(data.filter((e) => e.object === 'routing_profile')).toHaveLength(OFFERED.length + HIDDEN.length);
+    expect(data.filter((e) => e.object === 'model').length).toBeGreaterThan(0);
 
     const registered = Object.keys(ALIA_MODELS);
     expect(registered).toHaveLength(13);

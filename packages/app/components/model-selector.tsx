@@ -29,29 +29,38 @@ import { presentation, useProductModes, type ProductMode } from "@/lib/hooks/use
  *  1. **Automatic first**, on its own above a separator. It is not one of the
  *     offered entries — it is the choice to let the server choose — so it does
  *     not belong inside any group of them.
- *  2. **Sections by what an entry is FOR**, from the catalogue's own `category`.
- *  3. **Identity, then cost, then everything else.** A row leads with the
- *     product's word for the entry and, beside it in the secondary colour, what
- *     a message on it costs relative to the base rate. Those two answer the
- *     question a person opens this menu with; the description and the
- *     capability facts sit under them, quieter.
- *  4. **Retired entries behind a submenu** at the very end.
+ *  2. **The routing profiles**, in sections by what an entry is FOR, from the
+ *     catalogue's own `category`. They come first because letting the product
+ *     choose is the answer for most people most of the time.
+ *  3. **The models, in sections by who PUBLISHED them.** Anthropic, Google,
+ *     OpenAI, DeepSeek, Meta, Mistral, Alibaba, xAI, Cohere — a row is that
+ *     organisation's own name for one model, and choosing it sends
+ *     `<publisher>/<model>` so the request is answered by that model wherever
+ *     it happens to be deployed.
+ *  4. **Identity, then cost, then everything else.** A row leads with the name
+ *     and, beside it in the secondary colour, what a message on it costs
+ *     relative to the base rate. Those two answer the question a person opens
+ *     this menu with; the description and the capability facts sit under them,
+ *     quieter.
+ *  5. **Retired entries behind a submenu** at the very end.
  *
- * ## The one grouping this menu cannot have
+ * ## The grouping this menu still cannot have
  *
- * Not by who makes the model. `publisher` and `model` are served `null` for
- * every catalogue entry, and `packages/api/src/__tests__/architectureGates.test.ts`
+ * Not by who SERVES the model. `publisher` is who released the weights, and the
+ * catalogue publishes it; which operator answers a given request is a property
+ * of the deployment and appears nowhere — `packages/api/src/__tests__/architectureGates.test.ts`
  * fails the build if a catalogue response names a provider or a provider model
- * id outside the licence-attribution field. Grouping by purpose is not second
- * best here; it is the axis the product actually has.
+ * id outside the licence-attribution field, and it plants one in each of these
+ * identity fields to prove the census can still see it.
  *
  * ## Three things it must not do, all of them things earlier versions did
  * (epic #139 workstream 5, ADR 0003):
  *
- *  - **Present a routing profile as a model.** All thirteen `alia-*`
- *    identifiers are policies that pick a model per request, and a user has to
- *    be able to see which is which without decoding a name. Every row says how
- *    many models its entry picks among, in its own facts line.
+ *  - **Present a routing profile as a model.** The profiles are policies that
+ *    pick a model per request, and a user has to be able to see which is which
+ *    without decoding a name — which is exactly why the two now sit in
+ *    different parts of the menu, and why a profile row still says how many
+ *    models it picks among.
  *  - **Report a capability it does not know.** The catalogue answers `always`,
  *    `sometimes`, `never` or `unknown`. A row lists what is claimed and names
  *    what is unknown, so absence from both is `never` and is never confused
@@ -593,9 +602,10 @@ function DetailPanel({
   );
 }
 
-/** A section's worth of rows, headed on web by what the entries are for. */
-interface CategorySection {
-  readonly category: string;
+/** A section's worth of rows, headed on web by what the entries have in common. */
+interface Section {
+  readonly key: string;
+  readonly heading: string;
   readonly entries: readonly CatalogueEntry[];
 }
 
@@ -608,20 +618,64 @@ interface CategorySection {
  * cheapest section is the first row under Automatic, without this file knowing
  * what any category is called.
  */
-function groupByCategory(entries: readonly CatalogueEntry[]): CategorySection[] {
-  const sections: CategorySection[] = [];
+function groupByCategory(entries: readonly CatalogueEntry[], t: Translate): Section[] {
+  const sections: Section[] = [];
   const byCategory = new Map<string, CatalogueEntry[]>();
   for (const entry of entries) {
     const existing = byCategory.get(entry.category);
     if (existing === undefined) {
       const created: CatalogueEntry[] = [entry];
       byCategory.set(entry.category, created);
-      sections.push({ category: entry.category, entries: created });
+      sections.push({
+        key: entry.category === '' ? 'uncategorised' : entry.category,
+        heading: categoryLabel(entry.category, t),
+        entries: created,
+      });
     } else {
       existing.push(entry);
     }
   }
   return sections;
+}
+
+/**
+ * Group the model entries by who published them, ALPHABETICALLY.
+ *
+ * The one place this menu orders something itself, and the reason is that the
+ * alternative would be a claim. Sections of profiles appear where their first
+ * entry does, which follows the server's price order and is meaningful: a
+ * cheaper way of answering comes first. Applying the same rule to publishers
+ * would rank organisations by whichever of their models happens to be cheapest
+ * today, which is a statement about Anthropic and Google that the product does
+ * not make and that would reshuffle itself on a price change.
+ *
+ * So: publishers sorted by the name a person reads, rows inside a publisher
+ * left in the order the server sent (ascending `credit_multiplier`). A model
+ * whose publisher the server did not name goes in one section at the end rather
+ * than into somebody else's.
+ */
+function groupByPublisher(entries: readonly CatalogueEntry[], t: Translate): Section[] {
+  const byPublisher = new Map<string, CatalogueEntry[]>();
+  for (const entry of entries) {
+    const publisher = entry.kind === 'model' && entry.publisher !== null ? entry.publisher : '';
+    const existing = byPublisher.get(publisher);
+    if (existing === undefined) byPublisher.set(publisher, [entry]);
+    else existing.push(entry);
+  }
+  return [...byPublisher.entries()]
+    .map(([publisher, rows]) => ({
+      key: publisher === '' ? 'unattributed' : publisher,
+      heading: publisher === '' ? t('models.uncategorised') : publisherName(publisher),
+      entries: rows,
+    }))
+    .sort((a, b) => {
+      // The unattributed section last, whatever it is called, so a name the
+      // server did not give cannot sort itself into the middle of ones it did.
+      if ((a.key === 'unattributed') !== (b.key === 'unattributed')) {
+        return a.key === 'unattributed' ? 1 : -1;
+      }
+      return a.heading.localeCompare(b.heading);
+    });
 }
 
 export function ModelSelector({ selectedModel, onModelChange }: ModelSelectorProps) {
@@ -663,14 +717,25 @@ export function ModelSelector({ selectedModel, onModelChange }: ModelSelectorPro
     [modes],
   );
 
-  const { sections, legacy, offeredCount } = useMemo(() => {
+  /**
+   * The two halves of the menu, split by what an entry IS.
+   *
+   * Profiles keep their category sections; models get publisher sections. The
+   * split is on the catalogue's own `kind` rather than on a naming convention,
+   * which is the whole reason ADR 0003 put a type on the entry: a client that
+   * decoded `profile:` out of an id would be back to reading meaning out of a
+   * string.
+   */
+  const { profileSections, publisherSections, legacy, offeredCount } = useMemo(() => {
     const offered = (entries ?? []).filter((entry) => entry.chatVisible);
+    const live = offered.filter((entry) => !entry.legacy);
     return {
-      sections: groupByCategory(offered.filter((entry) => !entry.legacy)),
+      profileSections: groupByCategory(live.filter((entry) => entry.kind === 'routing_profile'), t),
+      publisherSections: groupByPublisher(live.filter((entry) => entry.kind === 'model'), t),
       legacy: offered.filter((entry) => entry.legacy),
       offeredCount: offered.length,
     };
-  }, [entries]);
+  }, [entries, t]);
 
   const handleSelect = (entry: CatalogueEntry) => {
     if (isLocked(entry)) {
@@ -697,6 +762,27 @@ export function ModelSelector({ selectedModel, onModelChange }: ModelSelectorPro
         onHighlight={() => setHighlightedId(entry.id)}
       />
     ));
+
+  /**
+   * A section's rows, headed on web and flattened on native.
+   *
+   * Both the heading and the group wrapper are web-only, because the native
+   * menu is the system's and its section behaviour is not something this
+   * codebase can verify. Nothing is lost on native: every row states its own
+   * category and its own publisher in its subtitle.
+   */
+  const renderSection = (section: Section) => {
+    const rows = renderRows(section.entries);
+    if (Platform.OS !== 'web') return <Fragment key={section.key}>{rows}</Fragment>;
+    return (
+      <DropdownMenu.Group key={section.key}>
+        <DropdownMenu.Label className="text-xs text-muted-foreground font-normal px-2.5">
+          {section.heading}
+        </DropdownMenu.Label>
+        {rows}
+      </DropdownMenu.Group>
+    );
+  };
 
   // The row the panel describes: whichever the menu is on, or the chosen one
   // before a pointer or an arrow key has moved anywhere. Resolved against the
@@ -780,24 +866,22 @@ export function ModelSelector({ selectedModel, onModelChange }: ModelSelectorPro
                 </DropdownMenu.ItemTitle>
               </DropdownMenu.Item>
             )}
-            {/* Both the heading and the group wrapper are web-only, because the
-                native menu is the system's and its section behaviour is not
-                something this codebase can verify — the same reason the
-                previous headings were guarded. Nothing is lost on native:
-                every row states its own category in its subtitle. */}
-            {sections.map((section) => {
-              const key = section.category === '' ? 'uncategorised' : section.category;
-              const rows = renderRows(section.entries);
-              if (Platform.OS !== 'web') return <Fragment key={key}>{rows}</Fragment>;
-              return (
-                <DropdownMenu.Group key={key}>
+            {profileSections.map(renderSection)}
+            {publisherSections.length > 0 && (
+              <>
+                {/* The one separator inside the offered list, and it marks the
+                    only distinction in this menu a person has to understand:
+                    above it the product chooses a model per request, below it
+                    they choose the model. */}
+                <DropdownMenu.Separator />
+                {Platform.OS === 'web' && (
                   <DropdownMenu.Label className="text-xs text-muted-foreground font-normal px-2.5">
-                    {categoryLabel(section.category, t)}
+                    {t('models.byPublisher')}
                   </DropdownMenu.Label>
-                  {rows}
-                </DropdownMenu.Group>
-              );
-            })}
+                )}
+                {publisherSections.map(renderSection)}
+              </>
+            )}
             {legacy.length > 0 && (
               <>
                 <DropdownMenu.Separator />

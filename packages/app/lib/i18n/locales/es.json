@@ -790,6 +790,7 @@
       "multimodal": "Multimodal"
     },
     "uncategorised": "Otros",
+    "byPublisher": "Modelos, por quién los publica",
     "routingProfile": "Perfil de enrutado, no un modelo concreto",
     "picksAmong": "Elige entre {{count}} modelos",
     "concreteModel": "Un modelo concreto",

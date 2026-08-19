@@ -57,7 +57,15 @@
  * functions.
  */
 
-import { getAvailableModels, getTierMappings, getPlans, type PlanData } from './gateway-client.js';
+import {
+  getAllProviderHealth,
+  getAvailableModels,
+  getTierMappings,
+  getPlans,
+  type ModelMapping,
+  type PlanData,
+} from './gateway-client.js';
+import { classifyModels } from './routing/model-selection.js';
 import { getUserEntitlements } from './plan-access.js';
 import { PLAN_PRODUCTS, type PlanProduct } from '../domain/plan.js';
 import { canonicalAliasFor, isProfileOffered } from './product-modes.js';
@@ -264,16 +272,18 @@ export interface RoutingProfileEntry extends CatalogueEntryCommon {
  * deployment or region field at all; a caller addresses a model, and which
  * deployment answers is Relay's concern (invariant 4).
  *
- * Both are `null` today and no entry of this kind is served, for two reasons
- * that point the same way. Every one of the thirteen aliases fans out to at
- * least two models, so none is a concrete reference; and publisher attribution
- * does not exist in this repository — the routing table stores a bare provider
- * model id with no publisher segment, and the migration map records that as a
- * finding rather than an omission, with attribution belonging to Relay's
- * catalogue. Filling these from `ModelMapping.modelId` would be wrong twice
- * over: a provider model id is a deployment address rather than a model
- * identity, and publishing one would breach the model-abstraction rule that
- * `packages/api/src/__tests__/` asserts against every catalogue response.
+ * Both were `null` on every entry until the routing table learned who published
+ * each model and what they called it, and neither is filled from
+ * `ModelMapping.modelId`: a deployment address is not a model identity, and
+ * publishing one would breach the model-abstraction rule that
+ * `packages/api/src/__tests__/architectureGates.test.ts` asserts against every
+ * catalogue response. They come from the AUTHORED `publisher` and `model`
+ * columns, through {@link Candidate}, so an entry cannot name an identity its
+ * own routes do not carry.
+ *
+ * `null` remains reachable and remains meaningful: a route that arrives without
+ * either half — which is what a Relay catalogue not yet carrying them looks
+ * like — yields an entry that says so rather than one that guesses.
  */
 export interface ModelEntry extends CatalogueEntryCommon {
   readonly kind: 'model';
@@ -296,6 +306,12 @@ export interface Candidate {
   readonly modelId: string;
   /** Who released this model. `null` is unknown, which is not "none". */
   readonly publisher: string | null;
+  /**
+   * The publisher's own name for it, which is the other half of the identity
+   * and is NOT {@link modelId} — that is what the operator calls the
+   * deployment. `null` is unknown.
+   */
+  readonly model: string | null;
   readonly capabilities: Record<string, unknown>;
   /** Who this route may be served to. `null` is unclassified, which is not a scope. */
   readonly availabilityScope: AvailabilityScope | null;
@@ -347,6 +363,20 @@ export function deriveProvenance(candidates: readonly Candidate[]): CataloguePro
 /** The alias-shaped facts an entry is built from, independent of where they came from. */
 export interface CatalogueSource {
   readonly id: string;
+  /**
+   * The profile whose visibility decides this entry's.
+   *
+   * Its own id for a routing profile. For a MODEL it is the profile the model
+   * is served under (`lib/routing/model-selection.ts`), because a model is
+   * offered exactly when the profile carrying its price, plan and prompt is —
+   * offering a model through a profile the chat product does not sell would be
+   * offering something with no price behind it.
+   *
+   * A separate field rather than `id` reused, so the two cannot silently be the
+   * same thing: reading visibility off `id` is what made every model entry
+   * invisible the first time this was written.
+   */
+  readonly offeredProfileId: string;
   readonly name: string;
   readonly description: string;
   readonly category: string;
@@ -420,6 +450,27 @@ export function deriveCapabilities(candidates: readonly Candidate[]): CatalogueC
 }
 
 /**
+ * What makes two candidates the SAME model.
+ *
+ * The identity, `<publisher>/<model>`, and never the deployment id. This used
+ * to count `modelId`, and it was wrong in exactly the way ADR 0003 invariant 4
+ * describes: Meta's Llama 3.3 70B reaches users under six ids, so a tier
+ * serving that one model six times reported "selects among 6 models" and a tier
+ * serving nothing else would have been classified a routing profile — a policy
+ * over one model, which is a contradiction the discriminator is supposed to
+ * make impossible. `fallback-engine.ts` fixed the same comparison for
+ * `same-model-only`; this is the catalogue's half of it.
+ *
+ * A route missing either half falls back to its deployment id, which
+ * UNDER-collapses: two unattributed routes to one model count as two. That is
+ * the safe direction — over-collapsing would assert that two models are one.
+ */
+function candidateIdentityKey(candidate: Candidate): string {
+  if (candidate.publisher === null || candidate.model === null) return `deployment:${candidate.modelId}`;
+  return `${candidate.publisher}/${candidate.model}`;
+}
+
+/**
  * Build one catalogue entry.
  *
  * Pure, and the only place the model/routing-profile split is decided. Its
@@ -433,14 +484,14 @@ export function buildEntry(
   entitlement: CatalogueEntitlement,
   audience: CallerAudience,
 ): CatalogueEntry {
-  const distinctModels = new Set(candidates.map((c) => c.modelId)).size;
+  const distinctModels = new Set(candidates.map(candidateIdentityKey)).size;
   const common: CatalogueEntryCommon = {
     id: source.id,
     displayName: source.name,
     description: source.description,
     category: source.category,
     emoji: source.emoji ?? null,
-    chatVisible: isProfileOffered(source.id),
+    chatVisible: isProfileOffered(source.offeredProfileId),
     capabilities: deriveCapabilities(candidates),
     availability: {
       status: source.isAvailable ? 'available' : 'unavailable',
@@ -457,8 +508,13 @@ export function buildEntry(
   // reference to that model; several means a policy over several. Zero
   // candidates is not a reference to anything, so it is a policy that currently
   // selects among nothing — which is what an emptied tier honestly is.
+  //
+  // The identity of the single model comes from the candidate itself, never
+  // from the source: an entry cannot name a model its own routes do not carry,
+  // because there is no other place for the name to come from.
   if (distinctModels === 1) {
-    return { ...common, kind: 'model', publisher: null, model: null };
+    const [only] = candidates;
+    return { ...common, kind: 'model', publisher: only.publisher, model: only.model };
   }
   return {
     ...common,
@@ -564,6 +620,67 @@ export async function loadAllowedModelIds(userId: string | null): Promise<string
   }
 }
 
+/**
+ * A route, as the derivation sees it.
+ *
+ * One function for both loops below, so a profile entry and a model entry
+ * cannot end up describing the same route differently — which is the shape of
+ * bug that makes a picker and its detail panel disagree.
+ */
+function toCandidate(route: ModelMapping): Candidate {
+  return {
+    modelId: route.modelId,
+    capabilities: route.capabilities,
+    publisher: route.publisher ?? null,
+    model: route.model ?? null,
+    availabilityScope: route.availabilityScope ?? null,
+    attribution: route.attribution ?? null,
+  };
+}
+
+/**
+ * How a route is keyed in the health table: the operator's own coordinates.
+ *
+ * Two strings rather than a `ModelMapping`, because the health row and the
+ * routing row are different types carrying the same pair — and a key built
+ * twice is a key that can be built differently.
+ */
+function routeKey(provider: string, modelId: string): string {
+  return `${provider}\u0000${modelId}`;
+}
+
+/**
+ * Routes whose circuit breaker is currently OPEN.
+ *
+ * This is what makes a model entry's availability describe the model rather
+ * than the profile it is served under. An alias reports available when ANY
+ * route in its tier is healthy (`internal/providers/lib/alia-models.ts`), which
+ * is the right answer for a policy that may take any of them and the wrong one
+ * for a single model: it would call a model available because a different model
+ * in the same tier is.
+ *
+ * Open is the only state read as unavailable, matching the engine's own skip —
+ * closed, half-open and never-recorded are all states it will try. A route the
+ * health table has never heard of is therefore available, which is correct on a
+ * cold start and is the same permissive direction `getAllProviderHealth`
+ * already takes: it swallows its own read failures and answers with an empty
+ * list, so an unreadable health table reports everything available rather than
+ * hiding the whole catalogue behind an infrastructure fault.
+ */
+async function loadOpenCircuits(): Promise<ReadonlySet<string>> {
+  try {
+    const health = await getAllProviderHealth();
+    const open = new Set<string>();
+    for (const row of health) {
+      if (row.circuitState === 'open') open.add(routeKey(row.provider, row.modelId));
+    }
+    return open;
+  } catch (err: unknown) {
+    log.models.warn({ err }, 'Provider health unavailable; every route reported reachable');
+    return new Set<string>();
+  }
+}
+
 export interface CatalogueOptions {
   /** Authenticated caller, or `null`. Decides only the `entitled` field. */
   readonly userId: string | null;
@@ -644,11 +761,12 @@ export type CatalogueResult =
  * selection is a separate product decision and is not expressed by position.
  */
 export async function buildCatalogue(options: CatalogueOptions): Promise<CatalogueResult> {
-  const [sources, tierMappings, plans, allowedModelIds] = await Promise.all([
+  const [sources, tierMappings, plans, allowedModelIds, openCircuits] = await Promise.all([
     getAvailableModels(),
     getTierMappings(),
     loadPlanGrants(),
     loadAllowedModelIds(options.userId),
+    loadOpenCircuits(),
   ]);
 
   if (options.product !== undefined && plans === null) return { ok: false, unavailable: 'plans' };
@@ -685,13 +803,7 @@ export async function buildCatalogue(options: CatalogueOptions): Promise<Catalog
     // entry with no price and no availability.
     if (source === undefined) continue;
 
-    const candidates: Candidate[] = (tierMappings[preset.tier] ?? []).map((m) => ({
-      modelId: m.modelId,
-      capabilities: m.capabilities,
-      publisher: m.publisher ?? null,
-      availabilityScope: m.availabilityScope ?? null,
-      attribution: m.attribution ?? null,
-    }));
+    const candidates: Candidate[] = (tierMappings[preset.tier] ?? []).map(toCandidate);
     // Counted over every candidate the catalogue looked at, including those on
     // entries a filter then removed: the question this answers is "does Relay
     // carry this fact yet", which is a property of the data and not of the
@@ -715,11 +827,76 @@ export async function buildCatalogue(options: CatalogueOptions): Promise<Catalog
       continue;
     }
 
-    const entry = buildEntry({ ...source, id: preset.id }, candidates, entitlement, options.audience);
+    const entry = buildEntry(
+      { ...source, id: preset.id, offeredProfileId: preset.id },
+      candidates,
+      entitlement,
+      options.audience,
+    );
     // The scope refusal, applied rather than only annotated. Unlike `product`
     // and `entitled` this is not a filter the caller asked for, so it is not
     // conditional on an option: a route the caller's credential does not admit
     // is not theirs to see whatever they asked for.
+    if (entry.availability.scope.state === 'withheld') continue;
+    entries.push(entry);
+  }
+
+  /**
+   * One entry per individually selectable MODEL, beside the profiles.
+   *
+   * The product offers both, and they are different choices: a profile is
+   * "answer this well and I do not mind how", a model is "answer this with
+   * THIS model". `lib/routing/model-selection.ts` decides which models may be
+   * named one at a time — the price-band question — and this loop only serves
+   * what it decided.
+   *
+   * No route is counted again here. A model's deployments are the same rows the
+   * profile loop already walked, so counting them twice would report a routing
+   * table twice the size of the one that exists.
+   */
+  for (const model of classifyModels(tierMappings, sources).selectable) {
+    const source = byAlias.get(model.alias);
+    if (source === undefined) continue;
+
+    const candidates = model.deployments.map(toCandidate);
+    const entitlement =
+      plans === null ? { state: 'unknown' as const } : resolveEntitlement(model.alias, plans, allowedModelIds);
+
+    if (entitlement.state === 'known') {
+      if (options.product !== undefined && !entitlement.products.includes(options.product)) continue;
+      if (options.entitledOnly === true && entitlement.entitled !== true) continue;
+    }
+
+    if (options.surface !== undefined && !surfaceCanOffer(options.surface, model.category)) {
+      surfaceWithheld += 1;
+      continue;
+    }
+
+    const entry = buildEntry(
+      {
+        id: model.id,
+        offeredProfileId: model.profileId,
+        name: model.displayName,
+        /**
+         * A model gets no description, and that is deliberate rather than
+         * missing data. The only description available is the PROFILE's — "the
+         * everyday default: quick enough, capable enough" — which describes a
+         * policy, not this model, and putting it under a model's name would be
+         * a claim about the model that nobody made.
+         */
+        description: '',
+        category: model.category,
+        tier: model.tier,
+        creditMultiplier: model.creditMultiplier,
+        isAvailable: model.deployments.some((route) => !openCircuits.has(routeKey(route.provider, route.modelId))),
+        // A model is not retired: `isLegacy` is a flag on an ALIAS, set by the
+        // admin tool to retire an identifier the product used to advertise.
+        isLegacy: false,
+      },
+      candidates,
+      entitlement,
+      options.audience,
+    );
     if (entry.availability.scope.state === 'withheld') continue;
     entries.push(entry);
   }

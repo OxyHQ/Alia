@@ -156,6 +156,7 @@ const servedKind = (tier: keyof typeof FIXTURE_TIER_MAPPINGS): string =>
   buildEntry(
     {
       id: 'irrelevant',
+      offeredProfileId: 'irrelevant',
       name: 'Irrelevant',
       description: '',
       category: 'general',
@@ -169,6 +170,7 @@ const servedKind = (tier: keyof typeof FIXTURE_TIER_MAPPINGS): string =>
     FIXTURE_TIER_MAPPINGS[tier].map((m) => ({
       modelId: m.modelId,
       publisher: m.publisher,
+      model: m.model,
       capabilities: {},
       availabilityScope: null,
       attribution: null,
@@ -242,5 +244,81 @@ describe('the control: this file can see the engine crossing between models', ()
       fallbackPolicy: 'same-model-only',
     }).catch(() => null);
     expect(askedModels()).toEqual(new Set(['model-a']));
+  });
+});
+
+describe('naming a model pins the request to it, inside a tier that holds several', () => {
+  /**
+   * The other half of the same invariant, and the one the picker depends on.
+   *
+   * Above, an identifier that resolves to ONE model stays on it. Here the
+   * identifier resolves to a tier holding TWO, the caller names one of them,
+   * and the engine must answer from that one — which is a property the tests
+   * above cannot see at all, because their tier has nothing else to drift to.
+   */
+  const PUBLISHER = 'fixture-publisher';
+
+  it('walks only the named model, and it is not the tier\u2019s default', async () => {
+    await resolveWithFallback(PROFILE, 1000, new Set(), new Set(), {
+      pinnedModel: { publisher: PUBLISHER, model: 'model-b' },
+    }).catch(() => null);
+    expect(askedModels()).toEqual(new Set(['model-b']));
+
+    // The control that makes the assertion above mean something: `model-b` is
+    // NOT what the tier resolves to when nobody names anything, so a pin that
+    // did nothing would have produced `model-a` first.
+    vi.clearAllMocks();
+    isProviderAvailable.mockResolvedValue(true);
+    getBestKeyForModel.mockResolvedValue(null);
+    await resolveWithFallback(PROFILE).catch(() => null);
+    expect([...askedModels()][0]).toBe('model-a');
+  });
+
+  it('resolves to the named model rather than the higher-priority one', async () => {
+    getBestKeyForModel.mockResolvedValue(aKey);
+    const result = await resolveWithFallback(PROFILE, 1000, new Set(), new Set(), {
+      pinnedModel: { publisher: PUBLISHER, model: 'model-b' },
+    });
+    expect(result.resolved?.modelId).toBe('model-b');
+    // The alias is still what the rest of the request path reads for price,
+    // plan and prompt — the pin narrows routing, it does not replace the tier.
+    expect(result.resolved?.aliasModelId).toBe(PROFILE);
+  });
+
+  it('records the policy a pinned request actually ran under', async () => {
+    getBestKeyForModel.mockResolvedValue(aKey);
+    const result = await resolveWithFallback(PROFILE, 1000, new Set(), new Set(), {
+      pinnedModel: { publisher: PUBLISHER, model: 'model-b' },
+    });
+    // Not `cross-model`, which is both the preset's policy and the default: a
+    // pinned request cannot substitute, and the telemetry row and the
+    // exhaustion message both read this value.
+    expect(result.policy).toBe('same-model-only');
+    expect(FALLBACK_POLICIES).toContain(result.policy);
+  });
+
+  it('cannot be widened back to the tier by asking for cross-model', async () => {
+    // The pin narrows BEFORE the policy applies, so the widest policy there is
+    // still cannot reach a model the caller did not name.
+    await resolveWithFallback(PROFILE, 1000, new Set(), new Set(), {
+      fallbackPolicy: 'cross-model',
+      pinnedModel: { publisher: PUBLISHER, model: 'model-b' },
+    }).catch(() => null);
+    expect(askedModels()).toEqual(new Set(['model-b']));
+  });
+
+  it('refuses by NAME when every deployment of the named model is exhausted', async () => {
+    getBestKeyForModel.mockResolvedValue(null);
+    const failure = await resolveWithFallback(CONCRETE, 1000, new Set(), new Set(), {
+      pinnedModel: { publisher: PUBLISHER, model: SOLO_MODEL },
+    }).then(
+      () => null,
+      (err: unknown) => err,
+    );
+    // A pinned request that runs out is a product refusal naming the model the
+    // caller asked for, not a 503 naming an alias they have never seen.
+    expect(failure).toBeInstanceOf(Error);
+    expect((failure as Error).message).toContain(`${PUBLISHER}/${SOLO_MODEL}`);
+    expect((failure as Error).message).not.toContain(CONCRETE);
   });
 });

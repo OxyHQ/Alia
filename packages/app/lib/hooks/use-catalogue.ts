@@ -61,14 +61,12 @@ interface CatalogueEntryCommon {
    * What the entry is FOR, as the server groups it: `general`, `coding`,
    * `vision`, `audio`, `voice`, `multimodal` today.
    *
-   * This is the only grouping axis the catalogue actually carries, and reading
-   * it is what lets the picker offer sections instead of one flat list. The
-   * obvious alternative — grouping by who publishes the model — is not
-   * available and never will be: `publisher` and `model` are served `null` for
-   * every entry (`lib/catalogue.ts`), and `__tests__/architectureGates.test.ts`
-   * fails the build if any catalogue response names a provider or a provider
-   * model id outside the licence-attribution field. So the section axis is
-   * purpose, because purpose is what the data says.
+   * The axis the ROUTING PROFILES are sectioned by, and the only one they have:
+   * a profile answers from a different organisation each time, so "who makes
+   * it" has a set as its answer rather than a name. The MODEL entries are
+   * sectioned by publisher instead — see {@link ModelEntry} — which is a
+   * different axis for a different kind of entry, not a replacement for this
+   * one.
    *
    * Kept as a `string` rather than a union of today's six values: a seventh
    * category added server-side must produce a seventh section, not a dropped
@@ -157,12 +155,17 @@ export interface RoutingProfileEntry extends CatalogueEntryCommon {
 }
 
 /**
- * A reference to one named model.
+ * A reference to one named model, which is what the picker's publisher sections
+ * are built from.
  *
- * `publisher` and `model` are both `null` for every entry the catalogue serves
- * today: publisher attribution does not exist in Alia's data, and the migration
- * map records that as a finding rather than an omission. They are rendered when
- * present and nothing is substituted when absent.
+ * The two halves of `<publisher>/<model>`: who released the weights, and what
+ * they called them. Neither is ever the operator serving the deployment — the
+ * catalogue does not publish that and this client must never infer it.
+ *
+ * Both are still nullable and both are rendered only when present. `null` is
+ * what a route that arrived without attribution looks like, and substituting
+ * anything for it — the id, the display name, a guess parsed out of either —
+ * would be naming an organisation the server did not.
  */
 export interface ModelEntry extends CatalogueEntryCommon {
   readonly kind: 'model';

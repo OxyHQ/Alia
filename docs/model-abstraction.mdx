@@ -207,8 +207,12 @@ What is implemented, as of workstreams 4, 5 and 14 of #139:
   than merely hidden.
 - Cross-model substitution is a typed policy on the request and on the routing preset.
 
-What is not: canonical `<publisher>/<model>` identity arrives with Relay's catalogue —
-publisher is not recoverable from this repository's data.
+Canonical `<publisher>/<model>` identity is here too, for the models the product offers one
+at a time. Both halves are AUTHORED columns on the routing table
+(`internal/providers/lib/generate-model-mappings.ts`) rather than parsed out of a deployment
+id: 97 of the mappings carry a bare model name with no publisher token, and where a prefix
+does exist it is sometimes the inference platform rather than the publisher. A route that
+arrives without either half is published as unknown, never guessed at.
 
 ## Compatibility window
 
