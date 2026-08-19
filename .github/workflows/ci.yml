@@ -277,10 +277,29 @@ jobs:
       - name: Test console
         run: bun run --filter alia-console test
 
+      # The VS Code extension parses `GET /catalogue` and `GET /catalogue/modes`
+      # itself — it bundles with esbuild and cannot depend on an unpublished
+      # workspace package, so the parsing is its own. It had a `test` script and
+      # a suite that no job ran, which is a suite that cannot fail.
+      - name: Test Codea extension
+        run: bun run --filter alia-codea test
+
+      # `alia-canvas` and the Codea `webview-ui` are solution-style projects
+      # (`"files": []`, references only), so `tsc --noEmit` in them compiles
+      # NOTHING and exits 0 — which is why `typecheck-workspaces.ts` lists both
+      # as scriptless and points at the `tsc -b` inside their own `build`. That
+      # build only ran in `deploy-frontends.yml`, on main, AFTER merge. This is
+      # the same check, before it.
+      - name: Typecheck the solution-style frontends
+        run: |
+          bunx tsc -b packages/alia-canvas
+          bunx tsc -b packages/alia-codea/webview-ui
+
       # Every client reads GET /catalogue instead of baking an `alia-*`
-      # identifier into a shipped artefact. It spans five source trees in four
-      # packages — two of which have no test runner at all — so it is a script
-      # rather than any one package's suite.
+      # identifier into a shipped artefact. It spans nine source trees, and
+      # every workspace the repo declares must be either walked by it or
+      # classified as shipping no picker — so it is a script rather than any one
+      # package's suite.
       - name: Check no client hardcodes a model default
         run: node scripts/check-model-defaults.mjs
 

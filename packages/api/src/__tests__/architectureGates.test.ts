@@ -903,6 +903,12 @@ const EGRESS_HOSTS: readonly string[] = [
   '127.0.0.1',
   'accounts.google.com',
   'alia-ai.com',
+  // The Cloudflare Pages origin `.github/workflows/deploy-frontends.yml`
+  // publishes `packages/alia-canvas` to. It is an ALLOWED BROWSER ORIGIN in the
+  // internal CORS list, never a host this package calls; it is here rather than
+  // exempted because naming a host is exactly what this gate makes a reviewed
+  // diff, and a CORS allowlist entry deserves that review most of all.
+  'alia-canvas.pages.dev',
   'alia.onl',
   'api.anthropic.com',
   'api.cerebras.ai',
@@ -1266,7 +1272,13 @@ describe('gate 3: the alia-* alias set is frozen (ADR 0002)', () => {
       'packages/api/src/lib/credits-manager.ts:alia-v1-voice',
     );
     // Vacuity floor beside it: a broken visitor prints a clean empty list.
-    expect(found.length).toBeGreaterThanOrEqual(8);
+    // 8 -> 7 because `routes/webhooks.ts` stopped defaulting to an alias, not
+    // because the visitor got weaker: #244 made a bot's stored preference a
+    // `profile:*` identifier, so that site now defaults to
+    // `getDefaultAliaModel()` and translates through `toRoutableAlias`. The
+    // floor moves by exactly the number of defaults deleted; the positive
+    // control above is what keeps it from measuring nothing.
+    expect(found.length).toBeGreaterThanOrEqual(7);
 
     // A default must name something that resolves to itself: a registered alias,
     // or one of the classified non-model strings (a LiveKit participant identity

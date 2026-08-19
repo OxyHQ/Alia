@@ -3,6 +3,7 @@ import { BaseNode } from "./base-node";
 import { Sparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import type { WorkflowNodeData } from "@/lib/workflow-types";
+import { labelForNode, useOfferedModes } from "@/lib/product-modes";
 
 interface AITextNodeProps {
   id: string;
@@ -11,6 +12,19 @@ interface AITextNodeProps {
 }
 
 export const AITextNode = memo(function AITextNode({ id, data, selected }: AITextNodeProps) {
+  const { data: offeredModes } = useOfferedModes();
+  /**
+   * The product's word for what this node is set to, or nothing.
+   *
+   * There used to be two badges here, and neither said anything true: the first
+   * read `data.provider || "openai"` and no node has ever carried a `provider`,
+   * so it named an operator on every node in the editor; the second read
+   * `data.model || "gpt-4o"`, a provider model id. One badge now, holding the
+   * mode, and absent when the modes have not loaded or when the node names
+   * something the product has no word for.
+   */
+  const modeLabel = labelForNode(data.model, offeredModes);
+
   return (
     <BaseNode
       id={id}
@@ -19,14 +33,13 @@ export const AITextNode = memo(function AITextNode({ id, data, selected }: AITex
       icon={<Sparkles className="w-3.5 h-3.5 text-primary" />}
     >
       <div className="space-y-1.5">
-        <div className="flex gap-1 text-[10px]">
-          <Badge variant="outline" className="h-4 px-1.5">
-            {data.provider || "openai"}
-          </Badge>
-          <Badge variant="outline" className="h-4 px-1.5">
-            {data.model || "gpt-4o"}
-          </Badge>
-        </div>
+        {modeLabel !== null && (
+          <div className="flex gap-1 text-[10px]">
+            <Badge variant="outline" className="h-4 px-1.5">
+              {modeLabel}
+            </Badge>
+          </div>
+        )}
 
         <div className="text-[10px] text-muted-foreground line-clamp-1">
           {data.systemPrompt || "You are a technical documentation expert."}

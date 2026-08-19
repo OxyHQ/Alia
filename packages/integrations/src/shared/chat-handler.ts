@@ -105,7 +105,9 @@ export async function handleIncomingMessage(
       botUser.oxyUserId,
       apiMessages,
       {
-        model: botUser.preferredModel || 'alia-lite',
+        // Unset means no preference; the request names no model and the
+        // server's default applies. See `./api-client.ts`.
+        model: botUser.preferredModel,
         conversationId,
       },
     );

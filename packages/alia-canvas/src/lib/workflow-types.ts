@@ -13,7 +13,13 @@ export type WorkflowNodeType =
 export interface WorkflowNodeData {
   label: string;
   // AI Text Node
-  provider?: string;
+  /**
+   * The `profile:*` identifier a node asks for, absent for Automatic.
+   *
+   * There was a `provider` field beside this and nothing ever wrote one — the
+   * node badge read `data.provider || "openai"`, so the fallback was what every
+   * node displayed. See `src/lib/product-modes.ts`.
+   */
   model?: string;
   prompt?: string;
   systemPrompt?: string;

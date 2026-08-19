@@ -132,9 +132,26 @@ app.use('/v1', (_req, res, next) => {
 });
 
 // Internal routes - restricted to known origins
+/**
+ * The first-party browser origins this repo deploys.
+ *
+ * `alia-canvas.pages.dev` is where `.github/workflows/deploy-frontends.yml`
+ * publishes `packages/alia-canvas` (`--project-name=alia-canvas`), and it was
+ * missing: measured 2026-08-19 against the running API, `GET /catalogue` with
+ * `Origin: https://alia.onl` came back with an `access-control-allow-origin`
+ * header and the same request with `Origin: https://alia-canvas.pages.dev`
+ * came back with none, so every internal call that app makes — the workflow
+ * routes under `/api` as well as the catalogue — was refused by the browser.
+ *
+ * Exact origins only, never a pattern: `createOxyCors` matches the normalized
+ * origin against this set, so a Cloudflare Pages PREVIEW deployment
+ * (`<hash>.alia-canvas.pages.dev`) is not admitted by this entry, which is the
+ * intent.
+ */
 const PRODUCTION_ORIGINS = [
   'https://alia.onl',
   'https://console.alia.onl',
+  'https://alia-canvas.pages.dev',
 ];
 
 const DEV_ORIGINS = [

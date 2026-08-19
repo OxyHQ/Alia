@@ -29,8 +29,29 @@ import { PREFERRED_MODEL_ID } from './config';
 export interface CatalogueEntry {
   readonly id: string;
   readonly displayName: string;
+  readonly description: string;
   readonly chatVisible: boolean;
   readonly unavailable: boolean;
+}
+
+/** Which routing profile a request made in this mode goes through. */
+export type ProductModeRouting =
+  | { readonly kind: 'profile'; readonly profileId: string }
+  | { readonly kind: 'default' };
+
+/**
+ * A product mode — the words the picker shows.
+ *
+ * A mode is a LABEL for a profile, never a selectable identifier: nothing in
+ * the request path consumes a `mode:*` id, so a webview that sent one would get
+ * a 400. `packages/app/lib/hooks/use-product-modes.ts` states that at length.
+ */
+export interface ProductMode {
+  readonly id: string;
+  readonly label: string;
+  readonly description: string;
+  readonly routing: ProductModeRouting;
+  readonly deepResearch: boolean;
 }
 
 type JsonObject = Record<string, unknown>;
@@ -62,6 +83,7 @@ export function parseCatalogue(payload: unknown): CatalogueEntry[] {
     entries.push({
       id,
       displayName,
+      description: asText(raw.description) ?? '',
       chatVisible: raw.chat_visible === true,
       unavailable: availability.status === 'unavailable',
     });
@@ -70,6 +92,88 @@ export function parseCatalogue(payload: unknown): CatalogueEntry[] {
     throw new Error('The model catalogue response could not be read.');
   }
   return entries;
+}
+
+function parseRouting(value: unknown): ProductModeRouting {
+  const raw = asObject(value);
+  if (raw === null) return { kind: 'default' };
+  if (raw.kind === 'profile') {
+    const profileId = asText(raw.profile_id);
+    // A `profile` routing with no id is a shape break, not a default. Reading
+    // it as `default` would silently move the mode's meaning.
+    if (profileId !== null) return { kind: 'profile', profileId };
+  }
+  return { kind: 'default' };
+}
+
+/** Turn a modes response into modes, or throw — same reasoning as {@link parseCatalogue}. */
+export function parseModes(payload: unknown): ProductMode[] {
+  const body = asObject(payload);
+  const data = body === null ? null : body.data;
+  if (!Array.isArray(data)) throw new Error('The product modes response could not be read.');
+
+  const modes: ProductMode[] = [];
+  for (const value of data) {
+    const raw = asObject(value);
+    if (raw === null) continue;
+    if (raw.object !== 'product_mode') continue;
+    const id = asText(raw.id);
+    const label = asText(raw.label);
+    if (id === null || label === null) continue;
+    modes.push({
+      id,
+      label,
+      description: asText(raw.description) ?? '',
+      routing: parseRouting(raw.routing),
+      deepResearch: raw.deep_research === true,
+    });
+  }
+  if (data.length > 0 && modes.length === 0) {
+    throw new Error('The product modes response could not be read.');
+  }
+  return modes;
+}
+
+/**
+ * What a person reads for an entry: the product's word for it, or the
+ * catalogue's own.
+ *
+ * The picker used to label a routing profile with the display name of the alias
+ * it came from — "Alia Lite", "Codea" — which are model names for things that
+ * are not models. The catalogue's `displayName` stays as the fallback for a
+ * profile no mode names, because inventing a mode for those would be the same
+ * category error in the other direction.
+ */
+export function presentation(
+  entry: CatalogueEntry,
+  modes: readonly ProductMode[],
+): { readonly label: string; readonly description: string } {
+  const mode =
+    modes.find((m) => m.routing.kind === 'profile' && m.routing.profileId === entry.id) ?? null;
+  if (mode === null) return { label: entry.displayName, description: entry.description };
+  return { label: mode.label, description: mode.description };
+}
+
+/** One row of the webview picker: an identifier to send, and the words for it. */
+export interface OfferedMode {
+  readonly id: string;
+  readonly label: string;
+  readonly description: string;
+}
+
+/**
+ * What the picker offers, in the product's words.
+ *
+ * `chat_visible` is the product's own visibility decision, read off the
+ * response rather than reimplemented here.
+ */
+export function offeredModes(
+  entries: readonly CatalogueEntry[],
+  modes: readonly ProductMode[],
+): OfferedMode[] {
+  return entries
+    .filter((entry) => entry.chatVisible)
+    .map((entry) => ({ id: entry.id, ...presentation(entry, modes) }));
 }
 
 export interface ModelSelection {
@@ -131,6 +235,54 @@ export function fetchCatalogue(apiBaseUrl: string, accessToken?: string): Promis
   cache.set(apiBaseUrl, request);
   request.catch(() => cache.delete(apiBaseUrl));
   return request;
+}
+
+const modeCache = new Map<string, Promise<ProductMode[]>>();
+
+/**
+ * The product modes for one API base URL, fetched at most once per URL.
+ *
+ * Unauthenticated, because a mode is the same for everybody: what a given
+ * caller may USE is entitlement, and that is annotated on the catalogue entries
+ * a mode routes through rather than on the mode. Rejections evict, for the same
+ * reason they do above.
+ */
+export function fetchProductModes(apiBaseUrl: string): Promise<ProductMode[]> {
+  const cached = modeCache.get(apiBaseUrl);
+  if (cached !== undefined) return cached;
+
+  const request = (async () => {
+    const response = await fetch(`${apiBaseUrl}/catalogue/modes`);
+    if (!response.ok) throw new Error(`The product modes request failed (${response.status}).`);
+    return parseModes(await response.json());
+  })();
+
+  modeCache.set(apiBaseUrl, request);
+  request.catch(() => modeCache.delete(apiBaseUrl));
+  return request;
+}
+
+/**
+ * What the webview picker should show, in the product's words.
+ *
+ * Empty on failure rather than a built-in list: a picker with nothing in it
+ * leaves the extension's own preference in charge (`chatProvider` falls back to
+ * the `codea.model` setting and then to `PREFERRED_MODEL_ID`), where a built-in
+ * list would put a stale name in front of somebody and let them select it.
+ */
+export async function fetchOfferedModes(
+  apiBaseUrl: string,
+  accessToken?: string,
+): Promise<OfferedMode[]> {
+  try {
+    const [entries, modes] = await Promise.all([
+      fetchCatalogue(apiBaseUrl, accessToken),
+      fetchProductModes(apiBaseUrl),
+    ]);
+    return offeredModes(entries, modes);
+  } catch {
+    return [];
+  }
 }
 
 /**

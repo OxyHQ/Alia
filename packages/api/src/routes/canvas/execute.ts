@@ -7,6 +7,7 @@ import {
 } from '../../db/automation/workflowRepository.js';
 import { authenticateToken } from '../../middleware/auth.js';
 import { resolveModel, getAIModel, getDefaultAliaModel } from '../../lib/chat-core.js';
+import { toRoutableAlias } from '../../lib/product-modes.js';
 import { getDb } from '../../db/index.js';
 import {
   findEntryByTitle,
@@ -234,7 +235,21 @@ async function executeNode(node: WorkflowNode, input: string, userId: string): P
       return node.data.text || '';
 
     case 'aiText': {
-      const modelId = node.data.model || getDefaultAliaModel();
+      /**
+       * A node stores what `GET /catalogue` publishes, which is `profile:*`.
+       *
+       * `toRoutableAlias` turns it into the alias carrying the metadata the
+       * rest of this path needs, exactly as `lib/chat/request-context.ts` does
+       * at the chat boundary — a legacy `alia-*` saved into an older workflow
+       * passes through untouched and keeps resolving, and a node that names
+       * nothing runs on the product default, which is what the Automatic mode
+       * is. `null` is only ever a `profile:` id no preset defines.
+       */
+      const requested = node.data.model || getDefaultAliaModel();
+      const modelId = toRoutableAlias(requested);
+      if (modelId === null) {
+        throw new Error(`"${requested}" is not a routing profile. List them at GET /catalogue.`);
+      }
       const resolved = await resolveModel(modelId);
       if (!resolved) throw new Error(`Could not resolve model: ${modelId}`);
       const model = getAIModel(resolved.keyConfig);
