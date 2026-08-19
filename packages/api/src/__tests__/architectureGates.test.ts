@@ -3448,3 +3448,224 @@ describe('gate 8: first-party clients call the product runtime (#139 ws6, ADR 00
     expect(propertyInitializers((routes as Source).ast, 'chatCompletions')).toEqual([]);
   });
 });
+
+// ===========================================================================
+// Gate 9 — no allowlisted origin is opaque (#139 ws15)
+// ===========================================================================
+
+/**
+ * *An origin on an allowlist must SERIALISE to an origin.*
+ *
+ * `new URL(x).origin` answers with the string `"null"` for every scheme the URL
+ * standard does not make special — the opaque origin — and `createOxyCors`
+ * builds its explicit-origin set out of exactly that value. So a single entry
+ * with an opaque origin does not admit one extra origin; it admits EVERY
+ * non-special scheme at once, and the middleware then echoes back the raw
+ * `Origin` header it matched together with `access-control-allow-credentials:
+ * true`.
+ *
+ * That was live. `exp://localhost:8150` sat in the dev allowlist since before
+ * the port renumbering in #65 (it arrived as `exp://localhost:8081`, the shape
+ * an Expo template hands you), and measured 2026-08-19 against
+ * `https://api.alia.onl/catalogue`, `Origin: vscode-webview://abc123` was
+ * answered with `access-control-allow-origin: vscode-webview://abc123` and
+ * credentials; `capacitor://localhost` and `chrome-extension://…` likewise.
+ * `https://evil.example.com` and a literal `Origin: null` were refused, which
+ * is what kept it a hole rather than a wildcard.
+ *
+ * ## Why this gate has no frozen list
+ *
+ * Every other gate in this file freezes an inventory, because the thing it
+ * measures is legitimately present and only its GROWTH is the hazard. This one
+ * is different: the property holds everywhere in the repo already — measured
+ * over 1331 tracked sources, 35 URLs in 9 arrays across 7 files of deployed
+ * source, and before this change exactly one violation: the entry this gate was
+ * written for. A property that already holds needs no exemption list, and an
+ * exemption list here would be the one thing that could make the gate silent
+ * about the next `exp://`-shaped entry.
+ *
+ * ## What it can and cannot see
+ *
+ * It reads URL literals inside ARRAY literals, which is the shape an allowlist
+ * is written in — including one reached through a `||` default, and including
+ * one with a trailing slash, which a check anchored on "looks like an origin"
+ * would let through while `new URL` still reports it opaque. It says nothing
+ * about a URL built at runtime or read from the environment: `WEB_URL` reaches
+ * the allowlist that way, and that half is enforced where it can be, in
+ * `lib/cors-origins.ts` and in `corsOrigins.test.ts`.
+ */
+const URL_SHAPED = /^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//;
+
+interface ArrayUrl {
+  readonly file: string;
+  readonly name: string;
+  readonly line: number;
+  readonly value: string;
+  /** `new URL(value).origin`, or `<unparseable>` — both are failures. */
+  readonly origin: string;
+}
+
+/**
+ * Every URL literal that appears anywhere inside an array literal, named by the
+ * nearest enclosing declaration or property so a failure points at the list
+ * rather than at a line number.
+ */
+function urlsInArrays(sources: readonly Source[]): ArrayUrl[] {
+  const out: ArrayUrl[] = [];
+  for (const { file, ast } of sources) {
+    const visit = (n: ts.Node): void => {
+      if (ts.isArrayLiteralExpression(n)) {
+        // Nested rather than element-by-element: `[process.env.WEB_URL || 'x']`
+        // and `[...OTHER, 'x']` are both how a real allowlist is spelled.
+        const literals: string[] = [];
+        const gather = (m: ts.Node): void => {
+          if (ts.isStringLiteralLike(m)) literals.push(m.text);
+          ts.forEachChild(m, gather);
+        };
+        for (const element of n.elements) gather(element);
+
+        let name = '<anonymous>';
+        for (let p: ts.Node | undefined = n.parent; p !== undefined; p = p.parent) {
+          if (ts.isVariableDeclaration(p) && ts.isIdentifier(p.name)) {
+            name = p.name.text;
+            break;
+          }
+          if (ts.isPropertyAssignment(p) && (ts.isIdentifier(p.name) || ts.isStringLiteral(p.name))) {
+            name = p.name.text;
+            break;
+          }
+        }
+
+        for (const value of literals.filter((l) => URL_SHAPED.test(l))) {
+          let origin: string;
+          try {
+            origin = new URL(value).origin;
+          } catch {
+            origin = '<unparseable>';
+          }
+          out.push({ file, name, line: lineOf(ast, n), value, origin });
+        }
+      }
+      ts.forEachChild(n, visit);
+    };
+    visit(ast);
+  }
+  return out;
+}
+
+describe('gate 9: no origin allowlist admits an opaque origin (#139 ws15)', () => {
+  const everything = trackedSources('packages');
+  /**
+   * Non-test source only, for the reason gate 2's egress freeze gives and one
+   * of its own: a test that proves a matcher REFUSES an origin has to name that
+   * origin, so `corsOrigins.test.ts` holds an array of opaque origins on
+   * purpose. Reading those as findings would make the only file that
+   * demonstrates the bug the only file that fails the gate. The exclusion is
+   * not taken on trust — its exact effect is measured below.
+   */
+  const found = urlsInArrays(everything.filter((s) => !isTestFile(s.file)));
+
+  it('reads a URL out of every array form an allowlist is written in', () => {
+    const parse = (text: string) => ts.createSourceFile('probe.ts', text, ts.ScriptTarget.Latest, true);
+    const probe = (text: string) => urlsInArrays([{ file: 'probe.ts', ast: parse(text) }]);
+
+    // The plain form, and the form this gate exists for.
+    expect(probe(`const A = ['https://a.test', 'exp://localhost:8150'];`).map((u) => [u.name, u.value, u.origin])).toEqual([
+      ['A', 'https://a.test', 'https://a.test'],
+      ['A', 'exp://localhost:8150', 'null'],
+    ]);
+    // Inline in the call that consumes it, which is where an allowlist most
+    // often ends up.
+    expect(probe(`createOxyCors({ appOrigins: ['vscode-webview://x'] });`).map((u) => [u.name, u.origin])).toEqual([
+      ['appOrigins', 'null'],
+    ]);
+    // Through a default, and through a spread — neither is an array ELEMENT
+    // that is a string literal.
+    expect(probe(`const A = [process.env.WEB_URL || 'capacitor://localhost', ...OTHER];`).map((u) => u.origin)).toEqual(['null']);
+    // The trailing slash: still opaque to `new URL`, no longer origin-shaped.
+    // A check that matched on shape would report this file clean.
+    expect(probe(`const A = ['exp://localhost:8150/'];`).map((u) => u.origin)).toEqual(['null']);
+    // An entry `new URL` refuses outright is a finding too: it can never match,
+    // so it is a silently dead allowlist line.
+    expect(probe(`const A = ['https://'];`).map((u) => u.origin)).toEqual(['<unparseable>']);
+
+    // The negative halves. A comment quoting an entry is not an entry, and a
+    // URL outside an array is out of scope — which this gate says rather than
+    // hides, because `lib/cors-origins.ts` is where that half is enforced.
+    expect(probe(`// const A = ['exp://ghost'];\nconst x = 1;`)).toEqual([]);
+    expect(probe(`const A = 'exp://not-in-an-array';`)).toEqual([]);
+    // Greedy INSIDE an element, deliberately: the `||` form above is why, and
+    // the price is that a scheme used as an ordinary string inside an array
+    // reads as an entry too. Deployed source contains no such literal — the one
+    // in `packages/app/lib/generate-api-url.ts`, which rewrites the `exp://`
+    // prefix of Expo's experience URL, is an argument and not an array element.
+    expect(probe(`const A = ['exp://'.length];`).map((u) => u.origin)).toEqual(['null']);
+  });
+
+  it('scans a non-trivial number of files, and finds URLs in them', () => {
+    // The vacuity floor. An empty violation list means nothing unless the
+    // scanner reached the tree and read entries out of it.
+    expect(everything.length).toBeGreaterThanOrEqual(900);
+    expect(found.length).toBeGreaterThanOrEqual(25);
+    expect(new Set(found.map((u) => u.file)).size).toBeGreaterThanOrEqual(6);
+  });
+
+  it('no URL in any array in deployed source serialises to the opaque origin', () => {
+    expect(found.filter((u) => u.origin === 'null' || u.origin === '<unparseable>')).toEqual([]);
+  });
+
+  it('the tests are the only place an opaque origin is written, and only in the one that proves it', () => {
+    // What the exclusion above actually removes, rather than what it is meant
+    // to. An opaque origin appearing in a SECOND test file is a question worth
+    // asking — either a fixture nobody needed, or an allowlist that moved
+    // somewhere this gate stopped looking.
+    const inTests = urlsInArrays(everything.filter((s) => isTestFile(s.file)));
+    expect([...new Set(inTests.filter((u) => u.origin !== 'null' ? u.origin === '<unparseable>' : true).map((u) => u.file))]).toEqual([
+      'packages/api/src/__tests__/corsOrigins.test.ts',
+    ]);
+    // And it is not vacuous either: that file names the schemes the production
+    // probe used.
+    expect(inTests.filter((u) => u.origin === 'null').map((u) => u.value)).toContain('vscode-webview://abc123');
+  });
+
+  it('the lists that decide who may talk to the API are among what it read', () => {
+    /**
+     * The other half of the vacuity floor, in the currency that matters: a
+     * clean scan of a tree that no longer contains the CORS allowlist reads
+     * exactly like a clean scan of one that does. Each of these is asserted by
+     * its entries, so a list that moved file or was renamed fails here and asks
+     * for this anchor to be updated — it exempts nothing from the property
+     * above, which runs over every list whether or not it is named here.
+     */
+    const list = (file: string, name: string): string[] =>
+      found.filter((u) => u.file === file && u.name === name).map((u) => u.value);
+
+    expect(list('packages/api/src/lib/cors-origins.ts', 'PRODUCTION_ORIGINS')).toEqual([
+      'https://alia.onl',
+      'https://console.alia.onl',
+      'https://alia-canvas.pages.dev',
+    ]);
+    expect(list('packages/api/src/lib/cors-origins.ts', 'DEV_ORIGINS')).toEqual([
+      'http://localhost:4150',
+      'http://localhost:5173',
+      'http://localhost:8150',
+      'http://10.0.2.2:8150',
+    ]);
+    // Socket.IO keeps its own, narrower list, matched by the `cors` package on
+    // exact strings rather than through `new URL().origin` — so it never had
+    // the amplification, and it is covered here anyway because the next entry
+    // added to it will not know that.
+    expect(list('packages/api/src/socket.ts', 'ALLOWED_ORIGINS')).toEqual([
+      'http://localhost:4150',
+      'https://alia.onl',
+      'https://console.alia.onl',
+    ]);
+    // An egress allowlist rather than a CORS one, and the same property: an
+    // opaque entry there matches every custom scheme a relay endpoint could be
+    // pointed at.
+    expect(list('packages/api/src/lib/inference/relay-endpoint.ts', 'RELAY_ALLOWED_ORIGINS')).toEqual([
+      'https://api.oxy.so',
+      'https://relay.oxy.so',
+    ]);
+  });
+});
