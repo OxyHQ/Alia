@@ -37,6 +37,7 @@
 
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import ts from 'typescript';
 
 const ROOT = resolve(import.meta.dirname, '..');
@@ -77,7 +78,7 @@ const ROOT = resolve(import.meta.dirname, '..');
  * throughout, reporting `245 files walked`, because none of the three was in
  * this list.
  */
-const TREES = [
+export const TREES = [
   'packages/alia-canvas/src',
   'packages/alia-chat/src',
   'packages/alia-codea/src',
@@ -98,7 +99,7 @@ const TREES = [
  * naming a workspace that no longer exists is as wrong as a workspace in
  * neither list.
  */
-const NOT_A_CLIENT = {
+export const NOT_A_CLIENT = {
   'packages/api':
     'the server. Its `alia-*` literals ARE the routing table — `internal/providers/lib/alia-models.ts` is the frozen set every other package resolves against.',
   'packages/app':
@@ -161,7 +162,7 @@ const PREFERENCE_MODULES = new Map([
  */
 const IDENTIFIER = /^(profile:[a-z0-9][a-z0-9-]*|alia-(v\d[a-z0-9-]*|lite))$/;
 
-function sourceFiles(dir) {
+export function sourceFiles(dir) {
   const out = [];
   const walk = (current) => {
     for (const entry of readdirSync(current, { withFileTypes: true })) {
@@ -379,4 +380,15 @@ function main() {
   );
 }
 
-main();
+/**
+ * Run only as an entrypoint.
+ *
+ * `scripts/check-user-visible-model-wording.mjs` imports {@link TREES},
+ * {@link NOT_A_CLIENT} and {@link sourceFiles} from here so the two censuses
+ * cover the same trees by construction rather than by two lists agreeing. A
+ * bare `main()` would run this whole census — and print a pass — every time it
+ * did.
+ */
+const invokedAs =
+  process.argv[1] === undefined ? null : pathToFileURL(resolve(process.argv[1])).href;
+if (invokedAs === import.meta.url) main();
