@@ -90,8 +90,8 @@ const EXCLUDED: Readonly<Record<string, { readonly errors: number; readonly why:
 
 /** Has no `typecheck` script, and why that is the right answer for it. */
 const NO_TYPECHECK: Readonly<Record<string, string>> = {
-  'alia-canvas': 'solution-style tsconfig ("files": [], references only) — `tsc --noEmit` compiles nothing; checked by `tsc -b` inside its own `build`',
-  'webview-ui': 'same solution-style tsconfig; checked by `tsc -b` inside its own `build`',
+  'alia-canvas': 'solution-style tsconfig ("files": [], references only) — `tsc --noEmit` compiles nothing; checked by the "Typecheck the solution-style frontends" step of Frontend Typecheck, which runs `tsc -b` on it',
+  'webview-ui': 'same solution-style tsconfig; checked by the same `tsc -b` step',
   '@alia/docker-host': 'its `build` is `tsc`, which typechecks while emitting',
   '@alia/shared-types': 'its `build` is `tsc`, which typechecks while emitting',
 };

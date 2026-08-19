@@ -172,18 +172,22 @@ function ThinkingIndicator({ isWorking = false }: { isWorking?: boolean }) {
   )
 }
 
-// Model interface from API
-interface Model {
+/**
+ * One row of the picker: the identifier a request travels in, and the product's
+ * own words for it.
+ *
+ * Posted by the extension host, which reads `GET /catalogue` and
+ * `GET /catalogue/modes` and resolves the words through `presentation`
+ * (`../../../src/catalogue.ts`). There is deliberately no built-in list: this
+ * file used to carry one, and because `GET /v1/models` has been permanently
+ * empty since #178 that built-in entry was what every user actually saw — a
+ * routing profile wearing a model's name, which is the habit ADR 0003 ends.
+ */
+interface Mode {
   id: string
-  name: string
+  label: string
   description: string
-  category?: string
 }
-
-// Default models (fallback until API responds)
-const defaultModels: Model[] = [
-  { id: "alia-v1-codea", name: "Codea", description: "Fast coding assistant" },
-]
 
 // Context item interface
 interface ContextItem {
@@ -197,11 +201,20 @@ export function Chat() {
   const [input, setInput] = React.useState("")
   const [isGenerating, setIsGenerating] = React.useState(false)
   const [currentMode, setCurrentMode] = React.useState("ask")
-  const [currentModel, setCurrentModel] = React.useState("alia-v1-codea")
+  /**
+   * Empty means "no explicit choice", not "no mode".
+   *
+   * The extension host then falls back to the `codea.model` setting and finally
+   * to its own `PREFERRED_MODEL_ID` (`chatProvider.ts`), which is the ONE
+   * build-time preference the extension is allowed to name. A default chosen
+   * here would be a second one, in a shipped artefact no catalogue change can
+   * reach.
+   */
+  const [currentModel, setCurrentModel] = React.useState("")
   const [streamingContent, setStreamingContent] = React.useState("")
   const [userName, setUserName] = React.useState<string | null>(null)
   const [toolExecutions, setToolExecutions] = React.useState<ToolExecution[]>([])
-  const [models, setModels] = React.useState<Model[]>(defaultModels)
+  const [modes, setModes] = React.useState<Mode[]>([])
   const [contextItems, setContextItems] = React.useState<ContextItem[]>([])
   const scrollRef = React.useRef<HTMLDivElement>(null)
   const bottomRef = React.useRef<HTMLDivElement>(null)
@@ -309,9 +322,9 @@ export function Chat() {
             )
           )
           break
-        case "models":
-          if (data.models && data.models.length > 0) {
-            setModels(data.models)
+        case "modes":
+          if (data.modes && data.modes.length > 0) {
+            setModes(data.modes)
           }
           break
         case "contextAdded":
@@ -403,18 +416,18 @@ export function Chat() {
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="sm" className="gap-1.5 px-2 h-7">
               <img src={LOGO_URI} alt="Codea" className="size-5 rounded-full" />
-              <span className="text-sm font-medium">{models.find(m => m.id === currentModel)?.name || "Codea"}</span>
+              <span className="text-sm font-medium">{modes.find(m => m.id === currentModel)?.label || "Codea"}</span>
               <HugeiconsIcon icon={ArrowDown01Icon} strokeWidth={2} className="size-3 opacity-50" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="w-56">
             <DropdownMenuRadioGroup value={currentModel} onValueChange={setCurrentModel}>
-              {models.map((model) => (
-                <DropdownMenuRadioItem key={model.id} value={model.id}>
+              {modes.map((mode) => (
+                <DropdownMenuRadioItem key={mode.id} value={mode.id}>
                   <Item size="xs" className="p-0">
                     <ItemContent>
-                      <ItemTitle>{model.name}</ItemTitle>
-                      <ItemDescription className="text-xs">{model.description}</ItemDescription>
+                      <ItemTitle>{mode.label}</ItemTitle>
+                      <ItemDescription className="text-xs">{mode.description}</ItemDescription>
                     </ItemContent>
                   </Item>
                 </DropdownMenuRadioItem>

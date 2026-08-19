@@ -25,6 +25,7 @@ import { getOrCreateUserCredits } from '../lib/user-credits-helpers.js';
 import { reserveCredits, finalizeCredits, type CreditUsage } from '../lib/credits-manager.js';
 import type { ChannelId, ChannelInboundMessage } from '../lib/channels/types.js';
 import { log } from '../lib/logger.js';
+import { toRoutableAlias } from '../lib/product-modes.js';
 
 const DEFAULT_CHANNEL_PROMPT = `You are Alia, an AI assistant by Oxy. Be concise and direct — this is a messaging channel.
 
@@ -145,7 +146,29 @@ async function processChannelMessage(
     }
 
     const userId = botUser.oxyUserId.toString();
-    const aliasModelId = botUser.preferredModel || 'alia-lite';
+    /**
+     * The stored preference is now `profile:*`, so it has to be translated.
+     *
+     * `packages/integrations`' `/model` command writes what `GET /catalogue`
+     * publishes (#244), and this column is shared with that service — the same
+     * `bot_users.preferred_model` row feeds both. Everything below wants the
+     * ALIAS: `resolveModel` looks it up in `ALIA_MODELS` and `finalizeCredits`
+     * bills on its `credit_multiplier`, and neither knows the profile
+     * vocabulary. This is the same translation `lib/chat/request-context.ts`
+     * does at the chat boundary, for the same reason.
+     *
+     * A legacy `alia-*` passes through untouched, and `null` — a `profile:` id
+     * no preset defines, so a tier retired after somebody selected it — falls
+     * back to the product default rather than leaving that person with a bot
+     * that answers nothing. The fallback is logged because it means a stored
+     * preference has gone stale.
+     */
+    const preferred = botUser.preferredModel || getDefaultAliaModel();
+    const routable = toRoutableAlias(preferred);
+    if (routable === null) {
+      log.channels.warn({ preferred }, 'Stored bot model preference names no routing profile');
+    }
+    const aliasModelId = routable ?? getDefaultAliaModel();
 
     // Reserve credits before processing
     await getOrCreateUserCredits(userId);

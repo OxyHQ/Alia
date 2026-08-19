@@ -39,8 +39,9 @@ const initialNodes: WorkflowNode[] = [
     type: "aiText",
     position: { x: 450, y: 150 },
     data: {
+      // No `model`: the node runs in Automatic, and the server's own default
+      // decides. See `src/lib/product-modes.ts`.
       label: "Generate README",
-      model: "alia-lite",
       prompt:
         "Based on the following repository context, generate a comprehensive README.md file with sections for: Overview, Features, Installation, Usage, API Reference (if applicable), and Contributing guidelines.\n\n{{input}}",
       systemPrompt: "You are a technical documentation expert.",
@@ -67,16 +68,16 @@ const initialEdges: Edge[] = [
 // Static per-node-type default data. Module-scoped so it stays referentially
 // stable across renders (no need to thread it through hook dependency arrays).
 const defaultNodeData: Record<WorkflowNodeType, object> = {
+  // Neither AI node names a model. A new node starts in Automatic, which is the
+  // absence of a `model` field rather than a value — see `src/lib/product-modes.ts`.
   aiText: {
     label: "AI Text",
-    model: "alia-lite",
     prompt: "",
     systemPrompt: "",
     temperature: 0.7,
   },
   aiImage: {
     label: "AI Image",
-    model: "alia-lite",
     prompt: "",
     size: "1024x1024",
   },

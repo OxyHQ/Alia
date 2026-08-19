@@ -5,7 +5,7 @@ import type { AliaAuthenticationProvider } from './authProvider';
 import { errorMessage, errorName, errorStatus } from './errors';
 import { log } from './logger';
 import { PREFERRED_MODEL_ID } from './config';
-import { resolveModelId } from './catalogue';
+import { fetchOfferedModes, resolveModelId } from './catalogue';
 
 /** Alia API streams an extra `alia_meta` field on chunks; not part of the OpenAI type. */
 type AliaMetaChunk = OpenAI.Chat.ChatCompletionChunk & {
@@ -14,12 +14,6 @@ type AliaMetaChunk = OpenAI.Chat.ChatCompletionChunk & {
 
 /** Codea only deals with function tool calls (not custom tool calls). */
 type FunctionToolCall = OpenAI.Chat.ChatCompletionMessageFunctionToolCall;
-
-/** A model entry from the gateway `/v1/models` listing (forwarded to the webview). */
-interface ModelInfo {
-  id: string;
-  [key: string]: unknown;
-}
 
 /**
  * The terminal `executedCommands` history is a proposed VS Code API not present in
@@ -110,16 +104,26 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
     }
   }
 
-  private async fetchAndSendModels(): Promise<void> {
+  /**
+   * Send the webview what the product offers, in the product's own words.
+   *
+   * The webview holds no list of its own — it used to hardcode one, and
+   * `GET /v1/models` has been permanently empty since #178
+   * (`docs/migration/compatibility-window.md`), so that hardcoded entry was
+   * what every user actually saw. An empty list here means the picker offers
+   * nothing and the extension's `codea.model` setting stays in charge, which
+   * is the honest answer when the catalogue cannot be read.
+   *
+   * The token is the extension host's, and it never reaches the webview: only
+   * the identifiers and the words go across.
+   */
+  private async fetchAndSendModes(): Promise<void> {
     const config = vscode.workspace.getConfiguration('codea');
     const baseUrl = config.get<string>('apiBaseUrl') || 'https://api.alia.onl';
+    const accessToken = await this._authProvider.getAccessToken().catch(() => null);
 
-    try {
-      const models = await this.fetchModels(baseUrl);
-      this._view?.webview.postMessage({ type: 'models', models });
-    } catch (error) {
-      this._view?.webview.postMessage({ type: 'models', models: [] });
-    }
+    const modes = await fetchOfferedModes(baseUrl, accessToken ?? undefined);
+    this._view?.webview.postMessage({ type: 'modes', modes });
   }
 
   private async handleSignOut(): Promise<void> {
@@ -142,19 +146,6 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
     await this.processConversation(baseUrl, accessToken, model, clientContext);
   }
 
-  private async fetchModels(baseUrl: string): Promise<ModelInfo[]> {
-    const url = `${baseUrl}/v1/models?category=coding`;
-
-    try {
-      const response = await fetch(url);
-      if (!response.ok) return [];
-      const parsed = await response.json() as { data?: ModelInfo[] };
-      return parsed.data || [];
-    } catch (e) {
-      return [];
-    }
-  }
-
   public resolveWebviewView(
     webviewView: vscode.WebviewView,
     context: vscode.WebviewViewResolveContext,
@@ -170,7 +161,7 @@ export class CodeaChatViewProvider implements vscode.WebviewViewProvider {
     webviewView.webview.html = this._getHtmlForWebview(webviewView.webview);
 
     this.fetchAndSendUserInfo();
-    this.fetchAndSendModels();
+    this.fetchAndSendModes();
 
     webviewView.webview.onDidReceiveMessage(async (data) => {
       switch (data.type) {

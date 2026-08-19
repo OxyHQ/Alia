@@ -823,21 +823,21 @@
       "workstream": "5",
       "domain": "frontend-admin",
       "kind": "screen",
-      "currentPath": "packages/alia-canvas/src/lib/models.ts",
+      "currentPath": "packages/alia-canvas/src/lib/product-modes.ts",
       "reachable": "live",
       "owner": "alia",
       "targetPath": "keep-as-alia-product-setting",
       "dependsOn": [],
-      "removalGate": "Keep. Included because canvas was not named in the brief but carries six alias sites and its own /v1/models client — an alias-retirement sweep that skips it leaves saved workflow nodes pinned to a dead id. The `MODELS` export at models.ts:42 is a back-compat alias with a comment saying it will be replaced; it should be deleted rather than carried forward.",
+      "removalGate": "Keep, and done: models.ts and its `MODELS` back-compat export are deleted, and product-modes.ts reads GET /catalogue and GET /catalogue/modes. The picker labels a routing profile with the product mode that selects it, a new node stores no `model` at all (Automatic), and the six alias sites are gone. Saved nodes that still carry a legacy alia-* keep resolving: routes/canvas/execute.ts now translates through toRoutableAlias, which passes a legacy alias through untouched.",
       "provenance": "inventory-frontend-admin",
-      "evidence": "packages/alia-canvas/src/lib/models.ts:8-10,26,41-42; packages/alia-canvas/src/components/workflow/workflow-editor.tsx:43,72,79; packages/alia-canvas/src/components/workflow/node-edit-panel.tsx:59,119"
+      "evidence": "packages/alia-canvas/src/lib/product-modes.ts; packages/alia-canvas/src/components/workflow/node-edit-panel.tsx (Mode select); packages/alia-canvas/src/components/workflow/nodes/ai-text-node.tsx (mode badge, replacing one that read data.provider || the operator name); packages/api/src/routes/canvas/execute.ts (toRoutableAlias)"
     },
     {
       "id": "canvas-models-consumer",
       "workstream": "5",
       "domain": "product-api",
       "kind": "dependency",
-      "currentPath": "packages/alia-canvas/src/lib/models.ts",
+      "currentPath": "packages/alia-canvas/src/lib/product-modes.ts",
       "reachable": "live",
       "owner": "alia",
       "targetPath": "keep-alia-product",
@@ -845,9 +845,9 @@
         "model-id-alia-lite",
         "v1-models-list"
       ],
-      "removalGate": "Saved workflows persist the model id in node data, so retiring alia-lite invalidates stored user workflows, not just UI defaults.",
+      "removalGate": "Saved workflows persist the model id in node data, so retiring alia-lite invalidates stored user workflows, not just UI defaults. The client no longer WRITES one (a new node stores no `model`) and no longer reads GET /v1/models (it reads GET /catalogue), but rows written before that change still hold the old id, so this stays open until those rows are counted and migrated.",
       "provenance": "inventory-product-api",
-      "evidence": "packages/alia-canvas/src/lib/models.ts:26,9; packages/alia-canvas/src/components/workflow/workflow-editor.tsx:43,72,79"
+      "evidence": "packages/alia-canvas/src/lib/product-modes.ts; packages/alia-canvas/src/components/workflow/workflow-editor.tsx (no model field in either AI node default)"
     },
     {
       "id": "chat-core-get-ai-model",

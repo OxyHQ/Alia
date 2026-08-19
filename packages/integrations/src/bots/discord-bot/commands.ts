@@ -1,5 +1,6 @@
 import { Message, Client, REST, Routes, SlashCommandBuilder } from 'discord.js';
 import { APIClient } from '../../shared/api-client';
+import { labelForPreference } from '../../shared/catalogue';
 import { randomUUID } from 'node:crypto';
 import { createLogger } from '../../shared/logger';
 
@@ -11,6 +12,58 @@ export function initCommands(client: APIClient) {
   apiClient = client;
 }
 
+/**
+ * The modes on offer, written out for a person.
+ *
+ * Labels only, never identifiers: `profile:lite` is the vocabulary the request
+ * travels in, not a thing to put in front of somebody. {@link resolveModeChoice}
+ * is what turns what they type back into one.
+ */
+export async function describeModes(preferredModel: string | undefined): Promise<string> {
+  const offeredModes = await apiClient.fetchOfferedModes();
+  if (offeredModes === null) return 'Unable to load the available modes. Please try again later.';
+
+  const list = offeredModes.offered
+    .map((mode) => `**${mode.label}** — ${mode.description}`)
+    .join('\n');
+  const current = labelForPreference(
+    preferredModel,
+    offeredModes.entries,
+    offeredModes.modes,
+  );
+  const heading = list === '' ? 'No modes are on offer right now.' : `**How Alia can answer:**\n${list}`;
+  return current === null ? heading : `${heading}\n\nCurrent: ${current}`;
+}
+
+/** What a person typed, resolved to the identifier a request travels in. */
+export type ModeChoice =
+  | { readonly ok: true; readonly id: string; readonly label: string }
+  | { readonly ok: false; readonly message: string };
+
+/**
+ * Match what somebody typed against the offered modes, by LABEL.
+ *
+ * A person types "Fast", not `profile:lite`, and matching on the label is what
+ * makes the product's own words the interface. An unmatched value is refused
+ * with the list rather than saved: the previous behaviour stored the raw string
+ * unchecked, so a typo became a preference that every later request carried.
+ */
+export async function resolveModeChoice(
+  typed: string,
+  preferredModel: string | undefined,
+): Promise<ModeChoice> {
+  const offeredModes = await apiClient.fetchOfferedModes();
+  if (offeredModes === null) {
+    return { ok: false, message: 'Unable to load the available modes. Please try again later.' };
+  }
+  const wanted = typed.trim().toLowerCase();
+  const match = offeredModes.offered.find((mode) => mode.label.toLowerCase() === wanted);
+  if (match === undefined) {
+    return { ok: false, message: await describeModes(preferredModel) };
+  }
+  return { ok: true, id: match.id, label: match.label };
+}
+
 export async function registerSlashCommands(client: Client): Promise<void> {
   const commands = [
     new SlashCommandBuilder().setName('start').setDescription('Start using Alia AI / Link your account'),
@@ -18,9 +71,9 @@ export async function registerSlashCommands(client: Client): Promise<void> {
     new SlashCommandBuilder().setName('new').setDescription('Start a new conversation'),
     new SlashCommandBuilder()
       .setName('model')
-      .setDescription('Change AI model')
+      .setDescription('Choose how Alia answers')
       .addStringOption((opt) =>
-        opt.setName('model').setDescription('Model name').setRequired(false),
+        opt.setName('mode').setDescription('Mode name, e.g. Fast').setRequired(false),
       ),
     new SlashCommandBuilder().setName('help').setDescription('Show help'),
     new SlashCommandBuilder().setName('logout').setDescription('Disconnect your Alia account'),
@@ -112,6 +165,15 @@ async function handleStatus(message: Message): Promise<void> {
       await sendAuthRequest(message);
       return;
     }
+    /**
+     * Absent when the stored preference is a legacy identifier the catalogue
+     * does not describe — the product has no word for it, and printing the
+     * identifier is the defect this replaces. See `shared/catalogue.ts`.
+     */
+    const offeredModes = await apiClient.fetchOfferedModes();
+    const modeLabel = offeredModes === null
+      ? null
+      : labelForPreference(botUser.preferredModel, offeredModes.entries, offeredModes.modes);
     await message.reply({
       embeds: [
         {
@@ -119,7 +181,7 @@ async function handleStatus(message: Message): Promise<void> {
           color: 0x00ff00,
           fields: [
             { name: 'Status', value: 'Connected', inline: true },
-            { name: 'Model', value: botUser.preferredModel || 'alia-lite', inline: true },
+            ...(modeLabel === null ? [] : [{ name: 'Mode', value: modeLabel, inline: true }]),
           ],
         },
       ],
@@ -143,23 +205,26 @@ async function handleNewConversation(message: Message): Promise<void> {
   }
 }
 
-async function handleModelChange(message: Message, modelName: string): Promise<void> {
+async function handleModelChange(message: Message, typed: string): Promise<void> {
   try {
     const botUser = await apiClient.getBotUser(message.author.id);
     if (!botUser?.isLinked) {
       await sendAuthRequest(message);
       return;
     }
-    if (!modelName) {
-      const models = await apiClient.fetchModels();
-      const list = models.map((m) => `\`${m.id}\` - ${m.name}`).join('\n');
-      await message.reply(`**Available Models:**\n${list || 'None'}\n\nCurrent: ${botUser.preferredModel || 'alia-lite'}`);
+    if (!typed) {
+      await message.reply(await describeModes(botUser.preferredModel));
       return;
     }
-    await apiClient.updateModel(message.author.id, modelName);
-    await message.reply(`Model changed to **${modelName}**`);
+    const choice = await resolveModeChoice(typed, botUser.preferredModel);
+    if (!choice.ok) {
+      await message.reply(choice.message);
+      return;
+    }
+    await apiClient.updateModel(message.author.id, choice.id);
+    await message.reply(`Alia will now answer in **${choice.label}** mode.`);
   } catch {
-    await message.reply('Error changing model.');
+    await message.reply('Error changing mode.');
   }
 }
 
@@ -174,7 +239,7 @@ async function handleHelp(message: Message): Promise<void> {
           { name: '/start', value: 'Link your Alia account', inline: true },
           { name: '/status', value: 'Check status', inline: true },
           { name: '/new', value: 'Start new conversation', inline: true },
-          { name: '/model', value: 'Change AI model', inline: true },
+          { name: '/model', value: 'Choose how Alia answers', inline: true },
           { name: '/help', value: 'Show help', inline: true },
           { name: '/logout', value: 'Disconnect', inline: true },
         ],

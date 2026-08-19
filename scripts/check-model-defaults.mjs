@@ -42,28 +42,72 @@ import ts from 'typescript';
 const ROOT = resolve(import.meta.dirname, '..');
 
 /**
- * The client source trees this census covers: the four packages workstream 5
- * names, and no others.
+ * The client source trees this census covers.
  *
- * `packages/app` is deliberately ABSENT, and not because it is exempt. Its
- * picker already reads the catalogue (#156), and the `alia-*` literals it still
- * carries are POLICY TABLES rather than defaults — the downgrade map in
- * `components/credit-warning-banner.tsx:24`, the free-tier allow-list in
- * `lib/hooks/use-billing.ts:327`, a sample phrase in
+ * It is an allow-list, and on its own that would be the weakest possible shape:
+ * a package added tomorrow would be exempt by silence. What makes it a gate is
+ * {@link NOT_A_CLIENT} below — every workspace the repo declares must be either
+ * covered here or classified there, so a new package fails this script until
+ * somebody says which it is. The coverage is derived from the root
+ * `package.json`'s `workspaces` array, which is why the nested
+ * `packages/alia-codea/webview-ui` is visible to it at all.
+ *
+ * A deny-list of trees to SKIP was the obvious alternative and is worse here.
+ * It would walk `packages/api/src`, where hundreds of `alia-*` literals are the
+ * server's own routing table and entirely correct, so the exemption list would
+ * have to carry every backend package anyway — and a NEW backend package would
+ * then produce a wall of false offences rather than a question. This shape
+ * fails on an unclassified package either way; the difference is that it fails
+ * with "say which" instead of with noise, and a census that fires on the wrong
+ * thing gets deleted by the next person who reads it.
+ *
+ * `packages/app` is deliberately ABSENT from this list, and not because it is
+ * exempt. Its picker already reads the catalogue (#156), and the `alia-*`
+ * literals it still carries are POLICY TABLES rather than defaults — the
+ * downgrade map in `components/credit-warning-banner.tsx:24`, the free-tier
+ * allow-list in `lib/hooks/use-billing.ts:327`, a sample phrase in
  * `lib/hooks/use-personality-sample-phrase.ts:72`. Those are product
- * configuration that must be reconciled with the catalogue under its own box;
- * folding them in here would make this census fire on something it is not about,
- * and a census that fires on the wrong thing gets deleted by the next person who
- * reads it.
+ * configuration that must be reconciled with the catalogue under its own box.
+ *
+ * The three trees added by #244 — canvas, the Codea webview and integrations —
+ * were each a live defect rather than a latent one, because `GET /v1/models`
+ * has served an empty list since #178: canvas rendered a hardcoded
+ * `Alia Lite`, the webview a hardcoded `alia-v1-codea`, and the Telegram and
+ * Discord bots printed `Model: alia-lite` to every user. This script was green
+ * throughout, reporting `245 files walked`, because none of the three was in
+ * this list.
  */
 const TREES = [
+  'packages/alia-canvas/src',
   'packages/alia-chat/src',
   'packages/alia-codea/src',
+  'packages/alia-codea/webview-ui/src',
   'packages/alia-codea-cli/src',
   'packages/alia-console/src',
   'packages/alia-cowork/src',
   'packages/alia-cowork/renderer/src',
+  'packages/integrations/src',
 ];
+
+/**
+ * Every workspace that ships no client picker, and why.
+ *
+ * The reason is the point: an entry here is a claim somebody made and can be
+ * checked, where a missing entry is a claim nobody made. Asserted by EXACT
+ * COUNT and against the live workspace list in both directions — an entry
+ * naming a workspace that no longer exists is as wrong as a workspace in
+ * neither list.
+ */
+const NOT_A_CLIENT = {
+  'packages/api':
+    'the server. Its `alia-*` literals ARE the routing table — `internal/providers/lib/alia-models.ts` is the frozen set every other package resolves against.',
+  'packages/app':
+    'its picker reads the catalogue (#156); the literals it keeps are policy tables, reconciled under their own box. See the note on TREES.',
+  'packages/alia-docker-host':
+    'a container manager for agent sandboxes. It runs no inference and offers no picker.',
+  'packages/shared-types':
+    'type declarations shared across packages; it ships no runtime code and no UI.',
+};
 
 /**
  * The ONE module per package allowed to name an identifier, and how many it may
@@ -169,7 +213,79 @@ export function identifiersIn(file, source) {
   return found;
 }
 
+/**
+ * Every workspace the repo declares, read from the manifest rather than from
+ * the directory listing.
+ *
+ * `packages/alia-codea/webview-ui` is a workspace nested inside another
+ * package's directory, so a listing of `packages/` cannot see it — and it is
+ * precisely the tree #244 found unguarded. The manifest can.
+ */
+function declaredWorkspaces() {
+  const root = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'));
+  const workspaces = root.workspaces ?? [];
+  if (workspaces.length === 0) {
+    throw new Error('the root package.json declares no workspaces — nothing to classify');
+  }
+  return workspaces;
+}
+
+/**
+ * The partition: every workspace is walked or is classified as not a client.
+ *
+ * This is what turns {@link TREES} from a list somebody has to remember into a
+ * gate. Checked in both directions, because an exemption naming a workspace
+ * that no longer exists silently stops excusing anything, and a workspace in
+ * neither list is the exact failure this whole script exists to prevent.
+ */
+function partitionProblems(workspaces) {
+  const problems = [];
+
+  for (const name of Object.keys(NOT_A_CLIENT)) {
+    if (!workspaces.includes(name)) {
+      problems.push(`NOT_A_CLIENT names ${name}, which is not a workspace — delete the entry.`);
+    }
+  }
+
+  for (const workspace of workspaces) {
+    const walked = TREES.some((tree) => tree === workspace || tree.startsWith(`${workspace}/`));
+    const exempt = Object.hasOwn(NOT_A_CLIENT, workspace);
+    if (walked && exempt) {
+      problems.push(`${workspace} is both walked and listed NOT_A_CLIENT — pick one.`);
+    }
+    if (!walked && !exempt) {
+      problems.push(
+        `${workspace} is in no tree and in no exemption — add its source root to TREES, ` +
+          'or say why it ships no picker in NOT_A_CLIENT.',
+      );
+    }
+  }
+
+  return problems;
+}
+
 function main() {
+  const workspaces = declaredWorkspaces();
+
+  // Exact counts. Each list may only change in a diff that also changes the
+  // number beside it, which is the review this gate exists to force.
+  const counts = [
+    ['workspaces', workspaces.length, 12],
+    ['TREES', TREES.length, 9],
+    ['NOT_A_CLIENT', Object.keys(NOT_A_CLIENT).length, 4],
+  ];
+  const partition = [
+    ...counts
+      .filter(([, actual, expected]) => actual !== expected)
+      .map(([label, actual, expected]) => `${label}: expected ${expected}, found ${actual}`),
+    ...partitionProblems(workspaces),
+  ];
+  if (partition.length > 0) {
+    console.error('check-model-defaults: the workspace partition is out of date.\n');
+    for (const problem of partition) console.error(`  ${problem}`);
+    process.exit(1);
+  }
+
   const files = [];
   for (const tree of TREES) {
     const dir = join(ROOT, tree);
@@ -182,8 +298,14 @@ function main() {
 
   // Vacuity floor. An empty walk satisfies every check below, and "I found less"
   // and "there is less" look identical without one.
-  if (files.length < 120) {
-    console.error(`check-model-defaults: walked only ${files.length} files; expected 120+.`);
+  //
+  // 300 is not a round number: the walk is 392 files and the three trees #244
+  // added are 147 of them, so dropping all three lands on 245 — the exact size
+  // of the walk that reported "OK, 245 files walked" while canvas, the Codea
+  // webview and the bots all showed an alias. A floor left at the old 120 would
+  // have passed that. This one cannot.
+  if (files.length < 300) {
+    console.error(`check-model-defaults: walked only ${files.length} files; expected 300+.`);
     process.exit(1);
   }
 
@@ -251,7 +373,8 @@ function main() {
   }
 
   console.log(
-    `check-model-defaults: OK — ${files.length} files walked, ` +
+    `check-model-defaults: OK — ${files.length} files walked across ${TREES.length} trees, ` +
+      `${workspaces.length} workspaces classified (${Object.keys(NOT_A_CLIENT).length} not clients), ` +
       `${PREFERENCE_MODULES.size} preference modules, no hardcoded defaults.`,
   );
 }
