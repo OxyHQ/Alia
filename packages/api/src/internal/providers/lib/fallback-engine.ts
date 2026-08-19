@@ -550,6 +550,8 @@ async function tryResolveWithKey(
       resolved: {
         aliasModelId,
         provider: mapping.provider,
+        publisher: mapping.publisher,
+        model: mapping.model,
         modelId: mapping.modelId,
         keyConfig,
         aliaModel,

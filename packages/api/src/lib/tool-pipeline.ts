@@ -55,6 +55,15 @@ export interface ForUserOptions {
   editorToolDefinitions?: OpenAITool[];
   /** SSE emitter for tools that need to push events (switchModel, planPreview) */
   sseEmitter?: SSEEmitter;
+  /**
+   * Whether this turn may reach the open web.
+   *
+   * `false` withholds the three tools that fetch from it. Withholding is the
+   * only honest implementation of an off switch here: the model decides whether
+   * to call a tool, so leaving `webSearch` in the set and asking the prompt not
+   * to use it would be a switch the model may overrule.
+   */
+  webSearch: boolean;
 }
 
 export interface ForUserResult {
@@ -83,6 +92,7 @@ export class ToolPipeline {
       requestId,
       editorToolDefinitions,
       sseEmitter,
+      webSearch,
     } = opts;
 
     // 1. Convert editor tools from OpenAI format and build name mapping
@@ -91,14 +101,26 @@ export class ToolPipeline {
       ? convertOpenAIToolsToToolSet(editorToolDefinitions, toolNameMapping)
       : {};
 
-    // 2. Static tools (always available, server-executed)
+    // 2. Static tools (server-executed)
     const aliaTools: ToolSet = {
       getCurrentDate: getCurrentDateTool,
-      webScraper: webScraperTool,
       generateFile: generateFileTool,
-      webSearch: webSearchTool,
-      browse: browseTool,
     };
+
+    /**
+     * The web reaches this turn only if it was asked for.
+     *
+     * These three were unconditional, and the composer's "Web search" switch
+     * toggled a local `Set` that reached no request field and no backend read —
+     * so the switch was meaningless in both directions at once: it could not
+     * enable searching (already on) and could not disable it (no flag). The
+     * flag exists now and this is what it does.
+     */
+    if (webSearch) {
+      aliaTools.webSearch = webSearchTool;
+      aliaTools.webScraper = webScraperTool;
+      aliaTools.browse = browseTool;
+    }
 
     // 3. User-specific factory tools (only for direct user sessions, not API key requests)
     if (isDirectSession) {
@@ -112,7 +134,7 @@ export class ToolPipeline {
         updateUserPreferences: updateUserPreferencesTool(userId),
         updateUserContext: updateUserContextTool(userId),
         createAgent: createAgentTool(userId, username),
-        deepResearch: createDeepResearchTool(userId),
+        ...(webSearch ? { deepResearch: createDeepResearchTool(userId) } : {}),
       });
 
       // SSE-emitting tools (need the emitter to push events to the client)

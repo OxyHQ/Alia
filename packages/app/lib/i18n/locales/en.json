@@ -857,27 +857,18 @@
     }
   },
   "modes": {
-    "searchOn": "Web search will be used",
-    "searchOff": "Search mode disabled",
+    "searchOn": "Web search enabled",
+    "searchOff": "Web search off — Alia will answer without the web",
     "ghostOn": "Conversations will not be saved",
     "ghostOff": "Conversations will be saved normally",
     "agentOn": "I can now perform actions autonomously",
     "agentOff": "Agent mode disabled",
     "deepResearchOn": "Deep research mode activated",
     "deepResearchOff": "Deep research disabled",
-    "shoppingResearchOn": "Shopping research activated",
-    "shoppingResearchOff": "Shopping research disabled",
-    "studyOn": "Study mode activated",
-    "studyOff": "Study mode disabled",
-    "thinkingOff": "Thinking mode disabled",
-    "thinkingOn": "AI will show its reasoning process",
     "searchLabel": "Search",
     "ghostLabel": "Ghost",
     "agentLabel": "Agent",
     "deepResearchLabel": "Deep research",
-    "shoppingLabel": "Shopping",
-    "studyLabel": "Study",
-    "thinkingLabel": "Thinking",
     "voiceMode": "Voice mode"
   },
   "gateways": {
@@ -1056,5 +1047,9 @@
       "personal": "Personal"
     },
     "personalEmpty": "No personal connectors yet. Add one with +"
+  },
+  "effort": {
+    "select": "Effort",
+    "costNote": "Thinking is billed as output tokens, so higher effort costs more."
   }
 }

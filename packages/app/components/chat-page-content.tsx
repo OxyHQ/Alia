@@ -7,7 +7,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import type { ScrollView as GHScrollView } from "react-native-gesture-handler";
 import { useStore } from "@/lib/stores/global-store";
 import { useUIStore } from "@/lib/stores/ui-store";
-import { Globe, MoreHorizontal, X, Ghost, Sparkles, Brain, Bot, Search, ShoppingBag, BookOpen } from "lucide-react-native";
+import { Globe, MoreHorizontal, X, Ghost, Sparkles, Bot, Search } from "lucide-react-native";
 import Entypo from "@expo/vector-icons/Entypo";
 import * as DropdownMenu from "@/components/ui/dropdown-menu";
 import { Text } from "@/components/ui/text";
@@ -36,7 +36,35 @@ import type { AgentActivityState } from "@/lib/hooks/use-agent-activity";
 import { AgentTerminal } from "@/components/agent-terminal";
 import { Terminal as TerminalIcon, ChevronDown, ChevronUp } from "lucide-react-native";
 
-type Mode = 'search' | 'agent' | 'ghost' | 'deepResearch' | 'shoppingResearch' | 'study';
+/**
+ * The capabilities a person can switch on, and every one of them reaches the
+ * request.
+ *
+ * ## Three were removed because they reached nothing
+ *
+ * `toggleMode` writes to a local `Set` and, for three of the six, to a store the
+ * request body reads. The other three wrote to the `Set` and stopped there:
+ *
+ *  - **Web search** — no `webSearch` field existed on the request and no
+ *    backend read one. It was meaningless in BOTH directions at once: it could
+ *    not enable searching, because `lib/tool-pipeline.ts` put `webSearch`,
+ *    `webScraper` and `browse` in the always-on tool set, and it could not
+ *    disable it, because nothing was sent. It is real now and lives on the
+ *    model store beside the other two composer axes — the flag is what
+ *    WITHHOLDS those three tools.
+ *  - **Study and learn** — no flag, no handler, no prompt. Removed.
+ *  - **Shopping research** — no flag and no handler either, though
+ *    `seed-features.ts` sells `shopping-research` as a plan feature on Go, Pro,
+ *    Max and Ultra. Removed from the composer; the entitlement is a product
+ *    decision recorded in the PR rather than something a menu should keep
+ *    pretending about.
+ *
+ * What is left is the three that were already wired: ghost (client-side, it
+ * stops the turn creating a conversation), agent (`agentMode`, which adds the
+ * delegation tools) and deep research (`deepResearch`, which diverts the turn
+ * into the real multi-step research engine).
+ */
+type Mode = 'agent' | 'ghost' | 'deepResearch';
 
 const MODE_CONFIG: Record<Mode, {
   label: string;
@@ -44,18 +72,14 @@ const MODE_CONFIG: Record<Mode, {
   color: string;
   onToast: string;
   offToast: string;
-  exclusive?: Mode[];
   featureId?: string;
 }> = {
-  search:           { label: 'modes.searchLabel',       icon: Globe,       color: '#3b82f6', onToast: 'modes.searchOn',           offToast: 'modes.searchOff' },
   ghost:            { label: 'modes.ghostLabel',        icon: Ghost,       color: '#00b2ff', onToast: 'modes.ghostOn',            offToast: 'modes.ghostOff' },
   agent:            { label: 'modes.agentLabel',        icon: Bot,         color: '#f97316', onToast: 'modes.agentOn',            offToast: 'modes.agentOff', featureId: 'agent-mode' },
-  deepResearch:     { label: 'modes.deepResearchLabel', icon: Search,      color: '#10b981', onToast: 'modes.deepResearchOn',     offToast: 'modes.deepResearchOff', exclusive: ['shoppingResearch'], featureId: 'deep-research' },
-  shoppingResearch: { label: 'modes.shoppingLabel',     icon: ShoppingBag, color: '#ec4899', onToast: 'modes.shoppingResearchOn', offToast: 'modes.shoppingResearchOff', exclusive: ['deepResearch'], featureId: 'shopping-research' },
-  study:            { label: 'modes.studyLabel',        icon: BookOpen,    color: '#6366f1', onToast: 'modes.studyOn',            offToast: 'modes.studyOff' },
+  deepResearch:     { label: 'modes.deepResearchLabel', icon: Search,      color: '#10b981', onToast: 'modes.deepResearchOn',     offToast: 'modes.deepResearchOff', featureId: 'deep-research' },
 };
 
-const MODE_ORDER: Mode[] = ['ghost', 'agent', 'deepResearch', 'shoppingResearch', 'study'];
+const MODE_ORDER: Mode[] = ['ghost', 'agent', 'deepResearch'];
 
 type VoiceState = ReturnType<typeof useVoiceMode>;
 
@@ -139,17 +163,15 @@ export const ChatPageContent = ({
   const isNarrowScreen = screenWidth < 640;
   const [activeModes, setActiveModes] = useState<Set<Mode>>(new Set());
   /**
-   * A request flag, orthogonal to the profile.
+   * Whether Alia may reach the open web on this turn.
    *
-   * This was `selectedModel === THINKING_MODEL_ID`, and the toggle below SWAPPED
-   * the selected model to reach it. The routing table shows the swap never
-   * changed routing — `alia-v1-thinking` and `alia-v1-pro-max` are two aliases
-   * of one profile — so all it ever changed was the prompt, which is what the
-   * `thinkingMode` request field already carries. `baseModel` existed only to
-   * remember what to swap back to and goes with the swap.
+   * On the model store rather than in `activeModes`, because it is one of the
+   * composer's three persistent axes and the request reads it at send time —
+   * see `lib/stores/model-store.ts`. The effort axis lives beside the model
+   * picker in the header, not here.
    */
-  const thinkingMode = useModelStore((s) => s.thinkingMode);
-  const setThinkingMode = useModelStore((s) => s.setThinkingMode);
+  const webSearch = useModelStore((s) => s.webSearch);
+  const setWebSearch = useModelStore((s) => s.setWebSearch);
 
   const isVoiceActive = voice?.isVoiceActive ?? false;
   const { ttsWaveAmplitude, playbackState: ttsPlaybackState } = useTTS();
@@ -213,7 +235,6 @@ export const ChatPageContent = ({
         toast.info(t(config.offToast));
       } else {
         next.add(mode);
-        config.exclusive?.forEach(m => next.delete(m as Mode));
         toast.info(t(config.onToast));
       }
       if (mode === 'ghost') {
@@ -273,14 +294,14 @@ export const ChatPageContent = ({
     setInputValue("");
   }, [isLoading, disabled, isAuthenticated, signIn, onSubmit]);
 
-  const handleThinkingMode = () => {
-    // Sets a flag; it does NOT change the model. Extended reasoning applies on
-    // whichever profile is selected — the backend's prompt builder reads this
-    // flag on any of them — so asking for it no longer silently moves a person
-    // onto the dearest tier.
-    const next = !thinkingMode;
-    setThinkingMode(next);
-    toast.info(next ? t('modes.thinkingOn') : t('modes.thinkingOff'));
+  const handleWebSearch = () => {
+    // Withholds three tools rather than rewording a prompt. The model decides
+    // whether to call a tool, so "please do not search" in the system message
+    // would be a switch the model may overrule; removing the tools is the only
+    // implementation an off switch can honestly have.
+    const next = !webSearch;
+    setWebSearch(next);
+    toast.info(next ? t('modes.searchOn') : t('modes.searchOff'));
   };
 
   const handleAddSources = () => {
@@ -341,22 +362,6 @@ export const ChatPageContent = ({
         <DropdownMenu.ItemIcon ios={{ name: "link" }} />
         <DropdownMenu.ItemTitle>Add sources</DropdownMenu.ItemTitle>
       </DropdownMenu.Item>
-      <DropdownMenu.CheckboxItem
-        key="study"
-        value={activeModes.has('study') ? 'on' : 'off'}
-        onValueChange={() => toggleMode('study')}
-      >
-        <DropdownMenu.ItemIcon ios={{ name: "book" }} />
-        <DropdownMenu.ItemTitle>Study and learn</DropdownMenu.ItemTitle>
-      </DropdownMenu.CheckboxItem>
-      <DropdownMenu.CheckboxItem
-        key="search"
-        value={activeModes.has('search') ? 'on' : 'off'}
-        onValueChange={() => toggleMode('search')}
-      >
-        <DropdownMenu.ItemIcon ios={{ name: "globe" }} />
-        <DropdownMenu.ItemTitle>Web search</DropdownMenu.ItemTitle>
-      </DropdownMenu.CheckboxItem>
       <DropdownMenu.Item key="canvas" onSelect={handleCanvas}>
         <DropdownMenu.ItemIcon ios={{ name: "pencil.tip" }} />
         <DropdownMenu.ItemTitle>Canvas</DropdownMenu.ItemTitle>
@@ -502,26 +507,21 @@ export const ChatPageContent = ({
                     }
                     actionsRight={
                       <>
+                        {/* Filled when the web is reachable, which is the
+                            default — this button says what the request will do,
+                            and the request has always been able to search. */}
                         <Button
-                          variant={activeModes.has('search') ? "default" : "ghost"}
+                          variant={webSearch ? "default" : "ghost"}
                           size="icon"
                           className={cn(
                             "h-10 w-10 rounded-full items-center justify-center",
-                            !activeModes.has('search') && "web:hover:bg-muted active:bg-muted"
+                            !webSearch && "web:hover:bg-muted active:bg-muted"
                           )}
-                          onPress={() => toggleMode('search')}
+                          onPress={handleWebSearch}
+                          accessibilityLabel={t('modes.searchLabel')}
                         >
-                          <Globe size={18} className={activeModes.has('search') ? "text-primary-foreground" : "text-muted-foreground"} />
+                          <Globe size={18} className={webSearch ? "text-primary-foreground" : "text-muted-foreground"} />
                         </Button>
-
-                        {thinkingMode && (
-                          <ModeChip
-                            icon={Brain}
-                            label={t('modes.thinkingLabel')}
-                            color="#a855f7"
-                            onDismiss={handleThinkingMode}
-                          />
-                        )}
 
                         {/* Ghost is surfaced by the header's ghost toggle, so it
                             gets no chip here — but stays in MODE_ORDER for the menu. */}
@@ -560,37 +560,32 @@ export const ChatPageContent = ({
                             </Button>
                           </DropdownMenu.Trigger>
                           <DropdownMenu.Content side="top" align="start" collisionPadding={8}>
-                            <DropdownMenu.Sub>
-                              <DropdownMenu.SubTrigger key="research">
-                                <DropdownMenu.ItemIcon ios={{ name: "magnifyingglass" }} />
-                                <DropdownMenu.ItemTitle>Research</DropdownMenu.ItemTitle>
-                              </DropdownMenu.SubTrigger>
-                              <DropdownMenu.SubContent>
-                                <DropdownMenu.CheckboxItem
-                                  key="deep-research"
-                                  value={activeModes.has('deepResearch') ? 'on' : 'off'}
-                                  onValueChange={() => toggleMode('deepResearch')}
-                                >
-                                  <DropdownMenu.ItemIcon ios={{ name: "magnifyingglass" }} />
-                                  <DropdownMenu.ItemTitle>Deep research</DropdownMenu.ItemTitle>
-                                </DropdownMenu.CheckboxItem>
-                                <DropdownMenu.CheckboxItem
-                                  key="shopping"
-                                  value={activeModes.has('shoppingResearch') ? 'on' : 'off'}
-                                  onValueChange={() => toggleMode('shoppingResearch')}
-                                >
-                                  <DropdownMenu.ItemIcon ios={{ name: "bag" }} />
-                                  <DropdownMenu.ItemTitle>Shopping research</DropdownMenu.ItemTitle>
-                                </DropdownMenu.CheckboxItem>
-                              </DropdownMenu.SubContent>
-                            </DropdownMenu.Sub>
+                            {/* The capability switches. Every one of these
+                                changes what the request CARRIES: web search
+                                withholds three tools, deep research diverts the
+                                turn into the multi-step research engine, agent
+                                adds the delegation tools, ghost keeps the turn
+                                out of the conversation list.
+
+                                "Thinking mode" is gone from this menu on
+                                purpose — it was a capability switch standing in
+                                for a setting, and the effort control beside the
+                                model picker is where that setting lives now. */}
                             <DropdownMenu.CheckboxItem
-                              key="thinking"
-                              value={thinkingMode ? 'on' : 'off'}
-                              onValueChange={handleThinkingMode}
+                              key="web-search"
+                              value={webSearch ? 'on' : 'off'}
+                              onValueChange={handleWebSearch}
                             >
-                              <DropdownMenu.ItemIcon ios={{ name: "brain" }} />
-                              <DropdownMenu.ItemTitle>Thinking mode</DropdownMenu.ItemTitle>
+                              <DropdownMenu.ItemIcon ios={{ name: "globe" }} />
+                              <DropdownMenu.ItemTitle>Web search</DropdownMenu.ItemTitle>
+                            </DropdownMenu.CheckboxItem>
+                            <DropdownMenu.CheckboxItem
+                              key="deep-research"
+                              value={activeModes.has('deepResearch') ? 'on' : 'off'}
+                              onValueChange={() => toggleMode('deepResearch')}
+                            >
+                              <DropdownMenu.ItemIcon ios={{ name: "magnifyingglass" }} />
+                              <DropdownMenu.ItemTitle>Deep research</DropdownMenu.ItemTitle>
                             </DropdownMenu.CheckboxItem>
                             {isMainScreen && (
                               <DropdownMenu.CheckboxItem

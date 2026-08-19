@@ -6,6 +6,7 @@ import { GhostIcon } from "@/components/ui/ghost-icon";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Button } from "@/components/ui/button";
 import { ModelSelector } from "@/components/model-selector";
+import { EffortSelector } from "@/components/effort-selector";
 import { CreditsMenu } from "@/components/credits-menu";
 import { useNavigation, useRouter } from "expo-router";
 import type { DrawerNavigationProp } from "expo-router/drawer";
@@ -95,6 +96,10 @@ export const ChatHeader = React.memo(function ChatHeader({
           selectedModel={selectedModel}
           onModelChange={onModelChange}
         />
+        {/* The effort axis, BESIDE the model rather than inside it: one control
+            says who replies, the other how hard they work on it. It renders
+            nothing unless the chosen entry offers two or more levels. */}
+        <EffortSelector selectedModel={selectedModel} />
         {isVoiceActive && (
           <View className="h-6 rounded-full px-2 flex-row items-center gap-1" style={{ backgroundColor: withAlpha(colors.info, 0.15) }}>
             <Mic size={12} color={colors.info} />

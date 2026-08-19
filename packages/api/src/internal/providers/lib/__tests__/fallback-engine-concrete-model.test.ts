@@ -168,6 +168,7 @@ const servedKind = (tier: keyof typeof FIXTURE_TIER_MAPPINGS): string =>
     // this repository carries — the classifier this asserts on reads neither.
     FIXTURE_TIER_MAPPINGS[tier].map((m) => ({
       modelId: m.modelId,
+      provider: m.provider,
       publisher: m.publisher,
       model: m.model,
       // Servable, because this file measures CLASSIFICATION — how many models a
