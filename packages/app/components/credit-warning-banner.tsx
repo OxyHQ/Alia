@@ -36,6 +36,16 @@ interface CreditWarningBannerProps {
  * `null` whenever the answer is not known: no catalogue, no multiplier on the
  * current entry, or nothing cheaper offered. Suggesting a downgrade on missing
  * data would be a recommendation with nothing behind it.
+ *
+ * ## The suggestion is always a PROFILE, never a model
+ *
+ * The catalogue also serves individually selectable models now, and several are
+ * cheaper than the cheapest profile — so the plain "lowest multiplier offered"
+ * answer became a named third-party model. That is a different kind of
+ * statement: a profile is the product's own answer to "answer this cheaply",
+ * and the product stands behind whichever model it picks, whereas recommending
+ * one model is a recommendation about that model. The CURRENT entry may be
+ * either; only the suggestion is narrowed.
  */
 function cheaperAlternative(
   selectedModel: string,
@@ -47,7 +57,7 @@ function cheaperAlternative(
   if (current?.creditMultiplier == null) return null;
 
   let best: CatalogueEntry | null = null;
-  for (const entry of offered) {
+  for (const entry of offered.filter((candidate) => candidate.kind === 'routing_profile')) {
     if (entry.creditMultiplier === null) continue;
     if (entry.creditMultiplier >= current.creditMultiplier) continue;
     if (best === null || entry.creditMultiplier < best.creditMultiplier!) best = entry;

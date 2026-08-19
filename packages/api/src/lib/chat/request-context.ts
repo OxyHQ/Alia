@@ -11,13 +11,24 @@
  */
 import type { Request, Response } from 'express';
 import { resolveModel, getDefaultAliaModel, type RoutingOptions } from '../chat-core.js';
-import { toRoutableAlias } from '../product-modes.js';
+import { resolveRequestedModel } from '../routing/model-selection.js';
 import {
   isFallbackPolicy,
   FallbackNotPermittedError,
   UnknownFallbackPolicyError,
   UnregisteredModelError,
 } from '../routing/policy.js';
+/**
+ * The echo of a caller's own `model` string.
+ *
+ * `redactUnsafeDetail` and not `sanitizeMessage`, the same choice
+ * `UnregisteredModelError` documents: route concealment protects Alia's routing
+ * decisions, and a string the caller just sent reveals none of them — running
+ * the fuller sanitiser on it only mangles the value the message exists to
+ * name. What still applies is the absolute half: a caller can put a credential
+ * in that field, and a credential is redacted wherever it appears.
+ */
+import { redactUnsafeDetail } from '../errors/sanitize.js';
 import { getDb } from '../../db/index.js';
 import { findUserMemory, type UserMemoryProfile } from '../../db/memory/userMemoryRepository.js';
 import { getOrCreateUserCredits } from '../user-credits-helpers.js';
@@ -134,9 +145,7 @@ export async function buildChatRequestContext(
     });
     return null;
   }
-  const routingOptions: RoutingOptions = isFallbackPolicy(body.fallbackPolicy)
-    ? { fallbackPolicy: body.fallbackPolicy }
-    : {};
+  const requestedPolicy = isFallbackPolicy(body.fallbackPolicy) ? body.fallbackPolicy : undefined;
 
   // Extract optional parameters for Alia internal features
   const conversationId = body.conversationId as string | undefined;
@@ -160,41 +169,81 @@ export async function buildChatRequestContext(
   // API key requests should be neutral and not include creator's personal info
   const isDirectUserSession = !!req.user && !req.apiKey;
   /**
-   * The identifier this request routes on.
+   * What this request routes on, resolved at the boundary and once.
    *
-   * `profile:*` is the vocabulary `GET /catalogue` publishes and the one a
-   * client should send; `toRoutableAlias` turns it into the alias that carries
-   * the metadata the rest of this path needs — the credit multiplier
-   * `credits-manager.ts` bills on, the entitlement id `plan-access.ts` checks,
-   * the tier the fallback engine walks, and the system prompt the id selects.
-   * Translating ONCE here, at the boundary, is what keeps every one of those
-   * from needing to learn a second vocabulary.
+   * Three shapes reach here and all three come out as an ALIAS, because the
+   * alias is what carries the metadata the rest of this path needs — the credit
+   * multiplier `credits-manager.ts` bills on, the entitlement id
+   * `plan-access.ts` checks, the tier the fallback engine walks, and the system
+   * prompt the id selects. Translating once, here, is what keeps every one of
+   * those from learning a second vocabulary:
    *
-   * A legacy `alia-*` identifier passes through untouched and keeps working,
-   * which is what nothing-advertises-them means in practice: every installed
-   * `@alia.onl/sdk` and `@alia-codea/cli` copy still resolves.
+   *  - **`profile:*`**, the policy vocabulary `GET /catalogue` publishes,
+   *    becomes the alias that serves that policy.
+   *  - **`<publisher>/<model>`**, the model vocabulary it now also publishes,
+   *    becomes the alias of the profile the model is SERVED UNDER, plus the
+   *    identity — which travels separately, on the routing options, because it
+   *    answers a different question: not which tier, but which of that tier's
+   *    models may answer.
+   *  - **a legacy `alia-*` identifier** passes through untouched and keeps
+   *    working, which is what nothing-advertises-them means in practice: every
+   *    installed `@alia.onl/sdk` and `@alia-codea/cli` copy still resolves.
    *
-   * `null` is only ever a `profile:` id no preset defines. That is a caller
-   * naming a policy that does not exist, and it is refused HERE rather than
-   * downstream, because the resolver's refusal talks about models and would
-   * send them to the wrong list.
+   * Both refusals happen HERE rather than downstream, because the resolver's
+   * own refusal talks about the alias list and that is the wrong list for a
+   * caller who named either a profile or a model.
    */
-  const routable = toRoutableAlias(body.model || getDefaultAliaModel());
-  if (routable === null) {
-    const unknownProfile = {
-      message: `"${String(body.model)}" is not a routing profile. List them at GET /catalogue.`,
-      type: 'invalid_request_error',
-      param: 'model',
-      code: 'unknown_routing_profile',
-    };
+  const requested = await resolveRequestedModel(body.model || getDefaultAliaModel());
+  if (requested.kind === 'unknown-profile' || requested.kind === 'unknown-model') {
+    /**
+     * Two refusals, because they are two different mistakes.
+     *
+     * A `profile:` nobody defines is a policy that does not exist. A
+     * `<publisher>/<model>` the catalogue does not offer may well be a model
+     * that EXISTS — it is simply not one a person may pin on its own, because
+     * its price sits outside the band its profile is sold at
+     * (`lib/routing/model-selection.ts`) — and telling that caller to go and
+     * look at the profile list would be the wrong list.
+     */
+    const refusal =
+      requested.kind === 'unknown-profile'
+        ? {
+            message: redactUnsafeDetail(
+              `"${requested.requested}" is not a routing profile. List them at GET /catalogue.`,
+            ),
+            type: 'invalid_request_error',
+            param: 'model',
+            code: 'unknown_routing_profile',
+          }
+        : {
+            message: redactUnsafeDetail(
+              `"${requested.requested}" is not a model you can select on its own. ` +
+                'List what you can at GET /catalogue.',
+            ),
+            type: 'invalid_request_error',
+            param: 'model',
+            code: 'unknown_model',
+          };
     if (sse.sent) {
-      sse.writeError(unknownProfile);
+      sse.writeError(refusal);
     } else {
-      res.status(400).json({ error: unknownProfile });
+      res.status(400).json({ error: refusal });
     }
     return null;
   }
-  const requestedModel = routable;
+  const requestedModel = requested.alias;
+  /**
+   * A named model narrows the candidate set to that model's deployments.
+   *
+   * It rides on the same options object the fallback policy does, so the
+   * provider loop's RE-resolve inherits it for free — a retry that quietly
+   * widened back to the profile would answer from a different model one attempt
+   * later, which is the substitution ADR 0003 invariant 2 forbids.
+   */
+  const routingOptions: RoutingOptions = {
+    ...(requestedPolicy === undefined ? {} : { fallbackPolicy: requestedPolicy }),
+    ...(requested.kind === 'model' ? { pinnedModel: requested.identity } : {}),
+  };
 
   // Extract client context from first system message if present (from editor/client)
   let clientContext: string | undefined;

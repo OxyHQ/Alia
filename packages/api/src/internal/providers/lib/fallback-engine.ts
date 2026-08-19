@@ -46,6 +46,7 @@ import {
   UnregisteredModelError,
   type FallbackPolicy,
 } from '../../../lib/routing/policy.js';
+import { formatModelIdentity, type ModelIdentity } from '../../../lib/routing/model-identity.js';
 import { getRoutingPreset } from '../../../lib/routing/presets.js';
 import { getBestKeyForModel, markKeyCreditExhausted } from './key-manager';
 import { isProviderAvailable } from './provider-health';
@@ -78,6 +79,26 @@ export interface FallbackResult {
 /** Per-request routing options. Absent means today's behaviour, unchanged. */
 export interface FallbackOptions {
   fallbackPolicy?: FallbackPolicy;
+  /**
+   * The model the caller named, when the caller named one rather than a
+   * profile.
+   *
+   * ADR 0003 invariant 2: a request that names a model is answered by that
+   * model. The tier still supplies the candidate list, the price and the
+   * prompt — the alias is how those are looked up — and this narrows that list
+   * to the deployments of ONE model before any of the retry logic sees it.
+   *
+   * An identity, `{publisher, model}`, never a deployment id: Meta's Llama 3.3
+   * 70B is served under six different ids, and comparing what the operators
+   * call it would refuse five of the six deployments of the model the caller
+   * asked for.
+   *
+   * Which models a caller may name is a PRODUCT decision — it depends on price
+   * bands and on the profile a model is served under — so it is made in
+   * `lib/routing/model-selection.ts` and arrives here already made. This
+   * function only applies it, exactly as it does with `fallbackPolicy`.
+   */
+  pinnedModel?: ModelIdentity;
 }
 
 // Reasons that should NOT be retried at all
@@ -118,15 +139,35 @@ const NON_RETRYABLE_REASONS: Set<FailoverReason> = new Set([
  * error the policy exists to prevent, and the identity pair cannot make it:
  * two rows agree only when both halves agree, and the names are authored so
  * that anything uncertain stays distinct.
+ *
+ * ## A pinned model narrows FIRST, and the policy then applies inside it
+ *
+ * When the caller named a model rather than a profile, the tier's list is cut
+ * to that model's deployments before the policy is consulted. The order is
+ * load-bearing: `same-model-only` reads "the same model as the TOP-RANKED
+ * candidate", and the top-ranked candidate of the tier is whatever the profile
+ * would have chosen — so applying the policy first would pin the profile's
+ * default and quietly answer from a model the caller did not ask for.
+ *
+ * Narrowing first also makes the pin unescapable. `cross-model` removes no
+ * candidate, so it cannot widen past a list that has already been cut; there is
+ * no combination of options that names one model and answers from another.
  */
 function candidatesUnderPolicy(
   sortedMappings: readonly ModelMapping[],
   policy: FallbackPolicy,
+  pinnedModel?: ModelIdentity,
 ): ModelMapping[] {
-  if (policy === 'cross-model' || sortedMappings.length === 0) return [...sortedMappings];
-  if (policy === 'no-fallback') return [sortedMappings[0]];
-  const top = sortedMappings[0];
-  return sortedMappings.filter((m) => m.publisher === top.publisher && m.model === top.model);
+  const scoped =
+    pinnedModel === undefined
+      ? [...sortedMappings]
+      : sortedMappings.filter(
+          (m) => m.publisher === pinnedModel.publisher && m.model === pinnedModel.model,
+        );
+  if (policy === 'cross-model' || scoped.length === 0) return scoped;
+  if (policy === 'no-fallback') return [scoped[0]];
+  const top = scoped[0];
+  return scoped.filter((m) => m.publisher === top.publisher && m.model === top.model);
 }
 
 // ============== FALLBACK ENGINE ==============
@@ -176,8 +217,22 @@ export async function resolveWithFallback(
    * caller who asked for `no-fallback` gets it even where the product allows
    * more, and a caller who asked for nothing inherits whatever the product
    * decided rather than silently the widest thing available.
+   *
+   * A PINNED model sits between the caller and the preset, because the preset's
+   * `cross-model` describes the profile and this request is not one: naming a
+   * model is itself the statement "stay on this model", so the policy it
+   * defaults to is `same-model-only`. That is not what narrows the list — the
+   * pin does that, above — it is what makes the RECORD honest: the telemetry
+   * row and the exhaustion message both read the policy, and a pinned request
+   * that reported `cross-model` would describe a substitution that could not
+   * have happened, then answer a shortage with "no models available" instead of
+   * "this model is unavailable everywhere right now".
    */
-  const policy = options.fallbackPolicy ?? getRoutingPreset(aliasModelId)?.fallbackPolicy ?? DEFAULT_FALLBACK_POLICY;
+  const policy =
+    options.fallbackPolicy ??
+    (options.pinnedModel === undefined
+      ? (getRoutingPreset(aliasModelId)?.fallbackPolicy ?? DEFAULT_FALLBACK_POLICY)
+      : 'same-model-only');
 
   /**
    * An identifier nobody registered is refused, not rewritten.
@@ -219,6 +274,7 @@ export async function resolveWithFallback(
   const sortedMappings = candidatesUnderPolicy(
     [...mappings].sort((a, b) => a.priority - b.priority),
     policy,
+    options.pinnedModel,
   );
 
   // Track providers to skip for this request (billing issues = skip all keys)
@@ -420,7 +476,19 @@ export async function resolveWithFallback(
    * every existing caller still gets `null`.
    */
   if (policy !== 'cross-model') {
-    throw new FallbackNotPermittedError(aliasModelId, policy);
+    /**
+     * The refusal names what the CALLER named.
+     *
+     * A pinned request asked for `anthropic/claude-sonnet-4`, not for the alias
+     * that happens to carry that profile's price and prompt, and telling a
+     * person their request failed on an identifier they have never seen is the
+     * internal vocabulary leaking into the one place it is least useful. The
+     * identity is already here, so no option has to carry it.
+     */
+    throw new FallbackNotPermittedError(
+      options.pinnedModel === undefined ? aliasModelId : formatModelIdentity(options.pinnedModel),
+      policy,
+    );
   }
 
   return {

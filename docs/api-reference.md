@@ -155,7 +155,7 @@ channel emits cache-invalidation events for conversation, trigger and notificati
 
 | Route | Purpose |
 |---|---|
-| `GET /catalogue` | The truthful catalogue: each entry carries its real kind, `model` or `routing_profile` (`routes/catalogue.ts`) |
+| `GET /catalogue` | The truthful catalogue: routing profiles keyed `profile:*` and individually selectable models keyed `<publisher>/<model>`, each carrying its real kind (`routes/catalogue.ts`) |
 | `GET /catalogue/modes` | The product modes a person picks between (`routes/catalogue.ts`) |
 | `GET /models/stats`, `GET /models/stats/:modelId` | Product usage statistics per Alia identifier (`routes/models-stats.ts`) |
 | `GET /external-models`, `/external-models/organizations`, `/external-models/:modelId` | The external-model leaderboard (`routes/external-models.ts`) |
@@ -256,8 +256,8 @@ The clock owner is the owner of workstream 6, recorded on the epic.
 models, the `alia/*` publisher namespace is reserved and empty, so there is nothing for an
 OpenAI-shaped model list to name.
 
-Read [`GET /catalogue`](#catalogue-and-analytics) for routing profiles and
-`GET /catalogue/modes` for the product modes a person picks between.
+Read [`GET /catalogue`](#catalogue-and-analytics) for the routing profiles and the models,
+and `GET /catalogue/modes` for the product modes a person picks between.
 
 **Requests are unaffected.** The aliases still resolve; they are advertised by nothing.
 Every installed `@alia.onl/sdk` and `@alia-codea/cli` copy keeps working.
@@ -269,11 +269,33 @@ indistinguishable from a typo or an outage.
 
 ### `GET /catalogue`
 
-One entry per routing profile, keyed by `profile:*` — the same identifier the migration map
-publishes as each alias's replacement, and the one a client sends as `model`. Entries carry
-their real kind: `object: "routing_profile"` when the profile selects among several models,
-`object: "model"` when it resolves to exactly one. No `alia-*` identifier appears anywhere in
-the response.
+Two kinds of entry, and a client switches on `object` rather than on a naming convention.
+
+**Routing profiles**, keyed by `profile:*` — the same identifier the migration map publishes
+as each alias's replacement. One per profile, `object: "routing_profile"`, carrying
+`selects_among`: how many distinct models the policy ranks over.
+
+**Models**, keyed by `<publisher>/<model>` — `object: "model"`, with `publisher` and `model`
+as separate fields. Sending one as `model` on a chat request is answered by that model, on
+whichever deployment serves it; a request that names a profile is answered by whichever
+model the profile picks.
+
+Both are what they say they are: an entry resolving to one model identity is a `model`, one
+selecting among several is a `routing_profile`, and the kind is derived from the routing
+table on every request rather than declared.
+
+Not every model in the routing table is individually selectable. A model is offered on its
+own only when its price sits inside the band its routing profile is already sold at —
+Alia bills one credit multiplier per profile, so a model that costs more per token than the
+profile's own default cannot be pinned without the multiplier becoming a lie
+(`packages/api/src/lib/routing/model-selection.ts`). A model outside that band is still
+reachable through the profiles that route to it; naming it directly answers `400` with
+`unknown_model`. `pricing.credit_multiplier` on a model entry is the profile's, which is
+what a request on that model is billed at.
+
+`publisher` names who RELEASED the model and never who serves it. Which operator answers a
+request is a property of the deployment and appears nowhere in this response. No `alia-*`
+identifier appears anywhere in it either.
 
 ### `GET /catalogue/modes`
 
