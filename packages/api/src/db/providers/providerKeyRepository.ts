@@ -58,6 +58,20 @@ import { providerKeys } from '../schema/providers';
 /** The CHECK's ceiling on `current_priority`. Named so the clamp cannot drift. */
 const MAX_CURRENT_PRIORITY = 1000;
 
+/**
+ * A row actually holds a credential: not null AND not blank.
+ *
+ * Both halves matter, and the second is the one SQL will not give you for free.
+ * `getBestKeyForModel` refuses a valueless key with `if (!key.key)`, which is a
+ * JavaScript falsy test and therefore rejects `''` exactly as it rejects `null`.
+ * A bare `is not null` does not, so a row whose secret was blanked to an empty
+ * string rather than nulled reads as credentialed to anything using it — while
+ * routing skips the key. Written once and shared by both readers so the two
+ * cannot drift apart; a `where` and a projection are different enough contexts
+ * that they would.
+ */
+const hasKeyValue = sql<boolean>`(${providerKeys.key} is not null and ${providerKeys.key} <> '')`;
+
 /** sha256 of a credential — the value the unique index is built on. */
 export function hashProviderKey(key: string): string {
   return crypto.createHash('sha256').update(key).digest('hex');
@@ -163,7 +177,8 @@ export async function loadActiveProviderKeys(
  * That loop skips a key for six reasons. Four of them are properties of the row
  * that only an operator changes — archived, deactivated, past `expires_at`, over
  * `credit_limit_usd` — and one is the row being valueless, which is the same
- * kind of fact. Those five are here.
+ * kind of fact. Those five are here, the last through {@link hasKeyValue}, which
+ * carries the empty-string half a bare `is not null` would miss.
  *
  * The two that are NOT here are `cooldown_until` and the eight rate limits, and
  * leaving them out is the whole point rather than an omission. Both clear
@@ -191,7 +206,7 @@ export async function providersWithUsableKeys(db: Executor, now: Date): Promise<
       and(
         eq(providerKeys.isActive, true),
         eq(providerKeys.isArchived, false),
-        isNotNull(providerKeys.key),
+        hasKeyValue,
         or(isNull(providerKeys.expiresAt), gt(providerKeys.expiresAt, now)),
         or(
           isNull(providerKeys.creditLimitUsd),
@@ -275,7 +290,7 @@ export async function listProviderKeyDiagnostics(
       ...safeColumns,
       // Computed in SQL so the plaintext never crosses the wire into this
       // process, let alone into a response.
-      hasKeyValue: sql<boolean>`(${providerKeys.key} is not null and ${providerKeys.key} <> '')`,
+      hasKeyValue,
       keyLength: sql<number>`coalesce(length(${providerKeys.key}), 0)::int`,
     })
     .from(providerKeys)

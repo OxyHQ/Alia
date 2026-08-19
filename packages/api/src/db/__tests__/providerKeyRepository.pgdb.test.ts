@@ -546,9 +546,21 @@ describe('which providers hold a credential that could serve', () => {
     expect(await usable()).not.toContain('openrouter');
   });
 
-  it('excludes a provider whose only key has no stored value', async () => {
-    const blank = await createProviderKey(db, newKey({ provider: 'cohere' }), ACTOR);
-    await db.update(providerKeys).set({ key: null }).where(eq(providerKeys.id, blank.id));
+  it('excludes a provider whose keys are valueless, nulled OR blanked', async () => {
+    /**
+     * Both spellings, because they are not the same test. `getBestKeyForModel`
+     * refuses a valueless key with `if (!key.key)` — a JavaScript falsy check,
+     * so `''` is refused exactly as `null` is. SQL's `is not null` accepts `''`
+     * happily, and a predicate carrying only that half would report this
+     * provider usable while every request to it is skipped.
+     *
+     * Two keys rather than two tests: with only one clause working, the other
+     * key still makes the provider usable and this fails.
+     */
+    const nulled = await createProviderKey(db, newKey({ provider: 'cohere' }), ACTOR);
+    const blanked = await createProviderKey(db, newKey({ provider: 'cohere' }), ACTOR);
+    await db.update(providerKeys).set({ key: null }).where(eq(providerKeys.id, nulled.id));
+    await db.update(providerKeys).set({ key: '' }).where(eq(providerKeys.id, blanked.id));
 
     expect(await usable()).not.toContain('cohere');
   });
