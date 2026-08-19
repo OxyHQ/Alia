@@ -109,6 +109,31 @@ describe('deploy-aws.yml migration wiring', () => {
   });
 
   /**
+   * The `pre` and `post` phases must migrate the SAME package.
+   *
+   * The migrator path became a parameter of `deploy-ecs-image.sh`
+   * (`MIGRATION_ENTRYPOINT`) when `packages/integrations` gained its own deploy
+   * against its own database. That means this workflow now states the path
+   * twice — once for the pre-phase step and once inside the post-phase command —
+   * and two separately-written copies of one fact is exactly how a `pre` and a
+   * `post` phase end up applied against different packages, which the ledger's
+   * high-water rule turns into a permanent refusal rather than a retry.
+   *
+   * Extracted from the file rather than compared against a literal, so this
+   * fails on a drift and not on a rename.
+   */
+  it('runs the pre and post phases against the same migrator', () => {
+    const entrypoint = workflow.match(/MIGRATION_ENTRYPOINT:\s*(\S+)/);
+    const postMigrate = workflow.match(/MIGRATE='node (\S+) /);
+
+    // Positive control. A regex that stopped matching would otherwise let
+    // `undefined === undefined` report agreement.
+    expect(entrypoint?.[1]).toBeTruthy();
+    expect(postMigrate?.[1]).toBeTruthy();
+    expect(entrypoint?.[1]).toBe(postMigrate?.[1]);
+  });
+
+  /**
    * The seeder has the migrator's failure mode exactly: the one-shot names a
    * file path, the runtime stage carries no `src/`, and nothing complains until
    * the command is issued against a real cluster.

@@ -67,6 +67,12 @@ jobs:
           APP_DATABASE_URL: ${{ secrets.DATABASE_URL }}
           APP_SERVICE_SECRET: ${{ secrets.SERVICE_SECRET }}
           APP_TOKEN_ENCRYPTION_KEY: ${{ secrets.TOKEN_ENCRYPTION_KEY }}
+          # Shared with the `alia-integrations` service, which reads the SAME
+          # parameter. That service sends nothing; the API sends this value as
+          # `X-Gateway-Secret` and integrations compares it with `verifySecret`.
+          # Two parameters holding "the same" secret is one rotation away from a
+          # 401 nobody can explain, so there is deliberately only one.
+          APP_INTEGRATIONS_SECRET: ${{ secrets.INTEGRATIONS_SECRET }}
           APP_VAPID_PUBLIC_KEY: ${{ secrets.VAPID_PUBLIC_KEY }}
           APP_VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
           SHARED_AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
@@ -88,6 +94,7 @@ jobs:
           sync_secret DATABASE_URL "$APP_DATABASE_URL" "/oxy/$APP/DATABASE_URL"
           sync_secret SERVICE_SECRET "$APP_SERVICE_SECRET" "/oxy/$APP/SERVICE_SECRET"
           sync_secret TOKEN_ENCRYPTION_KEY "$APP_TOKEN_ENCRYPTION_KEY" "/oxy/$APP/TOKEN_ENCRYPTION_KEY"
+          sync_secret INTEGRATIONS_SECRET "$APP_INTEGRATIONS_SECRET" "/oxy/$APP/INTEGRATIONS_SECRET"
           sync_secret VAPID_PUBLIC_KEY "$APP_VAPID_PUBLIC_KEY" "/oxy/$APP/VAPID_PUBLIC_KEY"
           sync_secret VAPID_PRIVATE_KEY "$APP_VAPID_PRIVATE_KEY" "/oxy/$APP/VAPID_PRIVATE_KEY"
           sync_secret AWS_ACCESS_KEY_ID "$SHARED_AWS_ACCESS_KEY_ID" "/oxy/_shared/AWS_ACCESS_KEY_ID"
@@ -198,6 +205,85 @@ jobs:
           # the string-array contract deploy-ecs-image.sh validates.
           printf 'post_command=%s\n' "$(jq -cn --arg c "$CMD" '["/bin/sh","-c",$c]')" >>"$GITHUB_OUTPUT"
 
+      # Wire the API to the integrations service — the ONLY step that can.
+      #
+      # `packages/api/src/lib/tools/mcp.ts:48` gates every hosted MCP connector on
+      # `INTEGRATIONS_URL && INTEGRATIONS_SECRET`. Neither is on the running
+      # revision, so `buildMcpTools` returns an empty tool set and logs nothing;
+      # the registry, `POST /mcp/install` and the OAuth flow are all silently
+      # inert. (Local MCP is unaffected — that runs over `lib/mcp-relay.ts`.)
+      #
+      # Terraform cannot deliver either of them to a service that already exists.
+      # `modules/app-service/main.tf` carries `ignore_changes = [task_definition]`,
+      # so the service never adopts the revision an apply registers, and this
+      # script re-renders each revision from `services[0].taskDefinition` — the
+      # RUNNING one — so the CI chain never inherits Terraform's either. An entry
+      # added there lands in a revision nothing runs, with no error.
+      # `docs/runbooks/integrations-service-rollout.md` has the long version.
+      #
+      # BOTH overrides are conditional, and that is what makes this step safe to
+      # merge before anything is provisioned: with no `INTEGRATIONS_SECRET`
+      # secret and no `INTEGRATIONS_URL` variable, both are `{}` and this deploy
+      # is byte-identical to the ones before it.
+      #
+      # The secret's override MUST NOT be emitted when the parameter does not
+      # exist. A `secrets[]` binding naming an absent SSM parameter does not warn
+      # — it fails every task launch with `ResourceInitializationError: unable to
+      # pull secrets`, after a green deploy, which is the shape of failure this
+      # whole file is written against.
+      - name: Stage the integrations service wiring
+        id: integrations
+        env:
+          # Tested for presence only. Never echoed, never written, never
+          # interpolated into a command.
+          APP_INTEGRATIONS_SECRET: ${{ secrets.INTEGRATIONS_SECRET }}
+          # A repo VARIABLE, not a secret: it is a private DNS name, and the
+          # `Sync GitHub secrets -> SSM` discipline should not acquire an entry
+          # that is not a credential. Absent until an operator decides the
+          # integrations service is serving.
+          INTEGRATIONS_URL: ${{ vars.INTEGRATIONS_URL }}
+        run: |
+          secret_overrides='{}'
+          env_overrides='{}'
+
+          have_secret=false
+          if [ -n "$APP_INTEGRATIONS_SECRET" ] && [ "$APP_INTEGRATIONS_SECRET" != "-" ]; then
+            have_secret=true
+          fi
+
+          # Refuse the half-armed combination rather than warn about it.
+          #
+          # A URL with no credential gives the API an endpoint it cannot
+          # authenticate to. `mcp.ts` needs both, so nothing would break — it
+          # would stay inert while looking configured, and the operator who set
+          # the variable would have no way to tell. The condition arises only when
+          # somebody deliberately sets the variable, and either fix is one action:
+          # create the secret, or delete the variable.
+          if [ -n "$INTEGRATIONS_URL" ] && [ "$have_secret" != "true" ]; then
+            echo "::error::INTEGRATIONS_URL is set but the INTEGRATIONS_SECRET repo secret is not. The API would hold an endpoint it cannot authenticate to. Create the secret, or unset the variable."
+            exit 1
+          fi
+
+          if [ "$have_secret" = "true" ]; then
+            secret_overrides="$(jq -cn \
+              --arg arn "arn:aws:ssm:$AWS_REGION:237343248947:parameter/oxy/$APP/INTEGRATIONS_SECRET" \
+              '{INTEGRATIONS_SECRET: $arn}')"
+            echo "INTEGRATIONS_SECRET will be bound from SSM"
+          else
+            echo "no INTEGRATIONS_SECRET repo secret; leaving the API's hosted-MCP path unwired"
+          fi
+
+          if [ -n "$INTEGRATIONS_URL" ]; then
+            # jq builds the JSON, so a value containing a quote cannot break the
+            # object deploy-ecs-image.sh validates. An empty value never reaches
+            # here, and that script refuses one anyway.
+            env_overrides="$(jq -cn --arg url "$INTEGRATIONS_URL" '{INTEGRATIONS_URL: $url}')"
+            echo "INTEGRATIONS_URL will be set on the task definition"
+          fi
+
+          printf 'secret_overrides=%s\n' "$secret_overrides" >>"$GITHUB_OUTPUT"
+          printf 'env_overrides=%s\n' "$env_overrides" >>"$GITHUB_OUTPUT"
+
       # RUN_MIGRATIONS is what turns on machinery deploy-ecs-image.sh has always
       # had and nothing has ever enabled — so until now NOTHING applied Alia's
       # migrations, in any environment. The script runs the migration as a
@@ -228,7 +314,16 @@ jobs:
           IMAGE_URI: ${{ env.ECR_REGISTRY }}/oxy/${{ env.APP }}@${{ steps.build.outputs.digest }}
           RUN_MIGRATIONS: 'true'
           MIGRATION_TARGET_DATABASE: ${{ env.APP }}
+          # Stated rather than left to the script's default, which now exists
+          # only because `packages/integrations` ships a second migrator against
+          # a second database. The `post` phase names the same file in the step
+          # above; `deployWorkflow.test.ts` asserts the two agree, because two
+          # separately-written paths for one fact is exactly how a `pre` and a
+          # `post` phase end up migrating different packages.
+          MIGRATION_ENTRYPOINT: packages/api/dist/db/migrate.js
           POST_DEPLOY_TASK_COMMAND_JSON: ${{ steps.phases.outputs.post_command }}
+          TASK_SECRET_OVERRIDES_JSON: ${{ steps.integrations.outputs.secret_overrides }}
+          TASK_ENV_OVERRIDES_JSON: ${{ steps.integrations.outputs.env_overrides }}
         run: |
           STATUS=$(aws ecs describe-services --cluster "$CLUSTER" --services "$APP" --query 'services[0].status' --output text 2>/dev/null || echo NONE)
           if [ "$STATUS" != "ACTIVE" ]; then
