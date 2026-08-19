@@ -137,3 +137,93 @@ describe('deploy-aws.yml migration wiring', () => {
     expect(workflow).toContain('dist/scripts/seed.js --target-database=alia');
   });
 });
+
+/**
+ * The bounds that stop a hung deploy from holding production.
+ *
+ * ## Why they need a gate at all
+ *
+ * A `timeout-minutes` is observable only when it TRIPS, and a correct one never
+ * trips. So there is no green signal anywhere that says it is still there —
+ * deleting both lines restores GitHub's 6-hour default and every deploy stays
+ * exactly as green as it is now. That is the same shape as `RUN_MIGRATIONS`
+ * above: an ABSENT step that looks like a working deploy.
+ *
+ * ## Why the job bound is derived rather than asserted literally
+ *
+ * `deploy-ecs-image.sh` bounds each of its own waits at `MAX_WAIT_SECS`, and
+ * the job bound is only safe while it exceeds the longest chain of them. Pinning
+ * `105` as a literal would keep passing after somebody doubles `MAX_WAIT_SECS`,
+ * at which point the job timeout starts killing the script mid-rollback — the
+ * one outcome the workflow's `concurrency` comment exists to prevent. So the
+ * ceiling is recomputed from the script, exactly as the grep pattern above is
+ * compared against the constant `@oxyhq/db` exports rather than a retyped copy.
+ */
+describe('deploy-aws.yml stall bounds', () => {
+  const script = readFileSync(fileURLToPath(new URL('../../../../../.github/scripts/deploy-ecs-image.sh', import.meta.url)), 'utf8');
+
+  /** The `deploy` job's own attributes, i.e. everything before its `steps:`. */
+  const jobHeader = workflow.slice(workflow.indexOf('  deploy:'), workflow.indexOf('\n    steps:'));
+
+  /** The `Build and push` step, up to the start of the next one. */
+  const buildStep = (() => {
+    const from = workflow.indexOf('      - name: Build and push (linux/arm64)');
+    return workflow.slice(from, workflow.indexOf('\n      - name: ', from + 1));
+  })();
+
+  const minutesIn = (block: string): number | null => {
+    const match = block.match(/^\s+timeout-minutes: (\d+)$/m);
+    return match ? Number(match[1]) : null;
+  };
+
+  /**
+   * The vacuity floor for this block specifically. Both slices are index-based,
+   * and an index that misses returns a short or empty string — against which
+   * every `timeout-minutes` search below reports ABSENT, which is indistinguishable
+   * from the regression. Pin that each slice is the region it claims to be.
+   */
+  it('sliced the job header and the build step, not empty strings', () => {
+    expect(jobHeader).toContain('runs-on: ubuntu-24.04-arm');
+    expect(jobHeader).not.toContain('- name: Build and push');
+    expect(buildStep).toContain('docker buildx build');
+    expect(buildStep).toContain('--metadata-file');
+  });
+
+  /**
+   * The tight one, on the step that actually hung: three stalls on 2026-08-19
+   * froze at `RUN bun install` and emitted nothing for the following 40+
+   * minutes, against a slowest-of-100 successful builds of 2m44s.
+   */
+  it('bounds the build step well above its slowest observed run', () => {
+    const build = minutesIn(buildStep);
+    expect(build).not.toBeNull();
+    // 2m44s was the slowest of the 100 successful runs measured over ten days,
+    // and nothing caches between runs, so that sample is already the cold case.
+    expect(build).toBeGreaterThanOrEqual(10);
+    // Above ~30 the bound stops being worth having: the shortest of the three
+    // observed stalls ran 38 minutes before a human noticed and cancelled it.
+    expect(build).toBeLessThanOrEqual(30);
+  });
+
+  /**
+   * The backstop, which must never preempt the deploy script's own error
+   * handling. Four sequential `MAX_WAIT_SECS` waits are reachable on this
+   * workflow's configuration — the pre-phase migration one-shot, the rollout,
+   * the post-deploy reconciliation one-shot, and the rollback that a failure of
+   * the last one triggers.
+   */
+  it('bounds the job above the deploy script\'s own ceiling', () => {
+    const declared = script.match(/^MAX_WAIT_SECS="\$\{MAX_WAIT_SECS:-(\d+)\}"$/m);
+    expect(declared).not.toBeNull();
+    const maxWaitMinutes = Number(declared?.[1]) / 60;
+    expect(maxWaitMinutes).toBeGreaterThan(0);
+
+    const job = minutesIn(jobHeader);
+    const build = minutesIn(buildStep);
+    expect(job).not.toBeNull();
+    expect(build).not.toBeNull();
+    expect(job).toBeGreaterThanOrEqual(4 * maxWaitMinutes + Number(build));
+    // And it must still beat the 6-hour default it replaces, or it is theatre.
+    expect(job).toBeLessThan(360);
+  });
+});

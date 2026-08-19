@@ -35,6 +35,33 @@ jobs:
     # protected main branch may assume the AWS deploy role.
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04-arm
+    # The backstop, and deliberately loose — the tight bound is on the build
+    # step, which is where the hangs actually happen.
+    #
+    # Without any bound the job inherits GitHub's 6-hour default, and the
+    # `concurrency` group above never cancels in progress, so a hung job holds
+    # production rollouts for those six hours. Worse, GitHub keeps only the most
+    # recent PENDING run per group, so everything queued behind it is cancelled
+    # having never run. Measured 2026-08-19: `fc613f2d` hung 43 min, and
+    # `f52a8db6` and `9c3edb79` were both cancelled with ZERO jobs — neither
+    # commit was ever built, and their `cancelled` conclusions say nothing about
+    # their own content.
+    #
+    # The number has to sit ABOVE deploy-ecs-image.sh's own ceiling, never
+    # below. That script bounds every wait at MAX_WAIT_SECS (1200s), and on this
+    # workflow's configuration — RUN_MIGRATIONS plus a POST_DEPLOY_TASK_COMMAND
+    # — the longest chain is four sequential ones: the pre-phase migration
+    # one-shot, the rollout, the post-deploy reconciliation one-shot, and the
+    # rollback a failure of that last one triggers. 4 x 20 = 80 min. Add the
+    # 15-minute build bound below and the measured worst case of 2m20s for
+    # every other step combined (100 successful runs), and the ceiling is 98.
+    #
+    # Killing the job inside those 80 minutes is the one genuinely dangerous
+    # outcome available here: it strands precisely the unmonitored ECS rollout
+    # the concurrency comment above exists to prevent. A `packages/api` test
+    # re-derives this arithmetic from the script, so raising MAX_WAIT_SECS
+    # without raising this fails rather than silently arming that kill.
+    timeout-minutes: 105
     steps:
       - uses: actions/checkout@v4
 
@@ -113,6 +140,25 @@ jobs:
 
       - name: Build and push (linux/arm64)
         id: build
+        # The tight bound, on the step that hangs. Three stalls on 2026-08-19
+        # (`fc613f2d`, `1665503d`, `8b631942`) froze at the same layer, roughly
+        # ten seconds in, and emitted nothing further:
+        #
+        #   #25 [builder 16/18] RUN bun install --filter "@alia/api"
+        #
+        # Each cleared in about two minutes on a plain re-run, so the work is
+        # fine and the build hangs rather than running slowly.
+        #
+        # 15 minutes is 5.5x the slowest of the 100 successful runs between
+        # 2026-08-09 and 2026-08-19 (2m44s; the fastest was 1m49s). There is no
+        # layer cache to miss — no --cache-from/--cache-to here, no cache mount
+        # in packages/api/Dockerfile, and setup-buildx-action creates a fresh
+        # builder per run — so every one of those samples is already a cold
+        # build and there is no slower legitimate mode left to protect.
+        #
+        # No retry, deliberately: re-entering the same stall would double the
+        # hold on the concurrency group.
+        timeout-minutes: 15
         env:
           COMMIT_TAG: ${{ github.sha }}
         run: |
