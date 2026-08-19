@@ -1,12 +1,12 @@
 import express from 'express';
 import http from 'http';
 import cors from 'cors';
-import { createOxyCors } from '@oxyhq/core/server';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { closePostgres } from './db/index.js';
 import { runBootGuards } from './lib/boot-guards.js';
+import { createInternalCors } from './lib/cors-origins.js';
 import { startExpirySweeper, stopExpirySweeper } from './db/expirySweeper.js';
 import { log } from './lib/logger.js';
 import { isAbortError, isFatalError, isTransientNetworkError } from './lib/error-classification.js';
@@ -131,52 +131,12 @@ app.use('/v1', (_req, res, next) => {
   next();
 });
 
-// Internal routes - restricted to known origins
-/**
- * The first-party browser origins this repo deploys.
- *
- * `alia-canvas.pages.dev` is where `.github/workflows/deploy-frontends.yml`
- * publishes `packages/alia-canvas` (`--project-name=alia-canvas`), and it was
- * missing: measured 2026-08-19 against the running API, `GET /catalogue` with
- * `Origin: https://alia.onl` came back with an `access-control-allow-origin`
- * header and the same request with `Origin: https://alia-canvas.pages.dev`
- * came back with none, so every internal call that app makes — the workflow
- * routes under `/api` as well as the catalogue — was refused by the browser.
- *
- * Exact origins only, never a pattern: `createOxyCors` matches the normalized
- * origin against this set, so a Cloudflare Pages PREVIEW deployment
- * (`<hash>.alia-canvas.pages.dev`) is not admitted by this entry, which is the
- * intent.
- */
-const PRODUCTION_ORIGINS = [
-  'https://alia.onl',
-  'https://console.alia.onl',
-  'https://alia-canvas.pages.dev',
-];
-
-const DEV_ORIGINS = [
-  'http://localhost:4150',
-  'http://localhost:5173',
-  'http://localhost:8150',
-  'exp://localhost:8150',
-  'http://10.0.2.2:8150',
-];
-
-const allowedOrigins = [
-  ...(process.env.WEB_URL ? [process.env.WEB_URL] : []),
-  ...PRODUCTION_ORIGINS,
-  ...DEV_ORIGINS,
-];
-
-// Internal routes CORS via the shared Oxy allowlist (constant-time match, no
-// origin reflection, never a wildcard-with-credentials). Requests with no Origin
-// header (mobile apps, curl, server-to-server) pass through untouched — matching
-// the previous hand-rolled behavior. /v1 keeps its own permissive public CORS above.
-const internalCors = createOxyCors({
-  appOrigins: allowedOrigins,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin', 'X-Service-Name', 'X-Timestamp', 'X-Signature', 'X-Session-Id', 'X-Device-Info', 'X-Oxy-User-Id', 'X-Workspace-Id'],
-});
+// Internal routes - restricted to known origins.
+// The allowlist and the middleware built from it live in `lib/cors-origins.ts`;
+// see that module for why, and for what an entry with an opaque origin does.
+// Requests with no Origin header (mobile apps, curl, server-to-server) pass
+// through untouched. /v1 keeps its own permissive public CORS above.
+const internalCors = createInternalCors(process.env.WEB_URL);
 app.use((req, res, next) => {
   if (req.path.startsWith('/v1')) return next();
   internalCors(req, res, next);
