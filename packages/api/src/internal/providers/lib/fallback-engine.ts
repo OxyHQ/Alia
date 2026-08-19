@@ -97,16 +97,27 @@ const NON_RETRYABLE_REASONS: Set<FailoverReason> = new Set([
  *   id as the top-ranked one — ADR 0003 invariant 4's deployment fallback,
  *   which changes nothing a caller can observe about model identity.
  *
- * ## `same-model-only` UNDER-approximates, and that is the safe direction
+ * ## `same-model-only` compares IDENTITY, not the operator's id
  *
- * Sameness is decided by string equality on `mapping.modelId`, because that is
- * all this repository stores. Two providers serving one open-weight model can
- * name it differently, so a legitimate same-model deployment may be excluded.
- * The opposite error — admitting a DIFFERENT model — is the one the policy
- * exists to prevent, and string equality cannot make it. Recovering the missed
- * cases needs a publisher-attributed catalogue, which is Relay's
- * (`docs/migration/alias-migration-map.json` records why it is not recoverable
- * here).
+ * It used to compare `mapping.modelId`, and this comment used to say that was
+ * all the repository stored — that two providers serving one open-weight model
+ * can name it differently, so a legitimate same-model deployment was excluded,
+ * and that recovering those cases needed a publisher-attributed catalogue.
+ *
+ * The catalogue now exists. Every mapping carries `publisher` and `model`
+ * (`model-publishers.ts`, and the authored names beside each call in
+ * `generate-model-mappings.ts`), so sameness is decided on the identity ADR
+ * 0003 defines rather than on what an operator happens to call its deployment.
+ *
+ * The case this recovers is not hypothetical: Meta's Llama 3.3 70B is served
+ * under SIX different ids, so a caller pinned to it previously got one
+ * deployment where six were eligible — the policy silently refused five
+ * legitimate ones and reported exhaustion.
+ *
+ * The safe direction is unchanged. Admitting a DIFFERENT model is still the
+ * error the policy exists to prevent, and the identity pair cannot make it:
+ * two rows agree only when both halves agree, and the names are authored so
+ * that anything uncertain stays distinct.
  */
 function candidatesUnderPolicy(
   sortedMappings: readonly ModelMapping[],
@@ -114,7 +125,8 @@ function candidatesUnderPolicy(
 ): ModelMapping[] {
   if (policy === 'cross-model' || sortedMappings.length === 0) return [...sortedMappings];
   if (policy === 'no-fallback') return [sortedMappings[0]];
-  return sortedMappings.filter((m) => m.modelId === sortedMappings[0].modelId);
+  const top = sortedMappings[0];
+  return sortedMappings.filter((m) => m.publisher === top.publisher && m.model === top.model);
 }
 
 // ============== FALLBACK ENGINE ==============

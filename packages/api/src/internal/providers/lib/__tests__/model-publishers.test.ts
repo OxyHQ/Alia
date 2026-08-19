@@ -169,3 +169,73 @@ describe('publisher display names', () => {
     expect(publisherDisplayName('xai')).toBe('xAI');
   });
 });
+
+describe('model identity is the publisher\'s name, not the operator\'s id', () => {
+  it('collapses the deployments that really are one model', () => {
+    /**
+     * THE reason this field exists. Meta's Llama 3.3 70B is served under six
+     * ids, and `same-model-only` compared `modelId` — so a caller pinned to it
+     * got ONE deployment where six were eligible, and the policy reported
+     * exhaustion while five legitimate routes sat unused.
+     *
+     * Named ids rather than a count, so the assertion cannot be satisfied by
+     * six of something else collapsing.
+     */
+    const llama = MAPPINGS.filter((m) => m.publisher === 'meta' && m.model === 'llama-3.3-70b');
+    expect(new Set(llama.map((m) => m.modelId))).toEqual(
+      new Set([
+        'Meta-Llama-3.3-70B-Instruct',
+        'llama-3.3-70b',
+        'llama-3.3-70b-versatile',
+        'llama3.3-70b-instruct',
+        'meta-llama/llama-3.3-70b-instruct',
+        'meta/meta-llama-3.3-70b-instruct',
+      ]),
+    );
+    // Six operators, so the collapse is across providers rather than within one.
+    expect(new Set(llama.map((m) => m.provider)).size).toBe(6);
+  });
+
+  it('is not a copy of the deployment id', () => {
+    /**
+     * The `publisher === provider` mistake in this field's currency: filling
+     * `model` from `modelId` typechecks, reads plausibly at every call site,
+     * satisfies "every mapping has a model", and restores exactly the bug the
+     * field was added to fix — because comparing the pair would then be
+     * comparing the id again.
+     *
+     * A floor near the real number (29 of 58 ids differ from their model's
+     * name) fails loudly for a copied column while leaving room for edits.
+     */
+    const ids = new Map(MAPPINGS.map((m) => [m.modelId, m.model]));
+    const differing = [...ids].filter(([modelId, model]) => modelId !== model);
+    expect(differing.length).toBeGreaterThanOrEqual(24);
+
+    // Named instances, so the count cannot be met by noise.
+    expect(ids.get('llama-3.3-70b-versatile')).toBe('llama-3.3-70b');
+    expect(ids.get('openai-gpt-oss-20b')).toBe('gpt-oss-20b');
+    expect(ids.get('fal-ai/fast-sdxl')).toBe('sdxl');
+    expect(ids.get('accounts/fireworks/models/deepseek-v3')).toBe('deepseek-v3');
+  });
+
+  it('really collapses, and does not collapse everything', () => {
+    // Both directions. Equal counts mean the field is a rename of the id;
+    // one identity for everything means the names are meaningless.
+    const ids = new Set(MAPPINGS.map((m) => m.modelId));
+    const identities = new Set(MAPPINGS.map((m) => `${m.publisher}/${m.model}`));
+    expect(identities.size).toBeLessThan(ids.size);
+    expect(identities.size).toBeGreaterThan(ids.size / 2);
+  });
+
+  it('never gives one deployment id two identities', () => {
+    // A deployment serves exactly one model, so a second identity for the same
+    // id is a typo that `same-model-only` would turn into a routing decision.
+    const byId = new Map<string, Set<string>>();
+    for (const m of MAPPINGS) {
+      const seen = byId.get(m.modelId) ?? new Set<string>();
+      seen.add(`${m.publisher}/${m.model}`);
+      byId.set(m.modelId, seen);
+    }
+    expect([...byId].filter(([, seen]) => seen.size > 1).map(([id]) => id)).toEqual([]);
+  });
+});

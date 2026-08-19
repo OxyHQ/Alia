@@ -60,6 +60,25 @@ export interface ModelMapping {
    * `model-publishers.ts`.
    */
   publisher: ModelPublisher;
+  /**
+   * The publisher's own name for the model, which is NOT what the operator
+   * calls its deployment.
+   *
+   * Meta's Llama 3.3 70B reaches users as `Meta-Llama-3.3-70B-Instruct`,
+   * `llama-3.3-70b`, `llama-3.3-70b-versatile`, `llama3.3-70b-instruct`,
+   * `meta-llama/llama-3.3-70b-instruct` and `meta/meta-llama-3.3-70b-instruct`.
+   * Six ids, one model — and `same-model-only` fallback compared `modelId`, so
+   * it treated them as six models and refused five legitimate deployments of
+   * the one the caller asked for.
+   *
+   * With `publisher`, this completes ADR 0003's `publisher/model` identity.
+   * Authored, never parsed: 29 of the 58 deployment ids differ from their
+   * model's name, and where sameness is uncertain the names stay DISTINCT —
+   * under-collapsing matches today's behaviour, over-collapsing asserts two
+   * different models are one, which is the error the policy exists to prevent.
+   */
+  model: string;
+  /** What the OPERATOR calls this deployment. Provider-specific, never an identity. */
   modelId: string;
   priority: number;
   qualityScore: number;
