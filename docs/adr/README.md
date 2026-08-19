@@ -11,10 +11,13 @@ An ADR records a decision that is **in force now**, the context that forced it, 
 | [0003](./0003-model-revision-deployment-provider-routing-profile.md) | Model, revision, deployment, provider and routing profile are five distinct things | Accepted | 2026-08-15 |
 | [0004](./0004-product-endpoints-versus-generic-inference-endpoints.md) | Alia product endpoints versus generic inference endpoints | Accepted | 2026-08-15 |
 | [0005](./0005-product-entitlements-versus-financial-ledger.md) | Product entitlements versus the financial ledger | Accepted | 2026-08-15 |
+| [0006](./0006-the-destination-of-api-alia-onl-v1-is-recorded-twice.md) | The destination of `api.alia.onl/v1/*` is recorded twice, differently | Proposed | 2026-08-19 |
 
 Companion document: [the compatibility window and sunset criteria](../migration/compatibility-window.md), which binds ADR 0002, ADR 0003 and ADR 0004 to measurable removal gates.
 
 ADRs 0001 through 0005 were written together for epic #139 and are consistent by construction. Read 0001 first: the other four are consequences of the boundary it draws.
+
+ADR 0006 is `Proposed` rather than `Accepted` because it does not decide anything: it records that four derived notes under `docs/migration/` contradict ADR 0004 about whether `api.alia.onl/v1/*` ever goes away, and asks the repository owner which is authoritative. It is the one document here that describes something not yet decided, and it says so in its own Decision section.
 
 ## Conventions
 

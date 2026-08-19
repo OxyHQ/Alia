@@ -420,15 +420,15 @@
       "domain": "product-api",
       "kind": "dependency",
       "currentPath": "packages/app/lib/api/routes.ts",
-      "reachable": "dead",
-      "owner": "delete",
-      "targetPath": "delete",
+      "reachable": "live",
+      "owner": "alia",
+      "targetPath": "keep-alia-product",
       "dependsOn": [
         "alia-chat-post"
       ],
-      "removalGate": "Safe to delete the dead constants now. The important consequence: /alia/chat has ZERO live in-repo callers, so any 'who uses it' answer must come from access logs.",
-      "provenance": "inventory-product-api",
-      "evidence": "packages/app/lib/api/routes.ts:53,148-152 vs packages/app/lib/hooks/use-chat-conversation.ts:44"
+      "removalGate": "NOT dead, and not deletable. 60f800fe (#240) made this constant the path every chat caller in packages/app names. Measured 2026-08-19: /alia/chat has SIX live in-repo call sites — use-chat-conversation.ts:76 and use-personality-sample-phrase.ts:70 through API_ROUTES.chat.alia, alia-codea/src/chatParticipant.ts:192 and inlineCompletionProvider.ts:96, and integrations/src/shared/api-client.ts:223 and :290 — against ZERO at 60f800fe^, where a git grep for the literal across packages, excluding packages/api and tests, returned only this constant and a doc-comment example in generate-api-url.ts. The superseded claim was 'ZERO live in-repo callers, so any who-uses-it answer must come from access logs'; that is now true only of EXTERNAL callers. Gate 8 of packages/api/src/__tests__/architectureGates.test.ts asserts the caller set by exact equality, so deleting the constant fails that gate rather than passing silently.",
+      "provenance": "measured",
+      "evidence": "packages/app/lib/api/routes.ts:53-62 (the constant, and the comment forbidding a /v1 sibling beside it); readers at packages/app/lib/hooks/use-chat-conversation.ts:76 and packages/app/lib/hooks/use-personality-sample-phrase.ts:70; frozen by packages/api/src/__tests__/architectureGates.test.ts:3066 (PRODUCT_RUNTIME_CALLERS) and :3154"
     },
     {
       "id": "alia-chat-get",
@@ -458,9 +458,9 @@
       "dependsOn": [
         "v1-chat-completions-post"
       ],
-      "removalGate": "ZERO live in-repo callers (see alia-chat-app-route-constant). But it is documented as public in README.md:56, packages/api/README.md:36, docs/api-reference.md:80, docs/chat-runtime.mdx:9, docs/index.mdx:13 and CHANGELOG.md:9. Gate removal on access logs AND on removing all six doc mentions - a doc that promises a 404 is worse than the route.",
-      "provenance": "re-derived",
-      "evidence": "packages/api/src/index.ts:227; packages/api/src/routes/chat.ts:8"
+      "removalGate": "SIX live in-repo callers as of 60f800fe (#240), measured 2026-08-19 — enumerated in alia-chat-app-route-constant, which this row previously cited for the opposite claim of ZERO. It is also documented as public in README.md:63, packages/api/README.md:37, docs/api-reference.md:46, docs/chat-runtime.mdx:9, docs/index.mdx:13 and CHANGELOG.md:9. Removal is therefore gated on migrating the six first-party callers, AND on access logs for external ones, AND on removing all six doc mentions - a doc that promises a 404 is worse than the route.",
+      "provenance": "measured",
+      "evidence": "packages/api/src/index.ts:249 (mount); packages/api/src/routes/chat.ts:41 (handler)"
     },
     {
       "id": "alia-chat-sse-tuning",
@@ -5761,7 +5761,7 @@
         "alia-models",
         "sse-named-event-contract"
       ],
-      "removalGate": "Never removed. If inference moves to Relay, this endpoint stays as the Alia-facing facade - the OpenAI shape, the alia_* extensions and the named SSE events are the public contract and must be reproduced byte-compatibly on the far side.",
+      "removalGate": "Never removed. If inference moves to Relay, this endpoint stays as the Alia-facing facade - the OpenAI shape, the alia_* extensions and the named SSE events are the public contract and must be reproduced byte-compatibly on the far side. || CONTESTED: ADR 0004 (Accepted) decides the opposite for this surface - \"a bounded-window compatibility surface, then it sunsets\" - and rejects permanence by name. docs/adr/0006 records the conflict and resolves neither side; do not act on this gate until it is resolved.",
       "provenance": "re-derived",
       "evidence": "packages/api/src/routes/v1.ts:127; packages/api/src/routes/v1/chat-completions.ts:29,334"
     },
@@ -5901,7 +5901,7 @@
       "owner": "alia",
       "targetPath": "keep-alia-product",
       "dependsOn": [],
-      "removalGate": "Never removed. Any route moved OUT of /v1 loses wildcard CORS and instantly breaks every browser-based external client.",
+      "removalGate": "Never removed. Any route moved OUT of /v1 loses wildcard CORS and instantly breaks every browser-based external client. || CONTESTED: ADR 0004 (Accepted) decides the opposite for this surface - \"a bounded-window compatibility surface, then it sunsets\" - and rejects permanence by name. docs/adr/0006 records the conflict and resolves neither side; do not act on this gate until it is resolved.",
       "provenance": "re-derived",
       "evidence": "packages/api/src/index.ts:125-136,168-171,228"
     },
