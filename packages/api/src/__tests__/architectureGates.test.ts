@@ -2963,6 +2963,49 @@ describe('gate 7: a provider client is constructed in one place (#139 ws7)', () 
  * the compatibility surface, which is what puts the surface back out of reach of
  * its own removal gate. Both maps and the product-runtime list are exact
  * equalities, so a file that stops needing its entry fails too.
+ *
+ * ## What this gate does NOT hold — read this before trusting it
+ *
+ * It holds a BOUNDARY: *no unrecorded client names the generic inference path*.
+ * It does not hold *this client calls this endpoint*, and the difference is
+ * visible in one measurement. Mutating
+ * `packages/app/lib/hooks/use-chat-conversation.ts` to
+ * `generateAPIUrl('/v1/chat/completions')` turns it RED; mutating the same line
+ * to `generateAPIUrl('/some/other/path')` leaves it GREEN. Both measured
+ * 2026-08-19.
+ *
+ * That is deliberate, and the asymmetry is the reason. A regression to `/v1` is
+ * SILENT — the request succeeds, because both mounts run the same handler, and
+ * the only casualty is a removal gate nobody is watching that week. A third path
+ * is LOUD: it 404s on the first message, in the app's own face. A gate is worth
+ * its maintenance where the failure is silent, and a census that could catch the
+ * loud case as well would have to walk property accesses rather than string
+ * literals, for a hazard that reports itself.
+ *
+ * The coverage is therefore uneven ON PURPOSE, and unevenly by call site rather
+ * than by package:
+ *
+ *  - `PRODUCT_RUNTIME_CALLERS` is an exact list, so the three FILES that write
+ *    `/alia/chat` as a call target — both `alia-codea` files and
+ *    `packages/integrations/src/shared/api-client.ts`, which writes it twice —
+ *    are covered in BOTH directions. Repointing one at `/v1` fails twice: the
+ *    generic census gains a file, and the product list loses one.
+ *  - The two `packages/app` hooks reach the route through
+ *    `API_ROUTES.chat.alia` and so carry NO literal for that census to see. They
+ *    are covered in one direction only — against naming the generic path. The
+ *    `propertyInitializers` assertion below is what stands in for the other
+ *    direction, and it is an assertion about the route table, not about the
+ *    hooks.
+ *
+ * The uneven half is asserted rather than described — `the app's chat hooks name
+ * neither chat path directly` below — so "they name no path the census could
+ * see" stays a measurement rather than a sentence. Inlining EITHER path into a
+ * hook turns it red and asks for the record to be updated, which is the
+ * reviewable direction.
+ *
+ * So: a future edit cannot quietly put a first-party client back on the
+ * compatibility surface. It can point one somewhere else entirely, and this file
+ * will not be what tells you.
  */
 
 /** The generic inference path, as a client would write it. */
@@ -3109,6 +3152,41 @@ describe('gate 8: first-party clients call the product runtime (#139 ws6, ADR 00
     // The other half. Without it the gate is satisfied by a client that stopped
     // calling anything at all, which is not what "migrated" means.
     expect(namesProductRuntime).toEqual([...PRODUCT_RUNTIME_CALLERS].sort());
+  });
+
+  it("the app's chat hooks name neither chat path directly", () => {
+    /**
+     * The measurement behind the "covered in one direction only" paragraph
+     * above. Both hooks pass `API_ROUTES.chat.alia` to `generateAPIUrl`, so
+     * neither names either chat path — which is exactly why the
+     * `PRODUCT_RUNTIME_CALLERS` list cannot see them. This is deliberately about
+     * those two paths and not about literals in general: a third-path edit
+     * writes a literal and still passes here, which is the same green the
+     * docblock records rather than a hole in this assertion.
+     *
+     * Asserted so that sentence cannot quietly stop being true: inlining either
+     * path into a hook fails here and asks for the record to be updated.
+     */
+    const hooks = [
+      'packages/app/lib/hooks/use-chat-conversation.ts',
+      'packages/app/lib/hooks/use-personality-sample-phrase.ts',
+    ];
+    for (const hook of hooks) {
+      const source = clients.find((s) => s.file === hook);
+      expect(source).toBeDefined();
+      const paths = stringLiterals((source as Source).ast).filter(
+        (l) => l.includes(GENERIC_INFERENCE_PATH) || l.includes(PRODUCT_RUNTIME_PATH),
+      );
+      expect(paths).toEqual([]);
+    }
+
+    // Positive control, in the same currency: the scan DOES find a path literal
+    // in a file that has one, so the empty arrays above are absence and not a
+    // broken filter.
+    const participant = clients.find((s) => s.file === 'packages/alia-codea/src/chatParticipant.ts');
+    expect(
+      stringLiterals((participant as Source).ast).filter((l) => l.includes(PRODUCT_RUNTIME_PATH)),
+    ).toEqual([PRODUCT_RUNTIME_PATH]);
   });
 
   it('the app reaches the product runtime through its route table and nothing else', () => {
