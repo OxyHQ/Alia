@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import type { WorkflowNode } from "@/lib/workflow-types";
-import { MODELS } from "@/lib/models";
+import { AUTOMATIC, useOfferedModes } from "@/lib/product-modes";
 
 interface NodeEditPanelProps {
   node: WorkflowNode;
@@ -21,8 +21,22 @@ interface NodeEditPanelProps {
 }
 
 export function NodeEditPanel({ node, onUpdate, onClose }: NodeEditPanelProps) {
+  const { data: offeredModes } = useOfferedModes();
+
   const handleChange = (field: string, value: unknown) => {
     onUpdate(node.id, { [field]: value });
+  };
+
+  /**
+   * Automatic is stored as the ABSENCE of a `model`, not as a value.
+   *
+   * The server routes a node that names no model through its own default
+   * (`packages/api/src/routes/canvas/execute.ts`), which is what Automatic
+   * means. Writing a sentinel into the workflow instead would put a string the
+   * API has never heard of into saved data.
+   */
+  const handleModeChange = (value: string) => {
+    handleChange("model", value === AUTOMATIC ? undefined : value);
   };
 
   return (
@@ -54,20 +68,17 @@ export function NodeEditPanel({ node, onUpdate, onClose }: NodeEditPanelProps) {
           {node.type === "aiText" && (
             <>
               <div>
-                <Label htmlFor="model">Model</Label>
-                <Select
-                  value={node.data.model || "alia-lite"}
-                  onValueChange={(value) => handleChange("model", value)}
-                >
-                  <SelectTrigger id="model">
+                <Label htmlFor="mode">Mode</Label>
+                <Select value={node.data.model || AUTOMATIC} onValueChange={handleModeChange}>
+                  <SelectTrigger id="mode">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {MODELS.map((model) => (
-                      <SelectItem key={model.id} value={model.id}>
+                    {(offeredModes ?? []).map((mode) => (
+                      <SelectItem key={mode.id} value={mode.id}>
                         <div className="flex flex-col">
-                          <span className="font-medium">{model.name}</span>
-                          <span className="text-xs text-muted-foreground">{model.description}</span>
+                          <span className="font-medium">{mode.label}</span>
+                          <span className="text-xs text-muted-foreground">{mode.description}</span>
                         </div>
                       </SelectItem>
                     ))}
@@ -111,30 +122,16 @@ export function NodeEditPanel({ node, onUpdate, onClose }: NodeEditPanelProps) {
           )}
 
           {/* AI Image Node */}
+          {/*
+            * An image node has no mode control, because it has no choice to
+            * offer: `packages/api/src/routes/canvas/execute.ts` runs the
+            * `aiImage` case through `getModelMappingsForTier('v1-image')` and
+            * never reads `node.data.model`. The control that used to sit here
+            * showed an alias name and changed nothing — a picker whose value the
+            * server ignores is a claim the product does not make.
+            */}
           {node.type === "aiImage" && (
             <>
-              <div>
-                <Label htmlFor="model">Model</Label>
-                <Select
-                  value={node.data.model || "alia-lite"}
-                  onValueChange={(value) => handleChange("model", value)}
-                >
-                  <SelectTrigger id="model">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {MODELS.map((model) => (
-                      <SelectItem key={model.id} value={model.id}>
-                        <div className="flex flex-col">
-                          <span className="font-medium">{model.name}</span>
-                          <span className="text-xs text-muted-foreground">{model.description}</span>
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
               <div>
                 <Label htmlFor="prompt">Prompt</Label>
                 <Textarea

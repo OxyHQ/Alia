@@ -209,7 +209,10 @@ Be concise and friendly. Use these Telegram features when appropriate.`,
         botUser.oxyUserId.toString(),
         apiMessages,
         {
-          model: botUser.preferredModel || 'alia-lite',
+          // Unset means the person has expressed no preference, so the request
+          // names no model and the server's own default applies — the Automatic
+          // product mode. See `shared/api-client.ts`.
+          model: botUser.preferredModel,
           conversationId,
         },
       );

@@ -216,11 +216,6 @@ const RESTATED_DEFAULTS: readonly { file: string; value: string; why: string }[]
     value: 'alia-v1-voice',
     why: 'Capability-scoped, and correct: a realtime voice session cannot run on the general chat default.',
   },
-  {
-    file: 'packages/api/src/routes/webhooks.ts',
-    value: 'alia-lite',
-    why: "A Telegram bot user's stored preference, else the chat default. Agrees with the owner; should import it.",
-  },
 ];
 
 describe('every site that restates an alias default is accounted for', () => {
@@ -238,11 +233,14 @@ describe('every site that restates an alias default is accounted for', () => {
     expect(at('lib/tools/delegate.ts')).toContain('alia-v1'); // `||` with a space
     expect(at('lib/tools/agent-delegate.ts')).toContain('alia-lite'); // `||` after `?.[0]`
     expect(at('lib/credits-manager.ts')).toContain('alia-v1-voice'); // parameter default
-    // 8 -> 7 because `/v1/responses` stopped restating a default, not because
-    // the scanner got weaker. A floor that a gate's own work erodes ends at
-    // `>= 0`, so it moves by exactly the number of restatements deleted and the
-    // exact-equality check below is what actually holds the line.
-    expect(observed.length).toBeGreaterThanOrEqual(7);
+    // 8 -> 7 because `/v1/responses` stopped restating a default, then 7 -> 6
+    // because `routes/webhooks.ts` did: #244 made a bot's stored preference a
+    // `profile:*` identifier, so that site reads `getDefaultAliaModel()` and
+    // translates through `toRoutableAlias` instead of naming an alias. Neither
+    // is the scanner getting weaker. A floor that a gate's own work erodes ends
+    // at `>= 0`, so it moves by exactly the number of restatements deleted and
+    // the exact-equality check below is what actually holds the line.
+    expect(observed.length).toBeGreaterThanOrEqual(6);
   });
 
   it('is exactly the frozen list, in both directions', () => {
@@ -254,8 +252,8 @@ describe('every site that restates an alias default is accounted for', () => {
   });
 
   it('the frozen list is as long as it says, so it cannot grow a line at a time', () => {
-    expect(RESTATED_DEFAULTS).toHaveLength(6);
-    expect(new Set(RESTATED_DEFAULTS.map((r) => r.file)).size).toBe(6);
+    expect(RESTATED_DEFAULTS).toHaveLength(5);
+    expect(new Set(RESTATED_DEFAULTS.map((r) => r.file)).size).toBe(5);
     for (const entry of RESTATED_DEFAULTS) expect(entry.why.length).toBeGreaterThan(40);
   });
 
@@ -333,8 +331,11 @@ describe('every site that restates an alias default is accounted for', () => {
     }
 
     // The floor: if the filter ever empties, "none disagrees" is a fact about
-    // the exemption list rather than about the defaults.
-    expect(generalChatPath).toHaveLength(3);
+    // the exemption list rather than about the defaults. 3 -> 2 with #244:
+    // `routes/webhooks.ts` was one of the three and now restates nothing, so
+    // the filter has one fewer general-path entry to check rather than one
+    // fewer reason to check.
+    expect(generalChatPath).toHaveLength(2);
     for (const entry of generalChatPath) {
       expect(entry.value, `${entry.file} disagrees with the owner`).toBe(getDefaultAliaModel());
     }

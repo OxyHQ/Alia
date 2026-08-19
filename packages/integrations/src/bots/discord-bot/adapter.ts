@@ -8,7 +8,10 @@ import {
   registerSlashCommands,
   handleTextCommand,
   sendAuthRequest,
+  describeModes,
+  resolveModeChoice,
 } from './commands';
+import { labelForPreference } from '../../shared/catalogue';
 import { createLogger } from '../../shared/logger';
 
 const apiClient = new APIClient('discord', process.env.DISCORD_BOT_SECRET || '');
@@ -92,7 +95,15 @@ export class DiscordBotAdapter implements BotAdapter {
             if (!botUser?.isLinked) {
               await interaction.editReply('Not linked. Use /start to connect.');
             } else {
-              await interaction.editReply(`Connected | Model: ${botUser.preferredModel || 'alia-lite'}`);
+              // Omitted when the stored preference is a legacy identifier the
+              // catalogue does not describe — see `shared/catalogue.ts`.
+              const offeredModes = await apiClient.fetchOfferedModes();
+              const modeLabel = offeredModes === null
+                ? null
+                : labelForPreference(botUser.preferredModel, offeredModes.entries, offeredModes.modes);
+              await interaction.editReply(
+                modeLabel === null ? 'Connected' : `Connected | Mode: ${modeLabel}`,
+              );
             }
           } catch {
             await interaction.editReply('Error checking status.');
@@ -112,17 +123,21 @@ export class DiscordBotAdapter implements BotAdapter {
         case 'model':
           await interaction.deferReply({ ephemeral: true });
           try {
-            const modelArg = interaction.options.getString('model');
-            if (!modelArg) {
-              const models = await apiClient.fetchModels();
-              const list = models.map((m) => `\`${m.id}\` - ${m.name}`).join('\n');
-              await interaction.editReply(`**Available Models:**\n${list || 'None'}`);
+            const botUser = await apiClient.getBotUser(interaction.user.id);
+            const modeArg = interaction.options.getString('mode');
+            if (!modeArg) {
+              await interaction.editReply(await describeModes(botUser?.preferredModel));
             } else {
-              await apiClient.updateModel(interaction.user.id, modelArg);
-              await interaction.editReply(`Model changed to **${modelArg}**`);
+              const choice = await resolveModeChoice(modeArg, botUser?.preferredModel);
+              if (choice.ok) {
+                await apiClient.updateModel(interaction.user.id, choice.id);
+                await interaction.editReply(`Alia will now answer in **${choice.label}** mode.`);
+              } else {
+                await interaction.editReply(choice.message);
+              }
             }
           } catch {
-            await interaction.editReply('Error with model command.');
+            await interaction.editReply('Error with the mode command.');
           }
           break;
 
@@ -245,7 +260,9 @@ export class DiscordBotAdapter implements BotAdapter {
           botUser.oxyUserId,
           apiMessages,
           {
-            model: botUser.preferredModel || 'alia-lite',
+            // Unset means no preference; the request names no model and the
+            // server's default applies. See `shared/api-client.ts`.
+            model: botUser.preferredModel,
             conversationId,
           },
         );

@@ -6,26 +6,12 @@
 
 import { Context, Markup } from 'telegraf';
 import { randomUUID } from 'node:crypto';
-import { APIClient, type ModelInfo } from '../../shared/api-client';
+import { APIClient } from '../../shared/api-client';
+import { labelForPreference } from '../../shared/catalogue';
 import { createLogger } from '../../shared/logger';
 
 const apiClient = new APIClient('telegram', process.env.TELEGRAM_BOT_SECRET || '');
 const logger = createLogger('TelegramBot');
-
-// ---------------------------------------------------------------------------
-// Model cache
-// ---------------------------------------------------------------------------
-let cachedModels: ModelInfo[] = [];
-let lastFetchTime = 0;
-const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
-
-async function getModels() {
-  if (cachedModels.length === 0 || Date.now() - lastFetchTime > CACHE_TTL_MS) {
-    cachedModels = await apiClient.fetchModels();
-    lastFetchTime = Date.now();
-  }
-  return cachedModels;
-}
 
 // ---------------------------------------------------------------------------
 // Auth helpers
@@ -197,11 +183,25 @@ export async function handleStatus(ctx: Context) {
 
     const displayName = botUser.displayName || botUser.username || 'Not set';
 
+    /**
+     * The mode row, and why it can be absent.
+     *
+     * `labelForPreference` returns `null` for a preference the catalogue does
+     * not describe — a legacy identifier saved before `GET /v1/models` closed.
+     * The request still routes on it, so nothing is broken; the product simply
+     * has no word for it, and printing the identifier instead is the defect
+     * this replaces. The row is omitted rather than filled with a guess.
+     */
+    const offeredModes = await apiClient.fetchOfferedModes();
+    const modeLabel = offeredModes === null
+      ? null
+      : labelForPreference(botUser.preferredModel, offeredModes.entries, offeredModes.modes);
+
     await ctx.reply(
       `📊 <b>Account Status</b>\n\n` +
       `👤 <b>Name:</b> ${displayName}\n` +
       `✅ <b>Status:</b> Connected\n` +
-      `🤖 <b>Model:</b> ${botUser.preferredModel || 'alia-lite'}\n` +
+      (modeLabel === null ? '' : `🤖 <b>Mode:</b> ${modeLabel}\n`) +
       `🔗 <b>Linked:</b> ${botUser.linkedAt ? new Date(botUser.linkedAt).toLocaleDateString() : 'N/A'}`,
       {
         parse_mode: 'HTML',
@@ -233,7 +233,7 @@ export async function handleHelp(ctx: Context) {
 • Just send me any message to chat!
 • /new - Start a fresh conversation
 • /history - View past conversations
-• /model - Change AI model
+• /model - Choose how Alia answers
 
 <b>❓ Need Help?</b>
 • /help - Show this help message
@@ -276,7 +276,7 @@ export async function handleModel(ctx: Context) {
     if (!botUser || !botUser.isLinked) {
       await ctx.reply(
         '🔒 <b>Authentication Required</b>\n\n' +
-        'Please sign in first to change your AI model.',
+        'Please sign in first to change how Alia answers.',
         {
           parse_mode: 'HTML',
           ...Markup.inlineKeyboard([
@@ -287,31 +287,36 @@ export async function handleModel(ctx: Context) {
       return;
     }
 
-    const models = await getModels();
-    if (models.length === 0) {
-      await ctx.reply('❌ Unable to fetch available models. Please try again later.');
+    const offeredModes = await apiClient.fetchOfferedModes();
+    if (offeredModes === null || offeredModes.offered.length === 0) {
+      await ctx.reply('❌ Unable to load the available modes. Please try again later.');
       return;
     }
 
-    const currentModel = botUser.preferredModel || 'alia-lite';
-    let message = '🤖 <b>Choose AI Model</b>\n\n';
-    const currentInfo = models.find(m => m.id === currentModel);
-    message += `<b>Current Model:</b> ${currentInfo?.emoji || '🤖'} ${currentInfo?.name || currentModel}\n\n`;
-    message += '<b>Available Models:</b>\n';
+    const currentLabel = labelForPreference(
+      botUser.preferredModel,
+      offeredModes.entries,
+      offeredModes.modes,
+    );
+    let message = '🤖 <b>Choose how Alia answers</b>\n\n';
+    if (currentLabel !== null) {
+      message += `<b>Current:</b> ${currentLabel}\n\n`;
+    }
+    message += '<b>Available modes:</b>\n';
 
-    for (const model of models) {
-      const current = model.id === currentModel ? ' ✓' : '';
-      message += `\n${model.emoji || '🤖'} <b>${model.name}</b>${current}\n`;
-      message += `   <i>${model.description} (${model.pricing?.credit_multiplier ?? 1}x credits)</i>`;
+    for (const mode of offeredModes.offered) {
+      const current = mode.id === botUser.preferredModel ? ' ✓' : '';
+      message += `\n${mode.emoji || '🤖'} <b>${mode.label}</b>${current}\n`;
+      message += `   <i>${mode.description} (${mode.creditMultiplier ?? 1}x credits)</i>`;
     }
 
     // Build button rows (2 per row)
     const buttonRows: ReturnType<typeof Markup.button.callback>[][] = [];
     let currentRow: ReturnType<typeof Markup.button.callback>[] = [];
-    for (const model of models) {
+    for (const mode of offeredModes.offered) {
       currentRow.push(Markup.button.callback(
-        `${model.emoji || '🤖'} ${model.name}`,
-        `model_${model.id}`,
+        `${mode.emoji || '🤖'} ${mode.label}`,
+        `model_${mode.id}`,
       ));
       if (currentRow.length === 2) {
         buttonRows.push(currentRow);
@@ -341,14 +346,26 @@ export async function handleModelSelection(ctx: Context, modelId: string) {
   try {
     await apiClient.updateModel(telegramId, modelId);
 
-    const models = await getModels();
-    const info = models.find(m => m.id === modelId);
+    /**
+     * The confirmation names the mode the person just tapped.
+     *
+     * `modelId` came from a button this bot rendered from the catalogue one
+     * message ago, so a miss here means the listing changed under them — the
+     * mode is still saved, and the confirmation says so without naming an
+     * identifier.
+     */
+    const offeredModes = await apiClient.fetchOfferedModes();
+    const chosen = offeredModes?.offered.find((mode) => mode.id === modelId) ?? null;
 
-    await ctx.answerCbQuery(`Model changed to ${info?.name || modelId}`);
+    await ctx.answerCbQuery(
+      chosen === null ? 'Preference saved' : `Alia will answer in ${chosen.label} mode`,
+    );
     await ctx.reply(
-      `${info?.emoji || '🤖'} <b>Model Updated</b>\n\n` +
-      `Your AI model has been changed to <b>${info?.name || modelId}</b>.\n\n` +
-      `All future conversations will use this model.`,
+      chosen === null
+        ? '🤖 <b>Preference saved</b>\n\nAll future conversations will use it.'
+        : `${chosen.emoji || '🤖'} <b>Mode updated</b>\n\n` +
+          `Alia will now answer in <b>${chosen.label}</b> mode.\n\n` +
+          `All future conversations will use it.`,
       {
         parse_mode: 'HTML',
         ...Markup.inlineKeyboard([
