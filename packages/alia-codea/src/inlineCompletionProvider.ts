@@ -92,7 +92,8 @@ export class AliaInlineCompletionProvider implements vscode.InlineCompletionItem
     const prompt = this.buildPrompt(document, prefix, suffix);
 
     try {
-      const response = await fetch(`${this.apiBaseUrl}/v1/chat/completions`, {
+      // The product runtime — same reason as `chatParticipant.ts`.
+      const response = await fetch(`${this.apiBaseUrl}/alia/chat`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

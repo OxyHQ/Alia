@@ -176,7 +176,20 @@ export class AliaChatParticipant {
     const temperature = config.get('temperature', 0.7);
 
     const makeRequest = async (bearerToken: string) => {
-      return fetch(`${this.apiBaseUrl}/v1/chat/completions`, {
+      /**
+       * `/alia/chat`, not `/v1/chat/completions`.
+       *
+       * The same handler serves both (`packages/api/src/routes/chat.ts`), so the
+       * OpenAI-shaped body below and the SSE frames parsed further down are
+       * unchanged — but ADR 0004 makes `/v1/*` a bounded-window compatibility
+       * surface for external callers, and epic #139 workstream 6 is Alia's own
+       * clients no longer being the reason it has to stay. The sibling webview
+       * chat in `chatProvider.ts` stays on `/v1` deliberately: it delegates to
+       * the `openai` package, which derives `POST {baseURL}/chat/completions`
+       * itself, so it is an OpenAI-protocol caller rather than a caller that
+       * chose this URL.
+       */
+      return fetch(`${this.apiBaseUrl}/alia/chat`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

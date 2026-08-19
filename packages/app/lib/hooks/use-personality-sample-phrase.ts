@@ -2,6 +2,7 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { fetch as expoFetch } from 'expo/fetch';
 import { useOxy } from '@oxyhq/services';
 import { generateAPIUrl } from '@/lib/generate-api-url';
+import { API_ROUTES } from '@/lib/api/routes';
 import { PERSONALITY_STYLE_MAP, type PersonalityStyleId } from '@/lib/personality-styles';
 import { errorName } from '../errors/error-utils';
 
@@ -65,7 +66,8 @@ export function usePersonalitySamplePhrase() {
 
           const examples = pickRandom(style.subtitles, 2);
 
-          const res = await expoFetch(generateAPIUrl('/v1/chat/completions'), {
+          // The product runtime — same reason as `use-chat-conversation.ts`.
+          const res = await expoFetch(generateAPIUrl(API_ROUTES.chat.alia), {
             method: 'POST',
             headers,
             body: JSON.stringify({

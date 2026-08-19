@@ -2880,3 +2880,244 @@ describe('gate 7: a provider client is constructed in one place (#139 ws7)', () 
     expect(Object.keys(NON_PROVIDER_AI_SDK_PACKAGES)).toHaveLength(1);
   });
 });
+
+/* -------------------------------------------------------------------------- */
+/*  Gate 8 — the product runtime versus the generic inference surface          */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Alia's own clients call the PRODUCT runtime, not the generic inference
+ * surface — epic #139 workstream 6, *"Stop treating Alia's
+ * `/v1/chat/completions` as the canonical generic inference endpoint"*, and
+ * ADR 0004.
+ *
+ * ## What made it canonical, and what this gate holds
+ *
+ * Nothing decided that `/v1/chat/completions` was Alia's runtime. It became one
+ * by measurement: every shipped client posted to it, so the surface ADR 0004
+ * declares a bounded-window compatibility path for EXTERNAL callers could never
+ * reach the removal gate in `docs/migration/compatibility-window.md` — that gate
+ * is per route and asks for zero external traffic *or* every known consumer
+ * migrated, and a first-party client is neither.
+ *
+ * The migration is not a removal. `/v1/chat/completions` still serves, with the
+ * request and response shapes ADR 0004 fixes, and `v1-compatibility-surface.test.ts`
+ * still freezes it. What changed is who depends on it.
+ *
+ * ## Why moving is safe to assert, and why it is not a rewrite
+ *
+ * `POST /alia/chat` and `POST /v1/chat/completions` are the same
+ * `handleChatCompletions` — `routes/chat.ts` dispatches straight to it, and
+ * `v1-compatibility-surface.test.ts` asserts the handler IDENTITY at both
+ * mounts. So a client that moves sends the same body and parses the same
+ * frames; there is no shape to re-verify, which is the point of asserting the
+ * identity rather than describing it.
+ *
+ * ## Why some clients deliberately do NOT move
+ *
+ * Three of the differences between the two surfaces are recorded in
+ * `v1-compatibility-surface.test.ts`, and one of them decides this gate's
+ * allowlist: only `/v1` carries the public wildcard CORS policy. A browser
+ * client on an origin Alia does not enumerate is refused by the product surface
+ * — measured 2026-08-19 against the running service, where an `OPTIONS
+ * /alia/chat` preflight from an unlisted origin comes back with no
+ * `access-control-allow-origin` at all while `/v1/chat/completions` answers `*`.
+ * That is why `@alia.onl/sdk` stays, and widening the allowlist is not the
+ * repair: the narrow policy is what makes `/alia/chat` a product surface.
+ *
+ * The other reason is protocol. A client that hands a `baseURL` to the `openai`
+ * package chose the PROTOCOL, and the protocol derives
+ * `POST {baseURL}/chat/completions` itself. Those clients are indistinguishable
+ * from an external developer's `openai` client, which is exactly who the
+ * compatibility surface is for. Moving them would mean deleting the OpenAI
+ * client from two published applications and hand-rolling SSE and tool-call
+ * assembly in its place — a different change, with its own risk, and not this
+ * box.
+ *
+ * ## Why three censuses and not one
+ *
+ * A single scan for the literal path reports clean on a client that never
+ * writes it. `packages/alia-cowork/src/main/tools.ts` is that client: it hands
+ * `${baseUrl}/v1` to a Stagehand agent, which appends the rest, and it imports
+ * no OpenAI package either. It appears in the `baseURL` census and in neither of
+ * the other two. Each census carries its own positive control for the same
+ * reason — an instrument that found nothing and a world that contains nothing
+ * read identically.
+ *
+ * Comments are excluded for free: `stringLiterals` walks the AST, where a
+ * comment is trivia and never a `StringLiteral`. Three files carry
+ * `/v1/chat/completions` only in prose and correctly do not appear.
+ *
+ * ## The scope is every package except the API
+ *
+ * Derived by exclusion rather than by a list of client packages, so a NEW
+ * package is scanned the day it is added instead of the day someone remembers
+ * to name it. `packages/api` is the one exclusion and it is the server: it
+ * mounts the route, so it names the path by definition.
+ *
+ * ## The cheapest way to make this gate green
+ *
+ * Add a line to one of the two frozen maps below, with a reason — a reviewable
+ * diff in a file whose purpose is being read in review, and not the hazard. The
+ * hazard is the opposite direction: a product client quietly pointing back at
+ * the compatibility surface, which is what puts the surface back out of reach of
+ * its own removal gate. Both maps and the product-runtime list are exact
+ * equalities, so a file that stops needing its entry fails too.
+ */
+
+/** The generic inference path, as a client would write it. */
+const GENERIC_INFERENCE_PATH = '/v1/chat/completions';
+
+/** The product runtime, as a client would write it (ADR 0004). */
+const PRODUCT_RUNTIME_PATH = '/alia/chat';
+
+/**
+ * Every file outside `packages/api` that may write the generic path, and why.
+ *
+ * Two kinds only: the SDK, which cannot reach the product surface from a
+ * consumer's origin, and the developer console, whose audience IS the
+ * generic-inference audience.
+ */
+const GENERIC_PATH_CALLERS: Readonly<Record<string, string>> = {
+  'packages/alia-chat/src/hooks/useAliaChat.ts':
+    '@alia.onl/sdk ships raw source and is installed by apps on origins Alia does not enumerate. The product surface answers a preflight from an unlisted origin with no access-control-allow-origin, so this call would be blocked in every consumer browser. Moving it is a CORS decision on /alia/chat, taken with the SDK consumers enumerated.',
+  'packages/alia-console/src/routes/_layout/documentation/authentication.tsx':
+    'Developer documentation. It shows external callers how to authenticate against the compatibility surface, so it names the path that surface serves.',
+  'packages/alia-console/src/routes/_layout/documentation/chat-completions.tsx':
+    'Developer documentation for this exact route. Naming anything else would document a surface Alia does not offer external callers.',
+  'packages/alia-console/src/routes/_layout/documentation/quickstart.tsx':
+    'Developer documentation: the first request a external developer is told to make.',
+  'packages/alia-console/src/routes/_layout/documentation/sdks.tsx':
+    'Developer documentation: OpenAI-client and AI-SDK snippets, which derive this path from their baseURL anyway.',
+  'packages/alia-console/src/routes/_layout/examples.tsx':
+    'Developer documentation: copy-paste examples for external callers.',
+  'packages/alia-console/src/routes/_layout/playground.tsx':
+    'The interactive form of documentation/chat-completions.tsx, one nav entry away in the same sidebar. A playground that exercises a different endpoint than the page beside it documents stops being a playground; it retires with those docs.',
+};
+
+/**
+ * Every file outside `packages/api` that speaks the OpenAI wire protocol to
+ * Alia, and why it stays on the compatibility surface.
+ *
+ * The value is the `baseURL` initializer's source text where the file has one,
+ * so a silent repoint fails here rather than passing as an unchanged file list.
+ */
+const OPENAI_PROTOCOL_CLIENTS: Readonly<Record<string, string>> = {
+  'packages/alia-codea-cli/src/utils/api.ts':
+    'The published @alia-codea/cli hands this baseURL to the `openai` package, which derives POST {baseURL}/chat/completions itself.',
+  'packages/alia-codea/src/chatProvider.ts':
+    'The extension webview chat, on the `openai` package. Its two siblings — chatParticipant.ts and inlineCompletionProvider.ts — write their own URL and moved.',
+  'packages/alia-cowork/src/main/chat.ts':
+    'The Cowork desktop chat loop, on the `openai` package, with server-side tool calls.',
+  'packages/alia-cowork/src/main/tools.ts':
+    'The Cowork browser agent. Stagehand is a third-party library that speaks OpenAI; the path is not Alia code to change.',
+};
+
+/**
+ * Every file outside `packages/api` that names the product runtime.
+ *
+ * `packages/app` reaches it through `API_ROUTES.chat.alia` rather than by
+ * writing the path at each call site, so the app contributes its route table and
+ * not its hooks — asserted below in the currency the app actually uses.
+ */
+const PRODUCT_RUNTIME_CALLERS: readonly string[] = [
+  'packages/alia-codea/src/chatParticipant.ts',
+  'packages/alia-codea/src/inlineCompletionProvider.ts',
+  'packages/app/lib/api/routes.ts',
+  'packages/integrations/src/shared/api-client.ts',
+];
+
+describe('gate 8: first-party clients call the product runtime (#139 ws6, ADR 0004)', () => {
+  const clients = trackedSources('packages').filter((s) => !s.file.startsWith('packages/api/'));
+
+  const namesGenericPath = clients
+    .filter(({ ast }) => stringLiterals(ast).some((l) => l.includes(GENERIC_INFERENCE_PATH)))
+    .map(({ file }) => file)
+    .sort();
+
+  const namesProductRuntime = clients
+    .filter(({ ast }) => stringLiterals(ast).some((l) => l.includes(PRODUCT_RUNTIME_PATH)))
+    .map(({ file }) => file)
+    .sort();
+
+  const genericBaseUrl = clients
+    .filter(({ ast }) => propertyInitializers(ast, 'baseURL').some((text) => /\/v1['"`]$/.test(text)))
+    .map(({ file }) => file)
+    .sort();
+
+  const openAiImporters = clients
+    .filter(({ ast }) =>
+      moduleRefs(ast).some((r) => r.spec === 'openai' || r.spec.startsWith('openai/') || r.spec === '@ai-sdk/openai'),
+    )
+    .map(({ file }) => file)
+    .sort();
+
+  it('read every package but the API, so an empty census means absence', () => {
+    // Vacuity floor. The exclusion is asserted to remove exactly one package,
+    // so it cannot quietly grow into a place to hide a client.
+    expect(clients.length).toBeGreaterThanOrEqual(600);
+    expect(clients.filter((s) => s.file.startsWith('packages/api/'))).toEqual([]);
+    expect(trackedSources('packages').length).toBeGreaterThan(clients.length);
+
+    // Every package that has any client code is really in the scan. A floor over
+    // the total is satisfied by `packages/app` alone.
+    for (const pkg of ['alia-chat', 'alia-codea', 'alia-codea-cli', 'alia-console', 'alia-cowork', 'app', 'integrations']) {
+      expect(clients.filter((s) => s.file.startsWith(`packages/${pkg}/`)).length).toBeGreaterThanOrEqual(20);
+    }
+  });
+
+  it('each census can see what it looks for, and comments are not it', () => {
+    // Positive controls, chosen rather than counted. The docs page whose whole
+    // subject is this route must be SEEN naming it; the CLI must be SEEN with a
+    // /v1 baseURL and an `openai` import; the extension participant must be SEEN
+    // naming the product path.
+    expect(namesGenericPath).toContain('packages/alia-console/src/routes/_layout/documentation/chat-completions.tsx');
+    expect(genericBaseUrl).toContain('packages/alia-codea-cli/src/utils/api.ts');
+    expect(openAiImporters).toContain('packages/alia-codea-cli/src/utils/api.ts');
+    expect(namesProductRuntime).toContain('packages/alia-codea/src/chatParticipant.ts');
+
+    // And the negative control that makes the censuses mean "a client sends
+    // this" rather than "a file mentions this": three files carry the generic
+    // path in prose only, and none of them is in the census.
+    for (const file of [
+      'packages/integrations/src/shared/chat-handler.ts',
+      'packages/integrations/src/bots/telegram-bot/adapter.ts',
+      'packages/app/lib/generate-api-url.ts',
+    ]) {
+      expect(clients.some((s) => s.file === file)).toBe(true);
+      expect(namesGenericPath).not.toContain(file);
+    }
+  });
+
+  it('names the generic inference path in exactly the files frozen here', () => {
+    expect(namesGenericPath).toEqual(Object.keys(GENERIC_PATH_CALLERS).sort());
+    for (const reason of Object.values(GENERIC_PATH_CALLERS)) expect(reason.length).toBeGreaterThan(60);
+  });
+
+  it('speaks the OpenAI wire protocol in exactly the files frozen here', () => {
+    // The union, because neither net sees all four on its own: the Stagehand
+    // client has a /v1 baseURL and no OpenAI import, and an import alone does
+    // not say where it points.
+    expect([...new Set([...genericBaseUrl, ...openAiImporters])].sort()).toEqual(
+      Object.keys(OPENAI_PROTOCOL_CLIENTS).sort(),
+    );
+    expect(openAiImporters.length).toBeLessThan(genericBaseUrl.length);
+    for (const reason of Object.values(OPENAI_PROTOCOL_CLIENTS)) expect(reason.length).toBeGreaterThan(60);
+  });
+
+  it('the migrated clients name the product runtime', () => {
+    // The other half. Without it the gate is satisfied by a client that stopped
+    // calling anything at all, which is not what "migrated" means.
+    expect(namesProductRuntime).toEqual([...PRODUCT_RUNTIME_CALLERS].sort());
+  });
+
+  it('the app reaches the product runtime through its route table and nothing else', () => {
+    // `packages/app` keeps its endpoints in one module, so the assertion about
+    // the app is an assertion about that module: the product route is declared,
+    // and the generic one is not declared beside it for a hook to pick up again.
+    const routes = clients.find((s) => s.file === 'packages/app/lib/api/routes.ts');
+    expect(routes).toBeDefined();
+    expect(propertyInitializers((routes as Source).ast, 'alia')).toEqual([`'${PRODUCT_RUNTIME_PATH}'`]);
+    expect(propertyInitializers((routes as Source).ast, 'chatCompletions')).toEqual([]);
+  });
+});

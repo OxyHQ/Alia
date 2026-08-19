@@ -701,13 +701,59 @@ function shippedModules(): string[] {
  */
 const SURFACE_DIFFERENCES: Readonly<Record<string, string>> = {
   'channel-bot-pre-auth':
-    'Only /v1 runs the inline channel-bot middleware (routes/v1.ts), so the integrations service can act for a user on that surface and not on /alia/chat.',
+    'Only /v1 runs the inline channel-bot middleware (routes/v1.ts). It is NOT what admits the integrations service — authenticateTokenOrApiKey dispatches x-channel-bot-secret to authenticateChannelBotSecret itself, so /alia/chat admits the same credential. What the inline copy still changes is the SET it matches against: listChannels() there, getConfiguredChannels() in the middleware, so a channel whose bot secret is set while the rest of its configuration is not authenticates on /v1 alone.',
   cors: 'Only /v1 has the public wildcard CORS policy (index.ts). /alia/chat falls to the Oxy allowlist, which is what a product surface should have.',
   'sse-socket-tuning':
     'Only /alia/chat gets socket.setNoDelay(true) and socket.setTimeout(0) (index.ts). /v1 gets the X-Accel-Buffering header alone, so the two surfaces behave differently on a long stream under a slow route.',
 };
 
 describe('the two chat surfaces differ only where it is recorded (#139 ws6, ADR 0004)', () => {
+  it('terminates in the same handler object, so the two share request and response shapes', () => {
+    /**
+     * The claim every client that moved from `/v1/chat/completions` to
+     * `/alia/chat` rests on — epic #139 workstream 6. `label()` emits
+     * `handleChatCompletions` only for `handle === handleChatCompletions`, the
+     * function THIS file imports, so finding the label at both mounts is an
+     * identity check and not a name match. A second copy of the handler, or a
+     * wrapper around one of them, reads as `?something` here and fails.
+     *
+     * It is asserted rather than described because the alternative is asking
+     * every migrated client to re-verify its own request and response shapes
+     * against a running service, which is a measurement that expires.
+     */
+    const product = aliaChat.find((e) => e.signature === 'POST /alia/chat');
+    const generic = v1.find((e) => e.signature === 'POST /v1/chat/completions');
+    expect(product?.own).toContain('handleChatCompletions');
+    expect(generic?.own).toContain('handleChatCompletions');
+
+    // Terminal, not merely present: a handler mounted ahead of another one could
+    // answer first and the two surfaces would diverge with both labels visible.
+    expect(product?.own.at(-1)).toBe('handleChatCompletions');
+    expect(generic?.own.at(-1)).toBe('handleChatCompletions');
+  });
+
+  it('admits the channel-bot credential on both surfaces, which is why the second service could move', () => {
+    /**
+     * The corrected half of `channel-bot-pre-auth`. The map used to say the
+     * inline `/v1` middleware is what lets the integrations service act for a
+     * user, and that was wrong in the direction that matters: it read as "the
+     * product surface cannot serve that caller", which is the reason a migration
+     * would have been abandoned.
+     *
+     * Both halves are read from source. The chain half — that `/alia/chat`
+     * mounts `authenticateTokenOrApiKey` — is asserted by the test below it.
+     */
+    const auth = code('middleware/auth.ts');
+    expect(auth).toContain("const channelBotSecret = req.headers['x-channel-bot-secret'] as string;");
+    expect(auth).toContain('void authenticateChannelBotSecret(req, res, next);');
+
+    // And the difference that survives, in the same currency: two different
+    // channel sets, one per copy.
+    expect(code('routes/v1.ts')).toContain('for (const channel of listChannels())');
+    expect(auth).toContain('const configuredChannels = getConfiguredChannels();');
+    expect(SURFACE_DIFFERENCES['channel-bot-pre-auth']).toContain('getConfiguredChannels()');
+  });
+
   it('shares the authentication and the limiter, which is what stopped diverging', () => {
     const product = aliaChat.find((e) => e.signature === 'POST /alia/chat');
     const generic = v1.find((e) => e.signature === 'POST /v1/chat/completions');

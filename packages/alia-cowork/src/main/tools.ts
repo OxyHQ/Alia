@@ -451,6 +451,14 @@ export class ToolExecutor {
           const apiKey = currentAccessToken() ?? ''
           const baseUrl = store.get('apiBaseUrl') as string
 
+          /**
+           * OpenAI-protocol caller: the Stagehand agent derives
+           * `POST {baseURL}/chat/completions` itself, so this client chose the
+           * PROTOCOL and the protocol names the path. It stays on the compatibility
+           * surface deliberately while the clients that write their own URL moved to
+           * `POST /alia/chat` — epic #139 workstream 6, recorded with the rest in
+           * gate 7 of `packages/api/src/__tests__/architectureGates.test.ts`.
+           */
           const agent = this.stagehand.agent({
             model: {
               modelName: PREFERRED_BROWSER_MODEL_ID,
