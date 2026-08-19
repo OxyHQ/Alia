@@ -45,6 +45,14 @@ export interface CatalogueCapabilities {
   vision: CapabilityAvailability;
   audio: CapabilityAvailability;
   reasoning: CapabilityAvailability;
+  /**
+   * The effort levels EVERY route behind this entry can honour.
+   *
+   * Distinct from `reasoning`, which says whether ANY route thinks: an entry
+   * can be `sometimes` and still offer nothing, and that is the case a client
+   * must render no control from.
+   */
+  reasoningLevels: readonly string[];
   structuredOutput: CapabilityAvailability;
   contextWindow: TokenBound | null;
   maxOutput: TokenBound | null;
@@ -119,6 +127,9 @@ function parseEntry(raw: unknown): CatalogueEntry | null {
       vision: asAvailability(capabilities.vision),
       audio: asAvailability(capabilities.audio),
       reasoning: asAvailability(capabilities.reasoning),
+      reasoningLevels: Array.isArray(capabilities.reasoning_levels)
+        ? capabilities.reasoning_levels.filter((l): l is string => typeof l === 'string')
+        : [],
       structuredOutput: asAvailability(capabilities.structured_output),
       contextWindow: asBound(capabilities.context_window),
       maxOutput: asBound(capabilities.max_output),

@@ -10,17 +10,18 @@ import { API_ROUTES } from "@/lib/api/routes";
 import { buildMessageContent } from "@/lib/attachment-utils";
 import type { Role } from "@/lib/stores/roles-store";
 import type { ScrollView as GHScrollView } from "react-native-gesture-handler";
+import type { EffortLevel } from '@/lib/hooks/use-catalogue';
 
 interface UseChatConversationOptions {
   conversationId?: string;
   activeRole?: Role;
-  thinkingMode?: boolean;
+  reasoningEffort?: EffortLevel | null;
   selectedModel?: string;
   skillId?: string | null;
   agentId?: string;
 }
 
-export function useChatConversation({ conversationId, activeRole, thinkingMode, selectedModel, skillId, agentId }: UseChatConversationOptions = {}) {
+export function useChatConversation({ conversationId, activeRole, reasoningEffort, selectedModel, skillId, agentId }: UseChatConversationOptions = {}) {
   const router = useRouter();
   const queryClient = useQueryClient();
   const scrollViewRef = useRef<GHScrollView>(null);
@@ -73,7 +74,7 @@ export function useChatConversation({ conversationId, activeRole, thinkingMode, 
     stop,
     approvePlan,
     rejectPlan,
-  } = useStreamingChat(generateAPIUrl(API_ROUTES.chat.alia), activeRole, conversationId, thinkingMode, selectedModel, skillId, agentId);
+  } = useStreamingChat(generateAPIUrl(API_ROUTES.chat.alia), activeRole, conversationId, reasoningEffort, selectedModel, skillId, agentId);
 
   // Expose streaming state globally so sidebar can show a spinner
   const setStreamingChatId = useStore((s) => s.setStreamingChatId);

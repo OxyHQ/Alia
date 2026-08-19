@@ -160,6 +160,17 @@ function serializeEntry(entry: CatalogueEntry): Record<string, unknown> {
       vision: entry.capabilities.vision,
       audio: entry.capabilities.audio,
       reasoning: entry.capabilities.reasoning,
+      /**
+       * The effort levels a client may OFFER for this entry.
+       *
+       * Published beside `reasoning` rather than folded into it because they
+       * answer different questions and a client needs both: `reasoning` says
+       * whether any route thinks, this says which levels every route can
+       * honour. A client renders a control from THIS — an entry that is
+       * `sometimes` with an empty list must show no control at all, and a
+       * client reading only the first field would show four.
+       */
+      reasoning_levels: entry.capabilities.reasoningLevels,
       structured_output: entry.capabilities.structuredOutput,
       context_window: wireTokenBound(entry.capabilities.contextWindow),
       max_output: wireTokenBound(entry.capabilities.maxOutput),

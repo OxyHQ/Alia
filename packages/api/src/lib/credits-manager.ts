@@ -21,6 +21,16 @@ export interface CreditUsage {
   completionTokens: number;
   totalTokens: number;
   systemPromptTokens?: number; // Tokens from our system prompt (not charged to user)
+  /**
+   * The output tokens the model spent THINKING, as the provider reported them.
+   *
+   * Already inside {@link totalTokens} — this is not extra volume, it is a
+   * breakdown of volume already counted, and it exists so those tokens can be
+   * weighted rather than counted twice. `ai@6` reports it as
+   * `usage.outputTokenDetails.reasoningTokens`; a provider that does not report
+   * it leaves this `0`, which bills the turn exactly as it billed before.
+   */
+  reasoningTokens?: number;
 }
 
 export interface CreditReservation {
@@ -52,6 +62,46 @@ export const CREDITS_CONFIG = {
 
   // Initial credits to reserve (will be adjusted based on actual usage)
   INITIAL_RESERVATION: 1,
+
+  /**
+   * What one reasoning token costs, relative to every other token.
+   *
+   * ## The formula bills all tokens alike; providers do not
+   *
+   * `calculateCreditsFromTokens` charges `totalTokens / TOKENS_PER_CREDIT`
+   * times the model's multiplier, which prices an input token and an output
+   * token identically. Providers price them 4 to 8 times apart, and a reasoning
+   * token is unambiguously an OUTPUT token — so reasoning is the one thing a
+   * person can switch on that makes a turn cost multiples more per token than
+   * the formula charges for it.
+   *
+   * ## 5 is the median of the measured ratio, not a guess
+   *
+   * Output ÷ input price for every model in `model-capabilities-data.ts` that
+   * this product can send a reasoning option to, or would be able to:
+   * claude-sonnet-4 15/3 = 5.0 · claude-opus-4 75/15 = 5.0 · claude-opus-4-5
+   * 25/5 = 5.0 · gemini-2.5-pro 10/1.25 = 8.0 · gemini-2.5-flash 2.5/0.30 =
+   * 8.3 · gemini-3-pro-preview 12/2 = 6.0 · gemini-3-flash-preview 3/0.50 =
+   * 6.0 · o1 60/15 = 4.0 · o3 8/2 = 4.0 · gpt-5 10/1.25 = 8.0 · deepseek-reasoner
+   * 2.19/0.55 = 4.0. Range 4.0–8.3, median 5.0.
+   *
+   * The median rather than the maximum: 8.3 would overcharge everyone who
+   * reasons on Anthropic, which is where the dearest reasoning actually
+   * happens, and this number decides a person's bill.
+   *
+   * ## It is charged on tokens SPENT, never on the budget offered
+   *
+   * The budget is a ceiling the provider may not reach. Weighting the reported
+   * count means a turn that thought for 300 tokens is charged for 300, and the
+   * ceiling only bounds the worst case: at `max`, 6144 reasoning tokens weight
+   * to 30,720 — about 31 credits before the model multiplier, against roughly 2
+   * for an ordinary turn. In money on the models this reaches, 6144 output
+   * tokens is $0.09 on Sonnet at $15/1M and $0.46 on Opus at $75/1M.
+   *
+   * A request that asks for no reasoning is untouched: `reasoningTokens` is 0,
+   * the weighted term vanishes, and the arithmetic is the one that ran before.
+   */
+  REASONING_TOKEN_WEIGHT: 5,
 };
 
 /**
@@ -75,7 +125,8 @@ export async function getCreditMultiplier(aliasModelId?: string): Promise<number
 export async function calculateCreditsFromTokens(
   totalTokens: number,
   aliasModelId?: string,
-  systemPromptTokens?: number
+  systemPromptTokens?: number,
+  reasoningTokens?: number
 ): Promise<number> {
   if (totalTokens === 0) {
     return CREDITS_CONFIG.MIN_CREDITS_PER_REQUEST;
@@ -83,9 +134,24 @@ export async function calculateCreditsFromTokens(
 
   // Subtract system prompt tokens (our cost, not the user's)
   const systemTokens = systemPromptTokens || 0;
-  const billableTokens = Math.max(0, totalTokens - systemTokens);
+  const countedTokens = Math.max(0, totalTokens - systemTokens);
 
-  log.credits.info({ totalTokens, systemTokens, billableTokens }, 'Token breakdown');
+  /**
+   * Reasoning tokens, re-weighted rather than re-counted.
+   *
+   * They are ALREADY inside `totalTokens`, so they are removed at weight 1 and
+   * added back at {@link CREDITS_CONFIG.REASONING_TOKEN_WEIGHT} — the surcharge
+   * is `(weight - 1)` per token, not `weight`. Adding the weighted figure to an
+   * unreduced total would charge the first copy of every reasoning token twice.
+   *
+   * Clamped to what is left after the system prompt: a provider reporting more
+   * reasoning tokens than remain would otherwise drive the billable count
+   * negative through the subtraction.
+   */
+  const reasoned = Math.min(Math.max(0, reasoningTokens || 0), countedTokens);
+  const billableTokens = countedTokens - reasoned + reasoned * CREDITS_CONFIG.REASONING_TOKEN_WEIGHT;
+
+  log.credits.info({ totalTokens, systemTokens, reasoningTokens: reasoned, billableTokens }, 'Token breakdown');
 
   const multiplier = await getCreditMultiplier(aliasModelId);
   const calculatedCredits = Math.ceil((billableTokens / CREDITS_CONFIG.TOKENS_PER_CREDIT) * multiplier);
@@ -218,9 +284,10 @@ export async function finalizeCredits(
     const actualCreditsNeeded = await calculateCreditsFromTokens(
       usage.totalTokens,
       aliasModelId,
-      usage.systemPromptTokens
+      usage.systemPromptTokens,
+      usage.reasoningTokens
     );
-    log.credits.info({ totalTokens: usage.totalTokens, promptTokens: usage.promptTokens, completionTokens: usage.completionTokens, systemTokens: usage.systemPromptTokens || 0 }, 'Token usage');
+    log.credits.info({ totalTokens: usage.totalTokens, promptTokens: usage.promptTokens, completionTokens: usage.completionTokens, systemTokens: usage.systemPromptTokens || 0, reasoningTokens: usage.reasoningTokens || 0 }, 'Token usage');
     return await _adjustReservation(reservation, actualCreditsNeeded, 'chat');
   } catch (error) {
     log.credits.error({ err: error }, 'Error finalizing credits');

@@ -79,7 +79,7 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
     if (!ctx) return; // response already written (validation error or gate rejection)
 
     const {
-      body, messages, conversationId, thinkingMode, agentMode, deepResearch,
+      body, messages, conversationId, reasoningEffort, agentMode, deepResearch, webSearch,
       includeUsage, isDirectUserSession, requestedModel, routingOptions, clientContext,
       userMemory, oxyUser, skill, linkedAgent,
     } = ctx;
@@ -146,6 +146,7 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
       requestId,
       editorToolDefinitions: body.tools,
       sseEmitter,
+      webSearch,
     });
 
     // Agent mode: full agent escalation for linked conversations
@@ -246,7 +247,7 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
       linkedAgent,
       agentMode,
       autonomyRuntime,
-      thinkingMode,
+      reasoningEffort,
     });
 
 
@@ -301,7 +302,7 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
       body,
       messages,
       conversationId,
-      thinkingMode,
+      reasoningEffort,
       convertedMessages,
       truncatedTools,
       toolNameMapping,

@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 import { ALIAS_TRANSLATIONS } from '../../routing/alias-translation.js';
 import { ROUTING_PRESETS } from '../../routing/presets.js';
 import { classifyRequestedModel, reasoningEffortOf } from '../requested-model.js';
+import { EFFORT_LEVELS } from '../../reasoning-effort.js';
 
 /**
  * What the caller asked for, and what it IS — epic #139 workstream 5, *"Record
@@ -106,12 +107,30 @@ describe('classifyRequestedModel', () => {
 });
 
 describe('reasoningEffortOf', () => {
-  it('reads the thinkingMode flag', () => {
-    expect(reasoningEffortOf({ thinkingMode: true, requestedModel: 'alia-v1' })).toBe('extended');
+  it('reads the legacy thinkingMode flag as the smallest budget', () => {
+    // Not a higher level: the boolean meant "reason" against a path that sent
+    // NO budget at all, so the smallest is the only reading that cannot raise
+    // an existing caller's bill without them asking for it.
+    expect(reasoningEffortOf({ thinkingMode: true, requestedModel: 'alia-v1' })).toBe('medium');
   });
 
   it('reads the alias whose identity IS a reasoning setting', () => {
-    expect(reasoningEffortOf({ requestedModel: 'alia-v1-thinking' })).toBe('extended');
+    expect(reasoningEffortOf({ requestedModel: 'alia-v1-thinking' })).toBe('medium');
+  });
+
+  it('reads an explicit level, and prefers it over the legacy spellings', () => {
+    expect(reasoningEffortOf({ reasoningEffort: 'max', requestedModel: 'alia-v1' })).toBe('max');
+    expect(reasoningEffortOf({ reasoningEffort: 'instant', requestedModel: 'alia-v1-thinking' })).toBe('instant');
+    expect(reasoningEffortOf({ reasoningEffort: 'high', thinkingMode: true, requestedModel: 'alia-v1' })).toBe('high');
+  });
+
+  it('refuses a level it does not offer, rather than passing it through', () => {
+    // The request body is untrusted. A string that reached `providerOptions`
+    // unchecked would be a caller choosing a provider parameter directly.
+    expect(reasoningEffortOf({ reasoningEffort: 'ludicrous', requestedModel: 'alia-v1' })).toBeNull();
+    expect(reasoningEffortOf({ reasoningEffort: 'extended', requestedModel: 'alia-v1' })).toBeNull();
+    expect(reasoningEffortOf({ reasoningEffort: 7, requestedModel: 'alia-v1' })).toBeNull();
+    expect(reasoningEffortOf({ reasoningEffort: '__proto__', requestedModel: 'alia-v1' })).toBeNull();
   });
 
   it('that alias really is a second name for another preset, not a model', () => {
@@ -124,60 +143,62 @@ describe('reasoningEffortOf', () => {
 
   it('is null for an ordinary request', () => {
     // The discriminator. Without it, every assertion above is also satisfied by
-    // a function that returns `'extended'` unconditionally.
+    // a function that returns a level unconditionally.
     expect(reasoningEffortOf({ requestedModel: 'alia-v1' })).toBeNull();
     expect(reasoningEffortOf({ thinkingMode: false, requestedModel: 'alia-v1-pro' })).toBeNull();
     expect(reasoningEffortOf({ requestedModel: 'profile:v1-pro-max' })).toBeNull();
   });
 
-  it('the effort vocabulary is exactly one named level, and a UI may not offer more', () => {
+  it('the effort vocabulary is exactly four levels, and a UI may not offer more', () => {
     /**
      * The ceiling on how many levels a picker can honestly show.
      *
-     * `thinkingMode` is a BOOLEAN on the request body, so the request path can
-     * express reasoning-or-not and nothing else. A `normal | thinking | high`
-     * control — the shape ChatGPT uses and the one this product has been asked
-     * for — would be three labels for two transmissible states, and the third
-     * would promise a reasoning budget the request never carries.
+     * This assertion used to read `['extended']`, and the paragraph under it
+     * explained why a four-level control would be dishonest: `thinkingMode` was
+     * a BOOLEAN, and the one thing it was supposed to do — send a provider
+     * option — it did not do either, because `lib/chat/model-config.ts` wrote
+     * AI SDK **v4** option names against an `ai@6` install.
      *
-     * Two things have to land before that control can mean anything:
+     * Both conditions it named have now landed, which is why the number moved:
      *
-     *  1. the reasoning options have to be sent under a key the SDK reads —
-     *     `lib/chat/model-config.ts` wrote AI SDK v4 names against an `ai@6`
-     *     install, so the second state does not currently reach a provider at
-     *     all;
-     *  2. a LEVEL has to replace the boolean, and the catalogue has to say
-     *     which models offer which levels — there is no per-model reasoning
-     *     capability anywhere the router can read.
+     *  1. the options go under `providerOptions`, asserted against the
+     *     installed packages in
+     *     `lib/chat/__tests__/reasoning-provider-options.test.ts`;
+     *  2. a LEVEL replaced the boolean, and `lib/catalogue.ts` publishes per
+     *     entry which levels EVERY candidate route can honour.
+     *
+     * The ceiling itself is unchanged in spirit and is what stops a fifth label
+     * appearing in a picker with nothing behind it.
      *
      * ## Read off the TYPE, not off sampled calls
      *
      * The first version of this test collected `reasoningEffortOf` over four
      * hand-picked inputs and asserted the resulting set. It SURVIVED the
-     * mutation it exists to catch: adding `'high'` to the union and returning
-     * it for `pro-max` left all four samples unchanged, because none of them
-     * was a `pro-max` id. A census over chosen inputs measures the inputs.
-     *
-     * The vocabulary is a property of the union, so the union is what is read.
+     * mutation it exists to catch: adding a level to the union and returning it
+     * for `pro-max` left all four samples unchanged, because none of them was a
+     * `pro-max` id. A census over chosen inputs measures the inputs.
      */
     const source = readFileSync(
-      path.join(REPO_ROOT, 'packages/api/src/lib/observability/requested-model.ts'),
+      path.join(REPO_ROOT, 'packages/api/src/lib/reasoning-effort.ts'),
       'utf8',
     );
-    const declaration = /export type ReasoningEffort =([^;]+);/.exec(source);
+    const declaration = /export const EFFORT_LEVELS = \[([^\]]+)\] as const;/.exec(source);
     // Positive control: a renamed or reformatted declaration must fail loudly
     // rather than leave the assertion below reading `undefined`.
-    expect(declaration, 'ReasoningEffort is no longer declared in the expected shape').not.toBeNull();
+    expect(declaration, 'EFFORT_LEVELS is no longer declared in the expected shape').not.toBeNull();
 
     const levels = (declaration?.[1] ?? '')
-      .split('|')
+      .split(',')
       .map((part) => part.trim().replace(/^'|'$/g, ''))
       .filter((part) => part.length > 0);
-    expect(levels).toEqual(['extended']);
+    expect(levels).toEqual(['instant', 'medium', 'high', 'max']);
+    // The runtime constant and the source text are the same four, so a level
+    // added to one and not the other fails rather than half-shipping.
+    expect([...EFFORT_LEVELS]).toEqual(levels);
 
-    // And the runtime agrees with the type: `null` plus that one level is the
-    // whole range. Kept beside the union check rather than instead of it —
-    // this half is what catches a level added without widening the type.
+    // And the runtime agrees: the legacy spellings produce exactly `medium` or
+    // nothing, across the whole alias table. This half is what catches a level
+    // reachable without widening the vocabulary.
     const observed = new Set(
       ROUTING_PRESETS.flatMap((preset) => preset.aliases).flatMap((alias) => [
         String(reasoningEffortOf({ thinkingMode: true, requestedModel: alias })),
@@ -185,6 +206,6 @@ describe('reasoningEffortOf', () => {
         String(reasoningEffortOf({ requestedModel: alias })),
       ]),
     );
-    expect([...observed].sort()).toEqual(['extended', 'null']);
+    expect([...observed].sort()).toEqual(['medium', 'null']);
   });
 });

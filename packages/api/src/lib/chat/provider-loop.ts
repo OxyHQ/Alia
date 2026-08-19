@@ -39,7 +39,7 @@ import {
 } from '../chat-lifecycle.js';
 import { log } from '../logger.js';
 import { recordEvent } from '../observability/index.js';
-import { reasoningEffortOf } from '../observability/requested-model.js';
+import type { EffortLevel } from '../reasoning-effort.js';
 import { classifyError, getRetryAfterHeader, toAliaError } from '../errors/index.js';
 import { AliaErrorCode, type FailoverReason } from '../errors/error-codes.js';
 import type { ChatMessage } from '../message-converter.js';
@@ -80,7 +80,8 @@ export interface ProviderLoopParams {
   body: Record<string, unknown> & { stream?: boolean; skillId?: string; conversationId?: string };
   messages: ChatMessage[];
   conversationId: string | undefined;
-  thinkingMode: boolean | undefined;
+  /** The level, resolved once at the request boundary. */
+  reasoningEffort: EffortLevel | null;
   convertedMessages: unknown[];
   truncatedTools: ToolSet;
   toolNameMapping: Map<string, string>;
@@ -109,7 +110,7 @@ export type ProviderLoopResult =
 export async function runProviderLoop(params: ProviderLoopParams): Promise<ProviderLoopResult> {
   const {
     req, res, sse, requestId, requestStartTime, globalTimer, globalTimeoutMs, state,
-    body, messages, conversationId, thinkingMode, convertedMessages, truncatedTools,
+    body, messages, conversationId, reasoningEffort, convertedMessages, truncatedTools,
     toolNameMapping, agentMessages, systemPromptTokens, requestedModel, routingOptions, isSpanish,
     autonomyRuntime, includeUsage, tierMappingsLength,
   } = params;
@@ -136,11 +137,6 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
    */
   const observation: TurnObservation = { timeToFirstTokenMs: null, cancelled: false };
 
-  /**
-   * The reasoning parameter, read once from the two places a caller can express
-   * it — the `thinkingMode` flag and the `alia-v1-thinking` alias.
-   */
-  const reasoningEffort = reasoningEffortOf({ thinkingMode, requestedModel });
   const onClientClose = (): void => { observation.cancelled = true; };
   req.on('close', onClientClose);
 
@@ -239,7 +235,7 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
       body,
       convertedMessages,
       truncatedTools,
-      thinkingMode,
+      reasoningEffort,
       systemPromptTokens,
       streamState,
       onUsage: (usage) => { tokenUsage = usage; },

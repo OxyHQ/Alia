@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 import { SystemPromptBuilder } from '../system-prompt-builder.js';
+import { reasoningEffortOf } from '../observability/requested-model.js';
 
 /**
  * Extended reasoning is a REQUEST PARAMETER, not a model identity
@@ -39,7 +40,15 @@ const REASONING_PROMPT = readFileSync(
 const REASONING_MARKER = 'extended reasoning capabilities';
 
 async function build(aliasModelId: string, thinkingMode: boolean | undefined): Promise<string> {
-  return SystemPromptBuilder.build({ aliasModelId, isDirectUserSession: false, thinkingMode });
+  // The boolean is the caller-facing spelling this suite was written against;
+  // `reasoningEffortOf` is the one place it becomes a level, so the suite keeps
+  // asking in the old words and the conversion is exercised rather than
+  // bypassed.
+  return SystemPromptBuilder.build({
+    aliasModelId,
+    isDirectUserSession: false,
+    reasoningEffort: reasoningEffortOf({ thinkingMode, requestedModel: aliasModelId }),
+  });
 }
 
 describe('the fixture is a real prompt with something to look for', () => {

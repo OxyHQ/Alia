@@ -11,21 +11,34 @@ import { getOxyServicePromptFragment, getOxyServiceContext } from './tools/oxy-s
 import { buildArchetypeSystemPrompt } from './agent/archetype-prompts.js';
 import { buildAutonomyPromptFragment, type AutonomyRuntimeContext } from './autonomy/runtime.js';
 import { buildSystemPrompt as loadBasePrompt, loadPrompt } from './prompt-loader.js';
+import type { EffortLevel } from './reasoning-effort.js';
 
 /**
- * The extended-reasoning layer, selected by the `thinkingMode` REQUEST
- * PARAMETER rather than by a model id (#139 workstream 4).
+ * The extended-reasoning layer, selected by the effort LEVEL rather than by a
+ * model id (#139 workstream 4).
  *
  * `alia-v1-thinking` and `alia-v1-pro-max` route to the same nine candidates at
  * the same price and differed only in which of these files their id loaded, so
  * the reasoning level was an identity when it should have been a setting. It is
  * a setting now, and any profile can carry it.
  *
+ * ## It is no longer the only thing reasoning does
+ *
+ * This prompt layer used to be the WHOLE feature: the two provider hooks that
+ * were supposed to carry `thinkingMode` wrote AI SDK v4 option names against an
+ * `ai@6` install, so asking for reasoning changed a paragraph of the system
+ * message and nothing else. `lib/chat/model-config.ts` sends a real budget now,
+ * and this layer sits beside it rather than standing in for it.
+ *
+ * Added at every level ABOVE `instant`, not at one particular level: it tells
+ * the model to reason carefully, which is what a person choosing any of the
+ * three dearer levels asked for. The levels differ in the BUDGET they buy, and
+ * that difference is made by the provider option rather than by three
+ * variously-worded prompts.
+ *
  * The file keeps its historical name because the retired alias still resolves
  * and still loads it directly by model id: one file, two ways in, no copy to
- * keep in step. That sharing is what makes the alias REDUNDANT rather than
- * merely unadvertised — everything it did is now expressible as
- * `model: profile:v1-pro-max` plus `thinkingMode: true`.
+ * keep in step.
  */
 const EXTENDED_REASONING_PROMPT = 'alia-v1-thinking';
 import { log } from './logger.js';
@@ -70,11 +83,11 @@ export interface SystemPromptOptions {
   /** Whether agent mode is active */
   agentMode?: boolean;
   /**
-   * Whether the request asked for extended reasoning — the runtime parameter
-   * that replaced `alia-v1-thinking` as a model identity. Any profile can carry
-   * it, which is the whole point of it being a parameter.
+   * How hard the request asked this turn to think — the runtime parameter that
+   * replaced `alia-v1-thinking` as a model identity. Any profile can carry it,
+   * which is the whole point of it being a parameter.
    */
-  thinkingMode?: boolean;
+  reasoningEffort?: EffortLevel | null;
   /** Autonomy runtime context */
   autonomyRuntime?: AutonomyRuntimeContext | null;
 }
@@ -115,7 +128,7 @@ export class SystemPromptBuilder {
       linkedAgent,
       agentMode,
       autonomyRuntime,
-      thinkingMode,
+      reasoningEffort,
     } = opts;
 
     // 1. Base prompt
@@ -126,7 +139,7 @@ export class SystemPromptBuilder {
     // Skipped when the caller named the retired alias, because `loadBasePrompt`
     // already loaded this exact file for that id — layering it twice would tell
     // the model the same thing in two voices.
-    if (thinkingMode === true && aliasModelId !== EXTENDED_REASONING_PROMPT) {
+    if (reasoningEffort != null && reasoningEffort !== 'instant' && aliasModelId !== EXTENDED_REASONING_PROMPT) {
       const reasoning = await loadPrompt(EXTENDED_REASONING_PROMPT);
       if (reasoning !== '') systemMessage += `\n\n---\n\n${reasoning}`;
     }

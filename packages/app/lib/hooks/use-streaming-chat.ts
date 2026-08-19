@@ -11,6 +11,7 @@ import { queryKeys } from '@/lib/hooks/query-keys';
 import { USER_MEMORY_QUERY_KEY } from '@/lib/hooks/use-user-data';
 import { useStore } from '@/lib/stores/global-store';
 import { useModelStore } from '@/lib/stores/model-store';
+import type { EffortLevel } from '@/lib/hooks/use-catalogue';
 import { useUIStore } from '@/lib/stores/ui-store';
 import { toast } from '@oxyhq/bloom/toast';
 import i18n from '@/lib/i18n';
@@ -80,7 +81,7 @@ interface ConversationsInfinite {
 }
 
 
-export function useStreamingChat(apiUrl: string, activeRole?: Role, conversationId?: string, thinkingMode?: boolean, selectedModel?: string, skillId?: string | null, agentId?: string | null) {
+export function useStreamingChat(apiUrl: string, activeRole?: Role, conversationId?: string, reasoningEffort?: EffortLevel | null, selectedModel?: string, skillId?: string | null, agentId?: string | null) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
@@ -236,6 +237,13 @@ Use this role to guide your responses, maintaining the specified tone, style, an
 
       const agentMode = useStore.getState().agentMode;
       const deepResearchMode = useStore.getState().deepResearchMode;
+      /**
+       * Read at send time rather than closed over, like the two above it: the
+       * capability switches live in a menu that stays open across a send, and a
+       * value captured when the callback was built would send the state the
+       * composer had before the person touched it.
+       */
+      const webSearch = useModelStore.getState().webSearch;
 
       const response = await expoFetch(apiUrl, {
         method: 'POST',
@@ -244,7 +252,12 @@ Use this role to guide your responses, maintaining the specified tone, style, an
           messages: messagesToSend,
           stream: true,
           ...(conversationId && { conversationId }),
-          ...(thinkingMode && { thinkingMode: true }),
+          // Omitted entirely when nothing was chosen, so the request means "the
+          // model's own default" rather than "the cheapest level".
+          ...(reasoningEffort && { reasoningEffort }),
+          // Only sent when OFF. `true` is the server's default and every
+          // request has behaved that way, so sending it would be noise.
+          ...(webSearch === false && { webSearch: false }),
           ...(selectedModel && { model: selectedModel }),
           ...(skillId && { skillId }),
           ...(agentId && { agentId }),
@@ -890,7 +903,7 @@ Use this role to guide your responses, maintaining the specified tone, style, an
       abortControllerRef.current = null;
       setIsLoading(false);
     }
-  }, [apiUrl, oxyServices, activeRole, queryClient, thinkingMode, selectedModel, skillId, agentId, scheduleFlush, flushPendingUpdates]);
+  }, [apiUrl, oxyServices, activeRole, queryClient, reasoningEffort, selectedModel, skillId, agentId, scheduleFlush, flushPendingUpdates]);
 
   const stop = useCallback(() => {
     if (abortControllerRef.current) {

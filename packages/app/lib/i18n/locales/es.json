@@ -819,27 +819,18 @@
     }
   },
   "modes": {
-    "searchOn": "Se usará búsqueda web",
-    "searchOff": "Modo búsqueda desactivado",
+    "searchOn": "Búsqueda web activada",
+    "searchOff": "Búsqueda web desactivada — Alia responderá sin la web",
     "ghostOn": "Las conversaciones no se guardarán",
     "ghostOff": "Las conversaciones se guardarán normalmente",
     "agentOn": "Ahora puedo actuar de forma autónoma",
     "agentOff": "Modo agente desactivado",
     "deepResearchOn": "Investigación profunda activada",
     "deepResearchOff": "Investigación profunda desactivada",
-    "shoppingResearchOn": "Investigación de compras activada",
-    "shoppingResearchOff": "Investigación de compras desactivada",
-    "studyOn": "Modo estudio activado",
-    "studyOff": "Modo estudio desactivado",
-    "thinkingOff": "Modo razonamiento desactivado",
-    "thinkingOn": "La IA mostrará su proceso de razonamiento",
     "searchLabel": "Búsqueda",
     "ghostLabel": "Fantasma",
     "agentLabel": "Agente",
     "deepResearchLabel": "Investigación profunda",
-    "shoppingLabel": "Compras",
-    "studyLabel": "Estudio",
-    "thinkingLabel": "Pensamiento",
     "voiceMode": "Modo de voz"
   },
   "gateways": {
@@ -1018,5 +1009,9 @@
       "personal": "Personales"
     },
     "personalEmpty": "Aún no tienes conectores personales. Añade uno con +"
+  },
+  "effort": {
+    "select": "Esfuerzo",
+    "costNote": "El razonamiento se factura como tokens de salida, así que más esfuerzo cuesta más."
   }
 }

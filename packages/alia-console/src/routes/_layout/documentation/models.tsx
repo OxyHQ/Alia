@@ -222,11 +222,24 @@ function ModelsDocPage() {
             </p>
           </div>
           <div className="p-4 rounded-lg border">
-            <h3 className="text-sm font-medium text-foreground mb-2">Ask for extended reasoning</h3>
+            <h3 className="text-sm font-medium text-foreground mb-2">Ask for reasoning effort</h3>
             <p className="text-sm text-muted-foreground">
-              Reasoning effort is a request parameter, not a separate entry: send{' '}
-              <code className="text-xs bg-muted px-1 py-0.5 rounded">thinkingMode: true</code>{' '}
-              alongside any profile.
+              Effort is a request parameter, not a separate entry: send{' '}
+              <code className="text-xs bg-muted px-1 py-0.5 rounded">reasoningEffort</code> —{' '}
+              <code className="text-xs bg-muted px-1 py-0.5 rounded">instant</code>,{' '}
+              <code className="text-xs bg-muted px-1 py-0.5 rounded">medium</code>,{' '}
+              <code className="text-xs bg-muted px-1 py-0.5 rounded">high</code> or{' '}
+              <code className="text-xs bg-muted px-1 py-0.5 rounded">max</code> — alongside any
+              entry. Only the levels in that entry's{' '}
+              <code className="text-xs bg-muted px-1 py-0.5 rounded">reasoning_levels</code> are
+              sent to the provider; every route behind an entry has to support a level for it to
+              appear there, so the list is empty for entries whose fallback could land somewhere
+              that cannot honour it. Thinking is billed as output tokens.
+            </p>
+            <p className="text-sm text-muted-foreground mt-2">
+              <code className="text-xs bg-muted px-1 py-0.5 rounded">thinkingMode: true</code> is
+              still accepted and means{' '}
+              <code className="text-xs bg-muted px-1 py-0.5 rounded">medium</code>.
             </p>
           </div>
         </div>

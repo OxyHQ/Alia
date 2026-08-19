@@ -3,8 +3,8 @@
  *
  * Assembles the `baseConfig` object shared by the streaming (`streamText`) and
  * non-streaming (`generateText`) paths — temperature, tool set, `stopWhen`,
- * the token-usage `onFinish` capture, thinking-mode / provider-metadata
- * toggles, the optional `max_tokens` cap — and wires the per-provider
+ * the token-usage `onFinish` capture, the reasoning-effort provider options,
+ * the optional `max_tokens` cap — and wires the per-provider
  * first-byte abort: a 20s timer that aborts the attempt if the provider sends
  * nothing, plus `clearFirstByteTimer()` to cancel it once a byte arrives.
  *
@@ -24,6 +24,7 @@ import { getAIModel, type ResolvedModel } from '../chat-core.js';
 import { log } from '../logger.js';
 import type { CreditUsage } from '../credits-manager.js';
 import type { StreamRunnerState } from './stream-runner.js';
+import { reasoningPayloadFor, type EffortLevel } from '../reasoning-effort.js';
 
 export interface BuildBaseConfigParams {
   /** The resolved provider/model for this attempt. */
@@ -32,7 +33,16 @@ export interface BuildBaseConfigParams {
   body: Record<string, unknown> & { stream?: boolean };
   convertedMessages: unknown[];
   truncatedTools: ToolSet;
-  thinkingMode: boolean | undefined;
+  /**
+   * How hard the caller asked this request to think, or `null` for the model's
+   * own default.
+   *
+   * A LEVEL rather than the boolean it replaced. The boolean's two states never
+   * reached a provider at all — both hooks it wrote were AI SDK v4 names
+   * against an `ai@6` install — so there is no behaviour here to preserve, only
+   * a defect to stop repeating.
+   */
+  reasoningEffort: EffortLevel | null;
   systemPromptTokens: number;
   /** Shared with the stream runner; the first-byte timer reads it. */
   streamState: StreamRunnerState;
@@ -49,7 +59,7 @@ export interface BaseConfigResult {
 
 /** Assemble the shared AI SDK config for one provider attempt + its first-byte abort. */
 export function buildBaseConfig(params: BuildBaseConfigParams): BaseConfigResult {
-  const { resolved, body, convertedMessages, truncatedTools, thinkingMode, systemPromptTokens, streamState, onUsage } = params;
+  const { resolved, body, convertedMessages, truncatedTools, reasoningEffort, systemPromptTokens, streamState, onUsage } = params;
 
   const model = getAIModel(resolved.keyConfig);
 
@@ -64,7 +74,21 @@ export function buildBaseConfig(params: BuildBaseConfigParams): BaseConfigResult
     // AI SDK v6: stopWhen replaces maxSteps. Without this, the SDK defaults to
     // stepCountIs(1) which stops after tool calls without generating a text response.
     stopWhen: stepCountIs(5),
-    onFinish: async (result: { usage?: { inputTokens?: number; outputTokens?: number; totalTokens?: number } }) => {
+    onFinish: async (result: {
+      usage?: {
+        inputTokens?: number;
+        outputTokens?: number;
+        totalTokens?: number;
+        /**
+         * The reasoning breakdown of `outputTokens`, which is where the cost of
+         * an effort level actually shows up. `ai@6` reports it here;
+         * `usage.reasoningTokens` is the same figure under the name the type
+         * marks deprecated, and is read as the fallback rather than instead.
+         */
+        outputTokenDetails?: { reasoningTokens?: number };
+        reasoningTokens?: number;
+      };
+    }) => {
       // Capture token usage from AI SDK
       if (result.usage) {
         const usage: CreditUsage = {
@@ -72,6 +96,8 @@ export function buildBaseConfig(params: BuildBaseConfigParams): BaseConfigResult
           completionTokens: result.usage.outputTokens || 0,
           totalTokens: result.usage.totalTokens || 0,
           systemPromptTokens, // Keep our estimated system prompt tokens
+          reasoningTokens:
+            result.usage.outputTokenDetails?.reasoningTokens ?? result.usage.reasoningTokens ?? 0,
         };
         onUsage(usage);
         log.v1.info({ usage }, 'Token usage captured');
@@ -79,27 +105,79 @@ export function buildBaseConfig(params: BuildBaseConfigParams): BaseConfigResult
     },
   };
 
+  /**
+   * The caller's output cap — under the name `ai@6` reads.
+   *
+   * This said `baseConfig.maxTokens`, which is the AI SDK **v4** spelling: the
+   * string `maxTokens` occurs ZERO times in the installed `ai` package, against
+   * 19 for `maxOutputTokens` — the same measurement, and the same class of
+   * defect, as the two `experimental_*` keys below. So `max_tokens` on the
+   * public `/v1/chat/completions` body has been accepted, assigned and
+   * discarded for the whole life of the v6 migration, and every request has
+   * silently used the provider's own default cap instead.
+   *
+   * Found by asserting on the bytes a provider actually POSTs
+   * (`__tests__/reasoning-on-the-wire.test.ts`) rather than on the object this
+   * function returns — which is the only vantage point from which any of these
+   * three were ever visible.
+   */
   if (body.max_tokens) {
-    baseConfig.maxTokens = body.max_tokens;
+    baseConfig.maxOutputTokens = body.max_tokens;
   }
 
-  // Enable thinking mode for Anthropic if requested
-  if (thinkingMode && resolved.provider === 'anthropic') {
-    baseConfig.experimental_thinking = true;
-    log.v1.info('Enabled Anthropic thinking mode');
-  }
-
-  // Configure provider-specific features for reasoning
-  const providerMetadata: Record<string, Record<string, unknown>> = {};
-
-  if (resolved.provider === 'google') {
-    // Enable thought summaries for Gemini
-    providerMetadata.google = { includeThoughts: true };
-    log.v1.info('Enabled Gemini thought summaries');
-  }
-
-  if (Object.keys(providerMetadata).length > 0) {
-    baseConfig.experimental_providerMetadata = providerMetadata;
+  /**
+   * The reasoning budget, under a key the installed SDK actually reads.
+   *
+   * What was here wrote `experimental_thinking` and
+   * `experimental_providerMetadata`. Those are AI SDK **v4** option names; this
+   * service runs `ai@6`, whose option is `providerOptions`, and neither old
+   * string occurs anywhere in the installed package — measured, with
+   * `providerOptions` (116 occurrences) and `stopWhen` (12) as the positive
+   * controls that make a zero a fact about the SDK rather than about the
+   * search. `baseConfig` is typed `any` with an eslint-disable, so `tsc` had
+   * nothing to say about either, and the options were assembled, logged
+   * ("Enabled Anthropic thinking mode") and dropped on the floor.
+   *
+   * There was a second, independent defect in the same ten lines: the Google
+   * branch was NOT conditional on the caller wanting reasoning, so every Gemini
+   * request asked for thought summaries. Fixing only the key would have turned
+   * that on for everybody at once. Both are gated on the level now.
+   *
+   * `reasoningPayloadFor` returns `null` for every route that cannot carry the
+   * option — a model that does not reason, a level that model does not offer,
+   * or a provider serving somebody else's model over an OpenAI-compatible
+   * endpoint that never promised to honour the parameter. Nothing is written in
+   * that case, deliberately: an empty `providerOptions` key is a different
+   * request from one that omits it.
+   */
+  if (reasoningEffort) {
+    const reasoning = reasoningPayloadFor(
+      resolved.provider,
+      resolved.publisher,
+      resolved.model,
+      reasoningEffort,
+    );
+    if (reasoning) {
+      baseConfig.providerOptions = { [reasoning.providerKey]: reasoning.payload };
+      /**
+       * Anthropic refuses a thinking budget that is not strictly below
+       * `max_tokens`, and the caller rarely sends one — so a level that raised
+       * the budget without raising the ceiling would 400 the moment a person
+       * chose it. The caller's own `max_tokens` still wins where it was given.
+       */
+      if (reasoning.maxOutputTokens !== null && baseConfig.maxOutputTokens === undefined) {
+        baseConfig.maxOutputTokens = reasoning.maxOutputTokens;
+      }
+      log.v1.info(
+        { level: reasoningEffort, provider: resolved.provider },
+        'Reasoning effort applied',
+      );
+    } else {
+      log.v1.info(
+        { level: reasoningEffort, provider: resolved.provider },
+        'Reasoning effort requested but this route carries none',
+      );
+    }
   }
 
   if (process.env.NODE_ENV !== 'production') {

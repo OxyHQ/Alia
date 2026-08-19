@@ -71,7 +71,7 @@ function source(overrides: Partial<CatalogueSource> = {}): CatalogueSource {
 function candidate(
   modelId: string,
   capabilities: Record<string, unknown>,
-  route: Partial<Pick<Candidate, 'availabilityScope' | 'attribution' | 'publisher' | 'model' | 'servable'>> = {},
+  route: Partial<Pick<Candidate, 'availabilityScope' | 'attribution' | 'publisher' | 'model' | 'servable' | 'provider'>> = {},
 ): Candidate {
   // `availabilityScope` and `attribution` default to `null`, which is what
   // every route in this repository carries: both belong to a deployment in
@@ -85,6 +85,10 @@ function candidate(
   // exist.
   return {
     modelId,
+    // A first-party OpenAI route, because that is the only kind that can carry
+    // a reasoning option — a fixture defaulting to a resale endpoint would make
+    // every reasoning assertion in this file describe the empty case.
+    provider: 'openai',
     publisher: 'openai',
     // Servable by default, so a fixture that is ABOUT availability has to say
     // so — and every other group in this file measures something else against a
@@ -303,17 +307,78 @@ describe('capability availability is measured, not declared', () => {
     expect(derived.tools).toBe('always');
   });
 
-  it('reports unknown for reasoning and structured output, because nothing records them', () => {
+  it('reports unknown for structured output, because nothing records it', () => {
     // Not an accident of the fixture: no capability record anywhere in this
-    // repository has a field for either. `caps()` above is the full recorded
-    // vocabulary, and neither name appears in it.
+    // repository has a field for it. `caps()` above is the full recorded
+    // vocabulary, and that name does not appear in it.
     const derived = deriveCapabilities([candidate('a', caps()), candidate('b', caps())]);
-    expect(derived.reasoning).toBe('unknown');
     expect(derived.structuredOutput).toBe('unknown');
     // Positive control in the same currency: three capabilities in the same
     // fixture are NOT unknown, so `unknown` is a finding rather than the
     // function's resting state.
     expect([derived.tools, derived.vision, derived.audio]).toEqual(['always', 'never', 'never']);
+  });
+
+  describe('reasoning is derived per route, and levels are INTERSECTED', () => {
+    // Real identities from `lib/reasoning-effort.ts`, because the derivation is
+    // a lookup in that table and a made-up name measures only the miss path.
+    const claude = () => candidate('claude-sonnet-4-20250514', caps(), {
+      provider: 'anthropic', publisher: 'anthropic', model: 'claude-sonnet-4',
+    });
+    const geminiPro = () => candidate('gemini-2.5-pro', caps(), {
+      provider: 'google', publisher: 'google', model: 'gemini-2.5-pro',
+    });
+    const plain = () => candidate('gpt-4o-mini', caps(), {
+      provider: 'openai', publisher: 'openai', model: 'gpt-4o-mini',
+    });
+
+    it('never, when no candidate reasons', () => {
+      const derived = deriveCapabilities([plain(), plain()]);
+      expect(derived.reasoning).toBe('never');
+      expect(derived.reasoningLevels).toEqual([]);
+    });
+
+    it('always, with the levels that model offers', () => {
+      const derived = deriveCapabilities([claude()]);
+      expect(derived.reasoning).toBe('always');
+      expect(derived.reasoningLevels).toEqual(['instant', 'medium', 'high', 'max']);
+    });
+
+    it('sometimes, with NO levels, when one candidate cannot honour them', () => {
+      // The case the whole design turns on. A profile fanning out over a
+      // reasoning model and an ordinary one still reasons SOMETIMES, but a
+      // picker must offer nothing: a level chosen here would be dropped
+      // silently whenever the fallback took the other route.
+      const derived = deriveCapabilities([claude(), plain()]);
+      expect(derived.reasoning).toBe('sometimes');
+      expect(derived.reasoningLevels).toEqual([]);
+    });
+
+    it('intersects rather than unions, so a level one model lacks is not offered', () => {
+      // Gemini 2.5 Pro cannot be told to stop thinking, so it offers no
+      // `instant`; Claude offers all four. The union would be four, and would
+      // promise an "off" that one of the two routes cannot honour.
+      const derived = deriveCapabilities([claude(), geminiPro()]);
+      expect(derived.reasoning).toBe('always');
+      expect(derived.reasoningLevels).toEqual(['medium', 'high', 'max']);
+    });
+
+    it('a first-party model resold by somebody else carries nothing', () => {
+      // `claude-sonnet-4` over DigitalOcean is `createOpenAI` with a foreign
+      // baseURL: `providerOptions.anthropic` would be serialized and ignored.
+      const resold = candidate('anthropic-claude-4.6-sonnet', caps(), {
+        provider: 'digitalocean', publisher: 'anthropic', model: 'claude-sonnet-4',
+      });
+      expect(deriveCapabilities([resold]).reasoning).toBe('never');
+      expect(deriveCapabilities([claude(), resold]).reasoningLevels).toEqual([]);
+    });
+
+    it('an empty candidate set offers nothing, rather than everything', () => {
+      // An intersection over nothing is vacuously everything, which would offer
+      // four levels for an entry with no routes at all.
+      expect(deriveCapabilities([]).reasoningLevels).toEqual([]);
+      expect(deriveCapabilities([]).reasoning).toBe('unknown');
+    });
   });
 
   it('bounds tokens by the weakest and the strongest candidate', () => {

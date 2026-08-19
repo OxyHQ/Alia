@@ -38,6 +38,10 @@ export type { KeyConfig, AliaModel, AliaModelWithAvailability, ModelCategory, Ro
 export interface ResolvedModel {
   aliasModelId: string;
   provider: string;
+  /** Who RELEASED the model that answered. Never who serves it. */
+  publisher: string;
+  /** The publisher's own name for it, which is NOT {@link modelId}. */
+  model: string;
   modelId: string;
   keyConfig: KeyConfig;
   aliaModel: AliaModel;

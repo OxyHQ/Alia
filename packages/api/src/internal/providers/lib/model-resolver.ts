@@ -21,6 +21,17 @@ import { resolveWithFallback, type FallbackOptions, type FallbackResult, type Fa
 export interface ResolvedModel {
   aliasModelId: string;
   provider: string;
+  /**
+   * Who RELEASED the model that answered, carried through from the mapping.
+   *
+   * Beside `provider` rather than derived from it, because they are different
+   * questions with different answers — `{provider: 'digitalocean', publisher:
+   * 'anthropic'}` is a real row. The pair is what `lib/reasoning-effort.ts`
+   * keys on to decide whether this route can carry a reasoning option at all.
+   */
+  publisher: string;
+  /** The publisher's own name for it, which is NOT {@link modelId}. */
+  model: string;
   modelId: string;
   keyConfig: KeyConfig;
   aliaModel: AliaModel;

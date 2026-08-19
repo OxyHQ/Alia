@@ -451,7 +451,14 @@ describe('the catalogue distinguishes a model from a routing profile by TYPE', (
       vision: 'sometimes',
       tools: 'always',
       audio: 'never',
-      reasoning: 'unknown',
+      // The fixture's two candidates are not reasoning models, so `never` is a
+      // measurement rather than the field's resting state — `unknown` is what
+      // an EMPTY candidate set answers, and these two are not empty.
+      reasoning: 'never',
+      // Empty follows from `never`, and is what a picker must render no control
+      // from. It is asserted here and not only in the unit suite because this
+      // is the wire shape a client reads.
+      reasoning_levels: [],
       structured_output: 'unknown',
       context_window: { guaranteed: 128000, up_to: 128000 },
       max_output: { guaranteed: 8192, up_to: 8192 },

@@ -46,6 +46,18 @@ export interface CatalogueCapabilities {
   readonly vision: CapabilityAvailability;
   readonly audio: CapabilityAvailability;
   readonly reasoning: CapabilityAvailability;
+  /**
+   * The effort levels EVERY route behind this entry can honour, cheapest first.
+   *
+   * The ONLY field a control may be rendered from. `reasoning` says whether any
+   * route thinks, which is a different question — an entry can be `sometimes`
+   * with an empty level list, and that is exactly the case where a dial would
+   * be a promise the fallback silently breaks.
+   *
+   * Empty is the common answer: a routing profile fanning out over seventeen
+   * deployments offers a level only if all seventeen can send it.
+   */
+  readonly reasoningLevels: readonly EffortLevel[];
   readonly structuredOutput: CapabilityAvailability;
   /** `null` means unknown, and must render as unknown rather than as absent. */
   readonly contextWindow: TokenBound | null;
@@ -237,6 +249,34 @@ function asCapability(value: unknown): CapabilityAvailability {
   return 'unknown';
 }
 
+/**
+ * What a person may pick on the effort control.
+ *
+ * The same four the API publishes, restated here rather than imported because
+ * this package shares no module with the API — and the parser below is what
+ * keeps them honest: a level the server sends that this list does not know is
+ * DROPPED, so a server that grew a fifth cannot make this client render a
+ * control it has no words for.
+ */
+export const EFFORT_LEVELS = ['instant', 'medium', 'high', 'max'] as const;
+
+export type EffortLevel = (typeof EFFORT_LEVELS)[number];
+
+export function isEffortLevel(value: unknown): value is EffortLevel {
+  return (EFFORT_LEVELS as readonly unknown[]).includes(value);
+}
+
+/**
+ * The levels this client can both render and send.
+ *
+ * Preserves the server's order rather than re-sorting: cheapest-first is a
+ * property of the published list, and a client re-deriving it would be a second
+ * opinion about which level costs more.
+ */
+function asEffortLevels(value: unknown): readonly EffortLevel[] {
+  return Array.isArray(value) ? value.filter(isEffortLevel) : [];
+}
+
 function asTokenBound(value: unknown): TokenBound | null {
   const bound = asObject(value);
   if (bound === null) return null;
@@ -273,6 +313,7 @@ function parseEntry(value: unknown): CatalogueEntry | null {
       vision: asCapability(capabilities.vision),
       audio: asCapability(capabilities.audio),
       reasoning: asCapability(capabilities.reasoning),
+      reasoningLevels: asEffortLevels(capabilities.reasoning_levels),
       structuredOutput: asCapability(capabilities.structured_output),
       contextWindow: asTokenBound(capabilities.context_window),
       maxOutput: asTokenBound(capabilities.max_output),

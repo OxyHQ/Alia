@@ -80,6 +80,11 @@ import {
 import { requiredAttributions, type RequiredAttribution } from './model-attribution.js';
 import { surfaceCanOffer, type Surface } from './surface-capability.js';
 import type { FallbackPolicy } from './routing/policy.js';
+import {
+  EFFORT_LEVELS,
+  reasoningLevelsFor,
+  type EffortLevel,
+} from './reasoning-effort.js';
 import { log } from './logger.js';
 
 /**
@@ -143,6 +148,20 @@ export interface CatalogueCapabilities {
   readonly vision: CapabilityAvailability;
   readonly audio: CapabilityAvailability;
   readonly reasoning: CapabilityAvailability;
+  /**
+   * The effort levels EVERY candidate route can honour, cheapest first.
+   *
+   * An intersection, not a union, and that is the whole guarantee: a level
+   * listed here is one the caller will actually have sent whichever candidate
+   * answers. A union would list levels that a fallback silently drops, which is
+   * an interface promising a reasoning budget that is not always transmitted —
+   * the exact defect `lib/reasoning-effort.ts` exists to end.
+   *
+   * Empty is the common answer and is not a failure: a routing profile fanning
+   * out over seventeen deployments offers a level only if all seventeen can
+   * send it.
+   */
+  readonly reasoningLevels: readonly EffortLevel[];
   readonly structuredOutput: CapabilityAvailability;
   readonly contextWindow: TokenBound | null;
   readonly maxOutput: TokenBound | null;
@@ -305,6 +324,17 @@ export type CatalogueEntry = RoutingProfileEntry | ModelEntry;
  */
 export interface Candidate {
   readonly modelId: string;
+  /**
+   * Whose endpoint this route goes to.
+   *
+   * Carried because a reasoning option is only real on a FIRST-PARTY client:
+   * `lib/chat-core.ts` builds one for `google`, `openai` and `anthropic` and
+   * reaches everybody else through `createOpenAI` with a foreign `baseURL`. So
+   * "can this route think harder" is a question about the operator as well as
+   * the model, and a candidate that knew only the model would answer it wrong
+   * for every DigitalOcean-served Claude.
+   */
+  readonly provider: string;
   /** Who released this model. `null` is unknown, which is not "none". */
   readonly publisher: string | null;
   /**
@@ -413,6 +443,36 @@ export interface CatalogueSource {
   readonly isLegacy: boolean;
 }
 
+/**
+ * The levels EVERY candidate can carry.
+ *
+ * An empty candidate set yields an empty list rather than "all levels": an
+ * intersection over nothing is vacuously everything, which would offer four
+ * levels for an entry with no routes at all.
+ */
+function intersectReasoningLevels(candidates: readonly Candidate[]): readonly EffortLevel[] {
+  if (candidates.length === 0) return [];
+  return EFFORT_LEVELS.filter((level) =>
+    candidates.every((candidate) =>
+      candidate.publisher !== null &&
+      candidate.model !== null &&
+      reasoningLevelsFor(candidate.provider, candidate.publisher, candidate.model).includes(level),
+    ),
+  );
+}
+
+function reasoningAvailability(candidates: readonly Candidate[]): CapabilityAvailability {
+  if (candidates.length === 0) return 'unknown';
+  const supporting = candidates.filter(
+    (candidate) =>
+      candidate.publisher !== null &&
+      candidate.model !== null &&
+      reasoningLevelsFor(candidate.provider, candidate.publisher, candidate.model).length > 0,
+  ).length;
+  if (supporting === 0) return 'never';
+  return supporting === candidates.length ? 'always' : 'sometimes';
+}
+
 function booleanCapability(candidates: readonly Candidate[], key: string): CapabilityAvailability {
   if (candidates.length === 0) return 'unknown';
   let seen = 0;
@@ -455,19 +515,34 @@ function tokenBound(candidates: readonly Candidate[], key: string): TokenBound |
  * {@link CAPABILITY_POLICY}. The result records which policy it describes rather
  * than leaving it implied.
  *
- * `reasoning` and `structuredOutput` are `unknown` unconditionally: no
- * capability record in this repository has a field for either, so
- * {@link booleanCapability} would answer `unknown` for them anyway. Naming them
- * here rather than relying on that is deliberate — if a field with one of those
- * names ever appears, this is where the decision to trust it gets made, rather
- * than the catalogue silently starting to publish it.
+ * `reasoning` stopped being `unknown` when a field with that meaning appeared:
+ * `lib/reasoning-effort.ts` is authored per `publisher/model`
+ * and answers, for one route, which effort levels it can carry. This is the
+ * place the note here always said the decision to trust such a field would be
+ * made, and it is made by INTERSECTION — see {@link
+ * CatalogueCapabilities.reasoningLevels}.
+ *
+ * `structuredOutput` stays `unknown`: still no record anywhere carries it, so
+ * {@link booleanCapability} would answer `unknown` for it anyway, and naming it
+ * here keeps the same decision point open for the day one does.
  */
 export function deriveCapabilities(candidates: readonly Candidate[]): CatalogueCapabilities {
+  const reasoningLevels = intersectReasoningLevels(candidates);
   return {
     tools: booleanCapability(candidates, 'tools'),
     vision: booleanCapability(candidates, 'vision'),
     audio: booleanCapability(candidates, 'audio'),
-    reasoning: 'unknown',
+    /**
+     * `always` only when every candidate offers at least one level, `never`
+     * when none does, `sometimes` in between — the same three-way reading
+     * `booleanCapability` gives, over a set rather than a boolean. It answers
+     * "can this entry reason at all", while `reasoningLevels` answers "which
+     * levels may I offer", and they are different questions: an entry can be
+     * `sometimes` with an empty level set, which is precisely the case where a
+     * control must not appear.
+     */
+    reasoning: reasoningAvailability(candidates),
+    reasoningLevels,
     structuredOutput: 'unknown',
     contextWindow: tokenBound(candidates, 'maxContextTokens'),
     maxOutput: tokenBound(candidates, 'maxOutputTokens'),
@@ -692,6 +767,7 @@ export function isServable(route: ModelMapping, conditions: ServingConditions): 
 function toCandidate(route: ModelMapping, conditions: ServingConditions): Candidate {
   return {
     modelId: route.modelId,
+    provider: route.provider,
     capabilities: route.capabilities,
     publisher: route.publisher ?? null,
     model: route.model ?? null,

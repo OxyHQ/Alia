@@ -36,6 +36,7 @@ import { wrapToolsWithTruncation, getToolResultBudget } from '../lib/tools/resul
 import { formatStyleForPrompt } from '../lib/style/style-prompt.js';
 import { getPersonalityPromptSupplement } from '../lib/personality-styles.js';
 import { BILLING_RE, AUTH_RE } from '../lib/constants.js';
+import type { EffortLevel } from '../lib/reasoning-effort.js';
 
 // ── Types ──
 
@@ -43,7 +44,7 @@ export interface ChatRequestParams {
   messages: any[];
   conversationId?: string;
   requestedModel?: string;
-  thinkingMode?: boolean;
+  reasoningEffort?: EffortLevel | null;
   skillId?: string;
   agentId?: string;
   userId?: string;

@@ -45,6 +45,7 @@
 import { modelReferenceSchema, routingProfileSlugSchema } from '@oxyhq/contracts';
 
 import { ROUTING_PRESETS } from '../routing/presets.js';
+import { isEffortLevel, type EffortLevel } from '../reasoning-effort.js';
 import { translateAlias } from '../routing/alias-translation.js';
 
 /** The namespace marker Alia's flat id space uses for a product mode. */
@@ -120,24 +121,52 @@ export function classifyRequestedModel(requested: string): RequestedModelIdentit
 }
 
 /**
- * How much reasoning the caller asked for, or null for the default.
+ * How hard the caller asked this request to think, or `null` for the model's
+ * own default.
  *
- * `'extended'` is the only value producible today and the column is `text` so a
- * graded scale needs no migration. Two inputs, because a caller can express the
- * same intent either way and recording only one of them undercounts:
+ * ## One computation, both consumers
  *
- *  - `thinkingMode: true` on the request body, which is the parameter;
+ * This used to answer only for ANALYTICS, while `lib/chat/model-config.ts`
+ * decided independently whether to send a provider option — two readings of the
+ * same intent, kept in step by `__tests__/reasoning-effort-agreement.test.ts`
+ * asserting they agreed. They agree by construction now: the level computed
+ * here is the one written to `chat_analytics.reasoning_effort` AND the one
+ * handed to the request builder, so a request cannot be billed and recorded as
+ * reasoning while sending nothing, or the reverse.
+ *
+ * ## Three inputs, because a caller has three ways to say it
+ *
+ *  - `reasoningEffort` on the request body — the parameter, and the only one
+ *    that can name a level above the first;
+ *  - `thinkingMode: true`, the boolean this replaced. It stays READ, though
+ *    nothing in this repository writes it any more: it is a documented field of
+ *    the public `/v1/chat/completions` shape that every published
+ *    `@alia.onl/sdk` and `@alia-codea/cli` copy in the wild still sends, and
+ *    ADR 0004 keeps that surface serving its existing request shape. This one
+ *    function is the whole compatibility surface — nothing downstream carries a
+ *    boolean;
  *  - `alia-v1-thinking`, which is the same parameter wearing a model's name.
+ *
+ * The two legacy spellings mean `medium`, and not a higher level: both meant
+ * "reason" against a code path that sent NO budget at all, so mapping them to
+ * the smallest budget the product offers is the reading that cannot raise
+ * anybody's bill without them asking. An explicit `reasoningEffort` wins over
+ * either.
  */
-export type ReasoningEffort = 'extended';
+export type ReasoningEffort = EffortLevel;
 
 export function reasoningEffortOf(input: {
+  readonly reasoningEffort?: unknown;
   readonly thinkingMode?: boolean;
   readonly requestedModel: string;
 }): ReasoningEffort | null {
-  if (input.thinkingMode === true) return 'extended';
-  return input.requestedModel === THINKING_ALIAS ? 'extended' : null;
+  if (isEffortLevel(input.reasoningEffort)) return input.reasoningEffort;
+  if (input.thinkingMode === true) return LEGACY_REASONING_LEVEL;
+  return input.requestedModel === THINKING_ALIAS ? LEGACY_REASONING_LEVEL : null;
 }
+
+/** What the two boolean-era spellings mean on the graded scale. */
+const LEGACY_REASONING_LEVEL: EffortLevel = 'medium';
 
 /**
  * The one alias whose identity IS a reasoning setting.
