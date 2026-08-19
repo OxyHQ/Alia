@@ -63,7 +63,6 @@ function source(overrides: Partial<CatalogueSource> = {}): CatalogueSource {
     tier: 'test-tier',
     emoji: '🧪',
     creditMultiplier: 1,
-    isAvailable: true,
     isLegacy: false,
     ...overrides,
   };
@@ -72,7 +71,7 @@ function source(overrides: Partial<CatalogueSource> = {}): CatalogueSource {
 function candidate(
   modelId: string,
   capabilities: Record<string, unknown>,
-  route: Partial<Pick<Candidate, 'availabilityScope' | 'attribution' | 'publisher' | 'model'>> = {},
+  route: Partial<Pick<Candidate, 'availabilityScope' | 'attribution' | 'publisher' | 'model' | 'servable'>> = {},
 ): Candidate {
   // `availabilityScope` and `attribution` default to `null`, which is what
   // every route in this repository carries: both belong to a deployment in
@@ -87,6 +86,10 @@ function candidate(
   return {
     modelId,
     publisher: 'openai',
+    // Servable by default, so a fixture that is ABOUT availability has to say
+    // so — and every other group in this file measures something else against a
+    // catalogue that is not accidentally empty.
+    servable: true,
     // The model's own name, which defaults to the deployment id here because
     // most of these fixtures are about fan-out rather than about naming: N
     // deployment ids are N models unless a fixture passes an explicit `model`

@@ -77,7 +77,17 @@ interface CatalogueEntryCommon {
   /** Product policy: whether the chat picker surfaces this entry. */
   readonly chatVisible: boolean;
   readonly capabilities: CatalogueCapabilities;
-  /** The server states this as a claim; an entry that omits it is not called unavailable. */
+  /**
+   * No route behind this entry could serve a request right now.
+   *
+   * The server's answer, and it is a stronger claim than it used to be: it
+   * means every route is either on a provider with no usable credential or
+   * behind an open circuit, so choosing this entry does not answer slowly, it
+   * answers with a refusal. The picker therefore does not list it.
+   *
+   * An entry that omits the field is NOT called unavailable — a shape break is
+   * not an outage, and reading it as one would empty the menu on a bad parse.
+   */
   readonly unavailable: boolean;
   readonly legacy: boolean;
   /** Name of the cheapest plan that grants this entry, or `null` when free or unknown. */

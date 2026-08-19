@@ -91,6 +91,20 @@ const state = vi.hoisted(() => ({
   apiKeyId: null as string | null,
   /** A verified Oxy service token, as `oxyServiceAuth` would leave it. */
   serviceAppId: null as string | null,
+  /**
+   * Which providers hold a usable credential — the fact whose absence made
+   * every entry claim to be available.
+   *
+   * A LIST rather than a boolean, because the property that matters is
+   * per-provider: withdrawing one provider's credential must remove exactly the
+   * entries that depended on it and leave the rest alone. A flag could not tell
+   * that apart from "everything went away".
+   */
+  credentialed: [] as string[],
+  /** `'throw'` stands in for an unreadable `provider_keys`, which is not "none". */
+  credentialsThrow: false,
+  /** Health rows, keyed as the real table is. Empty means nothing recorded. */
+  health: [] as { provider: string; modelId: string; circuitState: string }[],
 }));
 
 vi.mock('../../lib/gateway-client.js', () => ({
@@ -100,6 +114,11 @@ vi.mock('../../lib/gateway-client.js', () => ({
     if (state.plansThrow) throw new Error('plan catalogue unreachable');
     return state.plans;
   },
+  providersWithUsableCredentials: async () => {
+    if (state.credentialsThrow) throw new Error('provider_keys unreachable');
+    return new Set(state.credentialed);
+  },
+  getAllProviderHealth: async () => state.health,
 }));
 
 vi.mock('../../lib/plan-access.js', () => ({
@@ -276,6 +295,129 @@ beforeEach(() => {
   state.userId = null;
   state.apiKeyId = null;
   state.serviceAppId = null;
+  // Every fixture route is on `acme`, so the default is a deployment that can
+  // serve — otherwise every other group in this file would be measuring an
+  // empty catalogue.
+  state.credentialed = ['acme'];
+  state.credentialsThrow = false;
+  state.health = [];
+});
+
+/**
+ * Availability, which is the field a person acts on.
+ *
+ * ## What this would report if the thing it measures were absent
+ *
+ * It reported `available` for all thirty models and all twelve profiles while
+ * production could serve NONE of them: `provider_keys` held zero rows on
+ * 2026-08-19, so `getBestKeyForModel` returned `null` for every provider, and
+ * the only thing the catalogue consulted was a circuit breaker that nothing had
+ * ever tripped. A breaker records what happened to traffic and cannot record
+ * traffic that never left, so "available" was the same answer in both worlds —
+ * exactly the vacuity a health field exists to not have.
+ *
+ * Every case below is therefore a PAIR: the same catalogue with a credential
+ * and without it, so a derivation that ignored credentials fails the second
+ * half, and one that reported nothing available fails the first.
+ */
+describe('an entry is available only when a route could actually serve it', () => {
+  const availability = (body: CatalogueBody): Record<string, string> =>
+    Object.fromEntries(
+      (body.data ?? []).map((entry) => [
+        String(entry.id),
+        String((entry.availability as { status?: unknown } | undefined)?.status),
+      ]),
+    );
+
+  it('is available when its provider holds a credential', async () => {
+    const { status, body } = await get('/catalogue');
+    expect(status).toBe(200);
+    // The positive half. Without it, every assertion below is satisfied by a
+    // catalogue that calls everything unavailable.
+    expect(availability(body)).toEqual({
+      'profile:lite': 'available',
+      'profile:v1-codea': 'available',
+      'profile:v1-pro': 'available',
+    });
+  });
+
+  it('is UNAVAILABLE when no provider holds one, which is the shipped bug', async () => {
+    state.credentialed = [];
+    const { status, body } = await get('/catalogue');
+    expect(status).toBe(200);
+    // Same routes, same breakers, same everything except the credential.
+    expect(availability(body)).toEqual({
+      'profile:lite': 'unavailable',
+      'profile:v1-codea': 'unavailable',
+      'profile:v1-pro': 'unavailable',
+    });
+  });
+
+  it('withdraws exactly the entries that depended on the withdrawn provider', async () => {
+    /**
+     * THE assertion, and the one the team asked for: taking one provider's
+     * credential away must remove its entries and leave the others standing. A
+     * derivation keyed on anything global — a flag, a count, the health table
+     * as a whole — passes the two cases above and fails this one.
+     */
+    state.mappings = {
+      lite: [mapping('one'), { ...mapping('two'), provider: 'other' }],
+      'v1-codea': [mapping('three')],
+      'v1-pro': [{ ...mapping('four'), provider: 'other' }],
+    };
+    state.credentialed = ['other'];
+
+    expect(availability((await get('/catalogue')).body)).toEqual({
+      // One route on `acme` (dead) and one on `other` (live): one servable
+      // route is enough, which is what the fallback engine needs.
+      'profile:lite': 'available',
+      // Its only route is on the provider with no credential.
+      'profile:v1-codea': 'unavailable',
+      'profile:v1-pro': 'available',
+    });
+
+    // …and the mirror, so the mapping between provider and entry is measured in
+    // both directions rather than in whichever one today's fixture takes.
+    state.credentialed = ['acme'];
+    expect(availability((await get('/catalogue')).body)).toEqual({
+      'profile:lite': 'available',
+      'profile:v1-codea': 'available',
+      'profile:v1-pro': 'unavailable',
+    });
+  });
+
+  it('holds an OPEN circuit against a credentialed route', async () => {
+    // The half that already worked, kept measured: a credential is necessary
+    // and not sufficient.
+    state.health = [{ provider: 'acme', modelId: 'three', circuitState: 'open' }];
+    expect(availability((await get('/catalogue')).body)['profile:v1-codea']).toBe('unavailable');
+
+    // A closed breaker on the same route is available, so the assertion above
+    // is about the STATE and not about the row existing.
+    state.health = [{ provider: 'acme', modelId: 'three', circuitState: 'closed' }];
+    expect(availability((await get('/catalogue')).body)['profile:v1-codea']).toBe('available');
+  });
+
+  it('does not hold a breaker nothing has recorded against a route', async () => {
+    // `getAllProviderHealth` returns rows for pairs that have been CALLED, so a
+    // never-called route has none — and reading that as broken would empty the
+    // catalogue of everything new.
+    state.health = [];
+    expect(availability((await get('/catalogue')).body)['profile:v1-codea']).toBe('available');
+  });
+
+  it('refuses to answer at all when the credential table cannot be read', async () => {
+    /**
+     * The one place the permissive direction is wrong, and the opposite of the
+     * health read. "We could not find out" must not serialize as "nothing is
+     * available": a transient Postgres blip would otherwise manufacture a total
+     * outage out of one failed query, and the client would cache it.
+     */
+    state.credentialsThrow = true;
+    const { status, body } = await get('/catalogue');
+    expect(status).toBe(500);
+    expect(body.data).toBeUndefined();
+  });
 });
 
 describe('the catalogue distinguishes a model from a routing profile by TYPE', () => {

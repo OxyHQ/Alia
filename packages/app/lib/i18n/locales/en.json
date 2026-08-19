@@ -838,7 +838,6 @@
     "contextOf": "{{tokens}} context",
     "maxOutputOf": "{{tokens}} reply",
     "unknownOf": "{{capabilities}} unknown",
-    "unavailable": "Unavailable",
     "retiringOn": "Stops working on {{date}}",
     "selectionReplaced": "Your previous choice is no longer offered. Using {{model}}.",
     "capabilities": {

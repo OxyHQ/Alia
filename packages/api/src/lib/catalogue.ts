@@ -60,6 +60,7 @@
 import {
   getAllProviderHealth,
   getAvailableModels,
+  providersWithUsableCredentials,
   getTierMappings,
   getPlans,
   type ModelMapping,
@@ -313,6 +314,21 @@ export interface Candidate {
    */
   readonly model: string | null;
   readonly capabilities: Record<string, unknown>;
+  /**
+   * Whether a request could actually be served on this route right now.
+   *
+   * Two conditions, and the first is the one whose absence made every entry in
+   * this catalogue claim to be available: the route's PROVIDER must hold a
+   * usable credential, and the route's circuit breaker must not be open.
+   * `getBestKeyForModel` returns `null` for a provider with no key, so a route
+   * without one is not a slow route or a degraded route — it is a route the
+   * fallback engine walks past every time.
+   *
+   * Not nullable, unlike its neighbours. A credential either exists or it does
+   * not; there is no third state to represent, and an `unknown` here would be
+   * the permissive reading that produced the bug.
+   */
+  readonly servable: boolean;
   /** Who this route may be served to. `null` is unclassified, which is not a scope. */
   readonly availabilityScope: AvailabilityScope | null;
   /** What this route's licence requires be displayed, whole or not at all. */
@@ -383,7 +399,17 @@ export interface CatalogueSource {
   readonly tier: string;
   readonly emoji?: string;
   readonly creditMultiplier: number;
-  readonly isAvailable: boolean;
+  /**
+   * There is deliberately NO `isAvailable` here.
+   *
+   * It used to be one, read off the alias, and it is what made this catalogue
+   * tell a person that thirty models were available when the deployment held no
+   * provider credential at all — `getAvailableModels` answers from circuit
+   * breakers alone, and a breaker nothing has ever called is closed. So the
+   * question moved to where the answer is: availability is derived from the
+   * CANDIDATES, exactly as capabilities and provenance are, and a source that
+   * cannot state it cannot get it wrong.
+   */
   readonly isLegacy: boolean;
 }
 
@@ -494,7 +520,10 @@ export function buildEntry(
     chatVisible: isProfileOffered(source.offeredProfileId),
     capabilities: deriveCapabilities(candidates),
     availability: {
-      status: source.isAvailable ? 'available' : 'unavailable',
+      // Derived, not declared. One servable route is enough — that is what the
+      // fallback engine needs to answer — and zero candidates is honestly
+      // unavailable rather than inheriting whatever the alias claimed.
+      status: candidates.some((candidate) => candidate.servable) ? 'available' : 'unavailable',
       legacy: source.isLegacy,
       scope: admitEntry(candidates.map((c) => c.availabilityScope), audience),
     },
@@ -621,18 +650,52 @@ export async function loadAllowedModelIds(userId: string | null): Promise<string
 }
 
 /**
+ * What decides whether a route could serve a request right now.
+ *
+ * Two facts, read once for the whole catalogue rather than per route: which
+ * providers hold a usable credential, and which routes have an open circuit.
+ */
+export interface ServingConditions {
+  /** Provider names holding at least one usable credential. Empty means none. */
+  readonly credentialedProviders: ReadonlySet<string>;
+  /** `provider\u0000modelId` for every route whose circuit is currently open. */
+  readonly openCircuits: ReadonlySet<string>;
+}
+
+/**
+ * Can this route answer a request?
+ *
+ * The credential half is the one that was missing, and it is not a nuance:
+ * measured against production on 2026-08-19, `provider_keys` held ZERO rows, so
+ * every one of the 58 configured provider/model pairs was unservable — and the
+ * catalogue reported all thirty models available, because the only thing it
+ * consulted was a circuit breaker that nothing had ever tripped. A breaker
+ * records what happened to traffic; it cannot record traffic that never left.
+ *
+ * The circuit half is unchanged and stays second: OPEN is the only state read
+ * as unusable, matching the engine's own skip, because closed, half-open and
+ * never-recorded are all states it will try.
+ */
+export function isServable(route: ModelMapping, conditions: ServingConditions): boolean {
+  if (!conditions.credentialedProviders.has(route.provider)) return false;
+  return !conditions.openCircuits.has(routeKey(route.provider, route.modelId));
+}
+
+/**
  * A route, as the derivation sees it.
  *
  * One function for both loops below, so a profile entry and a model entry
  * cannot end up describing the same route differently — which is the shape of
- * bug that makes a picker and its detail panel disagree.
+ * bug that makes a picker and its detail panel disagree, and now also the shape
+ * that would let one of them claim to be servable while the other knows better.
  */
-function toCandidate(route: ModelMapping): Candidate {
+function toCandidate(route: ModelMapping, conditions: ServingConditions): Candidate {
   return {
     modelId: route.modelId,
     capabilities: route.capabilities,
     publisher: route.publisher ?? null,
     model: route.model ?? null,
+    servable: isServable(route, conditions),
     availabilityScope: route.availabilityScope ?? null,
     attribution: route.attribution ?? null,
   };
@@ -661,11 +724,12 @@ function routeKey(provider: string, modelId: string): string {
  *
  * Open is the only state read as unavailable, matching the engine's own skip —
  * closed, half-open and never-recorded are all states it will try. A route the
- * health table has never heard of is therefore available, which is correct on a
- * cold start and is the same permissive direction `getAllProviderHealth`
- * already takes: it swallows its own read failures and answers with an empty
- * list, so an unreadable health table reports everything available rather than
- * hiding the whole catalogue behind an infrastructure fault.
+ * health table has never heard of is therefore not held against it, which is
+ * correct on a cold start and is the same permissive direction
+ * `getAllProviderHealth` already takes: it swallows its own read failures and
+ * answers with an empty list, so an unreadable health table does not hide the
+ * whole catalogue behind an infrastructure fault. The CREDENTIAL half is what
+ * makes that safe — a route with no key is refused whatever the breaker says.
  */
 async function loadOpenCircuits(): Promise<ReadonlySet<string>> {
   try {
@@ -676,9 +740,35 @@ async function loadOpenCircuits(): Promise<ReadonlySet<string>> {
     }
     return open;
   } catch (err: unknown) {
-    log.models.warn({ err }, 'Provider health unavailable; every route reported reachable');
+    log.models.warn({ err }, 'Provider health unavailable; no route held against its breaker');
     return new Set<string>();
   }
+}
+
+/**
+ * Both halves of "can this route answer", read once.
+ *
+ * ## A credential read that FAILS is not "no credentials"
+ *
+ * This is the one place the permissive direction would be wrong, and it is the
+ * opposite of the health read above. An unreadable health table means "nothing
+ * is known to be broken", which is a safe thing to assume. An unreadable
+ * credential table would mean "no provider has a key", which would empty the
+ * entire catalogue on a transient Postgres blip — a total product outage
+ * manufactured out of one failed query.
+ *
+ * So a failure RETHROWS, and `buildCatalogue`'s caller turns it into the 500 it
+ * already has for a catalogue it could not build. "We could not work out what
+ * is available" and "nothing is available" are different answers and only one
+ * of them is true, which is the same distinction `loadPlanGrants` draws when it
+ * refuses to serve an unfiltered list.
+ */
+async function loadServingConditions(): Promise<ServingConditions> {
+  const [credentialedProviders, openCircuits] = await Promise.all([
+    providersWithUsableCredentials(),
+    loadOpenCircuits(),
+  ]);
+  return { credentialedProviders, openCircuits };
 }
 
 export interface CatalogueOptions {
@@ -761,12 +851,12 @@ export type CatalogueResult =
  * selection is a separate product decision and is not expressed by position.
  */
 export async function buildCatalogue(options: CatalogueOptions): Promise<CatalogueResult> {
-  const [sources, tierMappings, plans, allowedModelIds, openCircuits] = await Promise.all([
+  const [sources, tierMappings, plans, allowedModelIds, conditions] = await Promise.all([
     getAvailableModels(),
     getTierMappings(),
     loadPlanGrants(),
     loadAllowedModelIds(options.userId),
-    loadOpenCircuits(),
+    loadServingConditions(),
   ]);
 
   if (options.product !== undefined && plans === null) return { ok: false, unavailable: 'plans' };
@@ -803,7 +893,9 @@ export async function buildCatalogue(options: CatalogueOptions): Promise<Catalog
     // entry with no price and no availability.
     if (source === undefined) continue;
 
-    const candidates: Candidate[] = (tierMappings[preset.tier] ?? []).map(toCandidate);
+    const candidates: Candidate[] = (tierMappings[preset.tier] ?? []).map((route) =>
+      toCandidate(route, conditions),
+    );
     // Counted over every candidate the catalogue looked at, including those on
     // entries a filter then removed: the question this answers is "does Relay
     // carry this fact yet", which is a property of the data and not of the
@@ -858,7 +950,7 @@ export async function buildCatalogue(options: CatalogueOptions): Promise<Catalog
     const source = byAlias.get(model.alias);
     if (source === undefined) continue;
 
-    const candidates = model.deployments.map(toCandidate);
+    const candidates = model.deployments.map((route) => toCandidate(route, conditions));
     const entitlement =
       plans === null ? { state: 'unknown' as const } : resolveEntitlement(model.alias, plans, allowedModelIds);
 
@@ -888,7 +980,6 @@ export async function buildCatalogue(options: CatalogueOptions): Promise<Catalog
         category: model.category,
         tier: model.tier,
         creditMultiplier: model.creditMultiplier,
-        isAvailable: model.deployments.some((route) => !openCircuits.has(routeKey(route.provider, route.modelId))),
         // A model is not retired: `isLegacy` is a flag on an ALIAS, set by the
         // admin tool to retire an identifier the product used to advertise.
         isLegacy: false,

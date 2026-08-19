@@ -800,7 +800,6 @@
     "contextOf": "{{tokens}} de contexto",
     "maxOutputOf": "{{tokens}} de respuesta",
     "unknownOf": "{{capabilities}}: se desconoce",
-    "unavailable": "No disponible",
     "retiringOn": "Deja de funcionar el {{date}}",
     "selectionReplaced": "Tu elección anterior ya no se ofrece. Se usará {{model}}.",
     "capabilities": {
