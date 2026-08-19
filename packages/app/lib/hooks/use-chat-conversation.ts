@@ -6,6 +6,7 @@ import { useStore, type Attachment } from "@/lib/stores/global-store";
 import { useStreamingChat } from "@/lib/hooks/use-streaming-chat";
 import { useConversation, useCreateConversation } from "@/lib/hooks/use-conversations";
 import { generateAPIUrl } from "@/lib/generate-api-url";
+import { API_ROUTES } from "@/lib/api/routes";
 import { buildMessageContent } from "@/lib/attachment-utils";
 import type { Role } from "@/lib/stores/roles-store";
 import type { ScrollView as GHScrollView } from "react-native-gesture-handler";
@@ -31,6 +32,19 @@ export function useChatConversation({ conversationId, activeRole, thinkingMode, 
   const { data: conversation, isLoading: conversationQueryLoading, isFetching: conversationFetching } = useConversation(conversationId || "");
   const createConversationMutation = useCreateConversation();
 
+  /**
+   * The product runtime, not the compatibility surface.
+   *
+   * `/alia/chat` and `/v1/chat/completions` are the same handler
+   * (`packages/api/src/routes/chat.ts`), so the request and response shapes are
+   * identical by construction — but ADR 0004 makes `/v1/*` a bounded-window
+   * compatibility surface for EXTERNAL callers, and
+   * `docs/migration/compatibility-window.md` gates its removal route by route on
+   * first-party consumers having migrated. Naming the generic path here is what
+   * made it canonical (epic #139 workstream 6). Two side effects, both wanted:
+   * the app leaves the per-surface deprecation clock, and `/alia/chat` is the
+   * mount that gets `setNoDelay` + `setTimeout(0)` for long SSE streams.
+   */
   const {
     messages,
     append,
@@ -41,7 +55,7 @@ export function useChatConversation({ conversationId, activeRole, thinkingMode, 
     stop,
     approvePlan,
     rejectPlan,
-  } = useStreamingChat(generateAPIUrl('/v1/chat/completions'), activeRole, conversationId, thinkingMode, selectedModel, skillId, agentId);
+  } = useStreamingChat(generateAPIUrl(API_ROUTES.chat.alia), activeRole, conversationId, thinkingMode, selectedModel, skillId, agentId);
 
   // Expose streaming state globally so sidebar can show a spinner
   const setStreamingChatId = useStore((s) => s.setStreamingChatId);

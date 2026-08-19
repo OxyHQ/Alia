@@ -48,7 +48,15 @@ export const API_ROUTES = {
     get: '/credits',
   },
 
-  // Chat routes
+  /**
+   * Chat routes.
+   *
+   * `/alia/chat` is the product runtime (ADR 0004) and is what every chat caller
+   * in this app names. There is deliberately no `chatCompletions` entry beside
+   * it: `/v1/chat/completions` is the bounded-window compatibility surface for
+   * external callers, and a constant here pointing at it is how a product client
+   * ends up on it again — epic #139 workstream 6.
+   */
   chat: {
     alia: '/alia/chat',
   },
@@ -145,7 +153,6 @@ export const API_ROUTES = {
 
   // API v1 routes (OpenAI compatible)
   v1: {
-    chatCompletions: '/v1/chat/completions',
     models: '/v1/models',
     audioSpeech: '/v1/audio/speech',
     audioGenerate: '/v1/audio/generate',

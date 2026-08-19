@@ -150,6 +150,18 @@ function PlaygroundPage() {
     abortControllerRef.current = new AbortController();
 
     try {
+      /**
+       * The playground stays on `/v1/chat/completions` — epic #139 workstream 6,
+       * where every other first-party client moved to `POST /alia/chat`.
+       *
+       * This one is not a product client. It is the interactive form of
+       * `documentation/chat-completions.tsx`, which documents this exact path,
+       * one nav entry away in the same sidebar; a playground that exercises a
+       * different endpoint than the page beside it documents stops being a
+       * playground. Under ADR 0004 the developer console's audience is the
+       * generic-inference audience, which is who the compatibility surface is
+       * for, so this call and those docs retire together rather than separately.
+       */
       const response = await fetch(`${config.apiUrl}/v1/chat/completions`, {
         method: 'POST',
         headers: {

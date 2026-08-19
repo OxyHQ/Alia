@@ -189,13 +189,38 @@ export class APIClient {
 
   /**
    * Non-streaming chat completion (Discord, gateway adapters).
+   *
+   * ## Why `/alia/chat` and not `/v1/chat/completions`
+   *
+   * Both mounts run the identical `handleChatCompletions`
+   * (`packages/api/src/routes/chat.ts`), so the OpenAI-shaped body below and the
+   * `choices[0].message` it reads back are unchanged. What differs is which
+   * surface this service depends on: ADR 0004 makes `/v1/*` a bounded-window
+   * compatibility surface for EXTERNAL callers, and
+   * `docs/migration/compatibility-window.md` gates its per-route removal on
+   * first-party consumers having migrated. This service is a first-party
+   * consumer — epic #139 workstream 6.
+   *
+   * The credential carries across because `authenticateTokenOrApiKey` reads
+   * `x-channel-bot-secret` itself (`packages/api/src/middleware/auth.ts`) and
+   * `/alia/chat` mounts it. Measured 2026-08-19 against the running service: a
+   * deliberately wrong secret gets `401 Invalid channel bot authentication` from
+   * BOTH paths, identically, where a nonexistent path gets 404. One difference
+   * survives and is narrower here: `/v1` matches the secret against every
+   * registered channel, `/alia/chat` against `getConfiguredChannels()` only, so
+   * a channel whose bot secret is set while the rest of its configuration is not
+   * authenticates on `/v1` and not here.
+   *
+   * CORS is not a factor: this is a server-to-server call with no `Origin`
+   * header, which `createOxyCors` passes through untouched. A browser client
+   * would be refused — which is why `@alia.onl/sdk` deliberately stays on `/v1`.
    */
   async chatCompletion(
     oxyUserId: string,
     messages: Array<{ role: string; content: MessageContent }>,
     options: { model?: string; conversationId?: string } = {},
   ): Promise<{ content: string; finishReason: string }> {
-    const response = await fetch(`${this.baseURL}/v1/chat/completions`, {
+    const response = await fetch(`${this.baseURL}/alia/chat`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -251,13 +276,18 @@ export class APIClient {
   /**
    * Streaming chat completion — async generator yielding text deltas (Telegram).
    * Tools execute server-side; only text content is yielded.
+   *
+   * `/alia/chat` for the reason given on `chatCompletion` above. The SSE frames
+   * parsed below are the same frames, from the same handler; `/alia/chat` is
+   * additionally the mount that gets `setNoDelay(true)` and `setTimeout(0)`
+   * (`packages/api/src/index.ts`), which is what a long stream wants.
    */
   async *chatCompletionStream(
     oxyUserId: string,
     messages: Array<{ role: string; content: MessageContent }>,
     options: { model?: string; conversationId?: string } = {},
   ): AsyncGenerator<string, void, undefined> {
-    const response = await fetch(`${this.baseURL}/v1/chat/completions`, {
+    const response = await fetch(`${this.baseURL}/alia/chat`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

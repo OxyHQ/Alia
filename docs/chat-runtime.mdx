@@ -11,15 +11,21 @@ order: 1
 `packages/api/src/routes/chat.ts:8` dispatches `/alia/chat` straight to it, and both
 routers are mounted side by side at `packages/api/src/index.ts:227` and `:228`.
 
-They are not identical, and the difference matters: `/alia/chat` is mounted with
-`optionalAuth` (`routes/chat.ts:8`) while `/v1/*` is mounted with
-`authenticateTokenOrApiKey` (`packages/api/src/routes/v1.ts:59`) plus a per-key rate limit
-(`:62`). Same runtime, different front door.
+Both are mounted with `authenticateTokenOrApiKey` plus the same per-key rate limit
+(`routes/chat.ts`, `packages/api/src/routes/v1.ts:59` and `:62`). `/alia/chat` carried
+`optionalAuth` until #139 workstream 6, which is when the two front doors stopped
+differing; every remaining difference between the surfaces is enumerated in
+`packages/api/src/routes/__tests__/v1-compatibility-surface.test.ts`.
 
-Every Alia surface — the Expo app, Codea, Cowork, the CLI and the SDK — calls
-`/v1/chat/completions`. No caller in this repository posts to `/alia/chat`: outside
-`packages/api` it appears only as an unread constant (`packages/app/lib/api/routes.ts:53`)
-and as an example in a doc comment (`packages/app/lib/generate-api-url.ts:9`).
+**Which surface each client calls.** The Expo app, the Codea chat participant and inline
+completions, and the integrations service post to `/alia/chat` — the product runtime, under
+ADR 0004. Three clients deliberately stay on `/v1/chat/completions` and each says why at
+the call site: `@alia.onl/sdk`, because it ships raw source into consumer apps on origins
+the product surface's CORS allowlist does not carry; the developer console's playground,
+because it is the interactive form of the documentation page beside it; and the
+OpenAI-protocol clients — the CLI, Cowork and the Codea webview — because the `openai`
+package derives `POST {baseURL}/chat/completions` itself. The whole census is frozen as
+gate 8 of `packages/api/src/__tests__/architectureGates.test.ts`.
 
 ## The Relay boundary
 
