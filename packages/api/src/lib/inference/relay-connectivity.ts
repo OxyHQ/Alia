@@ -17,30 +17,28 @@
  * module is where it becomes visible, and the client reports into it from the
  * two places that already decide the question.
  *
- * ## Why an open circuit does not make a task NOT READY on its own
- *
- * It does, and the reason it is safe is worth stating rather than assuming.
+ * ## An open circuit does NOT make a task not-ready, and once it did
  *
  * A readiness probe that fails on a SHARED downstream dependency converts a
  * partial outage into a total one: every task's circuit opens at the same
  * moment, every task leaves rotation, and requests that never touch inference
- * fail too. That is why `/health/live` consults nothing at all (see
- * `routes/health.ts`) and why the provider check in `/health/ready` is written
- * to tolerate an unreachable gateway.
+ * fail too. That is why `/health/live` consults nothing at all, and it is why
+ * `/health/ready` now consults neither this signal nor provider health — see
+ * `routes/health.ts`, which carries the full argument and the two specifics
+ * that decide it.
  *
- * Three things bound it here:
+ * This module previously exported a `relayBlocksReadiness()` that the route
+ * acted on, bounded by three properties which were all true and none of which
+ * were sufficient — the flag being off, a cold task reporting `'unknown'`, and
+ * the state expiring by itself. They bounded how OFTEN the gate could fire, not
+ * what happened when it did, and what happened when it did was that every task
+ * left rotation at once. The three still hold and still matter for the REPORT:
  *
- *  1. **The flag.** With `ALIA_RELAY_CLIENT_ENABLED` off — which is everywhere
- *     today — this reports {@link RelayConnectivity} `'disabled'` and readiness
- *     is computed exactly as it was before this module existed.
- *  2. **A cold task is `'unknown'`, not `'unreachable'`.** A task that has never
- *     called Relay has no evidence about it, and reporting not-ready would
- *     deadlock: a task out of rotation receives no request, so it can never
- *     acquire the evidence that would put it back in.
- *  3. **The state expires by itself.** `'unreachable'` is recorded with the
- *     instant the client's own cooldown ends, so it lapses to `'unknown'`
- *     without anything having to clear it. A stale `unreachable` cannot pin a
- *     task out of rotation forever.
+ *  1. **The flag.** With `ALIA_RELAY_CLIENT_ENABLED` off — everywhere today —
+ *     this reports {@link RelayConnectivity} `'disabled'`.
+ *  2. **A cold task is `'unknown'`, not `'unreachable'`.** No call, no evidence.
+ *  3. **The state expires by itself**, recorded with the instant the client's
+ *     own cooldown ends, so it lapses to `'unknown'` with nothing to clear it.
  */
 
 import { isRelayClientEnabled } from './relay-cutover.js';
@@ -116,16 +114,31 @@ export function relayConnectivity(
 }
 
 /**
- * Whether this task should be taken out of rotation on Relay's account.
+ * Relay does NOT gate readiness, and the function that made it do so is gone.
  *
- * Exactly one state qualifies. Written as its own predicate rather than inlined
- * into the route so that the route cannot accidentally widen it to "anything
- * that is not `reachable`" — which would take every cold task out of rotation
- * the moment the flag was turned on, and there would be no way back in.
+ * `relayBlocksReadiness()` lived here and returned `connectivity === 'unreachable'`,
+ * and `/health/ready` returned 503 on it. It was deleted rather than left
+ * exported-and-unused, because an exported predicate named "blocks readiness" is
+ * an invitation to wire it back up.
+ *
+ * The reason is the one the header above already argues, applied to this
+ * module's own signal. Where the OBSERVATION lives is not the question; where
+ * the FAULT lives is. This registry is per-process, but Relay being unreachable
+ * is not a per-process fact — every task discovers the same outage within a
+ * probe interval and they deregister together, which is precisely the
+ * partial-outage-into-total-outage the header is written against.
+ *
+ * Two specifics, if the general argument is not enough:
+ *
+ *  1. `CIRCUIT_TRIPPING_CODES` in `relay-client.ts` includes
+ *     `provider_overloaded` and `provider_timeout`. Those are UPSTREAM PROVIDER
+ *     conditions, so a readiness gate here would deregister the fleet on
+ *     provider state — which `routes/health.ts` removed from readiness for
+ *     exactly this reason. It would have come back in through this door.
+ *  2. Relay implements `AliaInferencePort` and nothing else, so a task that
+ *     cannot reach it still serves authentication, conversation reads, billing
+ *     and MCP. Keeping it in rotation is worth a lot.
+ *
+ * {@link relayConnectivity} remains and is REPORTED — by `/health` and in
+ * `/health/ready`'s body. Reporting was always the useful half.
  */
-export function relayBlocksReadiness(
-  env: NodeJS.ProcessEnv = process.env,
-  now: number = Date.now(),
-): boolean {
-  return relayConnectivity(env, now) === 'unreachable';
-}

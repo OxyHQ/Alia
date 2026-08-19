@@ -13,7 +13,6 @@ import {
   type RelayTransportRequest,
 } from '../relay-client.js';
 import {
-  relayBlocksReadiness,
   relayConnectivity,
   reportRelayReachable,
   reportRelayUnavailableUntil,
@@ -71,10 +70,11 @@ describe('with the cutover flag off Relay does not enter the health answer', () 
     expect(relayConnectivity(ENABLED, 1_000)).toBe('unreachable');
   });
 
-  it('never blocks readiness', () => {
+  it('reports disabled even with an unavailability recorded', () => {
     reportRelayUnavailableUntil(9_999_999);
-    expect(relayBlocksReadiness(DISABLED, 1_000)).toBe(false);
-    expect(relayBlocksReadiness(ENABLED, 1_000)).toBe(true);
+    expect(relayConnectivity(DISABLED, 1_000)).toBe('disabled');
+    // The control, so `disabled` is the flag rather than an unwritten registry.
+    expect(relayConnectivity(ENABLED, 1_000)).toBe('unreachable');
   });
 
   it('is off for every value that is not exactly the literal true', () => {
@@ -89,19 +89,17 @@ describe('with the cutover flag off Relay does not enter the health answer', () 
 /*  The states, and the one that must not block a cold task                    */
 /* -------------------------------------------------------------------------- */
 
-describe('the four states are distinguished, and only one blocks readiness', () => {
+describe('the four states are distinguished, and none of them blocks readiness', () => {
   it('a cold task is unknown and stays in rotation', () => {
     // The deadlock this prevents: a task out of rotation receives no request, so
     // it can never acquire the evidence that would put it back in. "No evidence"
     // must therefore be ready.
     expect(relayConnectivity(ENABLED, 1_000)).toBe('unknown');
-    expect(relayBlocksReadiness(ENABLED, 1_000)).toBe(false);
   });
 
   it('a completed call makes it reachable', () => {
     reportRelayReachable();
     expect(relayConnectivity(ENABLED, 1_000)).toBe('reachable');
-    expect(relayBlocksReadiness(ENABLED, 1_000)).toBe(false);
   });
 
   it('an open circuit makes it unreachable until the cooldown lapses', () => {
@@ -110,7 +108,6 @@ describe('the four states are distinguished, and only one blocks readiness', () 
     // Self-expiring: nothing has to clear it, so a stale sample cannot pin a
     // task out of rotation forever.
     expect(relayConnectivity(ENABLED, 5_000)).toBe('unknown');
-    expect(relayBlocksReadiness(ENABLED, 5_000)).toBe(false);
   });
 
   it('a success closes a recorded unavailability immediately', () => {
@@ -259,7 +256,6 @@ describe('the Relay client is what reports connectivity (#139 ws8)', () => {
 
     // The cooldown is 30s from the injected clock's 1_000.
     expect(relayConnectivity(ENABLED, 2_000)).toBe('unreachable');
-    expect(relayBlocksReadiness(ENABLED, 2_000)).toBe(true);
     expect(relayConnectivity(ENABLED, 31_001)).toBe('unknown');
   });
 
@@ -306,13 +302,35 @@ describe('the health route reads the signal (#139 ws8)', () => {
     expect(source).toContain("router.get('/live'");
   });
 
-  it('puts Relay in the snapshot and in the readiness decision', () => {
-    // A mechanism can be green and inert; this is the assertion that the
-    // ENTRYPOINT calls it. Both functions, because they answer different
-    // questions and the route needs both.
+  it('puts Relay in the snapshot, and gives it no power to deregister a task', () => {
+    // A mechanism can be green and inert, so the first line is the assertion
+    // that the ENTRYPOINT calls it at all.
     expect(source).toContain('relayConnectivity()');
-    expect(source).toContain('relayBlocksReadiness()');
-    expect(source).toContain("reason: 'relay_unreachable'");
+
+    /**
+     * The other two are the REMOVAL, frozen. `relayBlocksReadiness()` used to be
+     * called here and `/health/ready` used to answer 503 `relay_unreachable`,
+     * which deregistered every task at once the moment Relay stopped answering
+     * — Relay being unreachable is not a per-task fact, however per-process the
+     * observation is. The full argument is in `relay-connectivity.ts` and in
+     * `routes/health.ts`.
+     *
+     * A source-text assertion is the weak form and it is the right one HERE:
+     * the behaviour is already pinned as status codes in
+     * `routes/__tests__/health-route.test.ts`, and what this adds is that the
+     * SYMBOL cannot quietly reappear in the route under a rewritten condition.
+     */
+    const readyStart = source.indexOf("router.get('/ready'");
+    const readyEnd = source.indexOf('export default', readyStart);
+    expect(readyStart).toBeGreaterThan(0);
+    expect(readyEnd).toBeGreaterThan(readyStart);
+    const readyHandler = source.slice(readyStart, readyEnd);
+    // Floor: the slice really is the handler, so an empty read cannot pass.
+    expect(readyHandler).toContain('isPostgresReady');
+
+    for (const gone of ['relayBlocksReadiness', 'relay_unreachable', 'no_healthy_providers']) {
+      expect(readyHandler, `/ready acts on ${gone}`).not.toContain(gone);
+    }
   });
 
   it('leaves the liveness probe consulting nothing', () => {
@@ -328,7 +346,7 @@ describe('the health route reads the signal (#139 ws8)', () => {
     expect(readyStart).toBeGreaterThan(liveStart);
     const liveHandler = source.slice(liveStart, readyStart);
     expect(liveHandler).toContain("status: 'alive'");
-    for (const forbidden of ['relayConnectivity', 'relayBlocksReadiness', 'await']) {
+    for (const forbidden of ['relayConnectivity', 'relayBlocksReadiness', 'summariseProviders', 'await']) {
       expect(liveHandler, `/live consults ${forbidden}`).not.toContain(forbidden);
     }
   });

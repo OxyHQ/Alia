@@ -267,7 +267,23 @@ describe('/health/live answers only "this process is running"', () => {
 /*  Readiness, per connectivity state                                          */
 /* -------------------------------------------------------------------------- */
 
-describe('/health/ready acts on Relay connectivity, after the cutover', () => {
+/**
+ * Relay is REPORTED by readiness and never acted on by it.
+ *
+ * `/health/ready` used to answer 503 `relay_unreachable` on an open circuit.
+ * The observation is per-process, but Relay being unreachable is not a per-task
+ * fact — every task discovers the same outage within a probe interval and they
+ * all deregister together, which is the outage `relay-connectivity.ts`'s own
+ * header is written against. Two specifics decide it: `provider_overloaded` and
+ * `provider_timeout` are among the four codes that open that circuit, so the
+ * gate would have deregistered the fleet on UPSTREAM PROVIDER state; and Relay
+ * implements `AliaInferencePort` alone, so a task that cannot reach it still
+ * serves authentication, conversation reads, billing and MCP.
+ *
+ * So the body still names the state — every case below reads it — and the
+ * status code no longer moves with it.
+ */
+describe('/health/ready reports Relay connectivity without acting on it', () => {
   it('is ready and reports disabled while the cutover flag is off', async () => {
     // Every deployment that exists. Recorded as a status code so a change to it
     // is a change to this test, not a comment.
@@ -290,13 +306,19 @@ describe('/health/ready acts on Relay connectivity, after the cutover', () => {
     expect(body).toEqual({ status: 'ready', relay: 'reachable' });
   });
 
-  it('is NOT ready while a circuit is open', async () => {
-    // The assertion the source-text guard could not make. An inverted condition
-    // returns 200 here and fails this test by status code alone.
+  it('is READY while the circuit is open, and says so in the same breath', async () => {
+    /**
+     * The case that changed, and the one a re-added gate makes 503.
+     *
+     * `relay: 'unreachable'` in a 200 body is the whole design in one line: the
+     * task reports the outage truthfully and stays in rotation, because taking
+     * it out would remove every task at once and take authentication,
+     * conversations, billing and MCP down with inference.
+     */
     vi.stubEnv(RELAY_CLIENT_ENABLED_ENV, 'true');
     const { status, body } = await probe('/health/ready', { relay: UNAVAILABLE });
-    expect(status).toBe(503);
-    expect(body).toEqual({ status: 'not_ready', reason: 'relay_unreachable' });
+    expect(status).toBe(200);
+    expect(body).toEqual({ status: 'ready', relay: 'unreachable' });
   });
 
   it('is ready again once the cooldown lapses, without anything clearing it', async () => {
@@ -306,9 +328,10 @@ describe('/health/ready acts on Relay connectivity, after the cutover', () => {
     expect(body).toEqual({ status: 'ready', relay: 'unknown' });
   });
 
-  it('reports the database failure ahead of Relay, because it is the older signal', async () => {
-    // Order is behaviour: an operator reading `relay_unreachable` would go and
-    // look at Relay while the actual fault was Postgres.
+  it('refuses on Postgres even while Relay is also unreachable', async () => {
+    // The remaining condition still fires when Relay is down too, and it names
+    // the fault an operator should go and look at. With the Relay gate gone
+    // this is also the only 503 `/health/ready` can produce.
     vi.stubEnv(RELAY_CLIENT_ENABLED_ENV, 'true');
     const { status, body } = await probe('/health/ready', { postgresReady: false, relay: UNAVAILABLE });
     expect(status).toBe(503);
@@ -510,10 +533,16 @@ describe('/health tells never-called apart from healthy (and both from unusable)
  * serve the API", `/health` answers "can the FLEET serve inference". Both
  * answers stay honest; only the first one may move a target out of rotation.
  *
+ * The criterion is NOT "is the signal process-local" — Relay's observation is
+ * per-process and still failed, because that says where the evidence is stored
+ * and not where the fault is. It is **does this task's failure DIFFER from its
+ * siblings'**, since deregistering only helps if there is a healthier task to
+ * receive the request instead.
+ *
  * Every case below drives the real router and reads the status code, because
  * the status code is the entire behaviour under discussion.
  */
-describe('readiness is process-local, and /health keeps the fleet-wide truth', () => {
+describe('readiness answers for the task, and /health keeps the fleet-wide truth', () => {
   /**
    * Nothing serves: one open circuit, one the breaker ruled against.
    *
@@ -587,15 +616,17 @@ describe('readiness is process-local, and /health keeps the fleet-wide truth', (
     expect(body).toEqual({ status: 'ready', relay: 'disabled' });
   });
 
-  it('/health/ready still refuses on the PROCESS-LOCAL condition', async () => {
+  it('/health/ready still refuses on the ONE condition that survives the test', async () => {
     /**
      * The discriminator. Without it every assertion above is satisfied by an
      * endpoint hard-wired to 200, which would be a probe that cannot fail —
-     * precisely the defect `/health/live` was moved away from.
+     * precisely the defect `/health/live` is being moved away from.
      *
-     * This task's pool cannot answer, so this task can serve no route at all.
-     * Shared in the sense that one database serves every task, different in
-     * KIND: deregistering costs the balancer nothing it could have delivered.
+     * Postgres passes the test the other two failed: a pool can be broken,
+     * exhausted or mid-failover for THIS task while its sibling is fine, and
+     * then deregistering moves traffic somewhere that works. In the total case
+     * nothing is lost either — a task that cannot reach Postgres can serve no
+     * route at all, so the balancer had nothing to deliver.
      */
     const { status, body } = await probe('/health/ready', {
       postgresReady: false,
