@@ -151,7 +151,7 @@ export class DiscordBotAdapter implements BotAdapter {
                 { name: '/start', value: 'Link account' },
                 { name: '/status', value: 'Check status' },
                 { name: '/new', value: 'New conversation' },
-                { name: '/model [name]', value: 'Change model' },
+                { name: '/model [mode]', value: 'Choose how Alia answers' },
                 { name: '/logout', value: 'Disconnect' },
               ],
             }],

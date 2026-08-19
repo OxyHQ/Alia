@@ -44,7 +44,13 @@ export class TelegramBotAdapter implements BotAdapter {
     await bot.telegram.setMyCommands([
       { command: 'start', description: 'Link your Alia account' },
       { command: 'status', description: 'View account status and credits' },
-      { command: 'model', description: 'Change AI model' },
+      // The command is still addressed as `/model`, because that is the name
+      // people have typed for a year and Telegram offers no alias. What it
+      // CHANGES is a routing profile, and #139's non-negotiable invariant is
+      // about what a routing profile is presented AS — so every word around the
+      // address says mode, starting with this menu entry, which every user of
+      // the bot reads.
+      { command: 'model', description: 'Choose how Alia answers' },
       { command: 'new', description: 'Start a new conversation' },
       { command: 'history', description: 'View recent conversations' },
       { command: 'help', description: 'Show help guide' },
