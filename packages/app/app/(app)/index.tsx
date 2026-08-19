@@ -60,6 +60,17 @@ const ChatPage = () => {
   // product offers, and sending that identifier would be a 400.
   const selectedModel = useModelStore((s) => s.selectedModel);
   const setSelectedModel = useModelStore((s) => s.setSelectedModel);
+  /**
+   * The effort level, on the FIRST turn too.
+   *
+   * This screen passed no reasoning setting at all — not the level, and not the
+   * `thinkingMode` boolean before it — so a person who chose an effort and then
+   * typed their first message got a turn that carried none of it, and only the
+   * second message onwards honoured the choice. The conversation screen
+   * (`c/[id]/index.tsx`) always passed it, which is why the gap read as
+   * "sometimes it works".
+   */
+  const reasoningEffort = useModelStore((s) => s.reasoningEffort);
   const { data: catalogue } = useCatalogue();
   const selection = resolveSelection(selectedModel, catalogue);
   const [activeRoleId, setActiveRoleId] = useState<string | undefined>(roleId);
@@ -113,7 +124,7 @@ const ChatPage = () => {
     createNewConversation,
     editMessage,
     clearConversation,
-  } = useChatConversation({ activeRole, selectedModel: selection.effectiveId ?? undefined, skillId: effectiveSkillId });
+  } = useChatConversation({ activeRole, reasoningEffort, selectedModel: selection.effectiveId ?? undefined, skillId: effectiveSkillId });
 
   const handleSubmit = ghostMode ? sendMessage : createNewConversation;
 
