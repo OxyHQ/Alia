@@ -52,6 +52,11 @@ const KNOWN: CatalogueEntitlement = {
 function source(overrides: Partial<CatalogueSource> = {}): CatalogueSource {
   return {
     id: 'alia-test',
+    // Visibility is a property of the PROFILE an entry is served under, and
+    // `alia-test` is not one the product offers — so every fixture entry here
+    // is `chatVisible: false` unless it says otherwise, which is what keeps
+    // this file measuring classification rather than product policy.
+    offeredProfileId: 'profile:test',
     name: 'Alia Test',
     description: 'A fixture',
     category: 'general',
@@ -67,7 +72,7 @@ function source(overrides: Partial<CatalogueSource> = {}): CatalogueSource {
 function candidate(
   modelId: string,
   capabilities: Record<string, unknown>,
-  route: Partial<Pick<Candidate, 'availabilityScope' | 'attribution' | 'publisher'>> = {},
+  route: Partial<Pick<Candidate, 'availabilityScope' | 'attribution' | 'publisher' | 'model'>> = {},
 ): Candidate {
   // `availabilityScope` and `attribution` default to `null`, which is what
   // every route in this repository carries: both belong to a deployment in
@@ -82,6 +87,11 @@ function candidate(
   return {
     modelId,
     publisher: 'openai',
+    // The model's own name, which defaults to the deployment id here because
+    // most of these fixtures are about fan-out rather than about naming: N
+    // deployment ids are N models unless a fixture passes an explicit `model`
+    // saying two of them are one.
+    model: modelId,
     capabilities,
     availabilityScope: null,
     attribution: null,
@@ -106,16 +116,41 @@ function caps(overrides: Record<string, unknown> = {}): Record<string, unknown> 
 
 describe('ADR 0003 invariant 1: type follows fan-out, in both directions', () => {
   it('serializes a single-model identifier as a model, never as a profile', () => {
-    const entry = buildEntry(source(), [candidate('one-model', caps())], KNOWN, PUBLIC);
+    const entry = buildEntry(
+      source(),
+      [candidate('operator-deployment-id', caps(), { publisher: 'meta', model: 'llama-3.3-70b' })],
+      KNOWN,
+      PUBLIC,
+    );
     expect(entry.kind).toBe('model');
+    if (entry.kind !== 'model') throw new Error('unreachable');
     // The two halves of `<publisher>/<model>`, carried apart from whoever serves
-    // it. Null here because this repository holds no publisher attribution —
-    // the routing table stores a bare provider model id with no publisher
-    // segment. Filling them from `modelId` is the mistake this asserts against.
+    // it and read off the CANDIDATE — the only place they can come from, so an
+    // entry cannot name an identity its own routes do not carry.
+    expect(entry.publisher).toBe('meta');
+    expect(entry.model).toBe('llama-3.3-70b');
+    // The mistake this asserts against, and the reason the fixture's deployment
+    // id is deliberately not the model's name: a provider model id is a
+    // deployment address, and publishing one under `model` would be the
+    // model-abstraction breach `architectureGates.test.ts` gate 5 censuses for.
+    expect(entry.model).not.toBe('operator-deployment-id');
+    expect(Object.keys(entry)).not.toContain('profileId');
+  });
+
+  it('reports an unattributed route as an unknown identity rather than guessing one', () => {
+    // A route arriving with neither half — which is what a Relay catalogue not
+    // yet carrying them looks like — still classifies as a model, and says it
+    // does not know whose. Filling either from `modelId` is the guess.
+    const entry = buildEntry(
+      source(),
+      [candidate('one-model', caps(), { publisher: null, model: null })],
+      KNOWN,
+      PUBLIC,
+    );
+    expect(entry.kind).toBe('model');
     if (entry.kind !== 'model') throw new Error('unreachable');
     expect(entry.publisher).toBeNull();
     expect(entry.model).toBeNull();
-    expect(Object.keys(entry)).not.toContain('profileId');
   });
 
   it('serializes a multi-model identifier as a routing profile, never as a model', () => {
@@ -141,6 +176,45 @@ describe('ADR 0003 invariant 1: type follows fan-out, in both directions', () =>
     // as a policy — inventing a routing decision that is not one.
     const entry = buildEntry(source(), [candidate('same', caps()), candidate('same', caps())], KNOWN, PUBLIC);
     expect(entry.kind).toBe('model');
+  });
+
+  it('counts one model under SIX operator ids as one model', () => {
+    /**
+     * The case the deployment-id count gets wrong, and it is not hypothetical:
+     * Meta's Llama 3.3 70B reaches users as six different ids, so counting
+     * `modelId` reported six models for one piece of work. A tier holding
+     * nothing else would have been called a policy over six — a policy with one
+     * thing to choose from, which the discriminator is supposed to make
+     * impossible.
+     */
+    const ids = [
+      'llama-3.3-70b-versatile',
+      'meta-llama/llama-3.3-70b-instruct',
+      'Meta-Llama-3.3-70B-Instruct',
+      'meta/meta-llama-3.3-70b-instruct',
+      'llama-3.3-70b',
+      'llama3.3-70b-instruct',
+    ];
+    const entry = buildEntry(
+      source(),
+      ids.map((id) => candidate(id, caps(), { publisher: 'meta', model: 'llama-3.3-70b' })),
+      KNOWN,
+      PUBLIC,
+    );
+    expect(entry.kind).toBe('model');
+
+    // The control: the same six routes under six IDENTITIES are six models, so
+    // the collapse above is the identity doing the work and not the count being
+    // broken in one direction.
+    const distinct = buildEntry(
+      source(),
+      ids.map((id) => candidate(id, caps(), { publisher: 'meta', model: id })),
+      KNOWN,
+      PUBLIC,
+    );
+    expect(distinct.kind).toBe('routing_profile');
+    if (distinct.kind !== 'routing_profile') throw new Error('unreachable');
+    expect(distinct.selectsAmong).toBe(6);
   });
 
   it('treats an emptied candidate list as a profile selecting among nothing', () => {

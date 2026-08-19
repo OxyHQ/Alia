@@ -12,6 +12,7 @@ import { PROVIDER_CREDENTIAL_ENV } from '../lib/inference/direct-provider-guard.
 import { PROVIDER_API_HOSTS } from '../lib/inference/provider-egress-policy.js';
 import { PRODUCT_MODES } from '../lib/product-modes.js';
 import { ROUTING_PRESETS } from '../lib/routing/presets.js';
+import { modelDisplayName } from '../lib/routing/model-identity.js';
 import type { SafeProviderKey } from '../db/providers/providerKeyRepository.js';
 
 /**
@@ -639,6 +640,30 @@ const PROVIDER_IMPORT_ALLOWLIST: readonly { from: string; to: string; via: Modul
     via: 'import',
     why: 'Reads ALIA_MODELS to check the platform-capability map covers exactly the categories the alias set uses, in both directions (#139 ws5). An unmapped category is OFFERED to every surface, so a subset check would hide the gap. Test-only; retires when the catalogue moves to Relay.',
   },
+  {
+    from: 'packages/api/src/lib/routing/__tests__/model-selection.test.ts',
+    to: 'packages/api/src/internal/providers/lib/alia-models',
+    via: 'import',
+    why: 'Types only — `AliaModel` and `ModelMapping` are shaped there and the fixtures have to build real ones. The module-selection rule itself is measured against fixtures; the LIVE table is read through the two dynamic imports below. Test-only; retires with the routing tables.',
+  },
+  {
+    from: 'packages/api/src/lib/routing/__tests__/model-selection.test.ts',
+    to: 'packages/api/src/internal/providers/lib/generate-model-mappings',
+    via: 'dynamic',
+    why: 'Reads the SHIPPED routing table as data: how many models the price band admits and refuses is the question the owner asked, and a fixture cannot answer it. It also supplies the vocabulary the "names an authored identity" assertions compare against. Test-only.',
+  },
+  {
+    from: 'packages/api/src/lib/routing/__tests__/model-selection.test.ts',
+    to: 'packages/api/src/internal/providers/lib/model-publishers',
+    via: 'dynamic',
+    why: 'Asserts every selectable model names a publisher from the closed committed list rather than whatever the table happened to say — the same reason `model-publishers.test.ts` reads it. Test-only.',
+  },
+  {
+    from: 'packages/api/src/lib/chat/__tests__/request-context-model-selection.test.ts',
+    to: 'packages/api/src/internal/providers/lib/alia-models',
+    via: 'import',
+    why: 'The gateway-client mock is backed by the REAL tables, because the identifiers under test — `anthropic/claude-sonnet-4.6`, `openai/gpt-5.2-pro` — are only interesting for what the shipped prices say about them; fixtures would make the file measure a routing table nobody ships. Test-only.',
+  },
 ];
 
 /**
@@ -647,13 +672,16 @@ const PROVIDER_IMPORT_ALLOWLIST: readonly { from: string; to: string; via: Modul
  *
  * 23 → 24 in #139 ws20, → 26 in ws4, → 27 in ws5, → 30 for the
  * prototype-keyed-lookup sweep, → 33 for the deploy seeder, → 34 for the
- * credential one-shot. The last four are the only PRODUCT additions since ws5
- * and they are two modules — `scripts/seed.ts` and `scripts/provider-key.ts`
- * are operational entrypoints, not part of the serving process. Every other
- * addition is a TEST
- * reading the routing table as data rather than product modules calling an
- * adapter. Every other line is a product module, and the direction of travel for
- * those is down.
+ * credential one-shot, → 38 for the model picker's two suites.
+ *
+ * The only PRODUCT additions since ws5 are two modules — `scripts/seed.ts` and
+ * `scripts/provider-key.ts` — and both are operational entrypoints rather than
+ * part of the serving process. Every other addition is a TEST reading the
+ * routing table as data, which is not a product module calling an adapter, and
+ * the four newest are that: the price band decides which models a person may
+ * pick, and how many it admits is a property of the SHIPPED table that a
+ * fixture cannot answer. Every other line is a product module, and the
+ * direction of travel for those is down.
  *
  * The number is COUNTED from the list above rather than reasoned about, every
  * time. Two branches each grew it from 23, one to 24 and one to 25, and the
@@ -661,7 +689,7 @@ const PROVIDER_IMPORT_ALLOWLIST: readonly { from: string; to: string; via: Modul
  * produced a plausible wrong answer that still compiled. The same trap caught
  * ws5's rebase, which is why this paragraph is a rule and not a history.
  */
-const PROVIDER_IMPORT_ALLOWLIST_SIZE = 34;
+const PROVIDER_IMPORT_ALLOWLIST_SIZE = 38;
 
 function observedProviderImports(): { from: string; to: string; via: ModuleRef['via'] }[] {
   const seen = new Map<string, { from: string; to: string; via: ModuleRef['via'] }>();
@@ -1705,9 +1733,16 @@ describe('gate 4: no provider secret reaches a public serializer (ADR 0001)', ()
  * maintain, which is the state a frozen-violation record is supposed to reach.
  *
  * `SERVED_AS_MODEL` is therefore empty, and it is kept as a named, asserted
- * emptiness rather than deleted: "no identifier is served as a model" is the
- * property that was won, and a check that simply stopped looking would read
- * identically to one that never looked.
+ * emptiness rather than deleted: no ROUTING PROFILE is served as a model, which
+ * is the property that was won, and a check that simply stopped looking would
+ * read identically to one that never looked.
+ *
+ * It is emphatically not "nothing is served as a model". Real models ARE, now
+ * that the routing table carries who published each one and what they called
+ * it — `<publisher>/<model>` entries, which is the form ADR 0003 reserves for a
+ * model and the whole reason `object: "model"` exists. The invariant was never
+ * "publish no models"; it was "do not call a policy a model", and the
+ * fan-out check below is what keeps the two apart in both directions.
  */
 const SERVED_AS_MODEL: readonly string[] = [];
 
@@ -1771,6 +1806,10 @@ vi.mock('../lib/gateway-client.js', async () => {
     getTierMappings: async () => actual.TIER_MODEL_MAPPINGS,
     // The plan catalogue needs Postgres and decides nothing this gate measures.
     getPlans: async () => [],
+    // Neither does the health table. An empty one means every route is
+    // reachable, which is what keeps this gate measuring the SERIALIZER rather
+    // than whichever circuit happened to be open when it ran.
+    getAllProviderHealth: async () => [],
   };
 });
 
@@ -1810,10 +1849,50 @@ interface CapturedEntry {
  *    `anthropic`, `mistral`, `deepseek`, `cohere`, `xai`, `perplexity`), which
  *    is why the field needs an exemption at all and why the exemption must be
  *    over a vocabulary rather than a location.
+ *  - **`data[].id`, `data[].publisher`, `data[].model` and
+ *    `data[].display_name` — by VOCABULARY, the same one.** The catalogue
+ *    serves individually selectable models, so these four carry model identity
+ *    by design, and the strings they carry collide with the census's needles
+ *    constantly: `deepseek-chat` is a model name AND a deployment id AND
+ *    contains a provider name. Only a string the routing table AUTHORED is
+ *    removed — a publisher, a model name, the joined `<publisher>/<model>`, or
+ *    the display name that identity is written under. Everything else stays and
+ *    is scanned, so a DEPLOYMENT id in any of the four is still a leak, which
+ *    the mutations below plant in each.
+ *
+ * The vocabulary is derived from the authored `publisher` and `model` COLUMNS,
+ * never from names or shapes, and that is what stops it exempting whatever the
+ * serializer happens to emit: the two mutations this catches — `publisher:
+ * m.provider` and `model: m.modelId` — both put a string in the field that the
+ * columns do not contain.
  *
  * `structuredClone` rather than a spread, so a nested object is not shared with
  * the caller's copy.
  */
+
+/**
+ * Every string the routing table authored as part of a model's public identity.
+ *
+ * `PERMITTED_IDENTITY` is the vocabulary; membership is the exemption. Built
+ * from `TIER_MODEL_MAPPINGS` rather than from the response, so the exemption
+ * describes what the table SAYS and not what the serializer emitted.
+ */
+const PERMITTED_IDENTITY: ReadonlySet<string> = (() => {
+  const permitted = new Set<string>();
+  for (const list of Object.values(TIER_MODEL_MAPPINGS)) {
+    for (const m of list) {
+      permitted.add(m.publisher);
+      permitted.add(m.model);
+      permitted.add(`${m.publisher}/${m.model}`);
+      permitted.add(modelDisplayName({ publisher: m.publisher, model: m.model }));
+    }
+  }
+  return permitted;
+})();
+
+/** The four fields on an entry permitted to carry a model's authored identity. */
+const IDENTITY_FIELDS = ['id', 'publisher', 'model', 'display_name'] as const;
+
 function censorAttribution(body: unknown): unknown {
   if (body === null || typeof body !== 'object') return body;
   const clone = structuredClone(body) as { data?: unknown };
@@ -1822,6 +1901,13 @@ function censorAttribution(body: unknown): unknown {
     if (entry === null || typeof entry !== 'object') return entry;
     const copy = { ...(entry as Record<string, unknown>) };
     delete copy.attribution;
+
+    for (const field of IDENTITY_FIELDS) {
+      const value = copy[field];
+      // Removed by membership, not by name: a field holding anything the table
+      // did not author survives into the censused text.
+      if (typeof value === 'string' && PERMITTED_IDENTITY.has(value)) delete copy[field];
+    }
 
     const provenance = copy.provenance;
     if (provenance !== null && typeof provenance === 'object') {
@@ -1953,38 +2039,81 @@ describe('gate 5: models versus routing profiles (ADR 0003 invariant 1)', () => 
   });
 
   it('the truthful catalogue serializes by fan-out, in BOTH directions', async () => {
-    // The invariant itself, not a frozen list. Nothing here names an entry: the
-    // expected type is recomputed from the routing table on every run, so a
-    // routing change that turned a policy into a single-model reference would
-    // move the expectation with it rather than fail.
+    /**
+     * The invariant itself, not a frozen list. Nothing here names an entry: the
+     * expected type is recomputed from the routing table on every run, so a
+     * routing change that turned a policy into a single-model reference would
+     * move the expectation with it rather than fail.
+     *
+     * The fan-out is counted over model IDENTITIES and not over deployment ids,
+     * which is ADR 0003's own discriminator: Meta's Llama 3.3 70B is served
+     * under six ids, and counting those would say a tier holding that one model
+     * six times "selects among 6" — a policy with one thing to choose from.
+     */
     const captured = await runListHandler(await import('../routes/catalogue.js'));
     expect(captured.status).toBeUndefined();
     expect(captured.body?.object).toBe('list');
     const data = captured.body?.data ?? [];
 
     const tierOf = new Map<string, string>(ROUTING_PRESETS.map((preset) => [preset.id, preset.tier] as const));
-    const byTier: Readonly<Record<string, { modelId: string }[]>> = TIER_MODEL_MAPPINGS;
+    const byTier: Readonly<Record<string, { publisher: string; model: string }[]>> = TIER_MODEL_MAPPINGS;
     const distinctModels = (tier: string): number =>
-      new Set((byTier[tier] ?? []).map((m) => m.modelId)).size;
+      new Set((byTier[tier] ?? []).map((m) => `${m.publisher}/${m.model}`)).size;
+    // Every identity the routing table authors, as the vocabulary a `model`
+    // entry may be drawn from. Read off the authored columns, so an entry
+    // naming something the table does not carry fails rather than passing on a
+    // shape that happens to contain a slash.
+    const authored = new Set(
+      Object.values(byTier).flatMap((list) => list.map((m) => `${m.publisher}/${m.model}`)),
+    );
 
-    // Floors, so an empty or half-built catalogue cannot satisfy the checks
-    // below by having nothing to violate them.
-    expect(data.length).toBe(ROUTING_PRESETS.length);
-    expect(data.filter((e) => e.object === 'routing_profile').length).toBeGreaterThanOrEqual(1);
+    const profiles = data.filter((e) => e.object === 'routing_profile');
+    const models = data.filter((e) => e.object === 'model');
 
-    const wrong = data
+    /**
+     * Floors, so an empty or half-built catalogue cannot satisfy the checks
+     * below by having nothing to violate them — one per KIND, because the two
+     * are now served from different loops and either could stop independently.
+     * Twenty is a floor and not the count: thirty models are selectable today,
+     * and the number moves with the routing table's prices.
+     */
+    expect(profiles.length).toBe(ROUTING_PRESETS.length);
+    expect(models.length).toBeGreaterThanOrEqual(20);
+    expect(data.length).toBe(profiles.length + models.length);
+    expect(authored.size).toBeGreaterThanOrEqual(40);
+
+    // A profile entry: named by a preset, and selecting among at least two.
+    const wrongProfiles = profiles
       .map((entry) => {
-        const models = distinctModels(tierOf.get(entry.id) ?? '');
-        const expected = models === 1 ? 'model' : 'routing_profile';
-        return entry.object === expected ? null : `${entry.id}: ${models} model(s) served as ${entry.object}`;
+        const tier = tierOf.get(entry.id);
+        if (tier === undefined) return `${entry.id}: served as a routing profile but no preset defines it`;
+        const count = distinctModels(tier);
+        return count >= 2 ? null : `${entry.id}: ${count} model(s) served as a routing profile`;
       })
       .filter((m): m is string => m !== null);
-    expect(wrong).toEqual([]);
+    expect(wrongProfiles).toEqual([]);
+
+    // A model entry: `<publisher>/<model>`, both halves authored, and the id
+    // exactly their join — so an entry cannot be a model in its `object` and a
+    // policy or a deployment address in its identity.
+    const wrongModels = models
+      .map((entry) => {
+        const publisher = entry.publisher;
+        const model = entry.model;
+        if (typeof publisher !== 'string' || typeof model !== 'string') {
+          return `${entry.id}: served as a model with no identity`;
+        }
+        if (entry.id !== `${publisher}/${model}`) return `${entry.id}: id is not <publisher>/<model>`;
+        if (!authored.has(entry.id)) return `${entry.id}: names an identity the routing table does not carry`;
+        return tierOf.has(entry.id) ? `${entry.id}: a preset id served as a model` : null;
+      })
+      .filter((m): m is string => m !== null);
+    expect(wrongModels).toEqual([]);
 
     // And the specific direction ADR 0003 forbids, stated separately so its
-    // failure names the invariant rather than a mismatch.
-    const policiesCalledModels = data
-      .filter((e) => e.object === 'model')
+    // failure names the invariant rather than a mismatch: no identifier that
+    // selects among several models is served as one.
+    const policiesCalledModels = models
       .filter((e) => distinctModels(tierOf.get(e.id) ?? '') >= 2)
       .map((e) => e.id);
     expect(policiesCalledModels).toEqual([]);
@@ -2015,10 +2144,34 @@ describe('gate 5: models versus routing profiles (ADR 0003 invariant 1)', () => 
 
     const served = await runListHandler(await import('../routes/catalogue.js'));
     const kindOf: Readonly<Record<string, string>> = { 'routing-profile': 'routing_profile', 'concrete-model': 'model' };
-    const disagreements = (served.body?.data ?? [])
+    /**
+     * Scoped to the ids the map speaks about, and floored so the scoping cannot
+     * be what makes it pass.
+     *
+     * The map answers one question — what each of the thirteen `alia-*` aliases
+     * BECOMES — and every answer is a profile. The catalogue now also serves
+     * models, which the map has nothing to say about and never will: they are
+     * not aliases and were never in the compatibility window. Comparing them
+     * against an absent map entry would report every one of them as a
+     * disagreement with a document that does not mention them.
+     *
+     * The floor is what keeps that honest: every id the map names must be
+     * present in the response, so a catalogue that stopped serving profiles
+     * would fail here rather than filtering itself down to agreement.
+     */
+    const entries = served.body?.data ?? [];
+    const covered = entries.filter((entry) => published.has(entry.id));
+    expect(covered).toHaveLength(published.size);
+
+    const disagreements = covered
       .filter((entry) => entry.object !== kindOf[published.get(entry.id) ?? ''])
       .map((entry) => `${entry.id}: map says ${String(published.get(entry.id))}, catalogue serves ${entry.object}`);
     expect(disagreements).toEqual([]);
+
+    // The other direction, which the scoping would otherwise hide: nothing the
+    // map calls a routing profile is served as a model under a second name.
+    const profileIds = new Set([...published.keys()]);
+    expect(entries.filter((e) => e.object === 'model' && profileIds.has(e.id))).toEqual([]);
   });
 
   it('no product mode is served as object: "model"', async () => {
@@ -2067,11 +2220,11 @@ describe('gate 5: models versus routing profiles (ADR 0003 invariant 1)', () => 
     // field and requires the census to catch it.
     const captured = await runListHandler(await import('../routes/catalogue.js'));
     // The response's own vacuity floor: an empty catalogue leaks nothing and
-    // reads exactly like a clean one.
+    // reads exactly like a clean one. One floor per KIND, because the two are
+    // served from different loops and either could stop independently.
     const entries = captured.body?.data ?? [];
-    // The catalogue is keyed by routing profile as of #178, so the floor is the
-    // preset table rather than the alias set.
-    expect(entries).toHaveLength(ROUTING_PRESETS.length);
+    expect(entries.filter((e) => e.object === 'routing_profile')).toHaveLength(ROUTING_PRESETS.length);
+    expect(entries.filter((e) => e.object === 'model').length).toBeGreaterThanOrEqual(20);
     // Every entry carries the field, so "no leak" is not "no field".
     expect(entries.filter((entry) => Array.isArray(entry.attribution))).toHaveLength(entries.length);
 
@@ -2099,9 +2252,35 @@ describe('gate 5: models versus routing profiles (ADR 0003 invariant 1)', () => 
 
     expect(scan(captured.body)).toEqual([]);
 
+    /**
+     * The needle every mutation below plants: a DEPLOYMENT id that is not also
+     * a model name.
+     *
+     * It has to be chosen rather than taken, and this is the subtlety the whole
+     * identity exemption turns on. Half the deployment ids ARE the model's
+     * name — `gemini-2.5-flash` is what Google calls the model and what the
+     * operator calls the deployment — so planting one of those in an identity
+     * field is not a leak and the census correctly permits it. Only the other
+     * half can prove the exemption is narrow, and the floor below says that
+     * half is not a coincidence of one row.
+     */
+    const deploymentOnly = [...modelIds].filter((id) => !PERMITTED_IDENTITY.has(id));
+    expect(deploymentOnly.length).toBeGreaterThanOrEqual(20);
+    /**
+     * …and it must not CONTAIN another needle, because the scan is a substring
+     * test. `llama-3.3-70b-versatile` contains `llama-3.3-70b`, which is itself
+     * a deployment id, so planting it makes the census report two leaks and an
+     * exact-equality assertion fails for a reason that has nothing to do with
+     * the property. Picking the needle by that condition, rather than hardcoding
+     * one that happens to satisfy it today, is what keeps this from breaking the
+     * next time a model is added.
+     */
+    const needles = [...providers, ...modelIds];
+    const planted = deploymentOnly.find((id) => needles.every((n) => n === id || !id.includes(n)));
+    expect(planted).toBeDefined();
+
     // The scan's positive control: it CAN see one of these strings when present.
     // Without this, a serializer returning `undefined` reads as leak-free.
-    const planted = [...modelIds][0];
     expect(scan({ ...captured.body, planted })).toEqual([planted]);
 
     // The widening's own control, and the mutation the status file names: a
@@ -2109,15 +2288,39 @@ describe('gate 5: models versus routing profiles (ADR 0003 invariant 1)', () => 
     // Without this the exemption could be broadened to the whole entry and
     // every assertion above would keep passing.
     const [first, ...rest] = entries;
-    expect(scan({ ...captured.body, data: [{ ...first, publisher: planted }, ...rest] })).toEqual([planted]);
-    // …while the same string inside the exempt field is permitted, which is the
-    // whole point of the exemption and the thing that must stay true.
-    expect(
-      scan({
-        ...captured.body,
-        data: [{ ...first, attribution: [{ attributed_model: planted }] }, ...rest],
-      }),
-    ).toEqual([]);
+    const mutate = (fields: Record<string, unknown>): string[] =>
+      scan({ ...captured.body, data: [{ ...first, ...fields }, ...rest] });
+
+    /**
+     * Each of the four identity fields, mutated one at a time.
+     *
+     * These are the exact shapes a future change would take — `publisher:
+     * m.provider`, `model: m.modelId`, an id built from a deployment address,
+     * a display name taken from one — and each has to be caught SEPARATELY,
+     * because an exemption widened from a vocabulary to a path would pass every
+     * other assertion in this file.
+     */
+    expect(mutate({ publisher: planted })).toEqual([planted]);
+    expect(mutate({ model: planted })).toEqual([planted]);
+    expect(mutate({ id: planted })).toEqual([planted]);
+    expect(mutate({ display_name: planted })).toEqual([planted]);
+
+    // A serving provider that is NOT a publisher, in the publisher field: the
+    // `publisher: m.provider` mutation, caught for the ~11 providers that
+    // publish nothing. (For the eight that do both, the string is a legitimate
+    // publisher name and the source-level assertion further down is what covers
+    // it — see the test after next.)
+    const operatorOnly = [...providers].filter((name) => !PERMITTED_IDENTITY.has(name));
+    expect(operatorOnly.length).toBeGreaterThanOrEqual(8);
+    expect(mutate({ publisher: operatorOnly[0] })).toEqual([operatorOnly[0]]);
+
+    // …while an AUTHORED identity in those same fields is permitted, which is
+    // the whole point of the exemption and the thing that must stay true.
+    const model = entries.find((e) => e.object === 'model');
+    expect(model).toBeDefined();
+    expect(mutate({ id: model?.id, publisher: model?.publisher, model: model?.model })).toEqual([]);
+    // And the licence exemption, unchanged.
+    expect(mutate({ attribution: [{ attributed_model: planted }] })).toEqual([]);
   });
 
   /** The publisher list off a captured entry, as strings, or empty. */
@@ -2139,7 +2342,8 @@ describe('gate 5: models versus routing profiles (ADR 0003 invariant 1)', () => 
      */
     const captured = await runListHandler(await import('../routes/catalogue.js'));
     const entries = captured.body?.data ?? [];
-    expect(entries).toHaveLength(ROUTING_PRESETS.length);
+    expect(entries.filter((e) => e.object === 'routing_profile')).toHaveLength(ROUTING_PRESETS.length);
+    expect(entries.filter((e) => e.object === 'model').length).toBeGreaterThanOrEqual(20);
 
     // Every entry carries the field, so "no leak" is not "no field" — and the
     // set is non-empty somewhere, so the exemption is exercised at all.
@@ -2172,7 +2376,17 @@ describe('gate 5: models versus routing profiles (ADR 0003 invariant 1)', () => 
     // THE assertion. A provider model id parked inside the exempt array is
     // still a leak, because the exemption is over a vocabulary. A path
     // exemption passes this and should not.
-    const planted = [...modelIds][0];
+    //
+    // The needle is a deployment id that is NOT also a model name, for the
+    // reason the test above spells out: half of them are both, and one of those
+    // proves nothing about an exemption over authored identity.
+    // A deployment id that is neither a model name nor a substring-superset of
+    // another needle — see the test above for why both conditions matter.
+    const needles = [...providers, ...modelIds];
+    const planted = [...modelIds]
+      .filter((id) => !PERMITTED_IDENTITY.has(id))
+      .find((id) => needles.every((n) => n === id || !id.includes(n)));
+    expect(planted).toBeDefined();
     const [first, ...rest] = entries;
     expect(
       scan({
@@ -2197,25 +2411,48 @@ describe('gate 5: models versus routing profiles (ADR 0003 invariant 1)', () => 
     ).toEqual([]);
   });
 
-  it('provenance names no operator, which is the half the exemption cannot check', () => {
+  it('an identity is read from the authored columns, which is the half the exemption cannot check', () => {
     /**
      * The census above cannot see this: a serving provider that is ALSO a
      * publisher is an exempt string, so writing `groq` into the publisher list
      * would be caught only because groq publishes nothing — while writing
      * `openai` there for a model served by OpenAI but published by somebody
-     * else would sail through.
+     * else would sail through. The same hole exists for the model half: 29 of
+     * the 58 deployment ids EQUAL their model's name, so `model: route.modelId`
+     * would be invisible on those 29 rows.
      *
-     * So the property is asserted at the source instead: a publisher on the
-     * routing table is never read from the provider column. `model-publishers`
-     * own suite proves the two columns disagree on 50 of 115 rows; this proves
-     * the SERIALIZER passes the publisher through rather than the provider.
+     * So the property is asserted at the source instead: both halves of an
+     * identity are read from the authored columns and neither from the
+     * deployment. `model-publishers`' own suite proves the publisher column
+     * disagrees with the provider column on 50 of 115 rows; this proves the
+     * DERIVATION passes the authored values through rather than the operator's.
      */
     const source = readFileSync(
       path.join(REPO_ROOT, 'packages/api/src/lib/catalogue.ts'),
       'utf8',
     );
-    expect(source).toContain('publisher: m.publisher ?? null');
-    expect(source).not.toMatch(/publisher:\s*m\.provider/);
+    // One function builds every candidate, for both the profile loop and the
+    // model loop, so there is one place for this to be wrong.
+    expect(source).toContain('publisher: route.publisher ?? null');
+    expect(source).toContain('model: route.model ?? null');
+    expect(source).not.toMatch(/publisher:\s*route\.provider/);
+    expect(source).not.toMatch(/model:\s*route\.modelId/);
+
+    // The mutation control: these patterns CAN fire. Without it a renamed
+    // parameter turns both refusals into assertions about a string that no
+    // longer occurs, and the test reports the same clean pass.
+    expect('publisher: route.provider,').toMatch(/publisher:\s*route\.provider/);
+    expect('model: route.modelId,').toMatch(/model:\s*route\.modelId/);
+
+    // And the same property one layer up, where the pin is compared: the
+    // fallback engine decides sameness on the identity pair, never on the
+    // operator's deployment id.
+    const engine = readFileSync(
+      path.join(REPO_ROOT, 'packages/api/src/internal/providers/lib/fallback-engine.ts'),
+      'utf8',
+    );
+    expect(engine).toContain('m.publisher === pinnedModel.publisher && m.model === pinnedModel.model');
+    expect(engine).not.toMatch(/m\.modelId\s*===\s*pinnedModel/);
   });
 });
 

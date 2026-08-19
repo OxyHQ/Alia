@@ -828,6 +828,7 @@
       "multimodal": "Multimodal"
     },
     "uncategorised": "Other",
+    "byPublisher": "Models, by publisher",
     "routingProfile": "Routing profile, not a single model",
     "picksAmong": "Picks among {{count}} models",
     "concreteModel": "A single model",

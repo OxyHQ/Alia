@@ -28,6 +28,7 @@ import { assertUnreservedModelIdentifier } from './reserved-namespace.js';
 import type { AvailabilityScope } from './availability-scope.js';
 import type { RequiredAttribution } from './model-attribution.js';
 import type { FallbackPolicy } from './routing/policy.js';
+import type { ModelIdentity } from './routing/model-identity.js';
 
 // ============== MODE DETECTION ==============
 
@@ -179,6 +180,18 @@ export interface ModelMapping {
    * from half a table cannot be mistaken for a complete one.
    */
   publisher?: string;
+  /**
+   * The publisher's own name for the model — the second half of ADR 0003's
+   * `<publisher>/<model>` identity, and never what an operator calls its
+   * deployment.
+   *
+   * Optional for the same reason `publisher` is, and absent for the same
+   * reason: Relay does not carry it yet. The LOCAL branch reads
+   * `TIER_MODEL_MAPPINGS`, where every mapping carries it because it is
+   * authored beside each route — 29 of the 58 deployment ids differ from their
+   * model's name, so it cannot be recovered from `modelId`.
+   */
+  model?: string;
   modelId: string;
   priority: number;
   qualityScore: number;
@@ -227,6 +240,17 @@ export interface ResolvedModel {
  */
 export interface RoutingOptions {
   fallbackPolicy?: FallbackPolicy;
+  /**
+   * The model identity the caller named, when it named a model rather than a
+   * profile (`lib/routing/model-selection.ts`).
+   *
+   * It travels beside the alias rather than replacing it because the two answer
+   * different questions: the alias says which tier, price, plan and prompt
+   * apply, and this says which of that tier's models may answer. Folding them
+   * into one string would mean every consumer of the alias learning a second
+   * vocabulary — the translation this seam exists to do once.
+   */
+  pinnedModel?: ModelIdentity;
 }
 
 export interface HealthMetrics {
@@ -359,6 +383,10 @@ export async function resolveAliaModel(
         skipProviders: [...skipProviders],
         skipKeyIds: skipKeyIds ? [...skipKeyIds] : [],
         fallbackPolicy: options.fallbackPolicy,
+        // Named `pinnedModel` and not `model`, which this payload already uses
+        // for the alias. Two different things under one key is how a routing
+        // decision gets read as the other one.
+        pinnedModel: options.pinnedModel,
       });
     } catch (error: unknown) {
       if (getStatusCode(error) === 503) return null;
