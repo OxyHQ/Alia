@@ -94,6 +94,24 @@ const CIRCUIT_OPEN: ProviderRow = {
   lastFailure: new Date(),
 };
 
+/**
+ * The breaker has ruled on the SUCCESS RATE without opening the circuit.
+ *
+ * A real state, not a contrivance: past `minRequestsForMetrics` both recording
+ * paths set `is_healthy = successRate >= 50` on every write, and that can go
+ * false while `consecutive_failures` never reaches the threshold that opens a
+ * circuit. It matters here because `is_healthy` is false — which is what makes
+ * a fleet where NOTHING serves also a fleet where `some(p => p.isHealthy)` is
+ * false, and therefore the state the branch being deleted would have acted on.
+ */
+const BREAKER_RULED: ProviderRow = {
+  provider: 'flaky',
+  circuitState: 'closed',
+  isHealthy: false,
+  lastSuccess: new Date(),
+  lastFailure: new Date(),
+};
+
 interface Dependencies {
   readonly postgresReady: boolean;
   readonly providers: readonly ProviderRow[];
@@ -472,19 +490,44 @@ describe('/health tells never-called apart from healthy (and both from unusable)
 });
 
 /* -------------------------------------------------------------------------- */
-/*  Neither probe the ALB polls may newly fail on this                         */
+/*  Readiness answers for the TASK, never for the fleet                        */
 /* -------------------------------------------------------------------------- */
 
 /**
  * The blast radius, asserted rather than argued.
  *
- * The `oxy-alia` target group polls `/health/live` today and a separate change
- * moves it to `/health/ready`. Under BOTH, a deployment in exactly the state
- * production is in — every provider uncredentialed and never called — must stay
- * in rotation, or honest reporting becomes a self-inflicted outage that also
- * locks out the routes an operator would use to install the credential.
+ * `oxy-infra#77` moves the `oxy-alia` target group from `/health/live` to
+ * `/health/ready`, so this endpoint is about to decide whether production has
+ * any registered targets at all. Every provider fact it could consult is read
+ * from `provider_health` and `provider_keys` — single tables shared by every
+ * task — so such a condition is true for the WHOLE FLEET or for none of it.
+ * Acting on one deregisters every task at the same instant and takes down
+ * authentication, conversations, billing, MCP and the admin routes with it,
+ * then deadlocks: a task out of rotation gets no request, so no probe succeeds,
+ * so nothing ever recovers.
+ *
+ * Hence the split these cases enforce: `/health/ready` answers "can THIS TASK
+ * serve the API", `/health` answers "can the FLEET serve inference". Both
+ * answers stay honest; only the first one may move a target out of rotation.
+ *
+ * Every case below drives the real router and reads the status code, because
+ * the status code is the entire behaviour under discussion.
  */
-describe('honesty in /health does not empty the load balancer', () => {
+describe('readiness is process-local, and /health keeps the fleet-wide truth', () => {
+  /**
+   * Nothing serves: one open circuit, one the breaker ruled against.
+   *
+   * BOTH carry `is_healthy: false`, and that is load-bearing rather than
+   * incidental. The branch being deleted existed in two forms over this
+   * project's history — `!providers.some(p => p.isHealthy)` before #234 and
+   * `healthy === 0 && unhealthy > 0` after it — and a fixture must trip BOTH or
+   * it cannot prove the deletion. Measured: the first draft paired the open
+   * circuit with `ONLY_FAILED`, whose `is_healthy` is still true because the
+   * breaker has not ruled, so `some(isHealthy)` was TRUE, the pre-#234 branch
+   * never fired, and re-adding it left the whole suite GREEN.
+   */
+  const NOTHING_SERVES = [CIRCUIT_OPEN, BREAKER_RULED] as const;
+
   it('/health/live is 200 with every provider unusable', async () => {
     const { status, body } = await probe('/health/live', {
       providers: [NEVER_CALLED],
@@ -495,9 +538,7 @@ describe('honesty in /health does not empty the load balancer', () => {
   });
 
   it('/health/ready is 200 with every provider unusable and never called', async () => {
-    // The property that makes the target-group move safe. `unusable` and
-    // `unknown` are fleet-wide facts; acting on them here would take every task
-    // out at once.
+    // Production's exact state as of 2026-08-19: 26 rows, no credential.
     const { status, body } = await probe('/health/ready', {
       providers: [NEVER_CALLED, { ...NEVER_CALLED, provider: 'cold-2' }],
       credentialed: [],
@@ -506,13 +547,36 @@ describe('honesty in /health does not empty the load balancer', () => {
     expect(body).toEqual({ status: 'ready', relay: 'disabled' });
   });
 
-  it('/health/ready still refuses when the fleet WATCHED every provider fail', async () => {
-    // The pre-existing gate, preserved. Without this the change above would
-    // read as "readiness no longer looks at providers at all", which is a
-    // different and weaker thing.
-    const { status, body } = await probe('/health/ready', { providers: [CIRCUIT_OPEN] });
+  it('/health/ready is 200 even when the fleet WATCHED every provider fail', async () => {
+    /**
+     * THE case. This is the state that would deregister every task at once, and
+     * it is the one a re-added provider condition — in any form, `!some(healthy)`
+     * or `healthy === 0 && unhealthy > 0` or a count — makes 503.
+     *
+     * Inference is genuinely dead here. The task is still the right place to
+     * send a request to, because the API is far more than inference and the
+     * load balancer has nowhere better to send it.
+     */
+    const { status, body } = await probe('/health/ready', { providers: [...NOTHING_SERVES] });
+    expect(status).toBe(200);
+    expect(body).toEqual({ status: 'ready', relay: 'disabled' });
+  });
+
+  it('/health reports that same fleet as degraded, so nothing is hidden', async () => {
+    // The other half of the split, in the SAME state as the case above. Without
+    // this pair, "readiness ignores providers" would be indistinguishable from
+    // "nobody reports providers".
+    const { status, body } = await probe('/health', { providers: [...NOTHING_SERVES] });
     expect(status).toBe(503);
-    expect(body).toEqual({ status: 'not_ready', reason: 'no_healthy_providers' });
+    expect(body.status).toBe('degraded');
+    expect(body.providers).toEqual({
+      total: 2,
+      healthy: 0,
+      unhealthy: 2,
+      unusable: 0,
+      unknown: 0,
+      openCircuits: 1,
+    });
   });
 
   it('/health/ready is 200 while one provider still serves', async () => {
@@ -521,5 +585,23 @@ describe('honesty in /health does not empty the load balancer', () => {
     });
     expect(status).toBe(200);
     expect(body).toEqual({ status: 'ready', relay: 'disabled' });
+  });
+
+  it('/health/ready still refuses on the PROCESS-LOCAL condition', async () => {
+    /**
+     * The discriminator. Without it every assertion above is satisfied by an
+     * endpoint hard-wired to 200, which would be a probe that cannot fail —
+     * precisely the defect `/health/live` was moved away from.
+     *
+     * This task's pool cannot answer, so this task can serve no route at all.
+     * Shared in the sense that one database serves every task, different in
+     * KIND: deregistering costs the balancer nothing it could have delivered.
+     */
+    const { status, body } = await probe('/health/ready', {
+      postgresReady: false,
+      providers: [SERVED],
+    });
+    expect(status).toBe(503);
+    expect(body).toEqual({ status: 'not_ready', reason: 'database_unavailable' });
   });
 });
