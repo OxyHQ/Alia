@@ -49,8 +49,20 @@ function ModelsPage() {
               {/* Model Header */}
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-3">
+                  {/*
+                    Three states, not two. `isHealthy` is null until the model
+                    has served something, and a green dot for "no evidence" is
+                    the same lie the API stopped telling.
+                  */}
                   <div
-                    className={`w-2 h-2 rounded-full ${model.isHealthy ? 'bg-green-500' : 'bg-red-500'}`}
+                    className={`w-2 h-2 rounded-full ${
+                      model.isHealthy === null
+                        ? 'bg-muted-foreground'
+                        : model.isHealthy
+                          ? 'bg-green-500'
+                          : 'bg-red-500'
+                    }`}
+                    title={model.isHealthy === null ? 'No requests recorded yet' : undefined}
                   />
                   <div>
                     <p className="text-sm font-medium text-foreground">{model.name}</p>
@@ -75,15 +87,21 @@ function ModelsPage() {
               {/* Stats */}
               <div className="flex flex-row gap-8 mb-4">
                 <div>
-                  <p className="text-sm font-medium text-foreground">{model.avgLatencyMs}ms</p>
+                  <p className="text-sm font-medium text-foreground">
+                    {model.avgLatencyMs === null ? '—' : `${model.avgLatencyMs}ms`}
+                  </p>
                   <p className="text-xs text-muted-foreground">Latency</p>
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-foreground">{model.uptime}%</p>
+                  <p className="text-sm font-medium text-foreground">
+                    {model.uptime === null ? '—' : `${model.uptime}%`}
+                  </p>
                   <p className="text-xs text-muted-foreground">Uptime</p>
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-foreground">{model.successRate}%</p>
+                  <p className="text-sm font-medium text-foreground">
+                    {model.successRate === null ? '—' : `${model.successRate}%`}
+                  </p>
                   <p className="text-xs text-muted-foreground">Success</p>
                 </div>
                 <div>

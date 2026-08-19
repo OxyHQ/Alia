@@ -313,11 +313,16 @@ export interface ModelStats {
   tier: string;
   category: string;
   creditMultiplier: number;
-  avgLatencyMs: number;
-  uptime: number;
-  successRate: number;
+  /**
+   * Null until the model has served something. `/models/stats` reports absence
+   * rather than 100% for a model whose providers have never been called, so
+   * these four arrive as null together with `totalRequests: 0`.
+   */
+  avgLatencyMs: number | null;
+  uptime: number | null;
+  successRate: number | null;
   totalRequests: number;
-  isHealthy: boolean;
+  isHealthy: boolean | null;
   supportsTools: boolean;
   supportsVision: boolean;
   maxTokens: number;
