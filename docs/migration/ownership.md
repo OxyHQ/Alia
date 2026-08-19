@@ -331,6 +331,15 @@ named SSE events. Seven packages call it, three of them (`@alia.onl/sdk`, the Co
 Code extension, the Codea CLI) published outside this repo where no Alia deploy can fix
 them.
 
+> **CONTESTED — this paragraph and ADR 0004 disagree.**
+> [ADR 0004](../adr/0004-product-endpoints-versus-generic-inference-endpoints.md), status
+> Accepted, decides that `api.alia.onl/v1/*` *"is a bounded-window compatibility surface,
+> then it sunsets"* and rejects keeping it permanently by name. Nothing has been edited to
+> settle that;
+> [ADR 0006](../adr/0006-the-destination-of-api-alia-onl-v1-is-recorded-twice.md) states
+> both positions with their costs and deliberately resolves neither. Do not act on either
+> claim until it is resolved.
+
 **What is deleted.** The four 410 tombstones, once access logs show a billing period with
 no hits — the 410 body is itself the public deprecation notice, so removing it turns a
 clear error into a 404. The dead `API_ROUTES.chat` constants. The published SDK's legacy
