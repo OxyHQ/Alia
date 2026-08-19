@@ -62,6 +62,13 @@ const mapping = (provider: string, modelId: string, priority: number) => ({
   // deployments of one model is exactly the case where copying the provider in
   // would fabricate three publishers for one piece of work.
   publisher: 'fixture-publisher',
+  // In this fixture the deployment id IS the model name — the solo tier is one
+  // model on three deployments and the multi tier is two models on two. That is
+  // what makes it a control for `same-model-only`, which now compares the
+  // identity pair rather than the operator's id: without a distinct `model` on
+  // each of `model-a` and `model-b` they would share one identity and the
+  // policy would admit both, which is exactly what this file asserts it cannot.
+  model: modelId,
   modelId,
   priority,
   qualityScore: 90,
