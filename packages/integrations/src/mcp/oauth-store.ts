@@ -30,9 +30,12 @@
  * `db/schema/columns.ts` in this package deliberately declares no such type.
  *
  * `mcp_connector_auths` is written and read by this process only; `packages/api`
- * reaches MCP over HTTP with `X-Gateway-Secret` and owns no such table. The
- * shared `TOKEN_ENCRYPTION_KEY` still matters — the two processes encrypt other
- * things with it — but nothing else reads these rows.
+ * reaches MCP over HTTP with `X-Gateway-Secret` and owns no such table, and
+ * nothing else reads these rows. `TOKEN_ENCRYPTION_KEY` still has to hold
+ * across a redeploy of THIS process, though: the rows persist, so a changed
+ * key cannot decrypt a connector a user authorized under the old one. That
+ * shows up as an authorization error at the OAuth call site, not a decryption
+ * one here — which is why it gets misdiagnosed.
  */
 
 import { and, eq } from 'drizzle-orm';

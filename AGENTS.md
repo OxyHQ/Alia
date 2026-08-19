@@ -135,8 +135,9 @@ Drive remain, lacking a hosted MCP.
 - `POST /mcp/install` is idempotent for registry connectors (duplicate key
   returns the existing row, 200); custom installs still 409.
 - **Deploy prerequisite:** `integrations` needs the SAME `TOKEN_ENCRYPTION_KEY`
-  as the API (tokens are decrypted across processes) plus `API_BASE_URL`. A
-  missing key degrades gracefully — only OAuth-connect calls error.
+  as the API (rows outlive a redeploy — a key change surfaces as an auth
+  error, not a decryption one) plus `API_BASE_URL`. A missing key degrades
+  gracefully — only OAuth-connect calls error.
 - The `lib/mcp/` governance layer was deleted as dead code; `buildMcpTools` is
   called directly. Wire any reintroduction into that path, not orphaned.
 
