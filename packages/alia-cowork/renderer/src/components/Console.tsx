@@ -28,11 +28,22 @@ export function Console() {
     setApiTest({ status: "testing", message: "Connecting to API..." })
 
     try {
+      /**
+       * A reachability probe, and only that.
+       *
+       * It used to report `Found ${n} models` from this endpoint's payload.
+       * `GET /v1/models` has served an empty list since #178 and does so
+       * permanently (`docs/migration/compatibility-window.md`), so that count
+       * has been a hard `0` ever since — a diagnostic that reads like an outage
+       * while the API is healthy. The endpoint is still the right thing to
+       * probe: it is the one mount with `origin: '*'` CORS
+       * (`packages/api/src/index.ts`), and this renderer is the one caller here
+       * that a browser origin check applies to.
+       */
       const response = await fetch("https://api.alia.onl/v1/models")
       if (response.ok) {
-        const data = await response.json()
-        setApiTest({ status: "success", message: `Connected! Found ${data.data?.length || 0} models` })
-        addLog("info", `API test successful: ${data.data?.length || 0} models available`)
+        setApiTest({ status: "success", message: "Connected" })
+        addLog("info", "API test successful")
       } else {
         setApiTest({ status: "error", message: `HTTP ${response.status}: ${response.statusText}` })
         addLog("error", `API test failed: HTTP ${response.status}`)
@@ -123,7 +134,17 @@ export function Console() {
               <div className="space-y-1 text-xs text-muted-foreground">
                 <div>Base URL: https://api.alia.onl</div>
                 <div>Sign-in: Oxy device flow</div>
-                <div>Model: {authState?.preferredModel ?? "—"}</div>
+                {/*
+                  * The identifier, named for what it is.
+                  *
+                  * It read `Model:` over a `profile:*` value, which is #139's
+                  * non-negotiable invariant broken twice over — a routing
+                  * policy presented as a model, in the label and in the value.
+                  * This panel is diagnostics, so the identifier stays (the
+                  * `Base URL` row above it is the same kind of fact); what
+                  * changes is that it is no longer called a model.
+                  */}
+                <div>Routing profile: {authState?.preferredModel ?? "—"}</div>
               </div>
             </CardContent>
           </Card>

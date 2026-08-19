@@ -58,7 +58,6 @@ const api = {
 
   // User & Models
   getUserInfo: () => ipcRenderer.invoke('user:get'),
-  getModels: () => ipcRenderer.invoke('models:get'),
 
   // Screen
   captureScreen: () => ipcRenderer.invoke('screen:capture'),
