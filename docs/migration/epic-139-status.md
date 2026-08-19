@@ -17,6 +17,10 @@ Relay data plane was not deployed — had stopped being true. Seven survive that
 a specific missing capability. See [the re-audit](#the-relay-re-audit-2026-08-19) and
 [the cutover gap](#the-cutover-what-it-would-take-in-production-today).
 
+**The 41 `DUPLICATE_OF` rows were re-audited on the same day**, because a duplicate is ticked by
+reading its primary's tick and seven of them asserted more than their primary did. All seven were
+re-classified and none was a duplicate. See [the duplicate re-audit](#the-duplicate-re-audit-2026-08-19).
+
 ## Totals
 
 416 checkboxes: **227 ticked, 189 unticked** as of 2026-08-17 against `fb57b88f`. At the audit
@@ -41,36 +45,38 @@ deployed and serving. See [the re-audit](#the-relay-re-audit-2026-08-19).
 
 | verdict | all 246 | still open | meaning |
 | --- | ---: | ---: | --- |
-| `BLOCKED_CUTOVER` | 56 | 56 | the destination exists, is deployed and was measured; it waits on Alia actually routing through Relay — every step in [the cutover gap](#the-cutover-what-it-would-take-in-production-today) |
-| `DUPLICATE_OF` | 41 | 28 | restates another box; the row names it |
-| `ACTIONABLE_NOW` | 41 | 6 | can be earned in this repository today; the row carries a deliverable and the guard that would go red |
-| `BLOCKED_ALIAMODELS` | 28 | 27 | needs the separate AliaModels repository with real trained artifacts |
+| `BLOCKED_CUTOVER` | 58 | 58 | the destination exists, is deployed and was measured; it waits on Alia actually routing through Relay — every step in [the cutover gap](#the-cutover-what-it-would-take-in-production-today) |
+| `DUPLICATE_OF` | 34 | 21 | restates another box ENTIRELY; the row names it |
+| `ACTIONABLE_NOW` | 43 | 8 | can be earned in this repository today; the row carries a deliverable and the guard that would go red |
+| `BLOCKED_ALIAMODELS` | 29 | 28 | needs the separate AliaModels repository with real trained artifacts |
 | `BLOCKED_OXY_972` | 27 | 26 | needs [OxyHQ/oxy#972](https://github.com/OxyHQ/oxy/issues/972) |
 | `ACTIONABLE_UPSTREAM` | 17 | 17 | doable today, but the deliverable is in `OxyHQ/Relay` or `OxyHQ/oxy`, not here |
-| `PRODUCT_DECISION` | 12 | 10 | a human product or commercial call, not engineering |
+| `PRODUCT_DECISION` | 13 | 11 | a human product or commercial call, not engineering |
 | `BLOCKED_OPERATOR` | 10 | 10 | no code is missing; it needs one named credential, variable or piece of catalogue data |
 | `ALREADY_TRUE` | 7 | 2 | a landed guard already makes it hold; the row carries the mutation that turns it red |
 | `BLOCKED_RELAY` | 7 | 7 | needs a **named** Relay capability absent at contract 1.1.0 — non-text modalities, per-customer failover authorisation, or a quota-header mapping |
+| `ROLLUP_OF` | 1 | 1 | a conjunction of other boxes; true only when every component is, so it is ticked last |
 
 At the 2026-08-17 audit the same 246 rows read `BLOCKED_RELAY` 94, `ACTIONABLE_NOW` 42,
 `DUPLICATE_OF` 41, `BLOCKED_OXY_972` 27, `BLOCKED_ALIAMODELS` 26, `PRODUCT_DECISION` 11 and
 `ALREADY_TRUE` 5. Every row the re-audit moved carries `verdictBefore`, `reauditedAt`, `reauditNote`
 and — where it is still blocked — `namedBlocker`.
 
-**41 of the 246 were duplicates, 28 of them still open**, so the epic's real remaining surface is
-**161 distinct properties**. Two clusters accounted for most of them: the thirteen `alia-*`
-identifiers served as `object: "model"` with `owned_by: "alia"` were one line in
-`packages/api/src/routes/v1/models.ts` restated across five rows (L99, L241, L242, L262, L768) —
-four of those five are now ticked — and the sixteen definition-of-done rows are almost entirely
-restatements of the non-negotiable invariants and the workstream rollups.
+**34 of the 246 are duplicates, 21 of them still open**, so the epic's real remaining surface is
+**168 distinct properties** — seven more than the first audit reported, because seven rows it called
+duplicates were not. The cluster that drove the original count is the thirteen `alia-*` identifiers
+served as `object: "model"` with `owned_by: "alia"`, one line in
+`packages/api/src/routes/v1/models.ts` restated across five rows (L99, L241, L242, L262, L768). Four
+of those five are ticked, and **L768 is not one of them and is no longer a duplicate**: it is a
+definition-of-done statement over every surface that serialises a product mode, and three clients
+still serialise one as a model.
 
-Four rows duplicated an **already-ticked** box: L265 ↔ L100, L266 ↔ L509, L576 ↔ L271,
-L578 ↔ L117. **Three were ticked on that basis; L576 was deliberately held.** "Same subject as a
-ticked box" is weaker than "proven true", and L576 — *"Publish actual models as `alia/<model>`"* — is
-a naming convention for a publication that has not happened: Alia publishes nothing, and
-`lib/reserved-namespace.ts` refuses every `alia/*` identifier at the serving chokepoint
-(`gateway-client.ts:320`) precisely so that stays true. Its ticked partner L271 is the *prohibition*,
-satisfied vacuously. A `DUPLICATE_OF` verdict is not on its own a reason to tick.
+Three rows duplicate an **already-ticked** box: L265 ↔ L100, L266 ↔ L509, L578 ↔ L117, and all three
+were ticked on that basis. L576 — *"Publish actual models as `alia/<model>`"* — was deliberately
+held, and is now `BLOCKED_ALIAMODELS` rather than a duplicate at all: its ticked partner L271 is the
+*prohibition*, satisfied by publishing nothing, and this row demands the positive act. **A
+`DUPLICATE_OF` verdict is not on its own a reason to tick**, which is the rule the duplicate
+re-audit below turned into a test anyone can apply.
 
 ## Corrections
 
@@ -199,6 +205,37 @@ public inference exposure on Oxy's proxy *into* Alia, not "Oxy API → Relay is 
 [`relay-client-gap.md`](./relay-client-gap.md) cites it as OPEN, which was already stale when
 written; anyone reasoning from that citation should re-read the issue. **`relay-client-gap.md` §1 is
 now stale in the other direction too** — it says the Oxy edge is not mounted, and it is.
+
+## The duplicate re-audit (2026-08-19)
+
+A `DUPLICATE_OF` row is ticked by reading its primary's tick. That is sound only when the row
+restates the primary and **nothing more**. Twenty-eight of the 41 were still open, seven of those had
+a primary that is now ticked, and every one of the seven asserted something its primary did not.
+
+**The test, asked of the pair rather than of the label: would ticking the primary alone make this
+row's sentence true?** If the row names another surface, another category, another package, or the
+positive form of a prohibition, the answer is no.
+
+| row | was | is | what the label hid |
+| --- | --- | --- | --- |
+| **L103** *"Alia product billing/entitlements are separated from provider cost and generic inference billing"* | `DUPLICATE_OF` L474 | `BLOCKED_CUTOVER` | L474 is one of **three** separations the row names. Price-versus-cost and entitlements are landed and guarded by `billingSeparation.test.ts`; generic inference billing is not separated and cannot be while Alia performs the inference (L92). |
+| **L576** *"Publish actual models as `alia/<model>`"* | `DUPLICATE_OF` L271 | `BLOCKED_ALIAMODELS` | An **inverse**. L271 is a prohibition satisfied by publishing nothing; this demands the positive act. `OxyHQ/AliaModels` still does not resolve. |
+| **L606** *"Do not expose an internal-only route through Alia's compatibility API"* | `DUPLICATE_OF` L604 | `ACTIONABLE_NOW` | A **different surface**. L604 is earned on `GET /catalogue`; `/v1/*` consumes no scope at all. The row holds only by absence — production reports `declared_routes: 0` — with no guard keeping it true. |
+| **L647** *"Delete duplicate developer portal/keys"* | `DUPLICATE_OF` L459 | `PRODUCT_DECISION` | L459's corrected deliverable **keeps** revoke for the bounded window; this row says delete. A row whose primary is satisfied by retaining the thing cannot be ticked from it. |
+| **L650** *"Remove stale environment variables, deployment components and documentation"* | `DUPLICATE_OF` L411 | `BLOCKED_CUTOVER` | L411 is scoped *for the package*; this row is unscoped and sits in the Cleanup block that runs after cutover. |
+| **L768** *"Product modes are represented as routing profiles/presets, not models"* | `DUPLICATE_OF` L242 | `ACTIONABLE_NOW` | L242 measured **one** surface. Three clients still present a product mode as a model, and `scripts/check-model-defaults.mjs` covers none of the three — measured by planting the same literal inside and outside its `TREES` list. |
+| **L773** *"Architecture, security, migration, rollback and deprecation tests/docs are complete"* | `DUPLICATE_OF` L668 | `ROLLUP_OF` | A **conjunction** of 46 components, 24 of them still open, reduced to one ticked architecture gate. |
+
+**The rule, carried in `verdictHazards.duplicateAssertsMore`:** a row labelled a duplicate can assert
+more than the row it duplicates, and the label then hides an open requirement behind a ticked one.
+`DUPLICATE_OF` was carrying four distinct relationships that read identically — a genuine
+restatement, a conjunction, an inverse, and a row about a different surface — and all four resolve to
+a ticked primary. Same family as `greenAndInert`: there the mechanism had no caller, here the
+evidence measures a different claim from the one the row makes.
+
+**Not measured:** the other 34 duplicates were not put through the pair test. Four of them sit in the
+same Cleanup block as L647 and L650 — L644, L645, L648 and L649 — and are rollout-plan rollups by
+their own evidence, so they are the likeliest to fail it next.
 
 ## The cutover: what it would take in production today
 

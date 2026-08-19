@@ -19,28 +19,30 @@
     "untickedNow": 189
   },
   "verdictCounts": {
-    "ACTIONABLE_NOW": 41,
+    "ACTIONABLE_NOW": 43,
     "ACTIONABLE_UPSTREAM": 17,
     "ALREADY_TRUE": 7,
-    "BLOCKED_ALIAMODELS": 28,
-    "BLOCKED_CUTOVER": 56,
+    "BLOCKED_ALIAMODELS": 29,
+    "BLOCKED_CUTOVER": 58,
     "BLOCKED_OPERATOR": 10,
     "BLOCKED_OXY_972": 27,
     "BLOCKED_RELAY": 7,
-    "DUPLICATE_OF": 41,
-    "PRODUCT_DECISION": 12
+    "DUPLICATE_OF": 34,
+    "PRODUCT_DECISION": 13,
+    "ROLLUP_OF": 1
   },
   "verdicts": {
     "ACTIONABLE_NOW": "Can be earned inside this repository today. Carries deliverable and guard.",
     "ALREADY_TRUE": "A landed guard already makes it hold. Carries the mutation that turns it red.",
-    "DUPLICATE_OF": "Restates another box. Carries that box.",
+    "DUPLICATE_OF": "Restates another box ENTIRELY. Carries that box. The test is whether ticking the primary ALONE makes this row’s sentence true; a row that names another surface, another category, another package or the positive form of a prohibition fails it and is not a duplicate — see `verdictHazards.duplicateAssertsMore`.",
     "BLOCKED_RELAY": "Needs a NAMED Relay capability that the deployed build does not have at contract 1.1.0. After the 2026-08-19 re-audit this no longer means \"Relay does not exist\" — Relay is deployed, reachable and serving. Seven rows survive under it, and each names a specific missing thing: non-text modalities, per-customer failover authorisation, or a quota-header mapping.",
     "BLOCKED_OXY_972": "Needs OxyHQ/oxy#972.",
     "BLOCKED_ALIAMODELS": "Needs the separate AliaModels repository with real trained artifacts.",
     "PRODUCT_DECISION": "A human product or commercial call, not engineering.",
     "ACTIONABLE_UPSTREAM": "Doable today, but the deliverable is in OxyHQ/Relay or OxyHQ/oxy rather than in this repository. An Alia agent cannot earn it here, and it is not blocked on anything.",
     "BLOCKED_CUTOVER": "Unblocked in principle: the destination exists, is deployed and was measured. What it waits on is Alia actually routing through Relay. Every remaining step is enumerated in `blockers.cutover`, and the one Alia owns is that no concrete `RelayTransport` exists.",
-    "BLOCKED_OPERATOR": "No code is missing. It needs one named credential, environment variable or piece of catalogue data that only an operator can supply. `namedBlocker` names it exactly."
+    "BLOCKED_OPERATOR": "No code is missing. It needs one named credential, environment variable or piece of catalogue data that only an operator can supply. `namedBlocker` names it exactly.",
+    "ROLLUP_OF": "A conjunction of other boxes with no independent content. Not a duplicate: it is true only when EVERY component is, so it can only be ticked last. Carries `rollupOf`, naming the components and how many are still open."
   },
   "rows": [
     {
@@ -134,9 +136,12 @@
       "workstream": "Non-negotiable invariants",
       "section": "",
       "text": "Alia product billing/entitlements are separated from provider cost and generic inference billing.",
-      "verdict": "DUPLICATE_OF",
-      "evidence": "Restates the price/margin separation workstream 12 owns. `cost_entries.cost_usd` (packages/api/src/db/schema/usage.ts:62, `double precision`) is upstream provider cost and is read by lib/cost-tracker.ts:88 and db/usage/costEntryRepository.ts:137/:177; product entitlement lives in lib/entitlements.ts and the `plans`/`user_credits` tables.",
-      "duplicateOf": "L474 — \"Keep product price/margin separate from provider upstream cost.\""
+      "verdict": "BLOCKED_CUTOVER",
+      "evidence": "Three separations are named here and two of them hold. (1) Product price/margin versus provider upstream cost is landed and guarded: `packages/api/src/__tests__/billingSeparation.test.ts` (27 tests, green at 496227a5) censuses the readers of `cost_entries.cost_usd` and `provider_keys.spent_usd` over the TypeScript AST and asserts the two module closures are DISJOINT, so a billing path acquiring a cost reader turns it red. (2) Entitlements are their own product surface — `lib/plan-access.ts` `getUserEntitlements`, served at `routes/billing.ts:584`, over the `plans` and `user_credits` integer tables — and the same suite audits every plan, credit, subscription and transaction path against `docs/migration/inventories/billing-paths.json` by set equality in both directions. (3) Generic inference billing is NOT separated and cannot be while Alia performs the inference: Alia is still the generic inference control plane (L92), so the credit it charges a customer and the charge for a generic inference are one event with one record.",
+      "verdictBefore": "DUPLICATE_OF",
+      "reauditedAt": "2026-08-19",
+      "reauditNote": "`DUPLICATE_OF L474` was wrong in the direction that hides work. L474 is ONE of the three separations this invariant names; the row also names entitlements and generic inference billing, and the third is not achieved. Ticking this because its primary is ticked would record the generic-inference-billing separation as done on evidence that only ever measured price against cost. Measured rather than assumed: the price/margin and entitlement halves are green and guarded, so the row is not blocked on them.",
+      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `relay-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__."
     },
     {
       "line": 160,
@@ -1848,9 +1853,12 @@
       "workstream": "16. Future real Alia models",
       "section": "Naming",
       "text": "Publish actual models as `alia/<model>`.",
-      "verdict": "DUPLICATE_OF",
-      "evidence": "The positive form of an already-ticked prohibition, plus the landed refusal: reserved-namespace.ts refuses every `alia/*` identifier at the serving chokepoint today, so nothing CAN be published under it. The repository does not exist or is not reachable: `gh repo view OxyHQ/AliaModels` returns \"Could not resolve to a Repository\" (2026-08-17). No training, dataset, evaluation, model-card or release-manifest artefact exists anywhere in this monorepo. The one thing that IS landed is the refusal: packages/api/src/lib/reserved-namespace.ts refuses any `alia/*` identifier at the serving chokepoint (gateway-client.ts:321, above the mode branch so both paths are covered), asserted by lib/__tests__/reserved-namespace.test.ts.",
-      "duplicateOf": "TICKED L271 — \"Do not publish any `alia/*` entry until a real artifact/revision and model card exist.\""
+      "verdict": "BLOCKED_ALIAMODELS",
+      "evidence": "Nothing has been published under `alia/*` and nothing CAN be: `packages/api/src/lib/reserved-namespace.ts` refuses every `alia/*` identifier at the serving chokepoint (`gateway-client.ts:321`, above the mode branch so both paths are covered), asserted by `lib/__tests__/reserved-namespace.test.ts`. Publishing one needs an artefact that does not exist — `gh repo view OxyHQ/AliaModels` still answers \"Could not resolve to a Repository\" on 2026-08-19, with `gh repo view OxyHQ/Alia` resolving as the control — and no training, dataset, evaluation, model-card or release-manifest artefact exists anywhere in this monorepo.",
+      "verdictBefore": "DUPLICATE_OF",
+      "reauditedAt": "2026-08-19",
+      "reauditNote": "`DUPLICATE_OF L271` inverted the row. L271 is a PROHIBITION — do not publish any `alia/*` entry until a real artifact/revision and model card exist — and it is satisfied by publishing NOTHING, which is exactly the state the reserved-namespace refusal enforces. This row demands the positive act. Reading its tick off L271 would record \"Alia publishes real models\" from evidence whose entire content is that Alia publishes none.",
+      "namedBlocker": "the AliaModels repository, holding a real trained artifact with an immutable revision and a model card. `gh repo view OxyHQ/AliaModels` -> \"Could not resolve to a Repository\" (2026-08-19)."
     },
     {
       "line": 577,
@@ -1993,9 +2001,14 @@
       "workstream": "17. Commercial availability coordination",
       "section": "",
       "text": "Do not expose an internal-only route through Alia's compatibility API to external customers.",
-      "verdict": "DUPLICATE_OF",
-      "evidence": "The compatibility-API half of the same scope enforcement, and it is where the risk actually lives: /v1/chat/completions is reachable with an `alia_sk_` key (middleware/auth.ts:108) and applies no scope check of any kind.",
-      "duplicateOf": "L604 — \"Consume Oxy catalogue availability scopes such as `internal_alia`, `public_payg`, `enterprise`, `byok_only` and `oxy_hosted`.\""
+      "verdict": "ACTIONABLE_NOW",
+      "evidence": "It holds today by ABSENCE, and nothing keeps it true. No route declares an availability scope anywhere: `GET https://api.alia.onl/catalogue` (2026-08-19) reports `filters.availability_scope.declared_routes: 0` with all twelve entries at `availability.scope.state: \"unscoped\"`, so there is no internal-only route to expose. The compatibility API applies no scope check of any kind — `resolveCallerAudience` and `admitEntry` (`lib/availability-scope.ts`) are imported only by `routes/catalogue.ts` and `lib/catalogue.ts`, and `lib/catalogue.ts` is imported only by `routes/catalogue.ts`. A census of `availabilityScope|internal_alia|admitEntry|CallerAudience` over `routes/v1/`, `lib/inference/` and `internal/` returns nothing, with the same pattern matching six times in `lib/catalogue.ts` as the control. `GET /catalogue` is not this row’s surface: `routes/v1/models.ts:19` and ADR 0004 both say the catalogue is deliberately outside `/v1`. `lib/availability-scope.ts:146` states the residual itself — an entry with one `internal_alia` route and one unclassified route is ADMITTED, and enforcing the scope at selection time is L605.",
+      "deliverable": "Apply `admitEntry` at the compatibility boundary: a request whose resolved route carries a scope that does not admit `resolveCallerAudience(req)` is refused before it reaches a provider, with the same three-state answer `GET /catalogue` already publishes. Writable today against a FIXTURE scope, exactly as `routes/__tests__/catalogue.test.ts` already drives the catalogue half.",
+      "guard": "A test under `routes/v1/__tests__/` that a fixture route scoped `internal_alia` is refused to an `alia_sk_` key and to a session and admitted to a service token. It needs the positive control the fixture makes possible — the service token IS served — or it is green because nothing is scoped. Mutation: delete the refusal -> red. Note `routes/__tests__/internal-only-access.test.ts:187` freezes the set of modules that may name a scope at exactly four, so adding the check is a visible edit to that list.",
+      "mutation": "MEASURED, not asserted. Replacing the `internal_alia` branch of `admitsAudience` with `{ state: 'admitted' }` at `lib/availability-scope.ts:104` left `routes/__tests__/internal-only-access.test.ts` — the file the TICKED L609 names — fully green at 10 of 10, and turned `lib/__tests__/availability-scope.test.ts` (4 failed) and `routes/__tests__/catalogue.test.ts` (6 failed) red. The landed refusal is real and load-bearing, and it is load-bearing for `GET /catalogue` ONLY.",
+      "verdictBefore": "DUPLICATE_OF",
+      "reauditedAt": "2026-08-19",
+      "reauditNote": "`DUPLICATE_OF L604` read across a surface boundary. L604 is \"consume the scopes\" and is earned on `GET /catalogue`; this row is about `/v1/*`, where nothing consumes them. The ticked L609 does not close the gap either — its three blocks prove the request envelope cannot NAME a deployment, that no public credential acquires `req.serviceApp`, and that `/internal/*` takes service tokens only. All three are true and none is an availability-scope refusal, which is what the mutation above measures."
     },
     {
       "line": 607,
@@ -2222,9 +2235,13 @@
       "workstream": "18. Migration and rollout",
       "section": "Cleanup",
       "text": "Delete duplicate developer portal/keys.",
-      "verdict": "DUPLICATE_OF",
-      "evidence": "Rollout-plan rollup of the workstream 11 developer-portal removal rows.",
-      "duplicateOf": "L459 — \"Remove duplicate app/key/usage frontend stores and screens.\""
+      "verdict": "PRODUCT_DECISION",
+      "evidence": "The portal is not deleted, and it is retained on purpose. A comment-stripped census over 610 tracked client sources — positive control: 20 files match `createFileRoute`; negative control: `useCreateApiKey`, which survives only inside a comment, matches zero — finds the developer surface intact in `packages/alia-console`: `src/hooks/use-developer.ts` plus eight route and component files (`routes/_layout/apps/index.tsx`, `apps/$appId/index.tsx`, `apps/$appId/settings.tsx`, `apps/$appId/keys/$keyId.tsx`, `apps/$appId/usage.tsx`, `usage.tsx`, `dashboard.tsx`, `components/layout/nav-apps.tsx`). What #160 removed is ISSUANCE, and that is gone by construction — `useCreateApp` and `useCreateApiKey` are deleted and the census finds no call site for either. `docs/migration/compatibility-window.md` section (c) keeps read, update and revoke deliberately for the window, because taking revocation away mid-migration is a security regression.",
+      "residual": "Two parts of the row separate cleanly. Revoke stays until section (c)’s removal gate closes. The read, update and usage screens beyond revoke — `useGlobalUsage`, `useAppUsage`, `useKeyUsage`, `useDeveloperStats`, `useUpdateApp`, `useUpdateApiKey` — are outside what (c) protects and are removable today under L459’s own corrected deliverable.",
+      "verdictBefore": "DUPLICATE_OF",
+      "reauditedAt": "2026-08-19",
+      "reauditNote": "`DUPLICATE_OF L459` under-states it. L459 is \"remove duplicate app/key/usage frontend stores and screens\" and its corrected deliverable explicitly KEEPS revoke for the bounded window; this row says DELETE. A row whose primary is satisfied by RETAINING the thing cannot be ticked from that primary’s tick.",
+      "namedBlocker": "the three conditions of `docs/migration/compatibility-window.md` section (c), none of which is met: (1) every key owner notified with the notification recorded, which is L455 and is itself a PRODUCT_DECISION; (2) a measurement over `api_key_usage` at `auth_type = 'api_key'` showing zero authenticated requests inside the 90-day retention, with a positive control on `auth_type = 'session'` — production access this repository does not have; (3) no unaccounted active row in `developer_api_keys`. The same document records at :67 that no removal date is set for any path, deliberately."
     },
     {
       "line": 648,
@@ -2249,9 +2266,12 @@
       "workstream": "18. Migration and rollout",
       "section": "Cleanup",
       "text": "Remove stale environment variables, deployment components and documentation.",
-      "verdict": "DUPLICATE_OF",
-      "evidence": "Rollout-plan rollup. The env half of it is already ticked (L397); the deployment-component half is the gateway-admin remnant row.",
-      "duplicateOf": "L411 — \"Remove root scripts, deployment workflows, DNS and environment configuration for the package.\""
+      "verdict": "BLOCKED_CUTOVER",
+      "evidence": "The env half named by L397 is ticked and the deployment component named by L411 is gone — `packages/api/src/lib/tools/gateway-admin.ts` does not exist and `packages/alia-gateway-admin` is not in `packages/`. What remains is the part only cutover retires. `GATEWAY_API_URL` still has a live reader at `lib/gateway-client.ts:35`, and `docs/deployment.md:92` records that it \"retires with that seam (workstream 8), not before\". Provider secrets are still runtime configuration because the local provider path is still the only serving path (L96), so L637 — remove provider secrets from Alia runtime — has to land before the variables carrying them are stale at all.",
+      "verdictBefore": "DUPLICATE_OF",
+      "reauditedAt": "2026-08-19",
+      "reauditNote": "`DUPLICATE_OF L411` narrowed the row to one package. L411 is scoped \"for the package\" — the Gateway Admin retirement — and it is earned; this row is unscoped and sits in workstream 18’s Cleanup block, which runs after cutover. Ticking it from L411 would report every stale variable, component and document in the repository as removed, on evidence about one deleted tool.",
+      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `relay-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__."
     },
     {
       "line": 654,
@@ -2622,9 +2642,14 @@
       "workstream": "Definition of done",
       "section": "",
       "text": "Product modes are represented as routing profiles/presets, not models.",
-      "verdict": "DUPLICATE_OF",
-      "evidence": "The definition-of-done spelling of the object-kind change. Already true on GET /catalogue by measurement (gate 5 biconditional); frozen on /v1/models.",
-      "duplicateOf": "L242 — \"Stop returning `owned_by: alia` for provider aliases.\""
+      "verdict": "ACTIONABLE_NOW",
+      "evidence": "True on the API, false on three client surfaces. The API half is measured and guarded: `GET https://api.alia.onl/catalogue` serves twelve entries, all `object: \"routing_profile\"`; `GET /catalogue/modes` serves six, all `object: \"product_mode\"`; `GET /v1/models` serves `{\"object\":\"list\",\"data\":[]}` (all 2026-08-19); and gate 5 of `packages/api/src/__tests__/architectureGates.test.ts` recomputes the object kind from the live routing table with `SERVED_AS_MODEL` now an asserted EMPTY list. The clients are where a product mode is still a model. `packages/alia-canvas/src/lib/models.ts:9` hardcodes `{ id: \"alia-lite\", name: \"Alia Lite\", description: \"Fast responses for simple tasks\" }` as a `Model` and `components/workflow/node-edit-panel.tsx:57` renders it under the label \"Model\" — its `fetchModels()` reads `/v1/models`, now permanently empty, so the hardcoded fallback is what a user sees. `packages/alia-codea/webview-ui/src/components/Chat.tsx:185` does the same with `{ id: \"alia-v1-codea\", name: \"Codea\" }` and replaces it only when `/v1/models?category=coding` returns a non-empty list, which it no longer can (`src/chatProvider.ts:146`). `packages/integrations` shows `alia-lite` as `Model:` to every Telegram and Discord user (`bots/telegram-bot/commands.ts:204`, `bots/discord-bot/commands.ts:122`) beside an `Available Models:` list read from the same empty endpoint (`bots/discord-bot/commands.ts:156`). `packages/app` is correct: `lib/hooks/use-product-modes.ts` renders modes as labels over `profile:*` ids.",
+      "deliverable": "Point the three surfaces at `GET /catalogue`, as `packages/app`, the SDK, the CLI, Cowork and Codea’s own `src/config.ts` (`PREFERRED_MODEL_ID = 'profile:v1-codea'`) already do, and delete the hardcoded `Model` tables. `alia-canvas` additionally bakes `model: \"alia-lite\"` into every new workflow node at `components/workflow/workflow-editor.tsx:43`, `:72` and `:79`.",
+      "guard": "Extend the `TREES` list in `scripts/check-model-defaults.mjs` with `packages/alia-canvas/src`, `packages/alia-codea/webview-ui/src` and `packages/integrations/src`. That list is asserted by exact count, so the addition is a visible edit rather than a silent one.",
+      "mutation": "MEASURED in both directions, and both edits reverted. Appending `export const SCRATCH_DEFAULT = 'alia-v1-pro-max'` to `packages/alia-console/src/lib/utils.ts` — a COVERED tree — turned `scripts/check-model-defaults.mjs` red, naming the file and the line. The identical literal appended to `packages/alia-canvas/src/lib/models.ts` and to `packages/alia-codea/webview-ui/src/components/Chat.tsx` left it green: \"check-model-defaults: OK — 245 files walked\". The gate works; its hand-maintained map omits exactly the trees where the property is false.",
+      "verdictBefore": "DUPLICATE_OF",
+      "reauditedAt": "2026-08-19",
+      "reauditNote": "`DUPLICATE_OF L242` measured one surface. L242 is about `owned_by: alia` on the compatibility listing and is earned there; this row is a definition-of-done statement over EVERY surface that serialises a product mode, and three of them still serialise one as a model. The label also concealed the reach of the guard — `scripts/check-model-defaults.mjs` covers six client trees and none of the three."
     },
     {
       "line": 770,
@@ -2658,9 +2683,12 @@
       "workstream": "Definition of done",
       "section": "",
       "text": "Architecture, security, migration, rollback and deprecation tests/docs are complete.",
-      "verdict": "DUPLICATE_OF",
-      "evidence": "A rollup of all of workstreams 19 and 20 with no independent content. Its unticked components are, exactly: L668 (architecture tests), L674 (contract tests), L683-L698 (end-to-end), L702-L706 (observability), L719 and L723 (docs), plus the security rows L521-L544 and the rollback rows L654-L656.",
-      "duplicateOf": "L668 — \"Fail when a product mode is serialized as `object: model`.\""
+      "verdict": "ROLLUP_OF",
+      "evidence": "A conjunction of workstreams 19 and 20 with the security and rollback rows, and no independent content of its own. Measured against the issue body on 2026-08-19: 46 components, 22 ticked, 24 OPEN. Deprecation, which the row names by itself, is the clearest counterexample — L274, \"add deprecation headers/events and a sunset date for external clients still using old aliases\", is open, and `docs/migration/compatibility-window.md:67` records that no removal date is set for any path and that the absence is deliberate.",
+      "rollupOf": "L668, L674, L683-L698, L702-L706, L719, L723, L521-L544 and L654-L656 — 46 components, 24 still open on 2026-08-19: 674, 683-698, 703, 705, 706, 521, 525, 655, 656.",
+      "verdictBefore": "DUPLICATE_OF",
+      "reauditedAt": "2026-08-19",
+      "reauditNote": "`DUPLICATE_OF L668` reduced five categories to one architecture test. L668 is \"fail when a product mode is serialized as `object: model`\" — one gate, ticked; this row asserts that architecture, security, migration, rollback AND deprecation tests and docs are ALL complete. A conjunction is not a duplicate of any one of its conjuncts, and reading its tick off the first conjunct to go green is exactly how a rollup reports an epic finished."
     }
   ],
   "blockers": {
@@ -2784,19 +2812,21 @@
     "liveIsNotServable": "A green liveness probe and a fresh artefact prove the process is up and the credential is valid. Neither proves the thing behind it will answer. Relay is 2/2, /livez is 200, and its publisher re-issued the inventory 14 minutes before it was read — and its only provider account answered 402 `payment_required` to every chat completion on the day it was measured, because the publisher reads /v1/models and the 402 arrives on /chat/completions. The cheap discriminator: ask which ENDPOINT the freshness signal exercised, not whether it is fresh.",
     "reachableIsNotAddressable": "\"The service exists and answers\" and \"this caller may use it\" are different measurements, and the first is the one that is cheap. Relay is reachable from anywhere; Alia still cannot call it, because it refuses anything that is not an Ed25519-signed Oxy edge envelope and holds only public keys. A re-audit that stopped at `curl /livez` -> 200 would have unblocked 96 rows onto a door Alia has no key to. The discriminator was one more request: `GET /internal/v1/health` -> 401 naming the envelope.",
     "taskDefinitionIsNotTheEnvironment": "An ECS task definition's `environment[]` and `secrets[]` are not the whole of what a process can reach. oxy-alia:105 names no provider credential, which is evidence about variables and NOT about whether Alia holds provider keys: `provider_keys.key` is a Postgres column that key-manager.ts reads at request time. Reading the task definition and concluding \"Alia holds no provider secret\" measures the wrong artefact — the same habit as `wrongArtefact`, in an infrastructure currency.",
-    "ownershipIsNotDelivery": "A configuration file can be the right PLACE for a value and still be no route to production. oxy-infra owns Alia's ECS environment, and `ignore_changes = [task_definition]` plus a deploy script that re-renders from `services[0].taskDefinition` means a variable added there reaches nothing, forever, with no error and no drift alarm — while the PR that added it is green, reviewed and merged. The measurement that separates the two: read the RUNNING revision back, never the config. Positive control available on request — oxy-oxy-api:231 vs :232, seven minutes apart, where the Terraform PR is not what delivered the variables. Same family as `greenAndInert` one layer out: there the mechanism had no caller, here the declaration has no adopter."
+    "ownershipIsNotDelivery": "A configuration file can be the right PLACE for a value and still be no route to production. oxy-infra owns Alia's ECS environment, and `ignore_changes = [task_definition]` plus a deploy script that re-renders from `services[0].taskDefinition` means a variable added there reaches nothing, forever, with no error and no drift alarm — while the PR that added it is green, reviewed and merged. The measurement that separates the two: read the RUNNING revision back, never the config. Positive control available on request — oxy-oxy-api:231 vs :232, seven minutes apart, where the Terraform PR is not what delivered the variables. Same family as `greenAndInert` one layer out: there the mechanism had no caller, here the declaration has no adopter.",
+    "duplicateAssertsMore": "A row labelled a duplicate can assert MORE than the row it duplicates, and the label then hides an OPEN requirement behind a TICKED one. `DUPLICATE_OF` was carrying four different relationships that read identically in this file and all resolve to a ticked primary: a genuine restatement; a CONJUNCTION whose components are mostly open (773, 24 of 46 open); an INVERSE, where the primary is a prohibition satisfied by doing nothing and the row demands the positive act (576); and a row about a DIFFERENT SURFACE from its primary (606 — `GET /catalogue` versus `/v1/*`). The discriminator is one question asked of the PAIR rather than of the label: would ticking the primary alone make this row’s sentence true? If the row names anything the primary does not, the answer is no and the verdict is wrong. Seven rows were re-classified on 2026-08-19 — 103, 576, 606, 647, 650, 768, 773 — and not one of them was a duplicate. Same family as `greenAndInert`: there the mechanism had no caller, here the evidence measures a different claim from the one the row makes."
   },
   "openVerdictCounts": {
-    "ACTIONABLE_NOW": 6,
+    "ACTIONABLE_NOW": 8,
     "ACTIONABLE_UPSTREAM": 17,
     "ALREADY_TRUE": 2,
-    "BLOCKED_ALIAMODELS": 27,
-    "BLOCKED_CUTOVER": 56,
+    "BLOCKED_ALIAMODELS": 28,
+    "BLOCKED_CUTOVER": 58,
     "BLOCKED_OPERATOR": 10,
     "BLOCKED_OXY_972": 26,
     "BLOCKED_RELAY": 7,
-    "DUPLICATE_OF": 28,
-    "PRODUCT_DECISION": 10
+    "DUPLICATE_OF": 21,
+    "PRODUCT_DECISION": 11,
+    "ROLLUP_OF": 1
   },
   "toolingHazards": {
     "ghPrEditBodyFile": "`gh pr edit --body-file` does NOT write the body on this repository. Measured first-hand on 2026-08-17 against PR #181: it exits **1** and prints, on stderr, `GraphQL: Projects (classic) is being deprecated ... (repository.pullRequest.projectCards)` — and the body is unchanged, confirmed by reading it back twice (4579 bytes before and after). Reported independently by three other agents on this epic before I reproduced it, so it is not a one-off. WHY IT GETS THROUGH: the failure is not silent, it is MISLABELLED. The error names Projects, not the body, so a human reads it as a harmless deprecation notice and moves on — and on #168 a PR carried a 186-character placeholder through review because of exactly that. THE WORKING PATH: `gh api -X PATCH repos/<owner>/<repo>/pulls/<n> -F body=@<file>`, measured exit 0 with the new length returned. THE CHEAP DEFENCES, in order: check the exit code (it is non-zero, so `set -e` or an explicit check catches it), then read the field back — which is the general rule for `gh` writes in ~/AGENTS.md, and this is the instance that proves it. A SECOND TRAP MEASURED IN THE SAME SESSION: `gh pr view ... > body.md` truncates `body.md` BEFORE running, so a failed fetch leaves a 0-byte file that the next write would publish as an empty body. Only the no-op above prevented that here."
@@ -2829,5 +2859,22 @@
     },
     "selfCorrection": "L377 was first classified ALREADY_TRUE on the strength of a green conformance run and was corrected before this file was committed. Issue #139 L375 reads \"For each provider:\" three lines above it, so the gate is per-provider and Relay ships adapters for two of nineteen. THE GENERAL RULE: a suite reporting green says nothing about which SUBJECTS it ran against — the same shape as ~/AGENTS.md's \"a job's presence says nothing about which tests it RAN\", one level down. Read the section preamble before reading the checkbox.",
     "issueStateDrift": "Read from the issue body on 2026-08-19: 230 ticked / 186 unticked, against the 227 / 189 this file records for 2026-08-17. Three boxes moved and this file was NOT resynced by the re-audit, which is deliberately out of its scope — epic139/status-resync owns that. One specific divergence worth naming rather than leaving to the ratchet: L394 is `- [x]` in the issue today and carries no `resolvedSince` here."
+  },
+  "duplicateReaudit": {
+    "at": "2026-08-19",
+    "subject": "the 41 rows classified DUPLICATE_OF, 28 of them open, and the 7 whose primary is now ticked",
+    "why": "A `DUPLICATE_OF` row is ticked by reading its primary’s tick. That is only sound when the row restates the primary and nothing more, and seven of them asserted more — see `verdictHazards.duplicateAssertsMore`.",
+    "method": "Read-only in a worktree at origin/main 496227a5, plus unauthenticated HTTPS probes of api.alia.onl and two `gh repo view` reads. Every claim about a guard was mutation-checked by editing the file, running the suite, and reverting; every census strips comments through the TypeScript scanner and carries a positive control and a vacuity floor. No mutating call of any kind.",
+    "reclassified": {
+      "103": "DUPLICATE_OF -> BLOCKED_CUTOVER",
+      "576": "DUPLICATE_OF -> BLOCKED_ALIAMODELS",
+      "606": "DUPLICATE_OF -> ACTIONABLE_NOW",
+      "647": "DUPLICATE_OF -> PRODUCT_DECISION",
+      "650": "DUPLICATE_OF -> BLOCKED_CUTOVER",
+      "768": "DUPLICATE_OF -> ACTIONABLE_NOW",
+      "773": "DUPLICATE_OF -> ROLLUP_OF"
+    },
+    "notMeasured": "The other 34 DUPLICATE_OF rows were not re-checked against the pair test. Four of them sit in the same workstream 18 `Cleanup` block as 647 and 650 — 644, 645, 648 and 649 — and are rollout-plan rollups by their own evidence, so they are the likeliest to fail it next.",
+    "ticksEarned": "None. All three rows this re-audit was asked to adjudicate — 606, 647 and 768 — are NOT tickable, and each says in its own `evidence` what is missing. 606 additionally holds only by ABSENCE with no guard, which is a reason to hesitate rather than a reason to tick."
   }
 }
