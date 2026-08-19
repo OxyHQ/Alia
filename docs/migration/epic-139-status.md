@@ -215,6 +215,31 @@ read off the code rather than off a summary — `relay-cutover.ts`, `relay-boot-
 sentence, and one of those three is `OXY_API_URL`. Task definition `oxy-alia:105` carries exactly
 **one** of them, `OXY_API_URL`.
 
+### And none of the ten can be delivered by Terraform
+
+`oxy-infra`'s app-service module carries `ignore_changes = [task_definition, desired_count]`, and
+`deploy-ecs-image.sh:107` bases every new revision on `services[0].taskDefinition` — the revision
+**running**. So a variable added in Terraform lands in a revision nothing runs and nothing inherits,
+**indefinitely and with no error**. `oxy-infra/AGENTS.md` puts it in one line: *"belongs here" is
+OWNERSHIP, not delivery.*
+
+**Plainly, on the question of what survives a CI deploy: a hand-registered revision that is
+REPOINTED persists; one that is only registered is lost.** The script reads what `update-service`
+sets, and copies `.environment` forward verbatim.
+
+The worked precedent is the neighbouring service, the same day. `oxy-oxy-api:231` (CI, 14:00:41)
+carries no `RELAY_*` name; `oxy-oxy-api:232` (`user/oxy-admin`, 14:08:09) adds exactly the three, and
+the service points at it. **oxy-infra PR #74, which declares that route in Terraform, delivered none
+of it.** The Oxy → Relay hop reported live above reached production by hand.
+
+Per-variable mechanism, the arming order, the rollback interaction and the verification steps are
+[`docs/runbooks/relay-cutover.md`](../runbooks/relay-cutover.md); the machine-readable form is
+`blockers.cutover.delivery`. The short version: **two of the ten are secrets and have a durable CI
+path** (`TASK_SECRET_OVERRIDES_JSON`, which Mention already uses and Alia does not set); **seven are
+plain and have no CI path at all**, because the script touches `.environment` for exactly one name;
+and `ALIA_RELAY_CLIENT_ENABLED` is the arming switch, which goes **last and alone** — both guards
+open with `if (!isRelayClientEnabled(env)) return null;`, so the other nine are inert until it flips.
+
 Five things are missing. One is Alia code, three are operator actions, and the fifth is nobody's in
 this repository:
 
