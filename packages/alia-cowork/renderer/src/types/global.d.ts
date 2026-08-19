@@ -10,13 +10,6 @@ interface ContextItem {
   language?: string
 }
 
-/** A model entry returned by the gateway models listing. */
-interface ModelEntry {
-  id: string
-  name: string
-  description: string
-}
-
 /** Authenticated user profile returned by `getUserInfo`. */
 interface UserProfile {
   name?: string
@@ -52,7 +45,6 @@ declare global {
       sendMessage: (message: string, mode: string, model: string | undefined, context?: ContextItem[]) => Promise<void>
       stopGeneration: () => void
       clearChat: () => void
-      getModels: () => Promise<ModelEntry[]>
       captureScreen: () => Promise<string | null>
       selectFiles: () => Promise<SelectedFile[] | null>
       selectFolder: () => Promise<SelectedFile[] | null>

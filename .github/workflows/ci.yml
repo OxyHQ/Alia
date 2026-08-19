@@ -311,6 +311,16 @@ jobs:
       - name: Check the picker speaks the product's language
         run: node scripts/check-picker-language.mjs
 
+      # #139 line 99, a non-negotiable invariant: a routing policy is never
+      # PRESENTED as an Alia-owned model. The census above covers the
+      # identifiers a request carries; this covers the text a person reads, and
+      # they failed independently — a `<Label>Model</Label>`, a Telegram command
+      # menu reading "Change AI model" and a CLI printing "Model: Alia Lite"
+      # contain no identifier between them, so nothing turned red for any of
+      # the three.
+      - name: Check no client tells a person a profile is a model
+        run: node scripts/check-user-visible-model-wording.mjs
+
   build-api:
     name: Build API
     runs-on: ubuntu-latest

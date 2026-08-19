@@ -8,7 +8,7 @@ import { processConversation, Message, ToolExecution } from './utils/conversatio
 import { buildSystemMessage, getCodebaseContext, loadProjectInstructions } from './utils/context.js';
 import { createSession, saveSession } from './utils/config.js';
 import { ApprovalMode, parseApprovalMode } from './utils/approval.js';
-import { fetchCatalogue, matchShorthand } from './utils/catalogue.js';
+import { fetchCatalogue, fetchModes, labelFor, matchShorthand, presentation } from './utils/catalogue.js';
 
 export interface AppOptions {
   model: string;
@@ -82,6 +82,17 @@ export function App({ options }: { options: AppOptions }) {
         setInstructions(instr);
         setReady(true);
       }
+      /**
+       * Resolve the header's label once the catalogue can be asked.
+       *
+       * `selection` starts with the identifier in both halves — honest, because
+       * nothing has been consulted yet — and this is the consultation. It never
+       * throws and never blocks readiness: `labelFor` returns the identifier
+       * unchanged when the catalogue cannot be read, so the header degrades to
+       * exactly what it showed before.
+       */
+      const label = await labelFor(options.model);
+      if (!cancelled) setSelection((current) => (current.id === options.model ? { ...current, label } : current));
     })();
     return () => { cancelled = true; };
   }, []);
@@ -137,6 +148,9 @@ export function App({ options }: { options: AppOptions }) {
             id: nextId(),
             type: 'info',
             content: 'Commands: /help, /clear, /mode <suggest|auto-edit|full-auto>, /model <name>, /exit',
+            // `/model` keeps its address: `/mode` is already taken, two lines
+            // to the left, by the approval mode. What it CHANGES is described
+            // in the product's own words everywhere the command answers.
           });
           return;
         case 'clear':
@@ -164,26 +178,41 @@ export function App({ options }: { options: AppOptions }) {
              */
             const shorthand = args[0];
             void (async () => {
-              const entries = await fetchCatalogue().catch(() => null);
+              const [entries, modes] = await Promise.all([
+                fetchCatalogue().catch(() => null),
+                fetchModes().catch(() => []),
+              ]);
               const matched = entries === null ? null : matchShorthand(shorthand, entries);
               if (matched === null) {
                 addMessage({
                   id: nextId(),
                   type: 'info',
                   content: entries === null
-                    ? `Could not read the model catalogue; model unchanged (${model}).`
-                    : `No model matches "${shorthand}". Available: ${entries
+                    ? `Could not read the catalogue; unchanged (${selection.label}).`
+                    : `Nothing matches "${shorthand}". Available: ${entries
                         .filter((e) => e.chatVisible)
-                        .map((e) => e.displayName)
+                        .map((e) => presentation(e, modes).label)
                         .join(', ')}`,
                 });
                 return;
               }
-              setSelection({ id: matched.id, label: matched.displayName });
-              addMessage({ id: nextId(), type: 'info', content: `Model: ${matched.displayName}` });
+              /**
+               * The product's word for the profile, never the alias display
+               * name it came from.
+               *
+               * This printed `Model: Alia Lite` — an alias name under the word
+               * "model", which is #139's non-negotiable invariant broken in
+               * both of the ways it names at once.
+               */
+              const label = presentation(matched, modes).label;
+              setSelection({ id: matched.id, label });
+              addMessage({ id: nextId(), type: 'info', content: `Answering in ${label} mode.` });
             })();
           } else {
-            addMessage({ id: nextId(), type: 'info', content: `Current model: ${model}` });
+            void (async () => {
+              const label = await labelFor(model);
+              addMessage({ id: nextId(), type: 'info', content: `Answering in ${label} mode.` });
+            })();
           }
           return;
         case 'exit':

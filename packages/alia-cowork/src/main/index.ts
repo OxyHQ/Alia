@@ -342,8 +342,6 @@ function setupIPC(): void {
   // User & Models
   ipcMain.handle('user:get', () => chatProvider.getUserInfo())
 
-  ipcMain.handle('models:get', () => chatProvider.getModels())
-
   // File selection
   ipcMain.handle('file:select', async () => {
     if (!mainWindow) return null

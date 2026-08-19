@@ -10,7 +10,7 @@ import Store from 'electron-store'
 import { errorMessage, errorName, errorStack } from './errors'
 import { createLogger } from './logger'
 import { PREFERRED_CHAT_MODEL_ID } from './config'
-import { fetchCatalogue, resolveModelId, type CatalogueEntry } from './catalogue'
+import { resolveModelId } from './catalogue'
 import { currentAccessToken } from './auth'
 
 /** A file/folder context item attached to a chat message from the renderer. */
@@ -1096,30 +1096,6 @@ export class ChatProvider {
       return await response.json()
     } catch {
       return null
-    }
-  }
-
-  /**
-   * The models this build offers, from `GET /catalogue`.
-   *
-   * It read `GET /v1/models?category=coding`, which serializes every entry with
-   * `object: "model"` — including the twelve that are routing profiles. ADR 0003
-   * invariant 1 forbids presenting a routing profile as a model, so the old
-   * surface handed this process the one claim it must not repeat. `/catalogue`
-   * distinguishes the two and `parseCatalogue` keeps the distinction.
-   *
-   * An empty list on failure, as before: the renderer treats it as "nothing to
-   * offer" rather than as an error, and a thrown exception across IPC would
-   * surface as an unhandled rejection in the main process.
-   */
-  async getModels(): Promise<CatalogueEntry[]> {
-    try {
-      return (await fetchCatalogue(
-        store.get('apiBaseUrl') as string,
-        currentAccessToken() ?? '',
-      )).filter((entry) => entry.chatVisible)
-    } catch {
-      return []
     }
   }
 
