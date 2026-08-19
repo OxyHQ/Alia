@@ -45,6 +45,8 @@ import { runAutonomyBeforeChat, type AutonomyRuntimeContext } from '../autonomy/
 import type { ChatMessage } from '../message-converter.js';
 import type { OpenAITool } from '../tool-converter.js';
 import type { SSEWriter } from './sse-writer.js';
+import { reasoningEffortOf } from '../observability/requested-model.js';
+import type { EffortLevel } from '../reasoning-effort.js';
 
 interface SkillDoc {
   systemPrompt?: string;
@@ -62,9 +64,27 @@ export interface ChatRequestContext {
   };
   messages: ChatMessage[];
   conversationId: string | undefined;
-  thinkingMode: boolean | undefined;
+  /**
+   * How hard this request was asked to think, or `null` for the model's default.
+   *
+   * Resolved ONCE, at the request boundary, from the three spellings a caller
+   * may use — see `lib/observability/requested-model.ts` `reasoningEffortOf`.
+   * Nothing downstream carries the `thinkingMode` boolean this replaced.
+   */
+  reasoningEffort: EffortLevel | null;
   agentMode: boolean;
   deepResearch: boolean | undefined;
+  /**
+   * Whether Alia may reach the open web for this turn.
+   *
+   * `true` when the caller said nothing, which is the behaviour every request
+   * has had: `lib/tool-pipeline.ts` put `webSearch`, `webScraper` and `browse`
+   * in the always-on tool set, and the composer's "Web search" switch reached
+   * nothing at all. The switch means something now, and what it means is
+   * REMOVAL — a person turning it off gets a turn with no web tools offered to
+   * the model, rather than a differently-worded prompt.
+   */
+  webSearch: boolean;
   includeUsage: boolean;
   isDirectUserSession: boolean;
   requestedModel: string;
@@ -149,13 +169,14 @@ export async function buildChatRequestContext(
 
   // Extract optional parameters for Alia internal features
   const conversationId = body.conversationId as string | undefined;
-  const thinkingMode = body.thinkingMode as boolean | undefined;
   const agentMode = (body.agentMode as boolean | undefined) ?? false;
   const deepResearch = body.deepResearch as boolean | undefined;
+  // Absent means ON, which is what every request did before the switch existed.
+  const webSearch = body.webSearch !== false;
   const streamOptions = body.stream_options as { include_usage?: boolean } | undefined;
   const includeUsage = streamOptions?.include_usage === true;
 
-  log.v1.info({ messageCount: messages.length, conversationId, thinkingMode, agentMode, deepResearch }, 'Processing messages');
+  log.v1.info({ messageCount: messages.length, conversationId, agentMode, deepResearch, webSearch }, 'Processing messages');
 
   let autonomyRuntime: AutonomyRuntimeContext | null = null;
   if (req.user?.id) {
@@ -232,6 +253,18 @@ export async function buildChatRequestContext(
     return null;
   }
   const requestedModel = requested.alias;
+  /**
+   * The effort level, resolved here and nowhere else.
+   *
+   * It needs `requestedModel` because one of the three spellings IS a model
+   * identifier (`alia-v1-thinking`), which is why it sits below the resolution
+   * rather than beside the other body fields.
+   */
+  const reasoningEffort = reasoningEffortOf({
+    reasoningEffort: body.reasoningEffort,
+    thinkingMode: body.thinkingMode as boolean | undefined,
+    requestedModel,
+  });
   /**
    * A named model narrows the candidate set to that model's deployments.
    *
@@ -443,9 +476,10 @@ export async function buildChatRequestContext(
     body,
     messages,
     conversationId,
-    thinkingMode,
+    reasoningEffort,
     agentMode,
     deepResearch,
+    webSearch,
     includeUsage,
     isDirectUserSession,
     requestedModel,

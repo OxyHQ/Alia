@@ -37,7 +37,7 @@ const ChatConversationPage = () => {
    * aliases of one profile, so the "thinking model" and the "maximum quality
    * model" routed identically and differed only by the prompt this flag selects.
    */
-  const thinkingMode = useModelStore((s) => s.thinkingMode);
+  const reasoningEffort = useModelStore((s) => s.reasoningEffort);
   const activeRole = activeRoleId ? roles.find(r => r.id === activeRoleId) : undefined;
 
   const {
@@ -54,7 +54,7 @@ const ChatConversationPage = () => {
     setMessages,
     approvePlan,
     rejectPlan,
-  } = useChatConversation({ conversationId: id, activeRole, thinkingMode, selectedModel: selection.effectiveId ?? undefined, skillId: activeSkillId, agentId });
+  } = useChatConversation({ conversationId: id, activeRole, reasoningEffort, selectedModel: selection.effectiveId ?? undefined, skillId: activeSkillId, agentId });
 
   const saveConversation = useSaveConversation();
 

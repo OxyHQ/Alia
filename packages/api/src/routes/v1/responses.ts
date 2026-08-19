@@ -83,7 +83,11 @@ router.post('/', (req: Request, res: Response, next: NextFunction) => {
     tools: body.tools,
     // Pass through Alia-specific params
     conversationId: body.conversationId,
+    reasoningEffort: body.reasoningEffort,
+    // The boolean spelling of the same intent, still sent by every published
+    // SDK copy in the wild. `reasoningEffortOf` is where the two meet.
     thinkingMode: body.thinkingMode,
+    webSearch: body.webSearch,
   };
 
   log.v1.info({ messageCount: messages.length, model: req.body.model, stream: req.body.stream }, 'Responses API converted to chat completions format');
