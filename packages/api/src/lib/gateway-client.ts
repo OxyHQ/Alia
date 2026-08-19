@@ -774,6 +774,29 @@ export async function markKeyCreditExhausted(keyId: string): Promise<void> {
   localMark(keyId).catch(() => {});
 }
 
+/**
+ * The providers this deployment holds a usable credential for, by name.
+ *
+ * ## It has no `GATEWAY_API_ENABLED` branch, and that is the correct shape
+ *
+ * Every other function in this file has two, because it reads data the gateway
+ * would own. This one does not, because the thing it describes is not dual-mode:
+ * `getBestKeyForModel` is imported STRAIGHT from `key-manager` by
+ * `internal/providers/lib/provider-api.ts` and `fallback-engine.ts`, never
+ * through this facade, so the local `provider_keys` table is what a completion
+ * draws its credential from whether or not a gateway is configured. Answering
+ * from anywhere else would describe a table no request reads.
+ *
+ * A branch here would therefore be a plausible-looking lie of exactly the kind
+ * this change exists to remove, so there is deliberately nowhere for one to go.
+ */
+export async function providersWithUsableCredentials(): Promise<Set<string>> {
+  const { providersWithUsableCredentials: localProviders } = await import(
+    '../internal/providers/lib/key-manager.js'
+  );
+  return localProviders();
+}
+
 // ============== CACHE WARMUP ==============
 
 /**
