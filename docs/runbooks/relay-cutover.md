@@ -101,6 +101,54 @@ them before doing anything else.
 
 ---
 
+## A value and a binding are different things, and only one of them is easy
+
+The most likely wrong turn here is to find the `Sync GitHub secrets -> SSM` step
+in `deploy-aws.yml`, see that it runs on every deploy, and conclude the problem is
+solved. It is half solved, and the missing half is the hard one.
+
+A secret reaches a container through **three** layers:
+
+| layer | supplies | delivered by | can it deliver a NEW one today? |
+| --- | --- | --- | --- |
+| SSM parameter | the **value** | the `sync_secret` step, on every deploy | **yes** |
+| task definition `secrets[]` | the **name → ARN binding** | `oxy-infra` at service CREATION; carried forward by CI ever since | **no** |
+| task definition `environment[]` | a plain value | same | **no** |
+
+`oxy-infra`'s `alia` module does declare all ten `secrets[]` bindings, and that is
+how they got there — at creation, before `ignore_changes` had anything to ignore.
+Every revision since has copied them forward. **That is not a route that is still
+open.** An eleventh binding added to that list today lands in a revision nothing
+runs.
+
+So: **writing `/oxy/alia/ALIA_RELAY_CREDENTIAL_KEY` into SSM delivers nothing on
+its own.** Nothing reads it. There is no error, no warning, and the deploy is
+green. `TASK_SECRET_OVERRIDES_JSON` is the only way CI can add a *new* binding,
+and it is why mechanism A below is three edits rather than one.
+
+Keep declaring them in `oxy-infra` anyway — that block's own comment gives the
+reason: *"a live-but-undeclared secret is one apply from vanishing, and an
+unlisted one silently never syncs."*
+
+## Which of the ten are secrets, and why
+
+Two. The other eight are configuration and belong in `environment[]`, not in an
+SSM `SecureString` — routing them through SSM is not wrong, it is just more moving
+parts to get wrong, and each one added is a binding that cannot be delivered.
+
+| variable | secret? | why |
+| --- | --- | --- |
+| `ALIA_RELAY_CREDENTIAL_KEY` | **yes** | `relay-credential.ts` calls these "the secret material that proves the process is entitled to act as" the ApplicationCredential |
+| `ALIA_RELAY_CREDENTIAL_SECRET` | **yes** | same; the pair is exchanged for a short-lived token and never travels in a request |
+| `ALIA_RELAY_CREDENTIAL_ID` | no | the credential RECORD's identifier. `relay-credential.ts`: it "rides on every request inside the contract's principal" — a value that travels in the envelope is not a secret |
+| `ALIA_RELAY_ACCOUNT_ID` | no | an Oxy account id, carried in `principal.billing.accountId` on every request |
+| `ALIA_RELAY_APPLICATION_ID` | no | carried in the principal on every request |
+| `ALIA_RELAY_ENVIRONMENT` | no | one of the contract's environment enum values |
+| `ALIA_RELAY_INFERENCE_SCOPES` | no | a comma-separated scope list, echoed in the principal |
+| `RELAY_BASE_URL` | no | fail-closed against a two-entry allow-list (`relay-endpoint.ts`), so it cannot name a host that is not already public knowledge |
+| `ALIA_RELAY_CLIENT_ENABLED` | no | the literal string `true` |
+| `OXY_API_URL` | no | already present |
+
 ## Delivery, per variable
 
 Ten variables, three mechanisms. Two of them are Alia-repo changes that survive
@@ -137,9 +185,26 @@ delivers nothing:
 1. **Two GitHub repo secrets**, `ALIA_RELAY_CREDENTIAL_KEY` and
    `ALIA_RELAY_CREDENTIAL_SECRET`. Set them through the GitHub UI or
    `gh secret set <NAME>` reading from stdin, never as a command-line argument.
-   **Never set either to a placeholder** — `-`, empty or `TODO`. The sync step
-   skips empty and `-`, but a real-looking placeholder is written to SSM and the
-   next task launch gets it.
+
+   **Never set either to a placeholder, and understand which way each kind
+   fails.** `sync_secret` skips an empty value or a literal `-` with a
+   `::warning::` and leaves SSM unchanged. That guard is right — it is what stops
+   a placeholder overwriting a live value, after `REDIS_URL=-` crash-looped
+   `oxy-api` — but it is a footgun when the cutover is staged in halves:
+
+   - **`-` or empty, parameter does not exist yet:** the sync is skipped, the
+     deploy is **green**, and the next task launch fails with
+     `ResourceInitializationError: unable to pull secrets` — the binding names a
+     parameter that is not there. The green deploy is the misleading part.
+   - **`-` or empty, parameter already exists:** the sync is skipped and the OLD
+     value silently remains. Nothing reports that the secret you thought you
+     rotated did not move.
+   - **A real-looking placeholder (`TODO`, `changeme`):** no guard catches it. It
+     is written to SSM and injected, and the failure surfaces as
+     `authentication_failed` on every model call.
+
+   The rule is the ecosystem one: if you do not have the real value yet, **do not
+   create the secret at all.**
 2. **Two lines in the `Sync GitHub secrets -> SSM` step** of
    `.github/workflows/deploy-aws.yml` — an `APP_*` entry in that step's `env:`
    and a matching `sync_secret` call writing to `/oxy/alia/<NAME>`. The step's own
