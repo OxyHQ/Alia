@@ -202,15 +202,20 @@ export function Chat() {
   const [isGenerating, setIsGenerating] = React.useState(false)
   const [currentMode, setCurrentMode] = React.useState("ask")
   /**
-   * Empty means "no explicit choice", not "no mode".
+   * The routing profile the picker has selected, empty for "no explicit choice".
    *
-   * The extension host then falls back to the `codea.model` setting and finally
-   * to its own `PREFERRED_MODEL_ID` (`chatProvider.ts`), which is the ONE
-   * build-time preference the extension is allowed to name. A default chosen
-   * here would be a second one, in a shipped artefact no catalogue change can
-   * reach.
+   * NOT called `currentModel`, and not called a mode either: a `profile:*`
+   * identifier is a routing policy, which #139's non-negotiable invariant says
+   * is never presented as an Alia-owned model — and `currentMode` directly
+   * above already means the ask/agent mode, so `mode` is taken in this file.
+   *
+   * Empty leaves the extension host in charge: it falls back to the
+   * `codea.model` setting and finally to its own `PREFERRED_MODEL_ID`
+   * (`chatProvider.ts`), the ONE build-time preference the extension is allowed
+   * to name. A default chosen here would be a second one, in a shipped artefact
+   * no catalogue change can reach.
    */
-  const [currentModel, setCurrentModel] = React.useState("")
+  const [currentProfileId, setCurrentProfileId] = React.useState("")
   const [streamingContent, setStreamingContent] = React.useState("")
   const [userName, setUserName] = React.useState<string | null>(null)
   const [toolExecutions, setToolExecutions] = React.useState<ToolExecution[]>([])
@@ -355,8 +360,13 @@ export function Chat() {
     vscode?.postMessage({
       type: "sendMessage",
       message: input.trim(),
+      // Two different things, and the names are load-bearing: `mode` is
+      // ask/agent, `model` is the request field the API itself reads
+      // (`body.model` in `lib/chat/request-context.ts`), carrying a `profile:*`
+      // identifier. Spelling the wire field anything else here would hide which
+      // contract it belongs to.
       mode: currentMode,
-      model: currentModel,
+      model: currentProfileId,
       context: messageContext
     })
     // Add message with context to local state for display
@@ -416,12 +426,12 @@ export function Chat() {
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="sm" className="gap-1.5 px-2 h-7">
               <img src={LOGO_URI} alt="Codea" className="size-5 rounded-full" />
-              <span className="text-sm font-medium">{modes.find(m => m.id === currentModel)?.label || "Codea"}</span>
+              <span className="text-sm font-medium">{modes.find(m => m.id === currentProfileId)?.label || "Codea"}</span>
               <HugeiconsIcon icon={ArrowDown01Icon} strokeWidth={2} className="size-3 opacity-50" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="w-56">
-            <DropdownMenuRadioGroup value={currentModel} onValueChange={setCurrentModel}>
+            <DropdownMenuRadioGroup value={currentProfileId} onValueChange={setCurrentProfileId}>
               {modes.map((mode) => (
                 <DropdownMenuRadioItem key={mode.id} value={mode.id}>
                   <Item size="xs" className="p-0">

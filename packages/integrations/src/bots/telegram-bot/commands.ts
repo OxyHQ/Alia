@@ -332,7 +332,7 @@ export async function handleModel(ctx: Context) {
     });
   } catch (error) {
     logger.error('Model command error:', error);
-    await ctx.reply('❌ Error loading model settings. Please try again.');
+    await ctx.reply('❌ Error loading your mode settings. Please try again.');
   }
 }
 
@@ -375,8 +375,8 @@ export async function handleModelSelection(ctx: Context, modelId: string) {
     );
   } catch (error) {
     logger.error('Model selection error:', error);
-    await ctx.answerCbQuery('Error updating model');
-    await ctx.reply('❌ Error updating model. Please try again.');
+    await ctx.answerCbQuery('Error updating your mode');
+    await ctx.reply('❌ Error updating your mode. Please try again.');
   }
 }
 
