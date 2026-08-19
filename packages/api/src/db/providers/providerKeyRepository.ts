@@ -44,7 +44,7 @@
  * thousand pool-wide failures to reach.
  */
 
-import { and, asc, desc, eq, isNotNull, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, isNotNull, isNull, lt, or, sql } from 'drizzle-orm';
 import crypto from 'crypto';
 import type { Executor } from '../index';
 import { redactSecrets } from '../../lib/agent/secret-scanner';
@@ -152,6 +152,54 @@ export async function loadActiveProviderKeys(
       ),
     )
     .orderBy(asc(providerKeys.isPaid), asc(providerKeys.currentPriority), asc(providerKeys.id));
+}
+
+/**
+ * The NAMES of providers holding at least one credential that could serve a
+ * request now. No row, no prefix and no digest leaves this function.
+ *
+ * ## The predicate is `getBestKeyForModel`'s DURABLE half, deliberately
+ *
+ * That loop skips a key for six reasons. Four of them are properties of the row
+ * that only an operator changes — archived, deactivated, past `expires_at`, over
+ * `credit_limit_usd` — and one is the row being valueless, which is the same
+ * kind of fact. Those five are here.
+ *
+ * The two that are NOT here are `cooldown_until` and the eight rate limits, and
+ * leaving them out is the whole point rather than an omission. Both clear
+ * themselves within seconds to minutes, so a health report that counted them
+ * would flip a provider between usable and unusable as traffic arrived — a
+ * report that changes with load measures the load, and downstream that is a
+ * probe that flaps. What this answers is the durable question: could this
+ * provider serve at all, or is there nothing installed to serve WITH.
+ *
+ * `null` means UNLIMITED for `credit_limit_usd` and NO EXPIRY for `expires_at`,
+ * matching the selection loop. Getting either backwards empties the result for
+ * almost every row in the table, because almost every row leaves both null.
+ *
+ * Not to be confused with {@link countUsableKeys} below, which shares the word
+ * and answers a different question: how many rows are live across the whole
+ * table, on the two flags alone. It would count an expired, valueless,
+ * credit-exhausted key as usable, which is right for the number it feeds (a
+ * reload response's `keyCount`) and wrong for this one.
+ */
+export async function providersWithUsableKeys(db: Executor, now: Date): Promise<string[]> {
+  const rows = await db
+    .selectDistinct({ provider: providerKeys.provider })
+    .from(providerKeys)
+    .where(
+      and(
+        eq(providerKeys.isActive, true),
+        eq(providerKeys.isArchived, false),
+        isNotNull(providerKeys.key),
+        or(isNull(providerKeys.expiresAt), gt(providerKeys.expiresAt, now)),
+        or(
+          isNull(providerKeys.creditLimitUsd),
+          lt(providerKeys.spentUsd, providerKeys.creditLimitUsd),
+        ),
+      ),
+    );
+  return rows.map((row) => row.provider);
 }
 
 export async function findProviderKeyById(

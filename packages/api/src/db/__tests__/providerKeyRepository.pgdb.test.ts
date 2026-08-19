@@ -1,5 +1,5 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { eq } from 'drizzle-orm';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { eq, inArray } from 'drizzle-orm';
 import { closePostgres, connectPostgres, type ApiDatabase } from '../index';
 import {
   countUsableKeys,
@@ -16,6 +16,7 @@ import {
   providerKeyHashExists,
   providerKeyPrefix,
   providerKeyStats,
+  providersWithUsableKeys,
   recordKeyFailure,
   recordKeySpend,
   recordKeySuccess,
@@ -474,5 +475,132 @@ describe('api_usage rate-limit windows', () => {
     expect((await keyUsageWindows(db, mine, new Date())).day).toEqual({ count: 1, tokens: 5 });
     // The positive control for the filter.
     expect((await keyUsageWindows(db, theirs, new Date())).day).toEqual({ count: 1, tokens: 500 });
+  });
+});
+
+/**
+ * `providersWithUsableKeys` — which providers this deployment could call.
+ *
+ * The answer feeds `/health`'s `unusable` count, and every way it can be wrong
+ * is silent. Two of the five clauses turn on Postgres NULL semantics, where the
+ * stored `null` means the OPPOSITE of a restriction: `expires_at` null is "never
+ * expires", `credit_limit_usd` null is "unlimited". Almost every row in this
+ * table leaves both null, so writing either comparison the natural way — a bare
+ * `expires_at > now()` — silently returns an EMPTY set and reports a fleet with
+ * working credentials as entirely unusable. A mock cannot catch that; only the
+ * server's own three-valued logic can.
+ *
+ * ## The read is table-wide, so these cases OWN their providers
+ *
+ * `beforeEach` deletes every row for the six providers below. That is not
+ * defensive tidying: the tests above reach for a provider name through a local
+ * `const provider = 'cohere'` as often as through a literal, so five of these
+ * six already hold rows by the time this block runs, and an "excludes" assertion
+ * over a contaminated table fails against a correct function. Measured, when
+ * this block was first written against names a `provider: '…'` grep called free.
+ *
+ * The deletion is safe in both directions: this is the last block in the file,
+ * and `providers.pgdb.test.ts` — the only other `.pgdb.test.ts` that writes this
+ * table — uses `openai` alone, which is deliberately not in the set.
+ */
+describe('which providers hold a credential that could serve', () => {
+  /** Owned by this block. `openai` is excluded because another file writes it. */
+  const OWNED = [
+    'mistral',
+    'cloudflare',
+    'openrouter',
+    'cohere',
+    'perplexity',
+    'digitalocean',
+  ] as const;
+
+  const usable = (): Promise<string[]> => providersWithUsableKeys(db, new Date());
+
+  beforeEach(async () => {
+    await db.delete(providerKeys).where(inArray(providerKeys.provider, [...OWNED]));
+  });
+
+  it('includes a plain key, whose expiry and credit limit are both null', async () => {
+    // The positive control AND the null-semantics assertion in one: this key
+    // sets neither optional column, which is the shape of nearly every real row.
+    await createProviderKey(db, newKey({ provider: 'mistral' }), ACTOR);
+    expect(await usable()).toContain('mistral');
+  });
+
+  it('excludes a provider whose only keys are archived or deactivated', async () => {
+    const archived = await createProviderKey(db, newKey({ provider: 'cloudflare' }), ACTOR);
+    const inactive = await createProviderKey(db, newKey({ provider: 'cloudflare' }), ACTOR);
+    await db.update(providerKeys).set({ isArchived: true }).where(eq(providerKeys.id, archived.id));
+    await db.update(providerKeys).set({ isActive: false }).where(eq(providerKeys.id, inactive.id));
+
+    expect(await usable()).not.toContain('cloudflare');
+  });
+
+  it('excludes a provider whose only key is past its expiry', async () => {
+    const expired = await createProviderKey(db, newKey({ provider: 'openrouter' }), ACTOR);
+    await db
+      .update(providerKeys)
+      .set({ expiresAt: new Date(Date.now() - 1000) })
+      .where(eq(providerKeys.id, expired.id));
+
+    expect(await usable()).not.toContain('openrouter');
+  });
+
+  it('excludes a provider whose only key has no stored value', async () => {
+    const blank = await createProviderKey(db, newKey({ provider: 'cohere' }), ACTOR);
+    await db.update(providerKeys).set({ key: null }).where(eq(providerKeys.id, blank.id));
+
+    expect(await usable()).not.toContain('cohere');
+  });
+
+  it('excludes a provider whose only key has spent its credit limit', async () => {
+    const spent = await createProviderKey(
+      db,
+      newKey({ provider: 'perplexity', creditLimitUsd: 25 }),
+      ACTOR,
+    );
+    // Equal, not over: `getBestKeyForModel` skips at `>=`, and an off-by-one
+    // here would keep routing to a key the selection loop already refuses.
+    await db.update(providerKeys).set({ spentUsd: 25 }).where(eq(providerKeys.id, spent.id));
+
+    expect(await usable()).not.toContain('perplexity');
+  });
+
+  it('includes a provider with one dead key and one live one, exactly once', async () => {
+    const dead = await createProviderKey(
+      db,
+      newKey({ provider: 'digitalocean', creditLimitUsd: 10 }),
+      ACTOR,
+    );
+    await db.update(providerKeys).set({ spentUsd: 10 }).where(eq(providerKeys.id, dead.id));
+    // Under its limit, so the comparison is column-against-column rather than
+    // against a null — the branch the case above cannot reach.
+    const live = await createProviderKey(
+      db,
+      newKey({ provider: 'digitalocean', creditLimitUsd: 25 }),
+      ACTOR,
+    );
+    await db.update(providerKeys).set({ spentUsd: 5 }).where(eq(providerKeys.id, live.id));
+
+    const providers = await usable();
+    expect(providers).toContain('digitalocean');
+    // DISTINCT, not one row per key. The caller builds a Set, which would hide a
+    // duplicate — so it is asserted where it is still visible.
+    expect(providers.filter((p) => p === 'digitalocean')).toHaveLength(1);
+  });
+
+  it('answers with names, never with a credential', async () => {
+    // The floor for the five exclusions above, which would every one of them
+    // pass against a function that returned an empty array — and the shape
+    // assertion that keeps the answer to `/health` free of secrets.
+    await createProviderKey(db, newKey({ provider: 'mistral' }), ACTOR);
+    const providers = await usable();
+
+    expect(providers).toContain('mistral');
+    expect(new Set(providers).size).toBe(providers.length);
+    for (const entry of providers) {
+      expect(typeof entry).toBe('string');
+      expect(entry).not.toContain('pk-secret');
+    }
   });
 });

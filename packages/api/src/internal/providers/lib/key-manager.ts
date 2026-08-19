@@ -15,6 +15,7 @@ import {
   markKeyCreditExhausted as markCreditExhausted,
   maxPriorityInGroup,
   providerKeyStats,
+  providersWithUsableKeys,
   recordKeyFailure as recordFailureRow,
   recordKeySpend as recordSpendRow,
   recordKeySuccess as recordSuccessRow,
@@ -321,6 +322,34 @@ export async function markKeyCreditExhausted(keyId: string): Promise<void> {
   } catch (err) {
     log.keys.error({ err }, 'Failed to mark key as credit exhausted');
   }
+}
+
+/**
+ * Which providers this deployment could actually call, by name.
+ *
+ * ## Why it is here and not read straight from the repository
+ *
+ * Two frozen gates decide this file's location, not taste. `architectureGates`
+ * gate 4 lets only the provider tree and the credential one-shot import
+ * `providerKeyRepository` — a product module that could import it could hold a
+ * row — and gate 1 lets only `lib/gateway-client.ts` import the provider tree.
+ * So the one legal path from a route to this fact is route → gateway-client →
+ * here → repository, and each hop narrows what travels: a row becomes a list of
+ * NAMES here, and names become a COUNT in the route.
+ *
+ * ## A Set, because every caller asks about membership
+ *
+ * The repository answers with the list Postgres returns. Nothing wants to
+ * iterate it; the question is always "is this provider in it", asked once per
+ * `provider_health` row.
+ *
+ * Uncached on purpose, unlike {@link loadProviderKeys} above. That cache exists
+ * because the selection path runs per request; this runs behind `/health`'s own
+ * ten-second snapshot cache, and a second TTL underneath it would only make the
+ * age of the answer harder to reason about.
+ */
+export async function providersWithUsableCredentials(): Promise<Set<string>> {
+  return new Set(await providersWithUsableKeys(getDb(), new Date()));
 }
 
 /**

@@ -40,8 +40,68 @@ import { RELAY_CLIENT_ENABLED_ENV } from '../../lib/inference/relay-cutover.js';
 const UNAVAILABLE = { unavailableUntilMs: Date.now() + 60_000 } as const;
 const LAPSED = { unavailableUntilMs: Date.now() - 1 } as const;
 
-/** Postgres answers, the queue is up, the gateway has a healthy provider. */
-function mockDependencies(postgresReady: boolean): void {
+/**
+ * One `provider_health` row, carrying only the columns the summary reads.
+ *
+ * The names are invented rather than real providers. Nothing here depends on
+ * which provider it is — the credential check is a set membership test — and a
+ * vendor name in a fixture is a vendor name in the repository.
+ */
+interface ProviderRow {
+  readonly provider: string;
+  readonly circuitState: string;
+  readonly isHealthy: boolean;
+  readonly lastSuccess: Date | null;
+  readonly lastFailure: Date | null;
+}
+
+/** Has completed a request. The positive control for every pessimism check. */
+const SERVED: ProviderRow = {
+  provider: 'served',
+  circuitState: 'closed',
+  isHealthy: true,
+  lastSuccess: new Date(),
+  lastFailure: null,
+};
+
+/**
+ * The production row this whole change is about: created by a read, never
+ * called, `is_healthy` still sitting at its schema default of `true`.
+ */
+const NEVER_CALLED: ProviderRow = {
+  provider: 'cold',
+  circuitState: 'closed',
+  isHealthy: true,
+  lastSuccess: null,
+  lastFailure: null,
+};
+
+/** Called, only ever failed, and too few requests for the breaker to have ruled. */
+const ONLY_FAILED: ProviderRow = {
+  provider: 'failing',
+  circuitState: 'closed',
+  isHealthy: true,
+  lastSuccess: null,
+  lastFailure: new Date(),
+};
+
+/** The breaker has ruled: circuit open. */
+const CIRCUIT_OPEN: ProviderRow = {
+  provider: 'tripped',
+  circuitState: 'open',
+  isHealthy: false,
+  lastSuccess: new Date(),
+  lastFailure: new Date(),
+};
+
+interface Dependencies {
+  readonly postgresReady: boolean;
+  readonly providers: readonly ProviderRow[];
+  readonly credentialed: readonly string[];
+}
+
+/** Postgres answers, the queue is up, and the gateway answers both provider reads. */
+function mockDependencies({ postgresReady, providers, credentialed }: Dependencies): void {
   vi.doMock('../../db/index.js', () => ({
     getDb: () => ({
       execute: () =>
@@ -50,8 +110,8 @@ function mockDependencies(postgresReady: boolean): void {
   }));
   vi.doMock('../../lib/task-queue.js', () => ({ isQueueActive: () => true }));
   vi.doMock('../../lib/gateway-client.js', () => ({
-    getAllProviderHealth: () =>
-      Promise.resolve([{ isHealthy: true, circuitState: 'closed' }]),
+    getAllProviderHealth: () => Promise.resolve([...providers]),
+    providersWithUsableCredentials: () => Promise.resolve(new Set(credentialed)),
   }));
 }
 
@@ -82,10 +142,15 @@ let server: Server | null = null;
  */
 async function probe(
   path: string,
-  { postgresReady = true, relay = 'no observation' as RelayState } = {},
+  {
+    postgresReady = true,
+    relay = 'no observation' as RelayState,
+    providers = [SERVED] as readonly ProviderRow[],
+    credentialed = providers.map((p) => p.provider) as readonly string[],
+  } = {},
 ): Promise<Probe> {
   vi.resetModules();
-  mockDependencies(postgresReady);
+  mockDependencies({ postgresReady, providers, credentialed });
 
   const connectivity = await import('../../lib/inference/relay-connectivity.js');
   if (relay === 'reachable') connectivity.reportRelayReachable();
@@ -133,6 +198,21 @@ describe('the probe reaches the real router', () => {
     expect(status).toBe(200);
     expect(body.status).toBe('healthy');
     expect(body.postgres).toBe('connected');
+
+    // Vacuity floor, and it is not decoration: the provider summary is built
+    // inside a `try` whose `catch` reports "gateway unreachable, do not
+    // penalise". A mock missing ONE of the two provider reads throws, lands in
+    // that catch, and every assertion above passes with the summary at zero —
+    // measured, when `providersWithUsableCredentials` was added to the route
+    // and not to the mock. Naming the counts is what tells the two apart.
+    expect(body.providers).toEqual({
+      total: 1,
+      healthy: 1,
+      unhealthy: 0,
+      unusable: 0,
+      unknown: 0,
+      openCircuits: 0,
+    });
   });
 
   it('discriminates: a dependency that is down changes the answer', async () => {
@@ -246,5 +326,200 @@ describe('/health names Relay in the snapshot', () => {
     expect(status).toBe(200);
     expect(body.status).toBe('healthy');
     expect(body.relay).toBe('reachable');
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/*  A provider is healthy only on evidence that it served                      */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The defect these assert against, measured on `api.alia.onl` on 2026-08-19:
+ *
+ *     "providers":{"total":26,"healthy":26,"unhealthy":0,"openCircuits":0}
+ *
+ * from a task holding no LLM provider credential at all. `is_healthy` defaults
+ * to `true` and only a recorded failure ever clears it, so the count answered
+ * "26 healthy" for a fleet that could not serve one request — the same answer it
+ * would give if every provider on earth were down.
+ *
+ * ## How to break these on purpose
+ *
+ * Two mutations, both applied and both measured red before this landed:
+ *
+ *  1. count `unknown` as healthy — i.e. restore "a row nothing has called is
+ *     healthy". Every never-called case below flips to 200/healthy.
+ *  2. delete the credential term from `classifyProvider` — the `unusable` cases
+ *     flip to healthy on the strength of a stale `last_success`.
+ *
+ * Each assertion below names the whole summary object rather than one count, so
+ * a mutation cannot move a row between two states unobserved.
+ */
+describe('/health tells never-called apart from healthy (and both from unusable)', () => {
+  it('reports a never-called provider as unknown, and the service as degraded', async () => {
+    // THE defect. `isHealthy` is true and the circuit is closed, exactly as the
+    // schema default leaves it — and this must not be enough.
+    const { status, body } = await probe('/health', { providers: [NEVER_CALLED] });
+    expect(status).toBe(503);
+    expect(body.status).toBe('degraded');
+    expect(body.providers).toEqual({
+      total: 1,
+      healthy: 0,
+      unhealthy: 0,
+      unusable: 0,
+      unknown: 1,
+      openCircuits: 0,
+    });
+  });
+
+  it('reports a provider with no credential as unusable, whatever its history', async () => {
+    // A row carrying a real success, with the credential since removed. History
+    // must not outrank the fact that there is nothing left to serve with.
+    const { status, body } = await probe('/health', { providers: [SERVED], credentialed: [] });
+    expect(status).toBe(503);
+    expect(body.status).toBe('degraded');
+    expect(body.providers).toEqual({
+      total: 1,
+      healthy: 0,
+      unhealthy: 0,
+      unusable: 1,
+      unknown: 0,
+      openCircuits: 0,
+    });
+  });
+
+  it('still reports a provider that has actually served as healthy', async () => {
+    // The other-direction control. Without it, an endpoint hard-wired to
+    // "degraded" would satisfy every assertion above and measure nothing.
+    const { status, body } = await probe('/health', { providers: [SERVED] });
+    expect(status).toBe(200);
+    expect(body.status).toBe('healthy');
+    expect(body.providers).toEqual({
+      total: 1,
+      healthy: 1,
+      unhealthy: 0,
+      unusable: 0,
+      unknown: 0,
+      openCircuits: 0,
+    });
+  });
+
+  it('one healthy provider among broken ones is enough, as it always was', async () => {
+    // The pre-existing `healthy > 0` rule, unchanged. This is what keeps the
+    // change from being "degrade whenever anything is wrong".
+    const { status, body } = await probe('/health', {
+      providers: [SERVED, NEVER_CALLED, CIRCUIT_OPEN],
+    });
+    expect(status).toBe(200);
+    expect(body.status).toBe('healthy');
+    expect(body.providers).toEqual({
+      total: 3,
+      healthy: 1,
+      unhealthy: 1,
+      unusable: 0,
+      unknown: 1,
+      openCircuits: 1,
+    });
+  });
+
+  it('counts a provider that has only ever failed as unhealthy, not unknown', async () => {
+    // Below `minRequestsForMetrics` the breaker has not ruled, so `is_healthy`
+    // is still true and the circuit still closed. Every observation of it is a
+    // failure, which is a verdict — the absence of one is what `unknown` means.
+    const { status, body } = await probe('/health', { providers: [ONLY_FAILED] });
+    expect(status).toBe(503);
+    expect(body.providers).toEqual({
+      total: 1,
+      healthy: 0,
+      unhealthy: 1,
+      unusable: 0,
+      unknown: 0,
+      openCircuits: 0,
+    });
+  });
+
+  it('the four states partition the rows exactly', () => {
+    // Stated as arithmetic over the case above rather than left implicit: a
+    // future fifth state that forgets to be counted shows up as a total that no
+    // longer adds up, in a test that names the sum.
+    const summary = { total: 3, healthy: 1, unhealthy: 1, unusable: 0, unknown: 1 };
+    expect(summary.healthy + summary.unhealthy + summary.unusable + summary.unknown).toBe(
+      summary.total,
+    );
+  });
+
+  it('reproduces the production answer, and gives the opposite verdict', async () => {
+    // 26 rows created by a READ (`routes/models-stats.ts` calls
+    // `getProviderHealth` per tier mapping, which INSERTS a default row), on a
+    // deployment holding no provider credential. The old code called this
+    // "26 healthy".
+    const table = Array.from({ length: 26 }, (_, i) => ({
+      ...NEVER_CALLED,
+      provider: `cold-${i}`,
+    }));
+    const { status, body } = await probe('/health', { providers: table, credentialed: [] });
+    expect(status).toBe(503);
+    expect(body.status).toBe('degraded');
+    expect(body.providers).toEqual({
+      total: 26,
+      healthy: 0,
+      unhealthy: 0,
+      unusable: 26,
+      unknown: 0,
+      openCircuits: 0,
+    });
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/*  Neither probe the ALB polls may newly fail on this                         */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The blast radius, asserted rather than argued.
+ *
+ * The `oxy-alia` target group polls `/health/live` today and a separate change
+ * moves it to `/health/ready`. Under BOTH, a deployment in exactly the state
+ * production is in — every provider uncredentialed and never called — must stay
+ * in rotation, or honest reporting becomes a self-inflicted outage that also
+ * locks out the routes an operator would use to install the credential.
+ */
+describe('honesty in /health does not empty the load balancer', () => {
+  it('/health/live is 200 with every provider unusable', async () => {
+    const { status, body } = await probe('/health/live', {
+      providers: [NEVER_CALLED],
+      credentialed: [],
+    });
+    expect(status).toBe(200);
+    expect(body).toEqual({ status: 'alive' });
+  });
+
+  it('/health/ready is 200 with every provider unusable and never called', async () => {
+    // The property that makes the target-group move safe. `unusable` and
+    // `unknown` are fleet-wide facts; acting on them here would take every task
+    // out at once.
+    const { status, body } = await probe('/health/ready', {
+      providers: [NEVER_CALLED, { ...NEVER_CALLED, provider: 'cold-2' }],
+      credentialed: [],
+    });
+    expect(status).toBe(200);
+    expect(body).toEqual({ status: 'ready', relay: 'disabled' });
+  });
+
+  it('/health/ready still refuses when the fleet WATCHED every provider fail', async () => {
+    // The pre-existing gate, preserved. Without this the change above would
+    // read as "readiness no longer looks at providers at all", which is a
+    // different and weaker thing.
+    const { status, body } = await probe('/health/ready', { providers: [CIRCUIT_OPEN] });
+    expect(status).toBe(503);
+    expect(body).toEqual({ status: 'not_ready', reason: 'no_healthy_providers' });
+  });
+
+  it('/health/ready is 200 while one provider still serves', async () => {
+    const { status, body } = await probe('/health/ready', {
+      providers: [SERVED, CIRCUIT_OPEN],
+    });
+    expect(status).toBe(200);
+    expect(body).toEqual({ status: 'ready', relay: 'disabled' });
   });
 });
