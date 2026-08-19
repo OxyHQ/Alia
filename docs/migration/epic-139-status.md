@@ -11,11 +11,22 @@ Several agents were landing PRs concurrently throughout, so the verdicts are dat
 standing: 35 rows were earned within the day and carry `resolvedSince`, and five carried a claim that
 was wrong or became wrong and are corrected under [Corrections](#corrections).
 
+**Re-audited on 2026-08-19 against `origin/main` at `7acf9377` and, separately, against the running
+system.** All 97 `BLOCKED_RELAY` rows were re-classified, because the premise under them — that the
+Relay data plane was not deployed — had stopped being true. Seven survive that verdict, each naming
+a specific missing capability. See [the re-audit](#the-relay-re-audit-2026-08-19) and
+[the cutover gap](#the-cutover-what-it-would-take-in-production-today).
+
 ## Totals
 
 416 checkboxes: **227 ticked, 189 unticked** as of 2026-08-17 against `fb57b88f`. At the audit
 (`975955c4`) it was 170 and 246; **57 of the audited rows have since been earned**, and each carries
 `resolvedSince` in the JSON.
+
+**Read from the issue body on 2026-08-19 it is 230 and 186**, so three boxes moved. The re-audit did
+**not** resync `resolvedSince` — `epic139/status-resync` owns that, and a second writer is how a
+bidirectional sync becomes a ratchet again. One divergence is worth naming rather than leaving to be
+rediscovered: **L394 is `- [x]` in the issue today and carries no `resolvedSince` here.**
 
 **Two rows have moved in both directions, which is why the sync is bidirectional.** L243 was ticked,
 re-opened for want of a located mechanism, and is ticked again now that one was found
@@ -24,15 +35,27 @@ off the API-side work, then re-opened, because the surface the row is actually a
 model documentation — was never cleared. A record that can resolve but not un-resolve reports an
 epic as further along than it is.
 
-| verdict | at audit | still open | meaning |
+**The table below is the 2026-08-19 re-audit's.** `BLOCKED_RELAY` fell from 97 to 7 — not because
+work landed in this repository, but because the premise under it stopped being true. Relay is
+deployed and serving. See [the re-audit](#the-relay-re-audit-2026-08-19).
+
+| verdict | all 246 | still open | meaning |
 | --- | ---: | ---: | --- |
-| `BLOCKED_RELAY` | 94 | 96 | needs the Relay data plane **deployed and reachable** — see [the blocker, named](#the-relay-blocker-named) |
-| `ACTIONABLE_NOW` | 42 | 4 | can be earned in this repository today; the row carries a deliverable and the guard that would go red |
+| `BLOCKED_CUTOVER` | 56 | 56 | the destination exists, is deployed and was measured; it waits on Alia actually routing through Relay — every step in [the cutover gap](#the-cutover-what-it-would-take-in-production-today) |
 | `DUPLICATE_OF` | 41 | 28 | restates another box; the row names it |
+| `ACTIONABLE_NOW` | 41 | 6 | can be earned in this repository today; the row carries a deliverable and the guard that would go red |
+| `BLOCKED_ALIAMODELS` | 28 | 27 | needs the separate AliaModels repository with real trained artifacts |
 | `BLOCKED_OXY_972` | 27 | 26 | needs [OxyHQ/oxy#972](https://github.com/OxyHQ/oxy/issues/972) |
-| `BLOCKED_ALIAMODELS` | 26 | 25 | needs the separate AliaModels repository with real trained artifacts |
-| `PRODUCT_DECISION` | 11 | 9 | a human product or commercial call, not engineering |
-| `ALREADY_TRUE` | 5 | 1 | a landed guard already makes it hold; the row carries the mutation that turns it red |
+| `ACTIONABLE_UPSTREAM` | 17 | 17 | doable today, but the deliverable is in `OxyHQ/Relay` or `OxyHQ/oxy`, not here |
+| `PRODUCT_DECISION` | 12 | 10 | a human product or commercial call, not engineering |
+| `BLOCKED_OPERATOR` | 10 | 10 | no code is missing; it needs one named credential, variable or piece of catalogue data |
+| `ALREADY_TRUE` | 7 | 2 | a landed guard already makes it hold; the row carries the mutation that turns it red |
+| `BLOCKED_RELAY` | 7 | 7 | needs a **named** Relay capability absent at contract 1.1.0 — non-text modalities, per-customer failover authorisation, or a quota-header mapping |
+
+At the 2026-08-17 audit the same 246 rows read `BLOCKED_RELAY` 94, `ACTIONABLE_NOW` 42,
+`DUPLICATE_OF` 41, `BLOCKED_OXY_972` 27, `BLOCKED_ALIAMODELS` 26, `PRODUCT_DECISION` 11 and
+`ALREADY_TRUE` 5. Every row the re-audit moved carries `verdictBefore`, `reauditedAt`, `reauditNote`
+and — where it is still blocked — `namedBlocker`.
 
 **41 of the 246 were duplicates, 28 of them still open**, so the epic's real remaining surface is
 **161 distinct properties**. Two clusters accounted for most of them: the thirteen `alia-*`
@@ -53,7 +76,8 @@ satisfied vacuously. A `DUPLICATE_OF` verdict is not on its own a reason to tick
 
 Eight rows carried a stale or wrong claim. Each is corrected in place in the JSON and says so.
 
-**They cost seven general rules, and the rules are worth more than the rows.** Each is carried in
+**They cost eleven general rules, and the rules are worth more than the rows.** Seven came from the
+2026-08-17 audit and four from the 2026-08-19 re-audit. Each is carried in
 the JSON as `verdictHazards`, and every one is the same mistake in a different currency: *the thing
 measured was not the thing claimed.*
 
@@ -66,6 +90,10 @@ measured was not the thing claimed.*
 | `typeSystemViaTextCensus` | **A census over source text cannot answer a question about the type system** | `config-audit.test.ts:319` tests `not.toMatch(/actor\?\s*:/)`; a **default parameter** has no `?`, so the regex misses while TypeScript makes it optional at every call site |
 | `mentionIsNotACall` | **A guard that an import line satisfies.** The assertion could not tell a call from a mention | Asserting `models.tsx` contains `useCatalogue` survived replacing the hook call with a literal `[]` — the import still had the identifier. Fixed by asserting `useCatalogue(` |
 | `textCannotSeeAnInvertedCondition` | **A source-text assertion cannot see a negation.** Naming a function is not acting on its answer | `toContain('relayBlocksReadiness()')` passes with `if (!relayBlocksReadiness())`, which reports not-ready exactly when Relay *is* reachable — **1387 tests passed**. L394 was un-ticked |
+| `emptyBecauseGated` *(re-audit)* | **An empty list from a gated endpoint and an empty store are the same bytes** | `GET https://api.oxy.so/v1/models` → `{"data":[],"count":0}`, which reads as "the catalogue is empty" and *is* "you are a PUBLIC viewer and `INFERENCE_CATALOGUE_AUDIENCE` is unset". Recorded UNMEASURED rather than zero |
+| `liveIsNotServable` *(re-audit)* | **A green probe and a fresh artefact prove the process is up and the credential valid — never that the thing behind them will answer.** Ask which *endpoint* the freshness signal exercised | Relay is 2/2, `/livez` is 200, and its publisher re-issued the inventory 14 min before it was read — while its only provider account answered **402 `payment_required`** to every chat completion, because the publisher reads `/v1/models` and the 402 arrives on `/chat/completions` |
+| `reachableIsNotAddressable` *(re-audit)* | **"The service answers" and "this caller may use it" are different measurements, and the first is the cheap one** | Relay is reachable from anywhere and Alia still cannot call it: it refuses anything that is not an Ed25519-signed Oxy edge envelope and holds only *public* keys. Stopping at `curl /livez → 200` would have unblocked 96 rows onto a door Alia has no key to |
+| `taskDefinitionIsNotTheEnvironment` *(re-audit)* | **An ECS task definition's `environment[]`/`secrets[]` is not the whole of what a process can reach** | `oxy-alia:105` names no provider credential — evidence about *variables*, not about whether Alia holds provider keys. `provider_keys.key` is a Postgres column `key-manager.ts` reads at request time |
 
 The last one generalises further than its instance, and that is why it matters most: **`src/index.ts`
 is asserted only by source text, because nothing imports it** — it opens a socket, arms timers and
@@ -85,34 +113,172 @@ and the exit.
 | **L618** *"land shared contracts"* | Residual called the `0.29.0` bump additive | **It is breaking.** `0.29.0` widens `INFERENCE_ERROR_CODES` and the finish reasons, and `packages/api` holds exhaustive `Record`s over both — `tsc` failed in three places and two exact-count floors moved 26 → 28. Landed in #175 |
 | **L468** *"audit every plan, credit, subscription and transaction path"* | Said no path audit existed | `inventories/billing-paths.json` — 26 writers over 7 tables, every caller, three-way ADR-0005 classification, set-equality-asserted by `billingSeparation.test.ts:511` |
 
-## The Relay blocker, named
+## The Relay re-audit (2026-08-19)
 
-**The audit's blanket "no Relay exists" is stale.** [`OxyHQ/Relay`](https://github.com/OxyHQ/Relay)
-was created on 2026-08-16 — the day after the gap analysis was written — and is public, Go, 82
-files, tracked as **workstream 13 of [OxyHQ/oxy#972](https://github.com/OxyHQ/oxy/issues/972)**. It
-implements `internal/provider/anthropic` and `internal/provider/openaicompat`,
-`internal/provider/conformance` (the suite every adapter must pass), `internal/relay/executor` with
-failover, `internal/rotation`, `internal/providercost`, `internal/sse`, `internal/edgeauth` and
-`internal/httpapi`. So most workstream-7 rows now have a real destination path rather than a
-hypothesis.
+**The 2026-08-17 entry above this one said the missing thing was "A DEPLOYMENT ... no Dockerfile, no
+deploy workflow and no infrastructure". That was true then and is false now**, and it had classified
+97 of the 246 rows. `OxyHQ/Relay` PR #6 — *"containerize Relay and add the AWS deploy workflow"* —
+merged on 2026-08-18, and Relay is running. **When the Oxy inference control plane went live is not
+measured here**; only that it is live now. What follows was measured read-only on 2026-08-19:
+AWS `describe-services` / `describe-task-definition` / `s3 cp` under profile `oxy` in `us-west-2`,
+unauthenticated HTTPS probes, `gh api` reads of `OxyHQ/oxy` and `OxyHQ/Relay` on `main`, the
+published `@oxyhq/contracts@0.29.0` tarball, and the `OxyHQ/Relay` working tree. **No mutating call
+of any kind, and no credential value appears in this file or the JSON.**
 
-**What is missing is a deployment.** The repository carries no Dockerfile, no deploy workflow and no
-infrastructure; its only workflow is `ci.yml`. And Alia has no endpoint to name:
-`packages/api/src/lib/inference/__tests__/relay-egress.test.ts:522` asserts exactly that, and no
-`RELAY_*_URL` exists anywhere in `packages/api/src`.
+### What is live
+
+| thing | measurement |
+| --- | --- |
+| Relay | ECS `oxy-cluster/relay` **2/2** on `oxy-relay:2`; `oxy-cluster/relay-publisher` **1/1** |
+| Relay liveness | `GET https://relay.oxy.so/livez` → **200** `{"contractVersion":"1.1.0","status":"ok"}` |
+| Relay request surface | `POST /internal/v1/inference` — `GET` on it returns **405 Method Not Allowed**, while `/readyz` and `/metrics` return 404 on the same server |
+| Relay edge auth | `GET /internal/v1/health` → **401** `authentication_failed`, *"the request is not a signed Oxy edge envelope"* |
+| Oxy inference edge | `POST https://api.oxy.so/v1/chat/completions` → **401** in the OpenAI dialect; `GET /v1/generations/:id` → **401** with `schemaVersion: 1`; `GET /v1/models` → **200** |
+| Oxy control plane | `/inference/routing-policies`, `/inference/provider-connections`, `/inference/reporting/usage` → **401** each |
+| Oxy → Relay hop | `oxy-oxy-api:232` carries `RELAY_BASE_URL=https://relay.oxy.so`, `RELAY_EDGE_SIGNING_KEY_ID=oxy-edge-2026-08-17` and the SSM secret `RELAY_EDGE_SIGNING_PRIVATE_KEY`; `oxy-relay:2` carries the **same key id** in `RELAY_EDGE_PUBLIC_KEYS` |
+| Alia | ECS `oxy-cluster/alia` **2/2**; `GET https://api.alia.onl/health` → **200**, `"relay":"disabled"`, uptime 47 076 s |
+
+*Negative controls, because a 401 wall and a mounted route look alike:*
+`GET https://api.oxy.so/nonexistent-control-path` returns **404** `{"error":"NOT_FOUND"}`, so the
+401s above are mounted routes. And `/readyz` returning 404 on `relay.oxy.so` shows that 404 really
+does mean absent on that server, so the 405 on `/internal/v1/inference` is a route.
+
+**The audit's premise is now measurably false.** It said *"zero of Oxy's 155 route files match
+`inference` or `relay`"*. `OxyHQ/oxy` `main` carries **six**: `inferenceEdge.ts`,
+`inferenceCatalogue.ts`, `inferenceAdmin.ts`, `inferenceRoutingPolicies.ts`,
+`inferenceProviderConnections.ts`, `inferenceReporting.ts`.
+
+### What Relay actually serves, which is less than the epic assumes
+
+**One provider.** `RELAY_PROVIDERS=cerebras`, one base URL, one key. The published inventory
+(`s3://oxy-relay-inventory-usw2-237343248947/inventory/current.json`, `snap_011361d3b1a380da`,
+`issuedAt` 2026-08-19T13:12:52Z — re-issued 14 minutes before it was read) holds exactly two
+deployments: `openai/gpt-oss-120b@observed-2026-08-18` and `google/gemma-4-31b@observed-2026-08-18`,
+both on Cerebras.
+
+That matters for the nineteen adapter rows in workstream 7, and it splits them three ways —
+**measured, not guessed**, from each provider's base URL in
+`packages/api/src/internal/providers/lib/providers/` against `cmd/relay/main.go:316-337`, which
+resolves a provider by **protocol** and not by slug:
+
+- **Config-only** (the shipped `openaicompat` adapter serves it; a slug that declares
+  `_PROTOCOL=openai_compatible`, `_BASE_URL` and `_API_KEY` needs **no Go change**): cerebras, cohere,
+  deepseek, digitalocean, fireworks, groq, hyperbolic, mistral, novita, openai, openrouter,
+  perplexity, sambanova, together, xai.
+- **Needs a Go adapter** (neither of Relay's two protocols): **google**
+  (`generativelanguage.googleapis.com/v1beta/models/`), **cloudflare**
+  (`api.cloudflare.com/client/v4/accounts/`), **replicate** (`api.replicate.com/v1/models/`).
+- **Already ported**: anthropic — `internal/provider/anthropic`, protocol `anthropic_messages`.
+
+### Alia cannot call Relay directly, and this is the trap the re-audit nearly fell into
+
+Relay refuses anything that is not an **Ed25519-signed Oxy edge envelope** and holds only *public*
+keys, so it cannot construct one itself and neither can Alia. The path is
+`Alia → https://api.oxy.so/v1/* → POST https://relay.oxy.so/internal/v1/inference`, with the Oxy edge
+authenticating Alia by short-lived service token, resolving the principal, signing, and forwarding.
+
+**Of the two origins in `RELAY_ALLOWED_ORIGINS`, only `https://api.oxy.so` is usable.** The
+`https://relay.oxy.so` entry is currently dead — not wrong to have pinned, but not a second option
+either. A re-audit that had stopped at `curl /livez → 200` would have unblocked 96 rows onto a door
+Alia has no key to; the discriminator was one more request.
+
+### The seven rows that are still `BLOCKED_RELAY`, each with a named gap
+
+| box | the named gap |
+| --- | --- |
+| L335 *OpenAI and OpenAI voice/realtime* | the **text** half is config-only; **voice/realtime** has no Relay path — `adapter.go:133` refuses `modality != text` |
+| L337 *xAI/Grok voice* | same refusal; xAI text is config-only |
+| L369 *Async image/audio job handling* | same refusal. The README names embeddings, images, audio and rerank as out of scope |
+| L691 *Voice/audio path* (e2e) | same refusal. Alia's voice path is LiveKit and stays outside Relay |
+| L365 *Rate-limit handling* | the credential-verdict half is built; the **per-provider quota-header mapping ships empty** under an exact-count assertion, and an official quota API is explicitly out of scope |
+| L368 *Same-model fallback* | built and **withheld**: contract 1.1.0 sends `{routingPolicyId, policyVersion}` and no snapshot, so `routingFallbackPolicy` never reaches the data plane. Relay ships failover off rather than override a control the platform advertises |
+| L692 *Same-model deployment fallback* (e2e) | the same gap, plus: the live inventory has **one** deployment per reference, so there is nothing to fail over to |
 
 **`OxyHQ/oxy#981` is not this blocker, and it is CLOSED** (2026-08-15). Its subject is an unmetered
 public inference exposure on Oxy's proxy *into* Alia, not "Oxy API → Relay is not mounted".
 [`relay-client-gap.md`](./relay-client-gap.md) cites it as OPEN, which was already stale when
-written; anyone reasoning from that citation should re-read the issue.
+written; anyone reasoning from that citation should re-read the issue. **`relay-client-gap.md` §1 is
+now stale in the other direction too** — it says the Oxy edge is not mounted, and it is.
 
-## The five `ALREADY_TRUE` rows
+## The cutover: what it would take in production today
+
+**It cannot be flipped today, and Relay is not why.** The ten variables the boot check demands were
+read off the code rather than off a summary — `relay-cutover.ts`, `relay-boot-check.ts`
+(`RELAY_PRINCIPAL_ENV`), `relay-credential.ts` (`RELAY_CREDENTIAL_REQUIRED_ENV`) and
+`relay-endpoint.ts`:
+
+`ALIA_RELAY_CLIENT_ENABLED`, `ALIA_RELAY_ACCOUNT_ID`, `ALIA_RELAY_APPLICATION_ID`,
+`ALIA_RELAY_CREDENTIAL_ID`, `ALIA_RELAY_CREDENTIAL_KEY`, `ALIA_RELAY_CREDENTIAL_SECRET`,
+`ALIA_RELAY_ENVIRONMENT`, `ALIA_RELAY_INFERENCE_SCOPES`, `RELAY_BASE_URL`, `OXY_API_URL`.
+
+**Ten, not nine** — `relay-boot-check.ts` folds `relay-credential.ts`'s three into the same refusal
+sentence, and one of those three is `OXY_API_URL`. Task definition `oxy-alia:105` carries exactly
+**one** of them, `OXY_API_URL`.
+
+Five things are missing. One is Alia code, three are operator actions, and the fifth is nobody's in
+this repository:
+
+1. **A concrete `RelayTransport`.** None exists. `relay-client.ts:203` declares the interface and its
+   own docstring says the client *"ships no HTTP transport"*; a repo-wide search finds implementations
+   only under `__tests__`. This was the right call while there was no endpoint — *"inventing a base
+   URL now produces a client whose first real test is production"* — and that argument has expired.
+   **This is the single largest piece of work the re-audit unblocks.**
+2. **An Oxy Application + ApplicationCredential for Alia carrying `inference:invoke`.** Nothing
+   blocks creating one: the scope is real (`applicationScopes.ts:83`), the mint
+   (`POST /auth/service-token`) is live, and the service-token lane the client uses is **not**
+   flag-gated (`inferenceEdge.service.ts:364` — only the `oxy_sk_` machine lane is).
+3. **`INFERENCE_EDGE_AUDIENCE` on the `oxy-api` service.** Absent from `oxy-oxy-api:232`, so
+   `resolveEdgeAudience()` returns `closed/not_configured` and every authenticated principal is
+   refused `permission_denied`. `internal` admits internal applications; `first_party` admits both
+   tiers. **This is an `oxy-infra` change, not an Alia one.**
+4. **A priced catalogue route that resolves to a Relay deployment.** The edge refuses
+   `no_route_available` / `unpriced_route` otherwise, and it refuses routing profiles outright
+   (`inferenceEdge.service.ts:726`) — so Alia's `alia-*` tier aliases mean nothing at the edge and
+   must map to a concrete `<publisher>/<model>` reference. **Whether any such route already exists is
+   UNMEASURED**, and unmeasurable without a credential: the public catalogue view is empty by design.
+5. **A Cerebras account that can be billed.** Relay serves only Cerebras, and its own
+   `configs/inventory.json` records that on 2026-08-18 the account answered **402 `payment_required`**
+   (`param: quota`) to every chat completion while the same key answered 200 on `/v1/models`. That is
+   the last measurement anyone recorded and this audit did not re-take it — it holds no Cerebras key.
+   **If it still holds**, a fully cut-over Alia receives `provider_billing_refused` on every request
+   until it changes or a second provider is declared. It is the cheapest of the five to check and the
+   only one nobody in this repository can fix.
+
+**What the cutover would fix.** Alia serves no chat today: `oxy-alia:105` carries no provider key in
+`environment[]` or `secrets[]`, `GATEWAY_API_URL` is unset so `gateway-client.ts` takes the local
+branch, and `GET https://api.alia.onl/v1/models` returns an empty list. Relay is the path that fixes
+it without Alia ever holding a provider key.
+
+**But "no provider key in the task definition" is not "no provider key".** `provider_keys.key` is a
+Postgres column that `key-manager.ts` reads at request time, and whether it holds production rows is
+**unmeasured** — no Alia database credential exists under `~/.config/oxy/tokens/`.
+
+## The seven `ALREADY_TRUE` rows
 
 Each names the file and line that makes it hold, the entrypoint that calls it, and the edit that
-turns it red — or says plainly that there is no guard. Two have since been ticked.
+turns it red — or says plainly that there is no guard. Two have since been ticked. **Two arrived with
+the 2026-08-19 re-audit, and one of those holds in `OxyHQ/Relay` rather than here**, so its mutation
+is marked PROPOSED: applying it would edit another repository's working tree, which this audit did
+not do. The *unmutated* half was run — `go test -count=1 ./internal/provider/...` at `OxyHQ/Relay`
+`254d545`: **ok** `provider`, **ok** `anthropic` (0.818 s), **ok** `openaicompat` (3.272 s).
+
+### The re-audit corrected one of its own verdicts before committing it
+
+**L377 *"Relay adapter passes conformance tests"* was first classified `ALREADY_TRUE`** on the
+strength of that green run, and is `ACTIONABLE_UPSTREAM` instead. Issue #139 line 375 reads **"For
+each provider:"** three lines above it, so the gate is per-provider and Relay ships adapters for
+**two of nineteen**. The suite is real, runs in CI and bites; it has simply never been pointed at the
+other seventeen subjects.
+
+**The general rule is worth more than the row: a suite reporting green says nothing about which
+SUBJECTS it ran against.** That is `~/AGENTS.md`'s *"a job's presence says nothing about which tests
+it RAN"*, one level down — and the defence is the same, cheap one: read the section preamble before
+reading the checkbox.
 
 | box | guard, and the entrypoint that calls it | mutation that turns it red |
 | --- | --- | --- |
+| **L338 Cerebras** *(re-audit)* | `internal/provider/openaicompat` serves it; `cerebras` is pre-declared `openai_compatible` at `cmd/relay/main.go:337`; `RELAY_PROVIDERS=cerebras` on `oxy-relay:2`; two Cerebras deployments in the live published inventory | **PROPOSED.** Delete the `"cerebras"` entry from `knownProviders` → startup fails `RELAY_PROVIDER_CEREBRAS_PROTOCOL is required` (`main.go:412`), because the deployment declares no `_PROTOCOL` for a slug it expects to be known |
+| **L540 Pin allowed Relay origins** *(ticked earlier)* | `relay-endpoint.ts` `RELAY_ALLOWED_ORIGINS`, fail-closed through `relayBootConfigurationFailure` | unchanged. The re-audit adds only the measurement that one of the two pinned origins is currently unusable by Alia |
 | L212 tools/structured output/vision/… **(ticked since)** | `relay-request.ts:340` (moved by #164), called by `relay-client.ts:931` | replacing the tools condition with `false` failed `relay-request.test.ts:357` — measured, 1 failed / 25 passed |
 | L454 never expose stored hashes as replacement secrets | **no guard.** Holds by absence: no route returns the column, and `routes/developer.ts:224` shows the plaintext once at creation | **none.** The audit named gate 4's response census; that census matches `keyConfig`, **not** `keyHash`, so it would not fire. Corrected above |
 | L522 no provider API key in a deployment environment | **no guard.** Holds by absence — see premise (d). #164's `direct-provider-guard.ts` names provider credentials but is armed only by `ALIA_RELAY_CLIENT_ENABLED`, which no deployment sets | none. Adding `process.env.OPENAI_API_KEY` to any source file still fails nothing |
@@ -512,6 +678,13 @@ The `^0.27.0` range does **not** reach them. Bumping it is the first move on L46
 `0.27.0`, imported by nothing in Alia. L604 is `ACTIONABLE_NOW` for the type and the refusal; only
 the DATA (which route carries which scope) waits on Relay.
 
+*Re-audit note (2026-08-19):* it does not wait on Relay, and it never did — `availabilityScope` is an
+Oxy commercial decision under ADR 0006, and Oxy serves it. `routes/inferenceCatalogue.ts` states that
+*"only an internal/system application sees `internal_alia` routes"*, and an internal-only route and a
+model that does not exist are deliberately the same answer. What the data waits on is an
+ApplicationCredential and Alia being registered as an internal application, which is why L605 is now
+`BLOCKED_OPERATOR`.
+
 ## A tooling hazard, because four of us have now hit it
 
 **`gh pr edit --body-file` does not write the body on this repository.** Recorded here rather than in
@@ -552,14 +725,42 @@ body. Here only the no-op above prevented exactly that.
 
 ## What this audit does not measure
 
-- **Runtime behaviour.** Every claim above is source, schema or a published tarball. No production
-  request was made beyond one unauthenticated `GET /health`.
+The three bullets below were the 2026-08-17 audit's. **Two of them are superseded by the 2026-08-19
+re-audit and are struck through**; what the re-audit itself could not measure follows.
+
+- ~~**Runtime behaviour.** Every claim above is source, schema or a published tarball. No production
+  request was made beyond one unauthenticated `GET /health`.~~ The re-audit made unauthenticated
+  probes of `relay.oxy.so`, `api.oxy.so` and `api.alia.onl`, each with a negative control, and read
+  four ECS task definitions and one S3 object. All read-only; every probe was refused.
 - **External consumers.** Whether anything outside this repository calls `/alia/chat`,
-  `/v1/responses` or an `alia_sk_` credential is an access-log question, and the service is parked.
-- **Relay's own repository, beyond its file tree and README.** Whether its adapters pass their
-  conformance suite, and whether anything deploys it, were not run.
+  `/v1/responses` or an `alia_sk_` credential is an access-log question. (The service is no longer
+  parked — `alia` is 2/2 — so the question is now answerable and still unanswered.)
+- ~~**Relay's own repository, beyond its file tree and README.** Whether its adapters pass their
+  conformance suite, and whether anything deploys it, were not run.~~ Both were: the conformance
+  suite is green at `254d545`, and `OxyHQ/Relay` deployed on 2026-08-18.
+
+**What the 2026-08-19 re-audit could not measure, and would not guess:**
+
+- **Oxy's catalogue contents.** Whether a priced route exists for either Cerebras deployment. The
+  public view is empty *by design*, so an empty catalogue and a gated one are the same bytes
+  (`emptyBecauseGated`). Answering it needs a credential.
+- **Whether the Cerebras account can be billed.** The last measurement anyone recorded is Relay's
+  own, 2026-08-18: 402 `payment_required`. The live publisher only exercises `/v1/models`.
+- **Whether `provider_keys` holds production rows.** No Alia database credential exists under
+  `~/.config/oxy/tokens/`.
+- **Anything end-to-end.** No inference request was made through any path, authenticated or
+  otherwise.
 
 **This file goes stale in one direction: the repository moves and the verdicts do not.** 35 of the
 246 rows were earned within a day of the audit, and five carried a claim that was wrong or became
 wrong. Before acting on a row, check its `resolvedSince` and re-read the file:line it cites — a
 verdict is a measurement with a date on it, not a standing fact.
+
+**The re-audit adds a sharper form of that, and it is the most transferable thing on this page: the
+repository is not the only thing that moves.** 97 verdicts — 39% of every row here — went stale
+across two days without a single commit landing in this repository, because the blocker they all
+named was deployed somewhere else. A verdict whose evidence is an *absence in another system* has no
+way to notice when that absence ends, and nothing in this repository's CI can go red for it. The
+cheap defence is to write such a verdict with the observation that would refute it attached —
+`blockers.relay` now carries the exact probes — so that re-checking it costs one command rather than
+one audit.
