@@ -3,6 +3,7 @@ import { sql } from 'drizzle-orm';
 import { getDb } from '../db/index.js';
 import {
   getAllProviderHealth,
+  getTierMappings,
   providersWithUsableCredentials,
   type HealthMetrics,
 } from '../lib/gateway-client.js';
@@ -93,9 +94,40 @@ import { log } from '../lib/logger.js';
  *  - **`unknown`** — never called. The state the previous version had no name
  *    for and reported as healthy.
  *
- * The four partition the rows exactly; `openCircuits` stays the overlapping
+ * The four partition the census exactly; `openCircuits` stays the overlapping
  * detail it has always been. No provider NAME appears in the response — these
  * are counts, and `/health` is public and unauthenticated.
+ *
+ * ## `total` counts what is CONFIGURED, and it used to count what had been READ
+ *
+ * The census walks `TIER_MODEL_MAPPINGS` — the routing table — and looks each
+ * pair up in `provider_health`. It used to walk `provider_health` itself, and
+ * that is a different question with a badly misleading answer, because rows in
+ * that table are created ON DEMAND by `getOrCreateProviderHealth`.
+ *
+ * **Measured in production on 2026-08-19: `total` read 26 in the afternoon and
+ * 50 an hour later, on the same deployment, with no configuration change and
+ * nothing deployed in between.** Someone browsed a page; a read inserted rows;
+ * a public endpoint's headline count nearly doubled while nothing in the system
+ * had changed. A reader watching that number would have gone looking for a cause
+ * that did not exist. It plateaus once the provider×model cross-product fills,
+ * which makes it worse rather than better: it looks stable exactly when someone
+ * has finished being misled by it.
+ *
+ * This is the property that was already refused one paragraph up — no staleness
+ * window on `last_success`, because it would make the endpoint a function of
+ * TRAFFIC. The row count had that defect natively. Now a fresh deployment and a
+ * heavily browsed one report the same `total`, and the number moves only when
+ * the routing table does. `routes/models-stats.ts` stopped manufacturing the
+ * rows in the same batch; this stops depending on them.
+ *
+ * A pair is counted once however many tiers route to it: 119 listings across 14
+ * tiers are 58 distinct pairs, and counting listings would report a number more
+ * than twice the truth that grew whenever a tier was added.
+ *
+ * A `provider_health` row for a pair NOT in the routing table is deliberately
+ * ignored. It cannot be routed to, so it cannot affect whether the service can
+ * serve — and including it would put the traffic-dependence straight back.
  *
  * ### `healthy` deliberately has no staleness window
  *
@@ -198,7 +230,7 @@ async function isPostgresReady(): Promise<boolean> {
   }
 }
 
-/** The four states a `provider_health` row can be in. They partition the rows. */
+/** The four states a configured provider can be in. They partition the census. */
 type ProviderState = 'healthy' | 'unhealthy' | 'unusable' | 'unknown';
 
 interface ProviderSummary {
@@ -220,14 +252,24 @@ const NO_PROVIDERS: ProviderSummary = {
 };
 
 /**
- * Which of the four a row is in. The order of the tests IS the precedence; see
- * the module comment for why each one sits where it does.
+ * Which of the four a configured provider is in. The order of the tests IS the
+ * precedence; see the module comment for why each one sits where it does.
+ *
+ * `row` is undefined when the pair is configured but has no telemetry at all —
+ * the honest majority on a fresh deployment, and `unknown` is exactly what that
+ * means. It is tested AFTER the credential, because "there is nothing to serve
+ * with" outranks "nothing has been recorded".
  *
  * `lastSuccess` arrives as a `Date` from Postgres and as a string over the
  * gateway's JSON, so it is tested for presence rather than read.
  */
-function classifyProvider(row: HealthMetrics, credentialed: ReadonlySet<string>): ProviderState {
-  if (!credentialed.has(row.provider)) return 'unusable';
+function classifyProvider(
+  provider: string,
+  row: HealthMetrics | undefined,
+  credentialed: ReadonlySet<string>,
+): ProviderState {
+  if (!credentialed.has(provider)) return 'unusable';
+  if (row === undefined) return 'unknown';
   if (row.circuitState === 'open' || !row.isHealthy) return 'unhealthy';
   if (row.lastSuccess !== null) return 'healthy';
   if (row.lastFailure !== null) return 'unhealthy';
@@ -235,24 +277,53 @@ function classifyProvider(row: HealthMetrics, credentialed: ReadonlySet<string>)
 }
 
 /**
- * Both facts, or neither.
+ * Every configured provider/model pair, deduplicated.
  *
- * The two reads hit the same Postgres, so one failing means the other is not
+ * `TIER_MODEL_MAPPINGS` lists a pair once per TIER that routes to it, so the
+ * same pair appears many times over — 119 listings across 14 tiers reduce to 58
+ * distinct pairs. Counting the listings would report a number more than twice
+ * the truth, and it would move whenever a tier was added without a single new
+ * provider existing.
+ */
+function configuredPairs(
+  mappings: Readonly<Record<string, readonly { provider: string; modelId: string }[]>>,
+): Map<string, string> {
+  const pairs = new Map<string, string>();
+  for (const tier of Object.values(mappings)) {
+    for (const mapping of tier) {
+      pairs.set(`${mapping.provider}:${mapping.modelId}`, mapping.provider);
+    }
+  }
+  return pairs;
+}
+
+/**
+ * All three facts, or none of them.
+ *
+ * The reads hit the same Postgres, so one failing means the others are not
  * trustworthy either — and a summary built from health rows with the credential
  * half missing would report every provider `unusable`, which is a far more
- * alarming lie than the one this change removes. Letting the whole thing throw
- * hands both callers their existing "could not reach the providers" branch.
+ * alarming lie than the one this endpoint exists to remove. Letting the whole
+ * thing throw hands both callers their existing "could not reach the providers"
+ * branch.
  */
 async function summariseProviders(): Promise<ProviderSummary> {
-  const [providers, credentialed] = await Promise.all([
+  const [mappings, providers, credentialed] = await Promise.all([
+    getTierMappings(),
     getAllProviderHealth(),
     providersWithUsableCredentials(),
   ]);
 
-  const summary: ProviderSummary = { ...NO_PROVIDERS, total: providers.length };
-  for (const provider of providers) {
-    summary[classifyProvider(provider, credentialed)] += 1;
-    if (provider.circuitState === 'open') summary.openCircuits += 1;
+  // Telemetry indexed by the same key the configured census walks. A miss is a
+  // pair nothing has recorded, not a pair that does not exist.
+  const rows = new Map(providers.map((row) => [`${row.provider}:${row.modelId}`, row]));
+
+  const summary: ProviderSummary = { ...NO_PROVIDERS };
+  for (const [key, provider] of configuredPairs(mappings)) {
+    const row = rows.get(key);
+    summary.total += 1;
+    summary[classifyProvider(provider, row, credentialed)] += 1;
+    if (row?.circuitState === 'open') summary.openCircuits += 1;
   }
   return summary;
 }
