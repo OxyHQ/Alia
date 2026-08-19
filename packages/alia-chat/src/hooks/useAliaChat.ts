@@ -223,6 +223,40 @@ export function useAliaChat(options: UseAliaChatOptions = {}): UseAliaChatReturn
       toolInvocationsRef.current = [];
 
       try {
+        /**
+         * This SDK stays on `/v1/chat/completions`, and that is a decision
+         * rather than an oversight — epic #139 workstream 6.
+         *
+         * Every other first-party Alia client moved to the product runtime at
+         * `POST /alia/chat`, which serves the identical handler. This one cannot
+         * follow, for two reasons that are independent of each other.
+         *
+         * **CORS.** `/v1` is the only surface with the public wildcard policy;
+         * everything else falls to the Oxy allowlist
+         * (`packages/api/src/index.ts`). Measured 2026-08-19 against the running
+         * service: an `OPTIONS /alia/chat` preflight from
+         * `https://alia.onl` and `https://console.alia.onl` is answered with a
+         * matching `access-control-allow-origin`, and one from an unlisted
+         * origin comes back with NO such header, so a browser blocks the
+         * request. `OPTIONS /v1/chat/completions` answers `*` for all three.
+         * This package is installed by apps on origins Alia does not enumerate,
+         * so the product surface would refuse them. Widening the allowlist is
+         * not the repair: the narrow policy is what makes `/alia/chat` a product
+         * surface, and it is one of the three recorded differences in
+         * `packages/api/src/routes/__tests__/v1-compatibility-surface.test.ts`.
+         *
+         * **Raw source.** `@alia.onl/sdk` publishes `src/`, so consumers' own
+         * Metro and tsc compile this line and it changes what every installed
+         * copy sends on its NEXT build — not on a release this repository
+         * controls. `docs/migration/compatibility-window.md` records the same
+         * property for the aliases: installed copies resume sending whatever
+         * their source says the moment the service is reachable.
+         *
+         * The consequence is recorded rather than hidden: `/v1/chat/completions`
+         * cannot reach its removal gate while this SDK is a consumer, so
+         * migrating it is a browser-CORS decision on the product surface, taken
+         * with the SDK's consumers enumerated.
+         */
         const response = await fetch(`${apiUrl}/v1/chat/completions`, {
           method: 'POST',
           headers: {

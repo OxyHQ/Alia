@@ -23,7 +23,7 @@ Routes are mounted in `packages/api/src/index.ts:221` through `:257`.
 | `Authorization: Bearer <session-token>` | Everywhere. Issued by Oxy, verified by `packages/api/src/middleware/auth.ts` |
 | `Authorization: Bearer alia_sk_<key>` | `/v1/*` and `/codea/*` only. Inside the compatibility window — see [developer access](./developers-portal.md) |
 | Oxy service token | `POST /internal/trigger` only, via `oxyServiceAuth` |
-| `x-channel-bot-secret` + `x-oxy-user-id` | Registered channel bots, validated at `packages/api/src/routes/v1.ts:35` |
+| `x-channel-bot-secret` + `x-oxy-user-id` | Registered channel bots. Validated by `authenticateChannelBotSecret` (`packages/api/src/middleware/auth.ts`), which `authenticateTokenOrApiKey` dispatches to — so it works on `/alia/chat` as well as `/v1/*`. `routes/v1.ts:35` holds a second, pre-auth copy that matches against `listChannels()` rather than `getConfiguredChannels()` |
 
 `POST /alia/chat` and `/v1/*` are both mounted with `authenticateTokenOrApiKey`
 (`packages/api/src/routes/chat.ts`, `routes/v1.ts:59`) plus the same per-key rate limit

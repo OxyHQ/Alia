@@ -1,7 +1,7 @@
 /**
  * Telegram Bot adapter — runs Telegraf with long-polling.
  *
- * Routes AI calls through the main API's /v1/chat/completions endpoint
+ * Routes AI calls through the main API's /alia/chat product runtime
  * so the bot gets the full system prompt, user memory, tools, etc.
  * Responses stream via SSE and are progressively edited into a Telegram message.
  */

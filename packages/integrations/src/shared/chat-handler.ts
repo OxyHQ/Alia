@@ -4,7 +4,7 @@
  * Each adapter extracts the platform-specific message data, then calls
  * handleIncomingMessage() with platform-agnostic params + callbacks.
  *
- * AI calls are routed through the main API's /v1/chat/completions endpoint
+ * AI calls are routed through the main API's /alia/chat product runtime
  * so that adapters get the full system prompt, user memory, tools, etc.
  */
 

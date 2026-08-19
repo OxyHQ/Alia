@@ -712,6 +712,14 @@ You are running inside Visual Studio Code, Microsoft's popular code editor.
       let currentToken = accessToken;
 
       const makeRequest = async (token: string) => {
+        /**
+         * OpenAI-protocol caller: the `openai` package derives
+         * `POST {baseURL}/chat/completions` itself, so this client chose the
+         * PROTOCOL and the protocol names the path. It stays on the compatibility
+         * surface deliberately while the clients that write their own URL moved to
+         * `POST /alia/chat` — epic #139 workstream 6, recorded with the rest in
+         * gate 7 of `packages/api/src/__tests__/architectureGates.test.ts`.
+         */
         const openai = new OpenAI({
           apiKey: token,
           baseURL: `${baseUrl}/v1`
