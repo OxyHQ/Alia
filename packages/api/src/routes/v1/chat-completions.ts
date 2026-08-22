@@ -3,7 +3,7 @@ import { Router, Request, Response } from 'express';
 import { getAliaModel, getModelMappingsForTier } from '../../lib/gateway-client.js';
 import { getDb } from '../../db/index.js';
 import { findConversationAgentById } from '../../db/chat/conversationRepository.js';
-import { refundReservation } from '../../lib/credits-manager.js';
+import { refundReservation, safeRefund } from '../../lib/credits-manager.js';
 import { handleDeepResearch } from '../../lib/chat-modes/deep-research-handler.js';
 import { ToolPipeline } from '../../lib/tool-pipeline.js';
 import { createResponseSSEEmitter } from '../../lib/sse-emitter.js';
@@ -47,6 +47,7 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
     resolved: null,
     aliasModelId: getDefaultAliaModel(),
     creditReservation: null,
+    creditsSettled: false,
     globalTimedOut: false,
   };
 
@@ -331,6 +332,7 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
     if (state.creditReservation) {
       refundReservation(state.creditReservation).catch((err: unknown) => log.v1.error({ err, reservationId: state.creditReservation?.userId }, 'refundReservation failed for synthetic response'));
       state.creditReservation = null;
+      state.creditsSettled = true;
     }
 
     clearTimeout(globalTimer);
@@ -378,6 +380,19 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
       writeStopChunk(res, requestId, state.aliasModelId);
       res.write('data: [DONE]\n\n');
       res.end();
+    }
+  } finally {
+    /**
+     * The one place a reservation is released.
+     *
+     * `reserveCredits` DEBITS on the way in, so every exit that neither charged
+     * nor refunded left the person one credit poorer for an answer they never
+     * got — the 80s timeout and the catch above both did, each having simply
+     * forgotten. Releasing here means the next exit path cannot forget.
+     */
+    if (state.creditReservation && !state.creditsSettled) {
+      state.creditsSettled = true;
+      await safeRefund(state.creditReservation, 'request ended without charging');
     }
   }
 };

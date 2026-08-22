@@ -166,6 +166,7 @@ vi.mock('../../../lib/credits-manager.js', () => ({
   reserveCredits: vi.fn(async () => ({ userId: 'user-ws13', creditsReserved: 1, initialFreeCredits: 100, initialPaidCredits: 0 })),
   finalizeCredits: vi.fn(async () => ({ creditsCharged: 3, creditsRemaining: 97 })),
   refundReservation: vi.fn(async () => undefined),
+  safeRefund: vi.fn(async () => undefined),
 }));
 vi.mock('../../../lib/user-credits-helpers.js', () => ({
   getOrCreateUserCredits: vi.fn(async () => ({ creditsFree: 100, creditsPaid: 0 })),

@@ -55,6 +55,7 @@ vi.mock('../../user-credits-helpers.js', () => ({ getOrCreateUserCredits: async 
 vi.mock('../../credits-manager.js', () => ({
   reserveCredits: async () => null,
   refundReservation: async () => undefined,
+  safeRefund: async () => undefined,
 }));
 vi.mock('../../plan-access.js', () => ({ getUserEntitlements: async () => null }));
 vi.mock('../../../middleware/auth.js', () => ({ oxyClient: { getUserById: async () => null } }));
