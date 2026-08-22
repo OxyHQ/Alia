@@ -521,6 +521,30 @@ const PROVIDER_IMPORT_ALLOWLIST: readonly { from: string; to: string; via: Modul
     why: 'Async-invoke result unwrapping for one provider. Moves to Relay (#139 ws7).',
   },
   {
+    from: 'packages/api/src/scripts/sync-provider-models.ts',
+    to: 'packages/api/src/internal/providers/lib/generate-model-mappings',
+    via: 'import',
+    why: 'The catalogue drift report reads the routing table to know what to ask each provider for. Operator script, off the request path.',
+  },
+  {
+    from: 'packages/api/src/scripts/sync-provider-models.ts',
+    to: 'packages/api/src/internal/providers/lib/key-manager',
+    via: 'import',
+    why: 'Asks for the key through the same selector a request uses, so the credential read stays inside the provider tree rather than becoming a seventh reader of the column.',
+  },
+  {
+    from: 'packages/api/src/scripts/sync-provider-models.ts',
+    to: 'packages/api/src/internal/providers/lib/provider-error-body',
+    via: 'import',
+    why: 'Redacts the credential out of an upstream error body before it is reported.',
+  },
+  {
+    from: 'packages/api/src/scripts/__tests__/provider-catalogues.test.ts',
+    to: 'packages/api/src/internal/providers/lib/generate-model-mappings',
+    via: 'import',
+    why: 'Asserts every routed provider is either checkable or explicitly excused.',
+  },
+  {
     from: 'packages/api/src/lib/show/show-pipeline.ts',
     to: 'packages/api/src/internal/providers/lib/provider-api',
     via: 'import',
@@ -689,7 +713,7 @@ const PROVIDER_IMPORT_ALLOWLIST: readonly { from: string; to: string; via: Modul
  * produced a plausible wrong answer that still compiled. The same trap caught
  * ws5's rebase, which is why this paragraph is a rule and not a history.
  */
-const PROVIDER_IMPORT_ALLOWLIST_SIZE = 38;
+const PROVIDER_IMPORT_ALLOWLIST_SIZE = 42;
 
 function observedProviderImports(): { from: string; to: string; via: ModuleRef['via'] }[] {
   const seen = new Map<string, { from: string; to: string; via: ModuleRef['via'] }>();
@@ -1453,6 +1477,16 @@ const ALLOWED_KEY_CONFIG_SHAPES: readonly string[] = ['arg of getAIModel()', 're
 const PLAINTEXT_CREDENTIAL_READERS: readonly string[] = [
   'packages/api/src/internal/providers/lib/provider-api.ts',
   'packages/api/src/lib/chat-core.ts',
+  // The catalogue drift report. It holds the credential for one request — as a
+  // bearer token to the operator that ISSUED it, asking which models that
+  // operator still serves — and never logs, returns or serializes it; an
+  // upstream error body goes through `readProviderErrorBody`, which redacts the
+  // credential it was sent with. An operator one-shot, off the request path.
+  //
+  // Two → three deliberately. It is here rather than reading `provider_keys`
+  // itself because asking through `getBestKeyForModel` keeps the row read
+  // inside the provider tree, so this widens one boundary and not two.
+  'packages/api/src/scripts/sync-provider-models.ts',
 ];
 
 /**
