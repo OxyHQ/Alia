@@ -271,7 +271,7 @@ describe('the ordinary-word exemption list is exact', () => {
     // going red. This count is what forces the classification to be made
     // deliberately. Raising it is the same edit as deciding which list the new
     // operator belongs in.
-    expect(PROVIDER_NAMES).toHaveLength(19);
+    expect(PROVIDER_NAMES).toHaveLength(20);
   });
 
   it('exempts exactly the eight registered operators whose slug is a word', () => {

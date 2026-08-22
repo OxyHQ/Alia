@@ -56,8 +56,9 @@ const SECRET_PATTERNS: SecretPattern[] = [
 
   // ── The rest of the providers `provider_keys.provider` admits ──
   //
-  // The check constraint (`drizzle/0003_closed_black_queen.sql`) admits nineteen
-  // providers and the three above covered three of them, so the redactor missed
+  // The check constraint (last widened by the migration that registered
+  // CheaperInference) admits twenty providers and the three above covered three
+  // of them, so the redactor missed
   // the credential type that is actually loaded in production. Each entry here
   // is a prefix its vendor documents; the providers whose keys are opaque
   // strings with no prefix at all — Mistral, Cohere, Together, SambaNova,
@@ -72,6 +73,7 @@ const SECRET_PATTERNS: SecretPattern[] = [
   { type: 'fireworks_api_key', pattern: /\bfw_[a-zA-Z0-9]{20,}\b/g, severity: 'critical', redact: prefixRedact(3) },
   { type: 'perplexity_api_key', pattern: /\bpplx-[a-zA-Z0-9]{20,}\b/g, severity: 'critical', redact: prefixRedact(5) },
   { type: 'cerebras_api_key', pattern: /\bcsk-[a-zA-Z0-9]{20,}\b/g, severity: 'critical', redact: prefixRedact(4) },
+  { type: 'cheaperinference_api_key', pattern: /\bir_live_[a-zA-Z0-9]{20,}\b/g, severity: 'critical', redact: prefixRedact(8) },
 
   // ── Alia's own developer credential ──
   { type: 'alia_developer_key', pattern: /\balia_sk_[a-zA-Z0-9_-]{16,}/g, severity: 'critical', redact: prefixRedact(8) },

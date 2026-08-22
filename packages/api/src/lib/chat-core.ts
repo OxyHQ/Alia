@@ -202,6 +202,14 @@ export function getAIModel(keyConfig: KeyConfig) {
       const digitalocean = openAICompatibleProvider(provider, apiKey, 'https://inference.do-ai.run/v1');
       return digitalocean.chat(modelId || 'openai-gpt-5-nano');
     }
+    case 'cheaperinference': {
+      const cheaperinference = openAICompatibleProvider(provider, apiKey, 'https://api.cheaperinference.com/v1');
+      // No `||` default: this operator fronts other vendors' catalogues, so
+      // there is no model it is guaranteed to serve. A caller that reaches here
+      // without a modelId has a missing mapping, and an invented id would turn
+      // that into an upstream 404 instead.
+      return cheaperinference.chat(modelId);
+    }
     default:
       throw new Error(`Provider "${provider}" not supported`);
   }

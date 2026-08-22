@@ -825,6 +825,12 @@ const PROVIDER_HOST_ALLOWLIST: Readonly<Record<string, readonly string[]>> = {
     'packages/api/src/lib/chat-core.ts',
     'packages/api/src/lib/provider-warmup.ts',
   ],
+  // No adapter module: `Provider.proxy()` has no caller repo-wide since #141,
+  // and the ownership matrix files every adapter as `owner: delete`. This
+  // operator is reached through the live path only.
+  'api.cheaperinference.com': [
+    'packages/api/src/lib/chat-core.ts',
+  ],
   'api.cloudflare.com': [
     'packages/api/src/internal/providers/lib/providers/cloudflare.ts',
     'packages/api/src/lib/chat-core.ts',
@@ -940,6 +946,7 @@ const EGRESS_HOSTS: readonly string[] = [
   'alia.onl',
   'api.anthropic.com',
   'api.cerebras.ai',
+  'api.cheaperinference.com',
   'api.cloudflare.com',
   'api.cohere.ai',
   'api.deepseek.com',
