@@ -138,6 +138,11 @@ Drive remain, lacking a hosted MCP.
   as the API (rows outlive a redeploy — a key change surfaces as an auth
   error, not a decryption one) plus `API_BASE_URL`. A missing key degrades
   gracefully — only OAuth-connect calls error.
+- **`lib/mcp-relay.ts` is the MCP WebSocket relay, NOT Relay the inference data
+  plane** — unrelated, despite the name. Never construct a second
+  `new WebSocketServer({ server, path })` alongside socket.io on one Node
+  `http.Server`; use `{ noServer: true }` plus one `server.on('upgrade')` router,
+  as it does.
 - The `lib/mcp/` governance layer was deleted as dead code; `buildMcpTools` is
   called directly. Wire any reintroduction into that path, not orphaned.
 
@@ -165,22 +170,26 @@ pipeline. This is SEPARATE from the shared system bot (env `TELEGRAM_BOT_TOKEN`,
 - A per-(bot, end-user) inbound rate limit (15/min, silently dropped) guards
   against a stranger draining the owner's credits. Credits are the hard cap.
 
-## Gateway and provider keys
+## Inference: Relay is the destination, in-process is the present
 
-**There is no gateway service** — `packages/alia-gateway` was deleted. Provider
-calls happen in-process in `packages/api/src/internal/providers`.
+**Relay (`~/Oxy/Relay`) is Oxy's own inference provider and Alia CONSUMES it** —
+Alia is not a place where provider logic lives. **Add no new provider adapter,
+key pool or routing table to `packages/api`.**
 
-`packages/api/src/lib/gateway-client.ts` REMAINS and is the seam: it runs the
-LOCAL in-process path unless BOTH `SERVICE_SECRET` and `GATEWAY_API_URL` are set,
-and production sets only the former. Do not reintroduce a second copy of the
-provider logic; a remote provider tier, if ever wanted, goes behind that client.
+The cutover is `ALIA_RELAY_CLIENT_ENABLED` (`lib/inference/relay-cutover.ts`),
+**default OFF**, exactly `'true'`. Off, the Relay client answers
+`service_unavailable` before touching a transport and neither the boot guard nor
+the egress block is armed — so provider calls still happen in-process in
+`internal/providers` today, and that is the state Relay REPLACES, not an
+architecture to extend. `__tests__/relay-boundary.test.ts` freezes which product
+modules may name the client.
+
+**There is no gateway service** — `packages/alia-gateway` was deleted;
+`lib/gateway-client.ts` remains as the local/remote seam and is NOT the Relay
+seam.
 
 TTS fails over across providers via `synthesize-speech.ts` and
 `internal/providers/lib/tts-providers.ts` (the voice translation table).
-
-Do not construct a second `new WebSocketServer({ server, path })` alongside
-socket.io on the same Node `http.Server`. Use `{ noServer: true }` plus one
-`server.on('upgrade')` router. See `lib/mcp-relay.ts`.
 
 ## UI conventions (packages/app)
 
