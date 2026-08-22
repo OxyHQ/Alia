@@ -53,6 +53,12 @@ const MAIN_REF = "'refs/heads/main'";
 const EXPECTED = {
   'ci.yml': 'per-commit',
   'deploy-aws.yml': 'serialised',
+  // Its own group, not the API's: the two deploy different services and migrate
+  // different databases, so sharing one would make each block the other for no
+  // gain. Serialised for the same reason as the API's — and here the group is
+  // additionally the ONLY interlock on the migrator, which takes no lock of its
+  // own and reads the ledger's high-water mark outside its transaction.
+  'deploy-integrations.yml': 'serialised',
   'add-to-roadmap.yml': 'keyed',
 };
 

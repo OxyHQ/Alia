@@ -117,6 +117,23 @@ RUN bun install --production --filter @alia/integrations
 # Copy built output from builder
 COPY --from=builder /build/packages/integrations/dist ./packages/integrations/dist
 
+# The migrations, which are DATA and are therefore not in `dist`.
+#
+# `src/db/migrate.ts` resolves them as `join(__dirname, '..', '..', 'drizzle')`,
+# which from `dist/db/` is `/app/packages/integrations/drizzle` — a path that did
+# not exist in this image. Nothing noticed because nothing had ever run the
+# migrator from a container: `drizzle-kit` is a devDependency and cannot be
+# reached from here, and `db:migrate` is a `bun` script run against a developer's
+# own checkout.
+#
+# It fails loudly rather than silently — @oxyhq/db's `readJournal` throws naming
+# the missing path — but it fails at the one-shot migration task, i.e. after a
+# full ARM64 build, on the step whose whole job is to run before the rollout.
+#
+# `packages/api/Dockerfile:116` is the control: it has always copied its own
+# `drizzle` directory, for exactly this reason.
+COPY --from=builder /build/packages/integrations/drizzle ./packages/integrations/drizzle
+
 # Create signal-cli data directory
 RUN mkdir -p /app/signal-data && chown -R node:node /app
 

@@ -24,8 +24,30 @@ MIGRATION_TARGET_DATABASE="${MIGRATION_TARGET_DATABASE:-alia}"
 # after, through POST_DEPLOY_TASK_COMMAND_JSON. `all` is for a from-zero genesis
 # run only and is the one value that is wrong against a live database.
 MIGRATION_PHASE="${MIGRATION_PHASE:-pre}"
+# Which package's migrator this deploy runs. Defaulted rather than required
+# because `packages/api` is the caller this script was written for and every
+# existing invocation omits it; `packages/integrations` ships its own migrator
+# with its own journal and its own database, and hardcoding one package's path
+# is what made this script single-tenant.
+#
+# Not derived from `$APP`: the ECS service is `alia-integrations` and the package
+# is `integrations`, so a derivation would need a mapping table that is wrong the
+# first time the two names disagree — which is already.
+MIGRATION_ENTRYPOINT="${MIGRATION_ENTRYPOINT:-packages/api/dist/db/migrate.js}"
 INTERNAL_METRICS_PARAMETER="${INTERNAL_METRICS_PARAMETER:-}"
 TASK_SECRET_OVERRIDES_JSON="${TASK_SECRET_OVERRIDES_JSON:-}"
+# The environment-variable counterpart of TASK_SECRET_OVERRIDES_JSON, and the
+# only way CI can introduce a NEW plain variable to a service that already
+# exists.
+#
+# Without it the sole route is a hand-registered revision plus a repoint, which
+# survives exactly until a circuit-breaker rollback moves the service pointer
+# back to a revision that never carried the variable — and then the NEXT
+# unrelated deploy descends from that one and the variable is gone, silently.
+# `docs/runbooks/relay-cutover.md` names this hook as the durable fix and the
+# reason: an override here is re-asserted on every deploy, so a rollback cannot
+# lose it.
+TASK_ENV_OVERRIDES_JSON="${TASK_ENV_OVERRIDES_JSON:-}"
 AWS_ACCOUNT_ID="${AWS_ACCOUNT_ID:-}"
 AWS_PARTITION="${AWS_PARTITION:-aws}"
 POST_DEPLOY_SMOKE_SCRIPT="${POST_DEPLOY_SMOKE_SCRIPT:-}"
@@ -88,6 +110,31 @@ if ! jq -e '
   )
 ' <<<"$TASK_SECRET_OVERRIDES_JSON" >/dev/null; then
   echo "::error::TASK_SECRET_OVERRIDES_JSON must map environment variable names to complete SSM parameter ARNs."
+  exit 1
+fi
+if [[ -z "$TASK_ENV_OVERRIDES_JSON" ]]; then
+  TASK_ENV_OVERRIDES_JSON='{}'
+fi
+# The EMPTY-STRING rejection is the load-bearing clause, not the name pattern.
+#
+# This hook exists to arm a variable that is absent until somebody decides it
+# should not be, so the natural way to write the caller is "pass whatever the
+# repo variable holds". Unset, that is the empty string — and an empty override
+# would register a revision declaring the variable as "" rather than leaving it
+# absent, which is the one outcome the caller never wants: for INTEGRATIONS_URL
+# it reads as configured-and-broken instead of unconfigured, and code branching
+# on presence takes the wrong arm. Refuse it here so a caller that meant to send
+# nothing has to send `{}`.
+if ! jq -e '
+  type == "object" and
+  length <= 20 and
+  all(
+    to_entries[];
+    (.key | type == "string" and test("^[A-Z][A-Z0-9_]{0,127}$")) and
+    (.value | type == "string" and length > 0 and length <= 2048)
+  )
+' <<<"$TASK_ENV_OVERRIDES_JSON" >/dev/null; then
+  echo "::error::TASK_ENV_OVERRIDES_JSON must map environment variable names to non-empty string values."
   exit 1
 fi
 
@@ -416,6 +463,13 @@ task_secret_overrides="$(jq -c '
   ]
 ' <<<"$TASK_SECRET_OVERRIDES_JSON")"
 
+task_env_overrides="$(jq -c '
+  [
+    to_entries[]
+    | {name: .key, value: .value}
+  ]
+' <<<"$TASK_ENV_OVERRIDES_JSON")"
+
 aws ecs describe-task-definition \
   --task-definition "$current_task_definition" \
   --query taskDefinition \
@@ -433,6 +487,7 @@ jq \
   --arg image "$IMAGE_URI" \
   --arg internalMetricsSecretArn "$internal_metrics_secret_arn" \
   --argjson taskSecretOverrides "$task_secret_overrides" \
+  --argjson taskEnvOverrides "$task_env_overrides" \
   '
     del(
       .taskDefinitionArn,
@@ -444,6 +499,7 @@ jq \
       .registeredBy
     )
     | ($taskSecretOverrides | map(.name)) as $taskSecretNames
+    | ($taskEnvOverrides | map(.name)) as $taskEnvNames
     | .containerDefinitions |= map(
         if .name == $name then
           .image = $image
@@ -472,6 +528,21 @@ jq \
                     )
                   ))
               + $taskSecretOverrides
+            )
+          # AFTER the INTERNAL_METRICS_ENABLED branch above, so an override
+          # naming that variable wins rather than racing it. Ordering matters
+          # only for that one name — it is the sole entry this script otherwise
+          # writes into `.environment` — and "the explicit override wins" is the
+          # answer that stays true if a second special case is ever added.
+          | .environment = (
+              ((.environment // [])
+                | map(
+                    select(
+                      .name as $existingName
+                      | ($taskEnvNames | index($existingName)) == null
+                    )
+                  ))
+              + $taskEnvOverrides
             )
         else . end
       )
@@ -520,12 +591,18 @@ if [[ "$RUN_MIGRATIONS" == "true" ]]; then
   # does not state its target cannot be checked against the connection string
   # it was handed, and a migration aimed at the wrong database does not fail,
   # it reports success over an untouched one.
+  #
+  # The PATH is now `MIGRATION_ENTRYPOINT` rather than a literal, because two
+  # packages in this repository ship a migrator against two different databases.
+  # Everything else about the invocation is unchanged and stays asserted verbatim
+  # by test-deploy-ecs-image.sh.
   if ! run_one_shot_command \
     "Migration (phase=$MIGRATION_PHASE, target=$MIGRATION_TARGET_DATABASE)" \
     "$(jq -cn \
+      --arg entrypoint "$MIGRATION_ENTRYPOINT" \
       --arg target "--target-database=$MIGRATION_TARGET_DATABASE" \
       --arg phase "--phase=$MIGRATION_PHASE" \
-      '["node","packages/api/dist/db/migrate.js",$target,$phase]')"; then
+      '["node",$entrypoint,$target,$phase]')"; then
     exit 1
   fi
 fi
