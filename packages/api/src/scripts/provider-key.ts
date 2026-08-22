@@ -70,6 +70,7 @@ import { sql } from 'drizzle-orm';
 import { readTargetDatabase } from '@oxyhq/db/migrate';
 
 import { closePostgres, connectPostgres, getDb } from '../db/index.js';
+import { assertTargetDatabase } from '../db/assertTargetDatabase.js';
 import {
   createProviderKey,
   hashProviderKey,
@@ -129,16 +130,6 @@ async function readCredentialFromSsm(parameterName: string, region: string): Pro
 }
 
 /** The target guard `db/migrate.ts` requires, for the same reason and as the first statement. */
-async function assertTargetDatabase(expected: string): Promise<void> {
-  const rows = await getDb().execute<{ current_database: string }>(sql`select current_database()`);
-  const actual = rows[0]?.current_database;
-  if (actual !== expected) {
-    throw new Error(
-      `refusing to write: --target-database=${expected} but the connection is on ${actual ?? 'an unreadable database'}`,
-    );
-  }
-}
-
 async function main(): Promise<void> {
   const argv = process.argv.slice(2);
   // Every argument is parsed and validated BEFORE the credential is read, so a
