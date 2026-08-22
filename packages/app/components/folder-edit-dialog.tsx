@@ -1,16 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { View, Pressable } from "react-native";
 import { Text } from "@/components/ui/text";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Dialog } from "@oxyhq/bloom/dialog";
 import {
   Folder,
   FolderOpen,
@@ -71,21 +63,28 @@ export const FolderEditDialog = ({
       color: selectedColor,
     });
 
-    onOpenChange(false);
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle>{folder ? "Edit Folder" : "New Folder"}</DialogTitle>
-          <DialogDescription>
-            {folder
-              ? "Update your folder details"
-              : "Create a new folder to organize your conversations"}
-          </DialogDescription>
-        </DialogHeader>
-
+    <Dialog
+      open={open}
+      onClose={() => onOpenChange(false)}
+      placement={{ base: "bottom", md: "center" }}
+      title={folder ? "Edit Folder" : "New Folder"}
+      description={
+        folder
+          ? "Update your folder details"
+          : "Create a new folder to organize your conversations"
+      }
+      actions={[
+        { label: "Cancel", color: "cancel" },
+        {
+          label: folder ? "Save" : "Create",
+          onPress: handleSave,
+          disabled: !name.trim(),
+        },
+      ]}
+    >
         <View className="gap-4">
           {/* Name Input */}
           <View className="gap-2">
@@ -129,26 +128,6 @@ export const FolderEditDialog = ({
           {/* Color Picker */}
           <ColorPicker selected={selectedColor} onSelect={setSelectedColor} />
         </View>
-
-        <DialogFooter>
-          <Button
-            variant="outline"
-            onPress={() => onOpenChange(false)}
-            className="flex-1"
-          >
-            <Text>Cancel</Text>
-          </Button>
-          <Button
-            onPress={handleSave}
-            className="flex-1"
-            disabled={!name.trim()}
-          >
-            <Text className="text-primary-foreground font-semibold">
-              {folder ? "Save" : "Create"}
-            </Text>
-          </Button>
-        </DialogFooter>
-      </DialogContent>
     </Dialog>
   );
 };

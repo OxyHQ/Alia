@@ -23,14 +23,7 @@ import { confirm } from "@oxyhq/bloom/alert-dialog";
 import { withAlpha } from "@oxyhq/bloom/theme";
 import { Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from "@/components/ui/dialog";
+import { Dialog } from "@oxyhq/bloom/dialog";
 import { SettingsHeader } from "@/components/settings/settings-header";
 import { useMcpServers } from "@/lib/hooks/use-mcp-servers";
 import { toast } from "@oxyhq/bloom/toast";
@@ -390,16 +383,24 @@ export default function ConnectorDetailScreen() {
         </View>
       </ScrollView>
 
-      <Dialog open={envDialogOpen} onOpenChange={(open) => !open && setEnvDialogOpen(false)}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader className="gap-1">
-            <DialogTitle className="text-lg">
-              {t("connectors.installName", { name: entry.name })}
-            </DialogTitle>
-            <DialogDescription className="text-sm">
-              {t("connectors.installEnvDescription")}
-            </DialogDescription>
-          </DialogHeader>
+      <Dialog
+        open={envDialogOpen}
+        onClose={() => setEnvDialogOpen(false)}
+        placement={{ base: "bottom", md: "center" }}
+        maxWidth={384}
+        title={t("connectors.installName", { name: entry.name })}
+        description={t("connectors.installEnvDescription")}
+        actions={[
+          { label: t("common.cancel"), color: "cancel", disabled: pending },
+          {
+            label: pending ? t("connectors.installing") : t("connectors.install"),
+            onPress: handleInstallWithEnv,
+            disabled: pending,
+            // The install is in flight when this runs and the label reports it.
+            shouldCloseOnPress: false,
+          },
+        ]}
+      >
           <View className="gap-3">
             {entry.requiredEnv.map((envKey) => (
               <View key={envKey} className="gap-1">
@@ -419,28 +420,6 @@ export default function ConnectorDetailScreen() {
               </View>
             ))}
           </View>
-          <DialogFooter className="gap-2 mt-2">
-            <Button
-              variant="outline"
-              size="sm"
-              className="flex-1 h-9"
-              onPress={() => setEnvDialogOpen(false)}
-              disabled={pending}
-            >
-              <Text className="text-sm">{t("common.cancel")}</Text>
-            </Button>
-            <Button
-              size="sm"
-              className="flex-1 h-9"
-              onPress={handleInstallWithEnv}
-              disabled={pending}
-            >
-              <Text className="text-sm">
-                {pending ? t("connectors.installing") : t("connectors.install")}
-              </Text>
-            </Button>
-          </DialogFooter>
-        </DialogContent>
       </Dialog>
     </View>
   );

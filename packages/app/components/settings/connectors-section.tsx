@@ -10,21 +10,13 @@ import { Image } from "expo-image";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useState, useMemo, useRef, useEffect } from "react";
 import { Text } from "@/components/ui/text";
-import { Button } from "@/components/ui/button";
 import {
   useMcpServers,
   type InstalledMcpServer,
   type McpRegistryEntry,
 } from "@/lib/hooks/use-mcp-servers";
 import { toast } from "@oxyhq/bloom/toast";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from "@/components/ui/dialog";
+import { Dialog } from "@oxyhq/bloom/dialog";
 import {
   Collapsible,
   CollapsibleTrigger,
@@ -606,16 +598,24 @@ export function ConnectorsSection() {
       )}
 
       {/* Env-var install dialog */}
-      <Dialog open={!!installTarget} onOpenChange={(open) => !open && setInstallTarget(null)}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader className="gap-1">
-            <DialogTitle className="text-lg">
-              {t("connectors.installName", { name: installTarget?.name ?? "" })}
-            </DialogTitle>
-            <DialogDescription className="text-sm">
-              {t("connectors.installEnvDescription")}
-            </DialogDescription>
-          </DialogHeader>
+      <Dialog
+        open={!!installTarget}
+        onClose={() => setInstallTarget(null)}
+        placement={{ base: "bottom", md: "center" }}
+        maxWidth={384}
+        title={t("connectors.installName", { name: installTarget?.name ?? "" })}
+        description={t("connectors.installEnvDescription")}
+        actions={[
+          { label: t("common.cancel"), color: "cancel", disabled: installing },
+          {
+            label: installing ? t("connectors.installing") : t("connectors.install"),
+            onPress: handleInstallWithEnv,
+            disabled: installing,
+            // The install is in flight when this runs and the label reports it.
+            shouldCloseOnPress: false,
+          },
+        ]}
+      >
           <View className="gap-3">
             {installTarget?.requiredEnv.map((envKey) => (
               <View key={envKey} className="gap-1">
@@ -634,40 +634,27 @@ export function ConnectorsSection() {
               </View>
             ))}
           </View>
-          <DialogFooter className="gap-2 mt-2">
-            <Button
-              variant="outline"
-              size="sm"
-              className="flex-1 h-9"
-              onPress={() => setInstallTarget(null)}
-              disabled={installing}
-            >
-              <Text className="text-sm">{t("common.cancel")}</Text>
-            </Button>
-            <Button
-              size="sm"
-              className="flex-1 h-9"
-              onPress={handleInstallWithEnv}
-              disabled={installing}
-            >
-              <Text className="text-sm">
-                {installing ? t("connectors.installing") : t("connectors.install")}
-              </Text>
-            </Button>
-          </DialogFooter>
-        </DialogContent>
       </Dialog>
 
       {/* Custom remote-server dialog */}
-      <Dialog open={customDialogOpen} onOpenChange={(open) => !open && resetCustomDialog()}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader className="gap-1">
-            <DialogTitle className="text-lg">{t("connectors.addCustomTitle")}</DialogTitle>
-            <DialogDescription className="text-sm">
-              {t("connectors.addCustomDescription")}
-            </DialogDescription>
-          </DialogHeader>
-
+      <Dialog
+        open={customDialogOpen}
+        onClose={resetCustomDialog}
+        placement={{ base: "bottom", md: "center" }}
+        maxWidth={384}
+        title={t("connectors.addCustomTitle")}
+        description={t("connectors.addCustomDescription")}
+        actions={[
+          { label: t("common.cancel"), color: "cancel", disabled: customInstalling },
+          {
+            label: customInstalling ? t("connectors.adding") : t("connectors.add"),
+            onPress: handleInstallCustom,
+            disabled: customInstalling || !customName.trim() || !customUrl.trim(),
+            // The install is in flight when this runs and the label reports it.
+            shouldCloseOnPress: false,
+          },
+        ]}
+      >
           <View className="gap-3">
             <View className="gap-1">
               <Text className="text-xs font-medium text-muted-foreground">
@@ -748,28 +735,6 @@ export function ConnectorsSection() {
             </Collapsible>
           </View>
 
-          <DialogFooter className="gap-2 mt-2">
-            <Button
-              variant="outline"
-              size="sm"
-              className="flex-1 h-9"
-              onPress={resetCustomDialog}
-              disabled={customInstalling}
-            >
-              <Text className="text-sm">{t("common.cancel")}</Text>
-            </Button>
-            <Button
-              size="sm"
-              className="flex-1 h-9"
-              onPress={handleInstallCustom}
-              disabled={customInstalling || !customName.trim() || !customUrl.trim()}
-            >
-              <Text className="text-sm">
-                {customInstalling ? t("connectors.adding") : t("connectors.add")}
-              </Text>
-            </Button>
-          </DialogFooter>
-        </DialogContent>
       </Dialog>
     </View>
   );

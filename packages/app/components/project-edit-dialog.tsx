@@ -1,16 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { View, Pressable, ScrollView } from "react-native";
 import { Text } from "@/components/ui/text";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Dialog } from "@oxyhq/bloom/dialog";
 import {
   FolderOpen,
   Briefcase,
@@ -83,21 +75,28 @@ export const ProjectEditDialog = ({
       color: selectedColor,
     });
 
-    onOpenChange(false);
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle>{project ? "Edit Project" : "New Project"}</DialogTitle>
-          <DialogDescription>
-            {project
-              ? "Update your project details"
-              : "Create a new project to organize your conversations"}
-          </DialogDescription>
-        </DialogHeader>
-
+    <Dialog
+      open={open}
+      onClose={() => onOpenChange(false)}
+      placement={{ base: "bottom", md: "center" }}
+      title={project ? "Edit Project" : "New Project"}
+      description={
+        project
+          ? "Update your project details"
+          : "Create a new project to organize your conversations"
+      }
+      actions={[
+        { label: "Cancel", color: "cancel" },
+        {
+          label: project ? "Save" : "Create",
+          onPress: handleSave,
+          disabled: !name.trim(),
+        },
+      ]}
+    >
         <View className="gap-4">
           {/* Name Input */}
           <View className="gap-2">
@@ -154,26 +153,6 @@ export const ProjectEditDialog = ({
           {/* Color Picker */}
           <ColorPicker selected={selectedColor} onSelect={setSelectedColor} />
         </View>
-
-        <DialogFooter>
-          <Button
-            variant="outline"
-            onPress={() => onOpenChange(false)}
-            className="flex-1"
-          >
-            <Text>Cancel</Text>
-          </Button>
-          <Button
-            onPress={handleSave}
-            className="flex-1"
-            disabled={!name.trim()}
-          >
-            <Text className="text-primary-foreground font-semibold">
-              {project ? "Save" : "Create"}
-            </Text>
-          </Button>
-        </DialogFooter>
-      </DialogContent>
     </Dialog>
   );
 };
