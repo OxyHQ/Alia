@@ -11,7 +11,6 @@ import Animated, {
 } from "react-native-reanimated";
 import { useAuth } from "@oxyhq/services";
 import { WelcomeIntro } from "@/components/welcome-intro";
-import { useRolesStore } from "@/lib/stores/roles-store";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { useStore } from "@/lib/stores/global-store";
 import { useModelStore } from "@/lib/stores/model-store";
@@ -42,8 +41,7 @@ const CHAT_RISE_DISTANCE = 22;
 
 const ChatPage = () => {
   const router = useRouter();
-  const { roleId, skillId: skillIdParam } = useLocalSearchParams<{ roleId?: string; skillId?: string }>();
-  const roles = useRolesStore((state) => state.roles);
+  const { skillId: skillIdParam } = useLocalSearchParams<{ skillId?: string }>();
   const activeSkillId = useStore((state) => state.activeSkillId);
   const createConversationMutation = useCreateConversation();
 
@@ -73,8 +71,6 @@ const ChatPage = () => {
   const reasoningEffort = useModelStore((s) => s.reasoningEffort);
   const { data: catalogue } = useCatalogue();
   const selection = resolveSelection(selectedModel, catalogue);
-  const [activeRoleId, setActiveRoleId] = useState<string | undefined>(roleId);
-  const activeRole = activeRoleId ? roles.find(r => r.id === activeRoleId) : undefined;
 
   const ghostMode = useStore((state) => state.ghostMode);
 
@@ -124,7 +120,7 @@ const ChatPage = () => {
     createNewConversation,
     editMessage,
     clearConversation,
-  } = useChatConversation({ activeRole, reasoningEffort, selectedModel: selection.effectiveId ?? undefined, skillId: effectiveSkillId });
+  } = useChatConversation({ reasoningEffort, selectedModel: selection.effectiveId ?? undefined, skillId: effectiveSkillId });
 
   const handleSubmit = ghostMode ? sendMessage : createNewConversation;
 
@@ -158,8 +154,6 @@ const ChatPage = () => {
             onClear={clearConversation}
             selectedModel={selectedModel}
             onModelChange={setSelectedModel}
-            activeRole={activeRole}
-            onRemoveRole={() => setActiveRoleId(undefined)}
             onVoiceStart={handleVoiceStart}
           />
         </Animated.View>

@@ -22,7 +22,6 @@ interface TriggerRecord {
   name: string;
   action: {
     prompt: string;
-    roleId?: string;
     useTools?: boolean;
     notify?: boolean;
   };

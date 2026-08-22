@@ -15,7 +15,6 @@ import type { EffortLevel } from '@/lib/hooks/use-catalogue';
 import { useUIStore } from '@/lib/stores/ui-store';
 import { toast } from '@oxyhq/bloom/toast';
 import i18n from '@/lib/i18n';
-import type { Role } from '@/lib/stores/roles-store';
 import type { Conversation } from '@/lib/hooks/use-conversations';
 
 import type { ToolInvocation } from '@/lib/types/messages';
@@ -88,7 +87,7 @@ interface ConversationsInfinite {
 }
 
 
-export function useStreamingChat(apiUrl: string, activeRole?: Role, conversationId?: string, reasoningEffort?: EffortLevel | null, selectedModel?: string, skillId?: string | null, agentId?: string | null) {
+export function useStreamingChat(apiUrl: string, conversationId?: string, reasoningEffort?: EffortLevel | null, selectedModel?: string, skillId?: string | null, agentId?: string | null) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
@@ -223,22 +222,6 @@ export function useStreamingChat(apiUrl: string, activeRole?: Role, conversation
         headers['Authorization'] = `Bearer ${token}`;
       }
 
-      // Build system message with role context if active
-      let systemMessage = '';
-      if (activeRole) {
-        systemMessage = `You are acting in the role of "${activeRole.name}".
-
-Role Description: ${activeRole.description}
-
-Reasoning Approach: ${activeRole.reasoning}
-Writing Style: ${activeRole.writingStyle}
-Tone: ${activeRole.tone}
-Priorities: ${activeRole.priorities.join(', ')}
-
-Use this role to guide your responses, maintaining the specified tone, style, and priorities throughout the conversation.`;
-      }
-
-      // Build messages array with system message if present
       // Include tool invocations for proper conversation context
       const conversationMessages = [...messagesRef.current, userMessage];
 
@@ -260,12 +243,7 @@ Use this role to guide your responses, maintaining the specified tone, style, an
         return msg;
       };
 
-      const messagesToSend = systemMessage
-        ? [
-            { role: 'system', content: systemMessage },
-            ...conversationMessages,
-          ].map(formatMessage)
-        : conversationMessages.map(formatMessage);
+      const messagesToSend = conversationMessages.map(formatMessage);
 
       // Create abort controller for this request
       abortControllerRef.current = new AbortController();
@@ -920,7 +898,7 @@ Use this role to guide your responses, maintaining the specified tone, style, an
       abortControllerRef.current = null;
       setIsLoading(false);
     }
-  }, [apiUrl, oxyServices, activeRole, queryClient, conversationId, reasoningEffort, selectedModel, skillId, agentId, scheduleFlush, flushPendingUpdates, setMessagesAndRef]);
+  }, [apiUrl, oxyServices, queryClient, conversationId, reasoningEffort, selectedModel, skillId, agentId, scheduleFlush, flushPendingUpdates, setMessagesAndRef]);
 
   const stop = useCallback(() => {
     if (abortControllerRef.current) {

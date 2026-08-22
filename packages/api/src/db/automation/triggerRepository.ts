@@ -75,7 +75,6 @@ export interface TriggerIntegrationEvent {
 export interface TriggerAction {
   prompt: string;
   agentId?: string;
-  roleId?: string;
   useTools: boolean;
   notify?: boolean;
   channelId?: string;
@@ -140,7 +139,6 @@ export function toTriggerRecord(row: TriggerRow): TriggerRecord {
       notify: row.actionNotify,
       ...defined({
         agentId: row.actionAgentId,
-        roleId: row.actionRoleId,
         channelId: row.actionChannelId,
       }),
     },
@@ -210,7 +208,6 @@ function toColumns(input: NewTrigger) {
     enabled: input.enabled ?? true,
     actionPrompt: input.action.prompt,
     actionAgentId: input.action.agentId,
-    actionRoleId: input.action.roleId,
     actionUseTools: input.action.useTools ?? false,
     actionNotify: input.action.notify ?? false,
     actionChannelId: input.action.channelId,
@@ -325,7 +322,6 @@ export async function updateTrigger(
   if (patch.action) {
     if (patch.action.prompt !== undefined) set.actionPrompt = patch.action.prompt;
     if (patch.action.agentId !== undefined) set.actionAgentId = patch.action.agentId;
-    if (patch.action.roleId !== undefined) set.actionRoleId = patch.action.roleId;
     if (patch.action.useTools !== undefined) set.actionUseTools = patch.action.useTools;
     if (patch.action.notify !== undefined) set.actionNotify = patch.action.notify;
     if (patch.action.channelId !== undefined) set.actionChannelId = patch.action.channelId;

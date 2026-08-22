@@ -4,7 +4,6 @@ import { useRouter } from "expo-router";
 import {
   Sparkles,
   Settings2,
-  BrainCircuit,
   Users,
   Library,
   CloudCog,
@@ -159,10 +158,6 @@ export function CommandPalette() {
         </CommandGroup>
         <CommandSeparator />
         <CommandGroup heading="Navigate">
-          <CommandItem onSelect={() => runCommand(() => router.push("/(app)/roles"))}>
-            <BrainCircuit size={16} />
-            <span>Roles</span>
-          </CommandItem>
           <CommandItem onSelect={() => runCommand(() => router.push("/(app)/agents"))}>
             <Users size={16} />
             <span>Agents</span>

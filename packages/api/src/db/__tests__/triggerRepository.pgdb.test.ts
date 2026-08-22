@@ -121,7 +121,6 @@ describe('the nested shape the API serves', () => {
         useTools: true,
         notify: true,
         agentId: 'agent-1',
-        roleId: 'role-1',
         channelId: 'chan-1',
       },
       schedule: undefined,
@@ -133,7 +132,6 @@ describe('the nested shape the API serves', () => {
       useTools: true,
       notify: true,
       agentId: 'agent-1',
-      roleId: 'role-1',
       channelId: 'chan-1',
     });
     expect(trigger.webhook).toEqual({
@@ -177,14 +175,14 @@ describe('PATCH merges action and webhook but REPLACES schedule', () => {
    */
   it('leaves unnamed action keys alone', async () => {
     const trigger = await seed('trr-merge', {
-      action: { prompt: 'original', useTools: true, roleId: 'keep-me' },
+      action: { prompt: 'original', useTools: true, channelId: 'keep-me' },
     });
 
     const updated = await updateTrigger(db, trigger._id, { action: { notify: true } });
     expect(updated?.action.notify).toBe(true);
     expect(updated?.action.prompt).toBe('original');
     expect(updated?.action.useTools).toBe(true);
-    expect(updated?.action.roleId).toBe('keep-me');
+    expect(updated?.action.channelId).toBe('keep-me');
   });
 
   it('clears schedule keys the replacement does not name', async () => {

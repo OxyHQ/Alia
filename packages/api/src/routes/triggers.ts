@@ -116,7 +116,6 @@ authRouter.post('/', async (req: Request, res: Response) => {
       action: {
         prompt: action.prompt,
         agentId: action.agentId,
-        roleId: action.roleId,
         useTools: action.useTools ?? false,
         notify: action.notify ?? false,
         channelId: action.channelId,
