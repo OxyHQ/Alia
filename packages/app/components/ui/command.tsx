@@ -19,13 +19,17 @@ function Command({
   );
 }
 
-interface CommandDialogProps {
+interface CommandDialogProps extends Omit<React.ComponentProps<typeof Command>, "children"> {
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
   children: React.ReactNode;
 }
 
-function CommandDialog({ open, onOpenChange, children }: CommandDialogProps) {
+/**
+ * Anything the dialog does not consume itself reaches the `Command` root, so a
+ * caller can supply its own `filter` to rank results.
+ */
+function CommandDialog({ open, onOpenChange, children, ...commandProps }: CommandDialogProps) {
   const [mounted, setMounted] = React.useState(false);
   const [visible, setVisible] = React.useState(false);
 
@@ -76,7 +80,7 @@ function CommandDialog({ open, onOpenChange, children }: CommandDialogProps) {
             : "opacity-0 scale-95 -translate-y-2"
         )}
       >
-        <Command>
+        <Command {...commandProps}>
           {children}
         </Command>
       </div>
