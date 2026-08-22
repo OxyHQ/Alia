@@ -41,12 +41,6 @@ const staticRoutes: SitemapURL[] = [
     priority: 0.7,
   },
   {
-    loc: '/roles',
-    lastmod: CURRENT_DATE,
-    changefreq: 'weekly',
-    priority: 0.7,
-  },
-  {
     loc: '/developers',
     lastmod: CURRENT_DATE,
     changefreq: 'weekly',

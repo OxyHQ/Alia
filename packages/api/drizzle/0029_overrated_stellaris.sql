@@ -1,0 +1,1 @@
+ALTER TABLE "triggers" DROP COLUMN "action_role_id";

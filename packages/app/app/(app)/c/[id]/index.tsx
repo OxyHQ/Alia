@@ -1,6 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useLocalSearchParams } from "expo-router";
-import { useRolesStore } from "@/lib/stores/roles-store";
 import { useStore } from "@/lib/stores/global-store";
 import { useChatConversation } from "@/lib/hooks/use-chat-conversation";
 import { useSaveConversation } from "@/lib/hooks/use-conversations";
@@ -14,8 +13,7 @@ import { useVoiceSoundEffects } from "@/lib/hooks/use-sound-effects";
 import { ContentPanel } from "@oxyhq/bloom/content-panel";
 
 const ChatConversationPage = () => {
-  const { id, roleId, agentId, startVoice } = useLocalSearchParams<{ id: string; roleId?: string; agentId?: string; startVoice?: string }>();
-  const roles = useRolesStore((state) => state.roles);
+  const { id, agentId, startVoice } = useLocalSearchParams<{ id: string; agentId?: string; startVoice?: string }>();
   const activeSkillId = useStore((state) => state.activeSkillId);
 
   // A conversation keeps its own choice once one is made here, and follows the
@@ -27,7 +25,6 @@ const ChatConversationPage = () => {
   const selectedModel = conversationModel ?? globalModel;
   const { data: catalogue } = useCatalogue();
   const selection = resolveSelection(selectedModel, catalogue);
-  const [activeRoleId, setActiveRoleId] = useState<string | undefined>(roleId);
   /**
    * A request flag, read from the store rather than inferred from the model.
    *
@@ -38,7 +35,6 @@ const ChatConversationPage = () => {
    * model" routed identically and differed only by the prompt this flag selects.
    */
   const reasoningEffort = useModelStore((s) => s.reasoningEffort);
-  const activeRole = activeRoleId ? roles.find(r => r.id === activeRoleId) : undefined;
 
   const {
     messages,
@@ -54,7 +50,7 @@ const ChatConversationPage = () => {
     setMessages,
     approvePlan,
     rejectPlan,
-  } = useChatConversation({ conversationId: id, activeRole, reasoningEffort, selectedModel: selection.effectiveId ?? undefined, skillId: activeSkillId, agentId });
+  } = useChatConversation({ conversationId: id, reasoningEffort, selectedModel: selection.effectiveId ?? undefined, skillId: activeSkillId, agentId });
 
   const saveConversation = useSaveConversation();
 
@@ -103,8 +99,6 @@ const ChatConversationPage = () => {
           onClear={clearConversation}
           selectedModel={selectedModel}
           onModelChange={setConversationModel}
-          activeRole={activeRole}
-          onRemoveRole={() => setActiveRoleId(undefined)}
           disabled={!!usageLimitError}
           voice={voice}
           agentId={agentId}

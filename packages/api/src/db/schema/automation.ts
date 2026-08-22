@@ -80,7 +80,6 @@ export const triggers = pgTable(
     actionPrompt: text().notNull(),
     /** An `agents` row. No foreign key — that table is batch 9. */
     actionAgentId: text(),
-    actionRoleId: text(),
     actionUseTools: boolean().notNull().default(false),
     actionNotify: boolean().notNull().default(false),
     actionChannelId: text(),
