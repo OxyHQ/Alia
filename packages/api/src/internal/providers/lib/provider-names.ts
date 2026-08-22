@@ -23,6 +23,7 @@ export const PROVIDER_NAMES = [
   'hyperbolic',
   'novita',
   'digitalocean',
+  'cheaperinference',
 ] as const;
 
 export type ProviderName = typeof PROVIDER_NAMES[number];

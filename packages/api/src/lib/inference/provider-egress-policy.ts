@@ -85,6 +85,7 @@ export const PROVIDER_API_HOSTS: Readonly<Record<string, string>> = {
   hyperbolic: 'api.hyperbolic.xyz',
   novita: 'api.novita.ai',
   digitalocean: 'inference.do-ai.run',
+  cheaperinference: 'api.cheaperinference.com',
 };
 
 const DENIED_HOSTS: readonly string[] = Object.values(PROVIDER_API_HOSTS);
