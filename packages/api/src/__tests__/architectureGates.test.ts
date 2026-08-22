@@ -1797,6 +1797,10 @@ const OBJECT_KIND_EMITTERS: Readonly<Record<string, readonly string[]>> = {
     'packages/api/src/internal/providers/lib/providers/anthropic.ts',
     'packages/api/src/internal/providers/lib/providers/google.ts',
     'packages/api/src/internal/providers/lib/providers/replicate.ts',
+    // The suite for `streaming-helpers.ts` below, which asserts that a chunk
+    // carries `alia_meta` only when its writer asked for one. It emits the kind
+    // the same way `response-shapes.test.ts` does for `chat.completion`.
+    'packages/api/src/lib/__tests__/streaming-helpers.test.ts',
     'packages/api/src/lib/chat/provider-loop.ts',
     // The Relay client's dialect adapter (#139 workstream 3) and its suite. This
     // is the direction the list is SUPPOSED to move: the five entries above

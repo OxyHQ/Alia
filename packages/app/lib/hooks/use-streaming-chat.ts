@@ -22,6 +22,13 @@ import type { ToolInvocation } from '@/lib/types/messages';
 import { errorMessage as getErrorMessage, errorStatus, errorCode, errorName } from '../errors/error-utils';
 export type { ToolInvocation };
 
+/**
+ * How a send ended. `failed` means the turn produced no real output — the
+ * message list has been rolled back to what it was before the send, so the
+ * caller can hand the text back to the composer.
+ */
+export type SendOutcome = 'sent' | 'failed' | 'aborted';
+
 /** Server tools that mutate the user's memory document (see packages/api `lib/tools/user-memory.ts`). */
 const MEMORY_WRITING_TOOLS = new Set([
   'saveUserMemory',
@@ -156,17 +163,45 @@ export function useStreamingChat(apiUrl: string, activeRole?: Role, conversation
     }
   }, []);
 
-  const append = useCallback(async (message: Omit<Message, 'id'>) => {
+  const append = useCallback(async (message: Omit<Message, 'id'>): Promise<SendOutcome> => {
     setIsLoading(true);
     setError(null);
+
+    // Everything the send is about to change, so a turn that produces no real
+    // output can be undone in one step: the user message, the assistant
+    // placeholder, and any history editMessage truncated just before this call.
+    const snapshot = messagesRef.current;
+
+    // Only content the model actually produced counts. The server answers a
+    // dead provider, a mid-stream break or a global timeout with HTTP 200 and a
+    // stand-in message flagged `alia_meta.synthetic` — that is a failed send
+    // wearing a reply's clothes.
+    let realOutputChars = 0;
+    let hasToolInvocations = false;
+
+    const rollback = (): SendOutcome => {
+      // Drop anything still batched first: flushPendingUpdates appends to
+      // whichever message is last, so a buffered fragment surviving the restore
+      // would land on the previous turn's reply.
+      pendingContentRef.current = '';
+      pendingReasoningRef.current = '';
+      if (flushTimerRef.current) {
+        clearTimeout(flushTimerRef.current);
+        flushTimerRef.current = null;
+      }
+      setMessagesAndRef(snapshot);
+      return 'failed';
+    };
+
+    /** Keep a half-streamed turn — destroying real output is worse than showing the error. */
+    const settleError = (): SendOutcome => (realOutputChars || hasToolInvocations ? 'sent' : rollback());
 
     const userMessage: Message = { ...message, id: Date.now().toString() };
     setMessages((prev) => [...prev, userMessage]);
 
     // Create assistant message placeholder
-    const assistantMessageId = (Date.now() + 1).toString();
     const assistantMessage: Message = {
-      id: assistantMessageId,
+      id: (Date.now() + 1).toString(),
       role: 'assistant',
       content: '',
       toolInvocations: [],
@@ -340,9 +375,7 @@ Use this role to guide your responses, maintaining the specified tone, style, an
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let buffer = '';
-      let fullContent = '';
       let lastHapticAt = 0;
-      let hasToolInvocations = false;
 
       while (true) {
         const { done, value } = await reader.read();
@@ -351,20 +384,10 @@ Use this role to guide your responses, maintaining the specified tone, style, an
           // Flush any remaining batched content before checking
           flushPendingUpdates();
 
-          // Check if we received any content
-          if (!fullContent && !error && !hasToolInvocations) {
-            setMessages((prev) => {
-              const updated = [...prev];
-              const lastMessage = updated[updated.length - 1];
-              if (lastMessage?.role === 'assistant' && !lastMessage.content) {
-                updated[updated.length - 1] = {
-                  ...lastMessage,
-                  content: '⚠️ No response received from AI. Please try again.',
-                };
-              }
-              return updated;
-            });
+          // The stream closed without the model producing anything usable.
+          if (!realOutputChars && !hasToolInvocations) {
             setError(new Error('No response received from AI'));
+            return rollback();
           }
           break;
         }
@@ -631,18 +654,20 @@ Use this role to guide your responses, maintaining the specified tone, style, an
                   });
                 }
 
-                // Generic SSE error — show toast and stop
+                // Generic SSE error — stop and report
                 const msg = getErrorMessage(err) || 'Something went wrong. Please try again.';
-                toast.error(msg);
                 setError(new Error(msg));
                 setIsLoading(false);
-                setMessages((prev) => prev.filter((m) => m.id !== assistantMessageId));
                 if (abortControllerRef.current) {
                   abortControllerRef.current.abort();
                   abortControllerRef.current = null;
                 }
                 reader.cancel();
-                return;
+                const outcome = settleError();
+                // A rolled-back send is announced by the caller, which knows the
+                // text went back to the composer; don't stack two toasts.
+                if (outcome === 'sent') toast.error(msg);
+                return outcome;
               }
 
               // Handle OpenAI-compatible format
@@ -660,7 +685,9 @@ Use this role to guide your responses, maintaining the specified tone, style, an
 
               // Handle text content (batched for performance)
               if (delta.content) {
-                fullContent += delta.content;
+                if (parsed.alia_meta?.synthetic !== true) {
+                  realOutputChars += delta.content.length;
+                }
 
                 // Subtle streaming haptic, throttled by time — per-character
                 // counting fired dozens of native bridge calls per second on
@@ -810,21 +837,6 @@ Use this role to guide your responses, maintaining the specified tone, style, an
 
               // Handle error events from server
               if (parsed.type === 'error') {
-                // Update the assistant message with error information
-                setMessages((prev) => {
-                  const updated = [...prev];
-                  const lastMessage = updated[updated.length - 1];
-                  if (lastMessage?.role === 'assistant' && !lastMessage.content) {
-                    // If assistant message is empty, show error in it
-                    updated[updated.length - 1] = {
-                      ...lastMessage,
-                      content: `⚠️ Error: ${typeof parsed.error === 'string' ? parsed.error : (parsed.error?.message || 'Unknown error')}`,
-                    };
-                  }
-                  return updated;
-                });
-
-                // Set error state and stop loading
                 const errMsg = typeof parsed.error === 'string' ? parsed.error : (parsed.error?.message || JSON.stringify(parsed.error));
                 setError(new Error(errMsg));
                 setIsLoading(false);
@@ -837,7 +849,7 @@ Use this role to guide your responses, maintaining the specified tone, style, an
 
                 // Break out of the streaming loop
                 reader.cancel();
-                return;
+                return settleError();
               }
             } catch {
               // Malformed SSE fragments are expected mid-stream; the next
@@ -846,18 +858,26 @@ Use this role to guide your responses, maintaining the specified tone, style, an
           }
         }
       }
+
+      // The send landed, so a draft parked for THIS composer is stale — clearing
+      // it stops the text reappearing when the screen remounts. A draft aimed at
+      // another screen is none of this send's business.
+      const parkedDraft = useStore.getState().composerDraft;
+      if (parkedDraft && parkedDraft.target === (conversationId ?? null)) {
+        useStore.getState().clearComposerDraft();
+      }
+      return 'sent';
     } catch (e: unknown) {
-      // Ignore abort errors (user cancelled)
+      // Ignore abort errors (user cancelled) — partial output is theirs to keep.
       if (e instanceof Error && errorName(e) === 'AbortError') {
-        return;
+        return 'aborted';
       }
 
       // UsageLimitError thrown from the 429/402 handler above
       // Check both instanceof AND name — Hermes can break instanceof for Error subclasses
       if (e instanceof UsageLimitError || errorName(e) === 'UsageLimitError') {
         setError(e instanceof Error ? e : new Error(getErrorMessage(e)));
-        setMessages((prev) => prev.filter((m) => m.id !== assistantMessageId));
-        return;
+        return settleError();
       }
 
       // expoFetch may throw a non-Error object (e.g. the response body)
@@ -881,8 +901,7 @@ Use this role to guide your responses, maintaining the specified tone, style, an
             suggestedAction: errBody?.suggestedAction || (isCredits ? 'upgrade' : 'wait'),
           });
           setError(usageError);
-          setMessages((prev) => prev.filter((m) => m.id !== assistantMessageId));
-          return;
+          return settleError();
         }
       }
 
@@ -890,9 +909,7 @@ Use this role to guide your responses, maintaining the specified tone, style, an
         ? e
         : new Error(typeof e === 'string' ? e : (getErrorMessage(e) || 'An unexpected error occurred'));
       setError(finalError);
-
-      // Remove the empty assistant message on error
-      setMessages((prev) => prev.filter((m) => m.id !== assistantMessageId));
+      return settleError();
     } finally {
       // Flush any remaining batched content
       flushPendingUpdates();
@@ -903,7 +920,7 @@ Use this role to guide your responses, maintaining the specified tone, style, an
       abortControllerRef.current = null;
       setIsLoading(false);
     }
-  }, [apiUrl, oxyServices, activeRole, queryClient, reasoningEffort, selectedModel, skillId, agentId, scheduleFlush, flushPendingUpdates]);
+  }, [apiUrl, oxyServices, activeRole, queryClient, conversationId, reasoningEffort, selectedModel, skillId, agentId, scheduleFlush, flushPendingUpdates, setMessagesAndRef]);
 
   const stop = useCallback(() => {
     if (abortControllerRef.current) {

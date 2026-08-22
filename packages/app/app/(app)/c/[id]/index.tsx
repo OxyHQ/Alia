@@ -93,6 +93,7 @@ const ChatConversationPage = () => {
       <>
         <ChatPageContent
           messages={messages}
+          conversationId={id}
           scrollViewRef={scrollViewRef}
           isLoading={isLoading}
           conversationLoading={conversationLoading}
