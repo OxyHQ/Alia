@@ -11,7 +11,7 @@
     "TWO ALIASES SHARE ONE POLICY. alia-v1-thinking and alia-v1-pro-max both carry tier v1-pro-max, so they are the same routing profile under two identifiers — the case ADR 0002 describes as a reasoning setting wearing a model's name. They are recorded separately because both are live identifiers a caller may hold, and both translate to the same replacement.",
     "TWO TIERS HAVE NO ALIAS. v1-tts and v1-image exist in TIER_MODEL_MAPPINGS and no alias points at them; they are reached through the audio and image routes, not by naming a model. They are out of scope here because this file maps ALIASES, and nothing translates to them.",
     "This file does not change what any alias resolves to. It describes.",
-    "sunsetAt is null and stays null until the compatibility window's removal gate for an alias is satisfied or credibly close. A placeholder date teaches callers to ignore the header."
+    "sunsetAt is the removal date the product owner set on 2026-08-18, closing section (a) of the compatibility window after its usage gate was found unsatisfiable (production parked at desired count 0, no database credential outside it). It is NOT a placeholder: it is a decision with an owner, recorded in compatibility-window.md and epic-139-decisions.md D1. The value is the close of the first full calendar month after the announcement, because RFC 8594 section 3 requires the timestamp to be in the future and defines a past one as 'unavailable at any time', which would be false while every alias still resolves. It is asserted equal to ALIAS_SUNSET in packages/api/src/middleware/alias-deprecation.ts by aliasMigrationMap.test.ts, so the map and the header cannot disagree."
   ],
   "derivedFrom": [
     "packages/api/src/internal/providers/lib/alia-models.ts:61-223 (ALIA_MODELS: the alias set and each alias's tier)",
@@ -19,7 +19,7 @@
   ],
   "measuredAt": "2026-08-15",
   "deprecatedAt": "2026-08-15T00:00:00.000Z",
-  "sunsetAt": null,
+  "sunsetAt": "2026-10-01T00:00:00.000Z",
   "aliases": [
     {
       "alias": "alia-lite",

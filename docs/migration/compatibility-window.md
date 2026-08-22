@@ -2,7 +2,8 @@
 
 **Status:** Accepted
 
-**Date:** 2026-08-15
+**Date:** 2026-08-15. **Amended 2026-08-18** — path (a) has a removal date; see
+*The alias removal date* below.
 
 **Applies to:** epic #139, workstream 0. Referenced by ADR 0002, ADR 0003 and ADR 0004.
 
@@ -21,6 +22,8 @@ This document defines, for each: what still works, what deprecation signal is em
 **The window is bounded.** The old abstraction is not preserved indefinitely. Each path below has a removal gate, an owner, and a review cadence. A gate that cannot be satisfied is escalated on #139 and re-decided; it is not left open by default. Preserving a compatibility path forever is the failure mode this document exists to prevent, and it is reached by never deciding rather than by deciding wrongly.
 
 Those two rules pull against each other on purpose. The first prevents removal on a guess; the second prevents indefinite postponement. Neither is satisfied by elapsed time: **a date passing is not a gate.**
+
+That rule is unchanged by the removal date set for path (a) on 2026-08-18, and it is the reason that date was set by a **decision** rather than by a clock. When 2026-10-01 arrives, nothing is removed by the arrival itself; what happens is that `packages/api/src/middleware/__tests__/alias-deprecation.test.ts` goes red and the choice comes back to #139. A date passing is not a gate — it is an alarm.
 
 ## What counts as a measurement
 
@@ -52,19 +55,35 @@ Every compatibility path emits the same two signals while it is inside the windo
 
 A `Sunset` value is emitted only once a removal date has been set. A removal date is set when the gate is satisfied or is credibly close, never as a placeholder — an announced date that then moves teaches callers to ignore the header, which destroys the signal for every future deprecation.
 
+A third case turned out to exist and is now written down, because path (a) hit it: **a gate that nobody can satisfy**. This document already says what to do — "a gate that cannot be satisfied is escalated on #139 and re-decided; it is not left open by default" — and re-deciding it is not the same act as setting a placeholder. A placeholder is a date nobody chose; what path (a) has is a date somebody chose, with their name on it. The prohibition stands for every path whose gate is merely *unsatisfied*, which is both of the others.
+
 **A product stream event.** `alia.deprecation`, following the existing `alia.*` SSE convention with `eventVersion: 1`, carrying the deprecated identifier, its replacement, and the sunset date where one is set. Naming it was a decision taken by this document; it is implemented for path (a), as recorded below.
 
 **Status of each signal.** Path (a) emits both, as of workstream 4.
 
-The headers exist for path (a) as of workstream 4: `packages/api/src/middleware/alias-deprecation.ts`, mounted app-wide in `src/index.ts` and set on any response to a request naming one of the thirteen aliases. `Sunset` support is implemented and no value is emitted, because no removal date is set — see the paragraph above, which is the rule that keeps it that way.
+The headers exist for path (a) as of workstream 4: `packages/api/src/middleware/alias-deprecation.ts`, mounted app-wide in `src/index.ts` and set on any response to a request naming one of the thirteen aliases. **`Sunset` now carries a value** — `ALIAS_SUNSET`, `Thu, 01 Oct 2026 00:00:00 GMT` — as of the amendment of 2026-08-18. Its scope is the ALIAS rather than the URI that returned it, which RFC 8594 §3 permits provided the resource documents the wider scope; this sentence is that documentation.
 
 The stream event exists for path (a) as of workstream 4 as well: built by `aliasDeprecationEvent` in that same module and written at `packages/api/src/routes/v1/chat-completions.ts:97`, ahead of every other frame on a streaming request, so the deep-research branch carries it too. Its `replacement` is read from `getRoutingPreset` — the preset table `lib/routing/__tests__/routing-policy.test.ts` asserts equal to [`alias-migration-map.json`](./alias-migration-map.json) — rather than copied here, so a routing change moves it instead of leaving a stale instruction. A non-streaming caller has no stream to carry an event and is served by the headers, which every response gets either way.
 
-The headers exist for path (c) as of workstream 11: `packages/api/src/middleware/credential-deprecation.ts`, mounted app-wide beside the alias signal, emitted on any response to a request that PRESENTS an `alia_sk_*` credential, and emitted again by `refuseIssuance` on every closed creation path. Presentation rather than successful authentication, because the middleware runs ahead of auth and a caller whose key has lapsed is exactly the caller who needs the notice. `Sunset` is implemented and withheld for the same reason as (a). Both modules serialize through the same two functions and point at the same document, so the two signals cannot disagree about a date or a link.
+The headers exist for path (c) as of workstream 11: `packages/api/src/middleware/credential-deprecation.ts`, mounted app-wide beside the alias signal, emitted on any response to a request that PRESENTS an `alia_sk_*` credential, and emitted again by `refuseIssuance` on every closed creation path. Presentation rather than successful authentication, because the middleware runs ahead of auth and a caller whose key has lapsed is exactly the caller who needs the notice. **`Sunset` is implemented and still withheld**, and since 2026-08-18 that is a disagreement with path (a) rather than agreement with it — deliberately, for the reasons in section (c) below. Both modules serialize through the same two functions and point at the same document, so the two signals cannot disagree about the FORMAT of a date or about the link; they can and now do carry different dates, because they answer to different gates.
 
 **Path (b) emits nothing, and path (c) has no stream event.** Emitting them is a prerequisite for starting those clocks, not an optional extra — a window that runs without a signal is a window that surprises its callers at the end.
 
-**No removal date is set for any path, and this document does not contain one.** A date is set when a gate below is satisfied or credibly close. Anyone looking here for "the agreed sunset date" is looking for something that has deliberately not been decided; setting one is a change to this file, and then a one-line change to `ALIAS_SUNSET` (path a) or `CREDENTIAL_SUNSET` (path c).
+### The alias removal date
+
+**Path (a) has a removal date: `2026-10-01T00:00:00Z`. Paths (b) and (c) have none.**
+
+| | decided by | on | recorded in |
+| --- | --- | --- | --- |
+| **(a)** the thirteen `alia-*` aliases | the product owner of Alia | 2026-08-18 | `ALIAS_SUNSET` (`packages/api/src/middleware/alias-deprecation.ts`), `alias-migration-map.json` `sunsetAt`, [`epic-139-decisions.md`](./epic-139-decisions.md) D1 |
+| **(b)** `api.alia.onl/v1/*` | — | — | no signal is emitted at all, so no clock has started |
+| **(c)** `alia_sk_*` credentials | — | — | `CREDENTIAL_SUNSET` is `null`; see section (c) |
+
+**Why a date exists for (a) when its gate is not satisfied.** It is not satisfiable. The gate is a production usage measurement, and production is parked at desired count 0 with no database credential reachable from outside it; the enumeration alternative fails on two published packages this repository cannot edit. Under the rule two sections above, an unsatisfiable gate is escalated and re-decided rather than left open, and the product owner re-decided it. That is the condition this document set for a date to be a decision instead of a placeholder, and it is met.
+
+**Why 2026-10-01 and not the instant of the decision.** "Now" is when the announcement happens — the header ships from the deploy that carries this amendment. It is not the value. RFC 8594 §3 says the timestamp "SHOULD be a timestamp in the future" and says a past one is to be read as *"the resource is expected to become unavailable at any time"*, which is false here on purpose: every alias still resolves, and a caller who read a past `Sunset` would stop retrying a path that works. The value is therefore the close of the first full calendar month after the announcement — the unit this document already uses for path (a), whose removal gate measures "at least one full monthly billing cycle" and whose review cadence reports "at the close of each monthly billing cycle" — rather than a round number invented for the occasion.
+
+**What the date does not mean.** It does not mean the aliases stop resolving on 2026-10-01. Nothing removes them; removal is a separate breaking change with its own costs, recorded as D2. The date is the deadline that decision now has, and the alarm in `middleware/__tests__/alias-deprecation.test.ts` is what stops it from passing unremarked.
 
 ---
 
@@ -80,7 +99,7 @@ Thirteen identifiers, defined in `packages/api/src/internal/providers/lib/alia-m
 
 **CLOSED FOR ADVERTISEMENT — 2026-08-17.** The thirteen aliases are advertised by nothing. `GET /v1/models` serves an empty list, `GET /catalogue` is keyed by routing profile, the picker and the `switchModel` tool offer `profile:*` ids, and no response from any surface contains an `alia-*` identifier. They **still resolve**: `internal/providers/lib/alia-models.ts` is untouched, so a request naming one is answered exactly as before.
 
-That distinction is the whole shape of this closure. Removal — a request naming an alias being refused — has **not** happened and is not scheduled, because the removal gate below is not satisfied.
+That distinction is the whole shape of this closure. Removal — a request naming an alias being refused — has **not** happened, because the removal gate below is not satisfied. It now has an announced date (`2026-10-01T00:00:00Z`, decided 2026-08-18, above) and still has no implementation behind it: no code refuses an alias on that date, and none is scheduled to. The date is a deadline on the decision, not a switch.
 
 **The evidence, and what it does not prove.** `https://api.alia.onl/v1/models` and `/health` both returned HTTP 503 from the ALB when this was taken (2026-08-17): the service is parked at desired count 0, so no external caller is being served and nothing breaks at the moment of the cut.
 
@@ -88,9 +107,9 @@ That distinction is the whole shape of this closure. Removal — a request namin
 
 De-advertising needs none of that evidence, which is why it could happen now: it breaks no caller. Removal needs all of it.
 
-**Deprecation signal.** `Deprecation` and `Sunset` headers on responses to requests naming a deprecated alias, plus `alia.deprecation` on the stream, carrying the alias and its mapped replacement. **Both are delivered** — see *Status of each signal* above for where each is emitted. `Sunset` and the event's `sunsetAt` stay absent until a removal date is set.
+**Deprecation signal.** `Deprecation` and `Sunset` headers on responses to requests naming a deprecated alias, plus `alia.deprecation` on the stream, carrying the alias and its mapped replacement. **All three are delivered** — see *Status of each signal* above for where each is emitted. `Sunset` and the event's `sunsetAt` both carry `2026-10-01T00:00:00Z` as of the 2026-08-18 amendment, from one constant, so the header and the stream cannot tell a caller different things.
 
-**Removal gate.** Per alias, both of:
+**Removal gate — unchanged, and still not satisfied.** Setting a date did not satisfy it and does not replace it; the date is the deadline the removal decision now has, and this is still the evidence that removal itself requires. Per alias, both of:
 
 1. A measurement over `chat_analytics.alia_model_id` and `cost_entries.alias_model_id` showing zero requests naming that alias across a window covering at least one full monthly billing cycle, with a positive control on a still-live identifier over the same window; **or** an enumeration showing every known consumer of that alias — app, Codea, Cowork, CLI, SDK, triggers, agents, bots and stored per-conversation model selections — has been migrated to its replacement.
 2. The migration map entry for that alias exists and is published. It does, for all thirteen: [`alias-migration-map.json`](./alias-migration-map.json), which records what each alias becomes under ADR 0003 — every one of them a routing profile, none a concrete model reference — with the fan-out measurement behind the classification. The counts in it are recomputed from the live routing table by `packages/api/src/__tests__/aliasMigrationMap.test.ts`, so the map cannot drift away from the routing it describes.
@@ -138,6 +157,8 @@ The refusal is not the only thing holding this. `generateDeveloperApiKey`, `inse
 
 **Deprecation signal.** `Deprecation` and `Sunset` headers on responses to requests authenticated with an `alia_sk_*` credential, plus a direct notification to each key owner — an owner who never calls the API in the window never sees a response header, so headers alone cannot be the only notice for a credential deprecation. Migration instructions accompany the notification.
 
+**No removal date, and the alias date of 2026-08-18 is not an argument for one.** `CREDENTIAL_SUNSET` stays `null`, for three reasons that are properties of this path rather than of that decision. The two deprecations **fail differently**: an alias past its sunset still resolves, so a caller who ignored the notice keeps working, while a credential past its sunset authenticates nothing and locks that caller out. Gate 1 below opens with *every key owner has been notified*, and the **channel for that notification is still an open question** at the foot of this document — zero owners have been notified, and a deadline is not a notice. And **there is nowhere to migrate to**: no rotation path has ever existed on `/developer`, so migrating means obtaining an Oxy credential, which OxyHQ/oxy#972 has not yet issued. A date set before the replacement exists is a deadline holders cannot meet, whatever the date is.
+
 **Removal gate.** All of:
 
 1. Every key owner has been notified, with the notification recorded.
@@ -156,7 +177,7 @@ Each clock owner reports on #139 at the close of each monthly billing cycle for 
 
 ## Open questions
 
-- **Named individual owners.** This document assigns each clock to a workstream owner. The individual assignees are not recorded on #139 yet. *Owner: the #139 epic owner.*
+- **Named individual owners.** This document assigns each clock to a workstream owner. The individual assignees are not recorded on #139 yet — except path (a)'s removal date, which the product owner decided directly on 2026-08-18. *Owner: the #139 epic owner.*
 - **Whether `Deprecation` and `Sunset` are emitted per-route or per-surface for (b).** Per-route measurement is decided above; whether the headers are also per-route or blanket across `/v1/*` affects how a caller reading only headers perceives the timeline. *Owner: workstream 6 owner.*
 - **Whether `/v1/shows` belongs to this window at all.** It is mounted with `optionalAuth` (`packages/api/src/routes/v1.ts`) and is not obviously generic inference; its destination is decided by the workstream 1 inventory, and it may leave this document entirely. *Owner: workstream 1 owner.*
 - **The notification channel for (c).** Whether key-owner notification goes through Alia notifications, Oxy account email, or both. *Owner: workstream 11 owner.*

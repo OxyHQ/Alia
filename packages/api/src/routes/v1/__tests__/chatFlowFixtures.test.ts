@@ -315,6 +315,7 @@ vi.mock('../../../lib/logger.js', () => {
 // ── Import the route AFTER the mocks ───────────────────────────────────────
 
 import { handleChatCompletions } from '../chat-completions.js';
+import { ALIAS_SUNSET } from '../../../middleware/alias-deprecation.js';
 
 // ── Frame classification: the recorder, pinned by its own tests below ───────
 
@@ -775,6 +776,39 @@ describe('fixture: app chat flow — streaming, direct user session, one server 
     expect(bytes).toContain('alia-v1');
     expect(bytes).not.toContain(UPSTREAM_PROVIDER);
     expect(bytes).not.toContain(UPSTREAM_MODEL_ID);
+  });
+
+  it('carries the announced sunset date on the alia.deprecation frame it actually writes', async () => {
+    // The route reads `ALIAS_SUNSET` and hands it to `aliasDeprecationEvent`
+    // (`chat-completions.ts`). A unit test of that builder proves the builder
+    // works; it proves nothing about what the ROUTE passes, and the route passing
+    // `null` is exactly how a set constant ships inert. So this reads the bytes.
+    const req = recordingReq({
+      body: {
+        messages: [{ role: 'user', content: 'what day is it' }],
+        model: 'alia-v1',
+        stream: true,
+        conversationId: 'conv-ws13',
+        stream_options: { include_usage: true },
+      },
+    });
+    const res = recordingRes();
+    await run(req, res);
+
+    const index = res.raw.findIndex((frame) => frame.startsWith('event: alia.deprecation'));
+    // Floor: a missing frame would make every assertion below vacuously skipped.
+    expect(index).toBeGreaterThanOrEqual(0);
+
+    const payload = JSON.parse(
+      res.raw[index].slice(res.raw[index].indexOf('data: ') + 6).trim(),
+    ) as { identifier: string; replacement: string; sunsetAt: string | null };
+
+    expect(payload.identifier).toBe('alia-v1');
+    expect(payload.sunsetAt).toBe('2026-10-01T00:00:00.000Z');
+    expect(payload.sunsetAt).toBe(ALIAS_SUNSET.toISOString());
+    // Not null, stated separately: `toBe` between two nulls is what this test
+    // reported before the date was set, and it passed.
+    expect(payload.sunsetAt).not.toBeNull();
   });
 
   it('does not emit an approval request over SSE — approvals are a socket surface', async () => {

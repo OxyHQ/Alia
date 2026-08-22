@@ -98,7 +98,9 @@ describe('every creation path refuses', () => {
     expect(answer.body.message).toMatch(/Oxy Console/);
     expect(answer.deprecation).toBe(toStructuredFieldDate(CREDENTIAL_DEPRECATION));
     expect(answer.link).toMatch(/rel="deprecation"/);
-    // No removal date is set, so none is announced.
+    // No removal date is set for the CREDENTIALS, so none is announced. The
+    // aliases got one on 2026-08-18 and this path deliberately did not — see
+    // `middleware/credential-deprecation.ts`. Do not "fix" this to match them.
     expect(answer.sunset).toBeNull();
   });
 

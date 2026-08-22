@@ -34,29 +34,65 @@ Decided items record **why**, because the reasoning is the part that is expensiv
 > `Add deprecation headers/events and a sunset date for external clients still using old aliases.`
 > (workstream 4)
 
-**Decided: no date. The thirteen `alia-*` identifiers come off every advertised surface now, and keep
-resolving unadvertised.**
+**Decided in two steps, and this section records both.**
 
-The user's answer was *"simplemente deja todo limpio ya"* — leave it clean now. That resolves the
-deadlock the compatibility window creates on purpose: `compatibility-window.md:23` says *"a date
-passing is not a gate"* and `:53` says a removal date is set *"when the gate is satisfied or is
-credibly close, never as a placeholder"*, and the gate for path (a) is a production usage measurement
-that cannot be taken — `~/.config/oxy/tokens/` holds no Alia database credential and
-`api.alia.onl/health` returns 503. Waiting for a gate nobody can satisfy is how a compatibility
-window becomes permanent.
+**Step 1, 2026-08-17 — no date; unadvertise.** The thirteen `alia-*` identifiers came off every
+advertised surface and kept resolving unadvertised. The user's answer was *"simplemente deja todo
+limpio ya"* — leave it clean now.
 
-Unadvertising sidesteps the gate rather than guessing at it: a caller who already knows an alias
-keeps working, and no new caller can learn one.
+**Step 2, 2026-08-18 — the date is `2026-10-01T00:00:00Z`, decided by the product owner.** It is
+announced from that deploy onward, on the `Sunset` header and on the `alia.deprecation` stream event.
+It changes what callers are TOLD; it changes nothing about what resolves.
 
-**What ships:** the aliases leave `GET /v1/models`, `GET /catalogue`, the app picker and the
-`switch-model` tool. They keep resolving through `alias-migration-map.json`, which is already
-enforced against the routing table by `packages/api/src/__tests__/aliasMigrationMap.test.ts`.
+### Why step 1 refused a date and step 2 set one
 
-**Still to implement as of `7a5911e1`** — the decision has landed, the code has not:
-`routes/v1/models.ts:66` still serves all thirteen, and `compatibility-window.md` still records path
-(a) at *"emits both, as of workstream 4"* (`:57`) rather than closed for advertisement.
+Step 1 was not a judgement that a date would be wrong. It was that nobody had the standing to set
+one. `compatibility-window.md:23` says *"a date passing is not a gate"* and `:53` says a removal date
+is set *"when the gate is satisfied or is credibly close, never as a placeholder"*, and path (a)'s
+gate is a production usage measurement that cannot be taken — `~/.config/oxy/tokens/` holds no Alia
+database credential and `api.alia.onl/health` returns 503. An agent setting a date under those
+conditions would have been setting a placeholder, which that document forbids for a good reason.
 
-**Irreversible:** nothing. Re-advertising is a serializer change. This is why it is the cheap half.
+The same document also says what to do about a gate like this one: *"a gate that cannot be satisfied
+is escalated on #139 and re-decided; it is not left open by default."* The product owner re-decided
+it. That is the document's own escape hatch being used as designed, and it is why the date is a
+decision rather than a placeholder: **a placeholder is a date nobody chose.**
+
+### Why 2026-10-01, and not the instant of the decision
+
+The instruction was "now". "Now" is when the ANNOUNCEMENT happens, and it did: the header ships with
+this change. It is not the value, because a `Sunset` value in the past is a different statement.
+RFC 8594 §3 requires the timestamp to be *"a timestamp in the future"* and defines a past one:
+
+> It is safest to consider timestamps in the past mean the present time, meaning that the resource is
+> expected to become unavailable at any time.
+
+"Unavailable at any time" is false here, on purpose — D2 keeps every alias resolving — and a caller
+who believed it would stop retrying a path that works. So the value is the close of the first full
+calendar month after the announcement. The **unit** is the compatibility window's own: its removal
+gate measures *"at least one full monthly billing cycle"* and its review cadence reports *"at the
+close of each monthly billing cycle"*. Deriving it that way rather than picking 30, 60 or 90 days is
+the point — a round number chosen for comfort is the placeholder rule wearing a different hat.
+
+### What happens on 2026-10-01
+
+Nothing, mechanically. No code refuses an alias on that date and none is scheduled to; that is D2,
+still undecided. What happens is that
+`packages/api/src/middleware/__tests__/alias-deprecation.test.ts` **goes red**, because it asserts
+the announced sunset is still in the future, and the choice comes back here: execute D2, or re-decide
+the date with a stated risk. A date passing is not a gate — it is an alarm, and an alarm nobody hears
+is the failure mode the placeholder rule describes.
+
+**What ships:** the aliases left `GET /v1/models`, `GET /catalogue`, the app picker and the
+`switch-model` tool (step 1). `ALIAS_SUNSET` is set, `Sunset: Thu, 01 Oct 2026 00:00:00 GMT` is
+emitted on every response to a request naming one of the thirteen, and `alia.deprecation` carries the
+same instant as `sunsetAt`. They keep resolving through `alias-migration-map.json`, which is enforced
+against the routing table — and now against the header — by
+`packages/api/src/__tests__/aliasMigrationMap.test.ts`.
+
+**Irreversible:** the announcement. Re-advertising is a serializer change, but a `Sunset` date that
+is announced and then moved teaches every caller to ignore the header, for this deprecation and every
+future one. Moving it is a decision to be taken here, on the record, not a constant to be edited.
 
 ### The three compatibility paths, and what each is actually waiting on
 
@@ -65,12 +101,16 @@ answers are different.
 
 | path | signal today | gate it is waiting on | evidence that would satisfy it |
 | --- | --- | --- | --- |
-| **(a)** the thirteen `alia-*` aliases | `Deprecation` + `Link` (`middleware/alias-deprecation.ts`, mounted `index.ts:233`), `alia.deprecation` on the stream (`chat-completions.ts:105`). No `Sunset` | a usage measurement over `chat_analytics.alia_model_id` and `cost_entries.alias_model_id` across a full billing cycle, with a positive control — **or** an enumeration showing every known consumer migrated | **neither is obtainable today**: the counts are `UNMEASURED` for want of a credential, and two consumers are published packages this repo cannot migrate (D2). **This is why D1 unadvertises instead of dating.** |
+| **(a)** the thirteen `alia-*` aliases | `Deprecation` + `Link` (`middleware/alias-deprecation.ts`, mounted `index.ts:233`), `alia.deprecation` on the stream (`chat-completions.ts:105`), **and `Sunset: 2026-10-01T00:00:00Z` since 2026-08-18** | a usage measurement over `chat_analytics.alia_model_id` and `cost_entries.alias_model_id` across a full billing cycle, with a positive control — **or** an enumeration showing every known consumer migrated | **neither is obtainable today**: the counts are `UNMEASURED` for want of a credential, and two consumers are published packages this repo cannot migrate (D2). The gate is therefore not satisfied and the date does not claim it is — the product owner re-decided an unsatisfiable gate, which `compatibility-window.md` provides for. |
 | **(b)** the `api.alia.onl/v1/*` surface | **none.** Only (a) and (c) are mounted | its own gate cannot start until a signal exists — `compatibility-window.md` is explicit that emitting is a prerequisite, not an optional extra | a mounted deprecation signal on the `/v1` surface, then the same usage measurement. Nobody has built the first half |
 | **(c)** the `alia_sk_*` credentials | `Deprecation` + `Link` (`middleware/credential-deprecation.ts`, mounted `index.ts:240`), issuance closed (`refuseIssuance`). No `Sunset` | a replacement credential existing in Oxy, plus an active-key count | **OxyHQ/oxy#972 must issue the replacement first.** A date set before that is a deadline holders cannot meet — see O6 |
 
 Read together: **only path (a) is closable by a decision alone**, which is what makes D1 the one that
-could be answered now. (b) is blocked on work nobody has started, and (c) is blocked on Oxy.
+could be answered now. (b) is blocked on work nobody has started, and (c) is blocked on Oxy — which
+is also why `CREDENTIAL_SUNSET` deliberately did NOT move on 2026-08-18. A credential past its sunset
+authenticates nothing, section (c)'s gate opens with *every key owner has been notified* and the
+notification channel is still an open question, and OxyHQ/oxy#972 has issued no replacement to
+migrate to. A date there would be a deadline holders cannot meet (O6).
 
 ## D2. Why not a full cut, and what a full cut would cost
 
@@ -301,7 +341,10 @@ Measured on `7a5911e1`: `middleware/credential-deprecation.ts` is mounted app-wi
 carrying an `alia_sk_` credential; `alia.deprecation` is emitted on the stream at
 `routes/v1/chat-completions.ts:105`; and `src/index.ts:138` adds all three headers to
 `exposedHeaders`, without which a browser client could not read them. **`Sunset` is implemented and
-emits nothing**, because `CREDENTIAL_SUNSET` is `null` — deliberately, under the same rule as D1.
+emits nothing**, because `CREDENTIAL_SUNSET` is `null` — and since 2026-08-18 that is deliberately
+*unlike* D1, whose date was set. The rule is the same; the gates are not. An alias past its sunset
+still resolves and a credential past its sunset locks its holder out, gate 1 below opens with a
+notification nobody has sent, and there is no Oxy credential to migrate to yet.
 Issuance is closed: `POST /developer/apps` (`:85`) and `POST /developer/apps/:appId/keys` (`:186`)
 both call `refuseIssuance`.
 
