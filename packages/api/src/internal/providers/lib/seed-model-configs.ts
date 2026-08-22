@@ -15,6 +15,7 @@
  * 10 of #139.
  */
 
+import { PROVIDER_NAMES } from './provider-names.js';
 import { findModelConfig, upsertModelConfig } from '../../../db/providers/modelConfigRepository.js';
 import { upsertAliaModel } from '../../../db/providers/aliaModelRepository.js';
 import type { ConfigAuditActor } from '../../../lib/security/config-audit.js';
@@ -68,6 +69,18 @@ function getDisplayName(provider: string, modelId: string): string {
     .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
+/**
+ * What the `provider` column will actually accept, taken from the tuple its
+ * CHECK constraints are rendered from rather than copied alongside it.
+ *
+ * It used to be a hand-written list here, and it had drifted: `digitalocean`
+ * was registered everywhere else and missing from this copy, so its three
+ * mappings were dropped on every seed — reported as an info log and a `skipped`
+ * count, never as an error. Deriving it means a provider registered in
+ * `PROVIDER_NAMES` and admitted by the constraint cannot be turned away here.
+ */
+const VALID_PROVIDERS = new Set<string>(PROVIDER_NAMES);
+
 export async function seedModelConfigs(): Promise<{ seeded: number; skipped: number }> {
   let seeded = 0;
   let skipped = 0;
@@ -79,13 +92,7 @@ export async function seedModelConfigs(): Promise<{ seeded: number; skipped: num
     for (const mapping of mappings) {
       const uniqueKey = `${mapping.provider}:${mapping.modelId}`;
 
-      const validProviders = [
-        'openai', 'anthropic', 'google', 'groq', 'mistral',
-        'deepseek', 'together', 'cerebras', 'cloudflare', 'openrouter', 'xai',
-        'fireworks', 'hyperbolic', 'sambanova', 'novita', 'replicate', 'cohere', 'perplexity',
-        'cheaperinference',
-      ];
-      if (!validProviders.includes(mapping.provider)) {
+      if (!VALID_PROVIDERS.has(mapping.provider)) {
         log.seed.info({ provider: mapping.provider, modelId: mapping.modelId }, 'Skipping - provider not in schema enum');
         skipped++;
         continue;
