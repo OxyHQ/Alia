@@ -15,14 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarImage } from "@/components/ui/avatar";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Panel } from "@/components/ui/panel";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from "@/components/ui/dialog";
+import { Dialog } from "@oxyhq/bloom/dialog";
 import {
   ArrowLeft,
   X,
@@ -475,11 +468,15 @@ export default function EditAgentScreen() {
                   ))}
                 </View>
               </ScrollView>
-              <Dialog open={showSkillPicker} onOpenChange={setShowSkillPicker}>
-                <DialogContent overlayClassName={cn(!isLargeScreen && "px-0")} className={cn("p-0 gap-0", !isLargeScreen && "flex-1 max-w-none rounded-none border-0")}>
-                  <DialogHeader className="px-4 pt-4 pb-2">
-                    <DialogTitle>{t("agents.skills")}</DialogTitle>
-                  </DialogHeader>
+              <Dialog
+                open={showSkillPicker}
+                onClose={() => setShowSkillPicker(false)}
+                placement={{ base: "bottom", md: "center" }}
+                title={t("agents.skills")}
+                // The picker owns its own ScrollView and its own padding.
+                scrollable={false}
+                contentPadding={0}
+              >
                   <View className="mx-4 mb-2">
                     <Search
                       label="Search skills..."
@@ -506,7 +503,6 @@ export default function EditAgentScreen() {
                         </Pressable>
                       ))}
                   </ScrollView>
-                </DialogContent>
               </Dialog>
             </View>
 
@@ -608,11 +604,15 @@ export default function EditAgentScreen() {
                   ))}
                 </View>
               </ScrollView>
-              <Dialog open={showKnowledgePicker} onOpenChange={setShowKnowledgePicker}>
-                <DialogContent overlayClassName={cn(!isLargeScreen && "px-0")} className={cn("p-0 gap-0", !isLargeScreen && "flex-1 max-w-none rounded-none border-0")}>
-                  <DialogHeader className="px-4 pt-4 pb-2">
-                    <DialogTitle>{t("agents.knowledge")}</DialogTitle>
-                  </DialogHeader>
+              <Dialog
+                open={showKnowledgePicker}
+                onClose={() => setShowKnowledgePicker(false)}
+                placement={{ base: "bottom", md: "center" }}
+                title={t("agents.knowledge")}
+                // The picker owns its own ScrollView and its own padding.
+                scrollable={false}
+                contentPadding={0}
+              >
                   <View className="mx-4 mb-2">
                     <Search
                       label="Search library..."
@@ -652,7 +652,6 @@ export default function EditAgentScreen() {
                       </Text>
                     )}
                   </ScrollView>
-                </DialogContent>
               </Dialog>
             </View>
           </View>
@@ -791,14 +790,23 @@ export default function EditAgentScreen() {
       </ScrollView>
 
       {/* Connect Telegram bot dialog */}
-      <Dialog open={showBotDialog} onOpenChange={setShowBotDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t("agents.telegramBot.dialogTitle")}</DialogTitle>
-            <DialogDescription>
-              {t("agents.telegramBot.dialogDescription")}
-            </DialogDescription>
-          </DialogHeader>
+      <Dialog
+        open={showBotDialog}
+        onClose={() => setShowBotDialog(false)}
+        placement={{ base: "bottom", md: "center" }}
+        title={t("agents.telegramBot.dialogTitle")}
+        description={t("agents.telegramBot.dialogDescription")}
+        actions={[
+          { label: t("common.cancel"), color: "cancel", disabled: connectingBot },
+          {
+            label: t("agents.telegramBot.connect"),
+            onPress: handleConnectBot,
+            disabled: connectingBot || !botToken.trim(),
+            // The connect request is in flight when this runs.
+            shouldCloseOnPress: false,
+          },
+        ]}
+      >
           <View className="gap-1.5">
             <Label>{t("agents.telegramBot.tokenLabel")}</Label>
             <Input
@@ -811,24 +819,6 @@ export default function EditAgentScreen() {
               autoCorrect={false}
             />
           </View>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onPress={() => setShowBotDialog(false)}
-              disabled={connectingBot}
-            >
-              <Text className="text-foreground">{t("common.cancel")}</Text>
-            </Button>
-            <Button
-              onPress={handleConnectBot}
-              disabled={connectingBot || !botToken.trim()}
-            >
-              <Text className="text-primary-foreground">
-                {t("agents.telegramBot.connect")}
-              </Text>
-            </Button>
-          </DialogFooter>
-        </DialogContent>
       </Dialog>
     </View>
   );

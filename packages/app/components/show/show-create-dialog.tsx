@@ -3,7 +3,7 @@ import { View, ScrollView } from 'react-native';
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog } from '@oxyhq/bloom/dialog';
 import { useShowStore, type ShowFormat } from '@/lib/stores/show-store';
 import { toast } from '@oxyhq/bloom/toast';
 import { Mic, Newspaper, MessageSquare, HelpCircle, BookOpen } from 'lucide-react-native';
@@ -56,11 +56,24 @@ export function ShowCreateDialog({ open, onOpenChange }: ShowCreateDialogProps) 
   }, [topic, format, notes, generateShow, onOpenChange]);
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>Create Show</DialogTitle>
-        </DialogHeader>
+    <Dialog
+      open={open}
+      onClose={() => onOpenChange(false)}
+      placement={{ base: 'bottom', md: 'center' }}
+      title="Create Show"
+      maxWidth={512}
+      actions={[
+        { label: 'Cancel', color: 'cancel', disabled: generating },
+        {
+          label: generating ? 'Creating...' : 'Generate',
+          onPress: handleGenerate,
+          disabled: generating || topic.trim().length < 5,
+          // Generation is in flight when this runs, and the dialog owns the
+          // progress label, so it stays mounted.
+          shouldCloseOnPress: false,
+        },
+      ]}
+    >
         <ScrollView className="max-h-96" showsVerticalScrollIndicator={false}>
           <View className="gap-4 py-2">
             <View className="gap-1.5">
@@ -115,15 +128,6 @@ export function ShowCreateDialog({ open, onOpenChange }: ShowCreateDialogProps) 
             </View>
           </View>
         </ScrollView>
-        <DialogFooter>
-          <Button variant="outline" onPress={() => onOpenChange(false)} disabled={generating}>
-            <Text>Cancel</Text>
-          </Button>
-          <Button onPress={handleGenerate} disabled={generating || topic.trim().length < 5}>
-            <Text className="text-primary-foreground">{generating ? 'Creating...' : 'Generate'}</Text>
-          </Button>
-        </DialogFooter>
-      </DialogContent>
     </Dialog>
   );
 }

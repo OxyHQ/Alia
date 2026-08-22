@@ -2,16 +2,7 @@ import { useState, useEffect } from 'react';
 import { View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Zap, Clock, CreditCard, Lock } from 'lucide-react-native';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Text } from '@/components/ui/text';
+import { Dialog, type DialogAction } from '@oxyhq/bloom/dialog';
 import { UsageLimitError } from '@/lib/errors/usage-limit-error';
 import { useTranslation } from '@/lib/hooks/use-translation';
 
@@ -91,78 +82,51 @@ export function UsageLimitDialog({ error, onDismiss }: UsageLimitDialogProps) {
       : t('usageLimit.slowDownGeneric');
   }
 
-  return (
-    <Dialog open={!!error} onOpenChange={(open) => !open && onDismiss()}>
-      <DialogContent closeButton={true}>
-        <DialogHeader>
-          <View className="items-center mb-3">
-            {isModelAccess ? (
-              <View className="w-12 h-12 rounded-full bg-purple-100 dark:bg-purple-900/30 items-center justify-center">
-                <Lock size={24} className="text-purple-500" />
-              </View>
-            ) : isCredits ? (
-              <View className="w-12 h-12 rounded-full bg-orange-100 dark:bg-orange-900/30 items-center justify-center">
-                <CreditCard size={24} className="text-orange-500" />
-              </View>
-            ) : showUpgrade ? (
-              <View className="w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-900/30 items-center justify-center">
-                <Zap size={24} className="text-blue-500" />
-              </View>
-            ) : (
-              <View className="w-12 h-12 rounded-full bg-yellow-100 dark:bg-yellow-900/30 items-center justify-center">
-                <Clock size={24} className="text-yellow-500" />
-              </View>
-            )}
-          </View>
-          <DialogTitle className="text-center">{title}</DialogTitle>
-          <DialogDescription className="text-center">{description}</DialogDescription>
-        </DialogHeader>
+  // Every former footer button was a plain button, so the whole branch becomes
+  // a declarative action list. `color: 'cancel'` dismisses on its own, which is
+  // what `onClose` already routes to `onDismiss`.
+  const waiting: DialogAction = {
+    label: t('usageLimit.tryAgainIn', { time: formatCountdown(countdown) }),
+    color: 'cancel',
+    disabled: true,
+  };
+  const upgrade: DialogAction = { label: t('usageLimit.upgradePlan'), onPress: handleUpgrade };
+  const actions: DialogAction[] = isModelAccess
+    ? [upgrade, { label: t('usageLimit.gotIt'), color: 'cancel' }]
+    : isCredits
+      ? [upgrade, { label: t('usageLimit.buyCredits'), color: 'cancel', onPress: handleBuyCredits }]
+      : showUpgrade
+        ? [upgrade, countdown > 0 ? waiting : { label: t('usageLimit.tryAgain'), color: 'cancel' }]
+        : [countdown > 0 ? waiting : { label: t('usageLimit.gotIt'), color: 'cancel' }];
 
-        <DialogFooter className="justify-center">
+  return (
+    <Dialog
+      open={!!error}
+      onClose={onDismiss}
+      placement={{ base: 'bottom', md: 'center' }}
+      title={title}
+      description={description}
+      actions={actions}
+    >
+        <View className="items-center mb-3">
           {isModelAccess ? (
-            <>
-              <Button onPress={handleUpgrade} className="flex-1">
-                <Text className="text-primary-foreground text-sm font-medium">{t('usageLimit.upgradePlan')}</Text>
-              </Button>
-              <Button variant="outline" onPress={onDismiss} className="flex-1">
-                <Text className="text-sm font-medium">{t('usageLimit.gotIt')}</Text>
-              </Button>
-            </>
+            <View className="w-12 h-12 rounded-full bg-purple-100 dark:bg-purple-900/30 items-center justify-center">
+              <Lock size={24} className="text-purple-500" />
+            </View>
           ) : isCredits ? (
-            <>
-              <Button onPress={handleUpgrade} className="flex-1">
-                <Text className="text-primary-foreground text-sm font-medium">{t('usageLimit.upgradePlan')}</Text>
-              </Button>
-              <Button variant="outline" onPress={handleBuyCredits} className="flex-1">
-                <Text className="text-sm font-medium">{t('usageLimit.buyCredits')}</Text>
-              </Button>
-            </>
+            <View className="w-12 h-12 rounded-full bg-orange-100 dark:bg-orange-900/30 items-center justify-center">
+              <CreditCard size={24} className="text-orange-500" />
+            </View>
           ) : showUpgrade ? (
-            <>
-              <Button onPress={handleUpgrade} className="flex-1">
-                <Text className="text-primary-foreground text-sm font-medium">{t('usageLimit.upgradePlan')}</Text>
-              </Button>
-              {countdown > 0 ? (
-                <Button variant="outline" disabled className="flex-1">
-                  <Text className="text-sm font-medium text-muted-foreground">
-                    {t('usageLimit.tryAgainIn', { time: formatCountdown(countdown) })}
-                  </Text>
-                </Button>
-              ) : (
-                <Button variant="outline" onPress={onDismiss} className="flex-1">
-                  <Text className="text-sm font-medium">{t('usageLimit.tryAgain')}</Text>
-                </Button>
-              )}
-            </>
+            <View className="w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-900/30 items-center justify-center">
+              <Zap size={24} className="text-blue-500" />
+            </View>
           ) : (
-            <Button variant="outline" onPress={onDismiss} className="flex-1">
-              <Text className="text-sm font-medium">
-                {countdown > 0 ? t('usageLimit.tryAgainIn', { time: formatCountdown(countdown) }) : t('usageLimit.gotIt')}
-              </Text>
-            </Button>
+            <View className="w-12 h-12 rounded-full bg-yellow-100 dark:bg-yellow-900/30 items-center justify-center">
+              <Clock size={24} className="text-yellow-500" />
+            </View>
           )}
-        </DialogFooter>
-      </DialogContent>
+        </View>
     </Dialog>
   );
 }

@@ -7,13 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from '@/components/ui/dialog';
+import { Dialog } from '@oxyhq/bloom/dialog';
 import { CloudCog, Plus, Clock, Trash2, Play } from 'lucide-react-native';
 import { useColorScheme } from '@/lib/useColorScheme';
 import { toast } from '@oxyhq/bloom/toast';
@@ -528,12 +522,22 @@ export default function AutomationsScreen() {
         </View>
 
         {/* Create Automation Dialog */}
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogContent closeButton={false}>
-            <DialogHeader>
-              <DialogTitle>{t('automations.createAutomation')}</DialogTitle>
-            </DialogHeader>
-
+        <Dialog
+          open={dialogOpen}
+          onClose={() => setDialogOpen(false)}
+          placement={{ base: 'bottom', md: 'center' }}
+          title={t('automations.createAutomation')}
+          actions={[
+            { label: t('common.cancel'), color: 'cancel' },
+            {
+              label: creating ? 'Creating...' : t('common.create'),
+              onPress: handleCreate,
+              disabled: creating,
+              // Creation is in flight when this runs and the label reports it.
+              shouldCloseOnPress: false,
+            },
+          ]}
+        >
             <View className="gap-5">
               {/* Name Field */}
               <View className="gap-2">
@@ -642,20 +646,6 @@ export default function AutomationsScreen() {
               </View>
             </View>
 
-            <DialogFooter className="justify-end">
-              <Button
-                variant="ghost"
-                onPress={() => setDialogOpen(false)}
-              >
-                <Text className="text-sm text-muted-foreground">{t('common.cancel')}</Text>
-              </Button>
-              <Button onPress={handleCreate} disabled={creating}>
-                <Text className="text-sm font-medium text-primary-foreground">
-                  {creating ? 'Creating...' : t('common.create')}
-                </Text>
-              </Button>
-            </DialogFooter>
-          </DialogContent>
         </Dialog>
       </View>
     </ContentPanel>
