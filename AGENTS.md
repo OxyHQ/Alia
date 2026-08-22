@@ -170,22 +170,24 @@ pipeline. This is SEPARATE from the shared system bot (env `TELEGRAM_BOT_TOKEN`,
 - A per-(bot, end-user) inbound rate limit (15/min, silently dropped) guards
   against a stranger draining the owner's credits. Credits are the hard cap.
 
-## Inference: Relay is the destination, in-process is the present
+## Inference: Kaana is the destination, in-process is the present
 
-**Relay (`~/Oxy/Relay`) is Oxy's own inference provider and Alia CONSUMES it** —
-Alia is not a place where provider logic lives. **Add no new provider adapter,
-key pool or routing table to `packages/api`.**
+**Kaana (`kaana.ai`, repo `~/Oxy/Relay`) is Oxy's own inference provider and Alia
+CONSUMES it** — Alia is not a place where provider logic lives. **Add no new
+provider adapter, key pool or routing table to `packages/api`.** `Relay` was
+Kaana's working name and still names that repo's directory, its AWS resources
+and Alia's own `relay-*` modules below.
 
 The cutover is `ALIA_RELAY_CLIENT_ENABLED` (`lib/inference/relay-cutover.ts`),
-**default OFF**, exactly `'true'`. Off, the Relay client answers
-`service_unavailable` before touching a transport and neither the boot guard nor
-the egress block is armed — so provider calls still happen in-process in
-`internal/providers` today, and that is the state Relay REPLACES, not an
+**default OFF**, exactly `'true'`. Off, the Kaana client (`relay-client.ts`)
+answers `service_unavailable` before touching a transport and neither the boot
+guard nor the egress block is armed — so provider calls still happen in-process
+in `internal/providers` today, and that is the state Kaana REPLACES, not an
 architecture to extend. `__tests__/relay-boundary.test.ts` freezes which product
 modules may name the client.
 
 **There is no gateway service** — `packages/alia-gateway` was deleted;
-`lib/gateway-client.ts` remains as the local/remote seam and is NOT the Relay
+`lib/gateway-client.ts` remains as the local/remote seam and is NOT the Kaana
 seam.
 
 TTS fails over across providers via `synthesize-speech.ts` and
