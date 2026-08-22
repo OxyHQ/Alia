@@ -370,7 +370,7 @@ export async function runStream<TOOLS extends ToolSet>(params: RunStreamParams<T
         const midStreamMsg = isSpanish
           ? '\n\nHubo una breve interrupción. Por favor, envía tu mensaje de nuevo y completaré mi respuesta.'
           : '\n\nI encountered a brief interruption. Please send your message again and I\'ll complete my response.';
-        writeContentChunk(res, requestId, aliasModelId, midStreamMsg);
+        writeContentChunk(res, requestId, aliasModelId, midStreamMsg, { synthetic: true, retryable: true });
         writeStopChunk(res, requestId, aliasModelId);
       }
     } else if (chunk.type === 'finish') {

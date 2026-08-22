@@ -269,7 +269,8 @@
     "failedPasteImages": "Error al procesar las imágenes pegadas. Inténtalo de nuevo.",
     "addSourcesHint": "Puedes agregar URLs, documentos u otras fuentes como referencia.",
     "copiedToClipboard": "Copiado al portapapeles",
-    "thanksFeedback": "¡Gracias por tu opinión!"
+    "thanksFeedback": "¡Gracias por tu opinión!",
+    "sendFailed": "No se pudo enviar el mensaje. Lo tienes de vuelta en el cuadro de texto, inténtalo otra vez."
   },
   "credits": {
     "title": "Créditos",

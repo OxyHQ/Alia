@@ -297,7 +297,8 @@
     "failedPasteImages": "Failed to process pasted images. Please try again.",
     "addSourcesHint": "You can add URLs, documents, or other sources for me to reference.",
     "copiedToClipboard": "Copied to clipboard",
-    "thanksFeedback": "Thanks for your feedback!"
+    "thanksFeedback": "Thanks for your feedback!",
+    "sendFailed": "Couldn't send that message. It's back in the box — try again."
   },
   "credits": {
     "title": "Credits",

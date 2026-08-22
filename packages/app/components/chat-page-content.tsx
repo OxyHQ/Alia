@@ -105,11 +105,11 @@ interface ChatPageContentProps {
   onApprovePlan?: (planId: string) => void;
   onRejectPlan?: (planId: string) => void;
   /**
-   * Opt in to consuming `composerDraft`. Only the new-chat screen sets this: the
-   * drawer keeps every visited chat mounted, so an ungated consumer would race
-   * the other instances and the draft could land in whichever one wins.
+   * The chat this screen is showing, or omitted for the new-chat screen. The
+   * drawer keeps every visited chat mounted, so this is what decides which
+   * instance a `composerDraft` belongs to.
    */
-  acceptsComposerDraft?: boolean;
+  conversationId?: string;
 }
 
 
@@ -149,7 +149,7 @@ export const ChatPageContent = ({
   agentSessionId,
   onApprovePlan,
   onRejectPlan,
-  acceptsComposerDraft = false,
+  conversationId,
 }: ChatPageContentProps) => {
   const attachments = useStore((state) => state.attachments);
   const addAttachment = useStore((state) => state.addAttachment);
@@ -195,14 +195,15 @@ export const ChatPageContent = ({
   const [inputValue, setInputValue] = useState("");
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
 
-  // Draft handed over by another route. The seq marks it consumed, so this
-  // needs no effect and no write back to the store.
+  // Draft handed over by another route, or handed back by a send that failed.
+  // `target` picks the one screen it belongs to and the seq marks it consumed,
+  // so this needs no effect and no write back to the store.
   const composerDraft = useStore((state) => state.composerDraft);
   const composerDraftSeq = useStore((state) => state.composerDraftSeq);
   const [appliedDraftSeq, setAppliedDraftSeq] = useState(0);
-  if (acceptsComposerDraft && composerDraftSeq !== appliedDraftSeq) {
+  if (composerDraft && composerDraftSeq !== appliedDraftSeq && composerDraft.target === (conversationId ?? null)) {
     setAppliedDraftSeq(composerDraftSeq);
-    setInputValue(composerDraft);
+    setInputValue(composerDraft.text);
   }
 
   const [showTerminal, setShowTerminal] = useState(false);

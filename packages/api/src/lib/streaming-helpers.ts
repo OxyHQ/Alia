@@ -174,7 +174,18 @@ export function writeStopChunk(res: Response, id: string, model: string, reason 
   res.write(`data: ${JSON.stringify(makeChunk(id, model, [{ index: 0, delta: {}, finish_reason: reason }]))}\n\n`);
 }
 
-/** Write a content delta SSE chunk (no thinking filter). */
-export function writeContentChunk(res: Response, id: string, model: string, content: string): void {
-  res.write(`data: ${JSON.stringify(makeChunk(id, model, [{ index: 0, delta: { content }, finish_reason: null }]))}\n\n`);
+/**
+ * Write a content delta SSE chunk (no thinking filter). `meta` rides along as
+ * `alia_meta`, which is how a stand-in message — the graceful text sent when a
+ * provider dies mid-stream — tells the client it is not a real answer.
+ */
+export function writeContentChunk(
+  res: Response,
+  id: string,
+  model: string,
+  content: string,
+  meta?: Record<string, unknown>,
+): void {
+  const chunk = makeChunk(id, model, [{ index: 0, delta: { content }, finish_reason: null }]);
+  res.write(`data: ${JSON.stringify(meta ? { ...chunk, alia_meta: meta } : chunk)}\n\n`);
 }

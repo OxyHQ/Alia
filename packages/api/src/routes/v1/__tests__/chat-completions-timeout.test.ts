@@ -361,6 +361,21 @@ function createMockRes() {
   return res;
 }
 
+/** The SSE data frames a response wrote that are flagged `alia_meta.synthetic`. */
+function syntheticChunks(res: any): Record<string, any>[] {
+  return res.write.mock.calls
+    .map((c: any[]) => String(c[0]))
+    .filter((frame: string) => frame.startsWith('data: ') && !frame.includes('[DONE]'))
+    .map((frame: string) => {
+      try {
+        return JSON.parse(frame.slice(6).trim());
+      } catch {
+        return null;
+      }
+    })
+    .filter((chunk: any) => chunk?.alia_meta?.synthetic === true);
+}
+
 function createMockStream(chunks: any[]) {
   return {
     fullStream: (async function* () {
@@ -584,6 +599,10 @@ describe('504 timeout fixes - /v1/chat/completions', () => {
     const allWrites = res.write.mock.calls.map((c: any[]) => c[0]).join('');
     expect(allWrites).toContain('all models are currently busy');
     expect(allWrites).toContain('data: [DONE]');
+
+    // The stand-in message must be flagged: the app treats a turn whose only
+    // content is synthetic as a failed send and hands the text back to the composer.
+    expect(syntheticChunks(res)).toHaveLength(1);
 
     // res.end was called
     expect(res.end).toHaveBeenCalled();
