@@ -17,7 +17,14 @@ import { defineConfig } from 'vitest/config';
  * suffix silently moves into a job with no Postgres.
  *
  *   docker compose -f docker-compose.postgres.yml up -d
- *   TEST_DATABASE_URL=postgres://alia:alia@127.0.0.1:5438/postgres bun run test:pg
+ *   TEST_DATABASE_URL=postgres://alia:alia@127.0.0.1:5440/postgres bun run test:pg
+ *
+ * The port is 5440 because that is what `docker-compose.postgres.yml` publishes.
+ * It said 5438 here for a while, which is not a harmless typo: 5438 is a common
+ * default and is already taken by another project's database on at least one
+ * machine, so following this recipe pointed a 28-migration run at it. Only a
+ * password mismatch stopped it. If you change the published port, change it
+ * here in the same edit.
  */
 export default defineConfig({
   test: {

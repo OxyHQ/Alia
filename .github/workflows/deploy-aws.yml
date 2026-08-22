@@ -259,9 +259,25 @@ jobs:
       # `pre` is the script's default and is deliberately not overridden, and no
       # `migration_phase` dispatch input is offered. That input exists elsewhere
       # for a journal whose phases cannot be applied in order — a `pre` file
-      # queued behind an unapplied `post` one. Alia's journal cannot be in that
-      # state: all 16 entries are `pre`. An escape hatch for a situation that
-      # cannot arise reads as load-bearing to whoever touches this next.
+      # queued behind an unapplied `post` one.
+      #
+      # This comment used to justify that by saying all 16 entries are `pre`.
+      # Both halves were wrong: the journal holds 28 migrations and two carry
+      # `post` (0016_jazzy_justin_hammer, 0025_opposite_cyclops). So the state it
+      # called impossible is not.
+      #
+      # What actually keeps the phases together is deploy-ecs-image.sh, on two
+      # paths, both checked rather than assumed:
+      #   - a non-positive desiredCount aborts before anything is applied
+      #     ("must have a positive desiredCount before deployment"), so the
+      #     zero-capacity deploy that skips `post` while applying `pre` cannot
+      #     start;
+      #   - a failing post-deploy reconciliation errors, rolls the service back
+      #     and exits 1, so a `post` that did not apply fails the deploy instead
+      #     of leaving the gap open.
+      #
+      # Recount before reasoning from a number here. The previous one went stale
+      # without anything failing, which is how it survived.
       #
       # The interlock the migrator requires is the workflow-level `concurrency`
       # group above. `runMigrations` takes no lock — it reads the ledger's high
