@@ -5,13 +5,7 @@ import Fontisto from "@expo/vector-icons/Fontisto";
 import * as Clipboard from "expo-clipboard";
 import { Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "@/components/ui/dialog";
+import { Dialog } from "@oxyhq/bloom/dialog";
 import { useReferralInfo, useRedeemInviteCode, useReferralHistory } from "@/lib/hooks/use-referrals";
 import { useTheme } from "@oxyhq/bloom/theme";
 
@@ -131,11 +125,15 @@ export function InviteDialog({ open, onOpenChange }: InviteDialogProps) {
   }, [inviteUrl]);
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent
-        overlayClassName="p-0 sm:p-6"
-        className="flex-1 max-w-full rounded-none sm:flex-initial sm:max-w-md sm:rounded-2xl"
-      >
+    <Dialog
+      open={open}
+      onClose={() => onOpenChange(false)}
+      placement={{ base: "bottom", md: "center" }}
+      title="Invite to get credits"
+      description="Share your invitation link with friends, get 500 credits each."
+      // The body owns its own ScrollView.
+      scrollable={false}
+    >
         <ScrollView showsVerticalScrollIndicator={false}>
           {/* Header Icon */}
           <View className="items-center mb-4">
@@ -143,15 +141,6 @@ export function InviteDialog({ open, onOpenChange }: InviteDialogProps) {
               <HeartHandshake size={32} className="text-primary" />
             </View>
           </View>
-
-          <DialogHeader className="items-center">
-            <DialogTitle className="text-xl text-center">
-              Invite to get credits
-            </DialogTitle>
-            <DialogDescription className="text-center">
-              Share your invitation link with friends, get 500 credits each.
-            </DialogDescription>
-          </DialogHeader>
 
           {/* Share Link */}
           <View className="gap-2 mb-4">
@@ -308,7 +297,6 @@ export function InviteDialog({ open, onOpenChange }: InviteDialogProps) {
             </View>
           )}
         </ScrollView>
-      </DialogContent>
     </Dialog>
   );
 }

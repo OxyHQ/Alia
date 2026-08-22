@@ -5,14 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Dialog, type DialogAction } from "@oxyhq/bloom/dialog";
 import { confirm } from "@oxyhq/bloom/alert-dialog";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useOxy, useAuth } from "@oxyhq/services";
@@ -420,12 +413,42 @@ export default function MemoryScreen() {
   };
 
   if (loading) {
-    return (
+  return (
       <View className="flex-1 items-center justify-center bg-background">
         <Text>{t("common.loading")}</Text>
       </View>
     );
   }
+
+  // The provider import is a two-step wizard, so its action row is computed
+  // rather than declared inline.
+  const providerImportActions: DialogAction[] =
+    providerImportStep === 'prompt'
+      ? [
+          {
+            label: t('memory.nextStep'),
+            onPress: () => setProviderImportStep('paste'),
+            shouldCloseOnPress: false,
+          },
+        ]
+      : [
+          {
+            label: providerImportResult ? t('common.done') : t('common.cancel'),
+            color: 'cancel',
+            disabled: providerImporting,
+          },
+          ...(providerImportResult
+            ? []
+            : [
+                {
+                  label: providerImporting ? t('memory.importing') : t('memory.import'),
+                  onPress: handleProviderImport,
+                  disabled: !providerPastedText.trim() || providerImporting,
+                  // The import is in flight when this runs and the label reports it.
+                  shouldCloseOnPress: false,
+                } satisfies DialogAction,
+              ]),
+        ];
 
   return (
     <View className="flex-1 bg-background">
@@ -566,14 +589,20 @@ export default function MemoryScreen() {
       </ScrollView>
 
       {/* Export Dialog */}
-      <Dialog open={showExportDialog} onOpenChange={setShowExportDialog}>
-        <DialogContent closeButton={true}>
-          <DialogHeader>
-            <DialogTitle>{t('memory.exportTitle')}</DialogTitle>
-            <DialogDescription>
-              {t('memory.exportDescription')}
-            </DialogDescription>
-          </DialogHeader>
+      <Dialog
+        open={showExportDialog}
+        onClose={() => setShowExportDialog(false)}
+        placement={{ base: 'bottom', md: 'center' }}
+        title={t('memory.exportTitle')}
+        description={t('memory.exportDescription')}
+        actions={[
+          { label: t('common.cancel'), color: 'cancel' },
+          {
+            label: t('memory.download', { format: exportFormat.toUpperCase() }),
+            onPress: () => handleExport(exportFormat),
+          },
+        ]}
+      >
 
           {exportStats && (
             <View className="gap-3">
@@ -616,36 +645,26 @@ export default function MemoryScreen() {
             </View>
           )}
 
-          <DialogFooter>
-            <Button
-              variant="outline"
-              className="flex-1"
-              onPress={() => setShowExportDialog(false)}
-            >
-              <Text>{t('common.cancel')}</Text>
-            </Button>
-            <Button
-              className="flex-1"
-              onPress={() => handleExport(exportFormat)}
-            >
-              <View className="flex-row items-center gap-2">
-                <Download size={16} className="text-primary-foreground" />
-                <Text>{t('memory.download', { format: exportFormat.toUpperCase() })}</Text>
-              </View>
-            </Button>
-          </DialogFooter>
-        </DialogContent>
       </Dialog>
 
       {/* Import Dialog (file-based) */}
-      <Dialog open={showImportDialog} onOpenChange={setShowImportDialog}>
-        <DialogContent closeButton={true}>
-          <DialogHeader>
-            <DialogTitle>{t('memory.importTitle')}</DialogTitle>
-            <DialogDescription>
-              {t('memory.importDescription')}
-            </DialogDescription>
-          </DialogHeader>
+      <Dialog
+        open={showImportDialog}
+        onClose={() => setShowImportDialog(false)}
+        placement={{ base: 'bottom', md: 'center' }}
+        title={t('memory.importTitle')}
+        description={t('memory.importDescription')}
+        actions={[
+          { label: t('common.cancel'), color: 'cancel', disabled: importing },
+          {
+            label: importing ? t('memory.importing') : t('memory.import'),
+            onPress: handleImport,
+            disabled: !importFile || importing,
+            // The import is in flight when this runs and the label reports it.
+            shouldCloseOnPress: false,
+          },
+        ]}
+      >
 
           <View className="gap-4">
             <View className="gap-2">
@@ -703,37 +722,21 @@ export default function MemoryScreen() {
             )}
           </View>
 
-          <DialogFooter>
-            <Button
-              variant="outline"
-              className="flex-1"
-              onPress={() => setShowImportDialog(false)}
-              disabled={importing}
-            >
-              <Text>{t('common.cancel')}</Text>
-            </Button>
-            <Button
-              className="flex-1"
-              onPress={handleImport}
-              disabled={!importFile || importing}
-            >
-              <Text>{importing ? t('memory.importing') : t('memory.import')}</Text>
-            </Button>
-          </DialogFooter>
-        </DialogContent>
       </Dialog>
 
       {/* Duplicates Dialog */}
-      <Dialog open={showDuplicatesDialog} onOpenChange={setShowDuplicatesDialog}>
-        <DialogContent closeButton={true}>
-          <DialogHeader>
-            <DialogTitle>{t('memory.duplicateMemories')}</DialogTitle>
-            <DialogDescription>
-              {duplicates.length === 0
-                ? t('memory.noDuplicates')
-                : t('memory.foundDuplicates', { count: duplicates.length })}
-            </DialogDescription>
-          </DialogHeader>
+      <Dialog
+        open={showDuplicatesDialog}
+        onClose={() => setShowDuplicatesDialog(false)}
+        placement={{ base: 'bottom', md: 'center' }}
+        title={t('memory.duplicateMemories')}
+        actions={[{ label: t('common.done'), color: 'cancel' }]}
+        description={
+          duplicates.length === 0
+            ? t('memory.noDuplicates')
+            : t('memory.foundDuplicates', { count: duplicates.length })
+        }
+      >
 
           {duplicates.length > 0 && (
             <ScrollView style={{ maxHeight: 400 }}>
@@ -794,25 +797,21 @@ export default function MemoryScreen() {
             </ScrollView>
           )}
 
-          <DialogFooter>
-            <Button onPress={() => setShowDuplicatesDialog(false)}>
-              <Text>{t('common.done')}</Text>
-            </Button>
-          </DialogFooter>
-        </DialogContent>
       </Dialog>
 
       {/* Import from other AI provider */}
-      <Dialog open={showProviderImportDialog} onOpenChange={(open) => { if (!open) handleCloseProviderImport(); else setShowProviderImportDialog(true); }}>
-        <DialogContent closeButton={true}>
-          <DialogHeader>
-            <DialogTitle>{t('memory.importFromProvider')}</DialogTitle>
-            <DialogDescription>
-              {providerImportStep === 'prompt'
-                ? t('memory.providerImportStepPromptDescription')
-                : t('memory.providerImportStepPasteDescription')}
-            </DialogDescription>
-          </DialogHeader>
+      <Dialog
+        open={showProviderImportDialog}
+        onClose={handleCloseProviderImport}
+        placement={{ base: 'bottom', md: 'center' }}
+        title={t('memory.importFromProvider')}
+        actions={providerImportActions}
+        description={
+          providerImportStep === 'prompt'
+            ? t('memory.providerImportStepPromptDescription')
+            : t('memory.providerImportStepPasteDescription')
+        }
+      >
 
           {providerImportStep === 'prompt' ? (
             <View className="gap-3">
@@ -864,34 +863,6 @@ export default function MemoryScreen() {
             </View>
           )}
 
-          <DialogFooter>
-            {providerImportStep === 'prompt' ? (
-              <Button className="flex-1" onPress={() => setProviderImportStep('paste')}>
-                <Text>{t('memory.nextStep')}</Text>
-              </Button>
-            ) : (
-              <>
-                <Button
-                  variant="outline"
-                  className="flex-1"
-                  onPress={handleCloseProviderImport}
-                  disabled={providerImporting}
-                >
-                  <Text>{providerImportResult ? t('common.done') : t('common.cancel')}</Text>
-                </Button>
-                {!providerImportResult && (
-                  <Button
-                    className="flex-1"
-                    onPress={handleProviderImport}
-                    disabled={!providerPastedText.trim() || providerImporting}
-                  >
-                    <Text>{providerImporting ? t('memory.importing') : t('memory.import')}</Text>
-                  </Button>
-                )}
-              </>
-            )}
-          </DialogFooter>
-        </DialogContent>
       </Dialog>
     </View>
   );

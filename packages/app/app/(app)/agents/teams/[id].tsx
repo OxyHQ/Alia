@@ -11,12 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Panel } from "@/components/ui/panel";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Dialog } from "@oxyhq/bloom/dialog";
 import {
   ArrowLeft,
   Plus,
@@ -294,11 +289,15 @@ export default function TeamDetailScreen() {
                 ))}
               </View>
             </ScrollView>
-            <Dialog open={showSkillPicker} onOpenChange={setShowSkillPicker}>
-              <DialogContent overlayClassName={cn(!isLargeScreen && "px-0")} className={cn("p-0 gap-0", !isLargeScreen && "flex-1 max-w-none rounded-none border-0")}>
-                <DialogHeader className="px-4 pt-4 pb-2">
-                  <DialogTitle>{t("agents.skills")}</DialogTitle>
-                </DialogHeader>
+            <Dialog
+              open={showSkillPicker}
+              onClose={() => setShowSkillPicker(false)}
+              placement={{ base: "bottom", md: "center" }}
+              title={t("agents.skills")}
+              // The picker owns its own ScrollView and its own padding.
+              scrollable={false}
+              contentPadding={0}
+            >
                 <View className="mx-4 mb-2">
                   <Search
                     label="Search skills..."
@@ -325,7 +324,6 @@ export default function TeamDetailScreen() {
                       </Pressable>
                     ))}
                 </ScrollView>
-              </DialogContent>
             </Dialog>
           </View>
 
@@ -372,11 +370,15 @@ export default function TeamDetailScreen() {
                 ))}
               </View>
             </ScrollView>
-            <Dialog open={showKnowledgePicker} onOpenChange={setShowKnowledgePicker}>
-              <DialogContent overlayClassName={cn(!isLargeScreen && "px-0")} className={cn("p-0 gap-0", !isLargeScreen && "flex-1 max-w-none rounded-none border-0")}>
-                <DialogHeader className="px-4 pt-4 pb-2">
-                  <DialogTitle>{t("agents.knowledge")}</DialogTitle>
-                </DialogHeader>
+            <Dialog
+              open={showKnowledgePicker}
+              onClose={() => setShowKnowledgePicker(false)}
+              placement={{ base: "bottom", md: "center" }}
+              title={t("agents.knowledge")}
+              // The picker owns its own ScrollView and its own padding.
+              scrollable={false}
+              contentPadding={0}
+            >
                 <View className="mx-4 mb-2">
                   <Search
                     label="Search library..."
@@ -416,7 +418,6 @@ export default function TeamDetailScreen() {
                     </Text>
                   )}
                 </ScrollView>
-              </DialogContent>
             </Dialog>
           </View>
 

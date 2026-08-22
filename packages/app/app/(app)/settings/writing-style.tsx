@@ -3,14 +3,7 @@ import { View, ScrollView, Pressable } from 'react-native';
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+import { Dialog } from '@oxyhq/bloom/dialog';
 import { confirm } from '@oxyhq/bloom/alert-dialog';
 import { useOxy } from '@oxyhq/services';
 import { generateAPIUrl } from '@/lib/generate-api-url';
@@ -470,14 +463,23 @@ export default function WritingStyleScreen() {
       </ScrollView>
 
       {/* Edit Dialog */}
-      <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Edit Style Preferences</DialogTitle>
-            <DialogDescription>
-              Customize how Alia writes on your behalf.
-            </DialogDescription>
-          </DialogHeader>
+      <Dialog
+        open={showEditDialog}
+        onClose={() => setShowEditDialog(false)}
+        placement={{ base: 'bottom', md: 'center' }}
+        title="Edit Style Preferences"
+        description="Customize how Alia writes on your behalf."
+        actions={[
+          { label: 'Cancel', color: 'cancel' },
+          {
+            label: saving ? 'Saving...' : 'Save',
+            onPress: handleSaveEdits,
+            disabled: saving,
+            // The save is in flight when this runs and the label reports it.
+            shouldCloseOnPress: false,
+          },
+        ]}
+      >
           <View className="gap-4 py-2">
             <View className="gap-1.5">
               <Text className="text-sm font-medium">Sign-off</Text>
@@ -515,15 +517,6 @@ export default function WritingStyleScreen() {
               <Text className="text-[11px] text-muted-foreground">Comma-separated</Text>
             </View>
           </View>
-          <DialogFooter>
-            <Button variant="outline" onPress={() => setShowEditDialog(false)}>
-              <Text>Cancel</Text>
-            </Button>
-            <Button onPress={handleSaveEdits} disabled={saving}>
-              <Text className="text-primary-foreground">{saving ? 'Saving...' : 'Save'}</Text>
-            </Button>
-          </DialogFooter>
-        </DialogContent>
       </Dialog>
     </View>
   );
