@@ -66,6 +66,9 @@ vi.mock('../../../lib/credits-manager.js', () => ({
   reserveCredits: (...args: any[]) => mockReserveCredits(...args),
   finalizeCredits: (...args: any[]) => mockFinalizeCredits(...args),
   refundReservation: (...args: any[]) => mockRefundReservation(...args),
+  // Mirrors the real helper, which refunds through `refundReservation` — so a
+  // refund taken by either name lands on the same assertion.
+  safeRefund: (reservation: any) => (reservation ? mockRefundReservation(reservation) : Promise.resolve()),
 }));
 
 vi.mock('../../../lib/user-credits-helpers.js', () => ({
@@ -645,6 +648,102 @@ describe('504 timeout fixes - /v1/chat/completions', () => {
  * generic rejection still produce the exact 503 they always did, so everything
  * below is an ADDITION rather than a change of behaviour.
  */
+describe('a turn that produced nothing costs nothing - /v1/chat/completions', () => {
+  let handler: (req: any, res: any, next: any) => Promise<void>;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.useRealTimers();
+    handler = getHandler();
+    mockResolveModel.mockResolvedValue(VALID_RESOLVED_MODEL);
+    mockReserveCredits.mockResolvedValue(VALID_RESERVATION);
+    mockGetOrCreateUserCredits.mockResolvedValue({});
+    mockGetUserById.mockResolvedValue(null);
+    mockBuildSystemPrompt.mockResolvedValue('You are Alia.');
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  // `reserveCredits` DEBITS on the way in — a reservation that is never released
+  // is a permanent charge, and `INITIAL_RESERVATION` is 1, so each of these
+  // paths costs a person exactly one credit for an answer they never got.
+
+  it('refunds when every provider is exhausted', async () => {
+    // The control: this path already refunds, so a harness that could not see a
+    // refund at all would fail here first and the cases below would prove nothing.
+    let calls = 0;
+    mockResolveModel.mockImplementation(() => {
+      calls++;
+      return Promise.resolve(calls === 1 ? VALID_RESOLVED_MODEL : null);
+    });
+    mockStreamText.mockImplementation(() => ({
+      // eslint-disable-next-line require-yield -- simulates immediate provider failure
+      fullStream: (async function* () {
+        throw Object.assign(new Error('Rate limit exceeded'), { status: 429 });
+      })(),
+    }));
+
+    await handler(
+      createMockReq({ body: { messages: [{ role: 'user', content: 'Hi' }], model: 'alia-v1', stream: true } }),
+      createMockRes(),
+      vi.fn(),
+    );
+
+    expect(mockRefundReservation).toHaveBeenCalledWith(VALID_RESERVATION);
+  });
+
+  it('refunds a stream that ended without producing any output', async () => {
+    // The provider answered, cleanly, with nothing. `finalizeCredits` would bill
+    // `MIN_CREDITS_PER_REQUEST` for zero tokens, which makes the adjustment zero
+    // and quietly keeps the reservation as the charge.
+    mockStreamText.mockReturnValue(createMockStream([{ type: 'finish', finishReason: 'stop' }]));
+
+    await handler(
+      createMockReq({ body: { messages: [{ role: 'user', content: 'Hi' }], model: 'alia-v1', stream: true } }),
+      createMockRes(),
+      vi.fn(),
+    );
+
+    expect(mockFinalizeCredits).not.toHaveBeenCalled();
+    expect(mockRefundReservation).toHaveBeenCalledWith(VALID_RESERVATION);
+  });
+
+  it('refunds when the request runs past the global timeout', async () => {
+    // The 80s guard answers with a stand-in and returns. Like the outer catch it
+    // touches neither `finalizeCredits` nor `refundReservation`, so before the
+    // release point existed the reservation simply stood.
+    vi.useFakeTimers();
+    let release: (() => void) | undefined;
+    mockStreamText.mockImplementation(() => ({
+      fullStream: (async function* () {
+        await new Promise<void>((resolve) => { release = resolve; });
+        yield { type: 'finish', finishReason: 'stop' };
+      })(),
+    }));
+
+    const res = createMockRes();
+    const pending = handler(
+      createMockReq({ body: { messages: [{ role: 'user', content: 'Hi' }], model: 'alia-v1', stream: true } }),
+      res,
+      vi.fn(),
+    );
+
+    await vi.advanceTimersByTimeAsync(80_001);
+    // Name the path: the timeout's own stand-in text, not the exhausted-providers
+    // one, which already refunded and would satisfy the assertion below on its own.
+    const written = res.write.mock.calls.map((c: any[]) => String(c[0])).join('');
+    expect(written).toContain('Please send your message again.');
+
+    release?.();
+    await vi.runAllTimersAsync();
+    await pending;
+
+    expect(mockRefundReservation).toHaveBeenCalledWith(VALID_RESERVATION);
+  });
+});
+
 describe('routing policy refusals - /v1/chat/completions', () => {
   let handler: (req: any, res: any, next: any) => Promise<void>;
 

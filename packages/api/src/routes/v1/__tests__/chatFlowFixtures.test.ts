@@ -184,6 +184,11 @@ vi.mock('../../../lib/credits-manager.js', () => ({
   refundReservation: vi.fn(async () => {
     H.timeline.push('credits:refund');
   }),
+  // Mirrors the real helper: it refunds through `refundReservation`, so the
+  // timeline records a refund taken by either name.
+  safeRefund: vi.fn(async (reservation: unknown) => {
+    if (reservation) H.timeline.push('credits:refund');
+  }),
 }));
 
 vi.mock('../../../lib/user-credits-helpers.js', () => ({

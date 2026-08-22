@@ -69,6 +69,20 @@ export interface TurnObservation {
  * For streaming: pass titlePromise from parallel title generation.
  * For non-streaming: generates title inline.
  */
+/**
+ * Did this turn produce anything? Text, or a tool that ran.
+ *
+ * The one question two different decisions ask: whether there is a turn worth
+ * storing, and whether there is a turn worth billing. They were the same test
+ * written once, so the billing side did not have it.
+ */
+export function turnProducedOutput(
+  assistantResponse: string,
+  toolInvocations?: Array<{ toolCallId: string; toolName: string; state: 'call' | 'result'; args?: unknown; result?: unknown }>,
+): boolean {
+  return Boolean(assistantResponse) || (toolInvocations?.length ?? 0) > 0;
+}
+
 export async function saveConversationResult(
   ctx: LifecycleContext,
   assistantResponse: string,
@@ -76,7 +90,7 @@ export async function saveConversationResult(
   agentMessages?: Array<{ role: 'assistant'; content: string; agentInfo: { id: string; name: string; avatar: string | null; handle: string } }>,
 ): Promise<void> {
   const { userId, conversationId, messages } = ctx;
-  if (!conversationId || !userId || (!assistantResponse && (!toolInvocations || toolInvocations.length === 0))) return;
+  if (!conversationId || !userId || !turnProducedOutput(assistantResponse, toolInvocations)) return;
 
   try {
     await saveConversation({
@@ -147,6 +161,13 @@ export async function startParallelTitleGeneration(
 export async function finalizeChatCredits(
   ctx: LifecycleContext,
   req: Request,
+  /**
+   * Marked the moment the charge lands, so the handler's release point knows
+   * not to refund on top of it. Taken here rather than set by each caller: the
+   * streaming and non-streaming paths both finalize, and only one of them
+   * remembered.
+   */
+  settlement: { creditsSettled: boolean },
 ): Promise<{ creditsCharged: number; creditsRemaining: number; creditWarning: CreditWarning | null }> {
   const { creditReservation, tokenUsage, aliasModelId, userId } = ctx;
   let creditsCharged = 0;
@@ -159,6 +180,9 @@ export async function finalizeChatCredits(
 
   try {
     const creditResult = await finalizeCredits(creditReservation, tokenUsage, aliasModelId);
+    // Only once the charge returned. A finalize that threw leaves the
+    // reservation unsettled, and therefore refunded rather than kept.
+    settlement.creditsSettled = true;
     creditsCharged = creditResult.creditsCharged;
     creditsRemaining = creditResult.creditsRemaining;
 

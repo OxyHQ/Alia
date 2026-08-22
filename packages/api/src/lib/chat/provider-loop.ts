@@ -30,6 +30,7 @@ import { updateConversationTitle } from '../../db/chat/conversationRepository.js
 import type { CreditReservation, CreditUsage } from '../credits-manager.js';
 import {
   saveConversationResult,
+  turnProducedOutput,
   startParallelTitleGeneration,
   finalizeChatCredits,
   runPostChatHooks,
@@ -64,6 +65,13 @@ export interface ChatLoopState {
   resolved: ResolvedModel | null;
   aliasModelId: string;
   creditReservation: CreditReservation | null;
+  /**
+   * Whether the reservation has been resolved — charged or refunded. It stays
+   * false until something settles it, so the handler's single release point can
+   * refund a reservation no exit path accounted for. `creditReservation` alone
+   * cannot say this: it is still read after finalization to build the usage chunk.
+   */
+  creditsSettled: boolean;
   globalTimedOut: boolean;
 }
 
@@ -246,6 +254,7 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
       // Handle non-streaming requests
       if (body.stream !== true) {
         await runNonStreaming({
+          settlement: state,
           req,
           res,
           requestId,
@@ -353,8 +362,19 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
         }
       }
 
-      // Finalize credits + send usage chunk
-      const { creditsCharged, creditsRemaining, creditWarning } = await finalizeChatCredits(lifecycleCtx, req);
+      /**
+       * Finalize credits + send usage chunk.
+       *
+       * Only for a turn that produced something. `calculateCreditsFromTokens`
+       * bills `MIN_CREDITS_PER_REQUEST` for zero tokens, which makes the
+       * adjustment exactly zero and quietly keeps the whole reservation as the
+       * charge — a person pays for an answer that never arrived. Left unsettled,
+       * the handler's release point refunds it.
+       */
+      const producedOutput = turnProducedOutput(assistantResponse, toolInvocations);
+      const { creditsCharged, creditsRemaining, creditWarning } = producedOutput
+        ? await finalizeChatCredits(lifecycleCtx, req, state)
+        : { creditsCharged: 0, creditsRemaining: 0, creditWarning: null };
       if (includeUsage && state.creditReservation && req.user) {
         const usageChunk = {
           id: requestId,

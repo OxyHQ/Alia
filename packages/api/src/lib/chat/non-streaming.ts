@@ -59,6 +59,8 @@ export interface NonStreamingParams {
    * disconnect listener writes.
    */
   observation: TurnObservation;
+  /** Marked when the charge lands; see {@link finalizeChatCredits}. */
+  settlement: { creditsSettled: boolean };
 }
 
 /** Handle one non-streaming provider attempt end to end; writes the JSON response. */
@@ -67,7 +69,7 @@ export async function runNonStreaming(params: NonStreamingParams): Promise<void>
     req, res, requestId, globalTimer, baseConfig, clearFirstByteTimer,
     aliasModelId, requestedModel, reasoningEffort, conversationId, messages, creditReservation,
     systemPromptTokens, requestStartTime, skillId, autonomyRuntime, toolNameMapping,
-    observation,
+    observation, settlement,
   } = params;
 
   log.v1.info('Non-streaming request, using generateText');
@@ -130,7 +132,7 @@ export async function runNonStreaming(params: NonStreamingParams): Promise<void>
   }
 
   // Finalize credits + detect anomalies
-  const { creditsCharged, creditsRemaining, creditWarning } = await finalizeChatCredits(lifecycleCtx, req);
+  const { creditsCharged, creditsRemaining, creditWarning } = await finalizeChatCredits(lifecycleCtx, req, settlement);
 
   // Fire afterChat hooks (non-blocking)
   runPostChatHooks(lifecycleCtx, assistantResponse, observation, null);

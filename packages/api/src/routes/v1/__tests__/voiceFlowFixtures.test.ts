@@ -120,6 +120,7 @@ vi.mock('../../../lib/credits-manager.js', () => ({
     return { creditsCharged: 1, creditsRemaining: 99 };
   }),
   refundReservation: vi.fn(async () => undefined),
+  safeRefund: vi.fn(async () => undefined),
   reserveVoiceCredits: vi.fn(async () => ({ userId: 'user-ws13', creditsReserved: 1 })),
   finalizeVoiceCredits: vi.fn(async () => undefined),
 }));
