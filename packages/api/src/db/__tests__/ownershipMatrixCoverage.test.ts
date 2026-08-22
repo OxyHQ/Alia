@@ -91,8 +91,10 @@ const NOT_APPLICABLE: Readonly<Record<string, string>> = {
     'Test of provider-error-body.ts, which is mapped (row `provider-error-body`), and of lib/logger.ts, which is not in this subtree. Moves or dies with them.',
   'packages/api/src/internal/providers/lib/__tests__/key-expiry.test.ts':
     'Test of key-manager.ts, which is mapped (row `key-manager`). Moves or dies with it.',
+  'packages/api/src/internal/providers/lib/__tests__/seed-provider-admission.test.ts':
+    'Test of seed-model-configs.ts and provider-names.ts, both mapped (rows `dead-startup-seed` and `tuple-provider-names`). Moves or dies with them.',
 };
-const NOT_APPLICABLE_COUNT = 9;
+const NOT_APPLICABLE_COUNT = 10;
 
 interface MatrixRow {
   readonly id: string;
