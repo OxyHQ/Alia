@@ -14,6 +14,7 @@ import {
   Bell,
   MessageSquarePlus,
   MessageSquare,
+  Star,
 } from "lucide-react-native";
 import {
   CommandDialog,
@@ -28,19 +29,67 @@ import {
 import { Kbd, KbdGroup } from "@/components/ui/kbd";
 import { useConversations } from "@/lib/hooks/use-conversations";
 import { useUIStore } from "@/lib/stores/ui-store";
+import { useFavoritesStore } from "@/lib/stores/favorites-store";
+import { defaultFilter } from "cmdk";
+
+/** How many conversations the palette offers before the user types anything. */
+const RESTING_CONVERSATIONS = 8;
+/** And how many it will search across once they do. */
+const SEARCHABLE_CONVERSATIONS = 100;
+/**
+ * Multiplies cmdk's own score for a favourite. Measured: the scorer returns
+ * ~0.99 for anything that contains the query, whatever else is in the string,
+ * so its range is far too narrow for this to read as a nudge — in practice any
+ * matching favourite ranks above any matching non-favourite. That is the
+ * intent; the multiplier is just how it is expressed.
+ */
+const FAVORITE_BOOST = 2;
 
 export function CommandPalette() {
   const [open, setOpen] = React.useState(false);
+  const [query, setQuery] = React.useState("");
   const router = useRouter();
   const { data: conversationsData } = useConversations();
   const toggleShortcutsDialog = useUIStore((s) => s.toggleShortcutsDialog);
+  const favoriteIds = useFavoritesStore((state) => state.favoriteConversationIds);
 
-  const recentConversations = React.useMemo(() => {
+  const conversations = React.useMemo(() => {
     if (!conversationsData?.pages) return [];
-    return conversationsData.pages
-      .flatMap((page) => page.conversations)
-      .slice(0, 8);
-  }, [conversationsData]);
+    const all = conversationsData.pages.flatMap((page) => page.conversations);
+    // At rest the palette is a shortlist of what you were just doing; once
+    // there is a query it searches far wider.
+    return query.trim()
+      ? all.slice(0, SEARCHABLE_CONVERSATIONS)
+      : all.slice(0, RESTING_CONVERSATIONS);
+  }, [conversationsData, query]);
+
+  /**
+   * cmdk matches against an item's `value`, so the title has to be part of it —
+   * with the id appended, because two conversations may share a title and cmdk
+   * needs each value to be unique.
+   */
+  const valueFor = React.useCallback(
+    (id: string, title: string | null | undefined) => `${title ?? ""} ${id}`,
+    [],
+  );
+
+  const favoriteValues = React.useMemo(
+    () =>
+      new Set(
+        conversations
+          .filter((conv) => favoriteIds.includes(conv.id))
+          .map((conv) => valueFor(conv.id, conv.title)),
+      ),
+    [conversations, favoriteIds, valueFor],
+  );
+
+  const rankFavoritesFirst = React.useCallback(
+    (value: string, search: string, keywords?: string[]) => {
+      const score = defaultFilter(value, search, keywords);
+      return favoriteValues.has(value) ? score * FAVORITE_BOOST : score;
+    },
+    [favoriteValues],
+  );
 
   const runCommand = React.useCallback(
     (command: () => void) => {
@@ -87,8 +136,12 @@ export function CommandPalette() {
   if (Platform.OS !== "web") return null;
 
   return (
-    <CommandDialog open={open} onOpenChange={setOpen}>
-      <CommandInput placeholder="Type a command or search..." />
+    <CommandDialog open={open} onOpenChange={setOpen} filter={rankFavoritesFirst}>
+      <CommandInput
+        placeholder="Type a command or search..."
+        value={query}
+        onValueChange={setQuery}
+      />
       <CommandList>
         <CommandEmpty>No results found.</CommandEmpty>
         <CommandGroup heading="Actions">
@@ -149,20 +202,27 @@ export function CommandPalette() {
             <span>Upgrade to Pro</span>
           </CommandItem>
         </CommandGroup>
-        {recentConversations.length > 0 && (
+        {conversations.length > 0 && (
           <>
             <CommandSeparator />
-            <CommandGroup heading="Recent Conversations">
-              {recentConversations.map((conv) => (
-                <CommandItem
-                  key={conv.id}
-                  value={`conversation-${conv.id}`}
-                  onSelect={() => runCommand(() => router.push(`/(app)/c/${conv.id}`))}
-                >
-                  <MessageSquare size={16} />
-                  <span className="truncate">{conv.title}</span>
-                </CommandItem>
-              ))}
+            <CommandGroup heading={query.trim() ? "Conversations" : "Recent Conversations"}>
+              {conversations.map((conv) => {
+                const isFavorite = favoriteIds.includes(conv.id);
+                return (
+                  <CommandItem
+                    key={conv.id}
+                    value={valueFor(conv.id, conv.title)}
+                    onSelect={() => runCommand(() => router.push(`/(app)/c/${conv.id}`))}
+                  >
+                    {isFavorite ? (
+                      <Star size={16} className="fill-current" />
+                    ) : (
+                      <MessageSquare size={16} />
+                    )}
+                    <span className="truncate">{conv.title}</span>
+                  </CommandItem>
+                );
+              })}
             </CommandGroup>
           </>
         )}

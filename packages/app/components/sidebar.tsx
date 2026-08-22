@@ -216,10 +216,6 @@ export const Sidebar = React.memo(function Sidebar() {
     signIn().catch(() => {});
   }, [signIn]);
 
-  const handleFavorites = React.useCallback(() => {
-    router.push("/(app)/favorites");
-  }, [router]);
-
   const handleLibrary = React.useCallback(() => {
     router.push("/(app)/library");
   }, [router]);
@@ -552,7 +548,6 @@ export const Sidebar = React.memo(function Sidebar() {
           )}
         </View>
       )}
-      <SidebarRow icon={StarIcon} label="Favorites" onPress={handleFavorites} iconOnly={collapsed} />
       <SidebarRow icon={Library} label={t('sidebar.library')} onPress={handleLibrary} iconOnly={collapsed} />
       <SidebarRow icon={ListTodo} label="Tasks" onPress={handleTasks} iconOnly={collapsed} />
       <SidebarRow icon={CloudCog} label={t('sidebar.automations')} onPress={handleAutomations} iconOnly={collapsed} />
