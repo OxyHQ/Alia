@@ -93,8 +93,6 @@ interface ChatPageContentProps {
   onClear?: () => void;
   selectedModel: string;
   onModelChange: (model: string) => void;
-  activeRole?: { id: string; name: string };
-  onRemoveRole?: () => void;
   disabled?: boolean;
   conversationLoading?: boolean;
   voice?: VoiceState;
@@ -138,8 +136,6 @@ export const ChatPageContent = ({
   onClear,
   selectedModel,
   onModelChange,
-  activeRole,
-  onRemoveRole,
   disabled = false,
   conversationLoading,
   voice,
@@ -536,18 +532,6 @@ export const ChatPageContent = ({
                               onDismiss={() => toggleMode(mode)}
                             />
                           )
-                        )}
-
-                        {activeRole && (
-                          <View className="h-10 rounded-full px-3 bg-primary/10 flex-row items-center gap-1.5">
-                            <Sparkles size={12} className="text-primary" />
-                            <Text className="text-xs font-medium text-primary" numberOfLines={1}>
-                              {activeRole.name}
-                            </Text>
-                            <Pressable onPress={onRemoveRole} className="active:opacity-70">
-                              <X size={12} className="text-primary" />
-                            </Pressable>
-                          </View>
                         )}
 
                         <DropdownMenu.Root>

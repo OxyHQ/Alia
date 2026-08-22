@@ -15,7 +15,6 @@ import {
   Library,
   FolderOpen,
   Plus,
-  BrainCircuit,
   BookOpen,
   CloudCog,
   MoreHorizontal,
@@ -218,10 +217,6 @@ export const Sidebar = React.memo(function Sidebar() {
 
   const handleLibrary = React.useCallback(() => {
     router.push("/(app)/library");
-  }, [router]);
-
-  const handleRoles = React.useCallback(() => {
-    router.push("/(app)/roles");
   }, [router]);
 
   const handleTasks = React.useCallback(() => {
@@ -519,7 +514,6 @@ export const Sidebar = React.memo(function Sidebar() {
   // nested submenu when the sidebar is open and expands the rail otherwise.
   const navigation = (
     <>
-      <SidebarRow icon={BrainCircuit} label={t('sidebar.roles')} onPress={handleRoles} iconOnly={collapsed} />
       {collapsed ? (
         <SidebarRow icon={Users} label={t('sidebar.agents')} onPress={handleExpandSidebar} iconOnly />
       ) : (

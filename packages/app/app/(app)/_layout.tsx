@@ -5,7 +5,6 @@ import { AppErrorBoundary } from '@/components/error-boundary';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Platform, View } from 'react-native';
 import { useProjectsStore } from '@/lib/stores/projects-store';
-import { useRolesStore } from '@/lib/stores/roles-store';
 import { useAgentsStore } from '@/lib/stores/agents-store';
 import { useFoldersStore } from '@/lib/stores/folders-store';
 import { useFavoritesStore } from '@/lib/stores/favorites-store';
@@ -35,7 +34,6 @@ export default function AppLayout() {
   const { colors: themeColors } = useTheme();
   const insets = useSafeAreaInsets();
   const loadProjects = useProjectsStore((state) => state.loadProjects);
-  const loadRoles = useRolesStore((state) => state.loadRoles);
   const loadAgents = useAgentsStore((state) => state.loadAgents);
   const loadFolders = useFoldersStore((state) => state.loadFolders);
   const loadFavorites = useFavoritesStore((state) => state.loadFavorites);
@@ -50,15 +48,14 @@ export default function AppLayout() {
   // Push notification registration, tap handling, and real-time subscription
   useNotificationSetup();
 
-  // Load projects, roles, folders, favorites, and pinned on mount
+  // Load projects, folders, favorites, and pinned on mount
   useEffect(() => {
     loadProjects();
-    loadRoles();
     loadAgents();
     loadFolders();
     loadFavorites();
     loadPinned();
-  }, [loadProjects, loadRoles, loadAgents, loadFolders, loadFavorites, loadPinned]);
+  }, [loadProjects, loadAgents, loadFolders, loadFavorites, loadPinned]);
 
   const renderDrawerContent = useCallback(() => <Sidebar />, []);
 
