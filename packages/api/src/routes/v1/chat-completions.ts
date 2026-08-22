@@ -65,7 +65,7 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
       }));
     } else if (!res.writableEnded) {
       // Mid-stream timeout: send graceful finish
-      writeContentChunk(res, requestId, state.aliasModelId, '\n\nI encountered a brief interruption. Please send your message again.');
+      writeContentChunk(res, requestId, state.aliasModelId, '\n\nI encountered a brief interruption. Please send your message again.', { synthetic: true, retryable: true });
       writeStopChunk(res, requestId, state.aliasModelId);
       res.write('data: [DONE]\n\n');
       res.end();
@@ -374,7 +374,7 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
       res.status(aliaError.retryable ? 503 : 500).json(formatErrorResponse(aliaError));
     } else if (!res.writableEnded) {
       // Headers already sent (streaming started) — send graceful recovery message
-      writeContentChunk(res, requestId, state.aliasModelId, '\n\nI encountered a brief interruption. Please send your message again and I\'ll complete my response.');
+      writeContentChunk(res, requestId, state.aliasModelId, '\n\nI encountered a brief interruption. Please send your message again and I\'ll complete my response.', { synthetic: true, retryable: true });
       writeStopChunk(res, requestId, state.aliasModelId);
       res.write('data: [DONE]\n\n');
       res.end();

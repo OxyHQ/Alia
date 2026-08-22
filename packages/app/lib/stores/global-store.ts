@@ -15,6 +15,26 @@ export type ChatIdState = {
   from: "history" | "newChat" | "sidebar" | "url";
 } | null;
 
+/** What a message carries to the model: plain text, or multi-part once images are attached. */
+export type MessageContent = string | Array<{ type: string; [key: string]: unknown }>;
+
+/**
+ * A first message queued for a conversation that was just created. `content` is
+ * what gets sent; `text` and `attachments` are the raw composer state, kept so a
+ * failed send can hand them back to the input.
+ */
+export interface PendingInitialMessage {
+  content: MessageContent;
+  text: string;
+  attachments: Attachment[];
+}
+
+/** Composer text handed to the screen identified by `target` (null = new-chat screen). */
+export interface ComposerDraft {
+  text: string;
+  target: string | null;
+}
+
 interface StoreState {
   scrollY: number;
   setScrollY: (value: number) => void;
@@ -22,6 +42,7 @@ interface StoreState {
   addAttachment: (attachment: Attachment) => void;
   updateAttachment: (id: string, updates: Partial<Attachment>) => void;
   removeAttachment: (id: string) => void;
+  setAttachments: (attachments: Attachment[]) => void;
   clearAttachments: () => void;
   setBottomChatHeightHandler: (value: boolean) => void;
   bottomChatHeightHandler: boolean;
@@ -30,19 +51,22 @@ interface StoreState {
   setFocusKeyboard: (value: boolean) => void;
   focusKeyboard: boolean;
 
-  pendingInitialMessage: string | Array<{ type: string; [key: string]: any }> | null;
-  setPendingInitialMessage: (message: string | Array<{ type: string; [key: string]: any }>) => void;
+  pendingInitialMessage: PendingInitialMessage | null;
+  setPendingInitialMessage: (message: PendingInitialMessage) => void;
   clearPendingInitialMessage: () => void;
 
   /**
-   * A composer draft handed to the new-chat screen by another route. Unlike
-   * {@link pendingInitialMessage} it is NOT sent — it lands in the input for the
-   * user to finish. `composerDraftSeq` counts hand-offs so the chat can tell a
-   * fresh one from the copy it already applied.
+   * A composer draft handed to a chat screen by another route, or handed back
+   * by a send that failed. Unlike {@link pendingInitialMessage} it is NOT sent —
+   * it lands in the input for the user to finish. `target` names the screen it
+   * belongs to so a draft never leaks into an unrelated chat, and
+   * `composerDraftSeq` counts hand-offs so a screen can tell a fresh draft from
+   * the copy it already applied.
    */
-  composerDraft: string;
+  composerDraft: ComposerDraft | null;
   composerDraftSeq: number;
-  setComposerDraft: (draft: string) => void;
+  setComposerDraft: (draft: ComposerDraft) => void;
+  clearComposerDraft: () => void;
 
   activeSkillId: string | null;
   setActiveSkillId: (skillId: string | null) => void;
@@ -78,6 +102,7 @@ export const useStore = create<StoreState>((set, get) => ({
     set((state) => ({
       attachments: state.attachments.filter((a) => a.id !== id),
     })),
+  setAttachments: (attachments: Attachment[]) => set({ attachments }),
   clearAttachments: () => set({ attachments: [] }),
   bottomChatHeightHandler: false,
   setBottomChatHeightHandler: (value: boolean) =>
@@ -88,13 +113,14 @@ export const useStore = create<StoreState>((set, get) => ({
   setFocusKeyboard: (value: boolean) => set({ focusKeyboard: value }),
 
   pendingInitialMessage: null,
-  setPendingInitialMessage: (message: string | Array<{ type: string; [key: string]: any }>) => set({ pendingInitialMessage: message }),
+  setPendingInitialMessage: (message: PendingInitialMessage) => set({ pendingInitialMessage: message }),
   clearPendingInitialMessage: () => set({ pendingInitialMessage: null }),
 
-  composerDraft: '',
+  composerDraft: null,
   composerDraftSeq: 0,
-  setComposerDraft: (draft: string) =>
+  setComposerDraft: (draft: ComposerDraft) =>
     set((state) => ({ composerDraft: draft, composerDraftSeq: state.composerDraftSeq + 1 })),
+  clearComposerDraft: () => set({ composerDraft: null }),
 
   activeSkillId: null,
   setActiveSkillId: (skillId: string | null) => set({ activeSkillId: skillId }),
