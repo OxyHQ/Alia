@@ -83,6 +83,7 @@ export async function seedModelConfigs(): Promise<{ seeded: number; skipped: num
         'openai', 'anthropic', 'google', 'groq', 'mistral',
         'deepseek', 'together', 'cerebras', 'cloudflare', 'openrouter', 'xai',
         'fireworks', 'hyperbolic', 'sambanova', 'novita', 'replicate', 'cohere', 'perplexity',
+        'cheaperinference',
       ];
       if (!validProviders.includes(mapping.provider)) {
         log.seed.info({ provider: mapping.provider, modelId: mapping.modelId }, 'Skipping - provider not in schema enum');
