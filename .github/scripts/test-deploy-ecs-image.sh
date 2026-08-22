@@ -25,6 +25,7 @@ export DEPLOY_TEST_EXPECT_METRICS_ARN=false
 export DEPLOY_TEST_METRICS_PARAMETER=/oxy/sampleapp/INTERNAL_METRICS_TOKEN
 export DEPLOY_TEST_TASK_EXIT_CODE=0
 export DEPLOY_TEST_EXPECT_TASK_SECRET_ARN=false
+export DEPLOY_TEST_EXPECT_TASK_ENV=false
 export DEPLOY_TEST_SERVICE_DESIRED_COUNT=1
 export DEPLOY_TEST_ROLLOUT_SCENARIO=healthy
 
@@ -197,6 +198,39 @@ aws() {
           printf 'task-secret:arn:MISMATCH\n' >>"$DEPLOY_TEST_LOG"
         fi
       fi
+      if [[ "$DEPLOY_TEST_EXPECT_TASK_ENV" == "true" ]]; then
+        local previous_argument=""
+        local input_json=""
+        local argument
+        for argument in "$@"; do
+          if [[ "$previous_argument" == "--cli-input-json" ]]; then
+            input_json="${argument#file://}"
+            break
+          fi
+          previous_argument="$argument"
+        done
+        # Same log-the-verdict discipline as the two assertions above: a bare
+        # `jq -e` here cannot fail the run, because only this function's LAST
+        # command reaches the caller's `v="$(aws ...)"` exit status.
+        #
+        # The VALUE is part of the match, not just the name. An override that
+        # registered the right variable with the wrong value is the failure this
+        # hook was written to prevent, and a name-only assertion would pass
+        # through it.
+        if jq -e '
+          .containerDefinitions[]
+          | select(.name == "deploy-test")
+          | .environment[]
+          | select(
+              .name == "EXTRA_TASK_ENV" and
+              .value == "http://service.internal:3005"
+            )
+        ' "$input_json" >/dev/null; then
+          printf 'task-env:value\n' >>"$DEPLOY_TEST_LOG"
+        else
+          printf 'task-env:value:MISMATCH\n' >>"$DEPLOY_TEST_LOG"
+        fi
+      fi
       printf '%s\n' "arn:aws:ecs:test:task-definition/deploy-test:2"
       ;;
     "ecs update-service")
@@ -282,7 +316,15 @@ export -f aws
 # Raise this with the case count; lower it ONLY alongside a deletion you can
 # name. A floor quietly adjusted to match whatever ran is not a floor.
 cases_run=0
-MINIMUM_CASES=14
+MINIMUM_CASES=17
+
+# Extra `NAME=value` entries a single case adds to the release environment.
+#
+# An array rather than another positional: `run_release` already takes nine, and
+# the tenth would be the one nobody can read at a call site. Cleared by
+# `run_release` after every case, so a value set for one case cannot leak into the
+# next and make it pass for a reason its own line does not state.
+RELEASE_EXTRA_ENV=()
 
 run_release() {
   cases_run=$((cases_run + 1))
@@ -301,6 +343,11 @@ run_release() {
 
   mkdir -p "$case_directory"
   DEPLOY_TEST_LOG="$case_directory/aws.log"
+  # Create it empty. Every other case appends, so this changes nothing for them —
+  # but a case that expects NO aws call at all needs an empty file to diff
+  # against, and "the file is missing" and "the log is empty" are different facts
+  # that a bare `diff` would report identically as a failure.
+  : >"$DEPLOY_TEST_LOG"
   DEPLOY_TEST_EXPECT_METRICS_ARN="$inject_internal_metrics"
   DEPLOY_TEST_TASK_EXIT_CODE="$task_exit_code"
   DEPLOY_TEST_EXPECT_TASK_SECRET_ARN="$inject_task_secret"
@@ -309,6 +356,7 @@ run_release() {
   export DEPLOY_TEST_LOG DEPLOY_TEST_EXPECT_METRICS_ARN
   export DEPLOY_TEST_TASK_EXIT_CODE
   export DEPLOY_TEST_EXPECT_TASK_SECRET_ARN
+  export DEPLOY_TEST_EXPECT_TASK_ENV
   export DEPLOY_TEST_SERVICE_DESIRED_COUNT
   export DEPLOY_TEST_ROLLOUT_SCENARIO
 
@@ -345,19 +393,30 @@ run_release() {
       TASK_SECRET_OVERRIDES_JSON='{"EXTRA_TASK_SECRET":"arn:aws:ssm:test:123456789012:parameter/oxy/sample-app/EXTRA_TASK_SECRET"}'
     )
   fi
+  if (( ${#RELEASE_EXTRA_ENV[@]} > 0 )); then
+    release_environment+=("${RELEASE_EXTRA_ENV[@]}")
+  fi
 
+  local release_status=0
   if env "${release_environment[@]}" \
     bash "$repository_root/.github/scripts/deploy-ecs-image.sh" \
     >"$output_file" 2>&1; then
     if [[ "$expect_success" != "true" ]]; then
       echo "Expected $case_name to fail." >&2
-      return 1
+      release_status=1
     fi
   elif [[ "$expect_success" == "true" ]]; then
     echo "Expected $case_name to succeed." >&2
     sed -n '1,240p' "$output_file" >&2
-    return 1
+    release_status=1
   fi
+
+  # Reset BEFORE returning, on both paths — a failing case that left the array
+  # populated would hand its environment to whatever runs next under `set -e`
+  # relaxation, and the resulting pass would be attributable to the wrong line.
+  RELEASE_EXTRA_ENV=()
+  DEPLOY_TEST_EXPECT_TASK_ENV=false
+  return "$release_status"
 }
 
 run_release success true false true
@@ -405,6 +464,58 @@ diff -u \
   "$test_directory/explicit-task-secret/expected.log" \
   "$test_directory/explicit-task-secret/aws.log"
 
+# TASK_ENV_OVERRIDES_JSON — the only way CI can introduce a NEW plain variable to
+# a service that already exists.
+#
+# `INTEGRATIONS_URL` is the case in hand: `packages/api/src/lib/tools/mcp.ts`
+# gates the whole hosted-MCP path on it, the running `alia` revision does not
+# carry it, and no Terraform apply can add it (`ignore_changes = [task_definition]`
+# means the service never adopts the revision an apply registers, and every deploy
+# re-renders from the RUNNING revision, so Terraform's is never inherited either).
+#
+# The value is asserted, not just the name — see the mocked register-task-definition.
+DEPLOY_TEST_EXPECT_TASK_ENV=true
+RELEASE_EXTRA_ENV=(
+  TASK_ENV_OVERRIDES_JSON='{"EXTRA_TASK_ENV":"http://service.internal:3005"}'
+)
+run_release explicit-task-env true false false
+printf '%s\n' \
+  task-env:value \
+  'service:arn:aws:ecs:test:task-definition/deploy-test:2:desired=1' \
+  smoke \
+  'run-task:reconcile' \
+  >"$test_directory/explicit-task-env/expected.log"
+diff -u \
+  "$test_directory/explicit-task-env/expected.log" \
+  "$test_directory/explicit-task-env/aws.log"
+
+# An EMPTY override value is refused, and this is the half of the contract a
+# happy-path case cannot reach.
+#
+# The caller that arms this hook reads a GitHub repo variable which is absent
+# until somebody sets it, so "pass whatever it holds" sends "" — and an accepted
+# "" registers a revision declaring the variable as empty rather than leaving it
+# absent. `INTEGRATIONS_URL=""` is falsy in the API's `if (INTEGRATIONS_URL &&
+# INTEGRATIONS_SECRET)` guard, so it would even keep working; it would simply be
+# a lie in the task definition that survives until the day something reads it
+# with a presence check. Refuse at the door instead.
+#
+# Nothing is logged because the refusal happens during argument validation,
+# before the first `aws` call — which is also what makes the empty expected.log
+# below an assertion rather than an omission.
+RELEASE_EXTRA_ENV=(
+  TASK_ENV_OVERRIDES_JSON='{"EXTRA_TASK_ENV":""}'
+)
+run_release empty-task-env-value false false false
+: >"$test_directory/empty-task-env-value/expected.log"
+diff -u \
+  "$test_directory/empty-task-env-value/expected.log" \
+  "$test_directory/empty-task-env-value/aws.log"
+grep -F \
+  "TASK_ENV_OVERRIDES_JSON must map environment variable names to non-empty string values" \
+  "$test_directory/empty-task-env-value/output.log" \
+  >/dev/null
+
 run_release reconciliation-failure false false false 1
 printf '%s\n' \
   'service:arn:aws:ecs:test:task-definition/deploy-test:2:desired=1' \
@@ -447,6 +558,35 @@ printf '%s\n' \
 diff -u \
   "$test_directory/migration-command/expected.log" \
   "$test_directory/migration-command/aws.log"
+
+# The migrator PATH is a parameter, and the case above is its control.
+#
+# Two packages in this repository ship a migrator — `packages/api` against the
+# `alia` database and `packages/integrations` against `alia_integrations` — and
+# they cannot share one, because @oxyhq/db fixes the ledger at
+# `drizzle.__drizzle_migrations` with no namespacing and applies on a high-water
+# mark. This pair is what stops the path being re-hardcoded: `migration-command`
+# pins the default and this pins the override, so a change that ignores
+# MIGRATION_ENTRYPOINT fails here while `migration-command` still passes, which
+# names the fault instead of just reporting one.
+#
+# `node`, not `bun`, for the same reason as the default: the integrations runtime
+# stage is `node:22-bookworm-slim`.
+RELEASE_EXTRA_ENV=(
+  MIGRATION_ENTRYPOINT=packages/integrations/dist/db/migrate.js
+  MIGRATION_TARGET_DATABASE=alia_integrations
+)
+run_release migration-entrypoint-override true true false
+printf '%s\n' \
+  'run-task:node packages/integrations/dist/db/migrate.js --target-database=alia_integrations --phase=pre' \
+  'service:arn:aws:ecs:test:task-definition/deploy-test:2:desired=1' \
+  smoke \
+  'run-task:reconcile' \
+  >"$test_directory/migration-entrypoint-override/expected.log"
+diff -u \
+  "$test_directory/migration-entrypoint-override/expected.log" \
+  "$test_directory/migration-entrypoint-override/aws.log"
+
 grep -F \
   "[migration] fixture failure" \
   "$test_directory/migration-failure/output.log" \

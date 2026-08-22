@@ -2773,16 +2773,27 @@ const INDIRECT_ENV_READ_SITES = 17;
  * Every secret `deploy-aws.yml` puts into this deployment's environment.
  *
  * The closest thing in this repository to the deployment environment itself: the
- * workflow syncs exactly these ten from GitHub repository secrets into SSM, and
- * the ECS task definition reads them from there. Frozen because the checkbox is
- * about what the deployment HOLDS, and a census over source answers a related
+ * workflow syncs exactly these eleven from GitHub repository secrets into SSM,
+ * and the ECS task definition reads them from there. Frozen because the checkbox
+ * is about what the deployment HOLDS, and a census over source answers a related
  * but different question — a key can sit in an environment that no line of code
  * reads, and the day something starts reading it is not the day it arrived.
+ *
+ * `INTEGRATIONS_SECRET` is the eleventh, and it is the first entry here that
+ * reaches the running task by a route the other ten did not use. The other ten
+ * are `secrets[]` bindings the `alia` module declared at service CREATION and
+ * every deploy has copied forward since; that route is closed on a service that
+ * exists, because `ignore_changes = [task_definition]` means the service never
+ * adopts the revision an apply registers. This one arrives through
+ * `TASK_SECRET_OVERRIDES_JSON`, re-asserted by CI on every deploy. What it has in
+ * common with the others is the only thing this list is about: it is a value the
+ * deployment holds, so it belongs here.
  */
 const DEPLOYED_SECRETS: readonly string[] = [
   'AWS_ACCESS_KEY_ID',
   'AWS_SECRET_ACCESS_KEY',
   'DATABASE_URL',
+  'INTEGRATIONS_SECRET',
   'LIVEKIT_API_KEY',
   'LIVEKIT_API_SECRET',
   'REDIS_URL',
@@ -2953,7 +2964,7 @@ describe('gate 6: no provider credential in the deployment environment (#139 ws1
 
     const referenced = [...new Set([...active.matchAll(/secrets\.([A-Z][A-Z0-9_]*)/g)].map((m) => m[1]))].sort();
     expect(referenced).toEqual([...DEPLOYED_SECRETS].sort());
-    expect(DEPLOYED_SECRETS).toHaveLength(10);
+    expect(DEPLOYED_SECRETS).toHaveLength(11);
     expect(referenced.filter((secret) => namesProviderCredential(secret))).toEqual([]);
 
     // And every secret this deployment carries is one the code actually reads.

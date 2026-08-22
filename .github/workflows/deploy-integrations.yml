@@ -1,0 +1,242 @@
+# Deploy the integrations service.
+#
+# A SECOND image out of this repository, not a second tag on `oxy/alia`: this one
+# carries Chromium for Playwright, a headless JRE for signal-cli and node-pty,
+# none of which the API image has any use for.
+#
+# It exists because `packages/integrations` had no deploy path at all. The
+# consequence, on the running `oxy-alia:114` revision, is that
+# `packages/api/src/lib/tools/mcp.ts:48` gates hosted MCP on `INTEGRATIONS_URL &&
+# INTEGRATIONS_SECRET`, neither is set, and `buildMcpTools` returns an empty tool
+# set without logging — so the connector registry, `POST /mcp/install` and the
+# whole SDK-native OAuth flow are silently inert. Local MCP is NOT affected: that
+# runs over the API's own WebSocket bridge in `lib/mcp-relay.ts`.
+#
+# Deliberately separate from `deploy-aws.yml` rather than a second job inside it:
+# the two build different images against different Dockerfiles, migrate DIFFERENT
+# databases, and must not serialise against each other. See `concurrency` below.
+name: Deploy integrations
+
+on:
+  push:
+    branches: [main]
+    # Path-filtered, unlike the API deploy, because this image takes a long ARM64
+    # build to produce and almost no commit changes it.
+    #
+    # The list is derived from what `packages/integrations/Dockerfile` actually
+    # COPYs, not from what looks related: the package itself, the root manifest
+    # and lockfile, and every workspace `package.json` (the Dockerfile copies all
+    # of them so `bun install --filter` can resolve the workspace graph). A change
+    # outside these cannot alter the image.
+    #
+    # The escape hatch for the case this reasoning is wrong is `workflow_dispatch`
+    # below, and the cost of being wrong is a stale image rather than a bad one.
+    paths:
+      - 'packages/integrations/**'
+      - 'packages/*/package.json'
+      - 'package.json'
+      - 'bun.lock'
+      - '.github/workflows/deploy-integrations.yml'
+      - '.github/scripts/deploy-ecs-image.sh'
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  # Its OWN group, not `deploy-alia-backend`. Sharing the API's group would make
+  # an integrations change block an API release and vice versa, for no gain: they
+  # register revisions on different task-definition families, update different
+  # services, and migrate different databases.
+  #
+  # `cancel-in-progress: false` for the same reason the API deploy has it, and it
+  # is load-bearing here too: `runMigrations` takes NO lock — it reads the
+  # ledger's high-water mark outside its transaction — so this group is the only
+  # interlock stopping two runners attempting the same DDL. Cancelling between
+  # `run-task` and its exit-code check would also orphan a live migration task.
+  group: deploy-alia-integrations
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: us-west-2
+  ECR_REGISTRY: 237343248947.dkr.ecr.us-west-2.amazonaws.com
+  # The ECS service, the ECR repository and the task-definition family. NOT the
+  # package name (`integrations`) and NOT the database name (`alia_integrations`,
+  # with an underscore, because an unquoted PostgreSQL identifier cannot contain
+  # a hyphen). Three names for three namespaces; none is derivable from another.
+  APP: alia-integrations
+  CLUSTER: oxy-cluster
+  DOCKERFILE: packages/integrations/Dockerfile
+  MIGRATION_DATABASE: alia_integrations
+
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC, no stored keys)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::237343248947:role/oxy-github-deploy
+          aws-region: ${{ env.AWS_REGION }}
+
+      # Enumerated one at a time, for the two reasons `deploy-aws.yml` gives at
+      # length: a workflow that walks the whole `secrets` context is shaped like
+      # an exfiltration payload and GitHub holds every run for human approval,
+      # and enumerating is least privilege.
+      #
+      # These are exactly the secrets the `alia-integrations` task definition
+      # binds, MINUS the one whose only copy is SSM. There are three bindings and
+      # two lines here, and the gap is deliberate:
+      #
+      #   DATABASE_URL         — NO LINE, ON PURPOSE. `/oxy/alia-integrations/
+      #                          DATABASE_URL` is written once by hand when the
+      #                          database is provisioned (oxy-infra runbook 30
+      #                          §2) and SSM is the only copy. A sync line here
+      #                          would be a loaded gun: the day somebody creates
+      #                          a `DATABASE_URL` repo secret for any reason, the
+      #                          next deploy overwrites the only copy of the
+      #                          connection string with it, silently.
+      #                          `/oxy/alia/DATABASE_URL` is the same shape and
+      #                          the reason CrowdSource was provisioned SSM-only.
+      #   INTEGRATIONS_SECRET  — shared with the API, which syncs the SAME
+      #                          parameter from the SAME repo secret. Written
+      #                          from both workflows so neither has to run first;
+      #                          one source means they cannot disagree.
+      #   TOKEN_ENCRYPTION_KEY — likewise shared, and likewise the API's
+      #                          parameter. See the deploy step for why the VALUE
+      #                          must be the same on both services.
+      - name: Sync GitHub secrets -> SSM (GitHub is the source of truth)
+        env:
+          SHARED_INTEGRATIONS_SECRET: ${{ secrets.INTEGRATIONS_SECRET }}
+          SHARED_TOKEN_ENCRYPTION_KEY: ${{ secrets.TOKEN_ENCRYPTION_KEY }}
+        run: |
+          sync_secret() {
+            name="$1"; value="$2"; path="$3"
+            if [ -z "$value" ] || [ "$value" = "-" ]; then
+              echo "::warning::skip empty/placeholder secret $name; SSM unchanged"
+              return 0
+            fi
+            aws ssm put-parameter --name "$path" --value "$value" --type SecureString --overwrite >/dev/null
+            echo "synced -> $path"
+          }
+
+          # `/oxy/alia/`, not `/oxy/alia-integrations/`: both are the API's
+          # parameters and this service reads them. A second copy under its own
+          # prefix is one rotation away from a mismatch nobody can explain.
+          sync_secret INTEGRATIONS_SECRET "$SHARED_INTEGRATIONS_SECRET" "/oxy/alia/INTEGRATIONS_SECRET"
+          sync_secret TOKEN_ENCRYPTION_KEY "$SHARED_TOKEN_ENCRYPTION_KEY" "/oxy/alia/TOKEN_ENCRYPTION_KEY"
+
+      - name: Login to ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push (linux/arm64)
+        id: build
+        env:
+          COMMIT_TAG: ${{ github.sha }}
+        run: |
+          IMG=$ECR_REGISTRY/oxy/$APP
+          # The digest comes from the build, via --metadata-file. Resolving it
+          # afterwards is not an option: `oxy-github-deploy` has no
+          # `ecr:DescribeImages`, so that call fails at deploy time behind a
+          # green build.
+          docker buildx build \
+            --platform linux/arm64 \
+            -f "$DOCKERFILE" \
+            -t "$IMG:$COMMIT_TAG" \
+            -t "$IMG:latest" \
+            --metadata-file "$RUNNER_TEMP/build-metadata.json" \
+            --push \
+            .
+
+          # `:latest` is moved but nothing that deploys reads it. It exists so a
+          # from-scratch `terraform apply` — whose task definition declares
+          # `<repo>:latest` as its bootstrap image — creates the service on a
+          # current build rather than failing to find one.
+          DIGEST=$(jq -r '.["containerimage.digest"] // empty' "$RUNNER_TEMP/build-metadata.json")
+          if [[ ! "$DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo "::error::buildx produced no usable image digest (got: ${DIGEST:-<empty>})"
+            exit 1
+          fi
+          echo "digest=$DIGEST" >>"$GITHUB_OUTPUT"
+          echo "Built $COMMIT_TAG -> $DIGEST"
+
+      # Does this release carry a post-rollout migration?
+      #
+      # Grepped with the pattern `@oxyhq/db` EXPORTS as `POST_PHASE_GREP_PATTERN`,
+      # never a retyped copy — `packages/integrations/src/db/__tests__/deployWiring.test.ts`
+      # asserts this workflow contains that exact string, so the two cannot drift.
+      #
+      # It resolves FALSE today: the package's single migration is `pre`. That is
+      # exactly why the step is here rather than added later. The API's equivalent
+      # comment claimed for months that its journal was all `pre` and the step
+      # therefore inert; that stopped being true the day `0016` landed, was
+      # corrected by nothing, and the deploys it governed were failing meanwhile.
+      # A step wired now and inert costs one grep; a step added the day it is
+      # first needed is a `post` migration applied by nothing at all.
+      #
+      # There is no seeder counterpart to the API's — this package has none — so
+      # with no post-phase file the output is EMPTY, and `deploy-ecs-image.sh`
+      # skips the one-shot entirely rather than running an empty command.
+      - name: Build the post-rollout command
+        id: phases
+        run: |
+          if grep -rlE '^-- oxy:deploy-phase=post$' packages/integrations/drizzle >/dev/null 2>&1; then
+            CMD="$(jq -cn \
+              --arg target "--target-database=$MIGRATION_DATABASE" \
+              '["node","packages/integrations/dist/db/migrate.js",$target,"--phase=post"]')"
+            echo "this release carries at least one post-rollout migration"
+          else
+            CMD=''
+            echo "no post-rollout migration in this release"
+          fi
+          printf 'post_command=%s\n' "$CMD" >>"$GITHUB_OUTPUT"
+
+      # Migrations run BEFORE the rollout, on the NEW task definition, as a
+      # one-shot task; a non-zero exit fails the deploy with the task's
+      # CloudWatch logs and `update-service` is never reached.
+      #
+      # Running it on the NEW revision rather than the service's live one is what
+      # makes it correct: this workflow pins an immutable digest, so the live
+      # revision is the OLD image and migrating with it would apply the previous
+      # release's migration set behind a green deploy.
+      #
+      # `MIGRATION_ENTRYPOINT` is the reason this service needed a change to
+      # `deploy-ecs-image.sh` at all — the migrator path was hardcoded to
+      # `packages/api`.
+      #
+      # `MIGRATION_TARGET_DATABASE` is `alia_integrations`, a SEPARATE database
+      # from the API's `alia`, and that is not a preference. @oxyhq/db fixes the
+      # ledger at `drizzle.__drizzle_migrations` with no per-service namespacing
+      # and applies a migration only when its journal `when` is strictly newer
+      # than the newest recorded one. This package's only migration carries
+      # `when=1786270502993`; the OLDEST of the API's 28 is `1786313719561`. In
+      # one shared database this migrator would find a ledger already past its
+      # entry and `planLedgerRun` would refuse the whole run.
+      #
+      # The guard is what makes that assertion rather than a hope: `--target-database`
+      # is checked against `current_database()` as the FIRST statement on the
+      # connection, so a `DATABASE_URL` pointing at `alia` fails before any DDL.
+      # Without it a migrator aimed at the wrong database does not fail — it finds
+      # an empty ledger, applies everything, and reports success over a database
+      # nobody meant to touch.
+      - name: Register immutable task definition and deploy
+        env:
+          IMAGE_URI: ${{ env.ECR_REGISTRY }}/oxy/${{ env.APP }}@${{ steps.build.outputs.digest }}
+          RUN_MIGRATIONS: 'true'
+          MIGRATION_ENTRYPOINT: packages/integrations/dist/db/migrate.js
+          MIGRATION_TARGET_DATABASE: ${{ env.MIGRATION_DATABASE }}
+          POST_DEPLOY_TASK_COMMAND_JSON: ${{ steps.phases.outputs.post_command }}
+        run: |
+          STATUS=$(aws ecs describe-services --cluster "$CLUSTER" --services "$APP" --query 'services[0].status' --output text 2>/dev/null || echo NONE)
+          if [ "$STATUS" != "ACTIVE" ]; then
+            echo "ECS service $APP not created yet - image is in ECR, skipping deploy"
+            exit 0
+          fi
+          bash .github/scripts/deploy-ecs-image.sh
