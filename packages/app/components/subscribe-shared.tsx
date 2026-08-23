@@ -193,7 +193,7 @@ const COL_WIDTH = 220;
 
 function getButtonState(
   tier: PricingTier,
-  currentPlanId: string | undefined,
+  currentPlanId: string | undefined | null,
   currentBillingPeriod: BillingPeriod | undefined,
   hasActiveSubscription: boolean,
   cancelAtPeriodEnd: boolean | undefined,
@@ -234,6 +234,7 @@ export function PlanGrid({
   currentBillingPeriod,
   cancelAtPeriodEnd,
   hasActiveSubscription,
+  isComped,
   onSubscribe,
   loadingPlanId,
   isWideLayout,
@@ -241,10 +242,15 @@ export function PlanGrid({
 }: {
   tiers: PricingTier[];
   billingPeriod: BillingPeriod;
-  currentPlanId?: string;
+  currentPlanId?: string | null;
   currentBillingPeriod?: BillingPeriod;
   cancelAtPeriodEnd?: boolean;
   hasActiveSubscription: boolean;
+  /**
+   * A complimentary plan. Every tier is inert: the API refuses both a change
+   * and a cancellation on one with a 400, so no button here can succeed.
+   */
+  isComped?: boolean;
   onSubscribe: (planId: string) => void;
   loadingPlanId?: string;
   isWideLayout: boolean;
@@ -324,7 +330,7 @@ export function PlanGrid({
                 size="sm"
                 className="w-full rounded-full"
                 onPress={() => onSubscribe(tier.id)}
-                disabled={btnState.disabled || !!loadingPlanId}
+                disabled={btnState.disabled || isComped || !!loadingPlanId}
                 isLoading={loadingPlanId === tier.id}
               >
                 <Text className={cn('text-sm font-medium', tier.isFeatured && !btnState.label.includes('downgrade') ? 'text-primary-foreground' : 'text-foreground')}>
