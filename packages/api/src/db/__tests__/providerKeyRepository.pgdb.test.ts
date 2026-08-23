@@ -79,6 +79,8 @@ function newKey(over: Partial<NewProviderKey> = {}): NewProviderKey {
     priority: 10,
     rateLimit: {},
     creditLimitUsd: null,
+    description: null,
+    creditRenews: 'never',
     rateLimitResetMs: null,
     ...over,
   };

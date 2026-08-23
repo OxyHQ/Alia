@@ -9,6 +9,15 @@
  *   --from-ssm=/oxy/alia/PROVIDER_KEY_OPENAI_PRIMARY
  * ```
  *
+ * With the credit it carries, and why:
+ *
+ * ```
+ *   --tier=free --credit-limit-usd=500 --renews=never \
+ *   --description='startup plan grant, The Oxy Collective'
+ *   --tier=free --credit-limit-usd=5 --renews=monthly \
+ *   --description='free tier, 10k characters a month'
+ * ```
+ *
  * ## Why this exists at all
  *
  * `provider_keys` has NO admin API, and that is a deliberate security property
@@ -78,7 +87,7 @@ import {
   providerKeyPrefix,
   rotateProviderKey,
 } from '../db/providers/providerKeyRepository.js';
-import { PROVIDER_KEY_ENVIRONMENTS, PROVIDER_KEY_TIERS } from '../domain/provider-key.js';
+import { PROVIDER_KEY_CREDIT_RENEWALS, PROVIDER_KEY_ENVIRONMENTS, PROVIDER_KEY_TIERS } from '../domain/provider-key.js';
 import { PROVIDER_NAMES } from '../internal/providers/lib/provider-names.js';
 import { disclosedCredentialMatching } from '../lib/security/known-disclosures.js';
 import type { ConfigAuditActor } from '../lib/security/config-audit.js';
@@ -99,6 +108,22 @@ function flag(argv: readonly string[], name: string): string | undefined {
   const prefix = `--${name}=`;
   const found = argv.find((arg) => arg.startsWith(prefix));
   return found?.slice(prefix.length).trim() || undefined;
+}
+
+/**
+ * `--credit-limit-usd=500` as a number, or `null` when absent.
+ *
+ * Rejects anything that is not a finite non-negative number rather than letting
+ * `Number('$500')` become `NaN` — `spent_usd >= NaN` is false for every
+ * comparison, so a typo would produce a key that never exhausts.
+ */
+function readCreditLimit(raw: string | undefined): number | null {
+  if (raw === undefined) return null;
+  const value = Number(raw);
+  if (!Number.isFinite(value) || value < 0) {
+    throw new Error(`--credit-limit-usd must be a non-negative number, got ${JSON.stringify(raw)}`);
+  }
+  return value;
 }
 
 function requireFlag(argv: readonly string[], name: string): string {
@@ -143,6 +168,29 @@ async function main(): Promise<void> {
     PROVIDER_KEY_ENVIRONMENTS,
   );
   const tier = requireOneOf('tier', flag(argv, 'tier') ?? 'paid', PROVIDER_KEY_TIERS);
+  /**
+   * Why this key exists and where its credit came from. Free text, and the one
+   * flag here that is about a HUMAN reading the row a year from now: `name`
+   * says which key, this says why it has the balance it has.
+   */
+  const description = flag(argv, 'description') ?? null;
+  /**
+   * The included credit, and whether it comes back. A grant ($500 of startup
+   * credit) is `never`: spent is spent. An allowance (a free tier that restores
+   * every month) is `monthly`, and that is what stops the key being retired for
+   * good the first time it runs out.
+   */
+  const creditLimitUsd = readCreditLimit(flag(argv, 'credit-limit-usd'));
+  const creditRenews = requireOneOf(
+    'renews',
+    flag(argv, 'renews') ?? 'never',
+    PROVIDER_KEY_CREDIT_RENEWALS,
+  );
+  if (creditRenews !== 'never' && creditLimitUsd === null) {
+    // A renewing period over no limit renews nothing, and would read as a
+    // configured quota to anyone looking at the row.
+    throw new Error('--renews requires --credit-limit-usd: a period with no limit measures nothing');
+  }
   const region = process.env.AWS_REGION;
   if (!region) throw new Error('AWS_REGION is required to read the SSM parameter');
 
@@ -213,12 +261,17 @@ async function main(): Promise<void> {
       // displacing whatever is serving. Raising it is a separate, deliberate act.
       priority: 100,
       rateLimit: {},
-      creditLimitUsd: null,
+      creditLimitUsd,
+      description,
+      creditRenews,
       rateLimitResetMs: null,
     },
     ACTOR,
   );
-  logger.info({ provider, name, id: created.id, keyPrefix, environment, tier }, 'Provider key created');
+  logger.info(
+    { provider, name, id: created.id, keyPrefix, environment, tier, creditLimitUsd, creditRenews, description },
+    'Provider key created',
+  );
 }
 
 main().then(

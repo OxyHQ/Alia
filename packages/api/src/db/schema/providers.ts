@@ -51,7 +51,12 @@ import { organizations } from './organizations';
 import { ALIA_TIERS } from '../../internal/providers/lib/alia-tiers.js';
 import { PROVIDER_NAMES } from '../../internal/providers/lib/provider-names.js';
 import { MODEL_PRICING_TIERS } from '../../domain/model-config.js';
-import { PROVIDER_KEY_ENVIRONMENTS, PROVIDER_KEY_ROTATION_SCHEDULES, PROVIDER_KEY_TIERS } from '../../domain/provider-key.js';
+import {
+  PROVIDER_KEY_CREDIT_RENEWALS,
+  PROVIDER_KEY_ENVIRONMENTS,
+  PROVIDER_KEY_ROTATION_SCHEDULES,
+  PROVIDER_KEY_TIERS,
+} from '../../domain/provider-key.js';
 
 /**
  * One provider model this service knows how to call.
@@ -339,8 +344,25 @@ export const providerKeys = pgTable(
     originalPriority: integer().notNull().default(10),
 
     /** Null means UNLIMITED spend, not zero. */
+    /**
+     * Why this key exists and where its credit came from, in an operator's own
+     * words — "startup plan grant, $500" or "free tier, 10k characters a month".
+     * `name` answers WHICH key; this answers WHY, and a balance nobody can
+     * explain is a balance nobody dares spend.
+     */
+    description: text(),
     creditLimitUsd: doublePrecision('credit_limit_usd'),
     spentUsd: doublePrecision('spent_usd').notNull().default(0),
+    /**
+     * Whether `credit_limit_usd` is a one-off grant or a per-period allowance,
+     * and when the current period began. See `PROVIDER_KEY_CREDIT_RENEWALS`:
+     * without this pair an exhausted key is retired for good — right for a
+     * grant, and throwing away every future period of a quota.
+     */
+    creditRenews: text({ enum: PROVIDER_KEY_CREDIT_RENEWALS as unknown as [string, ...string[]] })
+      .notNull()
+      .default('never'),
+    creditPeriodStart: timestamptz(),
 
     lastUsedAt: timestamptz(),
     lastSuccessAt: timestamptz(),
@@ -403,6 +425,7 @@ export const providerKeys = pgTable(
     checkOneOf('provider_keys_provider_check', t.provider, PROVIDER_NAMES),
     checkOneOf('provider_keys_environment_check', t.environment, PROVIDER_KEY_ENVIRONMENTS),
     checkOneOf('provider_keys_tier_check', t.tier, PROVIDER_KEY_TIERS),
+    checkOneOf('provider_keys_credit_renews_check', t.creditRenews, PROVIDER_KEY_CREDIT_RENEWALS),
     checkOneOf('provider_keys_rotation_schedule_check', t.rotationSchedule, PROVIDER_KEY_ROTATION_SCHEDULES),
     check('provider_keys_current_priority_range_check', sql`${t.currentPriority} between 1 and 1000`),
     check('provider_keys_original_priority_range_check', sql`${t.originalPriority} between 1 and 100`),
