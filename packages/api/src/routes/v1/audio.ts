@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { callProviderAPI } from '../../lib/gateway-client.js';
 import { synthesizeSpeech } from '../../lib/synthesize-speech.js';
-import { reserveCredits, finalizeCredits } from '../../lib/credits-manager.js';
+import { reserveCredits, finalizeCredits, refundReservation } from '../../lib/credits-manager.js';
 import type { CreditReservation } from '../../lib/credits-manager.js';
 import { getOrCreateUserCredits } from '../../lib/user-credits-helpers.js';
 import { uploadToS3 } from '../../lib/s3.js';
@@ -36,6 +36,18 @@ router.post('/speech', async (req: Request, res: Response) => {
   const TTS_TIMEOUT_MS = 55_000;
   const abortController = new AbortController();
   const globalTimer = setTimeout(() => abortController.abort('TTS global timeout'), TTS_TIMEOUT_MS);
+
+  /**
+   * Declared OUT here, and not where it is taken, because the `catch` below has
+   * to be able to give it back.
+   *
+   * A reservation DEBITS immediately, so an exit that neither charges nor
+   * refunds does not "do nothing" — it keeps the credit. While this lived inside
+   * the `try` the catch could not name it, and every throw after the reservation
+   * silently cost the caller a credit for work that never happened.
+   */
+  let reservation: CreditReservation | null = null;
+  let settled = false;
 
   try {
     const userId = req.user?.id;
@@ -77,7 +89,7 @@ router.post('/speech', async (req: Request, res: Response) => {
 
     // Ensure user has credits
     await getOrCreateUserCredits(userId);
-    const reservation = await reserveCredits(userId);
+    reservation = await reserveCredits(userId);
     if (!reservation) {
       return res.status(402).json({
         error: {
@@ -100,7 +112,12 @@ router.post('/speech', async (req: Request, res: Response) => {
     });
 
     if (!synthesized) {
-      await finalizeCredits(reservation, { promptTokens: 0, completionTokens: 0, totalTokens: 0 });
+      // REFUND, not a zero-token finalize. `calculateCreditsFromTokens` returns
+      // MIN_CREDITS_PER_REQUEST for zero tokens, so finalizing here BILLED the
+      // caller the minimum for a request that produced nothing — and when no
+      // provider in the chain holds a key, never reached a provider at all.
+      settled = true;
+      await refundReservation(reservation);
       const status = abortController.signal.aborted ? 504 : 503;
       return res.status(status).json({ error: { message: 'TTS generation failed — please try again', type: 'server_error' } });
     }
@@ -112,6 +129,10 @@ router.post('/speech', async (req: Request, res: Response) => {
 
     // Upload to S3 and finalize credits concurrently (with 15s safety timeout)
     let uploadTimer: NodeJS.Timeout;
+    // Before the race, not after: `finalizeCredits` is issued INSIDE it, so the
+    // 15s upload timeout can win with the charge already in flight. Marking it
+    // settled here is what stops the catch refunding a reservation that paid.
+    settled = true;
     const uploadResult = await Promise.race([
       Promise.all([
         uploadToS3(audioBuffer, `audio.${outputFormat}`, `tts/${userId}`, 'speech'),
@@ -137,6 +158,11 @@ router.post('/speech', async (req: Request, res: Response) => {
 
     res.json({ audioUrl });
   } catch (error: unknown) {
+    if (reservation && !settled) {
+      settled = true;
+      await refundReservation(reservation).catch((err: unknown) =>
+        log.general.error({ err, userId: req.user?.id }, 'refundReservation failed after TTS error'));
+    }
     const timedOut = abortController.signal.aborted;
     log.general.error({ err: error, userId: req.user?.id, timedOut }, 'TTS synthesis failed');
     const status = timedOut ? 504 : 500;
@@ -158,6 +184,18 @@ router.post('/speech', async (req: Request, res: Response) => {
  * Returns: { jobId: string, status: 'processing' }
  */
 router.post('/generate', async (req: Request, res: Response) => {
+
+  /**
+   * Declared OUT here, and not where it is taken, because the `catch` below has
+   * to be able to give it back.
+   *
+   * A reservation DEBITS immediately, so an exit that neither charges nor
+   * refunds does not "do nothing" — it keeps the credit. While this lived inside
+   * the `try` the catch could not name it, and every throw after the reservation
+   * silently cost the caller a credit for work that never happened.
+   */
+  let reservation: CreditReservation | null = null;
+  let settled = false;
   try {
     const userId = req.user?.id;
     if (!userId) {
@@ -183,7 +221,7 @@ router.post('/generate', async (req: Request, res: Response) => {
 
     // Ensure user has credits
     await getOrCreateUserCredits(userId);
-    const reservation = await reserveCredits(userId);
+    reservation = await reserveCredits(userId);
     if (!reservation) {
       return res.status(402).json({
         error: {
@@ -209,8 +247,16 @@ router.post('/generate', async (req: Request, res: Response) => {
     res.status(202).json({ jobId, status: 'processing' });
 
     // Background: generate audio, upload to S3, finalize credits
+    // Ownership of the reservation passes to the background job, which settles
+    // it on every one of its own exits. The catch below must not also refund it.
+    settled = true;
     void processAudioGeneration({ jobId, userId, prompt, duration, reservation, conversationId, messageId });
   } catch (error: unknown) {
+    if (reservation && !settled) {
+      settled = true;
+      await refundReservation(reservation).catch((err: unknown) =>
+        log.general.error({ err, userId: req.user?.id }, 'refundReservation failed after submission error'));
+    }
     log.general.error({ err: error, userId: req.user?.id }, 'Audio generation submission failed');
     res.status(500).json({ error: { message: getSafeErrorMessage(error, 'Audio generation failed'), type: 'server_error' } });
   }
@@ -259,7 +305,11 @@ async function processAudioGeneration(input: AudioGenJobInput): Promise<void> {
     }
 
     if (!audioOutput) {
-      await finalizeCredits(reservation, { promptTokens: 0, completionTokens: 0, totalTokens: 0 });
+      // REFUND, not a zero-token finalize. `calculateCreditsFromTokens` returns
+      // MIN_CREDITS_PER_REQUEST for zero tokens, so finalizing here BILLED the
+      // caller the minimum for a request that produced nothing — and when no
+      // provider in the chain holds a key, never reached a provider at all.
+      await refundReservation(reservation);
       const error = 'Generation failed — all providers exhausted';
       await markAudioJobFailed(getDb(), jobId, error);
       emitAudioJobUpdate(userId, { jobId, status: 'failed', error });
@@ -269,7 +319,7 @@ async function processAudioGeneration(input: AudioGenJobInput): Promise<void> {
     // Extract audio URL from the async-invoke result
     const generatedUrl = extractAudioUrl(audioOutput);
     if (!generatedUrl) {
-      await finalizeCredits(reservation, { promptTokens: 0, completionTokens: 0, totalTokens: 0 });
+      await refundReservation(reservation);
       const error = 'Generation returned no audio';
       await markAudioJobFailed(getDb(), jobId, error);
       emitAudioJobUpdate(userId, { jobId, status: 'failed', error });
@@ -309,7 +359,7 @@ async function processAudioGeneration(input: AudioGenJobInput): Promise<void> {
     log.general.error({ err: error, jobId, userId }, 'Audio generation background processing failed');
     await markAudioJobFailed(getDb(), jobId, errMsg).catch(() => {});
     emitAudioJobUpdate(userId, { jobId, status: 'failed', error: errMsg });
-    await finalizeCredits(reservation, { promptTokens: 0, completionTokens: 0, totalTokens: 0 }).catch(() => {});
+    await refundReservation(reservation).catch(() => {});
   } finally {
     clearTimeout(globalTimer);
   }

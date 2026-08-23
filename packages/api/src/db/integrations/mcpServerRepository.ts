@@ -351,6 +351,7 @@ export async function setMcpServerStatus(
 export async function listRunnableMcpServersForUser(
   db: ApiDatabase,
   oxyUserId: string,
+  selectedServerId?: string,
 ): Promise<McpServerRow[]> {
   return db
     .select()
@@ -361,6 +362,7 @@ export async function listRunnableMcpServersForUser(
         eq(mcpServers.enabled, true),
         eq(mcpServers.status, 'running'),
         eq(mcpServers.runtime, 'server'),
+        ...(selectedServerId === undefined ? [] : [eq(mcpServers.id, selectedServerId)]),
       ),
     );
 }

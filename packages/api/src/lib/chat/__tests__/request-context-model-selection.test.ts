@@ -18,6 +18,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  */
 
 const resolveModel = vi.fn();
+const findMcpServerForUser = vi.fn();
+const reserveCredits = vi.fn();
 
 vi.mock('../../chat-core.js', () => ({
   resolveModel: (...args: unknown[]) => resolveModel(...args),
@@ -51,9 +53,12 @@ vi.mock('../../../db/chat/conversationRepository.js', () => ({
 }));
 vi.mock('../../../db/agents/skillRepository.js', () => ({ findSkillPrompt: async () => undefined }));
 vi.mock('../../../db/agents/agentRepository.js', () => ({ findAgentById: async () => null }));
+vi.mock('../../../db/integrations/mcpServerRepository.js', () => ({
+  findMcpServerForUser: (...args: unknown[]) => findMcpServerForUser(...args),
+}));
 vi.mock('../../user-credits-helpers.js', () => ({ getOrCreateUserCredits: async () => ({}) }));
 vi.mock('../../credits-manager.js', () => ({
-  reserveCredits: async () => null,
+  reserveCredits: (...args: unknown[]) => reserveCredits(...args),
   refundReservation: async () => undefined,
   safeRefund: async () => undefined,
 }));
@@ -74,7 +79,10 @@ interface Captured {
 }
 
 /** Drive the real function for one `model` value and capture what came back. */
-async function run(model: string | undefined) {
+async function run(
+  model: string | undefined,
+  options: { mcpServerId?: unknown; directUserId?: string; apiKey?: boolean } = {},
+) {
   const captured: Captured = { status: null, body: null };
   const res = {
     status(code: number) {
@@ -89,7 +97,13 @@ async function run(model: string | undefined) {
   const sse = { sent: false, openEarly: vi.fn(), writeError: vi.fn() };
   const timer = setTimeout(() => undefined, 60_000);
   const req = {
-    body: { messages: [{ role: 'user', content: 'hi' }], ...(model === undefined ? {} : { model }) },
+    body: {
+      messages: [{ role: 'user', content: 'hi' }],
+      ...(model === undefined ? {} : { model }),
+      ...('mcpServerId' in options ? { mcpServerId: options.mcpServerId } : {}),
+    },
+    ...(options.directUserId === undefined ? {} : { user: { id: options.directUserId } }),
+    ...(options.apiKey ? { apiKey: { id: 'key-1' } } : {}),
   };
   const ctx = await buildChatRequestContext(
     req as never,
@@ -110,6 +124,74 @@ beforeEach(() => {
     keyConfig: { provider: 'an-operator', key: 'secret', modelId: 'a-deployment' },
     aliaModel: { name: 'x', creditMultiplier: 1 },
     isFallback: false,
+  });
+  findMcpServerForUser.mockResolvedValue(null);
+  reserveCredits.mockResolvedValue({ reservationId: 'reservation-1' });
+});
+
+describe('one MCP connector can be selected for one direct-user turn', () => {
+  it('keeps omission as the legacy all-connectors path and null as explicit none', async () => {
+    const omitted = await run(undefined);
+    const none = await run(undefined, { mcpServerId: null });
+
+    expect(omitted.ctx?.mcpServerId).toBeUndefined();
+    expect(none.ctx?.mcpServerId).toBeNull();
+    expect(findMcpServerForUser).not.toHaveBeenCalled();
+  });
+
+  it('accepts only an owned, enabled, running hosted connector', async () => {
+    findMcpServerForUser.mockResolvedValue({
+      id: 'server-1',
+      enabled: true,
+      status: 'running',
+      runtime: 'server',
+    });
+
+    const { ctx, captured } = await run(undefined, {
+      mcpServerId: 'server-1',
+      directUserId: 'user-1',
+    });
+
+    expect(captured.status).toBeNull();
+    expect(ctx?.mcpServerId).toBe('server-1');
+    expect(findMcpServerForUser).toHaveBeenCalledWith({}, 'server-1', 'user-1');
+  });
+
+  it('returns one neutral refusal for a missing, foreign, stopped, or local connector', async () => {
+    for (const row of [
+      null,
+      { id: 'server-1', enabled: false, status: 'running', runtime: 'server' },
+      { id: 'server-1', enabled: true, status: 'stopped', runtime: 'server' },
+      { id: 'server-1', enabled: true, status: 'running', runtime: 'local' },
+    ]) {
+      findMcpServerForUser.mockResolvedValueOnce(row);
+      const { ctx, captured } = await run(undefined, {
+        mcpServerId: 'server-1',
+        directUserId: 'user-1',
+      });
+      expect(ctx).toBeNull();
+      expect(captured.status).toBe(400);
+      expect(captured.body?.error).toMatchObject({
+        code: 'mcp_server_unavailable',
+        param: 'mcpServerId',
+        message: 'The selected connector is unavailable.',
+      });
+    }
+  });
+
+  it('rejects malformed ids and never permits API keys to select a user connector', async () => {
+    const malformed = await run(undefined, { mcpServerId: 42, directUserId: 'user-1' });
+    expect(malformed.ctx).toBeNull();
+    expect(malformed.captured.body?.error?.code).toBe('invalid_mcp_server_id');
+
+    const apiKey = await run(undefined, {
+      mcpServerId: 'server-1',
+      directUserId: 'user-1',
+      apiKey: true,
+    });
+    expect(apiKey.ctx).toBeNull();
+    expect(apiKey.captured.body?.error?.code).toBe('mcp_server_unavailable');
+    expect(findMcpServerForUser).not.toHaveBeenCalled();
   });
 });
 
