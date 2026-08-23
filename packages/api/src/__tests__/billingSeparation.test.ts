@@ -337,6 +337,10 @@ describe('the customer charge and the upstream cost share no reader (#139 ws12)'
   const CHARGE_WRITERS = [
     `${API_SRC}/lib/credit-anomaly.ts`,
     `${API_SRC}/lib/credits-manager.ts`,
+    // The comp grant. It writes a charge-shaped record — a `subscription_payment`
+    // transaction and a `credits_paid` movement — through the SAME dedup lock a
+    // Stripe renewal uses, with `amount: 0` because no money moved.
+    `${API_SRC}/lib/seed-comped-accounts.ts`,
     `${API_SRC}/lib/user-credits-helpers.ts`,
     `${API_SRC}/routes/billing.ts`,
     `${API_SRC}/routes/referrals.ts`,
@@ -646,7 +650,11 @@ describe('the billing path audit matches the tree it describes (#139 ws12)', () 
       .sort();
 
     expect(derived).toEqual([...audit.balanceSurfaces.modules].sort());
-    expect(derived.length).toBe(13);
+    // 13 -> 14: the comp grant reaches the balance row to create it before
+    // crediting a comped account's plan credits. Read off the scan, as the
+    // writer count above is — arithmetic on a measurement is how a plausible
+    // wrong one lands.
+    expect(derived.length).toBe(14);
   });
 });
 
