@@ -48,6 +48,17 @@ TASK_SECRET_OVERRIDES_JSON="${TASK_SECRET_OVERRIDES_JSON:-}"
 # reason: an override here is re-asserted on every deploy, so a rollback cannot
 # lose it.
 TASK_ENV_OVERRIDES_JSON="${TASK_ENV_OVERRIDES_JSON:-}"
+# Secrets to DROP from the revision, by variable name.
+#
+# The render carries `.secrets` forward from the running task definition, and an
+# override can only REPLACE an entry — so until this existed there was no way to
+# stop injecting one. That is not symmetrical with adding: a secret that must go
+# away (a credential being retired, an injection that shadows a task role) stays
+# on every future revision, because every future revision descends from this one.
+#
+# Removal happens BEFORE the overrides are appended, so a name in both lists is
+# refused rather than resolved — see the validation below.
+TASK_SECRET_REMOVALS_JSON="${TASK_SECRET_REMOVALS_JSON:-}"
 AWS_ACCOUNT_ID="${AWS_ACCOUNT_ID:-}"
 AWS_PARTITION="${AWS_PARTITION:-aws}"
 POST_DEPLOY_SMOKE_SCRIPT="${POST_DEPLOY_SMOKE_SCRIPT:-}"
@@ -110,6 +121,27 @@ if ! jq -e '
   )
 ' <<<"$TASK_SECRET_OVERRIDES_JSON" >/dev/null; then
   echo "::error::TASK_SECRET_OVERRIDES_JSON must map environment variable names to complete SSM parameter ARNs."
+  exit 1
+fi
+if [[ -z "$TASK_SECRET_REMOVALS_JSON" ]]; then
+  TASK_SECRET_REMOVALS_JSON='[]'
+fi
+if ! jq -e '
+  type == "array" and
+  length <= 20 and
+  all(.[]; type == "string" and test("^[A-Z][A-Z0-9_]{0,127}$"))
+' <<<"$TASK_SECRET_REMOVALS_JSON" >/dev/null; then
+  echo "::error::TASK_SECRET_REMOVALS_JSON must be a JSON array of environment variable names."
+  exit 1
+fi
+# A name cannot be both removed and replaced. Refused rather than ordered:
+# whichever way it resolved would be a silent answer to a contradiction, and the
+# contradiction is what the operator needs to see.
+if ! jq -e -n \
+  --argjson removals "$TASK_SECRET_REMOVALS_JSON" \
+  --argjson overrides "$TASK_SECRET_OVERRIDES_JSON" \
+  '[$removals[] | select(. as $n | ($overrides | has($n)))] | length == 0' >/dev/null; then
+  echo "::error::TASK_SECRET_REMOVALS_JSON and TASK_SECRET_OVERRIDES_JSON name the same variable."
   exit 1
 fi
 if [[ -z "$TASK_ENV_OVERRIDES_JSON" ]]; then
@@ -487,6 +519,7 @@ jq \
   --arg image "$IMAGE_URI" \
   --arg internalMetricsSecretArn "$internal_metrics_secret_arn" \
   --argjson taskSecretOverrides "$task_secret_overrides" \
+  --argjson taskSecretRemovals "$TASK_SECRET_REMOVALS_JSON" \
   --argjson taskEnvOverrides "$task_env_overrides" \
   '
     del(
@@ -525,6 +558,7 @@ jq \
                     select(
                       .name as $existingName
                       | ($taskSecretNames | index($existingName)) == null
+                        and ($taskSecretRemovals | index($existingName)) == null
                     )
                   ))
               + $taskSecretOverrides
