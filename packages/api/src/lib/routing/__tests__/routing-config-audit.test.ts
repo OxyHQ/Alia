@@ -232,7 +232,14 @@ describe('plan model access is an AUDITED database row (#139 ws14/ws15)', () => 
     updatePlanByPlanId: { category: AUDITED, callers: ['lib/gateway-client.ts'] },
     // The one that made this block's title change. A route calls it, it emits a
     // record through `lib/security/config-audit.ts`, and its actor is required.
-    setPlanModelIds: { category: AUDITED, callers: ['routes/internal.ts'] },
+    // Two callers, both audited and neither a request path: the internal route
+    // above, and the operator one-shot that re-asserts the seeded list against a
+    // row created before a model existed. `seedPlan` is `onConflictDoNothing`,
+    // so without the second there is no way to correct one.
+    setPlanModelIds: {
+      category: AUDITED,
+      callers: ['routes/internal.ts', 'scripts/plan-models.ts'],
+    },
   };
 
   it('is exactly the writers this map accounts for', () => {

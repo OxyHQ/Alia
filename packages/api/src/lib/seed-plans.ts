@@ -64,6 +64,24 @@ const PRO_MODEL_IDS = [...GO_MODEL_IDS, 'alia-v1-pro', 'alia-v1-thinking', 'alia
 
 // ─── Seed data ─────────────────────────────────────────────────────
 
+/**
+ * The model list each plan is SEEDED with, by plan id.
+ *
+ * Exported because `scripts/plan-models.ts` re-asserts it against a database
+ * whose row was created before the list grew. Derived from `SEED_PLANS` below
+ * rather than retyped: a second copy would be a second answer to "which models
+ * does Ultra include", and the one in the database is already the stale answer
+ * this exists to correct.
+ */
+export function seededModelIdsFor(planId: string): readonly string[] | null {
+  return SEED_PLANS.find((plan) => plan.planId === planId)?.modelIds ?? null;
+}
+
+/** Every plan id this file seeds, for an operator listing what can be corrected. */
+export function seededPlanIds(): readonly string[] {
+  return SEED_PLANS.map((plan) => plan.planId);
+}
+
 const SEED_PLANS: PlanSeed[] = [
   // ─── Alia Plans ───────────────────────────────────────────
   {
