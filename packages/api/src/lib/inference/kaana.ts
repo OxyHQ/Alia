@@ -124,6 +124,36 @@ function principalFrom(env: NodeJS.ProcessEnv): RelayClientConfig['principal'] |
 }
 
 /**
+ * What a call that names no model is routed to.
+ *
+ * A ROUTING PROFILE is the right expression of this — "Kaana, choose" is the
+ * whole point of an inference plane that owns provider selection — and it is
+ * what this was. Measured against production on 2026-08-24, Kaana refuses it:
+ *
+ *     invalid_request: this build serves concrete model targets only: the
+ *     envelope carries a routing policy reference, not the snapshot a profile
+ *     would have to be resolved against
+ *
+ * The refusal reached production as `RelayInferenceError: relay inference
+ * failed: invalid_request` on every background derivation, so the default is a
+ * concrete reference until Kaana resolves profiles, at which point this goes
+ * back to being `{ kind: 'routing_profile', routingProfile: 'auto' }` and
+ * nothing else here changes.
+ *
+ * `openai/gpt-oss-120b` and not something larger: this default only ever serves
+ * work the platform pays for and nobody is waiting on — a suggestion, a title.
+ * It is also the reference with the most deployments behind it in the live
+ * snapshot (cerebras, groq and openrouter), so Kaana still has somewhere to go
+ * when one provider is exhausted, which is the failover a single-provider
+ * default would not have.
+ *
+ * UNPINNED on purpose: the pinned form names a revision, and pinning here would
+ * outlive the revision it names. Kaana resolves the unpinned name to whatever is
+ * current, which is its decision to make and not this file's.
+ */
+const KAANA_DEFAULT_TARGET = { kind: 'model', modelReference: 'openai/gpt-oss-120b' } as const;
+
+/**
  * The client, or `null` when this process is not configured to reach Kaana.
  *
  * `null` rather than a throwing stub: a caller holding it decides whether to
@@ -179,7 +209,7 @@ export function buildKaanaClient(env: NodeJS.ProcessEnv): RelayInferenceClient |
     },
     endpoint: endpoint.endpoint,
     principal,
-    defaultTarget: { kind: 'routing_profile', routingProfile: 'auto' },
+    defaultTarget: KAANA_DEFAULT_TARGET,
     routingPolicies: {},
     // The policy Kaana is sent, and the only one this deployment declares. A
     // richer table is a product decision that has not been made; naming a
