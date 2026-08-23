@@ -492,6 +492,7 @@ export const ChatPageContent = ({
                     onSuggestionSend={handleSuggestionSend}
                     floatingAutocomplete
                     placeholder={disabled ? t('usageLimit.inputDisabledPlaceholder') : "Message Alia..."}
+                    effortForModel={selectedModel}
                     onStop={onStop}
                     emptyAction={
                       <Button
