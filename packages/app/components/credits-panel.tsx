@@ -1,10 +1,11 @@
 import { useState, useMemo } from "react";
 import { View, Pressable, ScrollView } from "react-native";
+import Svg, { Circle } from "react-native-svg";
 import * as Linking from "expo-linking";
 import { Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Sparkles, Calendar, X, Crown, MessageSquare, Layers, ShoppingCart } from "lucide-react-native";
+import { Calendar, X, Crown, MessageSquare, Layers, ShoppingCart } from "lucide-react-native";
 import { useCredits, useCreditsUsage, useAnalytics, PERIODS, type UsagePeriod } from "@/lib/hooks/use-credits";
 import { useSubscription, useCreditPackages, useCreateCheckout } from "@/lib/hooks/use-billing";
 import { useRouter, type Href } from "expo-router";
@@ -12,6 +13,66 @@ import { useUIStore } from "@/lib/stores/ui-store";
 import { useTranslation } from "@/lib/hooks/use-translation";
 import { toast } from "@oxyhq/bloom/toast";
 import { errorMessage as getErrorMessage } from '../lib/errors/error-utils';
+import { useColorScheme } from "@/lib/useColorScheme";
+import { withAlpha } from "@oxyhq/bloom/theme";
+
+/**
+ * The balance ring: how much of the spendable total is still there.
+ *
+ * `react-native-svg` rather than a rotated bordered View, because the arc has to
+ * be a fraction of a circle and a border cannot be. The stroke colours are the
+ * one place a JS colour VALUE is unavoidable — SVG props take no className — so
+ * they come from `useColorScheme()` and `withAlpha`, never a hex literal.
+ */
+const RING_PX = 18;
+const RING_RADIUS = 42;
+const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
+
+function BalanceRing({ ratio }: { ratio: number }) {
+  const { colors } = useColorScheme();
+  const filled = RING_CIRCUMFERENCE * Math.max(0, Math.min(1, ratio));
+  return (
+    <Svg width={RING_PX} height={RING_PX} viewBox="0 0 100 100">
+      <Circle
+        cx={50}
+        cy={50}
+        r={RING_RADIUS}
+        fill="transparent"
+        stroke={withAlpha(colors.foreground, 0.15)}
+        strokeWidth={12}
+      />
+      {/*
+        * Drawn only when there is something to draw: a round cap on a
+        * zero-length dash renders as a dot, so an empty balance would show a
+        * mark exactly where "none left" must show nothing.
+        */}
+      {filled > 0 ? (
+        <Circle
+          cx={50}
+          cy={50}
+          r={RING_RADIUS}
+          fill="transparent"
+          stroke={colors.primary}
+          strokeWidth={12}
+          strokeLinecap="round"
+          strokeDasharray={`${filled} ${RING_CIRCUMFERENCE - filled}`}
+          rotation={-90}
+          originX={50}
+          originY={50}
+        />
+      ) : null}
+    </Svg>
+  );
+}
+
+function BalanceRow({ label, value }: { label: string; value: string }) {
+  return (
+    <View className="flex-row items-center justify-between">
+      <Text className="text-xs text-muted-foreground">{label}</Text>
+      <Text className="text-xs font-medium text-foreground">{value}</Text>
+    </View>
+  );
+}
 
 function PeriodToggle({ value, onChange }: { value: UsagePeriod; onChange: (p: UsagePeriod) => void }) {
   return (
@@ -111,31 +172,25 @@ function UsageChart({ period }: { period: UsagePeriod }) {
 
 function CreditsSkeleton() {
   return (
-    <View className="gap-5">
-      <View className="gap-2">
-        <View className="flex-row items-center gap-2">
-          <Skeleton className="rounded-full" style={{ width: 18, height: 18 }} />
-          <Skeleton style={{ width: 60, height: 14 }} />
+    <View className="rounded-2xl border border-border bg-surface px-3 py-2.5 gap-3">
+      <View className="flex-row items-center justify-between">
+        <View className="flex-row items-center gap-1.5">
+          <Skeleton className="rounded-full" style={{ width: RING_PX, height: RING_PX }} />
+          <Skeleton style={{ width: 56, height: 14 }} />
         </View>
-        <View className="flex-row items-baseline justify-between pl-6">
-          <Skeleton style={{ width: 80, height: 12 }} />
-          <Skeleton style={{ width: 100, height: 24 }} />
-        </View>
+        <Skeleton className="rounded-md" style={{ width: 64, height: 24 }} />
       </View>
-      <View className="gap-2">
-        <View className="flex-row items-center gap-2">
-          <Skeleton className="rounded-full" style={{ width: 18, height: 18 }} />
-          <Skeleton style={{ width: 80, height: 14 }} />
-        </View>
-        <View className="flex-row items-baseline justify-between pl-6">
-          <Skeleton style={{ width: 70, height: 12 }} />
-          <Skeleton style={{ width: 40, height: 24 }} />
-        </View>
+      <View className="gap-1.5">
+        {[0, 1].map((row) => (
+          <View key={row} className="flex-row items-center justify-between">
+            <Skeleton style={{ width: 52, height: 10 }} />
+            <Skeleton style={{ width: 76, height: 10 }} />
+          </View>
+        ))}
       </View>
     </View>
   );
 }
-
 function ActivitySkeleton() {
   return (
     <View className="gap-5">
@@ -204,6 +259,14 @@ export function CreditsPanel() {
   const paidCredits = data?.paidCredits ?? 0;
   const dailyRefresh = data?.dailyRefresh ?? 0;
   const isSubscribed = subscription?.status === 'active';
+  /**
+   * What the account may spend before the next daily refresh: today's free
+   * allowance plus whatever paid balance it holds. `credits` is what is left of
+   * exactly that, so the two are the same quantity measured at two moments —
+   * which is what makes the ring's fraction mean anything.
+   */
+  const totalCredits = freeLimit + paidCredits;
+  const remainingRatio = totalCredits > 0 ? credits / totalCredits : 0;
 
   const navigate = (path: Href) => {
     setRightPanel(null);
@@ -238,50 +301,52 @@ export function CreditsPanel() {
       </View>
 
       <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
-        {/* Plan Badge & Upgrade */}
-        <View className="flex-row items-center justify-between px-4 py-3">
-          <View className={`px-2 py-0.5 rounded-full ${isSubscribed ? 'bg-primary/10' : 'bg-muted'}`}>
-            {isSubscribed ? (
-              <Text className="text-xs font-medium text-primary">{subscription.plan.name}</Text>
-            ) : (
-              <Text className="text-xs font-medium text-muted-foreground">{t('credits.free')}</Text>
-            )}
-          </View>
-          <Button onPress={() => navigate(isSubscribed ? "/(app)/settings/usage" : "/(biglayout)/subscribe")} className="h-8 px-4 rounded-full">
-            <Text className="text-sm font-medium text-primary-foreground">
-              {isSubscribed ? t('credits.manageBilling') : t('credits.upgrade')}
-            </Text>
-          </Button>
-        </View>
-
-        {/* Credits Section */}
-        <View className="px-4 py-3">
+        {/* Balance */}
+        <View className="px-4 pt-3">
           {creditsLoading ? (
             <CreditsSkeleton />
           ) : (
-            <View className="gap-4">
-              <View className="gap-2">
-                <View className="flex-row items-center gap-2">
-                  <Sparkles size={18} className="text-foreground" />
-                  <Text className="text-sm font-semibold text-foreground">{t('credits.credits')}</Text>
+            <View className="rounded-2xl border border-border bg-surface px-3 py-2.5 gap-3">
+              <View className="flex-row items-center justify-between">
+                <View className="flex-row items-center gap-1.5">
+                  <BalanceRing ratio={remainingRatio} />
+                  <Text className="text-sm font-medium text-foreground">{t('credits.balance')}</Text>
                 </View>
-                <View className="flex-row items-baseline justify-between pl-6">
-                  <Text className="text-sm text-muted-foreground">{t('credits.freeCredits')}</Text>
-                  <View className="flex-row items-baseline gap-1">
-                    <Text className="text-2xl font-bold text-foreground">
-                      {(credits - paidCredits).toLocaleString()}
+                <View className="flex-row items-center gap-1.5">
+                  <View className={`px-1.5 py-0.5 rounded-md ${isSubscribed ? 'bg-primary/10' : 'bg-muted'}`}>
+                    <Text className={`text-[10px] font-medium ${isSubscribed ? 'text-primary' : 'text-muted-foreground'}`}>
+                      {isSubscribed ? subscription.plan.name : t('credits.free')}
                     </Text>
-                    <Text className="text-sm text-muted-foreground">/ {freeLimit.toLocaleString()}</Text>
                   </View>
+                  <Button
+                    onPress={() => navigate(isSubscribed ? "/(app)/settings/usage" : "/(biglayout)/subscribe")}
+                    className="h-6 px-2 rounded-md"
+                  >
+                    <Text className="text-xs font-medium text-primary-foreground">
+                      {isSubscribed ? t('credits.manageBilling') : t('credits.upgrade')}
+                    </Text>
+                  </Button>
                 </View>
-                {paidCredits > 0 && (
-                  <View className="flex-row items-baseline justify-between pl-6">
-                    <Text className="text-sm text-muted-foreground">{t('credits.paidCredits')}</Text>
-                    <Text className="text-base font-semibold text-foreground">{paidCredits.toLocaleString()}</Text>
-                  </View>
-                )}
               </View>
 
+              <View className="gap-0.5">
+                <BalanceRow
+                  label={t('credits.total')}
+                  value={t('credits.creditsAmount', { count: totalCredits.toLocaleString() })}
+                />
+                <BalanceRow label={t('credits.remaining')} value={credits.toLocaleString()} />
+                {paidCredits > 0 ? (
+                  <BalanceRow label={t('credits.paidCredits')} value={paidCredits.toLocaleString()} />
+                ) : null}
+              </View>
+            </View>
+          )}
+        </View>
+
+        {/* Subscription & daily refresh */}
+        <View className="px-4 py-3">
+          {creditsLoading ? null : (
+            <View className="gap-4">
               {isSubscribed && (
                 <View className="gap-2">
                   <View className="flex-row items-center gap-2">

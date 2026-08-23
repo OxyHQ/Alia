@@ -301,6 +301,10 @@
   "credits": {
     "title": "Credits",
     "free": "Free",
+    "balance": "Balance",
+    "total": "Total",
+    "remaining": "Remaining",
+    "creditsAmount": "{{count}} credits",
     "upgrade": "Upgrade",
     "credits": "Credits",
     "freeCredits": "Free credits",
