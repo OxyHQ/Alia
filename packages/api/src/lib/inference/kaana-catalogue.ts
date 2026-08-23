@@ -178,7 +178,7 @@ export async function getKaanaCatalogue(
   const now = Date.now();
   if (cached !== null && cached.expiresAt > now) return cached.catalogue;
 
-  let catalogue: KaanaCatalogue | null = null;
+  let catalogue: KaanaCatalogue | null;
   try {
     catalogue = await fetchKaanaCatalogue(env, AbortSignal.timeout(5_000));
   } catch {
