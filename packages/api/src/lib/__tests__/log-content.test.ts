@@ -345,6 +345,10 @@ describe('no logger call carries message content (#139 ws15)', () => {
    *  - `notification-service` — the Expo push receipt's own error message.
    *  - `log-observer` — `metric.value` is a `number` by `ObserverMetric`.
    *  - `bots` — Telegram's `setWebhook` error description, from their API.
+   *  - `provider-key` — the OPERATOR's own note about why a credential has the
+   *    credit it has, typed on the command line of a one-shot they issued. It is
+   *    echoed back so the run's log says what was written. No user is anywhere
+   *    near it, and the script never logs the credential itself.
    */
   const ALLOWED: readonly string[] = [
     `${PACKAGE_PREFIX}/lib/crowdsource/config.ts | value | candidate`,
@@ -353,6 +357,7 @@ describe('no logger call carries message content (#139 ws15)', () => {
     `${PACKAGE_PREFIX}/lib/sandbox/container-pool.ts | image | image`,
     `${PACKAGE_PREFIX}/lib/sandbox/container-pool.ts | images | this.config.warmImages`,
     `${PACKAGE_PREFIX}/routes/bots.ts | description | swData.description`,
+    `${PACKAGE_PREFIX}/scripts/provider-key.ts | description | description`,
   ];
 
   const contentKeys = new Set(CONTENT_KEYS);

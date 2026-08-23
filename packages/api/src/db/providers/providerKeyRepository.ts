@@ -115,8 +115,11 @@ const safeColumns = {
   tier: providerKeys.tier,
   currentPriority: providerKeys.currentPriority,
   originalPriority: providerKeys.originalPriority,
+  description: providerKeys.description,
   creditLimitUsd: providerKeys.creditLimitUsd,
   spentUsd: providerKeys.spentUsd,
+  creditRenews: providerKeys.creditRenews,
+  creditPeriodStart: providerKeys.creditPeriodStart,
   lastUsedAt: providerKeys.lastUsedAt,
   lastSuccessAt: providerKeys.lastSuccessAt,
   totalRequests: providerKeys.totalRequests,
@@ -315,6 +318,10 @@ export interface NewProviderKey {
     tps?: number; tpm?: number; tph?: number; tpd?: number;
   };
   readonly creditLimitUsd: number | null;
+  /** Why this key exists and where its credit came from. */
+  readonly description: string | null;
+  /** Whether `creditLimitUsd` is a one-off grant or a per-period allowance. */
+  readonly creditRenews: string;
   readonly rateLimitResetMs: number | null;
 }
 
@@ -334,6 +341,12 @@ export async function createProviderKey(
       environment: entry.environment,
       isPaid: entry.isPaid,
       tier: entry.tier,
+      description: entry.description,
+      creditRenews: entry.creditRenews,
+      // A renewable quota's first period starts when the key is admitted; a
+      // one-off grant has no period at all, and a NULL is what keeps
+      // `renewExpiredKeyQuotas` from ever touching it.
+      creditPeriodStart: entry.creditRenews === 'never' ? null : new Date(),
       currentPriority: entry.priority,
       originalPriority: entry.priority,
       rateLimitRps: entry.rateLimit.rps ?? null,
@@ -664,6 +677,43 @@ export async function markKeyCreditExhausted(db: Executor, id: string): Promise<
     })
     .where(and(eq(providerKeys.id, id), isNotNull(providerKeys.creditLimitUsd)));
   return result.count > 0;
+}
+
+/**
+ * Give back the spend of every key whose credit period has rolled over.
+ *
+ * The counterpart to {@link markKeyCreditExhausted}, which sets `spent_usd` to
+ * the limit so `getBestKeyForModel` skips the key. For a one-off grant that is
+ * final and correct. For a per-period allowance it was permanent too, which is
+ * the defect: a provider that restores 10k characters every month had its key
+ * retired the first time it ran out, and every later period went unused with no
+ * error anywhere.
+ *
+ * One statement, and it matches nothing in the common case. `credit_renews` is
+ * `never` for every key that predates this, so the WHERE clause excludes them
+ * before any date arithmetic happens.
+ *
+ * The new period starts NOW rather than at the theoretical boundary: the
+ * provider's own reset instant is not knowable from here, and advancing to
+ * "now" can only ever be conservative — it delays the next reset, never grants
+ * an allowance twice.
+ */
+export async function renewExpiredKeyQuotas(db: Executor): Promise<number> {
+  const result = await db
+    .update(providerKeys)
+    .set({
+      spentUsd: 0,
+      creditPeriodStart: sql`now()`,
+      updatedAt: sql`date_trunc('milliseconds', now())`,
+    })
+    .where(
+      and(
+        sql`${providerKeys.creditRenews} <> 'never'`,
+        isNotNull(providerKeys.creditPeriodStart),
+        sql`now() >= ${providerKeys.creditPeriodStart} + (case ${providerKeys.creditRenews} when 'weekly' then interval '7 days' else interval '1 month' end)`,
+      ),
+    );
+  return result.count;
 }
 
 /** Clear every cooldown and failure run. The operator's reload button. */

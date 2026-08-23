@@ -20,6 +20,7 @@ import {
   recordKeySpend as recordSpendRow,
   recordKeySuccess as recordSuccessRow,
   recordKeyUsage as recordUsageRow,
+  renewExpiredKeyQuotas,
   setKeyCooldown,
   type ProviderKeyRow,
   type ProviderKeyStats,
@@ -52,6 +53,25 @@ export async function loadProviderKeys(provider: string): Promise<ProviderKeyRow
   if (cached && Date.now() - cached.timestamp < KEY_CACHE_TTL) {
     return cached.keys;
   }
+
+  /**
+   * A key whose credit period has rolled over gets its spend back BEFORE the
+   * rows are read, so the renewed key is in the very load that follows.
+   *
+   * On the cache miss rather than on every call: at a 10-second TTL this is at
+   * most six statements a minute per provider, and the statement matches
+   * nothing unless a period has actually expired — every key that predates
+   * `credit_renews` carries `never` and is excluded before any date arithmetic.
+   *
+   * A failure here must not cost the request its keys: the worst case is a
+   * renewable key staying retired until the next load, which is the behaviour
+   * that existed before this line.
+   */
+  const renewed = await renewExpiredKeyQuotas(getDb()).catch((err: unknown) => {
+    log.keys.warn({ err, provider }, 'Credit-period renewal failed');
+    return 0;
+  });
+  if (renewed > 0) log.keys.info({ provider, renewed }, 'Renewed credit period for keys');
 
   const keys = await loadActiveProviderKeys(getDb(), provider);
   keyCache.set(cacheKey, { keys, timestamp: Date.now() });

@@ -493,6 +493,11 @@ describe('model and routing configuration has no unaudited write path (#139 ws15
       'internal/providers/lib/key-manager.ts',
       'internal/providers/lib/provider-api.ts',
     ],
+    // The counterpart of `markKeyCreditExhausted`, and health for the same
+    // reason: a provider restoring a period's allowance is something that
+    // happened TO the key. Called from the key load path so a renewed key is in
+    // the very read that follows.
+    renewExpiredKeyQuotas: ['internal/providers/lib/key-manager.ts'],
   };
 
   /** Writers with no runtime caller. Nothing to audit because nothing calls them. */

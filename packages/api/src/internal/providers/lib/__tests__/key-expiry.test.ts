@@ -40,6 +40,9 @@ vi.mock('../../../../db/providers/providerKeyRepository.js', () => ({
   recordKeySpend: vi.fn(),
   recordKeySuccess: vi.fn(),
   recordKeyUsage: vi.fn(),
+  // `loadProviderKeys` renews an expired credit period before it reads, so the
+  // mock owes the export or the module under test throws on import.
+  renewExpiredKeyQuotas: vi.fn(async () => 0),
   setKeyCooldown: vi.fn(),
 }));
 
