@@ -239,6 +239,7 @@ export default function SubscribeScreen() {
             currentPlanId={subscription?.plan?.planId}
             currentBillingPeriod={subscription?.plan?.billingPeriod}
             cancelAtPeriodEnd={subscription?.cancelAtPeriodEnd}
+            isComped={subscription?.isComped}
             hasActiveSubscription={
               !!subscription && subscription.status === 'active'
             }
