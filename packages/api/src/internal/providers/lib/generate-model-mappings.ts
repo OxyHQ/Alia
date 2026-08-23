@@ -164,6 +164,12 @@ export const GENERATED_TIER_MAPPINGS: Record<AliaTier, ModelMapping[]> = {
     createMapping('digitalocean', 'openai', 'gpt-image-1', 'openai-gpt-image-1', 2, 90),
     createMapping('digitalocean', 'black-forest-labs', 'flux-schnell', 'fal-ai/flux/schnell', 3, 85),
     createMapping('digitalocean', 'stability', 'sdxl', 'fal-ai/fast-sdxl', 4, 80),
+    // Last, so an added OpenAI or DigitalOcean key still wins — the same
+    // convention `v1-tts` states. It costs nothing to rank it here: a provider
+    // holding no key is refused before a request leaves the process.
+    // MEASURED 2026-08-23: this is currently the ONLY image mapping that can
+    // serve, and it needs `image-providers.ts` to strip `size` and `quality`.
+    createMapping('xai', 'xai', 'grok-imagine-image', 'grok-imagine-image', 5, 84),
   ],
   'v1-multimodal': [
     createMapping('google', 'google', 'gemini-3-pro-preview', 'gemini-3-pro-preview', 1, 99),

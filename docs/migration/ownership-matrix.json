@@ -3766,6 +3766,23 @@
       "evidence": "packages/api/src/scripts/sync-zeroeval.ts:8"
     },
     {
+      "id": "image-providers",
+      "workstream": "7",
+      "domain": "provider-runtime",
+      "kind": "module",
+      "currentPath": "packages/api/src/internal/providers/lib/image-providers.ts",
+      "reachable": "live",
+      "owner": "relay",
+      "targetPath": "relay:images/params.ts",
+      "dependsOn": [
+        "gwc-import-v1-images",
+        "behaviour-images"
+      ],
+      "removalGate": "LIVE via packages/api/src/routes/v1/images.ts. Gate: Relay accepts one canonical image request and shapes it per provider, so Alia never needs to know which parameters a provider refuses. The sibling of tts-providers, and it goes the same way.",
+      "provenance": "declared",
+      "evidence": "packages/api/src/internal/providers/lib/image-providers.ts:54-56 (the omission table), :64-80 (imageRequestBody). Measured 2026-08-23 against a live xAI key: `size` -> 400, `quality` -> 422, both with an EMPTY response body; model+prompt+n+response_format -> 200."
+    },
+    {
       "id": "integrations-chat-consumer",
       "workstream": "6",
       "domain": "product-api",

@@ -605,6 +605,12 @@ const PROVIDER_IMPORT_ALLOWLIST: readonly { from: string; to: string; via: Modul
     why: 'Async-invoke image URL unwrapping. Moves to Relay (#139 ws7).',
   },
   {
+    from: 'packages/api/src/routes/v1/images.ts',
+    to: 'packages/api/src/internal/providers/lib/image-providers',
+    via: 'import',
+    why: 'Per-provider request-body shaping, the sibling of the tts-providers translation the TTS path already uses. `/v1/images/generations` is OpenAI-SHAPED rather than OpenAI-identical: xAI answers 400 to `size` and 422 to `quality` (measured 2026-08-23), and a refused parameter fails the whole request rather than degrading. Knowing WHICH parameters a provider takes is provider knowledge, so it belongs behind this boundary and not inlined in the route as a conditional. Moves to Relay (#139 ws7) with the rest of the image path.',
+  },
+  {
     from: 'packages/api/src/routes/v1/voice.ts',
     to: 'packages/api/src/internal/providers/lib/types',
     via: 'import',
@@ -713,7 +719,7 @@ const PROVIDER_IMPORT_ALLOWLIST: readonly { from: string; to: string; via: Modul
  * produced a plausible wrong answer that still compiled. The same trap caught
  * ws5's rebase, which is why this paragraph is a rule and not a history.
  */
-const PROVIDER_IMPORT_ALLOWLIST_SIZE = 42;
+const PROVIDER_IMPORT_ALLOWLIST_SIZE = 43;
 
 function observedProviderImports(): { from: string; to: string; via: ModuleRef['via'] }[] {
   const seen = new Map<string, { from: string; to: string; via: ModuleRef['via'] }>();
