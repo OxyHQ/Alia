@@ -36,9 +36,15 @@ vi.mock('../../db/index.js', () => ({
   getDb: vi.fn(() => ({})),
 }));
 
+// `credits` and `general` are not decoration: importing `../auth.js` now reaches
+// `lib/comped-accounts.ts`, which logs on the `credits` subsystem, and through it
+// `lib/gateway-client.ts`, which logs on `general` AT IMPORT TIME. A mock missing
+// either makes this file fail while it is still loading the module under test.
 vi.mock('../../lib/logger.js', () => ({
   log: {
     auth: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+    credits: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+    general: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
   },
 }));
 
