@@ -903,6 +903,11 @@ const PROVIDER_HOST_ALLOWLIST: Readonly<Record<string, readonly string[]>> = {
     'packages/api/src/internal/providers/lib/providers/novita.ts',
     'packages/api/src/lib/chat-core.ts',
   ],
+  'api.elevenlabs.io': [
+    // The TTS branch in `callProviderAPI`. ElevenLabs is not OpenAI-compatible
+    // in any part, so it has no adapter under `providers/` to name it.
+    'packages/api/src/internal/providers/lib/provider-api.ts',
+  ],
   'api.openai.com': [
     'packages/api/src/internal/providers/lib/provider-api.ts',
     'packages/api/src/internal/providers/lib/providers/openai-voice.ts',
@@ -988,6 +993,7 @@ const EGRESS_HOSTS: readonly string[] = [
   'api.deepseek.com',
   'api.fireworks.ai',
   'api.github.com',
+  'api.elevenlabs.io',
   'api.githubcopilot.com',
   'api.groq.com',
   'api.hyperbolic.xyz',

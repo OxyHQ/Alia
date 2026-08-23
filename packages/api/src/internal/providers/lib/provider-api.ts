@@ -46,6 +46,14 @@ function isDOAsyncInvokeModel(modelId: string): boolean {
 const DO_ELEVENLABS_DEFAULT_VOICE = 'kPzsL2i3teMYv0FxEYQ6';
 
 /**
+ * The same voice, for the DIRECT ElevenLabs provider, and the container it is
+ * asked for. `mp3_44100_128` is ElevenLabs' own default and is what
+ * `ttsOutputFormat` promises the caller for this provider.
+ */
+const ELEVENLABS_DEFAULT_VOICE = DO_ELEVENLABS_DEFAULT_VOICE;
+const ELEVENLABS_OUTPUT_FORMAT = 'mp3_44100_128';
+
+/**
  * Build the async-invoke input object from the standard callProviderAPI body.
  * Translates OpenAI-compatible request bodies to DO async-invoke input format.
  */
@@ -219,6 +227,60 @@ export async function callProviderAPI<T = any>(options: ProviderAPIOptions): Pro
 
         const pcm = Buffer.from(inline.data, 'base64');
         return pcmToWav(pcm, parsePcmSampleRate(inline.mimeType)) as unknown as T;
+      }
+
+      // ElevenLabs TTS — not OpenAI-compatible in any part: the voice is in the
+      // PATH, the key is in `xi-api-key` rather than a bearer token, the
+      // container is a query parameter, and the response is raw audio.
+      if (provider === 'elevenlabs') {
+        const voiceId = (body?.voice as string | undefined) || ELEVENLABS_DEFAULT_VOICE;
+        const elevenUrl =
+          `https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voiceId)}` +
+          `?output_format=${ELEVENLABS_OUTPUT_FORMAT}`;
+        const elevenRes = await fetch(elevenUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            // Never `Authorization: Bearer` — ElevenLabs ignores it and answers
+            // 401, which classifies as `auth` and retires a working key.
+            'xi-api-key': keyConfig.key,
+            Accept: 'audio/mpeg',
+          },
+          body: JSON.stringify({
+            text: body?.input ?? '',
+            model_id: modelId,
+          }),
+          signal: combinedSignal,
+        });
+
+        if (timer) clearTimeout(timer);
+
+        if (!elevenRes.ok) {
+          const errBody = await readProviderErrorBody(elevenRes, keyConfig.key);
+          const reason = classifyError({ status: elevenRes.status, message: errBody });
+          log.keys.warn({ attempt, provider, modelId, status: elevenRes.status, reason }, 'Provider API call failed');
+          lastReason = reason;
+          lastMessage = errBody;
+          if (reason === 'billing') {
+            await markKeyCreditExhausted(keyConfig.keyId);
+          } else {
+            await recordKeyFailure(keyConfig.keyId, `${modelId} ${elevenRes.status}: ${errBody.slice(0, 200)}`);
+          }
+          if (NON_RETRYABLE.has(reason)) break;
+          continue;
+        }
+
+        const audio = Buffer.from(await elevenRes.arrayBuffer());
+        if (audio.length === 0) {
+          lastReason = 'format';
+          lastMessage = 'ElevenLabs returned no audio';
+          await recordKeyFailure(keyConfig.keyId, `${modelId} no-audio`);
+          break; // a different key will not produce audio either
+        }
+
+        await recordKeyUsage(keyConfig.keyId, 0, provider, modelId);
+        await recordKeySuccess(keyConfig.keyId);
+        return audio as unknown as T;
       }
 
       // Standard synchronous provider call

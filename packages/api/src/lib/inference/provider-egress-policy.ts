@@ -67,6 +67,7 @@ import { isRelayClientEnabled } from './relay-cutover.js';
  */
 export const PROVIDER_API_HOSTS: Readonly<Record<string, string>> = {
   openai: 'api.openai.com',
+  elevenlabs: 'api.elevenlabs.io',
   anthropic: 'api.anthropic.com',
   google: 'generativelanguage.googleapis.com',
   groq: 'api.groq.com',

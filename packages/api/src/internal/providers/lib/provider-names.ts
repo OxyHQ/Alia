@@ -24,6 +24,8 @@ export const PROVIDER_NAMES = [
   'novita',
   'digitalocean',
   'cheaperinference',
+  // TTS only: no chat `proxy`, so it has no entry in `providers/index.ts`.
+  'elevenlabs',
 ] as const;
 
 export type ProviderName = typeof PROVIDER_NAMES[number];

@@ -271,7 +271,12 @@ describe('the ordinary-word exemption list is exact', () => {
     // going red. This count is what forces the classification to be made
     // deliberately. Raising it is the same edit as deciding which list the new
     // operator belongs in.
-    expect(PROVIDER_NAMES).toHaveLength(20);
+    // 20 -> 21: `elevenlabs`, whose slug is not an ordinary word, so it stays
+    // out of `WORD_SLUGS` and is concealed wherever it appears. Its MODEL ids
+    // are `eleven_<family>_<version>`, and that bare number word IS an ordinary
+    // word — so `eleven` is classified into `WORD_SLUGS` instead, concealed
+    // only as a brand or inside an identifier.
+    expect(PROVIDER_NAMES).toHaveLength(21);
   });
 
   it('exempts exactly the eight registered operators whose slug is a word', () => {

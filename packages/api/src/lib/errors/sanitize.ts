@@ -132,6 +132,11 @@ const WORD_SLUGS = new Set<string>([
   // Model families and publishers in the same position.
   'claude', 'llama', 'whisper', 'command', 'meta', 'grok', 'tts', 'flux',
   'sonar',
+  // ElevenLabs' own model ids are `eleven_<family>_<version>`, so the part that
+  // names the route is the bare number word. Here rather than in
+  // `EXTRA_OPAQUE_SLUGS` for exactly the reason this list exists: "eleven" in a
+  // sentence is a quantity, and concealing it there would rewrite ordinary prose.
+  'eleven',
 ]);
 
 /**
