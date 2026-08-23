@@ -252,3 +252,47 @@ describe('deploy-aws.yml stall bounds', () => {
     expect(job).toBeLessThan(360);
   });
 });
+
+/**
+ * The static IAM user's keys stop being injected, and the removal is real.
+ *
+ * Two halves, because either alone is green and inert. The workflow can declare
+ * a removal the script ignores, and the script can grow a removal hook nothing
+ * ever names — and the second is how the injection would quietly survive: the
+ * render carries `.secrets` FORWARD from the running revision, so every future
+ * revision descends from one that carries them.
+ */
+describe('the deploy stops injecting the static AWS credentials', () => {
+  const script = readFileSync(
+    fileURLToPath(new URL('../../../../../.github/scripts/deploy-ecs-image.sh', import.meta.url)),
+    'utf8',
+  );
+
+  it('the workflow names both variables for removal', () => {
+    const declared = /TASK_SECRET_REMOVALS_JSON:\s*'(\[.*?\])'/.exec(workflow);
+    expect(declared, 'the workflow declares no removals').not.toBeNull();
+    expect(JSON.parse(declared![1]).sort()).toEqual(['AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY']);
+  });
+
+  it('and the render actually filters on that list', () => {
+    // The wiring, not the declaration: the carried-forward `.secrets` must be
+    // filtered by the removals, in the same expression that filters by the
+    // override names.
+    expect(script).toContain('--argjson taskSecretRemovals "$TASK_SECRET_REMOVALS_JSON"');
+    expect(script).toMatch(/\$taskSecretRemovals \| index\(\$existingName\)\) == null/);
+  });
+
+  it('refuses a variable that is both removed and replaced', () => {
+    // A contradiction resolved silently is a contradiction nobody sees.
+    expect(script).toContain('TASK_SECRET_REMOVALS_JSON and TASK_SECRET_OVERRIDES_JSON name the same variable');
+  });
+
+  it('and the code can survive their absence', () => {
+    // The half that makes the removal safe rather than an outage: an S3 client
+    // built with an EMPTY credential signs with nothing. `lib/s3.ts` must omit
+    // the key entirely so the SDK resolves the task role.
+    const s3 = readFileSync(fileURLToPath(new URL('../../lib/s3.ts', import.meta.url)), 'utf8');
+    expect(s3).toContain('resolveS3Credentials');
+    expect(s3).not.toContain("process.env.AWS_ACCESS_KEY_ID || ''");
+  });
+});
