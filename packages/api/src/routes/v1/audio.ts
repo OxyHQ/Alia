@@ -159,7 +159,9 @@ router.post('/speech', async (req: Request, res: Response) => {
     res.json({ audioUrl });
   } catch (error: unknown) {
     if (reservation && !settled) {
-      settled = true;
+      // No `settled = true` here: nothing reads it after a catch, and eslint
+      // `no-useless-assignment` is right to call that out. The GUARD is what
+      // matters — it is why a charged reservation is not also refunded.
       await refundReservation(reservation).catch((err: unknown) =>
         log.general.error({ err, userId: req.user?.id }, 'refundReservation failed after TTS error'));
     }
@@ -253,7 +255,9 @@ router.post('/generate', async (req: Request, res: Response) => {
     void processAudioGeneration({ jobId, userId, prompt, duration, reservation, conversationId, messageId });
   } catch (error: unknown) {
     if (reservation && !settled) {
-      settled = true;
+      // No `settled = true` here: nothing reads it after a catch, and eslint
+      // `no-useless-assignment` is right to call that out. The GUARD is what
+      // matters — it is why a charged reservation is not also refunded.
       await refundReservation(reservation).catch((err: unknown) =>
         log.general.error({ err, userId: req.user?.id }, 'refundReservation failed after submission error'));
     }
