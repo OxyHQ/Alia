@@ -10,6 +10,9 @@ import { createOpenAI } from '@ai-sdk/openai';
 import { createAnthropic } from '@ai-sdk/anthropic';
 
 import { TTLCache } from './ttl-cache.js';
+import { kaanaServes } from './inference/kaana-catalogue.js';
+import { kaanaLanguageModel } from './inference/kaana-language-model.js';
+import type { AliaInferenceSurface } from './inference/product-seam.js';
 import {
   resolveAliaModel as internalResolveAliaModel,
   getDefaultAliaModel,
@@ -44,6 +47,16 @@ export interface ResolvedModel {
   model: string;
   modelId: string;
   keyConfig: KeyConfig;
+  /**
+   * The canonical name to send Kaana, or `null` when Kaana does not serve it.
+   *
+   * Decided from Kaana's OWN catalogue, never from a table here: a copy of
+   * someone else's catalogue keeps offering what was removed and never offers
+   * what was added. `null` covers every way of not knowing — an unreachable
+   * Kaana, a stale snapshot, a model line it has no deployment for — and the
+   * caller then does what it did before.
+   */
+  kaanaReference: string | null;
   aliaModel: AliaModel;
   isFallback: boolean;
   fallbackIndex?: number;
@@ -75,9 +88,19 @@ export async function resolveModel(
     options
   );
   if (!result) return null;
+  // `publisher/model` — who released it over what they call it — is the shape
+  // Kaana names every deployment by, and Alia already carries both halves. The
+  // provider-native `modelId` is NOT that name: `claude-sonnet-4-20250514` and
+  // `deepseek-chat` are what one vendor's API calls them, and Kaana answers
+  // `invalid_request` to both.
+  const canonical =
+    result.publisher === undefined || result.model === undefined
+      ? null
+      : `${result.publisher}/${result.model}`;
   return {
     ...result,
     aliasModelId: result.aliasModelId || aliasModelId,
+    kaanaReference: canonical !== null && (await kaanaServes(canonical)) ? canonical : null,
   } as ResolvedModel;
 }
 
@@ -117,7 +140,22 @@ function openAICompatibleProvider(provider: string, apiKey: string, baseURL: str
 /**
  * Create an AI SDK model instance based on the resolved key config.
  */
-export function getAIModel(keyConfig: KeyConfig) {
+export function getAIModel(resolved: ResolvedModel, surface: AliaInferenceSurface) {
+  // Kaana first, and not as a fallback: whether it serves this model was
+  // decided from its own catalogue before the call, so there is no error to
+  // recover from here. A try-Kaana-then-retry-elsewhere shape would bill twice
+  // for one answer and hide which one produced it.
+  //
+  // A non-empty STRING, not merely `!== null`: a resolution that never set the
+  // field at all — a fixture, or a remote gateway that returns its own shape —
+  // would otherwise be routed to Kaana under the reference `undefined`. The
+  // type says the field is there; the value is what decides.
+  const reference = resolved.kaanaReference;
+  if (typeof reference === 'string' && reference !== '') {
+    return kaanaLanguageModel({ modelReference: reference, surface });
+  }
+
+  const keyConfig = resolved.keyConfig;
   const apiKey = keyConfig.key;
   const modelId = keyConfig.modelId;
   const provider = keyConfig.provider;

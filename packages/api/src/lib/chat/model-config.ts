@@ -61,7 +61,7 @@ export interface BaseConfigResult {
 export function buildBaseConfig(params: BuildBaseConfigParams): BaseConfigResult {
   const { resolved, body, convertedMessages, truncatedTools, reasoningEffort, systemPromptTokens, streamState, onUsage } = params;
 
-  const model = getAIModel(resolved.keyConfig);
+  const model = getAIModel(resolved, 'chat');
 
   // Build common config for both streaming and non-streaming
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- AI SDK config is dynamically extended; strict SDK param types don't support this pattern

@@ -175,7 +175,7 @@ router.post('/trigger', oxyServiceAuth, async (req, res) => {
       return;
     }
 
-    const model = getAIModel(resolved.keyConfig);
+    const model = getAIModel(resolved, 'background');
     // Build tools — authenticated user tools + general tools
     const tools: ToolSet = {
       getCurrentDate: getCurrentDateTool,
