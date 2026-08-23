@@ -25,16 +25,16 @@
       "alias": "alia-lite",
       "becomes": { "kind": "routing-profile", "id": "profile:lite" },
       "tier": "lite",
-      "distinctModels": 17,
-      "distinctProviders": 14,
-      "evidence": "alia-models.ts:62-74 gives tier 'lite'; generate-model-mappings.ts ranks 17 distinct models across 14 providers. The seventeenth is Groq's openai/gpt-oss-20b, added 2026-08-23: it is the same weights the digitalocean row already served, and it was the only Groq chat route that resolved once Groq's catalogue stopped listing llama-3.3-70b-versatile."
+      "distinctModels": 16,
+      "distinctProviders": 13,
+      "evidence": "alia-models.ts:62-74 gives tier 'lite'; generate-model-mappings.ts ranks 16 distinct models across 13 providers. Recounted 2026-08-23 after two changes that cancelled in the model count and not in the provider count: Groq gained openai/gpt-oss-20b, the same weights the digitalocean row already served, and xAI lost grok-4-fast, which xAI no longer serves and which was xAI's only entry in this tier."
     },
     {
       "alias": "alia-v1",
       "becomes": { "kind": "routing-profile", "id": "profile:v1" },
       "tier": "v1",
-      "distinctModels": 17,
-      "distinctProviders": 14,
+      "distinctModels": 16,
+      "distinctProviders": 13,
       "evidence": "alia-models.ts:75-87 gives tier 'v1'; generate-model-mappings.ts:54-72 ranks 17 distinct models across 14 providers."
     },
     {
@@ -49,24 +49,24 @@
       "alias": "alia-v1-browser",
       "becomes": { "kind": "routing-profile", "id": "profile:v1-browser" },
       "tier": "v1-browser",
-      "distinctModels": 13,
-      "distinctProviders": 12,
+      "distinctModels": 12,
+      "distinctProviders": 11,
       "evidence": "alia-models.ts:112-123 gives tier 'v1-browser'; generate-model-mappings.ts:102-116 ranks 13 distinct models across 12 providers."
     },
     {
       "alias": "alia-v1-codea",
       "becomes": { "kind": "routing-profile", "id": "profile:v1-codea" },
       "tier": "v1-codea",
-      "distinctModels": 14,
-      "distinctProviders": 12,
+      "distinctModels": 13,
+      "distinctProviders": 11,
       "evidence": "alia-models.ts:88-99 gives tier 'v1-codea'; generate-model-mappings.ts:73-88 ranks 14 distinct models across 12 providers."
     },
     {
       "alias": "alia-v1-cowork",
       "becomes": { "kind": "routing-profile", "id": "profile:v1-cowork" },
       "tier": "v1-cowork",
-      "distinctModels": 11,
-      "distinctProviders": 11,
+      "distinctModels": 10,
+      "distinctProviders": 10,
       "evidence": "alia-models.ts:100-111 gives tier 'v1-cowork'; generate-model-mappings.ts:89-101 ranks 11 distinct models across 11 providers."
     },
     {

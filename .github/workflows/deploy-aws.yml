@@ -102,24 +102,6 @@ jobs:
           APP_INTEGRATIONS_SECRET: ${{ secrets.INTEGRATIONS_SECRET }}
           APP_VAPID_PUBLIC_KEY: ${{ secrets.VAPID_PUBLIC_KEY }}
           APP_VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
-          # PROVIDER CREDENTIALS, AND THEY ARE THE ONE PAIR HERE THAT THE TASK
-          # DEFINITION DOES NOT CONSUME. Every other entry below is a
-          # task-definition `secrets` reference, injected at launch. These are
-          # not, deliberately: `scripts/provider-key.ts` reads the parameter by
-          # NAME inside a one-shot task and writes the value into
-          # `provider_keys`, so nothing sensitive reaches argv, a shell history
-          # or the task description. Declaring them as `secrets` instead would
-          # put an upstream provider credential in EVERY task's environment,
-          # which is what `lib/inference/direct-provider-guard.ts` refuses to
-          # boot on.
-          #
-          # Only the providers this repository's routing table actually names.
-          # OpenRouter is absent on purpose: `generate-model-mappings.ts` has no
-          # `openrouter` mapping at all, so the key would sit in SSM unused —
-          # that credential belongs to Kaana, which routes 338 OpenRouter
-          # deployments and is where inference is moving.
-          APP_PROVIDER_KEY_GROQ: ${{ secrets.PROVIDER_KEY_GROQ }}
-          APP_PROVIDER_KEY_XAI: ${{ secrets.PROVIDER_KEY_XAI }}
           SHARED_AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           SHARED_AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           SHARED_LIVEKIT_API_KEY: ${{ secrets.LIVEKIT_API_KEY }}
@@ -142,8 +124,6 @@ jobs:
           sync_secret INTEGRATIONS_SECRET "$APP_INTEGRATIONS_SECRET" "/oxy/$APP/INTEGRATIONS_SECRET"
           sync_secret VAPID_PUBLIC_KEY "$APP_VAPID_PUBLIC_KEY" "/oxy/$APP/VAPID_PUBLIC_KEY"
           sync_secret VAPID_PRIVATE_KEY "$APP_VAPID_PRIVATE_KEY" "/oxy/$APP/VAPID_PRIVATE_KEY"
-          sync_secret PROVIDER_KEY_GROQ "$APP_PROVIDER_KEY_GROQ" "/oxy/$APP/PROVIDER_KEY_GROQ"
-          sync_secret PROVIDER_KEY_XAI "$APP_PROVIDER_KEY_XAI" "/oxy/$APP/PROVIDER_KEY_XAI"
           sync_secret AWS_ACCESS_KEY_ID "$SHARED_AWS_ACCESS_KEY_ID" "/oxy/_shared/AWS_ACCESS_KEY_ID"
           sync_secret AWS_SECRET_ACCESS_KEY "$SHARED_AWS_SECRET_ACCESS_KEY" "/oxy/_shared/AWS_SECRET_ACCESS_KEY"
           sync_secret LIVEKIT_API_KEY "$SHARED_LIVEKIT_API_KEY" "/oxy/_shared/LIVEKIT_API_KEY"

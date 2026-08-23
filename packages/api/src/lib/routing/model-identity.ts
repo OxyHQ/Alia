@@ -133,9 +133,8 @@ const MODEL_DISPLAY_NAMES: Readonly<Record<string, string>> = {
   'perplexity/sonar-pro': 'Sonar Pro',
   'perplexity/sonar-reasoning-pro': 'Sonar Reasoning Pro',
   'stability/sdxl': 'SDXL',
-  'xai/grok-3': 'Grok 3',
-  'xai/grok-4': 'Grok 4',
-  'xai/grok-4-fast': 'Grok 4 Fast',
+  'xai/grok-4.3': 'Grok 4.3',
+  'xai/grok-4.6': 'Grok 4.6',
   'xai/grok-realtime': 'Grok Realtime',
 };
 
