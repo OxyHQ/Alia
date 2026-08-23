@@ -38,7 +38,7 @@ import {
 } from "@/lib/hooks/use-agent-teams";
 import { AgentCard } from "@/components/agent-card";
 import { toast } from "@oxyhq/bloom/toast";
-import { confirm } from "@oxyhq/bloom/alert-dialog";
+import { confirm } from "@oxyhq/bloom/surfaces";
 import { cn } from "@/lib/utils";
 import apiClient from "@/lib/api/client";
 import { API_ROUTES } from "@/lib/api/routes";

@@ -19,7 +19,7 @@ import {
   ArrowUp,
   ExternalLink,
 } from "lucide-react-native";
-import { confirm } from "@oxyhq/bloom/alert-dialog";
+import { confirm } from "@oxyhq/bloom/surfaces";
 import { withAlpha } from "@oxyhq/bloom/theme";
 import { Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";

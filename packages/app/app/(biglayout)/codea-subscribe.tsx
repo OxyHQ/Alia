@@ -15,7 +15,7 @@ import {
 import { useAuth } from '@oxyhq/services';
 import { toast } from '@oxyhq/bloom/toast';
 import { useTranslation } from '@/lib/hooks/use-translation';
-import { confirm } from '@oxyhq/bloom/alert-dialog';
+import { confirm } from '@oxyhq/bloom/surfaces';
 import { useColorScheme } from '@/lib/useColorScheme';
 import {
   type BillingPeriod,

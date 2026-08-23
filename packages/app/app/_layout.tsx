@@ -9,8 +9,7 @@ import * as Linking from 'expo-linking';
 import { Platform } from 'react-native';
 
 import { AppErrorBoundary } from '@/components/error-boundary';
-import { AlertDialogHost } from '@oxyhq/bloom/alert-dialog';
-import { BloomDialogProvider } from '@oxyhq/bloom/dialog';
+import { SurfaceHost } from '@oxyhq/bloom/surfaces';
 import { KeyboardProvider } from '@/lib/keyboard';
 import { useColorScheme } from '@/lib/useColorScheme';
 import { setTokenGetter } from '@/lib/api/client';
@@ -67,24 +66,22 @@ function AppContent() {
 
   return (
     <AuthSetup>
-      <BloomDialogProvider>
-        <KeyboardProvider>
-          <Stack
-            screenOptions={{
-              contentStyle: {
-                backgroundColor: colors.background,
-              },
-            }}
-          >
-            <Stack.Screen name="(app)" options={{ headerShown: false }} />
-            <Stack.Screen name="(biglayout)" options={{ headerShown: false }} />
-          </Stack>
-        </KeyboardProvider>
-        {/* No <ToastOutlet /> here on purpose: OxyProvider mounts one already,
-            and a second outlet renders every toast twice. */}
-        <ConnectionStatusToasts />
-        <AlertDialogHost />
-      </BloomDialogProvider>
+      <KeyboardProvider>
+        <Stack
+          screenOptions={{
+            contentStyle: {
+              backgroundColor: colors.background,
+            },
+          }}
+        >
+          <Stack.Screen name="(app)" options={{ headerShown: false }} />
+          <Stack.Screen name="(biglayout)" options={{ headerShown: false }} />
+        </Stack>
+      </KeyboardProvider>
+      {/* No <ToastOutlet /> here on purpose: OxyProvider mounts one already,
+          and a second outlet renders every toast twice. */}
+      <ConnectionStatusToasts />
+      <SurfaceHost />
     </AuthSetup>
   );
 }

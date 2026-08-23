@@ -5,21 +5,16 @@ import { Search, MoreHorizontal, Menu, Mic } from "lucide-react-native";
 import { GhostIcon } from "@/components/ui/ghost-icon";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Button } from "@/components/ui/button";
-import { ModelSelector } from "@/components/model-selector";
 import { CreditsMenu } from "@/components/credits-menu";
 import { useNavigation, useRouter } from "expo-router";
 import type { DrawerNavigationProp } from "expo-router/drawer";
 import * as DropdownMenu from "@/components/ui/dropdown-menu";
 import { toast } from "@oxyhq/bloom/toast";
-import { confirm } from "@oxyhq/bloom/alert-dialog";
+import { confirm } from "@oxyhq/bloom/surfaces";
 import { useTranslation } from "@/lib/hooks/use-translation";
 import { useTheme, withAlpha } from "@oxyhq/bloom/theme";
 
 interface ChatHeaderProps {
-  title: string;
-  /** The identifier the user chose; the picker resolves it against the catalogue. */
-  selectedModel: string;
-  onModelChange: (modelId: string) => void;
   onGhostModePress?: () => void;
   ghostModeActive?: boolean;
   onSearchPress?: () => void;
@@ -31,9 +26,6 @@ interface ChatHeaderProps {
 // Memoized: the chat screen re-renders ~20×/s while streaming and none of
 // these props change per token.
 export const ChatHeader = React.memo(function ChatHeader({
-  title,
-  selectedModel,
-  onModelChange,
   onGhostModePress,
   ghostModeActive = false,
   onSearchPress,
@@ -91,10 +83,6 @@ export const ChatHeader = React.memo(function ChatHeader({
         >
           <Menu size={20} className="text-muted-foreground" />
         </Button>
-        <ModelSelector
-          selectedModel={selectedModel}
-          onModelChange={onModelChange}
-        />
         {isVoiceActive && (
           <View className="h-6 rounded-full px-2 flex-row items-center gap-1" style={{ backgroundColor: withAlpha(colors.info, 0.15) }}>
             <Mic size={12} color={colors.info} />

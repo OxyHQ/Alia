@@ -23,11 +23,10 @@ import { DEV_ORIGINS, PRODUCTION_ORIGINS, createInternalCors } from '../lib/cors
  * Three middlewares on one server, so the leak and its absence are read the
  * same way, through the same client.
  *
- * `/unfiltered` is the state this file was written about: an allowlist carrying
- * `exp://localhost:8150`, handed straight to `createOxyCors`. It is the
- * positive control for every "no header" assertion below — without it, a probe
- * that silently sent no `Origin` at all would produce exactly the same clean
- * result as a fixed matcher.
+ * `/unfiltered` deliberately hands `exp://localhost:8150` straight to
+ * `createOxyCors`. This locks the shared helper's repaired behavior in addition
+ * to Alia's own defensive filtering: neither layer may turn one opaque origin
+ * into permission for every custom scheme.
  */
 const MOUNTS = {
   shipped: '/shipped',
@@ -98,24 +97,20 @@ afterAll(
 );
 
 describe('the internal-routes CORS middleware', () => {
-  it('leaks every custom scheme when one opaque origin is on the list', async () => {
+  it('rejects every custom scheme when one opaque origin is on the list', async () => {
     /**
-     * The reproduction, in test form. `exp` is not a special scheme, so
-     * `new URL('exp://localhost:8150').origin` is the STRING `"null"` and the
-     * explicit-origin set holds `"null"`; every other non-special scheme
-     * normalises to the same `"null"` and therefore matches, and the middleware
-     * echoes back the RAW header it matched. Measured identically against
-     * `https://api.alia.onl/catalogue` on 2026-08-19, credentialed.
+     * This was the original reproduction: every custom scheme serialises to an
+     * opaque origin. The shared helper now rejects that configuration instead
+     * of echoing the raw Origin header, and this direct mount prevents a future
+     * dependency change from silently reopening the hole.
      */
     for (const origin of CUSTOM_SCHEME_ORIGINS) {
       const answer = await ask(MOUNTS.unfiltered, origin);
-      expect(answer.allowOrigin).toBe(origin);
-      expect(answer.allowCredentials).toBe('true');
+      expect(answer.allowOrigin).toBeNull();
+      expect(answer.allowCredentials).toBeNull();
     }
 
-    // And the bound on it, which is why this was a hole and not a wildcard: a
-    // normal https origin off the list, and a literal `null`, were refused by
-    // the same broken matcher.
+    // Normal web and literal opaque origins remain refused as well.
     expect((await ask(MOUNTS.unfiltered, 'https://evil.example.com')).allowOrigin).toBeNull();
     expect((await ask(MOUNTS.unfiltered, 'null')).allowOrigin).toBeNull();
   });

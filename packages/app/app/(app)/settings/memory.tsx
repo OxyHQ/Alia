@@ -6,7 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Dialog, type DialogAction } from "@oxyhq/bloom/dialog";
-import { confirm } from "@oxyhq/bloom/alert-dialog";
+import { confirm } from "@oxyhq/bloom/surfaces";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useOxy, useAuth } from "@oxyhq/services";
 import { useRouter } from "expo-router";
@@ -131,7 +131,7 @@ export default function MemoryScreen() {
    * The model applies it through its own `saveUserMemory` tool.
    */
   const startMemoryChat = (draft: string) => {
-    useStore.getState().setComposerDraft({ text: draft, target: null });
+    useStore.getState().setComposerDraft({ text: draft, target: null, mcpServerId: null });
     router.replace('/(app)');
   };
 

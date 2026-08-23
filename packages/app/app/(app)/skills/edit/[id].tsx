@@ -32,7 +32,7 @@ import { useTranslation } from '@/lib/hooks/use-translation';
 import { useColorScheme } from '@/lib/useColorScheme';
 import { useSkillsStore } from '@/lib/stores/skills-store';
 import { toast } from '@oxyhq/bloom/toast';
-import { confirm } from '@oxyhq/bloom/alert-dialog';
+import { confirm } from '@oxyhq/bloom/surfaces';
 import { cn } from '@/lib/utils';
 import { ContentPanel } from "@oxyhq/bloom/content-panel";
 
