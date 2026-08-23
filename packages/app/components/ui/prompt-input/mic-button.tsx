@@ -1,12 +1,13 @@
 import React, { useEffect } from "react";
 import { Pressable, ActivityIndicator } from "react-native";
-import { Mic, MicOff } from "lucide-react-native";
+import { MicOff } from "lucide-react-native";
 import { cn } from "@/lib/utils";
 import { useColorScheme } from "@/lib/useColorScheme";
 import { useTheme } from "@oxyhq/bloom/theme";
 import { useSpeechToText } from "@/lib/hooks/use-speech-to-text";
 import { toast } from "@oxyhq/bloom/toast";
 import { usePromptInput } from "./context";
+import { ComposerGlyph } from "./composer-glyph";
 
 export type PromptInputMicButtonProps = {
   className?: string;
@@ -37,8 +38,9 @@ export function PromptInputMicButton({ className }: PromptInputMicButtonProps) {
     <Pressable
       onPress={handlePress}
       disabled={stt.isTranscribing}
+      accessibilityLabel={stt.isRecording ? "Stop recording" : "Dictate"}
       className={cn(
-        "h-10 w-10 rounded-full items-center justify-center web:hover:bg-muted active:bg-muted",
+        "h-9 w-9 rounded-full items-center justify-center web:hover:bg-muted active:bg-muted",
         className
       )}
     >
@@ -47,7 +49,7 @@ export function PromptInputMicButton({ className }: PromptInputMicButtonProps) {
       ) : stt.isRecording ? (
         <MicOff size={18} color={themeColors.error} />
       ) : (
-        <Mic size={18} className="text-muted-foreground" />
+        <ComposerGlyph name="microphone" size={20} color={colors.mutedForeground} />
       )}
     </Pressable>
   );

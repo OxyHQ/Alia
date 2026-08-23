@@ -26,7 +26,7 @@
   "author": "Alia",
   "license": "MIT",
   "dependencies": {
-    "@oxyhq/core": "^19.1.2",
+    "@oxyhq/core": "^21.0.2",
     "chalk": "^5.6.2",
     "commander": "^15.0.0",
     "conf": "^15.1.0",

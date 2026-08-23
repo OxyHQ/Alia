@@ -145,6 +145,11 @@ Drive remain, lacking a hosted MCP.
   as it does.
 - The `lib/mcp/` governance layer was deleted as dead code; `buildMcpTools` is
   called directly. Wire any reintroduction into that path, not orphaned.
+- The chat composer exposes only hosted connectors that are enabled, running,
+  server-side and have tools. Its optional `mcpServerId` is a per-turn
+  allow-list: omitted preserves legacy all-connector callers, `null` means no
+  MCP tools, and a verified owned id exposes only that connector. Never trust a
+  client id without re-checking ownership and runnable state in the API.
 
 ## Agent bots: an Agent's own Telegram presence
 
@@ -214,6 +219,11 @@ TTS fails over across providers via `synthesize-speech.ts` and
   `SectionHeader`, `GhostIconButton`. Reuse them rather than inlining duplicate
   row markup. Desktop collapse is a 56px icon rail driven by the `ui-store`
   `sidebarOpen` flag.
+- The main chat's unified composer owns attachments, capability/app selection,
+  model selection and reasoning effort. Its picker consumes
+  `@oxyhq/bloom/dropdown-menu`; Alia owns state/content, never menu surfaces,
+  rows, focus, placement or dismissal. Keep chat-only controls out of
+  `ChatHeader` and generic `PromptInput` consumers.
 
 ## `@alia.onl/sdk` (packages/alia-chat)
 

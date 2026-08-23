@@ -3,7 +3,7 @@ import { useRouter } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/hooks/query-keys";
 import { useStore, type Attachment } from "@/lib/stores/global-store";
-import { useStreamingChat } from "@/lib/hooks/use-streaming-chat";
+import { useStreamingChat, type SendOptions } from "@/lib/hooks/use-streaming-chat";
 import { useConversation, useCreateConversation, useDeleteConversation } from "@/lib/hooks/use-conversations";
 import { generateAPIUrl } from "@/lib/generate-api-url";
 import { API_ROUTES } from "@/lib/api/routes";
@@ -144,7 +144,10 @@ export function useChatConversation({ conversationId, reasoningEffort, selectedM
     useStore.getState().setBottomChatHeightHandler(true);
     useStore.getState().clearPendingInitialMessage();
 
-    void append({ role: 'user', content: pending.content }).then(async (outcome) => {
+    void append(
+      { role: 'user', content: pending.content },
+      { mcpServerId: pending.mcpServerId },
+    ).then(async (outcome) => {
       if (outcome !== 'failed') return;
 
       // The conversation was created by POST /conversations/new before the model
@@ -153,15 +156,23 @@ export function useChatConversation({ conversationId, reasoningEffort, selectedM
       // A failed delete still leaves the user whole — it only leaves the row.
       await deleteConversation(conversationId).catch(() => {});
       useStore.getState().setAttachments(pending.attachments);
-      useStore.getState().setComposerDraft({ text: pending.text, target: null });
+      useStore.getState().setComposerDraft({
+        text: pending.text,
+        target: null,
+        mcpServerId: pending.mcpServerId,
+      });
       router.replace("/(app)");
       toast.error(i18n.t('chat.sendFailed'));
     });
   }, [conversationId, pendingInitialMessage, isLoading, messages.length, append, deleteConversation, router]);
 
   // Actions
-  const sendMessage = useCallback(async (content: string, attachments?: Attachment[]) => {
-    if (!content.trim() || isLoading) return;
+  const sendMessage = useCallback(async (
+    content: string,
+    attachments?: Attachment[],
+    options?: SendOptions,
+  ): Promise<boolean> => {
+    if ((!content.trim() && !attachments?.length) || isLoading) return false;
 
     useStore.getState().setBottomChatHeightHandler(true);
 
@@ -171,23 +182,32 @@ export function useChatConversation({ conversationId, reasoningEffort, selectedM
 
     useStore.getState().clearAttachments();
 
-    const outcome = await append({
-      role: 'user',
-      content: messageContent,
-    });
+    const outcome = await append(
+      { role: 'user', content: messageContent },
+      options,
+    );
 
     // Nothing was persisted server-side (a turn without an assistant response is
     // never saved), so returning the composer to its pre-send state is the whole
     // rollback.
     if (outcome === 'failed') {
       useStore.getState().setAttachments(attachments ?? []);
-      useStore.getState().setComposerDraft({ text: content, target: conversationId ?? null });
+      useStore.getState().setComposerDraft({
+        text: content,
+        target: conversationId ?? null,
+        mcpServerId: options?.mcpServerId ?? null,
+      });
       toast.error(i18n.t('chat.sendFailed'));
     }
+    return outcome !== 'failed';
   }, [isLoading, append, conversationId]);
 
-  const createNewConversation = useCallback(async (initialMessage: string, attachments?: Attachment[]) => {
-    if (!initialMessage.trim()) return;
+  const createNewConversation = useCallback(async (
+    initialMessage: string,
+    attachments?: Attachment[],
+    options?: SendOptions,
+  ): Promise<boolean> => {
+    if (!initialMessage.trim() && !attachments?.length) return false;
 
     // If there are attachments, build multi-part content and store it as pending.
     // The raw text and attachments ride along so a failed send can restore them.
@@ -199,6 +219,7 @@ export function useChatConversation({ conversationId, reasoningEffort, selectedM
       content,
       text: initialMessage,
       attachments: pendingAttachments,
+      mcpServerId: options?.mcpServerId ?? null,
     });
     useStore.getState().clearAttachments();
 
@@ -208,17 +229,27 @@ export function useChatConversation({ conversationId, reasoningEffort, selectedM
 
       // Navigate to the new conversation
       router.replace({ pathname: "/(app)/c/[id]", params: { id: newConversation.id } });
+      return true;
     } catch {
       // useCreateConversation.onError already shows the toast. Drop the queued
       // message — left behind it auto-fires into the next empty conversation the
       // user opens — and hand the composer back what it was holding.
       useStore.getState().clearPendingInitialMessage();
       useStore.getState().setAttachments(pendingAttachments);
-      useStore.getState().setComposerDraft({ text: initialMessage, target: null });
+      useStore.getState().setComposerDraft({
+        text: initialMessage,
+        target: null,
+        mcpServerId: options?.mcpServerId ?? null,
+      });
+      return false;
     }
   }, [router, createConversationMutation, agentId]);
 
-  const editMessage = useCallback(async (messageId: string, newContent: string) => {
+  const editMessage = useCallback(async (
+    messageId: string,
+    newContent: string,
+    options?: SendOptions,
+  ): Promise<boolean> => {
     // Truncate to messages before the edited one, then re-send.
     // setMessages eagerly syncs messagesRef so append reads truncated history.
     const beforeEdit = messages;
@@ -227,15 +258,20 @@ export function useChatConversation({ conversationId, reasoningEffort, selectedM
       return idx < 0 ? prev : prev.slice(0, idx);
     });
 
-    const outcome = await append({ role: 'user', content: newContent });
+    const outcome = await append({ role: 'user', content: newContent }, options);
 
     // append rolls back to the truncated list; only this scope still knows what
     // was cut, so it restores the rest and returns the edit to the composer.
     if (outcome === 'failed') {
       setMessages(beforeEdit);
-      useStore.getState().setComposerDraft({ text: newContent, target: conversationId ?? null });
+      useStore.getState().setComposerDraft({
+        text: newContent,
+        target: conversationId ?? null,
+        mcpServerId: options?.mcpServerId ?? null,
+      });
       toast.error(i18n.t('chat.sendFailed'));
     }
+    return outcome !== 'failed';
   }, [setMessages, append, messages, conversationId]);
 
   const stopGeneration = useCallback(() => {

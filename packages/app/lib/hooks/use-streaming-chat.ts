@@ -28,6 +28,11 @@ export type { ToolInvocation };
  */
 export type SendOutcome = 'sent' | 'failed' | 'aborted';
 
+export interface SendOptions {
+  /** `null` explicitly withholds MCP tools; omission preserves legacy callers. */
+  mcpServerId?: string | null;
+}
+
 /** Server tools that mutate the user's memory document (see packages/api `lib/tools/user-memory.ts`). */
 const MEMORY_WRITING_TOOLS = new Set([
   'saveUserMemory',
@@ -162,7 +167,10 @@ export function useStreamingChat(apiUrl: string, conversationId?: string, reason
     }
   }, []);
 
-  const append = useCallback(async (message: Omit<Message, 'id'>): Promise<SendOutcome> => {
+  const append = useCallback(async (
+    message: Omit<Message, 'id'>,
+    options?: SendOptions,
+  ): Promise<SendOutcome> => {
     setIsLoading(true);
     setError(null);
 
@@ -276,6 +284,9 @@ export function useStreamingChat(apiUrl: string, conversationId?: string, reason
           ...(agentId && { agentId }),
           ...(agentMode && { agentMode: true }),
           ...(deepResearchMode && { deepResearch: true }),
+          ...(options?.mcpServerId === undefined
+            ? {}
+            : { mcpServerId: options.mcpServerId }),
         }),
         signal: abortControllerRef.current.signal,
       });

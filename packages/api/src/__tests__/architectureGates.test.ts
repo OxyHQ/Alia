@@ -3530,12 +3530,11 @@ describe('gate 8: first-party clients call the product runtime (#139 ws6, ADR 00
  * *An origin on an allowlist must SERIALISE to an origin.*
  *
  * `new URL(x).origin` answers with the string `"null"` for every scheme the URL
- * standard does not make special — the opaque origin — and `createOxyCors`
- * builds its explicit-origin set out of exactly that value. So a single entry
- * with an opaque origin does not admit one extra origin; it admits EVERY
- * non-special scheme at once, and the middleware then echoes back the raw
- * `Origin` header it matched together with `access-control-allow-credentials:
- * true`.
+ * standard does not make special — the opaque origin. The older shared CORS
+ * matcher built its explicit-origin set out of exactly that value, so one entry
+ * admitted EVERY non-special scheme at once. The shared helper now rejects
+ * opaque entries too, while this source gate remains the Alia-owned first line
+ * of defense.
  *
  * That was live. `exp://localhost:8150` sat in the dev allowlist since before
  * the port renumbering in #65 (it arrived as `exp://localhost:8081`, the shape
