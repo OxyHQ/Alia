@@ -154,10 +154,15 @@ export const GENERATED_TIER_MAPPINGS: Record<AliaTier, ModelMapping[]> = {
     // Gemini TTS runs on the same keys chat uses, so it is the primary working
     // provider today; DigitalOcean ElevenLabs backs it up. (OpenRouter serves no
     // TTS endpoint — it 400s — so it is intentionally not in the chain.)
-    createMapping('openai', 'openai', 'tts-1', 'tts-1', 1, 90),
-    createMapping('openai', 'openai', 'tts-1-hd', 'tts-1-hd', 2, 95),
-    createMapping('google', 'google', 'gemini-2.5-flash-preview-tts', 'gemini-2.5-flash-preview-tts', 3, 88),
-    createMapping('digitalocean', 'elevenlabs', 'eleven-multilingual-v2', 'fal-ai/elevenlabs/tts/multilingual-v2', 4, 87),
+    // ElevenLabs DIRECT is first because its key is a free monthly quota, and
+    // `key-manager.ts` already prefers a free key over a paid one — ranking it
+    // here is the same preference expressed one level up, where the choice is
+    // between providers rather than between keys of one provider.
+    createMapping('elevenlabs', 'elevenlabs', 'eleven-multilingual-v2', 'eleven_multilingual_v2', 1, 96),
+    createMapping('openai', 'openai', 'tts-1', 'tts-1', 2, 90),
+    createMapping('openai', 'openai', 'tts-1-hd', 'tts-1-hd', 3, 95),
+    createMapping('google', 'google', 'gemini-2.5-flash-preview-tts', 'gemini-2.5-flash-preview-tts', 4, 88),
+    createMapping('digitalocean', 'elevenlabs', 'eleven-multilingual-v2', 'fal-ai/elevenlabs/tts/multilingual-v2', 5, 87),
   ],
   'v1-image': [
     createMapping('openai', 'openai', 'dall-e-3', 'dall-e-3', 1, 92),

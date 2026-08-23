@@ -42,6 +42,7 @@ export const NO_CATALOGUE: Readonly<Record<string, string>> = {
   google: 'Its catalogue is the Generative Language API, which answers a different shape under a query-string key rather than a bearer token.',
   cloudflare: 'Model ids are account-scoped Workers AI paths; listing them needs the account id as well as the token.',
   replicate: 'Models are owner/name pairs with versions, not a flat id list; a mapping names a version that outlives the id.',
+  elevenlabs: 'It has a model list, but behind `xi-api-key` rather than the bearer token `sync-provider-models.ts` sends — the same reason google is here, arrived at the same way.',
 };
 
 /** `null` when this script has no way to ask that provider. */

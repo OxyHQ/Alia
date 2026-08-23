@@ -79,6 +79,9 @@ export function resolveVoiceForProvider(provider: string, requested: string | un
     case 'google':
       return entry ? entry.gemini : GEMINI_DEFAULT_VOICE.female;
     case 'digitalocean':
+    // The direct provider shares DigitalOcean's namespace because it IS the
+    // same catalogue — DO serves ElevenLabs voices, by ElevenLabs voice ID.
+    case 'elevenlabs':
       if (isElevenLabsVoiceId(voice)) return voice;
       return entry ? entry.elevenlabs : ELEVENLABS_DEFAULT_VOICE.female;
     default:
@@ -92,7 +95,7 @@ export function resolveVoiceForProvider(provider: string, requested: string | un
  */
 export function ttsOutputFormat(provider: string, requestedFormat: string): string {
   if (provider === 'google') return 'wav';
-  if (provider === 'digitalocean') return 'mp3';
+  if (provider === 'digitalocean' || provider === 'elevenlabs') return 'mp3';
   return requestedFormat;
 }
 

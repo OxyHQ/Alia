@@ -145,6 +145,10 @@ export const MODEL_CAPABILITIES: Record<string, ModelCapabilities> = {
   // Google Gemini TTS (generateContent AUDIO modality)
   'gemini-2.5-flash-preview-tts': createCapabilities({ audio: true, tools: false, functionCalling: false, streaming: false, maxContextTokens: 8192, maxOutputTokens: 8192 }),
 
+  // ElevenLabs direct. Same voices and same container as the DigitalOcean entry
+  // below — it is the same catalogue reached without the intermediary.
+  'eleven_multilingual_v2': createCapabilities({ audio: true, tools: false, functionCalling: false, streaming: false, maxContextTokens: 4096, maxOutputTokens: 4096 }),
+
   // DigitalOcean TTS / Audio
   'fal-ai/elevenlabs/tts/multilingual-v2': createCapabilities({ audio: true, tools: false, functionCalling: false, streaming: false, maxContextTokens: 4096, maxOutputTokens: 4096 }),
   'fal-ai/stable-audio-25/text-to-audio': createCapabilities({ audio: true, tools: false, functionCalling: false, streaming: false, maxContextTokens: 4096, maxOutputTokens: 4096 }),
