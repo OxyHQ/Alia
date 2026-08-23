@@ -25,6 +25,14 @@ export type FailoverReason =
   | 'format'
   | 'content_filter'
   | 'provider_unavailable'
+  /**
+   * The MODEL is not served by this provider — a 404 `model_not_found`, a
+   * decommissioned id, a typo in the routing table. Distinct from
+   * `provider_unavailable` because the provider and the credential are both
+   * fine: only this one mapping is dead, and the next mapping for the SAME
+   * provider must still be tried.
+   */
+  | 'model_not_found'
   | 'unknown';
 
 // ============== ERROR CODES ==============

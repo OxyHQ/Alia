@@ -36,7 +36,10 @@ describe('the census can see the table it claims to measure', () => {
     // Vacuity floor. An empty table satisfies "no publisher is outside the set"
     // and "every mapping has one" while measuring nothing at all.
     expect(Object.keys(GENERATED_TIER_MAPPINGS).length).toBeGreaterThanOrEqual(14);
-    expect(MAPPINGS.length).toBeGreaterThanOrEqual(115);
+    // 114 rather than 115 since 2026-08-23: `lite` carried `openai/gpt-oss-20b`
+    // twice, at priority 2 and again at 17, after Groq's dead llama-3.3 mapping
+    // was repointed at the id the stopgap entry already used.
+    expect(MAPPINGS.length).toBeGreaterThanOrEqual(114);
 
     // And it reaches the mappings written as object LITERALS rather than
     // through `createMapping`. The realtime voice tiers are spelled that way,
@@ -173,10 +176,13 @@ describe('publisher display names', () => {
 describe('model identity is the publisher\'s name, not the operator\'s id', () => {
   it('collapses the deployments that really are one model', () => {
     /**
-     * THE reason this field exists. Meta's Llama 3.3 70B is served under six
+     * THE reason this field exists. Meta's Llama 3.3 70B is served under five
      * ids, and `same-model-only` compared `modelId` — so a caller pinned to it
-     * got ONE deployment where six were eligible, and the policy reported
-     * exhaustion while five legitimate routes sat unused.
+     * got ONE deployment where five were eligible, and the policy reported
+     * exhaustion while four legitimate routes sat unused.
+     *
+     * Six until 2026-08-23: Groq decommissioned `llama-3.3-70b-versatile` and
+     * its mappings now point at `openai/gpt-oss-120b`.
      *
      * Named ids rather than a count, so the assertion cannot be satisfied by
      * six of something else collapsing.
@@ -186,14 +192,13 @@ describe('model identity is the publisher\'s name, not the operator\'s id', () =
       new Set([
         'Meta-Llama-3.3-70B-Instruct',
         'llama-3.3-70b',
-        'llama-3.3-70b-versatile',
         'llama3.3-70b-instruct',
         'meta-llama/llama-3.3-70b-instruct',
         'meta/meta-llama-3.3-70b-instruct',
       ]),
     );
-    // Six operators, so the collapse is across providers rather than within one.
-    expect(new Set(llama.map((m) => m.provider)).size).toBe(6);
+    // Five operators, so the collapse is across providers rather than within one.
+    expect(new Set(llama.map((m) => m.provider)).size).toBe(5);
   });
 
   it('is not a copy of the deployment id', () => {
@@ -212,7 +217,7 @@ describe('model identity is the publisher\'s name, not the operator\'s id', () =
     expect(differing.length).toBeGreaterThanOrEqual(24);
 
     // Named instances, so the count cannot be met by noise.
-    expect(ids.get('llama-3.3-70b-versatile')).toBe('llama-3.3-70b');
+    expect(ids.get('meta/meta-llama-3.3-70b-instruct')).toBe('llama-3.3-70b');
     expect(ids.get('openai-gpt-oss-20b')).toBe('gpt-oss-20b');
     expect(ids.get('fal-ai/fast-sdxl')).toBe('sdxl');
     expect(ids.get('accounts/fireworks/models/deepseek-v3')).toBe('deepseek-v3');
