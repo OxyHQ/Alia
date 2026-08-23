@@ -534,6 +534,7 @@
         "patch-package": "^8.0.1",
         "react-test-renderer": "19.2.3",
         "typescript": "~5.9.3",
+        "vitest": "^4.1.10",
       },
       "optionalDependencies": {
         "@tailwindcss/oxide-linux-x64-gnu": "4.2.2",

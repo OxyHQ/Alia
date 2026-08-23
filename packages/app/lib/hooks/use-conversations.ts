@@ -7,6 +7,7 @@ import { queryKeys } from './query-keys';
 import type { ToolInvocation } from '../types/messages';
 import type { ResearchProgress, PendingPlan } from '@alia.onl/sdk';
 import { errorMessage as getErrorMessage, errorStatus } from '../errors/error-utils';
+import { normalizeConversationMessages } from '../chat-message-history';
 
 /** Human-in-the-loop approval requested mid-stream for a sensitive tool call. */
 export interface PendingApproval {
@@ -176,6 +177,7 @@ async function fetchConversation(id: string): Promise<Conversation> {
       ...data,
       createdAt: new Date(data.createdAt),
       updatedAt: new Date(data.updatedAt),
+      messages: normalizeConversationMessages(data.messages || []),
     };
   } catch (error: unknown) {
     // If unauthorized or not found on server, fall back to local storage
@@ -189,6 +191,7 @@ async function fetchConversation(id: string): Promise<Conversation> {
             ...conversation,
             createdAt: new Date(conversation.createdAt),
             updatedAt: new Date(conversation.updatedAt),
+            messages: normalizeConversationMessages(conversation.messages || []),
           };
         }
       }
