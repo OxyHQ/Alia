@@ -20,6 +20,7 @@ import { authenticateToken, optionalAuth } from '../middleware/auth.js';
 import { resolveModel, getAIModel } from '../lib/chat-core.js';
 import { getUserLanguage } from '../lib/memory/user-memory-service.js';
 import { log } from '../lib/logger.js';
+import { generateTextViaKaana } from '../lib/inference/kaana-text.js';
 
 const aiSuggestionSchema = z.object({
   title: z.string().min(1),
@@ -40,6 +41,43 @@ const router = Router();
 
 const cache = new Map<string, { data: any; expiresAt: number }>();
 const CACHE_MAX_SIZE = 500;
+/**
+ * The instruction both inference paths send.
+ *
+ * One function rather than one literal per call site: while Kaana and the
+ * in-process provider tree both exist, two copies of this prompt would drift,
+ * and the drift would show as two surfaces answering differently for a reason
+ * invisible in a diff.
+ */
+function suggestionPrompt(input: {
+  count: number;
+  profileParts: string;
+  language: string;
+  types: readonly string[];
+}): string {
+  const { count, profileParts, language, types } = input;
+  return `Generate ${count} unique prompt suggestions as a JSON array.
+User profile: ${profileParts}
+
+Rules:
+- Each suggestion MUST start with a different verb (Write, Help, Explain, Create, Plan, Summarize, Compare, etc.)
+- Text must be a complete, ready-to-send prompt — NO placeholders like {username} or {variable}
+- Vary categories: mix productivity, creative, coding, learning, communication
+- Language: ${language} (all text in this language)
+- Types needed: ${types.join(', ')}
+  - "welcome": short title + description shown as cards (4-8 words title)
+  - "autocomplete": longer text shown as user types (complete sentence)
+
+JSON schema per item:
+{"title":"string","text":"string","description":"string","type":"welcome|autocomplete","category":"string","language":"${language}","triggerWords":["first 1-2 words of text"],"tags":["2-3"],"occupations":[],"interests":[]}
+
+Examples:
+- {"title":"Debug Code","text":"Help me debug this error and explain what went wrong","type":"autocomplete","category":"coding","language":"en-US","triggerWords":["help"],"tags":["coding","debug"],"occupations":[],"interests":[]}
+- {"title":"Creative Writing","text":"Write a short story about an unexpected friendship","type":"welcome","category":"creative","language":"en-US","triggerWords":["write"],"tags":["writing","creative"],"occupations":[],"interests":[]}
+
+Return ONLY a valid JSON array, no other text.`;
+}
+
 const SEARCH_CACHE_TTL = 3 * 60 * 1000; // 3 min — autocomplete results
 
 function cacheGet(key: string): any | null {
@@ -244,6 +282,14 @@ router.post('/generate', authenticateToken, async (req: Request, res: Response) 
     const MAX_PROVIDER_RETRIES = 3;
     const skipProviders = new Set<string>();
     let result: Awaited<ReturnType<typeof generateText>> | null = null;
+    /**
+     * Kaana's answer, when Kaana served this call. Kept apart from `result`
+     * rather than adapted into it: one is the AI SDK's shape and the other is
+     * the contract's, and one variable holding either would make every reader
+     * ask which. `null` means Kaana did not serve it, and the provider loop
+     * below is the fallback that exists until the in-process tree is deleted.
+     */
+    let kaanaText: string | null = null;
 
     // Build compact user profile string (only non-empty fields)
     const profileParts = [
@@ -254,7 +300,27 @@ router.post('/generate', authenticateToken, async (req: Request, res: Response) 
       `tone:${tone}`,
     ].filter(Boolean).join(' | ');
 
-    for (let attempt = 0; attempt < MAX_PROVIDER_RETRIES; attempt++) {
+    const prompt = suggestionPrompt({ count, profileParts, language, types });
+
+    // Kaana first: it is the inference provider, and the loop below is what it
+    // replaces. A failure here is not fatal while both paths exist.
+    try {
+      kaanaText = await generateTextViaKaana({
+        prompt,
+        // `authoring`: the surface vocabulary names what the work IS, and
+        // writing prompt suggestions is authoring. There is no `suggestions`
+        // member and inventing one would put a cost centre in the contract
+        // that Oxy has never heard of.
+        surface: 'authoring',
+        maxOutputTokens: 2048,
+        temperature: 0.8,
+        oxyUserId: req.user?.id ?? null,
+      });
+    } catch (err: unknown) {
+      log.general.warn({ err }, 'Kaana did not serve the suggestion prompt, falling back');
+    }
+
+    for (let attempt = 0; kaanaText === null && attempt < MAX_PROVIDER_RETRIES; attempt++) {
       const resolved = await resolveModel('alia-lite', skipProviders);
       if (!resolved) {
         if (attempt === 0) {
@@ -271,26 +337,7 @@ router.post('/generate', authenticateToken, async (req: Request, res: Response) 
           messages: [
             {
               role: 'user',
-              content: `Generate ${count} unique prompt suggestions as a JSON array.
-User profile: ${profileParts}
-
-Rules:
-- Each suggestion MUST start with a different verb (Write, Help, Explain, Create, Plan, Summarize, Compare, etc.)
-- Text must be a complete, ready-to-send prompt — NO placeholders like {username} or {variable}
-- Vary categories: mix productivity, creative, coding, learning, communication
-- Language: ${language} (all text in this language)
-- Types needed: ${types.join(', ')}
-  - "welcome": short title + description shown as cards (4-8 words title)
-  - "autocomplete": longer text shown as user types (complete sentence)
-
-JSON schema per item:
-{"title":"string","text":"string","description":"string","type":"welcome|autocomplete","category":"string","language":"${language}","triggerWords":["first 1-2 words of text"],"tags":["2-3"],"occupations":[],"interests":[]}
-
-Examples:
-- {"title":"Debug Code","text":"Help me debug this error and explain what went wrong","type":"autocomplete","category":"coding","language":"en-US","triggerWords":["help"],"tags":["coding","debug"],"occupations":[],"interests":[]}
-- {"title":"Creative Writing","text":"Write a short story about an unexpected friendship","type":"welcome","category":"creative","language":"en-US","triggerWords":["write"],"tags":["writing","creative"],"occupations":[],"interests":[]}
-
-Return ONLY a valid JSON array, no other text.`,
+              content: prompt,
             },
           ],
           temperature: 0.8,
@@ -304,11 +351,11 @@ Return ONLY a valid JSON array, no other text.`,
       }
     }
 
-    if (!result) {
+    if (kaanaText === null && !result) {
       return res.status(503).json({ error: 'No AI models available' });
     }
 
-    const responseText = result.text || '';
+    const responseText = kaanaText ?? result?.text ?? '';
 
     // Parse and validate JSON array from response
     let rawParsed: unknown[];
