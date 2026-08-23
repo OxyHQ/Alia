@@ -259,6 +259,26 @@ export function classifyError(err: unknown): FailoverReason {
     return err.reason;
   }
 
+  /**
+   * The one reason that cannot be derived from a response, because there was
+   * no response.
+   *
+   * Everything below this point reads a status, a code or a message — the
+   * shapes an upstream answers WITH. `no_credential` means the upstream was
+   * never asked, so there is nothing for those rules to read and they all fall
+   * through to `unknown`, which is also what a provider that fell over
+   * produces. Trusting the value our own code attached is the only way to keep
+   * the two apart, and it is trusted for this reason ALONE rather than for any
+   * reason an error happens to carry: the rest describe answers, and an
+   * answer's own evidence is better than a label on it.
+   */
+  if (
+    typeof err === 'object' && err !== null &&
+    (err as { reason?: unknown }).reason === 'no_credential'
+  ) {
+    return 'no_credential';
+  }
+
   // --- 1. HTTP status code classification (unambiguous codes only) ---
   const status = getStatusCode(err);
   if (status === 429) return 'rate_limit';
@@ -399,6 +419,19 @@ const REASON_TO_ERROR: Record<FailoverReason, ReasonMapping> = {
     // again on the same provider no matter which key carries it.
     code: AliaErrorCode.MODEL_UNAVAILABLE,
     retryable: true,
+  },
+  no_credential: {
+    code: AliaErrorCode.PROVIDER_UNAVAILABLE,
+    /**
+     * Not retryable, unlike `unknown`, which it used to be reported as.
+     *
+     * A retry re-reads the same empty key list and fails identically, so
+     * retrying spends a caller's patience on an outcome that cannot change
+     * until someone adds a credential. The user-facing code stays
+     * `PROVIDER_UNAVAILABLE` — which surface is unconfigured is exactly the
+     * route detail the product does not disclose.
+     */
+    retryable: false,
   },
   unknown: {
     code: AliaErrorCode.PROVIDER_UNAVAILABLE,

@@ -133,6 +133,11 @@ export async function callProviderAPI<T = any>(options: ProviderAPIOptions): Pro
 
     const keyConfig = await getBestKeyForModel(provider, modelId);
     if (!keyConfig) {
+      // Said rather than left as `unknown`: nothing was asked, so nothing
+      // upstream failed, and the thrown message is the only place an operator
+      // sees the difference.
+      lastReason = 'no_credential';
+      lastMessage = `No credential is configured for ${provider}`;
       log.keys.warn({ provider, modelId, attempt }, 'No keys available');
       break;
     }

@@ -157,11 +157,20 @@ function readCatalogue(body: unknown): KaanaCatalogue | null {
     models.push({ model: row.model, modelReference: row.modelReference, providers });
   }
 
-  return {
-    snapshotId: typeof record.snapshotId === 'string' ? record.snapshotId : '',
-    servesUnpinned: record.servesUnpinned,
-    models,
-  };
+  // Under `configuration`, not at the top level: Kaana reports snapshot identity
+  // through the same object on its health surface, so a catalogue read and a
+  // health read can be compared without guessing whether they saw the same
+  // file. Read from the top level this was silently always the empty string —
+  // a wrong value rather than a missing one, which is the kind that gets
+  // printed in a diagnostic and believed.
+  const configuration = record.configuration;
+  const snapshotId =
+    typeof configuration === 'object' && configuration !== null &&
+    typeof (configuration as Record<string, unknown>).snapshotId === 'string'
+      ? ((configuration as Record<string, unknown>).snapshotId as string)
+      : '';
+
+  return { snapshotId, servesUnpinned: record.servesUnpinned, models };
 }
 
 /**
