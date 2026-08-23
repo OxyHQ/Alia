@@ -16,6 +16,7 @@ import { useUIStore } from '@/lib/stores/ui-store';
 import { toast } from '@oxyhq/bloom/toast';
 import i18n from '@/lib/i18n';
 import type { Conversation } from '@/lib/hooks/use-conversations';
+import { buildOutboundMessages } from '@/lib/chat-message-history';
 
 import type { ToolInvocation } from '@/lib/types/messages';
 import { errorMessage as getErrorMessage, errorStatus, errorCode, errorName } from '../errors/error-utils';
@@ -70,19 +71,6 @@ interface StreamErrorObject {
 interface StreamErrorResponse {
   error?: StreamErrorObject | string;
   details?: unknown;
-}
-
-/** Message shape sent to the chat-completions endpoint (subset of {@link Message}). */
-interface OutboundMessage {
-  role: string;
-  content: Message['content'];
-  toolInvocations?: Array<{
-    toolCallId: string;
-    toolName: string;
-    state: ToolInvocation['state'];
-    args?: Record<string, unknown>;
-    result?: unknown;
-  }>;
 }
 
 /** Infinite-query cache shape for the conversation list. */
@@ -204,6 +192,11 @@ export function useStreamingChat(apiUrl: string, conversationId?: string, reason
     const settleError = (): SendOutcome => (realOutputChars || hasToolInvocations ? 'sent' : rollback());
 
     const userMessage: Message = { ...message, id: Date.now().toString() };
+    // Build from the pre-send snapshot before any await. The optimistic user
+    // row and assistant placeholder may reach messagesRef while device info is
+    // collected; reading the ref afterwards used to send both plus userMessage
+    // again, persisting user -> empty assistant -> duplicate user.
+    const messagesToSend = buildOutboundMessages(snapshot, userMessage);
     setMessages((prev) => [...prev, userMessage]);
 
     // Create assistant message placeholder
@@ -229,29 +222,6 @@ export function useStreamingChat(apiUrl: string, conversationId?: string, reason
       if (token) {
         headers['Authorization'] = `Bearer ${token}`;
       }
-
-      // Include tool invocations for proper conversation context
-      const conversationMessages = [...messagesRef.current, userMessage];
-
-      const formatMessage = (m: Message | { role: string; content: string }): OutboundMessage => {
-        const msg: OutboundMessage = {
-          role: m.role,
-          content: m.content,
-        };
-        // Include tool invocations if present for assistant messages
-        if ('toolInvocations' in m && m.role === 'assistant' && m.toolInvocations && m.toolInvocations.length > 0) {
-          msg.toolInvocations = m.toolInvocations.map((inv: ToolInvocation) => ({
-            toolCallId: inv.toolCallId,
-            toolName: inv.toolName,
-            state: inv.state,
-            args: inv.args,
-            result: inv.result,
-          }));
-        }
-        return msg;
-      };
-
-      const messagesToSend = conversationMessages.map(formatMessage);
 
       // Create abort controller for this request
       abortControllerRef.current = new AbortController();
