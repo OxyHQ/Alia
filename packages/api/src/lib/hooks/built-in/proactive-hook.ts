@@ -100,7 +100,7 @@ registerHook({
       const resolved = await resolveModel(getDefaultAliaModel());
       if (!resolved) return;
 
-      const model = getAIModel(resolved.keyConfig);
+      const model = getAIModel(resolved, 'background');
 
       const result = await generateText({
         model,

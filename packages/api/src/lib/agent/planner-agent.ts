@@ -84,7 +84,7 @@ export async function generatePlan(
     throw new Error('No AI models available for planning');
   }
 
-  const model = getAIModel(resolved.keyConfig);
+  const model = getAIModel(resolved, 'agent_run');
 
   const systemPrompt = `You are a task planning agent. Your job is to decompose a complex task into smaller, executable subtasks.
 

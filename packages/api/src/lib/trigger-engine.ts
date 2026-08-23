@@ -266,7 +266,7 @@ export async function executeTrigger(
       throw new Error('No AI models available');
     }
 
-    const model = getAIModel(resolved.keyConfig);
+    const model = getAIModel(resolved, 'trigger');
     const tools = await buildTriggerTools(userId, trigger.action.useTools);
 
     // Use archetype system prompt if the linked agent has one

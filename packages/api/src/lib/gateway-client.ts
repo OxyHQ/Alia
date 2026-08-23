@@ -223,6 +223,20 @@ export interface ModelMapping {
 export interface ResolvedModel {
   aliasModelId: string;
   provider: string;
+  /**
+   * Who RELEASED the model, and their own name for it — the pair Kaana names
+   * every deployment by.
+   *
+   * Optional because this seam has two paths and only one of them carries it:
+   * the local resolver copies both from the mapping (`fallback-engine.ts`),
+   * while a remote gateway returns whatever it returns. Declaring them required
+   * would be a claim about a service this repository does not contain — the
+   * shape was previously asserted with a cast, which is how the absence would
+   * have surfaced as `undefined/undefined` reaching Kaana rather than as a type
+   * error here.
+   */
+  publisher?: string;
+  model?: string;
   modelId: string;
   keyConfig: KeyConfig;
   aliaModel: AliaModel;

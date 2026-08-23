@@ -111,7 +111,7 @@ async function executeAgent(
       };
     }
 
-    const model = getAIModel(resolved.keyConfig);
+    const model = getAIModel(resolved, 'agent_run');
     const agentTools = { getCurrentDate: getCurrentDateTool, webScraper: webScraperTool };
 
     const controller = new AbortController();

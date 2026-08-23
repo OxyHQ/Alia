@@ -67,7 +67,7 @@ async function runSubtask(
       };
     }
 
-    const model = getAIModel(resolved.keyConfig);
+    const model = getAIModel(resolved, 'agent_run');
 
     // Create an AbortController for timeout
     const controller = new AbortController();

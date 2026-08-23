@@ -541,7 +541,7 @@ export async function runAgentSession(sessionId: string): Promise<void> {
         throw new Error('No AI models available');
       }
 
-      const model = getAIModel(activeResolved.keyConfig);
+      const model = getAIModel(activeResolved, 'agent_run');
       const startMs = Date.now();
 
       // Build context (stable prefix + event stream + todo/state tail + browser screenshot)

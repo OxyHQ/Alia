@@ -252,7 +252,7 @@ async function executeNode(node: WorkflowNode, input: string, userId: string): P
       }
       const resolved = await resolveModel(modelId);
       if (!resolved) throw new Error(`Could not resolve model: ${modelId}`);
-      const model = getAIModel(resolved.keyConfig);
+      const model = getAIModel(resolved, 'authoring');
       const builtPrompt = node.data.prompt
         ? node.data.prompt.replace(/\{\{input\}\}/g, input)
         : input;

@@ -220,7 +220,7 @@ async function decomposeQuery(
   try {
     const resolved = await resolveModel('alia-lite');
     if (!resolved) throw new Error('No model available');
-    const model = getAIModel(resolved.keyConfig);
+    const model = getAIModel(resolved, 'deep_research');
 
     const contextSummary = messages
       .filter(m => m.role === 'user')
@@ -268,7 +268,7 @@ async function extractFindings(
   try {
     const resolved = await resolveModel('alia-lite');
     if (!resolved) throw new Error('No model available');
-    const model = getAIModel(resolved.keyConfig);
+    const model = getAIModel(resolved, 'deep_research');
 
     const sourcesText = sources
       .slice(-15) // Most recent sources
@@ -299,7 +299,7 @@ async function synthesize(
   try {
     const resolved = await resolveModel('alia-v1');
     if (!resolved) throw new Error('No model available');
-    const model = getAIModel(resolved.keyConfig);
+    const model = getAIModel(resolved, 'deep_research');
 
     const findingsText = findings.map((f, i) =>
       `### Research Angle ${i + 1}: ${subQuestions[i] || 'Follow-up'}\n${f}`
@@ -334,7 +334,7 @@ async function identifyGaps(
   try {
     const resolved = await resolveModel('alia-lite');
     if (!resolved) throw new Error('No model available');
-    const model = getAIModel(resolved.keyConfig);
+    const model = getAIModel(resolved, 'deep_research');
 
     const { text } = await generateText({
       model,
