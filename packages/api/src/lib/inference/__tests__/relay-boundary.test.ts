@@ -226,6 +226,11 @@ describe('nothing in the API imports the Relay client (#139 ws3, constraint 3)',
     // The transport's own test, which drives it over a fake fetch.
     `${RELAY_DIR}/__tests__/kaana-language-model.test.ts`,
     `${RELAY_DIR}/__tests__/kaana-transport.test.ts`,
+    // What this process asks Kaana for when a caller names no model. It builds a
+    // real client because the subject is the ENVELOPE that reaches the wire: the
+    // default was a routing profile, which the contract accepts and the deployed
+    // Kaana refuses, so only a test that reads what was SENT can see it.
+    `${RELAY_DIR}/__tests__/kaana.test.ts`,
     `${RELAY_DIR}/__tests__/relay-boot-check.test.ts`,
     // #139 ws8: the capability suite drives a real client, because "the client
     // supports tools / structured output / vision / reasoning / prompt caching"
