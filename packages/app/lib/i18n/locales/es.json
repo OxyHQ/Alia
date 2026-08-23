@@ -273,6 +273,10 @@
   "credits": {
     "title": "Créditos",
     "free": "Gratis",
+    "balance": "Saldo",
+    "total": "Total",
+    "remaining": "Restante",
+    "creditsAmount": "{{count}} créditos",
     "upgrade": "Mejorar",
     "credits": "Créditos",
     "freeCredits": "Créditos gratis",
