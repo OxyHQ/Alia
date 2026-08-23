@@ -59,24 +59,44 @@
  * and a comped account agreed to pay nothing; storing the list price would put
  * revenue that does not exist into every report that sums the column.
  *
- * ## What this does NOT do
+ * ## The credits come with the plan, through the same lock as a paid one
  *
- * It grants no credits. `user_credits` is the financial half (ADR 0005) and is
- * moved by Stripe webhooks writing a dedup-keyed transaction; minting a balance
- * here would be a credit grant with no transaction behind it. A comped account
- * therefore holds the top plan — every model, every feature, every limit — and
- * spends the same daily free credits as anyone else.
+ * A plan is not only a set of models: `plans.credits_per_month` is what the
+ * customer gets to spend, and a comped account that held Ultra while spending
+ * the 300-a-day free floor had the name of the plan and none of its substance.
+ *
+ * So this grants them — through the SAME mechanism a Stripe renewal uses, not a
+ * second one. `insertTransaction` is written FIRST as a lock: `dedup_key` is a
+ * stored generated column over `metadata ->> 'dedup'` with a unique index, so
+ * there is no way to write the metadata without the constraint seeing it, and
+ * only then is the balance moved. Re-running a release inside the same month
+ * therefore credits nothing, and a new month credits exactly once.
+ *
+ * The transaction carries `amount: 0`. It is a `subscription_payment` because
+ * that is what the vocabulary has for "credits arrived with a subscription", and
+ * a zero amount is the truthful part: no money moved, so nothing that sums the
+ * column counts revenue that does not exist.
+ *
+ * ## What this still does NOT do
+ *
+ * It mints no balance outside that lock, and it does not touch `credits_free` —
+ * the daily floor stays exactly what every other account gets.
  */
 
 import { OxyServices } from '@oxyhq/core';
 
-import { getDb } from '../db/index.js';
+import { getDb, type ApiDatabase } from '../db/index.js';
 import {
   findSubscriptionByStripeId,
   upsertSubscriptionByStripeId,
   type SubscriptionRow,
 } from '../db/billing/subscriptionRepository.js';
+import { addCredits } from '../db/billing/userCreditsRepository.js';
+import { insertTransaction, isDuplicateTransaction } from '../db/billing/transactionRepository.js';
 import { getPlans, type PlanData } from './gateway-client.js';
+// The existing owner of "get the balance row, creating it if absent" — the same
+// pairing every displaying surface uses, rather than a second call site for it.
+import { getOrCreateUserCredits } from './user-credits-helpers.js';
 import { log } from './logger.js';
 
 /** The Oxy usernames that hold the top plan of every product. */
@@ -156,13 +176,60 @@ function matchesGrant(row: SubscriptionRow | null, plan: PlanData, period: Billi
 }
 
 /**
+ * The plan's monthly credits, once per account per period.
+ *
+ * Returns whether it credited. The dedup key is the subscription's own id and
+ * the period start, exactly as the Stripe renewal path keys it — same shape,
+ * same unique index, so the two can never double-credit each other either.
+ *
+ * The balance row is created first: an account that has never spent anything has
+ * no `user_credits` row, and `addCredits` updates rather than inserts.
+ */
+async function grantMonthlyCredits(
+  db: ApiDatabase,
+  oxyUserId: string,
+  plan: PlanData,
+  stripeSubscriptionId: string,
+  period: BillingPeriod,
+): Promise<boolean> {
+  if (plan.creditsPerMonth <= 0) return false;
+
+  const dedup = `${stripeSubscriptionId}_${period.start.toISOString()}`;
+  try {
+    await insertTransaction(db, {
+      oxyUserId,
+      type: 'subscription_payment',
+      // Comped: no money moved. See the file comment.
+      amount: 0,
+      currency: plan.currency,
+      credits: plan.creditsPerMonth,
+      status: 'completed',
+      description: `${plan.name} complimentary credits (monthly)`,
+      metadata: { dedup },
+    });
+  } catch (error: unknown) {
+    // Already credited for this period — the whole point of the lock.
+    if (isDuplicateTransaction(error)) return false;
+    throw error;
+  }
+
+  await getOrCreateUserCredits(oxyUserId);
+  await addCredits(db, oxyUserId, plan.creditsPerMonth, 'paid');
+  return true;
+}
+
+/**
  * Give every comped account the top plan of every product.
  *
  * Idempotent: a release that changes neither the catalogue nor the month writes
  * nothing. Throws on an unresolvable username or an unreachable Oxy — see the
  * file comment on why that fails the deploy instead of logging.
  */
-export async function seedCompedAccounts(): Promise<{ granted: number; unchanged: number }> {
+export async function seedCompedAccounts(): Promise<{
+  granted: number;
+  unchanged: number;
+  credited: number;
+}> {
   const db = getDb();
   const period = currentMonth();
   const plans = mostExpensivePlanPerProduct(await getPlans({ isActive: true, isFree: false }));
@@ -177,6 +244,7 @@ export async function seedCompedAccounts(): Promise<{ granted: number; unchanged
 
   let granted = 0;
   let unchanged = 0;
+  let credited = 0;
 
   for (const username of COMPED_USERNAMES) {
     // The account id is the only thing a request ever carries, and it is not on
@@ -186,6 +254,21 @@ export async function seedCompedAccounts(): Promise<{ granted: number; unchanged
 
     for (const plan of plans.values()) {
       const stripeSubscriptionId = `${COMPED_ID_PREFIX}${oxyUserId}_${plan.product}`;
+      /**
+       * Before the row is looked at, and deliberately: on the first release
+       * after this existed the subscription row already matched while the
+       * credits had never been granted, so crediting only on a row CHANGE would
+       * have left exactly the account this is for on the free floor. The dedup
+       * lock is what makes asking every release cost nothing.
+       */
+      if (await grantMonthlyCredits(db, oxyUserId, plan, stripeSubscriptionId, period)) {
+        credited++;
+        log.seed.info(
+          { oxyUserId, username, planId: plan.planId, credits: plan.creditsPerMonth },
+          'Comped credits granted',
+        );
+      }
+
       const existing = await findSubscriptionByStripeId(db, stripeSubscriptionId);
       if (matchesGrant(existing, plan, period)) {
         unchanged++;
@@ -220,6 +303,6 @@ export async function seedCompedAccounts(): Promise<{ granted: number; unchanged
     }
   }
 
-  log.seed.info({ granted, unchanged }, 'Comped account seeding complete');
-  return { granted, unchanged };
+  log.seed.info({ granted, unchanged, credited }, 'Comped account seeding complete');
+  return { granted, unchanged, credited };
 }

@@ -29,6 +29,10 @@ const H = vi.hoisted(() => ({
   upserts: [] as Array<Record<string, unknown>>,
   /** Usernames `getProfileByUsername` was asked for, in order. */
   lookups: [] as string[],
+  /** Transactions written, and the dedup keys already taken. */
+  transactions: [] as Array<Record<string, unknown>>,
+  takenDedupKeys: new Set<string>(),
+  creditsAdded: [] as Array<{ userId: string; amount: number; type: string }>,
   profile: async (username: string) => ({ id: `oxy-id-of-${username}` }),
 }));
 
@@ -44,6 +48,39 @@ vi.mock('../../db/billing/subscriptionRepository.js', () => ({
 }));
 
 vi.mock('../gateway-client.js', () => ({ getPlans: vi.fn(async () => H.plans) }));
+
+/**
+ * The credit half, mocked at the same seam as the subscription half.
+ *
+ * `insertTransaction` refuses a dedup key it has already seen, because that
+ * unique index IS the double-credit guard — a mock that accepted every insert
+ * would make the idempotence cases below pass while measuring nothing.
+ */
+vi.mock('../../db/billing/transactionRepository.js', () => ({
+  insertTransaction: vi.fn(async (_db: unknown, values: Record<string, unknown>) => {
+    const dedup = (values.metadata as { dedup?: string } | undefined)?.dedup;
+    if (dedup !== undefined && H.takenDedupKeys.has(dedup)) {
+      throw Object.assign(new Error('duplicate key value violates unique constraint'), {
+        isDuplicate: true,
+      });
+    }
+    if (dedup !== undefined) H.takenDedupKeys.add(dedup);
+    H.transactions.push(values);
+    return values;
+  }),
+  isDuplicateTransaction: vi.fn(
+    (error: unknown) => (error as { isDuplicate?: boolean } | null)?.isDuplicate === true,
+  ),
+}));
+
+vi.mock('../user-credits-helpers.js', () => ({ getOrCreateUserCredits: vi.fn(async () => ({})) }));
+
+vi.mock('../../db/billing/userCreditsRepository.js', () => ({
+  addCredits: vi.fn(async (_db: unknown, userId: string, amount: number, type: string) => {
+    H.creditsAdded.push({ userId, amount, type });
+    return {};
+  }),
+}));
 
 vi.mock('../logger.js', () => ({
   log: { seed: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } },
@@ -94,6 +131,9 @@ beforeEach(() => {
   H.rows = new Map();
   H.upserts = [];
   H.lookups = [];
+  H.transactions = [];
+  H.takenDedupKeys = new Set();
+  H.creditsAdded = [];
   H.profile = async (username: string) => ({ id: `oxy-id-of-${username}` });
 });
 
@@ -129,7 +169,7 @@ describe('which plan', () => {
     const result = await seedCompedAccounts();
     expect(H.upserts.map((u) => u.planId).sort()).toEqual(['codea-max', 'ultra']);
     expect(H.upserts.map((u) => u.status)).toEqual(['active', 'active']);
-    expect(result).toEqual({ granted: 2, unchanged: 0 });
+    expect(result).toEqual({ granted: 2, unchanged: 0, credited: 2 });
   });
 
   it('follows the catalogue rather than a hardcoded id', async () => {
@@ -208,7 +248,7 @@ describe('running it again', () => {
   it('writes nothing when the grant is already in place', async () => {
     await seedCompedAccounts();
     H.upserts = [];
-    expect(await seedCompedAccounts()).toEqual({ granted: 0, unchanged: 2 });
+    expect(await seedCompedAccounts()).toEqual({ granted: 0, unchanged: 2, credited: 0 });
     expect(H.upserts).toEqual([]);
   });
 
@@ -219,7 +259,64 @@ describe('running it again', () => {
     const id = `comp_${OXY_ID}_alia`;
     H.rows.set(id, { ...H.rows.get(id), cancelAtPeriodEnd: true });
     H.upserts = [];
-    expect(await seedCompedAccounts()).toEqual({ granted: 1, unchanged: 1 });
+    expect(await seedCompedAccounts()).toEqual({ granted: 1, unchanged: 1, credited: 0 });
     expect(H.upserts.map((u) => u.stripeSubscriptionId)).toEqual([id]);
+  });
+});
+
+describe('the credits that come with the plan', () => {
+  it("credits the plan's monthly credits, as a zero-amount subscription record", async () => {
+    // The symptom this fixes: the account held Ultra and had 292 credits — the
+    // daily free floor — because a comp has no invoice and nothing else credits.
+    await seedCompedAccounts();
+
+    expect(H.creditsAdded).toEqual([
+      { userId: OXY_ID, amount: 9999, type: 'paid' },
+      { userId: OXY_ID, amount: 4999, type: 'paid' },
+    ]);
+    // A zero amount, because no money moved: nothing that sums the column may
+    // count revenue that does not exist.
+    expect(H.transactions.map((t) => t.amount)).toEqual([0, 0]);
+    expect(H.transactions.map((t) => t.credits)).toEqual([9999, 4999]);
+  });
+
+  it('keys the lock on the subscription and the period, like a Stripe renewal', async () => {
+    await seedCompedAccounts();
+    const dedup = H.transactions.map((t) => (t.metadata as { dedup: string }).dedup);
+
+    expect(dedup[0]).toContain(`comp_${OXY_ID}_alia`);
+    // The period, so a new month is a new key and credits again.
+    expect(dedup[0]).toMatch(/_\d{4}-\d{2}-01T00:00:00\.000Z$/);
+    expect(new Set(dedup).size).toBe(2);
+  });
+
+  it('credits once, however many times the release runs', async () => {
+    await seedCompedAccounts();
+    H.creditsAdded = [];
+    expect((await seedCompedAccounts()).credited).toBe(0);
+    expect(H.creditsAdded).toEqual([]);
+  });
+
+  it('credits an account whose subscription row already matches', async () => {
+    // The ordering this case exists to pin. On the first release after the
+    // grant existed the row was ALREADY correct and the credits had never been
+    // granted, so crediting only on a row CHANGE would have left exactly the
+    // account this is for on the free floor.
+    await seedCompedAccounts();
+    H.creditsAdded = [];
+    H.takenDedupKeys = new Set();
+    const result = await seedCompedAccounts();
+
+    expect(result.unchanged).toBe(2);
+    expect(result.granted).toBe(0);
+    expect(result.credited).toBe(2);
+  });
+
+  it('credits nothing for a plan that includes none', async () => {
+    H.plans = [plan('bare', 'alia', 999, { creditsPerMonth: 0 })];
+    await seedCompedAccounts();
+    expect(H.creditsAdded).toEqual([]);
+    // The floor: the plan was still granted, so this is not "nothing happened".
+    expect(H.upserts.map((u) => u.planId)).toEqual(['bare']);
   });
 });

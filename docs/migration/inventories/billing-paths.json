@@ -228,10 +228,11 @@
           "module": "db/billing/transactionRepository.ts",
           "classification": "FINANCIAL",
           "callers": [
+            "lib/seed-comped-accounts.ts",
             "routes/billing.ts"
           ],
           "reachable": true,
-          "entrypoint": "POST /billing/webhook \u2014 a credit purchase (checkout.session.completed) and a subscription renewal (handleSubscriptionUpdate). The renewal writes the transaction FIRST as a lock, on the dedup_key generated column, and only then adds credits."
+          "entrypoint": "POST /billing/webhook \u2014 a credit purchase (checkout.session.completed) and a subscription renewal (handleSubscriptionUpdate). The renewal writes the transaction FIRST as a lock, on the dedup_key generated column, and only then adds credits. Plus the comp grant at the deploy boundary: lib/seed-comped-accounts.ts gives a comped account its plan's monthly credits through the same dedup-keyed lock a Stripe renewal uses, with amount 0 because no money moved."
         }
       ]
     },
@@ -294,11 +295,12 @@
           "classification": "SPLIT",
           "callers": [
             "lib/credits-manager.ts",
+            "lib/seed-comped-accounts.ts",
             "routes/billing.ts",
             "routes/referrals.ts"
           ],
           "reachable": true,
-          "entrypoint": "Three callers, and the `type` argument decides which half each is. ENTITLEMENT: lib/credits-manager.ts refunds the unused part of a reservation to 'free'. FINANCIAL: routes/billing.ts adds 'paid' credits on a completed purchase and on a subscription renewal, and routes/referrals.ts grants 'paid' credits to both sides of a referral \u2014 a PROMOTIONAL grant landing in the purchased bucket, which is why the bucket alone cannot tell a promotion from a purchase."
+          "entrypoint": "Three callers, and the `type` argument decides which half each is. ENTITLEMENT: lib/credits-manager.ts refunds the unused part of a reservation to 'free'. FINANCIAL: routes/billing.ts adds 'paid' credits on a completed purchase and on a subscription renewal, and routes/referrals.ts grants 'paid' credits to both sides of a referral \u2014 a PROMOTIONAL grant landing in the purchased bucket, which is why the bucket alone cannot tell a promotion from a purchase. Plus the comp grant at the deploy boundary: lib/seed-comped-accounts.ts gives a comped account its plan's monthly credits through the same dedup-keyed lock a Stripe renewal uses, with amount 0 because no money moved."
         },
         {
           "fn": "setStripeCustomerId",
@@ -318,6 +320,7 @@
     "modules": [
       "internal/providers/lib/voice-session-manager.ts",
       "lib/chat/request-context.ts",
+      "lib/seed-comped-accounts.ts",
       "lib/show/show-pipeline.ts",
       "routes/billing.ts",
       "routes/codea.ts",
