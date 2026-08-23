@@ -3124,6 +3124,8 @@ const PROVIDER_SDK_IMPORTERS: Readonly<Record<string, readonly string[]>> = {
  */
 const NON_PROVIDER_AI_SDK_PACKAGES: Readonly<Record<string, string>> = {
   '@ai-sdk/provider-utils': 'Shared types for tool calls. Constructs no client and names no host.',
+  '@ai-sdk/provider':
+    'The SDK\'s model INTERFACE, which `kaana-language-model.ts` implements so twenty-seven existing call sites reach Kaana by substitution. Types only — it constructs no client and names no host, which is the whole distinction this list is drawn on.',
 };
 
 /** Which package manifests may DECLARE a provider SDK. One, and it is the API. */
@@ -3222,7 +3224,11 @@ describe('gate 7: a provider client is constructed in one place (#139 ws7)', () 
     }
 
     expect(declaring.sort()).toEqual([...PROVIDER_SDK_MANIFESTS].sort());
-    expect(Object.keys(NON_PROVIDER_AI_SDK_PACKAGES)).toHaveLength(1);
+    // 1 -> 2: `@ai-sdk/provider` joined the list, and the count is what forces
+    // that to be a decision. Both members are the same kind of thing — an
+    // interface or a shared type, constructing no client and naming no host —
+    // and the day a third arrives, it is this line that asks whether it is.
+    expect(Object.keys(NON_PROVIDER_AI_SDK_PACKAGES)).toHaveLength(2);
   });
 });
 

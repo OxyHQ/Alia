@@ -142,6 +142,7 @@ const RELAY_MODULES: readonly string[] = [
   `${RELAY_DIR}/kaana-transport`,
   `${RELAY_DIR}/kaana`,
   `${RELAY_DIR}/kaana-text`,
+  `${RELAY_DIR}/kaana-language-model`,
 ];
 
 // ===========================================================================
@@ -223,6 +224,7 @@ describe('nothing in the API imports the Relay client (#139 ws3, constraint 3)',
     // this census covers — so its test names a relay module again, which is what
     // the list records and nothing more.
     // The transport's own test, which drives it over a fake fetch.
+    `${RELAY_DIR}/__tests__/kaana-language-model.test.ts`,
     `${RELAY_DIR}/__tests__/kaana-transport.test.ts`,
     `${RELAY_DIR}/__tests__/relay-boot-check.test.ts`,
     // #139 ws8: the capability suite drives a real client, because "the client
@@ -265,6 +267,7 @@ describe('nothing in the API imports the Relay client (#139 ws3, constraint 3)',
      * Kaana through `kaana-text.ts` and nothing else, so the censuses below
      * still describe one door rather than three.
      */
+    `${RELAY_DIR}/kaana-language-model.ts`,
     `${RELAY_DIR}/kaana-text.ts`,
     `${RELAY_DIR}/kaana-transport.ts`,
     `${RELAY_DIR}/kaana.ts`,
