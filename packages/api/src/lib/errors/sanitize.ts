@@ -102,6 +102,10 @@ const UPSTREAM_ERROR_CODES = new Set<string>([
   'rate_limit_error', 'authentication_error', 'server_error',
   'billing_hard_limit_reached', 'insufficient_quota', 'overloaded_error',
   'tool_use_failed',
+  // OpenAI-compatible providers use these for a model id they do not serve.
+  // They name an operator as surely as the others: an id that 404s on one
+  // deployment and answers on another is a route fingerprint.
+  'model_not_found', 'model_decommissioned',
 ]);
 
 /**

@@ -266,7 +266,7 @@ export const ALIA_MODELS: Record<string, AliaModel> = {
  * - gpt-4o: Vision, 128k context, fast multimodal responses
  * - o1: Advanced reasoning, 200k context, extended thinking
  * - llama-3.2-11b-vision-instruct: Vision & image reasoning (Cloudflare)
- * - llama-3.3-70b-versatile: Fast, versatile, 128k context (Groq)
+ * - openai/gpt-oss-120b: Fast, 128k context (Groq; its llama-3.3 line is gone)
  */
 
 // Import the generated mappings with full capabilities and pricing data

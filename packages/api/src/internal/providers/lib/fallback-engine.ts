@@ -416,6 +416,24 @@ export async function resolveWithFallback(
           break;
         }
 
+        case 'model_not_found': {
+          // The MAPPING is dead, not the provider and not the key. Move to the
+          // next mapping with both intact — the same provider may serve a
+          // different model later in the tier.
+          //
+          // MEASURED 2026-08-23: groq's `llama-3.3-70b-versatile` mappings sit
+          // at priority 2 of `alia-lite` and 404. Before this case existed they
+          // classified as `unknown`, whose branch below retired the key; groq's
+          // one credential was then skipped for the rest of the request, so the
+          // LIVE `openai/gpt-oss-20b` mapping at priority 17 was never reached
+          // and the request ended in "No AI models available".
+          log.fallback.warn(
+            { provider: mapping.provider, modelId: mapping.modelId },
+            'Model not served by this provider, skipping mapping (key and provider kept)',
+          );
+          break;
+        }
+
         case 'provider_unavailable': {
           // Provider-level issue (geo-restriction, service down) — skip entirely
           requestSkipProviders.add(mapping.provider);
@@ -424,18 +442,18 @@ export async function resolveWithFallback(
         }
 
         default: {
-          // 'unknown' - try next key first, then next provider
-          if (result.failedKeyId) {
-            const retries = keyRetriesPerProvider.get(mapping.provider) || 0;
-            if (retries < MAX_KEYS_PER_PROVIDER) {
-              skipKeyIds.add(result.failedKeyId);
-              keyRetriesPerProvider.set(mapping.provider, retries + 1);
-              log.fallback.info({ provider: mapping.provider, modelId: mapping.modelId, retries: retries + 1 }, 'Unknown error, trying next key');
-              i--;
-              continue;
-            }
-          }
-          log.fallback.info({ provider: mapping.provider, modelId: mapping.modelId }, 'Unknown error, trying next provider');
+          // 'unknown' — an UNCLASSIFIED error is not evidence about the
+          // credential, so it does not retire one. `auth` and `rate_limit`
+          // above are the key-level reasons, exactly as `KEY_LEVEL_REASONS` in
+          // `lib/chat/provider-loop.ts` already had it; this branch used to
+          // disagree and charged every unclassified fault to the key.
+          //
+          // The cost of the old behaviour was total rather than marginal: with
+          // ONE key for a provider, a single unclassified error removed that
+          // provider from the rest of the request, including mappings that
+          // would have worked. A key that is genuinely bad answers 401/403 and
+          // is retired by `case 'auth'`.
+          log.fallback.info({ provider: mapping.provider, modelId: mapping.modelId }, 'Unknown error, trying next mapping');
           break;
         }
       }

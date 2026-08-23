@@ -137,7 +137,14 @@ export function getAIModel(keyConfig: KeyConfig) {
     }
     case 'groq': {
       const groq = openAICompatibleProvider(provider, apiKey, 'https://api.groq.com/openai/v1');
-      return groq.chat(modelId || 'llama-3.3-70b-versatile');
+      // Not `llama-3.3-70b-versatile`: Groq decommissioned the llama-3.3 line
+      // and a request for it returns 404 `model_not_found` (measured
+      // 2026-08-23), so this last-resort default was a hole in the safety net
+      // rather than a safety net. `openai/gpt-oss-20b` answered 200 on the same
+      // probe. NOTE that a provider's `/v1/models` is not authoritative for
+      // this question on every provider — xAI serves `grok-4-fast` while
+      // omitting it from the list — so verify a default by CALLING it.
+      return groq.chat(modelId || 'openai/gpt-oss-20b');
     }
     case 'together': {
       const together = openAICompatibleProvider(provider, apiKey, 'https://api.together.ai/v1');

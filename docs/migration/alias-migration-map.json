@@ -25,9 +25,9 @@
       "alias": "alia-lite",
       "becomes": { "kind": "routing-profile", "id": "profile:lite" },
       "tier": "lite",
-      "distinctModels": 16,
+      "distinctModels": 15,
       "distinctProviders": 13,
-      "evidence": "alia-models.ts:62-74 gives tier 'lite'; generate-model-mappings.ts ranks 16 distinct models across 13 providers. Recounted 2026-08-23 after two changes that cancelled in the model count and not in the provider count: Groq gained openai/gpt-oss-20b, the same weights the digitalocean row already served, and xAI lost grok-4-fast, which xAI no longer serves and which was xAI's only entry in this tier."
+      "evidence": "alia-models.ts:62-74 gives tier 'lite'; generate-model-mappings.ts ranks 15 distinct models across 13 providers. Recounted 2026-08-23 after Groq's llama-3.3-70b-versatile row was repointed at openai/gpt-oss-20b: Groq no longer serves any llama-3.3 id (404 model_not_found, measured), and gpt-oss-20b was already in this tier as a priority-17 stopgap, so the two rows collapsed into one and the tier lost the versatile id. Provider count is unchanged because Groq keeps a route."
     },
     {
       "alias": "alia-v1",
