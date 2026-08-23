@@ -10,6 +10,7 @@ import { buildSystemPrompt } from '../../lib/prompt-loader.js';
 import { buildUserContext } from '../../lib/user-context.js';
 import { log } from '../../lib/logger.js';
 import { getUserEntitlements } from '../../lib/plan-access.js';
+import { aliasesForProfile } from '../../lib/routing/alias-translation.js';
 import { getVoiceUsageSummary } from '../../lib/voice-usage.js';
 import { getSafeErrorMessage } from '../../lib/errors/sanitize.js';
 import type { Request, Response } from 'express';
@@ -73,7 +74,23 @@ router.post('/token', async (req: Request, res: Response) => {
       maxSessionDuration = Math.max(1, Math.min(Math.floor(usage.remainingMinutes), 30));
     }
 
-    const model = req.body.model || 'alia-v1-voice';
+    /**
+     * The identifier the caller asked for, in the vocabulary ENTITLEMENTS speak.
+     *
+     * `@alia.onl/sdk` sends `profile:v1-voice` — the routing-profile vocabulary
+     * the catalogue publishes — while `allowedModelIds` comes from
+     * `plans.model_ids`, which is keyed by the `alia-*` aliases. Comparing one
+     * against the other refuses every request from every account on every plan,
+     * and reports it as `MODEL_NOT_IN_PLAN`: a permission error that no
+     * permission can satisfy. `use-catalogue.ts` records the same collision
+     * biting the model picker, which is where this was found.
+     *
+     * Translated ONCE, here, so everything downstream — the entitlement check
+     * and `startVoiceSession`, which resolves an alias to a provider — is
+     * handed the same identifier.
+     */
+    const requestedModel = req.body.model || 'alia-v1-voice';
+    const model = aliasesForProfile(requestedModel)[0] ?? requestedModel;
     const voice = req.body.voice || undefined;
     const clientInstructions = req.body.instructions || undefined;
 
