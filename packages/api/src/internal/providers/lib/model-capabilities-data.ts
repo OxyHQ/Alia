@@ -217,6 +217,10 @@ export const MODEL_CAPABILITIES: Record<string, ModelCapabilities> = {
   'grok-code-fast-1': createCapabilities({ maxContextTokens: 128000, maxOutputTokens: 8192 }),
   'grok-4-fast': createCapabilities({ maxContextTokens: 128000, maxOutputTokens: 8192 }),
   'grok-4': createCapabilities({ vision: true, maxContextTokens: 128000, maxOutputTokens: 8192 }),
+  // xAI's live line, measured from GET /v1/models and /v1/language-models on
+  // 2026-08-23. Both report input_modalities [text, image].
+  'grok-4.6': createCapabilities({ vision: true, maxContextTokens: 500000, maxOutputTokens: 8192 }),
+  'grok-4.3': createCapabilities({ vision: true, maxContextTokens: 1000000, maxOutputTokens: 8192 }),
   'grok-3-mini': createCapabilities({ maxContextTokens: 128000, maxOutputTokens: 8192 }),
   'grok-3': createCapabilities({ vision: true, maxContextTokens: 128000, maxOutputTokens: 8192 }),
   'grok-realtime': createCapabilities({ voice: true, audio: true, streaming: true, tools: true, functionCalling: true, maxContextTokens: 32768, maxOutputTokens: 8192 }),
@@ -541,6 +545,14 @@ export const MODEL_PRICING: Record<string, ModelPricing> = {
   'grok-code-fast-1': { tier: 'paid', costPer1MInput: 0.20, costPer1MOutput: 1.50 },
   'grok-4-fast': { tier: 'paid', costPer1MInput: 0.20, costPer1MOutput: 0.50 },
   'grok-4': { tier: 'paid', costPer1MInput: 3.00, costPer1MOutput: 15.00 },
+  // xAI publishes prices as integers in an undocumented unit. The unit was
+  // DERIVED, not guessed: OpenRouter serves the same four models and publishes
+  // dollars per token, and the ratio is exactly 1.000e-10 on all four, for both
+  // prompt and completion. So the integer is 1e-10 dollars per token, i.e.
+  // `value / 1e4` dollars per million. grok-4.6 reads 20000/60000 -> $2.00/$6.00,
+  // which is what OpenRouter charges for it to the cent.
+  'grok-4.6': { tier: 'paid', costPer1MInput: 2.00, costPer1MOutput: 6.00 },
+  'grok-4.3': { tier: 'paid', costPer1MInput: 1.25, costPer1MOutput: 2.50 },
   'grok-3-mini': { tier: 'paid', costPer1MInput: 0.30, costPer1MOutput: 0.50 },
   'grok-3': { tier: 'paid', costPer1MInput: 3.00, costPer1MOutput: 15.00 },
 
