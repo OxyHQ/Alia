@@ -32,7 +32,10 @@ const ENV: NodeJS.ProcessEnv = {
 };
 
 const BODY = {
-  snapshotId: 'snap_test',
+  // Where Kaana actually puts it. The reader looked at the top level and got
+  // the empty string on every real response, which no test noticed because
+  // every fixture put it where the reader was looking.
+  configuration: { snapshotId: 'snap_test', ageSeconds: 12, maxAgeSeconds: 3600 },
   servesUnpinned: true,
   models: [
     { model: 'anthropic/claude-sonnet-4', modelReference: 'anthropic/claude-sonnet-4@r1', providers: ['openrouter'] },
@@ -68,6 +71,9 @@ describe('fetching it', () => {
     answerWith(200, BODY);
     const catalogue = await fetchKaanaCatalogue(ENV);
     expect(catalogue?.servesUnpinned).toBe(true);
+    // Measured against production: read from the top level this was '' on every
+    // real response.
+    expect(catalogue?.snapshotId).toBe('snap_test');
     expect(catalogue?.models.map((m) => m.model)).toEqual([
       'anthropic/claude-sonnet-4',
       'openai/gpt-oss-120b',

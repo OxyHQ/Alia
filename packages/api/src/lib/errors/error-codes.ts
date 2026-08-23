@@ -33,6 +33,21 @@ export type FailoverReason =
    * provider must still be tried.
    */
   | 'model_not_found'
+  /**
+   * No credential was available for this provider at all, so no request was
+   * ever made.
+   *
+   * Distinct from every other member, which describe how a provider ANSWERED.
+   * This one says the provider was never asked — the failure is in our own
+   * configuration, and the provider is not implicated.
+   *
+   * It has a name because the alternative was `unknown`, and an operator
+   * reading `Provider API exhausted: elevenlabs/eleven_multilingual_v2
+   * (unknown)` cannot tell a missing key from an upstream that fell over. That
+   * exact line stood in production while a working credential sat unused in
+   * SSM, and the read-aloud button returned 503 the whole time.
+   */
+  | 'no_credential'
   | 'unknown';
 
 // ============== ERROR CODES ==============
