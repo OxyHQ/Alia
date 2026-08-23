@@ -28,6 +28,7 @@ const RATE_LIMIT_RE = /rate.?limit|too many requests/i;
 const CONTENT_FILTER_RE = /content.?filter|safety|moderation|harmful/i;
 const OVERLOADED_RE = /overloaded|resource.?exhausted|quota exceeded/i;
 const TOOL_CAPABILITY_RE = /tool.?use.?failed|failed to call a function|does not support tools|tool.?call.*not supported/i;
+const MODEL_NOT_FOUND_RE = /model.{0,80}(not found|does not exist|has been (decommissioned|deprecated|retired)|is (decommissioned|deprecated|retired)|no longer (supported|available))|(unknown|invalid|unsupported) model|does not (have access to|support) (the )?model/i;
 const GEO_RESTRICTION_RE = /location.{0,20}not supported|not available in your (country|region)|geo.?restrict|region.?not.?supported|service.?not.?available.{0,30}(country|region|location)/i;
 
 /** Error codes that indicate a network-level timeout */
@@ -315,6 +316,14 @@ export function classifyError(err: unknown): FailoverReason {
       providerData.openaiCode === 'insufficient_quota') {
     return 'billing';
   }
+  // OpenAI-compatible: a dead or misspelled model id. MEASURED against Groq on
+  // 2026-08-23 — `llama-3.3-70b-versatile` returns 404 with
+  // `{type: invalid_request_error, code: model_not_found}`, which matched no
+  // branch here and fell through to `unknown`.
+  if (providerData.openaiCode === 'model_not_found' ||
+      providerData.openaiCode === 'model_decommissioned') {
+    return 'model_not_found';
+  }
 
   // Anthropic: structured error types
   if (providerData.anthropicType === 'rate_limit_error') return 'rate_limit';
@@ -331,7 +340,11 @@ export function classifyError(err: unknown): FailoverReason {
     if (GEO_RESTRICTION_RE.test(message)) return 'provider_unavailable';
     if (TOOL_CAPABILITY_RE.test(message)) return 'format';
     if (CONTENT_FILTER_RE.test(message)) return 'content_filter';
+    if (MODEL_NOT_FOUND_RE.test(message)) return 'model_not_found';
   }
+
+  // --- 5b. HTTP 404 → the route exists, the model does not ---
+  if (status === 404) return 'model_not_found';
 
   // --- 6. HTTP 400 fallback (no message or data pattern matched → genuine format error) ---
   if (status === 400) return 'format';
@@ -379,6 +392,12 @@ const REASON_TO_ERROR: Record<FailoverReason, ReasonMapping> = {
   },
   provider_unavailable: {
     code: AliaErrorCode.PROVIDER_UNAVAILABLE,
+    retryable: true,
+  },
+  model_not_found: {
+    // Retryable, but only on a DIFFERENT mapping: the same model id will 404
+    // again on the same provider no matter which key carries it.
+    code: AliaErrorCode.MODEL_UNAVAILABLE,
     retryable: true,
   },
   unknown: {

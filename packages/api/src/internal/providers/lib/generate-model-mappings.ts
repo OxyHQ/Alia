@@ -40,7 +40,11 @@ export function createMapping(
 export const GENERATED_TIER_MAPPINGS: Record<AliaTier, ModelMapping[]> = {
   'lite': [
     createMapping('google', 'google', 'gemini-2.5-flash', 'gemini-2.5-flash', 1, 75),
-    createMapping('groq', 'meta', 'llama-3.3-70b', 'llama-3.3-70b-versatile', 2, 65),
+// Groq decommissioned the whole llama-3.3 line: MEASURED 2026-08-23, its
+// catalogue lists neither `llama-3.3-70b-versatile` nor any llama id, and a
+// request for one returns 404 `model_not_found`. It serves the gpt-oss pair,
+// `qwen/qwen3.6-27b` and the compound systems.
+    createMapping('groq', 'openai', 'gpt-oss-20b', 'openai/gpt-oss-20b', 2, 65),
     createMapping('deepseek', 'deepseek', 'deepseek-chat', 'deepseek-chat', 3, 72),
     createMapping('openai', 'openai', 'gpt-4o-mini', 'gpt-4o-mini', 4, 68),
     createMapping('novita', 'meta', 'llama-3.3-70b', 'meta-llama/llama-3.3-70b-instruct', 6, 60),
@@ -54,18 +58,16 @@ export const GENERATED_TIER_MAPPINGS: Record<AliaTier, ModelMapping[]> = {
     createMapping('digitalocean', 'openai', 'gpt-5-nano', 'openai-gpt-5-nano', 14, 66),
     createMapping('digitalocean', 'meta', 'llama-3.3-70b', 'llama3.3-70b-instruct', 15, 63),
     createMapping('digitalocean', 'openai', 'gpt-oss-20b', 'openai-gpt-oss-20b', 16, 55),
-    // The same weights served by Groq, whose id carries the publisher namespace
-    // and which MODEL_PRICING/MODEL_CAPABILITIES already describe. Added because
-    // on 2026-08-23 every other Groq chat mapping in this table pointed at
-    // `llama-3.3-70b-versatile`, and Groq's catalogue no longer lists it — so
-    // this is currently the only Groq chat route that resolves at all.
-    createMapping('groq', 'openai', 'gpt-oss-20b', 'openai/gpt-oss-20b', 17, 55),
   ],
   'v1': [
     createMapping('google', 'google', 'gemini-2.5-flash', 'gemini-2.5-flash', 1, 88),
     createMapping('google', 'google', 'gemini-3-flash-preview', 'gemini-3-flash-preview', 2, 85),
     createMapping('deepseek', 'deepseek', 'deepseek-chat', 'deepseek-chat', 3, 83),
-    createMapping('groq', 'meta', 'llama-3.3-70b', 'llama-3.3-70b-versatile', 5, 80),
+// Groq decommissioned the whole llama-3.3 line: MEASURED 2026-08-23, its
+// catalogue lists neither `llama-3.3-70b-versatile` nor any llama id, and a
+// request for one returns 404 `model_not_found`. It serves the gpt-oss pair,
+// `qwen/qwen3.6-27b` and the compound systems.
+    createMapping('groq', 'openai', 'gpt-oss-120b', 'openai/gpt-oss-120b', 5, 80),
     createMapping('openai', 'openai', 'gpt-4o-mini', 'gpt-4o-mini', 6, 82),
     createMapping('fireworks', 'deepseek', 'deepseek-v3', 'accounts/fireworks/models/deepseek-v3', 7, 79),
     createMapping('hyperbolic', 'deepseek', 'deepseek-v3', 'deepseek-ai/DeepSeek-V3', 8, 77),
@@ -83,7 +85,11 @@ export const GENERATED_TIER_MAPPINGS: Record<AliaTier, ModelMapping[]> = {
     createMapping('deepseek', 'deepseek', 'deepseek-chat', 'deepseek-chat', 1, 94),
     createMapping('anthropic', 'anthropic', 'claude-sonnet-4', 'claude-sonnet-4-20250514', 2, 95),
     createMapping('google', 'google', 'gemini-3-flash-preview', 'gemini-3-flash-preview', 3, 93),
-    createMapping('groq', 'meta', 'llama-3.3-70b', 'llama-3.3-70b-versatile', 5, 90),
+// Groq decommissioned the whole llama-3.3 line: MEASURED 2026-08-23, its
+// catalogue lists neither `llama-3.3-70b-versatile` nor any llama id, and a
+// request for one returns 404 `model_not_found`. It serves the gpt-oss pair,
+// `qwen/qwen3.6-27b` and the compound systems.
+    createMapping('groq', 'openai', 'gpt-oss-120b', 'openai/gpt-oss-120b', 5, 90),
     createMapping('google', 'google', 'gemini-2.5-pro', 'gemini-2.5-pro', 6, 92),
     createMapping('openai', 'openai', 'gpt-4o', 'gpt-4o', 7, 91),
     createMapping('fireworks', 'deepseek', 'deepseek-v3', 'accounts/fireworks/models/deepseek-v3', 8, 87),
@@ -99,7 +105,11 @@ export const GENERATED_TIER_MAPPINGS: Record<AliaTier, ModelMapping[]> = {
     createMapping('anthropic', 'anthropic', 'claude-sonnet-4', 'claude-sonnet-4-20250514', 2, 95),
     createMapping('google', 'google', 'gemini-2.5-pro', 'gemini-2.5-pro', 3, 92),
     createMapping('openai', 'openai', 'gpt-4o', 'gpt-4o', 4, 90),
-    createMapping('groq', 'meta', 'llama-3.3-70b', 'llama-3.3-70b-versatile', 6, 87),
+// Groq decommissioned the whole llama-3.3 line: MEASURED 2026-08-23, its
+// catalogue lists neither `llama-3.3-70b-versatile` nor any llama id, and a
+// request for one returns 404 `model_not_found`. It serves the gpt-oss pair,
+// `qwen/qwen3.6-27b` and the compound systems.
+    createMapping('groq', 'openai', 'gpt-oss-120b', 'openai/gpt-oss-120b', 6, 87),
     createMapping('replicate', 'meta', 'llama-3.3-70b', 'meta/meta-llama-3.3-70b-instruct', 7, 85),
     createMapping('cohere', 'cohere', 'command-a-03-2025', 'command-a-03-2025', 8, 83),
     createMapping('cerebras', 'meta', 'llama-3.3-70b', 'llama-3.3-70b', 9, 80),
@@ -112,7 +122,11 @@ export const GENERATED_TIER_MAPPINGS: Record<AliaTier, ModelMapping[]> = {
     createMapping('google', 'google', 'gemini-2.5-pro', 'gemini-2.5-pro', 3, 94),
     createMapping('perplexity', 'perplexity', 'sonar-pro', 'sonar-pro', 4, 93),
     createMapping('deepseek', 'deepseek', 'deepseek-chat', 'deepseek-chat', 5, 92),
-    createMapping('groq', 'meta', 'llama-3.3-70b', 'llama-3.3-70b-versatile', 7, 89),
+// Groq decommissioned the whole llama-3.3 line: MEASURED 2026-08-23, its
+// catalogue lists neither `llama-3.3-70b-versatile` nor any llama id, and a
+// request for one returns 404 `model_not_found`. It serves the gpt-oss pair,
+// `qwen/qwen3.6-27b` and the compound systems.
+    createMapping('groq', 'openai', 'gpt-oss-120b', 'openai/gpt-oss-120b', 7, 89),
     createMapping('openai', 'openai', 'gpt-4o', 'gpt-4o', 8, 90),
     createMapping('replicate', 'meta', 'llama-3.3-70b', 'meta/meta-llama-3.3-70b-instruct', 9, 87),
     createMapping('cloudflare', 'meta', 'llama-3.2-11b-vision', '@cf/meta/llama-3.2-11b-vision-instruct', 10, 86),
