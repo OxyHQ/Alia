@@ -19,6 +19,7 @@ const H = vi.hoisted(() => ({
     refusalText: '',
     finishReason: 'stop' as string | null,
     usage: [] as Array<{ unit: string; quantity: number }>,
+    toolCalls: [] as Array<{ id: string; name: string; arguments: string }>,
   },
   /** What its `stream` yields. */
   events: [] as Array<Record<string, unknown>>,
@@ -38,6 +39,8 @@ vi.mock('../kaana.js', () => ({
     },
   }),
 }));
+
+import { inferenceMessageSchema } from '@oxyhq/contracts';
 
 import { kaanaLanguageModel } from '../kaana-language-model.js';
 
@@ -197,5 +200,213 @@ describe('doStream', () => {
     const finish = parts.at(-1) as { type: string; finishReason: unknown };
     expect(finish.type).toBe('finish');
     expect(finish.finishReason).toEqual({ unified: 'error', raw: 'provider_unavailable' });
+  });
+});
+
+/**
+ * Tools, in both directions.
+ *
+ * Alia's chat is a tool loop, so every one of these mistakes ends the same way
+ * — a model that appears to ignore its tools — while looking like nothing is
+ * wrong at the seam. The two vocabularies disagree structurally in three
+ * places, and each disagreement gets a case here.
+ */
+describe('tools, on the way out', () => {
+  const weather = {
+    type: 'function' as const,
+    name: 'get_weather',
+    description: 'Look up the weather',
+    inputSchema: { type: 'object', properties: { city: { type: 'string' } } },
+  };
+
+  it('sends a function tool with its schema under the name the contract uses', async () => {
+    await model.doGenerate({ prompt: userText('weather?'), tools: [weather] } as never);
+    expect(H.sent?.tools).toEqual([
+      {
+        type: 'function',
+        name: 'get_weather',
+        description: 'Look up the weather',
+        parameters: { type: 'object', properties: { city: { type: 'string' } } },
+      },
+    ]);
+  });
+
+  it('declares an empty tool list rather than omitting the field', async () => {
+    // The contract distinguishes "this call offers no tools" from "this field
+    // was forgotten", and only the first is ever true here.
+    await model.doGenerate({ prompt: userText('hi') } as never);
+    expect(H.sent?.tools).toEqual([]);
+    expect(H.sent).not.toHaveProperty('toolChoice');
+  });
+
+  it('translates the one tool choice whose shape differs', async () => {
+    await model.doGenerate({
+      prompt: userText('hi'),
+      tools: [weather],
+      toolChoice: { type: 'tool', toolName: 'get_weather' },
+    } as never);
+    expect(H.sent?.toolChoice).toEqual({ type: 'function', name: 'get_weather' });
+
+    await model.doGenerate({ prompt: userText('hi'), tools: [weather], toolChoice: { type: 'required' } } as never);
+    expect(H.sent?.toolChoice).toBe('required');
+  });
+
+  it('refuses a provider-defined tool instead of offering one nothing can run', async () => {
+    // Kaana routes across providers, so a tool defined by one of them is not a
+    // tool this request can honour. Sending it would advertise a capability
+    // that fails only once the model tries to use it.
+    const result = await model.doGenerate({
+      prompt: userText('hi'),
+      tools: [weather, { type: 'provider-defined', id: 'openai.file_search', name: 'file_search', args: {} }],
+    } as never);
+
+    expect((H.sent?.tools as unknown[]).map((t) => (t as { name: string }).name)).toEqual(['get_weather']);
+    expect(result.warnings?.some((w) => JSON.stringify(w).includes('file_search'))).toBe(true);
+  });
+});
+
+describe('a tool round trip, in the prompt', () => {
+  const round = [
+    { role: 'user' as const, content: [{ type: 'text' as const, text: 'weather in Madrid?' }] },
+    {
+      role: 'assistant' as const,
+      content: [{ type: 'tool-call' as const, toolCallId: 'call_1', toolName: 'get_weather', input: { city: 'Madrid' } }],
+    },
+    {
+      role: 'tool' as const,
+      content: [
+        { type: 'tool-result' as const, toolCallId: 'call_1', toolName: 'get_weather', output: { type: 'json' as const, value: { c: 31 } } },
+        { type: 'tool-result' as const, toolCallId: 'call_2', toolName: 'get_time', output: { type: 'text' as const, value: '14:00' } },
+      ],
+    },
+  ];
+
+  const sentMessages = (): Array<Record<string, unknown>> =>
+    (H.sent?.input as { messages: Array<Record<string, unknown>> }).messages;
+
+  it('moves the assistant\'s tool calls from content parts onto the message', async () => {
+    // The AI SDK carries them as content; the contract carries them as a field,
+    // OpenAI-style. A turn that only calls tools therefore has EMPTY content,
+    // which the contract's own schema accepts.
+    await model.doGenerate({ prompt: round } as never);
+    expect(sentMessages()[1]).toEqual({
+      role: 'assistant',
+      content: [],
+      toolCalls: [{ id: 'call_1', name: 'get_weather', arguments: '{"city":"Madrid"}' }],
+    });
+  });
+
+  it('splits one grouped tool message into one message per answered call', async () => {
+    // `toolCallId` is per-message in the contract and required on exactly this
+    // role, so folding two answers into one message would need one id for both
+    // — and the model would have no way to tell which answer belongs to which
+    // call.
+    await model.doGenerate({ prompt: round } as never);
+    expect(sentMessages().slice(2)).toEqual([
+      { role: 'tool', content: [{ type: 'text', text: '{"c":31}' }], toolCallId: 'call_1' },
+      { role: 'tool', content: [{ type: 'text', text: '14:00' }], toolCallId: 'call_2' },
+    ]);
+  });
+
+  it('says a denied call was denied rather than answering it with nothing', async () => {
+    // An empty result reads as a tool that ran and returned nothing, which
+    // invites the model to call it again.
+    await model.doGenerate({
+      prompt: [
+        {
+          role: 'tool',
+          content: [{ type: 'tool-result', toolCallId: 'c', toolName: 't', output: { type: 'execution-denied', reason: 'no consent' } }],
+        },
+      ],
+    } as never);
+    expect(JSON.stringify(sentMessages()[0])).toContain('no consent');
+  });
+
+  it('sends messages the contract itself accepts', async () => {
+    // The strongest available check on this translation, because it is the only
+    // one that does not re-implement it: the schema here is the same object
+    // Kaana validates against on the other side of the wire. A negative control
+    // sits below it, so a schema that accepted anything would be visible.
+    await model.doGenerate({ prompt: round } as never);
+    for (const message of sentMessages()) {
+      const parsed = inferenceMessageSchema.safeParse(message);
+      expect(parsed.success, JSON.stringify(message)).toBe(true);
+    }
+    // Negative control: the same schema refuses a tool answer with no call.
+    expect(inferenceMessageSchema.safeParse({ role: 'tool', content: [{ type: 'text', text: 'x' }] }).success).toBe(false);
+  });
+});
+
+describe('tools, on the way back', () => {
+  it('returns tool calls as content and finishes as a tool round', async () => {
+    // Several upstreams end a tool call with `stop`. The SDK's agent loop reads
+    // the unified reason to decide whether there is a round to run, so passing
+    // `stop` through would end the conversation holding an unanswered call —
+    // and the provider's own word survives in `raw`.
+    H.completion = {
+      ...H.completion,
+      outputText: '',
+      reasoningText: '',
+      finishReason: 'stop',
+      toolCalls: [{ id: 'call_1', name: 'get_weather', arguments: '{"city":"Madrid"}' }],
+    };
+    const result = await model.doGenerate({ prompt: userText('weather?') } as never);
+
+    expect(result.content).toEqual([
+      { type: 'tool-call', toolCallId: 'call_1', toolName: 'get_weather', input: '{"city":"Madrid"}' },
+    ]);
+    expect(result.finishReason).toEqual({ unified: 'tool-calls', raw: 'stop' });
+    H.completion = { ...H.completion, toolCalls: [] };
+  });
+
+  it('streams a tool call as start, deltas, end and the call itself', async () => {
+    H.events = [
+      { type: 'tool_call', toolCallId: 'call_1', name: 'get_weather', argumentsDelta: '{"city"', complete: false },
+      { type: 'tool_call', toolCallId: 'call_1', argumentsDelta: ':"Madrid"}', complete: true },
+      { type: 'done', finishReason: 'tool_calls' },
+    ];
+    const parts = await drain((await model.doStream({ prompt: userText('hi') } as never)).stream) as Array<Record<string, unknown>>;
+
+    expect(parts.map((p) => p.type)).toEqual([
+      'stream-start', 'tool-input-start', 'tool-input-delta', 'tool-input-delta', 'tool-input-end', 'tool-call', 'finish',
+    ]);
+    expect(parts.find((p) => p.type === 'tool-call')).toEqual({
+      type: 'tool-call', toolCallId: 'call_1', toolName: 'get_weather', input: '{"city":"Madrid"}',
+    });
+  });
+
+  it('waits for the name before opening the block, and flushes what it held', async () => {
+    // A `tool-input-start` naming the empty string is a lie a consumer acts on,
+    // so deltas that arrive first are buffered rather than emitted against a
+    // name nobody sent yet.
+    H.events = [
+      { type: 'tool_call', toolCallId: 'c', argumentsDelta: '{"a"', complete: false },
+      { type: 'tool_call', toolCallId: 'c', name: 'f', argumentsDelta: ':1}', complete: true },
+      { type: 'done', finishReason: 'tool_calls' },
+    ];
+    const parts = await drain((await model.doStream({ prompt: userText('hi') } as never)).stream) as Array<Record<string, unknown>>;
+
+    const start = parts.findIndex((p) => p.type === 'tool-input-start');
+    expect(start).toBeGreaterThan(-1);
+    expect((parts[start] as { toolName: string }).toolName).toBe('f');
+    expect(parts.filter((p) => p.type === 'tool-input-delta').map((p) => p.delta)).toEqual(['{"a"', ':1}']);
+    expect((parts.find((p) => p.type === 'tool-call') as { input: string }).input).toBe('{"a":1}');
+  });
+
+  it('closes a call the stream never completed', async () => {
+    // Leaving the block open hands a consumer a `tool-input-start` with no end,
+    // which hangs. Emitting the truncated arguments instead surfaces as an
+    // unparseable tool input, which is what actually happened.
+    H.events = [
+      { type: 'tool_call', toolCallId: 'c', name: 'f', argumentsDelta: '{"a"', complete: false },
+      { type: 'done', finishReason: 'length' },
+    ];
+    const parts = await drain((await model.doStream({ prompt: userText('hi') } as never)).stream) as Array<Record<string, unknown>>;
+
+    expect(parts.map((p) => p.type)).toContain('tool-input-end');
+    expect((parts.find((p) => p.type === 'tool-call') as { input: string }).input).toBe('{"a"');
+    expect((parts.at(-1) as { finishReason: { unified: string; raw: string } }).finishReason).toEqual({
+      unified: 'tool-calls', raw: 'length',
+    });
   });
 });
