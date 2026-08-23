@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import {
   View,
-  Text,
   Pressable,
   Platform,
   type TextInput as RNTextInput,
@@ -11,7 +10,6 @@ import { KeyboardAvoidingView } from "@/lib/keyboard";
 import { Maximize2, Minimize2 } from "lucide-react-native";
 import { cn } from "@/lib/utils";
 import { asViewStyle } from "@/lib/types/webStyles";
-import { overflowsSingleLine } from "@/lib/measure-text-fit";
 import { Portal } from "@oxyhq/bloom/portal";
 import { PromptInputContext, type Attachment } from "./context";
 import { PromptInputTextarea } from "./textarea";
@@ -21,13 +19,19 @@ import { PromptInputAutocomplete } from "./autocomplete";
 import { PromptInputAttachments } from "./attachments";
 import { PromptInputSubmitButton } from "./submit-button";
 import { PromptInputAddMenu } from "./add-menu";
+import { EffortSelector } from "@/components/effort-selector";
 
-// Native onLayout path: left inset (px) reserved for the pinned + button when
-// measuring whether the value fits the collapsed single-line middle track.
-const COLLAPSED_LEFT_INSET = 48;
-// Web canvas path: horizontal padding of the collapsed editor (pl-11 + pr-[185px])
-// subtracted from the input's inner width to get the single-line text track.
-const COLLAPSED_H_PADDING = 44 + 185;
+// Height (px) of the collapsed bar's single-line track.
+const SINGLE_LINE_TRACK = 44;
+// The textarea's own measured height crossing THIS expands the bar. It sits in
+// the dead band between one line (~44px: a line box plus `py-2.5`) and two
+// (~68px), rather than at the single-line height itself, because the two states
+// do not carry the same vertical padding — expanded is `pt-2.5 pb-1`, collapsed
+// is `py-2.5`. Thresholding one state's height against the other's exact track
+// is the shape that oscillates: expand at 45, re-measure at 38, collapse, 45,
+// expand. A band wider than the padding difference and narrower than a line
+// cannot flip on the padding change alone.
+const EXPAND_ABOVE = 56;
 
 // Fullscreen grow (web): animate the fixed bar's insets + radius. A comma'd
 // property list is unwieldy as an arbitrary NW class, so it rides on the style.
@@ -92,6 +96,13 @@ export type PromptInputProps = {
   floatingAutocomplete?: boolean;
   // Custom right-side actions (rendered before mic + submit in the actions bar)
   actionsRight?: React.ReactNode;
+  /**
+   * Model id the reasoning-effort pill applies to. Supplying it puts the pill in
+   * the composer's trailing cluster, between `actionsRight` and the mic — where
+   * the effort control belongs, since effort is a property of the message about
+   * to be sent and not of the conversation. Omit it and no pill renders.
+   */
+  effortForModel?: string;
   // Submit button props
   onStop?: () => void;
   emptyAction?: React.ReactNode;
@@ -122,6 +133,7 @@ export function PromptInput({
   showDefaultSuggestions = false,
   floatingAutocomplete = false,
   actionsRight,
+  effortForModel,
   onStop,
   emptyAction,
   onSuggestionSend,
@@ -143,17 +155,10 @@ export function PromptInput({
   const [handleCompletionKey, setHandleCompletionKey] = useState<((key: string) => boolean) | null>(null);
   const textareaRef = useRef<RNTextInput>(null);
   // Stable DOM id for the textarea (colons stripped so it's a clean HTML id).
-  // The web fit test resolves the node by id, not by ref — see overflowsSingleLine.
   // Strip everything non-alphanumeric: react-native-web sanitizes exotic chars
-  // (React 19's useId wraps ids in punctuation) when writing the DOM `id`, and
-  // the lookup string must be byte-identical to what lands in the DOM.
+  // (React 19's useId wraps ids in punctuation) when writing the DOM `id`, so a
+  // caller that looks the node up by this id gets a byte-identical string.
   const inputId = `prompt-input-${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
-
-  // Two-state (collapsed pill ↔ expanded) measurement — updated via onLayout so
-  // the expansion trigger is derived in render, hysteresis-free, with no effect.
-  const [containerWidth, setContainerWidth] = useState(0);
-  const [rightClusterWidth, setRightClusterWidth] = useState(0);
-  const [mirrorWidth, setMirrorWidth] = useState(0);
 
   // Internal attachment state (used when no controlled props)
   const [internalAttachments, setInternalAttachments] = useState<Attachment[]>(
@@ -279,17 +284,21 @@ export function PromptInput({
   const currentValue = value ?? internalValue;
   const currentSetValue = onValueChange ?? handleChange;
 
-  // Does the value overflow the collapsed single-line track? Web measures the
-  // text with canvas 2D `measureText` against the input's inner width, resolving
-  // the node by DOM id (under NativeWind 5 / react-native-css neither `onLayout`
-  // nor the forwarded ref reach the host node for className'd elements, so both
-  // silently no-op on web). Native falls back to the onLayout-measured mirror vs
-  // the middle track. Derived in render → deterministic, hysteresis-free: delete
-  // back under the fit width and it collapses again on its own.
-  const webOverflow = overflowsSingleLine(inputId, currentValue, COLLAPSED_H_PADDING);
-  const nativeMiddleWidth = containerWidth - COLLAPSED_LEFT_INSET - rightClusterWidth;
-  const overflowsTrack =
-    webOverflow ?? (nativeMiddleWidth > 0 && mirrorWidth > nativeMiddleWidth);
+  // Does the value overflow the collapsed single-line track? The textarea's OWN
+  // height answers it, on both platforms, because the collapsed row lays the
+  // text out as `flex-1` between the two clusters rather than inside a padding-
+  // reserved track — so there is no reserved width left to model.
+  //
+  // That is what replaced a canvas `measureText` on web plus an off-screen text
+  // mirror on native: three measured widths (container, right cluster, mirror)
+  // and two hardcoded padding constants existed only to RECONSTRUCT a width the
+  // layout engine already knows. `onHeightChange` reads a plain `View` carrying
+  // an inline style, which is the one thing react-native-web does report
+  // reliably — the caveat in `chat-text-input.tsx` is about className'd nodes.
+  //
+  // Still derived in render and still hysteresis-free: delete back under one
+  // line and the height falls, so it collapses again on its own.
+  const overflowsTrack = currentHeight > EXPAND_ABOVE;
 
   // Three visual states of the SAME bar. Fullscreen wins; otherwise the value's
   // fit decides collapsed vs expanded. (Fullscreen is entered via the maximize
@@ -328,53 +337,79 @@ export function PromptInput({
     handleCompletionKey, setHandleCompletionKey,
   ]);
 
+  // The two clusters, spelled once. They are the SAME nodes in both states —
+  // only which flex box holds them changes — so nothing about a button's
+  // behaviour can drift between collapsed and expanded.
+  const leadingCluster = (
+    <PromptInputAddMenu iconSize={20} className="h-9 w-9 rounded-full" />
+  );
+  const trailingCluster = (
+    <>
+      {actionsRight}
+      {effortForModel != null && <EffortSelector selectedModel={effortForModel} />}
+      <PromptInputMicButton />
+      <PromptInputSubmitButton
+        isLoading={isLoading}
+        onStop={onStop}
+        emptyAction={emptyAction}
+      />
+    </>
+  );
+
   const content = isSimpleMode ? (
     <>
       <PromptInputAttachments />
-      {/* Collapsed: text sits on the single-line track between the pinned + (left)
-          and the action cluster (right). Expanded: paddings shrink, a bottom band
-          clears the pinned buttons, and text uses the full width above them. */}
-      {/* Verification note: the padding/radius transitions FREEZE in a hidden
-          browser tab (Chrome pauses CSS transitions), so computed styles read
-          from automation stay at the from-value — check state flips in a real
-          foregrounded tab, read the class attribute, or disable transitions
-          on the element before reading. */}
-      <PromptInputTextarea
-        id={inputId}
-        placeholder={placeholder}
-        minHeight={barState === "fullscreen" ? undefined : barState === "expanded" ? 0 : 60}
-        className={
-          barState === "fullscreen"
-            ? "text-base"
-            : barState === "expanded"
-              ? "min-h-0 max-h-[400px] pl-3.5 pr-3.5 pt-[18px] web:pt-[18px] pb-14 web:pb-14 text-base web:transition-[padding] web:duration-300 web:ease-out"
-              : "min-h-[60px] max-h-[400px] pl-11 pr-[185px] pt-[18px] web:pt-[18px] pb-[18px] web:pb-[18px] text-base web:transition-[padding] web:duration-300 web:ease-out"
-        }
-      />
-      <PromptInputActions
-        pointerEvents={barState === "fullscreen" ? undefined : "box-none"}
-        className={
-          barState === "fullscreen"
-            ? undefined
-            : "absolute left-0 right-0 bottom-0 flex-row items-center p-2"
-        }
-      >
-        <View className="flex-row items-center gap-1.5">
-          <PromptInputAddMenu iconSize={20} className="h-10 w-10 rounded-full" />
-        </View>
-        <View
-          className="ml-auto flex-row items-center gap-1"
-          onLayout={(e) => setRightClusterWidth(e.nativeEvent.layout.width)}
-        >
-          {actionsRight}
-          <PromptInputMicButton />
-          <PromptInputSubmitButton
-            isLoading={isLoading}
-            onStop={onStop}
-            emptyAction={emptyAction}
+      {/* Collapsed the bar is ONE flex row: (+) | text | actions, with the text
+          as `flex-1`. Expanded it is a column: the text takes the full width and
+          the two clusters sit on a row beneath it.
+
+          This is the reflow ChatGPT gets from `grid-template-areas`, which
+          React Native has no equivalent for — Yoga implements flexbox only, so a
+          grid would be web-only and native would collapse to a single column.
+          Expressed as flex it is one layout for both platforms.
+
+          It also removes the reason the old version had to MEASURE anything: the
+          text used to sit in a track carved out with `pl-11 pr-[185px]`, so the
+          bar had to know how wide the right cluster had grown to. `flex-1` is
+          the layout engine answering the same question. */}
+      {barState === "fullscreen" ? (
+        <>
+          <PromptInputTextarea id={inputId} placeholder={placeholder} className="text-base" />
+          <PromptInputActions>
+            {leadingCluster}
+            <View className="ml-auto flex-row items-center gap-1">{trailingCluster}</View>
+          </PromptInputActions>
+        </>
+      ) : barState === "expanded" ? (
+        <View className="px-2 pt-1 pb-2">
+          <PromptInputTextarea
+            id={inputId}
+            placeholder={placeholder}
+            minHeight={0}
+            className="min-h-0 max-h-[400px] px-1.5 pt-2.5 web:pt-2.5 pb-1 web:pb-1 text-base"
           />
+          <View className="flex-row items-center gap-1 pt-1">
+            {leadingCluster}
+            <View className="ml-auto flex-row items-center gap-1">{trailingCluster}</View>
+          </View>
         </View>
-      </PromptInputActions>
+      ) : (
+        <View className="flex-row items-center gap-1 px-2 py-1.5 min-h-[52px]">
+          {leadingCluster}
+          {/* `flex-1` with `min-w-0`: without the min-width override a flex item
+              refuses to shrink below its content, so a long unbroken value would
+              push the action cluster off the bar instead of scrolling inside. */}
+          <View className="flex-1 min-w-0">
+            <PromptInputTextarea
+              id={inputId}
+              placeholder={placeholder}
+              minHeight={SINGLE_LINE_TRACK}
+              className="min-h-[44px] max-h-[400px] px-1.5 py-2.5 web:py-2.5 text-base"
+            />
+          </View>
+          <View className="flex-row items-center gap-1">{trailingCluster}</View>
+        </View>
+      )}
     </>
   ) : (
     children
@@ -387,7 +422,7 @@ export function PromptInput({
           barState === "fullscreen"
             ? "border-0 bg-background"
             : barState === "expanded"
-              ? "rounded-[32px]"
+              ? "rounded-[28px]"
               : "rounded-full",
           disabled && "opacity-60",
           className
@@ -399,24 +434,7 @@ export function PromptInput({
         // the DOM node under NW5). Both after {...props} so nothing clobbers them.
         id={`${inputId}-bar`}
         style={barState === "fullscreen" ? fullscreenGrowStyle(barRect, fsSettled) : undefined}
-        onLayout={(e) => setContainerWidth(e.nativeEvent.layout.width)}
       >
-        {/* Hidden single-line mirror of the current value in the input's font —
-            drives the native fit test. Measured on the wrapping View: react-
-            native-web fires onLayout reliably on View but not on Text. On web the
-            fit test uses canvas measureText instead (onLayout is unreliable for
-            className'd elements under NativeWind 5), so this is native-only. */}
-        {isSimpleMode && Platform.OS !== "web" && (
-          <View
-            pointerEvents="none"
-            onLayout={(e) => setMirrorWidth(e.nativeEvent.layout.width)}
-            className="absolute top-0 left-0 flex-row opacity-0"
-          >
-            <Text numberOfLines={1} className="text-base lg:text-sm native:text-md">
-              {currentValue}
-            </Text>
-          </View>
-        )}
         {!disabled && (showFullscreen || showExpandIcon) && (
           <Pressable
             onPress={toggleFullscreen}
