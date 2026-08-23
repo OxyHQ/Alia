@@ -635,7 +635,9 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
       <KeyboardAwareScrollView
         ref={scrollViewRef}
         bottomOffset={60}
-        className="flex-1 bg-background px-4 py-4"
+        // The AmbientField is a sibling behind this list. Keep the scroll
+        // surface transparent so its idle and voice animations remain visible.
+        className="flex-1 bg-transparent px-4 py-4"
         contentContainerStyle={scrollContentStyle}
         showsVerticalScrollIndicator={false}
         onScroll={onScroll}
