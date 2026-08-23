@@ -255,6 +255,10 @@ describe('every configuration writer emits a record (#139 ws15)', () => {
    */
   const HEALTH_ONLY: readonly string[] = [
     'markKeyCreditExhausted',
+    // The exact counterpart of `markKeyCreditExhausted` above, and health for
+    // the same reason: a provider restoring a period's allowance is something
+    // that HAPPENED to the key, not something a person configured.
+    'renewExpiredKeyQuotas',
     'recordKeyFailure',
     'recordKeySpend',
     'recordKeySuccess',
