@@ -59,10 +59,11 @@
           "module": "db/billing/planRepository.ts",
           "classification": "CATALOGUE",
           "callers": [
-            "routes/internal.ts"
+            "routes/internal.ts",
+            "scripts/plan-models.ts"
           ],
           "reachable": true,
-          "entrypoint": "PUT /internal/plans/:planId/models, behind oxyServiceAuth (#139 ws14). The only runtime writer of plans.model_ids, which lib/plan-access.ts reads to decide whether a request may name a model. Writes that one column and no other \u2014 it takes a list, not an updates object \u2014 and emits a config-audit record with a required actor. Touches no amount and no Stripe id."
+          "entrypoint": "PUT /internal/plans/:planId/models, behind oxyServiceAuth (#139 ws14). The only runtime writer of plans.model_ids, which lib/plan-access.ts reads to decide whether a request may name a model. Writes that one column and no other \u2014 it takes a list, not an updates object \u2014 and emits a config-audit record with a required actor. Touches no amount and no Stripe id. Plus scripts/plan-models.ts, the operator one-shot that re-asserts the seeded list against a row created before a model existed \u2014 seedPlan is onConflictDoNothing, so without it a stale model list cannot be corrected at all."
         },
         {
           "fn": "updatePlanByPlanId",

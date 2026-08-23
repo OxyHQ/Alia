@@ -124,6 +124,23 @@ await esbuild.build({
   logLevel: 'info',
 });
 
+// The plan-model one-shot. Same shape and the same reason as the credential one
+// above: `plans.model_ids` has a seeder that will not touch an existing row and
+// an audited writer with no runtime caller, so correcting a stale list needs a
+// command, and a command needs a bundle.
+await esbuild.build({
+  entryPoints: ['src/scripts/plan-models.ts'],
+  bundle: true,
+  platform: 'node',
+  target: 'node20',
+  format: 'esm',
+  outfile: 'dist/scripts/plan-models.js',
+  plugins: [externalizeNodeModules],
+  sourcemap: false,
+  minify: false,
+  logLevel: 'info',
+});
+
 // Copy prompts directory to dist
 try {
   await cp('prompts', 'dist/prompts', { recursive: true });
