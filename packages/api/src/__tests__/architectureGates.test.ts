@@ -2589,6 +2589,7 @@ describe('gate 5: models versus routing profiles (ADR 0003 invariant 1)', () => 
 const PERMITTED_ENV_VARS: readonly string[] = [
   'AGENT_MAX_DURATION_MS',
   'ALIA_API_URL',
+  'ALIA_KAANA_ENABLED',
   'ALIA_RELAY_ACCOUNT_ID',
   'ALIA_RELAY_APPLICATION_ID',
   'ALIA_RELAY_CLIENT_ENABLED',
@@ -2638,6 +2639,8 @@ const PERMITTED_ENV_VARS: readonly string[] = [
   'GOOGLE_OAUTH_CLIENT_SECRET',
   'INTEGRATIONS_SECRET',
   'INTEGRATIONS_URL',
+  'KAANA_EDGE_KEY_ID',
+  'KAANA_EDGE_SIGNING_PRIVATE_KEY',
   'LIVEKIT_API_KEY',
   'LIVEKIT_API_SECRET',
   'LIVEKIT_INTERNAL_URL',
@@ -2696,7 +2699,11 @@ const PERMITTED_ENV_VARS: readonly string[] = [
  * except that the last provider-credential read in either service is gone — and
  * the prohibition below would now fail on it.
  */
-const PERMITTED_ENV_VAR_COUNT = 96;
+// 96 -> 99: the two variables that let this process sign an envelope Kaana
+// accepts, plus the switch that lets it use one. Read off the list rather
+// than incremented — the number is a
+// measurement of the list beside it.
+const PERMITTED_ENV_VAR_COUNT = 99;
 
 /**
  * Vendor tokens that name an inference provider but are not in `PROVIDER_NAMES`.
@@ -2785,9 +2792,16 @@ const INDIRECT_ENV_READERS: readonly { file: string; namesFrom: string; resolver
     resolver: 'The `RELAY_PRINCIPAL_ENV` map: five contract fields, five variables.',
   },
   {
+    file: 'packages/api/src/lib/inference/kaana.ts',
+    namesFrom: 'packages/api/src/lib/inference/kaana-transport.ts',
+    resolver:
+      'The `KAANA_EDGE_KEY_ID_ENV` and `KAANA_EDGE_PRIVATE_KEY_ENV` constants: the key Kaana knows this edge by, and the Ed25519 key it signs with. Declared in the transport that uses them and read in the factory that assembles the client, which is why the names come from a different file than the reads.',
+  },
+  {
     file: 'packages/api/src/lib/inference/relay-cutover.ts',
     namesFrom: 'packages/api/src/lib/inference/relay-cutover.ts',
-    resolver: 'The `RELAY_CLIENT_ENABLED_ENV` constant: the migration flag (#139 ws8).',
+    resolver:
+      'The `RELAY_CLIENT_ENABLED_ENV` and `KAANA_CLIENT_ENABLED_ENV` constants: the migration flag (#139 ws8), and the narrower switch that lets a process USE Kaana without declaring the cutover done — the second exists because the first also arms the boot refusal and the egress block.',
   },
   {
     file: 'packages/api/src/lib/inference/relay-endpoint.ts',
@@ -2823,7 +2837,13 @@ const INDIRECT_ENV_READERS: readonly { file: string; namesFrom: string; resolver
  * The file list alone would not notice a new indirect read inside a file that is
  * already on it, and that is precisely where one would land.
  */
-const INDIRECT_ENV_READ_SITES = 17;
+// 17 -> 22: `kaana.ts` indexes the environment four times — the two signing
+// variables, and the principal map it shares with the boot check — and
+// `relay-cutover.ts` reads one more, the switch that lets Kaana serve without
+// arming the guards. Read off the
+// scan rather than incremented; arithmetic on a measurement is how a plausible
+// wrong one lands.
+const INDIRECT_ENV_READ_SITES = 22;
 
 /**
  * Every secret `deploy-aws.yml` puts into this deployment's environment.
@@ -2955,12 +2975,12 @@ describe('gate 6: no provider credential in the deployment environment (#139 ws1
     expect(Object.keys(PROVIDER_VENDOR_ALIASES).filter((alias) => PROVIDER_NAMES.includes(alias as never))).toEqual([]);
   });
 
-  it('resolves every indirect read through a named resolver, from exactly eight files', () => {
+  it('resolves every indirect read through a named resolver, from exactly nine files', () => {
     expect([...new Set(production.indirect)].sort()).toEqual(
       INDIRECT_ENV_READERS.map((entry) => entry.file).sort(),
     );
     expect(production.indirect).toHaveLength(INDIRECT_ENV_READ_SITES);
-    expect(INDIRECT_ENV_READERS).toHaveLength(8);
+    expect(INDIRECT_ENV_READERS).toHaveLength(9);
 
     // Each indirection's names must actually have been resolved, out of the file
     // this list says holds them. Asserted per entry rather than in aggregate: a
