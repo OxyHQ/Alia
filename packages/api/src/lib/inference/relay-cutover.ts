@@ -45,36 +45,3 @@ export const RELAY_CLIENT_ENABLED_ENV = 'ALIA_RELAY_CLIENT_ENABLED';
 export function isRelayClientEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
   return env[RELAY_CLIENT_ENABLED_ENV] === 'true';
 }
-
-/**
- * The variable that lets this process USE Kaana, without declaring the cutover
- * done.
- *
- * The two are not the same question, and conflating them is a production
- * outage. `ALIA_RELAY_CLIENT_ENABLED` above means "Kaana is the route": it arms
- * the boot refusal and installs the egress block, so every direct provider host
- * becomes unreachable. That is correct at the END of the migration and wrong
- * during it, because Kaana serves TEXT today — its OpenAI-compatible adapter
- * refuses every other modality — while Alia still serves speech, images and
- * realtime voice from the in-process tree. Arming the block now would take
- * those out to gain nothing.
- *
- * So this one means only "Kaana may serve a call that asks it to". It arms no
- * guard and blocks no host, which is what lets the migration happen one surface
- * at a time instead of in a single move that has to be right first try.
- *
- * Strict equality for the same reason as above: `'1'`, `'TRUE'` and `' true'`
- * are the shapes an operator types by accident, and a flag that silently means
- * something else is worse than one that plainly does nothing.
- */
-export const KAANA_CLIENT_ENABLED_ENV = 'ALIA_KAANA_ENABLED';
-
-/**
- * Whether a Kaana client may be built here.
- *
- * True under either flag: a deployment that has completed the cutover is by
- * definition using Kaana, so it does not also have to say so twice.
- */
-export function isKaanaClientEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
-  return env[KAANA_CLIENT_ENABLED_ENV] === 'true' || isRelayClientEnabled(env);
-}

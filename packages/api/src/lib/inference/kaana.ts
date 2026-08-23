@@ -21,10 +21,10 @@
  *
  * ## What it refuses to do
  *
- * Return a client when the cutover flag is off. `isKaanaEnabled` is the same
- * predicate the boot guard and the egress policy read, so a process that has
- * not been told to use Kaana cannot acquire a client that would — which is the
- * property `relay-boundary.test.ts` exists to keep true.
+ * Return a client to a process that was never given one's parts. A missing
+ * endpoint, key or principal yields `null` rather than a client that fails at
+ * the first request — and `null` is a state the callers already handle, because
+ * the in-process path still exists behind them.
  */
 
 import {
@@ -34,22 +34,12 @@ import {
 } from './relay-client.js';
 import { RELAY_PRINCIPAL_ENV } from './relay-boot-check.js';
 import { resolveRelayEndpoint } from './relay-endpoint.js';
-import { isKaanaClientEnabled } from './relay-cutover.js';
 import {
   KAANA_EDGE_KEY_ID_ENV,
   KAANA_EDGE_PRIVATE_KEY_ENV,
   createKaanaTransport,
   readEdgePrivateKey,
 } from './kaana-transport.js';
-
-/**
- * Whether this process is configured to reach Kaana at all.
- *
- * The client's OWN switch, not the cutover's. See `relay-cutover.ts`: the
- * cutover flag also arms the boot refusal and the egress block, and arming
- * those before Kaana serves speech and images would take those surfaces out.
- */
-export const isKaanaEnabled = isKaanaClientEnabled;
 
 /**
  * Every variable this file needs beyond the principal the boot check already
@@ -150,8 +140,20 @@ export function getKaanaClient(env: NodeJS.ProcessEnv = process.env): RelayInfer
 }
 
 /** For tests, which need a client per environment rather than per process. */
+/**
+ * There is no flag here, deliberately.
+ *
+ * Kaana IS the inference provider; using it is not a feature to opt into. What
+ * decides whether this process reaches it is whether it has been GIVEN what it
+ * needs to — an endpoint, a signing key, a principal — and a deployment that
+ * has all three has said everything there is to say.
+ *
+ * `ALIA_RELAY_CLIENT_ENABLED` is a different question and is left alone: that
+ * one declares the cutover DONE, which arms the boot refusal and installs the
+ * egress block that makes every direct provider host unreachable. It belongs to
+ * the day the in-process tree is deleted, not to the day Kaana starts serving.
+ */
 export function buildKaanaClient(env: NodeJS.ProcessEnv): RelayInferenceClient | null {
-  if (!isKaanaEnabled(env)) return null;
   if (unsetKaanaVariables(env).length > 0) return null;
 
   const principal = principalFrom(env);

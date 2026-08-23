@@ -2589,7 +2589,6 @@ describe('gate 5: models versus routing profiles (ADR 0003 invariant 1)', () => 
 const PERMITTED_ENV_VARS: readonly string[] = [
   'AGENT_MAX_DURATION_MS',
   'ALIA_API_URL',
-  'ALIA_KAANA_ENABLED',
   'ALIA_RELAY_ACCOUNT_ID',
   'ALIA_RELAY_APPLICATION_ID',
   'ALIA_RELAY_CLIENT_ENABLED',
@@ -2699,11 +2698,10 @@ const PERMITTED_ENV_VARS: readonly string[] = [
  * except that the last provider-credential read in either service is gone — and
  * the prohibition below would now fail on it.
  */
-// 96 -> 99: the two variables that let this process sign an envelope Kaana
-// accepts, plus the switch that lets it use one. Read off the list rather
-// than incremented — the number is a
+// 96 -> 98: the two variables that let this process sign an envelope Kaana
+// accepts. Read off the list rather than incremented — the number is a
 // measurement of the list beside it.
-const PERMITTED_ENV_VAR_COUNT = 99;
+const PERMITTED_ENV_VAR_COUNT = 98;
 
 /**
  * Vendor tokens that name an inference provider but are not in `PROVIDER_NAMES`.
@@ -2800,8 +2798,7 @@ const INDIRECT_ENV_READERS: readonly { file: string; namesFrom: string; resolver
   {
     file: 'packages/api/src/lib/inference/relay-cutover.ts',
     namesFrom: 'packages/api/src/lib/inference/relay-cutover.ts',
-    resolver:
-      'The `RELAY_CLIENT_ENABLED_ENV` and `KAANA_CLIENT_ENABLED_ENV` constants: the migration flag (#139 ws8), and the narrower switch that lets a process USE Kaana without declaring the cutover done — the second exists because the first also arms the boot refusal and the egress block.',
+    resolver: 'The `RELAY_CLIENT_ENABLED_ENV` constant: the migration flag (#139 ws8).',
   },
   {
     file: 'packages/api/src/lib/inference/relay-endpoint.ts',
@@ -2837,13 +2834,11 @@ const INDIRECT_ENV_READERS: readonly { file: string; namesFrom: string; resolver
  * The file list alone would not notice a new indirect read inside a file that is
  * already on it, and that is precisely where one would land.
  */
-// 17 -> 22: `kaana.ts` indexes the environment four times — the two signing
-// variables, and the principal map it shares with the boot check — and
-// `relay-cutover.ts` reads one more, the switch that lets Kaana serve without
-// arming the guards. Read off the
+// 17 -> 21: `kaana.ts` indexes the environment four times — the two signing
+// variables, and the principal map it shares with the boot check. Read off the
 // scan rather than incremented; arithmetic on a measurement is how a plausible
 // wrong one lands.
-const INDIRECT_ENV_READ_SITES = 22;
+const INDIRECT_ENV_READ_SITES = 21;
 
 /**
  * Every secret `deploy-aws.yml` puts into this deployment's environment.
