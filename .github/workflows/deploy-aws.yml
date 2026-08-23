@@ -382,7 +382,14 @@ jobs:
           INTEGRATIONS_SECRETS: ${{ steps.integrations.outputs.secret_overrides }}
           INTEGRATIONS_ENV: ${{ steps.integrations.outputs.env_overrides }}
         run: |
-          kaana_secrets="$(jq -cn --arg arn "arn:aws:ssm:$AWS_REGION:$ACCOUNT_ID:parameter/oxy/$APP/KAANA_EDGE_SIGNING_PRIVATE_KEY" \
+          # The account id is written out, exactly as the integrations step above
+          # writes it. `$ACCOUNT_ID` is not set in this workflow, so it expanded
+          # to nothing and produced `arn:aws:ssm:us-west-2::parameter/…` — an ARN
+          # the script's validator refused, which is why it refused: a `secrets[]`
+          # binding naming a parameter that does not exist does not warn, it
+          # fails every task launch with `ResourceInitializationError` AFTER a
+          # green deploy. The gate turned that into a failed deploy instead.
+          kaana_secrets="$(jq -cn --arg arn "arn:aws:ssm:$AWS_REGION:237343248947:parameter/oxy/$APP/KAANA_EDGE_SIGNING_PRIVATE_KEY" \
             '{KAANA_EDGE_SIGNING_PRIVATE_KEY: $arn}')"
           kaana_env="$(jq -cn '{
             RELAY_BASE_URL: "https://relay.oxy.so",
