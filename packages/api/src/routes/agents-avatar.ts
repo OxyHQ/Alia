@@ -45,7 +45,7 @@ async function getReferenceDescription(): Promise<string> {
   }
 
   try {
-    const model = getAIModel(resolved.keyConfig);
+    const model = getAIModel(resolved, 'media');
     const startMs = Date.now();
 
     const result = await generateText({

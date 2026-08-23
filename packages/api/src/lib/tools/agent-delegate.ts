@@ -83,7 +83,7 @@ export const createDelegateToAgentTool = () => tool({
         }
       }
 
-      const model = getAIModel(resolved.keyConfig);
+      const model = getAIModel(resolved, 'agent_run');
 
       // Lightweight tool set for the agent
       const agentTools = {

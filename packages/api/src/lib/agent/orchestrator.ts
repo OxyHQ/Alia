@@ -231,7 +231,7 @@ async function synthesizeResult(
       return successResults.map(r => `## ${r.subtask}\n${r.result}`).join('\n\n');
     }
 
-    const model = getAIModel(resolved.keyConfig);
+    const model = getAIModel(resolved, 'agent_run');
     const resultsSummary = successResults
       .map(r => `### ${r.subtask}\n${r.result}`)
       .join('\n\n');

@@ -283,7 +283,7 @@ async function generateScript(show: ShowRow): Promise<ShowScript | null> {
     if (!resolved) break;
 
     try {
-      const model = getAIModel(resolved.keyConfig);
+      const model = getAIModel(resolved, 'media');
       const result = await generateText({
         model,
         messages: [

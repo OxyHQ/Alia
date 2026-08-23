@@ -196,7 +196,7 @@ export async function generateTitle(userMessage: string): Promise<string | null>
   }
 
   try {
-    const model = getAIModel(resolved.keyConfig);
+    const model = getAIModel(resolved, 'background');
     const result = await generateText({
       model,
       messages: [

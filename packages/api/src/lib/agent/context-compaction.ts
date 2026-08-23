@@ -182,7 +182,7 @@ async function summarizeEntries(entries: EventStreamEntry[]): Promise<string> {
         .join('\n');
     }
 
-    const model = getAIModel(resolved.keyConfig);
+    const model = getAIModel(resolved, 'agent_run');
 
     const result = await generateText({
       model,

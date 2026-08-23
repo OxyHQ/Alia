@@ -41,7 +41,7 @@ export async function refineStyleWithLLM(
       return {};
     }
 
-    const model = getAIModel(resolved.keyConfig);
+    const model = getAIModel(resolved, 'authoring');
 
     // Build prompt with heuristic analysis and sample messages
     const sampleMessages = messages.slice(-20).map((m, i) => `${i + 1}. "${m}"`).join('\n');

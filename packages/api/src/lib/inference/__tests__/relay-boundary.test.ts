@@ -218,6 +218,22 @@ describe('nothing in the API imports the Relay client (#139 ws3, constraint 3)',
      * names neither the client nor its credential.
      */
     'packages/api/src/lib/__tests__/boot-guards.test.ts',
+    /**
+     * The model factory, which is the point of the whole exercise.
+     *
+     * This constraint exists so the Relay client cannot be reached from
+     * anywhere in the product by accident. `chat-core.ts` reaches it ON
+     * PURPOSE: `getAIModel` is the one function twenty-eight modules ask for a
+     * model, and routing them to Kaana is a change of what that function
+     * returns rather than twenty-eight edits. It names two Kaana modules — the
+     * catalogue, to decide whether Kaana serves this model at all, and the
+     * language model it returns when it does.
+     *
+     * A product module naming the client is exactly what this census is for,
+     * so it is recorded here rather than exempted: the day a SECOND product
+     * module does it, that is a review and not a silent pass.
+     */
+    'packages/api/src/lib/chat-core.ts',
     // #139 ws15: back on this list, having dropped off it when the cutover flag
     // moved to `relay-cutover.ts`. The boot check now also refuses an
     // unapproved `RELAY_BASE_URL`, and `relay-endpoint.ts` is one of the modules
@@ -272,6 +288,7 @@ describe('nothing in the API imports the Relay client (#139 ws3, constraint 3)',
      * Kaana through `kaana-text.ts` and nothing else, so the censuses below
      * still describe one door rather than three.
      */
+    `${RELAY_DIR}/kaana-catalogue.ts`,
     `${RELAY_DIR}/kaana-language-model.ts`,
     `${RELAY_DIR}/kaana-text.ts`,
     `${RELAY_DIR}/kaana-transport.ts`,

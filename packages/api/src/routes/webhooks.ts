@@ -221,7 +221,7 @@ async function processChannelMessage(
       return;
     }
 
-    const model = getAIModel(resolved.keyConfig);
+    const model = getAIModel(resolved, 'agent_run');
 
     // Generate AI response
     const systemPrompt = await getChannelSystemPrompt(channelType);
@@ -379,7 +379,7 @@ async function processAgentBotMessage(
       await sendChannelMessage(channelType, message.chatId, 'Sorry, no AI models are available right now.', outboundOpts);
       return;
     }
-    const model = getAIModel(resolved.keyConfig);
+    const model = getAIModel(resolved, 'agent_run');
 
     const systemPrompt = agent?.systemPrompt || (await getChannelSystemPrompt(channelType));
 

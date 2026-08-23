@@ -131,7 +131,7 @@ export async function evolveAgentSoul(
     }
 
     const result = await generateText({
-      model: getAIModel(resolved.keyConfig),
+      model: getAIModel(resolved, 'agent_run'),
       prompt,
       maxOutputTokens: 200,
       temperature: 0.3,

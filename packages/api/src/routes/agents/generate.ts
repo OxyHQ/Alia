@@ -37,7 +37,7 @@ router.post('/generate', authenticateToken, async (req: Request, res: Response) 
       }
 
       try {
-        const model = getAIModel(resolved.keyConfig);
+        const model = getAIModel(resolved, 'authoring');
         result = await generateText({
           model,
           messages: [

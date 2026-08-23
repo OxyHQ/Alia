@@ -330,7 +330,7 @@ router.post('/generate', authenticateToken, async (req: Request, res: Response) 
       }
 
       try {
-        const model = getAIModel(resolved.keyConfig);
+        const model = getAIModel(resolved, 'background');
         result = await generateText({
           model,
           abortSignal: AbortSignal.timeout(30000),

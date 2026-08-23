@@ -68,7 +68,7 @@ export async function verifyResults(
     };
   }
 
-  const model = getAIModel(resolved.keyConfig);
+  const model = getAIModel(resolved, 'agent_run');
 
   const resultsSummary = executorResults
     .map((r, i) => `### Subtask ${i + 1}: ${r.subtask}\n**Status:** ${r.success ? 'Success' : 'Failed'}\n**Result:** ${r.result.slice(0, 1000)}`)

@@ -1486,10 +1486,21 @@ const PROVIDER_KEY_READERS: readonly string[] = [
 /**
  * How `KeyConfig` — the object carrying the PLAINTEXT provider credential —
  * may be handled outside `src/internal/`. Reading `.key` is not on the list:
- * outside the provider tree the credential is opaque, passed whole to the AI
- * SDK factory or interrogated only for its id.
+ * outside the provider tree the credential is opaque, unwrapped only by the
+ * factory that needs it or interrogated only for its id.
+ *
+ * `arg of getAIModel()` was on this list until the factory started taking the
+ * whole RESOLUTION — it has to choose between Kaana and a provider, and only
+ * the resolution says which. So the credential no longer travels named at
+ * twenty-eight call sites; it travels inside an object none of them opens, and
+ * `BARE` is the single unwrap inside `chat-core.ts` itself.
+ *
+ * That is a strictly smaller surface, but it moves what this census counts —
+ * so the floor below moved with it, onto the handover the call sites still
+ * make. A floor left pointing at the old shape would have read zero and called
+ * it clean.
  */
-const ALLOWED_KEY_CONFIG_SHAPES: readonly string[] = ['arg of getAIModel()', 'read .keyId', 'read .modelId'];
+const ALLOWED_KEY_CONFIG_SHAPES: readonly string[] = ['BARE', 'read .keyId', 'read .modelId'];
 
 /** The two files that read the plaintext credential itself. One is inside the provider tree. */
 const PLAINTEXT_CREDENTIAL_READERS: readonly string[] = [
@@ -1626,7 +1637,20 @@ describe('gate 4: no provider secret reaches a public serializer (ADR 0001)', ()
     }
 
     // Positive control and floor: the scan must find the handling that exists.
-    expect(shapes.get('arg of getAIModel()')?.length ?? 0).toBeGreaterThanOrEqual(20);
+    // Vacuity floor, on the handover rather than on the unwrap: every one of
+    // these hands `getAIModel` a resolution that CONTAINS the credential, and a
+    // census that found none of them would otherwise report a clean repository.
+    let handovers = 0;
+    for (const { ast } of apiSources) {
+      const count = (n: ts.Node): void => {
+        if (ts.isCallExpression(n) && n.expression.getText(ast) === 'getAIModel') handovers += 1;
+        ts.forEachChild(n, count);
+      };
+      count(ast);
+    }
+    expect(handovers).toBeGreaterThanOrEqual(20);
+    // And the credential is not named at any of them any more.
+    expect(shapes.get('arg of getAIModel()') ?? []).toEqual([]);
 
     const outside = [...shapes.entries()].filter(([, sites]) =>
       sites.some((s) => !s.startsWith('packages/api/src/internal/')),
@@ -2796,6 +2820,12 @@ const INDIRECT_ENV_READERS: readonly { file: string; namesFrom: string; resolver
       'The `KAANA_EDGE_KEY_ID_ENV` and `KAANA_EDGE_PRIVATE_KEY_ENV` constants: the key Kaana knows this edge by, and the Ed25519 key it signs with. Declared in the transport that uses them and read in the factory that assembles the client, which is why the names come from a different file than the reads.',
   },
   {
+    file: 'packages/api/src/lib/inference/kaana-catalogue.ts',
+    namesFrom: 'packages/api/src/lib/inference/kaana-transport.ts',
+    resolver:
+      'The same two edge-key constants, plus `RELAY_PRINCIPAL_ENV.environment`: the catalogue is fetched over the same signature scheme as an inference envelope, so it reads the same names rather than inventing a second way to be configured.',
+  },
+  {
     file: 'packages/api/src/lib/inference/relay-cutover.ts',
     namesFrom: 'packages/api/src/lib/inference/relay-cutover.ts',
     resolver: 'The `RELAY_CLIENT_ENABLED_ENV` constant: the migration flag (#139 ws8).',
@@ -2838,7 +2868,9 @@ const INDIRECT_ENV_READERS: readonly { file: string; namesFrom: string; resolver
 // variables, and the principal map it shares with the boot check. Read off the
 // scan rather than incremented; arithmetic on a measurement is how a plausible
 // wrong one lands.
-const INDIRECT_ENV_READ_SITES = 21;
+// 21 -> 24: `kaana-catalogue.ts` indexes it three times, for the same two
+// signing variables and the deployment environment. Also read off the scan.
+const INDIRECT_ENV_READ_SITES = 24;
 
 /**
  * Every secret `deploy-aws.yml` puts into this deployment's environment.
@@ -2972,12 +3004,12 @@ describe('gate 6: no provider credential in the deployment environment (#139 ws1
     expect(Object.keys(PROVIDER_VENDOR_ALIASES).filter((alias) => PROVIDER_NAMES.includes(alias as never))).toEqual([]);
   });
 
-  it('resolves every indirect read through a named resolver, from exactly nine files', () => {
+  it('resolves every indirect read through a named resolver, from exactly ten files', () => {
     expect([...new Set(production.indirect)].sort()).toEqual(
       INDIRECT_ENV_READERS.map((entry) => entry.file).sort(),
     );
     expect(production.indirect).toHaveLength(INDIRECT_ENV_READ_SITES);
-    expect(INDIRECT_ENV_READERS).toHaveLength(9);
+    expect(INDIRECT_ENV_READERS).toHaveLength(10);
 
     // Each indirection's names must actually have been resolved, out of the file
     // this list says holds them. Asserted per entry rather than in aggregate: a

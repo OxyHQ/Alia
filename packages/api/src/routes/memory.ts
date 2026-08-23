@@ -862,7 +862,7 @@ router.post('/import/from-text', async (req, res) => {
       const resolved = await resolveModel(getDefaultAliaModel(), skipProviders, skipKeyIds);
       if (!resolved) break;
 
-      const model = getAIModel(resolved.keyConfig);
+      const model = getAIModel(resolved, 'background');
       try {
         const result = await generateText({
           model,
