@@ -199,12 +199,19 @@ export function BillingSection({ success }: BillingSectionProps) {
             description={t('billing.creditsPerMonth', { count: subscription.plan.creditsPerMonth.toLocaleString() })}
             value={`$${(subscription.plan.price / 100).toFixed(2)}${t('credits.perMonth')}`}
           />
-          <SettingsListItem
-            title={t('billing.changePlan')}
-            onPress={() => router.push("/(biglayout)/subscribe")}
-            leftInset={ITEM_TEXT_INSET}
-          />
-          {!subscription.cancelAtPeriodEnd ? (
+          {/*
+            * A complimentary plan is not billed and has no Stripe object behind
+            * it, so both management actions are refused by the API with a 400.
+            * They are not offered rather than offered-and-failing.
+            */}
+          {subscription.isComped ? null : (
+            <SettingsListItem
+              title={t('billing.changePlan')}
+              onPress={() => router.push("/(biglayout)/subscribe")}
+              leftInset={ITEM_TEXT_INSET}
+            />
+          )}
+          {!subscription.isComped && !subscription.cancelAtPeriodEnd ? (
             <SettingsListItem
               title={cancelSubscriptionMutation.isPending ? t('billing.canceling') : t('billing.cancelSubscription')}
               onPress={handleCancelSubscription}

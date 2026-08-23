@@ -276,7 +276,8 @@ export default function CodeaSubscribeScreen() {
               currentPlanId={subscription?.plan?.planId}
               currentBillingPeriod={subscription?.plan?.billingPeriod}
               cancelAtPeriodEnd={subscription?.cancelAtPeriodEnd}
-              hasActiveSubscription={
+              isComped={subscription?.isComped}
+            hasActiveSubscription={
                 !!subscription && subscription.status === 'active'
               }
               onSubscribe={handleSubscribe}

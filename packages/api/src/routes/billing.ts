@@ -12,6 +12,7 @@ import {
   findActiveSubscription,
   updateSubscriptionByStripeId,
   upsertSubscriptionByStripeId,
+  type SubscriptionRow,
 } from '../db/billing/subscriptionRepository.js';
 import {
   countTransactionsForUser,
@@ -390,6 +391,51 @@ router.post('/checkout/subscription', authenticateToken, async (req: Request, re
   }
 });
 
+/**
+ * The subscription as its CLIENTS read it.
+ *
+ * The Postgres port changed this response shape and nothing noticed, because
+ * almost every account is on the free floor and gets `null` here. The row it
+ * started returning is flat — `planSnapshotName`, `planSnapshotPrice` — while
+ * `packages/app` and `packages/alia-console` both read `subscription.plan.name`
+ * and `subscription.plan.planId`. So a paying account rendered a blank plan on
+ * the settings screen, an unmarked tier on the plans screen, and a TypeError in
+ * `credits-panel.tsx`, which reaches `.plan.name` without a guard.
+ *
+ * Serialising here rather than teaching three screens to read `planSnapshot*`:
+ * the nested `plan` is what the clients were written against and what the
+ * snapshot columns MEAN — the plan as sold, frozen.
+ *
+ * The Stripe and owner ids are deliberately NOT in it. No client reads one
+ * (measured across both), a customer id is not a customer's business, and
+ * shipping `stripeSubscriptionId` would invite a client to test the `comp_`
+ * prefix itself instead of reading `isComped`.
+ */
+function serializeSubscription(row: SubscriptionRow) {
+  return {
+    status: row.status,
+    currentPeriodStart: row.currentPeriodStart,
+    currentPeriodEnd: row.currentPeriodEnd,
+    cancelAtPeriodEnd: row.cancelAtPeriodEnd,
+    /**
+     * A comped plan is not billed and has no Stripe object, so the two
+     * management actions do not apply to it — the API refuses both with a 400
+     * and this is how a client knows not to offer them.
+     */
+    isComped: isCompedSubscriptionId(row.stripeSubscriptionId),
+    plan: {
+      planId: row.planSnapshotPlanId,
+      name: row.planSnapshotName,
+      product: row.planSnapshotProduct,
+      creditsPerMonth: row.planSnapshotCreditsPerMonth,
+      price: row.planSnapshotPrice,
+      currency: row.planSnapshotCurrency,
+      billingPeriod: row.planSnapshotBillingPeriod,
+    },
+    createdAt: row.createdAt,
+  };
+}
+
 router.get('/subscription', optionalAuth, async (req: Request, res: Response) => {
   try {
     if (!req.user) {
@@ -399,7 +445,7 @@ router.get('/subscription', optionalAuth, async (req: Request, res: Response) =>
     const subscription = await findActiveSubscription(getDb(), req.user.id, {
       ...(product ? { product } : {}),
     });
-    res.json({ subscription });
+    res.json({ subscription: subscription && serializeSubscription(subscription) });
   } catch (error: unknown) {
     log.credits.error({ err: error }, 'Error fetching subscription');
     res.status(500).json({ error: getSafeErrorMessage(error, 'Failed to fetch subscription') });
@@ -433,7 +479,10 @@ router.post('/subscription/cancel', authenticateToken, async (req: Request, res:
       { cancelAtPeriodEnd: true },
     );
 
-    res.json({ message: 'Subscription will be canceled at end of billing period', subscription: canceled });
+    res.json({
+      message: 'Subscription will be canceled at end of billing period',
+      subscription: canceled && serializeSubscription(canceled),
+    });
   } catch (error: unknown) {
     log.credits.error({ err: error }, 'Error canceling subscription');
     res.status(500).json({ error: getSafeErrorMessage(error, 'Failed to cancel subscription') });
@@ -551,7 +600,7 @@ router.post('/subscription/change-plan', authenticateToken, async (req: Request,
 
     const direction = isUpgrade ? 'upgrade' : 'downgrade';
     log.credits.info({ userId, from: currentPlan.planId, to: targetPlan.planId, direction, billingPeriod }, 'Plan changed');
-    res.json({ message: 'Plan changed successfully', subscription, direction });
+    res.json({ message: 'Plan changed successfully', subscription: serializeSubscription(subscription), direction });
   } catch (error: unknown) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: 'Invalid input', details: error.errors });

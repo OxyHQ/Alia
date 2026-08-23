@@ -35,26 +35,24 @@ export interface SubscriptionPlan {
   isFree?: boolean;
 }
 
+/** What `GET /billing/subscription` serves — the API's `serializeSubscription`. */
 export interface Subscription {
-  _id: string;
-  userId: string;
-  stripeCustomerId: string;
-  stripeSubscriptionId: string;
-  stripePriceId: string;
   status: 'active' | 'canceled' | 'past_due' | 'unpaid' | 'trialing';
   currentPeriodStart: string;
   currentPeriodEnd: string;
   cancelAtPeriodEnd: boolean;
+  /** A complimentary plan: not billed, and neither changeable nor cancellable. */
+  isComped: boolean;
   plan: {
-    planId?: string;
+    planId: string | null;
     name: string;
     product: 'alia' | 'codea';
     creditsPerMonth: number;
     price: number;
     currency: string;
+    billingPeriod: 'monthly' | 'annual';
   };
   createdAt: string;
-  updatedAt: string;
 }
 
 export interface Transaction {

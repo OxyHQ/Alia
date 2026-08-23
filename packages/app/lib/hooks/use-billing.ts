@@ -38,27 +38,30 @@ export interface SubscriptionPlan {
   sortOrder?: number;
 }
 
+/**
+ * What `GET /billing/subscription` serves — the API's `serializeSubscription`,
+ * field for field.
+ *
+ * It used to claim the Stripe and owner ids too, which the API had already
+ * stopped sending and nothing here ever read.
+ */
 export interface Subscription {
-  _id: string;
-  userId: string;
-  stripeCustomerId: string;
-  stripeSubscriptionId: string;
-  stripePriceId: string;
   status: 'active' | 'canceled' | 'past_due' | 'unpaid' | 'trialing';
   currentPeriodStart: string;
   currentPeriodEnd: string;
   cancelAtPeriodEnd: boolean;
+  /** A complimentary plan: not billed, and neither changeable nor cancellable. */
+  isComped: boolean;
   plan: {
-    planId?: string;
+    planId: string | null;
     name: string;
     product: 'alia' | 'codea';
     creditsPerMonth: number;
     price: number;
     currency: string;
-    billingPeriod?: 'monthly' | 'annual';
+    billingPeriod: 'monthly' | 'annual';
   };
   createdAt: string;
-  updatedAt: string;
 }
 
 export interface Transaction {
