@@ -623,6 +623,12 @@ const PROVIDER_IMPORT_ALLOWLIST: readonly { from: string; to: string; via: Modul
     why: 'A route driving a provider realtime session directly. Moves to Relay (#139 ws7).',
   },
   {
+    from: 'packages/api/src/__tests__/dockerfileShipsRuntimeData.test.ts',
+    to: 'packages/api/src/internal/providers/lib/alia-models',
+    via: 'import',
+    why: 'Asserts the runtime image ships a prompt for every alias, and `buildSystemPrompt` loads `prompts/<id>.md` — so the alias id IS the filename. Read from ALIA_MODELS rather than from a list written in the test, or the check measures a copy of the answer. Test-only; retires with the alias layer.',
+  },
+  {
     from: 'packages/api/src/__tests__/prototype-keyed-lookups.test.ts',
     to: 'packages/api/src/internal/providers/lib/alia-models',
     via: 'dynamic',
@@ -719,7 +725,7 @@ const PROVIDER_IMPORT_ALLOWLIST: readonly { from: string; to: string; via: Modul
  * produced a plausible wrong answer that still compiled. The same trap caught
  * ws5's rebase, which is why this paragraph is a rule and not a history.
  */
-const PROVIDER_IMPORT_ALLOWLIST_SIZE = 43;
+const PROVIDER_IMPORT_ALLOWLIST_SIZE = 44;
 
 function observedProviderImports(): { from: string; to: string; via: ModuleRef['via'] }[] {
   const seen = new Map<string, { from: string; to: string; via: ModuleRef['via'] }>();
