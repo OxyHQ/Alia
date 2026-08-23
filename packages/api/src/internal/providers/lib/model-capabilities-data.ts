@@ -156,6 +156,7 @@ export const MODEL_CAPABILITIES: Record<string, ModelCapabilities> = {
 
   // Image Generation (OpenAI direct)
   'dall-e-3': createCapabilities({ tools: false, functionCalling: false, streaming: false, maxContextTokens: 4096, maxOutputTokens: 4096 }),
+  'grok-imagine-image': createCapabilities({ tools: false, functionCalling: false, streaming: false, maxContextTokens: 4096, maxOutputTokens: 4096 }),
 
   // ============== ANTHROPIC CLAUDE ==============
   'claude-instant-1': createCapabilities({ maxContextTokens: 100000, maxOutputTokens: 8192 }),
@@ -484,6 +485,7 @@ export const MODEL_PRICING: Record<string, ModelPricing> = {
 
   // Image Generation (OpenAI direct)
   'dall-e-3': { tier: 'paid', costPer1MInput: 0, costPer1MOutput: 0, averageLatencyMs: 8000 },
+  'grok-imagine-image': { tier: 'paid', costPer1MInput: 0, costPer1MOutput: 0, averageLatencyMs: 8000 },
 
   // ============== ANTHROPIC CLAUDE ==============
   'claude-instant-1': { tier: 'paid', costPer1MInput: 1.63, costPer1MOutput: 55.10 },
