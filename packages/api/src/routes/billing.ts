@@ -23,7 +23,7 @@ import { getPlans, getCreditPackages, getFeatures, getPlanFeatures, getAllAliaMo
 import { ensureStripePriceId } from '../lib/stripe-prices.js';
 import { getOrCreateUserCredits } from '../lib/user-credits-helpers.js';
 import { getUserEntitlements, invalidateEntitlementsCache } from '../lib/plan-access.js';
-import { isCompedSubscriptionId } from '../lib/comped-accounts.js';
+import { isCompedSubscriptionId } from '../lib/seed-comped-accounts.js';
 import { z } from 'zod';
 import { log } from '../lib/logger.js';
 import { getSafeErrorMessage } from '../lib/errors/sanitize.js';
@@ -415,7 +415,7 @@ router.post('/subscription/cancel', authenticateToken, async (req: Request, res:
     }
 
     // A comped subscription has no Stripe object behind it
-    // (`lib/comped-accounts.ts`), so handing its synthetic id to Stripe would be
+    // (`lib/seed-comped-accounts.ts`), so handing its synthetic id to Stripe would be
     // a `resource_missing` surfacing as a 500 on a request that is simply not
     // applicable. There is nothing to cancel: the grant is re-asserted on the
     // account's next request either way.

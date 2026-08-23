@@ -241,15 +241,8 @@ vi.mock('../../db/developers/developerRepository.js', () => ({
   touchKeyLastUsed: vi.fn().mockResolvedValue(undefined),
 }));
 vi.mock('../../db/telemetry/apiKeyUsageRepository.js', () => ({ recordApiKeyUsage: vi.fn() }));
-// `credits` and `general` because `middleware/auth.ts` reaches
-// `lib/comped-accounts.ts`, which logs on `credits`, and through it
-// `lib/gateway-client.ts`, which logs on `general` AT IMPORT TIME.
 vi.mock('../../lib/logger.js', () => ({
-  log: {
-    auth: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
-    credits: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
-    general: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
-  },
+  log: { auth: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } },
 }));
 vi.mock('../../lib/channels/registry.js', () => ({ getConfiguredChannels: vi.fn(() => []) }));
 vi.mock('@oxyhq/core', () => {
