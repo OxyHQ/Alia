@@ -101,6 +101,7 @@ import { log } from '../lib/logger.js';
 import { seedCreditPackages } from '../internal/providers/lib/seed-credit-packages.js';
 import { seedFeatures, seedPlanFeatures } from '../internal/providers/lib/seed-features.js';
 import { seedAliaModels, seedModelConfigs } from '../internal/providers/lib/seed-model-configs.js';
+import { seedCompedAccounts } from '../lib/seed-comped-accounts.js';
 import { seedPlans } from '../lib/seed-plans.js';
 import { seedSkills } from '../lib/seed-skills.js';
 import { seedSuggestions } from '../lib/seed-suggestions.js';
@@ -128,6 +129,11 @@ const SEEDERS: readonly { readonly name: string; readonly run: () => Promise<unk
   { name: 'plans', run: seedPlans },
   { name: 'plan_features', run: seedPlanFeatures },
   { name: 'credit_packages', run: seedCreditPackages },
+  /**
+   * After `plans`: it picks the most expensive plan out of the catalogue, so an
+   * empty `plans` table makes it throw rather than comp nobody quietly.
+   */
+  { name: 'comped_accounts', run: seedCompedAccounts },
   { name: 'suggestions', run: seedSuggestions },
   /**
    * Last, and order-independent: `skills` is referenced by `agent_skills`, which
