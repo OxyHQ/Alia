@@ -58,6 +58,11 @@ export const GENERATED_TIER_MAPPINGS: Record<AliaTier, ModelMapping[]> = {
     createMapping('digitalocean', 'openai', 'gpt-5-nano', 'openai-gpt-5-nano', 14, 66),
     createMapping('digitalocean', 'meta', 'llama-3.3-70b', 'llama3.3-70b-instruct', 15, 63),
     createMapping('digitalocean', 'openai', 'gpt-oss-20b', 'openai-gpt-oss-20b', 16, 55),
+    // OpenRouter last, and reachable: it is the one provider we hold spendable
+    // credit for, and a provider with no key is refused before a request leaves
+    // the process — so this serves today and steps aside the day a key above it
+    // arrives. Model ids verified against openrouter.ai's live catalogue.
+    createMapping('openrouter', 'openai', 'gpt-4o-mini', 'openai/gpt-4o-mini', 17, 76),
   ],
   'v1': [
     createMapping('google', 'google', 'gemini-2.5-flash', 'gemini-2.5-flash', 1, 88),
@@ -80,6 +85,11 @@ export const GENERATED_TIER_MAPPINGS: Record<AliaTier, ModelMapping[]> = {
     createMapping('digitalocean', 'openai', 'gpt-5-mini', 'openai-gpt-5-mini', 15, 80),
     createMapping('digitalocean', 'meta', 'llama-3.3-70b', 'llama3.3-70b-instruct', 16, 72),
     createMapping('digitalocean', 'alibaba', 'qwen3-32b', 'alibaba-qwen3-32b', 17, 70),
+    // OpenRouter last, and reachable: it is the one provider we hold spendable
+    // credit for, and a provider with no key is refused before a request leaves
+    // the process — so this serves today and steps aside the day a key above it
+    // arrives. Model ids verified against openrouter.ai's live catalogue.
+    createMapping('openrouter', 'openai', 'gpt-4o', 'openai/gpt-4o', 18, 86),
   ],
   'v1-codea': [
     createMapping('deepseek', 'deepseek', 'deepseek-chat', 'deepseek-chat', 1, 94),
@@ -99,6 +109,11 @@ export const GENERATED_TIER_MAPPINGS: Record<AliaTier, ModelMapping[]> = {
     createMapping('mistral', 'mistral', 'mistral-small-3.1', 'mistral-small-3.1-2503', 12, 78),
     createMapping('digitalocean', 'openai', 'gpt-5', 'openai-gpt-5', 13, 90),
     createMapping('digitalocean', 'openai', 'gpt-5.1-codex-max', 'openai-gpt-5.1-codex-max', 14, 89),
+    // OpenRouter last, and reachable: it is the one provider we hold spendable
+    // credit for, and a provider with no key is refused before a request leaves
+    // the process — so this serves today and steps aside the day a key above it
+    // arrives. Model ids verified against openrouter.ai's live catalogue.
+    createMapping('openrouter', 'anthropic', 'claude-sonnet-4', 'anthropic/claude-sonnet-4', 15, 88),
   ],
   'v1-cowork': [
     createMapping('deepseek', 'deepseek', 'deepseek-chat', 'deepseek-chat', 1, 93),
@@ -143,6 +158,11 @@ export const GENERATED_TIER_MAPPINGS: Record<AliaTier, ModelMapping[]> = {
     createMapping('cloudflare', 'meta', 'llama-3.2-11b-vision', '@cf/meta/llama-3.2-11b-vision-instruct', 6, 88),
     createMapping('cohere', 'cohere', 'command-a-vision-07-2025', 'command-a-vision-07-2025', 7, 87),
     createMapping('digitalocean', 'openai', 'gpt-4o', 'openai-gpt-4o', 8, 90),
+    // OpenRouter last, and reachable: it is the one provider we hold spendable
+    // credit for, and a provider with no key is refused before a request leaves
+    // the process — so this serves today and steps aside the day a key above it
+    // arrives. Model ids verified against openrouter.ai's live catalogue.
+    createMapping('openrouter', 'openai', 'gpt-4o', 'openai/gpt-4o', 9, 86),
   ],
   'v1-audio': [
     createMapping('groq', 'openai', 'whisper-large-v3-turbo', 'whisper-large-v3-turbo', 1, 95),
@@ -183,6 +203,11 @@ export const GENERATED_TIER_MAPPINGS: Record<AliaTier, ModelMapping[]> = {
     createMapping('google', 'google', 'gemini-3-flash-preview', 'gemini-3-flash-preview', 4, 96),
     createMapping('openai', 'openai', 'gpt-4o', 'gpt-4o', 5, 95),
     createMapping('cloudflare', 'meta', 'llama-3.2-11b-vision', '@cf/meta/llama-3.2-11b-vision-instruct', 6, 90),
+    // OpenRouter last, and reachable: it is the one provider we hold spendable
+    // credit for, and a provider with no key is refused before a request leaves
+    // the process — so this serves today and steps aside the day a key above it
+    // arrives. Model ids verified against openrouter.ai's live catalogue.
+    createMapping('openrouter', 'google', 'gemini-2.5-pro', 'google/gemini-2.5-pro', 7, 90),
   ],
   'v1-pro': [
     createMapping('anthropic', 'anthropic', 'claude-sonnet-4', 'claude-sonnet-4-20250514', 1, 96),
@@ -195,6 +220,11 @@ export const GENERATED_TIER_MAPPINGS: Record<AliaTier, ModelMapping[]> = {
     createMapping('digitalocean', 'anthropic', 'claude-sonnet-4.6', 'anthropic-claude-4.6-sonnet', 8, 94),
     createMapping('digitalocean', 'openai', 'o3', 'openai-o3', 9, 92),
     createMapping('digitalocean', 'openai', 'gpt-5.2', 'openai-gpt-5.2', 10, 90),
+    // OpenRouter last, and reachable: it is the one provider we hold spendable
+    // credit for, and a provider with no key is refused before a request leaves
+    // the process — so this serves today and steps aside the day a key above it
+    // arrives. Model ids verified against openrouter.ai's live catalogue.
+    createMapping('openrouter', 'anthropic', 'claude-sonnet-4', 'anthropic/claude-sonnet-4', 11, 90),
   ],
   'v1-pro-max': [
     createMapping('anthropic', 'anthropic', 'claude-opus-4', 'claude-opus-4-20241120', 1, 98),
@@ -206,6 +236,11 @@ export const GENERATED_TIER_MAPPINGS: Record<AliaTier, ModelMapping[]> = {
     createMapping('digitalocean', 'anthropic', 'claude-opus-4.6', 'anthropic-claude-opus-4.6', 7, 96),
     createMapping('digitalocean', 'openai', 'o1', 'openai-o1', 8, 93),
     createMapping('digitalocean', 'openai', 'gpt-5.2-pro', 'openai-gpt-5.2-pro', 9, 92),
+    // OpenRouter last, and reachable: it is the one provider we hold spendable
+    // credit for, and a provider with no key is refused before a request leaves
+    // the process — so this serves today and steps aside the day a key above it
+    // arrives. Model ids verified against openrouter.ai's live catalogue.
+    createMapping('openrouter', 'anthropic', 'claude-opus-4', 'anthropic/claude-opus-4', 10, 92),
   ],
   'v1-voice': [
     {

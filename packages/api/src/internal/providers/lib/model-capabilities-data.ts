@@ -142,6 +142,16 @@ export const MODEL_CAPABILITIES: Record<string, ModelCapabilities> = {
   'tts-1-hd': createCapabilities({ audio: true, tools: false, functionCalling: false, maxContextTokens: 4096, maxOutputTokens: 4096 }),
   'openai/tts-1': createCapabilities({ audio: true, tools: false, functionCalling: false, maxContextTokens: 4096, maxOutputTokens: 4096 }),
 
+  // OpenRouter serves other publishers' models under `<publisher>/<model>`, so
+  // the id differs from the same model reached directly and needs its own
+  // record. Same capabilities as the direct entry: it is the same model, one
+  // hop further away.
+  'openai/gpt-4o-mini': createCapabilities({ vision: true, maxContextTokens: 128000, maxOutputTokens: 16384 }),
+  'openai/gpt-4o': createCapabilities({ vision: true, maxContextTokens: 128000, maxOutputTokens: 16384 }),
+  'anthropic/claude-sonnet-4': createCapabilities({ vision: true, promptCaching: true, maxContextTokens: 200000, maxOutputTokens: 64000 }),
+  'anthropic/claude-opus-4': createCapabilities({ vision: true, promptCaching: true, maxContextTokens: 200000, maxOutputTokens: 32000 }),
+  'google/gemini-2.5-pro': createCapabilities({ vision: true, audio: true, maxContextTokens: 1048576, maxOutputTokens: 65536 }),
+
   // Google Gemini TTS (generateContent AUDIO modality)
   'gemini-2.5-flash-preview-tts': createCapabilities({ audio: true, tools: false, functionCalling: false, streaming: false, maxContextTokens: 8192, maxOutputTokens: 8192 }),
 
