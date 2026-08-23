@@ -64,6 +64,13 @@ export interface ForUserOptions {
    * to use it would be a switch the model may overrule.
    */
   webSearch: boolean;
+  /**
+   * One hosted MCP connector selected for this turn.
+   *
+   * `undefined` keeps the compatibility behaviour (all runnable connectors),
+   * `null` exposes none, and a string exposes only that owned connector.
+   */
+  mcpServerId?: string | null;
 }
 
 export interface ForUserResult {
@@ -93,6 +100,7 @@ export class ToolPipeline {
       editorToolDefinitions,
       sseEmitter,
       webSearch,
+      mcpServerId,
     } = opts;
 
     // 1. Convert editor tools from OpenAI format and build name mapping
@@ -152,7 +160,7 @@ export class ToolPipeline {
     if (isDirectSession) {
       try {
         const [mcpTools, integrationTools, oxyServiceTools] = await Promise.all([
-          buildMcpTools(userId),
+          buildMcpTools(userId, mcpServerId),
           buildIntegrationTools(userId),
           buildOxyServiceTools(userId, accessToken!),
         ]);

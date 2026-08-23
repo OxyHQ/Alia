@@ -291,6 +291,12 @@ describe('the chat tool builder sees only what it can dispatch to', () => {
     const runnable = await listRunnableMcpServersForUser(db, user);
     expect(runnable.map((s) => s.name)).toEqual(['good']);
 
+    // A per-turn connector selection is an additional allow-list, never a way
+    // around the ownership/runtime predicates above.
+    expect((await listRunnableMcpServersForUser(db, user, good.id)).map((s) => s.id)).toEqual([good.id]);
+    expect(await listRunnableMcpServersForUser(db, user, stopped.id)).toEqual([]);
+    expect(await listRunnableMcpServersForUser(db, 'mcpu-someone-else', good.id)).toEqual([]);
+
     // Vacuity floor: the user really does own four connectors, so the single
     // result above is filtering rather than an empty table.
     const all = await listMcpServersForUser(db, user);

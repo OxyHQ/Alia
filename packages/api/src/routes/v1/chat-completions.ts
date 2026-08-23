@@ -81,6 +81,7 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
 
     const {
       body, messages, conversationId, reasoningEffort, agentMode, deepResearch, webSearch,
+      mcpServerId,
       includeUsage, isDirectUserSession, requestedModel, routingOptions, clientContext,
       userMemory, oxyUser, skill, linkedAgent,
     } = ctx;
@@ -148,6 +149,7 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
       editorToolDefinitions: body.tools,
       sseEmitter,
       webSearch,
+      mcpServerId,
     });
 
     // Agent mode: full agent escalation for linked conversations

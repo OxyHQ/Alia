@@ -26,9 +26,9 @@ interface McpToolCallResult {
 }
 
 // Short-lived per-user cache to avoid a database round trip on every chat
-// message. MCP server config changes rarely; 30s staleness is acceptable. Tool
-// closures capture only oxyUserId, so caching by user stays correct across
-// callers.
+// message. MCP server config changes rarely; 30s staleness is acceptable. The
+// selection is part of the key so a one-connector turn can never reuse the
+// legacy all-connectors set.
 const cache = new TTLCache<ToolSet>({ ttlMs: 30_000, maxSize: 2000 });
 
 /**
@@ -37,8 +37,22 @@ const cache = new TTLCache<ToolSet>({ ttlMs: 30_000, maxSize: 2000 });
  * local MCP tools (via WebSocket relay from Cowork/Codea).
  * Tool names are prefixed with `mcp_{serverName}_` to avoid collisions.
  */
-export async function buildMcpTools(oxyUserId: string): Promise<ToolSet> {
-  const cached = cache.get(oxyUserId);
+export async function buildMcpTools(
+  oxyUserId: string,
+  selectedServerId?: string | null,
+): Promise<ToolSet> {
+  // `null` is an explicit per-turn choice to expose no MCP tools. `undefined`
+  // preserves the historical behaviour for callers that do not know about the
+  // selector and therefore means every runnable connector.
+  if (selectedServerId === null) return {};
+
+  const cacheKey = JSON.stringify({
+    oxyUserId,
+    selection: selectedServerId === undefined
+      ? { kind: 'all' }
+      : { kind: 'one', id: selectedServerId },
+  });
+  const cached = cache.get(cacheKey);
   if (cached) return cached;
 
   const tools: ToolSet = {};
@@ -46,7 +60,11 @@ export async function buildMcpTools(oxyUserId: string): Promise<ToolSet> {
   try {
     // Server-side MCP tools (running in integrations service)
     if (INTEGRATIONS_URL && INTEGRATIONS_SECRET) {
-      const servers = await listRunnableMcpServersForUser(getDb(), oxyUserId);
+      const servers = await listRunnableMcpServersForUser(
+        getDb(),
+        oxyUserId,
+        selectedServerId,
+      );
 
       for (const server of servers) {
         if (!server.tools.length) continue;
@@ -70,7 +88,10 @@ export async function buildMcpTools(oxyUserId: string): Promise<ToolSet> {
     }
 
     // Local MCP tools (from connected Cowork/Codea client)
-    const localEntries = getLocalTools(oxyUserId);
+    // A selected hosted connector is an allow-list for this turn. Local relay
+    // tools have a different lifetime and are not rows the composer can select,
+    // so they remain available only on the legacy all-connectors path.
+    const localEntries = selectedServerId === undefined ? getLocalTools(oxyUserId) : [];
     for (const { serverId, serverName, tool: mcpTool } of localEntries) {
       const toolName = `mcp_${sanitizeName(serverName)}__${sanitizeName(mcpTool.name)}`;
       if (tools[toolName]) {
@@ -86,7 +107,7 @@ export async function buildMcpTools(oxyUserId: string): Promise<ToolSet> {
       );
     }
 
-    cache.set(oxyUserId, tools);
+    cache.set(cacheKey, tools);
 
     const toolCount = Object.keys(tools).length;
     if (toolCount > 0) {

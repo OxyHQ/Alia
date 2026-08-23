@@ -88,6 +88,7 @@ router.post('/', (req: Request, res: Response, next: NextFunction) => {
     // SDK copy in the wild. `reasoningEffortOf` is where the two meet.
     thinkingMode: body.thinkingMode,
     webSearch: body.webSearch,
+    mcpServerId: body.mcpServerId,
   };
 
   log.v1.info({ messageCount: messages.length, model: req.body.model, stream: req.body.stream }, 'Responses API converted to chat completions format');
