@@ -18,8 +18,8 @@ export function createOptionalOxyAuth() {
  * `vitest.config.ts` aliases `@oxyhq/core/server` to this file so tests can
  * mount routers without standing up authentication. A CORS test run against a
  * stubbed matcher would measure the stub — the matching rule is the whole
- * subject of `corsOrigins.test.ts`, and the credentialed hole it covers lived
- * in the real `new URL(x).origin` normalisation. Vite rewrites the specifier in
+ * subject of `corsOrigins.test.ts`, including the regression gate for the
+ * repaired opaque-origin handling. Vite rewrites the specifier in
  * any `import`, including `vi.importActual`, so the only way back to the
  * package from inside its own alias target is Node's resolver, which knows
  * nothing about the alias.

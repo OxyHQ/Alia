@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useMemo } from "react";
 import { View, Pressable } from "react-native";
 import { Image } from "expo-image";
+import Entypo from "@expo/vector-icons/Entypo";
 import { useColorScheme } from "@/lib/useColorScheme";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { KeyboardStickyView } from "@/lib/keyboard";
@@ -572,7 +573,7 @@ export const ChatPageContent = ({
                         onPress={handleVoiceActivate}
                         accessibilityLabel="Start Voice mode"
                       >
-                        <ComposerGlyph name="voice" size={20} color={colors.primaryForeground} />
+                        <Entypo name="sound" size={18} color={colors.primaryForeground} />
                       </Button>
                     }
                   />
