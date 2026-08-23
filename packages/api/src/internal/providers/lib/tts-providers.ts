@@ -78,9 +78,11 @@ export function resolveVoiceForProvider(provider: string, requested: string | un
       return entry ? requestedKey : OPENAI_DEFAULT_VOICE;
     case 'google':
       return entry ? entry.gemini : GEMINI_DEFAULT_VOICE.female;
+    // Both share one namespace because it IS one catalogue: DigitalOcean serves
+    // ElevenLabs voices, by ElevenLabs voice ID. The comment sits above the
+    // labels rather than between them — `no-fallthrough` reads a comment there
+    // as a case that falls through with intent it cannot verify.
     case 'digitalocean':
-    // The direct provider shares DigitalOcean's namespace because it IS the
-    // same catalogue — DO serves ElevenLabs voices, by ElevenLabs voice ID.
     case 'elevenlabs':
       if (isElevenLabsVoiceId(voice)) return voice;
       return entry ? entry.elevenlabs : ELEVENLABS_DEFAULT_VOICE.female;
