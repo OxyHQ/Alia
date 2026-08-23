@@ -193,17 +193,18 @@
     {
       "table": "subscriptions",
       "half": "FINANCIAL",
-      "note": "A mirror of Stripe, including plan_snapshot_* \u2014 the frozen record of what the customer agreed to pay. Oxy's under ADR 0005; the entitlement read model consumes it through findActiveSubscriptions, which writes nothing.",
+      "note": "A mirror of Stripe, including plan_snapshot_* \u2014 the frozen record of what the customer agreed to pay. Oxy's under ADR 0005; the entitlement read model consumes it through findActiveSubscriptions, which writes nothing. One writer is not a Stripe mirror: lib/comped-accounts.ts grants a comped username the most expensive plan of each product as a synthetic comp_<userId>_<product> row.",
       "writers": [
         {
           "fn": "upsertSubscriptionByStripeId",
           "module": "db/billing/subscriptionRepository.ts",
           "classification": "FINANCIAL",
           "callers": [
+            "lib/comped-accounts.ts",
             "routes/billing.ts"
           ],
           "reachable": true,
-          "entrypoint": "POST /billing/webhook \u2014 customer.subscription.created/updated, checkout.session.completed (subscription mode) and invoice.payment_succeeded, all funnelling through handleSubscriptionUpdate."
+          "entrypoint": "POST /billing/webhook \u2014 customer.subscription.created/updated, checkout.session.completed (subscription mode) and invoice.payment_succeeded, all funnelling through handleSubscriptionUpdate. Also the comp grant on the auth path: lib/comped-accounts.ts writes a synthetic comp_<userId>_<product> row so a comped username holds the most expensive plan of each product. It is a PLAN grant that moves no money \u2014 plan_snapshot_price is 0 and no transaction is written \u2014 and the comp_ prefix is what lets routes/billing.ts refuse to hand the id to Stripe."
         },
         {
           "fn": "updateSubscriptionByStripeId",

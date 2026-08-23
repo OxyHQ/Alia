@@ -23,6 +23,7 @@ import { getPlans, getCreditPackages, getFeatures, getPlanFeatures, getAllAliaMo
 import { ensureStripePriceId } from '../lib/stripe-prices.js';
 import { getOrCreateUserCredits } from '../lib/user-credits-helpers.js';
 import { getUserEntitlements, invalidateEntitlementsCache } from '../lib/plan-access.js';
+import { isCompedSubscriptionId } from '../lib/comped-accounts.js';
 import { z } from 'zod';
 import { log } from '../lib/logger.js';
 import { getSafeErrorMessage } from '../lib/errors/sanitize.js';
@@ -413,6 +414,15 @@ router.post('/subscription/cancel', authenticateToken, async (req: Request, res:
       return res.status(404).json({ error: 'No active subscription found' });
     }
 
+    // A comped subscription has no Stripe object behind it
+    // (`lib/comped-accounts.ts`), so handing its synthetic id to Stripe would be
+    // a `resource_missing` surfacing as a 500 on a request that is simply not
+    // applicable. There is nothing to cancel: the grant is re-asserted on the
+    // account's next request either way.
+    if (isCompedSubscriptionId(subscription.stripeSubscriptionId)) {
+      return res.status(400).json({ error: 'This plan is complimentary and is not billed, so there is nothing to cancel.' });
+    }
+
     await getStripe().subscriptions.update(subscription.stripeSubscriptionId, {
       cancel_at_period_end: true,
     });
@@ -445,6 +455,13 @@ router.post('/subscription/change-plan', authenticateToken, async (req: Request,
 
     if (!subscription) {
       return res.status(404).json({ error: 'No active subscription found' });
+    }
+
+    // Same refusal as `/subscription/cancel`, and for the same reason: this
+    // subscription is a comp, not a Stripe mirror, and it already holds the most
+    // expensive plan its product sells.
+    if (isCompedSubscriptionId(subscription.stripeSubscriptionId)) {
+      return res.status(400).json({ error: 'This plan is complimentary and is not billed, so it cannot be changed.' });
     }
 
     // Find target plan

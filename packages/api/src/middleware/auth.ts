@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { Request, Response, NextFunction } from 'express';
+import { Request, Response, NextFunction, RequestHandler } from 'express';
 import { OxyServices } from '@oxyhq/core';
 import {
   createOptionalOxyAuth,
@@ -14,6 +14,7 @@ import { getDb } from '../db/index.js';
 import { findAppById, findKeyByHash, touchKeyLastUsed } from '../db/developers/developerRepository.js';
 import { hashDeveloperApiKey } from '../lib/api-key-crypto.js';
 import { getConfiguredChannels } from '../lib/channels/registry.js';
+import { ensureCompedSubscriptions } from '../lib/comped-accounts.js';
 
 // Initialize Oxy client
 const OXY_API_URL = process.env.OXY_API_URL || 'https://api.oxy.so';
@@ -48,7 +49,30 @@ declare global {
  * Oxy authentication middleware (official @oxyhq/core/server)
  * Validates JWT tokens (including service tokens) and sets req.userId, req.user, req.accessToken
  */
-export const authenticateToken = createOxyAuthMiddleware(oxyClient, { auth: { debug: true } });
+const oxyAuth = createOxyAuthMiddleware(oxyClient, { auth: { debug: true } });
+
+/**
+ * The comp grant runs HERE because here is where the username exists.
+ *
+ * `lib/comped-accounts.ts` keys on the Oxy username, and the username reaches
+ * this process exactly once per request: on `req.user`, put there by the
+ * middleware above. Everything downstream — the entitlement read model, the
+ * memory limit, the rate limiter — has the account id and nothing else.
+ *
+ * It is awaited rather than fired and forgotten so the very first request an
+ * account makes already sees its own plan; it costs a cache hit for everyone
+ * else and never rejects, so it cannot fail a request.
+ */
+function withCompedGrant(auth: RequestHandler): RequestHandler {
+  return (req, res, next) => {
+    auth(req, res, (err?: unknown) => {
+      if (err !== undefined) return next(err);
+      void ensureCompedSubscriptions(req.user).then(() => next());
+    });
+  };
+}
+
+export const authenticateToken = withCompedGrant(oxyAuth);
 
 /**
  * Service-only auth — rejects anything that isn't a service token.
@@ -88,7 +112,7 @@ function deploymentEnvironment(): OxyServiceAppContext['environment'] {
  * Optional auth - attaches user if token present, doesn't block if absent
  * Tries bot auth first (Telegram), then Oxy JWT auth
  */
-const oxyOptionalAuth = createOptionalOxyAuth(oxyClient, { auth: { debug: true } });
+const oxyOptionalAuth = withCompedGrant(createOptionalOxyAuth(oxyClient, { auth: { debug: true } }));
 
 export function optionalAuth(
   req: Request,
@@ -110,6 +134,9 @@ export function optionalAuth(
   }
 
   // Uses @oxyhq/core/server optional auth — attaches user if valid, continues if not.
+  // Comp-wrapped for the same reason as `authenticateToken`:
+  // `GET /billing/subscription` is optional-auth, and it is the call the billing
+  // screen makes first.
   oxyOptionalAuth(req, res, next);
 }
 
