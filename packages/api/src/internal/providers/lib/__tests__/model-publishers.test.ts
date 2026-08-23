@@ -98,14 +98,28 @@ describe('publisher is not a rename of provider', () => {
 
     // Named instances, so the count above cannot be satisfied by noise. Each is
     // a model whose publisher a reader would get WRONG from the provider alone.
-    const byModel = (modelId: string) => MAPPINGS.filter((m) => m.modelId === modelId);
+    //
+    // `byModel` ASSERTS non-empty. A `for…of` over an empty array runs no
+    // assertion and passes, so an id that leaves the table takes its named
+    // instance out of this test in silence — measured on 2026-08-23, when Groq
+    // dropped `llama-3.3-70b-versatile` and the loop below went vacuous while
+    // the suite stayed green.
+    const byModel = (modelId: string) => {
+      const found = MAPPINGS.filter((m) => m.modelId === modelId);
+      expect(found.length, `${modelId} is no longer in the table; name a live id`).toBeGreaterThan(0);
+      return found;
+    };
     for (const m of byModel('openai-gpt-oss-20b')) {
       expect(m.provider).toBe('digitalocean');
       expect(m.publisher).toBe('openai');
     }
-    for (const m of byModel('llama-3.3-70b-versatile')) {
-      expect(m.provider).toBe('groq');
+    for (const m of byModel('meta-llama/llama-3.3-70b-instruct')) {
+      expect(m.provider).toBe('novita');
       expect(m.publisher).toBe('meta');
+    }
+    for (const m of byModel('openai/gpt-oss-120b')) {
+      expect(m.provider).toBe('groq');
+      expect(m.publisher).toBe('openai');
     }
     for (const m of byModel('whisper-large-v3')) {
       expect(m.provider).toBe('groq');
