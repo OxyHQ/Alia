@@ -2828,6 +2828,8 @@ const INDIRECT_ENV_READ_SITES = 17;
  * deployment holds, so it belongs here.
  */
 const DEPLOYED_SECRETS: readonly string[] = [
+  'ALIA_RELAY_CREDENTIAL_KEY',
+  'ALIA_RELAY_CREDENTIAL_SECRET',
   'AWS_ACCESS_KEY_ID',
   'AWS_SECRET_ACCESS_KEY',
   'DATABASE_URL',
@@ -3002,7 +3004,7 @@ describe('gate 6: no provider credential in the deployment environment (#139 ws1
 
     const referenced = [...new Set([...active.matchAll(/secrets\.([A-Z][A-Z0-9_]*)/g)].map((m) => m[1]))].sort();
     expect(referenced).toEqual([...DEPLOYED_SECRETS].sort());
-    expect(DEPLOYED_SECRETS).toHaveLength(11);
+    expect(DEPLOYED_SECRETS).toHaveLength(13);
     expect(referenced.filter((secret) => namesProviderCredential(secret))).toEqual([]);
 
     // And every secret this deployment carries is one the code actually reads.
