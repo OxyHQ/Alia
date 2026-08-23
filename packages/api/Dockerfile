@@ -112,8 +112,25 @@ COPY --from=builder /build/packages/api/dist ./packages/api/dist
 # cannot inline these: they are data the migrator reads by path, not modules it
 # imports, so `build.ts` will never pull them in however the entrypoint changes.
 #
-# `dockerfileShipsMigrations.test.ts` is the gate.
+# `dockerfileShipsRuntimeData.test.ts` is the gate.
 COPY --from=builder /build/packages/api/drizzle ./packages/api/drizzle
+
+# The system prompts.
+#
+# EXACTLY the same class as the line above, and missed for the same reason:
+# `lib/prompt-loader.ts` resolves `join(__dirname, '../prompts', name + '.md')`
+# at runtime, so these are data read by path and no bundler will inline them.
+# Without this the running container logged, on EVERY request,
+#
+#   Error loading prompt  ENOENT: no such file or directory,
+#   open '/app/packages/api/prompts/alia-lite.md'
+#   Error loading prompt  ENOENT: ... '/app/packages/api/prompts/base.md'
+#
+# and `loadPrompt` returns '' on failure, so production served with NO SYSTEM
+# PROMPT AT ALL — degraded, never broken, and therefore invisible in every
+# check that asks whether a request succeeded. Found in CloudWatch while
+# tracing an unrelated failure, not by anything that was watching for it.
+COPY --from=builder /build/packages/api/prompts ./packages/api/prompts
 
 # Security hardening: run as the unprivileged "node" user shipped in the image.
 RUN chown -R node:node /app

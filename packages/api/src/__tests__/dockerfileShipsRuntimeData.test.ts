@@ -1,5 +1,5 @@
 /**
- * The runtime image must contain the migration files the migrator reads by path.
+ * The runtime image must contain the FILES THE CODE READS BY PATH.
  *
  * ## The defect
  *
@@ -39,7 +39,9 @@ import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
-const packageRoot = fileURLToPath(new URL('../../..', import.meta.url));
+import { ALIA_MODELS } from '../internal/providers/lib/alia-models.js';
+
+const packageRoot = fileURLToPath(new URL('../..', import.meta.url));
 const dockerfile = readFileSync(`${packageRoot}Dockerfile`, 'utf8');
 
 /**
@@ -52,7 +54,7 @@ const copiedIntoPackage = [
   ...dockerfile.matchAll(/^COPY --from=builder \S+ \.\/packages\/api\/(\S+)$/gm),
 ].map((m) => m[1].replace(/\/$/, ''));
 
-describe('the runtime image ships what the migrator reads', () => {
+describe('the runtime image ships what the code reads by path', () => {
   /**
    * Vacuity floor. Every assertion below is a membership test against
    * `copiedIntoPackage`, and a parse that matched nothing would fail them all
@@ -81,5 +83,51 @@ describe('the runtime image ships what the migrator reads', () => {
     const migrateSource = readFileSync(`${packageRoot}src/db/migrate.ts`, 'utf8');
     expect(migrateSource).toContain("join(PACKAGE_ROOT, 'drizzle')");
     expect(existsSync(`${packageRoot}drizzle/meta/_journal.json`)).toBe(true);
+  });
+
+  /**
+   * The same defect, found in production on 2026-08-23 while tracing something
+   * else. `lib/prompt-loader.ts` resolves `join(__dirname, '../prompts', name)`
+   * and the runtime stage did not copy that directory, so every request logged
+   *
+   *   Error loading prompt  ENOENT: ... '/app/packages/api/prompts/alia-lite.md'
+   *   Error loading prompt  ENOENT: ... '/app/packages/api/prompts/base.md'
+   *
+   * and `loadPrompt` RETURNS '' on failure. Alia therefore served every request
+   * with no system prompt: degraded, never broken, and invisible to any check
+   * that asks only whether a request succeeded. It is exactly what the drizzle
+   * copy above was added for, one directory over, and it was missed because the
+   * gate named only migrations.
+   */
+  it('copies the prompts directory into the image', () => {
+    expect(copiedIntoPackage).toContain('prompts');
+  });
+
+  /**
+   * The two halves of one fact, as above: the Dockerfile copies a directory
+   * NAMED `prompts`, and the loader resolves a directory named in its own
+   * source. Renaming either alone reproduces the ENOENT silently.
+   */
+  it('copies the same directory name the loader resolves at runtime', () => {
+    const loaderSource = readFileSync(`${packageRoot}src/lib/prompt-loader.ts`, 'utf8');
+    expect(loaderSource).toContain("'../prompts'");
+    expect(existsSync(`${packageRoot}prompts/base.md`)).toBe(true);
+  });
+
+  /**
+   * And that the directory is not merely PRESENT but populated with the names
+   * the code asks for. `buildSystemPrompt` loads `prompts/<modelId>.md`, so the
+   * alias id IS the filename — a rename of an id that forgets the file degrades
+   * to an empty prompt rather than to an error.
+   *
+   * Read from `ALIA_MODELS` rather than from a list written here, or the check
+   * measures a copy of the answer instead of the answer.
+   */
+  it('ships a prompt for every alias the builder will ask for', () => {
+    const ids = Object.keys(ALIA_MODELS);
+    const missing = ids.filter((id) => !existsSync(`${packageRoot}prompts/${id}.md`));
+    expect(missing).toEqual([]);
+    // Vacuity floor: an empty ALIA_MODELS satisfies the line above.
+    expect(ids.length).toBeGreaterThanOrEqual(10);
   });
 });
