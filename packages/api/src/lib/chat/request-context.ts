@@ -41,6 +41,7 @@ import { findSkillPrompt } from '../../db/agents/skillRepository.js';
 import { runBeforeChatHooks } from '../hooks/index.js';
 import { log } from '../logger.js';
 import { findAgentById, type AgentRecord } from '../../db/agents/agentRepository.js';
+import { findMcpServerForUser } from '../../db/integrations/mcpServerRepository.js';
 import { runAutonomyBeforeChat, type AutonomyRuntimeContext } from '../autonomy/runtime.js';
 import type { ChatMessage } from '../message-converter.js';
 import type { OpenAITool } from '../tool-converter.js';
@@ -61,6 +62,7 @@ export interface ChatRequestContext {
     skillId?: string;
     conversationId?: string;
     tools?: OpenAITool[];
+    mcpServerId?: unknown;
   };
   messages: ChatMessage[];
   conversationId: string | undefined;
@@ -85,6 +87,12 @@ export interface ChatRequestContext {
    * the model, rather than a differently-worded prompt.
    */
   webSearch: boolean;
+  /**
+   * The hosted MCP connector selected for this turn. Omitted preserves the
+   * compatibility path, `null` means none, and a string has been verified as a
+   * runnable connector owned by the direct user.
+   */
+  mcpServerId: string | null | undefined;
   includeUsage: boolean;
   isDirectUserSession: boolean;
   requestedModel: string;
@@ -189,6 +197,48 @@ export async function buildChatRequestContext(
   // Determine if this is a direct user session (not API key)
   // API key requests should be neutral and not include creator's personal info
   const isDirectUserSession = !!req.user && !req.apiKey;
+
+  let mcpServerId: string | null | undefined;
+  if (body.mcpServerId === undefined || body.mcpServerId === null) {
+    mcpServerId = body.mcpServerId;
+  } else if (typeof body.mcpServerId !== 'string' || body.mcpServerId.trim() === '') {
+    res.status(400).json({
+      error: {
+        message: 'mcpServerId must be a connector id or null.',
+        type: 'invalid_request_error',
+        param: 'mcpServerId',
+        code: 'invalid_mcp_server_id',
+      },
+    });
+    return null;
+  } else if (!isDirectUserSession || !req.user?.id) {
+    res.status(400).json({
+      error: {
+        message: 'The selected connector is unavailable.',
+        type: 'invalid_request_error',
+        param: 'mcpServerId',
+        code: 'mcp_server_unavailable',
+      },
+    });
+    return null;
+  } else {
+    const selectedServer = await findMcpServerForUser(getDb(), body.mcpServerId, req.user.id);
+    const runnable = selectedServer?.enabled === true &&
+      selectedServer.status === 'running' &&
+      selectedServer.runtime === 'server';
+    if (!runnable) {
+      res.status(400).json({
+        error: {
+          message: 'The selected connector is unavailable.',
+          type: 'invalid_request_error',
+          param: 'mcpServerId',
+          code: 'mcp_server_unavailable',
+        },
+      });
+      return null;
+    }
+    mcpServerId = selectedServer.id;
+  }
   /**
    * What this request routes on, resolved at the boundary and once.
    *
@@ -480,6 +530,7 @@ export async function buildChatRequestContext(
     agentMode,
     deepResearch,
     webSearch,
+    mcpServerId,
     includeUsage,
     isDirectUserSession,
     requestedModel,
