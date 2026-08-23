@@ -109,6 +109,35 @@ const BY_ALIAS: ReadonlyMap<string, AliasTranslation> = new Map(
 );
 
 /**
+ * The legacy identifiers a routing profile stands for.
+ *
+ * The reverse of {@link translateAlias}, and it exists because the two
+ * vocabularies meet at more than one seam. `@alia.onl/sdk` asks for
+ * `profile:v1-voice`; `plans.model_ids` — and therefore
+ * `getUserEntitlements().allowedModelIds` — is keyed by `alia-v1-voice`. A gate
+ * that compares one against the other refuses EVERY request, for every account
+ * and every plan, and reports it as "upgrade your plan": a permission error
+ * that no permission can satisfy.
+ *
+ * Empty for anything that is not a registered profile, which callers must read
+ * as "no alias stands for this" rather than as an error — a concrete model
+ * reference is not a profile and is nobody's alias.
+ */
+export function aliasesForProfile(profileId: string): readonly string[] {
+  return BY_PROFILE.get(profileId) ?? [];
+}
+
+const BY_PROFILE: ReadonlyMap<string, readonly string[]> = (() => {
+  const grouped = new Map<string, string[]>();
+  for (const { alias, profileId } of ALIAS_TRANSLATIONS) {
+    const existing = grouped.get(profileId);
+    if (existing) existing.push(alias);
+    else grouped.set(profileId, [alias]);
+  }
+  return grouped;
+})();
+
+/**
  * The three answers, kept apart.
  *
  * `unregistered_alias` is the one that would be lost by returning `null` for
