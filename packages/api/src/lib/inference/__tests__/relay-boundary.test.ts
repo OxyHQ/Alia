@@ -335,6 +335,16 @@ describe('nothing in the API imports the Relay client (#139 ws3, constraint 3)',
      * where before the client had no transport and could not have reached it
      * however it was configured.
      */
+    /**
+     * The health surface, which names `kaana.ts` for one predicate: whether
+     * this process has what it needs to reach Kaana.
+     *
+     * It does not construct a client and does not call one. It is on this list
+     * because it names the module, which is what the census measures — and
+     * because the alternative was re-deriving "is Kaana configured" in a second
+     * place, where it would drift from the factory that decides it for real.
+     */
+    'packages/api/src/routes/health.ts',
     'packages/api/src/routes/suggestions.ts',
   ];
 
