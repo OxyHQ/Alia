@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import { getModelMappingsForTier, callProviderAPI } from '../../lib/gateway-client.js';
-import { reserveCredits, finalizeCredits } from '../../lib/credits-manager.js';
+import { imageRequestBody } from '../../internal/providers/lib/image-providers.js';
+import { reserveCredits, finalizeCredits, refundReservation } from '../../lib/credits-manager.js';
+import type { CreditReservation } from '../../lib/credits-manager.js';
 import { getOrCreateUserCredits } from '../../lib/user-credits-helpers.js';
 import { uploadToS3 } from '../../lib/s3.js';
 import { log } from '../../lib/logger.js';
@@ -21,6 +23,15 @@ router.post('/generations', async (req: Request, res: Response) => {
   const TIMEOUT_MS = 60_000;
   const abortController = new AbortController();
   const globalTimer = setTimeout(() => abortController.abort('Image gen global timeout'), TIMEOUT_MS);
+
+  /**
+   * Out here so the `catch` can give it back. A reservation DEBITS immediately,
+   * so an exit that neither charges nor refunds keeps the caller's credit —
+   * and while this lived inside the `try` the catch could not name it.
+   * Same defect, same shape, as `routes/v1/audio.ts` carried.
+   */
+  let reservation: CreditReservation | null = null;
+  let settled = false;
 
   try {
     const userId = req.user?.id;
@@ -46,7 +57,7 @@ router.post('/generations', async (req: Request, res: Response) => {
 
     // Ensure user has credits
     await getOrCreateUserCredits(userId);
-    const reservation = await reserveCredits(userId);
+    reservation = await reserveCredits(userId);
     if (!reservation) {
       return res.status(402).json({
         error: {
@@ -70,14 +81,17 @@ router.post('/generations', async (req: Request, res: Response) => {
           provider: mapping.provider,
           modelId: mapping.modelId,
           endpoint: '/v1/images/generations',
-          body: {
-            model: mapping.modelId,
+          // Shaped per provider: `/v1/images/generations` is an OpenAI-shaped
+          // endpoint that providers implement in part, and a parameter one of
+          // them does not accept fails the whole request rather than degrading.
+          body: imageRequestBody(mapping.provider, {
+            modelId: mapping.modelId,
             prompt,
             n: n || 1,
             size: size || '1024x1024',
             quality: quality || 'standard',
-            response_format: response_format || 'url',
-          },
+            responseFormat: response_format || 'url',
+          }),
           timeout: 30_000,
           maxAttempts: 1,
           signal: abortController.signal,
@@ -101,12 +115,17 @@ router.post('/generations', async (req: Request, res: Response) => {
     }
 
     if (!imageUrl) {
-      await finalizeCredits(reservation, { promptTokens: 0, completionTokens: 0, totalTokens: 0 });
+      // Refund, not a zero-token finalize: `calculateCreditsFromTokens` returns
+      // MIN_CREDITS_PER_REQUEST for zero tokens, so this billed the minimum for
+      // a request that produced no image.
+      settled = true;
+      await refundReservation(reservation);
       const status = abortController.signal.aborted ? 504 : 503;
       return res.status(status).json({ error: { message: 'Image generation failed — please try again', type: 'server_error' } });
     }
 
     // Charge credits for image generation (~5 credits per image)
+    settled = true;
     await finalizeCredits(reservation, {
       promptTokens: 250,
       completionTokens: 0,
@@ -115,6 +134,10 @@ router.post('/generations', async (req: Request, res: Response) => {
 
     res.json({ data: [{ url: imageUrl }] });
   } catch (error: unknown) {
+    if (reservation && !settled) {
+      await refundReservation(reservation).catch((err: unknown) =>
+        log.general.error({ err, userId: req.user?.id }, 'refundReservation failed after image error'));
+    }
     const timedOut = abortController.signal.aborted;
     log.general.error({ err: error, userId: req.user?.id, timedOut }, 'Image generation failed');
     const status = timedOut ? 504 : 500;
