@@ -2,14 +2,39 @@ import { S3Client, DeleteObjectCommand, PutObjectCommand } from '@aws-sdk/client
 import crypto from 'crypto';
 import { log } from './logger.js';
 
+/**
+ * The credential pair the environment carries, or `undefined` to let the SDK
+ * resolve one itself.
+ *
+ * The distinction is the whole point, and `|| ''` got it backwards: an explicit
+ * `{ accessKeyId: '', secretAccessKey: '' }` is still an EXPLICIT credential, so
+ * the SDK signs with nothing and every call fails instead of falling through to
+ * its provider chain. Omitting the key entirely is what reaches the chain, and
+ * the chain is what resolves the ECS task role.
+ *
+ * That matters because the task definition injects a static IAM user's keys
+ * today while ALSO declaring a task role that is a strict superset of that
+ * user's permissions — the user's keys shadow the role, so the role is unused.
+ * When the injection is removed this is what lets the role take over, and an
+ * S3-compatible endpoint (DigitalOcean Spaces) is unaffected either way,
+ * because its credentials are exactly what the environment carries.
+ */
+export function resolveS3Credentials(
+  env: NodeJS.ProcessEnv = process.env,
+): { accessKeyId: string; secretAccessKey: string } | undefined {
+  const accessKeyId = env.AWS_ACCESS_KEY_ID;
+  const secretAccessKey = env.AWS_SECRET_ACCESS_KEY;
+  if (!accessKeyId || !secretAccessKey) return undefined;
+  return { accessKeyId, secretAccessKey };
+}
+
+const explicitCredentials = resolveS3Credentials();
+
 // Initialize S3 client
 const s3Client = new S3Client({
   region: process.env.AWS_REGION || 'us-east-1',
   endpoint: process.env.AWS_ENDPOINT_URL, // Support for DigitalOcean Spaces and other S3-compatible services
-  credentials: {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID || '',
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || '',
-  },
+  ...(explicitCredentials ? { credentials: explicitCredentials } : {}),
   forcePathStyle: false, // Required for DigitalOcean Spaces
 });
 
