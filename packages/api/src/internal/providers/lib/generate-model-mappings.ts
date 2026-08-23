@@ -55,6 +55,12 @@ export const GENERATED_TIER_MAPPINGS: Record<AliaTier, ModelMapping[]> = {
     createMapping('digitalocean', 'openai', 'gpt-5-nano', 'openai-gpt-5-nano', 14, 66),
     createMapping('digitalocean', 'meta', 'llama-3.3-70b', 'llama3.3-70b-instruct', 15, 63),
     createMapping('digitalocean', 'openai', 'gpt-oss-20b', 'openai-gpt-oss-20b', 16, 55),
+    // The same weights served by Groq, whose id carries the publisher namespace
+    // and which MODEL_PRICING/MODEL_CAPABILITIES already describe. Added because
+    // on 2026-08-23 every other Groq chat mapping in this table pointed at
+    // `llama-3.3-70b-versatile`, and Groq's catalogue no longer lists it — so
+    // this is currently the only Groq chat route that resolves at all.
+    createMapping('groq', 'openai', 'gpt-oss-20b', 'openai/gpt-oss-20b', 17, 55),
   ],
   'v1': [
     createMapping('google', 'google', 'gemini-2.5-flash', 'gemini-2.5-flash', 1, 88),
