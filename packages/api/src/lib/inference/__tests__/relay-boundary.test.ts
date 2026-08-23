@@ -126,6 +126,22 @@ const RELAY_MODULES: readonly string[] = [
   `${RELAY_DIR}/relay-error`,
   `${RELAY_DIR}/relay-openai-adapter`,
   `${RELAY_DIR}/relay-request`,
+  /*
+   * The wire, at last. `relay-client` took its transport as a parameter and
+   * nothing implemented one, so the client could not reach Kaana however it was
+   * configured. These three are that implementation: the Ed25519 signer and SSE
+   * reader, the factory that assembles a client from the environment, and the
+   * one-shot text call product code holds.
+   *
+   * On this list because the list is what the censuses below read. Named
+   * `kaana-*` rather than `relay-*` — the product is Kaana — and a census keyed
+   * on the FILENAME would have been blind to exactly the modules that finally
+   * reach a provider. That is the failure `AGENTS.md` names: a gate that skips
+   * what a hand-maintained map omits is not a gate.
+   */
+  `${RELAY_DIR}/kaana-transport`,
+  `${RELAY_DIR}/kaana`,
+  `${RELAY_DIR}/kaana-text`,
 ];
 
 // ===========================================================================
@@ -185,7 +201,8 @@ describe('nothing in the API imports the Relay client (#139 ws3, constraint 3)',
    * mounting the machine credential on the unmetered proxy is deliberately
    * blocked (OxyHQ/oxy#981), so a client wired in today points at a hole.
    */
-  const FROZEN_IMPORTERS: readonly string[] = [
+  const FROZEN_IMPORTERS: readonly string[
+] = [
     /*
      * #139 ws8: the boot-guard suite. It imports `relay-credential` and
      * `relay-endpoint` for their VARIABLE-NAME maps only —
@@ -205,6 +222,8 @@ describe('nothing in the API imports the Relay client (#139 ws3, constraint 3)',
     // unapproved `RELAY_BASE_URL`, and `relay-endpoint.ts` is one of the modules
     // this census covers — so its test names a relay module again, which is what
     // the list records and nothing more.
+    // The transport's own test, which drives it over a fake fetch.
+    `${RELAY_DIR}/__tests__/kaana-transport.test.ts`,
     `${RELAY_DIR}/__tests__/relay-boot-check.test.ts`,
     // #139 ws8: the capability suite drives a real client, because "the client
     // supports tools / structured output / vision / reasoning / prompt caching"
@@ -236,6 +255,19 @@ describe('nothing in the API imports the Relay client (#139 ws3, constraint 3)',
     `${RELAY_DIR}/__tests__/relay-endpoint.test.ts`,
     `${RELAY_DIR}/__tests__/relay-openai-adapter.test.ts`,
     `${RELAY_DIR}/__tests__/relay-request.test.ts`,
+    /*
+     * The wire and what assembles it. `kaana.ts` constructs a client — the
+     * first module in the repository that does — and `kaana-text.ts` is the
+     * one-shot call product code holds. `kaana-transport.ts` names the client
+     * only for its `RelayTransport` type, which is the shape it satisfies.
+     *
+     * They are inside `${RELAY_DIR}` on purpose: a product module reaches
+     * Kaana through `kaana-text.ts` and nothing else, so the censuses below
+     * still describe one door rather than three.
+     */
+    `${RELAY_DIR}/kaana-text.ts`,
+    `${RELAY_DIR}/kaana-transport.ts`,
+    `${RELAY_DIR}/kaana.ts`,
     // #139 ws2: the boot refusal. It reads the client's RULES —
     // `assertPrincipalMatchesDeployment` and the contract principal — and
     // constructs no client, opens no transport and mints no token, which
@@ -261,6 +293,24 @@ describe('nothing in the API imports the Relay client (#139 ws3, constraint 3)',
     // Outside `${RELAY_DIR}` and still a test — it drives no client and mounts
     // nothing, which is why constraint 3 is untouched by it too.
     'packages/api/src/routes/__tests__/internal-only-access.test.ts',
+    /*
+     * The first PRODUCT importer, and the reviewed line this freeze exists to
+     * force.
+     *
+     * `routes/suggestions.ts` asks Kaana for its prompt suggestions through
+     * `kaana-text.ts`, falling back to the in-process provider loop when Kaana
+     * does not serve the call. It is the narrow seam chosen deliberately: one
+     * non-streaming call, on a surface that was answering 503 because the only
+     * provider with a key in its tier had spent its daily token budget.
+     *
+     * The header above says this list gains the call site in the same diff that
+     * flips the flag's DEFAULT. That is not what happened here and the
+     * difference matters: the default is still off. What changed is that a
+     * deployment which sets the flag now has something that reaches Kaana,
+     * where before the client had no transport and could not have reached it
+     * however it was configured.
+     */
+    'packages/api/src/routes/suggestions.ts',
   ];
 
   it('is imported by exactly its own modules and its own tests', () => {

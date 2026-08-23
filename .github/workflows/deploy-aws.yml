@@ -340,6 +340,66 @@ jobs:
           printf 'secret_overrides=%s\n' "$secret_overrides" >>"$GITHUB_OUTPUT"
           printf 'env_overrides=%s\n' "$env_overrides" >>"$GITHUB_OUTPUT"
 
+      # Point this deployment at Kaana.
+      #
+      # Merged into the integrations step's outputs rather than replacing them:
+      # the two are unrelated wirings and either can be absent, so a step that
+      # overwrote the other's object would make the second one to run win
+      # silently.
+      #
+      # ## What each variable is
+      #
+      # `RELAY_BASE_URL` is checked against `RELAY_ALLOWED_ORIGINS` before a
+      # request leaves, so a typo is refused here rather than discovered by a
+      # request arriving somewhere unexpected. The host still says `relay` and
+      # the product is Kaana; renaming it is a DNS change plus an allow-list
+      # change on both sides, and it is not this deploy.
+      #
+      # There is no enable flag. Kaana is the inference provider, and a
+      # deployment that has been given an endpoint, a signing key and a
+      # principal has said everything there is to say. What is deliberately NOT
+      # set here is `ALIA_RELAY_CLIENT_ENABLED`: that declares the cutover DONE,
+      # which arms the boot refusal and installs the egress block that makes
+      # every direct provider host unreachable — correct the day the in-process
+      # tree is deleted, and an outage today, when Kaana serves text and Alia
+      # still serves speech, images and realtime voice itself.
+      #
+      # ## The attribution ids are placeholders, and knowingly so
+      #
+      # Kaana treats every Oxy id as an opaque string — it never parses one, and
+      # `AGENTS.md` in that repo forbids it joining them against anything. So
+      # these three values are accepted today whatever they say. They are not
+      # yet REAL Oxy ids, because Oxy issues none for Alia-as-a-caller: the
+      # inference edge does not exist there (`docs/migration/relay-client-gap.md`
+      # §1) and the machine credential that would name one is blocked on
+      # OxyHQ/oxy#981 pending metering. The consequence to know: usage Kaana
+      # records against `acc_alia_platform` is attributed to an account that
+      # does not exist in Oxy's ledger, which is harmless while nothing consumes
+      # the receipts and is the first thing to fix when something does.
+      - name: Stage the Kaana edge configuration
+        id: kaana
+        env:
+          INTEGRATIONS_SECRETS: ${{ steps.integrations.outputs.secret_overrides }}
+          INTEGRATIONS_ENV: ${{ steps.integrations.outputs.env_overrides }}
+        run: |
+          kaana_secrets="$(jq -cn --arg arn "arn:aws:ssm:$AWS_REGION:$ACCOUNT_ID:parameter/oxy/$APP/KAANA_EDGE_SIGNING_PRIVATE_KEY" \
+            '{KAANA_EDGE_SIGNING_PRIVATE_KEY: $arn}')"
+          kaana_env="$(jq -cn '{
+            RELAY_BASE_URL: "https://relay.oxy.so",
+            KAANA_EDGE_KEY_ID: "alia-edge-2026-08-24",
+            ALIA_RELAY_ACCOUNT_ID: "acc_alia_platform",
+            ALIA_RELAY_APPLICATION_ID: "app_alia",
+            ALIA_RELAY_CREDENTIAL_ID: "cred_alia_edge_2026_08_24",
+            ALIA_RELAY_ENVIRONMENT: "production",
+            ALIA_RELAY_INFERENCE_SCOPES: "inference:invoke"
+          }')"
+
+          merged_secrets="$(jq -cs '.[0] * .[1]' <(echo "${INTEGRATIONS_SECRETS:-{\}}") <(echo "$kaana_secrets"))"
+          merged_env="$(jq -cs '.[0] * .[1]' <(echo "${INTEGRATIONS_ENV:-{\}}") <(echo "$kaana_env"))"
+
+          printf 'secret_overrides=%s\n' "$merged_secrets" >>"$GITHUB_OUTPUT"
+          printf 'env_overrides=%s\n' "$merged_env" >>"$GITHUB_OUTPUT"
+
       # RUN_MIGRATIONS is what turns on machinery deploy-ecs-image.sh has always
       # had and nothing has ever enabled — so until now NOTHING applied Alia's
       # migrations, in any environment. The script runs the migration as a
@@ -394,7 +454,7 @@ jobs:
           # `post` phase end up migrating different packages.
           MIGRATION_ENTRYPOINT: packages/api/dist/db/migrate.js
           POST_DEPLOY_TASK_COMMAND_JSON: ${{ steps.phases.outputs.post_command }}
-          TASK_SECRET_OVERRIDES_JSON: ${{ steps.integrations.outputs.secret_overrides }}
+          TASK_SECRET_OVERRIDES_JSON: ${{ steps.kaana.outputs.secret_overrides }}
           # Stop injecting a static IAM user's keys.
           #
           # The task definition declares `taskRoleArn: oxy-ecs-task` and ALSO
@@ -410,7 +470,7 @@ jobs:
           # the environment carries no pair, instead of passing an EMPTY one that
           # the SDK signs with. That landed first, deliberately.
           TASK_SECRET_REMOVALS_JSON: '["AWS_ACCESS_KEY_ID","AWS_SECRET_ACCESS_KEY"]'
-          TASK_ENV_OVERRIDES_JSON: ${{ steps.integrations.outputs.env_overrides }}
+          TASK_ENV_OVERRIDES_JSON: ${{ steps.kaana.outputs.env_overrides }}
         run: |
           STATUS=$(aws ecs describe-services --cluster "$CLUSTER" --services "$APP" --query 'services[0].status' --output text 2>/dev/null || echo NONE)
           if [ "$STATUS" != "ACTIVE" ]; then
