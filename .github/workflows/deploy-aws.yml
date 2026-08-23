@@ -385,6 +385,21 @@ jobs:
           MIGRATION_ENTRYPOINT: packages/api/dist/db/migrate.js
           POST_DEPLOY_TASK_COMMAND_JSON: ${{ steps.phases.outputs.post_command }}
           TASK_SECRET_OVERRIDES_JSON: ${{ steps.integrations.outputs.secret_overrides }}
+          # Stop injecting a static IAM user's keys.
+          #
+          # The task definition declares `taskRoleArn: oxy-ecs-task` and ALSO
+          # injected these two, and the environment beats the task role in the
+          # AWS credential chain — so the declared role had never been used.
+          # Measured: the role's S3 policies are identical in actions and buckets
+          # to the user's, and it additionally carries
+          # `oxy-task-ssm-alia-provider-keys`, which the user lacks. The
+          # injection was costing a permission and gaining none, and it is why
+          # the provider-key one-shot could not read its own SSM parameter.
+          #
+          # Safe only because `lib/s3.ts` now omits the `credentials` key when
+          # the environment carries no pair, instead of passing an EMPTY one that
+          # the SDK signs with. That landed first, deliberately.
+          TASK_SECRET_REMOVALS_JSON: '["AWS_ACCESS_KEY_ID","AWS_SECRET_ACCESS_KEY"]'
           TASK_ENV_OVERRIDES_JSON: ${{ steps.integrations.outputs.env_overrides }}
         run: |
           STATUS=$(aws ecs describe-services --cluster "$CLUSTER" --services "$APP" --query 'services[0].status' --output text 2>/dev/null || echo NONE)
