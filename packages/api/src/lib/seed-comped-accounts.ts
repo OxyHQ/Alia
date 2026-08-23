@@ -16,11 +16,32 @@
  * Free on three. Writing the row is what makes every reader agree, because the
  * row is what every reader reads.
  *
+ * ## Why a SEEDER, and not the auth middleware
+ *
+ * The first version of this ran on the request path and keyed on
+ * `req.user.username`. It was INERT in production, and the reason is worth
+ * keeping: `@oxyhq/core`'s `oxy.auth()` sets `req.user = { id: userId }` and
+ * loads the profile only under `loadUser: true`, which this API does not pass.
+ * There is no username on a request to key on, so the account has to be resolved
+ * through Oxy — and once a network call is involved, the request path is the
+ * wrong place for it.
+ *
+ * So the grant is a table seeder like `seed-plans.ts`: it runs at the deploy
+ * boundary, from `scripts/seed.ts`, which the deploy invokes unconditionally on
+ * every release. `db/__tests__/seedWiring.test.ts` is what keeps it wired — an
+ * exported zero-argument `seed…()` under `lib/seed-*.ts` that nothing calls
+ * fails that gate rather than sitting there looking wired.
+ *
+ * It throws rather than logging on failure, which fails the deploy. That is the
+ * house rule for this entrypoint (`scripts/seed.ts`'s own settlement comment): a
+ * seed that reports and exits 0 is the shape that let production run with zero
+ * `plans` rows.
+ *
  * ## The plan is MEASURED, not named
  *
  * "The most expensive plan" is a fact about the catalogue, and the catalogue is
- * admin-editable data. Hardcoding `ultra` here would silently stop being the
- * most expensive plan the day a pricier one is seeded, so the plan is picked by
+ * admin-editable data. Hardcoding `ultra` would silently stop being the most
+ * expensive plan the day a pricier one is seeded, so the plan is picked by
  * `monthly_price` out of the live active, non-free plans of each product.
  *
  * ## What the synthetic Stripe ids mean
@@ -44,10 +65,10 @@
  * moved by Stripe webhooks writing a dedup-keyed transaction; minting a balance
  * here would be a credit grant with no transaction behind it. A comped account
  * therefore holds the top plan — every model, every feature, every limit — and
- * spends the same daily free credits as anyone else until a grant path exists.
+ * spends the same daily free credits as anyone else.
  */
 
-import type { OxyRequestUser } from '@oxyhq/core/server';
+import { OxyServices } from '@oxyhq/core';
 
 import { getDb } from '../db/index.js';
 import {
@@ -57,16 +78,9 @@ import {
 } from '../db/billing/subscriptionRepository.js';
 import { getPlans, type PlanData } from './gateway-client.js';
 import { log } from './logger.js';
-import { invalidateEntitlementsCache } from './plan-access.js';
-import { TTLCache } from './ttl-cache.js';
 
-/**
- * The Oxy usernames that hold the top plan of every product.
- *
- * Compared lower-cased, because Oxy handles are displayed in whatever case they
- * were registered in and this must not be a check that a capital letter defeats.
- */
-export const COMPED_USERNAMES: ReadonlySet<string> = new Set(['oxy']);
+/** The Oxy usernames that hold the top plan of every product. */
+const COMPED_USERNAMES = ['oxy'] as const;
 
 /** The marker that says "this subscription has no Stripe object behind it". */
 const COMPED_ID_PREFIX = 'comp_';
@@ -75,30 +89,21 @@ export function isCompedSubscriptionId(stripeSubscriptionId: string): boolean {
   return stripeSubscriptionId.startsWith(COMPED_ID_PREFIX);
 }
 
-/**
- * Accounts already checked this window.
- *
- * The grant runs on the auth path, so without this it would be two queries on
- * every request the comped account makes. Ten minutes is short enough that a
- * catalogue change reaches the account promptly and long enough that the steady
- * state is one cache hit.
- */
-const ensured = new TTLCache<true>({ ttlMs: 10 * 60 * 1000, maxSize: 100 });
-
 interface BillingPeriod {
   readonly start: Date;
   readonly end: Date;
 }
 
 /**
- * The current UTC calendar month.
+ * The UTC calendar month this seed runs in.
  *
  * A comped subscription has no invoice to take a period from, and the period is
  * not decorative: `findActiveSubscriptionByPeriodStart` measures voice minutes
- * from `current_period_start`, so a period frozen at the day of the grant would
- * accumulate usage forever and shrink the allowance to nothing. A calendar month
- * rolls on its own — the next ensure after the 1st writes the new one — with no
- * scheduler and no drift.
+ * from `current_period_start`. A period frozen at the first grant would
+ * accumulate usage forever and shrink that allowance to nothing, so every
+ * release re-stamps it to the current month. Nothing revokes the plan when the
+ * period ends — `liveFor` filters on `status` alone — so a release-quiet month
+ * costs a wider voice window, not a lost plan.
  */
 function currentMonth(): BillingPeriod {
   const now = new Date();
@@ -112,8 +117,7 @@ function currentMonth(): BillingPeriod {
  * The dearest active, paid plan of each product.
  *
  * Ties break on `planId` so two plans at the same price cannot make the grant
- * flip between them from one call to the next — a flapping row that would
- * invalidate the entitlement cache on every ensure.
+ * flip between them from one release to the next, rewriting the row for nothing.
  */
 function mostExpensivePlanPerProduct(plans: readonly PlanData[]): Map<PlanData['product'], PlanData> {
   const best = new Map<PlanData['product'], PlanData>();
@@ -133,10 +137,9 @@ function mostExpensivePlanPerProduct(plans: readonly PlanData[]): Map<PlanData['
  * Whether the stored row already says what the grant would say.
  *
  * Every field the grant sets and something reads: the status and the plan
- * because they are the grant, `cancel_at_period_end` because a cancel attempt
- * must not stick, and the period because it rolls monthly. Comparing them is
- * what keeps `invalidateEntitlementsCache` — and the write itself — off the
- * steady-state path.
+ * because they are the grant, `cancel_at_period_end` because a cancellation must
+ * not stick, and the period because it is re-stamped monthly. Comparing them is
+ * what keeps a release that changes nothing from writing anything.
  */
 function matchesGrant(row: SubscriptionRow | null, plan: PlanData, period: BillingPeriod): boolean {
   return (
@@ -153,37 +156,45 @@ function matchesGrant(row: SubscriptionRow | null, plan: PlanData, period: Billi
 }
 
 /**
- * Give a comped account the top plan of every product, if it does not have it.
+ * Give every comped account the top plan of every product.
  *
- * Called from the auth middleware, so it must never fail a request: an account
- * that cannot be granted its comp is an account on the free plan, which is the
- * same state it was in a moment ago. The failure is logged and the request
- * continues.
- *
- * Not a no-op for a non-comped user by accident — it returns before touching the
- * database for anyone whose username is not in `COMPED_USERNAMES`.
+ * Idempotent: a release that changes neither the catalogue nor the month writes
+ * nothing. Throws on an unresolvable username or an unreachable Oxy — see the
+ * file comment on why that fails the deploy instead of logging.
  */
-export async function ensureCompedSubscriptions(
-  user: OxyRequestUser | null | undefined,
-): Promise<void> {
-  const username = typeof user?.username === 'string' ? user.username.toLowerCase() : null;
-  if (!user?.id || username === null || !COMPED_USERNAMES.has(username)) return;
-  if (ensured.get(user.id)) return;
+export async function seedCompedAccounts(): Promise<{ granted: number; unchanged: number }> {
+  const db = getDb();
+  const period = currentMonth();
+  const plans = mostExpensivePlanPerProduct(await getPlans({ isActive: true, isFree: false }));
+  if (plans.size === 0) {
+    throw new Error('refusing to comp an account: the catalogue has no active paid plan');
+  }
 
-  try {
-    const db = getDb();
-    const period = currentMonth();
-    const plans = mostExpensivePlanPerProduct(await getPlans({ isActive: true, isFree: false }));
+  // Alia's own client rather than `middleware/auth.ts`'s: importing that one
+  // would pull the express middleware, the developer-key repository and the
+  // channel registry into a deploy one-shot that needs none of them.
+  const oxy = new OxyServices({ baseURL: process.env.OXY_API_URL || 'https://api.oxy.so' });
 
-    let granted = false;
+  let granted = 0;
+  let unchanged = 0;
+
+  for (const username of COMPED_USERNAMES) {
+    // The account id is the only thing a request ever carries, and it is not on
+    // the token — see the file comment. Resolved once per release, here.
+    const { id: oxyUserId } = await oxy.getProfileByUsername(username);
+    if (!oxyUserId) throw new Error(`refusing to comp an account: ${username} resolved to no id`);
+
     for (const plan of plans.values()) {
-      const stripeSubscriptionId = `${COMPED_ID_PREFIX}${user.id}_${plan.product}`;
+      const stripeSubscriptionId = `${COMPED_ID_PREFIX}${oxyUserId}_${plan.product}`;
       const existing = await findSubscriptionByStripeId(db, stripeSubscriptionId);
-      if (matchesGrant(existing, plan, period)) continue;
+      if (matchesGrant(existing, plan, period)) {
+        unchanged++;
+        continue;
+      }
 
       await upsertSubscriptionByStripeId(db, {
-        oxyUserId: user.id,
-        stripeCustomerId: `${COMPED_ID_PREFIX}${user.id}`,
+        oxyUserId,
+        stripeCustomerId: `${COMPED_ID_PREFIX}${oxyUserId}`,
         stripeSubscriptionId,
         stripePriceId: `${COMPED_ID_PREFIX}${plan.planId}_monthly`,
         status: 'active',
@@ -201,16 +212,14 @@ export async function ensureCompedSubscriptions(
         planSnapshotCurrency: plan.currency,
         planSnapshotBillingPeriod: 'monthly',
       });
-      granted = true;
-      log.credits.info(
-        { userId: user.id, username, planId: plan.planId, product: plan.product },
+      granted++;
+      log.seed.info(
+        { oxyUserId, username, planId: plan.planId, product: plan.product },
         'Comped subscription granted',
       );
     }
-
-    if (granted) invalidateEntitlementsCache(user.id);
-    ensured.set(user.id, true);
-  } catch (error: unknown) {
-    log.credits.error({ err: error, userId: user.id }, 'Failed to ensure comped subscription');
   }
+
+  log.seed.info({ granted, unchanged }, 'Comped account seeding complete');
+  return { granted, unchanged };
 }
