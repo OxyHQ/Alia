@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import { useConnectedAccounts, type ConnectedAccount } from "@/lib/hooks/use-connected-accounts";
 import { toast } from "@oxyhq/bloom/toast";
-import { confirm } from "@oxyhq/bloom/alert-dialog";
+import { confirm } from "@oxyhq/bloom/surfaces";
 import { SettingsListGroup, SettingsListItem } from "@oxyhq/bloom/settings-list";
 import * as DropdownMenu from "@/components/ui/dropdown-menu";
 import {

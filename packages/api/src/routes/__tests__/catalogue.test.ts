@@ -145,7 +145,7 @@ vi.mock('../../middleware/auth.js', () => ({
     const typed = req as Request & {
       user?: { id: string };
       apiKey?: { id: string; appId: string; userId: string; scopes: string[] };
-      serviceApp?: { appId: string; appName: string; scopes: string[]; credentialId: string; environment: 'development' | 'staging' | 'production' };
+      serviceApp?: { appId: string; appName: string; scopes: string[]; credentialId: string; ownerAccountId: string; environment: 'development' | 'staging' | 'production' };
     };
     if (state.userId !== null) typed.user = { id: state.userId };
     if (state.apiKeyId !== null) {
@@ -158,6 +158,7 @@ vi.mock('../../middleware/auth.js', () => ({
         appName: 'Alia',
         scopes: [],
         credentialId: 'credential',
+        ownerAccountId: 'account',
         environment: 'development',
       };
     }

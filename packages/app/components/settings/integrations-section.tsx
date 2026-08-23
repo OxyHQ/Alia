@@ -9,7 +9,7 @@ import {
   type IntegrationEntry,
 } from "@/lib/hooks/use-integrations";
 import { toast } from "@oxyhq/bloom/toast";
-import { confirm } from "@oxyhq/bloom/alert-dialog";
+import { confirm } from "@oxyhq/bloom/surfaces";
 import { SettingsListGroup, SettingsListItem } from "@oxyhq/bloom/settings-list";
 import { useTheme } from "@oxyhq/bloom/theme";
 import { Link2, Unlink, ExternalLink, Plug } from "lucide-react-native";

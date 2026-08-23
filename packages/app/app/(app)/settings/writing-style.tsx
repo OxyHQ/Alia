@@ -4,7 +4,7 @@ import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog } from '@oxyhq/bloom/dialog';
-import { confirm } from '@oxyhq/bloom/alert-dialog';
+import { confirm } from '@oxyhq/bloom/surfaces';
 import { useOxy } from '@oxyhq/services';
 import { generateAPIUrl } from '@/lib/generate-api-url';
 import {

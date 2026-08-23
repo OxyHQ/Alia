@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useMemo } from "react";
-import { View, Pressable, useWindowDimensions } from "react-native";
+import { View, Pressable } from "react-native";
+import { Image } from "expo-image";
 import { useColorScheme } from "@/lib/useColorScheme";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { KeyboardStickyView } from "@/lib/keyboard";
@@ -7,12 +8,10 @@ import { LinearGradient } from "expo-linear-gradient";
 import type { ScrollView as GHScrollView } from "react-native-gesture-handler";
 import { useStore } from "@/lib/stores/global-store";
 import { useUIStore } from "@/lib/stores/ui-store";
-import { Globe, MoreHorizontal, X, Ghost, Sparkles, Bot, Search } from "lucide-react-native";
-import Entypo from "@expo/vector-icons/Entypo";
+import { X, Ghost, Bot, Search, Plug } from "lucide-react-native";
 import * as DropdownMenu from "@/components/ui/dropdown-menu";
 import { Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
 import { PromptInput } from "@/components/ui/prompt-input/prompt-input";
 import type { Attachment } from "@/components/ui/prompt-input/context";
 import { ScrollButton } from "@/components/ui/scroll-button";
@@ -35,6 +34,9 @@ import { useTTS } from "@/lib/hooks/use-tts";
 import type { AgentActivityState } from "@/lib/hooks/use-agent-activity";
 import { AgentTerminal } from "@/components/agent-terminal";
 import { Terminal as TerminalIcon, ChevronDown, ChevronUp } from "lucide-react-native";
+import { useMcpServers } from "@/lib/hooks/use-mcp-servers";
+import type { SendOptions } from "@/lib/hooks/use-streaming-chat";
+import { ComposerGlyph } from "@/components/ui/prompt-input/composer-glyph";
 
 /**
  * The capabilities a person can switch on, and every one of them reaches the
@@ -68,27 +70,30 @@ type Mode = 'agent' | 'ghost' | 'deepResearch';
 
 const MODE_CONFIG: Record<Mode, {
   label: string;
-  icon: React.ComponentType<{ size: number; color: string }>;
-  color: string;
   onToast: string;
   offToast: string;
   featureId?: string;
 }> = {
-  ghost:            { label: 'modes.ghostLabel',        icon: Ghost,       color: '#00b2ff', onToast: 'modes.ghostOn',            offToast: 'modes.ghostOff' },
-  agent:            { label: 'modes.agentLabel',        icon: Bot,         color: '#f97316', onToast: 'modes.agentOn',            offToast: 'modes.agentOff', featureId: 'agent-mode' },
-  deepResearch:     { label: 'modes.deepResearchLabel', icon: Search,      color: '#10b981', onToast: 'modes.deepResearchOn',     offToast: 'modes.deepResearchOff', featureId: 'deep-research' },
+  ghost:        { label: 'modes.ghostLabel',        onToast: 'modes.ghostOn',        offToast: 'modes.ghostOff' },
+  agent:        { label: 'modes.agentLabel',        onToast: 'modes.agentOn',        offToast: 'modes.agentOff', featureId: 'agent-mode' },
+  deepResearch: { label: 'modes.deepResearchLabel', onToast: 'modes.deepResearchOn', offToast: 'modes.deepResearchOff', featureId: 'deep-research' },
 };
 
-const MODE_ORDER: Mode[] = ['ghost', 'agent', 'deepResearch'];
-
 type VoiceState = ReturnType<typeof useVoiceMode>;
+
+function ConnectorMenuIcon({ icon, color }: { icon?: string; color: string }) {
+  if (icon && /^https?:\/\//i.test(icon)) {
+    return <Image source={{ uri: icon }} style={{ width: 20, height: 20 }} contentFit="contain" />;
+  }
+  return <Plug size={20} color={color} />;
+}
 
 interface ChatPageContentProps {
   messages: Message[];
   scrollViewRef: React.RefObject<GHScrollView | null>;
   isLoading: boolean;
-  onSubmit: (value: string, attachments?: Attachment[]) => void;
-  onEditMessage: (messageId: string, newContent: string) => void;
+  onSubmit: (value: string, attachments?: Attachment[], options?: SendOptions) => Promise<boolean>;
+  onEditMessage: (messageId: string, newContent: string, options?: SendOptions) => Promise<boolean>;
   onStop?: () => void;
   onClear?: () => void;
   selectedModel: string;
@@ -110,21 +115,6 @@ interface ChatPageContentProps {
   conversationId?: string;
 }
 
-
-const ModeChip = ({ icon: Icon, label, color, onDismiss }: {
-  icon: React.ComponentType<{ size: number; color: string }>;
-  label: string;
-  color: string;
-  onDismiss: () => void;
-}) => (
-  <View className="h-10 rounded-full px-3 flex-row items-center gap-1.5" style={{ backgroundColor: `${color}20` }}>
-    <Icon size={14} color={color} />
-    <Text className="text-xs font-medium" style={{ color }}>{label}</Text>
-    <Pressable onPress={onDismiss} className="active:opacity-70">
-      <X size={12} color={color} />
-    </Pressable>
-  </View>
-);
 
 export const ChatPageContent = ({
   messages,
@@ -155,16 +145,25 @@ export const ChatPageContent = ({
   const { data: creditsInfo } = useCredits();
   const router = useRouter();
   const { t } = useTranslation();
-  const { width: screenWidth } = useWindowDimensions();
-  const isNarrowScreen = screenWidth < 640;
+  const { installed } = useMcpServers();
+  const runnableConnectors = useMemo(
+    () => installed.filter((server) => (
+      server.enabled
+      && server.status === 'running'
+      && server.runtime === 'server'
+      && server.tools.length > 0
+    )),
+    [installed],
+  );
   const [activeModes, setActiveModes] = useState<Set<Mode>>(new Set());
+  const [selectedConnectorId, setSelectedConnectorId] = useState<string | null>(null);
   /**
    * Whether Alia may reach the open web on this turn.
    *
    * On the model store rather than in `activeModes`, because it is one of the
    * composer's three persistent axes and the request reads it at send time —
-   * see `lib/stores/model-store.ts`. The effort axis lives beside the model
-   * picker in the header, not here.
+   * see `lib/stores/model-store.ts`. The effort axis lives with the model rows
+   * in the composer's combined picker, not in this capability menu.
    */
   const webSearch = useModelStore((s) => s.webSearch);
   const setWebSearch = useModelStore((s) => s.setWebSearch);
@@ -200,6 +199,7 @@ export const ChatPageContent = ({
   if (composerDraft && composerDraftSeq !== appliedDraftSeq && composerDraft.target === (conversationId ?? null)) {
     setAppliedDraftSeq(composerDraftSeq);
     setInputValue(composerDraft.text);
+    setSelectedConnectorId(composerDraft.mcpServerId);
   }
 
   const [showTerminal, setShowTerminal] = useState(false);
@@ -261,35 +261,50 @@ export const ChatPageContent = ({
     setInputValue("");
   }, []);
 
-  const handleSubmit = () => {
-    if (!inputValue.trim() || isLoading || disabled) return;
+  const handleSubmit = async () => {
+    const hasText = inputValue.trim().length > 0;
+    if ((!hasText && attachments.length === 0) || isLoading || disabled) return;
+    // Editing changes the existing text message; attachments belong to new
+    // turns and must not make an empty edit look submittable.
+    if (editingMessageId && !hasText) return;
     // Signed-out: open the SDK sign-in dialog instead of firing a request that
     // would 401. The draft stays in the input for after sign-in.
     if (!isAuthenticated) {
       signIn().catch(() => {});
       return;
     }
-    if (editingMessageId) {
-      onEditMessage(editingMessageId, inputValue);
-      setEditingMessageId(null);
-      setInputValue("");
-      return;
-    }
-    onSubmit(inputValue, attachments.length > 0 ? attachments : undefined);
+    const content = inputValue;
+    const pendingAttachments = attachments.length > 0 ? attachments : undefined;
+    const options: SendOptions = { mcpServerId: selectedConnectorId };
+
+    // Clear optimistically. Both send paths restore text, attachments and the
+    // selected connector through composerDraft if the request fails.
     setInputValue("");
     useStore.getState().clearAttachments();
+
+    if (editingMessageId) {
+      const sent = await onEditMessage(editingMessageId, content, options);
+      if (sent) {
+        setEditingMessageId(null);
+        setSelectedConnectorId(null);
+      }
+      return;
+    }
+    const sent = await onSubmit(content, pendingAttachments, options);
+    if (sent) setSelectedConnectorId(null);
   };
 
   // Send a suggestion's text directly (non-template selections) via the same send path.
-  const handleSuggestionSend = useCallback((text: string) => {
+  const handleSuggestionSend = useCallback(async (text: string) => {
     if (isLoading || disabled) return;
     if (!isAuthenticated) {
       signIn().catch(() => {});
       return;
     }
-    onSubmit(text);
     setInputValue("");
-  }, [isLoading, disabled, isAuthenticated, signIn, onSubmit]);
+    const sent = await onSubmit(text, undefined, { mcpServerId: selectedConnectorId });
+    if (sent) setSelectedConnectorId(null);
+  }, [isLoading, disabled, isAuthenticated, signIn, onSubmit, selectedConnectorId]);
 
   const handleWebSearch = () => {
     // Withholds three tools rather than rewording a prompt. The model decides
@@ -299,10 +314,6 @@ export const ChatPageContent = ({
     const next = !webSearch;
     setWebSearch(next);
     toast.info(next ? t('modes.searchOn') : t('modes.searchOff'));
-  };
-
-  const handleAddSources = () => {
-    toast.info(t('chat.addSourcesHint'));
   };
 
   const handleImagePaste = useCallback((files: File[]) => {
@@ -353,16 +364,77 @@ export const ChatPageContent = ({
     }
   }, [voice, onVoiceStart, isAuthenticated, entitlements, creditsInfo, t, router]);
 
-  const extraMenuItems = (
+  const composerMenu = (
     <>
-      <DropdownMenu.Item key="sources" onSelect={handleAddSources}>
-        <DropdownMenu.ItemIcon ios={{ name: "link" }} />
-        <DropdownMenu.ItemTitle>Add sources</DropdownMenu.ItemTitle>
-      </DropdownMenu.Item>
+      <DropdownMenu.CheckboxItem
+        key="web-search"
+        value={webSearch ? 'on' : 'off'}
+        onValueChange={handleWebSearch}
+      >
+        <DropdownMenu.ItemIcon ios={{ name: "globe" }}>
+          <ComposerGlyph name="globe" color={colors.foreground} />
+        </DropdownMenu.ItemIcon>
+        <DropdownMenu.ItemTitle>Web search</DropdownMenu.ItemTitle>
+      </DropdownMenu.CheckboxItem>
+      <DropdownMenu.CheckboxItem
+        key="deep-research"
+        value={activeModes.has('deepResearch') ? 'on' : 'off'}
+        onValueChange={() => toggleMode('deepResearch')}
+      >
+        <DropdownMenu.ItemIcon ios={{ name: "magnifyingglass" }}>
+          <Search size={20} color={colors.foreground} />
+        </DropdownMenu.ItemIcon>
+        <DropdownMenu.ItemTitle>Deep research</DropdownMenu.ItemTitle>
+      </DropdownMenu.CheckboxItem>
+      {isMainScreen && (
+        <DropdownMenu.CheckboxItem
+          key="ghost"
+          value={activeModes.has('ghost') ? 'on' : 'off'}
+          onValueChange={() => toggleMode('ghost')}
+        >
+          <DropdownMenu.ItemIcon ios={{ name: "eye.slash" }}>
+            <Ghost size={20} color={colors.foreground} />
+          </DropdownMenu.ItemIcon>
+          <DropdownMenu.ItemTitle>Ghost mode</DropdownMenu.ItemTitle>
+        </DropdownMenu.CheckboxItem>
+      )}
+      <DropdownMenu.CheckboxItem
+        key="agent"
+        value={activeModes.has('agent') ? 'on' : 'off'}
+        onValueChange={() => toggleMode('agent')}
+      >
+        <DropdownMenu.ItemIcon ios={{ name: "cpu" }}>
+          <Bot size={20} color={colors.foreground} />
+        </DropdownMenu.ItemIcon>
+        <DropdownMenu.ItemTitle>Agent mode</DropdownMenu.ItemTitle>
+      </DropdownMenu.CheckboxItem>
       <DropdownMenu.Item key="canvas" onSelect={handleCanvas}>
-        <DropdownMenu.ItemIcon ios={{ name: "pencil.tip" }} />
+        <DropdownMenu.ItemIcon ios={{ name: "pencil.tip" }}>
+          <Pencil size={20} color={colors.foreground} />
+        </DropdownMenu.ItemIcon>
         <DropdownMenu.ItemTitle>Canvas</DropdownMenu.ItemTitle>
       </DropdownMenu.Item>
+      {runnableConnectors.length > 0 && (
+        <>
+          <DropdownMenu.Separator />
+          <DropdownMenu.Label className="px-2.5 font-normal">Apps</DropdownMenu.Label>
+          {runnableConnectors.map((server) => (
+            <DropdownMenu.CheckboxItem
+              key={server._id}
+              value={selectedConnectorId === server._id ? 'on' : 'off'}
+              onValueChange={() => setSelectedConnectorId((current) => (
+                current === server._id ? null : server._id
+              ))}
+            >
+              <DropdownMenu.ItemIcon ios={{ name: "app" }}>
+                <ConnectorMenuIcon icon={server.icon} color={colors.foreground} />
+              </DropdownMenu.ItemIcon>
+              <DropdownMenu.ItemTitle>{server.displayName}</DropdownMenu.ItemTitle>
+              <DropdownMenu.ItemSubtitle>{`${server.tools.length} tools`}</DropdownMenu.ItemSubtitle>
+            </DropdownMenu.CheckboxItem>
+          ))}
+        </>
+      )}
     </>
   );
 
@@ -401,9 +473,6 @@ export const ChatPageContent = ({
           style={{ position: "absolute", top: 0, left: 0, right: 0, zIndex: 10, paddingBottom: 32, pointerEvents: "box-none" }}
         >
           <ChatHeader
-            title="Alia"
-            selectedModel={selectedModel}
-            onModelChange={onModelChange}
             onGhostModePress={handleGhostModeToggle}
             ghostModeActive={activeModes.has('ghost')}
             onClear={onClear}
@@ -447,7 +516,7 @@ export const ChatPageContent = ({
             <CreditWarningBanner selectedModel={selectedModel} onSwitchModel={onModelChange} />
 
             {disabled && (
-              <View className="mx-auto w-full max-w-3xl px-4 pb-1">
+              <View className="mx-auto w-full max-w-[40rem] lg:max-w-3xl px-4 pb-1">
                 <View className="flex-row items-center gap-2 rounded-lg bg-destructive/10 px-3 py-2">
                   <AlertTriangle size={14} className="text-destructive" />
                   <Text className="text-xs text-destructive flex-1">
@@ -458,7 +527,7 @@ export const ChatPageContent = ({
             )}
 
             <View className="px-4 py-3">
-              <View className="mx-auto w-full max-w-3xl relative">
+              <View className="mx-auto w-full max-w-[40rem] lg:max-w-3xl relative">
                   {messages.length > 0 && (
                     <View style={{ position: "absolute", top: -48, right: 0, zIndex: -1 }}>
                       <ScrollButton
@@ -492,124 +561,19 @@ export const ChatPageContent = ({
                     onSuggestionSend={handleSuggestionSend}
                     floatingAutocomplete
                     placeholder={disabled ? t('usageLimit.inputDisabledPlaceholder') : "Message Alia..."}
-                    effortForModel={selectedModel}
+                    selectedModel={selectedModel}
+                    onModelChange={onModelChange}
+                    composerMenu={composerMenu}
                     onStop={onStop}
                     emptyAction={
                       <Button
                         size="icon"
-                        className="h-10 w-10 rounded-full items-center justify-center"
+                        className="h-9 w-9 rounded-full items-center justify-center"
                         onPress={handleVoiceActivate}
+                        accessibilityLabel="Start Voice mode"
                       >
-                        <Entypo name="sound" size={18} color="white" />
+                        <ComposerGlyph name="voice" size={20} color={colors.primaryForeground} />
                       </Button>
-                    }
-                    actionsRight={
-                      <>
-                        {/* Filled when the web is reachable, which is the
-                            default — this button says what the request will do,
-                            and the request has always been able to search. */}
-                        <Button
-                          variant={webSearch ? "default" : "ghost"}
-                          size="icon"
-                          className={cn(
-                            "h-10 w-10 rounded-full items-center justify-center",
-                            !webSearch && "web:hover:bg-muted active:bg-muted"
-                          )}
-                          onPress={handleWebSearch}
-                          accessibilityLabel={t('modes.searchLabel')}
-                        >
-                          <Globe size={18} className={webSearch ? "text-primary-foreground" : "text-muted-foreground"} />
-                        </Button>
-
-                        {/* Ghost is surfaced by the header's ghost toggle, so it
-                            gets no chip here — but stays in MODE_ORDER for the menu. */}
-                        {MODE_ORDER.filter(mode => mode !== 'ghost').map(mode =>
-                          activeModes.has(mode) && (
-                            <ModeChip
-                              key={mode}
-                              icon={MODE_CONFIG[mode].icon}
-                              label={t(MODE_CONFIG[mode].label)}
-                              color={MODE_CONFIG[mode].color}
-                              onDismiss={() => toggleMode(mode)}
-                            />
-                          )
-                        )}
-
-                        <DropdownMenu.Root>
-                          <DropdownMenu.Trigger>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-10 w-10 rounded-full items-center justify-center web:hover:bg-muted active:bg-muted"
-                            >
-                              <MoreHorizontal size={18} className="text-muted-foreground" />
-                            </Button>
-                          </DropdownMenu.Trigger>
-                          <DropdownMenu.Content side="top" align="start" collisionPadding={8}>
-                            {/* The capability switches. Every one of these
-                                changes what the request CARRIES: web search
-                                withholds three tools, deep research diverts the
-                                turn into the multi-step research engine, agent
-                                adds the delegation tools, ghost keeps the turn
-                                out of the conversation list.
-
-                                "Thinking mode" is gone from this menu on
-                                purpose — it was a capability switch standing in
-                                for a setting, and the effort control beside the
-                                model picker is where that setting lives now. */}
-                            <DropdownMenu.CheckboxItem
-                              key="web-search"
-                              value={webSearch ? 'on' : 'off'}
-                              onValueChange={handleWebSearch}
-                            >
-                              <DropdownMenu.ItemIcon ios={{ name: "globe" }} />
-                              <DropdownMenu.ItemTitle>Web search</DropdownMenu.ItemTitle>
-                            </DropdownMenu.CheckboxItem>
-                            <DropdownMenu.CheckboxItem
-                              key="deep-research"
-                              value={activeModes.has('deepResearch') ? 'on' : 'off'}
-                              onValueChange={() => toggleMode('deepResearch')}
-                            >
-                              <DropdownMenu.ItemIcon ios={{ name: "magnifyingglass" }} />
-                              <DropdownMenu.ItemTitle>Deep research</DropdownMenu.ItemTitle>
-                            </DropdownMenu.CheckboxItem>
-                            {isMainScreen && (
-                              <DropdownMenu.CheckboxItem
-                                key="ghost"
-                                value={activeModes.has('ghost') ? 'on' : 'off'}
-                                onValueChange={() => toggleMode('ghost')}
-                              >
-                                <DropdownMenu.ItemIcon ios={{ name: "eye.slash" }} />
-                                <DropdownMenu.ItemTitle>Ghost mode</DropdownMenu.ItemTitle>
-                              </DropdownMenu.CheckboxItem>
-                            )}
-                            <DropdownMenu.CheckboxItem
-                              key="agent"
-                              value={activeModes.has('agent') ? 'on' : 'off'}
-                              onValueChange={() => toggleMode('agent')}
-                            >
-                              <DropdownMenu.ItemIcon ios={{ name: "cpu" }} />
-                              <DropdownMenu.ItemTitle>Agent mode</DropdownMenu.ItemTitle>
-                            </DropdownMenu.CheckboxItem>
-                            {isNarrowScreen ? (
-                              <>
-                                <DropdownMenu.Separator />
-                                {extraMenuItems}
-                              </>
-                            ) : (
-                              <DropdownMenu.Sub>
-                                <DropdownMenu.SubTrigger key="more">
-                                  <DropdownMenu.ItemIcon ios={{ name: "ellipsis" }} />
-                                  <DropdownMenu.ItemTitle>More</DropdownMenu.ItemTitle>
-                                </DropdownMenu.SubTrigger>
-                                <DropdownMenu.SubContent>
-                                  {extraMenuItems}
-                                </DropdownMenu.SubContent>
-                              </DropdownMenu.Sub>
-                            )}
-                          </DropdownMenu.Content>
-                        </DropdownMenu.Root>
-                      </>
                     }
                   />
               </View>

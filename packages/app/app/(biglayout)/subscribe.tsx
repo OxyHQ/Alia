@@ -17,7 +17,7 @@ import { useAuth } from '@oxyhq/services';
 import { toast } from '@oxyhq/bloom/toast';
 import { useTranslation } from '@/lib/hooks/use-translation';
 import { queryKeys } from '@/lib/hooks/query-keys';
-import { confirm } from '@oxyhq/bloom/alert-dialog';
+import { confirm } from '@oxyhq/bloom/surfaces';
 import {
   type BillingPeriod,
   type PricingTier,

@@ -27,12 +27,14 @@ export interface PendingInitialMessage {
   content: MessageContent;
   text: string;
   attachments: Attachment[];
+  mcpServerId: string | null;
 }
 
 /** Composer text handed to the screen identified by `target` (null = new-chat screen). */
 export interface ComposerDraft {
   text: string;
   target: string | null;
+  mcpServerId: string | null;
 }
 
 interface StoreState {

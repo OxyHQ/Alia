@@ -1,6 +1,14 @@
-import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   View,
+  Text,
   Pressable,
   Platform,
   type TextInput as RNTextInput,
@@ -19,18 +27,16 @@ import { PromptInputAutocomplete } from "./autocomplete";
 import { PromptInputAttachments } from "./attachments";
 import { PromptInputSubmitButton } from "./submit-button";
 import { PromptInputAddMenu } from "./add-menu";
+import { ModelSelector } from "@/components/model-selector";
 import { EffortSelector } from "@/components/effort-selector";
+import { useIsLargeScreen } from "@/lib/hooks/use-is-large-screen";
 
 // Height (px) of the collapsed bar's single-line track.
 const SINGLE_LINE_TRACK = 44;
-// The textarea's own measured height crossing THIS expands the bar. It sits in
-// the dead band between one line (~44px: a line box plus `py-2.5`) and two
-// (~68px), rather than at the single-line height itself, because the two states
-// do not carry the same vertical padding — expanded is `pt-2.5 pb-1`, collapsed
-// is `py-2.5`. Thresholding one state's height against the other's exact track
-// is the shape that oscillates: expand at 45, re-measure at 38, collapse, 45,
-// expand. A band wider than the padding difference and narrower than a line
-// cannot flip on the padding change alone.
+// Height above which the text no longer fits the collapsed single-line track.
+// The value compared with this threshold is always measured at the COLLAPSED
+// text width, even while the visible composer is expanded. That stable frame of
+// reference is what prevents expand/collapse feedback loops near a line wrap.
 const EXPAND_ABOVE = 56;
 
 // Fullscreen grow (web): animate the fixed bar's insets + radius. A comma'd
@@ -94,15 +100,10 @@ export type PromptInputProps = {
   // reserving layout space) instead of the inline top/bottom list — used by the
   // main chat so the centered welcome + input stay fixed while suggestions show.
   floatingAutocomplete?: boolean;
-  // Custom right-side actions (rendered before mic + submit in the actions bar)
-  actionsRight?: React.ReactNode;
-  /**
-   * Model id the reasoning-effort pill applies to. Supplying it puts the pill in
-   * the composer's trailing cluster, between `actionsRight` and the mic — where
-   * the effort control belongs, since effort is a property of the message about
-   * to be sent and not of the conversation. Omit it and no pill renders.
-   */
-  effortForModel?: string;
+  /** Chat-only controls. Supplying both turns the generic input into the unified composer. */
+  selectedModel?: string;
+  onModelChange?: (modelId: string) => void;
+  composerMenu?: React.ReactNode;
   // Submit button props
   onStop?: () => void;
   emptyAction?: React.ReactNode;
@@ -132,8 +133,9 @@ export function PromptInput({
   autocompletePosition = "top",
   showDefaultSuggestions = false,
   floatingAutocomplete = false,
-  actionsRight,
-  effortForModel,
+  selectedModel,
+  onModelChange,
+  composerMenu,
   onStop,
   emptyAction,
   onSuggestionSend,
@@ -146,7 +148,11 @@ export function PromptInput({
 }: PromptInputProps) {
   const [internalValue, setInternalValue] = useState(value || "");
   const [currentHeight, setCurrentHeight] = useState(44);
+  const [collapsedMeasureHeight, setCollapsedMeasureHeight] = useState(SINGLE_LINE_TRACK);
+  const [leadingWidth, setLeadingWidth] = useState(0);
+  const [trailingWidth, setTrailingWidth] = useState(0);
   const [showFullscreen, setShowFullscreen] = useState(false);
+  const isLargeScreen = useIsLargeScreen();
   // Fullscreen grow choreography (web): the captured bar rect + whether it has
   // settled to full-screen. Native ignores these and snaps.
   const [barRect, setBarRect] = useState<BarRect | null>(null);
@@ -278,34 +284,31 @@ export function PromptInput({
     if (!showFullscreen) setCurrentHeight(44);
   }, [showFullscreen]);
 
-  const showExpandIcon = currentHeight > 100;
   const isSimpleMode = !children;
+  const isChatComposer = selectedModel !== undefined && onModelChange !== undefined;
 
   const currentValue = value ?? internalValue;
   const currentSetValue = onValueChange ?? handleChange;
 
-  // Does the value overflow the collapsed single-line track? The textarea's OWN
-  // height answers it, on both platforms, because the collapsed row lays the
-  // text out as `flex-1` between the two clusters rather than inside a padding-
-  // reserved track — so there is no reserved width left to model.
-  //
-  // That is what replaced a canvas `measureText` on web plus an off-screen text
-  // mirror on native: three measured widths (container, right cluster, mirror)
-  // and two hardcoded padding constants existed only to RECONSTRUCT a width the
-  // layout engine already knows. `onHeightChange` reads a plain `View` carrying
-  // an inline style, which is the one thing react-native-web does report
-  // reliably — the caveat in `chat-text-input.tsx` is about className'd nodes.
-  //
-  // Still derived in render and still hysteresis-free: delete back under one
-  // line and the height falls, so it collapses again on its own.
-  const overflowsTrack = currentHeight > EXPAND_ABOVE;
+  // Measuring the visible textarea caused a genuine feedback loop: collapsed
+  // text has less width because it shares the row with the controls, while the
+  // expanded textarea spans the full bar. A value could therefore wrap in the
+  // collapsed state, expand, fit on one line at the wider width, collapse, and
+  // repeat. The invisible mirror below always retains the collapsed width.
+  const stableCollapsedHeight =
+    leadingWidth > 0 && trailingWidth > 0 ? collapsedMeasureHeight : currentHeight;
+  const overflowsTrack = stableCollapsedHeight > EXPAND_ABOVE;
+  const showExpandIcon = !isChatComposer && stableCollapsedHeight > 100;
 
   // Three visual states of the SAME bar. Fullscreen wins; otherwise the value's
   // fit decides collapsed vs expanded. (Fullscreen is entered via the maximize
   // affordance, not derived from content.)
   const isExpanded =
     isSimpleMode &&
-    (currentValue.includes("\n") || attachments.length > 0 || overflowsTrack);
+    ((isChatComposer && !isLargeScreen)
+      || currentValue.includes("\n")
+      || attachments.length > 0
+      || overflowsTrack);
   const barState: "collapsed" | "expanded" | "fullscreen" = showFullscreen
     ? "fullscreen"
     : isExpanded
@@ -338,76 +341,111 @@ export function PromptInput({
   ]);
 
   // The two clusters, spelled once. They are the SAME nodes in both states —
-  // only which flex box holds them changes — so nothing about a button's
-  // behaviour can drift between collapsed and expanded.
+  // only their grid areas change — so nothing about a button's behaviour can
+  // drift between collapsed and expanded.
   const leadingCluster = (
-    <PromptInputAddMenu iconSize={20} className="h-9 w-9 rounded-full" />
+    <View
+      className="flex-row items-center"
+      onLayout={(event) => setLeadingWidth(event.nativeEvent.layout.width)}
+    >
+      <PromptInputAddMenu iconSize={20} className="h-9 w-9 rounded-full">
+        {composerMenu}
+      </PromptInputAddMenu>
+    </View>
   );
   const trailingCluster = (
-    <>
-      {actionsRight}
-      {effortForModel != null && <EffortSelector selectedModel={effortForModel} />}
+    <View
+      className="flex-row items-center gap-1"
+      onLayout={(event) => setTrailingWidth(event.nativeEvent.layout.width)}
+    >
+      {selectedModel !== undefined && onModelChange !== undefined && (
+        <>
+          <ModelSelector selectedModel={selectedModel} onModelChange={onModelChange} />
+          {Platform.OS !== "web" && <EffortSelector selectedModel={selectedModel} />}
+        </>
+      )}
       <PromptInputMicButton />
       <PromptInputSubmitButton
         isLoading={isLoading}
         onStop={onStop}
         emptyAction={emptyAction}
       />
-    </>
+    </View>
   );
 
   const content = isSimpleMode ? (
     <>
       <PromptInputAttachments />
-      {/* Collapsed the bar is ONE flex row: (+) | text | actions, with the text
-          as `flex-1`. Expanded it is a column: the text takes the full width and
-          the two clusters sit on a row beneath it.
-
-          This is the reflow ChatGPT gets from `grid-template-areas`, which
-          React Native has no equivalent for — Yoga implements flexbox only, so a
-          grid would be web-only and native would collapse to a single column.
-          Expressed as flex it is one layout for both platforms.
-
-          It also removes the reason the old version had to MEASURE anything: the
-          text used to sit in a track carved out with `pl-11 pr-[185px]`, so the
-          bar had to know how wide the right cluster had grown to. `flex-1` is
-          the layout engine answering the same question. */}
+      {/* Keep ONE textarea and ONE set of controls mounted. On web this is the
+          reference's CSS grid: collapsed is `leading primary trailing`, while
+          expanded changes only `grid-template-areas` so primary spans the top
+          row. Native uses the same stable nodes with absolutely anchored
+          controls because Yoga has no CSS grid. */}
       {barState === "fullscreen" ? (
         <>
           <PromptInputTextarea id={inputId} placeholder={placeholder} className="text-base" />
           <PromptInputActions>
             {leadingCluster}
-            <View className="ml-auto flex-row items-center gap-1">{trailingCluster}</View>
+            <View className="ml-auto">{trailingCluster}</View>
           </PromptInputActions>
         </>
-      ) : barState === "expanded" ? (
-        <View className="px-2 pt-1 pb-2">
-          <PromptInputTextarea
-            id={inputId}
-            placeholder={placeholder}
-            minHeight={0}
-            className="min-h-0 max-h-[400px] px-1.5 pt-2.5 web:pt-2.5 pb-1 web:pb-1 text-base"
-          />
-          <View className="flex-row items-center gap-1 pt-1">
-            {leadingCluster}
-            <View className="ml-auto flex-row items-center gap-1">{trailingCluster}</View>
-          </View>
-        </View>
       ) : (
-        <View className="flex-row items-center gap-1 px-2 py-1.5 min-h-[52px]">
-          {leadingCluster}
-          {/* `flex-1` with `min-w-0`: without the min-width override a flex item
-              refuses to shrink below its content, so a long unbroken value would
-              push the action cluster off the bar instead of scrolling inside. */}
-          <View className="flex-1 min-w-0">
+        <View
+          className={cn(
+            "relative min-w-0 px-2 web:grid web:grid-cols-[auto_minmax(0,1fr)_auto] web:gap-x-1",
+            barState === "expanded"
+              ? "pt-1 pb-11 web:pb-2 web:gap-y-1 web:[grid-template-areas:'primary_primary_primary'_'leading_footer_trailing']"
+              : "min-h-[52px] py-1 web:items-center web:[grid-template-areas:'leading_primary_trailing']",
+          )}
+        >
+          <View
+            className={cn(
+              "min-w-0 web:[grid-area:primary]",
+              barState === "collapsed" && "h-[44px] overflow-hidden",
+            )}
+            style={
+              Platform.OS !== "web" && barState === "collapsed"
+                ? {
+                    marginLeft: leadingWidth + 4,
+                    marginRight: trailingWidth + 4,
+                  }
+                : undefined
+            }
+          >
             <PromptInputTextarea
               id={inputId}
               placeholder={placeholder}
-              minHeight={SINGLE_LINE_TRACK}
-              className="min-h-[44px] max-h-[400px] px-1.5 py-2.5 web:py-2.5 text-base"
+              minHeight={barState === "collapsed" ? SINGLE_LINE_TRACK : 0}
+              className={cn(
+                "max-h-[400px] px-1.5 text-base",
+                barState === "collapsed"
+                  ? "min-h-[44px] py-2.5 web:py-2.5"
+                  : "min-h-0 pt-2.5 web:pt-2.5 pb-1 web:pb-1",
+              )}
             />
           </View>
-          <View className="flex-row items-center gap-1">{trailingCluster}</View>
+          <View
+            className={cn(
+              "self-center web:static web:[grid-area:leading]",
+              "absolute left-2 z-10",
+              barState === "expanded"
+                ? "bottom-2"
+                : "top-2",
+            )}
+          >
+            {leadingCluster}
+          </View>
+          <View
+            className={cn(
+              "self-center web:static web:[grid-area:trailing]",
+              "absolute right-2 z-10",
+              barState === "expanded"
+                ? "bottom-2"
+                : "top-2",
+            )}
+          >
+            {trailingCluster}
+          </View>
         </View>
       )}
     </>
@@ -418,12 +456,15 @@ export function PromptInput({
   const barNode = (
       <View
         className={cn(
-          "border border-border bg-card shadow-sm relative overflow-hidden web:transition-[border-radius] web:duration-200",
+          "relative overflow-hidden bg-card shadow-sm web:transition-[border-radius] web:duration-200",
+          isChatComposer
+            ? "rounded-[28px] border-0 web:shadow-[0_0_0_1px_rgba(0,0,0,0.04),0_2px_8px_rgba(0,0,0,0.04),0_4px_40px_8px_rgba(0,0,0,0.025)]"
+            : "border border-border",
           barState === "fullscreen"
             ? "border-0 bg-background"
             : barState === "expanded"
               ? "rounded-[28px]"
-              : "rounded-full",
+              : isChatComposer ? "rounded-[28px]" : "rounded-full",
           disabled && "opacity-60",
           className
         )}
@@ -435,6 +476,28 @@ export function PromptInput({
         id={`${inputId}-bar`}
         style={barState === "fullscreen" ? fullscreenGrowStyle(barRect, fsSettled) : undefined}
       >
+        {isSimpleMode && barState !== "fullscreen" && leadingWidth > 0 && trailingWidth > 0 && (
+          <View
+            pointerEvents="none"
+            accessibilityElementsHidden
+            importantForAccessibility="no-hide-descendants"
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 8 + leadingWidth + 4,
+              right: 8 + trailingWidth + 4,
+              opacity: 0,
+            }}
+          >
+            <Text
+              accessible={false}
+              className="min-h-[44px] px-1.5 py-2.5 text-base lg:text-sm web:whitespace-pre-wrap web:break-words"
+              onLayout={(event) => setCollapsedMeasureHeight(event.nativeEvent.layout.height)}
+            >
+              {currentValue || "\u200b"}
+            </Text>
+          </View>
+        )}
         {!disabled && (showFullscreen || showExpandIcon) && (
           <Pressable
             onPress={toggleFullscreen}

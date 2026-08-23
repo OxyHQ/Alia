@@ -10,7 +10,17 @@ export type ImagePickerAsset = {
 
 type ImagePickerResult = {
   pickImage: () => Promise<ImagePickerAsset[] | undefined>;
+  takePhoto: () => Promise<ImagePickerAsset[] | undefined>;
 };
+
+function toImagePickerAsset(asset: ImagePicker.ImagePickerAsset): ImagePickerAsset {
+  return {
+    uri: asset.uri,
+    name: asset.fileName || `image-${Date.now()}.jpg`,
+    size: asset.fileSize || 0,
+    mimeType: asset.mimeType || 'image/jpeg',
+  };
+}
 
 export function useImagePicker(): ImagePickerResult {
   const pickImage = async (): Promise<ImagePickerAsset[] | undefined> => {
@@ -23,17 +33,32 @@ export function useImagePicker(): ImagePickerResult {
       });
 
       if (!result.canceled && result.assets.length > 0) {
-        return result.assets.map(asset => ({
-          uri: asset.uri,
-          name: asset.fileName || `image-${Date.now()}.jpg`,
-          size: asset.fileSize || 0,
-          mimeType: asset.mimeType || 'image/jpeg',
-        }));
+        return result.assets.map(toImagePickerAsset);
       }
-    } catch (error) {
+    } catch {
       toast.error('Failed to pick image. Please try again.');
     }
   };
 
-  return { pickImage };
-} 
+  const takePhoto = async (): Promise<ImagePickerAsset[] | undefined> => {
+    try {
+      const permission = await ImagePicker.requestCameraPermissionsAsync();
+      if (!permission.granted) {
+        toast.error('Camera access is required to take a photo.');
+        return;
+      }
+
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        quality: 1,
+      });
+      if (!result.canceled && result.assets.length > 0) {
+        return result.assets.map(toImagePickerAsset);
+      }
+    } catch {
+      toast.error('Failed to take a photo. Please try again.');
+    }
+  };
+
+  return { pickImage, takePhoto };
+}

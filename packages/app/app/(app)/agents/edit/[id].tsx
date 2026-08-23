@@ -48,7 +48,7 @@ import { useAgentsStore, type Agent, type AgentUpdate, type AgentArchetype, type
 import { useTranslation } from "@/lib/hooks/use-translation";
 import { useColorScheme } from "@/lib/useColorScheme";
 import { toast } from "@oxyhq/bloom/toast";
-import { confirm } from "@oxyhq/bloom/alert-dialog";
+import { confirm } from "@oxyhq/bloom/surfaces";
 import { cn } from "@/lib/utils";
 import apiClient from "@/lib/api/client";
 import { API_ROUTES } from "@/lib/api/routes";
