@@ -211,6 +211,24 @@ describe('a failure leaves the balance exactly where it was', () => {
     expect(ingestEpisode).not.toHaveBeenCalled();
   });
 
+  it('when the row has no Syra episode to publish to', async () => {
+    await fund(50);
+    const episodeId = await queueEpisode();
+    await db.update(showEpisodes).set({ syraEpisodeId: null }).where(eq(showEpisodes.id, episodeId));
+
+    const before = await balance();
+    scriptReply = GOOD_SCRIPT;
+
+    const { runShowPipeline } = await import('../show-pipeline.js');
+    await runShowPipeline(episodeId);
+
+    expect(await balance()).toBe(before);
+    // Nothing is sent. Defaulting the id to `''` would post to
+    // `/episodes//ingest` and report Syra's 404 as a refusal to publish.
+    expect(ingestEpisode).not.toHaveBeenCalled();
+    expect((await findEpisodeById(db, episodeId))?.error).toContain('no Syra episode');
+  });
+
   it('when publishing to Syra throws', async () => {
     await fund(50);
     const before = await balance();

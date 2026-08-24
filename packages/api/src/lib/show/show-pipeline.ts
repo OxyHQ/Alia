@@ -254,23 +254,36 @@ export async function runShowPipeline(episodeId: string): Promise<void> {
     await applyUpdate({ status: 'publishing', progress: 90 });
     emitProgress(episode, { status: 'publishing', progress: 90, currentStep: 'Publishing...' });
 
+    /**
+     * BOTH halves of the capability, checked before anything is sent.
+     *
+     * The route reserves the Syra episode and mints the ticket before it
+     * inserts the row, so on a first run neither is null. A re-run of an
+     * already-published episode finds a null ticket — the pipeline clears it
+     * once spent — and must not produce a second recording nobody can attach.
+     *
+     * `syraEpisodeId` is checked rather than defaulted. `?? ''` would post to
+     * `/episodes//ingest`, which is a 404 that reads as "Syra refused" instead
+     * of as "this row is not what it claims to be".
+     */
     const ticket = episode.ingestTicket;
-    if (ticket === null) {
-      // Unreachable on a first run: the route mints the ticket before it inserts
-      // the row. Reachable on a manual re-run of an already-published episode,
-      // which must not silently produce a second recording nobody can attach.
+    const syraEpisodeId = episode.syraEpisodeId;
+    if (ticket === null || syraEpisodeId === null || syraEpisodeId === '') {
       settled = true;
       await refundReservation(reservation);
       await applyUpdate({
         status: 'failed',
-        error: 'This episode has already been published',
+        error:
+          ticket === null
+            ? 'This episode has already been published'
+            : 'This episode has no Syra episode to publish to',
       });
       emitProgress(episode, { status: 'failed', progress: 0, currentStep: 'Failed' });
       return;
     }
 
     await syraForTicket().ingestEpisode(
-      { episodeId: episode.syraEpisodeId ?? '', ingestTicket: ticket },
+      { episodeId: syraEpisodeId, ingestTicket: ticket },
       // `Blob` is global on Node 20 and is what the SDK's multipart body wants.
       new Blob([new Uint8Array(audio)], { type: 'audio/mpeg' }),
       {
