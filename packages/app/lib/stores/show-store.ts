@@ -358,13 +358,13 @@ export const useShowStore = create<ShowStore>((set, get) => ({
   clearError: () => set({ error: null }),
 }));
 
-/** The episodes of one series, or an empty list. A stable reference per series. */
-export function useSeriesEpisodes(seriesId: string): ShowEpisode[] {
-  return useShowStore((state) => state.episodesBySeries[seriesId]) ?? EMPTY_EPISODES;
-}
-
 /**
  * One shared empty array, so a series with no episodes yet does not hand the
  * selector a new `[]` on every render and re-render the list forever.
  */
 const EMPTY_EPISODES: ShowEpisode[] = [];
+
+/** The episodes of one series, or an empty list. A stable reference per series. */
+export function useSeriesEpisodes(seriesId: string): ShowEpisode[] {
+  return useShowStore((state) => state.episodesBySeries[seriesId]) ?? EMPTY_EPISODES;
+}

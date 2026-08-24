@@ -154,29 +154,6 @@ export async function enqueueShowGeneration(
 }
 
 /**
- * Get show job status.
- */
-export async function getShowJobStatus(episodeId: string): Promise<{
-  state: string;
-  progress: number;
-} | null> {
-  if (!queue || !redisAvailable) return null;
-
-  try {
-    const job = await queue.getJob(episodeId);
-    if (!job) return null;
-
-    const state = await job.getState();
-    return {
-      state,
-      progress: typeof job.progress === 'number' ? job.progress : 0,
-    };
-  } catch {
-    return null;
-  }
-}
-
-/**
  * Graceful shutdown.
  */
 export async function shutdownShowQueue(): Promise<void> {

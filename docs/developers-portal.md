@@ -65,7 +65,7 @@ unaffected. The replacement is not speculative:
 against Oxy's own `/auth/oauth/token`, and the other two clients follow it.
 
 **Authentication.** An `alia_sk_*` credential authenticates every route under `/v1/*`
-except `/v1/models` and `/v1/shows`, which are mounted ahead of the auth middleware
+except `/v1/models`, which is mounted ahead of the auth middleware
 (`packages/api/src/routes/v1.ts:28` and `:31`). `authenticateTokenOrApiKey` at `:59`
 accepts a session token or a key; `apiKeyRateLimit` at `:62` applies the key's own limits.
 
