@@ -981,12 +981,6 @@ const EGRESS_HOSTS: readonly string[] = [
   '127.0.0.1',
   'accounts.google.com',
   'alia-ai.com',
-  // The Cloudflare Pages origin `.github/workflows/deploy-frontends.yml`
-  // publishes `packages/alia-canvas` to. It is an ALLOWED BROWSER ORIGIN in the
-  // internal CORS list, never a host this package calls; it is here rather than
-  // exempted because naming a host is exactly what this gate makes a reviewed
-  // diff, and a CORS allowlist entry deserves that review most of all.
-  'alia-canvas.pages.dev',
   'alia.onl',
   'api.anthropic.com',
   'api.cerebras.ai',
@@ -3795,7 +3789,6 @@ describe('gate 9: no origin allowlist admits an opaque origin (#139 ws15)', () =
       'https://alia.onl',
       'https://console.alia.onl',
       'https://canvas.alia.onl',
-      'https://alia-canvas.pages.dev',
     ]);
     expect(list('packages/api/src/lib/cors-origins.ts', 'DEV_ORIGINS')).toEqual([
       'http://localhost:4150',

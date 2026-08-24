@@ -24,9 +24,10 @@
  * origin has to be on that allowlist for a browser to read either. Measured
  * 2026-08-19 against the running API: `Origin: https://alia.onl` gets an
  * `access-control-allow-origin` back from `/catalogue`, and
- * `Origin: https://alia-canvas.pages.dev` — where `deploy-frontends.yml`
- * publishes this app — got none, so the read was refused before this change
- * added that origin.
+ * `Origin: https://alia-canvas.pages.dev` — the Cloudflare Pages default this
+ * app was reachable on before it got its own domain — got none, so the read was
+ * refused. It is served on `canvas.alia.onl` now, and only that origin is
+ * admitted.
  *
  * The failure mode if that is ever wrong again is deliberate and safe: the
  * query fails, the picker offers Automatic alone, and every node runs on the
