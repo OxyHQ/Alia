@@ -1,10 +1,13 @@
 import { Stack } from 'expo-router';
-import * as SplashScreen from 'expo-splash-screen';
-import { useEffect, useMemo, useRef } from 'react';
+import { useMemo, useRef } from 'react';
 import { OxyProvider, useOxy } from '@oxyhq/services';
 import { BloomProvider } from '@oxyhq/bloom/provider';
 import { ImageResolverProvider } from '@oxyhq/bloom/image-resolver';
 import { ConnectionStatusToasts } from '@oxyhq/bloom/connection-status';
+import {
+  preventNativeSplashAutoHide,
+  useHideNativeSplashWhenReady,
+} from '@oxyhq/expo-splash';
 import * as Linking from 'expo-linking';
 import { Platform } from 'react-native';
 
@@ -24,7 +27,7 @@ export const unstable_settings = {
   initialRouteName: '(app)',
 };
 
-SplashScreen.preventAutoHideAsync();
+preventNativeSplashAutoHide();
 
 const OXY_API_URL = process.env.EXPO_PUBLIC_OXY_API_URL || 'https://api.oxy.so';
 const OXY_CLIENT_ID =
@@ -60,9 +63,7 @@ function AppContent() {
 
   // Mounted only after BloomProvider's FontLoader resolves the default
   // Bloom fonts, so hiding the OS splash here leaves no unstyled-text flash.
-  useEffect(() => {
-    SplashScreen.hideAsync();
-  }, []);
+  useHideNativeSplashWhenReady(true);
 
   return (
     <AuthSetup>
