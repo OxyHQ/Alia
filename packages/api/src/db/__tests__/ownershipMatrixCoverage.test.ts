@@ -147,7 +147,7 @@ interface MatrixRow {
  * asserting `packages/api` is the only manifest declaring a provider SDK. A
  * dependency row is the one shape this file's existence check cannot see.
  *
- * 46 since `feat/shows-on-syra` moved shows off the compatibility surface: the five
+ * 46 since #327 moved shows off the compatibility surface: the five
  * `v1-shows-*` rows all named `packages/api/src/routes/v1/shows.ts`, which is
  * deleted. They are ANNOTATED rather than repointed at the new file, because
  * `currentPath` records where the code was when the matrix was taken and a row

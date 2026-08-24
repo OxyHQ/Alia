@@ -201,7 +201,7 @@ const aliaChat = surface(aliaChatRouter, '/alia/chat');
  * without appearing there has no removal gate, and a route that disappears from
  * here without a recorded measurement was removed without one.
  *
- * ## 20 became 15: the five `/v1/shows` routes left, in `feat/shows-on-syra`
+ * ## 20 became 15: the five `/v1/shows` routes left, in #327
  *
  * This is a removal, which is the direction this list gates hardest, so the
  * measurement is here rather than in a commit message.
