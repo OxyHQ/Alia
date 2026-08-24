@@ -1,4 +1,5 @@
 import React from "react";
+import { errorMessage } from "@/lib/errors/error-utils";
 import { View, Pressable, ScrollView, Linking, Share, TextInput, ActivityIndicator } from "react-native";
 import { HeartHandshake, Copy, Send, Check, AlertCircle } from "lucide-react-native";
 import Fontisto from "@expo/vector-icons/Fontisto";
@@ -63,7 +64,7 @@ export function InviteDialog({ open, onOpenChange }: InviteDialogProps) {
         setRedeemCode('');
       },
       onError: (err: any) => {
-        setRedeemResult({ success: false, message: err?.response?.data?.error || 'Invalid invite code' });
+        setRedeemResult({ success: false, message: errorMessage(err, 'Invalid invite code') });
       },
     });
   }, [redeemCode, redeemMutation]);
