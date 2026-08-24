@@ -58,6 +58,26 @@ describe('deploy-aws.yml migration wiring', () => {
     expect(workflow).toContain("RUN_MIGRATIONS: 'true'");
   });
 
+  it('re-asserts both names of the API public origin on every task revision', () => {
+    const from = workflow.indexOf('      - name: Stage the Kaana edge configuration');
+    const to = workflow.indexOf('      # RUN_MIGRATIONS', from);
+    const environmentStage = workflow.slice(from, to);
+
+    expect(from).toBeGreaterThanOrEqual(0);
+    expect(to).toBeGreaterThan(from);
+    expect(environmentStage).toContain('API_BASE_URL: "https://api.alia.onl"');
+    expect(environmentStage).toContain('ALIA_API_URL: "https://api.alia.onl"');
+    expect(environmentStage).toContain("jq -cs '.[0] * .[1] * .[2]'");
+    // Required values merge last, so a future optional block cannot silently
+    // override the canonical production origin.
+    expect(environmentStage).toContain(
+      '<(echo "${INTEGRATIONS_ENV:-{\\}}") <(echo "$kaana_env") <(echo "$required_env")',
+    );
+    expect(workflow).toContain(
+      'TASK_ENV_OVERRIDES_JSON: ${{ steps.kaana.outputs.env_overrides }}',
+    );
+  });
+
   /**
    * `--target-database` has no default in the migrator, deliberately: a run that
    * does not state its target cannot be checked against the connection string it
