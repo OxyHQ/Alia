@@ -9,9 +9,9 @@ import {
   type RelayServiceCredential,
   type RelayTransport,
   type RelayTransportRequest,
-} from '../relay-client.js';
-import { assertAllowedRelayOrigin } from '../relay-endpoint.js';
-import { ALIA_SURFACE_LABEL, type RelayRequestPayload } from '../relay-request.js';
+} from '../kaana-client.js';
+import { assertAllowedRelayOrigin } from '../kaana-endpoint.js';
+import { ALIA_SURFACE_LABEL, type RelayRequestPayload } from '../kaana-request.js';
 
 /** An approved Relay origin, branded through the one function that produces one. */
 const ENDPOINT = assertAllowedRelayOrigin('https://api.oxy.so', 'development');
@@ -36,8 +36,8 @@ const ENDPOINT = assertAllowedRelayOrigin('https://api.oxy.so', 'development');
  *
  * ## Why this is not covered by the request builder's own suite
  *
- * `relay-request.test.ts` asserts that the envelope carries the right values in
- * the fields it fills. Neither it nor `relay-client.test.ts` asks what ELSE is
+ * `kaana-request.test.ts` asserts that the envelope carries the right values in
+ * the fields it fills. Neither it nor `kaana-client.test.ts` asks what ELSE is
  * on the wire, and the interesting failure — a caller attaching product state to
  * the payload and it travelling — passes every one of those assertions.
  */
@@ -222,7 +222,7 @@ describe('the product state the seam is holding does not travel', () => {
      * subtraction from the contract type, so a product module assembling one
      * from a wider object literal — the shape a route naturally has — carries
      * whatever else was on that object. The envelope is PARSED rather than cast
-     * (`relay-request.ts:114`), so the extra fields are dropped at the boundary;
+     * (`kaana-request.ts:114`), so the extra fields are dropped at the boundary;
      * a build that switched to a cast or a post-parse spread would send them.
      */
     const contaminated: RelayRequestPayload & Record<string, unknown> = {
@@ -328,7 +328,7 @@ describe('a tool crosses the boundary as a declaration, never as something runna
   });
 
   /**
-   * The static half. `relay-boundary.test.ts` already freezes that the relay
+   * The static half. `kaana-boundary.test.ts` already freezes that the relay
    * modules name no provider tree, no gateway seam and no `ai` — which is the
    * SDK a tool would be executed by. What is added here is Alia's own tool
    * layer: a relay module that imported `lib/tools` or the tool pipeline would

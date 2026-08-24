@@ -6,7 +6,7 @@
  * `docs/migration/alias-migration-map.json` publishes what each of the thirteen
  * aliases BECOMES: a routing profile, identified as `profile:<tier>`. That file
  * is a promise to callers. Until this module existed nothing kept it, because
- * nothing translated: `lib/inference/relay-request.ts` read an alias
+ * nothing translated: `lib/inference/kaana-request.ts` read an alias
  * structurally — no `/`, therefore a routing profile — and sent `alia-v1-pro`
  * on the wire as a profile literally named `alia-v1-pro`, which is not what the
  * map says it becomes and not a profile Relay could be expected to know.

@@ -432,7 +432,7 @@ describe('inbound verification is @oxyhq/core, not a local implementation (#139 
     ).toEqual(['jwt.verify']);
 
     // The credential interface has exactly the two members a PRESENTER needs.
-    const client = readFileSync(path.join(relayDir, 'relay-client.ts'), 'utf8');
+    const client = readFileSync(path.join(relayDir, 'kaana-client.ts'), 'utf8');
     const block = /export interface RelayServiceCredential \{([\s\S]*?)\n\}/.exec(client)?.[1] ?? '';
     expect(block).toContain('getServiceToken(): Promise<string>');
     expect(block).toContain('invalidateServiceToken(): void');

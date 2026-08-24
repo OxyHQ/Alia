@@ -20,7 +20,7 @@
  * to show: a customer bought "alia-v1", not a seat on a named operator, and the
  * routing table is commercially sensitive. {@link sanitizeMessage} is this
  * rule's expression. It is a product decision, best-effort by construction, and
- * **not a security control** — the same conclusion `lib/inference/relay-error.ts`
+ * **not a security control** — the same conclusion `lib/inference/kaana-error.ts`
  * reaches from the other side.
  *
  * ## Where each rule applies

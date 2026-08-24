@@ -1026,7 +1026,7 @@ const EGRESS_HOSTS: readonly string[] = [
   'oauth2.googleapis.com',
   'openrouter.ai',
   // #139 ws15, *"pin allowed Relay origins/endpoints"*: one of the two entries
-  // in `lib/inference/relay-endpoint.ts`'s allow-list, beside `api.oxy.so`
+  // in `lib/inference/kaana-endpoint.ts`'s allow-list, beside `api.oxy.so`
   // above. It is a host this package NAMES and does not yet call — the Relay
   // transport does not exist — and it is here rather than exempted because
   // naming a host is exactly what this gate exists to make a reviewed diff.
@@ -1861,8 +1861,8 @@ const OBJECT_KIND_EMITTERS: Readonly<Record<string, readonly string[]>> = {
     // is the one place it will be constructed after the cutover. It joins the
     // list rather than replacing anything because it is not wired in yet — the
     // client must not become the live path before workstream 8.
-    'packages/api/src/lib/inference/__tests__/relay-openai-adapter.test.ts',
-    'packages/api/src/lib/inference/relay-openai-adapter.ts',
+    'packages/api/src/lib/inference/__tests__/kaana-openai-adapter.test.ts',
+    'packages/api/src/lib/inference/kaana-openai-adapter.ts',
     'packages/api/src/lib/streaming-helpers.ts',
   ],
   list: ['packages/api/src/routes/catalogue.ts', 'packages/api/src/routes/v1/models.ts'],
@@ -2822,8 +2822,8 @@ const INDIRECT_ENV_READERS: readonly { file: string; namesFrom: string; resolver
     resolver: "`envFlag('X')` arguments, in the same file as the helper that indexes the environment.",
   },
   {
-    file: 'packages/api/src/lib/inference/relay-boot-check.ts',
-    namesFrom: 'packages/api/src/lib/inference/relay-boot-check.ts',
+    file: 'packages/api/src/lib/inference/kaana-boot-check.ts',
+    namesFrom: 'packages/api/src/lib/inference/kaana-boot-check.ts',
     resolver: 'The `RELAY_PRINCIPAL_ENV` map: five contract fields, five variables.',
   },
   {
@@ -2839,13 +2839,13 @@ const INDIRECT_ENV_READERS: readonly { file: string; namesFrom: string; resolver
       'The same two edge-key constants, plus `RELAY_PRINCIPAL_ENV.environment`: the catalogue is fetched over the same signature scheme as an inference envelope, so it reads the same names rather than inventing a second way to be configured.',
   },
   {
-    file: 'packages/api/src/lib/inference/relay-cutover.ts',
-    namesFrom: 'packages/api/src/lib/inference/relay-cutover.ts',
+    file: 'packages/api/src/lib/inference/kaana-cutover.ts',
+    namesFrom: 'packages/api/src/lib/inference/kaana-cutover.ts',
     resolver: 'The `RELAY_CLIENT_ENABLED_ENV` constant: the migration flag (#139 ws8).',
   },
   {
-    file: 'packages/api/src/lib/inference/relay-endpoint.ts',
-    namesFrom: 'packages/api/src/lib/inference/relay-endpoint.ts',
+    file: 'packages/api/src/lib/inference/kaana-endpoint.ts',
+    namesFrom: 'packages/api/src/lib/inference/kaana-endpoint.ts',
     resolver: 'The `RELAY_BASE_URL_ENV` constant: the pinned endpoint (#139 ws15).',
   },
   {
@@ -2855,8 +2855,8 @@ const INDIRECT_ENV_READERS: readonly { file: string; namesFrom: string; resolver
       'The `GATEWAY_URL_ENV` constant, plus `PROVIDER_CREDENTIAL_ENV` — a DERIVED list of names no source reads, checked below rather than through a resolver.',
   },
   {
-    file: 'packages/api/src/lib/inference/relay-credential.ts',
-    namesFrom: 'packages/api/src/lib/inference/relay-credential.ts',
+    file: 'packages/api/src/lib/inference/kaana-credential.ts',
+    namesFrom: 'packages/api/src/lib/inference/kaana-credential.ts',
     resolver: 'The `RELAY_CREDENTIAL_ENV` map and `OXY_API_URL_ENV` (#139 ws2).',
   },
   {
@@ -2941,11 +2941,11 @@ describe('gate 6: no provider credential in the deployment environment (#139 ws1
     //  - `ALIA_RELAY_CLIENT_ENABLED`, which is reachable ONLY through an
     //    injected `NodeJS.ProcessEnv` and a `*_ENV` constant, so its presence
     //    proves the alias and constant resolvers both ran (it lives in
-    //    `relay-cutover.ts` since #139 ws8 split the flag out of the client);
+    //    `kaana-cutover.ts` since #139 ws8 split the flag out of the client);
     //  - `AUTONOMY_RUNTIME_ENABLED`, which exists only as an `envFlag` argument.
     expect(production.named.get('LOG_LEVEL')).toContain('packages/api/src/lib/logger.ts');
     expect(production.named.get('ALIA_RELAY_CLIENT_ENABLED')).toContain(
-      'packages/api/src/lib/inference/relay-cutover.ts',
+      'packages/api/src/lib/inference/kaana-cutover.ts',
     );
     expect(production.named.get('AUTONOMY_RUNTIME_ENABLED')).toContain('packages/api/src/lib/autonomy/flags.ts');
   });
@@ -3809,7 +3809,7 @@ describe('gate 9: no origin allowlist admits an opaque origin (#139 ws15)', () =
     // An egress allowlist rather than a CORS one, and the same property: an
     // opaque entry there matches every custom scheme a relay endpoint could be
     // pointed at.
-    expect(list('packages/api/src/lib/inference/relay-endpoint.ts', 'RELAY_ALLOWED_ORIGINS')).toEqual([
+    expect(list('packages/api/src/lib/inference/kaana-endpoint.ts', 'RELAY_ALLOWED_ORIGINS')).toEqual([
       'https://api.oxy.so',
       'https://relay.oxy.so',
     ]);

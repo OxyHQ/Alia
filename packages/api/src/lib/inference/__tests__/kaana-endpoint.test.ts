@@ -2,16 +2,16 @@ import { describe, expect, it } from 'vitest';
 import type { RoutingTarget } from '@oxyhq/contracts';
 
 import type { AliaInferenceCall, AliaInferenceContext } from '../product-seam.js';
-import { relayBootConfigurationFailure, RELAY_PRINCIPAL_ENV } from '../relay-boot-check.js';
-import { RELAY_CREDENTIAL_REQUIRED_ENV } from '../relay-credential.js';
-import { RELAY_CLIENT_ENABLED_ENV } from '../relay-cutover.js';
+import { relayBootConfigurationFailure, RELAY_PRINCIPAL_ENV } from '../kaana-boot-check.js';
+import { RELAY_CREDENTIAL_REQUIRED_ENV } from '../kaana-credential.js';
+import { RELAY_CLIENT_ENABLED_ENV } from '../kaana-cutover.js';
 import {
   createRelayInferenceClient,
   type RelayClientConfig,
   type RelayServiceCredential,
   type RelayTransport,
   type RelayTransportRequest,
-} from '../relay-client.js';
+} from '../kaana-client.js';
 import {
   assertAllowedRelayOrigin,
   RELAY_ALLOWED_ORIGINS,
@@ -19,8 +19,8 @@ import {
   relayEndpointRefusal,
   resolveRelayEndpoint,
   type RelayEndpoint,
-} from '../relay-endpoint.js';
-import type { RelayRequestPayload } from '../relay-request.js';
+} from '../kaana-endpoint.js';
+import type { RelayRequestPayload } from '../kaana-request.js';
 
 /**
  * The pinned Relay endpoint — epic #139 workstream 15, *"Pin allowed Relay
