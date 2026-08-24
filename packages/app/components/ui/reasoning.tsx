@@ -9,6 +9,7 @@ import React, {
 import { View, Pressable } from "react-native";
 import { Text } from "@/components/ui/text";
 import { AliaMarkdown } from '@alia.onl/sdk';
+import { MARKDOWN_BODY_FONT } from './markdown';
 import { withAlpha } from "@oxyhq/bloom/theme";
 import { useColorScheme } from "@/lib/useColorScheme";
 import {
@@ -291,7 +292,7 @@ export function ReasoningContent({ children, className }: ReasoningContentProps)
           }}
         >
           <View style={{ opacity: isStreaming ? 0.8 : 1 }}>
-            <AliaMarkdown content={children} colors={aliaColors} />
+            <AliaMarkdown content={children} colors={aliaColors} fontFamily={MARKDOWN_BODY_FONT} />
           </View>
         </View>
       </View>
