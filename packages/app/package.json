@@ -107,7 +107,6 @@
     "socket.io-client": "^4.8.3",
     "tailwind-merge": "^3.6.0",
     "tailwindcss": "4.2.2",
-    "tailwindcss-animate": "^1.0.7",
     "zeego": "^3.0.6",
     "zustand": "^5.0.14",
     "zustand-persist": "^0.4.0"
