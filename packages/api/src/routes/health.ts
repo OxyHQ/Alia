@@ -7,7 +7,7 @@ import {
   providersWithUsableCredentials,
   type HealthMetrics,
 } from '../lib/gateway-client.js';
-import { relayConnectivity } from '../lib/inference/relay-connectivity.js';
+import { relayConnectivity } from '../lib/inference/kaana-connectivity.js';
 import { unsetKaanaVariables } from '../lib/inference/kaana.js';
 import { isQueueActive } from '../lib/task-queue.js';
 import { log } from '../lib/logger.js';
@@ -165,7 +165,7 @@ import { log } from '../lib/logger.js';
  *
  * ### `relay_unreachable` — removed, and this one LOOKED process-local
  *
- * The observation is a module-level `let` in `relay-connectivity.ts`, which is
+ * The observation is a module-level `let` in `kaana-connectivity.ts`, which is
  * genuinely per-process — but that describes where the EVIDENCE is stored, not
  * where the FAULT is. If Relay is unreachable it is unreachable for every task,
  * and each simply discovers the same shared outage independently within a probe
@@ -175,7 +175,7 @@ import { log } from '../lib/logger.js';
  * Two facts settle it beyond the general argument, and both are checkable:
  *
  *  1. **Two of the four codes that open the circuit are not about Relay at
- *     all.** `CIRCUIT_TRIPPING_CODES` in `relay-client.ts` is
+ *     all.** `CIRCUIT_TRIPPING_CODES` in `kaana-client.ts` is
  *     `service_unavailable`, `deployment_unavailable`, `provider_overloaded`,
  *     `provider_timeout`. The last two are UPSTREAM PROVIDER conditions, so
  *     this branch would have deregistered the fleet on exactly the provider

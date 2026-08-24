@@ -43,7 +43,7 @@
 
 import { connectPostgres } from '../db/index.js';
 import { assertDirectProviderModeOrExit } from './inference/direct-provider-guard.js';
-import { relayBootConfigurationFailure } from './inference/relay-boot-check.js';
+import { relayBootConfigurationFailure } from './inference/kaana-boot-check.js';
 import { installProviderEgressBlock } from './inference/provider-egress-policy.js';
 
 /** The exit code every refusal here uses. */
@@ -110,7 +110,7 @@ export function runBootGuards(deps: BootGuardDeps): void {
    * `ALIA_RELAY_CLIENT_ENABLED` is not exactly `'true'` — which is everywhere
    * today — is one read of that one variable; `relayBootConfigurationFailure`
    * consults no Relay configuration at all on that path, which
-   * `inference/__tests__/relay-boot-check.test.ts` pins with a recording
+   * `inference/__tests__/kaana-boot-check.test.ts` pins with a recording
    * environment rather than by inspection.
    */
   const relayFailure = relayBootConfigurationFailure(env);

@@ -30,8 +30,8 @@ import {
   readEdgePrivateKey,
   signEnvelope,
 } from './kaana-transport.js';
-import { RELAY_PRINCIPAL_ENV } from './relay-boot-check.js';
-import { resolveRelayEndpoint } from './relay-endpoint.js';
+import { RELAY_PRINCIPAL_ENV } from './kaana-boot-check.js';
+import { resolveRelayEndpoint } from './kaana-endpoint.js';
 
 /** The route Kaana answers its catalogue on. */
 const CATALOGUE_PATH = '/internal/v1/models';

@@ -51,7 +51,7 @@
 
 import { createHash, createPrivateKey, sign as edSign, type KeyObject } from 'node:crypto';
 
-import type { RelayTransport, RelayTransportRequest } from './relay-client.js';
+import type { RelayTransport, RelayTransportRequest } from './kaana-client.js';
 
 /** The variable naming the signing key Kaana knows us by. */
 export const KAANA_EDGE_KEY_ID_ENV = 'KAANA_EDGE_KEY_ID';

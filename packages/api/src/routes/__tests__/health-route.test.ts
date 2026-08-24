@@ -3,7 +3,7 @@ import type { Server } from 'node:http';
 import express from 'express';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { RELAY_CLIENT_ENABLED_ENV } from '../../lib/inference/relay-cutover.js';
+import { RELAY_CLIENT_ENABLED_ENV } from '../../lib/inference/kaana-cutover.js';
 
 /**
  * What `/health`, `/health/ready` and `/health/live` actually RETURN — #139 ws8.
@@ -180,7 +180,7 @@ let server: Server | null = null;
  *     the cache;
  *  2. **the connectivity state has to be written through the SAME module
  *     instance the route reads.** `vi.resetModules()` gives the route a fresh
- *     `relay-connectivity.js`, so a state written through a statically imported
+ *     `kaana-connectivity.js`, so a state written through a statically imported
  *     copy reaches a registry nobody reads — which is how the first draft of
  *     this file reported a cold `unknown` for every state, including one test
  *     that then passed for entirely the wrong reason.
@@ -200,7 +200,7 @@ async function probe(
   vi.resetModules();
   mockDependencies({ postgresReady, providers, credentialed, configured });
 
-  const connectivity = await import('../../lib/inference/relay-connectivity.js');
+  const connectivity = await import('../../lib/inference/kaana-connectivity.js');
   if (relay === 'reachable') connectivity.reportRelayReachable();
   else if (relay !== 'no observation') {
     connectivity.reportRelayUnavailableUntil(relay.unavailableUntilMs);
@@ -303,7 +303,7 @@ describe('/health/live answers only "this process is running"', () => {
  * `/health/ready` used to answer 503 `relay_unreachable` on an open circuit.
  * The observation is per-process, but Relay being unreachable is not a per-task
  * fact — every task discovers the same outage within a probe interval and they
- * all deregister together, which is the outage `relay-connectivity.ts`'s own
+ * all deregister together, which is the outage `kaana-connectivity.ts`'s own
  * header is written against. Two specifics decide it: `provider_overloaded` and
  * `provider_timeout` are among the four codes that open that circuit, so the
  * gate would have deregistered the fleet on UPSTREAM PROVIDER state; and Relay

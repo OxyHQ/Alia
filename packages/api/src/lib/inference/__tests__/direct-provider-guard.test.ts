@@ -13,7 +13,7 @@ import {
   PROVIDER_CREDENTIAL_ENV,
 } from '../direct-provider-guard.js';
 import { PROVIDER_API_HOSTS } from '../provider-egress-policy.js';
-import { RELAY_CLIENT_ENABLED_ENV } from '../relay-cutover.js';
+import { RELAY_CLIENT_ENABLED_ENV } from '../kaana-cutover.js';
 
 /**
  * Epic #139 workstream 8 — *"Add a production guard that fails CI or startup

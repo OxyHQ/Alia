@@ -4,10 +4,10 @@ import { fileURLToPath } from 'node:url';
 import { authenticatedPrincipalSchema } from '@oxyhq/contracts';
 import { describe, expect, it } from 'vitest';
 
-import { RELAY_CLIENT_ENABLED_ENV } from '../relay-cutover.js';
-import { RELAY_PRINCIPAL_ENV, relayBootConfigurationFailure } from '../relay-boot-check.js';
-import { RELAY_CREDENTIAL_REQUIRED_ENV } from '../relay-credential.js';
-import { RELAY_ALLOWED_ORIGINS, RELAY_BASE_URL_ENV } from '../relay-endpoint.js';
+import { RELAY_CLIENT_ENABLED_ENV } from '../kaana-cutover.js';
+import { RELAY_PRINCIPAL_ENV, relayBootConfigurationFailure } from '../kaana-boot-check.js';
+import { RELAY_CREDENTIAL_REQUIRED_ENV } from '../kaana-credential.js';
+import { RELAY_ALLOWED_ORIGINS, RELAY_BASE_URL_ENV } from '../kaana-endpoint.js';
 
 /**
  * Epic #139 workstream 2 — *"Add startup validation that production cannot boot
@@ -33,7 +33,7 @@ import { RELAY_ALLOWED_ORIGINS, RELAY_BASE_URL_ENV } from '../relay-endpoint.js'
  */
 
 const API_ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..');
-const MODULE = path.join(API_ROOT, 'src', 'lib', 'inference', 'relay-boot-check.ts');
+const MODULE = path.join(API_ROOT, 'src', 'lib', 'inference', 'kaana-boot-check.ts');
 const ENV_EXAMPLE = path.join(API_ROOT, '.env.example');
 
 interface Recorder {
@@ -401,7 +401,7 @@ describe('the boot check does not make Relay the live path (#139 ws3, constraint
   });
 
   it('constructs no client and opens no transport', () => {
-    // `relay-boundary.test.ts` lists this file as an importer of the client
+    // `kaana-boundary.test.ts` lists this file as an importer of the client
     // module. That entry is only defensible while this stays true: it reads the
     // client's RULES, it does not run the client. A `new RelayInferenceClient`
     // here would put a transport on the boot path with the flag as its only

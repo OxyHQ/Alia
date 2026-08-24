@@ -16,14 +16,14 @@
  * `index.ts` keeps the part that is genuinely its own: the log line and the
  * `process.exit(1)`, in exactly the shape `connectPostgresOrExit` already uses.
  *
- * ## Why it is not in `relay-client.ts` either
+ * ## Why it is not in `kaana-client.ts` either
  *
  * That module's own docs say "nothing in `packages/api` imports this module",
- * and `__tests__/relay-boundary.test.ts` holds it to an EXACT list of importers
+ * and `__tests__/kaana-boundary.test.ts` holds it to an EXACT list of importers
  * so that wiring the client in is a reviewed diff rather than an accident.
  * Putting the check there would put `src/index.ts` on that list, which is the
  * one entry the freeze exists to keep off it. Nothing here constructs a
- * {@link import('./relay-client.js').RelayInferenceClient}, opens a transport or
+ * {@link import('./kaana-client.js').RelayInferenceClient}, opens a transport or
  * mints a token; it reads nine environment variables, asks the contract whether
  * five of them describe a principal, checks the base URL against the pinned
  * origins, and asks whether the last three are set at all.
@@ -58,10 +58,10 @@ import {
   assertPrincipalMatchesDeployment,
   resolveDeploymentEnvironment,
   type RelayPrincipalConfig,
-} from './relay-client.js';
-import { unsetRelayCredentialVariables } from './relay-credential.js';
-import { isRelayClientEnabled } from './relay-cutover.js';
-import { RELAY_BASE_URL_ENV, resolveRelayEndpoint } from './relay-endpoint.js';
+} from './kaana-client.js';
+import { unsetRelayCredentialVariables } from './kaana-credential.js';
+import { isRelayClientEnabled } from './kaana-cutover.js';
+import { RELAY_BASE_URL_ENV, resolveRelayEndpoint } from './kaana-endpoint.js';
 
 /**
  * Which environment variable carries each field of the contract's principal.
@@ -91,7 +91,7 @@ const ENV_BY_FIELD: Readonly<Record<string, string | undefined>> = RELAY_PRINCIP
  *
  * **With the flag off this reads exactly one variable and returns.** No principal
  * variable is consulted, no schema is run and no deployment is resolved — the
- * property `__tests__/relay-boot-check.test.ts` pins with a recording
+ * property `__tests__/kaana-boot-check.test.ts` pins with a recording
  * environment, because "the flag-off path is unchanged" is the whole reason this
  * is safe to land before the cutover.
  */
@@ -120,7 +120,7 @@ export function relayBootConfigurationFailure(
    * deployment with a contract-valid principal and no ApplicationCredential
    * mints no token at all, and every model call ends in `authentication_failed`
    * after the flag said the client was ready. Their names live in
-   * `relay-credential.ts` because that is the module that uses them; only the
+   * `kaana-credential.ts` because that is the module that uses them; only the
    * presence question is asked here, and nothing is exchanged (#139 workstream
    * 2, *"Configure short-lived Oxy service-token exchange"*).
    */
@@ -138,7 +138,7 @@ export function relayBootConfigurationFailure(
    * Where it may send, before who it says it is.
    *
    * `RELAY_BASE_URL` is checked against
-   * {@link import('./relay-endpoint.js').RELAY_ALLOWED_ORIGINS} here — #139
+   * {@link import('./kaana-endpoint.js').RELAY_ALLOWED_ORIGINS} here — #139
    * workstream 15's *"pin allowed Relay origins/endpoints"* — and this is the
    * FAIL-CLOSED half of it: a production task whose base URL was mistyped, or
    * whose SSM parameter was replaced, does not start. The alternative is a task
