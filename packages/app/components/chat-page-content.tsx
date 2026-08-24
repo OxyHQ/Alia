@@ -265,7 +265,11 @@ export const ChatPageContent = ({
   const handleSubmit = async (dictated?: string) => {
     // Dictation submits the text it just transcribed rather than relying on the
     // draft state, which has not flushed yet in the tick it was set.
-    const draft = dictated ?? inputValue;
+    //
+    // Guarded on the TYPE, not just on presence: this is passed to event
+    // handlers elsewhere in the tree, and a press event arriving here as
+    // `dictated` is assignable at every step while being nothing like a string.
+    const draft = typeof dictated === 'string' ? dictated : inputValue;
     const hasText = draft.trim().length > 0;
     if ((!hasText && attachments.length === 0) || isLoading || disabled) return;
     // Editing changes the existing text message; attachments belong to new
