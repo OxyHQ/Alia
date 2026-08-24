@@ -68,6 +68,14 @@ describe('deploy-integrations.yml', () => {
     expect(workflow).toContain('DOCKERFILE: packages/integrations/Dockerfile');
   });
 
+  it('deploys the validated linux/arm64 child while retaining the provenance index', () => {
+    expect(workflow).toContain('INDEX_DIGEST=$(jq -r');
+    expect(workflow).toContain('bash .github/scripts/resolve-ecr-platform-digest.sh');
+    expect(workflow).toContain('echo "index_digest=$INDEX_DIGEST" >>"$GITHUB_OUTPUT"');
+    expect(workflow).toContain('echo "digest=$RUNTIME_DIGEST" >>"$GITHUB_OUTPUT"');
+    expect(workflow).toContain('@${{ steps.build.outputs.digest }}');
+  });
+
   it('enables the migration run that deploy-ecs-image.sh leaves off by default', () => {
     expect(workflow).toContain("RUN_MIGRATIONS: 'true'");
   });

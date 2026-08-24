@@ -180,11 +180,12 @@ jobs:
           COMMIT_TAG: ${{ github.sha }}
         run: |
           IMG=$ECR_REGISTRY/oxy/$APP
-          # The digest comes out of the build itself, via --metadata-file.
-          # Resolving it afterwards with `aws ecr describe-images` is not an
-          # option here: oxy-github-deploy has no ecr:DescribeImages, confirmed
-          # with `aws iam simulate-principal-policy` (implicitDeny), so that
-          # call fails at deploy time behind a green build.
+          # Buildx publishes an OCI index so the tag retains provenance and its
+          # attestation descriptor. ECS should run the linux/arm64 CHILD
+          # manifest, not race the just-published index. The resolver uses
+          # registry reads through the authenticated Docker client, waits for
+          # visibility with a strict bound, and validates both descriptors
+          # before anything reaches ECS.
           docker buildx build \
             --platform linux/arm64 \
             -f "$DOCKERFILE" \
@@ -198,13 +199,19 @@ jobs:
           # so a from-scratch `terraform apply` -- whose app-service module
           # declares `<repo>:latest` as the task definition's bootstrap image --
           # creates the service on a current build rather than an ancient one.
-          DIGEST=$(jq -r '.["containerimage.digest"] // empty' "$RUNNER_TEMP/build-metadata.json")
-          if [[ ! "$DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]; then
-            echo "::error::buildx produced no usable image digest (got: ${DIGEST:-<empty>})"
+          INDEX_DIGEST=$(jq -r '.["containerimage.digest"] // empty' "$RUNNER_TEMP/build-metadata.json")
+          if [[ ! "$INDEX_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo "::error::buildx produced no usable image index digest (got: ${INDEX_DIGEST:-<empty>})"
             exit 1
           fi
-          echo "digest=$DIGEST" >>"$GITHUB_OUTPUT"
-          echo "Built $COMMIT_TAG -> $DIGEST"
+          RUNTIME_DIGEST="$(
+            IMAGE_REPOSITORY="$IMG" \
+            INDEX_DIGEST="$INDEX_DIGEST" \
+            bash .github/scripts/resolve-ecr-platform-digest.sh
+          )"
+          echo "index_digest=$INDEX_DIGEST" >>"$GITHUB_OUTPUT"
+          echo "digest=$RUNTIME_DIGEST" >>"$GITHUB_OUTPUT"
+          echo "Built $COMMIT_TAG -> index $INDEX_DIGEST -> linux/arm64 $RUNTIME_DIGEST"
 
       # Does this release carry a post-rollout migration at all?
       #
