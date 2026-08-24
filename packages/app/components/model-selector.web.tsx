@@ -189,7 +189,21 @@ export function ModelSelector({
         align="end"
         alignOffset={-26}
         sideOffset={4}
-        className="w-[224px] min-w-[224px] max-w-[calc(100vw-24px)] rounded-[20px] px-0 py-2.5"
+        // `text-foreground` on the panel, not on each row.
+        //
+        // Bloom colours a row's text through its TITLE slot, and
+        // `floating/shared.tsx` `splitChildren` only fills that slot for a
+        // STRING child: `typeof children === 'string' ? { title } : { body }`.
+        // Every row here passes a `<span>`, so it lands in `body` and renders
+        // inside `ROW_CLASS`, which carries no colour at all — leaving the text
+        // at the browser default. Invisible in light mode, black-on-dark in dark.
+        //
+        // Not a Bloom bug: on native a `<Text>` does not inherit colour from a
+        // `View`, so colouring the container would fix web only, which is why
+        // Bloom colours the slot it owns and leaves custom children to the
+        // caller. This is the caller doing it, once per panel, so the explicit
+        // `text-muted-foreground` spans still win by specificity.
+        className="w-[224px] min-w-[224px] max-w-[calc(100vw-24px)] rounded-[20px] px-0 py-2.5 text-foreground"
       >
         <div
           role="group"
@@ -369,7 +383,7 @@ export function ModelSelector({
                 align="start"
                 sideOffset={2}
                 alignOffset={-10}
-                className="w-[202px] min-w-[202px] max-w-[202px] rounded-[20px] py-2.5"
+                className="w-[202px] min-w-[202px] max-w-[202px] rounded-[20px] py-2.5 text-foreground"
               >
                 <DropdownMenuRadioGroup
                   value={
@@ -453,7 +467,7 @@ export function ModelSelector({
                 align="start"
                 sideOffset={2}
                 alignOffset={-10}
-                className="w-[150px] min-w-[150px] max-w-[150px] rounded-[20px] py-2.5"
+                className="w-[150px] min-w-[150px] max-w-[150px] rounded-[20px] py-2.5 text-foreground"
               >
                 <DropdownMenuRadioGroup
                   value={activeEffort ?? ""}
