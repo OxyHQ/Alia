@@ -83,7 +83,6 @@ import {
   createProviderKey,
   hashProviderKey,
   listSafeProviderKeys,
-  providerKeyHashExists,
   providerKeyIdByHash,
   updateProviderKey,
   providerKeyPrefix,

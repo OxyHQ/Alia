@@ -238,18 +238,16 @@ export async function findSafeProviderKeyById(
 }
 
 /** Whether any key already holds this digest — the duplicate check. */
-export async function providerKeyHashExists(db: Executor, keyHash: string): Promise<boolean> {
-  return (await providerKeyIdByHash(db, keyHash)) !== null;
-}
-
 /**
- * The id of the row holding this credential, or `null`.
+ * The id of the row holding this credential, or `null` when none does.
  *
- * Beside the boolean rather than replacing it, because the two are used for
- * different things: "is this already installed" is a decision, and "which row
- * is it" is what lets the installer correct the row's PROVENANCE without
- * touching the credential. Selecting the id only — never `key` — is what keeps
- * this outside the set of readers that hold a plaintext credential.
+ * Replaces the boolean this used to be. "Is it installed" and "which row is it"
+ * were separate functions until the installer needed the second to correct a
+ * row's PROVENANCE without touching the credential — and the first is
+ * `!== null`, so keeping both would leave one with no caller but its own test.
+ *
+ * Selecting the id only — never `key` — is what keeps this outside the set of
+ * readers that hold a plaintext credential.
  */
 export async function providerKeyIdByHash(db: Executor, keyHash: string): Promise<string | null> {
   const [row] = await db
