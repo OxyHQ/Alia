@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { callProviderAPI } from '../../lib/gateway-client.js';
 import { synthesizeSpeech } from '../../lib/synthesize-speech.js';
-import { reserveCredits, finalizeCredits, refundReservation } from '../../lib/credits-manager.js';
+import { reserveCredits, finalizeCredits, refundReservation, CREDITS_CONFIG } from '../../lib/credits-manager.js';
 import type { CreditReservation } from '../../lib/credits-manager.js';
 import { getOrCreateUserCredits } from '../../lib/user-credits-helpers.js';
 import { uploadToS3 } from '../../lib/s3.js';
@@ -134,6 +134,30 @@ router.post('/speech', async (req: Request, res: Response) => {
     // Charge credits based on character count (~1 credit per 200 chars)
     const charCredits = Math.max(1, Math.ceil(input.length / 200));
 
+    /**
+     * The same charge, restated in the unit `finalizeCredits` settles in.
+     *
+     * It settles TOKENS, not credits: `calculateCreditsFromTokens` divides by
+     * `TOKENS_PER_CREDIT` and applies the alias model's multiplier. So a figure
+     * already denominated in CREDITS survives the round trip only if it is
+     * multiplied by `TOKENS_PER_CREDIT` on the way in.
+     *
+     * THE ROUND TRIP IS EXACT ONLY WHILE THE MULTIPLIER IS 1. The general form
+     * is `ceil(credits * multiplier)`, and the multiplier comes from the alias
+     * model's `credit_multiplier`; it is 1 here for the one reason that this
+     * call passes no `aliasModelId`. That is invisible from the argument list,
+     * so it is written down: threading an alias model through this endpoint
+     * silently reprices it, and nothing in the type system would say so.
+     *
+     * It was `charCredits * 50` — a twentieth of a credit apiece against a
+     * thousand-token credit. A 4,000 character request meant to cost 20 credits
+     * settled at `ceil(1000 / 1000)` = 1, and anything shorter settled at
+     * `MIN_CREDITS_PER_REQUEST`, also 1. Only an input short enough to hit that
+     * floor was ever charged the right amount, which is why the endpoint looked
+     * correct in every hand test: 200 characters is 1 credit either way.
+     */
+    const billedTokens = charCredits * CREDITS_CONFIG.TOKENS_PER_CREDIT;
+
     // Upload to S3 and finalize credits concurrently (with 15s safety timeout)
     let uploadTimer: NodeJS.Timeout;
     // Before the race, not after: `finalizeCredits` is issued INSIDE it, so the
@@ -144,9 +168,9 @@ router.post('/speech', async (req: Request, res: Response) => {
       Promise.all([
         uploadToS3(audioBuffer, `audio.${outputFormat}`, `tts/${userId}`, 'speech'),
         finalizeCredits(reservation, {
-          promptTokens: charCredits * 50,
+          promptTokens: billedTokens,
           completionTokens: 0,
-          totalTokens: charCredits * 50,
+          totalTokens: billedTokens,
         }),
       ]).then(result => { clearTimeout(uploadTimer); return result; }),
       new Promise<never>((_, reject) => {
@@ -351,12 +375,38 @@ async function processAudioGeneration(input: AudioGenJobInput): Promise<void> {
     // Charge credits based on duration (~1 credit per 10 seconds)
     const durationCredits = Math.max(1, Math.ceil(duration / 10));
 
+    /**
+     * The same charge, restated in the unit `finalizeCredits` settles in.
+     *
+     * It settles TOKENS, not credits: `calculateCreditsFromTokens` divides by
+     * `TOKENS_PER_CREDIT` and applies the alias model's multiplier. So a figure
+     * already denominated in CREDITS survives the round trip only if it is
+     * multiplied by `TOKENS_PER_CREDIT` on the way in.
+     *
+     * THE ROUND TRIP IS EXACT ONLY WHILE THE MULTIPLIER IS 1. The general form
+     * is `ceil(credits * multiplier)`, and the multiplier comes from the alias
+     * model's `credit_multiplier`; it is 1 here for the one reason that this
+     * call passes no `aliasModelId`. That is invisible from the argument list,
+     * so it is written down: threading an alias model through this endpoint
+     * silently reprices it, and nothing in the type system would say so.
+     *
+     * It was `durationCredits * 50`, and this endpoint is the one where that
+     * did the most damage. `duration` is capped at 120 seconds a few lines
+     * above, so `durationCredits` never exceeds 12 and the old expression never
+     * exceeded 600 tokens — which never reaches the 1000 tokens that make one
+     * credit. Every audio generation this endpoint has ever produced was
+     * charged exactly `MIN_CREDITS_PER_REQUEST`, at every length: not an
+     * undercharge that grew with the request, a flat rate of one credit
+     * arrived at by accident.
+     */
+    const billedTokens = durationCredits * CREDITS_CONFIG.TOKENS_PER_CREDIT;
+
     const [audioKey] = await Promise.all([
       uploadToS3(audioBuffer, 'audio.mp3', `audio-gen/${userId}`, 'generated'),
       finalizeCredits(reservation, {
-        promptTokens: durationCredits * 50,
+        promptTokens: billedTokens,
         completionTokens: 0,
-        totalTokens: durationCredits * 50,
+        totalTokens: billedTokens,
       }),
     ]);
 

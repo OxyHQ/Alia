@@ -30,7 +30,21 @@ vi.mock('../../../lib/gateway-client.js', () => ({
   }),
 }));
 
-vi.mock('../../../lib/credits-manager.js', () => ({
+/**
+ * `CREDITS_CONFIG` is the REAL one, not a copy.
+ *
+ * The route states its price in credits and hands `finalizeCredits` the
+ * equivalent in tokens, so it reads `TOKENS_PER_CREDIT` from here. A mock that
+ * omitted the export would make that read `undefined` and throw inside the
+ * handler; one that restated the number would let the constant and the
+ * conversion drift apart silently.
+ */
+vi.mock('../../../lib/credits-manager.js', async () => ({
+  CREDITS_CONFIG: (
+    await vi.importActual<typeof import('../../../lib/credits-manager.js')>(
+      '../../../lib/credits-manager.js',
+    )
+  ).CREDITS_CONFIG,
   reserveCredits: vi.fn(async () => {
     H.calls.push('reserve');
     return { userId: 'u1', creditsReserved: 5, initialFreeCredits: 50, initialPaidCredits: 0 };
