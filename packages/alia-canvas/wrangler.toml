@@ -1,0 +1,37 @@
+# Canvas is a Worker, not a Pages project, for one reason: a Pages project
+# ALWAYS serves `<project>.pages.dev` and Cloudflare offers no way to switch it
+# off — `wrangler pages project` has only `list`, `create` and `delete`. That
+# left a second, fully working copy of Canvas at a URL nobody chose, and the
+# best Pages could do was redirect it.
+#
+# A Worker can decline its default hostname outright. With `workers_dev = false`
+# the ONLY name that reaches this deployment is the custom domain below.
+# Verified against wrangler 4.125.0 with a `--dry-run`, and control-verified:
+# the same run flags an invented top-level key as "Unexpected fields", so the
+# silence on `workers_dev` and `not_found_handling` means they are recognised
+# rather than ignored.
+name = "alia-canvas"
+compatibility_date = "2026-08-24"
+
+# The whole point.
+workers_dev = false
+
+# Static assets with no `main`: there is no Worker script, so every request is
+# served straight from the uploaded directory. This replaces BOTH Pages-only
+# files the project used to carry — `public/_redirects` (`/* /index.html 200`)
+# and the `public/_worker.js` that had to re-implement it once `_worker.js`
+# took over routing.
+[assets]
+directory = "./dist"
+# The SPA fallback, as a first-class setting rather than a catch-all rule: a
+# navigation that matches no asset gets `index.html`. Note this differs from the
+# Pages behaviour it replaces — `/*  /index.html  200` answered EVERY miss with
+# the shell, including a missing script. This answers navigations only, so a
+# missing asset now 404s honestly. That is a deliberate improvement, and it is
+# called out here because it is a behaviour change and not a like-for-like port.
+not_found_handling = "single-page-application"
+
+# The only way in.
+[[routes]]
+pattern = "canvas.alia.onl"
+custom_domain = true
