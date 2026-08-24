@@ -481,7 +481,6 @@ export const ChatPageContent = ({
             ghostModeActive={activeModes.has('ghost')}
             onClear={onClear}
             isConversation={messages.length > 0}
-            isVoiceActive={isVoiceActive}
           />
         </LinearGradient>
 
