@@ -12,6 +12,11 @@ import {
 } from './db/agents/agentSessionRepository.js';
 import { canvasSessionExists } from './db/chat/canvasSessionRepository.js';
 import { findExecutionOwner } from './db/automation/workflowRepository.js';
+import {
+  deliverUserRuntimeMessage,
+  userRuntimeRoom,
+  type UserRuntimePresence,
+} from './lib/inference/user-runtime-bridge.js';
 
 /** Read the authenticated user id planted on the socket by `oxy.authSocket()`. */
 function socketUserId(socket: Socket): string | null {
@@ -34,6 +39,23 @@ function socketUserId(socket: Socket): string | null {
  */
 async function ownsAgentSession(userId: string, sessionId: string): Promise<boolean> {
   return await agentSessionIsOwnedBy(getDb(), sessionId, userId);
+}
+
+/**
+ * Validate a runtime offer before it is kept on the socket.
+ *
+ * The model list is capped: it is client-supplied, it is broadcast to the
+ * person's other devices, and `fetchSockets()` carries it between tasks.
+ */
+function runtimeOffer(value: unknown): UserRuntimePresence | null {
+  if (typeof value !== 'object' || value === null) return null;
+  const { id, label, models } = value as Record<string, unknown>;
+  if (typeof id !== 'string' || id.length === 0 || id.length > 128) return null;
+  if (typeof label !== 'string' || label.length > 128) return null;
+  if (!Array.isArray(models)) return null;
+  const names = models.filter((m): m is string => typeof m === 'string' && m.length > 0 && m.length <= 200);
+  if (names.length === 0 || names.length > 200) return null;
+  return { id, label, models: names };
 }
 
 const ALLOWED_ORIGINS = [
@@ -118,6 +140,82 @@ export function initSocket(server: http.Server) {
       if (typeof sessionId !== 'string' || sessionId.length === 0 || sessionId.length > 256) return;
       if (!userId || !(await ownsAgentSession(userId, sessionId))) return;
       Promise.resolve(socket.join(`agent-session:${sessionId}`)).catch((err) => log.general.warn({ err }, 'socket.join agent-session failed'));
+    });
+
+    /**
+     * A device OFFERING its own inference runtime — a browser tab with Ollama on
+     * the same machine, and later a local bridge or the native app.
+     *
+     * The catalogue of models travels with the offer and is kept on the socket
+     * rather than in a table, because a runtime's lifetime IS its socket's
+     * lifetime: anything persisted would keep advertising a model after the tab
+     * that could serve it was closed. It is also what lets the person's OTHER
+     * devices see the list — a phone cannot reach the laptop's `localhost`, so
+     * without this announcement a local model would be unusable anywhere but
+     * the machine running it.
+     *
+     * The endpoint URL is deliberately NOT part of the offer. It never leaves
+     * the browser that talks to it.
+     */
+    socket.on('subscribe-user-runtime', (offer: unknown) => {
+      if (!userId) return;
+      const presence = runtimeOffer(offer);
+      if (!presence) return;
+      socket.data.localRuntime = presence;
+      Promise.resolve(socket.join(userRuntimeRoom(userId))).catch((err) => log.general.warn({ err }, 'socket.join user-runtime failed'));
+    });
+
+    /**
+     * Withdraw the offer without dropping the connection — what the settings
+     * toggle does. Leaving the room is not enough on its own: `socket.data`
+     * still holds the catalogue, and a later re-join would re-advertise a stale
+     * model list.
+     */
+    socket.on('unsubscribe-user-runtime', () => {
+      if (!userId) return;
+      delete socket.data.localRuntime;
+      Promise.resolve(socket.leave(userRuntimeRoom(userId))).catch((err) => log.general.warn({ err }, 'socket.leave user-runtime failed'));
+    });
+
+    /**
+     * Reply frames from a runtime, on their way back to whichever task is
+     * serving the chat request that asked for them.
+     *
+     * The authenticated `userId` is passed through and re-checked against the
+     * run's owner in the bridge. The run id alone is not an authorisation.
+     */
+    socket.on('user-runtime:head', (frame: { runId?: unknown; status?: unknown }) => {
+      if (!userId || typeof frame?.runId !== 'string') return;
+      const status = typeof frame.status === 'number' ? frame.status : 200;
+      deliverUserRuntimeMessage(userId, { runId: frame.runId, kind: 'head', status });
+    });
+
+    socket.on('user-runtime:chunk', (frame: { runId?: unknown; data?: unknown }) => {
+      if (!userId || typeof frame?.runId !== 'string') return;
+      const { data } = frame;
+      const bytes =
+        typeof data === 'string' ? data
+          : data instanceof Uint8Array ? data
+            : Buffer.isBuffer(data) ? new Uint8Array(data)
+              : null;
+      if (bytes === null) return;
+      deliverUserRuntimeMessage(userId, { runId: frame.runId, kind: 'chunk', data: bytes });
+    });
+
+    socket.on('user-runtime:end', (frame: { runId?: unknown }) => {
+      if (!userId || typeof frame?.runId !== 'string') return;
+      deliverUserRuntimeMessage(userId, { runId: frame.runId, kind: 'end' });
+    });
+
+    socket.on('user-runtime:error', (frame: { runId?: unknown; message?: unknown }) => {
+      if (!userId || typeof frame?.runId !== 'string') return;
+      /**
+       * The runtime's own failure text is the CALLER'S OWN environment talking
+       * back, so it is capped rather than sanitised — but never trusted for
+       * length, because a client controls it.
+       */
+      const message = typeof frame.message === 'string' ? frame.message.slice(0, 500) : 'The local runtime failed.';
+      deliverUserRuntimeMessage(userId, { runId: frame.runId, kind: 'error', message });
     });
 
     socket.on('subscribe-notifications', () => {

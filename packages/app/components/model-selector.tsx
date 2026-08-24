@@ -12,6 +12,7 @@ import {
   type CatalogueEntry,
 } from "@/lib/hooks/use-catalogue";
 import { presentation, useProductModes } from "@/lib/hooks/use-product-modes";
+import { useLocalModelOptions } from "@/lib/hooks/use-local-runtimes";
 
 interface ModelSelectorProps {
   selectedModel: string;
@@ -28,7 +29,9 @@ export function ModelSelector({ selectedModel, onModelChange }: ModelSelectorPro
   const { data: entries, isPending } = useCatalogue();
   const { data: modes } = useProductModes();
 
-  const selection = resolveSelection(selectedModel, entries);
+  const { options: localModels, ids: localModelIds } = useLocalModelOptions();
+  const selection = resolveSelection(selectedModel, entries, localModelIds);
+  const selectedLocal = localModels.find((model) => model.id === selection.effectiveId);
   const isAutomatic = selection.requestedId === AUTOMATIC_SELECTION_ID;
 
   const automaticMode = (modes ?? []).find(
@@ -37,9 +40,13 @@ export function ModelSelector({ selectedModel, onModelChange }: ModelSelectorPro
   const automaticLabel = automaticMode?.label ?? t("models.automatic.label");
   const modelLabel = isAutomatic
     ? automaticLabel
-    : selection.entry === null
-      ? t("models.selectModel")
-      : presentation(selection.entry, modes).label;
+    // A local model has no catalogue entry to take a display name from, so the
+    // tag the person knows it by is the label.
+    : selectedLocal !== undefined
+      ? selectedLocal.name
+      : selection.entry === null
+        ? t("models.selectModel")
+        : presentation(selection.entry, modes).label;
 
   const offered = (entries ?? []).filter((entry) => entry.chatVisible && !entry.unavailable);
   const profiles = offered.filter((entry) => entry.kind === "routing_profile" && !entry.legacy);
@@ -119,6 +126,28 @@ export function ModelSelector({ selectedModel, onModelChange }: ModelSelectorPro
             <DropdownMenu.Separator />
             <DropdownMenu.Label className="px-2.5 font-normal">Models</DropdownMenu.Label>
             {models.map(renderEntry)}
+          </>
+        )}
+
+        {/* Models on the person's own devices — including devices that are not
+            this one, which is the point: a phone cannot reach a laptop's
+            localhost, so the laptop announced this list when it connected. */}
+        {localModels.length > 0 && (
+          <>
+            <DropdownMenu.Separator />
+            <DropdownMenu.Label className="px-2.5 font-normal">
+              {t("models.onYourDevices")}
+            </DropdownMenu.Label>
+            {localModels.map((model) => (
+              <DropdownMenu.CheckboxItem
+                key={model.id}
+                value={!isAutomatic && selection.effectiveId === model.id ? "on" : "off"}
+                // No plan gate: nobody's plan grants them their own machine.
+                onValueChange={() => onModelChange(model.id)}
+              >
+                <DropdownMenu.ItemTitle>{`${model.name} · ${model.deviceLabel}`}</DropdownMenu.ItemTitle>
+              </DropdownMenu.CheckboxItem>
+            ))}
           </>
         )}
 

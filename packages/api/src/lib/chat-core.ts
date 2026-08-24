@@ -10,6 +10,7 @@ import { createOpenAI } from '@ai-sdk/openai';
 import { createAnthropic } from '@ai-sdk/anthropic';
 
 import { TTLCache } from './ttl-cache.js';
+import { USER_RUNTIME_PROVIDER, userRuntimeFetch } from './inference/user-runtime-bridge.js';
 import { kaanaReferenceFor } from './inference/kaana-catalogue.js';
 import { kaanaLanguageModel } from './inference/kaana-language-model.js';
 import type { AliaInferenceSurface } from './inference/product-seam.js';
@@ -161,6 +162,28 @@ export function getAIModel(resolved: ResolvedModel, surface: AliaInferenceSurfac
   const provider = keyConfig.provider;
 
   switch (provider) {
+    /**
+     * The user's own machine.
+     *
+     * Built fresh every time and deliberately NOT routed through
+     * `getProvider`: that cache is keyed on `provider|baseURL|apiKey`, and all
+     * three are constant here while the binding underneath is not. A memoized
+     * instance would hand one person's turn to another person's socket.
+     *
+     * The base URL is a placeholder that is never resolved — `userRuntimeFetch`
+     * reads only its path and answers from the socket, so no request leaves
+     * this process.
+     */
+    case USER_RUNTIME_PROVIDER: {
+      const binding = keyConfig.userRuntime;
+      if (!binding) throw new Error('A user-runtime route arrived without a device binding');
+      const runtime = createOpenAI({
+        apiKey: '',
+        baseURL: 'http://user-runtime.invalid/v1',
+        fetch: userRuntimeFetch(binding),
+      });
+      return runtime.chat(modelId);
+    }
     case 'google': {
       const google = getProvider(provider, undefined, apiKey, () => createGoogleGenerativeAI({ apiKey }));
       return google(modelId || 'gemini-2.5-flash');

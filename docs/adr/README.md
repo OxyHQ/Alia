@@ -12,6 +12,7 @@ An ADR records a decision that is **in force now**, the context that forced it, 
 | [0004](./0004-product-endpoints-versus-generic-inference-endpoints.md) | Alia product endpoints versus generic inference endpoints | Accepted | 2026-08-15 |
 | [0005](./0005-product-entitlements-versus-financial-ledger.md) | Product entitlements versus the financial ledger | Accepted | 2026-08-15 |
 | [0006](./0006-the-destination-of-api-alia-onl-v1-is-recorded-twice.md) | The destination of `api.alia.onl/v1/*` is recorded twice, differently | Proposed | 2026-08-19 |
+| [0007](./0007-a-users-own-machine-as-an-inference-runtime.md) | A user's own machine as an inference runtime | Accepted | 2026-08-24 |
 
 Companion document: [the compatibility window and sunset criteria](../migration/compatibility-window.md), which binds ADR 0002, ADR 0003 and ADR 0004 to measurable removal gates.
 

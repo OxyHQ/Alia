@@ -153,7 +153,8 @@
       "integrations": "Integrations",
       "skills": "Skills",
       "security": "Security",
-      "writingStyle": "Writing Style"
+      "writingStyle": "Writing Style",
+      "localModels": "Local models"
     },
     "accentColor": {
       "title": "App Color",
@@ -170,6 +171,25 @@
       "mint": "Mint",
       "oxy": "Oxy",
       "faircoin": "Faircoin"
+    },
+    "localModels": {
+      "title": "Local models",
+      "description": "Run a model on this device and use it from Alia. Everything else works the same — tools, memory, and your chats are still saved.",
+      "enable": "Offer this device's models",
+      "enableHint": "While Alia is open here, your other devices can use these models too.",
+      "endpoint": "Endpoint",
+      "endpointHint": "Any local server that speaks the standard chat API — Ollama, LM Studio and vLLM all do.",
+      "deviceName": "Device name",
+      "deviceNameHint": "How this machine appears in the model picker on your phone.",
+      "test": "Test connection",
+      "testing": "Checking…",
+      "connected": "{{count}} model(s) available",
+      "notConnected": "Not connected",
+      "modelsTitle": "Models on this device",
+      "free": "Free",
+      "freeNote": "Local models cost no credits. Deep research and agent mode are unavailable for them — those run on Alia's own models.",
+      "corsHint": "Ollama refuses the browser unless you start it with OLLAMA_ORIGINS={{origin}}.",
+      "safariHint": "Safari blocks pages from reaching localhost. Use Chrome or Firefox on this machine."
     },
     "groups": {
       "assistant": "Assistant",
@@ -202,6 +222,7 @@
     "notifications": "Notifications",
     "resetPassword": "Reset Password",
     "writingStyle": "Writing Style",
+    "localModels": "Local models",
     "security": "Security"
   },
   "sidebar": {
@@ -785,6 +806,7 @@
   },
   "models": {
     "selectModel": "Select Model",
+    "onYourDevices": "On your devices",
     "loadingModels": "Loading models...",
     "loadingModes": "Loading...",
     "legacyModels": "Older models",

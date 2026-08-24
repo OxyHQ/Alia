@@ -11,6 +11,7 @@ import {
   Plug,
   Zap,
   Shield,
+  HardDrive,
   type LucideIcon,
 } from "lucide-react-native";
 
@@ -45,6 +46,7 @@ export const SETTINGS_GROUPS: { titleKey: string; sections: SettingsSection[] }[
     titleKey: "settings.groups.app",
     sections: [
       { id: "general", route: "/(app)/settings/general", icon: Settings2, labelKey: "settings.sections.general" },
+      { id: "local-models", route: "/(app)/settings/local-models", icon: HardDrive, labelKey: "settings.sections.localModels" },
       { id: "usage", route: "/(app)/settings/usage", icon: CreditCard, labelKey: "settings.sections.billing" },
       { id: "security", route: "/(app)/settings/security", icon: Shield, labelKey: "settings.sections.security" },
     ],

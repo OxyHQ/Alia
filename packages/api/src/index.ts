@@ -34,6 +34,7 @@ import codeaRouter from './routes/codea.js';
 import modelsStatsRouter from './routes/models-stats.js';
 import catalogueRouter from './routes/catalogue.js';
 import externalModelsRouter from './routes/external-models.js';
+import localRuntimesRouter from './routes/local-runtimes.js';
 import internalRouter from './routes/internal.js';
 import skillsRouter from './routes/skills.js';
 import analyticsRouter from './routes/analytics.js';
@@ -259,6 +260,7 @@ app.use('/models', modelsStatsRouter);
 // already has. See routes/catalogue.ts for the full shape argument.
 app.use('/catalogue', catalogueRouter);
 app.use('/external-models', externalModelsRouter);
+app.use('/local-runtimes', localRuntimesRouter);
 app.use('/skills', skillsRouter);
 app.use('/analytics', analyticsRouter);
 app.use('/triggers', triggersRouter);
@@ -301,6 +303,7 @@ app.get('/', (_req, res) => {
       '/codea',
       '/models',
       '/external-models',
+      '/local-runtimes',
       '/skills',
       '/triggers',
       '/analytics',

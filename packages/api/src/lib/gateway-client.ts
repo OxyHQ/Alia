@@ -141,6 +141,16 @@ export interface KeyConfig {
   provider: string;
   modelId: string;
   key: string;
+  /**
+   * Whose machine answers, when `provider` is `user-runtime`.
+   *
+   * Present for exactly one kind of route and absent for every other: a model
+   * served by its owner's own hardware has no credential to carry, so this is
+   * what stands in for `key` — the binding that says which person's device, and
+   * which of their devices, the request is handed to. See
+   * `lib/inference/user-runtime-bridge.ts`.
+   */
+  userRuntime?: { userId: string; runtimeId: string };
   isPaid?: boolean;
   rps?: number;
   rpm?: number;

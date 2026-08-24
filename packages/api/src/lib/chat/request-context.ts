@@ -12,6 +12,13 @@
 import type { Request, Response } from 'express';
 import { resolveModel, getDefaultAliaModel, type RoutingOptions } from '../chat-core.js';
 import { resolveRequestedModel } from '../routing/model-selection.js';
+import type { RequestedModel } from '../routing/model-selection.js';
+import {
+  USER_RUNTIME_PROVIDER,
+  parseUserRuntimeModel,
+  userRuntimeCanServe,
+  type UserRuntimeSelection,
+} from '../inference/user-runtime-bridge.js';
 import {
   isFallbackPolicy,
   FallbackNotPermittedError,
@@ -96,6 +103,24 @@ export interface ChatRequestContext {
   includeUsage: boolean;
   isDirectUserSession: boolean;
   requestedModel: string;
+  /**
+   * Which personality file the turn speaks with.
+   *
+   * The same as `aliasModelId` for everything Alia routes, because the prompt
+   * belongs to the ROUTING PROFILE and that is what the alias names. A model
+   * served by the person's own device has no profile, and naming it here would
+   * ask `prompts/local/<runtime>/<model>.md` of the filesystem — a file that
+   * cannot exist, whose absence degrades to the base prompt alone. The turn
+   * would answer without Alia's personality and nothing would report an error.
+   */
+  promptModelId: string;
+  /**
+   * Whether this turn is served by the caller's own device.
+   *
+   * Carried on the context because the TOOL SET depends on it: a turn that
+   * reserved no credits must not be handed a tool that spends them.
+   */
+  isLocalRuntime: boolean;
   clientContext: string | undefined;
   userMemory: UserMemoryProfile | null;
   oxyUser: OxyUserProfile | null;
@@ -264,7 +289,141 @@ export async function buildChatRequestContext(
    * own refusal talks about the alias list and that is the wrong list for a
    * caller who named either a profile or a model.
    */
-  const requested = await resolveRequestedModel(body.model || getDefaultAliaModel());
+  /**
+   * A model served by the caller's OWN machine short-circuits the resolver.
+   *
+   * `local/<runtimeId>/<model>` names no Alia route, holds no credential and
+   * belongs to no tier, so every question the resolver answers — which key,
+   * which deployment, which fallback order — is the wrong question for it. It
+   * is also why the gates below are skipped rather than passed: there is no
+   * plan that grants someone their own hardware, and nothing to bill for using
+   * it. See `lib/inference/user-runtime-bridge.ts`.
+   */
+  const localRuntime: UserRuntimeSelection | null = parseUserRuntimeModel(body.model);
+  /**
+   * The resolution a local turn uses in place of `resolveModel`.
+   *
+   * Built inside the gate below rather than in the prefetch, because that is
+   * where the owner's id is known to exist: `userRuntimeCanServe` cannot answer
+   * true without one, so the narrowing here is the same fact the gate already
+   * established rather than an assertion on top of it.
+   */
+  let localResolved: ChatRequestContext['resolved'] = null;
+  if (localRuntime !== null) {
+    /**
+     * Checked BEFORE the stream opens. A tab that has since been closed is the
+     * ordinary case, not an exceptional one, and answering it with a refusal
+     * the picker can act on beats a turn that dies after the headers are out.
+     *
+     * An unauthenticated caller is refused by the same condition, and that
+     * matters more than it looks: this is the one turn that reserves no
+     * credits, so "no user" must never mean "no billing".
+     */
+    const owner = req.user?.id;
+    if (owner === undefined || !(await userRuntimeCanServe(owner, localRuntime))) {
+      clearTimeout(globalTimer);
+      const refusal = {
+        message: redactUnsafeDetail(
+          `"${String(body.model)}" is served by your own device, and no device offering it is connected. ` +
+            'Open Alia where that model runs, then try again.',
+        ),
+        type: 'invalid_request_error',
+        param: 'model',
+        code: 'local_runtime_unavailable',
+      };
+      if (sse.sent) {
+        sse.writeError(refusal);
+      } else {
+        res.status(409).json({ error: refusal });
+      }
+      return null;
+    }
+
+    localResolved = {
+      aliasModelId: String(body.model),
+      provider: USER_RUNTIME_PROVIDER,
+      /**
+       * Who released the model is genuinely unknown: the person typed a tag
+       * their own server recognises, and Alia has no table mapping it to a
+       * publisher. Unknown is recorded as unknown — a guess would be a
+       * provenance claim nothing measured.
+       */
+      publisher: 'unknown',
+      model: localRuntime.model,
+      modelId: localRuntime.model,
+      /**
+       * Kaana does not serve this and never can: the deployment is a process on
+       * the caller's own machine, reachable from one place that is not a
+       * datacentre. `null` is the honest answer rather than an omission, and it
+       * is what keeps `getAIModel` out of the Kaana branch entirely.
+       */
+      kaanaReference: null,
+      keyConfig: {
+        provider: USER_RUNTIME_PROVIDER,
+        modelId: localRuntime.model,
+        key: '',
+        userRuntime: { userId: owner, runtimeId: localRuntime.runtimeId },
+      },
+      aliaModel: {
+        id: String(body.model),
+        name: localRuntime.model,
+        tier: 'local',
+        description: 'Served by the user\u2019s own device.',
+        creditMultiplier: 0,
+        maxTokens: 0,
+        supportsTools: true,
+        supportsVision: false,
+        category: 'local',
+      },
+      isFallback: false,
+    };
+  }
+
+  /**
+   * A local turn may not escalate into inference Alia pays for.
+   *
+   * This is the whole safety argument for reserving no credits. The saving is
+   * real only while the turn stays on the person's own hardware, and two
+   * request flags take it straight back off:
+   *
+   *  - **`deepResearch`** runs `lib/research/research-engine.ts`, which resolves
+   *    `alia-lite` and `alia-v1` BY NAME (lines 221, 269, 300, 335) and calls
+   *    them several times per turn. `lib/chat-modes/deep-research-handler.ts`
+   *    finalizes credits under `if (creditReservation)`, so with no reservation
+   *    that work is charged to nobody.
+   *  - **`agentMode`** adds `delegateToAgent`, and `lib/tools/agent-delegate.ts`
+   *    resolves a hosted model the same way (line 70).
+   *
+   * Refused rather than silently downgraded: a person who asked for deep
+   * research and got an ordinary answer has been told something untrue about
+   * the turn they paid nothing for. The composer hides both controls for a local
+   * model; this is what answers a client that asks anyway.
+   *
+   * The `deepResearch` TOOL is withheld separately, in `lib/tool-pipeline.ts` —
+   * the model can reach the same engine by calling it, and a flag check here
+   * would not see that.
+   */
+  if (localRuntime !== null && (deepResearch === true || agentMode)) {
+    clearTimeout(globalTimer);
+    const refusal = {
+      message:
+        'Deep research and agent mode run on Alia\u2019s own models, so they are not available for a model running on your device. Pick an Alia model to use them.',
+      type: 'invalid_request_error',
+      param: deepResearch === true ? 'deepResearch' : 'agentMode',
+      code: 'local_runtime_capability_unavailable',
+    };
+    if (sse.sent) {
+      sse.writeError(refusal);
+    } else {
+      res.status(400).json({ error: refusal });
+    }
+    return null;
+  }
+
+  const requested: RequestedModel =
+    localRuntime === null
+      ? await resolveRequestedModel(body.model || getDefaultAliaModel())
+      : { kind: 'alias', alias: String(body.model) };
   if (requested.kind === 'unknown-profile' || requested.kind === 'unknown-model') {
     /**
      * Two refusals, because they are two different mistakes.
@@ -348,7 +507,13 @@ export async function buildChatRequestContext(
   const [creditResult, resolvedResult, userMemory, oxyUser, skill, entitlements, linkedAgent] = await Promise.all([
     // Credits: sequential pair (getOrCreate → reserve), parallel with everything else
     // Skip for internal service requests (no credits charged)
-    (req.user && !req.serviceApp) ? (async () => {
+    /**
+     * A local turn reserves nothing. It is not a discount — no inference of
+     * Alia's is spent — and the skip has to be here rather than a refund later:
+     * any exit that neither charges nor refunds silently costs the person the
+     * reserved credit.
+     */
+    (req.user && !req.serviceApp && localRuntime === null) ? (async () => {
       await getOrCreateUserCredits(req.user!.id);
       const reservation = await reserveCredits(req.user!.id);
       return { reservation, error: false as const };
@@ -366,11 +531,13 @@ export async function buildChatRequestContext(
      * always did — the discrimination below is additive, and no error that
      * existed before this change reaches it.
      */
-    resolveModel(requestedModel, undefined, undefined, routingOptions).catch((err: unknown) => {
-      log.v1.error({ err }, 'Error resolving model');
-      if (err instanceof UnregisteredModelError || err instanceof FallbackNotPermittedError) return err;
-      return null;
-    }),
+    localResolved !== null
+      ? Promise.resolve(localResolved)
+      : resolveModel(requestedModel, undefined, undefined, routingOptions).catch((err: unknown) => {
+          log.v1.error({ err }, 'Error resolving model');
+          if (err instanceof UnregisteredModelError || err instanceof FallbackNotPermittedError) return err;
+          return null;
+        }),
 
     // User memory
     req.user
@@ -419,7 +586,14 @@ export async function buildChatRequestContext(
   // Only return 402 if reserveCredits explicitly returned null (insufficient credits),
   // not if there was a DB error (original behavior: continue without credits on error)
   const creditReservation = creditResult.reservation;
-  if (req.user && !req.serviceApp && !creditReservation && !creditResult.error) {
+  /**
+   * A local turn arrives here with no reservation and no error, which is
+   * exactly the shape this branch reads as "out of credits" — so the skip has
+   * to be repeated here and not only where the reservation is taken. Missed,
+   * every local turn 402s before reaching a model, and the person is told to
+   * buy credits for running a model on their own hardware.
+   */
+  if (req.user && !req.serviceApp && !creditReservation && !creditResult.error && localRuntime === null) {
     clearTimeout(globalTimer);
     const creditError = {
       message: "You've run out of credits. Add more or upgrade your plan to continue.",
@@ -489,7 +663,8 @@ export async function buildChatRequestContext(
 
   // Enforce plan-based model access (skip for API-key requests)
   // Uses entitlements prefetched in Promise.all above
-  if (req.user && !req.apiKey && entitlements) {
+  // No plan grants a person their own hardware, so there is nothing to check.
+  if (req.user && !req.apiKey && entitlements && localRuntime === null) {
     if (!entitlements.allowedModelIds.includes(aliasModelId)) {
       if (creditReservation) await refundReservation(creditReservation);
       clearTimeout(globalTimer);
@@ -534,6 +709,8 @@ export async function buildChatRequestContext(
     includeUsage,
     isDirectUserSession,
     requestedModel,
+    promptModelId: localRuntime === null ? aliasModelId : getDefaultAliaModel(),
+    isLocalRuntime: localRuntime !== null,
     clientContext,
     userMemory,
     oxyUser,

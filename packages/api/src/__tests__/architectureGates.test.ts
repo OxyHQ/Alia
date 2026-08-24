@@ -966,11 +966,14 @@ const PROVIDER_HOST_ALLOWLIST: Readonly<Record<string, readonly string[]>> = {
  * a provider hostname appearing in a test is still caught, by the allowlist
  * above, which does scan them.
  *
- * Three entries are a hostname by SHAPE and not by behaviour, and are listed so
+ * Four entries are a hostname by SHAPE and not by behaviour, and are listed so
  * nobody has to chase them twice: `internal` is the dummy base `mcp-relay.ts`
  * hands to `new URL()` to parse a path, `alia-ai.com` is the `HTTP-Referer`
- * header value one adapter sends rather than a destination, and `10.0.2.2` is
- * the Android emulator's route to the developer's own machine.
+ * header value one adapter sends rather than a destination, `10.0.2.2` is
+ * the Android emulator's route to the developer's own machine, and
+ * `user-runtime.invalid` is the placeholder base a provider factory needs in
+ * order to build a URL that is then intercepted rather than dialled — see the
+ * entry below.
  */
 const EGRESS_HOSTS: readonly string[] = [
   '0.0.0.0',
@@ -1029,6 +1032,14 @@ const EGRESS_HOSTS: readonly string[] = [
   // naming a host is exactly what this gate exists to make a reviewed diff.
   'relay.oxy.so',
   'slack.com',
+  // RFC 2606 reserves `.invalid` as guaranteed-unresolvable, and this one is
+  // never resolved: `getAIModel`'s `user-runtime` case needs SOME absolute base
+  // for the provider factory to build a URL from, and `userRuntimeFetch`
+  // (`lib/inference/user-runtime-bridge.ts`) reads that URL's path and answers
+  // from a socket the user's own browser holds. No packet leaves the process.
+  // Listed rather than exempted for the reason the whole gate exists: a new host
+  // string in `chat-core.ts` is exactly the diff that should be read in review.
+  'user-runtime.invalid',
   'www.google.com',
   'www.googleapis.com',
 ];

@@ -457,7 +457,23 @@ export interface ModelSelection {
 export function resolveSelection(
   requestedId: string,
   entries: readonly CatalogueEntry[] | undefined,
+  localModelIds?: readonly string[],
 ): ModelSelection {
+  /**
+   * A model running on one of the person's own devices, which the catalogue
+   * does not and should not list: every catalogue entry is the same for
+   * everybody, and these are one account's hardware.
+   *
+   * Validity is CONNECTEDNESS, so the replacement path below still runs when
+   * the device serving it has gone — a stored selection pointing at a closed
+   * browser tab would otherwise be sent and refused. Carried with a `null`
+   * entry, which every consumer already handles: the capabilities a catalogue
+   * entry describes are unknown for a model Alia has never served.
+   */
+  if (localModelIds?.includes(requestedId)) {
+    return { requestedId, effectiveId: requestedId, entry: null, source: 'requested' };
+  }
+
   // Answered BEFORE the catalogue is consulted, and that order is the point:
   // automatic is a choice about who decides, not a choice of entry, so it is
   // valid whether or not the catalogue ever loads. Falling through would send
