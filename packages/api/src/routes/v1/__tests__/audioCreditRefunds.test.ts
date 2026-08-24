@@ -50,7 +50,14 @@ vi.mock('../../../lib/synthesize-speech.js', () => ({
 }));
 
 vi.mock('../../../lib/user-credits-helpers.js', () => ({ getOrCreateUserCredits: vi.fn(async () => ({})) }));
-vi.mock('../../../lib/s3.js', () => ({ uploadToS3: vi.fn(async () => 'https://example.invalid/a.mp3') }));
+vi.mock('../../../lib/s3.js', () => ({
+  uploadToS3: vi.fn(async () => 'https://example.invalid/a.mp3'),
+  // The route signs a playback link for whatever it stored. `example.invalid`
+  // is not this bucket, so the real function answers `null` and the route falls
+  // back to the stored address — which is what this suite asserts about, and
+  // why the mock says `null` rather than inventing a key.
+  s3ObjectKeyFromUrl: vi.fn(() => null),
+}));
 vi.mock('../../../lib/gateway-client.js', () => ({ callProviderAPI: vi.fn(async () => null) }));
 vi.mock('../../../db/index.js', () => ({ getDb: vi.fn(() => ({})) }));
 vi.mock('../../../db/chat/messageRepository.js', () => ({

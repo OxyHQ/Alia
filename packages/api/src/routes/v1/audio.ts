@@ -4,7 +4,8 @@ import { synthesizeSpeech } from '../../lib/synthesize-speech.js';
 import { reserveCredits, finalizeCredits, refundReservation } from '../../lib/credits-manager.js';
 import type { CreditReservation } from '../../lib/credits-manager.js';
 import { getOrCreateUserCredits } from '../../lib/user-credits-helpers.js';
-import { uploadToS3 } from '../../lib/s3.js';
+import { s3ObjectKeyFromUrl, uploadToS3 } from '../../lib/s3.js';
+import { mintPlaybackQuery } from '../../lib/audio-playback-link.js';
 import { findMessageAudioUrl, setMessageAudioUrl } from '../../db/chat/messageRepository.js';
 import { getDb } from '../../db/index.js';
 import {
@@ -20,6 +21,52 @@ import { emitAudioJobUpdate } from '../../socket.js';
 import type { Request, Response } from 'express';
 
 const router = Router();
+
+/**
+ * The address a client can actually play, from the address we store.
+ *
+ * The row keeps the canonical S3 URL because it outlives any authorisation;
+ * the client gets a signed, expiring link because the media bucket is private
+ * and a browser handed the canonical URL receives a 403 — which `<audio>`
+ * reports as `NotSupportedError`, an error that names nothing about
+ * permissions.
+ *
+ * Falls back to the stored address when a link cannot be minted (no signing
+ * secret, or an address outside our bucket) rather than failing the request:
+ * that is the behaviour every caller had before, and a surface that stops
+ * answering is worse than one that answers with what it used to.
+ */
+/** Exported for its test: the scheme and the absoluteness are the two things
+ * that fail silently in production and cannot be seen from the route's own
+ * behaviour. */
+export function playableUrl(req: Request, storedUrl: string, userId: string): string {
+  const key = s3ObjectKeyFromUrl(storedUrl);
+  if (key === null) return storedUrl;
+  const query = mintPlaybackQuery(key, userId);
+  if (query === null) return storedUrl;
+
+  /**
+   * Absolute, and built from the request.
+   *
+   * A relative path would resolve against the PAGE's origin, and the app is
+   * served from a different host than this API — `alia.onl` asking
+   * `api.alia.onl` — so the player would fetch a path that does not exist there.
+   *
+   * The scheme comes from `X-Forwarded-Proto` because TLS terminates at the
+   * load balancer: `req.protocol` reports `http` here, and an `http://` media
+   * URL on an `https://` page is blocked as mixed content — a failure that
+   * looks exactly like the 403 this change exists to fix.
+   *
+   * `Host` is the client's own header, and this link is handed straight back to
+   * that same client, so nothing is trusted across a boundary: a caller that
+   * sends a wrong host receives a link that does not work for it.
+   */
+  const forwarded = req.get('x-forwarded-proto');
+  const scheme = (forwarded ?? req.protocol).split(',')[0]?.trim() || 'https';
+  const host = req.get('host');
+  const base = host === undefined ? '' : `${scheme}://${host}`;
+  return `${base}/audio/playback?${query}`;
+}
 
 /**
  * POST /v1/audio/speech
@@ -69,7 +116,11 @@ router.post('/speech', async (req: Request, res: Response) => {
     if (conversationId && messageId) {
       const cached = await findMessageAudioUrl(getDb(), userId, conversationId, messageId);
       if (cached) {
-        return res.json({ audioUrl: cached });
+        // Signed on the way out, exactly like a fresh one. The stored address
+        // is canonical and unplayable on its own, so a cache hit that returned
+        // it verbatim was the same 403 as a miss — the reason replaying an
+        // already-generated clip failed too.
+        return res.json({ audioUrl: playableUrl(req, cached, userId) });
       }
     }
 
@@ -156,7 +207,7 @@ router.post('/speech', async (req: Request, res: Response) => {
       });
     }
 
-    res.json({ audioUrl });
+    res.json({ audioUrl: playableUrl(req, audioUrl, userId) });
   } catch (error: unknown) {
     if (reservation && !settled) {
       // No `settled = true` here: nothing reads it after a catch, and eslint

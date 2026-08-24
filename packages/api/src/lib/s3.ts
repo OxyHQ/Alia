@@ -1,4 +1,4 @@
-import { S3Client, DeleteObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, DeleteObjectCommand, GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
 import crypto from 'crypto';
 import { log } from './logger.js';
 
@@ -95,6 +95,63 @@ export async function uploadToS3Deterministic(
   contentType: string,
 ): Promise<string> {
   return executeUpload(key, file, contentType);
+}
+
+/**
+ * The object key inside this bucket, from an address stored earlier.
+ *
+ * Stored addresses are canonical S3 URLs, and they outlive any authorisation
+ * minted for them — which is why the row keeps the address and the link is
+ * signed at the moment someone is handed it.
+ *
+ * A URL that does not point at this bucket yields `null` rather than a key: a
+ * caller passing a foreign address is asking for something this cannot give,
+ * and answering with a key would turn that into a request for the wrong object.
+ */
+export function s3ObjectKeyFromUrl(fileUrl: string): string | null {
+  if (BUCKET_NAME === '') return null;
+  try {
+    const url = new URL(fileUrl);
+    const sameBucket =
+      url.hostname.startsWith(`${BUCKET_NAME}.`) || url.pathname.startsWith(`/${BUCKET_NAME}/`);
+    if (!sameBucket) return null;
+    const key = url.pathname.replace(new RegExp(`^/(?:${BUCKET_NAME}/)?`), '');
+    return key === '' ? null : decodeURIComponent(key);
+  } catch {
+    return null;
+  }
+}
+
+/** One stored object, for a route that streams it to a player. */
+export interface S3ObjectStream {
+  readonly body: NodeJS.ReadableStream;
+  readonly contentType: string;
+  readonly contentLength?: number;
+}
+
+/**
+ * Read an object back out.
+ *
+ * The content type is whatever was recorded at upload; a stored object with no
+ * recorded type falls back to the extension rather than to
+ * `application/octet-stream`, because a media element refuses a type it does
+ * not recognise and that refusal is indistinguishable from a broken file.
+ */
+export async function readS3Object(key: string): Promise<S3ObjectStream | null> {
+  if (BUCKET_NAME === '' || key === '') return null;
+  try {
+    const result = await s3Client.send(new GetObjectCommand({ Bucket: BUCKET_NAME, Key: key }));
+    if (!result.Body) return null;
+    const extension = key.split('.').pop() ?? '';
+    return {
+      body: result.Body as NodeJS.ReadableStream,
+      contentType: result.ContentType ?? getContentType(extension),
+      ...(typeof result.ContentLength === 'number' ? { contentLength: result.ContentLength } : {}),
+    };
+  } catch (error) {
+    log.general.warn({ err: error, key }, 'S3 object could not be read');
+    return null;
+  }
 }
 
 /**
