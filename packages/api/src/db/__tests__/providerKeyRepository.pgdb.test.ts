@@ -13,7 +13,7 @@ import {
   loadActiveProviderKeys,
   markKeyCreditExhausted,
   maxPriorityInGroup,
-  providerKeyHashExists,
+  providerKeyIdByHash,
   providerKeyPrefix,
   providerKeyStats,
   providersWithUsableKeys,
@@ -361,8 +361,8 @@ describe('operator actions', () => {
     const secret = `dup-${Math.random().toString(36).slice(2)}`;
     await createProviderKey(db, newKey({ provider: 'replicate', keyHash: hashProviderKey(secret), key: secret }), ACTOR);
 
-    expect(await providerKeyHashExists(db, hashProviderKey(secret))).toBe(true);
-    expect(await providerKeyHashExists(db, hashProviderKey(`${secret}-other`))).toBe(false);
+    expect(await providerKeyIdByHash(db, hashProviderKey(secret))).not.toBeNull();
+    expect(await providerKeyIdByHash(db, hashProviderKey(`${secret}-other`))).toBeNull();
   });
 
   it('deletes a key and returns it, or null when there is nothing to delete', async () => {

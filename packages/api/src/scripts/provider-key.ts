@@ -83,7 +83,8 @@ import {
   createProviderKey,
   hashProviderKey,
   listSafeProviderKeys,
-  providerKeyHashExists,
+  providerKeyIdByHash,
+  updateProviderKey,
   providerKeyPrefix,
   rotateProviderKey,
 } from '../db/providers/providerKeyRepository.js';
@@ -215,10 +216,37 @@ async function main(): Promise<void> {
 
   const keyPrefix = providerKeyPrefix(key);
 
-  if (await providerKeyHashExists(getDb(), keyHash)) {
-    // Idempotent re-run. Not an error: the whole point of dispatching on the
-    // hash is that issuing this twice is safe.
-    logger.info({ provider, name, keyPrefix }, 'Provider key already present, unchanged');
+  const existingId = await providerKeyIdByHash(getDb(), keyHash);
+  if (existingId !== null) {
+    /**
+     * Idempotent re-run. Not an error: the whole point of dispatching on the
+     * hash is that issuing this twice is safe.
+     *
+     * But "already present" used to mean "changed nothing", and the fields this
+     * command carries beyond the credential are the row's PROVENANCE — why the
+     * credit exists, how much of it there is, whether it renews. A key
+     * installed without them could never acquire them, because this is the only
+     * sanctioned writer and it returned before reaching the row. Four keys in
+     * production had a blank description for exactly that reason.
+     *
+     * So a re-run that DECLARES provenance applies it, and one that declares
+     * none still changes nothing. The credential itself is never touched here:
+     * the row is found by its hash and only these three columns are written.
+     */
+    const provenance = {
+      ...(description === null ? {} : { description }),
+      ...(creditLimitUsd === null ? {} : { creditLimitUsd }),
+      ...(creditRenews === 'never' ? {} : { creditRenews }),
+    };
+    if (Object.keys(provenance).length === 0) {
+      logger.info({ provider, name, keyPrefix }, 'Provider key already present, unchanged');
+      return;
+    }
+    await updateProviderKey(getDb(), existingId, provenance, ACTOR);
+    logger.info(
+      { provider, name, keyPrefix, fields: Object.keys(provenance) },
+      'Provider key already present, provenance updated',
+    );
     return;
   }
 
