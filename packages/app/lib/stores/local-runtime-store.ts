@@ -26,21 +26,27 @@ import { randomUUID } from 'expo-crypto';
 /** Ollama's own OpenAI-compatible surface, which is the common case. */
 export const DEFAULT_LOCAL_ENDPOINT = 'http://localhost:11434/v1';
 
+/**
+ * Whether the person has been asked, and what they said.
+ *
+ * Three states rather than a boolean, because "not yet asked" and "asked and
+ * said no" must not look the same: the first should still be offered, the
+ * second must never be offered again.
+ */
+export type LocalRuntimeConsent = 'unasked' | 'granted' | 'declined';
+
 interface LocalRuntimeState {
   /**
-   * Whether this device offers its runtime to the account at all.
+   * Nothing touches `localhost` until this is `granted`.
    *
-   * On by DETECTION rather than by opt-in: the probe is one request to an
-   * address on this machine, it fails in milliseconds when nothing is listening,
-   * and a person who has installed Ollama has already decided to run models
-   * locally. Nothing is announced and nothing is offered until a runtime
-   * actually answers, so the common case — no local server — is silent.
-   *
-   * The switch exists for the case detection gets wrong in the other direction:
-   * a person who runs a local model but does not want this browser answering
-   * turns for their other devices.
+   * The probe is one request from the person's own browser to their own
+   * machine, which is cheap and reveals nothing to anyone else — but it is
+   * still their machine, and Chrome is moving toward prompting for local
+   * network access itself. A browser permission dialog arriving with no
+   * context is worse than being asked in the product first, so the product
+   * asks first and the probe waits.
    */
-  enabled: boolean;
+  consent: LocalRuntimeConsent;
   endpoint: string;
   /** Stable across reconnects and app launches; how other devices name this one. */
   runtimeId: string;
@@ -48,7 +54,7 @@ interface LocalRuntimeState {
   label: string;
   /** Last known model list, so the picker has something before the first probe. */
   models: string[];
-  setEnabled: (enabled: boolean) => void;
+  setConsent: (consent: LocalRuntimeConsent) => void;
   setEndpoint: (endpoint: string) => void;
   setLabel: (label: string) => void;
   setModels: (models: string[]) => void;
@@ -57,12 +63,12 @@ interface LocalRuntimeState {
 export const useLocalRuntimeStore = create<LocalRuntimeState>()(
   persist(
     (set) => ({
-      enabled: true,
+      consent: 'unasked',
       endpoint: DEFAULT_LOCAL_ENDPOINT,
       runtimeId: randomUUID(),
       label: '',
       models: [],
-      setEnabled: (enabled) => set({ enabled }),
+      setConsent: (consent) => set({ consent }),
       setEndpoint: (endpoint) => set({ endpoint }),
       setLabel: (label) => set({ label }),
       setModels: (models) => set({ models }),
@@ -70,7 +76,20 @@ export const useLocalRuntimeStore = create<LocalRuntimeState>()(
     {
       name: 'alia-local-runtime',
       storage: createJSONStorage(() => AsyncStorage),
-      version: 1,
+      version: 2,
+      /**
+       * v1's `enabled` was a DEFAULT, not a decision.
+       *
+       * It shipped as `true` so detection was automatic, which means a stored
+       * `true` records that nobody ever asked — not that anybody agreed. Every
+       * v1 device therefore arrives at `unasked` and gets the question once,
+       * including the ones that were already probing.
+       */
+      migrate: (persisted) => {
+        const state = persisted as Partial<LocalRuntimeState> & { enabled?: boolean };
+        delete state.enabled;
+        return { ...state, consent: 'unasked' as const };
+      },
     },
   ),
 );

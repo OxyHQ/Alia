@@ -27,15 +27,63 @@ interface LocalModelsResponse {
   data?: Array<{ id?: unknown }>;
 }
 
-/** Ask a local OpenAI-compatible server what it can run. */
+/**
+ * Why a probe failed, in terms a person can act on.
+ *
+ * The distinction that matters is the first two, and the browser refuses to
+ * make it: a connection that never opened and a server that rejected this page
+ * are BOTH `TypeError: Failed to fetch`, with the same message and no status.
+ * Telling someone to allow an origin when nothing is running is wrong advice,
+ * and it is the advice a single error string forces.
+ */
+export type LocalRuntimeFailure = 'unreachable' | 'refused' | 'http' | 'empty';
+
+export class LocalRuntimeProbeError extends Error {
+  constructor(
+    readonly reason: LocalRuntimeFailure,
+    /** Only set for `http`: the status the server answered with. */
+    readonly status?: number,
+  ) {
+    super(reason);
+    this.name = 'LocalRuntimeProbeError';
+  }
+}
+
+/**
+ * Ask a local OpenAI-compatible server what it can run.
+ *
+ * The retry on failure is the diagnosis, not a retry. A `no-cors` GET is a
+ * SIMPLE request — no preflight, no custom headers — so the browser sends it
+ * whatever the origin, and resolves it opaquely if any server answered at all.
+ * Measured against Ollama: a foreign `Origin` gets `403` on the preflight of the
+ * real request but `200` on the simple GET, while a dead port refuses the
+ * connection in both. So resolving means "running and refusing us" and rejecting
+ * means "nothing there" — the two cases one error string cannot separate.
+ *
+ * On native there is no CORS to fail, so the first request already succeeded or
+ * the address is genuinely unreachable; the second call answers the same either
+ * way.
+ */
 export async function probeLocalRuntime(endpoint: string, signal?: AbortSignal): Promise<string[]> {
-  const response = await fetch(`${endpoint.replace(/\/$/, '')}/models`, { signal });
-  if (!response.ok) throw new Error(`The runtime answered ${response.status}.`);
+  const base = endpoint.replace(/\/$/, '');
+  let response: Response;
+  try {
+    response = await fetch(`${base}/models`, { signal });
+  } catch (error: unknown) {
+    // An abort is the caller withdrawing, not a diagnosis to report.
+    if (signal?.aborted) throw error;
+    const answered = await fetch(`${base}/models`, { mode: 'no-cors', signal }).then(
+      () => true,
+      () => false,
+    );
+    throw new LocalRuntimeProbeError(answered ? 'refused' : 'unreachable');
+  }
+  if (!response.ok) throw new LocalRuntimeProbeError('http', response.status);
   const body = (await response.json()) as LocalModelsResponse;
   const models = (body.data ?? [])
     .map((entry) => entry.id)
     .filter((id): id is string => typeof id === 'string' && id.length > 0);
-  if (models.length === 0) throw new Error('The runtime is reachable but has no models installed.');
+  if (models.length === 0) throw new LocalRuntimeProbeError('empty');
   return models.sort();
 }
 
@@ -75,13 +123,15 @@ const PROBE_BACKOFF_MS = 300_000;
  */
 export function useLocalRuntimeProbe() {
   const { isAuthenticated } = useOxy();
-  const enabled = useLocalRuntimeStore((state) => state.enabled);
+  const consent = useLocalRuntimeStore((state) => state.consent);
   const endpoint = useLocalRuntimeStore((state) => state.endpoint);
 
   return useQuery({
     queryKey: ['local-runtime', 'models', endpoint],
     queryFn: ({ signal }) => probeLocalRuntime(endpoint, signal),
-    enabled: enabled && isAuthenticated,
+    // `granted` and nothing else: `unasked` must not reach localhost, which is
+    // the whole point of asking first.
+    enabled: consent === 'granted' && isAuthenticated,
     refetchInterval: (query) => (query.state.error === null ? PROBE_INTERVAL_MS : PROBE_BACKOFF_MS),
     retry: false,
     staleTime: PROBE_INTERVAL_MS,
@@ -90,7 +140,7 @@ export function useLocalRuntimeProbe() {
 
 export function useLocalRuntime() {
   const { isAuthenticated } = useOxy();
-  const enabled = useLocalRuntimeStore((state) => state.enabled);
+  const consent = useLocalRuntimeStore((state) => state.consent);
   const runtimeId = useLocalRuntimeStore((state) => state.runtimeId);
   const storedLabel = useLocalRuntimeStore((state) => state.label);
   const setModels = useLocalRuntimeStore((state) => state.setModels);
@@ -160,7 +210,7 @@ export function useLocalRuntime() {
   }, []);
 
   useEffect(() => {
-    if (!enabled || !isAuthenticated) return;
+    if (consent !== 'granted' || !isAuthenticated) return;
 
     const socket = socketIO(config.apiUrl, {
       transports: ['websocket'],
@@ -187,7 +237,7 @@ export function useLocalRuntime() {
       socket.disconnect();
       socketRef.current = null;
     };
-  }, [enabled, isAuthenticated, serve]);
+  }, [consent, isAuthenticated, serve]);
 
   /**
    * Announce the catalogue — on connect, and again whenever it changes.
@@ -214,7 +264,7 @@ export function useLocalRuntime() {
 
   return {
     /** Reachable and offering at least one model. */
-    ready: enabled && (models?.length ?? 0) > 0,
+    ready: consent === 'granted' && (models?.length ?? 0) > 0,
     models: models ?? [],
     error: probe.error instanceof Error ? probe.error : null,
     isProbing: probe.isFetching,

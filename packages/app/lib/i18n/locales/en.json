@@ -188,7 +188,13 @@
       "modelsTitle": "Models on this device",
       "free": "Free",
       "freeNote": "Local models cost no credits. Deep research and agent mode are unavailable for them — those run on Alia's own models.",
-      "corsHint": "Ollama refuses the browser unless you start it with OLLAMA_ORIGINS={{origin}}.",
+      "unreachable": "Nothing is answering at {{endpoint}}.",
+      "unreachableHint": "Start your model server, or check the address and port.",
+      "refused": "{{endpoint}} is running, but it refused this page.",
+      "refusedHint": "Allow this origin, then restart it:",
+      "httpError": "The server answered {{status}}.",
+      "empty": "The server is reachable but has no models installed.",
+      "command": "OLLAMA_ORIGINS={{origin}} ollama serve",
       "safariHint": "Safari blocks pages from reaching localhost. Use Chrome or Firefox on this machine."
     },
     "groups": {
@@ -807,6 +813,12 @@
   "models": {
     "selectModel": "Select Model",
     "onYourDevices": "On your devices",
+    "localInvite": {
+      "title": "Models on your own computer",
+      "body": "If you run Ollama, LM Studio or similar, Alia can answer with it. Nothing is sent to your machine until you say yes.",
+      "accept": "Look for them",
+      "decline": "Not now"
+    },
     "loadingModels": "Loading models...",
     "loadingModes": "Loading...",
     "legacyModels": "Older models",
