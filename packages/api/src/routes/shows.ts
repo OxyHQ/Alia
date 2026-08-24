@@ -64,6 +64,7 @@ import {
   type ShowSeriesPatch,
 } from '../db/shows/showRepository.js';
 import { enqueueShowGeneration } from '../lib/show/show-queue.js';
+import { proposeEpisodeTitle } from '../lib/show/episode-title.js';
 import { buildSeriesCast, FORMAT_DEFAULTS, SHOW_VOICES } from '../lib/show/voice-roster.js';
 import { generateCoverArt } from '../lib/show/cover-art.js';
 import { syraForRequest } from '../lib/syra/syra.js';
@@ -115,7 +116,13 @@ const patchSeriesSchema = z.object({
 });
 
 const createEpisodeSchema = z.object({
-  title: z.string().trim().min(3).max(200),
+  /**
+   * OPTIONAL, and usually absent. What a person types into "what should this
+   * episode cover" is a topic, not a title — so when this is omitted a model
+   * proposes one from the topic. Supplied, it wins outright: the person named
+   * their own episode and nothing should second-guess that.
+   */
+  title: z.string().trim().min(3).max(200).optional(),
   topic: z.string().trim().min(5).max(2000),
   notes: z.string().max(10_000).optional(),
   sourceConversationId: z.string().optional(),
@@ -456,7 +463,7 @@ router.post('/series/:id/episodes', async (req: Request, res: Response) => {
 
     const parsed = createEpisodeSchema.safeParse(req.body);
     if (!parsed.success) {
-      return invalid(res, 'An episode needs a title of at least 3 characters and a topic of at least 5');
+      return invalid(res, 'An episode needs a topic of at least 5 characters');
     }
     const input = parsed.data;
 
@@ -478,11 +485,34 @@ router.post('/series/:id/episodes', async (req: Request, res: Response) => {
     const episodeNumber = await allocateEpisodeNumber(getDb(), series.id, userId);
     if (episodeNumber === null) return notFound(res, 'Series');
 
+    /**
+     * The name, decided BEFORE the draft, because Syra fixes it there.
+     *
+     * `createEpisodeDraft` requires a title and the ingest allowlist refuses
+     * one, so this is the name the published episode keeps — the script cannot
+     * rename it later, and a name stored only in Alia would leave the two
+     * products disagreeing about the same episode.
+     *
+     * Three sources in order, and the fallback chain is the whole design: the
+     * person's own title if they gave one, otherwise a model's suggestion from
+     * the topic, otherwise the topic itself trimmed to something title-shaped.
+     * The last is not good, but it is the person's own words and it never fails
+     * — an episode must not be impossible to create because a naming model was
+     * busy. See `lib/show/episode-title.ts`.
+     */
+    const suggested =
+      input.title === undefined
+        ? await proposeEpisodeTitle({
+            seriesTitle: series.title,
+            brief: series.brief,
+            topic: input.topic,
+            episodeNumber,
+          })
+        : null;
+    const title = input.title ?? suggested ?? input.topic.slice(0, 120).trim();
+
     const draft = await syraForRequest(req).createEpisodeDraft(series.syraPodcastId, {
-      // Syra fixes the title here and refuses to let the ingest change it, so
-      // this is the name the published episode keeps. It is the person's, not
-      // the model's.
-      title: input.title,
+      title,
       episodeNumber,
       aiGenerated: true,
     });
@@ -491,7 +521,7 @@ router.post('/series/:id/episodes', async (req: Request, res: Response) => {
       userId,
       seriesId: series.id,
       episodeNumber,
-      title: input.title,
+      title,
       topic: input.topic,
       notes: input.notes,
       syraEpisodeId: draft.episodeId,
@@ -510,6 +540,10 @@ router.post('/series/:id/episodes', async (req: Request, res: Response) => {
       episodeId: episode.id,
       seriesId: series.id,
       episodeNumber,
+      // Echoed, because the caller may not have chosen it — the app renders
+      // the episode immediately and would otherwise show a blank name until
+      // its next read.
+      title,
       status: episode.status,
       queued,
     });

@@ -107,7 +107,13 @@ describe('starting an episode', () => {
   it('posts to the series, and shows it as queued before the first event', async () => {
     const useShowStore = await freshStore();
     post.mockResolvedValueOnce({
-      data: { episodeId: 'episode-new', seriesId: 'series-abc', episodeNumber: 3, status: 'queued' },
+      data: {
+        episodeId: 'episode-new',
+        seriesId: 'series-abc',
+        episodeNumber: 3,
+        title: 'The third one',
+        status: 'queued',
+      },
     });
 
     const id = await useShowStore
@@ -125,6 +131,37 @@ describe('starting an episode', () => {
     expect(first?.id).toBe('episode-new');
     expect(first?.status).toBe('queued');
     expect(first?.episodeNumber).toBe(3);
+  });
+
+  it('shows the name the SERVER chose when the caller supplied none', async () => {
+    const useShowStore = await freshStore();
+    post.mockResolvedValueOnce({
+      data: {
+        episodeId: 'episode-new',
+        seriesId: 'series-abc',
+        episodeNumber: 3,
+        title: 'How leaves eat light',
+        status: 'queued',
+      },
+    });
+
+    await useShowStore
+      .getState()
+      .createEpisode('series-abc', { topic: 'hablemos de la fotosíntesis' });
+
+    // No `title` key at all, rather than `title: undefined` — the API treats an
+    // absent title as "name it for me" and a present-but-empty one as invalid.
+    expect(post).toHaveBeenCalledWith('/shows/series/series-abc/episodes', {
+      topic: 'hablemos de la fotosíntesis',
+      notes: undefined,
+    });
+
+    // The optimistic row shows the model's name, not the raw topic. Without
+    // reading `title` back from the response this renders blank until the next
+    // fetch, which is the whole reason the route echoes it.
+    const [first] = useShowStore.getState().episodesBySeries['series-abc'] ?? [];
+    expect(first?.title).toBe('How leaves eat light');
+    expect(first?.title).not.toBe('hablemos de la fotosíntesis');
   });
 
   it('reports a refusal rather than pretending it started', async () => {

@@ -306,7 +306,25 @@ export async function runShowPipeline(episodeId: string): Promise<void> {
     // Before the charge, not after: a throw between the two would otherwise
     // refund a reservation that had already paid.
     settled = true;
-    await finalizeFixedCredits(reservation, credits, 'show');
+    /**
+     * The row records what the LEDGER settled.
+     *
+     * The pipeline this replaces stored its intended figure while the ledger
+     * moved a laundered one, so a ten-minute show intended 22 credits, charged
+     * 2, and stored 22 — and the two disagreed for as long as that code
+     * existed, because nothing compared them.
+     *
+     * **The two numbers are equal TODAY**, and that is worth saying rather than
+     * implying otherwise: `finalizeFixedCredits` floors at
+     * `MIN_CREDITS_PER_REQUEST` and rounds up, and `showCreditCost` always
+     * returns an integer of at least 3, so neither adjustment ever fires.
+     * Measured — a mutation storing `credits` here instead SURVIVED the suite.
+     * So this is not defending against a rounding difference that exists; it is
+     * making the row true by CONSTRUCTION rather than by a coincidence of the
+     * current pricing function, which is what stops the two drifting apart
+     * again the next time that function changes.
+     */
+    const { creditsCharged } = await finalizeFixedCredits(reservation, credits, 'show');
 
     await applyUpdate({
       status: 'completed',
@@ -314,7 +332,7 @@ export async function runShowPipeline(episodeId: string): Promise<void> {
       segments,
       recap: script.recap,
       durationMs,
-      creditsCharged: credits,
+      creditsCharged,
       // The capability is spent. Storing it further would keep a live-looking
       // secret that Syra has already refused to honour a second time.
       ingestTicket: null,

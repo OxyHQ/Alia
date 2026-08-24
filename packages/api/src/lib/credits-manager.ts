@@ -318,6 +318,24 @@ export async function finalizeCredits(
  * the same refund-if-over, charge-if-under adjustment every other finalizer
  * runs, with no unit in the middle to get wrong.
  *
+ * ## The token round trip is not merely ugly, it is CONDITIONALLY correct
+ *
+ * The obvious repair for the laundering above is to keep going through
+ * `finalizeCredits` and pass `credits * TOKENS_PER_CREDIT` instead. That does
+ * round-trip — `calculateCreditsFromTokens` returns
+ * `ceil(credits * multiplier)` — but only while `aliasModelId` is omitted, so a
+ * caller adding one later silently multiplies its own price by that model's
+ * credit multiplier. The identity holds by accident of an argument nobody
+ * passed, which is the same shape as the bug it would be fixing.
+ *
+ * ## What the CALLER must do with the return value
+ *
+ * `creditsCharged` is what was SETTLED, after the floor and the rounding below.
+ * A caller that records a cost must record THIS, not the number it asked for.
+ * The show pipeline stored its intended figure while the ledger moved a
+ * different one, and the two disagreed for as long as that code existed because
+ * nothing ever compared them.
+ *
  * `label` names the domain in the ledger logs, exactly as `'chat'` and
  * `'voice'` do.
  */

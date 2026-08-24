@@ -281,6 +281,41 @@ describe('a success charges what the episode actually cost', () => {
     expect(await balance()).toBe(45);
   });
 
+  it('stores the figure the LEDGER moved, not the one it intended', async () => {
+    await fund(50);
+    const episodeId = await queueEpisode();
+    scriptReply = GOOD_SCRIPT;
+
+    const before = await balance();
+    const { runShowPipeline } = await import('../show-pipeline.js');
+    await runShowPipeline(episodeId);
+
+    const episode = await findEpisodeById(db, episodeId);
+    const spent = before - (await balance());
+
+    /**
+     * The integrity claim, asserted as a RELATION rather than as a number: the
+     * pipeline this replaces stored its intended figure while the ledger moved
+     * a laundered one, so a ten-minute show intended 22, charged 2, and stored
+     * 22. Both halves were individually plausible and nothing compared them.
+     *
+     * `spent` is measured across the whole run — the reservation debits one on
+     * the way in and the settle adjusts from there — so it IS what the account
+     * lost, independent of how the code got there.
+     *
+     * **What this catches, stated exactly.** Restoring the laundering while
+     * keeping the stored figure — the original bug, both halves — turns it red.
+     * Storing the intended figure while the ledger is CORRECT does NOT, and
+     * that was measured rather than assumed: `showCreditCost` always returns an
+     * integer of at least 3, so `finalizeFixedCredits`'s floor and ceiling never
+     * fire and the two numbers are equal in every reachable case. Reading the
+     * settled value in the pipeline is therefore a construction choice, not
+     * something this assertion proves.
+     */
+    expect(episode?.creditsCharged).toBe(spent);
+    expect(spent).toBeGreaterThan(0);
+  });
+
   it('hands Syra SECONDS, and the episode number, and no ingest ticket afterwards', async () => {
     await fund(50);
     const episodeId = await queueEpisode();

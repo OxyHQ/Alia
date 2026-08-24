@@ -376,7 +376,7 @@ All `/automations*` endpoints were removed outright; use `/triggers`.
 - **Whether `Deprecation` and `Sunset` are emitted per-route or blanket across `/v1/*`.**
   Per-route measurement is decided; per-route headers are not. *Owner: workstream 6 owner.*
 - ~~**Whether `/v1/shows` belongs to the compatibility window at all.**~~ ANSWERED, in
-  #323: it does not. The workstream 1 inventory had already assigned all five routes
+  `feat/shows-on-syra`: it does not. The workstream 1 inventory had already assigned all five routes
   `"proposedOwner": "alia"` and `"targetPath": "keep-alia-product"`, so they moved to
   `/shows` beside `/conversations`, `/skills` and `/agents`. This surface is fifteen
   routes, and it lost five without gaining any.

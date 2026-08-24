@@ -48,17 +48,27 @@ const SYRA_API_URL = process.env.SYRA_API_URL?.trim() || 'https://api.syra.fm';
 /**
  * The caller's own Oxy access token, or `null`.
  *
- * Read from the request rather than from `req.accessToken`: that field is
- * DECLARED on the Express request in `middleware/auth.ts` and assigned by
- * nothing in the package, so reading it would compile, typecheck, and hand Syra
- * `undefined` on every call. Verified by enumerating every occurrence of the
- * name across `src/` — three modules read it and none writes it.
+ * `req.accessToken`, which the AUTH MIDDLEWARE sets — not a second parse of the
+ * `Authorization` header. `authenticateToken` is
+ * `createOxyAuthMiddleware(oxyClient, …)` from `@oxyhq/core`, and that assigns
+ * `req.userId`, `req.accessToken` and `req.user` together on the
+ * session-validated path (`mixins/OxyServices.utility.ts:745-748`, present in
+ * both the cjs and esm dist that actually run). Every route in this router sits
+ * behind it, so whenever there is a user there is a token.
+ *
+ * Worth stating because the opposite is easy to conclude and wrong: the field is
+ * DECLARED in `middleware/auth.ts` and assigned nowhere in `packages/api/src`,
+ * so a grep scoped to this package reports it as dead. It is not — the
+ * dependency writes it. A `Bearer` parse here would duplicate work the
+ * middleware has already done and would drift from it the moment it learns a
+ * second credential shape.
+ *
+ * `null` when there is no session, which the SDK treats as a normal state and
+ * refuses the authenticated methods by name rather than calling with nothing.
  */
 function bearerToken(req: Request): string | null {
-  const header = req.headers.authorization;
-  if (header === undefined || !header.startsWith('Bearer ')) return null;
-  const token = header.slice('Bearer '.length).trim();
-  return token === '' ? null : token;
+  const token = req.accessToken;
+  return token === undefined || token.trim() === '' ? null : token;
 }
 
 /**

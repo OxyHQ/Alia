@@ -142,7 +142,8 @@ interface ShowStore {
 
   createEpisode: (
     seriesId: string,
-    input: { title: string; topic: string; notes?: string },
+    /** `title` omitted means "name it for me" — the API proposes one. */
+    input: { title?: string; topic: string; notes?: string },
   ) => Promise<string | null>;
   deleteEpisode: (seriesId: string, episodeId: string) => Promise<void>;
 
@@ -234,9 +235,13 @@ export const useShowStore = create<ShowStore>((set, get) => ({
     set({ error: null });
     try {
       const res = await apiClient.post(API_ROUTES.shows.episodes.create(seriesId), input);
-      const { episodeId, episodeNumber } = res.data as {
+      // `title` comes BACK from the server, because the caller may not have
+      // chosen it: an omitted title is named by a model server-side, and the
+      // placeholder below would otherwise be blank until the next read.
+      const { episodeId, episodeNumber, title } = res.data as {
         episodeId: string;
         episodeNumber: number;
+        title: string;
       };
 
       // A placeholder, so the list shows the episode as queued immediately
@@ -247,7 +252,7 @@ export const useShowStore = create<ShowStore>((set, get) => ({
         id: episodeId,
         seriesId,
         episodeNumber,
-        title: input.title,
+        title,
         topic: input.topic,
         status: 'queued',
         progress: 0,

@@ -5,9 +5,10 @@
  * when the series was created and apply to every episode, so this asks only
  * what changes: what this one is called and what it covers.
  *
- * The title is the person's, not the model's — Syra fixes an episode's title
- * when the draft is reserved and refuses to let the ingest change it, so a
- * generated title could never reach the published episode.
+ * The name is OPTIONAL and usually left blank. Syra fixes an episode's title
+ * when the draft is reserved and refuses to let the ingest change it, so the
+ * script can never name its own episode — a model names it from the topic
+ * instead, server-side, before the draft. Typing one here overrides that.
  */
 
 import React, { useCallback, useState } from 'react';
@@ -40,15 +41,22 @@ export function EpisodeCreateDialog({
   const [starting, setStarting] = useState(false);
 
   const handleStart = useCallback(async () => {
-    if (title.trim().length < 3 || topic.trim().length < 5) {
-      toast.error('An episode needs a name and a topic');
+    if (topic.trim().length < 5) {
+      toast.error('Say what the episode should cover');
+      return;
+    }
+    // A name that is present but too short is a mistake, not a request to name
+    // it automatically — refuse it rather than silently discarding what they
+    // typed.
+    if (title.trim() !== '' && title.trim().length < 3) {
+      toast.error('That name is too short — leave it blank to have one written');
       return;
     }
 
     setStarting(true);
     try {
       const episodeId = await createEpisode(seriesId, {
-        title: title.trim(),
+        ...(title.trim() === '' ? {} : { title: title.trim() }),
         topic: topic.trim(),
         notes: notes.trim() || undefined,
       });
@@ -77,25 +85,13 @@ export function EpisodeCreateDialog({
         {
           label: starting ? 'Starting...' : 'Record it',
           onPress: handleStart,
-          disabled: starting || title.trim().length < 3 || topic.trim().length < 5,
+          disabled: starting || topic.trim().length < 5,
           shouldCloseOnPress: false,
         },
       ]}
     >
       <ScrollView className="max-h-96" showsVerticalScrollIndicator={false}>
         <View className="gap-4 py-2">
-          <View className="gap-1.5">
-            <Text className="text-sm font-medium text-foreground">Episode name</Text>
-            <Input
-              value={title}
-              onChangeText={setTitle}
-              placeholder={`Episode ${nextEpisodeNumber}`}
-            />
-            <Text className="text-xs text-muted-foreground">
-              This is the name listeners see. It cannot be changed after publishing.
-            </Text>
-          </View>
-
           <View className="gap-1.5">
             <Text className="text-sm font-medium text-foreground">What should it cover?</Text>
             <Input
@@ -118,6 +114,19 @@ export function EpisodeCreateDialog({
               numberOfLines={4}
               className="min-h-[100px]"
             />
+          </View>
+
+          <View className="gap-1.5">
+            <Text className="text-sm font-medium text-foreground">Name (optional)</Text>
+            <Input
+              value={title}
+              onChangeText={setTitle}
+              placeholder="Leave blank and one will be written for you"
+            />
+            <Text className="text-xs text-muted-foreground">
+              This is the name listeners see, and it cannot be changed once the episode is
+              published.
+            </Text>
           </View>
 
           <Text className="text-xs text-muted-foreground">

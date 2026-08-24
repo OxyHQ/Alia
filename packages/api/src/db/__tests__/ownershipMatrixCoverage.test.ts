@@ -147,7 +147,7 @@ interface MatrixRow {
  * asserting `packages/api` is the only manifest declaring a provider SDK. A
  * dependency row is the one shape this file's existence check cannot see.
  *
- * 46 since #323 moved shows off the compatibility surface: the five
+ * 46 since `feat/shows-on-syra` moved shows off the compatibility surface: the five
  * `v1-shows-*` rows all named `packages/api/src/routes/v1/shows.ts`, which is
  * deleted. They are ANNOTATED rather than repointed at the new file, because
  * `currentPath` records where the code was when the matrix was taken and a row
@@ -159,6 +159,13 @@ interface MatrixRow {
  * still exists, so it may not claim `removedIn` — the existence check would
  * fail it, correctly. Its evidence line and its `dependsOn` were corrected in
  * place instead.
+ *
+ * Those five rows carry a BRANCH NAME where every other annotated row carries a
+ * `#NNN`. The field wants the PR that deleted the file and this branch has no
+ * PR yet; a guessed number would be a citation that silently points at somebody
+ * else's work, which is worse than an unusual-looking one that resolves. Swap it
+ * for the number when the PR opens — the parse only requires a non-empty
+ * string, so nothing here fails in the meantime.
  */
 const REMOVED_ROW_COUNT = 46;
 
