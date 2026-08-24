@@ -22,31 +22,27 @@ import { log } from './logger.js';
  * The first-party browser origins this repo deploys.
  *
  * `packages/alia-canvas` is published by `.github/workflows/deploy-frontends.yml`
- * to the Cloudflare Pages project `alia-canvas`, and it is reachable under TWO
- * origins during the move to its own domain:
+ * to the Cloudflare Pages project `alia-canvas`, and it is served on
+ * `canvas.alia.onl`.
  *
- *  - `canvas.alia.onl` is where it BELONGS, and the entry is here ahead of the
- *    DNS. That record currently still points at the decommissioned
- *    DigitalOcean app `.do/app.yaml` declares (`dig +short canvas.alia.onl` →
- *    `alia-production-3kc6h.ondigitalocean.app`, which answers nothing), so the
- *    host is dead today.
- *  - `alia-canvas.pages.dev` is the Pages default, and it is what a browser
- *    actually sends until that record is repointed. Removing it BEFORE the
- *    cutover would refuse the app that is live now.
+ * The Pages DEFAULT origin (`alia-canvas.pages.dev`) is deliberately absent,
+ * and its absence is the only way it can be retired: Cloudflare always serves a
+ * project's default hostname and offers no way to switch it off, so what gets
+ * withdrawn is its AUTHORITY. Loading the app there now fails every call it
+ * makes, which is the intent.
  *
- * Measured 2026-08-19 against the running API: `Origin: https://alia.onl` came
- * back with an `access-control-allow-origin` header and
- * `Origin: https://alia-canvas.pages.dev` came back with none, so every
- * internal call that app makes — the workflow routes under `/api` as well as
- * the catalogue — was refused by the browser. Re-measured today, both
- * `alia.onl` and `alia-canvas.pages.dev` are admitted and `canvas.alia.onl` is
- * still refused, which is what this adds.
+ * Nothing is lost by refusing it. Measured at the cutover, `canvas.alia.onl`
+ * and `alia-canvas.pages.dev` returned a byte-identical document
+ * (md5 `7d3d4ceb6056`) — the same deployment under two names.
  *
- * This list is Alia's OWN CORS surface. It has nothing to do with
- * `api.oxy.so`, which refuses this app's `POST /auth/session/create` for the
- * same origin: those origins are derived from the Application registry in
- * OxyConsole (`redirectUris`), so authorising one there is a DATA change and
- * cannot be made from this repo.
+ * Until 2026-08-24 `canvas.alia.onl` pointed at the decommissioned DigitalOcean
+ * app `.do/app.yaml` declares and answered nothing (`http=000`), which is why
+ * the Pages default was ever admitted. `.github/workflows/bind-pages-domain.yml`
+ * repointed it, and the record is now a PROXIED CNAME to the Pages project.
+ *
+ * This list is Alia's OWN CORS surface. `api.oxy.so` is a separate one, whose
+ * origins come from `BOOTSTRAP_CORE_ORIGINS` and the Application registry in
+ * the Oxy platform — authorising an origin there cannot be done from this repo.
  *
  * Exact origins only, never a pattern: `createOxyCors` matches the normalized
  * origin against this set, so a Cloudflare Pages PREVIEW deployment
@@ -57,7 +53,6 @@ export const PRODUCTION_ORIGINS: readonly string[] = [
   'https://alia.onl',
   'https://console.alia.onl',
   'https://canvas.alia.onl',
-  'https://alia-canvas.pages.dev',
 ];
 
 /**
