@@ -8,6 +8,7 @@ import {
   type HealthMetrics,
 } from '../lib/gateway-client.js';
 import { relayConnectivity } from '../lib/inference/relay-connectivity.js';
+import { unsetKaanaVariables } from '../lib/inference/kaana.js';
 import { isQueueActive } from '../lib/task-queue.js';
 import { log } from '../lib/logger.js';
 
@@ -366,6 +367,20 @@ async function getHealthSnapshot() {
     postgres: postgresReady ? 'connected' : 'unavailable',
     redis: redisStatus,
     relay,
+    /**
+     * Whether this process has what it needs to reach Kaana.
+     *
+     * A DIFFERENT question from `relay`, which reports the cutover flag and
+     * therefore reads `disabled` on every deployment that exists — including
+     * the ones where Kaana is serving every background derivation right now.
+     * An operator reading `relay: disabled` beside a working Kaana concluded
+     * the opposite of the truth, which is what this field exists to stop.
+     *
+     * `configured`, not `serving`: nothing is probed to answer it, and a field
+     * that claimed reachability without a request would be the same mistake in
+     * the other direction.
+     */
+    kaana: unsetKaanaVariables().length === 0 ? 'configured' : 'not_configured',
     providers: providersSummary,
     memory: {
       rss: Math.round(mem.rss / 1024 / 1024),       // MB
