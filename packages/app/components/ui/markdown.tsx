@@ -1,7 +1,28 @@
 import React, { useMemo } from "react";
-import { View } from "react-native";
+import { Platform, View } from "react-native";
 import { AliaMarkdown } from '@alia.onl/sdk';
+import { fontFamilies } from "@oxyhq/bloom/fonts";
 import { useColorScheme } from "@/lib/useColorScheme";
+
+/**
+ * The body face for `AliaMarkdown`, which cannot inherit one on native.
+ *
+ * `react-native-markdown-display` is driven by RN STYLE OBJECTS and supports no
+ * `className`, so NativeWind's `--font-sans` cannot reach the `<Text>` elements
+ * it renders. And Bloom's app-wide native default — the `Text.defaultProps`
+ * mutation in its `FontLoader.native.tsx` — does not apply: React 19 drops
+ * `defaultProps` under the automatic JSX runtime Expo compiles to, measured on
+ * react@19.2.3 for function and class components alike. So the family has to be
+ * handed over explicitly, and this is the only surface in the app that needs it.
+ *
+ * Taken from Bloom's own token rather than written out, so the family has one
+ * owner. `fontFamilies.sans` is a CSS STACK and RN's `fontFamily` takes a single
+ * family, hence the leading entry. Web is left undefined on purpose: there the
+ * cascade from `html` already carries `--bloom-font-sans`, and naming a family
+ * would override Bloom instead of complementing it.
+ */
+export const MARKDOWN_BODY_FONT =
+  Platform.OS === 'web' ? undefined : fontFamilies.sans.split(',')[0].trim();
 import {
   CompactList,
   Banner,
@@ -203,7 +224,7 @@ export function CustomMarkdown({ content }: { content: string }) {
     <View>
       {blocks.map((block, idx) => {
         if (block.type === 'text') {
-          return <AliaMarkdown key={idx} content={block.content} colors={aliaColors} />;
+          return <AliaMarkdown key={idx} content={block.content} colors={aliaColors} fontFamily={MARKDOWN_BODY_FONT} />;
         } else if (block.type === 'block' && block.blockType) {
           return renderBlock(block.blockType, block.data, idx);
         }

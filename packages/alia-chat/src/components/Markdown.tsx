@@ -177,17 +177,27 @@ function createRules(colors: AliaColors) {
   };
 }
 
-function createStyles(colors: AliaColors) {
+function createStyles(colors: AliaColors, fontFamily: string | undefined) {
   const { text: textColor, muted, border, primary, mutedForeground } = colors;
 
   return {
-    // No fontFamily: Bloom owns the sans face. Native inherits it from the
-    // `Text.defaultProps.style` its FontLoader mutates, web from the cascade
-    // down to `html`. Naming a family here overrides Bloom rather than
-    // complementing it, and react-native-markdown-display's own defaults set
-    // `fontFamily` only on the code rules, never on body text.
-    body: { ...BODY_TEXT, color: textColor },
-    text: { ...BODY_TEXT, color: textColor },
+    // On WEB the family arrives through the cascade down to `html`, so naming
+    // one here would override Bloom rather than complement it.
+    //
+    // On NATIVE nothing arrives. Bloom's only app-wide mechanism is the
+    // `Text.defaultProps.style` mutation in its `FontLoader.native.tsx`, and
+    // **React 19 drops `defaultProps` under the automatic JSX runtime** that
+    // Expo compiles to — measured on react@19.2.3: `createElement(Foo, {})`
+    // yields `{style:{fontFamily}}` while `jsx(Foo, {})` yields `{}`, for
+    // function AND class components alike. So that mutation reaches no `<Text>`
+    // in any Expo consumer, and this renderer cannot inherit a face.
+    //
+    // `fontFamily` therefore comes from the caller, which is the only party
+    // that both knows the family and is allowed to name it: this package has no
+    // `@oxyhq/bloom` dependency, and react-native-markdown-display takes RN
+    // style objects, so there is no className path to NativeWind's token.
+    body: { ...BODY_TEXT, color: textColor, fontFamily },
+    text: { ...BODY_TEXT, color: textColor, fontFamily },
     paragraph: { marginTop: 0, marginBottom: 8 },
     strong: { fontWeight: '600' as const },
     em: { fontStyle: 'italic' as const },
@@ -240,6 +250,17 @@ function createStyles(colors: AliaColors) {
 }
 
 export interface AliaMarkdownProps {
+  /**
+   * The sans family for body text, as a SINGLE family name — RN's `fontFamily`
+   * takes one, not a CSS stack.
+   *
+   * Omitted, body text inherits: correct on web, where Bloom's
+   * `--bloom-font-sans` reaches it through the cascade. On native nothing is
+   * inherited (see `createStyles`), so a native caller that wants Bloom's face
+   * has to pass it — this package has no `@oxyhq/bloom` dependency and so
+   * cannot name it itself.
+   */
+  fontFamily?: string;
   content: string;
   colors?: Partial<AliaColors>;
 }
@@ -310,13 +331,13 @@ const MarkdownBlock = React.memo(function MarkdownBlock({ content, rules, styles
   return <Markdown rules={rules} style={styles}>{content}</Markdown>;
 });
 
-export function AliaMarkdown({ content, colors: colorOverrides }: AliaMarkdownProps) {
+export function AliaMarkdown({ content, colors: colorOverrides, fontFamily }: AliaMarkdownProps) {
   const scheme = useColorScheme();
   const fallback = scheme === 'dark' ? FALLBACK_DARK : FALLBACK_LIGHT;
   const colors = { ...fallback, ...colorOverrides } as AliaColors;
 
   const customRules = useMemo(() => createRules(colors), [colors.text, colors.muted, colors.border, colors.primary, colors.mutedForeground]);
-  const markdownStyles = useMemo(() => createStyles(colors), [colors.text, colors.muted, colors.border, colors.primary, colors.mutedForeground]);
+  const markdownStyles = useMemo(() => createStyles(colors, fontFamily), [colors.text, colors.muted, colors.border, colors.primary, colors.mutedForeground, fontFamily]);
   const blocks = useMemo(() => splitMarkdownBlocks(content), [content]);
 
   if (blocks.length === 1) {
