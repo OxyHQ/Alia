@@ -84,6 +84,16 @@ const EPISODE_PUBLIC_COLUMNS = {
 // ── Series ───────────────────────────────────────────────────────────────────
 
 export interface NewShowSeries {
+  /**
+   * Minted by the CALLER, not by the column's default.
+   *
+   * Syra records this id as the show's provenance, so its podcast must be
+   * created with it — and `syra_podcast_id` is NOT NULL, so the podcast must
+   * exist before this row. The id therefore has to be known before either, which
+   * a `generatedId()` default cannot manage: it produces a value only as a side
+   * effect of the insert that needs the podcast that needs the id.
+   */
+  readonly id: string;
   readonly userId: string;
   readonly syraPodcastId: string;
   readonly title: string;
@@ -102,6 +112,7 @@ export async function createSeries(
   const [row] = await db
     .insert(showSeries)
     .values({
+      id: input.id,
       userId: input.userId,
       syraPodcastId: input.syraPodcastId,
       title: input.title,

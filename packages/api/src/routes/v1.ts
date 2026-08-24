@@ -6,8 +6,7 @@ import modelsRouter from './v1/models.js';
 import voiceRouter from './v1/voice.js';
 import audioRouter from './v1/audio.js';
 import imagesRouter from './v1/images.js';
-import showsRouter from './v1/shows.js';
-import { authenticateTokenOrApiKey, optionalAuth, oxyClient } from '../middleware/auth.js';
+import { authenticateTokenOrApiKey, oxyClient } from '../middleware/auth.js';
 import { apiKeyRateLimit } from '../middleware/api-key-rate-limit.js';
 import { getRefreshedUserCredits } from '../lib/user-credits-helpers.js';
 import { listChannels } from '../lib/channels/registry.js';
@@ -26,9 +25,6 @@ router.get('/', (_req, res) => {
 
 // Public routes (no auth required)
 router.use('/models', modelsRouter);
-
-// Shows: use optionalAuth so unauthenticated users get empty results instead of 401
-router.use('/shows', optionalAuth, showsRouter);
 
 // Channel bot auth: validates x-channel-bot-secret against registered channels
 // and sets req.user from x-oxy-user-id for trusted bot services.
@@ -137,7 +133,5 @@ router.use('/audio', audioRouter);
 
 // Image generation
 router.use('/images', imagesRouter);
-
-// Podcast generation (mounted above with optionalAuth)
 
 export default router;

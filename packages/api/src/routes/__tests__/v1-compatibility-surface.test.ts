@@ -200,18 +200,42 @@ const aliaChat = surface(aliaChatRouter, '/alia/chat');
  * list is also the list those gates are taken against: a route that appears here
  * without appearing there has no removal gate, and a route that disappears from
  * here without a recorded measurement was removed without one.
+ *
+ * ## 20 became 15: the five `/v1/shows` routes left, in #323
+ *
+ * This is a removal, which is the direction this list gates hardest, so the
+ * measurement is here rather than in a commit message.
+ *
+ * The compatibility-window document did not merely permit it — it asked the
+ * question, at `docs/migration/compatibility-window.md:182`: *"Whether
+ * `/v1/shows` belongs to this window at all. It is mounted with `optionalAuth`
+ * and is not obviously generic inference; its destination is decided by the
+ * workstream 1 inventory, and it may leave this document entirely."*
+ *
+ * The workstream 1 inventory had answered it. All five rows in
+ * `docs/migration/inventories/product-api.json` carry `"proposedOwner": "alia"`
+ * and `"targetPath": "keep-alia-product"` — an Alia product resource, not
+ * generic inference. They now sit at `/shows`, beside `/conversations`,
+ * `/skills`, `/agents` and `/library`.
+ *
+ * **The per-route removal gate is satisfied, not waived.** Each of the five rows
+ * records its gate as a line in `packages/app/lib/stores/show-store.ts`, and
+ * that file is rewritten against the new surface in the same change — so the
+ * only consumer moved with the route rather than being left behind it. No
+ * external caller is affected: the routes were `optionalAuth` and returned one
+ * account's own generated audio, so nothing on this surface could reach them
+ * without an Oxy session in the first place.
+ *
+ * `/v1` therefore LOSES five routes and gains none, which is the only direction
+ * ADR 0004 allows.
  */
 const FROZEN_ROUTES: readonly string[] = [
-  'DELETE /v1/shows/:id',
   'GET /v1',
   'GET /v1/audio/jobs/:jobId',
   'GET /v1/chat/completions',
   'GET /v1/me',
   'GET /v1/models',
   'GET /v1/models/:modelId',
-  'GET /v1/shows',
-  'GET /v1/shows/:id',
-  'GET /v1/shows/voices',
   'POST /v1/audio/generate',
   'POST /v1/audio/speech',
   'POST /v1/chat/completions',
@@ -219,7 +243,6 @@ const FROZEN_ROUTES: readonly string[] = [
   'POST /v1/report-usage',
   'POST /v1/resolve-model',
   'POST /v1/responses',
-  'POST /v1/shows/generate',
   'POST /v1/voice/token',
   'POST /v1/voice/transcribe',
 ];
@@ -239,7 +262,7 @@ describe('the compatibility surface gains no route (#139 ws6, ADR 0004)', () => 
     // removal is what the compatibility window gates and an unrecorded removal
     // is the other way this list stops describing the surface.
     expect(v1.map((e) => e.signature)).toEqual([...FROZEN_ROUTES].sort());
-    expect(FROZEN_ROUTES).toHaveLength(20);
+    expect(FROZEN_ROUTES).toHaveLength(15);
     expect(new Set(FROZEN_ROUTES).size).toBe(FROZEN_ROUTES.length);
   });
 
@@ -279,12 +302,6 @@ const FROZEN_CHAINS: Readonly<Record<string, readonly string[]>> = {
   'GET /v1': [],
   'GET /v1/models': [],
   'GET /v1/models/:modelId': [],
-  // Optional: unauthenticated callers get empty results rather than a 401.
-  'GET /v1/shows': ['optionalAuth'],
-  'GET /v1/shows/:id': ['optionalAuth'],
-  'GET /v1/shows/voices': ['optionalAuth'],
-  'POST /v1/shows/generate': ['optionalAuth'],
-  'DELETE /v1/shows/:id': ['optionalAuth'],
   // Everything that can spend.
   'GET /v1/me': AUTHENTICATED,
   'POST /v1/resolve-model': AUTHENTICATED,

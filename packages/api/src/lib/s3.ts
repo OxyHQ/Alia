@@ -207,20 +207,23 @@ export async function listS3ObjectKeys(prefix: string): Promise<string[]> {
 }
 
 /**
- * Delete every object under a prefix, and report how many went.
+ * Delete these exact objects, and report how many went.
  *
- * `DeleteObjects` takes at most 1000 keys per call, so the batching is the same
- * kind of correctness the pagination above is: a single call given 1500 keys
- * fails outright rather than deleting 1000, which is at least loud — but the
- * count it would report is the thing a caller uses to decide the purge worked.
+ * By KEY, not by prefix, because a caller that knows what it wrote should say
+ * what it wrote. The pipeline collects the keys its uploads answered with and
+ * hands them here; nothing has to reconstruct a prefix from `NODE_ENV` and a
+ * user id, which is the computation that turns one wrong variable into a delete
+ * of somebody else's objects.
+ *
+ * `DeleteObjects` takes at most 1000 keys per call, so the batching is
+ * correctness rather than tidiness: one call given 1500 keys fails outright.
  *
  * The count is what S3 CONFIRMED deleting, not what was asked for. A key that
- * fails to delete is logged and excluded, so a partial purge reports a partial
- * number rather than the number it hoped for.
+ * fails is logged and excluded, so a partial delete reports a partial number
+ * rather than the number it hoped for.
  */
-export async function deleteS3Prefix(prefix: string): Promise<number> {
-  const keys = await listS3ObjectKeys(prefix);
-  if (keys.length === 0) return 0;
+export async function deleteS3Objects(keys: readonly string[]): Promise<number> {
+  if (BUCKET_NAME === '' || keys.length === 0) return 0;
 
   let deleted = 0;
   for (let start = 0; start < keys.length; start += 1000) {
@@ -243,6 +246,14 @@ export async function deleteS3Prefix(prefix: string): Promise<number> {
   }
 
   return deleted;
+}
+
+/**
+ * Delete everything under a prefix. For the one-shot purge, which has no list of
+ * keys to work from — it is removing what a deleted table used to point at.
+ */
+export async function deleteS3Prefix(prefix: string): Promise<number> {
+  return deleteS3Objects(await listS3ObjectKeys(prefix));
 }
 
 /**

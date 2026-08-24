@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { eq, sql } from 'drizzle-orm';
-import { isUniqueViolation } from '@oxyhq/db';
+import { isUniqueViolation, uuidv7 } from '@oxyhq/db';
 import { closePostgres, connectPostgres, type ApiDatabase } from '../index';
 import {
   ACTIVE_SHOW_EPISODE_STATUSES,
@@ -75,6 +75,9 @@ beforeEach(async () => {
 
 const seed = (userId = USER, syraPodcastId = 'syra-pod-1') =>
   createSeries(db, {
+    // Minted by the caller, as the route does: Syra's podcast has to exist
+    // before this row and wants this id, so the column's default is too late.
+    id: uuidv7(),
     userId,
     syraPodcastId,
     title: 'The Wednesday Digest',
