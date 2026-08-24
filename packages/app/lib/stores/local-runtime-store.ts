@@ -49,6 +49,16 @@ interface LocalRuntimeState {
    * asks first and the probe waits.
    */
   consent: LocalRuntimeConsent;
+  /**
+   * Whether the invite has already been put in front of this person.
+   *
+   * Separate from `consent` because dismissing a card is not an answer:
+   * recording a stray tap as `declined` would be a permanent no nobody gave,
+   * and recording nothing brought the card back on every launch. This records
+   * only that the question was ASKED, so it is asked once and the setting still
+   * offers what was never answered.
+   */
+  inviteSeen: boolean;
   endpoint: string;
   /** Stable across reconnects and app launches; how other devices name this one. */
   runtimeId: string;
@@ -57,6 +67,7 @@ interface LocalRuntimeState {
   /** Last known model list, so the picker has something before the first probe. */
   models: string[];
   setConsent: (consent: LocalRuntimeConsent) => void;
+  markInviteSeen: () => void;
   setEndpoint: (endpoint: string) => void;
   setLabel: (label: string) => void;
   setModels: (models: string[]) => void;
@@ -66,11 +77,13 @@ export const useLocalRuntimeStore = create<LocalRuntimeState>()(
   persist(
     (set) => ({
       consent: 'unasked',
+      inviteSeen: false,
       endpoint: DEFAULT_LOCAL_ENDPOINT,
       runtimeId: randomUUID(),
       label: '',
       models: [],
       setConsent: (consent) => set({ consent }),
+      markInviteSeen: () => set({ inviteSeen: true }),
       setEndpoint: (endpoint) => set({ endpoint }),
       setLabel: (label) => set({ label }),
       setModels: (models) => set({ models }),
