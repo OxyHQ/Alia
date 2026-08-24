@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { errorBodyText } from "@/lib/errors/error-utils";
 import { View, ScrollView, Pressable } from 'react-native';
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
@@ -186,7 +187,7 @@ export default function WritingStyleScreen() {
         toast.success('Style profile refreshed');
       } else {
         const data = await res.json();
-        toast.error(data.error || 'Failed to refresh');
+        toast.error(errorBodyText(data, 'Failed to refresh'));
       }
     } catch {
       toast.error('Failed to refresh style profile');
