@@ -1,9 +1,15 @@
 /**
  * Notifications and their delivery credentials, plus the small independent
- * tables that travel with them: suggestions, shows and referrals.
+ * tables that travel with them: suggestions and referrals.
  *
- * Seven Mongoose models become EIGHT tables — `referral_redemptions` is a child
+ * Seven Mongoose models became EIGHT tables — `referral_redemptions` is a child
  * table, for the reason given at `referrals`.
+ *
+ * **`shows` left this file**, and its departure is the reason "small independent
+ * tables" now names two rather than three: a generated show became a SERIES
+ * published to Syra, which is three tables, a foreign key and a destination
+ * outside Alia. That is a domain, not a table travelling with the neighbours it
+ * happened to be ported beside. It lives in `shows.ts`.
  *
  * ## `dismissed_at` is the conditional TTL made expressible, and it is MORE
  * correct than the original
@@ -58,57 +64,6 @@ export const SUGGESTION_TYPES = ['welcome', 'autocomplete'] as const;
 export type SuggestionType = (typeof SUGGESTION_TYPES)[number];
 export const SUGGESTION_SCOPES = ['global', 'personal'] as const;
 export type SuggestionScope = (typeof SUGGESTION_SCOPES)[number];
-export const SHOW_FORMATS = ['podcast', 'news', 'debate', 'interview', 'explainer'] as const;
-export const SHOW_STATUSES = [
-  'queued',
-  'generating_script',
-  'generating_audio',
-  'concatenating',
-  'completed',
-  'failed',
-] as const;
-export type ShowFormat = (typeof SHOW_FORMATS)[number];
-export type ShowStatus = (typeof SHOW_STATUSES)[number];
-
-/**
- * The statuses that mean a show is still being produced.
- *
- * A SUBSET of `SHOW_STATUSES`, not a set of its own — `routes/v1/shows.ts` caps
- * concurrent generations by counting rows in these states, so it has to stay a
- * strict subset or the cap silently stops counting something. The type
- * annotation is what enforces that: adding a member that is not a `ShowStatus`
- * fails `tsc`.
- */
-export const ACTIVE_SHOW_STATUSES: readonly ShowStatus[] = [
-  'queued',
-  'generating_script',
-  'generating_audio',
-  'concatenating',
-];
-
-export const SHOW_SEGMENT_TYPES = ['dialogue', 'sfx', 'transition'] as const;
-export type ShowSegmentType = (typeof SHOW_SEGMENT_TYPES)[number];
-export const SHOW_SPEAKER_ROLES = ['host', 'co-host', 'guest', 'narrator'] as const;
-export type ShowSpeakerRole = (typeof SHOW_SPEAKER_ROLES)[number];
-
-/** One voice in a show's cast. An element of the `speakers` `jsonb` array. */
-export interface ShowSpeaker {
-  name: string;
-  voiceId: string;
-  voiceName: string;
-  role: ShowSpeakerRole;
-}
-
-/** One spoken or sound segment. An element of the `segments` `jsonb` array. */
-export interface ShowSegment {
-  index: number;
-  speaker: string;
-  text: string;
-  audioUrl?: string;
-  durationMs?: number;
-  type: ShowSegmentType;
-  sfxPrompt?: string;
-}
 export const AUDIO_JOB_STATUSES = ['processing', 'completed', 'failed'] as const;
 
 /**
@@ -320,62 +275,6 @@ export const suggestions = pgTable(
     index('suggestions_expires_at_idx').on(t.expiresAt).where(sql`${t.expiresAt} is not null`),
     checkOneOf('suggestions_type_check', t.type, SUGGESTION_TYPES),
     checkOneOf('suggestions_scope_check', t.scope, SUGGESTION_SCOPES),
-  ],
-);
-
-/**
- * A generated audio show.
- *
- * `speakers` and `segments` are `jsonb`: ordered lists read whole when the show
- * is generated or played back, with no cross-table reference and no per-element
- * toggle. A segment's `speaker` names a speaker's `name` WITHIN the same
- * document, which is the `workflows.edges` situation — an internal reference a
- * child table could not make checkable either.
- */
-export const shows = pgTable(
-  'shows',
-  {
-    id: generatedId(),
-    /** An Oxy account. No foreign key. */
-    userId: text().notNull(),
-    title: text().notNull(),
-    description: text(),
-    topic: text().notNull(),
-    /**
-     * `$type` restores the literal union the `as unknown as [string, ...string[]]`
-     * cast erases. It is type-only — no generated SQL changes — and what makes
-     * it TRUE rather than a wish is the CHECK below, which is rendered from the
-     * same tuple: no other value can reach a reader.
-     */
-    format: text({ enum: SHOW_FORMATS as unknown as [string, ...string[]] })
-      .$type<ShowFormat>()
-      .notNull()
-      .default('podcast'),
-    status: text({ enum: SHOW_STATUSES as unknown as [string, ...string[]] })
-      .$type<ShowStatus>()
-      .notNull()
-      .default('queued'),
-    // `$type` is a TypeScript annotation only — it changes no generated SQL, and
-    // it is what stops the repository handing `jsonb` back as `unknown`.
-    speakers: jsonb().$type<ShowSpeaker[]>().notNull().default([]),
-    segments: jsonb().$type<ShowSegment[]>().notNull().default([]),
-    audioUrl: text(),
-    durationMs: integer(),
-    error: text(),
-    sourceConversationId: text(),
-    sourceNotes: text(),
-    /** A count of AI credits, not money. */
-    creditsCharged: integer(),
-    progress: integer().notNull().default(0),
-    jobId: text(),
-    createdAt: createdAt(),
-    updatedAt: updatedAt(),
-  },
-  (t) => [
-    index('shows_user_created_at_idx').on(t.userId, t.createdAt.desc()),
-    index('shows_user_status_idx').on(t.userId, t.status),
-    checkOneOf('shows_format_check', t.format, SHOW_FORMATS),
-    checkOneOf('shows_status_check', t.status, SHOW_STATUSES),
   ],
 );
 
