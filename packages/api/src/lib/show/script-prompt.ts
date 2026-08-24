@@ -13,6 +13,22 @@
  *    episode 4 of a weekly show re-explains what episodes 1 to 3 explained,
  *    because from the model's side every episode is the first one.
  *
+ * ## Laughter is spelled, not cued
+ *
+ * The dialogue rules used to ask for `[laughs]` in one line and forbid stage
+ * directions in the next, and the first line won: a Spanish episode came back
+ * carrying `[ríe]`, which the voice said ALOUD. Audio tags are an ElevenLabs v3
+ * feature and the TTS tier resolves to `eleven_multilingual_v2`, OpenAI `tts-1`
+ * and Gemini — none of which perform a bracketed cue; every one of them reads
+ * the characters. So the rule now asks for the SOUND, spelled in the script's
+ * own language, which any of them can say: "Ja, ja" is a laugh a Spanish voice
+ * produces, "[ríe]" is a Spanish voice saying the word "ríe".
+ *
+ * A prompt is a request, not a guarantee, so `spokenText` in `show-pipeline.ts`
+ * takes the brackets out anyway. Neither half replaces the other: without this
+ * one a model is being asked for something the engine cannot do, and without
+ * that one the next model to ignore the ask is on air.
+ *
  * The model does NOT choose the title. Syra fixes an episode's title when the
  * draft is reserved and refuses to let the ingest change it, so a
  * model-authored title could never reach the published episode — it would only
@@ -57,8 +73,9 @@ Every dialogue segment's "speaker" must be one of the names above, spelled exact
 ## Writing Guidelines
 - Write dialogue that sounds SPOKEN: use contractions, short sentences, filler words ("you know", "I mean", "right"), and natural reactions
 - Vary sentence length — mix short punchy lines with longer explanations
-- Include natural interruptions, agreements ("Yeah", "Exactly", "Hmm"), and laughter cues ("[laughs]"  or "[chuckles]")
-- Remove any stage directions except sound effect cues — only write what the speaker actually says
+- Include natural interruptions and agreements ("Yeah", "Exactly", "Hmm") — write them as words, because those are sounds a voice can actually make
+- Write laughter as the sound of the laugh itself, spelled the way THIS script's own language spells it: "Haha" in English, "Ja, ja" in Spanish, "Héhé" in French, "Hehe" in German
+- NEVER write an action, a tone or a stage direction in brackets, parentheses or asterisks — not "[laughs]", not "[ríe]", not "(pauses)", not "*sighs*". The voice reads out the characters it is handed, so a cue written like that is PRONOUNCED instead of performed. Write only what the speaker says out loud; a sound that is not speech is its own "sfx" segment, never a cue inside a line
 - Each dialogue segment should be 1-4 sentences (15-60 words). Never write a single segment longer than 80 words.
 - Aim for ~150 words per minute of target duration
 

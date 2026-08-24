@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { parseScript, spokenText } from '../show-pipeline';
+import { buildScriptSystemPrompt } from '../script-prompt';
 import type { ShowSpeaker } from '../../../db/schema/shows';
 
 /**
@@ -221,3 +222,57 @@ describe('parseScript', () => {
   });
 });
 
+/**
+ * The other half: the prompt stopped asking for something the voice cannot do.
+ *
+ * These two lines sat one after the other and contradicted each other, and the
+ * first one won:
+ *
+ *     - Include ... laughter cues ("[laughs]"  or "[chuckles]")
+ *     - Remove any stage directions except sound effect cues
+ *
+ * A test cannot measure what a model will write. What it CAN measure is that no
+ * line of the prompt asks for a bracketed cue — which is the half of the bug
+ * that lived in this file.
+ */
+describe('the script prompt', () => {
+  /** A stage-direction-shaped token: a bracket around a word, on one line. */
+  const CUE = /\[[^\]\s][^\]\n]*\]/;
+
+  /** A line that names a cue is only acceptable as a prohibition. */
+  function asksForACue(line: string): boolean {
+    return CUE.test(line) && !line.includes('NEVER');
+  }
+
+  it('flags the line that shipped the bug', () => {
+    // The positive control, kept as a literal so this check can still FAIL
+    // after the prompt it was written against is gone. Without it, "no line
+    // asks for a cue" is a sentence that passes over an empty prompt.
+    expect(
+      asksForACue(
+        '- Include natural interruptions, agreements ("Yeah", "Exactly", "Hmm"), and laughter cues ("[laughs]"  or "[chuckles]")',
+      ),
+    ).toBe(true);
+    expect(asksForACue('- Vary sentence length — mix short punchy lines with longer explanations')).toBe(
+      false,
+    );
+  });
+
+  it('asks for no bracketed cue anywhere, in any format', () => {
+    for (const format of ['podcast', 'news', 'debate', 'interview', 'explainer'] as const) {
+      const prompt = buildScriptSystemPrompt(format, CAST);
+      const offenders = prompt.split('\n').filter(asksForACue);
+      expect(offenders).toEqual([]);
+    }
+  });
+
+  it('tells the model to spell the laugh in the script\'s own language', () => {
+    const prompt = buildScriptSystemPrompt('podcast', CAST);
+    // The Spanish example is the load-bearing one: an English-only instruction
+    // is what produced "[ríe]" in the first place, since the model localised a
+    // rule written for one language into another.
+    expect(prompt).toContain('"Ja, ja" in Spanish');
+    expect(prompt).toContain('"Haha" in English');
+    expect(prompt).toMatch(/NEVER write an action, a tone or a stage direction/);
+  });
+});
