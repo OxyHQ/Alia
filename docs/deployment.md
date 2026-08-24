@@ -155,7 +155,7 @@ encrypted tokens are written by one process and read by the other.
 Seven variables, all unset in every environment today, and **all or nothing**: when
 `ALIA_RELAY_CLIENT_ENABLED` is exactly the literal `true`, the process refuses to start
 unless the other six describe a principal `@oxyhq/contracts` accepts and an approved Relay
-origin (`packages/api/src/lib/inference/relay-boot-check.ts`).
+origin (`packages/api/src/lib/inference/kaana-boot-check.ts`).
 
 ```bash
 ALIA_RELAY_CLIENT_ENABLED=true        # exactly `true`; `1` and `TRUE` do not enable it
@@ -174,7 +174,7 @@ it out again. A development process is left alone, so a local run may point wher
 configured.
 
 `RELAY_BASE_URL` is **pinned to an allow-list**, not merely read
-(`packages/api/src/lib/inference/relay-endpoint.ts`, `RELAY_ALLOWED_ORIGINS`). A production
+(`packages/api/src/lib/inference/kaana-endpoint.ts`, `RELAY_ALLOWED_ORIGINS`). A production
 or staging process accepts only an approved Oxy origin and refuses to start on anything
 else — a near miss such as `https://api.oxy.so.example`, a scheme downgrade, a URL carrying
 credentials, and loopback are all refused. A **development** process may additionally point
