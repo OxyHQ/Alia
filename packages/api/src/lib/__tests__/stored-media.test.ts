@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { mintPlaybackQuery, verifyPlaybackQuery, PLAYBACK_LINK_TTL_MS } from '../audio-playback-link.js';
+import { mintPlaybackQuery, verifyPlaybackQuery, PLAYBACK_LINK_TTL_MS } from '../stored-media.js';
 
 /**
  * A link is the ONLY authorisation this carries, so every case here is about

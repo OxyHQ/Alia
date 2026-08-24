@@ -16,7 +16,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const H = vi.hoisted(() => ({ requestedKey: null as string | null, exists: true }));
 
-vi.mock('../../../lib/s3.js', () => ({
+vi.mock('../../lib/s3.js', () => ({
   readS3Object: async (key: string) => {
     H.requestedKey = key;
     return H.exists
@@ -25,19 +25,19 @@ vi.mock('../../../lib/s3.js', () => ({
   },
 }));
 
-const { mintPlaybackQuery } = await import('../../../lib/audio-playback-link.js');
-const { default: playbackRouter } = await import('../audio-playback.js');
+const { mintPlaybackQuery } = await import('../../lib/stored-media.js');
+const { default: playbackRouter } = await import('../media.js');
 
 const KEY = 'production/tts/user-1/speech-abc.mp3';
 let server: Server | null = null;
 
 async function get(query: string): Promise<{ status: number; body: string; contentType: string | null }> {
   const app = express();
-  app.use('/audio/playback', playbackRouter);
+  app.use('/media', playbackRouter);
   server = app.listen(0, '127.0.0.1');
   await new Promise<void>((resolve) => server?.once('listening', resolve));
   const { port } = server.address() as AddressInfo;
-  const response = await fetch(`http://127.0.0.1:${port}/audio/playback?${query}`);
+  const response = await fetch(`http://127.0.0.1:${port}/media?${query}`);
   return { status: response.status, body: await response.text(), contentType: response.headers.get('content-type') };
 }
 

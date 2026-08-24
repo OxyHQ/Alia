@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { randomUUID } from 'crypto';
 import { getDb } from '../db/index.js';
+import { storedMediaUrl } from '../lib/stored-media.js';
 import {
   createConversation,
   deleteConversation,
@@ -270,15 +271,16 @@ router.get('/:id', authenticateTokenOrApiKey, async (req: Request, res: Response
     if (!req.user?.id) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
+    const userId = req.user.id;
 
     const conversationId = String(req.params.id);
-    const conversation = await findConversation(getDb(), req.user.id, conversationId);
+    const conversation = await findConversation(getDb(), userId, conversationId);
 
     if (!conversation) {
       return res.status(404).json({ error: 'Conversation not found' });
     }
 
-    const rows = await listMessages(getDb(), req.user.id, conversationId);
+    const rows = await listMessages(getDb(), userId, conversationId);
 
     res.json({
       id: conversation.conversationId,
@@ -286,7 +288,21 @@ router.get('/:id', authenticateTokenOrApiKey, async (req: Request, res: Response
       lastMessage: conversation.lastMessage,
       source: conversation.source,
       agentId: conversation.agentId,
-      messages: rows.map(toStoredMessage),
+      /**
+       * `audioUrl` is a stored KEY, and a key is not an address.
+       *
+       * This is where the read-aloud 403 came from: the speech endpoint was
+       * corrected on its own, and a message loaded with its conversation went
+       * on handing the player the storage address until it stopped being one.
+       * A message whose audio cannot be addressed drops the field rather than
+       * carrying something unfetchable.
+       */
+      messages: rows.map(toStoredMessage).map((message) => {
+        if (message.audioUrl === undefined) return message;
+        const link = storedMediaUrl(req, message.audioUrl, userId);
+        const { audioUrl: _stored, ...rest } = message;
+        return link === null ? rest : { ...rest, audioUrl: link };
+      }),
       createdAt: conversation.createdAt,
       updatedAt: conversation.updatedAt,
     });

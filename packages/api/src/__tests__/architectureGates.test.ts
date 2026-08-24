@@ -2642,7 +2642,6 @@ const PERMITTED_ENV_VARS: readonly string[] = [
   'AUTONOMY_ROLLBACK_WINDOW_MINUTES',
   'AUTONOMY_RUNTIME_ENABLED',
   'AWS_ACCESS_KEY_ID',
-  'AWS_CDN_URL',
   'AWS_ENDPOINT_URL',
   'AWS_REGION',
   'AWS_S3_BUCKET',
@@ -2736,7 +2735,10 @@ const PERMITTED_ENV_VARS: readonly string[] = [
 // 96 -> 98: the two variables that let this process sign an envelope Kaana
 // accepts. Read off the list rather than incremented — the number is a
 // measurement of the list beside it.
-const PERMITTED_ENV_VAR_COUNT = 98;
+// 98 -> 97: `AWS_CDN_URL` is read by nothing now. It existed to build a public
+// address for a stored object, and this API no longer builds one — an object is
+// identified by its key and addressed through `/media`.
+const PERMITTED_ENV_VAR_COUNT = 97;
 
 /**
  * Vendor tokens that name an inference provider but are not in `PROVIDER_NAMES`.

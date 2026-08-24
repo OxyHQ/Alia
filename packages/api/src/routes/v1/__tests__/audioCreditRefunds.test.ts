@@ -51,12 +51,16 @@ vi.mock('../../../lib/synthesize-speech.js', () => ({
 
 vi.mock('../../../lib/user-credits-helpers.js', () => ({ getOrCreateUserCredits: vi.fn(async () => ({})) }));
 vi.mock('../../../lib/s3.js', () => ({
-  uploadToS3: vi.fn(async () => 'https://example.invalid/a.mp3'),
-  // The route signs a playback link for whatever it stored. `example.invalid`
-  // is not this bucket, so the real function answers `null` and the route falls
-  // back to the stored address — which is what this suite asserts about, and
-  // why the mock says `null` rather than inventing a key.
-  s3ObjectKeyFromUrl: vi.fn(() => null),
+  // An upload answers with the object's KEY now, never an address.
+  uploadToS3: vi.fn(async () => 'production/tts/user-1/speech-abc.mp3'),
+}));
+
+// This suite is about the credit ledger, not about link signing — but the
+// success path cannot answer without an address, so the renderer is stubbed to
+// produce one. A `null` here would turn every success case into a 500 and the
+// suite would be asserting the wrong thing.
+vi.mock('../../../lib/stored-media.js', () => ({
+  storedMediaUrl: vi.fn(() => 'https://api.example.invalid/media?signed'),
 }));
 vi.mock('../../../lib/gateway-client.js', () => ({ callProviderAPI: vi.fn(async () => null) }));
 vi.mock('../../../db/index.js', () => ({ getDb: vi.fn(() => ({})) }));
