@@ -460,6 +460,13 @@ describe('model and routing configuration has no unaudited write path (#139 ws15
     // request. `:536`-`:556` still fails if a ROUTE calls either.
     createProviderKey: ['scripts/provider-key.ts'],
     rotateProviderKey: ['scripts/provider-key.ts'],
+    // The same one-shot, correcting a row it already installed. It writes
+    // PROVENANCE only — why the credit exists, its size, whether it renews —
+    // never the credential, which is why the row is found by hash rather than
+    // rewritten. Here rather than in `UNCALLED` because it now has a caller,
+    // and that caller is a deliberate operator action carrying a `config-audit`
+    // record, which is the whole basis on which a caller is acceptable.
+    updateProviderKey: ['scripts/provider-key.ts'],
     // A one-shot script, not part of the serving process.
     upsertExternalModels: ['scripts/sync-zeroeval.ts'],
     // Automatic health state. A key cools down because it failed, not because
@@ -521,7 +528,6 @@ describe('model and routing configuration has no unaudited write path (#139 ws15
     'replaceProviderMappings',
     'updateAliaModel',
     'updateModelConfig',
-    'updateProviderKey',
   ];
 
   /**

@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { eq, sql } from 'drizzle-orm';
 import { constraintNameOf, isCheckViolation, isUniqueViolation } from '@oxyhq/db';
 import { closePostgres, connectPostgres, type ApiDatabase } from '../index';
+import { providerKeyIdByHash, updateProviderKey } from '../providers/providerKeyRepository';
 import { aliaModelProviderMappings, aliaModels, modelConfigs, providerKeys } from '../schema/providers';
 import { apiKeyUsage } from '../schema/telemetry';
 
@@ -301,5 +302,68 @@ describe('developer API usage is recorded with its own clock', () => {
 
     expect(row?.apiKeyId).toBeNull();
     expect(row?.authType).toBe('session');
+  });
+});
+
+/**
+ * A key's PROVENANCE — why the credit exists, how much of it there is, whether
+ * it renews — is the part an operator has to be able to correct.
+ *
+ * `scripts/provider-key.ts` is the only sanctioned writer and it used to return
+ * on "already present", so a key installed without a description could never
+ * acquire one. Four production keys were in exactly that state, and the only
+ * remaining route was hand-written SQL against production, which is the thing
+ * that script exists to prevent.
+ */
+describe('a provider key can be told why it exists, after it exists', () => {
+  const ACTOR = { kind: 'service' as const, id: 'providers.pgdb.test' };
+
+  it('finds the row by its hash without reading the credential', async () => {
+    await db.insert(providerKeys).values({
+      id: 'pk-prov-1',
+      name: 'granted',
+      provider: 'openai',
+      keyHash: 'hash-provenance',
+      keyPrefix: 'sk-abc...',
+    });
+
+    expect(await providerKeyIdByHash(db, 'hash-provenance')).toBe('pk-prov-1');
+    // Negative control: a hash nobody installed resolves to nothing, so a
+    // lookup that always answered would be visible here.
+    expect(await providerKeyIdByHash(db, 'hash-nobody-installed')).toBeNull();
+  });
+
+  it('records the grant, its size and its period on a row that already existed', async () => {
+    await db.insert(providerKeys).values({
+      id: 'pk-prov-2',
+      name: 'granted',
+      provider: 'openrouter',
+      keyHash: 'hash-provenance-2',
+      keyPrefix: 'sk-or-v1...',
+    });
+
+    await updateProviderKey(
+      db,
+      'pk-prov-2',
+      { description: '$500 startup-plan credit', creditLimitUsd: 500, creditRenews: 'never' },
+      ACTOR,
+    );
+
+    const [row] = await db
+      .select({
+        description: providerKeys.description,
+        creditLimitUsd: providerKeys.creditLimitUsd,
+        creditRenews: providerKeys.creditRenews,
+        keyHash: providerKeys.keyHash,
+      })
+      .from(providerKeys)
+      .where(eq(providerKeys.id, 'pk-prov-2'));
+
+    expect(row?.description).toBe('$500 startup-plan credit');
+    expect(Number(row?.creditLimitUsd)).toBe(500);
+    expect(row?.creditRenews).toBe('never');
+    // The credential is not what this writes. A provenance update that also
+    // moved the hash would silently detach the row from the key it describes.
+    expect(row?.keyHash).toBe('hash-provenance-2');
   });
 });
