@@ -81,7 +81,7 @@ Recommended, each disabling a feature when absent rather than blocking boot:
 
 ```bash
 REDIS_URL=rediss://...                 # BullMQ, rate limiting, Socket.IO adapter
-TOKEN_ENCRYPTION_KEY=<32-byte hex>     # encrypts stored OAuth and bot tokens
+TOKEN_ENCRYPTION_KEY=<32-byte hex>     # see below — NOT optional for shows
 INTEGRATIONS_URL=https://...           # MCP tools and channel proxy
 INTEGRATIONS_SECRET=<32-byte hex>
 DOCKER_HOST_URL=https://...            # agent container sandbox
@@ -101,7 +101,35 @@ must be in Syra's CORS allow-list (`packages/backend/server.ts`, `ALLOWED_ORIGIN
 Native has no CORS and is unaffected. Until that is set, episodes play on iOS and
 Android and fail in a browser.
 
-`TOKEN_ENCRYPTION_KEY` must be the **same value** in the API and the integrations service:
+### `TOKEN_ENCRYPTION_KEY` is listed above but is REQUIRED for shows
+
+It is in the recommended block because its absence does not block boot, and that
+much is still true. The rest of that heading is not: it does not degrade a
+feature, it **throws**.
+
+`encryptedText` (`db/schema/columns.ts`) applies `encrypt` to every write drizzle
+builds, and `crypto-utils.ts` throws when the key is absent or is not 64 hex
+characters. The columns that use it are the OAuth access and refresh tokens on
+`integrations` and on `connected_accounts`, `bots.bot_token`, and
+`show_episodes.ingest_ticket` — enumerated rather than counted, so the list
+cannot drift from a number beside it.
+
+That last one is on the CREATE path, not a background one. Without the key,
+`POST /shows/series/:id/episodes` fails at the insert, after the Syra episode has
+already been drafted, and answers a sanitized 500 that names nothing —
+**an operator reading it has no reason to suspect a missing variable.** Listing
+and reading shows keep working, because the route-facing queries name their
+columns and leave the ticket out; only creating an episode fails.
+
+**Rotating the key breaks whatever is in flight.** A ticket encrypted under the
+old key cannot be read under the new one, and the read fails rather than
+returning a wrong value, so every queued episode fails at the point the worker
+loads it. The blast radius is bounded and self-clearing: tickets are single-use
+and Syra mints them with a 24-hour TTL (`INGEST_TICKET_TTL_SEC`), so the damage
+is the episodes queued at the moment of rotation and nothing older. Drain the
+show queue before rotating, or accept that those episodes need starting again.
+
+It must also be the **same value** in the API and the integrations service:
 encrypted tokens are written by one process and read by the other.
 
 ### Two variables that are not what they look like
@@ -127,7 +155,7 @@ encrypted tokens are written by one process and read by the other.
 Seven variables, all unset in every environment today, and **all or nothing**: when
 `ALIA_RELAY_CLIENT_ENABLED` is exactly the literal `true`, the process refuses to start
 unless the other six describe a principal `@oxyhq/contracts` accepts and an approved Relay
-origin (`packages/api/src/lib/inference/relay-boot-check.ts`).
+origin (`packages/api/src/lib/inference/kaana-boot-check.ts`).
 
 ```bash
 ALIA_RELAY_CLIENT_ENABLED=true        # exactly `true`; `1` and `TRUE` do not enable it
@@ -146,7 +174,7 @@ it out again. A development process is left alone, so a local run may point wher
 configured.
 
 `RELAY_BASE_URL` is **pinned to an allow-list**, not merely read
-(`packages/api/src/lib/inference/relay-endpoint.ts`, `RELAY_ALLOWED_ORIGINS`). A production
+(`packages/api/src/lib/inference/kaana-endpoint.ts`, `RELAY_ALLOWED_ORIGINS`). A production
 or staging process accepts only an approved Oxy origin and refuses to start on anything
 else — a near miss such as `https://api.oxy.so.example`, a scheme downgrade, a URL carrying
 credentials, and loopback are all refused. A **development** process may additionally point
