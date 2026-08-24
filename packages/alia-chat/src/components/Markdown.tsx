@@ -22,7 +22,6 @@ const FALLBACK_DARK: typeof FALLBACK_LIGHT = {
 
 const BODY_TEXT = { fontSize: 16, lineHeight: 28 } as const;
 const HEADING_TEXT = { fontSize: 16, lineHeight: 22 } as const;
-const SANS_FONT = Platform.select({ ios: 'Inter', android: 'Inter', default: 'Inter, sans-serif' })!;
 const MONO_FONT = Platform.select({ ios: 'Courier', android: 'monospace', default: 'monospace' })!;
 
 function createRules(colors: AliaColors) {
@@ -182,8 +181,13 @@ function createStyles(colors: AliaColors) {
   const { text: textColor, muted, border, primary, mutedForeground } = colors;
 
   return {
-    body: { ...BODY_TEXT, color: textColor, fontFamily: SANS_FONT },
-    text: { ...BODY_TEXT, color: textColor, fontFamily: SANS_FONT },
+    // No fontFamily: Bloom owns the sans face. Native inherits it from the
+    // `Text.defaultProps.style` its FontLoader mutates, web from the cascade
+    // down to `html`. Naming a family here overrides Bloom rather than
+    // complementing it, and react-native-markdown-display's own defaults set
+    // `fontFamily` only on the code rules, never on body text.
+    body: { ...BODY_TEXT, color: textColor },
+    text: { ...BODY_TEXT, color: textColor },
     paragraph: { marginTop: 0, marginBottom: 8 },
     strong: { fontWeight: '600' as const },
     em: { fontStyle: 'italic' as const },
