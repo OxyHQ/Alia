@@ -5,6 +5,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@oxyhq/bloom/popover";
 import { Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
 import { useTranslation } from "@/lib/hooks/use-translation";
+import { useIsLargeScreen } from "@/lib/hooks/use-is-large-screen";
 import { useLocalRuntimeStore } from "@/lib/stores/local-runtime-store";
 
 const ARTWORK = require("@/assets/images/local-models.webp");
@@ -55,7 +56,21 @@ export function LocalModelsInvite({ children }: { children: ReactNode }) {
    */
   const [hidden, setHidden] = useState(false);
 
-  if (consent !== "unasked" || hidden) return <>{children}</>;
+  /**
+   * Not offered on a small screen, and the reason is not screen real estate.
+   *
+   * Granting consent probes THIS device's own `localhost`. A phone has no model
+   * server on it, so the answer is always nothing — the phone reaches a laptop's
+   * models through the LAPTOP's tab, which announced them, never through its
+   * own. Asking here would be asking a question whose only possible answer is
+   * no, and then remembering the no.
+   *
+   * `useIsLargeScreen` rather than an `md:` class because this decides whether a
+   * tree MOUNTS, which is the split `AGENTS.md` draws — `md:` is for styling.
+   */
+  const isLargeScreen = useIsLargeScreen();
+
+  if (consent !== "unasked" || hidden || !isLargeScreen) return <>{children}</>;
 
   return (
     <Popover open onOpenChange={(next) => { if (!next) setHidden(true); }}>
