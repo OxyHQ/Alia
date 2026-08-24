@@ -21,6 +21,7 @@ declare module "react-native" {
 }
 
 type ChatTextInputProps = React.ComponentPropsWithoutRef<typeof TextInput> & {
+  unstyled?: boolean;
   noFocus?: boolean;
   onEnterPress?: () => void;
   onCompletionKey?: (key: string) => boolean;
@@ -36,6 +37,7 @@ type ChatTextInputProps = React.ComponentPropsWithoutRef<typeof TextInput> & {
 const ChatTextInput = React.forwardRef<TextInput, ChatTextInputProps>(
   ({
     className,
+    unstyled = false,
     noFocus = false,
     onEnterPress,
     onCompletionKey,
@@ -53,6 +55,28 @@ const ChatTextInput = React.forwardRef<TextInput, ChatTextInputProps>(
   }, ref) => {
     const inputRef = React.useRef<TextInput>(null);
     const wrapperRef = React.useRef<View>(null);
+
+    // react-native-css observes `style` by reference. Memoizing the composed
+    // value prevents its own state update from manufacturing another changed
+    // style prop and recursively re-rendering this TextInput on native.
+    const inputStyle = React.useMemo(() => [
+      style,
+      !fillContainer && props.multiline && !disableAutoHeight && ({
+        minHeight,
+        maxHeight,
+        ...(Platform.OS === 'web'
+          ? { overflow: 'auto' as const, fieldSizing: 'content' }
+          : {}),
+      } as TextStyle & { fieldSizing?: string }),
+      fillContainer && { flex: 1, height: '100%' as const },
+    ], [
+      disableAutoHeight,
+      fillContainer,
+      maxHeight,
+      minHeight,
+      props.multiline,
+      style,
+    ]);
 
     React.useImperativeHandle(ref, () => inputRef.current as TextInput);
 
@@ -135,7 +159,8 @@ const ChatTextInput = React.forwardRef<TextInput, ChatTextInputProps>(
         <TextInput
           ref={inputRef}
           className={cn(
-            "native:text-md native:leading-[1.25] rounded-xl border border-input bg-background px-3.5 text-base text-foreground file:border-0 file:bg-transparent file:font-medium placeholder:text-muted-foreground web:flex web:w-full web:py-2 lg:text-sm",
+            "native:text-md native:leading-[1.25] text-base text-foreground file:border-0 file:bg-transparent file:font-medium placeholder:text-muted-foreground web:flex web:w-full web:py-2 lg:text-sm",
+            !unstyled && "rounded-xl border border-input bg-background px-3.5",
             "web:ring-offset-background web:focus-visible:outline-none web:focus-visible:ring-2 web:focus-visible:ring-ring web:focus-visible:ring-offset-2",
             !fillContainer && !props.multiline && "h-9",
             fillContainer && "h-full",
@@ -147,16 +172,7 @@ const ChatTextInput = React.forwardRef<TextInput, ChatTextInputProps>(
           onKeyPress={handleKeyPress}
           onContentSizeChange={handleContentSizeChange}
           scrollEnabled={fillContainer || props.multiline}
-          style={[
-            style,
-            !fillContainer && props.multiline && !disableAutoHeight && ({
-              minHeight,
-              maxHeight,
-              overflow: 'auto',
-              ...(Platform.OS === 'web' ? { fieldSizing: 'content' } : {}),
-            } as TextStyle & { overflow: 'auto'; fieldSizing?: string }),
-            fillContainer && { flex: 1, height: '100%' },
-          ]}
+          style={inputStyle}
           {...props}
         />
       </View>
