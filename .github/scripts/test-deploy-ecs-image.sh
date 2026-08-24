@@ -28,7 +28,6 @@ export DEPLOY_TEST_EXPECT_TASK_SECRET_ARN=false
 export DEPLOY_TEST_EXPECT_TASK_ENV=false
 export DEPLOY_TEST_SERVICE_DESIRED_COUNT=1
 export DEPLOY_TEST_ROLLOUT_SCENARIO=healthy
-export DEPLOY_TEST_ONE_SHOT_SCENARIO=healthy
 
 aws() {
   local service_json='{
@@ -274,65 +273,12 @@ aws() {
         done
       )"
       printf 'run-task:%s\n' "$run_task_command" >>"$DEPLOY_TEST_LOG"
-      local run_task_count_file="${DEPLOY_TEST_LOG}.run-task-count"
-      local run_task_count=0
-      if [[ -f "$run_task_count_file" ]]; then
-        run_task_count="$(<"$run_task_count_file")"
-      fi
-      run_task_count=$((run_task_count + 1))
-      printf '%s\n' "$run_task_count" >"$run_task_count_file"
-      printf '{
+      printf '%s\n' '{
         "failures": [],
-        "tasks": [{"taskArn": "arn:aws:ecs:test:task/deploy-test-reconcile-%s"}]
-      }\n' "$run_task_count"
+        "tasks": [{"taskArn": "arn:aws:ecs:test:task/deploy-test-reconcile"}]
+      }'
       ;;
     "ecs describe-tasks")
-      local described_task_arn="${*: -1}"
-      if [[ "$DEPLOY_TEST_ONE_SHOT_SCENARIO" == "ecr-not-found-always" ||
-            ( "$described_task_arn" == *"-1" &&
-              "$DEPLOY_TEST_ONE_SHOT_SCENARIO" == "ecr-not-found-once" ) ]]; then
-          printf '%s\n' '{
-            "failures": [],
-            "tasks": [{
-              "lastStatus": "STOPPED",
-              "stoppedReason": "CannotPullContainerError: pull image manifest has been retried: manifest unknown: not found",
-              "containers": [{
-                "name": "deploy-test",
-                "reason": "unknown"
-              }]
-            }]
-          }'
-          return 0
-      fi
-      if [[ "$described_task_arn" == *"-1" ]]; then
-        if [[ "$DEPLOY_TEST_ONE_SHOT_SCENARIO" == "ecr-access-denied" ]]; then
-          printf '%s\n' '{
-            "failures": [],
-            "tasks": [{
-              "lastStatus": "STOPPED",
-              "stoppedReason": "CannotPullContainerError: pull image manifest has been retried",
-              "containers": [{
-                "name": "deploy-test",
-                "reason": "pull access denied"
-              }]
-            }]
-          }'
-          return 0
-        elif [[ "$DEPLOY_TEST_ONE_SHOT_SCENARIO" == "application-not-found" ]]; then
-          printf '%s\n' '{
-            "failures": [],
-            "tasks": [{
-              "lastStatus": "STOPPED",
-              "stoppedReason": "Essential container exited",
-              "containers": [{
-                "name": "deploy-test",
-                "reason": "configuration not found"
-              }]
-            }]
-          }'
-          return 0
-        fi
-      fi
       printf '{
         "failures": [],
         "tasks": [{
@@ -370,7 +316,7 @@ export -f aws
 # Raise this with the case count; lower it ONLY alongside a deletion you can
 # name. A floor quietly adjusted to match whatever ran is not a floor.
 cases_run=0
-MINIMUM_CASES=21
+MINIMUM_CASES=17
 
 # Extra `NAME=value` entries a single case adds to the release environment.
 #
@@ -436,7 +382,6 @@ run_release() {
     RUN_MIGRATIONS="$run_migrations"
     POST_DEPLOY_SMOKE_SCRIPT="$smoke_script"
     POST_DEPLOY_TASK_COMMAND_JSON='["reconcile"]'
-    DEPLOY_TEST_ONE_SHOT_SCENARIO=healthy
   )
   if [[ "$inject_internal_metrics" == "true" ]]; then
     release_environment+=(
@@ -591,64 +536,6 @@ printf '%s\n' \
 diff -u \
   "$test_directory/migration-failure/expected.log" \
   "$test_directory/migration-failure/aws.log"
-
-# Fargate can observe a newly pushed OCI index before ECR serves its backing
-# manifest. Retry exactly that pre-start race once, on the same immutable task
-# definition, then continue the transaction when the second task succeeds.
-RELEASE_EXTRA_ENV=(DEPLOY_TEST_ONE_SHOT_SCENARIO=ecr-not-found-once)
-run_release ecr-manifest-propagation-retry true true false
-printf '%s\n' \
-  'run-task:node packages/api/dist/db/migrate.js --target-database=alia --phase=pre' \
-  'run-task:node packages/api/dist/db/migrate.js --target-database=alia --phase=pre' \
-  'service:arn:aws:ecs:test:task-definition/deploy-test:2:desired=1' \
-  smoke \
-  'run-task:reconcile' \
-  >"$test_directory/ecr-manifest-propagation-retry/expected.log"
-diff -u \
-  "$test_directory/ecr-manifest-propagation-retry/expected.log" \
-  "$test_directory/ecr-manifest-propagation-retry/aws.log"
-grep -F \
-  "transient ECR manifest propagation race; retrying once" \
-  "$test_directory/ecr-manifest-propagation-retry/output.log" \
-  >/dev/null
-
-# The retry is bounded. A second identical pull failure must surface instead of
-# spinning, rerunning migrations indefinitely, or hiding a durable registry
-# problem behind a green workflow.
-RELEASE_EXTRA_ENV=(DEPLOY_TEST_ONE_SHOT_SCENARIO=ecr-not-found-always)
-run_release persistent-ecr-manifest-failure false true false
-printf '%s\n' \
-  'run-task:node packages/api/dist/db/migrate.js --target-database=alia --phase=pre' \
-  'run-task:node packages/api/dist/db/migrate.js --target-database=alia --phase=pre' \
-  tasklogs \
-  >"$test_directory/persistent-ecr-manifest-failure/expected.log"
-diff -u \
-  "$test_directory/persistent-ecr-manifest-failure/expected.log" \
-  "$test_directory/persistent-ecr-manifest-failure/aws.log"
-
-# CannotPullContainerError is not sufficient: an authorization failure is not a
-# propagation race and replaying it only delays the actionable error.
-RELEASE_EXTRA_ENV=(DEPLOY_TEST_ONE_SHOT_SCENARIO=ecr-access-denied)
-run_release ecr-access-denied-no-retry false true false
-printf '%s\n' \
-  'run-task:node packages/api/dist/db/migrate.js --target-database=alia --phase=pre' \
-  tasklogs \
-  >"$test_directory/ecr-access-denied-no-retry/expected.log"
-diff -u \
-  "$test_directory/ecr-access-denied-no-retry/expected.log" \
-  "$test_directory/ecr-access-denied-no-retry/aws.log"
-
-# "not found" is not sufficient either: application failures must never be
-# replayed merely because their diagnostic happens to use the same words.
-RELEASE_EXTRA_ENV=(DEPLOY_TEST_ONE_SHOT_SCENARIO=application-not-found)
-run_release application-not-found-no-retry false true false
-printf '%s\n' \
-  'run-task:node packages/api/dist/db/migrate.js --target-database=alia --phase=pre' \
-  tasklogs \
-  >"$test_directory/application-not-found-no-retry/expected.log"
-diff -u \
-  "$test_directory/application-not-found-no-retry/expected.log" \
-  "$test_directory/application-not-found-no-retry/aws.log"
 
 # The migration command itself, asserted verbatim.
 #

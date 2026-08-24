@@ -389,9 +389,6 @@ run_one_shot_command() {
   local label="$1"
   local command_json="$2"
   local overrides run_json task_json exit_code stopped_reason container_reason
-  local pull_failure_detail
-  local attempt=1
-  local max_attempts=2
 
   overrides="$(jq -cn \
     --arg name "$CONTAINER_NAME" \
@@ -403,65 +400,46 @@ run_one_shot_command() {
       }]
     }')"
 
-  while (( attempt <= max_attempts )); do
-    if ! run_json="$(aws "${one_shot_run_task_args[@]}" --overrides "$overrides")"; then
-      echo "::error::ECS failed to start the $label task."
-      return 1
-    fi
-    if [[ "$(jq '.failures | length' <<<"$run_json")" != "0" ]]; then
-      echo "::error::ECS refused to start the $label task."
-      jq '.failures' <<<"$run_json"
-      return 1
-    fi
+  if ! run_json="$(aws "${one_shot_run_task_args[@]}" --overrides "$overrides")"; then
+    echo "::error::ECS failed to start the $label task."
+    return 1
+  fi
+  if [[ "$(jq '.failures | length' <<<"$run_json")" != "0" ]]; then
+    echo "::error::ECS refused to start the $label task."
+    jq '.failures' <<<"$run_json"
+    return 1
+  fi
 
-    active_one_shot_task_arn="$(jq -r '.tasks[0].taskArn // empty' <<<"$run_json")"
-    if [[ -z "$active_one_shot_task_arn" ]]; then
-      echo "::error::ECS returned no task ARN for $label."
-      return 1
-    fi
-    active_one_shot_label="$label"
-    active_one_shot_task_stopped=false
+  active_one_shot_task_arn="$(jq -r '.tasks[0].taskArn // empty' <<<"$run_json")"
+  if [[ -z "$active_one_shot_task_arn" ]]; then
+    echo "::error::ECS returned no task ARN for $label."
+    return 1
+  fi
+  active_one_shot_label="$label"
+  active_one_shot_task_stopped=false
 
-    echo "Running $label with $new_task_definition (attempt $attempt/$max_attempts)"
-    if ! wait_for_task_stop "$active_one_shot_task_arn" "$label" "$MAX_WAIT_SECS"; then
-      return 1
-    fi
-    active_one_shot_task_stopped=true
+  echo "Running $label with $new_task_definition"
+  if ! wait_for_task_stop "$active_one_shot_task_arn" "$label" "$MAX_WAIT_SECS"; then
+    return 1
+  fi
+  active_one_shot_task_stopped=true
 
-    task_json="$(aws ecs describe-tasks \
-      --cluster "$CLUSTER" \
-      --tasks "$active_one_shot_task_arn")"
-    exit_code="$(jq -r --arg name "$CONTAINER_NAME" '
-      .tasks[0].containers[] | select(.name == $name) | .exitCode // -1
-    ' <<<"$task_json")"
-    if [[ "$exit_code" == "0" ]]; then
-      echo "$label completed successfully"
-      return 0
-    fi
-
+  task_json="$(aws ecs describe-tasks \
+    --cluster "$CLUSTER" \
+    --tasks "$active_one_shot_task_arn")"
+  exit_code="$(jq -r --arg name "$CONTAINER_NAME" '
+    .tasks[0].containers[] | select(.name == $name) | .exitCode // -1
+  ' <<<"$task_json")"
+  if [[ "$exit_code" != "0" ]]; then
+    print_one_shot_logs "$active_one_shot_task_arn" "$label"
     stopped_reason="$(jq -r '.tasks[0].stoppedReason // "unknown"' <<<"$task_json")"
     container_reason="$(jq -r --arg name "$CONTAINER_NAME" '
       .tasks[0].containers[] | select(.name == $name) | .reason // "unknown"
     ' <<<"$task_json")"
-    pull_failure_detail="$stopped_reason $container_reason"
-
-    # ECR can acknowledge an OCI index moments before every backing manifest is
-    # readable by Fargate. That narrow propagation race stops the container
-    # before user code starts, so retrying the same immutable task definition
-    # once is safe. Keep both predicates: auth failures must page immediately,
-    # and an application's own "not found" must never be replayed.
-    if (( attempt == 1 )) &&
-      [[ "$pull_failure_detail" == *"CannotPullContainerError"* ]] &&
-      [[ "$pull_failure_detail" == *"not found"* ]]; then
-      echo "::warning::$label hit the transient ECR manifest propagation race; retrying once."
-      attempt=$((attempt + 1))
-      continue
-    fi
-
-    print_one_shot_logs "$active_one_shot_task_arn" "$label"
     echo "::error::$label task failed (exit=$exit_code, stopped=$stopped_reason, container=$container_reason)."
     return 1
-  done
+  fi
+  echo "$label completed successfully"
 }
 
 rollback_service() {
