@@ -397,7 +397,10 @@ export default function AgentDetailScreen() {
       } else if (status === 503) {
         toast.error("Agent infrastructure unavailable. Try again later.");
       } else {
-        toast.error(data?.error || "Failed to hire agent");
+        // Through the extractor, not off the body: `/v1` answers
+        // `{ error: { message, type } }`, and handing that object to `toast`
+        // is the same React #31 crash deleting a show produced.
+        toast.error(getErrorMessage(err, "Failed to hire agent"));
       }
     } finally {
       setHiring(false);
