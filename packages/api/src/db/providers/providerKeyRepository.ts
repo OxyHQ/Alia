@@ -239,11 +239,24 @@ export async function findSafeProviderKeyById(
 
 /** Whether any key already holds this digest — the duplicate check. */
 export async function providerKeyHashExists(db: Executor, keyHash: string): Promise<boolean> {
+  return (await providerKeyIdByHash(db, keyHash)) !== null;
+}
+
+/**
+ * The id of the row holding this credential, or `null`.
+ *
+ * Beside the boolean rather than replacing it, because the two are used for
+ * different things: "is this already installed" is a decision, and "which row
+ * is it" is what lets the installer correct the row's PROVENANCE without
+ * touching the credential. Selecting the id only — never `key` — is what keeps
+ * this outside the set of readers that hold a plaintext credential.
+ */
+export async function providerKeyIdByHash(db: Executor, keyHash: string): Promise<string | null> {
   const [row] = await db
     .select({ id: providerKeys.id })
     .from(providerKeys)
     .where(eq(providerKeys.keyHash, keyHash));
-  return row !== undefined;
+  return row?.id ?? null;
 }
 
 export interface ListProviderKeysFilter {
@@ -396,6 +409,20 @@ export interface ProviderKeyUpdate {
   rateLimitTpm?: number | null;
   rateLimitTph?: number | null;
   rateLimitTpd?: number | null;
+  /**
+   * Why this credential exists and what its allowance is — the three fields an
+   * operator needs to answer "can we still spend on this, and who granted it".
+   *
+   * Updatable, and not only settable at insert, because the row outlives the
+   * moment it was created: a grant gets topped up, a free tier becomes paid,
+   * and a description written from memory a month later is the one that gets
+   * corrected. Without these here the only way to fix a blank description was
+   * hand-written SQL against production, which is what the installer exists to
+   * avoid.
+   */
+  description?: string | null;
+  creditRenews?: string;
+  creditPeriodStart?: Date | null;
 }
 
 export async function updateProviderKey(
