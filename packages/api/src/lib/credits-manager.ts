@@ -296,6 +296,50 @@ export async function finalizeCredits(
 }
 
 /**
+ * Settle a reservation against a credit count the caller ALREADY computed.
+ *
+ * ## Why this exists, rather than another conversion
+ *
+ * `finalizeCredits` takes tokens and `finalizeVoiceCredits` takes minutes,
+ * because those are the units a chat turn and a voice call are measured in. A
+ * generated show is measured in neither: it is priced from the DURATION of the
+ * audio it produced, by a formula that belongs to the show module.
+ *
+ * Before this existed, the show pipeline bridged the gap by inventing a token
+ * count — `finalizeCredits(reservation, { totalTokens: credits * 50 })` — which
+ * is not a conversion but a coincidence. `calculateCreditsFromTokens` divides by
+ * `TOKENS_PER_CREDIT`, which is 1000, so `credits * 50` tokens settles as
+ * `ceil(credits / 20)`: a show intending to charge 8 credits charged 1. The
+ * multiplier and the divisor were never related, so nothing about the
+ * expression looked wrong, and no test could catch it — both sides typecheck
+ * and both are integers.
+ *
+ * A caller that knows its own price should say the price. That is all this is:
+ * the same refund-if-over, charge-if-under adjustment every other finalizer
+ * runs, with no unit in the middle to get wrong.
+ *
+ * `label` names the domain in the ledger logs, exactly as `'chat'` and
+ * `'voice'` do.
+ */
+export async function finalizeFixedCredits(
+  reservation: CreditReservation,
+  credits: number,
+  label: string
+): Promise<{ creditsCharged: number; creditsRemaining: number }> {
+  /**
+   * Floored at the minimum and rounded UP, here rather than in the caller.
+   *
+   * `calculateCreditsFromTokens` and `calculateCreditsFromMinutes` both end on
+   * `Math.max(Math.ceil(…), MIN_CREDITS_PER_REQUEST)`, so a caller reaching
+   * `_adjustReservation` without it would be the one billing path that can
+   * charge a fraction of a credit, or zero. Doing it here keeps the three
+   * finalizers agreeing about what a settled charge can be.
+   */
+  const chargeable = Math.max(Math.ceil(credits), CREDITS_CONFIG.MIN_CREDITS_PER_REQUEST);
+  return _adjustReservation(reservation, chargeable, label);
+}
+
+/**
  * Safely refund a credit reservation, swallowing errors.
  * Use this in error-handling paths where you must not throw.
  */
