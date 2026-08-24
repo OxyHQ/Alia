@@ -1,7 +1,8 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { View } from "react-native";
 import { Image } from "expo-image";
 import { Popover, PopoverContent, PopoverTrigger } from "@oxyhq/bloom/popover";
+import { useAuth } from "@oxyhq/services";
 import { Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
 import { useTranslation } from "@/lib/hooks/use-translation";
@@ -45,6 +46,19 @@ export function LocalModelsInvite({ children }: { children: ReactNode }) {
   const { t } = useTranslation();
   const consent = useLocalRuntimeStore((state) => state.consent);
   const setConsent = useLocalRuntimeStore((state) => state.setConsent);
+  const inviteSeen = useLocalRuntimeStore((state) => state.inviteSeen);
+  const markInviteSeen = useLocalRuntimeStore((state) => state.markInviteSeen);
+
+  /**
+   * Only for somebody who has signed in.
+   *
+   * A signed-out visitor is looking at the intro — "Meet Alia" owns the panel
+   * until there is an account — and this card renders through a portal, so it
+   * came out ON TOP of it: the product's first sentence buried under a question
+   * about localhost. Waiting for an account is not a z-index workaround, it is
+   * the honest order. There is nothing to offer a person who has not arrived.
+   */
+  const { isAuthenticated } = useAuth();
 
   /**
    * Dismissed for this run only.
@@ -70,7 +84,28 @@ export function LocalModelsInvite({ children }: { children: ReactNode }) {
    */
   const isLargeScreen = useIsLargeScreen();
 
-  if (consent !== "unasked" || hidden || !isLargeScreen) return <>{children}</>;
+  /**
+   * Latched, because recording the ask is what would otherwise end it.
+   *
+   * `inviteSeen` is written the moment the card appears — so a person who
+   * navigates away instead of answering is not asked again on the next launch
+   * either. But the same flag is in the condition that put it on screen, so
+   * without a latch that write would close the card on the very next render and
+   * nobody would read a word of it.
+   */
+  const [latched, setLatched] = useState(false);
+  const eligible = isAuthenticated && consent === "unasked" && !hidden && isLargeScreen;
+  const showing = eligible && (latched || !inviteSeen);
+
+  useEffect(() => {
+    if (!showing || latched) return;
+    setLatched(true);
+    // The record is of the ASKING. `consent` is untouched: the question stays
+    // unanswered, so the setting still offers what a dismissal never decided.
+    markInviteSeen();
+  }, [showing, latched, markInviteSeen]);
+
+  if (!showing) return <>{children}</>;
 
   return (
     <Popover open onOpenChange={(next) => { if (!next) setHidden(true); }}>
