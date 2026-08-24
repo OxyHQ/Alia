@@ -381,7 +381,17 @@ describe('every route that reaches inference is rate limited (#139 ws15)', () =>
     // Both halves of what authentication is now protecting, read at the code
     // that produces each. The limiter's last keyed branch is the signed-in user;
     // below it the function falls through to a bare `next()`.
-    expect(code('lib/chat/request-context.ts')).toContain('(req.user && !req.serviceApp) ?');
+    const context = code('lib/chat/request-context.ts');
+    expect(context).toContain('(req.user && !req.serviceApp && localRuntime === null) ?');
+
+    /**
+     * The third conjunct is the one addition that could reopen the hole, so it
+     * is pinned separately: a turn served by the caller's OWN machine reserves
+     * nothing, and the only thing keeping that from being free unmetered
+     * inference for an anonymous caller is that it refuses without a user id.
+     * `userRuntimeCanServe` is never consulted for a request that has none.
+     */
+    expect(context).toContain('if (owner === undefined || !(await userRuntimeCanServe(owner, localRuntime)))');
 
     const limiter = code('middleware/api-key-rate-limit.ts');
     const lastBranch = limiter.indexOf('if (req.user?.id && !req.apiKey)');

@@ -19,6 +19,7 @@ import { KeyboardShortcutsDialog } from '@/components/keyboard-shortcuts-dialog'
 import i18n from '@/lib/i18n';
 import { useWelcomeSuggestions, useSessionSuggestionGeneration } from '@/lib/hooks/use-suggestions';
 import { useNotificationSetup } from '@/lib/hooks/use-notification-setup';
+import { useLocalRuntime } from '@/lib/hooks/use-local-runtime';
 import { asViewStyle } from '@/lib/types/webStyles';
 import { useIsLargeScreen } from '@/lib/hooks/use-is-large-screen';
 
@@ -47,6 +48,15 @@ export default function AppLayout() {
 
   // Push notification registration, tap handling, and real-time subscription
   useNotificationSetup();
+
+  /**
+   * Offer this device's own models to the account, if the person turned that on.
+   *
+   * Mounted here and only here: it holds ONE socket that answers provider
+   * requests for a local model, and a second copy would be a second socket
+   * announcing the same runtime.
+   */
+  useLocalRuntime();
 
   // Load projects, folders, favorites, and pinned on mount
   useEffect(() => {
