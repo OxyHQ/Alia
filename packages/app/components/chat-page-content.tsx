@@ -262,8 +262,11 @@ export const ChatPageContent = ({
     setInputValue("");
   }, []);
 
-  const handleSubmit = async () => {
-    const hasText = inputValue.trim().length > 0;
+  const handleSubmit = async (dictated?: string) => {
+    // Dictation submits the text it just transcribed rather than relying on the
+    // draft state, which has not flushed yet in the tick it was set.
+    const draft = dictated ?? inputValue;
+    const hasText = draft.trim().length > 0;
     if ((!hasText && attachments.length === 0) || isLoading || disabled) return;
     // Editing changes the existing text message; attachments belong to new
     // turns and must not make an empty edit look submittable.
@@ -274,7 +277,7 @@ export const ChatPageContent = ({
       signIn().catch(() => {});
       return;
     }
-    const content = inputValue;
+    const content = draft;
     const pendingAttachments = attachments.length > 0 ? attachments : undefined;
     const options: SendOptions = { mcpServerId: selectedConnectorId };
 

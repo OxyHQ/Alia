@@ -23,6 +23,8 @@ import { PromptInputContext, type Attachment } from "./context";
 import { PromptInputTextarea } from "./textarea";
 import { PromptInputActions } from "./actions";
 import { PromptInputMicButton } from "./mic-button";
+import { PromptInputDictationBar } from "./dictation-bar";
+import { useSpeechToText } from "@/lib/hooks/use-speech-to-text";
 import { PromptInputAutocomplete } from "./autocomplete";
 import { PromptInputAttachments } from "./attachments";
 import { PromptInputSubmitButton } from "./submit-button";
@@ -85,7 +87,13 @@ export type PromptInputProps = {
   value?: string;
   onValueChange?: (value: string) => void;
   maxHeight?: number;
-  onSubmit?: () => void;
+  /**
+   * Submit the composer. The optional value is for a submission whose text was
+   * never typed — dictation hands over what it just transcribed, because the
+   * consumer holds the draft in its own state and a set-then-submit in one tick
+   * would send the text from before the recording.
+   */
+  onSubmit?: (value?: string) => void;
   children?: React.ReactNode;
   className?: string;
   disabled?: boolean;
@@ -212,8 +220,8 @@ export function PromptInput({
     onValueChange?.(newValue);
   };
 
-  const handleSubmit = () => {
-    onSubmit?.();
+  const handleSubmit = (dictated?: string) => {
+    onSubmit?.(dictated);
     // Clicking the send button (as opposed to pressing Enter) shifts DOM focus
     // to the button on web — restore it so the user can keep typing.
     textareaRef.current?.focus();
@@ -285,6 +293,16 @@ export function PromptInput({
   }, [showFullscreen]);
 
   const isSimpleMode = !children;
+
+  /**
+   * One recorder for the whole composer.
+   *
+   * `useSpeechToText` creates its own `useAudioRecorder`, so calling it in both
+   * the mic button and the dictation bar would leave the stop control acting on
+   * a recorder nobody is speaking into. It is created here and handed to both.
+   */
+  const stt = useSpeechToText();
+  const isDictating = stt.isRecording || stt.isTranscribing;
   const isChatComposer = selectedModel !== undefined && onModelChange !== undefined;
 
   const currentValue = value ?? internalValue;
@@ -364,13 +382,42 @@ export function PromptInput({
           {Platform.OS !== "web" && <EffortSelector selectedModel={selectedModel} />}
         </>
       )}
-      <PromptInputMicButton />
+      <PromptInputMicButton stt={stt} />
       <PromptInputSubmitButton
         isLoading={isLoading}
         onStop={onStop}
         emptyAction={emptyAction}
       />
     </View>
+  );
+
+  /**
+   * Dictation replaces the composer's content rather than reflowing inside it.
+   *
+   * Nothing that belongs to typing applies to a voice mid-sentence, and the
+   * typing layout is a CSS grid on web and absolutely anchored controls on
+   * native — threading a fourth state through both would make every future
+   * change to either answer for a mode it has nothing to do with.
+   */
+  const dictationContent = (
+    <PromptInputDictationBar
+      isTranscribing={stt.isTranscribing}
+      onCancel={stt.cancel}
+      onStop={async () => {
+        const text = await stt.stopAndTranscribe();
+        if (text) currentSetValue(currentValue ? `${currentValue} ${text}` : text);
+      }}
+      onSend={async () => {
+        const text = await stt.stopAndTranscribe();
+        if (!text) return;
+        const next = currentValue ? `${currentValue} ${text}` : text;
+        currentSetValue(next);
+        // Submitted WITH the text rather than after setting it: the consumer
+        // holds the draft in its own state, so a submit in this same tick would
+        // send what was there before the recording.
+        handleSubmit(next);
+      }}
+    />
   );
 
   const content = isSimpleMode ? (
@@ -510,7 +557,9 @@ export function PromptInput({
             )}
           </Pressable>
         )}
-        {barState === "fullscreen" ? (
+        {isDictating ? (
+          dictationContent
+        ) : barState === "fullscreen" ? (
           // Container-transform: the frame flies while the content cross-fades —
           // hidden during the grow/shrink, visible once settled. Without this the
           // inner layout snaps to fullscreen instantly and the motion reads broken.
