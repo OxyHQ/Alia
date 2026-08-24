@@ -168,7 +168,20 @@ async function main(): Promise<void> {
     flag(argv, 'environment') ?? 'production',
     PROVIDER_KEY_ENVIRONMENTS,
   );
-  const tier = requireOneOf('tier', flag(argv, 'tier') ?? 'paid', PROVIDER_KEY_TIERS);
+  /**
+   * Declared, or defaulted — and the difference is load-bearing on a re-run.
+   *
+   * `tier` decides ROUTING ORDER: keys load free-before-paid, so a genuinely
+   * free credential labelled `paid` is tried after ones that cost money. That
+   * is the wrong way round for a platform that prefers the cheapest route, and
+   * it is how `groq` — a free tier with daily limits — sat behind paid keys.
+   *
+   * But the default is `paid`, so applying it unconditionally would flip a row
+   * to `paid` every time someone re-ran this without the flag. Only an
+   * EXPLICIT `--tier` corrects an existing row; an omitted one leaves it alone.
+   */
+  const declaredTier = flag(argv, 'tier');
+  const tier = requireOneOf('tier', declaredTier ?? 'paid', PROVIDER_KEY_TIERS);
   /**
    * Why this key exists and where its credit came from. Free text, and the one
    * flag here that is about a HUMAN reading the row a year from now: `name`
@@ -237,6 +250,8 @@ async function main(): Promise<void> {
       ...(description === null ? {} : { description }),
       ...(creditLimitUsd === null ? {} : { creditLimitUsd }),
       ...(creditRenews === 'never' ? {} : { creditRenews }),
+      // Only when the operator actually said so; see `declaredTier` above.
+      ...(declaredTier === undefined ? {} : { tier }),
     };
     if (Object.keys(provenance).length === 0) {
       logger.info({ provider, name, keyPrefix }, 'Provider key already present, unchanged');

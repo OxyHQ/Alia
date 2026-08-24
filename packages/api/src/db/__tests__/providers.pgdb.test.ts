@@ -333,6 +333,28 @@ describe('a provider key can be told why it exists, after it exists', () => {
     expect(await providerKeyIdByHash(db, 'hash-nobody-installed')).toBeNull();
   });
 
+  it('corrects the tier, which is what decides routing order', async () => {
+    // Keys load FREE BEFORE PAID, so a genuinely free credential labelled
+    // `paid` is tried after ones that cost money — the wrong way round for a
+    // platform that prefers the cheapest route, and the state `groq` was in.
+    await db.insert(providerKeys).values({
+      id: 'pk-prov-3',
+      name: 'free tier',
+      provider: 'groq',
+      keyHash: 'hash-provenance-3',
+      keyPrefix: 'gsk_abc...',
+      tier: 'paid',
+    });
+
+    await updateProviderKey(db, 'pk-prov-3', { tier: 'free' }, ACTOR);
+
+    const [row] = await db
+      .select({ tier: providerKeys.tier })
+      .from(providerKeys)
+      .where(eq(providerKeys.id, 'pk-prov-3'));
+    expect(row?.tier).toBe('free');
+  });
+
   it('records the grant, its size and its period on a row that already existed', async () => {
     await db.insert(providerKeys).values({
       id: 'pk-prov-2',
