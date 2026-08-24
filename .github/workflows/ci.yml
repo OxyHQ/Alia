@@ -285,6 +285,16 @@ jobs:
       - name: Test Codea extension
         run: bun run --filter alia-codea test
 
+      # `@alia/app` has had a `test` script and, until now, no job calling it —
+      # the same suite-that-cannot-fail as the two above. The effort selector is
+      # its first real subject: the control it renders depends on platform and
+      # width, and the haptic tick fires from inside a worklet, so neither is
+      # visible to `tsc`. Mutation-verified when it was written — inverting the
+      # small-screen gate fails three of the four cases, and deleting the
+      # once-per-boundary guard fails exactly the case that names it.
+      - name: Test app
+        run: bun run --filter @alia/app test
+
       # `alia-canvas` and the Codea `webview-ui` are solution-style projects
       # (`"files": []`, references only), so `tsc --noEmit` in them compiles
       # NOTHING and exits 0 — which is why `typecheck-workspaces.ts` lists both
@@ -307,8 +317,9 @@ jobs:
       # The picker labels a routing profile with the product's own words —
       # Fast, Balanced, Maximum quality, Coding — rather than the display name
       # of the alias it came from. The server half is gated by
-      # architectureGates gate 5; this is the client half, which nothing
-      # covered because `packages/app` has no test runner.
+      # architectureGates gate 5; this is the client half, which this script
+      # covers as a source scan — `packages/app`'s own suite runs in the
+      # frontend job, but it asserts behaviour, not the words on the labels.
       - name: Check the picker speaks the product's language
         run: node scripts/check-picker-language.mjs
 
