@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { errorMessage } from "@/lib/errors/error-utils";
 import { View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import Head from 'expo-router/head';
@@ -28,7 +29,7 @@ export default function OrgInviteScreen() {
     acceptMutation.mutate(token, {
       onSuccess: () => setAccepted(true),
       onError: (err: any) => {
-        setError(err?.response?.data?.error || 'Failed to accept invitation');
+        setError(errorMessage(err, 'Failed to accept invitation'));
       },
     });
   }, [token, acceptMutation]);

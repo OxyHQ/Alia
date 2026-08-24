@@ -173,7 +173,10 @@ export const useAgentsStore = create<AgentsStoreState>((set, get) => ({
         throw new Error('Agent execution infrastructure is currently unavailable. Please try again later.');
       }
       console.error('Error hiring agent:', error);
-      throw new Error(data?.error || 'Failed to hire agent');
+      // Through the extractor: an `/v1` body is an object, and `new Error`
+      // stringifies it to `[object Object]` — a message that tells nobody
+      // anything, in the one place somebody would look.
+      throw new Error(getErrorMessage(error, 'Failed to hire agent'));
     }
   },
 }));

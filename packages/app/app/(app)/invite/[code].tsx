@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { errorMessage } from "@/lib/errors/error-utils";
 import { View, Pressable } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import Head from "expo-router/head";
@@ -30,7 +31,7 @@ export default function InviteScreen() {
       },
       onError: (err: any) => {
         const message =
-          err?.response?.data?.error || "Failed to redeem invite code";
+          errorMessage(err, "Failed to redeem invite code");
         setError(message);
       },
     });
