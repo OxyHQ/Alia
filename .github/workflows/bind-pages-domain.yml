@@ -1,0 +1,190 @@
+# Bind a Cloudflare Pages project to the domain it belongs on.
+#
+# WHY THIS IS A WORKFLOW AND NOT A SCRIPT SOMEONE RUNS LOCALLY: every
+# Cloudflare token on this machine is dead. `~/.config/oxy/tokens/cloudflare.token`
+# and the vault copy both answer `Invalid access token`, they do not even match
+# each other, and the vault's own note records the date they died. The only
+# working credential is the GitHub organisation secret `CLOUDFLARE_API_TOKEN`
+# (`visibility=all`), which `deploy-frontends.yml` already uses — and a GitHub
+# secret cannot be read out, only used from inside a run. So this is the one
+# place the change can be made from.
+#
+# WHY IT IS `workflow_dispatch` ONLY: it mutates DNS. Nothing should trigger
+# that on a push.
+#
+# WHAT IT FIXES, CONCRETELY: `canvas.alia.onl` already resolves — to
+# `alia-production-3kc6h.ondigitalocean.app`, the decommissioned DigitalOcean
+# app `.do/app.yaml` still declares. That host answers nothing (`http=000`), so
+# Canvas is only reachable on the Pages default `alia-canvas.pages.dev`.
+# `console.alia.onl` is dead in exactly the same way and is the second caller
+# for this, which is why the hostname and project are inputs rather than baked
+# in.
+#
+# EVERY WRITE IS READ BACK. A Cloudflare API call that returns `success: true`
+# having changed nothing, and one that genuinely changed something, are
+# indistinguishable from the response alone — so each step re-reads the field it
+# just wrote and fails if it does not hold. The final step then resolves the
+# hostname over real DNS and fetches it, because an API that reports a record
+# and a browser that can reach it are different claims.
+name: Bind Pages Domain
+
+on:
+  workflow_dispatch:
+    inputs:
+      hostname:
+        description: The full hostname to bind (e.g. canvas.alia.onl)
+        required: true
+        default: canvas.alia.onl
+      project:
+        description: The Cloudflare Pages project name (e.g. alia-canvas)
+        required: true
+        default: alia-canvas
+      zone:
+        description: The Cloudflare zone the hostname sits in
+        required: true
+        default: alia.onl
+
+permissions:
+  contents: read
+
+jobs:
+  bind:
+    name: Bind ${{ inputs.hostname }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CF_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      HOSTNAME: ${{ inputs.hostname }}
+      PROJECT: ${{ inputs.project }}
+      ZONE: ${{ inputs.zone }}
+
+    steps:
+      # Fail loudly and early rather than emitting `Bearer ` and reading the
+      # 400 as a Cloudflare problem. An org secret marked "Public repositories"
+      # never reaches a private repo, and arrives as an EMPTY STRING with no
+      # error of its own.
+      - name: The credentials actually arrived
+        run: |
+          set -euo pipefail
+          [ -n "${CF_TOKEN:-}" ] || { echo "::error::CLOUDFLARE_API_TOKEN is empty — the org secret did not reach this repo"; exit 1; }
+          [ -n "${CF_ACCOUNT:-}" ] || { echo "::error::CLOUDFLARE_ACCOUNT_ID is empty"; exit 1; }
+          code=$(curl -sS -o /tmp/verify.json -w '%{http_code}' \
+            -H "Authorization: Bearer $CF_TOKEN" \
+            https://api.cloudflare.com/client/v4/user/tokens/verify)
+          ok=$(jq -r '.success' /tmp/verify.json)
+          echo "token verify: http=$code success=$ok status=$(jq -r '.result.status // "-"' /tmp/verify.json)"
+          [ "$ok" = "true" ] || { echo "::error::token rejected: $(jq -c '.errors' /tmp/verify.json)"; exit 1; }
+
+      - name: What the world looks like before
+        run: |
+          set -euo pipefail
+          echo "### Before" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          echo "dig $HOSTNAME -> $(dig +short "$HOSTNAME" | tr '\n' ' ')" | tee -a "$GITHUB_STEP_SUMMARY"
+          echo "curl https://$HOSTNAME/ -> http=$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 "https://$HOSTNAME/" || echo 000)" | tee -a "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Resolve the zone
+        run: |
+          set -euo pipefail
+          curl -sS -H "Authorization: Bearer $CF_TOKEN" \
+            "https://api.cloudflare.com/client/v4/zones?name=$ZONE" -o /tmp/zone.json
+          [ "$(jq -r '.success' /tmp/zone.json)" = "true" ] || { echo "::error::zone lookup failed: $(jq -c '.errors' /tmp/zone.json)"; exit 1; }
+          id=$(jq -r '.result[0].id // empty' /tmp/zone.json)
+          [ -n "$id" ] || { echo "::error::zone $ZONE not found on this account — the token may be scoped to a different one"; exit 1; }
+          echo "ZONE_ID=$id" >> "$GITHUB_ENV"
+          echo "zone $ZONE resolved"
+
+      # Cloudflare will not create its own record while a conflicting one
+      # exists, and the conflicting one here is the CNAME to the dead
+      # DigitalOcean app. Point it at the Pages project first, PROXIED: per the
+      # documented model, frontends are proxied CNAMEs to `*.pages.dev` and
+      # Cloudflare terminates TLS. A DNS-only record would serve the Pages
+      # origin without a certificate for this hostname.
+      - name: Point the record at the Pages project
+        run: |
+          set -euo pipefail
+          target="${PROJECT}.pages.dev"
+          curl -sS -H "Authorization: Bearer $CF_TOKEN" \
+            "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records?name=$HOSTNAME" -o /tmp/rec.json
+          rec=$(jq -r '.result[0].id // empty' /tmp/rec.json)
+          body=$(jq -nc --arg n "$HOSTNAME" --arg c "$target" \
+            '{type:"CNAME",name:$n,content:$c,proxied:true,ttl:1}')
+          if [ -n "$rec" ]; then
+            echo "replacing existing record ($(jq -r '.result[0].type + " -> " + .result[0].content' /tmp/rec.json))"
+            curl -sS -X PUT -H "Authorization: Bearer $CF_TOKEN" -H 'Content-Type: application/json' \
+              --data "$body" \
+              "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records/$rec" -o /tmp/put.json
+          else
+            echo "no record exists; creating one"
+            curl -sS -X POST -H "Authorization: Bearer $CF_TOKEN" -H 'Content-Type: application/json' \
+              --data "$body" \
+              "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records" -o /tmp/put.json
+          fi
+          [ "$(jq -r '.success' /tmp/put.json)" = "true" ] || { echo "::error::record write failed: $(jq -c '.errors' /tmp/put.json)"; exit 1; }
+
+      # Read back, because `success: true` is not evidence the field holds.
+      - name: The record says what we wrote
+        run: |
+          set -euo pipefail
+          curl -sS -H "Authorization: Bearer $CF_TOKEN" \
+            "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records?name=$HOSTNAME" -o /tmp/after.json
+          got_type=$(jq -r '.result[0].type // "-"' /tmp/after.json)
+          got_content=$(jq -r '.result[0].content // "-"' /tmp/after.json)
+          got_proxied=$(jq -r '.result[0].proxied // "-"' /tmp/after.json)
+          echo "record now: $got_type $HOSTNAME -> $got_content proxied=$got_proxied"
+          [ "$got_type" = "CNAME" ] || { echo "::error::type is $got_type, expected CNAME"; exit 1; }
+          [ "$got_content" = "${PROJECT}.pages.dev" ] || { echo "::error::content is $got_content, expected ${PROJECT}.pages.dev"; exit 1; }
+          [ "$got_proxied" = "true" ] || { echo "::error::record is not proxied — Cloudflare would not terminate TLS for this hostname"; exit 1; }
+
+      # Idempotent: a domain already attached returns an error naming that, and
+      # this treats it as success rather than failing a re-run.
+      - name: Attach the domain to the Pages project
+        run: |
+          set -euo pipefail
+          code=$(curl -sS -o /tmp/dom.json -w '%{http_code}' -X POST \
+            -H "Authorization: Bearer $CF_TOKEN" -H 'Content-Type: application/json' \
+            --data "$(jq -nc --arg n "$HOSTNAME" '{name:$n}')" \
+            "https://api.cloudflare.com/client/v4/accounts/$CF_ACCOUNT/pages/projects/$PROJECT/domains")
+          if [ "$(jq -r '.success' /tmp/dom.json)" = "true" ]; then
+            echo "attached"
+          elif jq -e '.errors[]?|select(.message|test("already";"i"))' /tmp/dom.json >/dev/null; then
+            echo "already attached — nothing to do"
+          else
+            echo "::error::attach failed (http=$code): $(jq -c '.errors' /tmp/dom.json)"; exit 1
+          fi
+
+      - name: The project lists the domain
+        run: |
+          set -euo pipefail
+          curl -sS -H "Authorization: Bearer $CF_TOKEN" \
+            "https://api.cloudflare.com/client/v4/accounts/$CF_ACCOUNT/pages/projects/$PROJECT/domains" -o /tmp/doms.json
+          echo "domains on $PROJECT: $(jq -r '[.result[].name]|join(", ")' /tmp/doms.json)"
+          jq -e --arg n "$HOSTNAME" '.result[]|select(.name==$n)' /tmp/doms.json >/dev/null \
+            || { echo "::error::$HOSTNAME is not listed on the project"; exit 1; }
+          echo "status: $(jq -r --arg n "$HOSTNAME" '.result[]|select(.name==$n)|.status' /tmp/doms.json)"
+
+      # The load-bearing check. An API that reports a record and a browser that
+      # can reach the site are different claims, and only the second is the
+      # thing anyone wanted. Certificate issuance is not instant, so this waits
+      # rather than asserting once — and says plainly when it runs out of
+      # patience instead of reporting success.
+      - name: A browser can actually reach it
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 30); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 "https://$HOSTNAME/" || echo 000)
+            echo "attempt $i: http=$code"
+            if [ "$code" = "200" ]; then
+              echo "### After" >> "$GITHUB_STEP_SUMMARY"
+              echo '```' >> "$GITHUB_STEP_SUMMARY"
+              echo "dig $HOSTNAME -> $(dig +short "$HOSTNAME" | tr '\n' ' ')" >> "$GITHUB_STEP_SUMMARY"
+              echo "curl https://$HOSTNAME/ -> http=200" >> "$GITHUB_STEP_SUMMARY"
+              echo '```' >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+            sleep 20
+          done
+          echo "::error::$HOSTNAME still does not serve after 10 minutes. The record and the project binding are in place (both asserted above), so this is certificate issuance or propagation — re-run this step before assuming it failed."
+          exit 1
