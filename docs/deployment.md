@@ -60,10 +60,18 @@ PORT=3001
 NODE_ENV=production
 WEB_URL=https://alia.onl
 API_BASE_URL=https://api.alia.onl
+ALIA_API_URL=https://api.alia.onl
 OXY_API_URL=https://api.oxy.so
 DATABASE_URL=<postgres-connection-string>
 SERVICE_SECRET=<32-byte hex>
 ```
+
+Terraform declares both public-origin names, while `deploy-aws.yml` re-asserts
+them through `TASK_ENV_OVERRIDES_JSON` on every runnable revision. The split is
+required because the existing ECS service ignores Terraform task-definition
+changes. `API_BASE_URL` advertises callbacks and webhooks; `ALIA_API_URL` also
+builds user-facing links and service-to-self `/v1` requests, so neither may fall
+back to loopback in production.
 
 `PORT` has no correct default to rely on: `packages/api/src/index.ts:93` falls back to
 `4150`, while the container's health check and `EXPOSE` use `3001`

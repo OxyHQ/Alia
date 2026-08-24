@@ -347,6 +347,13 @@ jobs:
       # overwrote the other's object would make the second one to run win
       # silently.
       #
+      # This is also the final composition point for the API's REQUIRED public
+      # origin. Terraform declares both names, but cannot deliver either to the
+      # existing service because its task definition is ignored. They are
+      # constants rather than repo variables: unlike INTEGRATIONS_URL they arm
+      # no feature, and every production revision must advertise the same public
+      # origin for callbacks, user-facing links and service-to-self requests.
+      #
       # ## What each variable is
       #
       # `RELAY_BASE_URL` is checked against `RELAY_ALLOWED_ORIGINS` before a
@@ -382,6 +389,11 @@ jobs:
           INTEGRATIONS_SECRETS: ${{ steps.integrations.outputs.secret_overrides }}
           INTEGRATIONS_ENV: ${{ steps.integrations.outputs.env_overrides }}
         run: |
+          required_env="$(jq -cn '{
+            API_BASE_URL: "https://api.alia.onl",
+            ALIA_API_URL: "https://api.alia.onl"
+          }')"
+
           # The account id is written out, exactly as the integrations step above
           # writes it. `$ACCOUNT_ID` is not set in this workflow, so it expanded
           # to nothing and produced `arn:aws:ssm:us-west-2::parameter/…` — an ARN
@@ -402,7 +414,7 @@ jobs:
           }')"
 
           merged_secrets="$(jq -cs '.[0] * .[1]' <(echo "${INTEGRATIONS_SECRETS:-{\}}") <(echo "$kaana_secrets"))"
-          merged_env="$(jq -cs '.[0] * .[1]' <(echo "${INTEGRATIONS_ENV:-{\}}") <(echo "$kaana_env"))"
+          merged_env="$(jq -cs '.[0] * .[1] * .[2]' <(echo "${INTEGRATIONS_ENV:-{\}}") <(echo "$kaana_env") <(echo "$required_env"))"
 
           printf 'secret_overrides=%s\n' "$merged_secrets" >>"$GITHUB_OUTPUT"
           printf 'env_overrides=%s\n' "$merged_env" >>"$GITHUB_OUTPUT"
