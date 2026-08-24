@@ -39,6 +39,10 @@ import { POST_PHASE_GREP_PATTERN } from '@oxyhq/db/migrate';
 
 const workflowPath = fileURLToPath(new URL('../../../../../.github/workflows/deploy-aws.yml', import.meta.url));
 const workflow = readFileSync(workflowPath, 'utf8');
+const resolver = readFileSync(
+  fileURLToPath(new URL('../../../../../.github/scripts/resolve-ecr-platform-digest.sh', import.meta.url)),
+  'utf8',
+);
 
 describe('deploy-aws.yml migration wiring', () => {
   /**
@@ -76,6 +80,20 @@ describe('deploy-aws.yml migration wiring', () => {
     expect(workflow).toContain(
       'TASK_ENV_OVERRIDES_JSON: ${{ steps.kaana.outputs.env_overrides }}',
     );
+  });
+
+  it('deploys the validated linux/arm64 child while retaining the provenance index', () => {
+    expect(workflow).toContain('INDEX_DIGEST=$(jq -r');
+    expect(workflow).toContain('bash .github/scripts/resolve-ecr-platform-digest.sh');
+    expect(workflow).toContain('echo "index_digest=$INDEX_DIGEST" >>"$GITHUB_OUTPUT"');
+    expect(workflow).toContain('echo "digest=$RUNTIME_DIGEST" >>"$GITHUB_OUTPUT"');
+    expect(workflow).toContain('@${{ steps.build.outputs.digest }}');
+
+    expect(resolver).toContain('docker buildx imagetools inspect --raw');
+    expect(resolver).toContain('.platform.os == $os and .platform.architecture == $architecture');
+    expect(resolver).toContain('Expected exactly one valid $TARGET_OS/$TARGET_ARCH runtime descriptor');
+    expect(resolver).not.toContain('aws ecs');
+    expect(resolver).not.toContain('run-task');
   });
 
   /**

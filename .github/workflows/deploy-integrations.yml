@@ -142,10 +142,10 @@ jobs:
           COMMIT_TAG: ${{ github.sha }}
         run: |
           IMG=$ECR_REGISTRY/oxy/$APP
-          # The digest comes from the build, via --metadata-file. Resolving it
-          # afterwards is not an option: `oxy-github-deploy` has no
-          # `ecr:DescribeImages`, so that call fails at deploy time behind a
-          # green build.
+          # Keep the provenance-bearing OCI index under both tags, but deploy
+          # the validated linux/arm64 child manifest. This read-only readiness
+          # barrier closes the registry propagation race before any ECS task is
+          # launched.
           docker buildx build \
             --platform linux/arm64 \
             -f "$DOCKERFILE" \
@@ -159,13 +159,19 @@ jobs:
           # from-scratch `terraform apply` — whose task definition declares
           # `<repo>:latest` as its bootstrap image — creates the service on a
           # current build rather than failing to find one.
-          DIGEST=$(jq -r '.["containerimage.digest"] // empty' "$RUNNER_TEMP/build-metadata.json")
-          if [[ ! "$DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]; then
-            echo "::error::buildx produced no usable image digest (got: ${DIGEST:-<empty>})"
+          INDEX_DIGEST=$(jq -r '.["containerimage.digest"] // empty' "$RUNNER_TEMP/build-metadata.json")
+          if [[ ! "$INDEX_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo "::error::buildx produced no usable image index digest (got: ${INDEX_DIGEST:-<empty>})"
             exit 1
           fi
-          echo "digest=$DIGEST" >>"$GITHUB_OUTPUT"
-          echo "Built $COMMIT_TAG -> $DIGEST"
+          RUNTIME_DIGEST="$(
+            IMAGE_REPOSITORY="$IMG" \
+            INDEX_DIGEST="$INDEX_DIGEST" \
+            bash .github/scripts/resolve-ecr-platform-digest.sh
+          )"
+          echo "index_digest=$INDEX_DIGEST" >>"$GITHUB_OUTPUT"
+          echo "digest=$RUNTIME_DIGEST" >>"$GITHUB_OUTPUT"
+          echo "Built $COMMIT_TAG -> index $INDEX_DIGEST -> linux/arm64 $RUNTIME_DIGEST"
 
       # Does this release carry a post-rollout migration?
       #
