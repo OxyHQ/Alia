@@ -36,6 +36,8 @@
  */
 
 import { createHmac, timingSafeEqual } from 'node:crypto';
+import type { Request } from 'express';
+
 
 /** Long enough to start playing and seek; short enough that a leaked link dies. */
 export const PLAYBACK_LINK_TTL_MS = 15 * 60 * 1000;
@@ -132,4 +134,51 @@ export function verifyPlaybackQuery(
   }
   if (expiry <= now) return { kind: 'expired' };
   return { kind: 'valid', fields };
+}
+
+/**
+ * The address a client may be given for a stored object.
+ *
+ * **No response may carry the storage host.** Two reasons, and they point the
+ * same way: the bucket is private, so its canonical address is a 403 that a
+ * media element reports as `NotSupportedError` — and Alia has its own domain,
+ * so an object address on `s3.amazonaws.com` tells a customer where their audio
+ * lives and ties the product to where it happens to be stored today.
+ *
+ * The row keeps the canonical address because it outlives any authorisation.
+ * This is the ONE place that turns it into something a client sees, so a new
+ * surface that returns audio calls this rather than inventing a second answer.
+ *
+ * `null` when no link can be minted, which today means the signing secret is
+ * absent. A caller then omits the field rather than emitting something a client
+ * cannot fetch: no audio is visible, an unfetchable address is not.
+ */
+export function storedMediaUrl(req: Request, key: string, userId: string): string | null {
+  const query = mintPlaybackQuery(key, userId);
+  // `null`, not the key: a key is not an address, and a caller that fell back
+  // to one would put an unfetchable string where a link belongs — which is the
+  // whole class of bug this replaces.
+  if (query === null) return null;
+
+  /**
+   * Absolute, and built from the request.
+   *
+   * A relative path resolves against the PAGE's origin, and the app is served
+   * from a different host than this API — `alia.onl` asking `api.alia.onl` — so
+   * the player would fetch a path that does not exist there.
+   *
+   * The scheme comes from `X-Forwarded-Proto` because TLS terminates at the
+   * load balancer: `req.protocol` reports `http` here, and an `http://` media
+   * URL on an `https://` page is blocked as mixed content — a failure that
+   * looks exactly like the 403 above.
+   *
+   * `Host` is the client's own header and this link goes straight back to that
+   * same client, so nothing is trusted across a boundary: a caller that sends a
+   * wrong host receives a link that does not work for it.
+   */
+  const forwarded = req.get('x-forwarded-proto');
+  const scheme = (forwarded ?? req.protocol).split(',')[0]?.trim() || 'https';
+  const host = req.get('host');
+  const base = host === undefined ? '' : `${scheme}://${host}`;
+  return `${base}/media?${query}`;
 }

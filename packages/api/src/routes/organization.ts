@@ -32,6 +32,7 @@ import {
   type OrganizationRole,
 } from '../db/organizations/organizationRepository.js';
 import { uploadToS3, deleteFromS3 } from '../lib/s3';
+import { storedMediaUrl } from '../lib/stored-media.js';
 import { hydrateOxyUsers, type HydratedOxyUser } from '../lib/oxy-user-hydration.js';
 import { z } from 'zod';
 import { log } from '../lib/logger.js';
@@ -48,6 +49,24 @@ const upload = multer({
 const router = Router();
 
 // All routes require authentication
+/**
+ * An organization, with its logo addressable.
+ *
+ * `image` holds the KEY of a stored object. A key is not an address, and this
+ * is the one place an organization's logo gets one — an organization whose logo
+ * cannot be addressed reports `null` rather than a string the browser cannot
+ * fetch.
+ */
+function withAddressableLogo(
+  req: Request,
+  userId: string,
+  organization: ReturnType<typeof toOrganizationResponse>,
+): ReturnType<typeof toOrganizationResponse> {
+  const image = organization.image;
+  if (image === null || image === undefined || image === '') return organization;
+  return { ...organization, image: storedMediaUrl(req, image, userId) };
+}
+
 router.use(authenticateToken);
 
 /**
@@ -202,7 +221,7 @@ router.get('/', async (req: Request, res: Response) => {
 
     res.json({
       organizations: memberships.map((m) => ({
-        ...toOrganizationResponse(m.organization),
+        ...withAddressableLogo(req, userId, toOrganizationResponse(m.organization)),
         role: m.role,
         memberCount: m.memberCount,
       })),
@@ -236,7 +255,7 @@ router.get('/:id', async (req: Request, res: Response) => {
 
     res.json({
       organization: {
-        ...toOrganizationResponse(organization),
+        ...withAddressableLogo(req, userId, toOrganizationResponse(organization)),
         role,
         members: hydrated.map((member) => ({
           _id: member._id,
@@ -280,7 +299,7 @@ router.post('/', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Organization slug already taken' });
     }
 
-    res.status(201).json({ organization: toOrganizationResponse(organization) });
+    res.status(201).json({ organization: withAddressableLogo(req, userId, toOrganizationResponse(organization)) });
   } catch (error: unknown) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: 'Invalid input', details: error.errors });
@@ -320,7 +339,7 @@ router.patch('/:id', async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Organization not found' });
     }
 
-    res.json({ organization: toOrganizationResponse(organization) });
+    res.json({ organization: withAddressableLogo(req, userId, toOrganizationResponse(organization)) });
   } catch (error: unknown) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: 'Invalid input', details: error.errors });
@@ -353,15 +372,21 @@ router.post('/:id/image', upload.single('file'), async (req: Request, res: Respo
       await deleteFromS3(existingOrg.image);
     }
 
-    const imageUrl = await uploadToS3(file.buffer, file.originalname, `organizations/${id}`, 'logo');
+    const imageKey = await uploadToS3(file.buffer, file.originalname, `organizations/${id}`, 'logo');
 
-    const organization = await updateOrganization(getDb(), id, { image: imageUrl });
+    const organization = await updateOrganization(getDb(), id, { image: imageKey });
 
     if (!organization) {
       return res.status(404).json({ error: 'Organization not found' });
     }
 
-    res.json({ image: imageUrl });
+    // The KEY is what the row holds; the response carries an address so the
+    // uploader can show what it just uploaded.
+    const image = storedMediaUrl(req, imageKey, userId);
+    if (image === null) {
+      return res.status(500).json({ error: 'The logo cannot be served by this deployment' });
+    }
+    res.json({ image, imageKey });
   } catch (error: unknown) {
     log.organization.error({ err: error }, 'Error uploading organization image');
     res.status(500).json({ error: 'Failed to upload image' });

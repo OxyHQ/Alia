@@ -29,6 +29,7 @@ import {
   type AgentStatus,
 } from '../../domain/agent.js';
 import { log } from '../../lib/logger.js';
+import { storedMediaUrl } from '../../lib/stored-media.js';
 import type { Request, Response } from 'express';
 
 const router = Router();
@@ -149,6 +150,37 @@ function idList(value: unknown): string[] | undefined {
 }
 
 // GET /agents - list published agents (public, optional auth)
+/**
+ * An agent, with its avatar addressable.
+ *
+ * `avatar` is polymorphic on purpose: an owner may paste any URL, and the
+ * avatar generator stores an object here and records its KEY. A value that
+ * already carries a scheme is somebody else's address and is passed through
+ * untouched; one that does not is ours, and only ours becomes a link.
+ *
+ * That check is the honest discriminator rather than a guess — a stored key
+ * never has a scheme, because it is a path inside a bucket.
+ */
+function withAddressableAvatar<T extends { avatar?: string | null }>(
+  req: Request,
+  userId: string | undefined,
+  agent: T,
+): T {
+  const avatar = agent.avatar;
+  if (avatar === null || avatar === undefined || avatar === '') return agent;
+  if (/^[a-z][a-z0-9+.-]*:/i.test(avatar)) return agent;
+  if (userId === undefined) {
+    // No one to mint a link for. The field is dropped rather than emitted as a
+    // key, which a browser would request against its own origin.
+    const { avatar: _stored, ...rest } = agent;
+    return rest as T;
+  }
+  const link = storedMediaUrl(req, avatar, userId);
+  if (link !== null) return { ...agent, avatar: link };
+  const { avatar: _unservable, ...rest } = agent;
+  return rest as T;
+}
+
 router.get('/', optionalAuth, async (req: Request, res: Response) => {
   try {
     const { category, search, featured, trending, page = '1', limit = '50' } = req.query;
@@ -166,7 +198,7 @@ router.get('/', optionalAuth, async (req: Request, res: Response) => {
       offset: (pageNum - 1) * limitNum,
     });
 
-    res.json({ agents, total, page: pageNum, limit: limitNum });
+    res.json({ agents: agents.map((agent) => withAddressableAvatar(req, req.user?.id, agent)), total, page: pageNum, limit: limitNum });
   } catch (error: unknown) {
     log.agents.error({ err: error }, 'Error listing agents');
     res.status(500).json({ error: 'Failed to list agents' });
@@ -183,7 +215,7 @@ router.get('/me', authenticateToken, async (req: Request, res: Response) => {
     const owned = await listAgentsByAuthor(getDb(), req.user.id);
     const agents = await Promise.all(owned.map(withChildLists));
 
-    res.json({ agents });
+    res.json({ agents: agents.map((agent) => withAddressableAvatar(req, req.user?.id, agent)) });
   } catch (error: unknown) {
     log.agents.error({ err: error }, 'Error listing user agents');
     res.status(500).json({ error: 'Failed to list your agents' });
@@ -215,7 +247,7 @@ router.get('/:id', optionalAuth, async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Agent not found' });
     }
 
-    res.json({ agent: await withChildLists(found) });
+    res.json({ agent: withAddressableAvatar(req, req.user?.id, await withChildLists(found)) });
   } catch (error: unknown) {
     log.agents.error({ err: error }, 'Error getting agent');
     res.status(500).json({ error: 'Failed to get agent' });
@@ -348,7 +380,7 @@ router.patch('/:id', authenticateToken, async (req: Request, res: Response) => {
       });
     }
 
-    res.json({ agent });
+    res.json({ agent: withAddressableAvatar(req, req.user?.id, agent) });
   } catch (error: unknown) {
     log.agents.error({ err: error }, 'Error updating agent');
     res.status(500).json({ error: 'Failed to update agent' });

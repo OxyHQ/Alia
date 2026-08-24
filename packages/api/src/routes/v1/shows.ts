@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import { SHOW_FORMATS, type ShowFormat } from '../../db/schema/notifications.js';
 import { getDb } from '../../db/index.js';
+import { storedMediaUrl } from '../../lib/stored-media.js';
+import type { ShowSegment } from '../../db/schema/notifications.js';
 import {
   countActiveShows,
   createShow,
@@ -104,6 +106,43 @@ router.post('/generate', async (req: Request, res: Response) => {
  * GET /v1/shows
  * List user's shows, paginated.
  */
+/**
+ * A show, with its audio addressable.
+ *
+ * `audioUrl` on a show and on each of its segments is a stored KEY — a key is
+ * not an address, and this is the only place a show's audio becomes one. A
+ * segment or show whose audio cannot be addressed drops the field rather than
+ * carrying a string the player cannot fetch.
+ *
+ * Written out per field rather than by walking the object: a walk that rewrote
+ * "anything that looks like a key" would eventually rewrite something that is
+ * not one, and which fields hold media is a fact about this shape.
+ */
+function withAddressableAudio<T extends { audioUrl?: string | null; segments?: ShowSegment[] }>(
+  req: Request,
+  userId: string,
+  show: T,
+): T {
+  const render = (key: string | null | undefined): string | undefined => {
+    if (key === null || key === undefined || key === '') return undefined;
+    return storedMediaUrl(req, key, userId) ?? undefined;
+  };
+
+  const audioUrl = render(show.audioUrl);
+  const segments = show.segments?.map((segment) => {
+    const segmentUrl = render(segment.audioUrl);
+    const { audioUrl: _stored, ...rest } = segment;
+    return segmentUrl === undefined ? rest : { ...rest, audioUrl: segmentUrl };
+  }) as ShowSegment[] | undefined;
+
+  const { audioUrl: _showStored, ...rest } = show;
+  return {
+    ...(rest as T),
+    ...(audioUrl === undefined ? {} : { audioUrl }),
+    ...(segments === undefined ? {} : { segments }),
+  };
+}
+
 router.get('/', async (req: Request, res: Response) => {
   try {
     const userId = req.user?.id;
@@ -119,7 +158,7 @@ router.get('/', async (req: Request, res: Response) => {
     const { shows, total } = await listShowsForUser(getDb(), userId, limit, skip);
 
     res.json({
-      shows,
+      shows: shows.map((show) => withAddressableAudio(req, userId, show)),
       pagination: {
         page,
         limit,
@@ -154,7 +193,7 @@ router.get('/:id', async (req: Request, res: Response) => {
       return res.status(404).json({ error: { message: 'Show not found', type: 'not_found' } });
     }
 
-    res.json(show);
+    res.json(withAddressableAudio(req, userId, show));
   } catch (error: unknown) {
     log.general.error({ err: error }, 'Failed to get show');
     res.status(500).json({ error: { message: 'Failed to get show', type: 'server_error' } });
