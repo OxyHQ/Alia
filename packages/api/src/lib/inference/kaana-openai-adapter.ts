@@ -17,7 +17,7 @@
  * translation itself, testable in isolation, so the rewiring PR moves call sites
  * rather than writing logic.
  *
- * `relay-client.ts` does not import this module, and must not: a client that
+ * `kaana-client.ts` does not import this module, and must not: a client that
  * knew the dialect would be a client the dialect could leak into.
  */
 
@@ -32,7 +32,7 @@ import type {
 } from '@oxyhq/contracts';
 
 import { CHAT_EVENT_VERSION } from '../chat-events.js';
-import type { RelayRequestPayload } from './relay-request.js';
+import type { RelayRequestPayload } from './kaana-request.js';
 
 /* -------------------------------------------------------------------------- */
 /*  The dialect                                                               */

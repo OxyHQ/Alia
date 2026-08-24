@@ -6,21 +6,21 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { InferenceErrorCode, RoutingTarget } from '@oxyhq/contracts';
 
 import type { AliaInferenceCall, AliaInferenceContext } from '../product-seam.js';
-import { assertAllowedRelayOrigin, RELAY_ALLOWED_ORIGINS } from '../relay-endpoint.js';
+import { assertAllowedRelayOrigin, RELAY_ALLOWED_ORIGINS } from '../kaana-endpoint.js';
 import {
   createRelayInferenceClient,
   type RelayClientConfig,
   type RelayTransport,
   type RelayTransportRequest,
-} from '../relay-client.js';
+} from '../kaana-client.js';
 import {
   createRelayServiceCredential,
   OXY_API_URL_ENV,
   RELAY_CREDENTIAL_ENV,
   RELAY_CREDENTIAL_REQUIRED_ENV,
   unsetRelayCredentialVariables,
-} from '../relay-credential.js';
-import type { RelayRequestPayload } from '../relay-request.js';
+} from '../kaana-credential.js';
+import type { RelayRequestPayload } from '../kaana-request.js';
 
 /**
  * The Oxy service-token exchange — epic #139 workstream 2, *"Configure
@@ -29,7 +29,7 @@ import type { RelayRequestPayload } from '../relay-request.js';
  * ## Why this suite talks to a real socket
  *
  * The checkbox says SHORT-LIVED, and "short-lived" is not a property of any line
- * in `relay-credential.ts` — that module configures `@oxyhq/core` and hands the
+ * in `kaana-credential.ts` — that module configures `@oxyhq/core` and hands the
  * result on. Every mechanism the word refers to (a per-credential cache, a
  * refresh 60 seconds before expiry, one in-flight request per credential, a
  * synchronous invalidation) lives in the SDK, so a suite that replaced the SDK
@@ -337,7 +337,7 @@ describe('the token is short-lived: refreshed before expiry, never served past i
   });
 
   it('reports a refused exchange instead of returning an empty token', async () => {
-    // What the Relay client turns into `authentication_failed` (relay-client.ts
+    // What the Relay client turns into `authentication_failed` (kaana-client.ts
     // races `getServiceToken()` and answers with that code when it rejects). A
     // source that resolved with `''` here would send an empty Authorization
     // header and the failure would surface one hop later, as somebody else's.

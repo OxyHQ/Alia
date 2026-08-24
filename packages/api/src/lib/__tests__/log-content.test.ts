@@ -236,7 +236,7 @@ function collectCalls(file: string, source: ts.SourceFile): LoggerCall[] {
 
 /**
  * `git ls-files` rather than a directory walk, for the same reason
- * `inference/__tests__/relay-boundary.test.ts` uses it: it reports the INDEX, so
+ * `inference/__tests__/kaana-boundary.test.ts` uses it: it reports the INDEX, so
  * it cannot disagree with what git tracks.
  *
  * Its blind spot is the same one too — an UNTRACKED file is invisible and reads

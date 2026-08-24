@@ -27,7 +27,7 @@
 
 import { getKaanaClient } from './kaana.js';
 import type { AliaInferenceContext, AliaInferenceSurface } from './product-seam.js';
-import type { RelayRequestPayload } from './relay-request.js';
+import type { RelayRequestPayload } from './kaana-request.js';
 
 export interface KaanaTextRequest {
   /** The whole instruction. One user turn, because there is no conversation here. */

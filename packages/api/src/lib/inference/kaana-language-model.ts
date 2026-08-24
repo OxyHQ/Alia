@@ -10,7 +10,7 @@
  *
  * ## What this is not
  *
- * Not a second dialect. `relay-openai-adapter.ts` owns the OpenAI
+ * Not a second dialect. `kaana-openai-adapter.ts` owns the OpenAI
  * chat-completions translation and this module owns the AI SDK's, and neither
  * knows about the other — two adapters at one boundary, not one adapter with
  * two personalities. The client under both speaks only the contract.
@@ -54,7 +54,7 @@ import type {
 
 import { getKaanaClient } from './kaana.js';
 import type { AliaInferenceContext, AliaInferenceSurface } from './product-seam.js';
-import type { RelayRequestPayload } from './relay-request.js';
+import type { RelayRequestPayload } from './kaana-request.js';
 
 /** One text block per response, because the contract streams one channel of it. */
 const TEXT_BLOCK_ID = 'kaana-text';

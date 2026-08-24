@@ -11,15 +11,15 @@ import {
   type RelayServiceCredential,
   type RelayTransport,
   type RelayTransportRequest,
-} from '../relay-client.js';
+} from '../kaana-client.js';
 import {
   relayConnectivity,
   reportRelayReachable,
   reportRelayUnavailableUntil,
-} from '../relay-connectivity.js';
-import { RELAY_CLIENT_ENABLED_ENV } from '../relay-cutover.js';
-import { assertAllowedRelayOrigin } from '../relay-endpoint.js';
-import type { RelayRequestPayload } from '../relay-request.js';
+} from '../kaana-connectivity.js';
+import { RELAY_CLIENT_ENABLED_ENV } from '../kaana-cutover.js';
+import { assertAllowedRelayOrigin } from '../kaana-endpoint.js';
+import type { RelayRequestPayload } from '../kaana-request.js';
 
 /** An approved Relay origin, branded through the one function that produces one. */
 const ENDPOINT = assertAllowedRelayOrigin('https://api.oxy.so', 'development');
@@ -312,7 +312,7 @@ describe('the health route reads the signal (#139 ws8)', () => {
      * called here and `/health/ready` used to answer 503 `relay_unreachable`,
      * which deregistered every task at once the moment Relay stopped answering
      * — Relay being unreachable is not a per-task fact, however per-process the
-     * observation is. The full argument is in `relay-connectivity.ts` and in
+     * observation is. The full argument is in `kaana-connectivity.ts` and in
      * `routes/health.ts`.
      *
      * A source-text assertion is the weak form and it is the right one HERE:

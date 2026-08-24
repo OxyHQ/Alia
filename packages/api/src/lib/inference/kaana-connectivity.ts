@@ -5,7 +5,7 @@
  * ## Why this is a process registry and not a probe
  *
  * There is nothing to probe. `RelayTransport` ships no base URL on purpose
- * (`relay-client.ts` constraint 4) and `Oxy API → Relay` is not mounted, so a
+ * (`kaana-client.ts` constraint 4) and `Oxy API → Relay` is not mounted, so a
  * health check that "pinged Relay" would have to invent an endpoint, and the
  * first environment it was ever exercised against would be production.
  *
@@ -41,7 +41,7 @@
  *     own cooldown ends, so it lapses to `'unknown'` with nothing to clear it.
  */
 
-import { isRelayClientEnabled } from './relay-cutover.js';
+import { isRelayClientEnabled } from './kaana-cutover.js';
 
 /**
  * What this process knows about Relay, in the order of how much it knows.
@@ -130,7 +130,7 @@ export function relayConnectivity(
  *
  * Two specifics, if the general argument is not enough:
  *
- *  1. `CIRCUIT_TRIPPING_CODES` in `relay-client.ts` includes
+ *  1. `CIRCUIT_TRIPPING_CODES` in `kaana-client.ts` includes
  *     `provider_overloaded` and `provider_timeout`. Those are UPSTREAM PROVIDER
  *     conditions, so a readiness gate here would deregister the fleet on
  *     provider state — which `routes/health.ts` removed from readiness for

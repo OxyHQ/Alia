@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { RELAY_PRINCIPAL_ENV } from '../inference/relay-boot-check.js';
-import { RELAY_CREDENTIAL_REQUIRED_ENV } from '../inference/relay-credential.js';
-import { RELAY_CLIENT_ENABLED_ENV } from '../inference/relay-cutover.js';
-import { RELAY_ALLOWED_ORIGINS, RELAY_BASE_URL_ENV } from '../inference/relay-endpoint.js';
+import { RELAY_PRINCIPAL_ENV } from '../inference/kaana-boot-check.js';
+import { RELAY_CREDENTIAL_REQUIRED_ENV } from '../inference/kaana-credential.js';
+import { RELAY_CLIENT_ENABLED_ENV } from '../inference/kaana-cutover.js';
+import { RELAY_ALLOWED_ORIGINS, RELAY_BASE_URL_ENV } from '../inference/kaana-endpoint.js';
 
 /**
  * The boot refusals, asserted as behaviour — #139 workstreams 2 and 8.

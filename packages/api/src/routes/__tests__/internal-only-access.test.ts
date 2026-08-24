@@ -40,7 +40,7 @@ import { routingTargetSchema } from '@oxyhq/contracts';
  * ## What this file cannot prove, stated rather than implied
  *
  * Alia does not yet hold a deployment catalogue — `RelayTransport` ships no
- * endpoint (see `lib/inference/relay-endpoint.ts` for the origins it is now
+ * endpoint (see `lib/inference/kaana-endpoint.ts` for the origins it is now
  * pinned to) and Relay is not mounted. So there is no live "internal deployment"
  * in this repository to attempt access against, and no test here can pretend
  * otherwise. What is provable today is that the ENVELOPE cannot express one and
@@ -102,8 +102,8 @@ describe('the request envelope cannot name a deployment at all (#139 ws17)', () 
   });
 
   it('a product model id resolves to a model or a profile, never to anything else', async () => {
-    const { resolveRoutingTarget } = await import('../../lib/inference/relay-request.js');
-    const { RelayInferenceError } = await import('../../lib/inference/relay-error.js');
+    const { resolveRoutingTarget } = await import('../../lib/inference/kaana-request.js');
+    const { RelayInferenceError } = await import('../../lib/inference/kaana-error.js');
     const fallback = { kind: 'routing_profile', routingProfile: 'auto' } as const;
 
     // The two legal outcomes.

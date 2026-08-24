@@ -14,10 +14,10 @@
  *     what Relay chose (`start`) and when it changed its mind (`route_switch`).
  *  2. **It never falls back to a direct provider call.** Not behind a flag, not
  *     in development. The only egress is {@link RelayTransport}.
- *  3. **It is not the live path.** {@link import('./relay-cutover.js').isRelayClientEnabled}
+ *  3. **It is not the live path.** {@link import('./kaana-cutover.js').isRelayClientEnabled}
  *     defaults to false and nothing in `packages/api` imports this module for
  *     anything but its rules. `Oxy API → Relay`
- *     does not exist yet — see `docs/migration/relay-client-gap.md` §1 and
+ *     does not exist yet — see `docs/migration/kaana-client-gap.md` §1 and
  *     OxyHQ/oxy#981 — so a client wired in today would be pointed at a hole.
  *  4. **It ships no HTTP transport.** {@link RelayTransport} is an interface and
  *     the concrete one arrives with the endpoint it would call. Inventing a base
@@ -71,22 +71,22 @@ import type {
   AliaInferenceContext,
   AliaInferencePort,
 } from './product-seam.js';
-import { reportRelayReachable, reportRelayUnavailableUntil } from './relay-connectivity.js';
-import { relayEndpointRefusal, type RelayEndpoint } from './relay-endpoint.js';
+import { reportRelayReachable, reportRelayUnavailableUntil } from './kaana-connectivity.js';
+import { relayEndpointRefusal, type RelayEndpoint } from './kaana-endpoint.js';
 import {
   createInferenceError,
   INFERENCE_ERROR_POLICY,
   parseInferenceError,
   RelayInferenceError,
   RelayTransportRefusal,
-} from './relay-error.js';
+} from './kaana-error.js';
 import {
   buildInferenceRequest,
   resolveRoutingTarget,
   targetPinsRevision,
   violatedCapability,
   type RelayRequestPayload,
-} from './relay-request.js';
+} from './kaana-request.js';
 
 /* -------------------------------------------------------------------------- */
 /*  Scope and environment                                                     */
@@ -174,7 +174,7 @@ export interface RelayTransportRequest {
    * every attempt.
    *
    * A transport receives it rather than reading `RELAY_BASE_URL` itself, which
-   * is what makes {@link import('./relay-endpoint.js').RELAY_ALLOWED_ORIGINS}
+   * is what makes {@link import('./kaana-endpoint.js').RELAY_ALLOWED_ORIGINS}
    * enforceable at all: a transport with its own environment read would be a
    * second, unchecked way to choose a host. The type is branded, so a transport
    * cannot be handed a plain string either.
@@ -196,7 +196,7 @@ export interface RelayTransportRequest {
  * timeout.
  *
  * When Relay ANSWERS and refuses, throw
- * {@link import('./relay-error.js').RelayTransportRefusal} carrying the decoded
+ * {@link import('./kaana-error.js').RelayTransportRefusal} carrying the decoded
  * body verbatim; the client parses and, where the contract refuses it, replaces
  * it. Throw anything else when Relay could not be reached.
  */
@@ -248,7 +248,7 @@ export interface RelayCircuitConfig {
 
 export interface RelayClientConfig {
   /**
-   * Usually {@link import('./relay-cutover.js').isRelayClientEnabled}. Passed in
+   * Usually {@link import('./kaana-cutover.js').isRelayClientEnabled}. Passed in
    * so tests need no env.
    */
   readonly enabled: boolean;
@@ -256,8 +256,8 @@ export interface RelayClientConfig {
   readonly credential: RelayServiceCredential;
   /**
    * Where the transport may send. Obtained from
-   * {@link import('./relay-endpoint.js').resolveRelayEndpoint} or
-   * {@link import('./relay-endpoint.js').assertAllowedRelayOrigin}, which are the
+   * {@link import('./kaana-endpoint.js').resolveRelayEndpoint} or
+   * {@link import('./kaana-endpoint.js').assertAllowedRelayOrigin}, which are the
    * only producers of the branded type.
    *
    * Re-checked before every attempt as well as at construction. That is not
@@ -548,7 +548,7 @@ export class RelayInferenceClient implements RelayInferencePort {
    * repetition is the point: `readonly` is erased at runtime, so a config object
    * mutated after the client was built would otherwise ride a boot-time approval
    * for the life of the process. That is the "at request time" half of *"pin
-   * allowed Relay origins/endpoints"*, and `__tests__/relay-endpoint.test.ts`
+   * allowed Relay origins/endpoints"*, and `__tests__/kaana-endpoint.test.ts`
    * mutates a live client's config to prove it fires.
    */
   private endpointRefusal(): string | null {
@@ -1086,7 +1086,7 @@ export class RelayInferenceClient implements RelayInferencePort {
     this.openUntil = 0;
     // The same fact `/health` needs. Reported from here rather than derived by
     // the health route because the route has no client to ask — see
-    // `relay-connectivity.ts`.
+    // `kaana-connectivity.ts`.
     reportRelayReachable();
   }
 

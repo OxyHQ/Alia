@@ -9,9 +9,9 @@ import {
   type RelayServiceCredential,
   type RelayTransport,
   type RelayTransportRequest,
-} from '../relay-client.js';
-import { assertAllowedRelayOrigin } from '../relay-endpoint.js';
-import { CAPABILITY_ENFORCEMENT, type RelayRequestPayload } from '../relay-request.js';
+} from '../kaana-client.js';
+import { assertAllowedRelayOrigin } from '../kaana-endpoint.js';
+import { CAPABILITY_ENFORCEMENT, type RelayRequestPayload } from '../kaana-request.js';
 
 /** An approved Relay origin, branded through the one function that produces one. */
 const ENDPOINT = assertAllowedRelayOrigin('https://api.oxy.so', 'development');

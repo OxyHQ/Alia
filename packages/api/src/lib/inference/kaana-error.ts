@@ -19,7 +19,7 @@
  * still not be a security control. The rule this module follows instead is
  * stronger: **no upstream text ever reaches a user.** Every user-facing sentence
  * below is a constant in this file, selected by code; `error.message` is for
- * operators and is never rendered. See `docs/migration/relay-client-gap.md` §3.8.
+ * operators and is never rendered. See `docs/migration/kaana-client-gap.md` §3.8.
  */
 
 import {
@@ -32,7 +32,7 @@ import {
 const NON_RETRYABLE = new Set<InferenceErrorCode>(NON_RETRYABLE_INFERENCE_ERROR_CODES);
 
 /**
- * The rejection value of {@link import('./relay-client.js').RelayInferenceClient.generate}.
+ * The rejection value of {@link import('./kaana-client.js').RelayInferenceClient.generate}.
  *
  * A wrapper rather than the bare contract object: rejecting a promise with a
  * plain object loses the stack, and `instanceof` is how a caller tells a

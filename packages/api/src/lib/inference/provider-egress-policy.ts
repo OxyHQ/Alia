@@ -43,7 +43,7 @@ import http from 'node:http';
 import https from 'node:https';
 
 import { recordDirectProviderEgress } from '../observability/direct-provider-egress.js';
-import { isRelayClientEnabled } from './relay-cutover.js';
+import { isRelayClientEnabled } from './kaana-cutover.js';
 
 /* -------------------------------------------------------------------------- */
 /*  The deny list                                                             */
