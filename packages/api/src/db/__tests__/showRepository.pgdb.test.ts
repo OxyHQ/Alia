@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { eq, sql } from 'drizzle-orm';
+import { eq, inArray, sql } from 'drizzle-orm';
 import { isUniqueViolation, uuidv7 } from '@oxyhq/db';
 import { closePostgres, connectPostgres, type ApiDatabase } from '../index';
 import {
@@ -64,14 +64,30 @@ afterAll(async () => {
   await closePostgres();
 });
 
+/**
+ * Scoped to THIS file's own accounts, never a bare truncate.
+ *
+ * One database serves the whole run and vitest runs FILES in parallel, so a
+ * `delete(showEpisodes)` with no predicate reaps another file's fixtures
+ * mid-test. Measured: `show-pipeline.pgdb.test.ts` also uses these tables, and
+ * with both files truncating, one of its balance assertions failed in the full
+ * run while passing alone — a failure whose message says nothing about
+ * concurrency.
+ */
+const OWNERS = [USER, OTHER];
+
 beforeEach(async () => {
   // Episodes first would be redundant given the cascade, but the cascade is
   // itself under test — clearing the parent alone would make a broken cascade
   // look like a passing fixture.
-  await db.delete(showEpisodes);
-  await db.delete(showSeries);
-  await db.delete(showPreferences);
+  await db.delete(showEpisodes).where(inArray(showEpisodes.userId, OWNERS));
+  await db.delete(showSeries).where(inArray(showSeries.userId, OWNERS));
+  await db.delete(showPreferences).where(inArray(showPreferences.userId, OWNERS));
 });
+
+/** Every row THIS file owns, for the counts that used to read the whole table. */
+const ownEpisodes = () =>
+  db.select().from(showEpisodes).where(inArray(showEpisodes.userId, OWNERS));
 
 const seed = (userId = USER, syraPodcastId = 'syra-pod-1') =>
   createSeries(db, {
@@ -367,8 +383,7 @@ describe('episodes', () => {
 
     expect(await deleteSeriesForUser(db, series.id, USER)).toBe(true);
 
-    const survivors = await db.select().from(showEpisodes);
-    expect(survivors).toHaveLength(0);
+    expect(await ownEpisodes()).toHaveLength(0);
   });
 
   it('and a series another account owns cascades nothing', async () => {
@@ -376,7 +391,7 @@ describe('episodes', () => {
     await seedEpisode(series.id, 1);
 
     expect(await deleteSeriesForUser(db, series.id, OTHER)).toBe(false);
-    expect(await db.select().from(showEpisodes)).toHaveLength(1);
+    expect(await ownEpisodes()).toHaveLength(1);
   });
 
   it('refuses a status the CHECK does not know', async () => {
@@ -466,7 +481,9 @@ describe('preferences', () => {
     // ONE row, not two. A repeated call is the discriminator: an insert that
     // merely ignored the conflict would leave the first row in place and read
     // back the old value, and a single call could not tell the two apart.
-    expect(await db.select().from(showPreferences)).toHaveLength(1);
+    expect(
+      await db.select().from(showPreferences).where(inArray(showPreferences.userId, OWNERS)),
+    ).toHaveLength(1);
   });
 
   it('are keyed by the account, so two accounts do not share one', async () => {

@@ -57,12 +57,6 @@ vi.mock('../../synthesize-speech.js', () => ({
   ),
 }));
 
-vi.mock('../../../internal/providers/lib/provider-api.js', () => ({
-  callProviderAPI: vi.fn(async () => {
-    throw new Error('no sound effects in this test');
-  }),
-}));
-
 vi.mock('../../s3.js', () => ({
   uploadToS3: vi.fn(async () => 'test/show-segments/key.mp3'),
   deleteS3Objects: vi.fn(async () => 0),
@@ -101,8 +95,14 @@ beforeEach(async () => {
   synthesisWorks = true;
   measuredDurationMs = 90_000;
   ingestEpisode.mockClear();
-  await db.delete(showEpisodes);
-  await db.delete(showSeries);
+  /**
+   * Scoped to THIS file's account, never a bare truncate. One database serves
+   * the whole run and vitest runs FILES in parallel, so an unpredicated delete
+   * reaps `showRepository.pgdb.test.ts`'s fixtures mid-test — measured, as a
+   * balance assertion here that passed alone and failed in the full run.
+   */
+  await db.delete(showEpisodes).where(eq(showEpisodes.userId, OWNER));
+  await db.delete(showSeries).where(eq(showSeries.userId, OWNER));
 });
 
 /** An account with an exact opening balance, so an assertion is about the run. */

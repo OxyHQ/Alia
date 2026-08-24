@@ -12,9 +12,8 @@ import Constants from 'expo-constants';
 import { useRouter } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { useOxy } from '@oxyhq/services';
-import { io as socketIO } from 'socket.io-client';
-import config from '@/lib/config';
-import apiClient, { getSocketToken } from '@/lib/api/client';
+import apiClient from '@/lib/api/client';
+import { acquireNotificationsSocket } from '@/lib/api/notifications-socket';
 
 // ── Constants ──────────────────────────────────────────────────────
 const PROJECT_ID =
@@ -165,28 +164,27 @@ export function useNotificationSetup() {
   useEffect(() => {
     if (!isAuthenticated || !user?.id) return;
 
-    const socket = socketIO(config.apiUrl, {
-      transports: ['websocket'],
-      // Function form so a fresh token is read on every (re)connect.
-      auth: (cb) => cb({ token: getSocketToken() }),
-      reconnection: true,
-      reconnectionAttempts: Infinity,
-      reconnectionDelay: 1000,
-      reconnectionDelayMax: 10000,
-    });
+    /**
+     * The SHARED connection, not one of this hook's own.
+     *
+     * `use-show-progress` listens on the same socket for `show:progress`. When
+     * each hook opened its own, a user on the shows screen held two websockets
+     * in the same room, every server emit was delivered twice, and which socket
+     * a listener landed on depended on mount order.
+     */
+    const { socket, release } = acquireNotificationsSocket();
 
-    socket.on('connect', () => {
-      // Server derives the room from the authenticated user; arg is ignored.
-      socket.emit('subscribe-notifications');
-    });
-
-    socket.on('notification', () => {
+    const onNotification = () => {
       // Invalidate React Query caches so notification list + unread count refresh
       queryClient.invalidateQueries({ queryKey: ['notifications'] });
-    });
+    };
+    socket.on('notification', onNotification);
 
     return () => {
-      socket.disconnect();
+      // Remove only THIS listener; the connection belongs to whoever still
+      // holds it.
+      socket.off('notification', onNotification);
+      release();
     };
   }, [isAuthenticated, user?.id, queryClient]);
 }

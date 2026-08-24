@@ -19,11 +19,7 @@
  * live.
  */
 
-import { callProviderAPI, getModelMappingsForTier } from '../gateway-client.js';
-import { imageRequestBody } from '../../internal/providers/lib/image-providers.js';
-import { extractImageUrl } from '../../internal/providers/lib/digitalocean-async.js';
-import { downloadBinaryFromUrl } from '../../internal/providers/lib/digitalocean-async.js';
-import { log } from '../logger.js';
+import { generateImageBytes } from '../image-generation.js';
 import type { ShowFormat } from '../../db/schema/shows.js';
 
 /** Square, because podcast artwork is square everywhere it is rendered. */
@@ -69,68 +65,27 @@ export function buildCoverPrompt(title: string, brief: string, format: ShowForma
 /**
  * Draw a cover, or answer `null`.
  *
- * Walks the same image tier and the same provider fall-back the images endpoint
- * uses, so a provider that is failing degrades identically on both surfaces
- * rather than in two ways somebody has to learn separately.
+ * Through `lib/image-generation.ts`, which is the ONE image path in this
+ * package — the same walk `POST /v1/images/generations` takes, so a provider
+ * that is failing degrades identically on both surfaces rather than in two ways
+ * somebody has to learn separately. It also means this module has no coupling to
+ * the provider tree at all, which gate 1 of `__tests__/architectureGates.test.ts`
+ * requires of anything new.
  *
- * Both response shapes are handled because providers disagree: some answer with
- * a URL to fetch, some with base64 inline. The caller wants BYTES either way —
- * it is going to hand them to Syra, which re-hosts artwork rather than
- * hotlinking it, so a URL that expires in an hour is of no use to anyone.
+ * Bytes rather than a URL, because Syra re-hosts artwork rather than hotlinking
+ * it: a provider link that expires in an hour is of no use to it.
  */
 export async function generateCoverArt(
   title: string,
   brief: string,
   format: ShowFormat,
 ): Promise<Buffer | null> {
-  const prompt = buildCoverPrompt(title, brief, format);
-  const mappings = await getModelMappingsForTier('v1-image');
-
-  for (const mapping of mappings) {
-    try {
-      const data = await callProviderAPI<{ data?: Array<{ b64_json?: string }> }>({
-        provider: mapping.provider,
-        modelId: mapping.modelId,
-        endpoint: '/v1/images/generations',
-        // Shaped per provider: `/v1/images/generations` is an OpenAI-shaped
-        // endpoint that providers implement in part, and a parameter one of them
-        // does not accept fails the whole request rather than degrading.
-        body: imageRequestBody(mapping.provider, {
-          modelId: mapping.modelId,
-          prompt,
-          n: 1,
-          size: COVER_SIZE,
-          quality: 'standard',
-          responseFormat: 'url',
-        }),
-        timeout: COVER_TIMEOUT_MS,
-        maxAttempts: 1,
-      });
-
-      const inline = data.data?.[0]?.b64_json;
-      if (typeof inline === 'string' && inline !== '') {
-        return Buffer.from(inline, 'base64');
-      }
-
-      const url = extractImageUrl(data);
-      if (url !== null && url !== undefined && url !== '') {
-        return await downloadBinaryFromUrl(url);
-      }
-
-      log.general.warn(
-        { provider: mapping.provider, model: mapping.modelId },
-        'Image provider returned neither a URL nor inline data for a show cover',
-      );
-    } catch (err: unknown) {
-      // Warn and continue: the next provider is the whole point of the tier
-      // list, and a cover is the one part of a series that may simply not
-      // happen.
-      log.general.warn(
-        { err, provider: mapping.provider, model: mapping.modelId },
-        'Show cover generation failed, trying the next provider',
-      );
-    }
-  }
-
-  return null;
+  return generateImageBytes({
+    prompt: buildCoverPrompt(title, brief, format),
+    n: 1,
+    size: COVER_SIZE,
+    quality: 'standard',
+    responseFormat: 'url',
+    timeoutMs: COVER_TIMEOUT_MS,
+  });
 }
