@@ -1,7 +1,6 @@
 import React from "react";
 import { View, Platform } from "react-native";
-import { Text } from "@/components/ui/text";
-import { Search, MoreHorizontal, Menu, Mic } from "lucide-react-native";
+import { Search, MoreHorizontal, Menu } from "lucide-react-native";
 import { GhostIcon } from "@/components/ui/ghost-icon";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Button } from "@/components/ui/button";
@@ -12,7 +11,6 @@ import * as DropdownMenu from "@/components/ui/dropdown-menu";
 import { toast } from "@oxyhq/bloom/toast";
 import { confirm } from "@oxyhq/bloom/surfaces";
 import { useTranslation } from "@/lib/hooks/use-translation";
-import { useTheme, withAlpha } from "@oxyhq/bloom/theme";
 
 interface ChatHeaderProps {
   onGhostModePress?: () => void;
@@ -20,7 +18,6 @@ interface ChatHeaderProps {
   onSearchPress?: () => void;
   onClear?: () => void;
   isConversation?: boolean;
-  isVoiceActive?: boolean;
 }
 
 // Memoized: the chat screen re-renders ~20×/s while streaming and none of
@@ -31,10 +28,8 @@ export const ChatHeader = React.memo(function ChatHeader({
   onSearchPress,
   onClear,
   isConversation = false,
-  isVoiceActive = false,
 }: ChatHeaderProps) {
   const { t } = useTranslation();
-  const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<DrawerNavigationProp<ReactNavigation.RootParamList>>();
   const router = useRouter();
@@ -83,12 +78,6 @@ export const ChatHeader = React.memo(function ChatHeader({
         >
           <Menu size={20} className="text-muted-foreground" />
         </Button>
-        {isVoiceActive && (
-          <View className="h-6 rounded-full px-2 flex-row items-center gap-1" style={{ backgroundColor: withAlpha(colors.info, 0.15) }}>
-            <Mic size={12} color={colors.info} />
-            <Text className="text-[11px] font-medium" style={{ color: colors.info }}>Voice</Text>
-          </View>
-        )}
       </View>
 
       <View className="flex-row items-center gap-2">
