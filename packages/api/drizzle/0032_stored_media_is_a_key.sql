@@ -15,16 +15,16 @@
 -- an avatar a user pasted, an image a provider hosts — is left exactly as it
 -- is. Only what this API stored is rewritten.
 UPDATE "messages"
-   SET "audio_url" = regexp_replace("audio_url", '^https://[^/]+\.s3\.[^/]+\.amazonaws\.com/', '')
- WHERE "audio_url" ~ '^https://[^/]+\.s3\.[^/]+\.amazonaws\.com/';--> statement-breakpoint
+   SET "audio_url" = regexp_replace("audio_url", '^https://oxy-alia-media-usw2-237343248947\.s3\.us-west-2\.amazonaws\.com/', '')
+ WHERE "audio_url" ~ '^https://oxy-alia-media-usw2-237343248947\.s3\.us-west-2\.amazonaws\.com/';--> statement-breakpoint
 
 UPDATE "audio_jobs"
-   SET "audio_url" = regexp_replace("audio_url", '^https://[^/]+\.s3\.[^/]+\.amazonaws\.com/', '')
- WHERE "audio_url" ~ '^https://[^/]+\.s3\.[^/]+\.amazonaws\.com/';--> statement-breakpoint
+   SET "audio_url" = regexp_replace("audio_url", '^https://oxy-alia-media-usw2-237343248947\.s3\.us-west-2\.amazonaws\.com/', '')
+ WHERE "audio_url" ~ '^https://oxy-alia-media-usw2-237343248947\.s3\.us-west-2\.amazonaws\.com/';--> statement-breakpoint
 
 UPDATE "shows"
-   SET "audio_url" = regexp_replace("audio_url", '^https://[^/]+\.s3\.[^/]+\.amazonaws\.com/', '')
- WHERE "audio_url" ~ '^https://[^/]+\.s3\.[^/]+\.amazonaws\.com/';--> statement-breakpoint
+   SET "audio_url" = regexp_replace("audio_url", '^https://oxy-alia-media-usw2-237343248947\.s3\.us-west-2\.amazonaws\.com/', '')
+ WHERE "audio_url" ~ '^https://oxy-alia-media-usw2-237343248947\.s3\.us-west-2\.amazonaws\.com/';--> statement-breakpoint
 
 -- `segments` is a jsonb array whose elements each carry their own `audioUrl`.
 -- Rebuilt element by element so a segment without one is preserved untouched
@@ -33,9 +33,9 @@ UPDATE "shows"
    SET "segments" = (
      SELECT jsonb_agg(
               CASE
-                WHEN segment ->> 'audioUrl' ~ '^https://[^/]+\.s3\.[^/]+\.amazonaws\.com/'
+                WHEN segment ->> 'audioUrl' ~ '^https://oxy-alia-media-usw2-237343248947\.s3\.us-west-2\.amazonaws\.com/'
                 THEN jsonb_set(segment, '{audioUrl}',
-                       to_jsonb(regexp_replace(segment ->> 'audioUrl', '^https://[^/]+\.s3\.[^/]+\.amazonaws\.com/', '')))
+                       to_jsonb(regexp_replace(segment ->> 'audioUrl', '^https://oxy-alia-media-usw2-237343248947\.s3\.us-west-2\.amazonaws\.com/', '')))
                 ELSE segment
               END
               ORDER BY ordinality
@@ -44,20 +44,20 @@ UPDATE "shows"
    )
  WHERE "segments" IS NOT NULL
    AND jsonb_typeof("segments") = 'array'
-   AND "segments"::text ~ 'https://[^/]+\.s3\.[^/]+\.amazonaws\.com/';--> statement-breakpoint
+   AND "segments"::text ~ 'https://oxy-alia-media-usw2-237343248947\.s3\.us-west-2\.amazonaws\.com/';--> statement-breakpoint
 
 UPDATE "library_files"
-   SET "url" = regexp_replace("url", '^https://[^/]+\.s3\.[^/]+\.amazonaws\.com/', '')
- WHERE "url" ~ '^https://[^/]+\.s3\.[^/]+\.amazonaws\.com/';--> statement-breakpoint
+   SET "url" = regexp_replace("url", '^https://oxy-alia-media-usw2-237343248947\.s3\.us-west-2\.amazonaws\.com/', '')
+ WHERE "url" ~ '^https://oxy-alia-media-usw2-237343248947\.s3\.us-west-2\.amazonaws\.com/';--> statement-breakpoint
 
 UPDATE "library_files"
-   SET "thumbnail" = regexp_replace("thumbnail", '^https://[^/]+\.s3\.[^/]+\.amazonaws\.com/', '')
- WHERE "thumbnail" ~ '^https://[^/]+\.s3\.[^/]+\.amazonaws\.com/';--> statement-breakpoint
+   SET "thumbnail" = regexp_replace("thumbnail", '^https://oxy-alia-media-usw2-237343248947\.s3\.us-west-2\.amazonaws\.com/', '')
+ WHERE "thumbnail" ~ '^https://oxy-alia-media-usw2-237343248947\.s3\.us-west-2\.amazonaws\.com/';--> statement-breakpoint
 
 UPDATE "organizations"
-   SET "image" = regexp_replace("image", '^https://[^/]+\.s3\.[^/]+\.amazonaws\.com/', '')
- WHERE "image" ~ '^https://[^/]+\.s3\.[^/]+\.amazonaws\.com/';--> statement-breakpoint
+   SET "image" = regexp_replace("image", '^https://oxy-alia-media-usw2-237343248947\.s3\.us-west-2\.amazonaws\.com/', '')
+ WHERE "image" ~ '^https://oxy-alia-media-usw2-237343248947\.s3\.us-west-2\.amazonaws\.com/';--> statement-breakpoint
 
 UPDATE "agents"
-   SET "avatar" = regexp_replace("avatar", '^https://[^/]+\.s3\.[^/]+\.amazonaws\.com/', '')
- WHERE "avatar" ~ '^https://[^/]+\.s3\.[^/]+\.amazonaws\.com/';
+   SET "avatar" = regexp_replace("avatar", '^https://oxy-alia-media-usw2-237343248947\.s3\.us-west-2\.amazonaws\.com/', '')
+ WHERE "avatar" ~ '^https://oxy-alia-media-usw2-237343248947\.s3\.us-west-2\.amazonaws\.com/';
