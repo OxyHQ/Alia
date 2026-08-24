@@ -140,8 +140,14 @@ router.post('/speech', async (req: Request, res: Response) => {
      * It settles TOKENS, not credits: `calculateCreditsFromTokens` divides by
      * `TOKENS_PER_CREDIT` and applies the alias model's multiplier. So a figure
      * already denominated in CREDITS survives the round trip only if it is
-     * multiplied by `TOKENS_PER_CREDIT` on the way in. No alias model is passed
-     * here, so the multiplier is 1 and the conversion is exact.
+     * multiplied by `TOKENS_PER_CREDIT` on the way in.
+     *
+     * THE ROUND TRIP IS EXACT ONLY WHILE THE MULTIPLIER IS 1. The general form
+     * is `ceil(credits * multiplier)`, and the multiplier comes from the alias
+     * model's `credit_multiplier`; it is 1 here for the one reason that this
+     * call passes no `aliasModelId`. That is invisible from the argument list,
+     * so it is written down: threading an alias model through this endpoint
+     * silently reprices it, and nothing in the type system would say so.
      *
      * It was `charCredits * 50` — a twentieth of a credit apiece against a
      * thousand-token credit. A 4,000 character request meant to cost 20 credits
@@ -376,6 +382,13 @@ async function processAudioGeneration(input: AudioGenJobInput): Promise<void> {
      * `TOKENS_PER_CREDIT` and applies the alias model's multiplier. So a figure
      * already denominated in CREDITS survives the round trip only if it is
      * multiplied by `TOKENS_PER_CREDIT` on the way in.
+     *
+     * THE ROUND TRIP IS EXACT ONLY WHILE THE MULTIPLIER IS 1. The general form
+     * is `ceil(credits * multiplier)`, and the multiplier comes from the alias
+     * model's `credit_multiplier`; it is 1 here for the one reason that this
+     * call passes no `aliasModelId`. That is invisible from the argument list,
+     * so it is written down: threading an alias model through this endpoint
+     * silently reprices it, and nothing in the type system would say so.
      *
      * It was `durationCredits * 50`, and this endpoint is the one where that
      * did the most damage. `duration` is capped at 120 seconds a few lines
