@@ -126,7 +126,8 @@
       "connectors": "Conectores",
       "integrations": "Integraciones",
       "skills": "Skills",
-      "writingStyle": "Estilo de Escritura"
+      "writingStyle": "Estilo de Escritura",
+      "localModels": "Modelos locales"
     },
     "accentColor": {
       "title": "Color de la app",
@@ -143,6 +144,25 @@
       "mint": "Menta",
       "oxy": "Oxy",
       "faircoin": "Faircoin"
+    },
+    "localModels": {
+      "title": "Modelos locales",
+      "description": "Ejecuta un modelo en este dispositivo y úsalo desde Alia. Todo lo demás funciona igual — herramientas, memoria, y tus chats se siguen guardando.",
+      "enable": "Ofrecer los modelos de este dispositivo",
+      "enableHint": "Mientras tengas Alia abierta aquí, tus otros dispositivos también pueden usarlos.",
+      "endpoint": "Endpoint",
+      "endpointHint": "Cualquier servidor local que hable la API de chat estándar — Ollama, LM Studio y vLLM la hablan.",
+      "deviceName": "Nombre del dispositivo",
+      "deviceNameHint": "Cómo aparece esta máquina en el selector de modelos del móvil.",
+      "test": "Probar conexión",
+      "testing": "Comprobando…",
+      "connected": "{{count}} modelo(s) disponibles",
+      "notConnected": "Sin conexión",
+      "modelsTitle": "Modelos en este dispositivo",
+      "free": "Gratis",
+      "freeNote": "Los modelos locales no gastan créditos. La investigación profunda y el modo agente no están disponibles con ellos — esos corren en los modelos de Alia.",
+      "corsHint": "Ollama rechaza el navegador si no lo arrancas con OLLAMA_ORIGINS={{origin}}.",
+      "safariHint": "Safari bloquea el acceso a localhost desde una página web. Usa Chrome o Firefox en esta máquina."
     },
     "groups": {
       "assistant": "Asistente",
@@ -174,7 +194,8 @@
     "integrations": "Integraciones",
     "notifications": "Notificaciones",
     "resetPassword": "Restablecer contraseña",
-    "writingStyle": "Estilo de Escritura"
+    "writingStyle": "Estilo de Escritura",
+    "localModels": "Modelos locales"
   },
   "sidebar": {
     "newChat": "Nueva conversación",
@@ -747,6 +768,7 @@
   },
   "models": {
     "selectModel": "Seleccionar modelo",
+    "onYourDevices": "En tus dispositivos",
     "loadingModels": "Cargando modelos...",
     "loadingModes": "Cargando...",
     "legacyModels": "Modelos anteriores",

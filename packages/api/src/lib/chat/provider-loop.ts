@@ -25,6 +25,7 @@
 import type { Request, Response } from 'express';
 import { streamText, type ToolSet } from 'ai';
 import { resolveModel, reportModelUsage, type ResolvedModel, type RoutingOptions } from '../chat-core.js';
+import { USER_RUNTIME_PROVIDER } from '../inference/user-runtime-bridge.js';
 import { getDb } from '../../db/index.js';
 import { updateConversationTitle } from '../../db/chat/conversationRepository.js';
 import type { CreditReservation, CreditUsage } from '../credits-manager.js';
@@ -212,6 +213,19 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
     if (elapsedMs > globalTimeoutMs - 10_000) {
       log.v1.warn({ elapsedMs }, 'Time budget nearly exhausted, breaking retry loop');
       failureClass = AliaErrorCode.TIMEOUT;
+      break;
+    }
+
+    /**
+     * A turn served by the person's own machine never falls back.
+     *
+     * There is nowhere honest to fall back TO. Re-resolving would hand the
+     * conversation to a hosted operator the person chose to avoid by picking a
+     * local model, and bill it against a reservation that was deliberately
+     * never taken. A dead local runtime ends the turn.
+     */
+    if (providerAttempt > 0 && state.resolved?.provider === USER_RUNTIME_PROVIDER) {
+      log.v1.info('Local runtime failed; not substituting a hosted provider');
       break;
     }
 

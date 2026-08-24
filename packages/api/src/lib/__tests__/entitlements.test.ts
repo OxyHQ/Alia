@@ -474,8 +474,15 @@ describe('the product runtime still runs the check (#139 ws6)', () => {
     const context = code('lib/chat/request-context.ts');
     expect(context).toContain('export async function buildChatRequestContext');
     expect(context).toMatch(/\(req\.user && !req\.apiKey\)\s*\?\s*getUserEntitlements\(req\.user\.id\)/);
+    /**
+     * The third conjunct is the local-runtime skip, and it is spelled out here
+     * rather than matched loosely: a model served by the caller's own device is
+     * in no plan's `allowedModelIds`, so the gate has to stand aside for it —
+     * and standing aside is exactly the shape a mistake would also take. Naming
+     * the condition means widening it again is a diff in this file.
+     */
     expect(context).toMatch(
-      /if \(req\.user && !req\.apiKey && entitlements\) \{\s*if \(!entitlements\.allowedModelIds\.includes\(aliasModelId\)\) \{/,
+      /if \(req\.user && !req\.apiKey && entitlements && localRuntime === null\) \{\s*if \(!entitlements\.allowedModelIds\.includes\(aliasModelId\)\) \{/,
     );
     // Refund before refusal, because the reservation was already taken by the
     // parallel prefetch above it.

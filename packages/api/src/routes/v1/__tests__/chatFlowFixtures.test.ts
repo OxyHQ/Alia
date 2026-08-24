@@ -167,6 +167,29 @@ vi.mock('../../../lib/chat-core.js', () => ({
   getDefaultAliaModel: vi.fn(() => 'alia-v1'),
 }));
 
+/**
+ * Whether the person has a device offering the local model this fixture names.
+ *
+ * Hoisted so the module factory below can read it, and flipped per test: the
+ * two states are the whole point of the pair of fixtures at the bottom of this
+ * file — connected must reach the model, disconnected must reach nothing.
+ */
+const LOCAL = vi.hoisted(() => ({ connected: true }));
+
+/**
+ * Only PRESENCE is faked. Presence is a live socket lookup and there are no
+ * sockets here; the id format and its parser stay real, because "does the route
+ * agree with the bridge about what `local/<runtime>/<model>` means" is exactly
+ * what these fixtures are for. Faking the parse too would leave them asserting
+ * their own spelling.
+ */
+vi.mock('../../../lib/inference/user-runtime-bridge.js', async () => {
+  const actual = await vi.importActual<typeof import('../../../lib/inference/user-runtime-bridge.js')>(
+    '../../../lib/inference/user-runtime-bridge.js',
+  );
+  return { ...actual, userRuntimeCanServe: vi.fn(async () => LOCAL.connected) };
+});
+
 vi.mock('../../../lib/gateway-client.js', () => ({
   getAliaModel: vi.fn(async (id: string) => ({ id, name: 'Alia V1', tier: 'v1', creditMultiplier: 1 })),
   getModelMappingsForTier: vi.fn(async () => [{ provider: H.UPSTREAM_PROVIDER, modelId: H.UPSTREAM_MODEL_ID, capabilities: { maxContextTokens: 128000 } }]),
@@ -320,6 +343,7 @@ vi.mock('../../../lib/logger.js', () => {
 // ── Import the route AFTER the mocks ───────────────────────────────────────
 
 import { handleChatCompletions } from '../chat-completions.js';
+import { resolveModel } from '../../../lib/chat-core.js';
 import { ALIAS_SUNSET } from '../../../middleware/alias-deprecation.js';
 
 // ── Frame classification: the recorder, pinned by its own tests below ───────
@@ -1408,6 +1432,17 @@ describe('fixture: deep research flow — phase events, report deltas, sources',
   it('surfaces a research failure without naming a provider', async () => {
     H.state.searchResults = [];
     const { getAIModel } = await import('../../../lib/chat-core.js');
+    /**
+     * Restored in `finally`, and that is not tidiness.
+     *
+     * The research engine calls the model several times per pass, so this has
+     * to be a standing implementation rather than a `…Once` — and a standing
+     * implementation SURVIVES the suite's `vi.clearAllMocks()`, which resets
+     * call records and not implementations. Left in place it hands a throwing
+     * model to every test declared after this one, and the failure lands on
+     * whoever adds the next fixture rather than here.
+     */
+    const scriptedModel = vi.mocked(getAIModel).getMockImplementation();
     vi.mocked(getAIModel).mockReturnValue({
       specificationVersion: 'v3',
       provider: UPSTREAM_PROVIDER,
@@ -1422,7 +1457,11 @@ describe('fixture: deep research flow — phase events, report deltas, sources',
     } as never);
 
     const res = recordingRes();
-    await run(researchReq(), res);
+    try {
+      await run(researchReq(), res);
+    } finally {
+      if (scriptedModel) vi.mocked(getAIModel).mockImplementation(scriptedModel);
+    }
     const bytes = res.raw.join('');
 
     // The engine swallows per-step model failures and falls back, so the user
@@ -1462,3 +1501,151 @@ function namedEvent(res: RecordingRes, name: string): Record<string, unknown> {
   expect(frame, `expected a ${name} frame`).toBeDefined();
   return JSON.parse(String(frame).slice(String(frame).indexOf('data: ') + 6).trim()) as Record<string, unknown>;
 }
+
+
+// ===========================================================================
+// A model served by the person's OWN machine
+// ===========================================================================
+
+/**
+ * `local/<runtimeId>/<model>` names no Alia route, so the entire resolution,
+ * entitlement and billing apparatus has to step aside — while everything ABOVE
+ * it (the prompt, recall, the tool pipeline, persistence) runs unchanged. Both
+ * halves are asserted here, because either one alone is satisfied by a broken
+ * implementation: a turn that bills nothing because it never ran is not the
+ * wanted outcome, and neither is a turn that runs and bills.
+ */
+describe('fixture: a turn served by the user own device', () => {
+  const LOCAL_MODEL = 'local/rt-1/llama3.1:8b';
+
+  beforeEach(() => {
+    LOCAL.connected = true;
+    H.state.streamTurns = [[streamStart, ...say('t1', 'Running on your machine.'), finish('stop')]];
+  });
+
+  it('reaches the model and reserves no credits', async () => {
+    const req = recordingReq({
+      body: {
+        messages: [{ role: 'user', content: 'hola' }],
+        model: LOCAL_MODEL,
+        stream: true,
+        conversationId: 'conv-local',
+      },
+    });
+    const res = recordingRes();
+
+    await run(req, res);
+
+    // The floor, in the same currency as the claim below: "no credit frames"
+    // and "nothing happened at all" are the same empty transcript otherwise.
+    expect(H.timeline).toContain('model:doStream');
+    expect(H.timeline.filter((entry) => entry.startsWith('credits:'))).toEqual([]);
+
+    /**
+     * Not resolved, not routed. The synthetic resolution in `request-context.ts`
+     * is what keeps a local id away from `fallback-engine.ts`, which throws for
+     * anything outside `ALIA_MODELS` — so a regression here does not degrade
+     * gracefully, it 500s.
+     */
+    expect(vi.mocked(resolveModel)).not.toHaveBeenCalled();
+
+    // The id the person selected is the id the response is stamped with. An
+    // alias substituted here would be the silent substitution ADR 0003 forbids.
+    const chunk = res.raw.find((frame) => frame.includes('"choices"'));
+    expect(chunk).toContain(LOCAL_MODEL);
+  });
+
+  /**
+   * The safety argument for charging nothing, asserted rather than asserted-in-a-comment.
+   *
+   * A turn that reserves no credits must not be able to reach inference Alia
+   * pays for. Both doors are tested: the request FLAG and the TOOL, because
+   * closing one and leaving the other open produces a green suite and free
+   * hosted inference.
+   */
+  it('refuses to run deep research, which resolves hosted models by name', async () => {
+    const req = recordingReq({
+      body: {
+        messages: [{ role: 'user', content: 'research this' }],
+        model: LOCAL_MODEL,
+        stream: true,
+        deepResearch: true,
+      },
+    });
+    const res = recordingRes();
+
+    await run(req, res);
+
+    expect(res.jsonBody).toMatchObject({ error: { code: 'local_runtime_capability_unavailable' } });
+    // Nothing ran, and nothing was billed to nobody.
+    expect(H.timeline).not.toContain('model:doStream');
+    expect(H.timeline).not.toContain('model:doGenerate');
+    expect(H.timeline.filter((entry) => entry.startsWith('credits:'))).toEqual([]);
+  });
+
+  it('refuses agent mode, whose delegation tool resolves a hosted model too', async () => {
+    const res = recordingRes();
+    await run(
+      recordingReq({
+        body: { messages: [{ role: 'user', content: 'go' }], model: LOCAL_MODEL, stream: true, agentMode: true },
+      }),
+      res,
+    );
+    expect(res.jsonBody).toMatchObject({ error: { code: 'local_runtime_capability_unavailable' } });
+    expect(H.timeline).not.toContain('model:doStream');
+  });
+
+  it('never offers the deep-research tool, which reaches the same engine', async () => {
+    const res = recordingRes();
+    await run(
+      recordingReq({
+        body: { messages: [{ role: 'user', content: 'hola' }], model: LOCAL_MODEL, stream: true },
+      }),
+      res,
+    );
+    const local = toolNamesSeenByModel();
+    // The floor: a turn with no tools at all would also "not offer" it.
+    expect(local).toContain('webSearch');
+    expect(local).not.toContain('deepResearch');
+  });
+
+  it('positive control: the same request on an Alia model IS offered it', async () => {
+    // Without this the assertion above passes for a build that offers the tool
+    // to nobody, which would be a different bug wearing the same green.
+    const res = recordingRes();
+    await run(
+      recordingReq({
+        body: { messages: [{ role: 'user', content: 'hola' }], model: 'alia-v1', stream: true },
+      }),
+      res,
+    );
+    expect(toolNamesSeenByModel()).toContain('deepResearch');
+  });
+
+  it('refuses before the stream opens when no device is offering it', async () => {
+    LOCAL.connected = false;
+    const req = recordingReq({
+      body: {
+        messages: [{ role: 'user', content: 'hola' }],
+        model: LOCAL_MODEL,
+        stream: true,
+      },
+    });
+    const res = recordingRes();
+
+    await run(req, res);
+
+    /**
+     * A refusal the picker can act on, as JSON — not an SSE error frame. The
+     * check sits ahead of `sse.openEarly()` precisely so this case does not
+     * arrive as a dead stream, and this is what would notice it moving.
+     */
+    expect(H.timeline).toEqual(['http:status(409)', 'http:json']);
+    expect(res.jsonBody).toMatchObject({ error: { code: 'local_runtime_unavailable' } });
+
+    // The mutation control for the test above: the same request with the same
+    // fixtures reaches the model when a device IS connected, and nothing here.
+    expect(H.timeline).not.toContain('model:doStream');
+    expect(H.timeline.filter((entry) => entry.startsWith('credits:'))).toEqual([]);
+  });
+});

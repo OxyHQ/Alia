@@ -65,6 +65,22 @@ export interface ForUserOptions {
    */
   webSearch: boolean;
   /**
+   * Whether the turn is served by the caller's own device, and therefore
+   * reserved no credits.
+   *
+   * What it withholds is not "expensive tools" in general — it is the ONE tool
+   * in this set that reaches inference Alia pays for. `deepResearch` runs
+   * `lib/research/research-engine.ts`, which resolves `alia-lite` and `alia-v1`
+   * by name; offered on an unreserved turn it is free hosted inference behind a
+   * tool call. The matching request FLAGS are refused at the boundary
+   * (`lib/chat/request-context.ts`), and `delegateToAgent` needs `agentMode`,
+   * which is refused there too — so this is the remaining door.
+   *
+   * Everything else here stays: the web tools reach DuckDuckGo's free endpoint,
+   * and the rest touch the person's own data.
+   */
+  isLocalRuntime: boolean;
+  /**
    * One hosted MCP connector selected for this turn.
    *
    * `undefined` keeps the compatibility behaviour (all runnable connectors),
@@ -101,6 +117,7 @@ export class ToolPipeline {
       sseEmitter,
       webSearch,
       mcpServerId,
+      isLocalRuntime,
     } = opts;
 
     // 1. Convert editor tools from OpenAI format and build name mapping
@@ -142,7 +159,7 @@ export class ToolPipeline {
         updateUserPreferences: updateUserPreferencesTool(userId),
         updateUserContext: updateUserContextTool(userId),
         createAgent: createAgentTool(userId, username),
-        ...(webSearch ? { deepResearch: createDeepResearchTool(userId) } : {}),
+        ...(webSearch && !isLocalRuntime ? { deepResearch: createDeepResearchTool(userId) } : {}),
       });
 
       // SSE-emitting tools (need the emitter to push events to the client)

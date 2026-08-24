@@ -314,6 +314,20 @@ describe('every socket event the app listens for is one the API emits', () => {
     // the exemption is checkable rather than a hole.
     emitted.add('notification'); // lib/notification-service.ts:116, driven above
     emitted.add('show:progress'); // lib/show/show-pipeline.ts:63
+    /**
+     * The two frames a device serving a local model receives. They are emitted
+     * from `lib/inference/user-runtime-bridge.ts` rather than `socket.ts`,
+     * because both are sent to ONE socket in the middle of a chat request
+     * instead of broadcast to a room — driving them here would need a fake io
+     * and a connected runtime.
+     *
+     * Named rather than assumed: `lib/inference/__tests__/user-runtime-bridge.test.ts`
+     * asserts both, `user-runtime:request` in "asks the device that owns the
+     * model" and `user-runtime:abort` in "tells the device to stop". So this
+     * exemption is backed by a behavioural test, not only by a file reference.
+     */
+    emitted.add('user-runtime:request');
+    emitted.add('user-runtime:abort');
 
     const unemitted = names.filter((name) => !emitted.has(name));
     expect(unemitted).toEqual([]);

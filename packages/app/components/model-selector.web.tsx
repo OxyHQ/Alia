@@ -22,6 +22,7 @@ import {
   type CatalogueEntry,
   type EffortLevel,
 } from "@/lib/hooks/use-catalogue";
+import { useLocalModelOptions } from "@/lib/hooks/use-local-runtimes";
 import { presentation, useProductModes } from "@/lib/hooks/use-product-modes";
 import { effortFor, useModelStore } from "@/lib/stores/model-store";
 import { useRouter } from "expo-router";
@@ -85,7 +86,9 @@ export function ModelSelector({
   const [dragging, setDragging] = useState(false);
   const sliderRef = useRef<HTMLDivElement>(null);
 
-  const selection = resolveSelection(selectedModel, entries);
+  const { options: localModels, ids: localModelIds } = useLocalModelOptions();
+  const selection = resolveSelection(selectedModel, entries, localModelIds);
+  const selectedLocal = localModels.find((model) => model.id === selection.effectiveId);
   const isAutomatic = selection.requestedId === AUTOMATIC_SELECTION_ID;
   const automaticMode = (modes ?? []).find(
     (mode) => mode.routing.kind === "default" && !mode.deepResearch,
@@ -93,9 +96,13 @@ export function ModelSelector({
   const automaticLabel = automaticMode?.label ?? t("models.automatic.label");
   const modelLabel = isAutomatic
     ? automaticLabel
-    : selection.entry === null
-      ? t("models.selectModel")
-      : presentation(selection.entry, modes).label;
+    : selectedLocal !== undefined
+      // A local model has no catalogue entry to take a display name from, so the
+      // tag the person knows it by is the label.
+      ? selectedLocal.name
+      : selection.entry === null
+        ? t("models.selectModel")
+        : presentation(selection.entry, modes).label;
   const offered = (entries ?? []).filter(
     (entry) => entry.chatVisible && !entry.unavailable,
   );
@@ -372,7 +379,10 @@ export function ModelSelector({
                   }
                   onValueChange={(id) => {
                     if (id === AUTOMATIC_SELECTION_ID) onModelChange(id);
-                    else {
+                    else if (localModelIds.includes(id)) {
+                      // No plan gate: nobody's plan grants them their own machine.
+                      onModelChange(id);
+                    } else {
                       const entry = offered.find(
                         (candidate) => candidate.id === id,
                       );
@@ -403,6 +413,23 @@ export function ModelSelector({
                     >
                       <span className="min-w-0 flex-1 truncate">
                         {presentation(entry, modes).label}
+                      </span>
+                    </DropdownMenuRadioItem>
+                  ))}
+                  {/* Models running on the person's own devices. Listed after the
+                      catalogue and labelled by device, because with a laptop and a
+                      desktop connected the same tag names two different answers. */}
+                  {localModels.map((model) => (
+                    <DropdownMenuRadioItem
+                      key={model.id}
+                      value={model.id}
+                      accessibilityLabel={`${model.name}, on ${model.deviceLabel}`}
+                      indicator={<RadioCheck />}
+                      indicatorPosition="trailing"
+                    >
+                      <span className="min-w-0 flex-1 truncate">
+                        {model.name}
+                        <span className="text-muted-foreground"> · {model.deviceLabel}</span>
                       </span>
                     </DropdownMenuRadioItem>
                   ))}
