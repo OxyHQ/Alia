@@ -10,7 +10,7 @@ import {
 } from '@oxyhq/contracts';
 
 import type { AliaModelChoice } from '../product-seam.js';
-import { RelayInferenceError } from '../relay-error.js';
+import { RelayInferenceError } from '../kaana-error.js';
 import {
   ALIA_SURFACE_LABEL,
   buildInferenceRequest,
@@ -19,7 +19,7 @@ import {
   violatedCapability,
   type RelayEnvelopeContext,
   type RelayRequestPayload,
-} from '../relay-request.js';
+} from '../kaana-request.js';
 
 /**
  * Contract tests for the request the Relay client builds — epic #139 ws3.

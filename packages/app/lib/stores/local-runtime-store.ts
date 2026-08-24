@@ -22,6 +22,10 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { randomUUID } from 'expo-crypto';
+import { migrateLocalRuntimeState } from './local-runtime-migration';
+import type { LocalRuntimeConsent } from './local-runtime-migration';
+
+export type { LocalRuntimeConsent } from './local-runtime-migration';
 
 /** Ollama's own OpenAI-compatible surface, which is the common case. */
 export const DEFAULT_LOCAL_ENDPOINT = 'http://localhost:11434/v1';
@@ -33,8 +37,6 @@ export const DEFAULT_LOCAL_ENDPOINT = 'http://localhost:11434/v1';
  * said no" must not look the same: the first should still be offered, the
  * second must never be offered again.
  */
-export type LocalRuntimeConsent = 'unasked' | 'granted' | 'declined';
-
 interface LocalRuntimeState {
   /**
    * Nothing touches `localhost` until this is `granted`.
@@ -77,19 +79,7 @@ export const useLocalRuntimeStore = create<LocalRuntimeState>()(
       name: 'alia-local-runtime',
       storage: createJSONStorage(() => AsyncStorage),
       version: 2,
-      /**
-       * v1's `enabled` was a DEFAULT, not a decision.
-       *
-       * It shipped as `true` so detection was automatic, which means a stored
-       * `true` records that nobody ever asked — not that anybody agreed. Every
-       * v1 device therefore arrives at `unasked` and gets the question once,
-       * including the ones that were already probing.
-       */
-      migrate: (persisted) => {
-        const state = persisted as Partial<LocalRuntimeState> & { enabled?: boolean };
-        delete state.enabled;
-        return { ...state, consent: 'unasked' as const };
-      },
+      migrate: migrateLocalRuntimeState,
     },
   ),
 );

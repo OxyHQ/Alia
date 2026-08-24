@@ -6,7 +6,7 @@
  *
  * The adapter between an Oxy ApplicationCredential in the environment and
  * {@link RelayClientConfig.credential}, which is the only credential the Relay
- * client ever presents. `relay-client.ts` declares that field's interface and
+ * client ever presents. `kaana-client.ts` declares that field's interface and
  * says in its own docstring that it is *"structurally satisfied by
  * `@oxyhq/core`'s `OxyServices`"*; this is the module that performs the
  * satisfaction, and its return type is read off `RelayClientConfig` by indexed
@@ -17,7 +17,7 @@
  *
  * **It mints nothing at import.** `createRelayServiceCredential` is a function,
  * not a module-level constant, so importing this file opens no socket and reads
- * no credential. That is what lets `relay-boot-check.ts` depend on the variable
+ * no credential. That is what lets `kaana-boot-check.ts` depend on the variable
  * NAMES without putting a token exchange on the boot path.
  *
  * **It implements no caching, no refresh and no expiry arithmetic.** All three
@@ -30,7 +30,7 @@
  * the token's real lifetime is the one the Oxy edge returns in `expiresIn` and
  * only the code that read that response knows it.
  *
- * `__tests__/relay-credential.test.ts` therefore asserts the composition against
+ * `__tests__/kaana-credential.test.ts` therefore asserts the composition against
  * a real `OxyServices` and a real `/auth/service-token` round trip rather than
  * against a fake: "the token is short-lived" is a property of what this hands
  * back, not of any line in this file.
@@ -47,7 +47,7 @@
 
 import { OxyServices } from '@oxyhq/core';
 
-import type { RelayClientConfig } from './relay-client.js';
+import type { RelayClientConfig } from './kaana-client.js';
 
 /**
  * The ApplicationCredential this deployment presents to mint service tokens.
@@ -55,7 +55,7 @@ import type { RelayClientConfig } from './relay-client.js';
  * Named beside `ALIA_RELAY_CREDENTIAL_ID` on purpose: all three describe the
  * SAME Oxy ApplicationCredential. The `_ID` is the record's own identifier and
  * rides on every request inside the contract's principal
- * (`relay-boot-check.ts`); these two are the secret material that proves the
+ * (`kaana-boot-check.ts`); these two are the secret material that proves the
  * process is entitled to act as it, and they never appear in a request — they
  * are exchanged for a short-lived token, once, and the token is what travels.
  *

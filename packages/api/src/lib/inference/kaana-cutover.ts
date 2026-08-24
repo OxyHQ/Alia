@@ -2,23 +2,23 @@
  * The cutover flag — epic #139 workstream 8.
  *
  * One environment variable and one predicate. It lives in its own module rather
- * than in `relay-client.ts` for two reasons, and the second one is structural
+ * than in `kaana-client.ts` for two reasons, and the second one is structural
  * rather than editorial:
  *
- *  1. **The flag is the CUTOVER's, not the client's.** `relay-client.ts` says so
+ *  1. **The flag is the CUTOVER's, not the client's.** `kaana-client.ts` says so
  *     itself — "#139 workstream 8 owns the cutover". Everything the flag now
  *     arms is workstream 8's: the boot refusal in `direct-provider-guard.ts`,
  *     the egress block in `provider-egress-policy.ts`, and what
- *     `relay-connectivity.ts` reports to `/health`.
- *  2. **It breaks a cycle.** `relay-client.ts` reports its own availability into
- *     `relay-connectivity.ts`, and `relay-connectivity.ts` has to know whether
+ *     `kaana-connectivity.ts` reports to `/health`.
+ *  2. **It breaks a cycle.** `kaana-client.ts` reports its own availability into
+ *     `kaana-connectivity.ts`, and `kaana-connectivity.ts` has to know whether
  *     the cutover has happened to say anything at all. With the flag inside the
  *     client those two modules import each other, which under ESM is a
  *     temporal-dead-zone bug waiting for an unlucky module order.
  *
  * Nothing here reads the client, the contract or a transport, so a product
  * module asking "has the cutover happened" does not thereby name the Relay
- * client — which is the freeze `__tests__/relay-boundary.test.ts` enforces.
+ * client — which is the freeze `__tests__/kaana-boundary.test.ts` enforces.
  */
 
 /**

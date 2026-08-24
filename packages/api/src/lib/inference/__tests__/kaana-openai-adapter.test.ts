@@ -14,9 +14,9 @@ import {
   OPENAI_CHAT_COMPLETIONS_ENDPOINT,
   renderRouteSwitchEvent,
   type OpenAIChatCompletionsRequest,
-} from '../relay-openai-adapter.js';
-import { RelayInferenceError } from '../relay-error.js';
-import { buildInferenceRequest, type RelayEnvelopeContext } from '../relay-request.js';
+} from '../kaana-openai-adapter.js';
+import { RelayInferenceError } from '../kaana-error.js';
+import { buildInferenceRequest, type RelayEnvelopeContext } from '../kaana-request.js';
 
 /**
  * The dialect adapter, in both directions — epic #139 workstream 3.

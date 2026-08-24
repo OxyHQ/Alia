@@ -11,17 +11,17 @@ import type { OxyServices } from '@oxyhq/core';
 
 import { sanitizeMessage } from '../../errors/sanitize.js';
 import type { AliaInferenceCall, AliaInferenceContext } from '../product-seam.js';
-import { INFERENCE_ERROR_POLICY, RelayInferenceError, RelayTransportRefusal } from '../relay-error.js';
+import { INFERENCE_ERROR_POLICY, RelayInferenceError, RelayTransportRefusal } from '../kaana-error.js';
 import {
   createRelayInferenceClient,
   type RelayClientConfig,
   type RelayServiceCredential,
   type RelayTransport,
   type RelayTransportRequest,
-} from '../relay-client.js';
-import { isRelayClientEnabled, RELAY_CLIENT_ENABLED_ENV } from '../relay-cutover.js';
-import type { RelayRequestPayload } from '../relay-request.js';
-import { assertAllowedRelayOrigin } from '../relay-endpoint.js';
+} from '../kaana-client.js';
+import { isRelayClientEnabled, RELAY_CLIENT_ENABLED_ENV } from '../kaana-cutover.js';
+import type { RelayRequestPayload } from '../kaana-request.js';
+import { assertAllowedRelayOrigin } from '../kaana-endpoint.js';
 
 /**
  * An approved Relay origin, branded through the one function that can produce

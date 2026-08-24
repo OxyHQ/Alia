@@ -19,13 +19,13 @@
  * "temporarily" is the way one arrives.
  *
  * `@oxyhq/contracts` is a dependency of `packages/api` as of the inference
- * module's release, and the four parameters are bound in `relay-client.ts` —
+ * module's release, and the four parameters are bound in `kaana-client.ts` —
  * `RelayInferencePort`, one type alias, at the implementation rather than here.
  * That is deliberate: binding them on the interface would make every product
  * module that names this port name the wire types too, and the port's value is
  * that a product module never has to. `__tests__/product-seam.test.ts` fails if
  * a parameter is replaced by a locally declared shape, and
- * `docs/migration/relay-client-gap.md` records what binds each one.
+ * `docs/migration/kaana-client-gap.md` records what binds each one.
  *
  * ## Deliberately NOT here
  *
@@ -36,7 +36,7 @@
  *   no counterpart in the target architecture at all — see the gap analysis.
  * - **Any wiring.** The only importer is the Relay client that implements this
  *   port, and nothing in `packages/api` imports THAT — frozen by
- *   `__tests__/relay-boundary.test.ts`. A half-wired seam is worse than an
+ *   `__tests__/kaana-boundary.test.ts`. A half-wired seam is worse than an
  *   unwired one: it makes the cutover look done. Workstream 8 wires it.
  */
 

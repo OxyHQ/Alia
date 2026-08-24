@@ -19,9 +19,9 @@ import {
   type RelayServiceCredential,
   type RelayTransport,
   type RelayTransportRequest,
-} from '../relay-client.js';
-import { assertAllowedRelayOrigin, RELAY_ALLOWED_ORIGINS } from '../relay-endpoint.js';
-import { ALIA_SURFACE_LABEL, type RelayRequestPayload } from '../relay-request.js';
+} from '../kaana-client.js';
+import { assertAllowedRelayOrigin, RELAY_ALLOWED_ORIGINS } from '../kaana-endpoint.js';
+import { ALIA_SURFACE_LABEL, type RelayRequestPayload } from '../kaana-request.js';
 
 /** An approved Relay origin, branded through the one function that produces one. */
 const ENDPOINT = assertAllowedRelayOrigin('https://api.oxy.so', 'development');
@@ -43,7 +43,7 @@ const ENDPOINT = assertAllowedRelayOrigin('https://api.oxy.so', 'development');
  *    envelope has no field that could ask Relay to keep anything;
  *  - *validate scopes and environment* — checked once, at construction;
  *  - *pin allowed Relay origins/endpoints* — an allow-list, enforced at boot and
- *    on every call; the RULE lives in `relay-endpoint.ts` and its own test, and
+ *    on every call; the RULE lives in `kaana-endpoint.ts` and its own test, and
  *    what this file keeps is the structural half: no relay module may name a
  *    host except that one;
  *  - *request signing/mTLS only if the finalized contract requires it* —
@@ -52,7 +52,7 @@ const ENDPOINT = assertAllowedRelayOrigin('https://api.oxy.so', 'development');
  *
  * ## What this file deliberately does not repeat
  *
- * `relay-context-minimality.test.ts` (#139 ws13) already proves the envelope's
+ * `kaana-context-minimality.test.ts` (#139 ws13) already proves the envelope's
  * key set equals the contract's and that Alia's product state does not travel.
  * Duplicating it here would produce two tests that fail together and say the
  * same thing. What is added is the half that file does not ask: WHO the
@@ -64,7 +64,7 @@ const ENDPOINT = assertAllowedRelayOrigin('https://api.oxy.so', 'development');
 /*  Harness                                                                    */
 /* -------------------------------------------------------------------------- */
 
-const RELAY_DIR = path.resolve(import.meta.dirname, '..');
+const KAANA_DIR = path.resolve(import.meta.dirname, '..');
 
 class CapturingTransport implements RelayTransport {
   readonly sent: RelayTransportRequest[] = [];
@@ -505,7 +505,7 @@ describe('the hop carries exactly one auth mechanism (#139 ws15)', () => {
     let linesScanned = 0;
 
     for (const name of relayModuleNames()) {
-      for (const line of readFileSync(path.join(RELAY_DIR, name), 'utf8').split('\n')) {
+      for (const line of readFileSync(path.join(KAANA_DIR, name), 'utf8').split('\n')) {
         const trimmed = line.trim();
         // Comments excluded: this file's own siblings discuss signatures.
         if (trimmed.startsWith('*') || trimmed.startsWith('//') || trimmed.startsWith('/*')) continue;
@@ -529,14 +529,14 @@ describe('the hop carries exactly one auth mechanism (#139 ws15)', () => {
    *
    * This was previously answered by freezing an ABSENCE — no relay module named
    * a host, and no config field an origin could arrive in — with a note saying
-   * to retire it when an endpoint appeared. It has, in `relay-endpoint.ts`, so
+   * to retire it when an endpoint appeared. It has, in `kaana-endpoint.ts`, so
    * the two halves have moved:
    *
    *  - the RULE (which origins, what a production process may not point at, what
-   *    happens at boot and on every call) is `__tests__/relay-endpoint.test.ts`;
+   *    happens at boot and on every call) is `__tests__/kaana-endpoint.test.ts`;
    *  - the STRUCTURAL half is here, narrowed rather than deleted: exactly one
    *    relay module may name a host, and the hosts it names are exactly the
-   *    allow-list. A URL literal appearing in `relay-client.ts` — a hardcoded
+   *    allow-list. A URL literal appearing in `kaana-client.ts` — a hardcoded
    *    fallback base, say — still fails.
    */
   it('one module names a host, and the hosts it names are the allow-list', () => {
@@ -544,7 +544,7 @@ describe('the hop carries exactly one auth mechanism (#139 ws15)', () => {
     let linesScanned = 0;
 
     for (const name of relayModuleNames()) {
-      for (const line of readFileSync(path.join(RELAY_DIR, name), 'utf8').split('\n')) {
+      for (const line of readFileSync(path.join(KAANA_DIR, name), 'utf8').split('\n')) {
         const trimmed = line.trim();
         if (trimmed.startsWith('*') || trimmed.startsWith('//') || trimmed.startsWith('/*')) continue;
         linesScanned += 1;
@@ -558,8 +558,8 @@ describe('the hop carries exactly one auth mechanism (#139 ws15)', () => {
 
     expect(linesScanned).toBeGreaterThan(500);
     // Exactly one module, named, and exactly the origins the allow-list holds.
-    expect([...byModule.keys()]).toEqual(['relay-endpoint.ts']);
-    expect((byModule.get('relay-endpoint.ts') ?? []).sort()).toEqual(
+    expect([...byModule.keys()]).toEqual(['kaana-endpoint.ts']);
+    expect((byModule.get('kaana-endpoint.ts') ?? []).sort()).toEqual(
       [...RELAY_ALLOWED_ORIGINS].sort(),
     );
 
@@ -576,7 +576,7 @@ describe('the hop carries exactly one auth mechanism (#139 ws15)', () => {
     // the only way to populate either interface is through the allow-list check.
     // A plain `string` in either position is a compile error, which is where a
     // property enforced by the type system has to be gated.
-    const source = readFileSync(path.join(RELAY_DIR, 'relay-client.ts'), 'utf8');
+    const source = readFileSync(path.join(KAANA_DIR, 'kaana-client.ts'), 'utf8');
     const configBlock = /export interface RelayClientConfig \{([\s\S]*?)\n\}/.exec(source)?.[1] ?? '';
     const transportBlock = /export interface RelayTransportRequest \{([\s\S]*?)\n\}/.exec(source)?.[1] ?? '';
     // Floors before the assertions: both interfaces were found and have members.
@@ -613,16 +613,16 @@ describe('the hop carries exactly one auth mechanism (#139 ws15)', () => {
  * substantial.
  */
 function relayModuleNames(): string[] {
-  const names = readdirSync(RELAY_DIR)
+  const names = readdirSync(KAANA_DIR)
     .filter((name) => name.endsWith('.ts'))
     .sort();
 
-  for (const original of ['relay-client.ts', 'relay-error.ts', 'relay-openai-adapter.ts', 'relay-request.ts']) {
-    expect(names, `${original} is missing from ${RELAY_DIR}`).toContain(original);
+  for (const original of ['kaana-client.ts', 'kaana-error.ts', 'kaana-openai-adapter.ts', 'kaana-request.ts']) {
+    expect(names, `${original} is missing from ${KAANA_DIR}`).toContain(original);
   }
   expect(names.length).toBeGreaterThanOrEqual(8);
-  expect(names, 'relay-endpoint.ts is missing; the origin allow-list is unscanned').toContain(
-    'relay-endpoint.ts',
+  expect(names, 'kaana-endpoint.ts is missing; the origin allow-list is unscanned').toContain(
+    'kaana-endpoint.ts',
   );
   return names;
 }

@@ -19,7 +19,7 @@ import {
   ProviderEgressRefusal,
   providerEgressDecision,
 } from '../../inference/provider-egress-policy.js';
-import { RELAY_CLIENT_ENABLED_ENV } from '../../inference/relay-cutover.js';
+import { RELAY_CLIENT_ENABLED_ENV } from '../../inference/kaana-cutover.js';
 
 /**
  * Epic #139 workstream 19 — *"Monitor direct-provider egress and alert on any
@@ -72,7 +72,7 @@ const [PROVIDER_HOST, SECOND_PROVIDER_HOST] = Object.values(PROVIDER_API_HOSTS);
 /**
  * Where `Oxy API -> Relay` will answer from.
  *
- * Relay has no origin of its own yet — `lib/inference/__tests__/relay-egress.test.ts`
+ * Relay has no origin of its own yet — `lib/inference/__tests__/kaana-egress.test.ts`
  * freezes that fact — so the positive control is the Oxy host it will live
  * behind. Classified rather than contacted: this is an assertion about the
  * policy, not about Oxy being up.

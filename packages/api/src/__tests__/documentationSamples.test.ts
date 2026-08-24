@@ -92,7 +92,7 @@ const read = (file: string): string => readFileSync(path.join(REPO_ROOT, file), 
  *  - {@link NORMATIVE} exists because seven sentences in this repository
  *    DESCRIBE an absence rather than PRESCRIBING one — "there is no ranking, no
  *    candidate list, no provider anywhere in this file" is a fact about
- *    `relay-request.ts`, not a rule. Without a modal or an imperative, all seven
+ *    `kaana-request.ts`, not a rule. Without a modal or an imperative, all seven
  *    were false positives.
  *  - `at all` is deliberately absent from {@link GLOBAL_SCOPE}: it is an
  *    intensifier, not a scope, and it fired on "Alia does not rank candidates at
