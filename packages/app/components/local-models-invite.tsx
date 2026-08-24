@@ -5,6 +5,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@oxyhq/bloom/popover";
 import { Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
 import { useTranslation } from "@/lib/hooks/use-translation";
+import { useIsLargeScreen } from "@/lib/hooks/use-is-large-screen";
 import { useLocalRuntimeStore } from "@/lib/stores/local-runtime-store";
 
 const ARTWORK = require("@/assets/images/local-models.webp");
@@ -55,15 +56,51 @@ export function LocalModelsInvite({ children }: { children: ReactNode }) {
    */
   const [hidden, setHidden] = useState(false);
 
-  if (consent !== "unasked" || hidden) return <>{children}</>;
+  /**
+   * Not offered on a small screen, and the reason is not screen real estate.
+   *
+   * Granting consent probes THIS device's own `localhost`. A phone has no model
+   * server on it, so the answer is always nothing — the phone reaches a laptop's
+   * models through the LAPTOP's tab, which announced them, never through its
+   * own. Asking here would be asking a question whose only possible answer is
+   * no, and then remembering the no.
+   *
+   * `useIsLargeScreen` rather than an `md:` class because this decides whether a
+   * tree MOUNTS, which is the split `AGENTS.md` draws — `md:` is for styling.
+   */
+  const isLargeScreen = useIsLargeScreen();
+
+  if (consent !== "unasked" || hidden || !isLargeScreen) return <>{children}</>;
 
   return (
     <Popover open onOpenChange={(next) => { if (!next) setHidden(true); }}>
       <PopoverTrigger asChild disabled>
         <View>{children}</View>
       </PopoverTrigger>
-      <PopoverContent label={t("models.localInvite.title")}>
-        <View className="w-64 overflow-hidden rounded-2xl">
+      <PopoverContent
+        label={t("models.localInvite.title")}
+        /**
+         * The card is 320px and bleeds to its own edge, so Bloom's popover
+         * chrome has to step aside — `POPOVER_CLASS` is `w-72 p-space-16`, a
+         * 288px card with a 16px inset, which is right for prose and wrong for
+         * a picture that reaches the corners.
+         *
+         * Not overridden with `className="w-80 p-0"`, which is what Bloom's own
+         * comment suggests: `floating/shared.tsx` `cx` is a plain join, so two
+         * utilities for one property are resolved by Tailwind's EMISSION order
+         * rather than by their order in the attribute — the same hazard Bloom
+         * documents for `cursor-pointer` and solves there by making the pair
+         * mutually exclusive. `p-0` sorts before `p-4`, so it would lose.
+         *
+         * The width goes through the props the surface publishes for it, and
+         * the padding through `style`, which is an inline style and therefore
+         * beats the class outright. Everything with a choice stays in NativeWind.
+         */
+        minWidth={320}
+        maxWidth={320}
+        style={{ padding: 0 }}
+      >
+        <View className="w-full overflow-hidden">
           <Image
             source={ARTWORK}
             // Decorative: the sentence below carries the meaning, so announcing
@@ -71,27 +108,30 @@ export function LocalModelsInvite({ children }: { children: ReactNode }) {
             accessibilityElementsHidden
             importantForAccessibility="no-hide-descendants"
             contentFit="cover"
-            className="h-[84px] w-full"
+            className="h-40 w-full"
           />
-          <View className="gap-1 px-3 pt-2.5">
-            <Text className="text-sm font-semibold text-foreground">
+          <View className="gap-1 px-4 pt-3">
+            <Text className="text-base font-semibold text-foreground">
               {t("models.localInvite.title")}
             </Text>
-            <Text className="text-xs text-muted-foreground">
+            <Text className="text-sm text-muted-foreground">
               {t("models.localInvite.body")}
             </Text>
           </View>
-          <View className="flex-row items-center gap-2 px-3 pb-3 pt-2.5">
-            <Button size="sm" className="h-7 px-3" onPress={() => setConsent("granted")}>
-              <Text className="text-xs">{t("models.localInvite.accept")}</Text>
+          {/* `flex-row-reverse` + `justify-between`: the affirmative sits on the
+              right and the dismissal on the far left, which is the arrangement
+              the reference uses. */}
+          <View className="flex-row-reverse items-center justify-between p-3 pt-4">
+            <Button size="sm" className="h-8 rounded-full px-2.5" onPress={() => setConsent("granted")}>
+              <Text className="text-sm font-semibold">{t("models.localInvite.accept")}</Text>
             </Button>
             <Button
               variant="ghost"
               size="sm"
-              className="h-7 px-2.5"
+              className="-ml-2 h-8 rounded-full px-2.5"
               onPress={() => setConsent("declined")}
             >
-              <Text className="text-xs text-muted-foreground">
+              <Text className="text-sm text-muted-foreground">
                 {t("models.localInvite.decline")}
               </Text>
             </Button>
