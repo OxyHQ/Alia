@@ -143,6 +143,7 @@ jobs:
         run: |
           bash -n .github/scripts/*.sh
           bash .github/scripts/test-deploy-ecs-image.sh
+          bash .github/scripts/test-resolve-ecr-platform-digest.sh
 
       # Runs in the one job that installs nothing, so it reports before the jobs
       # it protects would fail. See the header comment: the cache is the only
