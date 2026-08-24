@@ -583,6 +583,7 @@
   },
   "trustedDependencies": [
     "ffmpeg-static",
+    "@shopify/react-native-skia",
   ],
   "overrides": {
     "@react-native-async-storage/async-storage": "2.2.0",
