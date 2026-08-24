@@ -82,7 +82,8 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
     const {
       body, messages, conversationId, reasoningEffort, agentMode, deepResearch, webSearch,
       mcpServerId,
-      includeUsage, isDirectUserSession, requestedModel, routingOptions, clientContext,
+      includeUsage, isDirectUserSession, requestedModel, routingOptions, clientContext, promptModelId,
+      isLocalRuntime,
       userMemory, oxyUser, skill, linkedAgent,
     } = ctx;
     state.creditReservation = ctx.creditReservation;
@@ -150,6 +151,7 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
       sseEmitter,
       webSearch,
       mcpServerId,
+      isLocalRuntime,
     });
 
     // Agent mode: full agent escalation for linked conversations
@@ -238,7 +240,9 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
 
     // Build complete system message via SystemPromptBuilder
     const systemMessage = await SystemPromptBuilder.build({
-      aliasModelId: state.aliasModelId,
+      // The personality's id, which is the alias for everything Alia routes and
+      // the product default for a model running on the caller's own machine.
+      aliasModelId: promptModelId,
       clientContext,
       isDirectUserSession,
       userId: req.user?.id,
