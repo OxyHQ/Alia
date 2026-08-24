@@ -131,7 +131,21 @@ export function useTTS(options: UseTTSOptions = {}) {
     reset();
   }, [reset, releasePlayer]);
 
-  const playFromUrl = useCallback((audioUrl: string, _messageId: string) => {
+  /**
+   * Play a stored clip.
+   *
+   * `onUnplayable` is how a caller says "I can make this again". Stored audio
+   * is not permanent — `tts/` objects age out — and a link to something that is
+   * gone fails in the player, not at the request, so the only place to notice
+   * is here. Without a fallback the failure is reported; with one, the caller
+   * gets to rebuild rather than the person getting an error about a button they
+   * pressed twice.
+   */
+  const playFromUrl = useCallback((
+    audioUrl: string,
+    _messageId: string,
+    onUnplayable?: () => void,
+  ) => {
     releasePlayer();
 
     (async () => {
@@ -143,6 +157,10 @@ export function useTTS(options: UseTTSOptions = {}) {
         player.addListener('playbackStatusUpdate', (status: AudioStatus) => {
           if (status.error) {
             releasePlayer();
+            if (onUnplayable) {
+              onUnplayable();
+              return;
+            }
             setError(status.error);
             return;
           }
@@ -155,6 +173,10 @@ export function useTTS(options: UseTTSOptions = {}) {
         player.play();
         setPlaybackState('playing');
       } catch {
+        if (onUnplayable) {
+          onUnplayable();
+          return;
+        }
         setError('Audio playback not available');
       }
     })();
@@ -194,44 +216,64 @@ export function useTTS(options: UseTTSOptions = {}) {
       setActiveMessage(messageId);
       setPlaybackState('loading');
 
-      // If cached audioUrl exists, play directly
+      /**
+       * Ask the server to make it, and play what comes back.
+       *
+       * Hoisted out of the cached branch below so a clip that has aged out of
+       * storage can fall back to it. `playFromUrl` is called WITHOUT a fallback
+       * here: a freshly made clip that will not play is a real failure, and
+       * retrying it would be a loop.
+       */
+      const synthesize = async () => {
+        const token = getToken();
+        if (!token) {
+          throw new Error('Not authenticated');
+        }
+
+        const response = await fetch(`${apiUrl}/v1/audio/speech`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            model: voiceModel,
+            input: text,
+            voice: getTTSVoice(),
+            speed: getTTSSpeed(),
+            conversationId,
+            messageId,
+          }),
+        });
+
+        if (!response.ok) {
+          if (response.status === 504) {
+            throw new Error('Request timed out — please try again');
+          }
+          const errData = await response.json().catch(() => ({}));
+          throw new Error(errData.error?.message || errData.error || 'TTS failed');
+        }
+
+        const data = await response.json();
+        playFromUrl(data.audioUrl, messageId);
+      };
+
+      /**
+       * A stored clip plays straight away, and is remade if it has gone.
+       *
+       * The row keeps its key long after a `tts/` object ages out of storage,
+       * so the link is signed, valid, and points at nothing — a failure only
+       * the player ever sees. Remaking it is cheaper than keeping every clip
+       * forever, and the person notices nothing.
+       */
       if (audioUrl) {
-        playFromUrl(audioUrl, messageId);
+        playFromUrl(audioUrl, messageId, () => {
+          void synthesize().catch((e: unknown) => setError(errorMessage(e, 'Failed to read aloud')));
+        });
         return;
       }
 
-      // Call backend TTS API
-      const token = getToken();
-      if (!token) {
-        throw new Error('Not authenticated');
-      }
-
-      const response = await fetch(`${apiUrl}/v1/audio/speech`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          model: voiceModel,
-          input: text,
-          voice: getTTSVoice(),
-          speed: getTTSSpeed(),
-          conversationId,
-          messageId,
-        }),
-      });
-
-      if (!response.ok) {
-        if (response.status === 504) {
-          throw new Error('Request timed out — please try again');
-        }
-        const errData = await response.json().catch(() => ({}));
-        throw new Error(errData.error?.message || errData.error || 'TTS failed');
-      }
-
-      const data = await response.json();
-      playFromUrl(data.audioUrl, messageId);
+      await synthesize();
     } catch (e: unknown) {
       console.error('[TTS] Error:', e);
       setError(errorMessage(e, 'Failed to read aloud'));
