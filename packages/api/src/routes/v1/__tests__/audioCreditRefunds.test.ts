@@ -28,7 +28,21 @@ const H = vi.hoisted(() => ({
   synth: 'ok' as 'ok' | 'null' | 'throw',
 }));
 
-vi.mock('../../../lib/credits-manager.js', () => ({
+/**
+ * `CREDITS_CONFIG` is the REAL one, not a copy.
+ *
+ * The route states its price in credits and hands `finalizeCredits` the
+ * equivalent in tokens, so it reads `TOKENS_PER_CREDIT` from here. A mock that
+ * omitted the export made that read `undefined` and threw inside the handler —
+ * and a mock that restated the number would let the constant and the conversion
+ * drift apart silently, which is the whole class of bug this file exists for.
+ */
+vi.mock('../../../lib/credits-manager.js', async () => ({
+  CREDITS_CONFIG: (
+    await vi.importActual<typeof import('../../../lib/credits-manager.js')>(
+      '../../../lib/credits-manager.js',
+    )
+  ).CREDITS_CONFIG,
   reserveCredits: vi.fn(async () => {
     H.calls.push('reserve');
     return { userId: 'u1', creditsReserved: 1, initialFreeCredits: 10, initialPaidCredits: 0 };
