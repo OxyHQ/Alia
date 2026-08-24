@@ -13,6 +13,7 @@ import { isAbortError, isFatalError, isTransientNetworkError } from './lib/error
 
 // Routes
 import healthRouter from './routes/health.js';
+import audioPlaybackRouter from './routes/v1/audio-playback.js';
 import authRouter from './routes/auth.js';
 import conversationsRouter from './routes/conversations.js';
 // folders route removed — was unimplemented (501 stubs)
@@ -218,6 +219,24 @@ app.use('/alia/chat', (_req, res, next) => {
 
 // Routes
 app.use('/health', healthRouter);
+
+/**
+ * Playback of one stored clip: unauthenticated by necessity, authorised by the
+ * link.
+ *
+ * A browser's `<audio src>` sends no `Authorization` header and Alia is
+ * cookie-less, so no media element can satisfy the auth middleware — behind it
+ * this is a route nothing can play. The query string carries a signed,
+ * expiring capability for ONE object instead; `lib/audio-playback-link.ts` says
+ * what that trade costs.
+ *
+ * Mounted HERE and not under `/v1`, though the clip is produced by
+ * `/v1/audio/speech`. `/v1` is the OpenAI-compatibility surface, frozen by ADR
+ * 0004 and sunsetting under ADR 0003 — a route that exists to serve Alia's own
+ * player is not part of the API anyone is compatible WITH, and putting it there
+ * would grow a surface whose whole point is that it does not grow.
+ */
+app.use('/audio/playback', audioPlaybackRouter);
 app.use('/auth', authRouter);
 app.use('/conversations', conversationsRouter);
 
