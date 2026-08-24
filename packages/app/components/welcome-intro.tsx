@@ -16,7 +16,6 @@ import { Button } from '@/components/ui/button';
 import { Text } from '@/components/ui/text';
 import { useTranslation } from '@/lib/hooks/use-translation';
 import { useColorScheme } from '@/lib/useColorScheme';
-import { useUIStore } from '@/lib/stores/ui-store';
 
 /** Milliseconds between revealed characters of the headline. */
 const TYPE_INTERVAL = 55;
@@ -76,7 +75,6 @@ export function WelcomeIntro({
   const { t } = useTranslation();
   const { isDarkColorScheme } = useColorScheme();
   const { signIn } = useAuth();
-  const markWelcomeSeen = useUIStore((state) => state.markWelcomeSeen);
 
   const headline = t('welcome.intro.headline');
   const [typed, setTyped] = useState(0);
@@ -125,7 +123,6 @@ export function WelcomeIntro({
     if (exiting) return;
     // Recorded the moment the exit begins, so a reload mid-animation does not
     // replay the intro.
-    markWelcomeSeen();
     setExiting(true);
     onExitStart();
 
