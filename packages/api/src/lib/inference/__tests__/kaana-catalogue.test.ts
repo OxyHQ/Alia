@@ -13,7 +13,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   fetchKaanaCatalogue,
   getKaanaCatalogue,
-  kaanaServes,
+  kaanaReferenceFor,
+  KAANA_MODEL_LINE_ALIASES,
   resetKaanaCatalogue,
 } from '../kaana-catalogue.js';
 
@@ -94,21 +95,45 @@ describe('fetching it', () => {
 });
 
 describe('what it does with the answer', () => {
-  it('confirms only a model line the catalogue actually names', async () => {
+  it('returns the name it confirmed, for a line the catalogue actually names', async () => {
     answerWith(200, BODY);
-    expect(await kaanaServes('openai/gpt-oss-120b', ENV)).toBe(true);
+    expect(await kaanaReferenceFor('openai/gpt-oss-120b', ENV)).toBe('openai/gpt-oss-120b');
     // The negative control that matters: a name Kaana does not serve must not
-    // be routed to it, and a NEAR MISS is the realistic case — Alia spelled
-    // several of these `xai/` where Kaana says `x-ai/`.
-    expect(await kaanaServes('openai/gpt-oss-120', ENV)).toBe(false);
-    expect(await kaanaServes('xai/grok-4.6', ENV)).toBe(false);
+    // be routed to it, and a NEAR MISS is the realistic case.
+    expect(await kaanaReferenceFor('openai/gpt-oss-120', ENV)).toBeNull();
+  });
+
+  it('sends Kaana its own spelling, not the one Alia publishes', async () => {
+    // `publisher` is a name customers pin (ADR 0003), so Alia keeps `xai/` and
+    // translates here. Answering `true` to "do you serve xai/grok-4.6" and then
+    // sending that spelling is asking one question and acting on another.
+    answerWith(200, { ...BODY, models: [...BODY.models, { model: 'x-ai/grok-4.6', modelReference: 'x-ai/grok-4.6@r1', providers: ['openrouter'] }] });
+    expect(await kaanaReferenceFor('xai/grok-4.6', ENV)).toBe('x-ai/grok-4.6');
+  });
+
+  it('does not invent a translation for a name Kaana still lacks', async () => {
+    // A translated name that the catalogue does not carry is not served, and
+    // must not be routed to on the strength of the map alone.
+    answerWith(200, BODY);
+    expect(await kaanaReferenceFor('xai/grok-4.6', ENV)).toBeNull();
   });
 
   it('refuses everything while the snapshot is too stale to resolve a name', async () => {
     // Every entry would be refused one request at a time. Reading the list
     // without reading this is how a catalogue of names that all fail is built.
     answerWith(200, { ...BODY, servesUnpinned: false });
-    expect(await kaanaServes('openai/gpt-oss-120b', ENV)).toBe(false);
+    expect(await kaanaReferenceFor('openai/gpt-oss-120b', ENV)).toBeNull();
+  });
+
+  it('holds only names that actually differ', async () => {
+    // An entry mapping a name to itself is a translation that does nothing, and
+    // would sit in the map looking like coverage.
+    for (const [alia, kaana] of Object.entries(KAANA_MODEL_LINE_ALIASES)) {
+      expect(kaana, alia).not.toBe(alia);
+      expect(alia).toMatch(/^[^/]+\/[^/]+$/);
+      expect(kaana).toMatch(/^[^/]+\/[^/]+$/);
+    }
+    expect(Object.keys(KAANA_MODEL_LINE_ALIASES).length).toBeGreaterThan(0);
   });
 
   it('holds an answer rather than asking per request', async () => {
@@ -131,6 +156,19 @@ describe('what it does with the answer', () => {
       expect(await getKaanaCatalogue(ENV)).not.toBeNull();
     } finally {
       vi.useRealTimers();
+    }
+  });
+});
+
+describe('the translation map is not a prototype lookup', () => {
+  it('does not answer a key it inherited', async () => {
+    // `KAANA_MODEL_LINE['constructor']` is the Object constructor: a value, so
+    // a `??` fallback never fires and a FUNCTION would be sent onward as the
+    // model name. The read is guarded, so this resolves like any other name
+    // Kaana does not serve.
+    answerWith(200, BODY);
+    for (const inherited of ['constructor', 'toString', '__proto__', 'hasOwnProperty']) {
+      expect(await kaanaReferenceFor(inherited, ENV), inherited).toBeNull();
     }
   });
 });

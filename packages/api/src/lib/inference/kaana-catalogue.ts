@@ -201,18 +201,66 @@ export async function getKaanaCatalogue(
 }
 
 /**
- * Whether Kaana serves a model line, by the name a caller would send.
+ * Alia's name for a model line, where Kaana spells it differently.
  *
- * `false` for anything this cannot confirm — an unreachable Kaana, a stale
+ * Measured against the live catalogue on 2026-08-24: of the 27 lines Alia names
+ * that Kaana did not serve, five were spelling and the rest were modalities
+ * Kaana has no adapter for. All five are publisher spellings, and two of them
+ * also carry a suffix Alia leaves off.
+ *
+ * ## Why Alia is not simply renamed to match
+ *
+ * `publisher` is not an internal identifier. `routes/catalogue.ts` publishes it,
+ * and ADR 0003 makes `<publisher>/<model>` the canonical name a CUSTOMER pins.
+ * Renaming `xai` to `x-ai` to match an upstream's spelling would break every
+ * client that pinned the name Alia advertises — a breaking API change made to
+ * settle a difference of opinion about hyphens.
+ *
+ * ## Why a map rather than matching on the model half
+ *
+ * Because `llama-3.3-70b` and `llama-3.3-70b-instruct` are one line here and
+ * could be two elsewhere. Anything that matched on a suffix would eventually
+ * route a request to a model nobody chose, which is the silent substitution
+ * ADR 0003 exists to forbid. Five reviewed lines are cheaper than that.
+ *
+ * This is a translation at the seam and not a catalogue: it holds only names
+ * that DIFFER, so it shrinks to nothing the day Kaana publishes aliases, and
+ * an entry that stops being needed is dead rather than wrong.
+ */
+const KAANA_MODEL_LINE: Readonly<Record<string, string>> = {
+  'alibaba/qwen3-32b': 'qwen/qwen3-32b',
+  'meta/llama-3.3-70b': 'meta-llama/llama-3.3-70b-instruct',
+  'mistral/mistral-small-3.1': 'mistralai/mistral-small-3.1-24b-instruct',
+  'xai/grok-4.3': 'x-ai/grok-4.3',
+  'xai/grok-4.6': 'x-ai/grok-4.6',
+};
+
+/** Exported for the test that reads it, and for an operator checking coverage. */
+export const KAANA_MODEL_LINE_ALIASES = KAANA_MODEL_LINE;
+
+/**
+ * The name to send Kaana for a model Alia names, or `null` when Kaana does not
+ * serve it.
+ *
+ * Returns the NAME rather than a boolean because the two can differ, and a
+ * caller that asked "do you serve this?" and then sent its own spelling would
+ * be asking one question and acting on another.
+ *
+ * `null` for anything this cannot confirm — an unreachable Kaana, a stale
  * snapshot, a client that is not configured. The caller's other path is the
  * in-process provider tree, which works; routing to Kaana on a guess does not.
  */
-export async function kaanaServes(
-  model: string,
+export async function kaanaReferenceFor(
+  aliaModel: string,
   env: NodeJS.ProcessEnv = process.env,
-): Promise<boolean> {
-  if (getKaanaClient(env) === null) return false;
+): Promise<string | null> {
+  if (getKaanaClient(env) === null) return null;
   const catalogue = await getKaanaCatalogue(env);
-  if (catalogue === null || !catalogue.servesUnpinned) return false;
-  return catalogue.models.some((entry) => entry.model === model);
+  if (catalogue === null || !catalogue.servesUnpinned) return null;
+  // `Object.hasOwn` rather than a truthy or nullish read: `aliaModel` reaches
+  // here from a routing table whose entries a request can influence, and
+  // `KAANA_MODEL_LINE['constructor']` is the Object CONSTRUCTOR — a value, so
+  // `??` never fires and the name sent onward would be a function.
+  const line = Object.hasOwn(KAANA_MODEL_LINE, aliaModel) ? KAANA_MODEL_LINE[aliaModel] : aliaModel;
+  return catalogue.models.some((entry) => entry.model === line) ? line : null;
 }

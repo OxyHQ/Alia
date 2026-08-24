@@ -10,7 +10,7 @@ import { createOpenAI } from '@ai-sdk/openai';
 import { createAnthropic } from '@ai-sdk/anthropic';
 
 import { TTLCache } from './ttl-cache.js';
-import { kaanaServes } from './inference/kaana-catalogue.js';
+import { kaanaReferenceFor } from './inference/kaana-catalogue.js';
 import { kaanaLanguageModel } from './inference/kaana-language-model.js';
 import type { AliaInferenceSurface } from './inference/product-seam.js';
 import {
@@ -100,7 +100,7 @@ export async function resolveModel(
   return {
     ...result,
     aliasModelId: result.aliasModelId || aliasModelId,
-    kaanaReference: canonical !== null && (await kaanaServes(canonical)) ? canonical : null,
+    kaanaReference: canonical === null ? null : await kaanaReferenceFor(canonical),
   } as ResolvedModel;
 }
 
