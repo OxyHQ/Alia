@@ -13,6 +13,7 @@ import {
 } from "@/lib/hooks/use-catalogue";
 import { presentation, useProductModes } from "@/lib/hooks/use-product-modes";
 import { useLocalModelOptions } from "@/lib/hooks/use-local-runtimes";
+import { LocalModelsInvite } from "@/components/local-models-invite";
 
 interface ModelSelectorProps {
   selectedModel: string;
@@ -82,6 +83,7 @@ export function ModelSelector({ selectedModel, onModelChange }: ModelSelectorPro
   };
 
   return (
+    <LocalModelsInvite>
     <DropdownMenu.Root>
       <DropdownMenu.Trigger>
         <Pressable
@@ -172,5 +174,6 @@ export function ModelSelector({ selectedModel, onModelChange }: ModelSelectorPro
 
       </DropdownMenu.Content>
     </DropdownMenu.Root>
+    </LocalModelsInvite>
   );
 }
