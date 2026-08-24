@@ -337,7 +337,20 @@ export function PromptInput({
     value: currentValue,
     setValue: currentSetValue,
     maxHeight,
-    onSubmit: handleSubmit,
+    /**
+     * Wrapped so it takes NOTHING, and the wrapper is load-bearing.
+     *
+     * `handleSubmit` accepts an optional dictated string, and three consumers
+     * pass this straight to an event handler — `onPress`, `onSubmitEditing`,
+     * `onEnterPress`. A function with an optional parameter is assignable to
+     * `() => void`, so every type in the chain is satisfied while the press
+     * EVENT arrives as the first argument at runtime and is read as the text to
+     * send. That shipped, and typing a message stopped sending it.
+     *
+     * Dictation calls `handleSubmit(text)` directly instead, which is the only
+     * caller that has text to hand over.
+     */
+    onSubmit: () => handleSubmit(),
     onSuggestionSend,
     disabled,
     textareaRef,
