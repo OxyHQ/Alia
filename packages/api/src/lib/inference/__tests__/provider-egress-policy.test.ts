@@ -14,7 +14,7 @@ import {
   ProviderEgressRefusal,
   providerEgressDecision,
 } from '../provider-egress-policy.js';
-import { RELAY_CLIENT_ENABLED_ENV } from '../relay-cutover.js';
+import { RELAY_CLIENT_ENABLED_ENV } from '../kaana-cutover.js';
 
 /**
  * Epic #139 workstream 8 — *"Add an egress policy/test proving the Alia service

@@ -38,7 +38,7 @@ import { fileURLToPath } from 'node:url';
 const REPO_ROOT = path.resolve(fileURLToPath(new URL('../../../../../../', import.meta.url)));
 const SELF = path.relative(REPO_ROOT, fileURLToPath(import.meta.url));
 
-const RELAY_DIR = 'packages/api/src/lib/inference';
+const KAANA_DIR = 'packages/api/src/lib/inference';
 
 /** Every module a file names: static, type-only, `import()` and `vi.mock`. */
 function moduleRefs(sf: ts.SourceFile): string[] {
@@ -111,38 +111,41 @@ const sources = trackedSources('packages/api/src');
 
 /** The modules this workstream added. Frozen so a seventh one is a reviewed line. */
 const RELAY_MODULES: readonly string[] = [
-  `${RELAY_DIR}/relay-client`,
+  `${KAANA_DIR}/kaana-client`,
   // #139 ws2: the service-token exchange. On this list rather than beside the
   // boot check because it is subject to the same three constraints — it may not
   // reach a provider, it may not become the live path, and it holds no dialect —
   // and because the credential is the one thing a fallback would need.
-  `${RELAY_DIR}/relay-credential`,
+  `${KAANA_DIR}/kaana-credential`,
   // #139 ws15, *"pin allowed Relay origins/endpoints"*: the allow-list and the
   // branded endpoint type. Added here rather than left outside, so the
   // no-provider and no-fallback censuses below cover it too — it is the one
   // relay module that names a host, which makes it the likeliest place for a
   // provider URL to be added by someone who has stopped reading.
-  `${RELAY_DIR}/relay-endpoint`,
-  `${RELAY_DIR}/relay-error`,
-  `${RELAY_DIR}/relay-openai-adapter`,
-  `${RELAY_DIR}/relay-request`,
+  `${KAANA_DIR}/kaana-endpoint`,
+  `${KAANA_DIR}/kaana-error`,
+  `${KAANA_DIR}/kaana-openai-adapter`,
+  `${KAANA_DIR}/kaana-request`,
   /*
-   * The wire, at last. `relay-client` took its transport as a parameter and
+   * The wire, at last. `kaana-client` took its transport as a parameter and
    * nothing implemented one, so the client could not reach Kaana however it was
    * configured. These three are that implementation: the Ed25519 signer and SSE
    * reader, the factory that assembles a client from the environment, and the
    * one-shot text call product code holds.
    *
-   * On this list because the list is what the censuses below read. Named
-   * `kaana-*` rather than `relay-*` — the product is Kaana — and a census keyed
-   * on the FILENAME would have been blind to exactly the modules that finally
-   * reach a provider. That is the failure `AGENTS.md` names: a gate that skips
-   * what a hand-maintained map omits is not a gate.
+   * On this list because the list is what the censuses below read, and that is
+   * the point rather than an accident of naming. These four arrived named
+   * `kaana-*` while the rest were still `relay-*`, so for a while one directory
+   * held two vocabularies — and a census keyed on the FILENAME would have been
+   * blind to exactly the modules that finally reach a provider. The files carry
+   * one vocabulary now, but the lesson does not expire with the mismatch that
+   * taught it: `AGENTS.md` — a gate that skips what a hand-maintained map omits
+   * is not a gate. Add a module here when you add it to the directory.
    */
-  `${RELAY_DIR}/kaana-transport`,
-  `${RELAY_DIR}/kaana`,
-  `${RELAY_DIR}/kaana-text`,
-  `${RELAY_DIR}/kaana-language-model`,
+  `${KAANA_DIR}/kaana-transport`,
+  `${KAANA_DIR}/kaana`,
+  `${KAANA_DIR}/kaana-text`,
+  `${KAANA_DIR}/kaana-language-model`,
 ];
 
 // ===========================================================================
@@ -159,7 +162,7 @@ describe('the scanner reads what it claims to read', () => {
     expect(moduleRefs(parse(`const a = await import('x3');`))).toContain('x3');
     expect(moduleRefs(parse(`vi.mock('x4');`))).toContain('x4');
     // grep is line-based and would count both of these; the AST sees neither.
-    expect(moduleRefs(parse(`// import { a } from './relay-client.js';\nconst x = 1;`))).toEqual([]);
+    expect(moduleRefs(parse(`// import { a } from './kaana-client.js';\nconst x = 1;`))).toEqual([]);
   });
 
   it('read the package at all, so an empty offender list means absence', () => {
@@ -167,14 +170,14 @@ describe('the scanner reads what it claims to read', () => {
     // or a failed read is indistinguishable from a package with no violations.
     expect(sources.length).toBeGreaterThan(300);
     expect(sources.flatMap((s) => s.refs).length).toBeGreaterThan(1_000);
-    expect(sources.map((s) => s.file)).toContain(`${RELAY_DIR}/relay-client.ts`);
+    expect(sources.map((s) => s.file)).toContain(`${KAANA_DIR}/kaana-client.ts`);
   });
 
   it('resolves a relative specifier the way the census consumes it', () => {
-    expect(resolveSpec(`${RELAY_DIR}/relay-client.ts`, './relay-error.js')).toBe(
-      `${RELAY_DIR}/relay-error`,
+    expect(resolveSpec(`${KAANA_DIR}/kaana-client.ts`, './kaana-error.js')).toBe(
+      `${KAANA_DIR}/kaana-error`,
     );
-    expect(resolveSpec(`${RELAY_DIR}/relay-client.ts`, '@oxyhq/contracts')).toBeNull();
+    expect(resolveSpec(`${KAANA_DIR}/kaana-client.ts`, '@oxyhq/contracts')).toBeNull();
   });
 });
 
@@ -205,8 +208,8 @@ describe('nothing in the API imports the Relay client (#139 ws3, constraint 3)',
   const FROZEN_IMPORTERS: readonly string[
 ] = [
     /*
-     * #139 ws8: the boot-guard suite. It imports `relay-credential` and
-     * `relay-endpoint` for their VARIABLE-NAME maps only —
+     * #139 ws8: the boot-guard suite. It imports `kaana-credential` and
+     * `kaana-endpoint` for their VARIABLE-NAME maps only —
      * `RELAY_CREDENTIAL_REQUIRED_ENV`, `RELAY_BASE_URL_ENV`,
      * `RELAY_ALLOWED_ORIGINS` — so that its "a Relay configuration that boots"
      * fixture is derived rather than hand-copied. A hand-copied one was already
@@ -235,87 +238,87 @@ describe('nothing in the API imports the Relay client (#139 ws3, constraint 3)',
      */
     'packages/api/src/lib/chat-core.ts',
     // #139 ws15: back on this list, having dropped off it when the cutover flag
-    // moved to `relay-cutover.ts`. The boot check now also refuses an
-    // unapproved `RELAY_BASE_URL`, and `relay-endpoint.ts` is one of the modules
+    // moved to `kaana-cutover.ts`. The boot check now also refuses an
+    // unapproved `RELAY_BASE_URL`, and `kaana-endpoint.ts` is one of the modules
     // this census covers — so its test names a relay module again, which is what
     // the list records and nothing more.
     // The transport's own test, which drives it over a fake fetch.
-    `${RELAY_DIR}/__tests__/kaana-language-model.test.ts`,
-    `${RELAY_DIR}/__tests__/kaana-transport.test.ts`,
+    `${KAANA_DIR}/__tests__/kaana-language-model.test.ts`,
+    `${KAANA_DIR}/__tests__/kaana-transport.test.ts`,
     // What this process asks Kaana for when a caller names no model. It builds a
     // real client because the subject is the ENVELOPE that reaches the wire: the
     // default was a routing profile, which the contract accepts and the deployed
     // Kaana refuses, so only a test that reads what was SENT can see it.
-    `${RELAY_DIR}/__tests__/kaana.test.ts`,
-    `${RELAY_DIR}/__tests__/relay-boot-check.test.ts`,
+    `${KAANA_DIR}/__tests__/kaana.test.ts`,
+    `${KAANA_DIR}/__tests__/kaana-boot-check.test.ts`,
     // #139 ws8: the capability suite drives a real client, because "the client
     // supports tools / structured output / vision / reasoning / prompt caching"
     // is a claim about what the CLIENT does with a request and a stream, not
     // about what `violatedCapability` returns. A test importer, so constraint 3
     // is untouched.
-    `${RELAY_DIR}/__tests__/relay-capabilities.test.ts`,
-    `${RELAY_DIR}/__tests__/relay-client.test.ts`,
+    `${KAANA_DIR}/__tests__/kaana-capabilities.test.ts`,
+    `${KAANA_DIR}/__tests__/kaana-client.test.ts`,
     // #139 ws8: drives a real client so the connectivity the health route reads
     // has a real producer — a registry nothing writes to is green and inert.
-    // A test importer; `routes/health.ts` imports `relay-connectivity.ts`, which
+    // A test importer; `routes/health.ts` imports `kaana-connectivity.ts`, which
     // is not this module.
-    `${RELAY_DIR}/__tests__/relay-connectivity.test.ts`,
+    `${KAANA_DIR}/__tests__/kaana-connectivity.test.ts`,
     // #139 workstream 13: asserts what the client puts on the wire, so it has to
     // drive one. A test, not a call site — the constraint is that no PRODUCT
     // module imports the client, and this is the fourth of its own tests.
-    `${RELAY_DIR}/__tests__/relay-context-minimality.test.ts`,
+    `${KAANA_DIR}/__tests__/kaana-context-minimality.test.ts`,
     // #139 ws2: the service-token exchange's own suite. It drives the real
     // `@oxyhq/core` client against a loopback edge, so it mints tokens — from a
     // test, against a socket it opened itself. No product module is involved.
-    `${RELAY_DIR}/__tests__/relay-credential.test.ts`,
+    `${KAANA_DIR}/__tests__/kaana-credential.test.ts`,
     // #139 ws15: drives the client so it can read what the client SENDS — the
     // delegated identifier, the routing-policy reference and the single
     // credential on the hop. A test importer, so constraint 3 is untouched.
-    `${RELAY_DIR}/__tests__/relay-egress.test.ts`,
+    `${KAANA_DIR}/__tests__/kaana-egress.test.ts`,
     // #139 ws15, *"pin allowed Relay origins/endpoints"*: drives a real client to
     // prove the endpoint is re-checked on every call and that a refused one
     // reaches no transport. A test importer, so constraint 3 is untouched.
-    `${RELAY_DIR}/__tests__/relay-endpoint.test.ts`,
-    `${RELAY_DIR}/__tests__/relay-openai-adapter.test.ts`,
-    `${RELAY_DIR}/__tests__/relay-request.test.ts`,
+    `${KAANA_DIR}/__tests__/kaana-endpoint.test.ts`,
+    `${KAANA_DIR}/__tests__/kaana-openai-adapter.test.ts`,
+    `${KAANA_DIR}/__tests__/kaana-request.test.ts`,
     /*
      * The wire and what assembles it. `kaana.ts` constructs a client — the
      * first module in the repository that does — and `kaana-text.ts` is the
      * one-shot call product code holds. `kaana-transport.ts` names the client
      * only for its `RelayTransport` type, which is the shape it satisfies.
      *
-     * They are inside `${RELAY_DIR}` on purpose: a product module reaches
+     * They are inside `${KAANA_DIR}` on purpose: a product module reaches
      * Kaana through `kaana-text.ts` and nothing else, so the censuses below
      * still describe one door rather than three.
      */
-    `${RELAY_DIR}/kaana-catalogue.ts`,
-    `${RELAY_DIR}/kaana-language-model.ts`,
-    `${RELAY_DIR}/kaana-text.ts`,
-    `${RELAY_DIR}/kaana-transport.ts`,
-    `${RELAY_DIR}/kaana.ts`,
+    `${KAANA_DIR}/kaana-catalogue.ts`,
+    `${KAANA_DIR}/kaana-language-model.ts`,
+    `${KAANA_DIR}/kaana-text.ts`,
+    `${KAANA_DIR}/kaana-transport.ts`,
+    `${KAANA_DIR}/kaana.ts`,
     // #139 ws2: the boot refusal. It reads the client's RULES —
     // `assertPrincipalMatchesDeployment` and the contract principal — and
     // constructs no client, opens no transport and mints no token, which
-    // `relay-boot-check.test.ts` asserts about its source. `src/index.ts` imports
+    // `kaana-boot-check.test.ts` asserts about its source. `src/index.ts` imports
     // the boot check, NOT this module, so the constraint below is unchanged: the
     // product runtime still names the client nowhere.
     //
     // Its own test dropped off this list when the cutover flag moved to
-    // `relay-cutover.ts` (#139 ws8) — that module is not the client, so the
+    // `kaana-cutover.ts` (#139 ws8) — that module is not the client, so the
     // three product modules the cutover added (`direct-provider-guard.ts`,
-    // `provider-egress-policy.ts`, `relay-connectivity.ts`) ask "has the cutover
+    // `provider-egress-policy.ts`, `kaana-connectivity.ts`) ask "has the cutover
     // happened" without naming the client either.
-    `${RELAY_DIR}/relay-boot-check.ts`,
-    `${RELAY_DIR}/relay-client.ts`,
+    `${KAANA_DIR}/kaana-boot-check.ts`,
+    `${KAANA_DIR}/kaana-client.ts`,
     // #139 ws2: reads `RelayClientConfig['credential']` to type what it returns,
     // so the shape it satisfies is the client's own rather than a copy of it.
     // Nothing else about the client is touched — no construction, no transport.
-    `${RELAY_DIR}/relay-credential.ts`,
-    `${RELAY_DIR}/relay-openai-adapter.ts`,
-    `${RELAY_DIR}/relay-request.ts`,
+    `${KAANA_DIR}/kaana-credential.ts`,
+    `${KAANA_DIR}/kaana-openai-adapter.ts`,
+    `${KAANA_DIR}/kaana-request.ts`,
     // #139 ws17: reads `resolveRoutingTarget` and the contract's routing target
     // union to prove a public credential cannot name an internal DEPLOYMENT.
-    // Outside `${RELAY_DIR}` and still a test — it drives no client and mounts
+    // Outside `${KAANA_DIR}` and still a test — it drives no client and mounts
     // nothing, which is why constraint 3 is untouched by it too.
     'packages/api/src/routes/__tests__/internal-only-access.test.ts',
     /*
@@ -349,7 +352,19 @@ describe('nothing in the API imports the Relay client (#139 ws3, constraint 3)',
   ];
 
   it('is imported by exactly its own modules and its own tests', () => {
-    expect(importers).toEqual([...FROZEN_IMPORTERS]);
+    /**
+     * Sorted on BOTH sides, because what is frozen is the MEMBERSHIP.
+     *
+     * `importers` is sorted at the census; the list below is written in reading
+     * order so each entry can carry the reason it is allowed. Comparing them
+     * unsorted froze the alphabet as well, and the alphabet moved when these
+     * modules were renamed `relay-*` -> `kaana-*` — a rename that added and
+     * removed nobody failed this gate purely on ordering, which is a gate
+     * reporting a change that did not happen. `toEqual` on arrays still catches
+     * a duplicate, an addition and a removal, which are the three things this
+     * exists to catch.
+     */
+    expect(importers).toEqual([...FROZEN_IMPORTERS].sort());
   });
 
   it('found importers at all, so the equality above is not vacuous', () => {
@@ -422,18 +437,18 @@ describe('the Relay client cannot reach a provider (#139 ws3, constraints 1 and 
 // ===========================================================================
 
 describe('the OpenAI dialect exists only in the adapter (#139 ws3)', () => {
-  const client = sources.find((source) => source.file === `${RELAY_DIR}/relay-client.ts`);
+  const client = sources.find((source) => source.file === `${KAANA_DIR}/kaana-client.ts`);
 
   it('the client does not import the adapter', () => {
     // A client that knew the dialect would be a client the dialect could leak
     // into, and `client.apiFormat` exists precisely so the normalization happens
     // once, above it.
     expect(client).toBeDefined();
-    const resolved = (client?.refs ?? []).map((spec) => resolveSpec(`${RELAY_DIR}/relay-client.ts`, spec));
-    expect(resolved).not.toContain(`${RELAY_DIR}/relay-openai-adapter`);
+    const resolved = (client?.refs ?? []).map((spec) => resolveSpec(`${KAANA_DIR}/kaana-client.ts`, spec));
+    expect(resolved).not.toContain(`${KAANA_DIR}/kaana-openai-adapter`);
     // The floor: the client does import its siblings, so "not contained" is a
     // fact about the adapter rather than about an empty list.
-    expect(resolved).toContain(`${RELAY_DIR}/relay-request`);
-    expect(resolved).toContain(`${RELAY_DIR}/relay-error`);
+    expect(resolved).toContain(`${KAANA_DIR}/kaana-request`);
+    expect(resolved).toContain(`${KAANA_DIR}/kaana-error`);
   });
 });

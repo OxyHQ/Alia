@@ -21,7 +21,7 @@ import { inferenceStreamEventSchema } from '@oxyhq/contracts';
  * whatever `@oxyhq/contracts` says it is, and a contract bump that moves
  * `requestId` or `generationId` fails at the parse rather than passing against a
  * hand-written shape this file invented. When Relay answers, the events arrive
- * over a socket, go through the same schema in `relay-client.ts`, and reach
+ * over a socket, go through the same schema in `kaana-client.ts`, and reach
  * {@link relayCorrelationOf} unchanged — nothing in this file has to move.
  *
  * What DOES change is the call site: `chat-completions.ts` passes `relay: null`

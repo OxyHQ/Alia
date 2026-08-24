@@ -7,10 +7,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  *
  * ## Why this exists beside the Relay client's own retry tests
  *
- * `lib/inference/__tests__/relay-client.test.ts` guards the SAME property for
+ * `lib/inference/__tests__/kaana-client.test.ts` guards the SAME property for
  * the Relay client (`mayRetry`'s `yielded === 0` conjunct). That client is not
  * the live path: `isRelayClientEnabled` is off by default and nothing in
- * `packages/api` imports it, which `relay-boundary.test.ts` freezes. The path
+ * `packages/api` imports it, which `kaana-boundary.test.ts` freezes. The path
  * that retries in production today is `runProviderLoop`, and until this file
  * nothing measured whether IT could duplicate a tool effect.
  *

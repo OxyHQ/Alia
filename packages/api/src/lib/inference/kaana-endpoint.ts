@@ -4,8 +4,8 @@
  *
  * ## Why this lands before the transport does
  *
- * `relay-client.ts` ships no HTTP transport on purpose, and until this module
- * existed the checkbox was answered by FREEZING the absence: `relay-egress.test.ts`
+ * `kaana-client.ts` ships no HTTP transport on purpose, and until this module
+ * existed the checkbox was answered by FREEZING the absence: `kaana-egress.test.ts`
  * asserted that no relay module named a host and that no config field an origin
  * could arrive in existed. That was the honest answer while there was nothing to
  * configure, and its own note said to retire it when an endpoint appeared.
@@ -36,7 +36,7 @@
  * is refused, is what keeps the escape from generalising.
  *
  * The deployment is a PARAMETER rather than something read here, and it is not
- * a style choice: `relay-client.ts` owns `resolveDeploymentEnvironment` and
+ * a style choice: `kaana-client.ts` owns `resolveDeploymentEnvironment` and
  * imports this module, so reading it back would be a cycle. Passing it keeps the
  * dependency one-way and keeps this module free of any environment read except
  * the one variable it is about.

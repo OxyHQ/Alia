@@ -1,7 +1,7 @@
 /**
  * The Kaana client this process actually uses, assembled from the environment.
  *
- * `relay-client.ts` is the client and takes every collaborator as a parameter;
+ * `kaana-client.ts` is the client and takes every collaborator as a parameter;
  * this is the one place that decides what those collaborators ARE here. Keeping
  * the two apart is what let the client be written and tested before a wire
  * existed — and it is why wiring the wire is this file rather than an edit
@@ -31,9 +31,9 @@ import {
   createRelayInferenceClient,
   type RelayClientConfig,
   type RelayInferenceClient,
-} from './relay-client.js';
-import { RELAY_PRINCIPAL_ENV } from './relay-boot-check.js';
-import { resolveRelayEndpoint } from './relay-endpoint.js';
+} from './kaana-client.js';
+import { RELAY_PRINCIPAL_ENV } from './kaana-boot-check.js';
+import { resolveRelayEndpoint } from './kaana-endpoint.js';
 import {
   KAANA_EDGE_KEY_ID_ENV,
   KAANA_EDGE_PRIVATE_KEY_ENV,

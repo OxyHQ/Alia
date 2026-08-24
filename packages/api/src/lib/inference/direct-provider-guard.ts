@@ -30,7 +30,7 @@
  *
  * With the flag ON: unset `GATEWAY_API_URL` and the provider credentials. That
  * is the migration's own end state, and it is not "turn inference off" — the
- * other half of boot, `relay-boot-check.ts`, refuses to start unless the five
+ * other half of boot, `kaana-boot-check.ts`, refuses to start unless the five
  * `ALIA_RELAY_*` variables describe a principal the Oxy contract accepts. The
  * two checks together admit exactly one configuration: Relay configured,
  * provider configuration absent.
@@ -47,7 +47,7 @@
  */
 
 import { PROVIDER_API_HOSTS } from './provider-egress-policy.js';
-import { isRelayClientEnabled } from './relay-cutover.js';
+import { isRelayClientEnabled } from './kaana-cutover.js';
 
 /**
  * The variable whose presence means a non-Relay provider tier is configured.
@@ -97,7 +97,7 @@ export const PROVIDER_CREDENTIAL_ENV: readonly string[] = [
  * Why this process must not start, or `null` when it may.
  *
  * A returned reason rather than a throw, for the same reason
- * {@link import('./relay-boot-check.js').relayBootConfigurationFailure} returns
+ * {@link import('./kaana-boot-check.js').relayBootConfigurationFailure} returns
  * one: the caller is `src/index.ts`, which wants to log and exit.
  *
  * **With the flag off this reads exactly one variable and returns**, and the

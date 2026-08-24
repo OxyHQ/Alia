@@ -32,7 +32,7 @@
  *
  * `relay` is null on every call, because Alia does not call Relay: the typed
  * client exists and nothing imports it (#139 ws3 constraint 3, frozen by
- * `lib/inference/__tests__/relay-boundary.test.ts`). {@link relayCorrelationOf}
+ * `lib/inference/__tests__/kaana-boundary.test.ts`). {@link relayCorrelationOf}
  * is the half that has no dependency on that — it reads the ids off a contract
  * stream event, so it is exercised today against contract-parsed fixtures and
  * needs no change when the events start arriving over a socket. The day

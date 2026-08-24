@@ -45,7 +45,7 @@ import {
 
 import { translateAlias } from '../routing/alias-translation.js';
 import type { AliaInferenceSurface, AliaModelChoice } from './product-seam.js';
-import { createInferenceError, RelayInferenceError } from './relay-error.js';
+import { createInferenceError, RelayInferenceError } from './kaana-error.js';
 
 /**
  * The product's half of a request.
@@ -66,7 +66,7 @@ import { createInferenceError, RelayInferenceError } from './relay-error.js';
  *    retries. A caller-settable key is a caller-settable double charge.
  *  - `stream` — the client's only wire read path is the stream event union, so
  *    it always asks for a stream and folds when the caller wanted a completion.
- *    See {@link import('./relay-client.js').RelayCompletion}.
+ *    See {@link import('./kaana-client.js').RelayCompletion}.
  *  - `client.receivedAt` — an instant the client stamps. The rest of `client`
  *    IS the product's: which Alia dialect the user called is a fact only the
  *    product surface knows.
@@ -247,7 +247,7 @@ export type CapabilityEnforcement =
  * The `satisfies Record<keyof ModelCapabilities, …>` is load-bearing in both
  * directions: a capability ADDED to `modelCapabilitiesSchema` upstream becomes a
  * compile error here rather than a field the client silently ignores, and
- * `__tests__/relay-capabilities.test.ts` compares the keys against the live
+ * `__tests__/kaana-capabilities.test.ts` compares the keys against the live
  * schema at runtime so a field RENAMED or REMOVED there fails too. Before this
  * table existed `parallelToolCalls` was neither checked nor mentioned anywhere,
  * which is exactly the omission the type now prevents.
