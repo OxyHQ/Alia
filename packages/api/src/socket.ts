@@ -76,18 +76,45 @@ export function initSocket(server: http.Server) {
     transports: ['websocket', 'polling'],
   });
 
-  // Attach Redis adapter for horizontal scaling
+  /**
+   * Attach the Redis adapter, which is what makes a room work across tasks.
+   *
+   * ## The `.connect()` calls that used to be here never succeeded
+   *
+   * `ioredis` connects on construction unless `lazyConnect` is set, and
+   * `lib/redis.ts` does not set it — so `getRedisClient()` hands back a client
+   * that is ALREADY connecting, and calling `.connect()` on it rejects with
+   * `Redis is already connecting/connected`. That rejection landed in the catch
+   * below, which logged a warning and carried on with the in-memory adapter.
+   *
+   * Measured in production on 2026-08-24, on BOTH running tasks:
+   *
+   *     Error: Redis is already connecting/connected
+   *         at initSocket (/app/packages/api/dist/index.js:13858)
+   *     msg: "Socket.IO Redis adapter failed — using in-memory"
+   *
+   * So with `desiredCount: 2` every task ran its own in-memory adapter, and a
+   * room only ever reached the clients that happened to land on the same task.
+   * The failure mode is why it survived: a notification, a canvas update or a
+   * workflow-progress event that reaches half its subscribers looks like a
+   * flaky client, never like a broken fan-out. `GET /local-runtimes` is the
+   * first read that fails LOUDLY on it, because `fetchSockets()` returns an
+   * empty list rather than a late event.
+   *
+   * Nothing needs awaiting: `createAdapter` issues its subscribe through the
+   * client, and ioredis queues commands until the connection is up
+   * (`enableOfflineQueue` defaults to true). Attaching synchronously also
+   * removes a window where a socket could connect before the adapter existed.
+   */
   const pubClient = getRedisClient();
   const subClient = getRedisSubClient();
   if (pubClient && subClient) {
-    Promise.all([pubClient.connect(), subClient.connect()])
-      .then(() => {
-        io!.adapter(createAdapter(pubClient, subClient));
-        log.general.info('Socket.IO Redis adapter attached');
-      })
-      .catch((err) => {
-        log.general.warn({ err }, 'Socket.IO Redis adapter failed — using in-memory');
-      });
+    io.adapter(createAdapter(pubClient, subClient));
+    log.general.info('Socket.IO Redis adapter attached');
+  } else {
+    // One task, or no Redis configured. Correct in development; in production
+    // it means rooms do not cross tasks, which is worth saying out loud.
+    log.general.warn('Socket.IO has no Redis adapter — rooms are per-task');
   }
   // Authenticate every connection. `oxy.authSocket()` validates the handshake
   // bearer token, plants `socket.data.userId`, and rejects unauthenticated /
