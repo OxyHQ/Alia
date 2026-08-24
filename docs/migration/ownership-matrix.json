@@ -4868,9 +4868,9 @@
       "dependsOn": [
         "v1-shows-generate"
       ],
-      "removalGate": "packages/app/lib/hooks/use-show-progress.ts:73. Without a fallback, losing this leaves a show stuck in-progress in the UI forever.",
+      "removalGate": "packages/app/lib/hooks/use-show-progress.ts. Without a fallback, losing this leaves an episode stuck in-progress in the UI forever.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/lib/show/show-pipeline.ts:63"
+      "evidence": "packages/api/src/lib/show/show-pipeline.ts:127"
     },
     {
       "id": "sse-alia-agent",
@@ -5928,6 +5928,7 @@
       "domain": "product-api",
       "kind": "route",
       "currentPath": "packages/api/src/routes/v1/shows.ts",
+      "removedIn": "#327",
       "reachable": "live",
       "owner": "alia",
       "targetPath": "keep-alia-product",
@@ -5942,6 +5943,7 @@
       "domain": "product-api",
       "kind": "route",
       "currentPath": "packages/api/src/routes/v1/shows.ts",
+      "removedIn": "#327",
       "reachable": "live",
       "owner": "alia",
       "targetPath": "keep-alia-product",
@@ -5958,6 +5960,7 @@
       "domain": "product-api",
       "kind": "route",
       "currentPath": "packages/api/src/routes/v1/shows.ts",
+      "removedIn": "#327",
       "reachable": "live",
       "owner": "alia",
       "targetPath": "keep-alia-product",
@@ -5972,6 +5975,7 @@
       "domain": "product-api",
       "kind": "route",
       "currentPath": "packages/api/src/routes/v1/shows.ts",
+      "removedIn": "#327",
       "reachable": "live",
       "owner": "alia",
       "targetPath": "keep-alia-product",
@@ -5986,6 +5990,7 @@
       "domain": "product-api",
       "kind": "route",
       "currentPath": "packages/api/src/routes/v1/shows.ts",
+      "removedIn": "#327",
       "reachable": "live",
       "owner": "alia",
       "targetPath": "keep-alia-product",

@@ -86,7 +86,20 @@ INTEGRATIONS_URL=https://...           # MCP tools and channel proxy
 INTEGRATIONS_SECRET=<32-byte hex>
 DOCKER_HOST_URL=https://...            # agent container sandbox
 DOCKER_HOST_SECRET=<32-byte hex>
+SYRA_API_URL=https://api.syra.fm       # where a show series is published
 ```
+
+`SYRA_API_URL` carries no secret and needs none: Syra authenticates the caller's
+own Oxy token for everything a route does, and the background worker redeems a
+single-use ingest ticket that the route minted while that token was live. There
+is no service credential to hold, because service-token delegation is closed
+platform-wide until ADR 0012 lands.
+
+**One prerequisite lives in SYRA, not here.** Web playback fetches an episode's
+audio from `api.syra.fm` with the listener's bearer token, so Alia's web origin
+must be in Syra's CORS allow-list (`packages/backend/server.ts`, `ALLOWED_ORIGINS`).
+Native has no CORS and is unaffected. Until that is set, episodes play on iOS and
+Android and fail in a browser.
 
 `TOKEN_ENCRYPTION_KEY` must be the **same value** in the API and the integrations service:
 encrypted tokens are written by one process and read by the other.

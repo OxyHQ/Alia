@@ -13,12 +13,13 @@ import { getRedisConnection } from '../redis.js';
 // ── Types ──
 
 export interface ShowJobData {
-  showId: string;
+  /** A `show_episodes` row. One job produces one episode. */
+  episodeId: string;
   userId: string;
 }
 
 export interface ShowJobResult {
-  showId: string;
+  episodeId: string;
   status: 'completed' | 'failed';
 }
 
@@ -72,15 +73,15 @@ export async function startShowWorker(): Promise<void> {
   worker = new Worker<ShowJobData, ShowJobResult>(
     QUEUE_NAME,
     async (job: Job<ShowJobData, ShowJobResult>) => {
-      const { showId, userId } = job.data;
-      log.general.info({ showId, jobId: job.id }, 'Processing show generation');
+      const { episodeId, userId } = job.data;
+      log.general.info({ episodeId, jobId: job.id }, 'Producing a show episode');
 
       try {
         const { runShowPipeline } = await import('./show-pipeline.js');
-        await runShowPipeline(showId);
-        return { showId, status: 'completed' };
+        await runShowPipeline(episodeId);
+        return { episodeId, status: 'completed' };
       } catch (err: unknown) {
-        log.general.error({ err, showId }, 'Show generation failed');
+        log.general.error({ err, episodeId }, 'Episode generation failed');
 
         // Pipeline already updates show status to 'failed' — just send notification
         try {
@@ -88,10 +89,10 @@ export async function startShowWorker(): Promise<void> {
           await sendNotification({
             userId,
             type: 'agent_task_complete',
-            title: 'Show Generation Failed',
-            body: `Failed to generate show: ${getErrorMessage(err).slice(0, 200)}`,
+            title: 'Episode Generation Failed',
+            body: `Failed to generate the episode: ${getErrorMessage(err).slice(0, 200)}`,
             priority: 'high',
-            data: { showId, status: 'failed' },
+            data: { episodeId, status: 'failed' },
           });
         } catch { /* notification failure is non-fatal */ }
 
@@ -109,11 +110,11 @@ export async function startShowWorker(): Promise<void> {
   );
 
   worker.on('completed', (job) => {
-    log.general.info({ showId: job.data.showId, jobId: job.id }, 'Show job completed');
+    log.general.info({ episodeId: job.data.episodeId, jobId: job.id }, 'Show job completed');
   });
 
   worker.on('failed', (job, err) => {
-    log.general.error({ showId: job?.data.showId, jobId: job?.id, err }, 'Show job failed');
+    log.general.error({ episodeId: job?.data.episodeId, jobId: job?.id, err }, 'Show job failed');
   });
 
   worker.on('error', (err) => {
@@ -133,46 +134,23 @@ export async function enqueueShowGeneration(
 ): Promise<{ queued: boolean; jobId?: string }> {
   if (queue && redisAvailable) {
     try {
-      const job = await queue.add(`show:${data.showId}`, data, {
-        jobId: data.showId,
+      const job = await queue.add(`show:${data.episodeId}`, data, {
+        jobId: data.episodeId,
       });
-      log.general.info({ showId: data.showId, jobId: job.id }, 'Show generation enqueued');
+      log.general.info({ episodeId: data.episodeId, jobId: job.id }, 'Episode generation enqueued');
       return { queued: true, jobId: job.id ?? undefined };
     } catch (err) {
-      log.general.warn({ err, showId: data.showId }, 'Failed to enqueue show — falling back to direct');
+      log.general.warn({ err, episodeId: data.episodeId }, 'Failed to enqueue an episode — falling back to direct');
     }
   }
 
   // Fallback: direct execution
   const { runShowPipeline } = await import('./show-pipeline.js');
-  runShowPipeline(data.showId).catch(err => {
-    log.general.error({ err, showId: data.showId }, 'Direct show generation failed');
+  runShowPipeline(data.episodeId).catch(err => {
+    log.general.error({ err, episodeId: data.episodeId }, 'Direct episode generation failed');
   });
 
   return { queued: false };
-}
-
-/**
- * Get show job status.
- */
-export async function getShowJobStatus(showId: string): Promise<{
-  state: string;
-  progress: number;
-} | null> {
-  if (!queue || !redisAvailable) return null;
-
-  try {
-    const job = await queue.getJob(showId);
-    if (!job) return null;
-
-    const state = await job.getState();
-    return {
-      state,
-      progress: typeof job.progress === 'number' ? job.progress : 0,
-    };
-  } catch {
-    return null;
-  }
 }
 
 /**

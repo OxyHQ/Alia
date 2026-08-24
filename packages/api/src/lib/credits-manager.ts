@@ -296,6 +296,68 @@ export async function finalizeCredits(
 }
 
 /**
+ * Settle a reservation against a credit count the caller ALREADY computed.
+ *
+ * ## Why this exists, rather than another conversion
+ *
+ * `finalizeCredits` takes tokens and `finalizeVoiceCredits` takes minutes,
+ * because those are the units a chat turn and a voice call are measured in. A
+ * generated show is measured in neither: it is priced from the DURATION of the
+ * audio it produced, by a formula that belongs to the show module.
+ *
+ * Before this existed, the show pipeline bridged the gap by inventing a token
+ * count — `finalizeCredits(reservation, { totalTokens: credits * 50 })` — which
+ * is not a conversion but a coincidence. `calculateCreditsFromTokens` divides by
+ * `TOKENS_PER_CREDIT`, which is 1000, so `credits * 50` tokens settles as
+ * `ceil(credits / 20)`: a show intending to charge 8 credits charged 1. The
+ * multiplier and the divisor were never related, so nothing about the
+ * expression looked wrong, and no test could catch it — both sides typecheck
+ * and both are integers.
+ *
+ * A caller that knows its own price should say the price. That is all this is:
+ * the same refund-if-over, charge-if-under adjustment every other finalizer
+ * runs, with no unit in the middle to get wrong.
+ *
+ * ## The token round trip is not merely ugly, it is CONDITIONALLY correct
+ *
+ * The obvious repair for the laundering above is to keep going through
+ * `finalizeCredits` and pass `credits * TOKENS_PER_CREDIT` instead. That does
+ * round-trip — `calculateCreditsFromTokens` returns
+ * `ceil(credits * multiplier)` — but only while `aliasModelId` is omitted, so a
+ * caller adding one later silently multiplies its own price by that model's
+ * credit multiplier. The identity holds by accident of an argument nobody
+ * passed, which is the same shape as the bug it would be fixing.
+ *
+ * ## What the CALLER must do with the return value
+ *
+ * `creditsCharged` is what was SETTLED, after the floor and the rounding below.
+ * A caller that records a cost must record THIS, not the number it asked for.
+ * The show pipeline stored its intended figure while the ledger moved a
+ * different one, and the two disagreed for as long as that code existed because
+ * nothing ever compared them.
+ *
+ * `label` names the domain in the ledger logs, exactly as `'chat'` and
+ * `'voice'` do.
+ */
+export async function finalizeFixedCredits(
+  reservation: CreditReservation,
+  credits: number,
+  label: string
+): Promise<{ creditsCharged: number; creditsRemaining: number }> {
+  /**
+   * Floored at the minimum and rounded UP, here rather than in the caller.
+   *
+   * `calculateCreditsFromTokens` and `calculateCreditsFromMinutes` both end on
+   * `Math.max(Math.ceil(…), MIN_CREDITS_PER_REQUEST)`, so a caller reaching
+   * `_adjustReservation` without it would be the one billing path that can
+   * charge a fraction of a credit, or zero. Doing it here keeps the three
+   * finalizers agreeing about what a settled charge can be.
+   */
+  const chargeable = Math.max(Math.ceil(credits), CREDITS_CONFIG.MIN_CREDITS_PER_REQUEST);
+  return _adjustReservation(reservation, chargeable, label);
+}
+
+/**
  * Safely refund a credit reservation, swallowing errors.
  * Use this in error-handling paths where you must not throw.
  */

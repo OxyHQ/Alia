@@ -599,16 +599,16 @@ const PROVIDER_IMPORT_ALLOWLIST: readonly { from: string; to: string; via: Modul
     why: 'Async-invoke audio URL unwrapping. Moves to Relay (#139 ws7).',
   },
   {
-    from: 'packages/api/src/routes/v1/images.ts',
+    from: 'packages/api/src/lib/image-generation.ts',
     to: 'packages/api/src/internal/providers/lib/digitalocean-async',
     via: 'import',
-    why: 'Async-invoke image URL unwrapping. Moves to Relay (#139 ws7).',
+    why: 'Async-invoke image URL unwrapping. MOVED here from routes/v1/images.ts, which is now an ordinary caller: show cover art needs a generated image too, and copying the loop would have opened a SECOND path into the provider tree — which this list forbids, since it may only shrink. Relocating the exemption keeps the count unchanged and leaves ONE module for #139 ws7 to delete instead of two.',
   },
   {
-    from: 'packages/api/src/routes/v1/images.ts',
+    from: 'packages/api/src/lib/image-generation.ts',
     to: 'packages/api/src/internal/providers/lib/image-providers',
     via: 'import',
-    why: 'Per-provider request-body shaping, the sibling of the tts-providers translation the TTS path already uses. `/v1/images/generations` is OpenAI-SHAPED rather than OpenAI-identical: xAI answers 400 to `size` and 422 to `quality` (measured 2026-08-23), and a refused parameter fails the whole request rather than degrading. Knowing WHICH parameters a provider takes is provider knowledge, so it belongs behind this boundary and not inlined in the route as a conditional. Moves to Relay (#139 ws7) with the rest of the image path.',
+    why: 'Per-provider request-body shaping, the sibling of the tts-providers translation the TTS path already uses. `/v1/images/generations` is OpenAI-SHAPED rather than OpenAI-identical: xAI answers 400 to `size` and 422 to `quality` (measured 2026-08-23), and a refused parameter fails the whole request rather than degrading. Knowing WHICH parameters a provider takes is provider knowledge, so it belongs behind this boundary and not inlined in a route as a conditional. MOVED here from routes/v1/images.ts with its sibling above. Moves to Relay (#139 ws7) with the rest of the image path.',
   },
   {
     from: 'packages/api/src/routes/v1/voice.ts',
@@ -1001,6 +1001,13 @@ const EGRESS_HOSTS: readonly string[] = [
   'api.perplexity.ai',
   'api.replicate.com',
   'api.sambanova.ai',
+  // Syra (`syra.fm`), Oxy's podcast product and the destination a generated
+  // show is published to. NOT an inference provider — the per-provider
+  // allowlist above therefore has no entry for it, which is the case this
+  // whole-surface freeze exists to catch. Reached only from
+  // `lib/syra/syra.ts`, through `@syra.fm/sdk`, carrying the caller's own Oxy
+  // token or a single-use ingest ticket and never a service credential.
+  'api.syra.fm',
   'api.telegram.org',
   'api.together.ai',
   'api.x.ai',
@@ -2698,6 +2705,7 @@ const PERMITTED_ENV_VARS: readonly string[] = [
   'SLACK_SIGNING_SECRET',
   'STRIPE_SECRET_KEY',
   'STRIPE_WEBHOOK_SECRET',
+  'SYRA_API_URL',
   'TELEGRAM_API_HASH',
   'TELEGRAM_API_ID',
   'TELEGRAM_BOT_ENABLED',
@@ -2737,7 +2745,13 @@ const PERMITTED_ENV_VARS: readonly string[] = [
 // 98 -> 97: `AWS_CDN_URL` is read by nothing now. It existed to build a public
 // address for a stored object, and this API no longer builds one — an object is
 // identified by its key and addressed through `/media`.
-const PERMITTED_ENV_VAR_COUNT = 97;
+// 97 -> 98: `SYRA_API_URL`, where a generated show series is published. This
+// gate is about provider CREDENTIALS reaching the environment, and that entry
+// carries none — Syra authenticates the caller's own Oxy token, plus a
+// single-use ingest ticket the worker redeems, so there is no service
+// credential to hold. It is a destination, in the same class as
+// `INTEGRATIONS_URL`.
+const PERMITTED_ENV_VAR_COUNT = 98;
 
 /**
  * Vendor tokens that name an inference provider but are not in `PROVIDER_NAMES`.

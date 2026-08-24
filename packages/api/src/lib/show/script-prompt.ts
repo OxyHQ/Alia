@@ -1,8 +1,25 @@
 /**
- * System prompt and helpers for LLM-based show script generation.
+ * The prompts that turn a series brief and an episode topic into a script.
+ *
+ * Two changes from the version that produced one-off shows, and both exist
+ * because a series is not a folder of unrelated recordings:
+ *
+ *  - **The cast is given, not invented.** Speaker names come from the series and
+ *    are the roster voice names, so the model cannot produce a segment attributed
+ *    to somebody with no voice. It used to invent names, which the pipeline then
+ *    matched against a roster — and a model that spelled a name one way in its
+ *    `speakers` list and another in a segment silently lost that segment.
+ *  - **The model is told what the previous episodes said.** Without that,
+ *    episode 4 of a weekly show re-explains what episodes 1 to 3 explained,
+ *    because from the model's side every episode is the first one.
+ *
+ * The model does NOT choose the title. Syra fixes an episode's title when the
+ * draft is reserved and refuses to let the ingest change it, so a
+ * model-authored title could never reach the published episode — it would only
+ * make Alia and Syra disagree about the same episode's name.
  */
 
-import type { ShowFormat } from '../../db/schema/notifications.js';
+import type { ShowFormat, ShowSpeaker } from '../../db/schema/shows.js';
 import { FORMAT_DEFAULTS } from './voice-roster.js';
 
 const FORMAT_GUIDANCE: Record<ShowFormat, string> = {
@@ -14,22 +31,28 @@ const FORMAT_GUIDANCE: Record<ShowFormat, string> = {
 };
 
 /**
- * Build the system prompt for show script generation.
+ * The system prompt, built around a cast that already exists.
+ *
+ * The speaker list is stated as a closed set and repeated in the schema example,
+ * because a model given names once at the top and an abstract schema below will
+ * fill the schema with the schema's placeholder names.
  */
-export function buildScriptSystemPrompt(format: ShowFormat): string {
-  const formatConfig = FORMAT_DEFAULTS[format] || FORMAT_DEFAULTS.podcast;
-  const speakerCount = formatConfig.roles.length;
-  const roleList = formatConfig.roles.map(r => r.role).join(', ');
-  const guidance = FORMAT_GUIDANCE[format] || FORMAT_GUIDANCE.podcast;
+export function buildScriptSystemPrompt(format: ShowFormat, speakers: readonly ShowSpeaker[]): string {
+  const guidance = FORMAT_GUIDANCE[format];
+  const roster = speakers.map((speaker) => `- ${speaker.name} (${speaker.role})`).join('\n');
+  const [first, second] = speakers;
+  const exampleSpeaker = first?.name ?? FORMAT_DEFAULTS[format].roles[0]?.role ?? 'Host';
+  const exampleSecond = second?.name ?? exampleSpeaker;
 
   return `You are a script writer for "Alia Shows". Your job is to write natural, engaging multi-speaker scripts that sound like real spoken conversation — NOT written text read aloud.
 
 ## Format: ${format}
 ${guidance}
 
-## Speakers
-This format uses ${speakerCount} speaker(s) with roles: ${roleList}.
-Assign distinct names to each speaker. Use first names only.
+## Speakers — use these EXACT names and no others
+${roster}
+
+Every dialogue segment's "speaker" must be one of the names above, spelled exactly as written. Do not introduce a new speaker, do not rename one, and do not use a role name in place of a person's name.
 
 ## Writing Guidelines
 - Write dialogue that sounds SPOKEN: use contractions, short sentences, filler words ("you know", "I mean", "right"), and natural reactions
@@ -50,36 +73,84 @@ Include sound effect segments at natural break points:
 Respond with ONLY valid JSON (no markdown, no explanation). Use this exact schema:
 
 {
-  "title": "Episode title",
-  "description": "Brief episode description (1-2 sentences)",
-  "speakers": ["SpeakerName1", "SpeakerName2"],
+  "description": "One or two sentences describing this episode, for a podcast app's episode list",
+  "summary": "A longer paragraph summarising what this episode covers",
+  "recap": "Two or three sentences a LATER episode can read to remember what this one said",
   "segments": [
     { "type": "sfx", "speaker": "", "text": "", "sfxPrompt": "upbeat show intro jingle, 4 seconds" },
-    { "type": "dialogue", "speaker": "SpeakerName1", "text": "Hey everyone, welcome back to..." },
-    { "type": "dialogue", "speaker": "SpeakerName2", "text": "Thanks for having me..." },
+    { "type": "dialogue", "speaker": "${exampleSpeaker}", "text": "Hey everyone, welcome back to..." },
+    { "type": "dialogue", "speaker": "${exampleSecond}", "text": "Thanks for having me..." },
     { "type": "sfx", "speaker": "", "text": "", "sfxPrompt": "smooth transition sound, 2 seconds" },
-    { "type": "dialogue", "speaker": "SpeakerName1", "text": "So let's dive into..." },
-    ...
-    { "type": "sfx", "speaker": "", "text": "", "sfxPrompt": "show outro jingle, 3 seconds" }
+    { "type": "dialogue", "speaker": "${exampleSpeaker}", "text": "So let's dive into..." }
   ]
-}`;
+}
+
+The title is NOT yours to choose and is not in the schema — it is already set.`;
+}
+
+export interface ScriptUserPromptInput {
+  /** The series' standing premise: what this show is, across every episode. */
+  readonly brief: string;
+  /** The title this episode already has. */
+  readonly title: string;
+  /** What THIS episode covers. */
+  readonly topic: string;
+  /** Which episode this is, so the model can open like a first or a fifth. */
+  readonly episodeNumber: number;
+  /** Source material the owner supplied, if any. */
+  readonly notes?: string | undefined;
+  /** Recaps of the preceding episodes, OLDEST first. */
+  readonly previousRecaps: readonly string[];
+  readonly targetDurationMinutes: number;
 }
 
 /**
- * Build the user prompt from topic and optional context.
+ * The user prompt, carrying everything that makes this episode this episode.
+ *
+ * The recaps are numbered relative to the current episode rather than listed
+ * flat, so "the previous episode" is unambiguous — a model handed three
+ * paragraphs with no ordering will reference the wrong one about a third of the
+ * time, and a podcast that says "last week we talked about X" when it did not is
+ * worse than one that never refers back at all.
  */
-export function buildScriptUserPrompt(
-  topic: string,
-  targetDurationMinutes: number,
-  sourceNotes?: string,
-): string {
-  const targetWords = Math.round(targetDurationMinutes * 150);
+export function buildScriptUserPrompt(input: ScriptUserPromptInput): string {
+  const targetWords = Math.round(input.targetDurationMinutes * 150);
+  const parts: string[] = [
+    `This show is about: ${input.brief}`,
+    '',
+    `Write episode ${input.episodeNumber}, titled "${input.title}".`,
+    `This episode covers: ${input.topic}`,
+    '',
+    `Target roughly ${input.targetDurationMinutes} minutes, about ${targetWords} words of dialogue.`,
+  ];
 
-  let prompt = `Create a ${targetDurationMinutes}-minute episode about: ${topic}\n\nTarget approximately ${targetWords} words of dialogue total.`;
-
-  if (sourceNotes) {
-    prompt += `\n\nUse these notes/context as source material:\n\n${sourceNotes.slice(0, 8000)}`;
+  if (input.previousRecaps.length > 0) {
+    parts.push(
+      '',
+      '## Previously on this show',
+      'These are the episodes immediately before this one, oldest first. Do not repeat what they already covered. You may refer back to them naturally, the way a real host would.',
+      '',
+      ...input.previousRecaps.map((recap, index) => {
+        const number = input.episodeNumber - input.previousRecaps.length + index;
+        return `Episode ${number}: ${recap}`;
+      }),
+    );
+  } else if (input.episodeNumber === 1) {
+    parts.push(
+      '',
+      'This is the FIRST episode. Introduce the show and the speakers, and set out what listeners can expect from it.',
+    );
   }
 
-  return prompt;
+  if (input.notes !== undefined && input.notes.trim() !== '') {
+    parts.push(
+      '',
+      '## Source material',
+      // Bounded, because this is the owner's paste buffer and an unbounded one
+      // pushes the guidance above out of the model's attention entirely.
+      input.notes.slice(0, 8000),
+    );
+  }
+
+  return parts.join('\n');
 }

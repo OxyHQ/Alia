@@ -1,4 +1,11 @@
-import { S3Client, DeleteObjectCommand, GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
+import {
+  S3Client,
+  DeleteObjectCommand,
+  DeleteObjectsCommand,
+  GetObjectCommand,
+  ListObjectsV2Command,
+  PutObjectCommand,
+} from '@aws-sdk/client-s3';
 import crypto from 'crypto';
 import { log } from './logger.js';
 
@@ -158,6 +165,95 @@ export async function deleteFromS3(key: string): Promise<void> {
     log.general.error({ err: error }, 'Error deleting from S3');
     // Don't throw, just log - file might already be deleted
   }
+}
+
+/**
+ * Every object key under a prefix, following the continuation token.
+ *
+ * `ListObjectsV2` caps a response at 1000 keys and reports the truncation in a
+ * flag most callers never read — a single unpaginated call reports "1000 keys"
+ * for a prefix holding a million, and the caller cannot tell that from a prefix
+ * that really holds 1000. So the loop is not an optimisation; it is the
+ * difference between an answer and a plausible one.
+ *
+ * An EMPTY prefix is refused. `ListObjectsV2` treats it as "the whole bucket",
+ * so a caller that built a prefix from an undefined value would delete
+ * everything — and the one caller that deletes is exactly the one most likely to
+ * compute its prefix.
+ */
+export async function listS3ObjectKeys(prefix: string): Promise<string[]> {
+  if (BUCKET_NAME === '' || prefix === '') return [];
+
+  const keys: string[] = [];
+  let continuationToken: string | undefined;
+
+  do {
+    const page = await s3Client.send(
+      new ListObjectsV2Command({
+        Bucket: BUCKET_NAME,
+        Prefix: prefix,
+        ...(continuationToken === undefined ? {} : { ContinuationToken: continuationToken }),
+      }),
+    );
+
+    for (const object of page.Contents ?? []) {
+      if (object.Key !== undefined) keys.push(object.Key);
+    }
+
+    continuationToken = page.IsTruncated === true ? page.NextContinuationToken : undefined;
+  } while (continuationToken !== undefined);
+
+  return keys;
+}
+
+/**
+ * Delete these exact objects, and report how many went.
+ *
+ * By KEY, not by prefix, because a caller that knows what it wrote should say
+ * what it wrote. The pipeline collects the keys its uploads answered with and
+ * hands them here; nothing has to reconstruct a prefix from `NODE_ENV` and a
+ * user id, which is the computation that turns one wrong variable into a delete
+ * of somebody else's objects.
+ *
+ * `DeleteObjects` takes at most 1000 keys per call, so the batching is
+ * correctness rather than tidiness: one call given 1500 keys fails outright.
+ *
+ * The count is what S3 CONFIRMED deleting, not what was asked for. A key that
+ * fails is logged and excluded, so a partial delete reports a partial number
+ * rather than the number it hoped for.
+ */
+export async function deleteS3Objects(keys: readonly string[]): Promise<number> {
+  if (BUCKET_NAME === '' || keys.length === 0) return 0;
+
+  let deleted = 0;
+  for (let start = 0; start < keys.length; start += 1000) {
+    const batch = keys.slice(start, start + 1000);
+    const result = await s3Client.send(
+      new DeleteObjectsCommand({
+        Bucket: BUCKET_NAME,
+        Delete: { Objects: batch.map((Key) => ({ Key })), Quiet: true },
+      }),
+    );
+
+    // `Quiet: true` reports only the failures, so an empty `Errors` means the
+    // whole batch went. Counting the batch minus its errors is what makes the
+    // return value a measurement rather than an intention.
+    const errors = result.Errors ?? [];
+    for (const error of errors) {
+      log.general.warn({ key: error.Key, code: error.Code }, 'S3 object could not be deleted');
+    }
+    deleted += batch.length - errors.length;
+  }
+
+  return deleted;
+}
+
+/**
+ * Delete everything under a prefix. For the one-shot purge, which has no list of
+ * keys to work from — it is removing what a deleted table used to point at.
+ */
+export async function deleteS3Prefix(prefix: string): Promise<number> {
+  return deleteS3Objects(await listS3ObjectKeys(prefix));
 }
 
 /**

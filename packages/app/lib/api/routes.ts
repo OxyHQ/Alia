@@ -151,18 +151,36 @@ export const API_ROUTES = {
   // Health check
   health: '/health',
 
+  /**
+   * Show series and episodes.
+   *
+   * Under `/shows`, not `/v1/shows`. `/v1` is a frozen compatibility surface
+   * that ADR 0004 closes to new routes, and shows are an Alia product resource
+   * — so they moved beside `/conversations`, `/skills` and `/agents`, which is
+   * where the workstream 1 inventory had already assigned them.
+   */
+  shows: {
+    voices: '/shows/voices',
+    preferences: '/shows/preferences',
+    series: {
+      list: '/shows/series',
+      create: '/shows/series',
+      get: (id: string) => `/shows/series/${id}`,
+      update: (id: string) => `/shows/series/${id}`,
+      delete: (id: string) => `/shows/series/${id}`,
+    },
+    episodes: {
+      create: (seriesId: string) => `/shows/series/${seriesId}/episodes`,
+      get: (id: string) => `/shows/episodes/${id}`,
+      delete: (id: string) => `/shows/episodes/${id}`,
+    },
+  },
+
   // API v1 routes (OpenAI compatible)
   v1: {
     models: '/v1/models',
     audioSpeech: '/v1/audio/speech',
     audioGenerate: '/v1/audio/generate',
     imagesGenerations: '/v1/images/generations',
-    shows: {
-      generate: '/v1/shows/generate',
-      list: '/v1/shows',
-      get: (id: string) => `/v1/shows/${id}`,
-      delete: (id: string) => `/v1/shows/${id}`,
-      voices: '/v1/shows/voices',
-    },
   },
 } as const;

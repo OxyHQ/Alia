@@ -5,17 +5,19 @@ import { ActivityIndicator } from 'react-native';
 import type { ShowProgress as ShowProgressType } from '@/lib/stores/show-store';
 import { useColorScheme } from '@/lib/useColorScheme';
 
-interface ShowProgressProps {
+interface EpisodeProgressProps {
   progress: ShowProgressType;
 }
 
 const STEP_LABELS: Record<string, string> = {
-  generating_script: 'Writing script...',
-  generating_audio: 'Generating audio...',
-  concatenating: 'Assembling show...',
+  queued: 'Queued...',
+  generating_script: 'Writing the script...',
+  generating_audio: 'Recording...',
+  concatenating: 'Assembling...',
+  publishing: 'Publishing to Syra...',
 };
 
-export function ShowProgressCard({ progress }: ShowProgressProps) {
+export function EpisodeProgressCard({ progress }: EpisodeProgressProps) {
   const { colors } = useColorScheme();
   const stepLabel = progress.currentStep || STEP_LABELS[progress.status] || 'Processing...';
 
