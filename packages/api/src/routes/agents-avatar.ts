@@ -8,6 +8,7 @@ import { resolveModel, getAIModel, reportModelUsage } from '../lib/chat-core.js'
 import { callProviderAPI, getModelMappingsForTier } from '../lib/gateway-client.js';
 import { extractImageUrl } from '../internal/providers/lib/digitalocean-async.js';
 import { uploadToS3 } from '../lib/s3.js';
+import { storedMediaUrl } from '../lib/stored-media.js';
 import { log } from '../lib/logger.js';
 import { getErrorMessage, classifyError } from '../lib/errors/index.js';
 import type { Request, Response } from 'express';
@@ -184,14 +185,20 @@ router.post('/generate', authenticateToken, async (req: Request, res: Response) 
         imageBuffer = Buffer.from(await imgRes.arrayBuffer());
       }
 
-      const avatarUrl = await uploadToS3(
+      const avatarKey = await uploadToS3(
         imageBuffer,
         'avatar.webp',
         `agents/${req.user.id}`,
         'avatar'
       );
 
-      return res.json({ avatarUrl });
+      // The KEY is what an agent record should hold; this response is what the
+      // editor displays, so it gets an address instead.
+      const avatarUrl = storedMediaUrl(req, avatarKey, req.user.id);
+      if (avatarUrl === null) {
+        return res.status(500).json({ error: 'The avatar cannot be served by this deployment' });
+      }
+      return res.json({ avatarUrl, avatarKey });
     } catch (genErr: unknown) {
       log.agents.error({ err: genErr }, 'Avatar upload failed');
       return res.status(502).json({ error: 'Avatar upload failed' });

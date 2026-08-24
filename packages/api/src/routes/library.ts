@@ -11,9 +11,34 @@ import {
 } from '../db/library/libraryFileRepository.js';
 import { FILE_CATEGORIES, type FileCategory } from '../domain/library-file.js';
 import { uploadToS3, deleteFromS3 } from '../lib/s3.js';
+import { storedMediaUrl } from '../lib/stored-media.js';
 import { log } from '../lib/logger.js';
 
 const router = Router();
+
+/**
+ * A library file, with its stored object addressable.
+ *
+ * `url` and `thumbnail` hold KEYS. A key is not an address, and this is the one
+ * place a library file gets one — a file whose object cannot be addressed drops
+ * the field rather than carrying a string the browser cannot fetch.
+ */
+function withAddressableFile(
+  req: Request,
+  userId: string,
+  file: ReturnType<typeof toLibraryFileResponse>,
+): Record<string, unknown> {
+  const render = (key: string | undefined): string | undefined =>
+    key === undefined || key === '' ? undefined : (storedMediaUrl(req, key, userId) ?? undefined);
+  const url = render(file.url);
+  const thumbnail = render(file.thumbnail);
+  const { url: _storedUrl, thumbnail: _storedThumb, ...rest } = file;
+  return {
+    ...rest,
+    ...(url === undefined ? {} : { url }),
+    ...(thumbnail === undefined ? {} : { thumbnail }),
+  };
+}
 
 router.use(authenticateToken);
 
@@ -42,7 +67,7 @@ router.get('/', async (req: Request, res: Response) => {
 
     const rows = await listLibraryFiles(getDb(), userId, narrowed);
 
-    res.json({ files: rows.map(toLibraryFileResponse) });
+    res.json({ files: rows.map((row) => withAddressableFile(req, userId, toLibraryFileResponse(row))) });
   } catch (error: unknown) {
     log.general.error({ err: error }, 'Error listing library files');
     res.status(500).json({ error: 'Failed to list files' });
@@ -60,7 +85,7 @@ router.get('/:id', async (req: Request, res: Response) => {
     if (!row) {
       return res.status(404).json({ error: 'File not found' });
     }
-    res.json({ file: toLibraryFileResponse(row) });
+    res.json({ file: withAddressableFile(req, userId, toLibraryFileResponse(row)) });
   } catch (error: unknown) {
     log.general.error({ err: error }, 'Error getting library file');
     res.status(500).json({ error: 'Failed to get file' });

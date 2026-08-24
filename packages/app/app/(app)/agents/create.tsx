@@ -69,14 +69,19 @@ export default function CreateAgentScreen() {
       const config = genRes.data;
 
       // Step 2: Generate avatar (graceful degradation)
-      let avatarUrl: string | null = null;
+      //
+      // The KEY is what gets stored, never `avatarUrl`. That one is a signed
+      // link that expires in minutes — fine for showing what was just
+      // generated, and useless the moment it is written to a record. The
+      // server renders a fresh link from the key every time an agent is read.
+      let avatarKey: string | null = null;
       try {
         const avatarRes = await apiClient.post(
           API_ROUTES.agents.generateAvatar,
           { name: config.name, description: config.description },
           { timeout: 60000 }
         );
-        avatarUrl = avatarRes.data.avatarUrl;
+        avatarKey = avatarRes.data.avatarKey;
       } catch {
         // Continue without avatar
       }
@@ -84,7 +89,7 @@ export default function CreateAgentScreen() {
       // Step 3: Create the agent as draft
       const agent = await createAgent({
         ...config,
-        avatar: avatarUrl,
+        avatar: avatarKey,
         isPublished: false,
         archetype: config.archetype || selectedArchetype,
       });

@@ -1,5 +1,5 @@
 /**
- * Playing a stored clip, for a media element that can present no credential.
+ * Serving one stored object, for a browser that can present no credential.
  *
  * ## Why this route is outside the authenticated block
  *
@@ -23,9 +23,9 @@
 
 import { Router, type Request, type Response } from 'express';
 
-import { verifyPlaybackQuery } from '../../lib/audio-playback-link.js';
-import { readS3Object } from '../../lib/s3.js';
-import { log } from '../../lib/logger.js';
+import { verifyPlaybackQuery } from '../lib/stored-media.js';
+import { readS3Object } from '../lib/s3.js';
+import { log } from '../lib/logger.js';
 
 const router = Router();
 
@@ -34,15 +34,15 @@ router.get('/', async (req: Request, res: Response) => {
   if (verdict.kind === 'expired') {
     // Distinct from a forgery: the client should ask for a fresh link rather
     // than report a permissions failure to the user.
-    return res.status(410).json({ error: { message: 'This playback link has expired', type: 'expired' } });
+    return res.status(410).json({ error: { message: 'This media link has expired', type: 'expired' } });
   }
   if (verdict.kind === 'invalid') {
-    return res.status(403).json({ error: { message: 'This playback link is not valid', type: 'forbidden' } });
+    return res.status(403).json({ error: { message: 'This media link is not valid', type: 'forbidden' } });
   }
 
   const object = await readS3Object(verdict.fields.key);
   if (object === null) {
-    return res.status(404).json({ error: { message: 'The clip is no longer stored', type: 'not_found' } });
+    return res.status(404).json({ error: { message: 'That object is no longer stored', type: 'not_found' } });
   }
 
   res.setHeader('Content-Type', object.contentType);

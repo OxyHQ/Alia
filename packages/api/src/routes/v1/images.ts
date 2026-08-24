@@ -5,6 +5,7 @@ import { reserveCredits, finalizeCredits, refundReservation } from '../../lib/cr
 import type { CreditReservation } from '../../lib/credits-manager.js';
 import { getOrCreateUserCredits } from '../../lib/user-credits-helpers.js';
 import { uploadToS3 } from '../../lib/s3.js';
+import { storedMediaUrl } from '../../lib/stored-media.js';
 import { log } from '../../lib/logger.js';
 import { getSafeErrorMessage } from '../../lib/errors/sanitize.js';
 import { extractImageUrl } from '../../internal/providers/lib/digitalocean-async.js';
@@ -72,7 +73,17 @@ router.post('/generations', async (req: Request, res: Response) => {
 
     // Resolve image provider via tier mappings — try each in priority order
     const imageMappings = await getModelMappingsForTier('v1-image');
-    let imageUrl: string | null = null;
+    /**
+     * Two different things, kept apart on purpose.
+     *
+     * A provider may answer with a URL of its own, which is passed through
+     * untouched, or with base64, which is stored here and identified by a KEY.
+     * They used to share one variable, which is how a key would have been
+     * returned to a client as if it were a link — the same conflation that made
+     * every stored address a 403.
+     */
+    let providerImageUrl: string | null = null;
+    let storedImageKey: string | null = null;
 
     for (const mapping of imageMappings) {
       if (abortController.signal.aborted) break;
@@ -98,23 +109,23 @@ router.post('/generations', async (req: Request, res: Response) => {
         });
 
         // Different providers return images in different formats
-        imageUrl = extractImageUrl(data) ?? null;
+        providerImageUrl = extractImageUrl(data) ?? null;
         const b64 = data.data?.[0]?.b64_json;
 
         if (b64) {
           // Upload b64 to S3 for a permanent URL
           const buffer = Buffer.from(b64, 'base64');
-          imageUrl = await uploadToS3(buffer, 'image.png', `images/${userId}`, 'generated');
+          storedImageKey = await uploadToS3(buffer, 'image.png', `images/${userId}`, 'generated');
         }
 
-        if (imageUrl) break;
+        if (providerImageUrl || storedImageKey) break;
       } catch (err: unknown) {
         log.general.warn({ err, provider: mapping.provider, model: mapping.modelId }, 'Image provider failed, trying next');
         continue;
       }
     }
 
-    if (!imageUrl) {
+    if (!providerImageUrl && !storedImageKey) {
       // Refund, not a zero-token finalize: `calculateCreditsFromTokens` returns
       // MIN_CREDITS_PER_REQUEST for zero tokens, so this billed the minimum for
       // a request that produced no image.
@@ -132,7 +143,13 @@ router.post('/generations', async (req: Request, res: Response) => {
       totalTokens: 250,
     });
 
-    res.json({ data: [{ url: imageUrl }] });
+    // A stored image becomes addressable here; a provider's own URL is already
+    // one and is not rewritten.
+    const url = storedImageKey === null ? providerImageUrl : storedMediaUrl(req, storedImageKey, userId);
+    if (url === null) {
+      return res.status(500).json({ error: { message: 'The image cannot be served by this deployment', type: 'server_error' } });
+    }
+    res.json({ data: [{ url }] });
   } catch (error: unknown) {
     if (reservation && !settled) {
       await refundReservation(reservation).catch((err: unknown) =>

@@ -40,21 +40,30 @@ const s3Client = new S3Client({
 
 const BUCKET_NAME = process.env.AWS_S3_BUCKET || '';
 
-/** Compute base URL once at module load (used for S3 API operations like delete) */
-const S3_BASE_URL = (() => {
-  if (process.env.AWS_ENDPOINT_URL) {
-    const host = new URL(process.env.AWS_ENDPOINT_URL).host;
-    return `https://${BUCKET_NAME}.${host}`;
-  }
-  return `https://${BUCKET_NAME}.s3.${process.env.AWS_REGION || 'us-east-1'}.amazonaws.com`;
-})();
+/*
+ * There is deliberately no public base URL here any more.
+ *
+ * This module used to compute one and hand it back from every upload, which is
+ * how an address that answers 403 to every browser ended up stored in four
+ * tables and returned to clients from three surfaces. Nothing in this file
+ * knows how to build a link now: an object is identified by its KEY, and the
+ * only thing that turns a key into something a client can fetch is
+ * `lib/stored-media.ts`.
+ */
 
-/** Public-facing URL for uploaded files (prefer CDN if configured, else same as S3_BASE_URL) */
-const S3_PUBLIC_URL = process.env.AWS_CDN_URL
-  ? process.env.AWS_CDN_URL.replace(/\/$/, '')
-  : S3_BASE_URL;
-
-/** Upload a buffer to S3 with the given key and content type. Returns the public URL. */
+/**
+ * Upload a buffer, and answer with the object's KEY.
+ *
+ * Not a URL, and that is the point. This bucket blocks public access at the
+ * account level, so the address it would return is one that answers 403 to
+ * every browser — a value that LOOKS fetchable, gets stored as if it were, and
+ * is handed to clients that cannot fetch it. Three separate surfaces shipped
+ * that way: a message's audio, a show, and the speech endpoint itself.
+ *
+ * A key cannot be mistaken for a link. Code that means to give a client an
+ * address has to say so, by calling {@link storedMediaUrl}, which is the one
+ * place that can produce one.
+ */
 async function executeUpload(key: string, file: Buffer, contentType: string): Promise<string> {
   await s3Client.send(new PutObjectCommand({
     Bucket: BUCKET_NAME,
@@ -63,7 +72,7 @@ async function executeUpload(key: string, file: Buffer, contentType: string): Pr
     ContentType: contentType,
   }));
 
-  return `${S3_PUBLIC_URL}/${key}`;
+  return key;
 }
 
 /**
@@ -97,30 +106,6 @@ export async function uploadToS3Deterministic(
   return executeUpload(key, file, contentType);
 }
 
-/**
- * The object key inside this bucket, from an address stored earlier.
- *
- * Stored addresses are canonical S3 URLs, and they outlive any authorisation
- * minted for them — which is why the row keeps the address and the link is
- * signed at the moment someone is handed it.
- *
- * A URL that does not point at this bucket yields `null` rather than a key: a
- * caller passing a foreign address is asking for something this cannot give,
- * and answering with a key would turn that into a request for the wrong object.
- */
-export function s3ObjectKeyFromUrl(fileUrl: string): string | null {
-  if (BUCKET_NAME === '') return null;
-  try {
-    const url = new URL(fileUrl);
-    const sameBucket =
-      url.hostname.startsWith(`${BUCKET_NAME}.`) || url.pathname.startsWith(`/${BUCKET_NAME}/`);
-    if (!sameBucket) return null;
-    const key = url.pathname.replace(new RegExp(`^/(?:${BUCKET_NAME}/)?`), '');
-    return key === '' ? null : decodeURIComponent(key);
-  } catch {
-    return null;
-  }
-}
 
 /** One stored object, for a route that streams it to a player. */
 export interface S3ObjectStream {
@@ -155,15 +140,14 @@ export async function readS3Object(key: string): Promise<S3ObjectStream | null> 
 }
 
 /**
- * Delete a file from S3
- * @param fileUrl - Full S3 URL
+ * Delete a stored object, by the key an upload answered with.
+ *
+ * A key, not a URL. It used to parse one out of a stored address, which only
+ * worked while addresses were what got stored — and that is the thing this
+ * module stopped doing.
  */
-export async function deleteFromS3(fileUrl: string): Promise<void> {
+export async function deleteFromS3(key: string): Promise<void> {
   try {
-    // Extract key from URL
-    const url = new URL(fileUrl);
-    const key = url.pathname.substring(1); // Remove leading slash
-
     const command = new DeleteObjectCommand({
       Bucket: BUCKET_NAME,
       Key: key,

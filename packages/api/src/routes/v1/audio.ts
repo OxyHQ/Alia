@@ -4,8 +4,8 @@ import { synthesizeSpeech } from '../../lib/synthesize-speech.js';
 import { reserveCredits, finalizeCredits, refundReservation } from '../../lib/credits-manager.js';
 import type { CreditReservation } from '../../lib/credits-manager.js';
 import { getOrCreateUserCredits } from '../../lib/user-credits-helpers.js';
-import { s3ObjectKeyFromUrl, uploadToS3 } from '../../lib/s3.js';
-import { mintPlaybackQuery } from '../../lib/audio-playback-link.js';
+import { uploadToS3 } from '../../lib/s3.js';
+import { storedMediaUrl } from '../../lib/stored-media.js';
 import { findMessageAudioUrl, setMessageAudioUrl } from '../../db/chat/messageRepository.js';
 import { getDb } from '../../db/index.js';
 import {
@@ -22,51 +22,7 @@ import type { Request, Response } from 'express';
 
 const router = Router();
 
-/**
- * The address a client can actually play, from the address we store.
- *
- * The row keeps the canonical S3 URL because it outlives any authorisation;
- * the client gets a signed, expiring link because the media bucket is private
- * and a browser handed the canonical URL receives a 403 — which `<audio>`
- * reports as `NotSupportedError`, an error that names nothing about
- * permissions.
- *
- * Falls back to the stored address when a link cannot be minted (no signing
- * secret, or an address outside our bucket) rather than failing the request:
- * that is the behaviour every caller had before, and a surface that stops
- * answering is worse than one that answers with what it used to.
- */
-/** Exported for its test: the scheme and the absoluteness are the two things
- * that fail silently in production and cannot be seen from the route's own
- * behaviour. */
-export function playableUrl(req: Request, storedUrl: string, userId: string): string {
-  const key = s3ObjectKeyFromUrl(storedUrl);
-  if (key === null) return storedUrl;
-  const query = mintPlaybackQuery(key, userId);
-  if (query === null) return storedUrl;
 
-  /**
-   * Absolute, and built from the request.
-   *
-   * A relative path would resolve against the PAGE's origin, and the app is
-   * served from a different host than this API — `alia.onl` asking
-   * `api.alia.onl` — so the player would fetch a path that does not exist there.
-   *
-   * The scheme comes from `X-Forwarded-Proto` because TLS terminates at the
-   * load balancer: `req.protocol` reports `http` here, and an `http://` media
-   * URL on an `https://` page is blocked as mixed content — a failure that
-   * looks exactly like the 403 this change exists to fix.
-   *
-   * `Host` is the client's own header, and this link is handed straight back to
-   * that same client, so nothing is trusted across a boundary: a caller that
-   * sends a wrong host receives a link that does not work for it.
-   */
-  const forwarded = req.get('x-forwarded-proto');
-  const scheme = (forwarded ?? req.protocol).split(',')[0]?.trim() || 'https';
-  const host = req.get('host');
-  const base = host === undefined ? '' : `${scheme}://${host}`;
-  return `${base}/audio/playback?${query}`;
-}
 
 /**
  * POST /v1/audio/speech
@@ -116,11 +72,11 @@ router.post('/speech', async (req: Request, res: Response) => {
     if (conversationId && messageId) {
       const cached = await findMessageAudioUrl(getDb(), userId, conversationId, messageId);
       if (cached) {
-        // Signed on the way out, exactly like a fresh one. The stored address
-        // is canonical and unplayable on its own, so a cache hit that returned
-        // it verbatim was the same 403 as a miss — the reason replaying an
-        // already-generated clip failed too.
-        return res.json({ audioUrl: playableUrl(req, cached, userId) });
+        // Rendered on the way out, exactly like a fresh one. The row holds a
+        // KEY, which is not an address — a cache hit that returned it verbatim
+        // would hand the player a string it cannot fetch.
+        const link = storedMediaUrl(req, cached, userId);
+        if (link !== null) return res.json({ audioUrl: link });
       }
     }
 
@@ -198,16 +154,23 @@ router.post('/speech', async (req: Request, res: Response) => {
       }),
     ]);
 
-    const audioUrl = uploadResult[0];
+    const audioKey = uploadResult[0];
 
     // Link to message (fire-and-forget, don't block response)
     if (conversationId && messageId) {
-      setMessageAudioUrl(getDb(), userId, conversationId, messageId, audioUrl).catch((err: unknown) => {
+      setMessageAudioUrl(getDb(), userId, conversationId, messageId, audioKey).catch((err: unknown) => {
         log.general.warn({ err, conversationId, messageId }, 'Failed to link audioUrl to message');
       });
     }
 
-    res.json({ audioUrl: playableUrl(req, audioUrl, userId) });
+    const link = storedMediaUrl(req, audioKey, userId);
+    if (link === null) {
+      // No signing secret, so no address can be produced for a stored object.
+      // Failing here is the honest answer: the clip exists and cannot be handed
+      // over, which is a deployment fault rather than a synthesis one.
+      return res.status(500).json({ error: { message: 'Audio cannot be served by this deployment', type: 'server_error' } });
+    }
+    res.json({ audioUrl: link });
   } catch (error: unknown) {
     if (reservation && !settled) {
       // No `settled = true` here: nothing reads it after a catch, and eslint
@@ -388,7 +351,7 @@ async function processAudioGeneration(input: AudioGenJobInput): Promise<void> {
     // Charge credits based on duration (~1 credit per 10 seconds)
     const durationCredits = Math.max(1, Math.ceil(duration / 10));
 
-    const [audioUrl] = await Promise.all([
+    const [audioKey] = await Promise.all([
       uploadToS3(audioBuffer, 'audio.mp3', `audio-gen/${userId}`, 'generated'),
       finalizeCredits(reservation, {
         promptTokens: durationCredits * 50,
@@ -397,14 +360,26 @@ async function processAudioGeneration(input: AudioGenJobInput): Promise<void> {
       }),
     ]);
 
-    // Update job with result and notify client
-    await markAudioJobCompleted(getDb(), jobId, audioUrl);
-    emitAudioJobUpdate(userId, { jobId, status: 'completed', audioUrl });
+    await markAudioJobCompleted(getDb(), jobId, audioKey);
+    /**
+     * The socket says it is done; it does not say where.
+     *
+     * An address is only producible where a REQUEST exists — the scheme and
+     * host come from one — and a socket frame has none. Emitting a key under
+     * the name `audioUrl` would be handing the client a string it cannot
+     * fetch, which is the mistake this whole change removes.
+     *
+     * The client already handles this: its socket handler settles only when an
+     * `audioUrl` is present, and its polling fallback asks
+     * `GET /v1/audio/jobs/:jobId`, which renders one. The cost is at most one
+     * poll interval.
+     */
+    emitAudioJobUpdate(userId, { jobId, status: 'completed' });
 
     // Link to message (fire-and-forget)
     if (conversationId && messageId) {
-      setMessageAudioUrl(getDb(), userId, conversationId, messageId, audioUrl).catch((err: unknown) => {
-        log.general.warn({ err, conversationId, messageId }, 'Failed to link audioUrl to message');
+      setMessageAudioUrl(getDb(), userId, conversationId, messageId, audioKey).catch((err: unknown) => {
+        log.general.warn({ err, conversationId, messageId }, 'Failed to link audio to message');
       });
     }
 
@@ -451,7 +426,17 @@ router.get('/jobs/:jobId', async (req: Request, res: Response) => {
     }
 
     if (job.status === 'completed') {
-      return res.json({ status: 'completed', audioUrl: job.audioUrl });
+      if (job.audioUrl === null) {
+        // Completed with nothing stored is a contradiction, and reporting it as
+        // completed would leave the client waiting for an address that will
+        // never come.
+        return res.status(500).json({ error: { message: 'The job completed without audio', type: 'server_error' } });
+      }
+      const link = storedMediaUrl(req, job.audioUrl, userId);
+      if (link === null) {
+        return res.status(500).json({ error: { message: 'Audio cannot be served by this deployment', type: 'server_error' } });
+      }
+      return res.json({ status: 'completed', audioUrl: link });
     }
 
     if (job.status === 'failed') {
