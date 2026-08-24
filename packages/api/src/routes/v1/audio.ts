@@ -369,12 +369,31 @@ async function processAudioGeneration(input: AudioGenJobInput): Promise<void> {
     // Charge credits based on duration (~1 credit per 10 seconds)
     const durationCredits = Math.max(1, Math.ceil(duration / 10));
 
+    /**
+     * The same charge, restated in the unit `finalizeCredits` settles in.
+     *
+     * It settles TOKENS, not credits: `calculateCreditsFromTokens` divides by
+     * `TOKENS_PER_CREDIT` and applies the alias model's multiplier. So a figure
+     * already denominated in CREDITS survives the round trip only if it is
+     * multiplied by `TOKENS_PER_CREDIT` on the way in.
+     *
+     * It was `durationCredits * 50`, and this endpoint is the one where that
+     * did the most damage. `duration` is capped at 120 seconds a few lines
+     * above, so `durationCredits` never exceeds 12 and the old expression never
+     * exceeded 600 tokens — which never reaches the 1000 tokens that make one
+     * credit. Every audio generation this endpoint has ever produced was
+     * charged exactly `MIN_CREDITS_PER_REQUEST`, at every length: not an
+     * undercharge that grew with the request, a flat rate of one credit
+     * arrived at by accident.
+     */
+    const billedTokens = durationCredits * CREDITS_CONFIG.TOKENS_PER_CREDIT;
+
     const [audioKey] = await Promise.all([
       uploadToS3(audioBuffer, 'audio.mp3', `audio-gen/${userId}`, 'generated'),
       finalizeCredits(reservation, {
-        promptTokens: durationCredits * 50,
+        promptTokens: billedTokens,
         completionTokens: 0,
-        totalTokens: durationCredits * 50,
+        totalTokens: billedTokens,
       }),
     ]);
 
