@@ -22,7 +22,7 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/icon-512-maskable.png",
         "monochromeImage": "./assets/adaptive-icon-monochrome.png",
-        "backgroundColor": "#3F0050"
+        "backgroundColor": "#42005C"
       },
       "googleServicesFile": "./google-services.json",
       "package": "onl.alia.app",
@@ -40,16 +40,10 @@
     },
     "plugins": [
       "expo-router",
-      [
-        "expo-splash-screen",
-        {
-          "image": "./assets/icon-512.png",
-          "resizeMode": "contain",
-          "backgroundColor": "#040711"
-        }
-      ],
       "expo-localization",
       "expo-audio",
+      "@livekit/react-native-expo-plugin",
+      "@config-plugins/react-native-webrtc",
       "expo-font",
       "expo-image",
       [

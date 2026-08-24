@@ -1,5 +1,5 @@
 import React from "react";
-import { View } from "react-native";
+import { StyleSheet, View } from "react-native";
 import { cn } from "../../../lib/utils";
 import { ChatTextInput } from "../chat-text-input";
 import { usePromptInput } from "./context";
@@ -28,6 +28,11 @@ export function PromptInputTextarea({
     handleCompletionKey,
   } = usePromptInput();
 
+  const inputStyle = React.useMemo(
+    () => [style, styles.borderless, isFullscreen && styles.fullscreen],
+    [isFullscreen, style],
+  );
+
   const textInput = (
     <ChatTextInput
       ref={textareaRef}
@@ -42,12 +47,14 @@ export function PromptInputTextarea({
       maxHeight={isFullscreen ? 10000 : maxHeight}
       onImagePaste={onImagePaste}
       fillContainer={isFullscreen}
+      unstyled
       className={cn(
-        "w-full border-0 bg-transparent text-foreground shadow-none",
+        "w-full border-0 bg-transparent text-foreground web:shadow-none",
         isFullscreen ? "px-4 pt-4" : "min-h-[44px] py-3",
         className
       )}
-      style={[style, isFullscreen && { paddingBottom: 100 }]}
+      style={inputStyle}
+      underlineColorAndroid="transparent"
       placeholder={placeholder}
       multiline
       editable={!disabled}
@@ -62,3 +69,12 @@ export function PromptInputTextarea({
 
   return textInput;
 }
+
+const styles = StyleSheet.create({
+  borderless: {
+    borderWidth: 0,
+  },
+  fullscreen: {
+    paddingBottom: 100,
+  },
+});
