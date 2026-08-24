@@ -21,13 +21,32 @@ import { log } from './logger.js';
 /**
  * The first-party browser origins this repo deploys.
  *
- * `alia-canvas.pages.dev` is where `.github/workflows/deploy-frontends.yml`
- * publishes `packages/alia-canvas` (`--project-name=alia-canvas`), and it was
- * missing: measured 2026-08-19 against the running API, `GET /catalogue` with
- * `Origin: https://alia.onl` came back with an `access-control-allow-origin`
- * header and the same request with `Origin: https://alia-canvas.pages.dev`
- * came back with none, so every internal call that app makes — the workflow
- * routes under `/api` as well as the catalogue — was refused by the browser.
+ * `packages/alia-canvas` is published by `.github/workflows/deploy-frontends.yml`
+ * to the Cloudflare Pages project `alia-canvas`, and it is reachable under TWO
+ * origins during the move to its own domain:
+ *
+ *  - `canvas.alia.onl` is where it BELONGS, and the entry is here ahead of the
+ *    DNS. That record currently still points at the decommissioned
+ *    DigitalOcean app `.do/app.yaml` declares (`dig +short canvas.alia.onl` →
+ *    `alia-production-3kc6h.ondigitalocean.app`, which answers nothing), so the
+ *    host is dead today.
+ *  - `alia-canvas.pages.dev` is the Pages default, and it is what a browser
+ *    actually sends until that record is repointed. Removing it BEFORE the
+ *    cutover would refuse the app that is live now.
+ *
+ * Measured 2026-08-19 against the running API: `Origin: https://alia.onl` came
+ * back with an `access-control-allow-origin` header and
+ * `Origin: https://alia-canvas.pages.dev` came back with none, so every
+ * internal call that app makes — the workflow routes under `/api` as well as
+ * the catalogue — was refused by the browser. Re-measured today, both
+ * `alia.onl` and `alia-canvas.pages.dev` are admitted and `canvas.alia.onl` is
+ * still refused, which is what this adds.
+ *
+ * This list is Alia's OWN CORS surface. It has nothing to do with
+ * `api.oxy.so`, which refuses this app's `POST /auth/session/create` for the
+ * same origin: those origins are derived from the Application registry in
+ * OxyConsole (`redirectUris`), so authorising one there is a DATA change and
+ * cannot be made from this repo.
  *
  * Exact origins only, never a pattern: `createOxyCors` matches the normalized
  * origin against this set, so a Cloudflare Pages PREVIEW deployment
@@ -37,6 +56,7 @@ import { log } from './logger.js';
 export const PRODUCTION_ORIGINS: readonly string[] = [
   'https://alia.onl',
   'https://console.alia.onl',
+  'https://canvas.alia.onl',
   'https://alia-canvas.pages.dev',
 ];
 

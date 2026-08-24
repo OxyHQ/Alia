@@ -1011,6 +1011,11 @@ const EGRESS_HOSTS: readonly string[] = [
   'api.together.ai',
   'api.x.ai',
   'api.zeroeval.com',
+  // Where `packages/alia-canvas` BELONGS. The DNS still points at the
+  // decommissioned DigitalOcean app `.do/app.yaml` declares, so the host is
+  // dead today and the Pages default above is what a browser sends until it is
+  // repointed. Both are allowed browser origins for the window of that move.
+  'canvas.alia.onl',
   'console.alia.onl',
   'discord.com',
   'duckduckgo.com',
@@ -3789,6 +3794,7 @@ describe('gate 9: no origin allowlist admits an opaque origin (#139 ws15)', () =
     expect(list('packages/api/src/lib/cors-origins.ts', 'PRODUCTION_ORIGINS')).toEqual([
       'https://alia.onl',
       'https://console.alia.onl',
+      'https://canvas.alia.onl',
       'https://alia-canvas.pages.dev',
     ]);
     expect(list('packages/api/src/lib/cors-origins.ts', 'DEV_ORIGINS')).toEqual([
