@@ -795,3 +795,44 @@ describe('readiness answers for the task, and /health keeps the fleet-wide truth
     expect(body).toEqual({ status: 'not_ready', reason: 'database_unavailable' });
   });
 });
+
+/**
+ * `relay` and `kaana` answer different questions, and the snapshot says both.
+ *
+ * `relay` reports the cutover flag, so it reads `disabled` on every deployment
+ * that exists — including production, where Kaana serves every background
+ * derivation. Read as "Kaana is off", which is what it looks like, it says the
+ * opposite of the truth.
+ */
+describe('what the snapshot says about Kaana', () => {
+  const KAANA_ENV = {
+    KAANA_EDGE_KEY_ID: 'alia-edge-test',
+    KAANA_EDGE_SIGNING_PRIVATE_KEY: 'a key this test never parses',
+  };
+
+  it('says configured when the process has what it needs, whatever the flag says', async () => {
+    for (const [name, value] of Object.entries(KAANA_ENV)) vi.stubEnv(name, value);
+    const { body } = await probe('/health');
+
+    expect(body.kaana).toBe('configured');
+    // The whole point of the pair: the older field still reads `disabled`, and
+    // a reader who had only that one would conclude Kaana was not in use.
+    expect(body.relay).toBe('disabled');
+  });
+
+  it('says not_configured when it does not', async () => {
+    // Negative control. Without it, a field hard-coded to `configured` would
+    // pass the case above.
+    for (const name of Object.keys(KAANA_ENV)) vi.stubEnv(name, '');
+    const { body } = await probe('/health');
+    expect(body.kaana).toBe('not_configured');
+  });
+
+  it('does not let either field decide readiness', async () => {
+    // Neither may deregister a task: `/health/live` is what the target group
+    // polls, and readiness reports rather than gates.
+    for (const name of Object.keys(KAANA_ENV)) vi.stubEnv(name, '');
+    const { status } = await probe('/health/ready');
+    expect(status).toBe(200);
+  });
+});
