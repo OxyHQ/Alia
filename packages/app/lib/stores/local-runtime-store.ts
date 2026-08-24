@@ -21,9 +21,9 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { randomUUID } from 'expo-crypto';
 import { migrateLocalRuntimeState } from './local-runtime-migration';
 import type { LocalRuntimeConsent } from './local-runtime-migration';
+import { createRandomUuid } from '../utils/random-uuid';
 
 export type { LocalRuntimeConsent } from './local-runtime-migration';
 
@@ -79,7 +79,7 @@ export const useLocalRuntimeStore = create<LocalRuntimeState>()(
       consent: 'unasked',
       inviteSeen: false,
       endpoint: DEFAULT_LOCAL_ENDPOINT,
-      runtimeId: randomUUID(),
+      runtimeId: createRandomUuid(),
       label: '',
       models: [],
       setConsent: (consent) => set({ consent }),

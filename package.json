@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "description": "Monorepo para Alia - plataforma de IA con app (web+mobile), API y panel admin",
   "private": true,
+  "trustedDependencies": [
+    "@shopify/react-native-skia"
+  ],
   "workspaces": [
     "packages/api",
     "packages/app",
