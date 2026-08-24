@@ -23,6 +23,7 @@ import {
   type EffortLevel,
 } from "@/lib/hooks/use-catalogue";
 import { useLocalModelOptions } from "@/lib/hooks/use-local-runtimes";
+import { LocalModelsInvite } from "@/components/local-models-invite";
 import { presentation, useProductModes } from "@/lib/hooks/use-product-modes";
 import { effortFor, useModelStore } from "@/lib/stores/model-store";
 import { useRouter } from "expo-router";
@@ -164,6 +165,7 @@ export function ModelSelector({
   };
 
   return (
+    <LocalModelsInvite>
     <DropdownMenu>
       <DropdownMenuTrigger asChild label={`Power: ${effortLabel}`}>
         <Pressable
@@ -504,5 +506,6 @@ export function ModelSelector({
         </div>
       </DropdownMenuContent>
     </DropdownMenu>
+    </LocalModelsInvite>
   );
 }
