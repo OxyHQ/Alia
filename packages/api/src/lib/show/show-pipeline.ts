@@ -1,45 +1,104 @@
 /**
- * Show Pipeline — Orchestrates the multi-step show generation process.
+ * Producing one episode of a show series, and delivering it to Syra.
  *
- * Steps:
- * 1. Generate script via LLM
- * 2. Assign voices to speakers
- * 3. Generate TTS audio for each dialogue segment (batched)
- * 4. Generate sound effects for SFX segments
- * 5. Concatenate all audio segments
- * 6. Upload final show to S3
+ * Script → audio per segment → one file → measure it → hand it to Syra.
+ *
+ * ## The destination is Syra, and the last step is not "upload"
+ *
+ * The old pipeline finished by putting an MP3 in Alia's bucket and storing the
+ * key. This one redeems a single-use ingest ticket, minted while the user's
+ * token was live, and Syra becomes the file's home: its visibility rules, its
+ * HLS transcode, its RSS feed. Segments still reach S3 but only as working
+ * storage for the join, and they are deleted as soon as the join succeeds.
+ *
+ * ## Every failure gives the credit back
+ *
+ * `reserveCredits` DEBITS on the way in. The previous version answered three of
+ * its failure paths with `finalizeCredits(reservation, { totalTokens: 0 })`, and
+ * `calculateCreditsFromTokens` returns `MIN_CREDITS_PER_REQUEST` for zero
+ * tokens — so a show that produced nothing at all still charged its owner one
+ * credit, silently, on the path where nothing worked. Every exit here either
+ * charges what the episode cost or refunds the reservation, and `settled` is
+ * what stops an exit doing both.
  */
 
 import { generateText } from 'ai';
 import { getDb } from '../../db/index.js';
 import {
-  findShowById,
-  updateShow as updateShowRow,
-  type ShowPatch,
-  type ShowRow,
-} from '../../db/notifications/showRepository.js';
+  findEpisodeById,
+  findSeriesById,
+  recentRecaps,
+  updateEpisode,
+  type ShowEpisodePatch,
+  type ShowEpisodeRow,
+  type ShowSeriesRow,
+} from '../../db/shows/showRepository.js';
 import { resolveModel, getAIModel, getDefaultAliaModel } from '../chat-core.js';
 import { callProviderAPI } from '../../internal/providers/lib/provider-api.js';
 import { extractAudioUrl, downloadBinaryFromUrl } from '../../internal/providers/lib/digitalocean-async.js';
 import { synthesizeSpeech } from '../synthesize-speech.js';
-import { uploadToS3 } from '../s3.js';
-import { reserveCredits, finalizeCredits } from '../credits-manager.js';
+import { deleteS3Objects, uploadToS3 } from '../s3.js';
+import {
+  finalizeFixedCredits,
+  refundReservation,
+  reserveCredits,
+  type CreditReservation,
+} from '../credits-manager.js';
 import { getOrCreateUserCredits } from '../user-credits-helpers.js';
 import { sendNotification } from '../notification-service.js';
+import { syraForTicket } from '../syra/syra.js';
 import { buildScriptSystemPrompt, buildScriptUserPrompt } from './script-prompt.js';
-import { assignVoices } from './voice-roster.js';
-import { concatenateAudioSegments } from './audio-concat.js';
+import { concatenateAudioSegments, measureAudioDurationMs } from './show-audio.js';
 import { log } from '../logger.js';
 import { getSafeErrorMessage } from '../errors/sanitize.js';
 import { getIO } from '../../socket.js';
+import type { ShowSegment, ShowSpeaker } from '../../db/schema/shows.js';
 
-// Max concurrent TTS calls to avoid rate limiting
+/** Max concurrent synthesis calls, to stay inside provider rate limits. */
 const TTS_BATCH_SIZE = 3;
 
+/** How many earlier episodes the script is told about. */
+const RECAP_WINDOW = 3;
+
+/** What the model is asked to write, per episode. */
+const TARGET_MINUTES = 3;
+
+/**
+ * What one episode costs its owner.
+ *
+ * `durationMs` when it is known, which is the basis the product has always
+ * stated: about one credit per thirty seconds of finished audio, plus two for
+ * writing the script.
+ *
+ * When ffmpeg could not measure the file, the fall-back prices the SPEECH
+ * instead, at the same rate `POST /v1/audio/speech` charges — one credit per
+ * 200 characters. That is not a second opinion about the same quantity; it is
+ * the other real cost driver, and a show is literally many of those calls. An
+ * unmeasurable file must not be free, and it must not be billed from a number
+ * nobody computed.
+ *
+ * Exported because it is the arithmetic worth testing directly. The bug it
+ * replaces was invisible precisely because it lived inline in a call
+ * expression.
+ */
+export function showCreditCost(input: {
+  readonly durationMs: number | null;
+  readonly spokenCharacters: number;
+}): number {
+  const SCRIPT_CREDITS = 2;
+
+  if (input.durationMs !== null && input.durationMs > 0) {
+    return Math.max(1, Math.ceil(input.durationMs / 30_000)) + SCRIPT_CREDITS;
+  }
+
+  return Math.max(1, Math.ceil(input.spokenCharacters / 200)) + SCRIPT_CREDITS;
+}
+
+/** What the model returns. The title is not among them — Syra fixed it at draft time. */
 interface ShowScript {
-  title: string;
   description: string;
-  speakers: string[];
+  summary: string;
+  recap: string;
   segments: Array<{
     type: 'dialogue' | 'sfx' | 'transition';
     speaker: string;
@@ -48,290 +107,404 @@ interface ShowScript {
   }>;
 }
 
+interface ProgressUpdate {
+  readonly status: string;
+  readonly progress: number;
+  readonly currentStep: string;
+  readonly segmentIndex?: number;
+  readonly totalSegments?: number;
+}
+
 /**
- * Emit progress update via Socket.IO.
+ * Tell the owner's own room where the episode has got to.
+ *
+ * Carries `seriesId` beside `episodeId` because the app renders episodes inside
+ * a series and a bare episode id would send it looking for which list to update.
  */
-function emitProgress(userId: string, showId: string, data: {
-  status: string;
-  progress: number;
-  currentStep: string;
-  segmentIndex?: number;
-  totalSegments?: number;
-}) {
+function emitProgress(episode: ShowEpisodeRow, update: ProgressUpdate): void {
   const io = getIO();
   if (io) {
-    io.to(`user:${userId}`).emit('show:progress', { showId, ...data });
+    io.to(`user:${episode.userId}`).emit('show:progress', {
+      episodeId: episode.id,
+      seriesId: episode.seriesId,
+      ...update,
+    });
   }
 }
 
 /**
- * Run the full show generation pipeline.
+ * Produce one episode, from a queued row to a published Syra episode.
  */
-export async function runShowPipeline(showId: string): Promise<void> {
+export async function runShowPipeline(episodeId: string): Promise<void> {
   /**
    * `let`, and rebound by every patch.
    *
-   * The Mongoose version held one document for the whole run, so
-   * `Object.assign(show, data); await show.save()` made every later read see the
-   * accumulated state. A row is a plain value, so the accumulation has to be
-   * explicit: `applyUpdate` writes the patch and rebinds `show` to what the
-   * database returned. Reads further down — `show.title` when composing the
-   * completion notification — depend on it.
+   * A row is a plain value, so the accumulation the old Mongoose document did
+   * implicitly has to be explicit: `applyUpdate` writes the patch and rebinds
+   * `episode` to what the database returned. Reads further down depend on it.
    */
-  let show = await findShowById(getDb(), showId);
-  if (!show) throw new Error(`Show ${showId} not found`);
+  const loaded = await findEpisodeById(getDb(), episodeId);
+  if (!loaded) throw new Error(`Show episode ${episodeId} not found`);
+  // Explicitly typed non-null: `applyUpdate` reassigns it from inside a closure,
+  // which discards the narrowing the check above would otherwise carry.
+  let episode: ShowEpisodeRow = loaded;
 
-  const userId = show.userId;
+  const series = await findSeriesById(getDb(), episode.seriesId);
+  if (!series) throw new Error(`Show series ${episode.seriesId} not found`);
 
-  /** Patch the row and keep the local copy in step with it. */
-  const applyUpdate = async (patch: ShowPatch): Promise<void> => {
-    const updated = await updateShowRow(getDb(), showId, patch);
+  const applyUpdate = async (patch: ShowEpisodePatch): Promise<void> => {
+    const updated = await updateEpisode(getDb(), episodeId, patch);
     // A null means the row was deleted mid-run; the local copy stays as it was
-    // so the remaining steps still have something to read, exactly as a
-    // detached Mongoose document did.
-    if (updated) show = updated;
+    // so the remaining steps still have something to read.
+    if (updated) episode = updated;
   };
 
+  /**
+   * Out here so every exit can see it, and `settled` so no exit can both charge
+   * and refund. A reservation DEBITS immediately, so a path that does neither
+   * silently keeps the owner's credit.
+   */
+  let reservation: CreditReservation | null = null;
+  let settled = false;
+
+  /** Keys this run wrote, deleted by key rather than by a computed prefix. */
+  const segmentKeys: string[] = [];
+
   try {
-    // Reserve credits
-    await getOrCreateUserCredits(userId);
-    const reservation = await reserveCredits(userId);
+    await getOrCreateUserCredits(episode.userId);
+    reservation = await reserveCredits(episode.userId);
     if (!reservation) {
+      // Nothing was reserved, so there is nothing to give back.
+      settled = true;
       await applyUpdate({ status: 'failed', error: 'Insufficient credits' });
+      emitProgress(episode, { status: 'failed', progress: 0, currentStep: 'Out of credits' });
       return;
     }
 
-    // Step 1: Generate script
+    // ── 1. Script ────────────────────────────────────────────────────────────
     await applyUpdate({ status: 'generating_script', progress: 5 });
-    emitProgress(userId, showId, { status: 'generating_script', progress: 5, currentStep: 'Generating script...' });
+    emitProgress(episode, {
+      status: 'generating_script',
+      progress: 5,
+      currentStep: 'Writing the script...',
+    });
 
-    const script = await generateScript(show);
+    const previousRecaps = await recentRecaps(
+      getDb(),
+      series.id,
+      episode.episodeNumber,
+      RECAP_WINDOW,
+    );
+    const script = await generateScript(series, episode, previousRecaps);
     if (!script) {
-      await applyUpdate({ status: 'failed', error: 'Failed to generate show script' });
-      await finalizeCredits(reservation, { promptTokens: 0, completionTokens: 0, totalTokens: 0 });
+      settled = true;
+      await refundReservation(reservation);
+      await applyUpdate({ status: 'failed', error: 'Failed to generate the episode script' });
+      emitProgress(episode, { status: 'failed', progress: 0, currentStep: 'Failed' });
       return;
     }
 
-    // Step 2: Assign voices
-    const speakers = assignVoices(
-      script.speakers,
-      show.format,
-    );
-
-    const indexedSegments = script.segments.map((seg, i) => ({
-      ...seg,
-      index: i,
-      audioUrl: undefined as string | undefined,
-      durationMs: undefined as number | undefined,
+    // ── 2. Audio ─────────────────────────────────────────────────────────────
+    const segments: ShowSegment[] = script.segments.map((segment, index) => ({
+      index,
+      speaker: segment.speaker,
+      text: segment.text,
+      type: segment.type,
+      ...(segment.sfxPrompt === undefined ? {} : { sfxPrompt: segment.sfxPrompt }),
     }));
 
-    await applyUpdate({
-      title: script.title || show.title,
-      description: script.description || show.description,
-      speakers,
-      segments: indexedSegments,
+    await applyUpdate({ status: 'generating_audio', segments, progress: 15 });
+    emitProgress(episode, {
+      status: 'generating_audio',
       progress: 15,
+      currentStep: 'Recording...',
     });
 
-    emitProgress(userId, showId, { status: 'generating_audio', progress: 15, currentStep: 'Generating audio...' });
-
-    // Step 3: Generate audio for each segment (batched)
-    // Process dialogue (TTS) first, then SFX/transitions — prevents SFX timeouts
-    // from poisoning the provider key pool before TTS completes.
-    await applyUpdate({ status: 'generating_audio' });
-
-    const totalSegments = indexedSegments.length;
-    const segmentBuffers: Array<{ index: number; buffer: Buffer }> = [];
-
-    const dialogueSegments = indexedSegments.filter(s => s.type === 'dialogue');
-    const sfxSegments = indexedSegments.filter(s => s.type === 'sfx' || s.type === 'transition');
-    const orderedSegments = [...dialogueSegments, ...sfxSegments];
-    let completedCount = 0;
-
-    for (let batchStart = 0; batchStart < orderedSegments.length; batchStart += TTS_BATCH_SIZE) {
-      const batch = orderedSegments.slice(batchStart, batchStart + TTS_BATCH_SIZE);
-
-      const results = await Promise.allSettled(
-        batch.map(async (segment) => {
-          if (segment.type === 'dialogue') {
-            return generateTTSSegment(segment.text, speakers, segment.speaker);
-          } else if (segment.type === 'sfx' || segment.type === 'transition') {
-            return generateSFXSegment(segment.sfxPrompt || 'short transition sound, 2 seconds');
-          }
-          return null;
-        }),
-      );
-
-      for (let i = 0; i < results.length; i++) {
-        const result = results[i];
-        const segment = batch[i];
-
-        if (result.status === 'fulfilled' && result.value) {
-          segmentBuffers.push({ index: segment.index, buffer: result.value.buffer });
-
-          // Upload segment to S3 for individual access
-          const segmentUrl = await uploadToS3(
-            result.value.buffer,
-            `segment.${result.value.format}`,
-            `shows/${userId}/${showId}`,
-            `segment-${segment.index}`,
-          );
-          indexedSegments[segment.index].audioUrl = segmentUrl;
-        } else {
-          log.general.warn({ segmentIndex: segment.index, reason: result.status === 'rejected' ? result.reason : 'null' },
-            'Show segment generation failed, skipping');
-        }
-      }
-
-      completedCount += batch.length;
-      const progress = 15 + Math.round((completedCount / totalSegments) * 65);
-      await applyUpdate({ segments: indexedSegments, progress });
-      emitProgress(userId, showId, {
+    const buffers = await renderSegments(episode, series.speakers, segments, segmentKeys, (done) => {
+      const progress = 15 + Math.round((done / segments.length) * 60);
+      void applyUpdate({ segments, progress });
+      emitProgress(episode, {
         status: 'generating_audio',
         progress,
-        currentStep: 'Generating audio...',
-        segmentIndex: completedCount,
-        totalSegments,
+        currentStep: 'Recording...',
+        segmentIndex: done,
+        totalSegments: segments.length,
       });
-    }
+    });
 
-    // Step 4: Concatenate
-    await applyUpdate({ status: 'concatenating', progress: 82 });
-    emitProgress(userId, showId, { status: 'concatenating', progress: 82, currentStep: 'Assembling show...' });
-
-    // Sort buffers by index
-    segmentBuffers.sort((a, b) => a.index - b.index);
-    const orderedBuffers = segmentBuffers.map(s => s.buffer);
-
-    let finalBuffer: Buffer;
-    if (orderedBuffers.length === 0) {
-      await applyUpdate({ status: 'failed', error: 'No audio segments were generated' });
-      await finalizeCredits(reservation, { promptTokens: 0, completionTokens: 0, totalTokens: 0 });
+    if (buffers.length === 0) {
+      settled = true;
+      await refundReservation(reservation);
+      await applyUpdate({ status: 'failed', error: 'No audio could be generated for this episode' });
+      emitProgress(episode, { status: 'failed', progress: 0, currentStep: 'Failed' });
       return;
-    } else if (orderedBuffers.length === 1) {
-      finalBuffer = orderedBuffers[0];
-    } else {
-      finalBuffer = await concatenateAudioSegments(orderedBuffers);
     }
 
-    // Step 5: Upload final show
-    emitProgress(userId, showId, { status: 'concatenating', progress: 92, currentStep: 'Uploading show...' });
+    // ── 3. One file ──────────────────────────────────────────────────────────
+    await applyUpdate({ status: 'concatenating', segments, progress: 80 });
+    emitProgress(episode, { status: 'concatenating', progress: 80, currentStep: 'Assembling...' });
 
-    const audioUrl = await uploadToS3(
-      finalBuffer,
-      'show.mp3',
-      `shows/${userId}`,
-      showId,
+    const audio = await concatenateAudioSegments(buffers);
+    // MEASURED, never inferred from the byte length. Syra writes the duration it
+    // is handed and its transcode never revisits it, so a guess is what every
+    // listener sees in the episode list and the feed, permanently.
+    const durationMs = await measureAudioDurationMs(audio);
+
+    // ── 4. Syra ──────────────────────────────────────────────────────────────
+    await applyUpdate({ status: 'publishing', progress: 90 });
+    emitProgress(episode, { status: 'publishing', progress: 90, currentStep: 'Publishing...' });
+
+    /**
+     * BOTH halves of the capability, checked before anything is sent.
+     *
+     * The route reserves the Syra episode and mints the ticket before it
+     * inserts the row, so on a first run neither is null. A re-run of an
+     * already-published episode finds a null ticket — the pipeline clears it
+     * once spent — and must not produce a second recording nobody can attach.
+     *
+     * `syraEpisodeId` is checked rather than defaulted. `?? ''` would post to
+     * `/episodes//ingest`, which is a 404 that reads as "Syra refused" instead
+     * of as "this row is not what it claims to be".
+     */
+    const ticket = episode.ingestTicket;
+    const syraEpisodeId = episode.syraEpisodeId;
+    if (ticket === null || syraEpisodeId === null || syraEpisodeId === '') {
+      settled = true;
+      await refundReservation(reservation);
+      await applyUpdate({
+        status: 'failed',
+        error:
+          ticket === null
+            ? 'This episode has already been published'
+            : 'This episode has no Syra episode to publish to',
+      });
+      emitProgress(episode, { status: 'failed', progress: 0, currentStep: 'Failed' });
+      return;
+    }
+
+    await syraForTicket().ingestEpisode(
+      { episodeId: syraEpisodeId, ingestTicket: ticket },
+      // `Blob` is global on Node 20 and is what the SDK's multipart body wants.
+      new Blob([new Uint8Array(audio)], { type: 'audio/mpeg' }),
+      {
+        // SECONDS. Syra writes this straight into `<itunes:duration>`, so
+        // milliseconds here would publish every episode as roughly fifty hours.
+        ...(durationMs === null ? {} : { duration: Math.round(durationMs / 1000) }),
+        episodeNumber: episode.episodeNumber,
+        description: script.description,
+        summary: script.summary,
+      },
+      `${series.title} — episode ${episode.episodeNumber}.mp3`,
     );
 
-    // Estimate duration from file size (~128kbps MP3)
-    const estimatedDurationMs = Math.round((finalBuffer.length / (128 * 1024 / 8)) * 1000);
+    // ── 5. Settle ────────────────────────────────────────────────────────────
+    const spokenCharacters = segments
+      .filter((segment) => segment.type === 'dialogue')
+      .reduce((total, segment) => total + segment.text.length, 0);
+    const credits = showCreditCost({ durationMs, spokenCharacters });
 
-    // Charge credits: ~1 credit per 30 seconds of show + 2 for script gen
-    const durationCredits = Math.max(1, Math.ceil(estimatedDurationMs / 30000));
-    const totalCredits = durationCredits + 2;
-
-    await finalizeCredits(reservation, {
-      promptTokens: totalCredits * 50,
-      completionTokens: 0,
-      totalTokens: totalCredits * 50,
-    });
+    // Before the charge, not after: a throw between the two would otherwise
+    // refund a reservation that had already paid.
+    settled = true;
+    /**
+     * The row records what the LEDGER settled.
+     *
+     * The pipeline this replaces stored its intended figure while the ledger
+     * moved a laundered one, so a ten-minute show intended 22 credits, charged
+     * 2, and stored 22 — and the two disagreed for as long as that code
+     * existed, because nothing compared them.
+     *
+     * **The two numbers are equal TODAY**, and that is worth saying rather than
+     * implying otherwise: `finalizeFixedCredits` floors at
+     * `MIN_CREDITS_PER_REQUEST` and rounds up, and `showCreditCost` always
+     * returns an integer of at least 3, so neither adjustment ever fires.
+     * Measured — a mutation storing `credits` here instead SURVIVED the suite.
+     * So this is not defending against a rounding difference that exists; it is
+     * making the row true by CONSTRUCTION rather than by a coincidence of the
+     * current pricing function, which is what stops the two drifting apart
+     * again the next time that function changes.
+     */
+    const { creditsCharged } = await finalizeFixedCredits(reservation, credits, 'show');
 
     await applyUpdate({
       status: 'completed',
-      audioUrl,
-      durationMs: estimatedDurationMs,
-      segments: indexedSegments,
-      creditsCharged: totalCredits,
       progress: 100,
+      segments,
+      recap: script.recap,
+      durationMs,
+      creditsCharged,
+      // The capability is spent. Storing it further would keep a live-looking
+      // secret that Syra has already refused to honour a second time.
+      ingestTicket: null,
     });
 
-    emitProgress(userId, showId, { status: 'completed', progress: 100, currentStep: 'Done!' });
+    emitProgress(episode, { status: 'completed', progress: 100, currentStep: 'Ready' });
 
-    // Send notification
     await sendNotification({
-      userId,
+      userId: episode.userId,
       type: 'agent_task_complete',
-      title: 'Show Ready',
-      body: `Your show "${script.title || show.title}" is ready to listen.`,
-      data: { showId, audioUrl },
-    }).catch(err => {
-      log.general.warn({ err }, 'Failed to send show completion notification');
+      title: 'Episode Ready',
+      body: `"${episode.title}" is ready to listen on ${series.title}.`,
+      data: { seriesId: series.id, episodeId: episode.id, syraEpisodeId: episode.syraEpisodeId },
+    }).catch((err: unknown) => {
+      log.general.warn({ err }, 'Failed to send episode completion notification');
     });
-
   } catch (error: unknown) {
-    log.general.error({ err: error, showId }, 'Show pipeline failed');
+    log.general.error({ err: error, episodeId }, 'Show pipeline failed');
+    if (reservation && !settled) {
+      await refundReservation(reservation).catch((err: unknown) =>
+        log.general.error({ err, episodeId }, 'refundReservation failed after a show pipeline error'),
+      );
+    }
     await applyUpdate({
       status: 'failed',
-      error: getSafeErrorMessage(error, 'Show generation failed'),
+      error: getSafeErrorMessage(error, 'Episode generation failed'),
     });
-    emitProgress(userId, showId, { status: 'failed', progress: 0, currentStep: 'Failed' });
+    emitProgress(episode, { status: 'failed', progress: 0, currentStep: 'Failed' });
+  } finally {
+    /**
+     * The segments were working storage for the join and nothing reads them
+     * afterwards — not the app, not Syra, not a later re-run, which regenerates
+     * from the script. Leaving them was how a three-minute show cost a
+     * permanent thirty objects in a private bucket.
+     *
+     * By KEY, so nothing here computes a prefix out of `NODE_ENV` and a user id.
+     * Best-effort: a failure to tidy up must not turn a published episode into a
+     * failed one.
+     */
+    if (segmentKeys.length > 0) {
+      await deleteS3Objects(segmentKeys).catch((err: unknown) =>
+        log.general.warn({ err, episodeId }, 'Could not delete show working segments'),
+      );
+    }
   }
 }
 
 /**
- * Generate a show script using an LLM.
+ * Synthesise every segment, in bounded batches, in playback order.
+ *
+ * Dialogue is rendered before sound effects, deliberately: an SFX provider
+ * timing out used to poison the key pool before the speech — which is the part a
+ * listener cannot do without — had finished.
+ *
+ * A segment that fails is SKIPPED rather than fatal. One missing transition
+ * whoosh is a slightly abrupt show; refusing to publish over it is no show.
  */
-async function generateScript(show: ShowRow): Promise<ShowScript | null> {
-  const MAX_RETRIES = 3;
+async function renderSegments(
+  episode: ShowEpisodeRow,
+  cast: readonly ShowSpeaker[],
+  segments: ShowSegment[],
+  segmentKeys: string[],
+  onProgress: (completed: number) => void,
+): Promise<Buffer[]> {
+  const rendered = new Map<number, Buffer>();
+  const dialogue = segments.filter((segment) => segment.type === 'dialogue');
+  const effects = segments.filter((segment) => segment.type !== 'dialogue');
+  const ordered = [...dialogue, ...effects];
+  let completed = 0;
+
+  for (let start = 0; start < ordered.length; start += TTS_BATCH_SIZE) {
+    const batch = ordered.slice(start, start + TTS_BATCH_SIZE);
+    const results = await Promise.allSettled(
+      batch.map(async (segment) =>
+        segment.type === 'dialogue'
+          ? renderSpeech(segment.text, cast, segment.speaker)
+          : renderSoundEffect(segment.sfxPrompt ?? 'short transition sound, 2 seconds'),
+      ),
+    );
+
+    for (const [offset, result] of results.entries()) {
+      const segment = batch[offset];
+      if (segment === undefined) continue;
+
+      if (result.status === 'fulfilled' && result.value !== null) {
+        rendered.set(segment.index, result.value.buffer);
+        const key = await uploadToS3(
+          result.value.buffer,
+          `segment.${result.value.format}`,
+          // A prefix of its OWN, not a folder inside `shows/`. The one-shot purge
+          // deletes everything under `{env}/shows/`, and sharing that prefix
+          // would make it unable to tell a dead recording from an episode being
+          // assembled while it runs.
+          `show-segments/${episode.userId}/${episode.id}`,
+          `segment-${segment.index}`,
+        );
+        segmentKeys.push(key);
+        segment.audioUrl = key;
+      } else {
+        log.general.warn(
+          {
+            episodeId: episode.id,
+            segmentIndex: segment.index,
+            reason: result.status === 'rejected' ? result.reason : 'no audio returned',
+          },
+          'Show segment failed, skipping it',
+        );
+      }
+    }
+
+    completed += batch.length;
+    onProgress(completed);
+  }
+
+  // Back into playback order. `rendered` is keyed by the segment's own index, so
+  // this is the script's order rather than the order things happened to finish
+  // in — and the sort the old version did on a parallel array could not survive
+  // a skipped segment.
+  return segments
+    .map((segment) => rendered.get(segment.index))
+    .filter((buffer): buffer is Buffer => buffer !== undefined);
+}
+
+/**
+ * Ask a model for this episode's script, trying each provider once.
+ */
+async function generateScript(
+  series: ShowSeriesRow,
+  episode: ShowEpisodeRow,
+  previousRecaps: readonly string[],
+): Promise<ShowScript | null> {
+  const MAX_ATTEMPTS = 3;
   const skipProviders = new Set<string>();
 
-  const targetMinutes = 3;
+  const system = buildScriptSystemPrompt(series.format, series.speakers);
+  const user = buildScriptUserPrompt({
+    brief: series.brief,
+    title: episode.title,
+    topic: episode.topic,
+    episodeNumber: episode.episodeNumber,
+    notes: episode.notes ?? undefined,
+    previousRecaps,
+    targetDurationMinutes: TARGET_MINUTES,
+  });
 
-  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+  const castNames = new Set(series.speakers.map((speaker) => speaker.name));
+
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
     const resolved = await resolveModel(getDefaultAliaModel(), skipProviders);
     if (!resolved) break;
 
     try {
-      const model = getAIModel(resolved, 'media');
       const result = await generateText({
-        model,
+        model: getAIModel(resolved, 'media'),
         messages: [
-          {
-            role: 'system',
-            content: buildScriptSystemPrompt(show.format),
-          },
-          {
-            role: 'user',
-            content: buildScriptUserPrompt(
-              show.topic,
-              targetMinutes,
-              show.sourceNotes || undefined,
-            ),
-          },
+          { role: 'system', content: system },
+          { role: 'user', content: user },
         ],
         temperature: 0.8,
         maxRetries: 0,
       });
 
-      const text = result.text || '';
-      const jsonMatch = text.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) {
-        // The model's own answer; only its size tells an empty reply from a
-        // long one that never contained JSON.
-        log.general.warn({ replyLength: text.length }, 'No JSON in show script response');
-        skipProviders.add(resolved.provider);
-        continue;
-      }
+      const parsed = parseScript(result.text ?? '', castNames);
+      if (parsed) return parsed;
 
-      const parsed = JSON.parse(jsonMatch[0]) as ShowScript;
-
-      // Validate minimum structure
-      if (!parsed.segments || !Array.isArray(parsed.segments) || parsed.segments.length < 3) {
-        log.general.warn('Show script has too few segments');
-        skipProviders.add(resolved.provider);
-        continue;
-      }
-
-      if (!parsed.speakers || !Array.isArray(parsed.speakers) || parsed.speakers.length === 0) {
-        // Try to extract speaker names from segments
-        const speakerSet = new Set(
-          parsed.segments.filter(s => s.type === 'dialogue' && s.speaker).map(s => s.speaker),
-        );
-        parsed.speakers = Array.from(speakerSet);
-      }
-
-      return parsed;
+      // The model's own answer; only its size distinguishes an empty reply from
+      // a long one that never contained usable JSON.
+      log.general.warn(
+        { replyLength: (result.text ?? '').length, provider: resolved.provider },
+        'Show script response was not usable',
+      );
+      skipProviders.add(resolved.provider);
     } catch (err: unknown) {
       log.general.error({ err, provider: resolved.provider, attempt }, 'Script generation failed');
       skipProviders.add(resolved.provider);
@@ -341,56 +514,94 @@ async function generateScript(show: ShowRow): Promise<ShowScript | null> {
   return null;
 }
 
-interface SegmentAudio {
+/**
+ * Read a script out of a model's reply, or answer `null`.
+ *
+ * Two rejections beyond "is it JSON", and both were failures the old version
+ * shipped as degraded shows rather than as retries:
+ *
+ *  - fewer than three segments is not an episode;
+ *  - a dialogue segment naming somebody who is not in the cast has no voice to
+ *    be spoken in, so it would be dropped silently later. Rejecting the whole
+ *    reply here retries with another provider instead, which is what a caller
+ *    would want and what the old code could not do because it discovered the
+ *    problem three steps downstream.
+ */
+function parseScript(reply: string, castNames: ReadonlySet<string>): ShowScript | null {
+  const json = reply.match(/\{[\s\S]*\}/);
+  if (!json) return null;
+
+  let parsed: Partial<ShowScript>;
+  try {
+    parsed = JSON.parse(json[0]) as Partial<ShowScript>;
+  } catch {
+    return null;
+  }
+
+  const segments = parsed.segments;
+  if (!Array.isArray(segments) || segments.length < 3) return null;
+
+  const dialogue = segments.filter((segment) => segment.type === 'dialogue');
+  if (dialogue.length === 0) return null;
+  if (dialogue.some((segment) => !castNames.has(segment.speaker))) return null;
+
+  return {
+    description: typeof parsed.description === 'string' ? parsed.description : '',
+    summary: typeof parsed.summary === 'string' ? parsed.summary : '',
+    recap: typeof parsed.recap === 'string' ? parsed.recap : '',
+    segments,
+  };
+}
+
+interface RenderedAudio {
   buffer: Buffer;
   format: string;
 }
 
 /**
- * Generate TTS audio for a single dialogue segment via the shared multi-provider
- * synthesis path (same fail-over the read-aloud endpoint uses).
+ * Speak one line, in the voice the SERIES assigned to that speaker.
  */
-async function generateTTSSegment(
+async function renderSpeech(
   text: string,
-  speakers: Array<{ name: string; voiceId: string }>,
+  cast: readonly ShowSpeaker[],
   speakerName: string,
-): Promise<SegmentAudio | null> {
-  const speaker = speakers.find(s => s.name === speakerName);
+): Promise<RenderedAudio | null> {
+  const speaker = cast.find((member) => member.name === speakerName);
   if (!speaker) {
-    log.general.warn({ speakerName }, 'Speaker not found in roster');
+    // The script parser already refuses a reply naming somebody outside the
+    // cast, so reaching here means the cast changed under a queued episode.
+    log.general.warn({ speakerName }, 'Speaker is not in this series\' cast');
     return null;
   }
 
-  const synthesized = await synthesizeSpeech({ input: text, voice: speaker.voiceId, format: 'mp3' });
+  const synthesized = await synthesizeSpeech({
+    input: text,
+    voice: speaker.voiceId,
+    format: 'mp3',
+  });
   return synthesized ? { buffer: synthesized.audio, format: synthesized.format } : null;
 }
 
-/**
- * Generate a sound effect segment.
- */
-async function generateSFXSegment(prompt: string): Promise<SegmentAudio | null> {
+/** Generate one sound effect. */
+async function renderSoundEffect(prompt: string): Promise<RenderedAudio | null> {
   try {
-    const sfxOutput = await callProviderAPI<any>({
+    const output = await callProviderAPI<unknown>({
       provider: 'digitalocean',
       modelId: 'fal-ai/stable-audio-25/text-to-audio',
       endpoint: '/v1/async-invoke',
-      body: {
-        input: {
-          prompt,
-          seconds_total: 5,
-        },
-      },
-      timeout: 170_000, // fal-ai audio gen: queue + cold start + synthesis can take 60-90s
+      body: { input: { prompt, seconds_total: 5 } },
+      // Queue plus cold start plus synthesis routinely reaches 60-90 seconds.
+      timeout: 170_000,
       maxAttempts: 1,
     });
 
-    const audioUrl = extractAudioUrl(sfxOutput);
-    if (!audioUrl) return null;
-
-    return { buffer: await downloadBinaryFromUrl(audioUrl), format: 'mp3' };
+    const url = extractAudioUrl(output);
+    if (!url) return null;
+    return { buffer: await downloadBinaryFromUrl(url), format: 'mp3' };
   } catch (err: unknown) {
-    // `prompt` is model-authored text describing the requested sound.
-    log.general.warn({ err }, 'SFX generation failed');
+    // `prompt` is model-authored text describing a sound, so it is safe to omit
+    // from the log line without losing anything an operator needs.
+    log.general.warn({ err }, 'Sound effect generation failed');
     return null;
   }
 }

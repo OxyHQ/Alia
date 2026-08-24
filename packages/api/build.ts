@@ -141,6 +141,23 @@ await esbuild.build({
   logLevel: 'info',
 });
 
+// The show-object purge. Same reason as every one-shot above, with one of its
+// own: it is the S3 half of migration 0034, so it runs in the same window as
+// that migration, against the same image, on a Fargate command override — and
+// the migration's `post` phase is applied by a task that carries no `src/`.
+await esbuild.build({
+  entryPoints: ['src/scripts/purge-show-objects.ts'],
+  bundle: true,
+  platform: 'node',
+  target: 'node20',
+  format: 'esm',
+  outfile: 'dist/scripts/purge-show-objects.js',
+  plugins: [externalizeNodeModules],
+  sourcemap: false,
+  minify: false,
+  logLevel: 'info',
+});
+
 // Copy prompts directory to dist
 try {
   await cp('prompts', 'dist/prompts', { recursive: true });

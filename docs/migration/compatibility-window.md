@@ -122,7 +122,11 @@ Stored selections deserve their own attention: a per-conversation or per-agent m
 
 ## (b) `api.alia.onl/v1/*`
 
-The routes mounted at `packages/api/src/index.ts:228` — `/v1/chat/completions`, `/v1/responses`, `/v1/models`, `/v1/voice`, `/v1/audio`, `/v1/images` and `/v1/shows` (`packages/api/src/routes/v1.ts`). ADR 0004 decides this surface remains as a bounded compatibility surface that authenticates through Oxy, does not reintroduce Alia-owned API keys, does not reintroduce provider billing in Alia, and then sunsets.
+The routes mounted at `packages/api/src/index.ts` — `/v1/chat/completions`, `/v1/responses`, `/v1/models`, `/v1/voice`, `/v1/audio` and `/v1/images` (`packages/api/src/routes/v1.ts`). ADR 0004 decides this surface remains as a bounded compatibility surface that authenticates through Oxy, does not reintroduce Alia-owned API keys, does not reintroduce provider billing in Alia, and then sunsets.
+
+**`/v1/shows` has LEFT this window, in #327.** It was listed here with an open question against it — whether it belonged at all, given that it was `optionalAuth` and was not obviously generic inference. The workstream 1 inventory had already answered: all five rows in `docs/migration/inventories/product-api.json` carry `"proposedOwner": "alia"` and `"targetPath": "keep-alia-product"`. They are now mounted at `/shows`, beside `/conversations`, `/skills`, `/agents` and `/library`, and this surface is fifteen routes rather than twenty.
+
+Their per-route removal gate is satisfied rather than waived. Each of the five rows records its gate as a line in `packages/app/lib/stores/show-store.ts`, and that file was rewritten against the new surface in the same change — the only consumer moved with the route. Nothing external is affected: the routes returned one account's own generated audio and could not be reached without an Oxy session. `packages/api/src/routes/__tests__/v1-compatibility-surface.test.ts` holds the measurement and now freezes fifteen.
 
 **What still works during the window.** Requests to these routes continue to be served, with their existing request and response shapes, for callers authenticated through Oxy. Product SSE events may still appear on this surface, because it is the old product runtime under an old name — which is a reason the window is bounded rather than a feature of it.
 
@@ -179,5 +183,4 @@ Each clock owner reports on #139 at the close of each monthly billing cycle for 
 
 - **Named individual owners.** This document assigns each clock to a workstream owner. The individual assignees are not recorded on #139 yet — except path (a)'s removal date, which the product owner decided directly on 2026-08-18. *Owner: the #139 epic owner.*
 - **Whether `Deprecation` and `Sunset` are emitted per-route or per-surface for (b).** Per-route measurement is decided above; whether the headers are also per-route or blanket across `/v1/*` affects how a caller reading only headers perceives the timeline. *Owner: workstream 6 owner.*
-- **Whether `/v1/shows` belongs to this window at all.** It is mounted with `optionalAuth` (`packages/api/src/routes/v1.ts`) and is not obviously generic inference; its destination is decided by the workstream 1 inventory, and it may leave this document entirely. *Owner: workstream 1 owner.*
 - **The notification channel for (c).** Whether key-owner notification goes through Alia notifications, Oxy account email, or both. *Owner: workstream 11 owner.*

@@ -1,80 +1,54 @@
 /**
- * Hook to listen for real-time show generation progress via Socket.IO.
- * Piggybacks on the existing notification socket in use-notification-setup.ts
- * by creating a minimal listener that reuses the same connection pattern.
+ * Real-time episode progress, on the SHARED notifications socket.
  *
- * NOTE: This is intentionally thin — the actual socket connection is managed
- * by use-notification-setup. This hook just registers the show:progress listener.
+ * The version this replaces documented exactly this — *"the actual socket
+ * connection is managed by use-notification-setup"* — and then built a second
+ * refcounted singleton of its own. A signed-in user on the shows screen held
+ * two websockets to the same server, in the same room, so every emit arrived
+ * twice and which socket a listener landed on depended on mount order.
+ *
+ * `lib/api/notifications-socket.ts` is the one connection now. This hook adds a
+ * listener and takes it away again; the connection belongs to whoever still
+ * holds a reference.
  */
 
 import { useEffect } from 'react';
-import { io as socketIO } from 'socket.io-client';
 import { useOxy } from '@oxyhq/services';
+import { acquireNotificationsSocket } from '@/lib/api/notifications-socket';
 import { useShowStore, type ShowProgress } from '@/lib/stores/show-store';
-import config from '@/lib/config';
-import { getSocketToken } from '@/lib/api/client';
-
-let sharedSocket: ReturnType<typeof socketIO> | null = null;
-let refCount = 0;
-
-function getSharedSocket(apiUrl: string): ReturnType<typeof socketIO> {
-  if (!sharedSocket) {
-    sharedSocket = socketIO(apiUrl, {
-      transports: ['websocket'],
-      // Function form so a fresh token is read on every (re)connect.
-      auth: (cb) => cb({ token: getSocketToken() }),
-      reconnection: true,
-      reconnectionAttempts: Infinity,
-      reconnectionDelay: 1000,
-      reconnectionDelayMax: 10000,
-    });
-  }
-  refCount++;
-  return sharedSocket;
-}
-
-function releaseSharedSocket() {
-  refCount--;
-  if (refCount <= 0 && sharedSocket) {
-    sharedSocket.disconnect();
-    sharedSocket = null;
-    refCount = 0;
-  }
-}
 
 export function useShowProgress() {
   const { user, isAuthenticated } = useOxy();
   const userId = user?.id;
-  const updateProgress = useShowStore(s => s.updateProgress);
-  const fetchShow = useShowStore(s => s.fetchShow);
+  const updateProgress = useShowStore((s) => s.updateProgress);
+  const fetchOneSeries = useShowStore((s) => s.fetchOneSeries);
 
   useEffect(() => {
     if (!isAuthenticated || !userId) return;
 
-    const socket = getSharedSocket(config.apiUrl);
+    const { socket, release } = acquireNotificationsSocket();
 
-    socket.on('connect', () => {
-      // Server derives the room from the authenticated user; arg is ignored.
-      socket.emit('subscribe-notifications');
-    });
+    const onProgress = (progress: ShowProgress) => {
+      updateProgress(progress);
 
-    // If already connected, subscribe immediately
-    if (socket.connected) {
-      socket.emit('subscribe-notifications');
-    }
-
-    const handler = (data: ShowProgress) => {
-      updateProgress(data);
-      if (data.status === 'completed' || data.status === 'failed') {
-        fetchShow(data.showId);
+      /**
+       * A finished episode is refetched rather than patched from the event.
+       *
+       * The event carries a status and a percentage; what changed is the whole
+       * episode — its Syra id, its duration, what it cost, and its recap. The
+       * series read returns all of it, and it is the same read the screen does
+       * on mount, so there is one shape rather than two.
+       */
+      if (progress.status === 'completed' || progress.status === 'failed') {
+        void fetchOneSeries(progress.seriesId);
       }
     };
 
-    socket.on('show:progress', handler);
+    socket.on('show:progress', onProgress);
 
     return () => {
-      socket.off('show:progress', handler);
-      releaseSharedSocket();
+      socket.off('show:progress', onProgress);
+      release();
     };
-  }, [isAuthenticated, userId, updateProgress, fetchShow]);
+  }, [isAuthenticated, userId, updateProgress, fetchOneSeries]);
 }

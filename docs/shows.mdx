@@ -1,0 +1,122 @@
+---
+title: "Shows"
+description: "Generated podcast series, written and voiced by Alia and published to Syra."
+order: 4
+---
+
+# Shows
+
+A show is a **podcast series on Syra** (`syra.fm`), Oxy's podcast product. Alia
+owns the recipe and the job; Syra owns the published artifact.
+
+That split decides almost everything else on this page. Alia stores what it
+takes to produce an episode — the brief, the cast, the script's segments, the
+progress and the credits — and stores **no audio**. There is deliberately no
+`audio_url` column: the finished MP3 is handed to Syra and served from there,
+under Syra's visibility rules and its own HLS transcode. A second address for
+one recording would diverge the first time an owner made a show private.
+
+## Everything is a series
+
+A one-off show is a series with one episode. Syra requires it — `episodes.podcast_id`
+is NOT NULL — and it means "give me another episode" needs no special case.
+
+| Table | Holds |
+|---|---|
+| `show_series` | One row per Syra podcast: title, brief, format, cast, visibility, `syra_podcast_id`, `next_episode_number` |
+| `show_episodes` | One row per episode: number, topic, status, segments, recap, `syra_episode_id`, the ingest ticket |
+| `show_preferences` | An account's default visibility and format |
+
+Voices are cast **once, when the series is created**, and every episode reads
+`series.speakers`. A podcast whose hosts changed voice between episodes would be
+absurd, and the per-episode assignment this replaced did exactly that.
+
+Continuity comes from `show_episodes.recap`: the script prompt for episode N is
+handed the previous few recaps, so it neither repeats them nor pretends they
+never happened.
+
+## Routes are `/shows`, not `/v1/shows`
+
+`/v1` is a frozen compatibility surface that gains no route (ADR 0004), and the
+workstream 1 inventory assigned shows to Alia product. So they sit at `/shows`,
+beside `/conversations`, `/skills`, `/agents` and `/library`.
+
+```
+POST|GET    /shows/series
+GET|PATCH|DELETE /shows/series/:id
+POST        /shows/series/:id/episodes
+GET|DELETE  /shows/episodes/:id
+GET         /shows/voices
+GET|PUT     /shows/preferences
+```
+
+Deleting either a series or an episode removes **Alia's record only**. The
+podcast is published and may have listeners; the response says so rather than
+leaving a client to guess.
+
+## The ingest ticket, and why it cannot be a service token
+
+**This is the part most likely to be "simplified" by somebody who has not read
+this paragraph.**
+
+Syra authenticates exactly one thing: a user's Oxy JWT. Alia's show pipeline runs
+in a BullMQ worker minutes after the request, and by then it holds no user
+credential. Service-token delegation is closed platform-wide until ADR 0012's
+Ed25519/JWKS migration lands and every verifier ships a JWKS-capable core.
+
+So the two halves are split deliberately:
+
+- `POST /shows/series/:id/episodes` runs while the caller's token is live. It
+  reserves the Syra episode (`createEpisodeDraft`) and stores the **single-use
+  ingest ticket** Syra answers with.
+- The worker redeems that ticket (`ingestEpisode`), authenticated by the ticket
+  alone, and clears it.
+
+A service credential in place of the ticket would simply be refused, and there is
+no shortcut past it. `lib/syra/syra.ts` is the whole seam: two clients, one
+carrying the caller's token, one carrying nothing. Every call goes through
+`@syra.fm/sdk` — Syra owns its wire format the way Kaana owns inference.
+
+Syra fixes an episode's `title` at draft time and its ingest allowlist refuses
+one, because a capability has no business renaming a published episode. The
+script therefore cannot name its own episode; a model names it earlier, in the
+route, from the topic.
+
+## Playback is `/audio`, not `/stream`
+
+A series defaults to **private**, and Syra does not transcode a private show —
+its own words, at `services/podcasts/ingestEpisode.ts`: *"a private show's
+episodes stay on the progressive `/audio` path, which is checked per request
+against the show's current visibility."*
+
+So `GET /api/podcasts/episodes/:id/stream` answers `409` or `422` for exactly the
+episode a user just made. `GET /api/podcasts/episodes/:id/audio` with the
+listener's bearer token works at every visibility, needs no hls.js on the web,
+and is the enclosure Syra publishes in its own RSS.
+
+**Syra never computes an episode's duration** — the draft inserts `0` and only
+the ingest field sets it. Alia measures the finished file with ffmpeg rather than
+estimating from its byte length, because the figure it sends is permanent: a
+wrong one shows in Syra's episode list and in the feed forever.
+
+## Cover art
+
+Generated when the series is created, uploaded to Syra, and **never allowed to
+block creation**. Every failure answers "no image": Syra's own surfaces already
+handle a show without artwork, and a series nobody could create because an image
+model was busy would be the worse outcome. `PATCH /shows/series/:id` replaces it.
+
+## Configuration
+
+| Variable | Where | Notes |
+|---|---|---|
+| `SYRA_API_URL` | API | Defaults to `https://api.syra.fm`. No secret — Syra authenticates the caller, not the service. |
+| `EXPO_PUBLIC_SYRA_API_URL` | App | Deliberately not tied to the API URL: a local API still plays episodes from the real Syra. |
+
+**One prerequisite lives in Syra, not here.** Web playback fetches audio from
+`api.syra.fm` with the listener's token, so Alia's web origin must be in Syra's
+CORS allow-list. Native has no CORS and is unaffected.
+
+Key files: `db/schema/shows.ts`, `db/shows/showRepository.ts`,
+`lib/show/` (pipeline, prompts, voices, audio, cover art, titles),
+`lib/syra/syra.ts`, `routes/shows.ts`.

@@ -654,7 +654,10 @@ describe('the billing path audit matches the tree it describes (#139 ws12)', () 
     // crediting a comped account's plan credits. Read off the scan, as the
     // writer count above is — arithmetic on a measurement is how a plausible
     // wrong one lands.
-    expect(derived.length).toBe(14);
+    // 14 -> 15: `routes/shows.ts`. Creating a series draws cover art, which is
+    // a real image generation, so it reserves and settles credits exactly as
+    // the images endpoint does rather than being free.
+    expect(derived.length).toBe(15);
   });
 });
 

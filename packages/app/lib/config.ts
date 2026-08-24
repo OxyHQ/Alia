@@ -40,6 +40,17 @@ const ENV = {
  */
 export const DEFAULT_MODEL_ID = process.env.EXPO_PUBLIC_ALIA_DEFAULT_MODEL ?? 'profile:v1';
 
+/**
+ * Where Syra lives — `syra.fm` is Oxy's podcast product, and the place a
+ * generated show's audio is actually served from.
+ *
+ * A plain constant rather than part of {@link getEnvVars}, because it does not
+ * follow the API's dev/prod switch: a developer running Alia against a local API
+ * still plays episodes from the real Syra, since that is where the podcast their
+ * series created exists.
+ */
+export const SYRA_API_URL = process.env.EXPO_PUBLIC_SYRA_API_URL ?? 'https://api.syra.fm';
+
 const getEnvVars = () => {
   // Priority 1: Use EXPO_PUBLIC_API_URL if set in .env
   if (process.env.EXPO_PUBLIC_API_URL) {

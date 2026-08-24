@@ -232,6 +232,20 @@
       "when": 1787517840319,
       "tag": "0032_stored_media_is_a_key",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1787579404892,
+      "tag": "0033_a_show_is_a_series",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1787579446290,
+      "tag": "0034_shows_move_to_syra",
+      "breakpoints": true
     }
   ]
 }

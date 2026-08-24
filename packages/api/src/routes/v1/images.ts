@@ -1,6 +1,5 @@
 import { Router } from 'express';
-import { getModelMappingsForTier, callProviderAPI } from '../../lib/gateway-client.js';
-import { imageRequestBody } from '../../internal/providers/lib/image-providers.js';
+import { generateImage } from '../../lib/image-generation.js';
 import { reserveCredits, finalizeCredits, refundReservation, CREDITS_CONFIG } from '../../lib/credits-manager.js';
 import type { CreditReservation } from '../../lib/credits-manager.js';
 import { getOrCreateUserCredits } from '../../lib/user-credits-helpers.js';
@@ -8,7 +7,6 @@ import { uploadToS3 } from '../../lib/s3.js';
 import { storedMediaUrl } from '../../lib/stored-media.js';
 import { log } from '../../lib/logger.js';
 import { getSafeErrorMessage } from '../../lib/errors/sanitize.js';
-import { extractImageUrl } from '../../internal/providers/lib/digitalocean-async.js';
 import type { Request, Response } from 'express';
 
 const router = Router();
@@ -82,58 +80,33 @@ router.post('/generations', async (req: Request, res: Response) => {
       });
     }
 
-    // Resolve image provider via tier mappings — try each in priority order
-    const imageMappings = await getModelMappingsForTier('v1-image');
     /**
-     * Two different things, kept apart on purpose.
+     * The provider walk lives in `lib/image-generation.ts` now, so the cover-art
+     * path can reach the same one instead of opening a second route into the
+     * provider tree — see gate 1 of `__tests__/architectureGates.test.ts`, whose
+     * exemption list may only shrink.
      *
-     * A provider may answer with a URL of its own, which is passed through
-     * untouched, or with base64, which is stored here and identified by a KEY.
-     * They used to share one variable, which is how a key would have been
-     * returned to a client as if it were a link — the same conflation that made
-     * every stored address a 403.
+     * What stays HERE is the decision about storage, because it is this
+     * endpoint's contract: a provider's own URL is passed through untouched, and
+     * inline bytes are stored and identified by a KEY. The two used to share one
+     * variable, which is how a key was once returned to a client as if it were a
+     * link.
      */
+    const generated = await generateImage({
+      prompt,
+      n: n || 1,
+      size: size || '1024x1024',
+      quality: quality || 'standard',
+      responseFormat: response_format || 'url',
+      signal: abortController.signal,
+    });
+
     let providerImageUrl: string | null = null;
     let storedImageKey: string | null = null;
-
-    for (const mapping of imageMappings) {
-      if (abortController.signal.aborted) break;
-      try {
-        const data = await callProviderAPI<any>({
-          provider: mapping.provider,
-          modelId: mapping.modelId,
-          endpoint: '/v1/images/generations',
-          // Shaped per provider: `/v1/images/generations` is an OpenAI-shaped
-          // endpoint that providers implement in part, and a parameter one of
-          // them does not accept fails the whole request rather than degrading.
-          body: imageRequestBody(mapping.provider, {
-            modelId: mapping.modelId,
-            prompt,
-            n: n || 1,
-            size: size || '1024x1024',
-            quality: quality || 'standard',
-            responseFormat: response_format || 'url',
-          }),
-          timeout: 30_000,
-          maxAttempts: 1,
-          signal: abortController.signal,
-        });
-
-        // Different providers return images in different formats
-        providerImageUrl = extractImageUrl(data) ?? null;
-        const b64 = data.data?.[0]?.b64_json;
-
-        if (b64) {
-          // Upload b64 to S3 for a permanent URL
-          const buffer = Buffer.from(b64, 'base64');
-          storedImageKey = await uploadToS3(buffer, 'image.png', `images/${userId}`, 'generated');
-        }
-
-        if (providerImageUrl || storedImageKey) break;
-      } catch (err: unknown) {
-        log.general.warn({ err, provider: mapping.provider, model: mapping.modelId }, 'Image provider failed, trying next');
-        continue;
-      }
+    if (generated?.kind === 'url') {
+      providerImageUrl = generated.url;
+    } else if (generated?.kind === 'bytes') {
+      storedImageKey = await uploadToS3(generated.bytes, 'image.png', `images/${userId}`, 'generated');
     }
 
     if (!providerImageUrl && !storedImageKey) {

@@ -1,0 +1,18 @@
+-- oxy:deploy-phase=post
+-- The old flat `shows` table goes, with its rows.
+--
+-- A CLEAN CUT, authorised by the owner: every row is a throwaway test of the
+-- pre-Syra pipeline, and there is no migration path for one anyway. A `shows`
+-- row has no series, no episode number, no visibility and no Syra podcast, and
+-- its audio is an S3 key in a private bucket that Syra never received — so
+-- there is nothing to carry across, only something to stop pretending exists.
+-- The MP3s themselves are removed by `scripts/purge-show-objects.ts`, which is
+-- not a migration because S3 is not this ledger's subject.
+--
+-- `post`, so the drop lands only once the new image is serving and nothing
+-- reads this table any more.
+--
+-- `CASCADE` drops the table's own indexes and constraints. Nothing else
+-- references it: no foreign key in this schema names `shows`, and the three
+-- tables replacing it were created in 0033 without one.
+DROP TABLE "shows" CASCADE;

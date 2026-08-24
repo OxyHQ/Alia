@@ -1,155 +1,128 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import { View, Pressable, RefreshControl, useWindowDimensions, FlatList } from 'react-native';
+/**
+ * Your shows — a list of SERIES, each of which is a real podcast on Syra.
+ *
+ * The screen this replaces listed one row per generated recording, because a
+ * show WAS one recording. A show is now a series you keep adding to, so the
+ * list is series and the episodes live one level down.
+ */
+
+import React, { useCallback, useEffect, useState } from 'react';
+import { View, Pressable, RefreshControl, FlatList } from 'react-native';
+import { useRouter } from 'expo-router';
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
-import { Plus, Mic, Trash2, AlertCircle, CheckCircle } from 'lucide-react-native';
+import { Plus, Mic, ChevronRight, Lock, Link2, Globe } from 'lucide-react-native';
 import { useAuth } from '@oxyhq/services';
-import { useShowStore, type Show } from '@/lib/stores/show-store';
-import { ShowPlayer } from '@/components/show/show-player';
-import { ShowProgressCard } from '@/components/show/show-progress';
-import { ShowCreateDialog } from '@/components/show/show-create-dialog';
+import { ContentPanel } from '@oxyhq/bloom/content-panel';
+import { useShowStore, type ShowSeries, type ShowVisibility } from '@/lib/stores/show-store';
+import { SeriesCreateDialog } from '@/components/show/series-create-dialog';
+import { useShowProgress } from '@/lib/hooks/use-show-progress';
 import { useColorScheme } from '@/lib/useColorScheme';
 import { Skeleton } from '@/components/ui/skeleton';
-import { toast } from '@oxyhq/bloom/toast';
-import { cn } from '@/lib/utils';
-import { useShowProgress } from '@/lib/hooks/use-show-progress';
-import { ContentPanel } from "@oxyhq/bloom/content-panel";
 
-const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
-  queued: { label: 'Queued', color: 'text-muted-foreground' },
-  generating_script: { label: 'Writing Script', color: 'text-blue-500' },
-  generating_audio: { label: 'Generating Audio', color: 'text-blue-500' },
-  concatenating: { label: 'Assembling', color: 'text-blue-500' },
-  completed: { label: 'Ready', color: 'text-green-500' },
-  failed: { label: 'Failed', color: 'text-red-500' },
+/** Who can hear it, as an icon and a word. */
+const VISIBILITY: Record<ShowVisibility, { label: string; icon: typeof Lock }> = {
+  private: { label: 'Private', icon: Lock },
+  unlisted: { label: 'Unlisted', icon: Link2 },
+  public: { label: 'Public', icon: Globe },
 };
 
-const formatDate = (dateStr: string) => {
-  const d = new Date(dateStr);
-  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
-};
+const formatDate = (value: string): string =>
+  new Date(value).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 
-function ShowCard({ show, onDelete }: {
-  show: Show;
-  onDelete: (id: string) => void;
-}) {
-  const progress = useShowStore(s => s.activeGenerations.get(show._id));
-  const isActive = ['queued', 'generating_script', 'generating_audio', 'concatenating'].includes(show.status);
-  const statusConfig = STATUS_CONFIG[show.status] || STATUS_CONFIG.queued;
+function SeriesCard({ series, onOpen }: { series: ShowSeries; onOpen: (id: string) => void }) {
+  const visibility = VISIBILITY[series.visibility];
+  const VisibilityIcon = visibility.icon;
+  // `nextEpisodeNumber` counts from 1, so it is one past however many have been
+  // started — which is what a person means by "how many episodes".
+  const episodeCount = series.nextEpisodeNumber - 1;
 
   return (
     <ContentPanel surfaceClassName="bg-background">
-      <View className="bg-card rounded-xl border border-border p-4 gap-3">
-        {/* Header */}
-        <View className="flex-row items-start justify-between">
+      <Pressable
+        onPress={() => onOpen(series.id)}
+        accessibilityRole="button"
+        accessibilityLabel={`Open ${series.title}`}
+        className="gap-3 rounded-xl border border-border bg-card p-4 active:opacity-80"
+      >
+        <View className="flex-row items-start justify-between gap-2">
           <View className="flex-1 gap-1">
             <Text className="text-base font-semibold text-foreground" numberOfLines={2}>
-              {show.title}
+              {series.title}
             </Text>
-            {show.description && (
-              <Text className="text-xs text-muted-foreground" numberOfLines={2}>
-                {show.description}
-              </Text>
-            )}
-          </View>
-          <View className="flex-row items-center gap-1.5 ml-2">
-            {show.status === 'completed' && <CheckCircle size={14} className="text-green-500" />}
-            {show.status === 'failed' && <AlertCircle size={14} className="text-red-500" />}
-            <Text className={cn('text-xs font-medium', statusConfig.color)}>
-              {statusConfig.label}
+            <Text className="text-xs text-muted-foreground" numberOfLines={2}>
+              {series.brief}
             </Text>
           </View>
+          <ChevronRight size={18} className="text-muted-foreground" />
         </View>
 
-        {/* Format + Date */}
-        <View className="flex-row items-center gap-2">
-          <View className="px-2 py-0.5 bg-muted rounded-full">
-            <Text className="text-[10px] uppercase font-medium text-muted-foreground">
-              {show.format}
+        <View className="flex-row flex-wrap items-center gap-2">
+          <View className="rounded-full bg-muted px-2 py-0.5">
+            <Text className="text-[10px] font-medium uppercase text-muted-foreground">
+              {series.format}
             </Text>
           </View>
-          <Text className="text-xs text-muted-foreground">{formatDate(show.createdAt)}</Text>
-          {show.speakers?.length > 0 && (
-            <Text className="text-xs text-muted-foreground">
-              {show.speakers.map(s => s.name).join(', ')}
-            </Text>
-          )}
-        </View>
-
-        {/* Progress or Player */}
-        {isActive && progress && (
-          <ShowProgressCard progress={progress} />
-        )}
-
-        {show.status === 'completed' && show.audioUrl && (
-          <ShowPlayer
-            audioUrl={show.audioUrl}
-            title={show.title}
-            durationMs={show.durationMs}
-          />
-        )}
-
-        {show.status === 'failed' && show.error && (
-          <View className="p-2 bg-destructive/10 rounded-lg">
-            <Text className="text-xs text-destructive">{show.error}</Text>
+          <View className="flex-row items-center gap-1">
+            <VisibilityIcon size={11} className="text-muted-foreground" />
+            <Text className="text-xs text-muted-foreground">{visibility.label}</Text>
           </View>
-        )}
-
-        {/* Actions */}
-        <View className="flex-row justify-end">
-          <Pressable
-            onPress={() => onDelete(show._id)}
-            className="p-2 active:opacity-70"
-          >
-            <Trash2 size={14} className="text-muted-foreground" />
-          </Pressable>
+          <Text className="text-xs text-muted-foreground">
+            {episodeCount === 1 ? '1 episode' : `${episodeCount} episodes`}
+          </Text>
+          <Text className="text-xs text-muted-foreground">{formatDate(series.createdAt)}</Text>
         </View>
-      </View>
+      </Pressable>
     </ContentPanel>
   );
 }
 
 export default function ShowsScreen() {
-  const shows = useShowStore(s => s.shows);
-  const loading = useShowStore(s => s.loading);
-  const error = useShowStore(s => s.error);
-  const fetchShows = useShowStore(s => s.fetchShows);
-  const deleteShow = useShowStore(s => s.deleteShow);
+  const router = useRouter();
+  const series = useShowStore((s) => s.series);
+  const loading = useShowStore((s) => s.loading);
+  const error = useShowStore((s) => s.error);
+  const fetchSeries = useShowStore((s) => s.fetchSeries);
+  const fetchPreferences = useShowStore((s) => s.fetchPreferences);
   const { isAuthenticated } = useAuth();
   const { colors } = useColorScheme();
-  const { width } = useWindowDimensions();
 
-  // Listen for real-time progress updates
+  // One listener for the whole feature, on the shared notifications socket, so
+  // an episode started here keeps reporting while the user is on the list.
   useShowProgress();
 
   const [createOpen, setCreateOpen] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
-    if (isAuthenticated) fetchShows();
-  }, [fetchShows, isAuthenticated]);
+    if (!isAuthenticated) return;
+    void fetchSeries();
+    void fetchPreferences();
+  }, [isAuthenticated, fetchSeries, fetchPreferences]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await fetchShows();
+    await fetchSeries();
     setRefreshing(false);
-  }, [fetchShows]);
+  }, [fetchSeries]);
 
-  const handleDelete = useCallback((id: string) => {
-    deleteShow(id);
-    toast.success('Show deleted');
-  }, [deleteShow]);
+  const openSeries = useCallback(
+    (id: string) => router.push(`/(app)/shows/${id}`),
+    [router],
+  );
 
-  const renderItem = useCallback(({ item }: { item: Show }) => (
-    <View className="px-4 pb-3">
-      <ShowCard show={item} onDelete={handleDelete} />
-    </View>
-  ), [handleDelete]);
+  const renderItem = useCallback(
+    ({ item }: { item: ShowSeries }) => (
+      <View className="px-4 pb-3">
+        <SeriesCard series={item} onOpen={openSeries} />
+      </View>
+    ),
+    [openSeries],
+  );
 
   return (
     <View className="flex-1 bg-background">
-      {/* Header */}
-      <View className="flex-row items-center justify-between px-4 pt-4 pb-2">
+      <View className="flex-row items-center justify-between px-4 pb-2 pt-4">
         <View className="flex-row items-center gap-2">
           <Mic size={20} className="text-foreground" />
           <Text className="text-xl font-bold text-foreground">Shows</Text>
@@ -160,51 +133,61 @@ export default function ShowsScreen() {
           onPress={() => setCreateOpen(true)}
         >
           <Plus size={14} className="text-primary-foreground" />
-          <Text className="text-primary-foreground text-sm">New</Text>
+          <Text className="text-sm text-primary-foreground">New</Text>
         </Button>
       </View>
 
       {error && (
         <View className="px-4 pb-2">
-          <View className="p-2 bg-destructive/10 rounded-lg">
+          <View className="rounded-lg bg-destructive/10 p-2">
             <Text className="text-xs text-destructive">{error}</Text>
           </View>
         </View>
       )}
 
-      {loading && shows.length === 0 ? (
+      {loading && series.length === 0 ? (
         <View className="gap-3 px-4 pt-2">
-          {[1, 2, 3].map(i => (
-            <Skeleton key={i} className="h-32 w-full rounded-xl" />
+          {[1, 2, 3].map((key) => (
+            <Skeleton key={key} className="h-28 w-full rounded-xl" />
           ))}
         </View>
-      ) : shows.length === 0 ? (
+      ) : series.length === 0 ? (
         <View className="flex-1 items-center justify-center gap-4 px-8">
           <Mic size={48} className="text-muted-foreground" />
-          <Text className="text-lg font-semibold text-foreground text-center">
-            No shows yet
+          <Text className="text-center text-lg font-semibold text-foreground">No shows yet</Text>
+          <Text className="text-center text-sm text-muted-foreground">
+            Start a show and Alia will write, voice and publish each episode to Syra — where it
+            becomes a real podcast you can share or keep to yourself.
           </Text>
-          <Text className="text-sm text-muted-foreground text-center">
-            Create your first AI-generated show with multiple speakers, sound effects, and more.
-          </Text>
-          <Button onPress={() => setCreateOpen(true)} className="flex-row items-center gap-1.5">
+          <Button
+            onPress={() => setCreateOpen(true)}
+            className="flex-row items-center gap-1.5"
+          >
             <Plus size={14} className="text-primary-foreground" />
-            <Text className="text-primary-foreground">Create Show</Text>
+            <Text className="text-primary-foreground">Start a show</Text>
           </Button>
         </View>
       ) : (
         <FlatList
-          data={shows}
+          data={series}
           renderItem={renderItem}
-          keyExtractor={item => item._id}
+          keyExtractor={(item) => item.id}
           contentContainerStyle={{ paddingTop: 8, paddingBottom: 20 }}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={colors.primary}
+            />
           }
         />
       )}
 
-      <ShowCreateDialog open={createOpen} onOpenChange={setCreateOpen} />
+      <SeriesCreateDialog
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        onCreated={openSeries}
+      />
     </View>
   );
 }
