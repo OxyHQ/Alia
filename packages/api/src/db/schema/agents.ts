@@ -77,7 +77,7 @@ import { check } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 import { createdAt, generatedId, timestamptz, updatedAt } from '@oxyhq/db';
 import { checkOneOf } from './columns';
-import { AGENT_ARCHETYPES, AGENT_STATUSES } from '../../domain/agent.js';
+import { AGENT_ACCESS, AGENT_ARCHETYPES, AGENT_STATUSES } from '../../domain/agent.js';
 import { skills } from './agents-support';
 import { libraryFiles } from './library';
 
@@ -153,7 +153,19 @@ export const agents = pgTable(
     status: text({ enum: AGENT_STATUSES as unknown as [string, ...string[]] })
       .notNull()
       .default('active'),
-    allowHiring: boolean().notNull().default(false),
+    /**
+     * Who may USE this agent, as opposed to who may FIND it — `is_published`
+     * answers the second and used to answer both.
+     *
+     * Replaces `allow_hiring`, which was written by the editor, stored, and
+     * read by NOTHING that authorised anything: a seventh decorative field. Its
+     * name came from the marketplace this predates, and "hiring" has since
+     * become membership on the bot account — so the column is renamed to what
+     * it now decides rather than reused under a name that would mislead.
+     */
+    access: text({ enum: AGENT_ACCESS as unknown as [string, ...string[]] })
+      .notNull()
+      .default('private'),
     /**
      * The one agent this owner has DESIGNATED to run autonomous Oxy service
      * events. A declared fact, never an inferred one.
@@ -217,6 +229,7 @@ export const agents = pgTable(
       .on(t.authorOxyUserId)
       .where(sql`${t.handlesAutonomousEvents}`),
     checkOneOf('agents_status_check', t.status, AGENT_STATUSES),
+    checkOneOf('agents_access_check', t.access, AGENT_ACCESS),
     checkOneOf('agents_archetype_check', t.archetype, AGENT_ARCHETYPES),
     /**
      * Mongoose declares `min: 0, max: 5`. A domain invariant, not input shaping:

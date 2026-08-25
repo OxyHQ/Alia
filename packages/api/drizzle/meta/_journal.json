@@ -351,6 +351,20 @@
       "when": 1787675666557,
       "tag": "0049_the_tier_column_cannot_be_correct",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1787689694866,
+      "tag": "0050_an_agent_says_who_may_use_it",
+      "breakpoints": true
+    },
+    {
+      "idx": 51,
+      "version": "7",
+      "when": 1787689726456,
+      "tag": "0051_allow_hiring_never_authorised_anything",
+      "breakpoints": true
     }
   ]
 }

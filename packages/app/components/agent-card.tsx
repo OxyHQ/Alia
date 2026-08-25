@@ -138,7 +138,10 @@ export const AgentCard = React.memo(function AgentCard({
         </View>
 
         {/* Hire button — full width outline at bottom, like Twitter "Profile Summary" */}
-        {agent.allowHiring && (
+        {/* Only an agent anyone may use offers the button to everyone; a
+            private one is reached through its own thread, by people who were
+            given access. */}
+        {agent.access === 'public' && (
           <Button
             variant="outline"
             size="sm"

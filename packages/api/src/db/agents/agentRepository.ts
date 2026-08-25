@@ -69,7 +69,7 @@ import type { ApiDatabase, Executor } from '../index';
 import { agentKnowledge, agents, agentSkills } from '../schema/agents';
 import { libraryFiles } from '../schema/library';
 import { skills } from '../schema/agents-support';
-import type { AgentArchetype, AgentStatus } from '../../domain/agent';
+import type { AgentAccess, AgentArchetype, AgentStatus } from '../../domain/agent';
 
 type AgentRow = typeof agents.$inferSelect;
 
@@ -132,7 +132,7 @@ export interface AgentRecord {
   isTrending: boolean;
   isPublished: boolean;
   status: AgentStatus;
-  allowHiring: boolean;
+  access: AgentAccess;
   /** Whether this is the owner's designated autonomous-events agent. */
   handlesAutonomousEvents: boolean;
   systemPrompt: string | null;
@@ -217,7 +217,7 @@ export function toAgentRecord(row: AgentRow): AgentRecord {
     isTrending: row.isTrending,
     isPublished: row.isPublished,
     status: row.status as AgentStatus,
-    allowHiring: row.allowHiring,
+    access: row.access as AgentAccess,
     handlesAutonomousEvents: row.handlesAutonomousEvents,
     systemPrompt: row.systemPrompt,
     preferredImage: row.preferredImage,
@@ -400,6 +400,21 @@ function catalogueFilter(query: AgentCatalogueQuery): SQL | undefined {
 }
 
 /**
+ * The same record with its prompt withheld.
+ *
+ * ONE way of doing it, because there are several surfaces that must: the
+ * catalogue, the agent card, anything a stranger can reach. Two spellings of
+ * "hide the prompt" would be two places for one of them to stop hiding it, and
+ * the difference is invisible in every response that never carried it anyway.
+ *
+ * `null` rather than absent, matching what the catalogue has always sent: a
+ * client distinguishing the two would see a change the server cannot see.
+ */
+export function withoutSystemPrompt(record: AgentRecord): AgentRecord {
+  return { ...record, systemPrompt: null };
+}
+
+/**
  * The public catalogue page.
  *
  * `systemPrompt` and both child lists are omitted, exactly as the source's
@@ -422,11 +437,7 @@ export async function listAgentCatalogue(
     db.select({ total: sql<number>`count(*)::int` }).from(agents).where(where),
   ]);
   return {
-    agents: rows.map((row) => {
-      const record = toAgentRecord(row);
-      record.systemPrompt = null;
-      return record;
-    }),
+    agents: rows.map((row) => withoutSystemPrompt(toAgentRecord(row))),
     total: counted?.total ?? 0,
   };
 }
@@ -535,6 +546,21 @@ export async function searchActiveAgents(
  *
  * The caller arrives with an account id because a handle is Oxy's: a delegation
  * naming `@researcher` resolves that handle at Oxy and passes the id here.
+ *
+ * ## This one still keys on `is_published`, and knows it
+ *
+ * Every other USE surface moved to `access` and `canReachAgent`, which asks Oxy
+ * whether this caller has standing in the account. Delegation cannot: it runs
+ * inside an agent SESSION — `lib/agent/runner.ts`, `lib/agent/executor-pool.ts`
+ * — which carries `session.oxyUserId` and no bearer, and `verifyAgentAccount`
+ * needs one. So an agent delegating to `@researcher` reaches the same set it
+ * reached before this change: published and active.
+ *
+ * Stated rather than quietly narrowed, because both of the cheap repairs are
+ * wrong. Requiring `access = 'public'` here would stop an owner's own private
+ * agents from working together, which is most of what delegation is for; and
+ * leaving it looking like the others would hide that the rule is not applied.
+ * Closing it properly needs a caller identity a session does not have yet.
  */
 export async function findHireableAgentByOxyAccountId(
   db: Executor,
@@ -680,7 +706,7 @@ export interface CreateAgentInput {
   /** `family` or `family:instanceId`. EMPTY DENIES — see `domain/capability-grants.ts`. */
   capabilityGrants?: string[];
   isPublished?: boolean;
-  allowHiring?: boolean;
+  access?: AgentAccess;
   /** The owner's designated autonomy agent. At most one per owner, by index. */
   handlesAutonomousEvents?: boolean;
   systemPrompt?: string;
@@ -723,7 +749,7 @@ export async function createAgent(
         price: input.price ?? null,
         capabilityGrants: input.capabilityGrants ?? [],
         isPublished: input.isPublished ?? true,
-        allowHiring: input.allowHiring ?? false,
+        access: input.access ?? 'private',
         handlesAutonomousEvents: input.handlesAutonomousEvents ?? false,
         ...(input.systemPrompt !== undefined && { systemPrompt: input.systemPrompt }),
         ...(input.allowedModels !== undefined && { allowedModels: input.allowedModels }),
@@ -755,7 +781,7 @@ export interface UpdateAgentInput {
   capabilityGrants?: string[];
   isPublished?: boolean;
   status?: AgentStatus;
-  allowHiring?: boolean;
+  access?: AgentAccess;
   handlesAutonomousEvents?: boolean;
   systemPrompt?: string;
   allowedModels?: string[];
