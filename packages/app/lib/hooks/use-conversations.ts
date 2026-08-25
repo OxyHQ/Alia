@@ -3,6 +3,7 @@ import { useOxy } from '@oxyhq/services';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { toast } from '@oxyhq/bloom/toast';
 import apiClient from '../api/client';
+import { API_ROUTES } from '../api/routes';
 import { queryKeys } from './query-keys';
 import type { ToolInvocation } from '../types/messages';
 import type { ResearchProgress, PendingPlan } from '@alia.onl/sdk';
@@ -76,13 +77,25 @@ export interface Conversation {
   createdAt: Date;
   updatedAt: Date;
   messages: Message[];
+  /**
+   * When somebody said "what follows is a new conversation", as bare ISO
+   * instants and in order.
+   *
+   * They arrive BESIDE the messages, never merged into them — a break is not a
+   * message, and placing one against the thread is
+   * `lib/thread-separators.ts`'s job. Always an array here, even when the
+   * server sent none, because a `?? []` at a render site is a new reference on
+   * every render.
+   */
+  breaks: string[];
 }
 
 /** Conversation as returned by the API (timestamps are ISO strings, not Dates). */
-type ApiConversation = Omit<Conversation, 'createdAt' | 'updatedAt' | 'messages'> & {
+type ApiConversation = Omit<Conversation, 'createdAt' | 'updatedAt' | 'messages' | 'breaks'> & {
   createdAt: string;
   updatedAt: string;
   messages?: Message[];
+  breaks?: string[];
 };
 
 /** One page of the paginated conversation list. */
@@ -148,6 +161,7 @@ async function fetchConversationsPage({ pageParam }: { pageParam?: string }): Pr
         createdAt: new Date(conv.createdAt),
         updatedAt: new Date(conv.updatedAt),
         messages: [], // Don't include messages in list view
+        breaks: [], // ...nor its breaks: the list draws no rules.
       })),
       nextCursor: response.data.nextCursor,
       hasMore: response.data.hasMore,
@@ -195,6 +209,7 @@ async function fetchConversation(id: string): Promise<Conversation> {
       createdAt: new Date(data.createdAt),
       updatedAt: new Date(data.updatedAt),
       messages: normalizeConversationMessages(data.messages || []),
+      breaks: data.breaks ?? [],
     };
   } catch (error: unknown) {
     // If unauthorized or not found on server, fall back to local storage
@@ -209,6 +224,7 @@ async function fetchConversation(id: string): Promise<Conversation> {
             createdAt: new Date(conversation.createdAt),
             updatedAt: new Date(conversation.updatedAt),
             messages: normalizeConversationMessages(conversation.messages || []),
+            breaks: conversation.breaks ?? [],
           };
         }
       }
@@ -284,6 +300,7 @@ export function useSaveConversation() {
             id,
             title: offlineTitle,
             lastMessage,
+            breaks: [],
             createdAt: existingIndex >= 0 ? conversations[existingIndex].createdAt : new Date(),
             updatedAt: new Date(),
             messages,
@@ -308,7 +325,7 @@ export function useSaveConversation() {
         if (!oldData?.pages) {
           return {
             pages: [{
-              conversations: [{ ...data, messages: [] }],
+              conversations: [{ ...data, messages: [], breaks: [] }],
               nextCursor: null,
               hasMore: false,
             }],
@@ -317,7 +334,7 @@ export function useSaveConversation() {
         }
 
         const newPages = [...oldData.pages];
-        const conversationMetadata = { ...data, messages: [] };
+        const conversationMetadata = { ...data, messages: [], breaks: [] };
 
         // Remove conversation from its current position (if it exists in any page)
         for (let i = 0; i < newPages.length; i++) {
@@ -358,6 +375,33 @@ export function useSaveConversation() {
 }
 
 // Delete conversation mutation
+/**
+ * Mark where a new conversation starts, inside a thread that never ends.
+ *
+ * `/a/:username` has no "new chat" — that is the point of it — so this is how a
+ * person says "what follows is a new subject" without losing what came before.
+ * The API answers with the instant it recorded; the thread is refetched because
+ * the rule is drawn from that instant, and where it lands depends on the
+ * messages beside it.
+ */
+export function useMarkConversationBreak() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    retry: 1,
+    mutationFn: async (id: string) => {
+      await apiClient.post(API_ROUTES.conversations.break(id));
+      return id;
+    },
+    onSuccess: (id) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.conversations.detail(id) });
+    },
+    onError: (error: unknown) => {
+      toast.error(getErrorMessage(error) || 'Failed to start a new conversation');
+    },
+  });
+}
+
 export function useDeleteConversation() {
   const queryClient = useQueryClient();
 
@@ -421,6 +465,7 @@ export function useCreateConversation() {
           createdAt: new Date(data.createdAt),
           updatedAt: new Date(data.updatedAt),
           messages: [],
+          breaks: [],
         };
       } catch (error: unknown) {
         // If unauthorized, create locally
@@ -431,6 +476,7 @@ export function useCreateConversation() {
             id,
             title: "New chat",
             lastMessage: undefined,
+            breaks: [],
             createdAt: new Date(),
             updatedAt: new Date(),
             messages: [],
