@@ -38,15 +38,25 @@
  *
  * ## This is the ROUTING vocabulary, not the alias vocabulary
  *
- * Two of these tiers are named by no `alia-*` identifier. `v1-tts` and
- * `v1-image` have routing tables and no `ALIA_MODELS` entry: they are reached
- * by CAPABILITY — `lib/synthesize-speech.ts`, `lib/image-generation.ts`,
- * `routes/agents-avatar.ts`, `routes/canvas/execute.ts` — never by naming a
- * model, so neither needs an identifier a caller could send. The twelve tiers
- * the thirteen aliases name are a SUBSET of these fourteen (`alia-v1-thinking`
- * and `alia-v1-pro-max` share `v1-pro-max`). Do not "tidy" the two unnamed
- * tiers out again on the grounds that no alias mentions them; that reasoning is
- * what removed `v1-image` from this tuple in the first place.
+ * **A tier here does not need an `alia-*` identifier, and several do not have
+ * one.** A capability tier is reached by what the caller wants done —
+ * `lib/synthesize-speech.ts`, `lib/image-generation.ts`,
+ * `routes/agents-avatar.ts`, `routes/canvas/execute.ts` reach theirs by calling
+ * `getModelMappingsForTier` directly — not by naming a model, so there is
+ * nothing for a caller to send and no `ALIA_MODELS` entry to add. `v1-tts` and
+ * `v1-image` are the long-standing examples.
+ *
+ * The tiers the aliases name are therefore a SUBSET of this tuple, and a proper
+ * one. (Deliberately not stated as a count: this tuple grows, and a sentence
+ * that has to be edited every time it does is a sentence that will be wrong
+ * instead. `ALIA_TIERS.length` and `Object.keys(ALIA_MODELS)` are the answer at
+ * any moment; `docs/alias-layer-audit.mdx` records what they were on a date.)
+ *
+ * **Do not "tidy" an unaliased tier out on the grounds that no alias mentions
+ * it.** That reasoning is precisely what left `v1-image` out of this tuple
+ * while the routing table was keyed by it, and the cost was five
+ * `model_configs` rows refused on every deploy for as long as the image tier
+ * existed.
  */
 
 export const ALIA_TIERS = [

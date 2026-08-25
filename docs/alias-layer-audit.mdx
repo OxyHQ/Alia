@@ -37,9 +37,17 @@ guessing.
 | `bunx vitest run` over the eight alias suites | 189 tests, all passing | 2026-08-25 02:28Z |
 
 **Source citations are as of `8aa0f4f3`.** The branch carrying this page was later rebased
-onto `bc9d2b9c`, across #339 among others, so a line number here may have moved; the
-measurements against production, ECS and Kaana are unaffected because none of them reads
-this repository. Where #339 changed something this page describes, the page says so.
+across #339 among others, so a line number here may have moved; the measurements against
+production, ECS and Kaana are unaffected because none of them reads this repository. Where
+#339 changed something this page describes, the page says so.
+
+**Every count of tiers, mappings or pairs on this page is a MEASUREMENT ON A DATE, not an
+invariant.** The routing table gains tiers — that is the normal way it changes, and a
+capability tier can arrive without an alias — so a reader checking this page against a later
+tree should expect the numbers to have grown and should re-derive them rather than treat a
+difference as an error. Where a number is load-bearing to an argument the argument is stated
+first, so it survives the number moving. `ALIA_TIERS.length`, `Object.keys(ALIA_MODELS)` and
+the pair census in §1 are the live answers at any moment.
 
 The local `~/Oxy/Relay` checkout is stale (`254d545` against `origin/main` `2b7763f7`) and
 disagrees with the deployed code on a load-bearing point — the catalogue route. Every Kaana
@@ -47,9 +55,10 @@ claim below is read from `origin/main` through `git show`, never from the workin
 
 ## The one-paragraph answer
 
-`ALIA_TIERS` was a thirteen-value tuple that was neither the set of tiers an alias can name
-(twelve) nor the set of keys the routing table has (fourteen), because it was one of **four**
-declarations of that list and nothing compared them. It is an accident, it was already
+`ALIA_TIERS` was, before #339, a thirteen-value tuple that matched neither list it could
+have been — the tiers an alias named (twelve at the time) nor the keys the routing table had
+(fourteen at the time) — because it was one of **four** declarations of that list and nothing
+compared them. It is an accident, it was already
 costing rows in production, and collapsing the four to one is what #339 and this branch
 between them did. The
 thirteen `alia-*` identifiers are
@@ -107,20 +116,31 @@ corrected, and nothing would have said it needed correcting.
 
 ### `ALIA_TIERS` matches neither list it could be
 
+Counted on `8aa0f4f3`, before #339:
+
 - **Tiers an alias names:** twelve. `ALIA_MODELS` holds thirteen aliases, and
   `alia-v1-thinking` and `alia-v1-pro-max` share tier `v1-pro-max`.
 - **Keys the routing table has:** fourteen, verified programmatically against
   `generate-model-mappings.ts`.
-- **`ALIA_TIERS`:** thirteen. It contains `v1-tts`, which no alias names, and omits
+- **`ALIA_TIERS`:** thirteen. It contained `v1-tts`, which no alias names, and omitted
   `v1-image`, which no alias names either.
+
+The three numbers have all moved since and will move again; what does not move is that
+**they are three different questions**, and that only the middle one governs what the
+routing table may be keyed by.
 
 So the answer to "are these the same list by design or by coincidence" is **coincidence**,
 and `docs/migration/alias-migration-map.json` already recorded the fact without drawing the
-conclusion: *"TWO TIERS HAVE NO ALIAS. `v1-tts` and `v1-image` exist in
-`TIER_MODEL_MAPPINGS` and no alias points at them."* Both are reached by capability
-(`lib/image-generation.ts:70`, `lib/synthesize-speech.ts`, `routes/agents-avatar.ts:138`,
-`routes/canvas/execute.ts:271`, `routes/v1/voice.ts:320`), never by naming a model. The
-conflation is exactly what let a fourteenth routing tier exist that no alias could name.
+conclusion, as of its own measurement date: *"TWO TIERS HAVE NO ALIAS. `v1-tts` and
+`v1-image` exist in `TIER_MODEL_MAPPINGS` and no alias points at them."*
+
+The general rule behind that sentence outlives the count in it. **A capability tier is
+reached by what the caller wants done, not by naming a model** — `lib/image-generation.ts:70`,
+`lib/synthesize-speech.ts`, `routes/agents-avatar.ts:138`, `routes/canvas/execute.ts:271`
+and `routes/v1/voice.ts:320` all call `getModelMappingsForTier` directly — so such a tier
+has nothing for a caller to send and needs no `ALIA_MODELS` entry. More of them is the
+expected direction of travel, not an anomaly. The conflation is exactly what let one of them
+exist that the tuple then refused.
 
 ### The `v1-image` drift, still live in production, and smaller than it looks
 
@@ -161,10 +181,14 @@ While measuring the image gap a second instance of the same class surfaced, and 
 because it is silent rather than logged.
 
 `model_configs` is unique on `(provider, model_id)` and carries **one** `alia_tier` column.
-`TIER_MODEL_MAPPINGS` is many-to-many: of the 66 distinct `(provider, modelId)` pairs across
-all fourteen tiers, **29 serve more than one tier**. `google/gemini-2.5-pro` serves seven.
-The seeder upserts each pair once per tier, so the column records whichever tier happened to
-be written last.
+`TIER_MODEL_MAPPINGS` is many-to-many, and that is structural rather than incidental: the
+same deployment is a legitimate candidate for several tiers. The seeder upserts each pair
+once per tier, so the column records whichever tier happened to be written last, and **there
+is no value it could hold that would be correct** for a pair serving more than one.
+
+The scale of it on `8aa0f4f3`: of 66 distinct `(provider, modelId)` pairs across the then
+fourteen tiers, **29 served more than one**, `google/gemini-2.5-pro` serving seven. Adding a
+tier moves both numbers and does not touch the argument.
 
 The visible symptom in production is `v1-voice`: it has **zero** `model_configs` rows, not
 because of a CHECK but because its two pairs (`xai/grok-realtime`,
@@ -172,8 +196,8 @@ because of a CHECK but because its two pairs (`xai/grok-realtime`,
 `v1-voice-pro` is iterated second.
 
 So `model_configs.alia_tier` is already a lossy record of the routing table, and the
-thirteen-value CHECK is guarding a column that cannot be right. **Extending the tuple to
-fourteen fixes the image rows' absence and does not fix the column.** That is an argument
+CHECK was guarding a column that cannot be right. **Admitting the missing tier fixed the
+image rows' absence and did not fix the column.** That is an argument
 for deleting the column with the rest of the layer rather than for maintaining it — see the
 order in §5.
 
@@ -444,7 +468,8 @@ Ordered by what must be true before each step, not by size.
    two, both dead. `alia-tiers.ts` is now the single source and renders both constraints.
    It stood on its own merits whatever is decided about `alia-*`: it was a CHECK rejecting
    rows its own seeder wrote.
-2. **Still open: `model_configs.alia_tier` is lossy for 29 of 66 pairs.** Widening the CHECK
+2. **Still open: `model_configs.alia_tier` cannot be correct** — 29 of 66 pairs served more
+   than one tier when it was counted, and every added tier can only raise that. Widening the CHECK
    fixed the image rows' absence and did not make the column correct — it still records
    whichever tier was written last, and `v1-voice` still has zero rows for that reason.
    Deleting the column is the coherent fix, and it is cheap: the table is written by the
@@ -480,9 +505,10 @@ Ordered by what must be true before each step, not by size.
    model before calling Kaana. Kaana refuses `routing_profile` and says why. Until one of
    these is true, `TIER_MODEL_MAPPINGS` and `fallback-engine.ts` are load-bearing *after*
    the cutover, not before it.
-10. **Get Kaana adapters for TTS, image, transcription and realtime voice**, or keep the
-    in-process tree for exactly those four tiers. `v1-tts` and `v1-image` have no alias
-    already, so they are the natural last residents of a shrinking routing table.
+10. **Get Kaana adapters for the capability tiers** — TTS, image, transcription, realtime
+    voice, and whatever else is added — or keep the in-process tree for exactly those. They
+    already have no alias, so they are the natural last residents of a shrinking routing
+    table, and they are also the part of it most likely to still be growing.
 11. **Flip `ALIA_RELAY_CLIENT_ENABLED`**, last and alone, per `docs/runbooks/relay-cutover.md`.
 
 ### Which gates would catch a mistake, and which would not
