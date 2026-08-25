@@ -15,36 +15,56 @@
  * dependency of this service, so the names below are a curated SUBSET restated
  * rather than imported.
  *
- * That restatement is only safe because nothing here decides anything: this
- * list is what `POST /agents/generate` may OFFER, and the offer is a
- * suggestion the person then edits. A key Bloom later renames resolves to
- * Bloom's own fallback in every consumer, which is the same thing that happens
- * to an agent whose owner never chose a colour at all. There is deliberately no
- * validation of a STORED colour anywhere in this service — validating against a
- * stale copy of somebody else's vocabulary is how a working colour starts
- * being refused.
+ * There is deliberately no validation of a STORED colour anywhere in this
+ * service — validating against a stale copy of somebody else's vocabulary is
+ * how a working colour starts being refused. What the list below constrains is
+ * only what `POST /agents/generate` may OFFER.
  *
  * Premium and reserved presets are excluded on purpose: `PREMIUM_COLOR_NAMES`
  * is sold with a subscription and `HANDLE_COLOR_NAMES` (`oxy`, `faircoin`) are
  * the brands of the accounts that own them. Proposing either would put a colour
  * the owner cannot keep in front of them at the moment they are naming a new
  * agent.
+ *
+ * ## Why this list is SHORTER than Bloom's, and must stay a subset
+ *
+ * An offered colour is not a suggestion that dies on screen: it is written to
+ * Oxy, and the write is checked. The real catalogue is the CHECK constraint
+ * `users_color_check` on the Oxy server's `users` table, rendered from
+ * `USER_COLOR_PRESETS` in that repo's schema — eleven keys, of which Bloom
+ * knows nine. A key outside it is refused with a 400 at save time, so a colour
+ * this service offers but Oxy will not store is an agent whose creation fails
+ * for a reason the person never chose.
+ *
+ * That is not hypothetical: `yellow`, `rose`, `violet` and `brown` were offered
+ * here and are absent from the CHECK. They are gone.
+ *
+ * **So this list is a subset of two vocabularies, and the source of truth for
+ * neither.** Do not "complete" it from Bloom's palette — Bloom is the wider of
+ * the two and every key it has that the CHECK lacks is a 400. The constraint is
+ * append-only, so a key here keeps working; the way to ADD one is to read the
+ * server's catalogue first and take the intersection with Bloom again.
+ *
+ * `amber` is the shape of the opposite mistake: the CHECK accepts it and no
+ * Bloom palette contains it, so an agent offered `amber` would save and then
+ * render in the fallback colour — reachable from the database, not from the
+ * app.
  */
 
-/** Bloom free preset keys, one per hue, that a generated agent may be offered. */
+/**
+ * Keys that are BOTH a Bloom free preset and a member of the server's
+ * `users_color_check` catalogue — the only colours a generated agent may be
+ * offered. See the subset rule above before editing.
+ */
 export const AGENT_COLORS = [
   'teal',
   'blue',
   'sky',
   'green',
   'mint',
-  'yellow',
   'orange',
   'red',
-  'rose',
   'purple',
-  'violet',
-  'brown',
 ] as const;
 
 export type AgentColor = (typeof AGENT_COLORS)[number];
