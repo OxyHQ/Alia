@@ -103,10 +103,9 @@ export default function CreateAgentScreen() {
         bio: config.tagline,
         ...(avatarAssetId !== undefined && { avatar: avatarAssetId }),
         // This screen builds a DRAFT (`isPublished: false` below), so the
-        // account should not be discoverable either. Oxy has nowhere to put
-        // this yet — see `createBotAccount` — so the agent IS visible in Oxy's
-        // global people search until that lands. Stated here anyway, because
-        // the intent belongs at the call site that has it.
+        // account is minted undiscoverable to match: kept out of Oxy's global
+        // people search from the moment it exists, rather than listed there
+        // under its owner's name until they publish it.
         private: true,
       });
 
