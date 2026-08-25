@@ -103,7 +103,20 @@ export const FIXED_FAMILY_TOOLS: Readonly<Record<FixedCapabilityFamily, readonly
   shell: ['shell'],
   files: ['file_edit'],
   artifacts: ['canvas', 'generateFile'],
-  memory: ['saveUserMemory', 'updateUserMemory', 'updateUserPreferences', 'updateUserContext'],
+  /**
+   * `searchThread` is here rather than in a family of its own because the
+   * family is "reach what this person has already told you". Three of the four
+   * write that down deliberately; this one reads back what was said in passing.
+   * An owner who denies an agent memory is denying it exactly that, and a
+   * separate family would let it recall the whole thread anyway.
+   */
+  memory: [
+    'saveUserMemory',
+    'updateUserMemory',
+    'updateUserPreferences',
+    'updateUserContext',
+    'searchThread',
+  ],
   messaging: [
     'sendTelegramMessage',
     'getWhatsAppChats',

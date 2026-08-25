@@ -466,6 +466,89 @@ describe('POST / takes a whitelist, never the body (#139 ws6)', () => {
 /*  Ownership                                                                  */
 /* -------------------------------------------------------------------------- */
 
+describe('a thread can be searched by what was said in it', () => {
+  async function withMessages(id: string) {
+    await call('post', '/', {
+      user: ALICE,
+      body: {
+        conversationId: id,
+        messages: [
+          { role: 'user', content: 'the codename is kingfisher' },
+          {
+            role: 'assistant',
+            content: 'Understood.',
+            toolInvocations: [
+              { toolCallId: 't1', toolName: 'webSearch', state: 'result', result: { q: 'heronwatch' } },
+            ],
+          },
+        ],
+      },
+    });
+  }
+
+  it('finds what the person wrote, and answers the CLIENT’s message id', async () => {
+    await withMessages('conv-search');
+
+    const res = await call('get', '/:id/search', {
+      user: ALICE,
+      params: { id: 'conv-search' },
+      query: { q: 'kingfisher' },
+    });
+
+    const { results } = res.body as { results: { role: string; text: string }[] };
+    expect(res.status).toBe(200);
+    expect(results).toHaveLength(1);
+    expect(results[0].role).toBe('user');
+    expect(results[0].text).toBe('the codename is kingfisher');
+  });
+
+  it('does not find what only a tool payload contains', async () => {
+    // `db/__tests__/threadSearch.pgdb.test.ts` pins this at the query; here it
+    // is pinned at the ROUTE, which is the surface a person actually reaches.
+    await withMessages('conv-search-tool');
+
+    const res = await call('get', '/:id/search', {
+      user: ALICE,
+      params: { id: 'conv-search-tool' },
+      query: { q: 'heronwatch' },
+    });
+
+    expect((res.body as { results: unknown[] }).results).toEqual([]);
+    // The control: the same thread IS searchable, so an empty result is an
+    // exclusion rather than a thread the route could not see.
+    const control = await call('get', '/:id/search', {
+      user: ALICE,
+      params: { id: 'conv-search-tool' },
+      query: { q: 'understood' },
+    });
+    expect((control.body as { results: unknown[] }).results).toHaveLength(1);
+  });
+
+  it('answers an empty list for an empty query, rather than everything', async () => {
+    await withMessages('conv-search-empty');
+
+    const res = await call('get', '/:id/search', {
+      user: ALICE,
+      params: { id: 'conv-search-empty' },
+      query: { q: '   ' },
+    });
+
+    expect((res.body as { results: unknown[] }).results).toEqual([]);
+  });
+
+  it('404s a search of somebody else’s thread', async () => {
+    await withMessages('conv-search-private');
+
+    const res = await call('get', '/:id/search', {
+      user: BOB,
+      params: { id: 'conv-search-private' },
+      query: { q: 'kingfisher' },
+    });
+
+    expect(res.status).toBe(404);
+  });
+});
+
 describe('a permanent thread is cut into conversations by breaks', () => {
   async function aThread(id: string) {
     await call('post', '/', {
@@ -652,6 +735,7 @@ describe('every stage of the lifecycle is scoped to the owner (#139 ws6)', () =>
         ['get', '/:id'],
         ['post', '/'],
         ['patch', '/:id/messages/:messageId/vote'],
+        ['get', '/:id/search'],
         ['post', '/:id/break'],
         ['delete', '/:id'],
       ].sort(),

@@ -65,6 +65,7 @@ import {
   updateUserMemoryTool,
   updateUserPreferencesTool,
   updateUserContextTool,
+  createSearchThreadTool,
   createSendTelegramTool,
   createGetWhatsAppChatsTool,
   createGetWhatsAppMessagesTool,
@@ -196,6 +197,18 @@ export interface ForUserOptions {
    */
   isLocalRuntime: boolean;
   /**
+   * The thread this turn is IN, when the surface has one.
+   *
+   * A structural precondition, like `deviceInfo` and `runtime`: `searchThread`
+   * reads back what was said earlier in a specific conversation, so it exists
+   * only for a turn that is in one. A trigger and an autonomous run are not, and
+   * neither is a stateless API call.
+   *
+   * The id is closed over rather than offered to the model, so a hallucinated
+   * uuid cannot ask for a thread this turn is not in.
+   */
+  conversationId?: string;
+  /**
    * One hosted MCP connector selected for this turn, by the person composing it.
    *
    * `undefined` keeps the compatibility behaviour (all runnable connectors),
@@ -241,6 +254,7 @@ export class ToolPipeline {
       webSearch,
       mcpServerId,
       isLocalRuntime,
+      conversationId,
     } = opts;
 
     const toolNameMapping = new Map<string, string>();
@@ -317,12 +331,18 @@ export class ToolPipeline {
      * for why an API-key turn must still be refused here.
      */
     if (actsForPerson) {
-      if (grants.allows('memory')) Object.assign(aliaTools, {
-        saveUserMemory: saveUserMemoryTool(userId),
-        updateUserMemory: updateUserMemoryTool(userId),
-        updateUserPreferences: updateUserPreferencesTool(userId),
-        updateUserContext: updateUserContextTool(userId),
-      });
+      if (grants.allows('memory')) {
+        Object.assign(aliaTools, {
+          saveUserMemory: saveUserMemoryTool(userId),
+          updateUserMemory: updateUserMemoryTool(userId),
+          updateUserPreferences: updateUserPreferencesTool(userId),
+          updateUserContext: updateUserContextTool(userId),
+        });
+        // Only for a turn that is IN a thread — see `conversationId` above.
+        if (conversationId !== undefined && conversationId !== '') {
+          aliaTools.searchThread = createSearchThreadTool(userId, conversationId);
+        }
+      }
       if (grants.allows('messaging')) Object.assign(aliaTools, {
         /**
          * ONE name. It was `sendTelegram` here and `sendTelegramMessage` on the

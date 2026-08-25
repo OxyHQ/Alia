@@ -92,6 +92,35 @@ Two people talking to the same agent hold two threads and see two histories.
   who opened a thread that day, not conversations started. Same query, changed
   invariant.
 
+### Getting back to something old
+
+Three ways, in order of cost, and the third is the one with a decision in it:
+
+1. **Scroll**, served by `messages_conversation_created_at_idx`.
+2. **`GET /conversations/:id/search?q=`** — the person's own search.
+3. **The `searchThread` tool** — the agent's recall, over the SAME index and the
+   same query, so what counts as text is defined once.
+
+Both go through `searchMessages`, which matches a `tsvector` built by
+`alia_message_text` — a Postgres function created by hand in `0047`, because
+`content` is `jsonb` and an index expression may not contain a subquery. It
+takes a bare JSON string as itself and, from a parts array, only the
+`type: 'text'` parts in order. **Tool payloads and attachments are deliberately
+not searchable**: a hit on somebody else's API response shows a person a message
+whose visible body does not contain what they searched for.
+
+**Text, not embeddings, and that is the decision.** An embedding per message is
+a cost per turn and a second store that grows without bound —
+`db/schema/context-graph.ts` already records that the autonomy graph mints a node
+per chat turn and that nothing reaps them. A `tsvector` adds no store. If the
+text proves too blunt, embeddings are the answer and the evidence for adding
+them is a measurement of this failing.
+
+Every word in a query must be present (`websearch_to_tsquery` ANDs unquoted
+terms — measured), with quoted phrases and `-` exclusion on top. The tool says
+so in its description and again in the sentence it returns for an empty result,
+because a bare `[]` reads to a model as a broken tool.
+
 ## Execution Loop
 
 Every interaction follows one runtime loop:
