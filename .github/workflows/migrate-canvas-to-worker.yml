@@ -95,6 +95,19 @@ jobs:
             echo '```'
           } | tee -a "$GITHUB_STEP_SUMMARY"
 
+      # The git dependency `libsignal` is fetched from GitHub unauthenticated and
+      # cannot be authenticated; a warm cache is what stops that request being
+      # made. A cutover is the worst possible moment to discover a degraded
+      # GitHub tarball host, and `.github/scripts/check-bun-cache-wiring.mjs`
+      # fails if this is removed — it is what caught its absence here.
+      - name: Cache bun install cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: bun-cache-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+          restore-keys: |
+            bun-cache-${{ runner.os }}-
+
       - name: Install and build
         run: |
           bun install --ignore-scripts
