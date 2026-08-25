@@ -581,6 +581,18 @@ const PROVIDER_IMPORT_ALLOWLIST: readonly { from: string; to: string; via: Modul
     why: 'One constant, `PERFORMABLE_AUDIO_TAGS`, rendered into the prompt so the tags a script is ASKED for are the tags the strip KEEPS. No adapter, no key, no call. Two hand-maintained copies is the alternative, and its failure is silent: the model emits a tag nobody performs and `speakableText` deletes it from every episode. Moves to Relay (#139 ws7) with the TTS path.',
   },
   {
+    from: 'packages/api/src/lib/show/__tests__/cover-art.test.ts',
+    to: 'packages/api/src/internal/providers/lib/generate-model-mappings',
+    via: 'import',
+    why: 'Test-only. Walks the LIVE `v1-image` chain, so "every mapping is addressable by the transport" keeps meaning something on the day a mapping is added — the defect it caught was a mapping the transport could not build a URL for. A fixture chain would have passed. Retires with the image path (#139 ws7).',
+  },
+  {
+    from: 'packages/api/src/lib/show/__tests__/cover-art.test.ts',
+    to: 'packages/api/src/internal/providers/lib/key-manager',
+    via: 'vi.mock',
+    why: 'Test-only. Gives every provider a key, so a mapping that fails does so for a reason that is not a missing credential — production’s four `no_credential` mappings otherwise mask the fifth. Retires with the image path (#139 ws7).',
+  },
+  {
     from: 'packages/api/src/routes/agents-avatar.ts',
     to: 'packages/api/src/internal/providers/lib/digitalocean-async',
     via: 'import',
@@ -768,7 +780,7 @@ const PROVIDER_IMPORT_ALLOWLIST: readonly { from: string; to: string; via: Modul
  * produced a plausible wrong answer that still compiled. The same trap caught
  * ws5's rebase, which is why this paragraph is a rule and not a history.
  */
-const PROVIDER_IMPORT_ALLOWLIST_SIZE = 49;
+const PROVIDER_IMPORT_ALLOWLIST_SIZE = 51;
 
 function observedProviderImports(): { from: string; to: string; via: ModuleRef['via'] }[] {
   const seen = new Map<string, { from: string; to: string; via: ModuleRef['via'] }>();
@@ -975,9 +987,16 @@ const PROVIDER_HOST_ALLOWLIST: Readonly<Record<string, readonly string[]>> = {
     'packages/api/src/lib/provider-warmup.ts',
   ],
   'api.x.ai': [
+    // The base for xAI's non-chat endpoints. Chat reaches xAI through the AI
+    // SDK adapter below; images go through `callProviderAPI`, which builds its
+    // own URL and so must know the host. Absent from here, image generation
+    // was refused before a request left the process.
+    'packages/api/src/internal/providers/lib/provider-api.ts',
     'packages/api/src/internal/providers/lib/providers/grok-voice.ts',
     'packages/api/src/internal/providers/lib/providers/xai.ts',
     'packages/api/src/lib/chat-core.ts',
+    // Asserts that exact URL is the one the cover path builds.
+    'packages/api/src/lib/show/__tests__/cover-art.test.ts',
   ],
   'generativelanguage.googleapis.com': [
     'packages/api/src/internal/providers/lib/provider-api.ts',
