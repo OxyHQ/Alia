@@ -62,9 +62,23 @@ describe('the agent thread’s colour scope', () => {
     expect(opening).toMatch(/className="[^"]*\bflex-1\b/);
   });
 
+  /**
+   * Break the scope element ONLY.
+   *
+   * Two earlier attempts at these controls broke something else: an exact class
+   * string that stopped matching when `bg-background` joined the list, and then
+   * a loose one that hit the FIRST `flex-1` in the file — which belongs to the
+   * loading state twenty lines up, not to the scope. Both left the subject
+   * untouched while reporting they had changed it.
+   */
+  function withBrokenScope(edit: (opening: string) => string): string {
+    const opening = scopeAndChild(SOURCE);
+    return SOURCE.replace(opening, edit(opening));
+  }
+
   it.each([
-    ['without asChild', SOURCE.replace(' asChild>', '>')],
-    ['without flex-1', SOURCE.replace('flex-1 web:z-auto', 'web:z-auto')],
+    ['without asChild', withBrokenScope((o) => o.replace(' asChild', ''))],
+    ['without flex-1', withBrokenScope((o) => o.replace(/\bflex-1\s*/, ''))],
   ])('would catch a scope %s', (_label, broken) => {
     // Both controls, because the two spellings of this bug produce the same
     // collapsed screen and either one alone would leave the other unguarded.
