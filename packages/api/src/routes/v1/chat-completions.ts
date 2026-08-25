@@ -165,14 +165,8 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
           // `findConversationAgentById` — this branch has never been reachable.
           const conv = await findConversationAgentById(getDb(), conversationId);
           if (conv?.agentId) {
-            const { findAgentById, incrementAgentCounters } = await import(
-              '../../db/agents/agentRepository.js'
-            );
-            const { createAgentSession } = await import(
-              '../../db/agents/agentSessionRepository.js'
-            );
-            const { enqueueAgentSession } = await import('../../lib/task-queue.js');
-            const { reserveCredits: reserveAgentCredits } = await import('../../lib/credits-manager.js');
+            const { findAgentById } = await import('../../db/agents/agentRepository.js');
+            const { startAgentSession } = await import('../../lib/agent/session-handoff.js');
 
             const linkedAgent = await findAgentById(getDb(), conv.agentId);
             if (linkedAgent && linkedAgent.isPublished && linkedAgent.status === 'active') {
@@ -184,46 +178,40 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
                   ? lastUserMsg.content.filter((p: any) => p.type === 'text').map((p: any) => p.text).join(' ')
                   : 'Execute task';
 
-              // Reserve credits for agent execution
-              const baseCredits = linkedAgent.price || 15;
-              const agentReservation = await reserveAgentCredits(req.user.id, baseCredits);
+              /**
+               * A SECOND reservation, on top of the turn's own, and the
+               * `finally` at the bottom of this handler cannot see it — it
+               * releases `state.creditReservation` and nothing else.
+               *
+               * So this branch reserved the agent's price and answered a
+               * failure of the session write or the enqueue with the `catch`
+               * below: a `log.warn`, while the price stayed debited.
+               * `startAgentSession` owns the undo, which is the only way a
+               * reservation this handler does not know about can be released.
+               */
+              const handoff = await startAgentSession({
+                agent: linkedAgent,
+                userId: req.user.id,
+                task: taskText.slice(0, 2000),
+                // The person linked this conversation to this agent, so the
+                // escalation is them choosing it.
+                origin: 'hire',
+              });
 
-              if (agentReservation) {
-                // Create agent session
-                const session = await createAgentSession(getDb(), {
-                  agentId: linkedAgent._id,
-                  oxyUserId: req.user.id,
-                  task: taskText.slice(0, 2000),
-                  status: 'queued',
-                  depth: 0,
-                  creditReservation: agentReservation,
-                });
-
-                // Enqueue for async execution
-                await enqueueAgentSession({
-                  sessionId: session._id,
-                  userId: req.user.id,
-                  agentId: linkedAgent._id,
-                  agentName: linkedAgent.name,
-                });
-
-                // Increment counters
-                await incrementAgentCounters(getDb(), linkedAgent._id, {
-                  hireCount: 1,
-                  usageCount: 1,
-                });
-
+              if (handoff.ok) {
                 // Emit agent session event via SSE so frontend can subscribe
                 if (body.stream) {
                   res.write(`event: alia.agent_session\ndata: ${JSON.stringify({
                     eventVersion: 1,
-                    sessionId: session._id,
+                    sessionId: handoff.sessionId,
                     agentId: linkedAgent._id,
                     agentName: linkedAgent.name,
                   })}\n\n`);
                 }
 
-                log.v1.info({ sessionId: session._id, agentId: linkedAgent._id }, 'Agent session created from chat');
+                log.v1.info({ sessionId: handoff.sessionId, agentId: linkedAgent._id }, 'Agent session created from chat');
+              } else {
+                log.v1.warn({ agentId: linkedAgent._id, reason: handoff.reason }, 'Could not escalate this turn to its linked agent');
               }
             }
           }

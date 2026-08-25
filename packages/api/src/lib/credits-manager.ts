@@ -8,7 +8,7 @@ import {
 } from '../db/billing/userCreditsRepository.js';
 import { getAliaModel } from './chat-core.js';
 import { log } from './logger.js';
-import type { CreditFundingSource } from '../domain/credit-funding.js';
+import { fundingSourceOf, type CreditFundingSource } from '../domain/credit-funding.js';
 
 /**
  * Credits Manager
@@ -197,8 +197,7 @@ export async function reserveCredits(
      * decision, not a balance one, and the repository's whole contract is that
      * each balance change is one statement returning the row it wrote.
      */
-    const grantKind: CreditFundingSource =
-      reserveResult.creditsFree > 0 ? 'free_allowance' : 'paid_balance';
+    const grantKind: CreditFundingSource = fundingSourceOf(reserveResult.creditsFree);
 
     log.credits.info({ amount, userId, grantKind }, 'Reserved credits for user');
     log.credits.info({ free: reserveResult.creditsFree, paid: reserveResult.creditsPaid }, 'Remaining credits');
@@ -233,9 +232,13 @@ async function _adjustReservation(
   let updatedCredits: UserCreditsRow | null;
 
   if (creditAdjustment > 0) {
-    updatedCredits = await addCreditsToBalance(getDb(), reservation.userId, creditAdjustment, 'free');
+    // To the bucket that funded the reservation — see `refundBucket`. A voice
+    // call reserves 50 credits a minute and settles a fraction of that, so this
+    // is the path that moved the most purchased credit into `free`.
+    const bucket = refundBucket(reservation);
+    updatedCredits = await addCreditsToBalance(getDb(), reservation.userId, creditAdjustment, bucket);
     if (updatedCredits) {
-      log.credits.info({ refunded: creditAdjustment }, `Refunded ${label} credits`);
+      log.credits.info({ refunded: creditAdjustment, bucket }, `Refunded ${label} credits`);
     }
   } else if (creditAdjustment < 0) {
     const additionalCredits = Math.abs(creditAdjustment);
@@ -373,12 +376,51 @@ export async function safeRefund(
 }
 
 /**
+ * Which balance a reservation is given back to.
+ *
+ * ## Returning everything to `free` DESTROYED purchased credit
+ *
+ * `refreshFreeCreditsIfDue` runs `SET credits_free = credits_free_limit` — an
+ * assignment, not an increment — once a day, and `GET /credits` triggers it on
+ * every balance view. So a credit taken out of `credits_paid` and handed back to
+ * `credits_free` survives only until the next refresh, and then is gone. The
+ * customer sees a correct total in between, which is why nothing ever reported
+ * it: the money disappears one refresh after the refund, attributable to
+ * nothing.
+ *
+ * `credits_paid` is the durable bucket — purchases and promotional grants
+ * (`routes/referrals.ts`) — and the refresh never touches it.
+ *
+ * ## The bound on `grantKind`, which is not exact and does not need to be
+ *
+ * `domain/credit-funding.ts` states the imprecision: a reservation that takes
+ * the free allowance to exactly zero reads as `paid_balance` though it may have
+ * come wholly out of the allowance. Refunding it to `paid` therefore credits up
+ * to `creditsReserved` more purchased balance than was taken.
+ *
+ * That is at most ONE reservation per account per allowance refresh — the single
+ * one that crosses the boundary — and only when it is refunded rather than
+ * charged. Against it: every reservation of an account whose allowance is
+ * already spent was funded from money and was previously confiscated, every
+ * time. The residual error is bounded, rare, and falls on the customer's side;
+ * the behaviour it replaces was unbounded, common, and fell on ours.
+ *
+ * Making it exact would mean `spendCreditsFreeFirst` reporting the split it
+ * applied, which its post-spend RETURNING cannot express — that is a change to
+ * the one-statement shape of the balance path, not to a refund.
+ */
+function refundBucket(reservation: CreditReservation): 'free' | 'paid' {
+  return reservation.grantKind === 'paid_balance' ? 'paid' : 'free';
+}
+
+/**
  * Refund all reserved credits (in case of error before streaming)
  */
 export async function refundReservation(reservation: CreditReservation): Promise<void> {
   try {
-    await addCreditsToBalance(getDb(), reservation.userId, reservation.creditsReserved, 'free');
-    log.credits.info({ refunded: reservation.creditsReserved, userId: reservation.userId }, 'Refunded credits to user');
+    const bucket = refundBucket(reservation);
+    await addCreditsToBalance(getDb(), reservation.userId, reservation.creditsReserved, bucket);
+    log.credits.info({ refunded: reservation.creditsReserved, userId: reservation.userId, bucket }, 'Refunded credits to user');
   } catch (error) {
     log.credits.error({ err: error }, 'Error refunding credits');
   }

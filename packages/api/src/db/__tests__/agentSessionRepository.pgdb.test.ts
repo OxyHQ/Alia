@@ -580,6 +580,7 @@ describe('the columns whose TYPE is the whole point', () => {
         creditsReserved: 15,
         initialFreeCredits: 2,
         initialPaidCredits: 13,
+        grantKind: 'free_allowance',
       },
     });
     expect((await findAgentSessionById(db, withCredits._id))?.creditReservation).toEqual({
@@ -587,7 +588,43 @@ describe('the columns whose TYPE is the whole point', () => {
       creditsReserved: 15,
       initialFreeCredits: 2,
       initialPaidCredits: 13,
+      grantKind: 'free_allowance',
     });
+  });
+
+  /**
+   * The funding source survives the round trip, DERIVED rather than stored.
+   *
+   * There is no `credit_reservation_grant_kind` column and none is needed:
+   * `fundingSourceOf` reads the free balance left after the spend, which IS
+   * `credit_reservation_initial_free_credits`, so the answer is recoverable from
+   * what the row already holds and the request that took the reservation and the
+   * worker that settles it cannot disagree about it.
+   *
+   * It has to survive, because `runner.ts` refunds a failed session and
+   * `refundReservation` picks the balance to refund to from this field. A record
+   * that came back without it read as `free_allowance` and returned purchased
+   * credit to the bucket the daily refresh overwrites.
+   */
+  it('derives the funding source of a reservation reloaded from the row', async () => {
+    const paidFunded = await createAgentSession(db, {
+      agentId: await seedAgent(),
+      oxyUserId: OWNER,
+      task: 'funded from money',
+      creditReservation: {
+        userId: OWNER,
+        creditsReserved: 15,
+        // The allowance was empty when this was taken, so the 15 came out of
+        // `credits_paid` and must go back there.
+        initialFreeCredits: 0,
+        initialPaidCredits: 40,
+        grantKind: 'paid_balance',
+      },
+    });
+
+    expect(
+      (await findAgentSessionById(db, paidFunded._id))?.creditReservation?.grantKind,
+    ).toBe('paid_balance');
   });
 
   /**

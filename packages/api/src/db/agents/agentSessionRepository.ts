@@ -43,7 +43,7 @@
  * typed to accept.
  */
 
-import { and, asc, desc, eq, gte, inArray, lte, sql, type SQL } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, inArray, lt, lte, sql, type SQL } from 'drizzle-orm';
 import type { Executor } from '../index';
 import {
   agentSessionResources,
@@ -53,6 +53,7 @@ import {
   type AgentSessionPlanItem,
 } from '../schema/agent-sessions';
 import { agents } from '../schema/agents';
+import { fundingSourceOf, type CreditFundingSource } from '../../domain/credit-funding';
 import type {
   AgentSessionResourceStatus,
   AgentSessionResourceType,
@@ -68,12 +69,30 @@ export interface AgentSessionPlan {
   items: AgentSessionPlanItem[];
 }
 
-/** What a session reserved, and against whom. Absent until credits are taken. */
+/**
+ * What a session reserved, and against whom. Absent until credits are taken.
+ *
+ * Structurally `lib/credits-manager.ts`'s `CreditReservation`, so a session
+ * reloaded from the queue settles or refunds through the same functions the
+ * request that took the reservation would have. It is declared here rather than
+ * imported because `db/` does not depend on `lib/`; `grantKind`'s type comes
+ * from `domain/`, which is a leaf both layers may read.
+ */
 export interface AgentSessionCreditReservation {
   userId: string;
   creditsReserved: number;
   initialFreeCredits: number;
   initialPaidCredits: number;
+  /**
+   * DERIVED on the way out, not stored.
+   *
+   * `fundingSourceOf` decides it from the free balance left after the spend,
+   * which is exactly `credit_reservation_initial_free_credits` — so the verdict
+   * is recoverable from the row and no column is added for it. Persisting it
+   * would create a second authority for a value that already has one, free to
+   * disagree with the columns beside it.
+   */
+  grantKind: CreditFundingSource;
 }
 
 export interface AgentSessionStats {
@@ -167,11 +186,13 @@ function toCreditReservation(row: AgentSessionRow): AgentSessionCreditReservatio
   // account id is the member every writer sets first, and it is `notNull` in
   // every write path here, so it is the one the absence test reads.
   if (row.creditReservationOxyUserId === null) return undefined;
+  const initialFreeCredits = row.creditReservationInitialFreeCredits ?? 0;
   return {
     userId: row.creditReservationOxyUserId,
     creditsReserved: row.creditReservationCreditsReserved ?? 0,
-    initialFreeCredits: row.creditReservationInitialFreeCredits ?? 0,
+    initialFreeCredits,
     initialPaidCredits: row.creditReservationInitialPaidCredits ?? 0,
+    grantKind: fundingSourceOf(initialFreeCredits),
   };
 }
 
@@ -690,6 +711,49 @@ export async function updateAgentSession(
  * completed between the timeout firing and this landing, and a read-then-write
  * would overwrite a real result with `cancelled`. Returns whether it landed.
  */
+/**
+ * A queued session this old was claimed by no worker.
+ *
+ * A BullMQ job is picked up in seconds and the no-Redis fallback runs the
+ * session in-process immediately, so this is orders of magnitude beyond the
+ * normal wait — it is a cutoff for "the process that enqueued this is gone",
+ * not for "the queue is busy".
+ */
+const QUEUED_ORPHAN_AFTER_MS = 30 * 60 * 1000;
+
+/** A stranded session and what it reserved, as the reclaim sweep needs them. */
+export interface ClaimedOrphanedAgentSession {
+  readonly id: string;
+  readonly creditReservation: AgentSessionCreditReservation | undefined;
+}
+
+/**
+ * Fail every session left in `queued` past the cutoff, and RETURN what each one
+ * reserved.
+ *
+ * The UPDATE is the claim. Every API task runs the sweep at boot and a deploy
+ * starts several at once; a `SELECT` followed by a refund would let two of them
+ * read the same row and pay it twice, while a statement that moves the row out
+ * of `queued` returns it to exactly one caller. This is `failOrphanedAudioJobs`
+ * with a `RETURNING`, and the `RETURNING` is the whole difference: an audio job
+ * only needed marking, a session's reservation has to be handed back.
+ *
+ * `now` is a parameter so a test can place the cutoff without waiting.
+ */
+export async function claimOrphanedQueuedAgentSessions(
+  db: Executor,
+  now: Date = new Date(),
+): Promise<ClaimedOrphanedAgentSession[]> {
+  const cutoff = new Date(now.getTime() - QUEUED_ORPHAN_AFTER_MS);
+  const rows = await db
+    .update(agentSessions)
+    .set({ status: 'failed', result: 'Session was never picked up by a worker' })
+    .where(and(eq(agentSessions.status, 'queued'), lt(agentSessions.createdAt, cutoff)))
+    .returning();
+
+  return rows.map((row) => ({ id: row.id, creditReservation: toCreditReservation(row) }));
+}
+
 export async function cancelUnsettledAgentSession(
   db: Executor,
   id: string,

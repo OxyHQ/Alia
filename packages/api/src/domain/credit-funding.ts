@@ -38,3 +38,20 @@
 
 export const CREDIT_FUNDING_SOURCES = ['free_allowance', 'paid_balance'] as const;
 export type CreditFundingSource = (typeof CREDIT_FUNDING_SOURCES)[number];
+
+/**
+ * Classify a reservation from the free balance LEFT once it was taken.
+ *
+ * The single expression the two imprecisions above describe, in the one place
+ * they are described. It lives here rather than in `lib/credits-manager.ts`
+ * because a second caller reads it off STORED columns: an agent session
+ * persists `credit_reservation_initial_free_credits` but no funding source, and
+ * a session reloaded from the queue has to reach the same verdict about the same
+ * reservation as the request that took it — which it does, because this is the
+ * only place either of them asks.
+ *
+ * @param freeCreditsRemaining `credits_free` AFTER the spend.
+ */
+export function fundingSourceOf(freeCreditsRemaining: number): CreditFundingSource {
+  return freeCreditsRemaining > 0 ? 'free_allowance' : 'paid_balance';
+}

@@ -45,6 +45,7 @@ import { syncZeroEval } from '../scripts/sync-zeroeval.js';
 import { moderationOutboxDispatcher } from './crowdsource/dispatcher.js';
 import { warmupGatewayClient } from './gateway-client.js';
 import { log } from './logger.js';
+import { reclaimOrphanedAgentSessions } from './agent/session-handoff.js';
 import { getContainerPool, shutdownContainerPool } from './sandbox/container-pool.js';
 import { initShowQueue, shutdownShowQueue, startShowWorker } from './show/show-queue.js';
 import { initTaskQueue, shutdownTaskQueue, startWorker } from './task-queue.js';
@@ -85,6 +86,21 @@ export function startBackgroundServices(): void {
       if (count > 0) log.general.info({ count }, 'Cleaned up orphaned audio jobs');
     })
     .catch((err) => log.general.error({ err }, '[AudioJob] Orphan cleanup error'));
+  /**
+   * Give back the credits of agent sessions a previous process enqueued and
+   * nothing ever ran (non-blocking).
+   *
+   * The same event as the line above, one table over, and it costs money rather
+   * than a stuck spinner: hiring an agent DEBITS its price, and the worker that
+   * would settle it never arrives. Not leader-gated, because the claim is the
+   * UPDATE — every task may run it and each row is returned to exactly one of
+   * them.
+   */
+  reclaimOrphanedAgentSessions()
+    .then((refunded) => {
+      if (refunded > 0) log.general.warn({ refunded }, 'Refunded agent sessions that were never picked up');
+    })
+    .catch((err) => log.general.error({ err }, '[AgentSession] Orphan reclaim error'));
   // Initialize show generation queue (non-blocking)
   initShowQueue()
     .then(() => startShowWorker())

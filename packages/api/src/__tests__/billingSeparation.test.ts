@@ -705,9 +705,22 @@ describe('a cost record says which balance funded it (#139 ws12)', () => {
 
     // The DECISION, not merely the field: a `grantKind` hardcoded to one value
     // would satisfy every structural check and label every turn identically.
-    const text = manager.getFullText();
-    expect(text).toMatch(
-      /const grantKind: CreditFundingSource =\s*\n?\s*reserveResult\.creditsFree > 0 \? 'free_allowance' : 'paid_balance';/,
+    //
+    // The predicate now lives in `domain/credit-funding.ts` beside the two
+    // imprecisions it carries, because a SECOND caller reaches the same verdict
+    // off stored columns — `agentSessionRepository` rebuilds the funding source
+    // of a reservation a queued session is holding, and a copy of the
+    // expression there would be free to disagree with this one. So this asserts
+    // the decision at its owner AND that the reservation is built from it.
+    const funding = parse(`${API_SRC}/domain/credit-funding.ts`).getFullText();
+    expect(funding).toMatch(
+      /return freeCreditsRemaining > 0 \? 'free_allowance' : 'paid_balance';/,
+    );
+    expect(manager.getFullText()).toContain(
+      'const grantKind: CreditFundingSource = fundingSourceOf(reserveResult.creditsFree);',
+    );
+    expect(parse(`${API_SRC}/db/agents/agentSessionRepository.ts`).getFullText()).toContain(
+      'grantKind: fundingSourceOf(initialFreeCredits)',
     );
   });
 

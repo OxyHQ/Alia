@@ -120,7 +120,9 @@ vi.mock('../../../lib/credits-manager.js', () => ({
     return { creditsCharged: 1, creditsRemaining: 99 };
   }),
   refundReservation: vi.fn(async () => undefined),
-  safeRefund: vi.fn(async () => undefined),
+  safeRefund: vi.fn(async () => {
+    H.timeline.push('credits:refund');
+  }),
   reserveVoiceCredits: vi.fn(async () => ({ userId: 'user-ws13', creditsReserved: 1 })),
   finalizeVoiceCredits: vi.fn(async () => undefined),
 }));
@@ -369,22 +371,33 @@ describe('fixture: voice transcription — failover, credits, and the timeout su
     expect(JSON.stringify(res.body)).not.toContain(UPSTREAM_A);
   });
 
-  it('returns 503 when every provider in the tier fails, after settling the reservation', async () => {
+  /**
+   * REFUNDED, and it used to be settled at zero.
+   *
+   * The previous version of this case asserted `credits:finalize(0)` and said
+   * in a comment that a failed transcription "costs nothing but the reservation
+   * must not be left open". The first half was wrong:
+   * `calculateCreditsFromTokens` returns `MIN_CREDITS_PER_REQUEST` for zero
+   * tokens, so settling at zero CHARGES one credit — the whole reservation —
+   * for an audio clip nobody ever got back as text.
+   *
+   * The reservation is still not left open. It is released by the route's
+   * `finally`, which is why `credits:refund` appears after the 503 rather than
+   * before it.
+   */
+  it('returns 503 when every provider in the tier fails, and refunds the reservation', async () => {
     H.state.transcriptionAttempts = [new Error('down'), new Error('down')];
     const res = capturingRes();
     await transcribe()(voiceReq(audioBody), res, undefined);
 
-    // Settled at ZERO, not refunded: a failed transcription costs nothing but
-    // the reservation must not be left open. Recording the zero rather than
-    // just "finalize was called" is what makes this catch a change of policy.
     expect(H.timeline).toEqual([
       'credits:reserve',
       'provider:tierMappings',
       'provider:transcribeAttempt',
       'provider:transcribeAttempt',
-      'credits:finalize(0)',
       'http:status(503)',
       'http:json',
+      'credits:refund',
     ]);
     expect(res.body).toEqual({ error: 'All transcription providers exhausted' });
   });

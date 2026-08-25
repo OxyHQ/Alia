@@ -22,7 +22,7 @@ import { findAgentById } from '../db/agents/agentRepository.js';
 import { upsertConversation } from '../db/chat/conversationRepository.js';
 import { insertMessages, listRecentTurns } from '../db/chat/messageRepository.js';
 import { getOrCreateUserCredits } from '../lib/user-credits-helpers.js';
-import { reserveCredits, finalizeCredits, type CreditUsage } from '../lib/credits-manager.js';
+import { reserveCredits, finalizeCredits, safeRefund, type CreditReservation, type CreditUsage } from '../lib/credits-manager.js';
 import type { ChannelId, ChannelInboundMessage } from '../lib/channels/types.js';
 import { log } from '../lib/logger.js';
 import { toRoutableAlias } from '../lib/product-modes.js';
@@ -120,12 +120,37 @@ function generateAuthToken(): string {
   return crypto.randomBytes(32).toString('hex');
 }
 
-async function processChannelMessage(
+/**
+ * Answer one inbound message on the shared system bot, and bill the linked
+ * account for it.
+ *
+ * EXPORTED because the route drops this promise on the floor: it acks the
+ * platform (Slack gives it three seconds) and calls this fire-and-forget. There
+ * is no response to inspect and no caller to await, so a test that drives the
+ * route observes nothing about what happens in here — including whether the
+ * credit it reserved came back.
+ */
+export async function processChannelMessage(
   channelType: ChannelId,
   botUser: BotUserRow,
   message: ChannelInboundMessage
 ): Promise<void> {
   const db = getDb();
+  /**
+   * Out here so the `finally` can see them, and `creditsSettled` so no exit can
+   * both charge and refund.
+   *
+   * `reserveCredits` DEBITS on the way in, and this handler has several exits
+   * that answer a problem by messaging the person and returning — no model
+   * available, an exception anywhere. Each one used to keep the credit. Nothing
+   * reported it: the route acked the platform long before any of this ran, so
+   * the only trace was a balance one lower than it should have been.
+   *
+   * The same release `routes/v1/chat-completions.ts` puts in ONE `finally`, for
+   * the same reason: an exit that has to remember is an exit that will forget.
+   */
+  let creditReservation: CreditReservation | null = null;
+  let creditsSettled = false;
   try {
     // Check if user has linked their Alia account
     if (!botUser.isLinked || !botUser.oxyUserId) {
@@ -173,7 +198,7 @@ async function processChannelMessage(
     // Reserve credits before processing
     await getOrCreateUserCredits(userId);
 
-    const creditReservation = await reserveCredits(userId);
+    creditReservation = await reserveCredits(userId);
     if (!creditReservation) {
       const appUrl = process.env.APP_URL || process.env.WEB_URL || 'https://alia.onl';
       await sendChannelMessage(
@@ -249,6 +274,9 @@ async function processChannelMessage(
 
     try {
       await finalizeCredits(creditReservation, tokenUsage, aliasModelId);
+      // Only once the charge returned. A finalize that threw leaves the
+      // reservation unsettled, and therefore refunded by the `finally`.
+      creditsSettled = true;
     } catch (error: unknown) {
       log.webhook.error({ err: error, channelType }, 'Error finalizing credits');
     }
@@ -304,6 +332,11 @@ async function processChannelMessage(
         threadId: message.threadId,
       });
     } catch { /* ignore send errors */ }
+  } finally {
+    // The one place this handler's reservation is released.
+    if (creditReservation && !creditsSettled) {
+      await safeRefund(creditReservation, 'inbound message ended without charging');
+    }
   }
 }
 
@@ -314,8 +347,11 @@ async function processChannelMessage(
  * tool pipeline, bills the owner, and replies with the bot's OWN token. Conversation
  * continuity is tracked per Telegram end-user (the BotUser row), while Conversation and
  * Message docs are owned by the bot owner. The existing global-bot path is untouched.
+ *
+ * Exported for the reason {@link processChannelMessage} is: the route acks and
+ * drops the promise, so nothing downstream of it is observable from the route.
  */
-async function processAgentBotMessage(
+export async function processAgentBotMessage(
   bot: InboundUserBotRow,
   botUser: BotUserRow,
   message: ChannelInboundMessage,
@@ -331,13 +367,18 @@ async function processAgentBotMessage(
     botToken: bot.botToken ?? undefined,
   };
 
+  // Out here for the reason `processChannelMessage` states: this handler's exits
+  // are just as numerous and the owner is the one who pays for a forgotten one.
+  let creditReservation: CreditReservation | null = null;
+  let creditsSettled = false;
+
   try {
     // Defensive: user-owned bots always carry an owner.
     if (!ownerUserId) return;
 
     // Bill the bot owner (not the Telegram end-user).
     await getOrCreateUserCredits(ownerUserId);
-    const creditReservation = await reserveCredits(ownerUserId);
+    creditReservation = await reserveCredits(ownerUserId);
     if (!creditReservation) {
       const appUrl = process.env.APP_URL || process.env.WEB_URL || 'https://alia.onl';
       await sendChannelMessage(
@@ -409,6 +450,7 @@ async function processAgentBotMessage(
     };
     try {
       await finalizeCredits(creditReservation, tokenUsage, aliasModelId);
+      creditsSettled = true;
     } catch (error: unknown) {
       log.webhook.error({ err: error, channelType }, 'Error finalizing agent-bot credits');
     }
@@ -439,6 +481,11 @@ async function processAgentBotMessage(
     try {
       await sendChannelMessage(channelType, message.chatId, 'Sorry, an error occurred. Please try again.', outboundOpts);
     } catch { /* ignore send errors */ }
+  } finally {
+    // The one place this handler's reservation is released.
+    if (creditReservation && !creditsSettled) {
+      await safeRefund(creditReservation, 'inbound agent-bot message ended without charging');
+    }
   }
 }
 

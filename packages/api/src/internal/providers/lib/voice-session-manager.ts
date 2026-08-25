@@ -26,6 +26,8 @@ import { resolveAliaModel } from './model-resolver.js';
 import {
   reserveVoiceCredits,
   finalizeVoiceCredits,
+  safeRefund,
+  type CreditReservation,
 } from '../../../lib/credits-manager.js';
 import { providers } from './providers/index.js';
 import { getErrorMessage } from '../../../lib/errors/index.js';
@@ -162,7 +164,15 @@ export class VoiceSessionManager {
       throw new Error('Insufficient credits');
     }
 
-    // Create session object
+    /**
+     * The try starts HERE, at the reservation, not at the first network call.
+     *
+     * Fifty credits are already debited by this point. Building the session
+     * object and registering it in the map sat outside the old `try`, so a throw
+     * there left the reservation with nobody holding a handle to it — the
+     * `catch` released it through `closeSession`, which needs the session to be
+     * in the map to find it.
+     */
     const session: VoiceSession = {
       sessionId,
       providerSocket: null,
@@ -209,11 +219,11 @@ export class VoiceSessionManager {
       },
     };
 
-    // Store session
-    this.sessions.set(sessionId, session);
-    this.userSessionCounts.set(userId, userSessions + 1);
-
     try {
+      // Store session
+      this.sessions.set(sessionId, session);
+      this.userSessionCounts.set(userId, userSessions + 1);
+
       const t0 = Date.now();
 
       // 1. Create LiveKit room (best-effort — rooms auto-create on first join)
@@ -287,7 +297,24 @@ export class VoiceSessionManager {
 
     } catch (error) {
       log.providers.error({ err: error, sessionId }, '[Voice] Failed to create voice session');
-      await this.closeSession(sessionId, 'setup_failed');
+
+      /**
+       * A session that never came up consumed no provider time, so the whole
+       * minute goes back — the reservation is DETACHED before the close.
+       *
+       * `closeSession` settles whatever reservation it finds against the
+       * elapsed duration, and `calculateCreditsFromMinutes` floors at
+       * `MIN_CREDITS_PER_REQUEST` — so leaving it attached charged one credit
+       * for a call that failed to connect, every time, for as long as this code
+       * existed. Detaching it first also makes the usage record say zero, which
+       * is what actually happened.
+       */
+      const registered = this.sessions.get(sessionId);
+      if (registered) {
+        registered.creditReservation = null;
+        await this.closeSession(sessionId, 'setup_failed');
+      }
+      await safeRefund(creditReservation, 'voice session never started');
       throw error;
     }
   }
@@ -668,6 +695,17 @@ export class VoiceSessionManager {
 
     log.providers.info({ sessionId }, 'Enabling cohost mode');
 
+    /**
+     * Out here so the `catch` can release it.
+     *
+     * `disableCohost` — which the `catch` calls — returns immediately unless
+     * `session.cohostEnabled` is already true, and that flag is set at the very
+     * END of the setup below. So for every failure that can actually occur, the
+     * cleanup path could not see the reservation it was supposed to settle, and
+     * the fifty credits it took simply stayed debited.
+     */
+    let cohostReservation: CreditReservation | null = null;
+
     try {
       // Resolve provider for cohost (same model as primary)
       const resolved = await resolveAliaModel(session.aliaModelId, 1000);
@@ -678,7 +716,7 @@ export class VoiceSessionManager {
       if (!providerImpl?.voice) throw new Error(`Provider ${provider} does not support voice`);
 
       // Reserve credits for cohost
-      const cohostReservation = await reserveVoiceCredits(
+      cohostReservation = await reserveVoiceCredits(
         session.userId, 1, session.aliaModelId, session.costPerMinute
       );
       if (!cohostReservation) {
@@ -770,8 +808,20 @@ export class VoiceSessionManager {
       await session.agentBridge?.publishData({
         type: 'error', code: 'cohost_failed', message: getErrorMessage(error),
       } satisfies AgentDataMessage);
-      // Clean up partial state
-      void this.disableCohost(sessionId, 'setup_failed');
+
+      if (session.cohostEnabled) {
+        // Fully up before it failed: the normal teardown settles the minute
+        // against the time the cohost actually spoke.
+        void this.disableCohost(sessionId, 'setup_failed');
+      } else if (cohostReservation) {
+        /**
+         * It never became enabled, so `disableCohost` would return without
+         * looking at it. The cohost spoke for no time at all, so the whole
+         * minute goes back rather than being settled at the one-credit floor.
+         */
+        session.cohostCreditReservation = null;
+        await safeRefund(cohostReservation, 'voice cohost never started');
+      }
     }
   }
 

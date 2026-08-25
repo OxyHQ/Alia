@@ -5,6 +5,7 @@ import {
   addCredits,
   getOrCreateUserCredits,
   findUserCredits,
+  refreshFreeCreditsIfDue,
   spendCreditsFreeFirst,
 } from '../../db/billing/userCreditsRepository';
 import { getDb } from '../../db/index';
@@ -274,6 +275,38 @@ describe('finalizeCredits', () => {
     ).rejects.toThrow('User credits not found');
   });
 
+  /**
+   * A `finalizeCredits` that THROWS has moved no credits, which is the
+   * assumption every release path in the product rests on.
+   *
+   * `routes/v1/chat-completions.ts`, `lib/chat-lifecycle.ts`, `routes/webhooks.ts`
+   * and `routes/v1/voice.ts` all mark the reservation settled only AFTER
+   * `finalizeCredits` returns, and refund it in a `finally` when it did not. If a
+   * throw could leave a partial charge behind, that refund would pay the account
+   * twice for one turn.
+   *
+   * It cannot, and the reason is structural rather than lucky: every branch of
+   * `_adjustReservation` issues exactly one statement and throws only when that
+   * statement matched no row. The realistic throw is earlier still — the credit
+   * multiplier comes from the model catalogue over HTTP, and that is what is
+   * made to fail here.
+   */
+  it('moves nothing when the multiplier lookup fails', async () => {
+    const id = await account('cm-final-throws', 40, 60);
+    const { getAliaModel } = await import('../chat-core.js');
+    vi.mocked(getAliaModel).mockRejectedValueOnce(new Error('catalogue unreachable'));
+
+    await expect(
+      finalizeCredits(
+        { userId: id, creditsReserved: 5, initialFreeCredits: 40, initialPaidCredits: 60, grantKind: 'free_allowance' },
+        { promptTokens: 1000, completionTokens: 1000, totalTokens: 2000 },
+        'alia-v1',
+      ),
+    ).rejects.toThrow('catalogue unreachable');
+
+    expect(await balanceOf(id)).toEqual({ free: 40, paid: 60 });
+  });
+
   it('throws when the account vanished before the refund', async () => {
     // The refund path: the update matches no row, which is how "gone" is known.
     await expect(
@@ -306,7 +339,7 @@ describe('finalizeVoiceCredits', () => {
 });
 
 describe('refundReservation', () => {
-  it('returns the reserved credits to FREE', async () => {
+  it('returns a FREE-funded reservation to free', async () => {
     const id = await account('cm-refund', 10, 10);
 
     await refundReservation({
@@ -317,9 +350,80 @@ describe('refundReservation', () => {
       grantKind: 'free_allowance',
     });
 
-    // Always to `free`, never to `paid` — a refund of a reservation is not a
-    // purchase, and crediting `paid` would hand out a real entitlement.
+    // `free_allowance` is the decisive half of the classification: the allowance
+    // still held credits after the spend, so nothing came out of `paid` and
+    // crediting `paid` here would hand out a real entitlement.
     expect(await balanceOf(id)).toEqual({ free: 15, paid: 10 });
+  });
+
+  /**
+   * A PAID-funded reservation comes back to `paid`, and the reason is
+   * `refreshFreeCreditsIfDue`.
+   *
+   * The refund used to go to `free` unconditionally. That is not a cosmetic
+   * mislabelling of one column as another: `refreshFreeCreditsIfDue` runs
+   * `SET credits_free = credits_free_limit` — an assignment, not an increment —
+   * on the first balance read more than 24 hours after the last refresh, and
+   * `GET /credits` calls it on every page load. So a credit taken out of the
+   * purchased bucket and handed back to the free one is DESTROYED by the next
+   * refresh, silently, while the balance the customer was shown in between
+   * looked right.
+   *
+   * The case below is the one that matters commercially and the one the old
+   * behaviour always got wrong: an account whose allowance is already spent, so
+   * every reservation is funded from money.
+   */
+  it('returns a PAID-funded reservation to paid', async () => {
+    const id = await account('cm-refund-paid', 0, 100);
+
+    // What `reserveCredits` would have produced: free was already empty, so the
+    // whole reservation came out of `paid`.
+    const reservation = await reserveCredits(id, 50);
+    if (!reservation) throw new Error('the balance covers 50; reserveCredits must not refuse');
+    expect(reservation.grantKind).toBe('paid_balance');
+    expect(await balanceOf(id)).toEqual({ free: 0, paid: 50 });
+
+    await refundReservation(reservation);
+
+    expect(await balanceOf(id)).toEqual({ free: 0, paid: 100 });
+  });
+
+  /**
+   * The same refund, followed by the refresh that is what makes the wrong
+   * bucket cost real money.
+   *
+   * Without this case, "returns to paid" is a claim about which of two integers
+   * moved and a reader may reasonably ask why it matters. Here the account ends
+   * the day with the balance it started with; under a refund to `free` it ends
+   * it 50 credits poorer, and nothing anywhere reports the loss.
+   */
+  it('survives the daily free-allowance refresh, which a refund to free does not', async () => {
+    const id = await account('cm-refund-refresh', 0, 100);
+    // The refresh is due: 25 hours since the last one, and an allowance of 300.
+    const db = getDb();
+    const { userCredits } = await import('../../db/schema/billing');
+    const { eq } = await import('drizzle-orm');
+    await db
+      .update(userCredits)
+      .set({
+        creditsFreeLimit: 300,
+        creditsLastRefresh: new Date(Date.now() - 25 * 60 * 60 * 1000),
+      })
+      .where(eq(userCredits.id, id));
+
+    const reservation = await reserveCredits(id, 50);
+    if (!reservation) throw new Error('the balance covers 50; reserveCredits must not refuse');
+    await refundReservation(reservation);
+
+    const refreshed = await refreshFreeCreditsIfDue(db, id);
+
+    // The allowance is topped back up to its limit, and the 50 purchased credits
+    // are still there. A refund to `free` would have left {free: 300, paid: 50}:
+    // the same total the customer had BEFORE buying the last 50.
+    expect({ free: refreshed?.creditsFree, paid: refreshed?.creditsPaid }).toEqual({
+      free: 300,
+      paid: 100,
+    });
   });
 
   it('does not throw for an account that does not exist', async () => {

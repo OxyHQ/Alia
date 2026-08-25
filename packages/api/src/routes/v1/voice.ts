@@ -3,7 +3,7 @@ import { createVoiceToken, isLiveKitConfigured, getLiveKitUrl } from '../../lib/
 import { getModelMappingsForTier } from '../../lib/gateway-client.js';
 import { callProviderAPI, getAliaModel } from '../../lib/gateway-client.js';
 import { buildIdentityGuard } from '../../lib/identity-guard.js';
-import { reserveCredits, finalizeCredits } from '../../lib/credits-manager.js';
+import { reserveCredits, finalizeCredits, safeRefund, type CreditReservation } from '../../lib/credits-manager.js';
 import { getOrCreateUserCredits } from '../../lib/user-credits-helpers.js';
 import { voiceSessionManager } from '../../internal/providers/lib/voice-session-manager.js';
 import { buildSystemPrompt } from '../../lib/prompt-loader.js';
@@ -280,6 +280,13 @@ router.post('/token', async (req: Request, res: Response) => {
 const TRANSCRIBE_TIMEOUT_MS = 55_000;
 
 router.post('/transcribe', async (req: Request, res: Response) => {
+  /**
+   * Out here so the `finally` can see them, and `creditsSettled` so no exit can
+   * both charge and refund — the release `routes/v1/chat-completions.ts` puts in
+   * one place rather than at each exit.
+   */
+  let reservation: CreditReservation | null = null;
+  let creditsSettled = false;
   try {
     const userId = req.user?.id;
     if (!userId) {
@@ -294,7 +301,7 @@ router.post('/transcribe', async (req: Request, res: Response) => {
     // Ensure user has credits
     await getOrCreateUserCredits(userId);
 
-    const reservation = await reserveCredits(userId);
+    reservation = await reserveCredits(userId);
     if (!reservation) {
       return res.status(402).json({
         error: {
@@ -346,8 +353,19 @@ router.post('/transcribe', async (req: Request, res: Response) => {
         }
       }
 
+      /**
+       * Nothing was transcribed, so nothing is charged — and the `finally`
+       * below is what does it.
+       *
+       * Both exits used to settle at `{ totalTokens: 0 }`, which does not mean
+       * "free": `calculateCreditsFromTokens` floors at
+       * `MIN_CREDITS_PER_REQUEST`, so zero tokens settles at ONE credit. That is
+       * the whole reservation, kept for an audio clip the person never got back
+       * as text. Leaving the reservation unsettled and letting the release
+       * refund it is the difference between "consumed nothing" and "consumed
+       * something too small to price", which the zero-token call cannot express.
+       */
       if (abortController.signal.aborted && !result) {
-        await finalizeCredits(reservation, { promptTokens: 0, completionTokens: 0, totalTokens: 0 });
         return res.status(504).json({
           error: {
             code: 'TIMEOUT',
@@ -358,7 +376,6 @@ router.post('/transcribe', async (req: Request, res: Response) => {
       }
 
       if (!result) {
-        await finalizeCredits(reservation, { promptTokens: 0, completionTokens: 0, totalTokens: 0 });
         return res.status(503).json({ error: 'All transcription providers exhausted' });
       }
 
@@ -368,6 +385,9 @@ router.post('/transcribe', async (req: Request, res: Response) => {
         completionTokens: 50,
         totalTokens: 100,
       });
+      // Only once the charge returned: a finalize that threw leaves the
+      // reservation refundable rather than silently kept.
+      creditsSettled = true;
 
       res.json({ text: result.text });
     } finally {
@@ -376,6 +396,13 @@ router.post('/transcribe', async (req: Request, res: Response) => {
   } catch (error: unknown) {
     log.general.error({ err: error, userId: req.user?.id }, 'Voice transcription failed');
     res.status(500).json({ error: getSafeErrorMessage(error, 'Transcription failed') });
+  } finally {
+    // The one place this route's reservation is released. Before this existed
+    // the module imported no refund at all, so no branch of it could give a
+    // credit back even where one obviously should have been.
+    if (reservation && !creditsSettled) {
+      await safeRefund(reservation, 'transcription produced nothing');
+    }
   }
 });
 
