@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
+import { useAgentRowPreview } from './use-agent-row-preview';
 import { fetch as expoFetch } from 'expo/fetch';
 import * as Haptics from 'expo-haptics';
 import { useOxy } from '@oxyhq/services';
@@ -83,6 +84,7 @@ interface ConversationsInfinite {
 export function useStreamingChat(apiUrl: string, conversationId?: string, reasoningEffort?: EffortLevel | null, selectedModel?: string, skillId?: string | null, agentId?: string | null) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const previewAgentRow = useAgentRowPreview();
   const [error, setError] = useState<Error | null>(null);
   const [conversationTitle, setConversationTitle] = useState<string | null>(null);
   /**
@@ -219,6 +221,9 @@ export function useStreamingChat(apiUrl: string, conversationId?: string, reason
     // again, persisting user -> empty assistant -> duplicate user.
     const messagesToSend = buildOutboundMessages(snapshot, userMessage);
     setMessages((prev) => [...prev, userMessage]);
+    // The sidebar's row for this agent, immediately — this is the half that
+    // makes sending feel like a chat list rather than a form.
+    previewAgentRow(agentId, typeof message.content === 'string' ? message.content : '');
 
     // Create assistant message placeholder
     const assistantMessage: Message = {
@@ -913,8 +918,18 @@ export function useStreamingChat(apiUrl: string, conversationId?: string, reason
       }
       abortControllerRef.current = null;
       setIsLoading(false);
+      /*
+       * The answer replaces your own line in the sidebar — after the flush, so
+       * the last batched fragment is part of what it reads, and once per turn
+       * rather than once per token.
+       */
+      const settled = messagesRef.current;
+      const reply = settled[settled.length - 1];
+      if (reply?.role === 'assistant' && typeof reply.content === 'string') {
+        previewAgentRow(agentId, reply.content);
+      }
     }
-  }, [apiUrl, oxyServices, queryClient, conversationId, reasoningEffort, selectedModel, skillId, agentId, scheduleFlush, flushPendingUpdates, setMessagesAndRef]);
+  }, [apiUrl, oxyServices, queryClient, conversationId, reasoningEffort, selectedModel, skillId, agentId, scheduleFlush, flushPendingUpdates, setMessagesAndRef, previewAgentRow]);
 
   const stop = useCallback(() => {
     if (abortControllerRef.current) {
