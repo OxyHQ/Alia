@@ -13,8 +13,69 @@ import { getUserEntitlements } from '../../lib/plan-access.js';
 import { aliasesForProfile } from '../../lib/routing/alias-translation.js';
 import { getVoiceUsageSummary } from '../../lib/voice-usage.js';
 import { getSafeErrorMessage } from '../../lib/errors/sanitize.js';
+import { getDb } from '../../db/index.js';
+import { loadTurnAgent } from '../../lib/agent-account.js';
+import { agentPromptName } from '../../lib/agent-identity.js';
+import { buildArchetypeSystemPrompt } from '../../lib/agent/archetype-prompts.js';
+import {
+  FIXED_FAMILY_TOOLS,
+  GRANTS_EVERYTHING,
+  readCapabilityGrants,
+  UNGRANTED_TOOLS,
+  type CapabilityGrantSet,
+  type FixedCapabilityFamily,
+} from '../../domain/capability-grants.js';
 import type { Request, Response } from 'express';
 import type { OpenAITool } from '../../internal/providers/lib/types.js';
+
+/**
+ * Which family each voice tool belongs to, DERIVED from the one vocabulary.
+ *
+ * Inverted from `FIXED_FAMILY_TOOLS` rather than restated, so a tool that moves
+ * family moves here too and a tool this route wires that belongs to NO family
+ * is visible as a `undefined` lookup instead of quietly defaulting to allowed.
+ */
+const FAMILY_OF: ReadonlyMap<string, FixedCapabilityFamily> = new Map(
+  Object.entries(FIXED_FAMILY_TOOLS).flatMap(([family, tools]) =>
+    tools.map((tool) => [tool, family as FixedCapabilityFamily] as const),
+  ),
+);
+
+/**
+ * The voice tools this turn may reach.
+ *
+ * ## Why this exists at all, and why it is in the same change as the agent
+ *
+ * `voiceTools` is written by hand as an array of `OpenAITool` — a SIXTH tool
+ * assembler that `lib/__tests__/one-assembler.test.ts` cannot see, because it
+ * censuses `ToolSet` builders and this is not one.
+ *
+ * That was harmless while voice did not know about agents: the session was
+ * ordinary Alia acting for the person, with the person's own tools, and nobody
+ * needs permission to write their own memory or use their own Telegram.
+ *
+ * **Binding the agent is what would have made it a hole.** The moment the
+ * session belongs to an agent, those six tools are the AGENT's — so an agent
+ * without `messaging` could send Telegram by voice and one without `memory`
+ * could rewrite its owner's memory, with deny-by-default bypassed on a path no
+ * gate watches. Introducing that in the commit that gives an agent its identity
+ * is the failure this function exists to prevent, which is why the two land
+ * together.
+ *
+ * A tool is WITHHELD, never left in to fail when called: a model offered a tool
+ * it may not use will call it, and the refusal it gets back is a worse answer
+ * than never having been offered it.
+ */
+function voiceToolsFor(tools: readonly OpenAITool[], grants: CapabilityGrantSet): OpenAITool[] {
+  return tools.filter((tool) => {
+    const name = tool.function.name;
+    if (UNGRANTED_TOOLS.includes(name)) return true;
+    const family = FAMILY_OF.get(name);
+    // A tool in no family is refused rather than allowed. The alternative makes
+    // a typo in a tool name into a permission.
+    return family === undefined ? false : grants.allows(family);
+  });
+}
 
 const router = Router();
 
@@ -94,6 +155,28 @@ router.post('/token', async (req: Request, res: Response) => {
     const voice = req.body.voice || undefined;
     const clientInstructions = req.body.instructions || undefined;
 
+    /**
+     * The agent this VOICE session is for, named by the request exactly as a
+     * text turn names one.
+     *
+     * Authorised by `loadTurnAgent`, the same function `lib/chat/request-context.ts`
+     * uses — published-and-active, or `account:act_as` on the bot account. A
+     * refusal is `null` and the session runs as ordinary Alia, which is what
+     * every voice session did before this.
+     */
+    const requestedAgentId = typeof req.body.agentId === 'string' ? req.body.agentId : '';
+    const agent =
+      requestedAgentId === ''
+        ? null
+        : await loadTurnAgent(getDb(), {
+            agentId: requestedAgentId,
+            oxyUserId: userId,
+            accessToken: req.accessToken,
+          }).catch((err: unknown) => {
+            log.general.warn({ err, agentId: requestedAgentId }, 'Could not resolve the voice agent');
+            return null;
+          });
+
     // Enforce model access
     if (!entitlements.allowedModelIds.includes(model)) {
       return res.status(403).json({
@@ -127,11 +210,38 @@ router.post('/token', async (req: Request, res: Response) => {
       voiceInstructions = clientInstructions;
     }
 
-    // Identity guard — prepended LAST so it survives a full client override and
-    // sits at the top of the voice session instructions. Nothing can strip the
-    // Alia identity boundary from a voice session.
+    /**
+     * The agent's own prompt, composed the way the TEXT path composes it.
+     *
+     * `system-prompt-builder.ts` prepends `# AGENT: <name>` above the Alia
+     * prompt rather than replacing it, so voice does the same — not a third
+     * shape. It goes on AFTER the client override for the same reason the guard
+     * does: a session that belongs to an agent must not be able to stop being
+     * that agent because the caller sent instructions.
+     */
+    if (agent) {
+      const agentPrompt = agent.systemPrompt || buildArchetypeSystemPrompt(agent);
+      if (agentPrompt) {
+        voiceInstructions = `# AGENT: ${agentPromptName(agent)}\n\n${agentPrompt}\n\n---\n\n${voiceInstructions}`;
+      }
+    }
+
+    /**
+     * Identity guard — prepended LAST so it survives a full client override and
+     * sits at the top of the voice session instructions. Nothing can strip the
+     * identity boundary from a voice session.
+     *
+     * An agent's session says the AGENT's name; an ordinary one says the
+     * model's. What does NOT change either way is the rest of the guard: the
+     * provider, the foundation model and the company that trained it stay
+     * unsayable. Giving an agent its name is not opening the door to naming the
+     * engine.
+     */
     const voiceModel = await getAliaModel(model);
-    voiceInstructions = `${buildIdentityGuard({ modelName: voiceModel?.name })}\n\n---\n\n${voiceInstructions}`;
+    voiceInstructions = `${buildIdentityGuard({
+      ...(agent ? { agentName: agentPromptName(agent) } : {}),
+      modelName: voiceModel?.name,
+    })}\n\n---\n\n${voiceInstructions}`;
 
     // Voice-appropriate tools (executed server-side by VoiceSessionManager)
     const voiceTools: OpenAITool[] = [
@@ -247,7 +357,10 @@ router.post('/token', async (req: Request, res: Response) => {
       model,
       instructions: voiceInstructions,
       voice,
-      tools: voiceTools,
+      tools: voiceToolsFor(
+        voiceTools,
+        agent ? readCapabilityGrants(agent.capabilityGrants) : GRANTS_EVERYTHING,
+      ),
       maxDuration: maxSessionDuration,
     });
 

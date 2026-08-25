@@ -17,6 +17,13 @@ interface UseVoiceModeOptions {
   chatMessages: Message[];
   setMessages: (msgs: Message[] | ((prev: Message[]) => Message[])) => void;
   conversationId?: string;
+  /**
+   * The agent whose thread this is, when there is one.
+   *
+   * NOT `voiceRoom.agentState`, which is LiveKit's voice-agent connection state
+   * and shares nothing with this but the word.
+   */
+  agentId?: string;
   onDeactivate?: () => void;
 }
 
@@ -33,7 +40,7 @@ function adaptVoiceMessage(vm: VoiceMessage): Message {
   };
 }
 
-export function useVoiceMode({ chatMessages, setMessages, conversationId, onDeactivate }: UseVoiceModeOptions) {
+export function useVoiceMode({ chatMessages, setMessages, conversationId, agentId, onDeactivate }: UseVoiceModeOptions) {
   const [isVoiceActive, setIsVoiceActive] = useState(false);
   const queryClient = useQueryClient();
 
@@ -42,7 +49,7 @@ export function useVoiceMode({ chatMessages, setMessages, conversationId, onDeac
   // Snapshot of text messages when voice mode starts (to prevent overwrites)
   const textSnapshotRef = useRef<Message[]>([]);
 
-  const voiceRoom = useVoiceRoom();
+  const voiceRoom = useVoiceRoom(agentId);
   const { captureLevel, playbackLevel } = useAudioLevelMonitor(voiceRoom.room, voiceRoom.isConnected);
   const { waveAmplitude } = useAudioLevels({
     captureLevel,
