@@ -14,11 +14,20 @@
 -- that image is up.
 --
 -- The default is `private`, which is what a NEW agent gets. The backfill below
--- is deliberately the other way for existing rows: `allow_hiring` is dropped in
--- the next migration and today every published agent is usable by anyone, so
--- carrying that flag across is what keeps this from silently revoking access
--- somebody already had. Measured in production 2026-08-25: the table has ZERO
--- rows, so the backfill is a statement of intent rather than a data change.
+-- carries `allow_hiring` across for rows that already exist, so this cannot
+-- silently revoke an access somebody had CHOSEN.
+--
+-- What it did, measured in production through `GET /agents` after the deploy —
+-- not what was expected before it: the table held THREE rows, not the zero an
+-- earlier count had found, and all three came out `private`. `allow_hiring` was
+-- `false` on every one of them, which was the default of a column that
+-- authorised nothing, so nobody had ever chosen for those agents to be usable
+-- by anyone. Mapping that default to `public` would have carried an access
+-- forward that no one decided, which is the thing this split exists to stop.
+--
+-- Left as it landed, deliberately, and confirmed with the owner: the three stay
+-- private, they remain in the catalogue, and making one public is a switch in
+-- the agent editor.
 
 ALTER TABLE "agents" ADD COLUMN "access" text DEFAULT 'private' NOT NULL;--> statement-breakpoint
 ALTER TABLE "agents" ADD CONSTRAINT "agents_access_check" CHECK ("agents"."access" in ('private', 'public'));--> statement-breakpoint
