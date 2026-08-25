@@ -27,12 +27,31 @@
  * container and browser to act on, a device to describe — never because of
  * which function happened to build the set.
  *
- * ## The agent is an INPUT, not something derived from the user
+ * ## The agent is an INPUT, and its GRANTS are what partition the set
  *
  * `agent` says whose turn this is. Before, the only identity in scope was
  * `userId`, so an agent saw exactly what its owner saw and no partition was
- * expressible. The capability vocabulary that partitions it is the next piece
- * of work, and it lands here rather than in a sixth assembler.
+ * expressible. `agent.capabilityGrants` is that partition, and it is the only
+ * input that decides what an agent may reach.
+ *
+ * Two properties follow, and both are behaviour changes worth stating:
+ *
+ *  - **An agent with no grants gets nothing** beyond `UNGRANTED_TOOLS`. The
+ *    three vocabularies this replaced all defaulted the other way — a NULL
+ *    `permissions` column meant ALLOWED — so an agent nobody had configured
+ *    reached everything its owner could. `domain/capability-grants.ts` argues
+ *    the reversal.
+ *  - **A turn with NO agent is untouched.** Ordinary Alia has no grants to read
+ *    and reaches whatever its surface structurally allows, exactly as before;
+ *    `GRANTS_EVERYTHING` is what says so, and it is deliberately not the same
+ *    value as "an agent granted every family" — an agent's set can never answer
+ *    `null` to an instance question, so a missing agent cannot be mistaken for
+ *    a fully-granted one.
+ *
+ * The grant is read at the point each tool is BUILT, never filtered out
+ * afterwards. A filter would need its own copy of which tool belongs to which
+ * family, free to drift from the vocabulary; and for the three instanced
+ * families it would mean fetching a connector's tools in order to discard them.
  */
 
 import type { ToolSet } from 'ai';
@@ -64,6 +83,11 @@ import { convertOpenAIToolsToToolSet, type OpenAITool } from './tool-converter.j
 import { log } from './logger.js';
 import type { SSEEmitter } from './sse-emitter.js';
 import type { HydratedAgent } from './agent-identity.js';
+import {
+  GRANTS_EVERYTHING,
+  readCapabilityGrants,
+  type CapabilityGrantSet,
+} from '../domain/capability-grants.js';
 import type { DeviceInfo } from './tools/device-info.js';
 import {
   applyRuntimePolicy,
@@ -172,10 +196,15 @@ export interface ForUserOptions {
    */
   isLocalRuntime: boolean;
   /**
-   * One hosted MCP connector selected for this turn.
+   * One hosted MCP connector selected for this turn, by the person composing it.
    *
    * `undefined` keeps the compatibility behaviour (all runnable connectors),
    * `null` exposes none, and a string exposes only that owned connector.
+   *
+   * SEPARATE from the agent's grants, and narrower than either alone: this is
+   * one turn's choice, the grants are a standing property of the agent, and
+   * what reaches `buildMcpTools` is the intersection. A composer pick the agent
+   * was not granted exposes nothing.
    */
   mcpServerId?: string | null;
 }
@@ -217,6 +246,18 @@ export class ToolPipeline {
     const toolNameMapping = new Map<string, string>();
 
     /**
+     * What this turn may reach, family by family.
+     *
+     * A turn with no agent is ordinary Alia and is not partitioned at all. A
+     * turn WITH one reaches only what its owner granted, and an agent whose
+     * owner has granted nothing reaches nothing — see the file comment.
+     */
+    const grants: CapabilityGrantSet =
+      agent === undefined || agent === null
+        ? GRANTS_EVERYTHING
+        : readCapabilityGrants(agent.capabilityGrants);
+
+    /**
      * A trigger whose author opted out of tools gets the date and nothing else.
      *
      * Returned before anything is fetched, so an opted-out trigger costs no MCP
@@ -232,12 +273,20 @@ export class ToolPipeline {
       ? convertOpenAIToolsToToolSet(editorToolDefinitions, toolNameMapping)
       : {};
 
-    // 2. Static tools (server-executed)
-    const aliaTools: ToolSet = {
-      getCurrentDate: getCurrentDateTool,
-      generateFile: generateFileTool,
-      canvas: canvasTool,
-    };
+    /**
+     * 2. Static tools (server-executed).
+     *
+     * `getCurrentDate` is ungranted — it is the clock, and it is already
+     * unconditional above for a trigger that switched tools off entirely.
+     * `generateFile` and `canvas` both produce something to RENDER rather than
+     * writing anywhere, which is why they are one family and why neither sits
+     * with `file_edit`.
+     */
+    const aliaTools: ToolSet = { getCurrentDate: getCurrentDateTool };
+    if (grants.allows('artifacts')) {
+      aliaTools.generateFile = generateFileTool;
+      aliaTools.canvas = canvasTool;
+    }
 
     /**
      * The web reaches this turn only if it was asked for.
@@ -248,7 +297,7 @@ export class ToolPipeline {
      * enable searching (already on) and could not disable it (no flag). The
      * flag exists now and this is what it does.
      */
-    if (webSearch) {
+    if (webSearch && grants.allows('web')) {
       aliaTools.webSearch = webSearchTool;
       aliaTools.webScraper = webScraperTool;
       aliaTools.browse = browseTool;
@@ -267,30 +316,43 @@ export class ToolPipeline {
      * and each ended up with a different one. See {@link ForUserOptions.actsForPerson}
      * for why an API-key turn must still be refused here.
      */
-    if (actsForPerson) Object.assign(aliaTools, {
-      saveUserMemory: saveUserMemoryTool(userId),
-      updateUserMemory: updateUserMemoryTool(userId),
-      updateUserPreferences: updateUserPreferencesTool(userId),
-      updateUserContext: updateUserContextTool(userId),
-      /**
-       * ONE name. It was `sendTelegram` here and `sendTelegramMessage` on the
-       * other three paths, for the same factory — so a prompt or a skill naming
-       * one silently did nothing on the other. The three-way spelling wins, and
-       * it is the one `lib/agent/tool-router.ts` already maps.
-       */
-      sendTelegramMessage: createSendTelegramTool(userId),
-      getWhatsAppChats: createGetWhatsAppChatsTool(userId),
-      getWhatsAppMessages: createGetWhatsAppMessagesTool(userId),
-      sendWhatsAppMessage: createSendWhatsAppMessageTool(userId),
-      createTrigger: createTriggerTool(userId),
-      listTriggers: listTriggersTool(userId),
-      updateTrigger: updateTriggerTool(userId),
-      deleteTrigger: deleteTriggerTool(userId),
-      ...(webSearch && !isLocalRuntime ? { deepResearch: createDeepResearchTool(userId) } : {}),
-    });
+    if (actsForPerson) {
+      if (grants.allows('memory')) Object.assign(aliaTools, {
+        saveUserMemory: saveUserMemoryTool(userId),
+        updateUserMemory: updateUserMemoryTool(userId),
+        updateUserPreferences: updateUserPreferencesTool(userId),
+        updateUserContext: updateUserContextTool(userId),
+      });
+      if (grants.allows('messaging')) Object.assign(aliaTools, {
+        /**
+         * ONE name. It was `sendTelegram` here and `sendTelegramMessage` on the
+         * other three paths, for the same factory — so a prompt or a skill
+         * naming one silently did nothing on the other. The three-way spelling
+         * wins, and it is the one `lib/agent/tool-router.ts` already maps.
+         */
+        sendTelegramMessage: createSendTelegramTool(userId),
+        getWhatsAppChats: createGetWhatsAppChatsTool(userId),
+        getWhatsAppMessages: createGetWhatsAppMessagesTool(userId),
+        sendWhatsAppMessage: createSendWhatsAppMessageTool(userId),
+      });
+      if (grants.allows('automation')) Object.assign(aliaTools, {
+        createTrigger: createTriggerTool(userId),
+        listTriggers: listTriggersTool(userId),
+        updateTrigger: updateTriggerTool(userId),
+        deleteTrigger: deleteTriggerTool(userId),
+      });
+      // `web`, not a family of its own: what it does is read the open web, and
+      // it is withheld from an unreserved turn for the reason `isLocalRuntime`
+      // gives above.
+      if (webSearch && !isLocalRuntime && grants.allows('web')) {
+        aliaTools.deepResearch = createDeepResearchTool(userId);
+      }
+    }
 
     // Minting an agent needs the caller's own credential, so only a session has it.
-    if (isDirectSession) aliaTools.createAgent = createAgentTool(userId, accessToken);
+    if (isDirectSession && grants.allows('delegation')) {
+      aliaTools.createAgent = createAgentTool(userId, accessToken);
+    }
 
     /**
      * SSE-emitting tools: they need an emitter to push through AND a client
@@ -311,27 +373,38 @@ export class ToolPipeline {
       });
     }
 
-    // The five session primitives: only a turn with a live session can act on one.
-    if (runtime) Object.assign(aliaTools, buildRuntimeTools(runtime));
+    // The session primitives: only a turn with a live session can act on one,
+    // and only the families it was granted — the source decides, not a filter.
+    if (runtime) Object.assign(aliaTools, buildRuntimeTools(runtime, grants));
 
     /**
-     * 4. The bulk sources. ALL THREE, on every surface.
+     * 4. The bulk sources — the THREE INSTANCED FAMILIES. All of them, on every
+     * surface.
      *
      * `buildOxyServiceTools` used to be here alone, so an agent answering on
      * its owner's Telegram bot could not reach one first-party Oxy service —
      * the divergence this collapse exists to end.
      *
-     * An agent's own permissions can decline a source, and declining means NOT
-     * FETCHING rather than fetching and discarding: the runtime policy pass
-     * cannot tell an integration tool from a static one by name, and should not
-     * have to.
+     * Each of the three builds its tool NAMES from rows — `mcp_x__y`,
+     * `oxy_x__y`, and an integration the person connected — so nobody could
+     * enumerate them when the vocabulary was written and a whole-family grant
+     * would be a blank cheque over rows that do not exist yet. That is exactly
+     * what an agent inheriting all of its owner's connectors was, and it is why
+     * these three are granted one row at a time.
+     *
+     * A grant of nothing means NOT FETCHING rather than fetching and
+     * discarding: an empty selection short-circuits inside each source, so an
+     * agent granted no connector costs no round trip and no cache entry.
      */
-    const permissions = agent?.permissions;
     const [mcpTools, integrationTools, oxyServiceTools] = actsForPerson
       ? await Promise.all([
-          permissions?.mcp_servers === false ? {} : buildMcpTools(userId, mcpServerId).catch(bulkFailure('mcp')),
-          permissions?.communications === false ? {} : buildIntegrationTools(userId).catch(bulkFailure('integration')),
-          accessToken === undefined ? {} : buildOxyServiceTools(userId, accessToken).catch(bulkFailure('oxy-service')),
+          buildMcpTools(userId, mcpSelection(mcpServerId, grants)).catch(bulkFailure('mcp')),
+          buildIntegrationTools(userId, grants.instances('integration') ?? undefined)
+            .catch(bulkFailure('integration')),
+          accessToken === undefined
+            ? {}
+            : buildOxyServiceTools(userId, accessToken, grants.instances('oxy_service') ?? undefined)
+                .catch(bulkFailure('oxy-service')),
         ])
       : [{}, {}, {}];
     Object.assign(aliaTools, mcpTools, integrationTools, oxyServiceTools);
@@ -340,7 +413,7 @@ export class ToolPipeline {
     const tools: ToolSet = { ...aliaTools, ...editorTools };
 
     // 6. Agent mode: add search & delegation tools
-    if (agentMode && isDirectSession) {
+    if (agentMode && isDirectSession && grants.allows('delegation')) {
       tools.searchAgents = createSearchAgentsTool();
       tools.delegateToAgent = createDelegateToAgentTool();
     }
@@ -356,6 +429,29 @@ export class ToolPipeline {
 
     return { tools, toolNameMapping };
   }
+}
+
+/**
+ * The MCP connectors this turn may reach: the composer's pick AND the grants.
+ *
+ * Two allow-lists over one set, and the answer is their intersection. They mean
+ * different things — `pick` is one turn's choice from Alia's composer, the
+ * grants are a standing property of the agent — so neither can stand in for the
+ * other, and a pick the agent was not granted has to expose nothing rather than
+ * override the grant.
+ *
+ * `undefined` survives only when BOTH sides are unrestricted, which is a turn
+ * with no agent and no pick: that is the one case that still means every
+ * runnable connector, local relay servers included.
+ */
+function mcpSelection(
+  pick: string | null | undefined,
+  grants: CapabilityGrantSet,
+): readonly string[] | undefined {
+  const granted = grants.instances('mcp');
+  if (pick === null) return [];
+  if (granted === null) return pick === undefined ? undefined : [pick];
+  return pick === undefined ? granted : granted.filter((id) => id === pick);
 }
 
 /**

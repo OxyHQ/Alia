@@ -22,21 +22,33 @@
  *
  * The five primitives replace the 20+ structured tools from agent-tools.ts:
  *
- *   shell     — Persistent terminal (lazy container creation)
- *   browser   — Web search, navigation, screenshots
- *   file_edit — Read/write/edit files in workspace
- *   plan      — Task planning + completion signal
- *   delegate  — Hire specialist agents
+ *   shell     — Persistent terminal (lazy container creation)      grant: shell
+ *   browser   — Web search, navigation, screenshots                grant: browser
+ *   file_edit — Read/write/edit files in workspace                 grant: files
+ *   plan      — Task planning + completion signal                  ungranted
+ *   delegate  — Hire specialist agents                             grant: delegation
  *
  * Design principles (from Manus):
- *   - All 5 actions ALWAYS present in context (KV-cache stability)
  *   - Simple schemas (strict validation, no .passthrough())
  *   - Raw text returns (not structured JSON)
  *   - State instructions via prompt, not tool removal
+ *
+ * The fifth principle used to be "all 5 actions ALWAYS present in context
+ * (KV-cache stability)", and the capability grants retire it deliberately: a
+ * primitive the agent was not granted is ABSENT rather than present-and-stubbed.
+ * The cache argument survives intact, because a grant is a stored property of
+ * the agent and cannot change between steps of a run — what it ruled out was
+ * removing a tool because of STATE, which nothing here does.
+ *
+ * Withholding rather than stubbing is the same call `ForUserOptions.webSearch`
+ * makes one file over, for the same reason: the model decides whether to call a
+ * tool, so a tool left in the set with a refusing `execute` is an off switch the
+ * model can spend a step overruling.
  */
 
 import { tool, type ToolSet } from 'ai';
 import { z } from 'zod';
+import type { CapabilityGrantSet } from '../../domain/capability-grants.js';
 import { TerminalSession } from './terminal-session.js';
 import { BrowserSession } from './browser-session.js';
 import { TodoManager } from './todo-manager.js';
@@ -50,11 +62,9 @@ import { classifyActionRisk, createRollbackRecord } from './governance.js';
 import { autonomyFlags } from '../autonomy/flags.js';
 import { getDb } from '../../db/index.js';
 import { updateAgentSession, type AgentSessionRecord } from '../../db/agents/agentSessionRepository.js';
-import type { AgentRecord } from '../../db/agents/agentRepository.js';
 import type { EventStream } from './event-stream.js';
 
 export interface AgentRuntimeContext {
-  agent: AgentRecord;
   session: AgentSessionRecord;
   onComplete: (result: string) => void;
   onHireAgent?: (handle: string, task: string) => Promise<string>;
@@ -66,13 +76,18 @@ export interface AgentRuntimeContext {
 }
 
 /**
- * The five primitives. All of them, always — no state-based filtering, because
- * a tool set that changes shape between steps invalidates the KV cache.
+ * The primitives this run was GRANTED, plus `plan`, which is protocol.
  *
- * `delegate` is the one exception and it is structural rather than stateful:
- * it exists only when the caller supplied something to delegate THROUGH.
+ * The grant is read here rather than filtered out afterwards, because a filter
+ * in the assembler would need its own copy of which name belongs to which
+ * family — a second declaration free to drift from this one. The source that
+ * builds a tool is the thing that knows what it is.
+ *
+ * `plan` is ungranted on purpose: it carries `onComplete`, so an agent denied it
+ * could never end its own session. `delegate` needs a grant AND something to
+ * delegate THROUGH, which is structural and separate.
  */
-export function buildRuntimeTools(ctx: AgentRuntimeContext): ToolSet {
+export function buildRuntimeTools(ctx: AgentRuntimeContext, grants: CapabilityGrantSet): ToolSet {
   const {
     session, onComplete, onHireAgent,
     todoManager, workspaceMemory,
@@ -84,7 +99,7 @@ export function buildRuntimeTools(ctx: AgentRuntimeContext): ToolSet {
 
   // ── 1. shell — Persistent terminal ──
 
-  actions.shell = tool({
+  if (grants.allows('shell')) actions.shell = tool({
     description: 'Run a bash command in a persistent terminal session. Working directory, environment variables, and installed packages persist between calls. A container is created automatically on first use.',
     inputSchema: z.object({
       command: z.string().describe('Bash command to execute'),
@@ -101,7 +116,7 @@ export function buildRuntimeTools(ctx: AgentRuntimeContext): ToolSet {
 
   // ── 2. browser — Web search, navigation, screenshots ──
 
-  actions.browser = tool({
+  if (grants.allows('browser')) actions.browser = tool({
     description: 'Interact with a web browser. Use for web research, reading pages, and interactive browsing. Actions: search (web search), goto (navigate to URL), get_text (extract page text), screenshot (capture page), click (click element), type (fill input), scroll_down, scroll_up, back, wait.',
     inputSchema: z.object({
       action: z.enum(['goto', 'click', 'type', 'scroll_down', 'scroll_up', 'screenshot', 'get_text', 'search', 'back', 'wait']),
@@ -137,7 +152,7 @@ export function buildRuntimeTools(ctx: AgentRuntimeContext): ToolSet {
 
   // ── 3. file_edit — Read/write/edit files ──
 
-  actions.file_edit = tool({
+  if (grants.allows('files')) actions.file_edit = tool({
     description: 'Read, write, edit, or list files in the workspace. Use "read" to view file contents, "write" to create/overwrite a file, "edit" to find and replace text in a file, "list" to list files in a directory. More precise than shell commands for file modifications.',
     inputSchema: z.object({
       action: z.enum(['read', 'write', 'edit', 'list']),
@@ -255,7 +270,7 @@ export function buildRuntimeTools(ctx: AgentRuntimeContext): ToolSet {
 
   // ── 5. delegate — Hire specialist agents ──
 
-  if (onHireAgent) {
+  if (onHireAgent && grants.allows('delegation')) {
     actions.delegate = tool({
       description: 'Hire a specialist agent for a subtask. The agent works autonomously and returns the result. Use for tasks outside your expertise or to parallelize work.',
       inputSchema: z.object({
@@ -278,13 +293,19 @@ export function buildRuntimeTools(ctx: AgentRuntimeContext): ToolSet {
 }
 
 /**
- * The agent's permissions and the threat detector, over the WHOLE set.
+ * The threat detector and the governance policy, over the WHOLE set.
  *
- * Runs LAST and over everything the pipeline assembled — the five primitives,
- * the MCP tools, the integrations — because both wrappers are about what an
- * agent may DO, not about where a tool came from. Mutates in place and returns
- * the same object, which is what a wrapper that swaps `execute` can honestly
- * claim to do.
+ * Runs LAST and over everything the pipeline assembled — the primitives, the
+ * MCP tools, the integrations — because it is about what an agent may DO, not
+ * about where a tool came from. Mutates in place and returns the same object,
+ * which is what a wrapper that swaps `execute` can honestly claim to do.
+ *
+ * The agent's own capabilities used to be enforced HERE, as four `denyStub`s
+ * that replaced `execute` with an error string. They are not, any more: a
+ * capability the agent lacks means the tool is never built (see
+ * {@link buildRuntimeTools}), so there is nothing left to stub. Four stubs also
+ * covered four of the six `permissions` and nothing covered the other two —
+ * which is how a vocabulary ends up two-thirds decorative.
  */
 export async function applyRuntimePolicy(
   actions: ToolSet,
@@ -303,22 +324,6 @@ export async function applyRuntimePolicy(
 ): Promise<ToolSet> {
   const { session, eventStream } = ctx;
   const userId = session.oxyUserId;
-
-  // ── Agent Permission Enforcement ──
-  // If the agent has explicit permissions set, replace disabled tools with stubs.
-  // undefined permissions = all allowed (backward compatible with existing agents).
-  const perms = ctx.agent.permissions;
-  if (perms) {
-    const denyStub = (capability: string) =>
-      async () => `Error: ${capability} access is disabled for this agent. Contact the agent creator to enable it.`;
-
-    // Swap the execute function in place to keep the original description and
-    // input schema — the model still sees the tool but any call is refused.
-    if (perms.shell === false && actions.shell) actions.shell.execute = denyStub('Shell');
-    if (perms.network === false && actions.browser) actions.browser.execute = denyStub('Browser/network');
-    if (perms.filesystem === false && actions.file_edit) actions.file_edit.execute = denyStub('Filesystem');
-    if (perms.delegation === false && actions.delegate) actions.delegate.execute = denyStub('Agent delegation');
-  }
 
   /**
    * An MCP tool that throws answers the model instead of failing the step.

@@ -32,12 +32,6 @@ export type AgentStatus = (typeof AGENT_STATUSES)[number];
  * readers used to share the Mongoose interface `IArchetypeConfig` and got the
  * same false guarantee from it.
  */
-export interface ArchetypeSourceSet {
-  integrations?: string[];
-  mcpServers?: string[];
-  oxyServices?: string[];
-}
-
 export interface ArchetypeAssignee {
   type?: string;
   id?: string;
@@ -58,9 +52,17 @@ export interface ArchetypeSchedule {
   cron?: string;
 }
 
+/**
+ * `knowledgeSources` and `dataSources` were here, and they are GONE.
+ *
+ * Two identically shaped lists of integration, MCP-server and Oxy-service names
+ * — the third of the three vocabularies that answered "what may this agent
+ * touch", and the only one that never even claimed to reach the tool set: its
+ * single reader spliced the names into a prompt as prose. `capability_grants`
+ * replaces all three; `domain/capability-grants.ts` has the argument.
+ */
 export interface ArchetypeConfig {
   // Q&A
-  knowledgeSources?: ArchetypeSourceSet;
   citeSources?: boolean;
   // Task router
   inboundChannels?: string[];
@@ -68,7 +70,6 @@ export interface ArchetypeConfig {
   defaultAssignee?: ArchetypeAssignee;
   escalationTimeoutMinutes?: number;
   // Status update
-  dataSources?: ArchetypeSourceSet;
   reportTemplate?: string;
   reportFormat?: string;
   deliveryChannels?: string[];
@@ -85,22 +86,6 @@ function asRecord(value: unknown): Record<string, unknown> | null {
 function stringArray(value: unknown): string[] | undefined {
   if (!Array.isArray(value)) return undefined;
   return value.filter((item): item is string => typeof item === 'string');
-}
-
-function readSourceSet(value: unknown): ArchetypeSourceSet | undefined {
-  const record = asRecord(value);
-  if (record === null) return undefined;
-  return {
-    ...(stringArray(record.integrations) !== undefined && {
-      integrations: stringArray(record.integrations),
-    }),
-    ...(stringArray(record.mcpServers) !== undefined && {
-      mcpServers: stringArray(record.mcpServers),
-    }),
-    ...(stringArray(record.oxyServices) !== undefined && {
-      oxyServices: stringArray(record.oxyServices),
-    }),
-  };
 }
 
 function readAssignee(value: unknown): ArchetypeAssignee | undefined {
@@ -139,9 +124,6 @@ export function readArchetypeConfig(value: unknown): ArchetypeConfig {
   const record = asRecord(value);
   if (record === null) return {};
   return {
-    ...(readSourceSet(record.knowledgeSources) !== undefined && {
-      knowledgeSources: readSourceSet(record.knowledgeSources),
-    }),
     ...(typeof record.citeSources === 'boolean' && { citeSources: record.citeSources }),
     ...(stringArray(record.inboundChannels) !== undefined && {
       inboundChannels: stringArray(record.inboundChannels),
@@ -166,9 +148,6 @@ export function readArchetypeConfig(value: unknown): ArchetypeConfig {
     }),
     ...(typeof record.escalationTimeoutMinutes === 'number' && {
       escalationTimeoutMinutes: record.escalationTimeoutMinutes,
-    }),
-    ...(readSourceSet(record.dataSources) !== undefined && {
-      dataSources: readSourceSet(record.dataSources),
     }),
     ...(typeof record.reportTemplate === 'string' && { reportTemplate: record.reportTemplate }),
     ...(typeof record.reportFormat === 'string' && { reportFormat: record.reportFormat }),

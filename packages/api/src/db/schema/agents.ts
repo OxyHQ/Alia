@@ -37,30 +37,29 @@
  * field name means opposite things one model apart and a backfill pairing fields
  * by name is wrong about both.
  *
- * ## The two sub-document GROUPS are all-or-nothing, and that is the fact
+ * ## `soul` is all-or-nothing, and that is the fact
  *
- * `permissions` and `soul` are both declared `default: undefined`, so an agent
- * either has the whole group or has none of it — and for `permissions` the
- * ABSENCE is meaningful: the model's own comment says "undefined = all allowed
- * (backward compatible)", and `lib/agent/actions.ts:272` reads
- * `perms.delegation === false`, so a NULL is permission granted and only a
- * stored `false` denies. Nullable columns reproduce that exactly; a
- * `notNull default false` would silently revoke every capability of every agent
- * written before the group existed.
+ * It is declared `default: undefined`, so an agent either has the whole group
+ * or has none of it, and nullable columns reproduce that exactly. No CHECK ties
+ * the members together: Mongoose enforced no cross-field rule, so production
+ * may hold a partially-written group — the `auth_health_metrics.method`
+ * reasoning applied to a relationship rather than to a value, exactly as
+ * `triggers` takes it.
  *
- * No CHECK ties the members of either group together. Mongoose enforced no
- * cross-field rule, so production may hold a partially-written group — the
- * `auth_health_metrics.method` reasoning applied to a relationship rather than
- * to a value, exactly as `triggers` takes it.
+ * `permissions` used to sit beside it with the OPPOSITE meaning for absence —
+ * six nullable booleans where a NULL was permission GRANTED. It is gone, along
+ * with `capabilities`, and `capability_grants` replaces both; see
+ * `domain/capability-grants.ts` for what each of the three was and why an empty
+ * grant list now denies rather than allows.
  *
  * ## `archetype_config` is `jsonb`, and it is the honest `jsonb` case
  *
- * `IArchetypeConfig` is a union of four archetypes' settings — the Q&A one has
- * `knowledgeSources`, the task router has `routingRules`, the status update has
- * a `schedule` — so the shape is selected by `archetype` and the columns of one
- * are meaningless for another. Nothing queries inside it: the single reader is
- * `lib/trigger-engine.ts:343`, which spreads `deliveryChannels` in JavaScript
- * after loading the row. That is `transactions.metadata`, not `routing_logs`.
+ * `ArchetypeConfig` is a union of four archetypes' settings — the task router
+ * has `routingRules`, the status update has a `schedule` — so the shape is
+ * selected by `archetype` and the columns of one are meaningless for another.
+ * Nothing queries inside it: the single reader is `lib/trigger-engine.ts`,
+ * which spreads `deliveryChannels` in JavaScript after loading the row. That is
+ * `transactions.metadata`, not `routing_logs`.
  */
 
 import {
@@ -132,7 +131,22 @@ export const agents = pgTable(
     hireCount: integer().notNull().default(0),
     /** CREDITS to hire, not money. NULL means the caller's default applies. */
     price: integer(),
-    capabilities: text().array().notNull().default([]),
+    /**
+     * What this agent may reach, as `family` or `family:instanceId` strings.
+     *
+     * EMPTY DENIES EVERYTHING. That is the reverse of the `permissions` columns
+     * this replaced, where a NULL meant allowed, and it is deliberate: an agent
+     * acts in the world from its own Oxy account, so nobody having decided
+     * cannot keep meaning yes. `domain/capability-grants.ts` carries the
+     * vocabulary and the argument.
+     *
+     * No CHECK, for the reason `allowed_models` two columns up is given: the
+     * values are a vocabulary the product renders, and a constraint would fail
+     * a routing path on the first agent holding a family that was later
+     * renamed. `readCapabilityGrants` drops what it does not recognise, and
+     * `routes/agents/crud.ts` refuses it at the moment somebody can be told.
+     */
+    capabilityGrants: text().array().notNull().default([]),
     isFeatured: boolean().notNull().default(false),
     isTrending: boolean().notNull().default(false),
     isPublished: boolean().notNull().default(true),
@@ -163,17 +177,6 @@ export const agents = pgTable(
     preferredImage: text(),
     allowedModels: text().array().notNull().default(['alia-v1', 'alia-v1-pro']),
     scheduleInterval: integer(),
-
-    /**
-     * `permissions`, flattened. ALL NULL means the group is absent, which means
-     * ALL ALLOWED — see the file comment. Only a stored `false` denies.
-     */
-    permissionsFilesystem: boolean(),
-    permissionsNetwork: boolean(),
-    permissionsShell: boolean(),
-    permissionsCommunications: boolean(),
-    permissionsMcpServers: boolean(),
-    permissionsDelegation: boolean(),
 
     /** `soul`, flattened. Absent as a group on an agent that has never evolved. */
     soulVibe: text().array(),

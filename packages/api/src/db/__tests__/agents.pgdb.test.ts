@@ -268,60 +268,63 @@ describe('agents', () => {
     expect(rows.filter((r) => r.designated)).toHaveLength(1);
   });
 
-  it('leaves the whole permission group NULL, because absent means ALL ALLOWED', async () => {
+  it('defaults capability_grants to an EMPTY ARRAY, never to NULL', async () => {
     /**
-     * `Agent.permissions` is `default: undefined` and the model says so outright:
-     * "undefined = all allowed (backward compatible)". `lib/agent/actions.ts:272`
-     * reads `perms.delegation === false`, so only a STORED false denies and a
-     * missing group grants everything.
+     * The column that reversed the default, and the reason it is `notNull`.
      *
-     * Making these `notNull default false` would compile, migrate, and revoke
-     * filesystem, network, shell, communications, MCP and delegation from every
-     * agent that predates the group — silently, because nothing errors when an
-     * agent is simply refused a capability.
+     * Its predecessor was six nullable booleans where NULL meant ALL ALLOWED,
+     * so an agent nobody had configured reached everything its owner could.
+     * Here the unmentioned case is `{}`, and `{}` grants nothing.
+     *
+     * `null` and `[]` would be indistinguishable to a reader that spreads the
+     * value, which is why this asserts the empty ARRAY rather than falsiness:
+     * a nullable column would let a row exist for which "what may this agent
+     * do" has no answer at all.
      */
-    await db.insert(agents).values(agentValues({ id: 'ag-noperms' }));
+    await db.insert(agents).values(agentValues({ id: 'ag-nogrants' }));
 
     const [row] = await db
-      .select({
-        filesystem: agents.permissionsFilesystem,
-        network: agents.permissionsNetwork,
-        shell: agents.permissionsShell,
-        communications: agents.permissionsCommunications,
-        mcpServers: agents.permissionsMcpServers,
-        delegation: agents.permissionsDelegation,
-      })
+      .select({ grants: agents.capabilityGrants })
       .from(agents)
-      .where(eq(agents.id, 'ag-noperms'));
+      .where(eq(agents.id, 'ag-nogrants'));
 
-    expect(row).toEqual({
-      filesystem: null,
-      network: null,
-      shell: null,
-      communications: null,
-      mcpServers: null,
-      delegation: null,
-    });
-    // The reader's own predicate, against the stored shape: NULL is not a denial.
-    expect(row?.delegation === false).toBe(false);
+    expect(row?.grants).toEqual([]);
   });
 
-  it('stores a PARTIALLY written permission group, because Mongoose enforced no cross-field rule', async () => {
-    // The row a "all six or none" CHECK would reject. Nothing validated the
-    // group's completeness in Mongo, so production may hold exactly this.
+  it('refuses a NULL capability_grants outright', async () => {
+    /**
+     * The positive control for `notNull`, and it measures the MIGRATION.
+     *
+     * This suite builds its database by running `src/db/migrate.ts`, so what is
+     * under test here is the DDL an operator applies, not the drizzle schema
+     * the assertion above reads through. Verified by mutation: dropping
+     * `NOT NULL` from `0040_agents_gain_capability_grants.sql` turns this red,
+     * while dropping `.notNull()` from the schema alone leaves it green — the
+     * schema-versus-migration divergence `migrationIntegrity.test.ts` covers
+     * from the other side.
+     *
+     * Without it, "defaults to an empty array" passes just as happily on a
+     * nullable column, where a writer that says `null` leaves a row for which
+     * "what may this agent do" has no answer at all.
+     */
+    await expect(
+      db
+        .insert(agents)
+        .values({ ...agentValues({ id: 'ag-nullgrants' }), capabilityGrants: sql`null` }),
+    ).rejects.toThrow();
+  });
+
+  it('stores a fixed family and a per-instance grant in one list', async () => {
     await db
       .insert(agents)
-      .values(agentValues({ id: 'ag-partialperms', permissionsDelegation: false }));
+      .values(agentValues({ id: 'ag-grants', capabilityGrants: ['shell', 'mcp:conn-7'] }));
 
     const [row] = await db
-      .select({
-        delegation: agents.permissionsDelegation,
-        shell: agents.permissionsShell,
-      })
+      .select({ grants: agents.capabilityGrants })
       .from(agents)
-      .where(eq(agents.id, 'ag-partialperms'));
+      .where(eq(agents.id, 'ag-grants'));
 
-    expect(row).toEqual({ delegation: false, shell: null });
+    expect(row?.grants).toEqual(['shell', 'mcp:conn-7']);
   });
 
   it('defaults allowed_models to the two Alia names the model declares', async () => {

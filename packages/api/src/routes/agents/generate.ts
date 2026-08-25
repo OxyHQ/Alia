@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { generateText } from 'ai';
 import { AGENT_ARCHETYPES } from '../../domain/agent.js';
+import { FIXED_CAPABILITY_FAMILIES, isCapabilityGrant } from '../../domain/capability-grants.js';
 import { suggestAgentUsername } from '../../lib/agent-identity.js';
 import { authenticateToken } from '../../middleware/auth.js';
 import { resolveModel, getAIModel, getDefaultAliaModel } from '../../lib/chat-core.js';
@@ -51,7 +52,7 @@ Return ONLY valid JSON with these fields:
 - "systemPrompt": Detailed instructions for the agent including its role, goals, behavior guidelines, and how it should interact with users. This should be comprehensive and specific.
 - "category": Exactly one of: "Assistant", "Creative", "Developer", "Research", "Business", "Education"
 - "tags": An array of 3-5 relevant lowercase tags
-- "capabilities": An array of tool IDs this agent should have enabled. Choose from: "web-browsing", "code-execution", "web-search", "web-scraping", "file-management", "image-generation", "memory", "agent-delegation". Pick only the ones relevant to the agent's purpose.
+- "capabilityGrants": An array of capability families this agent may reach. Choose from: ${FIXED_CAPABILITY_FAMILIES.map((f) => `"${f}"`).join(', ')}. The agent gets NOTHING it is not granted, so pick every family its purpose needs and none it does not.
 - "archetype": Exactly one of: "general", "qa", "task_router", "status_update". Use "qa" if the agent answers questions from knowledge/data sources. Use "task_router" if the agent triages and routes tasks to people or teams. Use "status_update" if the agent gathers data and generates periodic reports or summaries. Use "general" for everything else.
 
 Do not include any text outside the JSON object.`,
@@ -114,7 +115,19 @@ Do not include any text outside the JSON object.`,
         ? parsed.category
         : 'Assistant',
       tags: Array.isArray(parsed.tags) ? parsed.tags.slice(0, 10) : [],
-      capabilities: Array.isArray(parsed.capabilities) ? parsed.capabilities.slice(0, 10) : [],
+      /**
+       * Only families this build knows. A model asked for a closed vocabulary
+       * still invents members of it, and an unrecognised grant would travel to
+       * `POST /agents` and be refused there — a 400 on a body the person never
+       * typed. `isCapabilityGrant` also refuses a bare instanced family, which
+       * is what a model reaching for "mcp" would produce.
+       */
+      capabilityGrants: Array.isArray(parsed.capabilityGrants)
+        ? parsed.capabilityGrants.filter(
+            (grant: unknown): grant is string =>
+              typeof grant === 'string' && isCapabilityGrant(grant),
+          )
+        : [],
       archetype: validArchetypes.includes(parsed.archetype) ? parsed.archetype : 'general',
     });
   } catch (error: unknown) {

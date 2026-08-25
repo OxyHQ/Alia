@@ -37,6 +37,7 @@ import {
 } from '../../domain/agent.js';
 import { log } from '../../lib/logger.js';
 import { z } from 'zod';
+import { isCapabilityGrant } from '../../domain/capability-grants.js';
 import { constraintNameOf, isUniqueViolation } from '@oxyhq/db';
 import type { Request, Response } from 'express';
 
@@ -259,6 +260,21 @@ const archetypeSchema = z.enum(AGENT_ARCHETYPES as unknown as [AgentArchetype, .
 const statusSchema = z.enum(AGENT_STATUSES as unknown as [AgentStatus, ...AgentStatus[]]);
 
 /**
+ * One capability grant: `family`, or `family:instanceId` for the three families
+ * whose members are rows.
+ *
+ * REFUSED here rather than dropped, which is the difference between this and
+ * `readCapabilityGrants`. The reader runs at request time on a value already in
+ * the database, where the only useful answer is to ignore what it cannot parse.
+ * This runs while somebody is still on the other end of the connection and can
+ * be told the grant was not written — the failure mode the three vocabularies
+ * this replaces all had, in different ways.
+ */
+const capabilityGrantSchema = z
+  .string()
+  .refine(isCapabilityGrant, { message: 'Not a capability grant' });
+
+/**
  * What `POST /agents` accepts.
  *
  * `oxyAccountId` is REQUIRED and is the only identity field on the whole
@@ -289,7 +305,7 @@ const createAgentSchema = z
     category: z.string().min(1).max(100),
     tags: z.array(z.string()).optional(),
     price: z.number().int().nullable().optional(),
-    capabilities: z.array(z.string()).optional(),
+    capabilityGrants: z.array(capabilityGrantSchema).optional(),
     skills: z.array(z.string()).optional(),
     knowledge: z.array(z.string()).optional(),
     isPublished: z.boolean().optional(),
@@ -333,7 +349,7 @@ router.post('/', authenticateToken, async (req: Request, res: Response) => {
       category: data.category,
       tags: data.tags ?? [],
       price: data.price ?? null,
-      capabilities: data.capabilities ?? [],
+      capabilityGrants: data.capabilityGrants ?? [],
       skillIds: data.skills ?? [],
       libraryFileIds: data.knowledge ?? [],
       isPublished: data.isPublished ?? true,
@@ -375,7 +391,7 @@ const updateAgentSchema = z
     category: z.string().min(1).max(100).optional(),
     tags: z.array(z.string()).optional(),
     price: z.number().int().nullable().optional(),
-    capabilities: z.array(z.string()).optional(),
+    capabilityGrants: z.array(capabilityGrantSchema).optional(),
     isPublished: z.boolean().optional(),
     status: statusSchema.optional(),
     allowHiring: z.boolean().optional(),
