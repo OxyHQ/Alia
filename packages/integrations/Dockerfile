@@ -31,7 +31,6 @@ COPY packages/alia-codea/package.json ./packages/alia-codea/
 COPY packages/alia-codea/webview-ui/package.json ./packages/alia-codea/webview-ui/
 COPY packages/alia-cowork/package.json ./packages/alia-cowork/
 COPY packages/alia-codea-cli/package.json ./packages/alia-codea-cli/
-COPY packages/shared-types/package.json ./packages/shared-types/
 
 # Rewrite git+ssh:// to git+https:// so cloning works without SSH keys
 RUN git config --global url."https://github.com/".insteadOf "git@github.com:" && \
@@ -104,7 +103,6 @@ COPY packages/alia-codea/package.json ./packages/alia-codea/
 COPY packages/alia-codea/webview-ui/package.json ./packages/alia-codea/webview-ui/
 COPY packages/alia-cowork/package.json ./packages/alia-cowork/
 COPY packages/alia-codea-cli/package.json ./packages/alia-codea-cli/
-COPY packages/shared-types/package.json ./packages/shared-types/
 
 # Rewrite git+ssh:// to git+https:// so cloning works without SSH keys
 RUN git config --global url."https://github.com/".insteadOf "git@github.com:" && \
