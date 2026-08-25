@@ -5,7 +5,7 @@
  * Called when an agent has an archetype set and no custom systemPrompt override.
  */
 
-import { readArchetypeConfig, type ArchetypeConfig, type ArchetypeSourceSet } from '../../domain/agent.js';
+import { readArchetypeConfig, type ArchetypeConfig } from '../../domain/agent.js';
 import { agentPromptName, type HydratedAgent } from '../agent-identity.js';
 
 export function buildArchetypeSystemPrompt(agent: HydratedAgent): string | null {
@@ -25,19 +25,21 @@ export function buildArchetypeSystemPrompt(agent: HydratedAgent): string | null 
   }
 }
 
-// ── Shared helpers ──────────────────────────────────────────────────
-
-function buildSourceLines(
-  sourceDef: ArchetypeSourceSet | undefined,
-  templates: { integration: string; service: string; mcp: string },
-): string[] {
-  if (!sourceDef) return [];
-  const lines: string[] = [];
-  for (const name of sourceDef.integrations ?? []) lines.push(`- **${name}**: ${templates.integration}`);
-  for (const name of sourceDef.oxyServices ?? []) lines.push(`- **${name}**: ${templates.service}`);
-  for (const name of sourceDef.mcpServers ?? []) lines.push(`- **${name}**: ${templates.mcp}`);
-  return lines;
-}
+/**
+ * ## `knowledgeSources` and `dataSources` are gone from both prompts
+ *
+ * They were the THIRD parallel vocabulary for "what may this agent touch" —
+ * three string lists naming integrations, MCP servers and Oxy services inside
+ * `archetype_config`, rendered into these two prompts as prose bullets. They
+ * decided nothing: the tools were in the set or not regardless, and the lists
+ * named sources the agent might never have been able to reach.
+ *
+ * Nothing replaces the bullets, because the tool set already carries the
+ * answer: every MCP, integration and Oxy-service tool is described to the model
+ * with the connector's own display name, and `getOxyServicePromptFragment`
+ * already names the services in the prompt. Saying it a third time in prose
+ * assembled from a different source is how the three disagreed.
+ */
 
 // ── Q&A Agent ───────────────────────────────────────────────────────
 
@@ -47,12 +49,6 @@ function buildQAPrompt(agent: HydratedAgent, config: ArchetypeConfig): string {
   if (agent.knowledge?.length) {
     sources.push('- Search your **knowledge base files** first — they are your primary source of truth.');
   }
-
-  sources.push(...buildSourceLines(config.knowledgeSources, {
-    integration: 'Use integration tools to search for relevant data.',
-    service: 'Use service tools to look up information.',
-    mcp: 'Use MCP server tools for relevant queries.',
-  }));
 
   const citationInstructions = config.citeSources !== false
     ? `\n## Source Citation
@@ -143,12 +139,6 @@ ${rulesSection}${defaultSection}${channels}
 // ── Status Update Agent ─────────────────────────────────────────────
 
 function buildStatusUpdatePrompt(agent: HydratedAgent, config: ArchetypeConfig): string {
-  const sources = buildSourceLines(config.dataSources, {
-    integration: 'Use integration tools to gather the latest data.',
-    service: 'Query this service for recent updates.',
-    mcp: 'Use MCP tools to fetch current information.',
-  });
-
   const templateSection = config.reportTemplate
     ? `\n## Report Template\nFollow this structure for your report:\n\n${config.reportTemplate}`
     : `\n## Report Structure
@@ -181,7 +171,7 @@ Gather the latest data from your configured sources, synthesize it into a clear 
 4. **Be specific** — include numbers, names, dates. Vague summaries are not helpful.
 
 ## Data Sources
-${sources.length > 0 ? sources.join('\n') : '- Use all available tools to gather the latest information.'}
+- Use all available tools to gather the latest information.
 ${templateSection}${formatNote}${comparisonNote}
 
 ## Guidelines

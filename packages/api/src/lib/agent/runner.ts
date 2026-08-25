@@ -2,12 +2,15 @@
  * Agent Runner — Autonomous Agent Execution Engine (v3)
  *
  * Manus-level architecture:
- *   - 5 action primitives (shell, browser, file_edit, plan, delegate)
+ *   - Up to 5 action primitives (shell, browser, file_edit, plan, delegate),
+ *     partitioned by the agent's capability grants — see `actionLines`
  *   - Persistent terminal session with CWD/env tracking
  *   - Real browser with screenshots (Playwright/Stagehand)
- *   - Stable tool context across iterations (KV-cache optimized)
+ *   - Stable tool context across iterations (KV-cache optimized): the set is
+ *     fixed for the whole run, because a grant is a stored property of the
+ *     agent and cannot change between steps
  *   - State instructions instead of tool removal (logit masking principle)
- *   - Event stream: append-only log (persisted to MongoDB)
+ *   - Event stream: append-only log, persisted to `event_stream_entries`
  *   - Todo at context tail: attention manipulation
  *   - Error retention: failed actions persist in event stream
  *   - One action per iteration: maximum observability
@@ -53,6 +56,7 @@ import { MAX_DELEGATION_DEPTH, EVENT_STREAM_BUDGET } from '../constants.js';
 import { orchestrate, shouldOrchestrate } from './orchestrator.js';
 import { compactContext } from './context-compaction.js';
 import { redactSecrets } from './secret-scanner.js';
+import { readCapabilityGrants } from '../../domain/capability-grants.js';
 
 /** Regex to detect browser-related tasks for pre-initialization */
 const BROWSER_HINT_RE = /\b(browse|browser|website|web page|screenshot|http|https|www\.|\.com|\.org|url|navigate|click|open site)\b/i;
@@ -65,7 +69,39 @@ const CONTINUATION_PROMPTS = [
   'Continue executing your plan.',
 ];
 
-// ── System Prompt Builder (v3 — simplified for 5 actions) ──
+// ── System Prompt Builder ──
+
+/**
+ * The session primitives this agent WAS GRANTED, described in the prompt.
+ *
+ * Derived from the same grants `buildRuntimeTools` reads, so the prompt cannot
+ * promise an action the tool set withheld. It used to be a fixed "You have 5
+ * actions" list, which was true only while every agent got all five — under
+ * deny-by-default it would tell an agent with no shell to run bash, and the
+ * model would spend steps calling a tool that is not there.
+ *
+ * `plan` is always listed because it is ungranted: it is how a run ends.
+ */
+function actionLines(agent: HydratedAgent): string {
+  const grants = readCapabilityGrants(agent.capabilityGrants);
+  const lines: string[] = [];
+  if (grants.allows('shell')) {
+    lines.push("**shell** — Run any bash command in a persistent terminal. Your working directory and environment persist between calls. Use this for installing packages, running code, git operations, and anything you'd do in a terminal.");
+  }
+  if (grants.allows('browser')) {
+    lines.push('**browser** — Interact with a web browser. Navigate to URLs, search the web, click elements, fill forms, take screenshots. Use for web research and testing.');
+  }
+  if (grants.allows('files')) {
+    lines.push("**file_edit** — Read, write, edit, or list files directly. More precise than shell for file modifications. Use search-replace for targeted edits. Use action='list' to see directory contents.");
+  }
+  lines.push("**plan** — Create and update your task plan, or signal completion. Your plan persists as a checklist. Update it as you make progress. Call plan(action='complete', result='...') when done.");
+  if (grants.allows('delegation')) {
+    lines.push('**delegate** — Hire a specialist agent for a subtask outside your expertise.');
+  }
+  return `You have ${lines.length} action${lines.length === 1 ? '' : 's'}:\n\n${lines
+    .map((line, i) => `${i + 1}. ${line}`)
+    .join('\n\n')}`;
+}
 
 function buildSystemPrompt(agent: HydratedAgent, config: AgentSessionConfig): string {
   if (agent.systemPrompt) {
@@ -78,27 +114,20 @@ function buildSystemPrompt(agent: HydratedAgent, config: AgentSessionConfig): st
     if (archetypePrompt) return archetypePrompt;
   }
 
-  const capabilities = agent.capabilities.length > 0
-    ? `\n\n## Capabilities\n${agent.capabilities.join(', ')}`
-    : '';
-
+  /**
+   * No `## Capabilities` section. It listed `agent.capabilities` — the eight
+   * decorative tool ids the generator wrote — so what the model read was
+   * `web-browsing, memory` while the actual tool set was decided somewhere
+   * else entirely and could contradict it in either direction. What the agent
+   * can do is the tools it was handed, each with its own description.
+   */
   return `You are ${agentPromptName(agent)}. ${agent.tagline}
 
-${agent.description}${capabilities}
+${agent.description}
 
 ## Actions
 
-You have 5 actions:
-
-1. **shell** — Run any bash command in a persistent terminal. Your working directory and environment persist between calls. Use this for installing packages, running code, git operations, and anything you'd do in a terminal.
-
-2. **browser** — Interact with a web browser. Navigate to URLs, search the web, click elements, fill forms, take screenshots. Use for web research and testing.
-
-3. **file_edit** — Read, write, edit, or list files directly. More precise than shell for file modifications. Use search-replace for targeted edits. Use action='list' to see directory contents.
-
-4. **plan** — Create and update your task plan, or signal completion. Your plan persists as a checklist. Update it as you make progress. Call plan(action='complete', result='...') when done.
-
-5. **delegate** — Hire a specialist agent for a subtask outside your expertise.
+${actionLines(agent)}
 
 ## How to Work
 - For multi-step tasks, create a plan with the plan action. For simple questions, respond directly.
@@ -411,7 +440,6 @@ export async function runAgentSession(sessionId: string): Promise<void> {
     isLocalRuntime: false,
     agent,
     runtime: {
-      agent,
       session,
       onComplete,
       onHireAgent,

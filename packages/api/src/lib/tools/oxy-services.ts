@@ -276,9 +276,21 @@ function sanitizeName(name: string): string {
 export async function buildOxyServiceTools(
   oxyUserId: string,
   accessToken: string,
+  /**
+   * The `service_id`s this turn may reach, or `undefined` for every active one.
+   *
+   * `undefined` is the turn with no agent: a person reaching their own Oxy apps
+   * through Alia. An agent always names them, and an EMPTY array is the real
+   * answer for one granted no service — which is the default, because a grant
+   * over an instanced family has to name the row.
+   */
+  serviceIds?: readonly string[],
 ): Promise<ToolSet> {
+  if (serviceIds !== undefined && serviceIds.length === 0) return {};
   try {
-    const defs = await getServiceDefs();
+    const all = await getServiceDefs();
+    const allowed = serviceIds === undefined ? undefined : new Set(serviceIds);
+    const defs = allowed === undefined ? all : all.filter((svc) => allowed.has(svc.serviceId));
 
     // Wrap the shared (cached) tool defs FRESH with THIS caller's access token.
     // Closures are cheap to build; caching them per-user is what leaked the

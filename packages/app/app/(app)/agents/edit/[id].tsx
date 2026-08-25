@@ -39,7 +39,6 @@ import { Search } from "@oxyhq/bloom/search";
 import { GhostButton } from "@oxyhq/bloom/button";
 import { Item } from "@oxyhq/bloom/item";
 import { SettingsListGroup, SettingsListItem } from "@oxyhq/bloom/settings-list";
-import { AGENT_TOOLS } from "@/lib/constants/agent-tools";
 import * as DropdownMenu from "@/components/ui/dropdown-menu";
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -54,16 +53,13 @@ import { cn } from "@/lib/utils";
 import apiClient from "@/lib/api/client";
 import { API_ROUTES } from "@/lib/api/routes";
 import { useLibraryStore, type LibraryFile } from "@/lib/stores/library-store";
-import { AgentPermissionToggles, DEFAULT_PERMISSIONS } from "@/components/agent-permission-toggles";
-import type { AgentPermissions } from "@/lib/stores/agents-store";
+import { AgentCapabilityToggles } from "@/components/agent-capability-toggles";
+import { AgentConnectorGrants } from "@/components/agent-connector-grants";
+import type { GrantableConnector } from "@/lib/constants/capability-families";
 import { useAgentBots, type AgentBot } from "@/lib/hooks/use-agent-bots";
-import { errorStatus } from "@/lib/errors/error-utils";
+import { errorMessage as getErrorMessage, errorStatus } from "@/lib/errors/error-utils";
 import { ContentPanel } from "@oxyhq/bloom/content-panel";
 import { useOxy } from "@oxyhq/services";
-
-const TOOL_ICONS: Record<string, React.ComponentType<{ size?: number; color?: string; className?: string }>> = {
-  Globe, Terminal, Search: SearchIcon, FileDown, FolderOpen, Image, Brain, Users,
-};
 
 type LinkedSkill = { _id: string; skillId: string; title: string; icon: string; color: string };
 type LinkedFile = { _id: string; name: string; type: string; category: string; url: string };
@@ -112,7 +108,16 @@ export default function EditAgentScreen() {
   const [category, setCategory] = useState("");
   const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState("");
-  const [capabilities, setCapabilities] = useState<string[]>([]);
+  /**
+   * Every grant this agent holds: `web`, `mcp:<id>`, and the rest.
+   *
+   * ONE list for both shapes, because the API stores one — the families render
+   * as toggles and the connectors as their own section, but a grant is a grant
+   * and splitting the state would need a join on every save.
+   */
+  const [capabilityGrants, setCapabilityGrants] = useState<string[]>([]);
+  /** The connectors this owner could grant. Empty until the fetch lands. */
+  const [connectors, setConnectors] = useState<GrantableConnector[]>([]);
   const [price, setPrice] = useState("");
   const [allowHiring, setAllowHiring] = useState(false);
   const [handlesAutonomousEvents, setHandlesAutonomousEvents] = useState(false);
@@ -128,7 +133,6 @@ export default function EditAgentScreen() {
   /** What Oxy last confirmed, so a rejected rename can be put back. */
   const savedHandle = useRef("");
   const [isPublished, setIsPublished] = useState(false);
-  const [permissions, setPermissions] = useState<AgentPermissions>(DEFAULT_PERMISSIONS);
   const [archetype, setArchetype] = useState<AgentArchetype>('general');
   const [archetypeConfig, setArchetypeConfig] = useState<ArchetypeConfig>({});
 
@@ -186,14 +190,13 @@ export default function EditAgentScreen() {
         setSystemPrompt(agent.systemPrompt || "");
         setCategory(agent.category);
         setTags(agent.tags || []);
-        setCapabilities(agent.capabilities || []);
+        setCapabilityGrants(agent.capabilityGrants || []);
         setLinkedSkills(agent.skills || []);
         setLinkedKnowledge(agent.knowledge || []);
         setPrice(agent.price != null ? String(agent.price) : "");
         setAllowHiring(agent.allowHiring);
         setHandlesAutonomousEvents(agent.handlesAutonomousEvents);
         setIsPublished(agent.isPublished);
-        if (agent.permissions) setPermissions({ ...DEFAULT_PERMISSIONS, ...agent.permissions });
         setArchetype(agent.archetype || 'general');
         setArchetypeConfig(agent.archetypeConfig || {});
       }
@@ -205,7 +208,20 @@ export default function EditAgentScreen() {
     });
   }, [id, getAgent]);
 
-  // Debounced auto-save
+  /**
+   * Debounced auto-save — and a FAILED save is now visible.
+   *
+   * This used to be `} catch { // silent }` with the spinner cleared in
+   * `finally`, and the store swallowed the error before it too. Under those two
+   * swallows every autosave this screen sent was a 400 — `permissions` against
+   * a `.strict()` schema that did not name it — on every keystroke, for as long
+   * as the screen existed. Nothing was saved: not the prompt, not the tagline,
+   * not the skills. The UI said "saved" the whole time.
+   *
+   * One toast per failed save, not per keystroke: the debounce already
+   * collapses a burst of typing into one request, so this fires as often as a
+   * save does.
+   */
   const debouncedSave = useCallback(
     (updates: AgentUpdate) => {
       if (!id || isInitialLoad.current) return;
@@ -214,15 +230,31 @@ export default function EditAgentScreen() {
         setSaving(true);
         try {
           await updateAgent(id, updates);
-        } catch {
-          // silent
+        } catch (error: unknown) {
+          toast.error(getErrorMessage(error, t("agents.saveFailed")));
         } finally {
           setSaving(false);
         }
       }, 1000);
     },
-    [id, updateAgent]
+    [id, updateAgent, t]
   );
+
+  /**
+   * The connectors this owner can grant, from the one endpoint that knows all
+   * three instanced families.
+   *
+   * Fetched once for the screen rather than per section: MCP connectors, Oxy
+   * apps and integrations are three different tables and this is the only place
+   * that joins them into grant strings. A failure leaves the section empty —
+   * the rest of the editor does not depend on it.
+   */
+  useEffect(() => {
+    apiClient
+      .get<{ connectors: GrantableConnector[] }>(API_ROUTES.agents.capabilityConnectors)
+      .then((res) => setConnectors(res.data.connectors ?? []))
+      .catch(() => setConnectors([]));
+  }, []);
 
   /**
    * The NAME is saved to Oxy, and everything else to Alia.
@@ -275,13 +307,12 @@ export default function EditAgentScreen() {
       systemPrompt,
       category,
       tags,
-      capabilities,
+      capabilityGrants,
       skills: linkedSkills.map((s) => s._id),
       knowledge: linkedKnowledge.map((k) => k._id),
       price: price.trim() ? parseFloat(price) : null,
       allowHiring,
       handlesAutonomousEvents,
-      permissions,
       archetype,
       archetypeConfig,
     });
@@ -291,13 +322,12 @@ export default function EditAgentScreen() {
     systemPrompt,
     category,
     tags,
-    capabilities,
+    capabilityGrants,
     linkedSkills,
     linkedKnowledge,
     price,
     allowHiring,
     handlesAutonomousEvents,
-    permissions,
     archetype,
     archetypeConfig,
     debouncedSave,
@@ -345,12 +375,6 @@ export default function EditAgentScreen() {
 
   const removeTag = useCallback((tag: string) => {
     setTags((prev) => prev.filter((t) => t !== tag));
-  }, []);
-
-  const toggleCapability = useCallback((id: string) => {
-    setCapabilities((prev) =>
-      prev.includes(id) ? prev.filter((c) => c !== id) : [...prev, id]
-    );
   }, []);
 
   const addLinkedSkill = useCallback((skill: LinkedSkill) => {
@@ -562,42 +586,20 @@ export default function EditAgentScreen() {
                 </ScrollView>
             </Dialog>
 
-            {/* Tools */}
-            <SettingsListGroup title="Tools">
-              {AGENT_TOOLS.map((tool) => {
-                const enabled = capabilities.includes(tool.id);
-                const Icon = TOOL_ICONS[tool.icon];
-                return (
-                  <SettingsListItem
-                    key={tool.id}
-                    icon={
-                      Icon ? (
-                        <Icon
-                          size={18}
-                          className={enabled ? "text-foreground" : "text-muted-foreground"}
-                        />
-                      ) : undefined
-                    }
-                    title={tool.name}
-                    onPress={() => toggleCapability(tool.id)}
-                    showChevron={false}
-                    rightElement={
-                      <Switch
-                        value={enabled}
-                        onValueChange={() => toggleCapability(tool.id)}
-                        size="sm"
-                      />
-                    }
-                  />
-                );
-              })}
-            </SettingsListGroup>
+            {/* Capabilities — ONE list. It was two, "Tools" and "Permissions",
+                which overlapped on four concepts and disagreed on all four. */}
+            <AgentCapabilityToggles
+              title={t("agents.capabilities")}
+              footer={t("agents.capabilitiesFooter")}
+              grants={capabilityGrants}
+              onChange={setCapabilityGrants}
+            />
 
-            {/* Permissions */}
-            <AgentPermissionToggles
-              title="Permissions"
-              permissions={permissions}
-              onChange={setPermissions}
+            {/* Connectors, granted one at a time — see the component. */}
+            <AgentConnectorGrants
+              connectors={connectors}
+              grants={capabilityGrants}
+              onChange={setCapabilityGrants}
             />
 
             {/* Knowledge (Library Files) */}
@@ -1088,41 +1090,14 @@ export default function EditAgentScreen() {
               <View className="mt-6 gap-4">
                 <Text className="text-lg font-semibold text-foreground">Q&A Configuration</Text>
 
-                {/* Knowledge Sources - integrations */}
-                <View className="gap-1.5">
-                  <Label>Knowledge Sources</Label>
-                  <View className="flex-row flex-wrap gap-2">
-                    {['github', 'notion', 'linear', 'google_calendar'].map((integration) => {
-                      const integrations = archetypeConfig.knowledgeSources?.integrations || [];
-                      const isActive = integrations.includes(integration);
-                      return (
-                        <Pressable
-                          key={integration}
-                          onPress={() => {
-                            const current = archetypeConfig.knowledgeSources?.integrations || [];
-                            setArchetypeConfig((prev: ArchetypeConfig) => ({
-                              ...prev,
-                              knowledgeSources: {
-                                ...prev.knowledgeSources,
-                                integrations: isActive
-                                  ? current.filter((i: string) => i !== integration)
-                                  : [...current, integration]
-                              }
-                            }));
-                          }}
-                          className={cn(
-                            "px-3 py-1.5 rounded-full border",
-                            isActive ? "bg-primary/10 border-primary" : "border-border"
-                          )}
-                        >
-                          <Text className={cn("text-xs font-medium capitalize", isActive ? "text-primary" : "text-muted-foreground")}>
-                            {integration.replace('_', ' ')}
-                          </Text>
-                        </Pressable>
-                      );
-                    })}
-                  </View>
-                </View>
+                {/* No "Knowledge Sources" picker. It wrote four hardcoded names
+                    — `github`, `notion`, `linear`, `google_calendar` — into
+                    `archetypeConfig.knowledgeSources`, the third of the three
+                    capability vocabularies, and its only consumer spliced them
+                    into the Q&A prompt as PROSE. It named sources the agent
+                    might never have been able to reach, and two of the four are
+                    not integrations any more at all. What an agent can actually
+                    reach is the Connectors section above. */}
 
                 {/* Cite Sources */}
                 <View className="flex-row items-center justify-between">

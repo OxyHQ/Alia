@@ -31,6 +31,7 @@ import { useColorScheme } from "@/lib/useColorScheme";
 import { cn } from "@/lib/utils";
 import { useCreateConversation } from "@/lib/hooks/use-conversations";
 import { useAgentFavoritesStore } from "@/lib/stores/agent-favorites-store";
+import { CAPABILITY_FAMILIES } from "@/lib/constants/capability-families";
 import { errorMessage as getErrorMessage, errorStatus, errorResponseData } from "@/lib/errors/error-utils";
 import { agentDisplayName, agentHandle, agentInitial } from "@/lib/agents/identity";
 import { ContentPanel } from "@oxyhq/bloom/content-panel";
@@ -348,6 +349,18 @@ export default function AgentDetailScreen() {
 
   const isOwner = !!(user && agent && user.id === agent.author);
   const bookmarked = agent ? isFavorite(agent._id) : false;
+
+  /**
+   * The granted families, by label, for the listing.
+   *
+   * Derived rather than stored: the row carries grant STRINGS, and a family the
+   * app does not know about is skipped rather than rendered raw — a listing is
+   * not the place to show `oxy_service:inbox` to a stranger.
+   */
+  const grantedFamilyLabels = (agent?.capabilityGrants ?? []).flatMap((grant) => {
+    const family = CAPABILITY_FAMILIES.find((entry) => entry.id === grant);
+    return family === undefined ? [] : [family.label];
+  });
 
   const handleChat = useCallback(async () => {
     if (!agent) return;
@@ -823,13 +836,19 @@ export default function AgentDetailScreen() {
                   </Text>
                 </View>
 
-                {/* Capabilities */}
-                {agent.capabilities.length > 0 && (
+                {/* Capabilities — the families this agent was granted, by their
+                    own labels. It used to render `agent.capabilities`, which
+                    held raw tool ids (`web-browsing`, `agent-delegation`) that
+                    named nothing the agent could actually do. A connector grant
+                    (`mcp:<id>`) is deliberately not shown here: the id is
+                    meaningless to a reader and the connector belongs to the
+                    owner, not to this public listing. */}
+                {grantedFamilyLabels.length > 0 && (
                   <>
                     <View className="h-px bg-border mx-0 mb-5" />
                     <View className="mb-5">
                       <SectionLabel>{t("agents.capabilities")}</SectionLabel>
-                      <PillList items={agent.capabilities} />
+                      <PillList items={grantedFamilyLabels} />
                     </View>
                   </>
                 )}

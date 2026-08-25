@@ -108,6 +108,7 @@ import { buildMcpTools } from '../../tools/mcp.js';
 import { classifyActionRisk } from '../governance.js';
 import { requestApproval } from '../action-approval.js';
 import { insertRollbackRecord } from '../../../db/agents/rollbackRecordRepository.js';
+import { GRANTS_EVERYTHING, readCapabilityGrants } from '../../../domain/capability-grants.js';
 
 // ── Doubles for the session-scoped collaborators ───────────────────────────
 
@@ -117,9 +118,8 @@ import { insertRollbackRecord } from '../../../db/agents/rollbackRecordRepositor
  * container. Each double carries exactly the surface the function touches, and
  * the cast is `unknown`-mediated rather than `any`.
  */
-function actionContext(overrides: { permissions?: Record<string, boolean> } = {}): AgentRuntimeContext {
+function actionContext(): AgentRuntimeContext {
   const ctx = {
-    agent: { permissions: overrides.permissions },
     session: {
       /**
        * Plain STRINGS. These were `{toString: () => 'sess-ws13'}` doubles for
@@ -248,9 +248,9 @@ describe('the risk classifier answers each level for a distinct reason', () => {
  * The MCP key set is handed over rather than derived from the names, exactly as
  * the assembler hands it over — see `applyRuntimePolicy`.
  */
-async function policyApplied(ctx: AgentRuntimeContext) {
+async function policyApplied(ctx: AgentRuntimeContext, grants = GRANTS_EVERYTHING) {
   const mcpTools = await buildMcpTools(ctx.session.oxyUserId);
-  const tools = { ...buildRuntimeTools(ctx), ...mcpTools };
+  const tools = { ...buildRuntimeTools(ctx, grants), ...mcpTools };
   return applyRuntimePolicy(tools, ctx, new Set(Object.keys(mcpTools)));
 }
 
@@ -396,16 +396,28 @@ describe('every action carries the wrapper, and the exemption is exactly one', (
     expect(planResult).toBe('plan');
   });
 
-  it('a permission denial refuses BEFORE the risk gate, so it cannot be approved away', async () => {
-    // `perms.shell === false` swaps the executor for a deny stub
-    // (`actions.ts:269`), and the wrapper is applied on top of the stub. An
-    // approved R2 therefore still refuses — which is the property that makes
-    // agent permissions a hard boundary rather than a default.
+  it('an ungranted capability is ABSENT from the set, not a stub inside it', async () => {
+    /**
+     * The behaviour that replaced the four `denyStub`s.
+     *
+     * `perms.shell === false` used to swap the executor for a function that
+     * answered "Shell access is disabled", leaving the tool in the set with its
+     * description intact — so the model could still spend a step calling it, and
+     * an approved R2 was refused only because the stub sat under the wrapper.
+     * Withholding is stronger and simpler: there is nothing to approve away
+     * because there is nothing to call.
+     */
     H.state.approval = 'approved';
-    const actions = await policyApplied(actionContext({ permissions: { shell: false } }));
-    const result = await run(actions, 'shell', { command: 'echo hello' });
+    const actions = await policyApplied(
+      actionContext(),
+      readCapabilityGrants(['browser', 'files', 'delegation']),
+    );
 
-    expect(result).toBe('Error: Shell access is disabled for this agent. Contact the agent creator to enable it.');
+    expect(Object.keys(actions)).not.toContain('shell');
+    // The floor: the grant withheld ONE primitive rather than emptying the set,
+    // which is what a broken grant reader would also produce.
+    expect(Object.keys(actions)).toContain('browser');
+    expect(Object.keys(actions)).toContain('file_edit');
     expect(H.timeline.filter((entry) => entry.startsWith('exec:'))).toEqual([]);
   });
 });
