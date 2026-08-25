@@ -12,20 +12,38 @@
 # credential is the org secret `CLOUDFLARE_API_TOKEN`, and a GitHub secret
 # cannot be read out — only used from inside a run.
 #
-# THE ORDER IS THE SAFETY. `canvas.alia.onl` can belong to the Pages project or
-# to the Worker, not both, so there is an unavoidable moment where it changes
-# hands. The steps are sequenced so the destructive one is LAST and gated:
+# THE ORDER IS THE SAFETY, and it was WRONG on the first attempt. Deploying the
+# Worker first looked safest — code in place before the domain moves — but a
+# Worker custom domain insists on managing its own DNS record and refuses to
+# claim a hostname that already has one:
 #
-#   1. deploy the Worker            — exists, unreachable (workers_dev = false)
-#   2. detach the domain from Pages — the hand-over window opens
-#   3. attach it to the Worker      — the window closes
+#   Hostname 'canvas.alia.onl' already has externally managed DNS records
+#   (A, CNAME, etc). Delete them first or try a different hostname. [code: 100117]
+#
+# That record is the proxied CNAME `bind-pages-domain.yml` created. So the
+# record has to go BEFORE the Worker can take the hostname, and the sequence
+# below is built around that — with the destructive step still last and gated:
+#
+#   1. delete the DNS record        — the hostname stops resolving
+#   2. detach the domain from Pages — Pages releases its claim
+#   3. deploy the Worker            — claims the hostname, writes its OWN record
 #   4. WAIT until it really serves  — a real fetch, not an API claim
 #   5. delete the Pages project     — only reachable if 4 passed
 #   6. assert pages.dev is GONE     — the thing this exists to achieve
 #
+# THE RECORD GOES FIRST, NOT THE DETACH, and that is deliberate. Detaching while
+# the CNAME still points at `alia-canvas.pages.dev` would send every request to
+# a Pages deployment whose `_worker.js` 301s `canvas.alia.onl` right back — a
+# redirect loop. Deleting the record first makes the gap an honest NXDOMAIN.
+#
+# THERE IS A BRIEF OUTAGE between step 1 and step 3, roughly the length of one
+# `wrangler deploy`. It is unavoidable: the hostname cannot belong to both, and
+# the record cannot exist while the Worker claims it.
+#
 # If step 4 never succeeds the run FAILS THERE, with the Pages project still
-# intact, and re-attaching the domain to it restores service. Nothing is
-# unrecoverable until step 5, and step 5 cannot be reached on a broken cutover.
+# intact. Recovery is `bind-pages-domain.yml`, which re-creates the record and
+# re-attaches the domain to Pages. Nothing is unrecoverable until step 5, and
+# step 5 cannot be reached on a broken cutover.
 name: Migrate Canvas to Worker
 
 on:
@@ -42,6 +60,10 @@ on:
         description: The Pages project to retire
         required: true
         default: alia-canvas
+      zone:
+        description: The Cloudflare zone the hostname sits in
+        required: true
+        default: alia.onl
 
 permissions:
   contents: read
@@ -56,6 +78,7 @@ jobs:
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       HOSTNAME: ${{ inputs.hostname }}
       PAGES_PROJECT: ${{ inputs.pages_project }}
+      ZONE: ${{ inputs.zone }}
 
     steps:
       # A typo in an input must not delete a production project.
@@ -118,16 +141,40 @@ jobs:
           NODE_ENV: production
           VITE_API_URL: https://api.alia.onl
 
-      # 1. The Worker exists but is unreachable: `workers_dev = false` and the
-      #    custom domain still belongs to Pages. Deploying first means the code
-      #    is in place before the domain moves, so the hand-over window is as
-      #    short as an API call rather than as long as a build.
-      - name: Deploy the Worker
-        working-directory: packages/alia-canvas
-        run: bunx wrangler@4 deploy
+      # 1. The record goes first. A Worker custom domain writes its own, and
+      #    refuses a hostname that already has one (code 100117). Deleting it
+      #    before the detach also avoids a redirect loop — see the header.
+      - name: Delete the DNS record so the Worker can write its own
+        run: |
+          set -euo pipefail
+          curl -sS -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            "https://api.cloudflare.com/client/v4/zones?name=$ZONE" -o /tmp/z.json
+          zone=$(jq -r '.result[0].id // empty' /tmp/z.json)
+          [ -n "$zone" ] || { echo "::error::zone $ZONE not found"; exit 1; }
+          curl -sS -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            "https://api.cloudflare.com/client/v4/zones/$zone/dns_records?name=$HOSTNAME" -o /tmp/r.json
+          rec=$(jq -r '.result[0].id // empty' /tmp/r.json)
+          if [ -z "$rec" ]; then
+            echo "no record to delete — continuing"
+          else
+            echo "deleting $(jq -r '.result[0].type + " -> " + .result[0].content' /tmp/r.json)"
+            curl -sS -X DELETE -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+              "https://api.cloudflare.com/client/v4/zones/$zone/dns_records/$rec" -o /tmp/rd.json
+            [ "$(jq -r '.success' /tmp/rd.json)" = "true" ] \
+              || { echo "::error::record delete failed: $(jq -c '.errors' /tmp/rd.json)"; exit 1; }
+          fi
+          # Read back: a DELETE that reports success and leaves the record is
+          # indistinguishable from one that worked, and the next step would then
+          # fail with the same 100117 for a reason that looks unrelated.
+          curl -sS -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            "https://api.cloudflare.com/client/v4/zones/$zone/dns_records?name=$HOSTNAME" -o /tmp/r2.json
+          left=$(jq -r '.result|length' /tmp/r2.json)
+          echo "records for $HOSTNAME now: $left"
+          [ "$left" = "0" ] || { echo "::error::$left record(s) still present"; exit 1; }
 
-      # 2. The window opens. Pages will not release a hostname implicitly, and
-      #    the Worker cannot claim one Pages still holds.
+      # 2. Pages releases its claim. Doing this AFTER the record is gone means
+      #    the gap is an NXDOMAIN rather than requests reaching a Pages
+      #    deployment that would 301 them straight back here.
       - name: Detach the domain from the Pages project
         run: |
           set -euo pipefail
@@ -142,9 +189,9 @@ jobs:
             echo "::error::detach failed (http=$code): $(jq -c '.errors' /tmp/det.json)"; exit 1
           fi
 
-      # 3. The window closes. `custom_domain = true` in wrangler.toml means this
-      #    deploy claims the hostname and repoints its DNS record.
-      - name: Attach the domain to the Worker
+      # 3. The Worker claims the hostname and writes its own DNS record, which
+      #    is what `custom_domain = true` in wrangler.toml means.
+      - name: Deploy the Worker and claim the hostname
         working-directory: packages/alia-canvas
         run: bunx wrangler@4 deploy
 
