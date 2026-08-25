@@ -71,9 +71,6 @@ export const ConversationItem = React.memo<ConversationItemProps>(({
           !isActive && "active:bg-muted/50"
         )}
       >
-        {isStreaming && (
-          <ActivityIndicator size={16} color={colors.mutedForeground} />
-        )}
         <Text
           className={cn(
             "flex-1 text-sm",
@@ -83,6 +80,9 @@ export const ConversationItem = React.memo<ConversationItemProps>(({
         >
           {conversation.title || "New conversation"}
         </Text>
+        {isStreaming && (
+          <ActivityIndicator size={16} color={colors.mutedForeground} />
+        )}
       </Pressable>
       <ConversationMenu
         conversation={conversation}
