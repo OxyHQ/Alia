@@ -80,6 +80,16 @@ export interface Agent {
    */
   capabilityGrants: string[];
   skills: Array<{ _id: string; skillId: string; title: string; icon: string; color: string }>;
+  /**
+   * The newest line of THIS person's thread with the agent, and when it landed.
+   *
+   * Served by `GET /agents/me` only, and `null` on an agent nobody has spoken to
+   * yet — which is the ordinary case the moment one is created. Absent entirely
+   * on the catalogue's agents, which is a different list about other people's
+   * agents and has no thread to speak of.
+   */
+  lastMessage?: string | null;
+  lastMessageAt?: string | null;
   knowledge: Array<{ _id: string; name: string; type: string; category: string; url: string }>;
   isFeatured: boolean;
   isTrending: boolean;

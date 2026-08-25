@@ -226,7 +226,8 @@
     "previous7Days": "Últimos 7 días",
     "earlier": "Anteriores",
     "collapse": "Contraer barra lateral",
-    "expand": "Expandir barra lateral"
+    "expand": "Expandir barra lateral",
+    "noAgentMessages": "Sin mensajes todavía"
   },
   "billing": {
     "title": "Facturación",
