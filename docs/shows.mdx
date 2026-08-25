@@ -121,13 +121,17 @@ carrying the caller's token, one carrying nothing. Every call goes through
 Syra requires a `title` to reserve the draft, minutes before any script exists.
 So the route inserts a **placeholder** — `Episode {n}`, the one thing that is
 certainly true — and the pipeline replaces it once the script is written, from
-what the episode actually says. The same string travels with the ingest, so the
-two products never disagree about one episode's name.
+what the episode actually says.
 
-This is the shape a change to Syra's ingest allowlist made possible. It used to
-refuse a title outright, on the reasoning that a capability has no business
-renaming a published episode, which forced the name to be decided in the route
-from the topic — a name for an episode nobody had written yet.
+It used to have to be decided in the route, from the topic, because Syra's
+ingest allowlist refused a title outright: a capability has no business renaming
+a published episode. That name was a name for an episode nobody had written yet.
+
+**Half of this is live and half is not, so read the version you have.** Alia's
+row and the app carry the generated name today; the ingest still cannot send it,
+so a published Syra episode keeps `Episode {n}` until `@syra.fm/sdk` accepts a
+title on ingest and `show-pipeline.ts` passes it. Until then the two products
+disagree about the name, with Syra's the one a listener sees.
 
 Two details that are not incidental:
 
