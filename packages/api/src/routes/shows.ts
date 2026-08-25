@@ -213,24 +213,47 @@ router.put('/preferences', async (req: Request, res: Response) => {
  * `null` on every failure. A series with no artwork is a series; a request that
  * 500s because an image model was busy is not, and the cover is the most
  * replaceable thing about a show.
+ *
+ * ## Not blocking the series is not the same as leaving no trace
+ *
+ * Two of the three ways this answered `null` said nothing at all, so the only
+ * evidence a series had no cover was the grey square somebody eventually
+ * noticed. Every one of them now emits ONE message — the same message, so a
+ * single search over the logs answers "which series have no artwork, and why" —
+ * carrying the series id, its owner and the reason. The series still gets
+ * created either way; that decision is untouched.
  */
 async function mintCover(
   req: Request,
   userId: string,
+  seriesId: string,
   title: string,
   brief: string,
   format: ShowFormat,
 ): Promise<string | null> {
+  // `err` is named rather than spread in conditionally: pino omits an undefined
+  // value, and `lib/__tests__/log-content.test.ts` freezes which two files may
+  // spread into a log at all — a spread hides its keys from that census.
+  const noCover = (reason: string, err?: unknown): null => {
+    log.general.warn(
+      { userId, seriesId, reason, err },
+      'A show series was created without cover art',
+    );
+    return null;
+  };
+
   await getOrCreateUserCredits(userId);
   const reservation = await reserveCredits(userId, COVER_ART_CREDITS);
   // Not an error: an account with no credits still gets its series, without art.
-  if (!reservation) return null;
+  if (!reservation) return noCover('insufficient_credits');
 
   try {
     const art = await generateCoverArt(title, brief, format);
     if (art === null) {
       await refundReservation(reservation);
-      return null;
+      // Which provider refused, and why, is `image-generation.ts`'s to report —
+      // this says only that a series is the thing that went without.
+      return noCover('no_image_generated');
     }
 
     const uploaded = await syraForRequest(req).uploadPodcastImage(
@@ -244,10 +267,9 @@ async function mintCover(
     // refund work that really happened. That is the right side to err on: the
     // caller has nothing to show for it either way.
     await refundReservation(reservation).catch((refundErr: unknown) =>
-      log.general.error({ err: refundErr, userId }, 'refundReservation failed after a cover error'),
+      log.general.error({ err: refundErr, userId, seriesId }, 'refundReservation failed after a cover error'),
     );
-    log.general.warn({ err, userId }, 'Could not produce a cover for a show series');
-    return null;
+    return noCover('cover_failed', err);
   }
 }
 
@@ -274,7 +296,7 @@ router.post('/series', async (req: Request, res: Response) => {
     // and its podcast has to exist before the row that would generate one.
     const seriesId = uuidv7();
     const speakers = buildSeriesCast(format, input.voiceIds);
-    const coverImageAssetId = await mintCover(req, userId, input.title, input.brief, format);
+    const coverImageAssetId = await mintCover(req, userId, seriesId, input.title, input.brief, format);
 
     const podcast = await syraForRequest(req).createPodcast({
       title: input.title,
@@ -375,7 +397,7 @@ router.patch('/series/:id', async (req: Request, res: Response) => {
     if (!series) return notFound(res, 'Series');
 
     const cover = input.regenerateCover === true
-      ? await mintCover(req, userId, input.title ?? series.title, input.brief ?? series.brief, series.format)
+      ? await mintCover(req, userId, series.id, input.title ?? series.title, input.brief ?? series.brief, series.format)
       : null;
 
     const syra = syraForRequest(req);

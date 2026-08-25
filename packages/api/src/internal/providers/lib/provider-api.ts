@@ -29,12 +29,31 @@ interface GeminiTtsResponse {
   candidates?: Array<{ content?: { parts?: Array<{ inlineData?: GeminiInlineData }> } }>;
 }
 
-// Provider base URLs — internal knowledge
+/**
+ * Provider base URLs — internal knowledge.
+ *
+ * A provider named by a routing mapping and absent from here is UNREACHABLE:
+ * the standard synchronous path throws `has no configured base URL` before a
+ * request leaves the process, the retry loop swallows it as an ordinary fetch
+ * failure, and the caller is told `(unknown)` — the same thing an upstream
+ * outage says. xAI shipped that way and image generation was dead for two days
+ * while the routing table looked correct, because xAI is the only image
+ * provider a key exists for. `lib/show/__tests__/cover-art.test.ts` asserts the
+ * whole image tier is addressable, over the tier itself rather than a list
+ * repeated there.
+ */
 const PROVIDER_BASES: Record<string, string> = {
   openai: 'https://api.openai.com',
   groq: 'https://api.groq.com/openai',
   openrouter: 'https://openrouter.ai/api',
   digitalocean: 'https://inference.do-ai.run',
+  // Chat reaches xAI through the AI SDK, which carries its own base URL; this
+  // is the same host for the endpoints that do not go through it — images
+  // today. VERIFIED 2026-08-25 without a credential:
+  // `POST https://api.x.ai/v1/images/generations` answers 401
+  // `unauthenticated:no-credentials`, while a made-up path on the same host
+  // answers 404, so the 401 is the endpoint and not a catch-all.
+  xai: 'https://api.x.ai',
 };
 
 // DigitalOcean fal-ai models use the async-invoke pattern instead of direct endpoints

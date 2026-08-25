@@ -5,7 +5,11 @@
  * IMPORTANT: Only use REAL, currently available model IDs
  */
 
-import type { ModelMapping, AliaTier } from './alia-models';
+import type { ModelMapping } from './alia-models';
+// The tier keys of the table below, from the tuple the database's CHECK
+// constraints are rendered from — so a tier this table can serve is a tier a
+// `model_configs` row may name.
+import type { AliaTier } from './alia-tiers';
 import type { ModelPublisher } from './model-publishers';
 import { getModelCapabilities, getModelPricing } from './model-capabilities-data';
 

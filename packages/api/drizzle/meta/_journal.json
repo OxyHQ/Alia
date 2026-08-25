@@ -260,6 +260,13 @@
       "when": 1787619868040,
       "tag": "0036_alia_stops_storing_agent_identity",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1787626674695,
+      "tag": "0037_image_tier_is_a_real_tier",
+      "breakpoints": true
     }
   ]
 }

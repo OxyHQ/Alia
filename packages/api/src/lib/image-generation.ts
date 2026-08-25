@@ -115,6 +115,15 @@ export async function generateImage(
     }
   }
 
+  // One line for the walk as a whole, and it is not a duplicate of the ones
+  // above. Those are emitted per mapping, so an EMPTY tier produces no output
+  // at all — `null` with nothing to find it by, which is indistinguishable from
+  // never having been asked. It also gives a caller that degrades quietly, like
+  // a show cover, something an operator can search for after the fact.
+  log.general.warn(
+    { attempted: mappings.length, aborted: request.signal?.aborted === true },
+    'No image provider produced an image',
+  );
   return null;
 }
 
