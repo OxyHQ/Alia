@@ -351,8 +351,9 @@ export interface LatestAgentMessage {
  *
  * Scoped to `oxy_user_id` because the row belongs to the READER: what matters is
  * the last thing said in *their* thread with the agent, not the last thing the
- * agent said to anybody. `conversations_oxy_user_agent_id_idx` is on exactly
- * that pair.
+ * agent said to anybody. `conversations_oxy_user_agent_updated_at_idx` leads
+ * with exactly that pair and carries `updated_at DESC` behind it, so the group
+ * arrives already ordered.
  *
  * `id` breaks a tie on `updated_at`, so two conversations touched in the same
  * millisecond cannot pick a winner by planner whim — the same reason every other

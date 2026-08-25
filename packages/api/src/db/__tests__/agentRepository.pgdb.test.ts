@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { eq, sql } from 'drizzle-orm';
 import { closePostgres, connectPostgres, type ApiDatabase } from '../index';
 import { agentKnowledge, agents, agentSkills } from '../schema/agents';
+import { conversations } from '../schema/chat';
 import { skills } from '../schema/agents-support';
 import { libraryFiles } from '../schema/library';
 import {
@@ -15,6 +16,7 @@ import {
   findAgentSkills,
   incrementAgentCounters,
   listAgentCatalogue,
+  listAgentsByAuthor,
   replaceAgentSkills,
   updateAgent,
 } from '../agents/agentRepository';
@@ -526,5 +528,137 @@ describe('cascade behaviour that arrives WITH the switch', () => {
       .where(eq(agentKnowledge.agentId, created._id));
     expect(s).toBe(0);
     expect(k).toBe(0);
+  });
+});
+
+
+/**
+ * `listAgentsByAuthor` ORDERS the sidebar, and the order is the point.
+ *
+ * The three agents are created in one order and spoken to in another, so a
+ * query that still ordered by `created_at` answers a list this file can name
+ * exactly — which is what makes the assertion a measurement rather than a
+ * restatement. Verified by putting `orderBy(desc(agents.createdAt))` back: the
+ * first case fails with the creation order.
+ *
+ * Creation times are SET rather than taken from the clock. Three inserts a
+ * microsecond apart do give increasing `created_at`, but a tie-break nobody
+ * pinned is a coin flip waiting for a slow machine, and the fallback order is
+ * half of what is under test.
+ *
+ * Its own owner, because several `*.pgdb` suites share one database and even
+ * within this file the other describes seed agents under `OWNER`. An unscoped
+ * listing here would read whatever a neighbour created.
+ */
+describe('the order the sidebar draws its agents in', () => {
+  const CHATTER = `oxy-owner-order-${Math.random().toString(36).slice(2, 10)}`;
+
+  /** An agent with a KNOWN creation instant, so the fallback order is pinned. */
+  async function agentMadeAt(when: string, overrides: Record<string, unknown> = {}) {
+    const created = await createAgent(
+      db,
+      newAgentInput({ authorOxyUserId: CHATTER, ...overrides }),
+    );
+    await db.execute(sql`update ${agents} set created_at = ${when} where id = ${created._id}`);
+    return created._id;
+  }
+
+  /**
+   * One stretch of a thread. A thread is many of these, so the ordering value
+   * has to be the newest of the group rather than any single row's.
+   */
+  async function stretch(reader: string, agentId: string, updatedAt: string) {
+    const id = `conv-${Math.random().toString(36).slice(2, 12)}`;
+    await db.execute(sql`
+      insert into ${conversations}
+        (id, oxy_user_id, conversation_id, title, agent_id, last_message, created_at, updated_at)
+      values
+        (${`${id}-row`}, ${reader}, ${id}, 'New chat', ${agentId}, 'said something',
+         ${updatedAt}, ${updatedAt})
+    `);
+  }
+
+  it('lists them by the thread, not by when they were made', async () => {
+    const oldest = await agentMadeAt('2026-01-01T00:00:00Z');
+    const middle = await agentMadeAt('2026-02-01T00:00:00Z');
+    const newest = await agentMadeAt('2026-03-01T00:00:00Z');
+
+    // Spoken to in the reverse of the order they were made in, and the oldest
+    // agent carries TWO stretches: an ordering built on the first or the oldest
+    // conversation of the group rather than the newest puts it last.
+    await stretch(CHATTER, oldest, '2026-08-01T09:00:00Z');
+    await stretch(CHATTER, oldest, '2026-08-03T09:00:00Z');
+    await stretch(CHATTER, middle, '2026-08-02T09:00:00Z');
+    await stretch(CHATTER, newest, '2026-08-01T08:00:00Z');
+
+    const listed = await listAgentsByAuthor(db, CHATTER);
+
+    expect(listed.map((agent) => agent._id)).toEqual([oldest, middle, newest]);
+    // The creation order, named, so "the order changed" cannot pass by
+    // accidentally agreeing with the old one.
+    expect([newest, middle, oldest]).not.toEqual([oldest, middle, newest]);
+  });
+
+  it('keeps an agent nobody has spoken to, below the ones with a thread', async () => {
+    const quiet = `oxy-owner-quiet-${Math.random().toString(36).slice(2, 10)}`;
+    const created = await createAgent(db, newAgentInput({ authorOxyUserId: quiet }));
+    await db.execute(
+      sql`update ${agents} set created_at = '2026-01-01T00:00:00Z' where id = ${created._id}`,
+    );
+    const spoken = await createAgent(db, newAgentInput({ authorOxyUserId: quiet }));
+    await db.execute(
+      sql`update ${agents} set created_at = '2026-02-01T00:00:00Z' where id = ${spoken._id}`,
+    );
+    await stretch(quiet, spoken._id, '2026-08-01T09:00:00Z');
+
+    const listed = await listAgentsByAuthor(db, quiet);
+
+    // NULLS FIRST is what a bare `DESC` does in Postgres, and it would put the
+    // agent with no thread at the TOP — above every conversation this person
+    // has ever had. It must not vanish either: two agents, two rows.
+    expect(listed.map((agent) => agent._id)).toEqual([spoken._id, created._id]);
+  });
+
+  it('an account with no conversations at all still gets its newest agent first', async () => {
+    const fresh = `oxy-owner-fresh-${Math.random().toString(36).slice(2, 10)}`;
+    const first = await createAgent(db, newAgentInput({ authorOxyUserId: fresh }));
+    await db.execute(
+      sql`update ${agents} set created_at = '2026-01-01T00:00:00Z' where id = ${first._id}`,
+    );
+    const second = await createAgent(db, newAgentInput({ authorOxyUserId: fresh }));
+    await db.execute(
+      sql`update ${agents} set created_at = '2026-02-01T00:00:00Z' where id = ${second._id}`,
+    );
+
+    // Every ordering value is NULL, so this is the case where the whole list
+    // rests on the fallback — the behaviour the previous query had for
+    // everybody, and the one that must survive.
+    expect((await listAgentsByAuthor(db, fresh)).map((agent) => agent._id)).toEqual([
+      second._id,
+      first._id,
+    ]);
+  });
+
+  it('is ordered by the OWNER\'s thread, not by a stranger talking to the agent', async () => {
+    const owner = `oxy-owner-scope-${Math.random().toString(36).slice(2, 10)}`;
+    const mine = await createAgent(db, newAgentInput({ authorOxyUserId: owner }));
+    await db.execute(
+      sql`update ${agents} set created_at = '2026-01-01T00:00:00Z' where id = ${mine._id}`,
+    );
+    const other = await createAgent(db, newAgentInput({ authorOxyUserId: owner }));
+    await db.execute(
+      sql`update ${agents} set created_at = '2026-02-01T00:00:00Z' where id = ${other._id}`,
+    );
+
+    // Somebody else's conversation, far newer than anything the owner has.
+    await stretch(`oxy-stranger-${Math.random().toString(36).slice(2, 10)}`, mine._id,
+      '2026-08-20T09:00:00Z');
+    await stretch(owner, other._id, '2026-08-01T09:00:00Z');
+
+    const listed = await listAgentsByAuthor(db, owner);
+
+    // A join scoped on `agent_id` alone would lift `mine` to the top on the
+    // strength of a thread this owner cannot even read.
+    expect(listed.map((agent) => agent._id)).toEqual([other._id, mine._id]);
   });
 });
