@@ -18,6 +18,17 @@ export interface ModelCapabilities {
   audio: boolean;
   video: boolean;
   voice: boolean;                // Real-time voice conversations
+  /**
+   * A TTS model that PERFORMS a bracketed audio tag — `[laughs]`, `[whispers]` —
+   * rather than reading the characters out.
+   *
+   * False for every other model, and that is the load-bearing default: a model
+   * whose answer is unknown reads the tag aloud, which is the failure this flag
+   * exists to stop. `synthesize-speech.ts` consults it per mapping, because the
+   * TTS tier fails over and the answer differs between the model that was tried
+   * first and the one that actually served.
+   */
+  audioTags: boolean;
   tools: boolean;
   codeExecution: boolean;       // Built-in code execution (Groq Compound)
   webSearch: boolean;            // Built-in web search (GPT-OSS)
