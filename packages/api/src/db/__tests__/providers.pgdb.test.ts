@@ -412,6 +412,13 @@ describe('the deploy seeder can write the catalogue it is given', () => {
    * seeder itself cannot report the difference: a refused row is a log line and
    * a `skipped` count, which is also what an idempotent re-run produces. The
    * rows it leaves behind are the only witness.
+   *
+   * `model_configs.alia_tier` and the CHECK named above are both GONE — the
+   * column could not be correct over a many-to-many mapping table, so it was
+   * dropped rather than widened again. This assertion is unaffected and is the
+   * reason the column's removal is safe to make: it asks whether the seeder
+   * leaves a ROW for every mapping, which is the whole of what any reader of
+   * this table ever needed.
    */
   it('leaves a row for every mapping in the routing table, refusing none', async () => {
     const expected = new Set(
@@ -439,19 +446,33 @@ describe('the deploy seeder can write the catalogue it is given', () => {
   });
 
   it('admits every tier the vocabulary declares, so the CHECK matches the tuple', async () => {
-    // The half the seeder cannot show: a tier with no mapping of its own, and
-    // `v1-voice`, whose two mappings are the same two rows `v1-voice-pro` has —
-    // one `model_configs` row carries one `alia_tier`, so the last tier written
-    // wins and the other never appears in the table at all.
+    /**
+     * Against `alia_models.tier`, which is now the only column `ALIA_TIERS`
+     * renders a CHECK for.
+     *
+     * It used to probe `model_configs.alia_tier`, and that column is gone: it
+     * held ONE tier for a row identified by `(provider, model_id)`, while
+     * `TIER_MODEL_MAPPINGS` maps that pair to many, so it recorded whichever
+     * iteration wrote last. The question this asks — can every declared tier
+     * actually be STORED, or does the tuple name a value its own constraint
+     * refuses — is a property of the tuple and its CHECK, not of the table that
+     * happened to carry it, so it survives the move intact.
+     *
+     * The negative control sits next door: `v9-imaginary` is refused by this
+     * same `alia_models_tier_check`, so a green loop here is agreement and not
+     * a constraint that admits everything.
+     */
     for (const tier of ALIA_TIERS) {
-      const insert = db.insert(modelConfigs).values(
-        modelConfigValues({ id: `mc-tier-${tier}`, modelId: `tier-probe-${tier}`, aliaTier: tier }),
-      );
+      const insert = db.insert(aliaModels).values({
+        id: `am-tier-${tier}`,
+        aliasModelId: `alia-tier-probe-${tier}`,
+        displayName: `Tier probe ${tier}`,
+        tier,
+      });
       await expect(insert, `the CHECK refused ${tier}`).resolves.toBeDefined();
     }
     // The floor: a tuple that had gone empty would pass the loop by not
-    // iterating, and the negative control lives next door — `v9-imaginary` is
-    // still refused by `alia_models_tier_check`.
+    // iterating.
     expect(ALIA_TIERS.length).toBeGreaterThan(10);
   });
 });

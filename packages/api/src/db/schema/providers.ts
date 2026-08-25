@@ -74,6 +74,20 @@ import {
  * caveats: sum for display, never compare for exactness.
  *
  * `UNIQUE(provider, model_id)` is the arbiter every seed upsert infers on.
+ *
+ * **There is no `alia_tier` column, and re-adding one cannot be made correct.**
+ * A row is one `(provider, model_id)` pair and `TIER_MODEL_MAPPINGS` is
+ * many-to-many: 29 of the 69 pairs served more than one tier when it was
+ * counted, `google/gemini-2.5-pro` serving seven, and that number can only rise
+ * as tiers are added. One column over a many-to-many relation records whichever
+ * tier the seeder wrote LAST, so the value was never a fact about the row. The
+ * visible cost in production was `v1-voice`: both its mappings are byte-identical
+ * to `v1-voice-pro`'s, `v1-voice-pro` is iterated second, and the tier therefore
+ * had ZERO rows in a table that is supposed to describe it. Nothing at request
+ * time ever read the column — routing resolves from the in-memory
+ * `TIER_MODEL_MAPPINGS` — so the loss was silent. Which provider models serve a
+ * tier is `alia_model_provider_mappings`, a child table that can hold the
+ * relation the routing table actually has. See `docs/alias-layer-audit.mdx` §1.
  */
 export const modelConfigs = pgTable(
   'model_configs',
@@ -83,8 +97,6 @@ export const modelConfigs = pgTable(
     modelId: text().notNull(),
     provider: text({ enum: PROVIDER_NAMES as unknown as [string, ...string[]] }).notNull(),
     displayName: text().notNull(),
-    /** Which Alia tier this provider model serves. Absent means it serves none. */
-    aliaTier: text({ enum: ALIA_TIERS as unknown as [string, ...string[]] }),
     priority: integer(),
     qualityScore: integer(),
 
@@ -128,11 +140,9 @@ export const modelConfigs = pgTable(
   },
   (t) => [
     uniqueIndex('model_configs_provider_model_id_key').on(t.provider, t.modelId),
-    index('model_configs_alia_tier_priority_idx').on(t.aliaTier, t.priority),
     index('model_configs_active_deprecated_idx').on(t.isActive, t.isDeprecated),
     index('model_configs_provider_idx').on(t.provider),
     checkOneOf('model_configs_provider_check', t.provider, PROVIDER_NAMES),
-    checkOneOf('model_configs_alia_tier_check', t.aliaTier, ALIA_TIERS),
     checkOneOf('model_configs_pricing_tier_check', t.pricingTier, MODEL_PRICING_TIERS),
     // Mongoose min/max, preserved. These are DOMAIN invariants — a quality score
     // outside 0..100 silently corrupts the ordering `getNextProvider` depends

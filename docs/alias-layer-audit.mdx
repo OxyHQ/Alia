@@ -100,8 +100,9 @@ alias layer, and nothing in the rest of this page is out of date because of it.*
   Object.keys(ALIA_MODELS))` at `:254`. An identifier outside that set cannot be routed at
   all.
 - **Billing still reads a multiplier off them.** `credits-manager.ts:113` is still
-  `model?.creditMultiplier || 1`, and the thirteen multipliers in §3 are unchanged, as are
-  the seven production plan rows keyed by alias id.
+  `model?.creditMultiplier || 1`, and the thirteen multipliers in §3 are unchanged — now
+  frozen at those values by a test rather than merely unchanged — as are the seven
+  production plan rows keyed by alias id.
 - **`GET /v1/models` still returns `[]`** (`routes/v1/models.ts:84`), so the aliases remain
   de-advertised and routable and billed, which is the state ADR 0003 describes.
 - **The credit boundary between Kaana and Oxy is unresolved**, and remains the product
@@ -110,9 +111,14 @@ alias layer, and nothing in the rest of this page is out of date because of it.*
 
 ### Still outstanding
 
-Everything in §5 beyond its first item. In particular `model_configs.alia_tier` still cannot
-be correct — the mapping table is many-to-many and the column holds one value — and nothing
-yet freezes a credit multiplier in a test, which remains the largest gap on this page.
+Everything in §5 from its fifth item on, which is the part that waits on a product-owner
+decision. The three that did not — the `model_configs.alia_tier` column, the unfrozen credit
+multipliers and the hardcoded `alia-lite` — are done, and §5 says so per item.
+
+**Not one alias was removed, renamed or repriced by any of it.** The multiplier work FROZE
+the thirteen values at exactly what they were; the column drop removed a lossy record of the
+routing table that no request path read; the app now sends the routing profile it was already
+configured with. The alias layer this page measures has not moved.
 
 **Read the rest of this document as still current.** It measures the alias layer, and the
 alias layer has not moved.
@@ -221,7 +227,10 @@ fires.
 **Nothing user-facing breaks from the absence**, because `model_configs` is written by the
 seeder and read only by the seeder (`seed-model-configs.ts:199`, building
 `alia_model_provider_mappings`). No request-time code path reads the table. Image
-generation resolves from the in-memory `TIER_MODEL_MAPPINGS`, which has the rows.
+generation resolves from the in-memory `TIER_MODEL_MAPPINGS`, which has the rows. That claim
+was re-censused before the column was dropped and held: the seeder is the only caller of
+`upsertModelConfig` and `findModelConfig`, and the repository's other five functions have no
+caller outside tests at all.
 
 ### The deeper problem: `alia_tier` cannot be correct
 
@@ -249,8 +258,24 @@ because of a CHECK but because its two pairs (`xai/grok-realtime`,
 So `model_configs.alia_tier` is already a lossy record of the routing table, and the
 CHECK was guarding a column that cannot be right. **Admitting the missing tier fixed the
 image rows' absence and did not fix the column.** That is an argument
-for deleting the column with the rest of the layer rather than for maintaining it — see the
-order in §5.
+for deleting the column rather than for maintaining it.
+
+**Done, ahead of the rest of the layer**, by `0049_the_tier_column_cannot_be_correct`
+(`post`, because the previous image both writes and SELECTs the column). The census that
+authorised it re-derived the claim this section rests on rather than trusting it: every
+reader of `alia_tier` repo-wide is `db/schema/providers.ts`, `db/providers/
+modelConfigRepository.ts`, the seeder, and two pgdb suites. `listModelConfigsForTier` was
+the only reader keyed on it and had NO product caller, so it went with the column;
+`listModelConfigs`, `createModelConfig`, `updateModelConfig` and `deleteModelConfig` have
+none either. `auditedFields` never carried the value — `AUDITED_FIELDS.model_config` names
+`tier`, which is not a field on `ModelConfigView`, so the allow-list filtered it out. The
+migration was rehearsed against a restore of PRODUCTION's schema and rows: 73 rows kept,
+`alia_model_provider_mappings` (79) and `alia_models` (13) untouched.
+
+Measured on the live database on 2026-08-25, after #339 and #345 had deployed: 73 rows over
+**14 of the 15** declared tiers. The absentee is still `v1-voice`, at zero, for the reason
+above — which is the column being wrong in the one table that claimed to describe the tier,
+not a gap a backfill could close.
 
 ## 2. What still reaches the alias layer
 
@@ -290,15 +315,17 @@ scope — see "What could not be measured".
 | Console playground | catalogue-resolved | `src/routes/_layout/playground.tsx:106` |
 | Canvas | product modes | `src/lib/product-modes.ts` |
 | Expo app — picker | catalogue-resolved; **stored `alia-*` ids are deliberately not rewritten** | `lib/stores/model-store.ts` |
-| Expo app — personality sample | **hardcoded `model: 'alia-lite'`** | `lib/hooks/use-personality-sample-phrase.ts:74` |
+| Expo app — personality sample | `DEFAULT_MODEL_ID` (`profile:v1`) | `lib/hooks/use-personality-sample-phrase.ts` |
 | Show pipeline | `getDefaultAliaModel()` → `'alia-lite'` | `lib/show/show-pipeline.ts:484`, `episode-title.ts:104` |
 | Telegram bots | `agent.allowedModels[0] ?? getDefaultAliaModel()` | `routes/webhooks.ts:376` |
 
 A census of `alia-lite|alia-v1` literals across the eight client packages' `.ts` and `.tsx`
-returns 31 hits. **26 are comment lines** documenting the removal that already happened, and
-two more are test assertions. Three are live code: the personality-sample request above, a
-React Query placeholder (`use-billing.ts:330`) that is rendered and never sent, and the
-one-alias store migration.
+returned 31 hits when this was written. **26 were comment lines** documenting the removal
+that already happened, and two more were test assertions. Three were live code: the
+personality-sample request above, a React Query placeholder (`use-billing.ts:330`) that is
+rendered and never sent, and the one-alias store migration. The personality sample is fixed;
+the other two are the only `alia-*` model identifiers left in the app's source, and neither
+reaches a request.
 
 `model-store.ts` migrates only `alia-v1-thinking`, and says why: every other stored `alia-*`
 id "still resolves server-side". That is a correct decision and it means **an installed
@@ -330,9 +357,17 @@ currently runs on an alias.
 
 `getAliaModel` returning `null` does not throw and does not warn. `|| 1` absorbs it. So a
 removal that missed this would reprice every paid tier downward and every free turn upward,
-silently, with no test going red: the only assertion over multipliers is
-`lib/__tests__/product-modes.test.ts:299`, `toBeGreaterThan(0)`. **No test freezes a single
-multiplier value.**
+silently, and until 2026-08-25 no test went red: the only assertion over multipliers was
+`lib/__tests__/product-modes.test.ts:299`, `toBeGreaterThan(0)`.
+
+**Every value in the table above is now frozen**, by
+`internal/providers/lib/__tests__/credit-multipliers.test.ts`. It pins each alias to its
+literal multiplier and asserts it twice — on `ALIA_MODELS`, and through
+`getCreditMultiplier`, which is the read a charge performs. The second is the one that
+matters here: the `|| 1` absorption above is exactly what a table-only assertion would pass
+through, because the constant it reads disappears with the alias. The alias list is derived
+from the runtime `ALIA_MODELS` and compared in both directions, so an addition at an
+unreviewed price fails as loudly as a change.
 
 The most-used tier today is `alia-lite`, so the immediate effect of a naive removal would be
 *overcharging*, which is worse than the revenue loss.
@@ -519,19 +554,27 @@ Ordered by what must be true before each step, not by size.
    two, both dead. `alia-tiers.ts` is now the single source and renders both constraints.
    It stood on its own merits whatever is decided about `alia-*`: it was a CHECK rejecting
    rows its own seeder wrote.
-2. **Still open: `model_configs.alia_tier` cannot be correct** — 29 of 66 pairs served more
-   than one tier when it was counted, and every added tier can only raise that. Widening the CHECK
-   fixed the image rows' absence and did not make the column correct — it still records
-   whichever tier was written last, and `v1-voice` still has zero rows for that reason.
-   Deleting the column is the coherent fix, and it is cheap: the table is written by the
-   seeder and read only by the seeder, so nothing at request time notices. Left undone
-   deliberately, because it is a schema deletion and belongs in a change whose subject is
-   that column rather than in a CHECK widening.
-3. **Freeze the multiplier table in a test.** Thirteen `expect` lines. It is the only thing
-   standing between a future removal and silently repricing every account, and today
-   nothing asserts a single value.
-4. **Delete the hardcoded `alia-lite`** at `use-personality-sample-phrase.ts:74`, replacing
-   it with the profile the rest of the app already sends.
+2. ~~**`model_configs.alia_tier` cannot be correct.**~~ **Done.** The column is dropped by
+   `0049_the_tier_column_cannot_be_correct`, phase `post` — the previous image both writes
+   and SELECTs it, so a `pre` drop would break the service in the window before the new task
+   set is up. 29 of 69 pairs served more than one tier when re-counted, `google/gemini-2.5-pro`
+   serving seven, so no single value could have been right; widening the CHECK twice fixed
+   the image rows' absence and never touched that. The census confirmed the claim it rested
+   on — written by the seeder, read only by the seeder — and found one further reader,
+   `listModelConfigsForTier`, which had no product caller and went with the column.
+   Rehearsed against a restore of production's schema and rows before it shipped.
+3. ~~**Freeze the multiplier table in a test.**~~ **Done.**
+   `internal/providers/lib/__tests__/credit-multipliers.test.ts` pins all thirteen at their
+   literal values, derived from the runtime `ALIA_MODELS` so an ADDITION at an unreviewed
+   price fails too, and asserted through `getCreditMultiplier` as well as on the table —
+   which is the half that catches a removal, since `|| 1` absorbs a lookup that stops
+   resolving.
+4. ~~**Delete the hardcoded `alia-lite`**~~ **Done.** `use-personality-sample-phrase.ts` now
+   sends `DEFAULT_MODEL_ID` (`lib/config.ts`, `profile:v1`, overridable per build by
+   `EXPO_PUBLIC_ALIA_DEFAULT_MODEL`) — the identifier the composer already sends when nobody
+   has chosen one. It was the last `alia-*` id on any of the app's request paths; the two
+   that remain are a React Query placeholder (`use-billing.ts:330`, rendered and never sent)
+   and the one-alias store migration.
 
 ### Before any alias can stop resolving
 
@@ -590,15 +633,21 @@ Ordered by what must be true before each step, not by size.
 
 **Would not catch it, measured:**
 
-- **No test asserts any credit multiplier value.** Only `> 0`. This is the largest gap on
-  the page: a removal that missed `getAliaModel` would reprice every account and go green.
+- ~~**No test asserts any credit multiplier value.**~~ Fixed, and it was the largest gap on
+  the page: `credit-multipliers.test.ts` now pins all thirteen and asserts them through
+  `getCreditMultiplier` as well as on `ALIA_MODELS`, so the removal that would have
+  repriced every account goes red naming the alias and both numbers. Moved to the list
+  above.
 - **Nothing compared `ALIA_TIERS` with `TIER_MODEL_MAPPINGS`' keys** while there were two
   lists to compare, which is why the eight-suite alias run was green — 189 tests — with the
   drift live in production. The fix removes the comparison's subject rather than adding the
   comparison: there is now one list, so there is nothing left to disagree.
-- **No test asserts `model_configs.alia_tier` reflects the routing table.** The 29 lossy
-  pairs and the zero-row `v1-voice` are still invisible, and #339's pair test deliberately
-  does not assert the tier — its comment says why, which is that the column cannot be right.
+- ~~**No test asserts `model_configs.alia_tier` reflects the routing table.**~~ Retired
+  rather than fixed: the column is gone, so there is nothing left to reflect. #339's pair
+  test — which deliberately never asserted the tier, because the column could not be right —
+  is untouched and is now the whole of what this table has to answer for. The tuple-versus-
+  CHECK probe that used this column was repointed to `alia_models.tier`, the one column
+  `ALIA_TIERS` still renders a constraint for.
 - **No test asserts a plan's `model_ids` name registered models.** `findExistingAliasModelIds`
   exists at `aliaModelRepository.ts:497` and the only production write path is a route added
   after the schema comment saying there was none.
