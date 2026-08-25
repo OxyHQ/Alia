@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { generateText } from 'ai';
+import { generateObject, NoObjectGeneratedError, zodSchema } from 'ai';
 import { z } from 'zod';
 import { getDb } from '../db/index.js';
 import { findUserMemory } from '../db/memory/userMemoryRepository.js';
@@ -35,6 +35,61 @@ const aiSuggestionSchema = z.object({
   interests: z.array(z.string()).optional().default([]),
 });
 
+/**
+ * The whole answer, as an OBJECT with the list inside it.
+ *
+ * Not a bare array, and the reason is the response format rather than taste:
+ * the JSON-schema field every OpenAI-dialect provider implements takes an
+ * object at the root and refuses an array there. Asking for a shape the model
+ * is then told it may not produce is how a structured request becomes a
+ * free-text one again.
+ */
+const aiSuggestionListSchema = z.object({
+  suggestions: z.array(aiSuggestionSchema).min(1),
+});
+
+type AiSuggestion = z.infer<typeof aiSuggestionSchema>;
+
+const SUGGESTION_TYPES = ['welcome', 'autocomplete'] as const;
+
+/**
+ * How many suggestions one call may ask for.
+ *
+ * The client asks for eight. The cap exists because `count` goes straight into
+ * the prompt, and an unbounded one asks for an answer no output budget can hold
+ * — which is the failure this route was already having at eight.
+ */
+const MAX_GENERATED_SUGGESTIONS = 10;
+
+/**
+ * The output budget, in tokens.
+ *
+ * Measured against `openai/gpt-oss-120b`, which is what Kaana's product default
+ * resolves to, asking for the eight suggestions the app asks for: a complete
+ * answer costs 1781–2454 output tokens, of which 940–2066 are REASONING. The
+ * ceiling counts both, so the previous 2048 could not hold one — six of ten
+ * sampled answers came back truncated mid-object with `finish_reason: length`,
+ * one of them with the whole ceiling spent on reasoning and no answer at all.
+ * At 4096 none of eight was truncated.
+ */
+const SUGGESTION_OUTPUT_TOKENS = 4096;
+
+/**
+ * How long the whole request may take, across every model call it makes.
+ *
+ * ONE deadline rather than one clock per call. The previous shape gave Kaana
+ * thirty seconds and each of three fallback attempts thirty more, which is a
+ * hundred and twenty seconds of work for a client (`use-suggestions.ts`) that
+ * waits sixty — so the last two attempts were billed to answer nobody. It also
+ * cancelled work that was going to succeed: the same measurement above took
+ * 27.5–38.5 seconds wall-clock, so six of eight successful generations would
+ * have been aborted at thirty.
+ *
+ * Fifty-five leaves the client's sixty with room for the inserts and the
+ * response. A call that cannot start inside it is not started.
+ */
+const SUGGESTION_BUDGET_MS = 55_000;
+
 const router = Router();
 
 // ============== IN-MEMORY CACHE ==============
@@ -56,7 +111,7 @@ function suggestionPrompt(input: {
   types: readonly string[];
 }): string {
   const { count, profileParts, language, types } = input;
-  return `Generate ${count} unique prompt suggestions as a JSON array.
+  return `Generate ${count} unique prompt suggestions as a JSON object.
 User profile: ${profileParts}
 
 Rules:
@@ -68,6 +123,9 @@ Rules:
   - "welcome": short title + description shown as cards (4-8 words title)
   - "autocomplete": longer text shown as user types (complete sentence)
 
+Answer with an object whose "suggestions" key holds the ${count} items:
+{"suggestions":[ … ]}
+
 JSON schema per item:
 {"title":"string","text":"string","description":"string","type":"welcome|autocomplete","category":"string","language":"${language}","triggerWords":["first 1-2 words of text"],"tags":["2-3"],"occupations":[],"interests":[]}
 
@@ -75,7 +133,7 @@ Examples:
 - {"title":"Debug Code","text":"Help me debug this error and explain what went wrong","type":"autocomplete","category":"coding","language":"en-US","triggerWords":["help"],"tags":["coding","debug"],"occupations":[],"interests":[]}
 - {"title":"Creative Writing","text":"Write a short story about an unexpected friendship","type":"welcome","category":"creative","language":"en-US","triggerWords":["write"],"tags":["writing","creative"],"occupations":[],"interests":[]}
 
-Return ONLY a valid JSON array, no other text.`;
+Return ONLY that JSON object, no other text.`;
 }
 
 const SEARCH_CACHE_TTL = 3 * 60 * 1000; // 3 min — autocomplete results
@@ -267,7 +325,15 @@ router.post('/generate', authenticateToken, async (req: Request, res: Response) 
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const { count = 6, types = ['welcome', 'autocomplete'] } = req.body;
+    // Both inputs reach the prompt, so both are bounded here rather than
+    // trusted. `count` decides how much answer the output budget has to hold,
+    // and `types` was reaching `Array.prototype.join` — a caller sending a
+    // string for it turned this handler into a 500 before any model was asked.
+    const requestedCount = Math.trunc(Number(req.body?.count) || 6);
+    const count = Math.min(Math.max(requestedCount, 1), MAX_GENERATED_SUGGESTIONS);
+    const requestedTypes: readonly string[] = Array.isArray(req.body?.types) ? req.body.types : [];
+    const asked = SUGGESTION_TYPES.filter((known) => requestedTypes.includes(known));
+    const types = asked.length > 0 ? asked : SUGGESTION_TYPES;
 
     // Fetch user context for personalization
     const memory = await findUserMemory(getDb(), req.user.id);
@@ -281,15 +347,38 @@ router.post('/generate', authenticateToken, async (req: Request, res: Response) 
     // Provider fallback retry loop
     const MAX_PROVIDER_RETRIES = 3;
     const skipProviders = new Set<string>();
-    let result: Awaited<ReturnType<typeof generateText>> | null = null;
     /**
-     * Kaana's answer, when Kaana served this call. Kept apart from `result`
-     * rather than adapted into it: one is the AI SDK's shape and the other is
-     * the contract's, and one variable holding either would make every reader
-     * ask which. `null` means Kaana did not serve it, and the provider loop
-     * below is the fallback that exists until the in-process tree is deleted.
+     * The validated suggestions, once either path has produced them.
+     *
+     * One variable for two producers, because they now agree on a shape: both
+     * are asked for {@link aiSuggestionListSchema} and neither hands this
+     * handler anything it still has to parse. `null` means nobody has answered
+     * yet.
+     */
+    let generated: AiSuggestion[] | null = null;
+    /**
+     * Kaana's answer, when Kaana served this call. Kept apart rather than
+     * folded in: this one is still TEXT that has to be parsed, and the parse
+     * failing is a different event from Kaana failing to answer — which is the
+     * distinction the logs did not carry when this route was returning 500.
      */
     let kaanaText: string | null = null;
+    /**
+     * Whether a model answered and the answer could not be used.
+     *
+     * Separate from "no model answered", because the two are different things
+     * to tell a caller and only one of them is worth retrying.
+     */
+    let unusableAnswer = false;
+
+    /**
+     * The deadline, shared by every model call this request makes.
+     *
+     * Created once, before the first of them, so the abort is against the
+     * REQUEST's remaining time rather than each call's own fresh thirty
+     * seconds. See {@link SUGGESTION_BUDGET_MS}.
+     */
+    const deadline = AbortSignal.timeout(SUGGESTION_BUDGET_MS);
 
     // Build compact user profile string (only non-empty fields)
     const profileParts = [
@@ -312,15 +401,75 @@ router.post('/generate', authenticateToken, async (req: Request, res: Response) 
         // member and inventing one would put a cost centre in the contract
         // that Oxy has never heard of.
         surface: 'authoring',
-        maxOutputTokens: 2048,
+        maxOutputTokens: SUGGESTION_OUTPUT_TOKENS,
         temperature: 0.8,
         oxyUserId: req.user?.id ?? null,
+        /**
+         * The same schema the fallback asks for, converted once from the same
+         * Zod object the answer is validated against — so the shape asked for
+         * and the shape required cannot disagree. `await` because the SDK types
+         * the conversion as possibly asynchronous; the cast because a JSON
+         * Schema IS the JSON object the contract's field is typed as.
+         */
+        responseFormat: {
+          type: 'json_schema',
+          name: 'prompt_suggestions',
+          schema: (await zodSchema(aiSuggestionListSchema).jsonSchema) as Record<string, unknown>,
+          strict: false,
+        },
+        budgetMs: SUGGESTION_BUDGET_MS,
+        signal: deadline,
       });
     } catch (err: unknown) {
       log.general.warn({ err }, 'Kaana did not serve the suggestion prompt, falling back');
     }
 
-    for (let attempt = 0; kaanaText === null && attempt < MAX_PROVIDER_RETRIES; attempt++) {
+    if (kaanaText !== null) {
+      /**
+       * The whole answer, parsed as JSON — not a bracket-to-bracket slice of
+       * it.
+       *
+       * What was here matched from the first `[` to the last `]` and parsed
+       * that. On a truncated answer, which is what the model was actually
+       * returning, the last `]` closes an item's `tags` array, so the slice is
+       * a valid-looking prefix of a list and `JSON.parse` fails on it — the
+       * regex found something every time and it was never the answer.
+       */
+      let answer: unknown = null;
+      try {
+        answer = JSON.parse(kaanaText);
+      } catch {
+        // Left as null so the schema below rejects it, rather than reporting a
+        // syntax failure and a shape failure through two different paths.
+        answer = null;
+      }
+
+      const parsed = aiSuggestionListSchema.safeParse(answer);
+      if (!parsed.success) {
+        /**
+         * The thrown value is deliberately NOT logged.
+         *
+         * Both things it could be carry the model's whole answer — a Zod error
+         * quotes what it was given, and the SDK's own parse failure keeps the
+         * text on the error object — and pino's error serializer copies an
+         * error's own properties into the line. That is the leak #182 removed
+         * from this exact call site, and it would come back under a key this
+         * package's content census does not read.
+         *
+         * `responseChars` is what identified the fault instead: a complete
+         * answer for eight suggestions is around 3,400 characters, so a shorter
+         * one that will not parse is an answer that was cut off.
+         */
+        log.general.error(
+          { responseChars: kaanaText.length },
+          'Failed to parse AI-generated suggestions',
+        );
+        return res.status(500).json({ error: 'Failed to generate suggestions' });
+      }
+      generated = parsed.data.suggestions;
+    }
+
+    for (let attempt = 0; generated === null && attempt < MAX_PROVIDER_RETRIES; attempt++) {
       const resolved = await resolveModel('alia-lite', skipProviders);
       if (!resolved) {
         if (attempt === 0) {
@@ -331,55 +480,78 @@ router.post('/generate', authenticateToken, async (req: Request, res: Response) 
 
       try {
         const model = getAIModel(resolved, 'background');
-        result = await generateText({
+        /**
+         * `generateObject`, as the planner and the verifier already ask for a
+         * shape.
+         *
+         * It is the only call that sends the schema to the model at all — the
+         * AI SDK carries a response format on this function and on no other —
+         * and it parses and validates what comes back, so this handler never
+         * holds an answer it still has to interpret.
+         */
+        const result = await generateObject({
           model,
-          abortSignal: AbortSignal.timeout(30000),
-          messages: [
-            {
-              role: 'user',
-              content: prompt,
-            },
-          ],
+          schema: aiSuggestionListSchema,
+          abortSignal: deadline,
+          prompt,
+          maxOutputTokens: SUGGESTION_OUTPUT_TOKENS,
           temperature: 0.8,
+          // The loop rotates providers itself, and every attempt spends the one
+          // deadline above. An SDK-level retry would spend it twice on the same
+          // provider before the rotation got a turn.
           maxRetries: 0,
         });
+        generated = result.object.suggestions;
         break;
       } catch (providerError: unknown) {
-        log.general.error({ err: providerError, provider: resolved.provider, attempt }, 'Provider failed for suggestion generation');
+        if (NoObjectGeneratedError.isInstance(providerError)) {
+          /**
+           * An unusable answer ends this attempt and nothing else.
+           *
+           * Deliberately not rethrown, even on the last attempt: the handler's
+           * outer catch logs the thrown value under `err`, and this error
+           * carries the model's whole answer on `text` — rethrowing it would
+           * put the output into the logs by the back door, which is the leak
+           * the branch below exists to avoid.
+           */
+          unusableAnswer = true;
+          // Logged as what it is, and without the error object — `text` on it
+          // is the model's whole answer, which pino's serializer would copy
+          // into the line. `finishReason` is the fact that was missing while
+          // this route was failing: `length` says the answer was cut off at the
+          // output budget rather than malformed.
+          log.general.error(
+            {
+              finishReason: providerError.finishReason ?? null,
+              responseChars: providerError.text?.length ?? 0,
+              provider: resolved.provider,
+              attempt,
+            },
+            'Failed to parse AI-generated suggestions',
+          );
+        } else {
+          log.general.error({ err: providerError, provider: resolved.provider, attempt }, 'Provider failed for suggestion generation');
+          if (attempt >= MAX_PROVIDER_RETRIES - 1) throw providerError;
+        }
         skipProviders.add(resolved.provider);
-        if (attempt >= MAX_PROVIDER_RETRIES - 1) throw providerError;
       }
     }
 
-    if (kaanaText === null && !result) {
-      return res.status(503).json({ error: 'No AI models available' });
+    if (generated === null) {
+      // Two different answers, because the caller can act on one of them. No
+      // model at all is a service that is down and worth retrying; a model that
+      // answered with something unusable is not, and reporting it as capacity
+      // would send a client into a retry loop against a model that will say the
+      // same thing again.
+      return unusableAnswer
+        ? res.status(500).json({ error: 'Failed to generate suggestions' })
+        : res.status(503).json({ error: 'No AI models available' });
     }
-
-    const responseText = kaanaText ?? result?.text ?? '';
-
-    // Parse and validate JSON array from response
-    let rawParsed: unknown[];
-    try {
-      const jsonMatch = responseText.match(/\[[\s\S]*\]/);
-      if (!jsonMatch) throw new Error('No JSON array found');
-      const arr = JSON.parse(jsonMatch[0]);
-      if (!Array.isArray(arr)) throw new Error('Not an array');
-      rawParsed = arr;
-    } catch {
-      log.general.error({ responseChars: responseText.length }, 'Failed to parse AI-generated suggestions');
-      return res.status(500).json({ error: 'Failed to generate suggestions' });
-    }
-
-    // Validate each item with Zod, skip invalid ones
-    const validated = rawParsed
-      .map(item => aiSuggestionSchema.safeParse(item))
-      .filter(r => r.success)
-      .map(r => r.data!);
 
     // Create suggestion documents
     const created = [];
-    for (let i = 0; i < validated.length; i++) {
-      const item = validated[i];
+    for (let i = 0; i < generated.length; i++) {
+      const item = generated[i];
 
       const slug = item.title
         .toLowerCase()

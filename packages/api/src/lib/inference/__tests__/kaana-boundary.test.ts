@@ -281,6 +281,12 @@ describe('nothing in the API imports the Relay client (#139 ws3, constraint 3)',
     `${KAANA_DIR}/__tests__/kaana-endpoint.test.ts`,
     `${KAANA_DIR}/__tests__/kaana-openai-adapter.test.ts`,
     `${KAANA_DIR}/__tests__/kaana-request.test.ts`,
+    // The one-shot call's own suite. It asserts what LEAVES that function — the
+    // response format, and the budget on both the envelope and the signal —
+    // because a caller that parses the answer depends on both, and
+    // `routes/suggestions.ts` was answering 500 when neither could be set. A
+    // test importer, so constraint 3 is untouched.
+    `${KAANA_DIR}/__tests__/kaana-text.test.ts`,
     /*
      * The wire and what assembles it. `kaana.ts` constructs a client — the
      * first module in the repository that does — and `kaana-text.ts` is the
@@ -349,6 +355,17 @@ describe('nothing in the API imports the Relay client (#139 ws3, constraint 3)',
      */
     'packages/api/src/routes/health.ts',
     'packages/api/src/routes/suggestions.ts',
+    /**
+     * That route's own suite, which names `kaana-text.js` to REPLACE it.
+     *
+     * A `vi.mock` specifier, and the census counts one deliberately — a mock is
+     * how a product module's dependency on the client would be hidden from a
+     * reader while staying exactly as real in the module graph. This one
+     * substitutes Kaana so the route's own request can be asserted without a
+     * transport, which is the opposite direction: no client is constructed and
+     * nothing is called.
+     */
+    'packages/api/src/routes/__tests__/suggestions-generate.test.ts',
   ];
 
   it('is imported by exactly its own modules and its own tests', () => {
