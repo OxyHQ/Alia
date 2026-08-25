@@ -149,11 +149,22 @@ export const ChatHeader = React.memo(function ChatHeader({
         <Button
           variant="ghost"
           size="icon"
+          /**
+           * A handler wins over the palette, on BOTH platforms.
+           *
+           * A thread passes one and means "search what was said here", which is
+           * not the question ⌘K answers — that one finds a chat. Everywhere
+           * else nothing is passed and the palette opens exactly as before.
+           *
+           * This prop had been declared and never given: web never consulted
+           * it, and no screen passed one, so the native branch was unreachable
+           * too.
+           */
           onPress={() => {
-            if (Platform.OS === 'web') {
+            if (onSearchPress !== undefined) {
+              onSearchPress();
+            } else if (Platform.OS === 'web') {
               document.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true }));
-            } else {
-              onSearchPress?.();
             }
           }}
           className="h-9 w-9 rounded-full"

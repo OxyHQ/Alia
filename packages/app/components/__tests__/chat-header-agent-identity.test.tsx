@@ -171,6 +171,65 @@ describe('the chat header, with an agent', () => {
   });
 });
 
+describe('the magnifier', () => {
+  /**
+   * Two searches share one button, and which one it opens is the whole
+   * question: a thread searches what was SAID in it, everywhere else the
+   * app-wide palette finds a chat.
+   *
+   * `document` and `KeyboardEvent` are stubbed because this suite runs without
+   * a DOM — the palette branch reaches for both, so the stub is what makes
+   * "which branch ran" observable rather than a crash.
+   */
+  const dispatched: { key: string; metaKey: boolean }[] = [];
+
+  beforeEach(() => {
+    dispatched.length = 0;
+    Object.assign(globalThis, {
+      document: { dispatchEvent: (event: { key: string; metaKey: boolean }) => dispatched.push(event) },
+      KeyboardEvent: class {
+        key: string;
+        metaKey: boolean;
+        constructor(_type: string, init: { key: string; metaKey: boolean }) {
+          this.key = init.key;
+          this.metaKey = init.metaKey;
+        }
+      },
+    });
+  });
+
+  afterEach(() => {
+    Reflect.deleteProperty(globalThis, 'document');
+    Reflect.deleteProperty(globalThis, 'KeyboardEvent');
+  });
+
+  /** The button the magnifier sits in — `nodes` takes a string so `type` stays wide. */
+  function pressSearch(r: ReactTestRenderer) {
+    const magnifier = nodes(r, 'Search')[0];
+    const button = nodes(r, 'Button').find((node) =>
+      node.findAll((child) => child === magnifier).length > 0,
+    );
+    if (button === undefined) throw new Error('the magnifier is not in a button');
+    act(() => button.props.onPress());
+  }
+
+  it('searches the thread when a thread gave it a handler', () => {
+    const onSearchPress = vi.fn();
+    pressSearch(render(<ChatHeader agentName="Pepe" onSearchPress={onSearchPress} />));
+
+    expect(onSearchPress).toHaveBeenCalledTimes(1);
+    // And the app-wide palette stays shut: two searches opening at once is one
+    // too many, and the one that covers the screen is not the one asked for.
+    expect(dispatched).toEqual([]);
+  });
+
+  it('opens the app-wide palette everywhere else', () => {
+    pressSearch(render(<ChatHeader />));
+
+    expect(dispatched).toEqual([{ key: 'k', metaKey: true }]);
+  });
+});
+
 describe('the chat header, while an answer streams', () => {
   const STREAMING_FLUSHES = 20;
 

@@ -141,6 +141,16 @@ interface ChatPageContentProps {
   hasMoreHistory?: boolean;
   isLoadingHistory?: boolean;
   onLoadHistory?: () => void;
+  /**
+   * Search THIS thread, when there is a thread to search.
+   *
+   * Absent on `/c/:id`, where the header's magnifier keeps opening the app-wide
+   * palette — a different question: that one finds a chat, this one finds a
+   * sentence, and only a thread has stretches behind it to look through.
+   */
+  onSearchPress?: () => void;
+  /** The message a jump was aimed at, by cursor, or `null` at the present. */
+  focusCursor?: string | null;
 }
 
 
@@ -173,6 +183,8 @@ export const ChatPageContent = ({
   hasMoreHistory = false,
   isLoadingHistory = false,
   onLoadHistory,
+  onSearchPress,
+  focusCursor,
 }: ChatPageContentProps) => {
   const attachments = useStore((state) => state.attachments);
   const addAttachment = useStore((state) => state.addAttachment);
@@ -519,6 +531,7 @@ export const ChatPageContent = ({
           isLoadingHistory={isLoadingHistory}
           onHistoryHeight={historyEndsAt}
           activeConversationId={conversationId}
+          focusCursor={focusCursor}
           agentActivity={agentActivity}
           agentSessionId={agentSessionId}
           onApprovePlan={onApprovePlan}
@@ -540,6 +553,7 @@ export const ChatPageContent = ({
             isConversation={messages.length > 0}
             agentName={agentName}
             agentColor={agentColor}
+            onSearchPress={onSearchPress}
           />
         </LinearGradient>
 

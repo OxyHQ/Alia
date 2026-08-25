@@ -26,6 +26,12 @@ export const queryKeys = {
      * starts, while the pages behind it are immutable and expensive to refetch.
      */
     threadMessages: (username: string) => ['agent-thread-messages', username] as const,
+    /** Keyed by the query as typed, so each one is cached and none is re-asked. */
+    threadSearch: (username: string, query: string) =>
+      ['agent-thread-search', username, query] as const,
+    /** One window of the thread, addressed by the cursor a search hit carries. */
+    threadWindow: (username: string, cursor: string) =>
+      ['agent-thread-window', username, cursor] as const,
   },
   conversations: {
     all: ['conversations'] as const,
