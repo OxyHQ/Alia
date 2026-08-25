@@ -1,0 +1,4 @@
+ALTER TABLE "alia_models" DROP CONSTRAINT "alia_models_tier_check";--> statement-breakpoint
+ALTER TABLE "model_configs" DROP CONSTRAINT "model_configs_alia_tier_check";--> statement-breakpoint
+ALTER TABLE "alia_models" ADD CONSTRAINT "alia_models_tier_check" CHECK ("alia_models"."tier" in ('lite', 'v1', 'v1-codea', 'v1-cowork', 'v1-browser', 'v1-vision', 'v1-audio', 'v1-tts', 'v1-image', 'v1-multimodal', 'v1-pro', 'v1-pro-max', 'v1-voice', 'v1-voice-pro'));--> statement-breakpoint
+ALTER TABLE "model_configs" ADD CONSTRAINT "model_configs_alia_tier_check" CHECK ("model_configs"."alia_tier" in ('lite', 'v1', 'v1-codea', 'v1-cowork', 'v1-browser', 'v1-vision', 'v1-audio', 'v1-tts', 'v1-image', 'v1-multimodal', 'v1-pro', 'v1-pro-max', 'v1-voice', 'v1-voice-pro'));
