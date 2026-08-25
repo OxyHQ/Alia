@@ -450,15 +450,41 @@ router.patch('/series/:id', async (req: Request, res: Response) => {
  * The ORDER is the whole point, and it is why this returns a decision instead
  * of throwing. A show deleted here and left alive there is exactly the orphan
  * this repository shipped: a user removed a series in Alia, the podcast stayed
- * in Syra with four episodes, and no surface in either product could remove it.
- * So Syra goes first and Alia only forgets what Syra has already let go of.
+ * in Syra with seven episodes, and no surface in either product could remove
+ * it. So Syra goes first and Alia only forgets what Syra has already let go of.
  *
- * A `404` is success, not failure: the row is gone, which is the state the
- * caller asked for, and refusing to clean up Alia's copy because Syra had
- * nothing to delete would strand the pair the other way round. Every other
- * refusal — `403` for a show that is not the caller's or is RSS-mirrored,
- * `409` for one under a platform takedown — leaves BOTH records standing,
- * which is the only honest outcome when the two cannot be made to agree.
+ * ## Why `403` needs a SECOND question, and taking it at face value is a bug
+ *
+ * Syra answers `403 {"error":"You do not own this podcast"}` for a show that
+ * does not exist AND for one that is not the caller's — the same status, the
+ * same body, byte for byte. That is deliberate: `loadOwnedShowOrRespond` merges
+ * the two so a caller cannot probe for a private show's id. There is nothing in
+ * the response to discriminate on.
+ *
+ * Reading that as a refusal wedges Alia permanently on any show whose Syra side
+ * is already gone — a creator who deleted it in Studio first, or a retry after
+ * a partial failure. Alia would keep a record of a podcast that is not there
+ * and could never drop it: this bug's mirror image, and the reason the first
+ * version of this function was wrong. Its `404` branch was unreachable on the
+ * path that matters; Syra only answers `404` in the narrow race where the row
+ * goes between the ownership check and the delete.
+ *
+ * So a `403` asks a second, allowed question — is it there for this caller at
+ * all? — and `stillPresent` is a read the same session already has. `404` on
+ * that read means no such show FOR THIS USER, which is the goal state; `200`
+ * means it exists and Syra will not delete it, which is RSS-mirrored content or
+ * somebody else's, and both records stand.
+ *
+ * The one thing the read cannot see: another person's PRIVATE show also reads
+ * `404`, so it would be classed as gone. Narrow here, because the id came from
+ * a row Alia minted for this user, but not zero.
+ *
+ * Every other status is a refusal or a fault, never a goal state: `409` for a
+ * platform takedown — honoured, and it does not even ask the second question —
+ * `400` and `401` are bugs on this side, and a `5xx` must be retried rather
+ * than assumed, because Syra sets the show `unavailable` before deleting a
+ * single object, so a partial failure leaves an unpublished show with dead
+ * audio that a second delete finishes off.
  *
  * One function rather than two copies because it encodes ONE judgement, and a
  * series and an episode disagreeing about what "already gone" means is a bug
@@ -466,22 +492,32 @@ router.patch('/series/:id', async (req: Request, res: Response) => {
  */
 async function syraLetGoOf(
   remove: () => Promise<unknown>,
+  stillPresent: () => Promise<unknown>,
   what: { readonly kind: 'series' | 'episode'; readonly aliaId: string; readonly syraId: string },
 ): Promise<boolean> {
+  const refused = (error: unknown, why: string): false => {
+    log.general.error(
+      { err: error, kind: what.kind, aliaId: what.aliaId, syraId: what.syraId, why },
+      'Syra did not delete, so Alia kept its record',
+    );
+    return false;
+  };
+
   try {
     await remove();
     return true;
   } catch (error: unknown) {
-    if (error instanceof SyraApiError && error.status === 404) return true;
-    // Named fields rather than a spread: `log-content.test.ts` refuses an
-    // unbounded object spread into a log, and it is right to — the two ids are
-    // what a reader needs, and anything else arriving here would be a leak
-    // nobody chose.
-    log.general.error(
-      { err: error, kind: what.kind, aliaId: what.aliaId, syraId: what.syraId },
-      'Syra refused to delete, so Alia kept its record',
-    );
-    return false;
+    if (!(error instanceof SyraApiError)) return refused(error, 'unknown_error');
+    if (error.status === 404) return true;
+    if (error.status !== 403) return refused(error, `status_${error.status}`);
+
+    try {
+      await stillPresent();
+      return refused(error, 'exists_and_refused');
+    } catch (probe: unknown) {
+      if (probe instanceof SyraApiError && probe.status === 404) return true;
+      return refused(probe, 'unreadable');
+    }
   }
 }
 
@@ -513,6 +549,7 @@ router.delete('/series/:id', async (req: Request, res: Response) => {
     if (syraPodcastId !== null) {
       const letGo = await syraLetGoOf(
         () => syraForRequest(req).deletePodcast(syraPodcastId),
+        () => syraForRequest(req).getPodcast(syraPodcastId),
         { kind: 'series', aliaId: id, syraId: syraPodcastId },
       );
       if (!letGo) {
@@ -711,6 +748,7 @@ router.delete('/episodes/:id', async (req: Request, res: Response) => {
     if (syraEpisodeId !== null) {
       const letGo = await syraLetGoOf(
         () => syraForRequest(req).deleteEpisode(syraEpisodeId),
+        () => syraForRequest(req).getEpisode(syraEpisodeId),
         { kind: 'episode', aliaId: id, syraId: syraEpisodeId },
       );
       if (!letGo) {
