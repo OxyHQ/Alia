@@ -269,8 +269,17 @@ const statusSchema = z.enum(AGENT_STATUSES as unknown as [AgentStatus, ...AgentS
  * with nothing to say why.
  *
  * The predecessor was a hand-rolled type-guard prelude plus a 28-line block of
- * conditional spreads. Both are gone: `agent-teams.ts` is the pattern in this
- * domain and this follows it.
+ * conditional spreads. Both are gone.
+ *
+ * THIS is now the reference for the agents domain, and it inherited the role
+ * rather than invented it: the pattern came from `routes/agent-teams.ts`, which
+ * was deleted with the teams feature. That router was the only one in the domain
+ * that validated with a schema — its four siblings each hand-rolled something
+ * different — so the one good example was about to leave with a feature nobody
+ * used. It is reproduced here instead: a `z.object(...).strict()`, `.parse()`d
+ * once at the top of the handler with the parsed value used from then on, and a
+ * `z.ZodError` branch in the catch that turns anything the schema does not name
+ * into a 400 with the field errors attached.
  */
 const createAgentSchema = z
   .object({

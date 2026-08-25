@@ -1037,7 +1037,6 @@ about enums, applied to all of them.
 | `agents_handle_key` | two agents sharing a `handle` | Mongoose declares `unique: true`, so a hit means a row predating it or a raw write around it. A handle is how one agent delegates to another (`@researcher`), so a duplicate makes which agent is hired arbitrary. |
 | `agent_skills_agent_skill_key`, `agent_knowledge_agent_file_key` | one agent's array naming the same skill or file TWICE | New — Mongo cannot index inside a sub-document array, and nothing deduplicated these on write (`routes/agents/crud.ts:252` stores the client's array verbatim, unlike the team routes which use `$addToSet`). A hit is a duplicate the UI already renders twice; drop the repeat rather than relaxing the index. |
 | `agent_session_resources_session_resource_key` | one session claiming the same VM or container twice | New. `lib/agent/runner.ts:272` guards it with `resources.some(...)` before pushing — a read-then-write two concurrent tool calls can both pass, so a duplicate is the expected artefact of that race rather than a surprise. Merge, keeping the row whose `status` is `destroyed` last. |
-| `agent_team_agents_team_agent_key` and its two siblings | a team naming the same member twice | NOT a new tightening: `routes/agent-teams.ts:161` already uses `$addToSet`, so this index is the constraint that operator was emulating. A hit means a row written before that route existed, or a raw write around it. |
 | `agent_reviews_agent_user_key`, `container_templates_snapshot_tag_key` | a duplicate | Both declared `unique: true` in Mongoose, so a hit means a row predating the declaration. |
 
 ## Not-null a legacy row may not satisfy
@@ -1061,9 +1060,9 @@ leaves every earlier row without one.
 
 ## Foreign keys a legacy row will not satisfy — the EXPECTED failure of batch 9b
 
-`agent_skills.skill_id`, `agent_knowledge.library_file_id`, `agent_team_agents`,
-`agent_team_skills`, `agent_team_knowledge`, `agent_reviews.agent_id` and
-`agent_session_resources.session_id` all have real foreign keys, and **Mongo left
+`agent_skills.skill_id`, `agent_knowledge.library_file_id`,
+`agent_reviews.agent_id` and `agent_session_resources.session_id` all have real
+foreign keys, and **Mongo left
 dangling ids behind every one of them**: `routes/agents/crud.ts:323` deletes an
 agent with a bare `deleteOne` and touches nothing, and deleting a `Skill` or a
 `LibraryFile` never touched the agents referencing it. `populate` silently

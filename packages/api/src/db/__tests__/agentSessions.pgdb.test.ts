@@ -3,7 +3,6 @@ import { eq, sql } from 'drizzle-orm';
 import {
   constraintNameOf,
   isCheckViolation,
-  isForeignKeyViolation,
   isUniqueViolation,
 } from '@oxyhq/db';
 import { closePostgres, connectPostgres, type ApiDatabase } from '../index';
@@ -11,8 +10,6 @@ import {
   agentReviews,
   agentSessionResources,
   agentSessions,
-  agentTeamAgents,
-  agentTeams,
   containerTemplates,
 } from '../schema/agent-sessions';
 import { agents } from '../schema/agents';
@@ -357,63 +354,3 @@ describe('container_templates', () => {
   });
 });
 
-describe('agent_teams', () => {
-  it('refuses a member naming an agent that does not exist', async () => {
-    await db
-      .insert(agentTeams)
-      .values({ id: 'at-1', name: 'Research squad', creatorOxyUserId: 'oxy-user-sessions' });
-
-    const insert = db
-      .insert(agentTeamAgents)
-      .values({ id: 'ata-bad', teamId: 'at-1', agentId: 'no-such-agent' });
-
-    await expect(insert).rejects.toSatisfy((error: unknown) => {
-      expect(isForeignKeyViolation(error)).toBe(true);
-      expect(constraintNameOf(error)).toBe('agent_team_agents_agent_id_fk');
-      return true;
-    });
-  });
-
-  it('makes $addToSet structural: the same agent cannot join a team twice', async () => {
-    // `routes/agent-teams.ts:161` uses `$addToSet` and `:184` `$pull`, so this
-    // unique is not a new tightening — it is the constraint the update operator
-    // was emulating.
-    await db
-      .insert(agentTeams)
-      .values({ id: 'at-2', name: 'Squad', creatorOxyUserId: 'oxy-user-sessions' });
-    await db.insert(agents).values(agentValues({ id: 'ag-member' }));
-    await db.insert(agentTeamAgents).values({ id: 'ata-1', teamId: 'at-2', agentId: 'ag-member' });
-
-    const again = db
-      .insert(agentTeamAgents)
-      .values({ id: 'ata-1b', teamId: 'at-2', agentId: 'ag-member' });
-
-    await expect(again).rejects.toSatisfy((error: unknown) => {
-      expect(isUniqueViolation(error)).toBe(true);
-      expect(constraintNameOf(error)).toBe('agent_team_agents_team_agent_key');
-      return true;
-    });
-  });
-
-  it('drops memberships when the TEAM is deleted, leaving the agent alone', async () => {
-    await db
-      .insert(agentTeams)
-      .values({ id: 'at-3', name: 'Doomed', creatorOxyUserId: 'oxy-user-sessions' });
-    await db.insert(agents).values(agentValues({ id: 'ag-survives' }));
-    await db.insert(agentTeamAgents).values({ id: 'ata-2', teamId: 'at-3', agentId: 'ag-survives' });
-
-    await db.delete(agentTeams).where(eq(agentTeams.id, 'at-3'));
-
-    const links = await db
-      .select({ id: agentTeamAgents.id })
-      .from(agentTeamAgents)
-      .where(eq(agentTeamAgents.id, 'ata-2'));
-    expect(links).toEqual([]);
-
-    const survivors = await db
-      .select({ id: agents.id })
-      .from(agents)
-      .where(eq(agents.id, 'ag-survives'));
-    expect(survivors).toEqual([{ id: 'ag-survives' }]);
-  });
-});
