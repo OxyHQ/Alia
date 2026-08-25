@@ -32,6 +32,13 @@
 }
 
 @theme {
+  /* The LAYERED value, which the `:root` above outranks on every platform — so
+     it never decides what is painted. It is here as the fallback that would
+     apply if that block were ever removed: measured, deleting this line leaves
+     `@layer theme` holding Tailwind's stock `ui-sans-serif, system-ui, …`
+     instead of Bloom's family, and the rendered result is unchanged only for as
+     long as the unlayered rule survives. It also registers the token, which is
+     what makes the `font-sans` utility exist at all. */
   --font-sans: var(--bloom-font-sans);
 
   --radius-lg: var(--radius);
