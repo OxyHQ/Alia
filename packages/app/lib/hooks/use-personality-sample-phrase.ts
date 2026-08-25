@@ -3,6 +3,7 @@ import { fetch as expoFetch } from 'expo/fetch';
 import { useOxy } from '@oxyhq/services';
 import { generateAPIUrl } from '@/lib/generate-api-url';
 import { API_ROUTES } from '@/lib/api/routes';
+import { DEFAULT_MODEL_ID } from '@/lib/config';
 import { PERSONALITY_STYLE_MAP, type PersonalityStyleId } from '@/lib/personality-styles';
 import { errorName } from '../errors/error-utils';
 
@@ -71,7 +72,21 @@ export function usePersonalitySamplePhrase() {
             method: 'POST',
             headers,
             body: JSON.stringify({
-              model: 'alia-lite',
+              /**
+               * The same identifier the composer sends when nobody has chosen
+               * one — a `profile:*` routing profile, overridable per build by
+               * `EXPO_PUBLIC_ALIA_DEFAULT_MODEL`.
+               *
+               * This was the literal `alia-lite`, the last live `alia-*` id
+               * anywhere in the app's request paths. Those identifiers are
+               * de-advertised (ADR 0003): `GET /catalogue` does not list them
+               * and `GET /v1/models` returns `[]`, so a request naming one asks
+               * for something the product no longer publishes and pins this
+               * sample to a routing decision the picker cannot see or change.
+               * It also cost a config: an operator who repoints the app's
+               * default model repointed every request except this one.
+               */
+              model: DEFAULT_MODEL_ID,
               stream: true,
               max_tokens: 80,
               temperature: 0.95,
