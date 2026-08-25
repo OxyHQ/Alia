@@ -106,6 +106,33 @@ block creation**. Every failure answers "no image": Syra's own surfaces already
 handle a show without artwork, and a series nobody could create because an image
 model was busy would be the worse outcome. `PATCH /shows/series/:id` replaces it.
 
+## Sound effects
+
+The script asks for an intro, transitions between topics and an outro, and each
+one is an `sfx` segment carrying an `sfxPrompt`. They are rendered by
+`lib/synthesize-sound-effect.ts`, which walks the **`v1-sfx` tier** and takes the
+first provider that answers — the same shape `synthesize-speech.ts` has for the
+`v1-tts` tier, and for the same reason: a chain with one entry is exhausted on
+its first attempt.
+
+It had one entry, inline, and no chain. `renderSoundEffect` named a single
+provider and a single model in the pipeline, so when that provider held no
+credential every sound cue in every episode was lost — permanently, three per
+episode, while the episode published and reported success. Adding a provider to
+the tier is a `createMapping` line; adding one to a hardcoded call was a
+rewrite, which is why the failure survived as long as it did.
+
+**Dialogue is rendered before effects, deliberately.** Speech is the part a
+listener cannot do without, and an effect provider timing out used to poison the
+key pool before the voices had finished.
+
+**A cue that cannot be produced is recorded, not swallowed.** The pipeline still
+publishes — a missing transition whoosh is a slightly abrupt show, and refusing
+over it is no show — but the segment is marked `renderFailed`, so the row says
+which cues are missing and what they were meant to sound like, and the series
+screen says so too. The same applies to a spoken line. An episode that quietly
+loses everything it asked for is worse than one that admits it.
+
 ## Configuration
 
 | Variable | Where | Notes |
