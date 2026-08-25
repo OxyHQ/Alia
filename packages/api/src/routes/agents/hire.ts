@@ -1,11 +1,9 @@
 import { Router } from 'express';
 import { getDb } from '../../db/index.js';
-import { findAgentById, incrementAgentCounters } from '../../db/agents/agentRepository.js';
-import { createAgentSession } from '../../db/agents/agentSessionRepository.js';
+import { findAgentById } from '../../db/agents/agentRepository.js';
 import { authenticateToken } from '../../middleware/auth.js';
 import { getAgentCapabilities } from '../../lib/agent/health.js';
-import { enqueueAgentSession } from '../../lib/task-queue.js';
-import { reserveCredits } from '../../lib/credits-manager.js';
+import { startAgentSession } from '../../lib/agent/session-handoff.js';
 import { log } from '../../lib/logger.js';
 import type { Request, Response } from 'express';
 
@@ -41,44 +39,29 @@ router.post('/:id/hire', authenticateToken, async (req: Request, res: Response) 
       });
     }
 
-    // Reserve credits (Manus-style: token + VM resource based)
-    const baseCredits = agent.price || 15;
-    const creditReservation = await reserveCredits(req.user.id, baseCredits);
-    if (!creditReservation) {
-      return res.status(402).json({
-        error: 'Insufficient credits',
-        creditsNeeded: baseCredits,
-      });
+    /**
+     * Reserve, create, count and enqueue — as one operation that cannot leave
+     * the reservation behind.
+     *
+     * This was four calls in this `try`, and the `catch` below answered a
+     * failure of any of them with a 500 and a log line. `reserveCredits`
+     * DEBITS, so those 500s each cost the caller the agent's price for an agent
+     * that never ran. `startAgentSession` owns the undo; the two failures it
+     * reports are the two answers this route has always had.
+     */
+    const handoff = await startAgentSession({ agent, userId: req.user.id, task, origin: 'hire' });
+
+    if (!handoff.ok) {
+      if (handoff.reason === 'insufficient_credits') {
+        return res.status(402).json({
+          error: 'Insufficient credits',
+          creditsNeeded: handoff.creditsNeeded,
+        });
+      }
+      return res.status(500).json({ error: 'Failed to hire agent' });
     }
 
-    // Create session with credit reservation
-    const session = await createAgentSession(getDb(), {
-      agentId: agent._id,
-      oxyUserId: req.user.id,
-      task,
-      status: 'queued',
-      depth: 0,
-      creditReservation,
-    });
-
-    /**
-     * One statement, not a read-modify-write.
-     *
-     * `agent.hireCount += 1; await agent.save()` lost a concurrent hire: two
-     * requests read the same value and wrote the same value+1. `$inc` did not,
-     * and neither does this.
-     */
-    await incrementAgentCounters(getDb(), agent._id, { hireCount: 1, usageCount: 1 });
-
-    // Enqueue via BullMQ (falls back to direct execution if Redis unavailable)
-    const { queued, jobId } = await enqueueAgentSession({
-      sessionId: session._id,
-      userId: req.user.id,
-      agentId: agent._id,
-      agentName: agent.name,
-    });
-
-    res.json({ sessionId: session._id, hired: true, queued, jobId });
+    res.json({ sessionId: handoff.sessionId, hired: true, queued: handoff.queued, jobId: handoff.jobId });
   } catch (error: unknown) {
     log.agents.error({ err: error }, 'Error hiring agent');
     res.status(500).json({ error: 'Failed to hire agent' });

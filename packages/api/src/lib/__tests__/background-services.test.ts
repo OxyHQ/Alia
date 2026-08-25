@@ -49,6 +49,7 @@ const shutdownShowQueue = traced('shutdownShowQueue');
 const containerPoolInitialize = traced('containerPool.initialize');
 const shutdownContainerPool = traced('shutdownContainerPool');
 const failOrphanedAudioJobs = vi.fn(() => { order.push('failOrphanedAudioJobs'); return Promise.resolve(0); });
+const reclaimOrphanedAgentSessions = vi.fn(() => { order.push('reclaimOrphanedAgentSessions'); return Promise.resolve(0); });
 
 /** A sentinel, so the audio-job cleanup can be asserted to receive the handle `getDb()` returned. */
 const DB_HANDLE = Symbol('db') as unknown as ReturnType<typeof getDbSignature>;
@@ -67,6 +68,7 @@ vi.mock('../sandbox/container-pool.js', () => ({
   shutdownContainerPool,
 }));
 vi.mock('../../db/notifications/audioJobRepository.js', () => ({ failOrphanedAudioJobs }));
+vi.mock('../agent/session-handoff.js', () => ({ reclaimOrphanedAgentSessions }));
 vi.mock('../../db/index.js', () => ({ getDb }));
 vi.mock('../logger.js', () => ({
   log: { general: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } },
@@ -103,6 +105,7 @@ describe('startBackgroundServices', () => {
     expect(startWorker).toHaveBeenCalledTimes(1);
     expect(containerPoolInitialize).toHaveBeenCalledTimes(1);
     expect(failOrphanedAudioJobs).toHaveBeenCalledTimes(1);
+    expect(reclaimOrphanedAgentSessions).toHaveBeenCalledTimes(1);
     expect(initShowQueue).toHaveBeenCalledTimes(1);
     expect(startShowWorker).toHaveBeenCalledTimes(1);
   });
@@ -150,6 +153,7 @@ describe('startBackgroundServices', () => {
       'initTaskQueue',
       'containerPool.initialize',
       'failOrphanedAudioJobs',
+      'reclaimOrphanedAgentSessions',
       'initShowQueue',
       'startWorker',
       'startShowWorker',
@@ -222,6 +226,7 @@ describe('stopBackgroundServices', () => {
       warmupGatewayClient: '',
       syncZeroEval: '',
       failOrphanedAudioJobs: '',
+      reclaimOrphanedAgentSessions: '',
       startWorker: 'shutdownTaskQueue',
       startShowWorker: 'shutdownShowQueue',
     };
@@ -230,7 +235,7 @@ describe('stopBackgroundServices', () => {
     await settle();
     const started = [...order];
     // Vacuity floor: an empty `started` would make the loop below assert nothing.
-    expect(started.length).toBe(10);
+    expect(started.length).toBe(11);
 
     order.length = 0;
     await stopBackgroundServices();

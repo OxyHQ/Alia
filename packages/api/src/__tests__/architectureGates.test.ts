@@ -647,6 +647,17 @@ const PROVIDER_IMPORT_ALLOWLIST: readonly { from: string; to: string; via: Modul
     why: 'A route driving a provider realtime session directly. Moves to Relay (#139 ws7).',
   },
   {
+    from: 'packages/api/src/routes/v1/__tests__/voice-transcribe-credits.pgdb.test.ts',
+    to: 'packages/api/src/internal/providers/lib/voice-session-manager',
+    via: 'vi.mock',
+    why:
+      'Stubs the realtime session manager so the /v1/voice/transcribe credit suite can run. ' +
+      'Forced by the line above: `voice.ts` imports `voiceSessionManager` at module scope, so ' +
+      'importing the route at all loads LiveKit and `ws`, which the transcribe path never uses. ' +
+      'A mock, not a new dependency — this test asserts the balance, never the session. Retires ' +
+      'with the entry above it, when the route stops driving a provider session (#139 ws7).',
+  },
+  {
     from: 'packages/api/src/__tests__/dockerfileShipsRuntimeData.test.ts',
     to: 'packages/api/src/internal/providers/lib/alia-models',
     via: 'import',
@@ -757,7 +768,7 @@ const PROVIDER_IMPORT_ALLOWLIST: readonly { from: string; to: string; via: Modul
  * produced a plausible wrong answer that still compiled. The same trap caught
  * ws5's rebase, which is why this paragraph is a rule and not a history.
  */
-const PROVIDER_IMPORT_ALLOWLIST_SIZE = 48;
+const PROVIDER_IMPORT_ALLOWLIST_SIZE = 49;
 
 function observedProviderImports(): { from: string; to: string; via: ModuleRef['via'] }[] {
   const seen = new Map<string, { from: string; to: string; via: ModuleRef['via'] }>();

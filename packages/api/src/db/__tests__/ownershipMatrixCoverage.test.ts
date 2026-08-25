@@ -97,8 +97,10 @@ const NOT_APPLICABLE: Readonly<Record<string, string>> = {
     'Test of seed-model-configs.ts and provider-names.ts, both mapped (rows `dead-startup-seed` and `tuple-provider-names`). Moves or dies with them.',
   'packages/api/src/internal/providers/lib/__tests__/image-providers.test.ts':
     'Test of image-providers.ts, which is mapped (row `image-providers`). Moves or dies with it.',
+  'packages/api/src/internal/providers/lib/__tests__/voice-session-credits.pgdb.test.ts':
+    'Test of voice-session-manager.ts, which is mapped (rows `voice-session-manager` and `behaviour-voice-realtime`). Asserts the CREDIT balance a failed session leaves behind, so it moves or dies with the manager exactly as the eleven above do.',
 };
-const NOT_APPLICABLE_COUNT = 12;
+const NOT_APPLICABLE_COUNT = 13;
 
 interface MatrixRow {
   readonly id: string;

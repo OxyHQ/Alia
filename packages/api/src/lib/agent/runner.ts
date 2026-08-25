@@ -46,7 +46,7 @@ import { buildActions } from './actions.js';
 import { buildArchetypeSystemPrompt } from './archetype-prompts.js';
 import { buildIdentityGuard } from '../identity-guard.js';
 import { classifyError, getErrorMessage } from '../errors/failover-error.js';
-import { finalizeCredits, safeRefund, type CreditReservation } from '../credits-manager.js';
+import { finalizeCredits, safeRefund } from '../credits-manager.js';
 import { MAX_DELEGATION_DEPTH, EVENT_STREAM_BUDGET } from '../constants.js';
 import { orchestrate, shouldOrchestrate } from './orchestrator.js';
 import { compactContext } from './context-compaction.js';
@@ -808,7 +808,7 @@ export async function runAgentSession(sessionId: string): Promise<void> {
     if (session.creditReservation) {
       try {
         const finalized = await finalizeCredits(
-          session.creditReservation as CreditReservation,
+          session.creditReservation,
           { totalTokens, promptTokens: 0, completionTokens: 0 },
         );
         creditsCharged = finalized.creditsCharged;
@@ -845,7 +845,7 @@ export async function runAgentSession(sessionId: string): Promise<void> {
 
     // Refund credits on failure
     if (session.creditReservation) {
-      await safeRefund(session.creditReservation as CreditReservation, 'session failed');
+      await safeRefund(session.creditReservation, 'session failed');
     }
 
     const sessionErrMsg = getErrorMessage(err);
