@@ -116,7 +116,7 @@ export default function CreateAgentScreen() {
         description: config.description,
         category: config.category,
         tags: config.tags,
-        capabilities: config.capabilities,
+        capabilityGrants: config.capabilityGrants,
         systemPrompt: config.systemPrompt,
         isPublished: false,
         archetype: config.archetype || selectedArchetype,

@@ -109,6 +109,8 @@ export const API_ROUTES = {
     routingStats: (id: string) => `/agents/${id}/routing-stats`,
     generateAvatar: '/agents/avatar/generate',
     generate: '/agents/generate',
+    /** The MCP connectors, Oxy apps and integrations this owner can grant. */
+    capabilityConnectors: '/agents/capability-connectors',
   },
 
   // Library routes

@@ -1,0 +1,33 @@
+-- oxy:deploy-phase=pre
+-- `capability_grants` — one vocabulary for what an agent may reach, replacing
+-- the three that answered the same question and disagreed: `capabilities`
+-- (eight ids the assembler never read), the six `permissions_*` booleans (two
+-- of six honoured, and never persisted, because the PATCH allow-list did not
+-- name them) and `archetype_config.knowledgeSources` (prose in a prompt).
+--
+-- `pre`, without ambiguity: it ADDS a column with a default, so the image
+-- running before this deploy neither writes it nor reads it and is unaffected.
+--
+-- THIS IS THE EXPAND HALF, AND 0042 IS THE CONTRACT HALF. They are two
+-- migrations rather than one on purpose, and not only for the rollout: a single
+-- file adding `capability_grants` while dropping `capabilities` — both `text[]`
+-- on the same table — makes `drizzle-kit generate` ask interactively whether
+-- one was RENAMED into the other, and that question has no TTY in CI.
+-- MEASURED, not assumed: attempting it prints
+-- `Error: Interactive prompts require a TTY terminal` from
+-- `promptColumnsConflicts`, and drizzle-kit still exits 0. Splitting them makes
+-- 0042 a file of pure drops, which it never asks about.
+--
+-- Do not merge them "to simplify". A drop is `post` and an additive change is
+-- `pre`, so merging would also force one phase onto two halves that need
+-- different ones.
+--
+-- `notNull default '{}'` REVERSES the default that `permissions_*` carried,
+-- where NULL meant the group was absent and absent meant ALL ALLOWED. An empty
+-- grant list denies. Nothing is lost to the reversal: measured in production on
+-- 2026-08-25, `agents` held ZERO rows — published 0, with_prompt 0, and any
+-- `permissions*` set 0 — with positive controls in the same query
+-- (`user_credits` 3, `conversations` 30, `skills` 15), so the zeros are zeros
+-- and not a query that measured nothing.
+
+ALTER TABLE "agents" ADD COLUMN "capability_grants" text[] DEFAULT '{}' NOT NULL;

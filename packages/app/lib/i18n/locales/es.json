@@ -624,7 +624,9 @@
     "handlePlaceholder": "identificador",
     "handleTaken": "Ese identificador ya está en uso. Prueba con otro.",
     "handlesAutonomousEvents": "Atiende eventos autónomos",
-    "handlesAutonomousEventsHint": "Ejecuta por su cuenta los eventos de servicios Oxy. Solo uno de tus agentes puede."
+    "handlesAutonomousEventsHint": "Ejecuta por su cuenta los eventos de servicios Oxy. Solo uno de tus agentes puede.",
+    "capabilitiesFooter": "Un agente no alcanza nada que no hayas activado aquí.",
+    "saveFailed": "No se pudo guardar"
   },
   "authorize": {
     "sendMessages": "Enviar mensajes a modelos de IA",

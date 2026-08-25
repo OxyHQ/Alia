@@ -39,18 +39,22 @@ const cache = new TTLCache<ToolSet>({ ttlMs: 30_000, maxSize: 2000 });
  */
 export async function buildMcpTools(
   oxyUserId: string,
-  selectedServerId?: string | null,
+  /**
+   * Which connectors this turn may reach.
+   *
+   * `undefined` means every runnable one, which is the historical behaviour for
+   * a turn with no agent and no composer selection. An ARRAY names them
+   * exactly, and an EMPTY array is a real answer meaning none — which is what an
+   * agent granted no connector asks. The pipeline resolves the agent's grants
+   * and the composer's per-turn pick into this one value.
+   */
+  selectedServerIds?: readonly string[],
 ): Promise<ToolSet> {
-  // `null` is an explicit per-turn choice to expose no MCP tools. `undefined`
-  // preserves the historical behaviour for callers that do not know about the
-  // selector and therefore means every runnable connector.
-  if (selectedServerId === null) return {};
+  if (selectedServerIds !== undefined && selectedServerIds.length === 0) return {};
 
   const cacheKey = JSON.stringify({
     oxyUserId,
-    selection: selectedServerId === undefined
-      ? { kind: 'all' }
-      : { kind: 'one', id: selectedServerId },
+    selection: selectedServerIds === undefined ? { kind: 'all' } : { ids: [...selectedServerIds].sort() },
   });
   const cached = cache.get(cacheKey);
   if (cached) return cached;
@@ -63,7 +67,7 @@ export async function buildMcpTools(
       const servers = await listRunnableMcpServersForUser(
         getDb(),
         oxyUserId,
-        selectedServerId,
+        selectedServerIds,
       );
 
       for (const server of servers) {
@@ -87,11 +91,17 @@ export async function buildMcpTools(
       }
     }
 
-    // Local MCP tools (from connected Cowork/Codea client)
-    // A selected hosted connector is an allow-list for this turn. Local relay
-    // tools have a different lifetime and are not rows the composer can select,
-    // so they remain available only on the legacy all-connectors path.
-    const localEntries = selectedServerId === undefined ? getLocalTools(oxyUserId) : [];
+    /**
+     * Local MCP tools (from connected Cowork/Codea client).
+     *
+     * A named selection is an allow-list of ROWS, and a local relay server is
+     * not one: it lives as long as a device stays connected, has no row the
+     * composer can offer and no id an agent's owner could grant. So it comes
+     * only with the unselected path — which also means an AGENT never sees a
+     * local connector, since an agent always arrives with a named selection.
+     * That is the deliberate consequence of granting by instance.
+     */
+    const localEntries = selectedServerIds === undefined ? getLocalTools(oxyUserId) : [];
     for (const { serverId, serverName, tool: mcpTool } of localEntries) {
       const toolName = `mcp_${sanitizeName(serverName)}__${sanitizeName(mcpTool.name)}`;
       if (tools[toolName]) {

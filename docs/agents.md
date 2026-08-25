@@ -94,6 +94,30 @@ Persistent entities, read through `db/autonomy/contextGraphRepository.ts`:
 
 Ranking combines freshness, precision, and cost to choose source order.
 
+## Capabilities
+
+What an agent may reach is `agents.capability_grants`: one list of
+`family` / `family:instanceId` strings, and the ONLY input that partitions
+`ToolPipeline.forUser`. The families and the argument for each are in
+`domain/capability-grants.ts`; the table of which tools each contributes is in
+`docs/chat-runtime.mdx`.
+
+Two properties are worth stating outright, because both reverse what came before:
+
+- **Empty denies.** An agent whose owner has granted nothing reaches only
+  `UNGRANTED_TOOLS`. The three vocabularies this replaced —`capabilities`,
+  the six `permissions_*` columns and `archetypeConfig.knowledgeSources`— all
+  treated an unset value as *allowed*, so an agent nobody had configured could
+  reach everything its owner could.
+- **Connectors are granted one at a time.** MCP connectors, Oxy services and
+  OAuth integrations build their tool names from rows, so a grant names the row.
+  An agent no longer inherits every connector its owner has installed.
+
+`lib/__tests__/capability-grants.test.ts` is what says the vocabulary is wired:
+it grants one family, runs the real assembler and asserts the set gained exactly
+that family's tools. A grant that reaches nothing produces an empty difference
+and fails — which is the control the two dead vocabularies never had.
+
 ## Governance
 
 Risk policy is enforced per action:

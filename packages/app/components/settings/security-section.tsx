@@ -14,11 +14,6 @@ import {
   AlertTriangle,
   Info,
 } from "lucide-react-native";
-import {
-  AgentPermissionToggles,
-  DEFAULT_PERMISSIONS,
-} from "@/components/agent-permission-toggles";
-import type { AgentPermissions } from "@/lib/stores/agents-store";
 import { useUserData } from "@/lib/hooks/use-user-data";
 import { useUserDataStore } from "@/lib/stores/user-data-store";
 import * as DropdownMenu from "@/components/ui/dropdown-menu";
@@ -78,8 +73,6 @@ export function SecuritySection() {
   const { colors } = useTheme();
   const [saving, setSaving] = useState(false);
 
-  const [permissions, setPermissions] = useState<AgentPermissions>({ ...DEFAULT_PERMISSIONS });
-
   const [requireApproval, setRequireApproval] = useState(true);
   const [approvalTimeout, setApprovalTimeout] = useState(60);
   const [autoDenyOnTimeout, setAutoDenyOnTimeout] = useState(true);
@@ -96,9 +89,6 @@ export function SecuritySection() {
   // Load saved preferences
   useEffect(() => {
     if (memory?.preferences) {
-      const dp = memory.preferences.defaultAgentPermissions;
-      if (dp) setPermissions(dp as unknown as AgentPermissions);
-
       const sp = memory.preferences.securityPreferences;
       if (sp) {
         if (typeof sp.requireApproval === "boolean") setRequireApproval(sp.requireApproval);
@@ -147,7 +137,6 @@ export function SecuritySection() {
         headers: authHeaders,
         body: JSON.stringify({
           ...memory?.preferences,
-          defaultAgentPermissions: permissions,
           securityPreferences: { requireApproval, approvalTimeout, autoDenyOnTimeout },
         }),
       });
@@ -208,13 +197,13 @@ export function SecuritySection() {
 
   return (
     <View className="gap-8">
-      <AgentPermissionToggles
-        title={t("settings.security.defaultPermissions")}
-        footer={t("settings.security.defaultPermissionsDesc")}
-        permissions={permissions}
-        onChange={setPermissions}
-      />
-
+      {/* No "Default agent permissions" group.
+          It wrote `preferences.defaultAgentPermissions`, and NOTHING read it —
+          not the agent creation path, not the tool assembler, not the API at
+          all. A fourth copy of the capability vocabulary, decorative from the
+          day it was added: setting it changed nothing about any agent. What an
+          agent may reach is set on the agent, in its editor, where the value is
+          actually consulted. */}
       {/* Section B: Approval Preferences */}
       <SettingsListGroup title={t("settings.security.approvalPreferences")}>
         <SettingsListItem
@@ -379,8 +368,6 @@ export function SecuritySection() {
       <View className="flex-row gap-2 mt-2">
         <Button variant="outline" className="flex-1" onPress={() => {
           if (memory?.preferences) {
-            const dp = memory.preferences.defaultAgentPermissions;
-            if (dp) setPermissions(dp as unknown as AgentPermissions);
             const sp = memory.preferences.securityPreferences;
             if (sp) {
               if (typeof sp.requireApproval === "boolean") setRequireApproval(sp.requireApproval);

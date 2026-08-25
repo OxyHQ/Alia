@@ -90,39 +90,48 @@ async function seedLibraryFile(): Promise<string> {
   return row.id;
 }
 
-describe('permissions and soul are ABSENT, never synthesised', () => {
+describe('capability grants round-trip, and an unmentioned agent is granted NOTHING', () => {
   /**
-   * The single most consequential mapping in this repository.
+   * The reversal, stated at the layer where the old vocabulary was easiest to
+   * get wrong.
    *
-   * NULL means ALL ALLOWED. A mapper writing `?? false` satisfies the interface,
-   * reads as defensive, and silently revokes six capabilities from every agent
-   * written before the group existed. Nothing raises when a capability is
-   * refused, so this assertion is the only thing standing between that edit and
-   * production.
+   * `permissions` was six nullable booleans where NULL meant ALL ALLOWED, so a
+   * `?? false` in the mapper silently revoked six capabilities. The column is
+   * `notNull default '{}'` now: there is no absent group, an unmentioned agent
+   * reads back as an EMPTY list, and empty is a denial rather than a grant.
    */
-  it('returns permissions undefined when every column is NULL', async () => {
+  it('reads back an empty grant list for an agent created without one', async () => {
     const created = await createAgent(db, newAgentInput());
     const read = await findAgentById(db, created._id);
-    expect(read?.permissions).toBeUndefined();
-    expect(read?.soul).toBeUndefined();
-    // and specifically NOT an object of falses
-    expect(read?.permissions?.delegation).not.toBe(false);
+    expect(read?.capabilityGrants).toEqual([]);
+    // Not null and not undefined: the reader iterates it without a guard.
+    expect(Array.isArray(read?.capabilityGrants)).toBe(true);
   });
 
-  it('returns the group as stored once ANY member is set, and a stored false DENIES', async () => {
-    const created = await createAgent(db, newAgentInput());
-    await db
-      .update(agents)
-      .set({ permissionsDelegation: false })
-      .where(eq(agents.id, created._id));
+  it('stores fixed families and per-instance grants side by side', async () => {
+    const created = await createAgent(db, {
+      ...newAgentInput(),
+      capabilityGrants: ['web', 'memory', 'mcp:conn-1', 'oxy_service:inbox'],
+    });
 
     const read = await findAgentById(db, created._id);
-    expect(read?.permissions).toBeDefined();
-    expect(read?.permissions?.delegation).toBe(false);
-    // The members that were never written stay ALLOWED rather than being
-    // invented as denials — a partially written group is not a full denial.
-    expect(read?.permissions?.filesystem).toBe(true);
-    expect(read?.permissions?.shell).toBe(true);
+    expect(read?.capabilityGrants).toEqual(['web', 'memory', 'mcp:conn-1', 'oxy_service:inbox']);
+  });
+
+  it('replaces the whole list on update rather than merging into it', async () => {
+    const created = await createAgent(db, { ...newAgentInput(), capabilityGrants: ['web', 'shell'] });
+
+    const updated = await updateAgent(db, created._id, { capabilityGrants: ['web'] });
+
+    // Revoking is what a merge would make impossible, and revoking is the whole
+    // point of a grant list.
+    expect(updated?.capabilityGrants).toEqual(['web']);
+  });
+
+  it('leaves soul absent, which is a different shape for a different reason', async () => {
+    const created = await createAgent(db, newAgentInput());
+    const read = await findAgentById(db, created._id);
+    expect(read?.soul).toBeUndefined();
   });
 });
 

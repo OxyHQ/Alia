@@ -42,20 +42,23 @@ beforeEach(() => {
 });
 
 describe('per-turn MCP selection', () => {
-  it('uses null as an explicit empty allow-list without reading connector state', async () => {
-    expect(await buildMcpTools('user-none', null)).toEqual({});
+  it('uses an EMPTY selection as an explicit deny without reading connector state', async () => {
+    // What an agent granted no connector asks. Distinct from `undefined`, which
+    // is every runnable one — the two are one keystroke apart and mean the
+    // opposite, so the source answers the empty case before it builds anything.
+    expect(await buildMcpTools('user-none', [])).toEqual({});
     expect(listRunnableMcpServersForUser).not.toHaveBeenCalled();
     expect(getLocalTools).not.toHaveBeenCalled();
   });
 
-  it('passes one hosted id to the repository and excludes local relay tools', async () => {
-    const tools = await buildMcpTools('user-selected', 'server-hosted');
+  it('passes the named hosted ids to the repository and excludes local relay tools', async () => {
+    const tools = await buildMcpTools('user-selected', ['server-hosted']);
 
     expect(Object.keys(tools)).toEqual(['mcp_hosted_app__search']);
     expect(listRunnableMcpServersForUser).toHaveBeenCalledWith(
       { marker: 'db' },
       'user-selected',
-      'server-hosted',
+      ['server-hosted'],
     );
     expect(getLocalTools).not.toHaveBeenCalled();
   });
@@ -77,7 +80,7 @@ describe('per-turn MCP selection', () => {
 
   it('does not reuse an all-connectors cache entry for a selected turn', async () => {
     const all = await buildMcpTools('user-cache');
-    const selected = await buildMcpTools('user-cache', 'server-hosted');
+    const selected = await buildMcpTools('user-cache', ['server-hosted']);
 
     expect(Object.keys(all)).toContain('mcp_local_app__open');
     expect(Object.keys(selected)).not.toContain('mcp_local_app__open');

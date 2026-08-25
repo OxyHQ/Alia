@@ -217,24 +217,41 @@ Those clocks belong to workstreams 6 and 11.
 
 ## Tools
 
-Tools are registered in `packages/api/src/lib/tools/registry.ts` and assembled per request
-by `ToolPipeline.forUser()` based on the caller's plan and capabilities:
+`ToolPipeline.forUser()` is the ONE assembler; there is no registry, and
+`lib/__tests__/one-assembler.test.ts` is what keeps a second one from landing. What a
+turn gets is decided by two things: the STRUCTURAL preconditions of its surface (does it
+hold a session, act for a person, have an SSE emitter, a device, a live container) and —
+when the turn names an agent — that agent's **capability grants**.
 
-- **Utility** — `getCurrentDate`, `getDeviceInfo`, `switchModel`, `planPreview`
-- **Research** — `webSearch`, `webScraper`, `browse`, `deepResearch`
-- **Memory** — `saveUserMemory`, `updateUserMemory`, `updateUserPreferences`, `updateUserContext`
-- **Generation** — `generateFile`, `canvas`
-- **Agents** — `searchAgents`, `delegateToAgent`, `orchestrateAgents`, `createAgent`
-- **Triggers** — `createTrigger`, `listTriggers`, `updateTrigger`, `deleteTrigger`
-- **Integrations** — `sendTelegramMessage`, `sendWhatsAppMessage`, `getWhatsAppChats`, `getWhatsAppMessages`
-- **Infrastructure** — `sandbox` (Docker host), `gatewayAdmin`
-- **External** — MCP server bridges and Oxy ecosystem service connectors
+The grants are one vocabulary, partitioned by tool family, declared in
+`domain/capability-grants.ts`. Nine families have tool names fixed in code:
+
+| Family | Tools |
+|---|---|
+| `web` | `webSearch`, `webScraper`, `browse`, `deepResearch` |
+| `browser` | `browser` (the live session) |
+| `shell` | `shell` |
+| `files` | `file_edit` |
+| `artifacts` | `canvas`, `generateFile` |
+| `memory` | `saveUserMemory`, `updateUserMemory`, `updateUserPreferences`, `updateUserContext` |
+| `messaging` | `sendTelegramMessage`, `sendWhatsAppMessage`, `getWhatsAppChats`, `getWhatsAppMessages` |
+| `automation` | `createTrigger`, `listTriggers`, `updateTrigger`, `deleteTrigger` |
+| `delegation` | `createAgent`, `searchAgents`, `delegateToAgent`, `delegate` |
+
+Three more build their tool names from ROWS, so they are granted one row at a time
+(`mcp:<connectorId>`, `oxy_service:<serviceId>`, `integration:<serviceId>`): MCP
+connectors, Oxy service manifests and the OAuth integrations.
+
+`getCurrentDate`, `getDeviceInfo`, `switchModel`, `planPreview` and `plan` are governed
+by no grant — see `UNGRANTED_TOOLS` for the argument for each.
+
+**An agent gets nothing it was not granted.** That is the reverse of the three
+vocabularies it replaced (`capabilities`, `permissions`, `archetypeConfig.knowledgeSources`),
+where an unset value meant *allowed*. A turn with NO agent is not partitioned at all and
+reaches whatever its surface allows.
 
 Tool calls flow through `safeExecute()` so a failure surfaces as an `alia.tool_result`
 event rather than terminating the stream.
-
-`gatewayAdmin` is gated on a hardcoded username (`lib/tool-pipeline.ts:130`) and calls a
-gateway service that no longer exists; its removal is part of workstream 9 of #139.
 
 ## Removed endpoints
 

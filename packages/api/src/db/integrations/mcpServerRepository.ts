@@ -27,7 +27,7 @@
  * the two shapes above, which is what the source did, and they are never logged.
  */
 
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, inArray } from 'drizzle-orm';
 import type { ApiDatabase } from '../index';
 import {
   mcpServers,
@@ -351,8 +351,17 @@ export async function setMcpServerStatus(
 export async function listRunnableMcpServersForUser(
   db: ApiDatabase,
   oxyUserId: string,
-  selectedServerId?: string,
+  /**
+   * The connectors this turn may use, or `undefined` for every runnable one.
+   *
+   * An EMPTY array is a real answer — "these zero connectors" — and returns
+   * nothing rather than everything. It is what an agent granted no connector
+   * asks, and `inArray(col, [])` is a shape drizzle has changed its handling
+   * of, so the empty case is answered before a statement is built.
+   */
+  selectedServerIds?: readonly string[],
 ): Promise<McpServerRow[]> {
+  if (selectedServerIds !== undefined && selectedServerIds.length === 0) return [];
   return db
     .select()
     .from(mcpServers)
@@ -362,7 +371,9 @@ export async function listRunnableMcpServersForUser(
         eq(mcpServers.enabled, true),
         eq(mcpServers.status, 'running'),
         eq(mcpServers.runtime, 'server'),
-        ...(selectedServerId === undefined ? [] : [eq(mcpServers.id, selectedServerId)]),
+        ...(selectedServerIds === undefined
+          ? []
+          : [inArray(mcpServers.id, [...selectedServerIds])]),
       ),
     );
 }

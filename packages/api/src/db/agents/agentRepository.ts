@@ -10,25 +10,21 @@
  * real-database coverage land before the switch, so the rewiring commit is
  * mechanical. Nothing in `src/routes` or `src/lib` imports this file.
  *
- * ## `permissions` absent means ALL ALLOWED, and that is why nothing here
- * ## defaults it to `false`
+ * ## `capability_grants` is EMPTY-DENIES, and that is the opposite of what
+ * ## `permissions` was
  *
- * The six `permissions_*` columns are nullable and NULL means the group is
- * absent, which the Mongoose model spells out: `default: undefined`, commented
- * "undefined = all allowed (backward compatible)". `lib/agent/actions.ts:272`
- * tests `perms.delegation === false`, so only a STORED `false` denies.
+ * The six nullable `permissions_*` booleans it replaced meant the reverse: NULL
+ * was the group being absent, which meant ALL ALLOWED, so only a stored `false`
+ * denied — and the trap was at THIS layer, where a defensive `?? false` in the
+ * mapper would have silently revoked six capabilities from every agent. The
+ * column is `notNull default '{}'` now and an empty array grants nothing, so
+ * there is no absent group to get wrong and nothing here to synthesise. The
+ * reversal is deliberate; `domain/capability-grants.ts` argues it.
  *
- * The trap is at THIS layer, not the schema's. `row.permissionsFilesystem ??
- * false` in a mapper reads as defensive, satisfies a non-optional interface
- * field, and silently revokes filesystem, network, shell, communications, MCP
- * and delegation from every agent written before the group existed — silently,
- * because a refused capability raises nothing. So `toAgentRecord` returns
- * `permissions: undefined` when the group is absent and never synthesises a
- * member, and `agentRepository.pgdb.test.ts` asserts it round-trips as absent.
- *
- * `soul` takes the same shape for the same reason: a group is `undefined`
- * rather than an object of nulls, because Mongoose left an unset sub-document
- * off the document entirely and `'soul' in agent` is a test a client can make.
+ * `soul` still takes the absent-group shape, for its own reason: a group is
+ * `undefined` rather than an object of nulls, because Mongoose left an unset
+ * sub-document off the document entirely and `'soul' in agent` is a test a
+ * client can make.
  *
  * ## `_id` is served from the Postgres `id`
  *
@@ -77,16 +73,6 @@ import type { AgentArchetype, AgentStatus } from '../../domain/agent';
 
 type AgentRow = typeof agents.$inferSelect;
 
-/** The six capability flags, as the wire carries them. */
-export interface AgentPermissions {
-  filesystem: boolean;
-  network: boolean;
-  shell: boolean;
-  communications: boolean;
-  mcp_servers: boolean;
-  delegation: boolean;
-}
-
 export interface AgentSoul {
   vibe: string[];
   expertise: string[];
@@ -134,7 +120,14 @@ export interface AgentRecord {
   usageCount: number;
   hireCount: number;
   price: number | null;
-  capabilities: string[];
+  /**
+   * What this agent may reach, as stored: `family` or `family:instanceId`.
+   *
+   * RAW rather than parsed, because this record is what `res.json({ agent })`
+   * answers and a parsed grant set is not a wire value. `ToolPipeline` reads it
+   * through `readCapabilityGrants`, which is the only thing that interprets it.
+   */
+  capabilityGrants: string[];
   isFeatured: boolean;
   isTrending: boolean;
   isPublished: boolean;
@@ -146,8 +139,6 @@ export interface AgentRecord {
   preferredImage: string | null;
   allowedModels: string[];
   scheduleInterval: number | null;
-  /** ABSENT means all allowed. Never synthesised — see the file comment. */
-  permissions?: AgentPermissions;
   /** ABSENT on an agent that has never evolved. */
   soul?: AgentSoul;
   archetype: AgentArchetype;
@@ -183,31 +174,6 @@ function requireTransaction(executor: Executor, agentId: string): Executor {
   const rollback: unknown = (executor as { rollback?: unknown }).rollback;
   if (typeof rollback !== 'function') throw new AgentChildWriteOutsideTransactionError(agentId);
   return executor;
-}
-
-/** Every permission column, so "the group is absent" is one question. */
-const PERMISSION_COLUMNS = [
-  'permissionsFilesystem',
-  'permissionsNetwork',
-  'permissionsShell',
-  'permissionsCommunications',
-  'permissionsMcpServers',
-  'permissionsDelegation',
-] as const;
-
-function toPermissions(row: AgentRow): AgentPermissions | undefined {
-  // ABSENT means all allowed. A single stored `false` is a real denial, so the
-  // group exists as soon as ANY member is non-null; the rest of a partially
-  // written group stays as stored rather than being invented.
-  if (PERMISSION_COLUMNS.every((c) => row[c] === null)) return undefined;
-  return {
-    filesystem: row.permissionsFilesystem ?? true,
-    network: row.permissionsNetwork ?? true,
-    shell: row.permissionsShell ?? true,
-    communications: row.permissionsCommunications ?? true,
-    mcp_servers: row.permissionsMcpServers ?? true,
-    delegation: row.permissionsDelegation ?? true,
-  };
 }
 
 function toSoul(row: AgentRow): AgentSoul | undefined {
@@ -246,7 +212,7 @@ export function toAgentRecord(row: AgentRow): AgentRecord {
     usageCount: row.usageCount,
     hireCount: row.hireCount,
     price: row.price,
-    capabilities: row.capabilities,
+    capabilityGrants: row.capabilityGrants,
     isFeatured: row.isFeatured,
     isTrending: row.isTrending,
     isPublished: row.isPublished,
@@ -257,7 +223,6 @@ export function toAgentRecord(row: AgentRow): AgentRecord {
     preferredImage: row.preferredImage,
     allowedModels: row.allowedModels,
     scheduleInterval: row.scheduleInterval,
-    permissions: toPermissions(row),
     soul: toSoul(row),
     archetype: row.archetype as AgentArchetype,
     archetypeConfig: row.archetypeConfig,
@@ -478,7 +443,15 @@ export interface AgentSearchResult {
   oxyAccountId: string;
   tagline: string;
   category: string;
-  capabilities: string[];
+  /**
+   * The owner's own words for what this agent is for.
+   *
+   * It used to be `capabilities` — the eight machine-written tool ids the
+   * generator produced — which told the model nothing it could choose between
+   * and matched a search query only by accident. `tags` is the field a person
+   * actually curates, and it was already one of the two arrays searched.
+   */
+  tags: string[];
 }
 
 /**
@@ -534,7 +507,7 @@ export async function searchActiveAgents(
       oxyAccountId: agents.oxyAccountId,
       tagline: agents.tagline,
       category: agents.category,
-      capabilities: agents.capabilities,
+      tags: agents.tags,
     })
     .from(agents)
     .where(
@@ -546,7 +519,6 @@ export async function searchActiveAgents(
           or (${allWords(agents.description)})
           or (${allWords(agents.category)})
           or ${anyWordInArray(agents.tags)}
-          or ${anyWordInArray(agents.capabilities)}
         )`,
       ),
     )
@@ -705,7 +677,8 @@ export interface CreateAgentInput {
   category: string;
   tags?: string[];
   price?: number | null;
-  capabilities?: string[];
+  /** `family` or `family:instanceId`. EMPTY DENIES — see `domain/capability-grants.ts`. */
+  capabilityGrants?: string[];
   isPublished?: boolean;
   allowHiring?: boolean;
   /** The owner's designated autonomy agent. At most one per owner, by index. */
@@ -748,7 +721,7 @@ export async function createAgent(
         category: input.category,
         tags: input.tags ?? [],
         price: input.price ?? null,
-        capabilities: input.capabilities ?? [],
+        capabilityGrants: input.capabilityGrants ?? [],
         isPublished: input.isPublished ?? true,
         allowHiring: input.allowHiring ?? false,
         handlesAutonomousEvents: input.handlesAutonomousEvents ?? false,
@@ -779,7 +752,7 @@ export interface UpdateAgentInput {
   category?: string;
   tags?: string[];
   price?: number | null;
-  capabilities?: string[];
+  capabilityGrants?: string[];
   isPublished?: boolean;
   status?: AgentStatus;
   allowHiring?: boolean;

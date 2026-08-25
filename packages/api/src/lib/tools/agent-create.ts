@@ -6,6 +6,7 @@ import { createAgentBotAccount } from '../agent-account.js';
 import { suggestAgentUsername } from '../agent-identity.js';
 import { log } from '../logger.js';
 import { getErrorMessage } from '../errors/index.js';
+import { FIXED_CAPABILITY_FAMILIES } from '../../domain/capability-grants.js';
 
 /**
  * Factory tool for creating AI agents during conversation.
@@ -39,13 +40,20 @@ export const createAgentTool = (userId: string, accessToken: string | undefined)
       .describe('Agent category'),
     systemPrompt: z.string().optional()
       .describe('Detailed system prompt. If omitted, auto-generated from name and description.'),
-    capabilities: z.array(z.string()).optional()
-      .describe('Tool capabilities: "web-browsing", "web-search", "web-scraping", "code-execution", "file-management", "image-generation", "memory", "agent-delegation"'),
+    capabilityGrants: z
+      .array(z.enum(FIXED_CAPABILITY_FAMILIES))
+      .optional()
+      .describe(
+        'What the agent may reach. Pick only the families its purpose needs — an ' +
+          'agent gets NOTHING it was not granted. The three instanced families ' +
+          '(MCP connectors, Oxy services, integrations) are granted per connector ' +
+          'in the agent editor and cannot be chosen here.',
+      ),
     tags: z.array(z.string()).optional()
       .describe('Tags for discoverability (3-5 lowercase tags)'),
   }),
 
-  execute: async ({ name, description, category, systemPrompt, capabilities, tags }) => {
+  execute: async ({ name, description, category, systemPrompt, capabilityGrants, tags }) => {
     try {
       if (accessToken === undefined) {
         // An API-key turn has no user bearer, so it cannot mint an account
@@ -77,7 +85,7 @@ export const createAgentTool = (userId: string, accessToken: string | undefined)
         authorOxyUserId: userId,
         category: category || 'Assistant',
         tags: tags || [],
-        capabilities: capabilities || [],
+        capabilityGrants: capabilityGrants ?? [],
         isPublished: true,
         systemPrompt: finalSystemPrompt,
         // Restated rather than left to the column default, because the source

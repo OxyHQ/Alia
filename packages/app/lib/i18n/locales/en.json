@@ -116,8 +116,6 @@
     "saveSuccess": "Preferences saved successfully",
     "saveFailed": "Failed to save preferences",
     "security": {
-      "defaultPermissions": "Default Agent Permissions",
-      "defaultPermissionsDesc": "Default permissions applied to newly created agents",
       "approvalPreferences": "Approval Preferences",
       "requireApproval": "Require approval for flagged actions",
       "requireApprovalDesc": "Pause agent execution when a potentially risky action is detected",
@@ -662,7 +660,9 @@
     "handlePlaceholder": "handle",
     "handleTaken": "That handle is taken. Try another.",
     "handlesAutonomousEvents": "Handles autonomous events",
-    "handlesAutonomousEventsHint": "Runs incoming Oxy service events on its own. Only one of your agents can."
+    "handlesAutonomousEventsHint": "Runs incoming Oxy service events on its own. Only one of your agents can.",
+    "capabilitiesFooter": "An agent reaches nothing you have not switched on here.",
+    "saveFailed": "Could not save"
   },
   "authorize": {
     "sendMessages": "Send messages to AI models",
