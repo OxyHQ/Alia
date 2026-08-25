@@ -39,12 +39,37 @@ const H = vi.hoisted(() => ({
   updates: [] as Array<{ oxyUserId: string; conversationId: string; title: string }>,
   /** Every prompt handed to the title model. */
   titlePrompts: [] as string[],
-  /** What the title model returns. */
+  /** Every output-token budget the title model was given. */
+  titleBudgets: [] as Array<number | undefined>,
+  /** What the title model returns, once it gets as far as speaking. */
   titleText: 'Oat milk preferences',
+  /**
+   * How many tokens the model spends thinking before its first word.
+   *
+   * The default is one of three values measured against the deployment
+   * `alia-lite` resolves to in production on 2026-08-25 (UTC) — 104, with 78 and 127
+   * on the other two runs of the same prompt. It is a property of the model,
+   * not of the prompt, and the caller cannot see it or turn it off.
+   */
+  reasoningTokens: 104,
+  /** What `resolveModel` answers; `null` is "no provider key was available". */
+  resolvesToModel: true,
+  /** When set, `generateText` throws it. */
+  modelThrows: null as Error | null,
+  /** Everything the code under test logged, by level. */
+  logs: [] as Array<{ level: string; fields: unknown; message: string }>,
 }));
 
 vi.mock('../logger.js', () => {
-  const child = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() };
+  const record = (level: string) =>
+    vi.fn((fields: unknown, message?: string) => {
+      H.logs.push(
+        typeof fields === 'string'
+          ? { level, fields: {}, message: fields }
+          : { level, fields, message: message ?? '' },
+      );
+    });
+  const child = { info: record('info'), warn: record('warn'), error: record('error'), debug: record('debug') };
   return { log: { agents: child, chat: child, general: child, v1: child, providers: child, codea: child } };
 });
 
@@ -65,19 +90,50 @@ vi.mock('../../db/chat/messageRepository.js', () => ({
 }));
 
 vi.mock('../chat-core.js', () => ({
-  resolveModel: vi.fn(async (aliasModelId: string) => ({
-    aliasModelId,
-    provider: 'upstream',
-    modelId: 'upstream-model',
-    keyConfig: { provider: 'upstream', key: 'secret-not-for-clients', modelId: 'upstream-model' },
-  })),
+  resolveModel: vi.fn(async (aliasModelId: string) =>
+    H.resolvesToModel
+      ? {
+          aliasModelId,
+          provider: 'upstream',
+          modelId: 'upstream-model',
+          keyConfig: { provider: 'upstream', key: 'secret-not-for-clients', modelId: 'upstream-model' },
+        }
+      : null,
+  ),
   getAIModel: vi.fn(() => ({ id: 'title-model' })),
 }));
 
+/**
+ * A model that thinks before it speaks, which is what the title call actually
+ * talks to.
+ *
+ * The previous fixture returned `{ text: H.titleText }` for any budget at all,
+ * so it agreed with a caller asking for thirty tokens and a caller asking for
+ * five hundred. Production does not: the answer arrives `finishReason:
+ * 'length'` with the whole budget spent on reasoning and NOTHING in `text`, and
+ * that is a success as far as every layer above it can tell. A fixture that
+ * cannot produce that outcome cannot catch the bug that produces it.
+ */
 vi.mock('ai', () => ({
-  generateText: vi.fn(async ({ messages }: { messages: Array<{ role: string; content: string }> }) => {
+  generateText: vi.fn(async (
+    { messages, maxOutputTokens }: { messages: Array<{ role: string; content: string }>; maxOutputTokens?: number },
+  ) => {
     H.titlePrompts.push(messages.find((m) => m.role === 'user')?.content ?? '');
-    return { text: H.titleText };
+    H.titleBudgets.push(maxOutputTokens);
+    if (H.modelThrows) throw H.modelThrows;
+    const budget = maxOutputTokens ?? Number.MAX_SAFE_INTEGER;
+    if (budget <= H.reasoningTokens) {
+      return {
+        text: '',
+        finishReason: 'length',
+        usage: { outputTokens: budget, reasoningTokens: budget - 2, inputTokens: 117 },
+      };
+    }
+    return {
+      text: H.titleText,
+      finishReason: 'stop',
+      usage: { outputTokens: H.reasoningTokens + 15, reasoningTokens: H.reasoningTokens, inputTokens: 117 },
+    };
   }),
 }));
 
@@ -121,7 +177,12 @@ beforeEach(() => {
   H.messageExists = false;
   H.updates.length = 0;
   H.titlePrompts.length = 0;
+  H.titleBudgets.length = 0;
   H.titleText = 'Oat milk preferences';
+  H.reasoningTokens = 104;
+  H.resolvesToModel = true;
+  H.modelThrows = null;
+  H.logs.length = 0;
 });
 
 afterEach(() => {
@@ -158,6 +219,125 @@ describe('a title is generated from the first user message (#139 ws6)', () => {
     // about the guard and not about a mock that never returns anything.
     H.titleText = 'A normal title';
     expect(await generateTitle('hi')).toBe('A normal title');
+  });
+});
+
+describe('the title budget covers the model\'s reasoning, not just the title', () => {
+  it('still gets a title out of a model that spends a hundred tokens thinking first', async () => {
+    // The production failure, reproduced. `maxOutputTokens: 30` was budgeted
+    // from the length of a title — six words, ~15 tokens, doubled for safety —
+    // and MEASURED against the real deployment on 2026-08-25 (UTC) it returned
+    // `finishReason: 'length'`, 28 of 30 tokens spent on reasoning, `text: ''`.
+    // `generateTitle` then returned null on its last line, silently, for every
+    // conversation.
+    //
+    // Asserted as a property of the OUTCOME and not as `toBe(512)`: the number
+    // is not the contract, "enough to outlast a preamble nobody controls" is.
+    H.reasoningTokens = 104;
+
+    expect(await generateTitle('what do I take in my coffee')).toBe('Oat milk preferences');
+    const [budget] = H.titleBudgets;
+    expect(budget).toBeGreaterThan(H.reasoningTokens);
+  });
+
+  it('and the control: the same call at the old budget produces nothing', async () => {
+    // What this test would report if the thing it measures were absent. Without
+    // it, the fixture agrees with any budget at all and the case above passes
+    // on `30` — which is exactly how the suite stayed green while no
+    // conversation in production got a title.
+    const { generateText } = await import('ai');
+    const result = await vi.mocked(generateText).getMockImplementation()!({
+      model: { id: 'title-model' },
+      messages: [{ role: 'user', content: 'what do I take in my coffee' }],
+      maxOutputTokens: 30,
+    } as never);
+
+    expect(result.text).toBe('');
+    expect(result.finishReason).toBe('length');
+  });
+
+  it('survives a model that thinks for longer than the largest run measured', async () => {
+    // 127 was the longest of the three production runs. The budget has room for
+    // a model slower to get to the point than any of them.
+    H.reasoningTokens = 300;
+    expect(await generateTitle('what do I take in my coffee')).toBe('Oat milk preferences');
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/*  A title that does not arrive says why                                      */
+/* -------------------------------------------------------------------------- */
+
+describe('no title is never silent (operator logs, never the response body)', () => {
+  /** The messages logged at or above `warn`, which is where a fault belongs. */
+  const faults = (): string[] =>
+    H.logs.filter((entry) => entry.level === 'warn' || entry.level === 'error').map((entry) => entry.message);
+
+  it('says so when the model answered and produced nothing usable', async () => {
+    // THE path that was firing in production, and the only one of the three
+    // with no log at all: the call succeeds, `result.text` is empty, and the
+    // last line returns null through a ternary.
+    H.reasoningTokens = 1000;
+
+    expect(await generateTitle('what do I take in my coffee')).toBeNull();
+    expect(faults()).toEqual(['Title generation produced no usable title']);
+
+    // The reason, not just the fact. An operator reading `finishReason:
+    // 'length'` beside a reasoning-token count is looking at the budget; the
+    // same line without them is looking at nothing.
+    const [fault] = H.logs.filter((entry) => entry.level === 'warn');
+    expect(fault.fields).toMatchObject({
+      provider: 'upstream',
+      modelId: 'upstream-model',
+      finishReason: 'length',
+      reasoningTokens: expect.any(Number),
+    });
+  });
+
+  it('says so when no provider key could serve the cheap tier', async () => {
+    H.resolvesToModel = false;
+
+    expect(await generateTitle('what do I take in my coffee')).toBeNull();
+    expect(faults()).toEqual(['Title generation skipped: no model available']);
+    // And it never reached the model, so this is the resolver and not the call.
+    expect(H.titlePrompts).toEqual([]);
+  });
+
+  it('says so when the call throws, including from the resolver', async () => {
+    H.modelThrows = new Error('upstream refused the request');
+
+    expect(await generateTitle('what do I take in my coffee')).toBeNull();
+    expect(faults()).toEqual(['Title generation failed']);
+
+    // `resolveModel` throws for an unregistered identifier and for a policy that
+    // forbids fallback. Neither is reachable for `alia-lite` today — it is
+    // registered and its preset is `cross-model` — but the call used to sit
+    // OUTSIDE the try, so the day a preset narrows, the throw leaves this
+    // function and lands in `provider-loop`'s catch, the one place that cannot
+    // name it. Asserted at the source because the reachable inputs cannot
+    // produce it.
+    const saver = code('lib/conversation-saver.ts');
+    expect(saver).toMatch(/try \{\s*const resolved = await resolveModel\('alia-lite'\);/);
+  });
+
+  it('the provider loop logs what it catches instead of discarding it', () => {
+    // `.catch(() => null)` on the streaming path swallowed everything
+    // `startParallelTitleGeneration` could throw — both existence queries — so
+    // titling could stop entirely against a sick database with nothing to read.
+    const loop = code('lib/chat/provider-loop.ts');
+    expect(loop).not.toMatch(/startParallelTitleGeneration\([^)]*\)\.catch\(\(\) => null\)/);
+    expect(loop).toMatch(/\.catch\(\(err: unknown\) => \{\s*log\.v1\.error\(\{ err, conversationId \}/);
+  });
+
+  it('and none of it reaches the client, which is simply told nothing', async () => {
+    // The product rule: route detail is an operator fact. A title that fails is
+    // an absent `alia.title` event, never an error frame — the SSE write is
+    // inside `if (title)`.
+    H.reasoningTokens = 1000;
+    expect(await generateTitle('what do I take in my coffee')).toBeNull();
+
+    const loop = code('lib/chat/provider-loop.ts');
+    expect(loop).toMatch(/if \(title\) \{\s*res\.write\(`event: alia\.title/);
   });
 });
 

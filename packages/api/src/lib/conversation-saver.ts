@@ -184,18 +184,57 @@ export async function saveConversation(params: SaveConversationParams): Promise<
 }
 
 /**
+ * What the title call may SPEND, which is not how long a title is.
+ *
+ * Six words need about fifteen tokens, and this was `30` on that reasoning.
+ * MEASURED against production on 2026-08-25 (UTC), on the deployment `alia-lite`
+ * actually resolves to today: at a budget of 30 the answer came back
+ * `finishReason: 'length'` having spent 28 of its 30 tokens on REASONING and
+ * two on text, so `result.text` was the empty string. Every conversation went
+ * untitled, with no error, no failed request and nothing in the logs. The same
+ * prompt at 128, 256 and 512 answered `Viaje a Japón en primavera` and its
+ * variants, after 104, 78 and 127 reasoning tokens respectively.
+ *
+ * A model that thinks before it speaks is the ordinary case now rather than
+ * the exception, so the budget has to cover a preamble the prompt never asked
+ * for and cannot see. 512 is four times the largest preamble measured; the
+ * call is not billed to anyone's credits and runs once per conversation.
+ */
+const TITLE_OUTPUT_TOKEN_BUDGET = 512;
+
+/**
  * Generate a conversation title using a cheap model.
  * Returns the title string (or null on failure). Does NOT write to DB.
  * Can be called in parallel with the main LLM response since it only needs the user message.
+ *
+ * ## Every way this returns `null` says so, in operator logs
+ *
+ * A title that never arrives is invisible from the outside: the turn streams,
+ * the conversation saves, and the only symptom is a name nobody chose. So each
+ * of the three exits names its own reason — no model, a call that threw, and a
+ * call that succeeded and produced nothing usable. The last one is the one that
+ * had no log at all, and it is the one that was firing.
+ *
+ * The reason belongs HERE and not at the caller, which holds only `string |
+ * null` and cannot tell those apart. It goes to the log and never to the
+ * response body: the provider and the deployment id are operator facts, which
+ * `AGENTS.md` places on the truthful side of the line, and the client is told
+ * nothing at all — it simply receives no `alia.title` event.
+ *
+ * `resolveModel` is INSIDE the try. It throws for an unregistered identifier or
+ * a policy that forbids fallback — neither reachable for `alia-lite` today,
+ * since it is registered and its preset is `cross-model` — and the throw would
+ * otherwise leave this function entirely and land in the caller's catch, which
+ * is the one place that cannot say what happened.
  */
 export async function generateTitle(userMessage: string): Promise<string | null> {
-  const resolved = await resolveModel('alia-lite');
-  if (!resolved) {
-    log.chat.warn('Title generation skipped: no model available for alia-lite');
-    return null;
-  }
-
   try {
+    const resolved = await resolveModel('alia-lite');
+    if (!resolved) {
+      log.chat.warn({ aliasModelId: 'alia-lite' }, 'Title generation skipped: no model available');
+      return null;
+    }
+
     const model = getAIModel(resolved, 'background');
     const result = await generateText({
       model,
@@ -203,13 +242,27 @@ export async function generateTitle(userMessage: string): Promise<string | null>
         { role: 'system', content: 'Generate a concise conversation title (max 6 words) in the same language as the user message. Return ONLY the title, no quotes or trailing punctuation.' },
         { role: 'user', content: userMessage },
       ],
-      maxOutputTokens: 30,
+      maxOutputTokens: TITLE_OUTPUT_TOKEN_BUDGET,
     });
 
     const title = result.text.trim().replace(/^["']|["']$/g, '').replace(/\.+$/, '');
-    return (title.length > 0 && title.length < 100) ? title : null;
+    if (title.length === 0 || title.length >= 100) {
+      log.chat.warn(
+        {
+          provider: resolved.provider,
+          modelId: resolved.modelId,
+          finishReason: result.finishReason,
+          outputTokens: result.usage.outputTokens,
+          reasoningTokens: result.usage.reasoningTokens,
+          titleLength: title.length,
+        },
+        'Title generation produced no usable title',
+      );
+      return null;
+    }
+    return title;
   } catch (err) {
-    log.chat.error({ err }, 'Title generation LLM call failed');
+    log.chat.error({ err }, 'Title generation failed');
     return null;
   }
 }
