@@ -1,5 +1,5 @@
 import Svg, { Circle, G, Path } from "react-native-svg";
-import { parseRgb, withAlpha } from "@oxyhq/bloom/theme";
+import { APP_COLOR_PRESETS, parseRgb, withAlpha } from "@oxyhq/bloom/theme";
 import { useColorScheme } from "@/lib/useColorScheme";
 
 export interface AgentGlyphProps {
@@ -7,6 +7,10 @@ export interface AgentGlyphProps {
   size?: number;
   /**
    * The agent's own color, `User.color` on its Oxy bot account.
+   *
+   * A BLOOM PRESET KEY — `"violet"`, `"mint"` — not a color. That is the
+   * vocabulary Oxy stores and the one `POST /agents/generate` proposes from, and
+   * it is resolved to a color here.
    *
    * Nullable on purpose: the API resolves an agent's identity through a batched
    * Oxy lookup that FAILS OPEN, so an account it cannot resolve arrives with no
@@ -41,17 +45,7 @@ export interface AgentGlyphProps {
 export function AgentGlyph({ size = 28, color, label }: AgentGlyphProps) {
   const { colors } = useColorScheme();
 
-  /**
-   * `withAlpha` returns its input UNTOUCHED when it cannot parse a color, and an
-   * SVG `fill` it cannot parse renders as black — so an unparseable value would
-   * paint a black disc rather than fall back, and it would do it silently. The
-   * color arrives from a `User.color` column with no format Alia controls, so it
-   * is parsed before it is trusted: anything `parseRgb` refuses takes the same
-   * path as no color at all.
-   */
-  const tint = color !== null && color !== undefined && parseRgb(color) !== null
-    ? color
-    : colors.mutedForeground;
+  const tint = usableTint(color) ?? colors.mutedForeground;
 
   return (
     <Svg
@@ -67,6 +61,38 @@ export function AgentGlyph({ size = 28, color, label }: AgentGlyphProps) {
       </G>
     </Svg>
   );
+}
+
+/**
+ * Bloom preset key to the color it seeds, so a stored `"violet"` paints violet
+ * rather than falling back for not being a color.
+ *
+ * Keyed as plain strings because the value arrives from a column no one
+ * validates — Bloom's own type would only be a claim about it.
+ */
+const HEX_BY_PRESET = new Map<string, string>(
+  Object.values(APP_COLOR_PRESETS).map((preset) => [preset.name, preset.hex]),
+);
+
+/**
+ * The color to paint, or `null` when the value names none.
+ *
+ * Two vocabularies, in the order they occur. A preset KEY is what Oxy stores and
+ * what Alia's generator proposes. A literal color is what anything else that has
+ * ever written to that column would have put there, and it is checked with
+ * `parseRgb` rather than passed through, because `withAlpha` returns an
+ * unparseable color UNTOUCHED and an SVG `fill` that SVG cannot parse renders
+ * BLACK — a garbage value would paint a black disc on every theme, silently, and
+ * look like a design choice.
+ *
+ * Anything that is neither takes the same path as no color at all, which the
+ * caller draws in the theme's own.
+ */
+function usableTint(color: string | null | undefined): string | null {
+  if (color === null || color === undefined) return null;
+  const preset = HEX_BY_PRESET.get(color);
+  if (preset !== undefined) return preset;
+  return parseRgb(color) === null ? null : color;
 }
 
 /**
