@@ -114,9 +114,12 @@ describe('the generator proposes a colour', () => {
   });
 
   it('passes through a colour the model was offered', async () => {
-    state.modelText = modelAnswer({ color: 'violet' });
+    // Deliberately NOT the colour `deep-reader` falls back to: a fixture that
+    // collides with the fallback passes whether the passthrough works or not.
+    state.modelText = modelAnswer({ color: 'mint' });
 
-    expect((await generate()).color).toBe('violet');
+    expect(agentColorFor('deep-reader')).not.toBe('mint');
+    expect((await generate()).color).toBe('mint');
   });
 
   it('answers an OFFERED colour when the model invents one', async () => {
@@ -163,4 +166,62 @@ describe('the generator proposes a colour', () => {
     );
     expect(colours.size).toBeGreaterThan(1);
   });
+});
+
+/**
+ * The catalogue Oxy will actually STORE, restated.
+ *
+ * `USER_COLOR_PRESETS` in the Oxy server's `db/schema/users.ts`, which renders
+ * the CHECK constraint `users_color_check`. Restated rather than imported
+ * because the server deliberately publishes no copy of it: `@oxyhq/contracts`
+ * types the field as a plain string and says so — "pinning the list a second
+ * time in this package would be a second source of truth for what the database
+ * accepts, and the two would drift apart silently".
+ *
+ * A local copy CAN go stale, and it is worth being precise about which way:
+ * the constraint is append-only, so a key added upstream is missing here and
+ * this test fails on a colour that would in fact have worked. It cannot fail
+ * the other way — it can never call a refused colour storable. Wrongly red,
+ * never wrongly green, which is the direction a restatement is allowed to err.
+ */
+const OXY_STORABLE_COLORS = [
+  'teal',
+  'blue',
+  'green',
+  'amber',
+  'red',
+  'purple',
+  'pink',
+  'sky',
+  'orange',
+  'mint',
+  'oxy',
+];
+
+describe('every colour the generator can propose is one Oxy will store', () => {
+  /**
+   * The offer is not free. A proposed colour travels to `POST /accounts` and
+   * lands in a column with a CHECK on it, so a key this service offers but the
+   * constraint omits is not a cosmetic mismatch — it is a 400 on the save, for
+   * a value the person was handed by us and never typed.
+   */
+  it('offers no colour outside the server catalogue', () => {
+    expect(OXY_STORABLE_COLORS).toEqual(expect.arrayContaining([...AGENT_COLORS]));
+  });
+
+  /**
+   * The same invariant one layer out, at the route. The assertion above holds
+   * on the LIST; this one holds on what the response actually carries, so it
+   * still fails if the passthrough stops consulting the list at all.
+   */
+  it.each(['yellow', 'rose', 'violet', 'brown'])(
+    'does not pass %s through to the response',
+    async (refused) => {
+      state.modelText = modelAnswer({ color: refused });
+      const body = await generate();
+
+      expect(body.color).not.toBe(refused);
+      expect(OXY_STORABLE_COLORS).toContain(body.color);
+    },
+  );
 });
