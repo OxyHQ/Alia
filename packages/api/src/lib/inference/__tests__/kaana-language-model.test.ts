@@ -265,6 +265,81 @@ describe('tools, on the way out', () => {
   });
 });
 
+describe('the shape the answer must take', () => {
+  /**
+   * `generateObject` asks for a shape through `responseFormat` and through
+   * nothing else, so a factory that drops it turns "answer in this schema" into
+   * "answer however you like, and I will check afterwards".
+   *
+   * The failure it produced is why these are here rather than in a review
+   * comment: `routes/suggestions.ts` asked a reasoning model for eight JSON
+   * objects, got prose-free but TRUNCATED JSON back, and answered 500. Sending
+   * the schema is not what fixes truncation, but a request that never carried
+   * the schema cannot be said to have asked for JSON at all.
+   */
+  const schema = {
+    type: 'object',
+    properties: { answer: { type: 'string' } },
+    required: ['answer'],
+  } as const;
+
+  it('sends a named schema when the caller supplied one', async () => {
+    await model.doGenerate({
+      prompt: userText('hi'),
+      responseFormat: { type: 'json', schema, name: 'reply' },
+    } as never);
+
+    expect(H.sent?.responseFormat).toEqual({
+      type: 'json_schema',
+      name: 'reply',
+      schema,
+      // Never `true`: the OpenAI dialect's strict mode requires every property
+      // to be required, and the AI SDK derives schemas from Zod objects that
+      // have optional ones. `true` would have upstreams refuse the schemas this
+      // field exists to carry.
+      strict: false,
+    });
+  });
+
+  it('asks for JSON without a shape when there is no schema to send', async () => {
+    // The contract keeps `json_object` and `json_schema` apart because a model
+    // can answer in valid JSON without being able to honour a schema. Asking
+    // for the stricter one here would refuse calls Kaana serves.
+    await model.doGenerate({ prompt: userText('hi'), responseFormat: { type: 'json' } } as never);
+    expect(H.sent?.responseFormat).toEqual({ type: 'json_object' });
+  });
+
+  it('names the output when the caller did not', async () => {
+    await model.doGenerate({ prompt: userText('hi'), responseFormat: { type: 'json', schema } } as never);
+    expect(H.sent?.responseFormat).toMatchObject({ type: 'json_schema', name: 'response' });
+  });
+
+  it('omits the field entirely for the calls that want prose', async () => {
+    // Both spellings of "text", because `undefined` is what every existing
+    // caller sends and `{type:'text'}` is what the SDK sends when a caller
+    // says so explicitly. Emitting `{type:'text'}` on the wire would be a
+    // response format on every chat turn in the product.
+    await model.doGenerate({ prompt: userText('hi') } as never);
+    expect(H.sent).not.toHaveProperty('responseFormat');
+
+    await model.doGenerate({ prompt: userText('hi'), responseFormat: { type: 'text' } } as never);
+    expect(H.sent).not.toHaveProperty('responseFormat');
+  });
+
+  it('carries it on the streaming path too', async () => {
+    // `doStream` builds its payload through the same function, and this is the
+    // assertion that says so — `streamObject` would otherwise be asking for a
+    // shape that only the non-streaming path sends.
+    H.events = [];
+    await drain((await model.doStream({
+      prompt: userText('hi'),
+      responseFormat: { type: 'json', schema, name: 'reply' },
+    } as never)).stream);
+
+    expect(H.sent?.responseFormat).toMatchObject({ type: 'json_schema', name: 'reply' });
+  });
+});
+
 describe('a tool round trip, in the prompt', () => {
   const round = [
     { role: 'user' as const, content: [{ type: 'text' as const, text: 'weather in Madrid?' }] },

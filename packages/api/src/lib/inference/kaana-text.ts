@@ -25,9 +25,19 @@
  * proves the wire in production, not the whole surface.
  */
 
+import type { ResponseFormat } from '@oxyhq/contracts';
+
 import { getKaanaClient } from './kaana.js';
 import type { AliaInferenceContext, AliaInferenceSurface } from './product-seam.js';
 import type { RelayRequestPayload } from './kaana-request.js';
+
+/**
+ * How long a call may take when the caller does not say.
+ *
+ * Also the value both clocks were hardcoded to before either was settable, so
+ * a caller that passes nothing gets exactly what it got before.
+ */
+const DEFAULT_BUDGET_MS = 30_000;
 
 export interface KaanaTextRequest {
   /** The whole instruction. One user turn, because there is no conversation here. */
@@ -38,6 +48,23 @@ export interface KaanaTextRequest {
   readonly temperature?: number;
   /** The Oxy account this is for, or `null` for a call no user is waiting on. */
   readonly oxyUserId?: string | null;
+  /**
+   * Ask for JSON back rather than prose, where the caller needs a shape.
+   *
+   * A caller that parses the answer has to send this: without it the model was
+   * never asked for the thing being parsed, and the parse is a hope.
+   */
+  readonly responseFormat?: ResponseFormat;
+  /**
+   * How long the whole call may take, in milliseconds.
+   *
+   * One number for two clocks on purpose. Kaana enforces its own deadline from
+   * the budget in the envelope and this process enforces one with the abort
+   * signal, and a caller that could raise one without the other would be
+   * raising the one that does not decide: a longer signal against a 30-second
+   * envelope is still cancelled at thirty seconds, by the other end.
+   */
+  readonly budgetMs?: number;
   readonly signal?: AbortSignal;
 }
 
@@ -53,6 +80,8 @@ export async function generateTextViaKaana(request: KaanaTextRequest): Promise<s
   const client = getKaanaClient();
   if (client === null) return null;
 
+  const budgetMs = request.budgetMs ?? DEFAULT_BUDGET_MS;
+
   const context: AliaInferenceContext = {
     surface: request.surface,
     visibility: 'derived',
@@ -66,7 +95,18 @@ export async function generateTextViaKaana(request: KaanaTextRequest): Promise<s
     model: { kind: 'product_default' },
     conversationId: null,
     fallbackPolicy: null,
-    budget: { totalMs: 30_000, connectMs: 5_000, firstTokenMs: 15_000, idleStreamMs: 15_000 },
+    // The two sub-budgets stay at half the total, which is where they were when
+    // the total was fixed at thirty seconds. They scale rather than staying put
+    // because they measure the same generation: a reasoning model that needs
+    // fifty seconds to answer can spend twenty-five of them before its first
+    // token, and a `firstTokenMs` frozen at fifteen would cancel it for being
+    // slow at the part it was given the extra budget for.
+    budget: {
+      totalMs: budgetMs,
+      connectMs: 5_000,
+      firstTokenMs: Math.floor(budgetMs / 2),
+      idleStreamMs: Math.floor(budgetMs / 2),
+    },
     // Nobody is watching, so a client that goes away takes the call with it
     // rather than finishing work whose result has nowhere to go.
     onDisconnect: 'abort',
@@ -86,10 +126,11 @@ export async function generateTextViaKaana(request: KaanaTextRequest): Promise<s
     // offers no tools" from "this field was forgotten", and only the first is
     // true here.
     tools: [],
+    ...(request.responseFormat === undefined ? {} : { responseFormat: request.responseFormat }),
     client: { apiFormat: 'chat_completions', endpoint: '/v1/chat/completions' },
   };
 
-  const signal = request.signal ?? AbortSignal.timeout(30_000);
+  const signal = request.signal ?? AbortSignal.timeout(budgetMs);
   const completion = await client.generate({ context, payload }, signal);
   const text = completion.outputText.trim();
   return text === '' ? null : text;

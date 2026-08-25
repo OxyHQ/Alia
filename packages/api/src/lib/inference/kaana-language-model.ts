@@ -37,6 +37,7 @@
 import type {
   InferenceMessage,
   InferenceContentPart,
+  ResponseFormat,
   ToolChoice,
   ToolDefinition,
 } from '@oxyhq/contracts';
@@ -279,6 +280,42 @@ function translateTools(
   return { tools, toolChoice: choice.type };
 }
 
+/**
+ * The AI SDK's response format, in the contract's vocabulary.
+ *
+ * `generateObject` asks for a shape through this field and through nothing
+ * else. Dropping it is not a smaller request, it is a different one: the model
+ * is then free to answer in prose, the schema is checked only after the answer
+ * has been paid for, and the caller discovers the mismatch by catching. Three
+ * modules in this repository already call `generateObject` against a model this
+ * factory returns, so the field was being lost on every one of them.
+ *
+ * `strict: false`, and the contract requires an answer rather than allowing
+ * silence. The AI SDK carries no strict flag, and the schemas it derives from
+ * Zod have optional properties — the OpenAI dialect's strict mode requires
+ * every property to be listed as required, so `true` would have upstreams
+ * refuse exactly the schemas this exists to send.
+ */
+function toResponseFormat(
+  format: LanguageModelV3CallOptions['responseFormat'],
+): ResponseFormat | undefined {
+  if (format === undefined || format.type === 'text') return undefined;
+  // Asking for JSON without saying which JSON. The contract keeps the two
+  // apart because a model can be able to answer in valid JSON without being
+  // able to honour a schema, and collapsing them would ask for the stricter
+  // thing on every call that wanted the looser one.
+  if (format.schema === undefined) return { type: 'json_object' };
+  return {
+    type: 'json_schema',
+    // The contract requires a name and the AI SDK treats it as optional, so
+    // this is the one value invented here. It names the OUTPUT, which is what
+    // the field means in every dialect that carries it.
+    name: format.name ?? 'response',
+    schema: format.schema as Record<string, unknown>,
+    strict: false,
+  };
+}
+
 function translate(call: LanguageModelV3CallOptions): Translation {
   const warnings: SharedV3Warning[] = [];
   const warn = (message: string): void => {
@@ -370,6 +407,7 @@ function payloadFor(
   options: LanguageModelV3CallOptions,
   translation: Translation,
 ): RelayRequestPayload {
+  const responseFormat = toResponseFormat(options.responseFormat);
   return {
     modality: 'text',
     // `messages`, not `text`: the contract reads a bare `text` input as an
@@ -385,6 +423,7 @@ function payloadFor(
     // tools" from "this field was forgotten", and only the first is ever true.
     tools: translation.tools,
     ...(translation.toolChoice === undefined ? {} : { toolChoice: translation.toolChoice }),
+    ...(responseFormat === undefined ? {} : { responseFormat }),
     client: { apiFormat: 'chat_completions', endpoint: '/v1/chat/completions' },
   };
 }
