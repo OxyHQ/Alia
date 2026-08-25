@@ -135,6 +135,17 @@ jobs:
         run: |
           bun install --ignore-scripts
           bun run build:canvas
+
+      # Everything `wrangler deploy` needs, EXCEPT the upload, done while the
+      # site is still up. The deploy step below is the only thing standing
+      # between the DNS record going and service returning, so resolving the
+      # tool from the registry there — a round trip, and a download on a cache
+      # miss — would spend the outage on something that has nothing to do with
+      # the cutover. This also validates `wrangler.toml` before anything is
+      # destroyed: a config error surfaces here, with the site still serving.
+      - name: Warm wrangler and validate the config, before the window opens
+        working-directory: packages/alia-canvas
+        run: bunx wrangler@4 deploy --dry-run
         env:
           ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
@@ -200,9 +211,18 @@ jobs:
       - name: The Worker really serves the domain
         run: |
           set -euo pipefail
-          for i in $(seq 1 30); do
+          # A wall-clock deadline rather than an attempt count. 30 attempts of
+          # `--max-time 15` plus `sleep 20` is up to 17 minutes, and with the
+          # install and build ahead of it that overran the 25-minute job — so
+          # the runner could kill this step before it reached its own
+          # `::error::`, which carries the recovery instruction. Losing that
+          # line is losing the most valuable output in the file.
+          end=$((SECONDS + 420))
+          i=0
+          while [ $SECONDS -lt $end ]; do
+            i=$((i+1))
             code=$(curl -s -o /tmp/body.html -w '%{http_code}' --max-time 15 "https://$HOSTNAME/" || echo 000)
-            echo "attempt $i: http=$code"
+            echo "attempt $i (${SECONDS}s of 420): http=$code"
             if [ "$code" = "200" ] && grep -q "Canvas by Alia" /tmp/body.html; then
               echo "serving, and it is Canvas"
               # The SPA fallback `not_found_handling` replaces.
@@ -237,11 +257,17 @@ jobs:
             && { echo "::error::$PAGES_PROJECT is still listed"; exit 1; } || true
 
       # 6. What this whole workflow is for.
+      # ADVISORY, and marked so. Everything destructive is already done and
+      # already asserted — step 5 reads the project list back. This only waits
+      # for edge cache to expire, its own error text concedes the failure is not
+      # actionable, and at 15 x 20s it was spending five minutes of the job
+      # budget that the gate above needs.
       - name: The Pages hostname is gone
+        continue-on-error: true
         run: |
           set -euo pipefail
-          for i in $(seq 1 15); do
-            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 "https://$PAGES_PROJECT.pages.dev/" || echo 000)
+          for i in $(seq 1 6); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "https://$PAGES_PROJECT.pages.dev/" || echo 000)
             echo "attempt $i: $PAGES_PROJECT.pages.dev -> http=$code"
             # 200 or 301 means it is still ours and still answering. Anything
             # else — 404, 522, a dead connection — means it no longer resolves
