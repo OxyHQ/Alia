@@ -27,7 +27,7 @@ export interface UseAmbientWaveOptions {
   voice?: AmbientWaveVoice;
   /** Whether TTS ("read aloud") is currently playing. */
   isTTSPlaying: boolean;
-  /** Simulated TTS amplitude SharedValue (glides to 0 when not playing). */
+  /** Live "read aloud" playback level, 0..1 (glides to 0 when not playing). */
   ttsWaveAmplitude: SharedValue<number>;
   /** Text-chat generation in flight (thinking or streaming) — gentle wave motion. */
   isGenerating?: boolean;
