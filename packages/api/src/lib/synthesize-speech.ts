@@ -49,18 +49,45 @@ export async function synthesizeSpeech(options: SynthesizeSpeechOptions): Promis
   const { input, voice, format, speed, signal } = options;
   const mappings = await getModelMappingsForTier('v1-tts');
 
-  for (const mapping of mappings) {
+  /**
+   * The line as each kind of model would receive it, rendered once.
+   *
+   * Equal renderings mean this line has no tag to perform — either it never
+   * carried one, or what it carried was `[ríe]` or `[he looks away]`, which no
+   * model performs and both renderings therefore delete.
+   */
+  const withTags = speakableText(input, { audioTags: true });
+  const plain = speakableText(input, { audioTags: false });
+
+  /**
+   * A tag-capable model goes first, but ONLY for a line that has a tag.
+   *
+   * This tier serves read-aloud as well as shows, and its own order encodes a
+   * real preference the chain's comment spells out: ElevenLabs direct leads
+   * because its key is a free monthly quota. Promoting a tag-capable model
+   * unconditionally would move every ordinary sentence — every read-aloud
+   * request, every line of dialogue with no cue in it — onto a model picked for
+   * a capability that request does not use, and reprice it for nothing.
+   *
+   * So when the two renderings agree, the chain is handed over untouched and
+   * this function resolves exactly as it did before tags existed. When they
+   * differ, the capable models are tried first and the rest still follow, which
+   * is what keeps a missing key or a slow model from costing the episode.
+   *
+   * The sort is stable (ES2019), so mappings that agree on the capability keep
+   * the tier's own relative order rather than an arbitrary one.
+   */
+  const ordered =
+    withTags === plain
+      ? mappings
+      : [...mappings].sort(
+          (a, b) =>
+            Number(b.capabilities.audioTags === true) - Number(a.capabilities.audioTags === true),
+        );
+
+  for (const mapping of ordered) {
     if (signal?.aborted) break;
 
-    /**
-     * Prepared PER MAPPING, and that is the whole point of doing it here.
-     *
-     * A `[laughs]` reaches a model that performs it intact and reaches one that
-     * does not without it. Nothing upstream can make that choice: the tier
-     * fails over, so the model that serves is not known until this loop picks
-     * it, and a show pipeline stripping at script time would take the tag away
-     * from the one model that could have voiced it.
-     */
     /**
      * `=== true`, and that is the invariant rather than a way past the type.
      *
@@ -71,7 +98,7 @@ export async function synthesizeSpeech(options: SynthesizeSpeechOptions): Promis
      * perform a tag", because the cost of guessing wrong in that direction is a
      * voice saying the word "laughs" out loud.
      */
-    const spoken = speakableText(input, { audioTags: mapping.capabilities.audioTags === true });
+    const spoken = mapping.capabilities.audioTags === true ? withTags : plain;
     if (spoken === '') {
       // This model has nothing it can say for this line — a cue-only line at a
       // model that cannot perform cues. The next one may still manage it, and

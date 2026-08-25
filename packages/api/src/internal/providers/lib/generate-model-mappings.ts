@@ -183,6 +183,15 @@ export const GENERATED_TIER_MAPPINGS: Record<AliaTier, ModelMapping[]> = {
     createMapping('openai', 'openai', 'tts-1-hd', 'tts-1-hd', 3, 95),
     createMapping('google', 'google', 'gemini-2.5-flash-preview-tts', 'gemini-2.5-flash-preview-tts', 4, 88),
     createMapping('digitalocean', 'elevenlabs', 'eleven-multilingual-v2', 'fal-ai/elevenlabs/tts/multilingual-v2', 5, 87),
+    // LAST, and deliberately so, though it is the only model here that can
+    // perform an audio tag. It shares the ElevenLabs key with the v2 entry
+    // above but is not priced like it, and this tier serves read-aloud as well
+    // as shows — ranking it first would move every ordinary sentence a user
+    // asks to have read onto a model chosen for a capability that sentence
+    // does not use. `synthesize-speech.ts` promotes it for the only requests
+    // that need it: the ones whose line actually carries a tag. For every
+    // other request this chain resolves exactly as it did before it existed.
+    createMapping('elevenlabs', 'elevenlabs', 'eleven-v3', 'eleven_v3', 6, 97),
   ],
   'v1-image': [
     createMapping('openai', 'openai', 'dall-e-3', 'dall-e-3', 1, 92),

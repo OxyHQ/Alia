@@ -182,6 +182,69 @@ describe('synthesizeSpeech decides per model, because the tier fails over', () =
   });
 
   /**
+   * THE WIRING, and the assertion the rest of this file cannot make.
+   *
+   * Everything above injects a mapping list of its own choosing, so all of it
+   * stays green while the live `v1-tts` chain contains no tag-capable model at
+   * all — capability right, strip right, entrypoint never reaching either. That
+   * is a mechanism GREEN AND INERT, and it is the failure this whole change is
+   * about. This test takes the chain the process actually resolves and shows a
+   * `[laughs]` arriving at a provider with the tag still on it.
+   */
+  it('reaches a tag-capable model, with the tag intact, using the LIVE chain', async () => {
+    const chain = GENERATED_TIER_MAPPINGS['v1-tts'].map((m) => ttsMapping(m.provider, m.modelId));
+    // Floor: with no capable model in the chain there is nothing to reach, and
+    // the assertion below would be about a list that cannot satisfy it.
+    expect(chain.some((m) => m.capabilities.audioTags === true)).toBe(true);
+
+    vi.mocked(getModelMappingsForTier).mockResolvedValue(chain);
+    const result = await speak(SPANISH_WITH_TAG);
+
+    expect(result).not.toBeNull();
+    const first = vi.mocked(callProviderAPI).mock.calls[0]?.[0];
+    expect(first?.body?.input).toBe(SPANISH_WITH_TAG);
+    expect(first?.modelId).toBe('eleven_v3');
+  });
+
+  /**
+   * The other half of the wiring, and the one a careless ranking breaks.
+   *
+   * This tier serves read-aloud too. A line with no tag must resolve down the
+   * chain exactly as it did before a tag-capable model existed, or every
+   * ordinary sentence a user asks to have read aloud has been quietly moved to
+   * a different model.
+   */
+  it('leaves the chain order alone for a line with no tag to perform', async () => {
+    const chain = GENERATED_TIER_MAPPINGS['v1-tts'].map((m) => ttsMapping(m.provider, m.modelId));
+    vi.mocked(getModelMappingsForTier).mockResolvedValue(chain);
+
+    await speak('Buenas tardes. Hoy hablamos del precio del alquiler.');
+
+    const first = vi.mocked(callProviderAPI).mock.calls[0]?.[0];
+    expect(first?.modelId).toBe(chain[0]?.modelId);
+    // Named as well as positional: the free monthly quota the chain's own
+    // comment ranks first is this one, and "whatever is first" would not notice
+    // it moving.
+    expect(first?.modelId).toBe('eleven_multilingual_v2');
+  });
+
+  /**
+   * A cue no model performs must not promote anything either. `[ríe]` renders
+   * identically both ways — both delete it — so this line is a tagless line and
+   * must not reprice a read-aloud request on its way to being stripped.
+   */
+  it('does not promote a tag-capable model for a cue no model performs', async () => {
+    const chain = GENERATED_TIER_MAPPINGS['v1-tts'].map((m) => ttsMapping(m.provider, m.modelId));
+    vi.mocked(getModelMappingsForTier).mockResolvedValue(chain);
+
+    await speak('Ja, ja. [ríe] Eso es justo lo que estaba pensando.');
+
+    const first = vi.mocked(callProviderAPI).mock.calls[0]?.[0];
+    expect(first?.modelId).toBe('eleven_multilingual_v2');
+    expect(first?.body?.input).toBe('Ja, ja. Eso es justo lo que estaba pensando.');
+  });
+
+  /**
    * A census over the LIVE chain rather than over the two models this file
    * picked, so it keeps meaning something after the chain changes — including
    * on the day a tag-capable model is admitted to it.
