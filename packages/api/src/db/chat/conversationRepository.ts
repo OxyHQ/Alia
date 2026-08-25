@@ -22,7 +22,7 @@
  * placement out; see `messageRepository.ts`, which is where `seq` actually lives.
  */
 
-import { and, asc, desc, eq, gte, lt, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, inArray, lt, sql } from 'drizzle-orm';
 import type { ConversationSource } from '../../domain/conversation.js';
 import type { ApiDatabase, Executor } from '../index';
 import { conversations } from '../schema/chat';
@@ -332,6 +332,60 @@ export async function listThreadConversations(
     .from(conversations)
     .where(and(eq(conversations.oxyUserId, oxyUserId), eq(conversations.agentId, agentId)))
     .orderBy(asc(conversations.createdAt), asc(conversations.id));
+}
+
+/** The newest thing said in one person's thread with one agent. */
+export interface LatestAgentMessage {
+  readonly agentId: string;
+  readonly lastMessage: string | null;
+  readonly updatedAt: Date;
+}
+
+/**
+ * The last message of each of this person's agent threads, in ONE statement.
+ *
+ * The sidebar draws a row per agent with the newest line under the name, and the
+ * obvious way to fill it — ask per agent — is a query per row. `DISTINCT ON`
+ * asks once for all of them: it keeps the first row of each `agent_id` group, so
+ * ordering the group by `updated_at DESC` makes that first row the newest.
+ *
+ * Scoped to `oxy_user_id` because the row belongs to the READER: what matters is
+ * the last thing said in *their* thread with the agent, not the last thing the
+ * agent said to anybody. `conversations_oxy_user_agent_id_idx` is on exactly
+ * that pair.
+ *
+ * `id` breaks a tie on `updated_at`, so two conversations touched in the same
+ * millisecond cannot pick a winner by planner whim — the same reason every other
+ * ordering in this file is spelt out.
+ */
+export async function latestMessagePerAgent(
+  db: ApiDatabase,
+  oxyUserId: string,
+  agentIds: readonly string[],
+): Promise<LatestAgentMessage[]> {
+  // A brand new account owns no agents, and `IN ()` is not a query.
+  if (agentIds.length === 0) return [];
+
+  const rows = await db
+    .selectDistinctOn([conversations.agentId], {
+      agentId: conversations.agentId,
+      lastMessage: conversations.lastMessage,
+      updatedAt: conversations.updatedAt,
+    })
+    .from(conversations)
+    .where(
+      and(
+        eq(conversations.oxyUserId, oxyUserId),
+        inArray(conversations.agentId, [...agentIds]),
+      ),
+    )
+    .orderBy(conversations.agentId, desc(conversations.updatedAt), desc(conversations.id));
+
+  return rows.flatMap((row) =>
+    row.agentId === null
+      ? []
+      : [{ agentId: row.agentId, lastMessage: row.lastMessage, updatedAt: row.updatedAt }],
+  );
 }
 
 /** One day of the activity heatmap: threads this agent started that day. */

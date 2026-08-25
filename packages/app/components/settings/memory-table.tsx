@@ -1,4 +1,5 @@
 import React from "react";
+import { formatRelativeTime } from '@/lib/utils/relative-time';
 import { View, Pressable } from "react-native";
 import { Text } from "@/components/ui/text";
 import { SettingsListGroup, SettingsListItem } from "@oxyhq/bloom/settings-list";
@@ -17,17 +18,6 @@ interface MemoryTableProps {
   emptyLabel: string;
   onRowPress: (id: string) => void;
   onDelete: (id: string) => void;
-}
-
-function formatRelativeTime(dateStr: string): string {
-  const diff = Date.now() - new Date(dateStr).getTime();
-  const minutes = Math.floor(diff / 60000);
-  if (minutes < 1) return 'just now';
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  return `${days}d ago`;
 }
 
 export function MemoryTable({ heading, rows, emptyLabel, onRowPress, onDelete }: MemoryTableProps) {

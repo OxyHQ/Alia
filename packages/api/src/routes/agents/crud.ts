@@ -22,6 +22,7 @@ import {
   type AgentAccountRefusal,
 } from '../../lib/agent-account.js';
 import { attachAgentIdentities, attachAgentIdentity } from '../../lib/agent-identity.js';
+import { latestMessagePerAgent } from '../../db/chat/conversationRepository.js';
 import {
   createTrigger,
   findAgentTriggerByType,
@@ -223,8 +224,35 @@ router.get('/me', authenticateToken, async (req: Request, res: Response) => {
 
     const owned = await listAgentsByAuthor(getDb(), req.user.id);
     const agents = await Promise.all(owned.map(withChildLists));
+    const identified = await attachAgentIdentities(agents);
 
-    res.json({ agents: await attachAgentIdentities(agents) });
+    /*
+     * The newest line of each thread, so the sidebar can read like a list of
+     * chats rather than a list of names. ONE query for the whole list — asking
+     * per agent would be a query per row, which is the shape this exists to
+     * avoid — and scoped to the caller, because the line belongs to their own
+     * thread with the agent and not to the agent's busiest stranger.
+     */
+    const latest = await latestMessagePerAgent(
+      getDb(),
+      req.user.id,
+      owned.map((agent) => agent._id),
+    );
+    const byAgent = new Map(latest.map((row) => [row.agentId, row]));
+
+    res.json({
+      agents: identified.map((agent) => {
+        const thread = byAgent.get(agent._id);
+        return {
+          ...agent,
+          // `null` rather than absent: an agent with no thread yet is the
+          // ordinary case — you have just made it — and the client renders that
+          // as its own line rather than as a gap.
+          lastMessage: thread?.lastMessage ?? null,
+          lastMessageAt: thread?.updatedAt.toISOString() ?? null,
+        };
+      }),
+    });
   } catch (error: unknown) {
     log.agents.error({ err: error }, 'Error listing user agents');
     res.status(500).json({ error: 'Failed to list your agents' });

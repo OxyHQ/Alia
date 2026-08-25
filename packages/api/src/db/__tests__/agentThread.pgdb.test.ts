@@ -34,6 +34,7 @@ import { conversations } from '../schema/chat';
 import {
   createConversation,
   findActiveThreadConversation,
+  latestMessagePerAgent,
   listThreadConversations,
 } from '../chat/conversationRepository';
 import {
@@ -311,5 +312,80 @@ describe('the cursor is opaque, and refuses what it cannot read', () => {
 
     expect(payload).not.toContain('seq');
     expect(JSON.parse(payload)).toEqual({ at: '2026-08-01T10:00:00.000Z', id: 'row-1' });
+  });
+});
+
+/**
+ * What the sidebar puts under an agent's name.
+ *
+ * The row reads like a chat, so it needs the last thing said — and the obvious
+ * way to get it, one query per agent, is the N+1 this function exists to
+ * replace. So the properties are: one statement for the whole list, the NEWEST
+ * line per agent, and the reader's own thread rather than the agent's busiest
+ * stranger's.
+ */
+describe('the last line of each agent thread', () => {
+  /** A stretch that has been spoken in: `last_message` is what the row shows. */
+  async function spokenStretch(
+    oxyUserId: string,
+    agentId: string,
+    id: string,
+    lastMessage: string,
+    updatedAt: string,
+  ) {
+    await db.execute(sql`
+      insert into ${conversations}
+        (id, oxy_user_id, conversation_id, title, agent_id, last_message, created_at, updated_at)
+      values
+        (${`${id}-row`}, ${oxyUserId}, ${id}, 'New chat', ${agentId},
+         ${lastMessage}, ${updatedAt}, ${updatedAt})
+    `);
+  }
+
+  it('answers the newest line for each agent, in one statement', async () => {
+    const user = `${SUITE}-latest`;
+    await spokenStretch(user, `${SUITE}-a`, `${SUITE}-l1`, 'older with A', '2026-08-01T10:00:00Z');
+    await spokenStretch(user, `${SUITE}-a`, `${SUITE}-l2`, 'newest with A', '2026-08-01T12:00:00Z');
+    await spokenStretch(user, `${SUITE}-b`, `${SUITE}-l3`, 'only line with B', '2026-08-01T11:00:00Z');
+
+    const rows = await latestMessagePerAgent(db, user, [`${SUITE}-a`, `${SUITE}-b`]);
+
+    // One row per agent, not one per conversation — three stretches, two rows.
+    expect(rows).toHaveLength(2);
+    const byAgent = new Map(rows.map((row) => [row.agentId, row.lastMessage]));
+    expect(byAgent.get(`${SUITE}-a`)).toBe('newest with A');
+    expect(byAgent.get(`${SUITE}-b`)).toBe('only line with B');
+  });
+
+  it('shows each person their OWN last line, not the agent’s latest with anyone', async () => {
+    // The missing `AND` that passes every single-user test ever written and
+    // shows one person another person's conversation.
+    const mine = `${SUITE}-mine`;
+    const theirs = `${SUITE}-theirs`;
+    const agent = `${SUITE}-shared`;
+    await spokenStretch(mine, agent, `${SUITE}-s1`, 'what I said', '2026-08-01T10:00:00Z');
+    await spokenStretch(theirs, agent, `${SUITE}-s2`, 'what they said', '2026-08-01T23:00:00Z');
+
+    const rows = await latestMessagePerAgent(db, mine, [agent]);
+
+    // Theirs is newer, so a query keyed on the agent alone would answer it.
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.lastMessage).toBe('what I said');
+  });
+
+  it('leaves out an agent nobody has spoken to, rather than inventing a line', async () => {
+    // The ordinary case a second after you make one. The row still renders —
+    // the client supplies its own empty line — but the database says nothing.
+    const user = `${SUITE}-quiet`;
+    await spokenStretch(user, `${SUITE}-spoken`, `${SUITE}-q1`, 'hello', '2026-08-01T10:00:00Z');
+
+    const rows = await latestMessagePerAgent(db, user, [`${SUITE}-spoken`, `${SUITE}-never`]);
+
+    expect(rows.map((row) => row.agentId)).toEqual([`${SUITE}-spoken`]);
+  });
+
+  it('asks nothing at all when the person owns no agents', async () => {
+    // A brand new account, and `IN ()` is not a query.
+    expect(await latestMessagePerAgent(db, `${SUITE}-none`, [])).toEqual([]);
   });
 });
