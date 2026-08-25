@@ -3,10 +3,7 @@ import { generateText } from 'ai';
 import { AGENT_ARCHETYPES } from '../../domain/agent.js';
 import { AGENT_COLORS, agentColorFor, isAgentColor } from '../../domain/agent-color.js';
 import { FIXED_CAPABILITY_FAMILIES, isCapabilityGrant } from '../../domain/capability-grants.js';
-import {
-  SELECTABLE_ACCOUNT_CATEGORY_IDS,
-  type AccountCategoryId,
-} from '@oxyhq/contracts';
+import { accountCategoryChoices, isOfferedAccountCategory } from '../../lib/account-category.js';
 import { fallbackAgentUsername, suggestAgentUsername } from '../../lib/agent-identity.js';
 import { authenticateToken } from '../../middleware/auth.js';
 import { resolveModel, getAIModel, getDefaultAliaModel } from '../../lib/chat-core.js';
@@ -16,29 +13,6 @@ import type { Request, Response } from 'express';
 const router = Router();
 
 // POST /agents/generate - AI generates agent config from natural language prompt
-/**
- * The categories a generated agent may be offered, straight from the contract.
- *
- * `SELECTABLE_…` rather than the full set: that one still carries WITHDRAWN ids
- * so an account already holding one keeps it, and offering one of those to a
- * brand-new account would propose something the server refuses.
- */
-const accountCategoryChoices = SELECTABLE_ACCOUNT_CATEGORY_IDS.map((id) => `"${id}"`).join(', ');
-
-/**
- * Whether a value IS one of the offered categories.
- *
- * Membership, and it has to be spelled out. `isSelectableAccountCategoryId`
- * answers a narrower question than its name suggests — "is this id still
- * offered", i.e. `!RETIRED.includes(id)` — and `RETIRED` is empty today, so it
- * answers TRUE for `undefined`, for `42`, for `community_management`, for
- * everything. Validating with it alone forwards whatever the model invented
- * straight to Oxy. Caught by the case below that feeds it exactly that.
- */
-function isOfferedAccountCategory(value: unknown): value is AccountCategoryId {
-  return typeof value === 'string'
-    && (SELECTABLE_ACCOUNT_CATEGORY_IDS as readonly string[]).includes(value);
-}
 
 router.post('/generate', authenticateToken, async (req: Request, res: Response) => {
   try {

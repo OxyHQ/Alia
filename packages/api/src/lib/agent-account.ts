@@ -64,6 +64,7 @@
  */
 
 import { OxyServices, canSwitchIntoAccount } from '@oxyhq/core';
+import type { AccountCategoryId } from '@oxyhq/contracts';
 import type { Executor } from '../db/index.js';
 import { findAgentById, type AgentRecord } from '../db/agents/agentRepository.js';
 import {
@@ -320,6 +321,18 @@ export async function createAgentBotAccount(params: {
   displayName: string;
   bio?: string;
   parentAccountId?: string;
+  /**
+   * A named preset KEY — `'blue'`, `'mint'`, … — never a hex value, and set at
+   * CREATION rather than after it: for a managed account the colour is a visual
+   * identity, and an account that exists without one and acquires it on a
+   * second request is a face that changes by itself.
+   */
+  color?: string;
+  /**
+   * What the account is about. ORDERED at Oxy, first element primary — an agent
+   * is offered exactly one, so the head is trivially right.
+   */
+  accountCategories?: AccountCategoryId[];
 }): Promise<{ oxyAccountId: string; username: string }> {
   const oxy = new OxyServices({ baseURL: process.env.OXY_API_URL || 'https://api.oxy.so' });
   oxy.setTokens(params.accessToken);
@@ -333,6 +346,10 @@ export async function createAgentBotAccount(params: {
         name: { displayName: params.displayName },
         ...(params.bio !== undefined && { bio: params.bio }),
         ...(params.parentAccountId !== undefined && { parentAccountId: params.parentAccountId }),
+        ...(params.color !== undefined && { color: params.color }),
+        ...(params.accountCategories !== undefined && {
+          accountCategories: params.accountCategories,
+        }),
       });
       return { oxyAccountId: node.accountId, username };
     } catch (error: unknown) {
