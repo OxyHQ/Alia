@@ -43,6 +43,15 @@ const INTENSITY_RAMP = 500;
 const EXIT_OPACITY_DURATION = 800;
 const EXIT_TRANSFORM_DURATION = 900;
 const EXIT_EASE = Easing.bezier(0.2, 0.7, 0.2, 1);
+/**
+ * A fast beat layered on top of the slow float, scaled by live amplitude.
+ *
+ * Removed once, for looking like a second canned animation, and put back: it is
+ * part of how the field reads while DICTATING, which is the behaviour that was
+ * asked for. Being scaled by the level is what makes it legitimate — at silence
+ * the whole term is zero and the blob does not move at all.
+ */
+const PULSE_DURATION = 900;
 
 /** One keyframe stop of a float loop: [translateX in vw, translateY in vh, scale]. */
 type FloatStop = readonly [number, number, number];
@@ -191,6 +200,7 @@ function Flourish({
   const enter = useSharedValue(entrance ? 0 : 1);
   const fade = useSharedValue(entrance ? 0 : 1);
   const phase = useSharedValue(0);
+  const pulse = useSharedValue(0);
 
   // Starting an animation on mount is imperative by nature: there is no
   // derived-state or event-handler form of "run once, then loop forever".
@@ -209,7 +219,12 @@ function Flourish({
       entrance ? config.delay + ENTER_DURATION : 0,
       withRepeat(withTiming(1, { duration: config.fdur, easing: Easing.linear }), -1, false),
     );
-  }, [enter, fade, phase, entrance, config.delay, config.fdur]);
+    pulse.value = withRepeat(
+      withTiming(1, { duration: PULSE_DURATION, easing: Easing.inOut(Easing.sin) }),
+      -1,
+      true,
+    );
+  }, [enter, fade, phase, pulse, entrance, config.delay, config.fdur]);
 
   const size = config.w * vmax;
 
@@ -251,12 +266,9 @@ function Flourish({
       local = (p - 1 / 3) * 3;
     }
     const e = smooth(local);
-    // The swell is the ONLY thing here that answers the audio, so it is the
-    // only thing that may move at speech rate. A second oscillator on top used
-    // to add a 900ms beat of its own: with the level canned, that beat was most
-    // of the motion a listener saw, and it beat against real speech once the
-    // level stopped being invented.
-    const ampScale = 1 + waveAmplitude.value * 0.3 * config.amp;
+    const amp = waveAmplitude.value;
+    // Amplitude swells the blob and adds a faster beat than the slow float.
+    const ampScale = 1 + amp * (0.3 * config.amp + 0.3 * (pulse.value - 0.5));
     return {
       transform: [
         { translateX: (from[0] + (to[0] - from[0]) * e) * vw },
