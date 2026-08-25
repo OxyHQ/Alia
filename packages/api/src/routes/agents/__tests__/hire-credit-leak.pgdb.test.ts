@@ -124,6 +124,12 @@ async function seedAgent(): Promise<string> {
     category: 'research',
     price: 15,
     isPublished: true,
+    /**
+     * PUBLIC, which is what makes it hireable by a stranger. Being listed
+     * stopped granting use — these cases are about the credit reservation, and
+     * an agent nobody may run never reaches it.
+     */
+    access: 'public',
   });
   return agent._id;
 }
