@@ -46,6 +46,7 @@ vi.mock('../../../internal/providers/lib/key-manager.js', () => ({
 
 import { generateCoverArt } from '../cover-art.js';
 import { generateImage } from '../../image-generation.js';
+import { log } from '../../logger.js';
 import { GENERATED_TIER_MAPPINGS } from '../../../internal/providers/lib/generate-model-mappings.js';
 
 const XAI_IMAGES = 'https://api.x.ai/v1/images/generations';
@@ -54,6 +55,8 @@ const PNG_BYTES = Buffer.from('a-generated-cover', 'utf8');
 
 /** Every URL `fetch` was asked for, in order, across the whole tier walk. */
 let requested: string[] = [];
+/** Every `log.general.warn`, so the walk's own account of itself is measurable. */
+let warned: { fields: Record<string, unknown>; message: string }[] = [];
 /** The body sent to xAI, so the assertions can prove WHICH request served. */
 let xaiBody: Record<string, unknown> | null = null;
 
@@ -67,6 +70,14 @@ let xaiBody: Record<string, unknown> | null = null;
 function stubNetwork(serveXai: boolean): void {
   requested = [];
   xaiBody = null;
+  warned = [];
+  vi.spyOn(log.general, 'warn').mockImplementation(((fields: unknown, message?: string) => {
+    warned.push({
+      fields: (typeof fields === 'object' && fields !== null ? fields : {}) as Record<string, unknown>,
+      message: message ?? String(fields),
+    });
+    return undefined;
+  }) as typeof log.general.warn);
   vi.stubGlobal(
     'fetch',
     async (input: string | URL | Request, init?: RequestInit): Promise<Response> => {
@@ -92,7 +103,10 @@ function stubNetwork(serveXai: boolean): void {
 }
 
 beforeEach(() => stubNetwork(true));
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
+});
 
 describe('cover art for a show series', () => {
   it('reaches the one image provider a key exists for, and returns its bytes', async () => {
@@ -127,6 +141,14 @@ describe('cover art for a show series', () => {
     // a tier that was walked and refused look identical to a caller, and only
     // one of them is this test's subject.
     expect(requested).toContain(XAI_IMAGES);
+
+    // And it left a trace of the walk as a whole. The per-provider warnings are
+    // emitted inside the loop, so an EMPTY tier produces none at all — the one
+    // shape that answers `null` having said nothing. This line is outside the
+    // loop, which is what makes both shapes findable afterwards.
+    const summary = warned.filter((entry) => entry.message === 'No image provider produced an image');
+    expect(summary).toHaveLength(1);
+    expect(summary[0]?.fields.attempted).toBe(GENERATED_TIER_MAPPINGS['v1-image'].length);
   });
 
   it('every mapping in the image tier can be addressed by the transport', async () => {
