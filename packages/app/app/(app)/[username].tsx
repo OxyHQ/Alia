@@ -139,7 +139,7 @@ const AgentThreadPage = () => {
    */
   return (
     <BloomColorScope colorPreset={agentColorPreset(thread.agent.color)} asChild>
-      <View className="flex-1 web:z-auto">
+      <View className="flex-1 bg-background web:z-auto">
         <ConversationScreen
           conversationId={thread.conversationId}
           agentId={thread.agent._id}
