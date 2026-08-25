@@ -19,6 +19,7 @@ import {
   calculateCreditsFromMinutes,
   getUserCredits,
   CREDITS_CONFIG,
+  UnpricedModelError,
   type CreditReservation,
 } from '../credits-manager.js';
 
@@ -303,6 +304,31 @@ describe('finalizeCredits', () => {
         'alia-v1',
       ),
     ).rejects.toThrow('catalogue unreachable');
+
+    expect(await balanceOf(id)).toEqual({ free: 40, paid: 60 });
+  });
+
+  /**
+   * The same guarantee for the failure this change INTRODUCES.
+   *
+   * A lookup that succeeds and returns nothing is not a catalogue outage; it is
+   * a model identifier the catalogue does not price, and until now it settled
+   * the turn at 1× instead of refusing. Now it refuses, and it must refuse the
+   * same way the outage above does: before a single credit has moved, so the
+   * caller's `finally` gives the reservation back exactly once.
+   */
+  it('moves nothing when the model resolves to no price at all', async () => {
+    const id = await account('cm-final-unpriced', 40, 60);
+    const { getAliaModel } = await import('../chat-core.js');
+    vi.mocked(getAliaModel).mockResolvedValueOnce(null);
+
+    await expect(
+      finalizeCredits(
+        { userId: id, creditsReserved: 5, initialFreeCredits: 40, initialPaidCredits: 60, grantKind: 'free_allowance' },
+        { promptTokens: 1000, completionTokens: 1000, totalTokens: 2000 },
+        'alia-v1',
+      ),
+    ).rejects.toThrow(UnpricedModelError);
 
     expect(await balanceOf(id)).toEqual({ free: 40, paid: 60 });
   });
