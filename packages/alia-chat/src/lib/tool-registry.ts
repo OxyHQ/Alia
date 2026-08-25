@@ -16,7 +16,7 @@ const TOOL_REGISTRY: Record<string, ToolDefinition> = {
   sendWhatsAppMessage: { label: 'Sending WhatsApp message',  category: 'communication' },
   getWhatsAppChats:    { label: 'Loading WhatsApp chats',    category: 'communication' },
   getWhatsAppMessages: { label: 'Reading WhatsApp messages', category: 'communication' },
-  sendTelegram:        { label: 'Sending Telegram message',  category: 'communication' },
+  sendTelegramMessage: { label: 'Sending Telegram message',  category: 'communication' },
 
   // Utility
   getCurrentDate:      { label: 'Getting current date',      category: 'utility' },

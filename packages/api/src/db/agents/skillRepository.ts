@@ -3,7 +3,7 @@
  * moderation does to one.
  *
  * One table, six consumer files — `routes/skills.ts`, `lib/seed-skills.ts`,
- * `lib/chat/request-context.ts`, `services/chat.service.ts`,
+ * `lib/chat/request-context.ts`,
  * `lib/crowdsource/subjects/skill-subject.ts` and
  * `lib/crowdsource/enforcement-service.ts` — which is more than any other model
  * in this slice and the reason every read here is a named function rather than

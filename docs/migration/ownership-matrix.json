@@ -3213,7 +3213,8 @@
       "domain": "provider-runtime",
       "kind": "module",
       "currentPath": "packages/api/src/services/chat.service.ts",
-      "reachable": "live",
+      "removedIn": "feat/one-agent-runtime",
+      "reachable": "dead",
       "owner": "alia",
       "targetPath": "keep",
       "dependsOn": [

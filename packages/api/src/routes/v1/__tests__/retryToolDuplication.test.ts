@@ -212,7 +212,6 @@ vi.mock('../../../db/memory/userMemoryRepository.js', () => ({ findUserMemory: v
  * and the transcript below is two entries short.
  */
 vi.mock('../../../db/chat/conversationRepository.js', () => ({
-  findConversationAgentById: vi.fn(async () => undefined),
   conversationExists: vi.fn(async () => false),
   updateConversationTitle: vi.fn(async () => 1),
   upsertConversation: vi.fn(async () => ({})),

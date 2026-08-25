@@ -35,7 +35,9 @@ const REVERSIBLE_WRITE_TOOLS = new Set([
 ]);
 
 const EXTERNAL_IMPACT_TOOLS = new Set([
-  'sendTelegram',
+  // ONE name. `sendTelegram` was the second spelling of this same factory on
+  // the chat path; listing both was what kept the R2 gate honest while they
+  // coexisted, and it is why the collapse did not silently ungate the tool.
   'sendTelegramMessage',
   'sendWhatsAppMessage',
   'sendEmail',

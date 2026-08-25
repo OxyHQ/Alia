@@ -32,8 +32,16 @@ vi.mock('ai', () => ({
   stepCountIs: vi.fn(() => 5),
 }));
 vi.mock('../../lib/channels/registry.js', () => ({ getChannel: vi.fn(() => null) }));
+// The ONE assembler stands in for what `buildChatTools` used to: this file is
+// about credit reservation on an inbound bot message, not about which tools a
+// bot turn gets, and the real pipeline imports every tool module behind it.
+vi.mock('../../lib/tool-pipeline.js', () => ({
+  ToolPipeline: { forUser: vi.fn(async () => ({ tools: {}, toolNameMapping: new Map() })) },
+}));
+vi.mock('../../lib/agent-identity.js', () => ({
+  attachAgentIdentity: vi.fn(async (agent: unknown) => agent),
+}));
 vi.mock('../../lib/channels/outbound.js', () => ({ sendChannelMessage: vi.fn(async () => undefined) }));
-vi.mock('../../services/chat.service.js', () => ({ buildChatTools: vi.fn(async () => ({})) }));
 vi.mock('../../lib/prompt-loader.js', () => ({ loadPrompt: vi.fn(async () => 'be helpful') }));
 vi.mock('../../lib/logger.js', () => {
   const child = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() };

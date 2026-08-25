@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { authenticateToken } from '../../middleware/auth.js';
-import { cleanupSessionResources } from '../../lib/agent/tools.js';
+import { cleanupSessionResources } from '../../lib/agent/session-resources.js';
 import { getJobStatus, cancelJob } from '../../lib/task-queue.js';
 import { getDb } from '../../db/index.js';
 import { updateAgent } from '../../db/agents/agentRepository.js';

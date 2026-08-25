@@ -24,7 +24,7 @@ Tools live in `packages/api/src/lib/tools/` and self-register through `registry.
 | Generation | `generateFile`, `canvas` |
 | Agents | `searchAgents`, `delegateToAgent`, `orchestrateAgents`, `createAgent`, `delegateSubtask` |
 | Triggers | `createTrigger`, `listTriggers`, `updateTrigger`, `deleteTrigger` |
-| Channels | `sendTelegram`, `sendWhatsAppMessage`, `getWhatsAppChats`, `getWhatsAppMessages` |
+| Channels | `sendTelegramMessage`, `sendWhatsAppMessage`, `getWhatsAppChats`, `getWhatsAppMessages` |
 | Infrastructure | `sandbox`, `gatewayAdmin`, `planPreview` |
 | Bridges | `mcp`, `oxy-services`, `integrations` |
 
@@ -82,7 +82,7 @@ Inbound messages arrive at the API as either:
 - **Channel-bound conversations** — each chat becomes a conversation scoped to that channel and a user, so the autonomy loop can reuse the same context graph
 - **Webhook events** — for trigger-driven actions, the integration emits an `integration_event` matched by `service + event + filters`
 
-Outbound tools (e.g. `sendTelegram`, `sendWhatsAppMessage`) require `R2` approval by default. The trigger engine respects the same risk class when integrations call tools autonomously.
+Outbound tools (e.g. `sendTelegramMessage`, `sendWhatsAppMessage`) require `R2` approval by default. The trigger engine respects the same risk class when integrations call tools autonomously.
 
 ## Triggers
 

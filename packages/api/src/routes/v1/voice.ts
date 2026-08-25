@@ -131,7 +131,7 @@ router.post('/token', async (req: Request, res: Response) => {
     // sits at the top of the voice session instructions. Nothing can strip the
     // Alia identity boundary from a voice session.
     const voiceModel = await getAliaModel(model);
-    voiceInstructions = `${buildIdentityGuard(voiceModel?.name)}\n\n---\n\n${voiceInstructions}`;
+    voiceInstructions = `${buildIdentityGuard({ modelName: voiceModel?.name })}\n\n---\n\n${voiceInstructions}`;
 
     // Voice-appropriate tools (executed server-side by VoiceSessionManager)
     const voiceTools: OpenAITool[] = [

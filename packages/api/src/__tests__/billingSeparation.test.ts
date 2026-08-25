@@ -662,7 +662,17 @@ describe('the billing path audit matches the tree it describes (#139 ws12)', () 
     // the row it was spending from, so a first-time owner was refused for
     // credits they were entitled to. It provisions the payer now, which is the
     // hop this list counts.
-    expect(derived.length).toBe(16);
+    // 16 -> 15: `services/chat.service.ts` is GONE. Its `loadUserContext`
+    // reserved a credit and had no callers at all — a reservation nobody could
+    // trigger, which is why it never showed as a leak — and every other export
+    // in the file was dead too. It went with the five tool assemblers becoming
+    // one, and this is the only list that counted it.
+    //
+    // The number below is READ OFF `derived`, the scan of the tree. This branch
+    // has now been rebased across two different bases, each with its own delta
+    // to this list; adding them up gives a plausible number that is wrong and
+    // still compiles, which is why it is measured on each rebase instead.
+    expect(derived.length).toBe(15);
   });
 });
 

@@ -288,7 +288,6 @@ vi.mock('../../../db/memory/userMemoryRepository.js', () => ({
  * and the transcript below is two entries short.
  */
 vi.mock('../../../db/chat/conversationRepository.js', () => ({
-  findConversationAgentById: vi.fn(async () => undefined),
   conversationExists: vi.fn(async () => false),
   updateConversationTitle: vi.fn(async () => 1),
   upsertConversation: vi.fn(async () => ({})),
@@ -1151,10 +1150,19 @@ describe('fixture: Codea flow — API key, non-streaming, no client tools', () =
 
   it('gives an API-key session no personal tools and no plan gate', async () => {
     // The product difference between an editor session and an app session, and
-    // the reason both are pinned separately: an API-key request is neutral —
-    // `isDirectUserSession` is false (`lib/chat/request-context.ts:122`), so
-    // `ToolPipeline` withholds memory, messaging, MCP, integrations and the
-    // SSE-emitting tools (`lib/tool-pipeline.ts:105,136,153`).
+    // the reason both are pinned separately: an API-key request acts for NOBODY
+    // — `actsForPerson` is false — so `ToolPipeline` withholds memory,
+    // messaging, triggers, MCP, integrations and Oxy services. A developer key
+    // carries its owner's `userId`, so without that gate every one of them
+    // would run and hand the key HOLDER the key OWNER's data.
+    //
+    // The SSE-emitting tools are withheld separately, on `isDirectSession`:
+    // they push frames only Alia's own composer renders.
+    //
+    // `canvas` IS here, and is the one addition. It was reachable only through
+    // the Telegram assembler before the five became one, for no reason anybody
+    // chose — it is a pure formatter with no user data and no side effect, so
+    // an editor client gets it like everyone else.
     H.state.entitlements = { tier: 'free', features: {}, allowedModelIds: [] };
     const res = recordingRes();
     await run(codeaReq({ messages: [{ role: 'user', content: 'complete this' }], model: 'alia-v1-codea', stream: false }), res);
@@ -1162,7 +1170,9 @@ describe('fixture: Codea flow — API key, non-streaming, no client tools', () =
     // An empty allow-list would have refused an app request; the editor request
     // is served, because the plan gate is skipped for API keys.
     expect(H.timeline).toContain('model:doGenerate');
-    expect(toolNamesSeenByModel().sort()).toEqual(['browse', 'generateFile', 'getCurrentDate', 'webScraper', 'webSearch']);
+    expect(toolNamesSeenByModel().sort()).toEqual([
+      'browse', 'canvas', 'generateFile', 'getCurrentDate', 'webScraper', 'webSearch',
+    ]);
   });
 });
 

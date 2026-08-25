@@ -30,7 +30,7 @@ import {
 } from '../../db/agents/eventStreamEntryRepository.js';
 import { resolveModel, getAIModel, reportModelUsage, getDefaultAliaModel } from '../chat-core.js';
 import { markKeyCreditExhausted } from '../gateway-client.js';
-import { cleanupSessionResources } from './tools.js';
+import { cleanupSessionResources } from './session-resources.js';
 import { log } from '../logger.js';
 import { EventStream } from './event-stream.js';
 import { AgentStateMachine } from './state-machine.js';
@@ -38,7 +38,7 @@ import { TodoManager } from './todo-manager.js';
 import { WorkspaceMemory } from './workspace-memory.js';
 import { TerminalSession, inferImage } from './terminal-session.js';
 import { BrowserSession } from './browser-session.js';
-import { buildActions } from './actions.js';
+import { ToolPipeline } from '../tool-pipeline.js';
 import { buildArchetypeSystemPrompt } from './archetype-prompts.js';
 import {
   agentPromptName,
@@ -391,25 +391,44 @@ export async function runAgentSession(sessionId: string): Promise<void> {
   // Transition: INITIALIZING → PLANNING
   stateMachine.transition('initialized');
 
-  // Build actions (5 primitives + MCP/integration tools)
-  // ALL actions are always in context — no state-based filtering (KV-cache stability)
-  const allActions = await buildActions({
+  /**
+   * The turn's tools, through the ONE assembler.
+   *
+   * `runtime` is what makes this an autonomous run rather than a chat turn: it
+   * carries the container, the browser and the plan the five primitives act on,
+   * and it is what the policy pass wraps. Everything else an agent can reach —
+   * memory, triggers, MCP, integrations, and the Oxy services this path could
+   * never see before — comes from the same place every other surface gets it.
+   */
+  const { tools: allActions } = await ToolPipeline.forUser({
+    userId: session.oxyUserId,
+    isDirectSession: false,
+    // The run belongs to the account that started the session.
+    actsForPerson: true,
+    agentMode: false,
+    toolsEnabled: true,
+    webSearch: true,
+    isLocalRuntime: false,
     agent,
-    session,
-    onComplete,
-    onHireAgent,
-    todoManager,
-    workspaceMemory,
-    terminalSession,
-    browserSession,
-    eventStream,
+    runtime: {
+      agent,
+      session,
+      onComplete,
+      onHireAgent,
+      todoManager,
+      workspaceMemory,
+      terminalSession,
+      browserSession,
+      eventStream,
+    },
   });
 
   // Build system prompt (stable prefix — never changes between iterations).
   // The identity guard wraps the agent's own prompt so the Alia identity
   // boundary holds even for custom / archetype agent prompts. The runner picks
   // a model per step, so no single model name is passed here.
-  const systemPrompt = `${buildIdentityGuard()}\n\n---\n\n${buildSystemPrompt(agent, session.config)}`;
+  // The agent's OWN name. It used to be told it was Alia, above its own prompt.
+  const systemPrompt = `${buildIdentityGuard({ agentName: agentPromptName(agent) })}\n\n---\n\n${buildSystemPrompt(agent, session.config)}`;
 
   const allowedModels = agent.allowedModels.length > 0
     ? agent.allowedModels

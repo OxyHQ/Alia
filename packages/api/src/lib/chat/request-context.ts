@@ -39,7 +39,6 @@ import { redactUnsafeDetail } from '../errors/sanitize.js';
 import { getDb } from '../../db/index.js';
 import { findUserMemory, type UserMemoryProfile } from '../../db/memory/userMemoryRepository.js';
 import { getOrCreateUserCredits } from '../user-credits-helpers.js';
-import { findConversationAgentById } from '../../db/chat/conversationRepository.js';
 import { reserveCredits, refundReservation, type CreditReservation } from '../credits-manager.js';
 import { getUserEntitlements, type Entitlements } from '../plan-access.js';
 import type { OxyUserProfile } from '../system-prompt-builder.js';
@@ -47,8 +46,8 @@ import { oxyClient } from '../../middleware/auth.js';
 import { findSkillPrompt } from '../../db/agents/skillRepository.js';
 import { runBeforeChatHooks } from '../hooks/index.js';
 import { log } from '../logger.js';
-import { findAgentById } from '../../db/agents/agentRepository.js';
-import { attachAgentIdentity, type HydratedAgent } from '../agent-identity.js';
+import { loadTurnAgent } from '../agent-account.js';
+import type { HydratedAgent } from '../agent-identity.js';
 import { findMcpServerForUser } from '../../db/integrations/mcpServerRepository.js';
 import { runAutonomyBeforeChat, type AutonomyRuntimeContext } from '../autonomy/runtime.js';
 import type { ChatMessage } from '../message-converter.js';
@@ -563,25 +562,28 @@ export async function buildChatRequestContext(
       ? getUserEntitlements(req.user.id).catch(() => null)
       : Promise.resolve(null),
 
-    // Linked agent (for archetype prompt injection — Q&A agents, etc.)
     /**
-     * `findConversationAgentById` addresses the PRIMARY KEY, and
-     * `conversationId` is the client's business key — so this resolves nothing,
-     * exactly as the Mongoose `findById` it replaces did (it threw a CastError
-     * on a uuid, which the `.catch` below swallowed). The repository's docblock
-     * records why the port keeps it that way rather than quietly switching the
-     * agent-escalation branch on.
+     * The agent this TURN is for, named by the request rather than inferred.
+     *
+     * `body.agentId` is what the client has been sending all along and nothing
+     * read; the thread-id lookup that stood here could not match and never once
+     * resolved an agent. {@link loadTurnAgent} owns the authorisation — see its
+     * docblock for why a published agent needs none and a draft needs
+     * `account:act_as`.
+     *
+     * Resolved ONCE, here, and read from the context by everything downstream:
+     * the system prompt, the tool set and the escalation branch all name the
+     * same agent, and three lookups of one id are three chances to disagree.
      */
-    (conversationId && isDirectUserSession)
-      ? findConversationAgentById(getDb(), conversationId)
-          .then(async conv => {
-            if (!conv?.agentId) return null;
-            const agent = await findAgentById(getDb(), conv.agentId);
-            // The agent's name is the bot account's, and the prompt names it —
-            // so identity is resolved once, here, where the agent is loaded.
-            return agent === null ? null : attachAgentIdentity(agent);
-          })
-          .catch(() => null) as Promise<HydratedAgent | null>
+    (typeof body.agentId === 'string' && body.agentId !== '' && isDirectUserSession && req.user)
+      ? loadTurnAgent(getDb(), {
+          agentId: body.agentId,
+          oxyUserId: req.user.id,
+          accessToken: req.accessToken,
+        }).catch((err: unknown) => {
+          log.v1.warn({ err, agentId: body.agentId }, 'Could not resolve the turn agent');
+          return null;
+        })
       : Promise.resolve(null),
   ]);
 

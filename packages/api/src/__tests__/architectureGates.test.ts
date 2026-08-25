@@ -1295,9 +1295,8 @@ const FROZEN_ALIAS_COUNT = 13;
 const NON_MODEL_ALIA_STRINGS: Readonly<Record<string, string>> = {
   'alia-agent': 'LiveKit participant identity (voice-session-manager, livekit-token).',
   'alia-api': 'This service\'s own name in the HMAC signing string and the admin tool.',
-  'alia-app': 'A conversation SOURCE value, beside "alia-telegram".',
   'alia-cohost': 'LiveKit participant identity for the second voice agent.',
-  'alia-telegram': 'A conversation SOURCE value, beside "alia-app".',
+  'alia-telegram': 'A conversation SOURCE value. Its former sibling "alia-app" left with services/chat.service.ts, the only file that named it.',
 };
 
 /**
@@ -1374,7 +1373,11 @@ describe('gate 3: the alia-* alias set is frozen (ADR 0002)', () => {
     // Positive control plus vacuity floor: the scan must see the alias that is
     // hardest to miss and a non-trivial number of distinct strings.
     expect([...found.keys()]).toContain('alia-lite');
-    expect(found.size).toBeGreaterThanOrEqual(18);
+    // 17, not 18: `alia-app` was named by `services/chat.service.ts` and by
+    // nothing else, so deleting that file removed the literal from the tree.
+    // Measured before the floor moved — the other two literals it carried
+    // (`alia-lite`, `alia-telegram`) survive in 17 and 1 other files.
+    expect(found.size).toBeGreaterThanOrEqual(17);
 
     const classified = new Set([
       ...FROZEN_ALIASES,
@@ -1386,7 +1389,7 @@ describe('gate 3: the alia-* alias set is frozen (ADR 0002)', () => {
 
     // And in the other direction: a classification whose string has gone is a
     // stale line, and the non-model list must not grow to absorb a real alias.
-    expect(Object.keys(NON_MODEL_ALIA_STRINGS)).toHaveLength(5);
+    expect(Object.keys(NON_MODEL_ALIA_STRINGS)).toHaveLength(4);
     expect(Object.keys(NON_MODEL_ALIA_STRINGS).filter((s) => !found.has(s))).toEqual([]);
   });
 
@@ -1455,7 +1458,11 @@ describe('gate 3: the alia-* alias set is frozen (ADR 0002)', () => {
     // `getDefaultAliaModel()` and translates through `toRoutableAlias`. The
     // floor moves by exactly the number of defaults deleted; the positive
     // control above is what keeps it from measuring nothing.
-    expect(found.length).toBeGreaterThanOrEqual(7);
+    // 7 -> 6 because `lib/tools/agent-orchestrator.ts` is DELETED, taking its
+    // `alia-lite` default with it. It was registered into `tools/registry.ts`
+    // and reached a model through nothing at all; both went with the five tool
+    // assemblers becoming one.
+    expect(found.length).toBeGreaterThanOrEqual(6);
 
     // A default must name something that resolves to itself: a registered alias,
     // or one of the classified non-model strings (a LiveKit participant identity

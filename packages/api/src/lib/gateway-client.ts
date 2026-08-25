@@ -644,7 +644,7 @@ export async function getDefaultModelForCategory(category: string): Promise<Alia
  *
  * This is the single owner. `internal/providers/lib/model-resolver.ts` declared
  * a second one returning `alia-v1`; it had no importers, so every live path —
- * `/v1/chat/completions` via `lib/chat/request-context.ts`, `chat.service.ts`,
+ * `/v1/chat/completions` via `lib/chat/request-context.ts`,
  * the agent runner, the Telegram webhook, canvas node execution — has always
  * reached this one through `chat-core.js`. The other is deleted rather than
  * reconciled, because a value nobody reads cannot be the right answer.

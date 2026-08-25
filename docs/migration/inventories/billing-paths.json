@@ -333,8 +333,7 @@
       "routes/v1/audio.ts",
       "routes/v1/images.ts",
       "routes/v1/voice.ts",
-      "routes/webhooks.ts",
-      "services/chat.service.ts"
+      "routes/webhooks.ts"
     ]
   },
   "readSideEntrypoints": {
