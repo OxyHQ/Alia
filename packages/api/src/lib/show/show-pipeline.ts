@@ -34,9 +34,8 @@ import {
   type ShowSeriesRow,
 } from '../../db/shows/showRepository.js';
 import { resolveModel, getAIModel, getDefaultAliaModel } from '../chat-core.js';
-import { callProviderAPI } from '../../internal/providers/lib/provider-api.js';
-import { extractAudioUrl, downloadBinaryFromUrl } from '../../internal/providers/lib/digitalocean-async.js';
 import { synthesizeSpeech } from '../synthesize-speech.js';
+import { synthesizeSoundEffect } from '../synthesize-sound-effect.js';
 import { deleteS3Objects, uploadToS3 } from '../s3.js';
 import {
   finalizeFixedCredits,
@@ -388,7 +387,9 @@ export async function runShowPipeline(episodeId: string): Promise<void> {
  * listener cannot do without — had finished.
  *
  * A segment that fails is SKIPPED rather than fatal. One missing transition
- * whoosh is a slightly abrupt show; refusing to publish over it is no show.
+ * whoosh is a slightly abrupt show; refusing to publish over it is no show — but
+ * it is MARKED as it is skipped, so the episode carries what it could not make
+ * instead of looking complete.
  */
 async function renderSegments(
   episode: ShowEpisodeRow,
@@ -432,10 +433,18 @@ async function renderSegments(
         segmentKeys.push(key);
         segment.audioUrl = key;
       } else {
+        /**
+         * On the SEGMENT, not just in the log. Skipping is the right call and
+         * saying nothing about it is not: an episode that quietly loses every
+         * sound cue it asked for reads as a complete episode to everybody who
+         * did not have the container's logs open.
+         */
+        segment.renderFailed = true;
         log.general.warn(
           {
             episodeId: episode.id,
             segmentIndex: segment.index,
+            segmentType: segment.type,
             reason: result.status === 'rejected' ? result.reason : 'no audio returned',
           },
           'Show segment failed, skipping it',
@@ -588,26 +597,17 @@ async function renderSpeech(
   return synthesized ? { buffer: synthesized.audio, format: synthesized.format } : null;
 }
 
-/** Generate one sound effect. */
+/**
+ * Generate one sound effect, in whichever provider in the SFX tier can.
+ *
+ * This function used to name `digitalocean` and one fal model INLINE, with no
+ * tier and no failover, and that single route holds no credential in production
+ * — so every sound cue in every episode was lost, permanently, while the
+ * episode published and reported success. `synthesizeSoundEffect` is the same
+ * shape `renderSpeech` gets from `synthesizeSpeech`: one loop that owns the
+ * chain, and no provider named here.
+ */
 async function renderSoundEffect(prompt: string): Promise<RenderedAudio | null> {
-  try {
-    const output = await callProviderAPI<unknown>({
-      provider: 'digitalocean',
-      modelId: 'fal-ai/stable-audio-25/text-to-audio',
-      endpoint: '/v1/async-invoke',
-      body: { input: { prompt, seconds_total: 5 } },
-      // Queue plus cold start plus synthesis routinely reaches 60-90 seconds.
-      timeout: 170_000,
-      maxAttempts: 1,
-    });
-
-    const url = extractAudioUrl(output);
-    if (!url) return null;
-    return { buffer: await downloadBinaryFromUrl(url), format: 'mp3' };
-  } catch (err: unknown) {
-    // `prompt` is model-authored text describing a sound, so it is safe to omit
-    // from the log line without losing anything an operator needs.
-    log.general.warn({ err }, 'Sound effect generation failed');
-    return null;
-  }
+  const effect = await synthesizeSoundEffect({ prompt });
+  return effect ? { buffer: effect.audio, format: effect.format } : null;
 }

@@ -171,6 +171,21 @@ export const MODEL_CAPABILITIES: Record<string, ModelCapabilities> = {
   // full of models nothing routes. It also makes admitting v3 a one-line
   // `createMapping`, with the strip in `synthesize-speech.ts` already correct.
   'eleven_v3': createCapabilities({ audio: true, audioTags: true, tools: false, functionCalling: false, streaming: false, maxContextTokens: 4096, maxOutputTokens: 4096 }),
+  // ElevenLabs sound EFFECTS — a different endpoint from the voices above
+  // (`/v1/sound-generation`, no voice at all) reached with the same key.
+  // `audioTags` is false and that is not an oversight: a tag is something a
+  // VOICE performs, and there is no voice here.
+  //
+  // MEASURED 2026-08-25 against the production key: 200, `audio/mpeg`, 81 kB
+  // for a 5-second prompt, 2.7 s. The model id is not a guess either — the API
+  // answers 422 naming `eleven_text_to_sound_v2` and `eleven_text_to_sound_v3`
+  // as the only two it accepts.
+  'eleven_text_to_sound_v2': createCapabilities({ audio: true, tools: false, functionCalling: false, streaming: false, maxContextTokens: 4096, maxOutputTokens: 4096 }),
+  // The other one the 422 names. MEASURED the same way and on the same key:
+  // 200, `audio/mpeg`, 48 kB, 1.7 s. No measurement says which of the two
+  // SOUNDS better, so v2 keeps the lead it has by being the endpoint's own
+  // default and this is the model-level fallback behind it.
+  'eleven_text_to_sound_v3': createCapabilities({ audio: true, tools: false, functionCalling: false, streaming: false, maxContextTokens: 4096, maxOutputTokens: 4096 }),
 
   // DigitalOcean TTS / Audio
   'fal-ai/elevenlabs/tts/multilingual-v2': createCapabilities({ audio: true, tools: false, functionCalling: false, streaming: false, maxContextTokens: 4096, maxOutputTokens: 4096 }),
