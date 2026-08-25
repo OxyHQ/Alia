@@ -67,6 +67,7 @@ import { enqueueShowGeneration } from '../lib/show/show-queue.js';
 import { buildSeriesCast, FORMAT_DEFAULTS, SHOW_VOICES } from '../lib/show/voice-roster.js';
 import { generateCoverArt } from '../lib/show/cover-art.js';
 import { syraForRequest } from '../lib/syra/syra.js';
+import { SyraApiError } from '@syra.fm/sdk';
 import {
   refundReservation,
   reserveCredits,
@@ -442,21 +443,60 @@ router.patch('/series/:id', async (req: Request, res: Response) => {
   }
 });
 
+
 /**
- * Forget a series, and its episodes with it.
+ * Delete something in Syra, and answer whether Alia may now forget its own row.
  *
- * ALIA's record only, and that is a LIMIT before it is a preference. **Syra
- * exposes no delete for a podcast** — its podcast router carries `publish`,
- * `unpublish` and `PATCH`, and no `router.delete` — so there is no call this
- * handler could make that would remove the published show, and `@syra.fm/sdk`
- * exposes neither the unpublish nor a delete. `syraPodcastKept` says so in the
- * response rather than leaving a client to guess.
+ * The ORDER is the whole point, and it is why this returns a decision instead
+ * of throwing. A show deleted here and left alive there is exactly the orphan
+ * this repository shipped: a user removed a series in Alia, the podcast stayed
+ * in Syra with four episodes, and no surface in either product could remove it.
+ * So Syra goes first and Alia only forgets what Syra has already let go of.
  *
- * The care is real too: the Syra podcast has its own listeners and its own
- * subscriptions, and deleting somebody's podcast because they tidied up an Alia
- * list would be a surprise of the worst kind. But it is not what decides this
- * today, and writing it as though it were hides the missing endpoint from the
- * next person to read the file. See `docs/shows.mdx`.
+ * A `404` is success, not failure: the row is gone, which is the state the
+ * caller asked for, and refusing to clean up Alia's copy because Syra had
+ * nothing to delete would strand the pair the other way round. Every other
+ * refusal — `403` for a show that is not the caller's or is RSS-mirrored,
+ * `409` for one under a platform takedown — leaves BOTH records standing,
+ * which is the only honest outcome when the two cannot be made to agree.
+ *
+ * One function rather than two copies because it encodes ONE judgement, and a
+ * series and an episode disagreeing about what "already gone" means is a bug
+ * nobody would find.
+ */
+async function syraLetGoOf(
+  remove: () => Promise<unknown>,
+  what: { readonly kind: 'series' | 'episode'; readonly aliaId: string; readonly syraId: string },
+): Promise<boolean> {
+  try {
+    await remove();
+    return true;
+  } catch (error: unknown) {
+    if (error instanceof SyraApiError && error.status === 404) return true;
+    // Named fields rather than a spread: `log-content.test.ts` refuses an
+    // unbounded object spread into a log, and it is right to — the two ids are
+    // what a reader needs, and anything else arriving here would be a leak
+    // nobody chose.
+    log.general.error(
+      { err: error, kind: what.kind, aliaId: what.aliaId, syraId: what.syraId },
+      'Syra refused to delete, so Alia kept its record',
+    );
+    return false;
+  }
+}
+
+/**
+ * Forget a series — here AND on Syra, because there is only one of it.
+ *
+ * Syra deletes FIRST and Alia's row only goes if Syra let go. The other order
+ * is what produced the orphan this replaces, and the response no longer says
+ * `syraPodcastKept`, because it no longer is.
+ *
+ * IRREVERSIBLE on both sides. Syra's delete takes the episodes, their audio,
+ * every subscriber's subscription and every listener's saved position. It does
+ * NOT take the cover artwork: `image_assets` is referenced `ON DELETE set
+ * null` and one asset may back several shows, so reclaiming those bytes needs
+ * a sweeper that can prove non-reference. See `docs/shows.mdx`.
  */
 router.delete('/series/:id', async (req: Request, res: Response) => {
   try {
@@ -469,10 +509,26 @@ router.delete('/series/:id', async (req: Request, res: Response) => {
     const series = await findSeriesForUser(getDb(), id, userId);
     if (!series) return notFound(res, 'Series');
 
+    const syraPodcastId = series.syraPodcastId;
+    if (syraPodcastId !== null) {
+      const letGo = await syraLetGoOf(
+        () => syraForRequest(req).deletePodcast(syraPodcastId),
+        { kind: 'series', aliaId: id, syraId: syraPodcastId },
+      );
+      if (!letGo) {
+        return res.status(502).json({
+          error: {
+            message: 'The show could not be deleted on Syra, so nothing was deleted here either.',
+            type: 'upstream_error',
+          },
+        });
+      }
+    }
+
     const deleted = await deleteSeriesForUser(getDb(), id, userId);
     if (!deleted) return notFound(res, 'Series');
 
-    res.json({ deleted: true, syraPodcastId: series.syraPodcastId, syraPodcastKept: true });
+    res.json({ deleted: true, syraPodcastId, syraPodcastDeleted: syraPodcastId !== null });
   } catch (error: unknown) {
     log.general.error({ err: error }, 'Failed to delete a show series');
     res.status(500).json({ error: { message: 'Failed to delete the series', type: 'server_error' } });
@@ -632,12 +688,13 @@ router.get('/episodes/:id', async (req: Request, res: Response) => {
 });
 
 /**
- * Forget an episode.
+ * Forget an episode — here AND on Syra, in that order, exactly as a series is.
  *
- * ALIA's record only, for the reason a series delete keeps the podcast: Syra's
- * episode router offers `publish`, `unpublish` and `PATCH` and no delete, so
- * the recording stays where it is published and where people may already be
- * listening to it.
+ * IRREVERSIBLE. Syra's delete takes the episode's audio, its HLS ladder, its
+ * transcript, its AES key, any outstanding ingest ticket and every listener's
+ * saved position in it, and recomputes the show's `episodeCount` in the same
+ * transaction. An episode row that never reached Syra has nothing to delete
+ * there and skips straight to Alia's own.
  */
 router.delete('/episodes/:id', async (req: Request, res: Response) => {
   try {
@@ -650,14 +707,26 @@ router.delete('/episodes/:id', async (req: Request, res: Response) => {
     const episode = await findEpisodeForUser(getDb(), id, userId);
     if (!episode) return notFound(res, 'Episode');
 
+    const syraEpisodeId = episode.syraEpisodeId;
+    if (syraEpisodeId !== null) {
+      const letGo = await syraLetGoOf(
+        () => syraForRequest(req).deleteEpisode(syraEpisodeId),
+        { kind: 'episode', aliaId: id, syraId: syraEpisodeId },
+      );
+      if (!letGo) {
+        return res.status(502).json({
+          error: {
+            message: 'The episode could not be deleted on Syra, so nothing was deleted here either.',
+            type: 'upstream_error',
+          },
+        });
+      }
+    }
+
     const deleted = await deleteEpisodeForUser(getDb(), id, userId);
     if (!deleted) return notFound(res, 'Episode');
 
-    res.json({
-      deleted: true,
-      syraEpisodeId: episode.syraEpisodeId,
-      syraEpisodeKept: episode.syraEpisodeId !== null,
-    });
+    res.json({ deleted: true, syraEpisodeId, syraEpisodeDeleted: syraEpisodeId !== null });
   } catch (error: unknown) {
     log.general.error({ err: error }, 'Failed to delete a show episode');
     res.status(500).json({ error: { message: 'Failed to delete the episode', type: 'server_error' } });

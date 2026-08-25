@@ -118,17 +118,18 @@ export default function SeriesDetailScreen() {
    * tick it started the request, so a delete that failed still reported
    * success while the row it names sat there.
    *
-   * What it still does not do is remove anything from Syra. That is stated up
-   * front now, where a person reads it BEFORE pressing, rather than in a toast
+   * What it now DOES do is remove the recording from Syra as well, so the copy
+   * had to change with it: this is no longer "Alia forgets", it is a delete,
+   * and the confirmation says so BEFORE the press rather than in a toast
    * afterwards — see the note on `handleDeleteSeries`.
    */
   const handleDeleteEpisode = useCallback(
     async (episodeId: string) => {
       const ok = await confirm({
-        title: 'Remove this episode from Alia?',
+        title: 'Delete this episode everywhere?',
         description:
-          'The recording stays published on Syra. Alia only forgets the script and the run that made it.',
-        confirmLabel: 'Remove from Alia',
+          'The recording is deleted from Syra too, along with its audio and every listener saved place in it. This cannot be undone.',
+        confirmLabel: 'Delete everywhere',
         cancelLabel: 'Cancel',
         destructive: true,
       });
@@ -139,7 +140,7 @@ export default function SeriesDetailScreen() {
         toast.error(useShowStore.getState().error ?? 'Could not remove the episode');
         return;
       }
-      toast.success('Removed from Alia — the episode stays on Syra');
+      toast.success('Episode deleted from Alia and Syra');
     },
     [deleteEpisode, seriesId],
   );
@@ -151,18 +152,19 @@ export default function SeriesDetailScreen() {
    * failed delete navigated away from the show it had not removed — the person
    * was told it was gone, and found it again on the next visit.
    *
-   * The confirmation says what "remove" costs and what it does not: the Syra
-   * podcast is untouched, because there is no endpoint that would touch it.
-   * Syra exposes no delete for a podcast or an episode — only an unpublish
-   * that no client calls — so this button cannot mean what "delete" means, and
-   * the copy has to say so at the moment of the decision.
+   * The confirmation names what is destroyed, because this button now means
+   * what "delete" means. Syra deletes first and Alia only forgets what Syra
+   * let go of, so a person who presses this ends with the show gone from both
+   * — never gone from one and alive in the other, which is the orphan this
+   * replaced. The copy says "everywhere" at the moment of the decision rather
+   * than reporting it afterwards.
    */
   const handleDeleteSeries = useCallback(async () => {
     const ok = await confirm({
-      title: 'Remove this show from Alia?',
+      title: 'Delete this show everywhere?',
       description:
-        'The podcast stays published on Syra, with its episodes and anyone subscribed to it. Alia only forgets how it was made.',
-      confirmLabel: 'Remove from Alia',
+        'The podcast is deleted from Syra too, with every episode, all of their audio, and everyone subscribed to it. This cannot be undone.',
+      confirmLabel: 'Delete everywhere',
       cancelLabel: 'Cancel',
       destructive: true,
     });
@@ -173,7 +175,7 @@ export default function SeriesDetailScreen() {
       toast.error(useShowStore.getState().error ?? 'Could not remove the show');
       return;
     }
-    toast.success('Removed from Alia — the podcast stays on Syra');
+    toast.success('Show deleted from Alia and Syra');
     router.back();
   }, [deleteSeries, seriesId, router]);
 

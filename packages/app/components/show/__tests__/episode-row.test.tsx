@@ -382,12 +382,14 @@ describe('EpisodeRow', () => {
   it('keeps the remove action reachable on native and hover-revealed on web', () => {
     const root = renderRow(BASE);
     const remove = nodes(root, 'Pressable').find(
-      (node) => node.props.accessibilityLabel === `Remove ${BASE.title} from Alia`,
+      (node) => node.props.accessibilityLabel === `Delete ${BASE.title} everywhere`,
     );
 
-    // `from Alia` is part of the contract, not decoration: the control removes
-    // Alia's record and the recording stays published on Syra, so a label that
-    // said only `Remove ${title}` promised something wider than it does.
+    // The qualifier is part of the contract, not decoration. It said `from
+    // Alia` while the recording survived on Syra; the action now deletes in
+    // both places, so the label a screen reader announces has to say so — an
+    // understated label is as wrong as an overstated one, in the other
+    // direction, and this is the surface that catches either.
     expect(remove).toBeDefined();
     // Web-scoped, so the control never disappears on a device with no pointer.
     expect(String(remove?.props.className)).toContain('web:opacity-0');
