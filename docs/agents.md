@@ -97,6 +97,26 @@ conversation" a line that draws and changes nothing.
   Every read is scoped by `oxy_user_id` as well as `agent_id`; a lookup on the
   agent alone passes every single-user test ever written.
 
+### The agent can SUGGEST a new stretch
+
+`suggestNewConversation` emits `alia.suggest_new_conversation`
+(`{ eventVersion: 1, reason }`) and does nothing else. **It cannot start a
+conversation** — that is `POST /conversations/new` with the same `agentId`, a
+request the client makes after a person accepts. If the agent could cut by
+itself it would be throwing away its own context mid-task, and a person would
+watch their conversation split without asking.
+
+It is a TOOL rather than a server-side event because the requirement is that the
+agent suggests it *when it considers it necessary* — the model decides. The only
+server-side trigger available is elapsed time, and that heuristic lies the day
+somebody returns a week later to continue the same idea.
+
+**At most one per turn, enforced by the server**, not by the model behaving: the
+factory runs once per turn and holds the flag, so a model that calls it three
+times emits once and is told so. It carries no capability family — it reads
+nothing, writes nothing and leaves the process only as a frame the person may
+ignore — so it sits in `UNGRANTED_TOOLS` beside `planPreview` and `plan`.
+
 ### Getting back to something old
 
 Three ways, in order of cost, and the third is the one with a decision in it:
