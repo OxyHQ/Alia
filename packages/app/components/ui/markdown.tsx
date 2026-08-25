@@ -4,6 +4,15 @@ import { AliaMarkdown } from '@alia.onl/sdk';
 import { fontFamilies } from "@oxyhq/bloom/fonts";
 import { useColorScheme } from "@/lib/useColorScheme";
 
+import {
+  CompactList,
+  Banner,
+  Comparison,
+  Timeline,
+  RichImage,
+  Credibility,
+} from "./rich-blocks";
+
 /**
  * The body face for `AliaMarkdown`, which cannot inherit one on native.
  *
@@ -23,14 +32,6 @@ import { useColorScheme } from "@/lib/useColorScheme";
  */
 export const MARKDOWN_BODY_FONT =
   Platform.OS === 'web' ? undefined : fontFamilies.sans.split(',')[0].trim();
-import {
-  CompactList,
-  Banner,
-  Comparison,
-  Timeline,
-  RichImage,
-  Credibility,
-} from "./rich-blocks";
 
 // Cheap pre-check: plain markdown (the overwhelmingly common case) skips the
 // six per-pattern regex scans below with a single pass.

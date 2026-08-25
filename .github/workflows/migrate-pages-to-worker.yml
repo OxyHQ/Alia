@@ -1,5 +1,11 @@
-# Move Canvas from Cloudflare Pages to a Worker, so its Pages default hostname
-# stops existing.
+# Move a frontend from Cloudflare Pages to a Worker, so its Pages default
+# hostname stops existing.
+#
+# Written for Canvas, generalised when the SAME defect turned up on the main app:
+# `alia-app.pages.dev` served a byte-identical copy of `alia.onl` and was in
+# neither CORS allowlist, so it rendered the shell and failed every call. Two
+# callers is where a second copy of this file would have started drifting from
+# the first, so it takes the package and build script as inputs instead.
 #
 # WHY: a Pages project ALWAYS serves `<project>.pages.dev`, and Cloudflare
 # offers no way to switch it off — `wrangler pages project` has only `list`,
@@ -44,7 +50,7 @@
 # intact. Recovery is `bind-pages-domain.yml`, which re-creates the record and
 # re-attaches the domain to Pages. Nothing is unrecoverable until step 5, and
 # step 5 cannot be reached on a broken cutover.
-name: Migrate Canvas to Worker
+name: Migrate Pages Project to Worker
 
 on:
   workflow_dispatch:
@@ -53,13 +59,21 @@ on:
         description: Type DELETE-PAGES-PROJECT to confirm this destroys the Pages project
         required: true
       hostname:
-        description: The custom domain Canvas is served on
+        description: The custom domain it is served on
         required: true
-        default: canvas.alia.onl
+        default: alia.onl
       pages_project:
         description: The Pages project to retire
         required: true
-        default: alia-canvas
+        default: alia-app
+      package_dir:
+        description: The workspace directory holding wrangler.toml and dist
+        required: true
+        default: packages/app
+      build_script:
+        description: The root package.json script that builds it
+        required: true
+        default: build
       zone:
         description: The Cloudflare zone the hostname sits in
         required: true
@@ -70,7 +84,7 @@ permissions:
 
 jobs:
   migrate:
-    name: Canvas -> Worker
+    name: ${{ inputs.pages_project }} -> Worker
     runs-on: ubuntu-latest
     timeout-minutes: 25
     env:
@@ -78,6 +92,7 @@ jobs:
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       HOSTNAME: ${{ inputs.hostname }}
       PAGES_PROJECT: ${{ inputs.pages_project }}
+      PACKAGE_DIR: ${{ inputs.package_dir }}
       ZONE: ${{ inputs.zone }}
 
     steps:
@@ -134,7 +149,18 @@ jobs:
       - name: Install and build
         run: |
           bun install --ignore-scripts
-          bun run build:canvas
+          bun run ${{ inputs.build_script }}
+
+      # Everything `wrangler deploy` needs, EXCEPT the upload, done while the
+      # site is still up. The deploy step below is the only thing standing
+      # between the DNS record going and service returning, so resolving the
+      # tool from the registry there — a round trip, and a download on a cache
+      # miss — would spend the outage on something that has nothing to do with
+      # the cutover. This also validates `wrangler.toml` before anything is
+      # destroyed: a config error surfaces here, with the site still serving.
+      - name: Warm wrangler and validate the config, before the window opens
+        working-directory: ${{ inputs.package_dir }}
+        run: bunx wrangler@4 deploy --dry-run
         env:
           ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
@@ -192,7 +218,7 @@ jobs:
       # 3. The Worker claims the hostname and writes its own DNS record, which
       #    is what `custom_domain = true` in wrangler.toml means.
       - name: Deploy the Worker and claim the hostname
-        working-directory: packages/alia-canvas
+        working-directory: ${{ inputs.package_dir }}
         run: bunx wrangler@4 deploy
 
       # 4. THE GATE. Everything above is an API claim; only this is evidence a
@@ -200,11 +226,20 @@ jobs:
       - name: The Worker really serves the domain
         run: |
           set -euo pipefail
-          for i in $(seq 1 30); do
+          # A wall-clock deadline rather than an attempt count. 30 attempts of
+          # `--max-time 15` plus `sleep 20` is up to 17 minutes, and with the
+          # install and build ahead of it that overran the 25-minute job — so
+          # the runner could kill this step before it reached its own
+          # `::error::`, which carries the recovery instruction. Losing that
+          # line is losing the most valuable output in the file.
+          end=$((SECONDS + 420))
+          i=0
+          while [ $SECONDS -lt $end ]; do
+            i=$((i+1))
             code=$(curl -s -o /tmp/body.html -w '%{http_code}' --max-time 15 "https://$HOSTNAME/" || echo 000)
-            echo "attempt $i: http=$code"
-            if [ "$code" = "200" ] && grep -q "Canvas by Alia" /tmp/body.html; then
-              echo "serving, and it is Canvas"
+            echo "attempt $i (${SECONDS}s of 420): http=$code"
+            if [ "$code" = "200" ] && grep -qiE "<title>[^<]+</title>" /tmp/body.html; then
+              echo "serving, and it returned a real document"
               # The SPA fallback `not_found_handling` replaces.
               deep=$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 "https://$HOSTNAME/workflow/abc")
               echo "deep link: http=$deep"
@@ -237,11 +272,17 @@ jobs:
             && { echo "::error::$PAGES_PROJECT is still listed"; exit 1; } || true
 
       # 6. What this whole workflow is for.
+      # ADVISORY, and marked so. Everything destructive is already done and
+      # already asserted — step 5 reads the project list back. This only waits
+      # for edge cache to expire, its own error text concedes the failure is not
+      # actionable, and at 15 x 20s it was spending five minutes of the job
+      # budget that the gate above needs.
       - name: The Pages hostname is gone
+        continue-on-error: true
         run: |
           set -euo pipefail
-          for i in $(seq 1 15); do
-            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 "https://$PAGES_PROJECT.pages.dev/" || echo 000)
+          for i in $(seq 1 6); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "https://$PAGES_PROJECT.pages.dev/" || echo 000)
             echo "attempt $i: $PAGES_PROJECT.pages.dev -> http=$code"
             # 200 or 301 means it is still ours and still answering. Anything
             # else — 404, 522, a dead connection — means it no longer resolves

@@ -69,12 +69,19 @@ jobs:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
           NODE_OPTIONS: '--max-old-space-size=4096'
           NODE_ENV: production
-      - name: Deploy to Cloudflare Pages
+      # A WORKER, not a Pages project — same reason as canvas below. A Pages
+      # project always serves `<project>.pages.dev`, and measured before the
+      # migration `alia-app.pages.dev` returned a byte-identical copy of
+      # `alia.onl` while being in NEITHER CORS allowlist: it rendered the shell
+      # and failed every call it made. `workers_dev = false` in
+      # packages/app/wrangler.toml leaves `alia.onl` as the only way in.
+      - name: Deploy the Worker
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy packages/app/dist --project-name=alia-app --branch=main
+          workingDirectory: packages/app
+          command: deploy
 
   deploy-canvas:
     needs: detect-changes
