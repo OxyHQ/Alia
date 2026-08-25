@@ -74,13 +74,18 @@ export interface ToolInvocation {
  *
  * A fixed sub-document this service composes itself, which is why
  * `db/schema/chat.ts` flattens it onto four columns rather than storing it as
- * `jsonb`. `avatar` is nullable because the source defaulted it to `null`
- * instead of leaving it absent.
+ * `jsonb`.
+ *
+ * `color` stands where `avatar` did. An agent has no avatar: it is drawn as a
+ * glyph tinted with its own Bloom colour preset, read from its Oxy account by
+ * `lib/agent-identity.ts`. It is nullable for the reason that field is —
+ * an account with no colour, an Oxy that does not serve one and an account that
+ * failed to resolve are the same answer to a client.
  */
 export interface AgentInfo {
   id: string;
   name: string;
-  avatar: string | null;
+  color: string | null;
   handle: string;
 }
 

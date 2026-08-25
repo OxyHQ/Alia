@@ -28,7 +28,14 @@ one column, no foreign key, UNIQUE.
   over the row.
 - **Creating an agent takes the caller's own credential**, because the account
   is minted under their tree and they become its owner. The app does it in one
-  tap: generate → avatar → `createAccount` → `POST /agents`.
+  tap: generate → `createAccount` → `POST /agents`.
+
+  **An agent has no picture.** It is drawn as a glyph tinted with its Oxy
+  account's `User.color`, a Bloom preset key — so `AgentIdentity` carries
+  `color` where it used to carry `avatar`, and there is no image-generation step
+  between the generator and the account. `domain/agent-color.ts` records why
+  Alia PROPOSES a colour (one of the free Bloom presets, offered by
+  `POST /agents/generate` beside the name) and validates none.
 
   **Known dependency: a new agent is DISCOVERABLE in Oxy immediately.** Every
   Oxy account is born public — `createAccountRequestSchema` carries no privacy

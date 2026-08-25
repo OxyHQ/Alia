@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { generateText } from 'ai';
 import { AGENT_ARCHETYPES } from '../../domain/agent.js';
+import { AGENT_COLORS, agentColorFor, isAgentColor } from '../../domain/agent-color.js';
 import { FIXED_CAPABILITY_FAMILIES, isCapabilityGrant } from '../../domain/capability-grants.js';
 import { suggestAgentUsername } from '../../lib/agent-identity.js';
 import { authenticateToken } from '../../middleware/auth.js';
@@ -51,6 +52,7 @@ Return ONLY valid JSON with these fields:
 - "description": A detailed description of the agent's purpose and behavior (2-3 sentences)
 - "systemPrompt": Detailed instructions for the agent including its role, goals, behavior guidelines, and how it should interact with users. This should be comprehensive and specific.
 - "category": Exactly one of: "Assistant", "Creative", "Developer", "Research", "Business", "Education"
+- "color": Exactly one of: ${AGENT_COLORS.map((c) => `"${c}"`).join(', ')}. The agent has no picture — it is drawn as a glyph in this colour — so pick the one that suits what it does.
 - "tags": An array of 3-5 relevant lowercase tags
 - "capabilityGrants": An array of capability families this agent may reach. Choose from: ${FIXED_CAPABILITY_FAMILIES.map((f) => `"${f}"`).join(', ')}. The agent gets NOTHING it is not granted, so pick every family its purpose needs and none it does not.
 - "archetype": Exactly one of: "general", "qa", "task_router", "status_update". Use "qa" if the agent answers questions from knowledge/data sources. Use "task_router" if the agent triages and routes tasks to people or teams. Use "status_update" if the agent gathers data and generates periodic reports or summaries. Use "general" for everything else.
@@ -105,9 +107,20 @@ Do not include any text outside the JSON object.`,
      * that can.
      */
     const validArchetypes = AGENT_ARCHETYPES;
+    const suggestedUsername = suggestAgentUsername(parsed.name || 'agent');
     res.json({
       name: parsed.name || 'New Agent',
-      suggestedUsername: suggestAgentUsername(parsed.name || 'agent'),
+      suggestedUsername,
+      /**
+       * A SUGGESTION too, and the same shape as the archetype below it: a model
+       * asked for a closed vocabulary still invents members of it, so an
+       * unoffered colour falls back rather than travelling to Oxy.
+       *
+       * The fallback is derived from the handle rather than random, so asking
+       * twice for the same agent proposes the same colour — `domain/agent-color.ts`
+       * says why this service offers colours and validates none.
+       */
+      color: isAgentColor(parsed.color) ? parsed.color : agentColorFor(suggestedUsername),
       tagline: parsed.tagline || '',
       description: parsed.description || '',
       systemPrompt: parsed.systemPrompt || '',

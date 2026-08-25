@@ -40,7 +40,7 @@ interface DelegateAgentToolOutput {
   agentId: string;
   agentName: string;
   agentHandle: string;
-  agentAvatar: string | null;
+  agentColor: string | null;
   response: string;
 }
 
@@ -84,7 +84,7 @@ export interface ToolInvocation {
 export interface AgentMessage {
   role: 'assistant';
   content: string;
-  agentInfo: { id: string; name: string; avatar: string | null; handle: string };
+  agentInfo: { id: string; name: string; color: string | null; handle: string };
 }
 
 /**
@@ -269,13 +269,13 @@ export async function runStream<TOOLS extends ToolSet>(params: RunStreamParams<T
           agentId: ar.agentId,
           agentName: ar.agentName,
           agentHandle: ar.agentHandle,
-          agentAvatar: ar.agentAvatar,
+          agentColor: ar.agentColor,
           content: ar.response,
         })}\n\n`);
         agentMessages.push({
           role: 'assistant',
           content: ar.response,
-          agentInfo: { id: ar.agentId, name: ar.agentName, avatar: ar.agentAvatar, handle: ar.agentHandle },
+          agentInfo: { id: ar.agentId, name: ar.agentName, color: ar.agentColor, handle: ar.agentHandle },
         });
       }
     } else if (chunk.type === 'tool-error') {

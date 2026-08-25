@@ -55,7 +55,7 @@ function agent(overrides: Record<string, unknown> = {}) {
     oxyAccountId: 'oxy-bot-1',
     name: 'Pepe',
     handle: 'pepe',
-    avatar: null,
+    color: null,
     authorName: null,
     tagline: 't',
     description: 'd',

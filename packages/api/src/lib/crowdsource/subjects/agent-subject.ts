@@ -36,13 +36,14 @@ import type {
  *
  * ## What is NOT here
  *
- * **The avatar is not attached.** `AssetRef` needs `{ fileId, mimeType, sha256 }`
- * and Alia's `avatar` is a bare string that may be an Oxy file id or an absolute
- * URL from image generation, with no digest recorded anywhere. Sending a URL on
- * Alia's own host would tell that host when its content is under review, and
- * inventing a digest is worse than declaring the gap. So the presence of an avatar
- * is declared in `claims` and a jury can answer `insufficient_context` for the
- * right reason. Closing it needs a digest at upload time, not a fetch here.
+ * **No image, because an agent has none.** This used to declare whether an
+ * avatar was present — it could not ATTACH one, since `AssetRef` needs
+ * `{ fileId, mimeType, sha256 }` and no digest was ever recorded — and the
+ * question retired with the avatar itself. What a listing shows now is a name,
+ * a handle and a glyph tinted with the account's colour, and the first two are
+ * already claims below. A colour is not an impersonation surface: the two
+ * brand presets (`oxy`, `faircoin`) are reserved by Oxy, not sold, and Alia
+ * never proposes them.
  */
 
 const WEB_ORIGIN = process.env.WEB_URL || 'https://alia.onl';
@@ -100,9 +101,9 @@ export function createAgentSubjectProvider(): ModerationSubjectProvider {
        */
       const found = await findAgentById(getDb(), reportedId);
       if (!found) return null;
-      // The handle, the name and the avatar are the bot account's, and a
-      // moderation snapshot must carry what the marketplace SHOWS rather than
-      // what Alia stores — so they are read from Oxy here, once.
+      // The handle and the name are the bot account's, and a moderation
+      // snapshot must carry what the marketplace SHOWS rather than what Alia
+      // stores — so they are read from Oxy here, once.
       const agent = await attachAgentIdentity(found);
 
       /**
@@ -121,9 +122,6 @@ export function createAgentSubjectProvider(): ModerationSubjectProvider {
       if (archetype !== undefined) claims.archetype = archetype;
       const tags = claim(agent.tags.join(', '));
       if (tags !== undefined) claims.tags = tags;
-      // Declared, not attached — see the note above.
-      claims.avatarPresent = agent.avatar ? 'true' : 'false';
-
       const context = instructionsContext(agent);
       const ownerId = agent.author;
       /**

@@ -307,7 +307,7 @@ describe('saveConversation (append-only)', () => {
         {
           role: 'assistant',
           content: 'the specialist speaking',
-          agentInfo: { id: 'a1', name: 'Scout', avatar: null, handle: 'scout' },
+          agentInfo: { id: 'a1', name: 'Scout', color: 'teal', handle: 'scout' },
         },
       ],
     });

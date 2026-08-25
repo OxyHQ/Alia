@@ -49,7 +49,7 @@ function hydrateSessionAgents(
   // A session's embedded agent reference carries no author of its own — the
   // session belongs to the person who started it, not to whoever built the
   // agent — so `authorName` is null here whether Oxy resolved the account or not.
-  const UNRESOLVED: AgentIdentity = { name: null, handle: null, avatar: null, authorName: null };
+  const UNRESOLVED: AgentIdentity = { name: null, handle: null, color: null, authorName: null };
   const hydrate = (ref: AgentSessionAgentRef): HydratedAgentRef => ({
     ...ref,
     ...(identities.get(ref.oxyAccountId) ?? UNRESOLVED),

@@ -514,7 +514,7 @@ describe('the wire shape', () => {
         content: [{ type: 'text', text: 'hi' }],
         seq: 0,
         clientMessageId: 'client-abc',
-        agentInfo: { id: 'a1', name: 'Scout', avatar: null, handle: 'scout' },
+        agentInfo: { id: 'a1', name: 'Scout', color: 'teal', handle: 'scout' },
         toolInvocations: [{ toolCallId: 't1', toolName: 'search', state: 'result', result: { ok: true } }],
       },
       { conversationId: 'wire-conv', oxyUserId: 'wire-user', role: 'user', content: 'plain', seq: 1 },
@@ -524,7 +524,7 @@ describe('the wire shape', () => {
 
     expect(withAgent.id).toBe('client-abc');
     expect(withAgent.content).toEqual([{ type: 'text', text: 'hi' }]);
-    expect(withAgent.agentInfo).toEqual({ id: 'a1', name: 'Scout', avatar: null, handle: 'scout' });
+    expect(withAgent.agentInfo).toEqual({ id: 'a1', name: 'Scout', color: 'teal', handle: 'scout' });
     expect(withAgent.toolInvocations).toEqual([
       { toolCallId: 't1', toolName: 'search', state: 'result', result: { ok: true } },
     ]);

@@ -302,6 +302,20 @@
       "when": 1787654420537,
       "tag": "0042_the_three_capability_vocabularies_die",
       "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1787660886732,
+      "tag": "0043_an_agent_is_a_colour_not_a_picture",
+      "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1787660902824,
+      "tag": "0044_the_agent_avatar_column_leaves",
+      "breakpoints": true
     }
   ]
 }

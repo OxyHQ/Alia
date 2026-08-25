@@ -199,8 +199,23 @@ interface MatrixRow {
  * `v1-image` become a routing key neither tier CHECK admitted (#339).
  *
  * It carries a branch name for the reason the others do.
+ *
+ * ## 48 -> 49: `gwc-import-agents-avatar`
+ *
+ * `routes/agents-avatar.ts` is gone, and it does NOT retire to Relay as the row
+ * planned: the whole feature is withdrawn. An agent has no picture any more —
+ * it is drawn as a glyph tinted with its Oxy account's colour — so there is
+ * nothing left for an image model to generate, and the route's image loop
+ * (a vision model describing a reference PNG, then an image tier redrawing it
+ * in a costume) retires with it rather than moving.
+ *
+ * The row's `reachable` moves `live` -> `dead` in the same edit, for the reason
+ * `gwc-import-chat-service` records: a row claiming removal while still
+ * claiming to be live is a contradiction this gate does not check for.
+ *
+ * It carries a branch name for the reason the others do.
  */
-const REMOVED_ROW_COUNT = 48;
+const REMOVED_ROW_COUNT = 49;
 
 const OWNERS = new Set(['alia', 'oxy', 'relay', 'delete']);
 const REACHABLE = new Set(['live', 'dead', 'unverified', 'loaded-not-invoked']);

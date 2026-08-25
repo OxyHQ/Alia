@@ -78,7 +78,7 @@ async function balanceOf(id: string): Promise<{ free: number; paid: number }> {
  * fallbacks a real unresolvable account would produce.
  */
 function hydrated(agent: AgentRecord): HydratedAgent {
-  return { ...agent, name: 'Target', handle: 'target', avatar: null, authorName: null };
+  return { ...agent, name: 'Target', handle: 'target', color: null, authorName: null };
 }
 
 async function seedAgent(): Promise<AgentRecord> {

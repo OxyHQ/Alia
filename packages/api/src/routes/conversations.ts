@@ -124,7 +124,7 @@ function agentInfoFromBody(value: unknown): { agentInfo: AgentInfo } | null {
     agentInfo: {
       id: raw.id,
       name: raw.name,
-      avatar: typeof raw.avatar === 'string' ? raw.avatar : null,
+      color: typeof raw.color === 'string' ? raw.color : null,
       handle: raw.handle,
     },
   };

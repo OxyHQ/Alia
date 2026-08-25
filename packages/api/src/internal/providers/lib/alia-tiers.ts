@@ -40,8 +40,8 @@
  *
  * **A tier here does not need an `alia-*` identifier, and several do not have
  * one.** A capability tier is reached by what the caller wants done —
- * `lib/synthesize-speech.ts`, `lib/image-generation.ts`,
- * `routes/agents-avatar.ts`, `routes/canvas/execute.ts` reach theirs by calling
+ * `lib/synthesize-speech.ts`, `lib/image-generation.ts` and
+ * `routes/canvas/execute.ts` reach theirs by calling
  * `getModelMappingsForTier` directly — not by naming a model, so there is
  * nothing for a caller to send and no `ALIA_MODELS` entry to add. `v1-tts` and
  * `v1-image` are the long-standing examples.
