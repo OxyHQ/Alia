@@ -145,7 +145,6 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
       accessToken: req.accessToken,
       isDirectSession: isDirectUserSession,
       agentMode,
-      username: oxyUser?.username,
       requestId,
       editorToolDefinitions: body.tools,
       sseEmitter,
@@ -167,9 +166,16 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
           if (conv?.agentId) {
             const { findAgentById } = await import('../../db/agents/agentRepository.js');
             const { startAgentSession } = await import('../../lib/agent/session-handoff.js');
+            const { agentPromptName, attachAgentIdentity } = await import(
+              '../../lib/agent-identity.js'
+            );
 
-            const linkedAgent = await findAgentById(getDb(), conv.agentId);
-            if (linkedAgent && linkedAgent.isPublished && linkedAgent.status === 'active') {
+            const foundAgent = await findAgentById(getDb(), conv.agentId);
+            if (foundAgent && foundAgent.isPublished && foundAgent.status === 'active') {
+              // The queue entry and the SSE event both name the agent, and the
+              // name is the bot account's — resolved once for both.
+              const linkedAgent = await attachAgentIdentity(foundAgent);
+              const linkedAgentName = agentPromptName(linkedAgent);
               // Get the user's latest message as the task
               const lastUserMsg = [...messages].reverse().find(m => m.role === 'user');
               const taskText = typeof lastUserMsg?.content === 'string'
@@ -205,7 +211,7 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
                     eventVersion: 1,
                     sessionId: handoff.sessionId,
                     agentId: linkedAgent._id,
-                    agentName: linkedAgent.name,
+                    agentName: linkedAgentName,
                   })}\n\n`);
                 }
 

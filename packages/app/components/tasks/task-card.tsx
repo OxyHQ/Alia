@@ -9,6 +9,8 @@ import type { AgentActivityState } from '@/lib/hooks/use-agent-activity';
 import { AgentAvatarRow } from './agent-avatar-row';
 import { TaskTimelineStep } from './task-timeline-step';
 import { getStatusConfig, formatDuration, getToolPillLabel } from '@/lib/task-utils';
+import { agentDisplayName } from "@/lib/agents/identity";
+import type { TaskAgentRef } from "@/lib/hooks/use-tasks";
 
 interface TaskCardProps {
   task: TaskSession;
@@ -61,17 +63,19 @@ export const TaskCard = React.memo(function TaskCard({
 
   // Build agents list for avatar row
   const agents = useMemo(() => {
+    // The names are Oxy's and may be unresolved, so the row is built through the
+    // shared fallback rather than each avatar inventing its own.
     const list: Array<{ _id: string; name: string; avatar?: string }> = [];
-    if (task.agentId) {
-      list.push({ _id: task.agentId._id, name: task.agentId.name, avatar: task.agentId.avatar });
-    }
-    if (task.childAgents?.length) {
-      for (const child of task.childAgents) {
-        if (!list.some(a => a._id === child._id)) {
-          list.push({ _id: child._id, name: child.name, avatar: child.avatar });
-        }
-      }
-    }
+    const push = (agent: TaskAgentRef) => {
+      if (list.some((a) => a._id === agent._id)) return;
+      list.push({
+        _id: agent._id,
+        name: agentDisplayName(agent),
+        ...(agent.avatar !== null && { avatar: agent.avatar }),
+      });
+    };
+    if (task.agentId) push(task.agentId);
+    for (const child of task.childAgents ?? []) push(child);
     return list;
   }, [task.agentId, task.childAgents]);
 

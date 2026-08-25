@@ -16,7 +16,7 @@ import {
   markOxyServiceEventFailed,
   markOxyServiceEventProcessed,
 } from '../db/integrations/oxyServiceEventLogRepository.js';
-import { createAgent, findAgentByHandle } from '../db/agents/agentRepository.js';
+import { findDesignatedAutonomyAgent } from '../db/agents/agentRepository.js';
 import {
   createAgentSession,
   updateAgentSession,
@@ -56,44 +56,42 @@ function buildEventId(req: Request): string {
 }
 
 /**
- * This account's autonomy agent, created on first use.
+ * The agent this account DESIGNATED for autonomous events, or NOTHING.
  *
- * The lookup is by HANDLE alone, where the source matched `{author, handle}`.
- * `handle` is UNIQUE across the whole table, so a two-field lookup could miss a
- * row that a create would then collide with — and the handle already encodes the
- * account (`alia-autonomy-<last 8 of the id>`), so the author predicate narrowed
- * nothing it did not already imply.
+ * ## Nothing is created here any more
  *
- * `status: 'active'` is not passed because it is the column default and the
- * source was restating it. `author_verified` IS passed, because the source set
- * it and a port is not the place to revise what a row asserts.
+ * An agent IS an Oxy `bot` account, and `POST /accounts` mints one under the
+ * caller's own tree with the CALLER's bearer. This is a webhook: it carries an
+ * `oxy_services` id and an HMAC signature over the body, and no user credential
+ * of any kind. No service verb fills the gap either, and that is a boundary Oxy
+ * drew on purpose rather than an omission — `accounts/service/channels` is
+ * pinned to `kind: 'channel'` precisely because a membership on an act-as
+ * eligible kind IS a session, so service-minting a `bot` would be the
+ * escalation that restriction exists to refuse.
+ *
+ * Which leaves the right answer anyway: conjuring an identity in Oxy's global
+ * namespace, in somebody's name, from a third party's webhook and with no human
+ * present, is not something this service should do even where it could.
+ *
+ * So the agent is DESIGNATED by its owner from a signed-in surface. When none
+ * is, the event still reaches the person as a notification — the same path a
+ * queue failure takes, and the one this endpoint's contract already promises.
+ *
+ * ## The designation is a column, not a convention
+ *
+ * `handles_autonomous_events`, with a PARTIAL unique index over the owner. Its
+ * predecessor matched `category = 'automation'` plus an `autonomy` tag, both of
+ * which the owner edits by hand — so tagging an agent for tidiness silently
+ * changed which agent received their events, and two so tagged gave whichever
+ * the query returned first. The index makes "the one" a fact the database
+ * enforces rather than a race this code resolves.
+ *
+ * Nothing here asks Oxy anything, so an identity outage cannot stop autonomous
+ * processing.
  */
-async function ensureAutonomyAgent(userId: string): Promise<string> {
-  const handle = `alia-autonomy-${userId.slice(-8).toLowerCase()}`;
-
-  const existing = await findAgentByHandle(getDb(), handle);
-  if (existing) return existing._id;
-
-  const created = await createAgent(getDb(), {
-    name: 'Alia Autonomy Runtime',
-    handle,
-    avatar: null,
-    tagline: 'Autonomous event processor',
-    description: 'System agent that processes service events autonomously with policy controls.',
-    authorOxyUserId: userId,
-    authorName: 'Alia',
-    authorVerified: true,
-    category: 'automation',
-    tags: ['autonomy', 'events', 'system'],
-    capabilities: ['event processing', 'context retrieval', 'notification fallback'],
-    isPublished: true,
-    allowHiring: false,
-    price: null,
-    allowedModels: ['alia-v1', 'alia-v1-thinking'],
-    systemPrompt: 'You process service events autonomously. Be concise, safe, and policy-compliant.',
-  });
-
-  return created._id;
+async function findAutonomyAgent(userId: string): Promise<string | null> {
+  const designated = await findDesignatedAutonomyAgent(getDb(), userId);
+  return designated?._id ?? null;
 }
 
 async function notifyFallback(params: {
@@ -188,7 +186,19 @@ async function processEvent(params: {
       return;
     }
 
-    const agentId = await ensureAutonomyAgent(userId);
+    const agentId = await findAutonomyAgent(userId);
+    if (agentId === null) {
+      // No runtime agent to run this on, and none can be minted from a webhook.
+      // The event is still delivered, as a notification.
+      log.general.warn(
+        { userId, serviceId, event },
+        'No agent is designated for autonomous events on this account; falling back to a notification',
+      );
+      await notifyFallback({ userId, displayName, event, title, message, data, reason: 'no_autonomy_agent' });
+      await markOxyServiceEventFailed(db, logId, 'no_autonomy_agent');
+      return;
+    }
+
     const task = [
       `Process Oxy service event from ${displayName}.`,
       `Event: ${event}`,
@@ -211,7 +221,10 @@ async function processEvent(params: {
         sessionId: session._id,
         userId,
         agentId,
-        agentName: 'Alia Autonomy Runtime',
+        // The designated agent's own name is the bot account's, and resolving
+        // it here would put an Oxy round trip on the queue path for a label.
+        // The queue entry names the ROLE; the agent id beside it is exact.
+        agentName: 'Designated autonomy agent',
       });
 
       await markOxyServiceEventProcessed(db, logId, session._id);

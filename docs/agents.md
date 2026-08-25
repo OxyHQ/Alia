@@ -4,6 +4,60 @@ Alia runs as a context-agent system that prioritizes autonomous retrieval and po
 
 Agents, tools, approvals, the risk policy, deep research and triggers are Alia's own responsibility and stay that way under [ADR 0001](./adr/0001-alia-oxy-relay-responsibility-boundary.md). None of it moves to the Relay data plane.
 
+## An agent IS an Oxy `bot` account
+
+Alia stores an agent's RUNTIME — the prompt, the models, the archetype, the
+soul, the marketplace listing. It stores nothing about who the agent is.
+
+The identity is an account in the Oxy account graph (`kind: 'bot'`, a child of
+its owner's personal account), and `agents.oxy_account_id` is the whole seam:
+one column, no foreign key, UNIQUE.
+
+- **Name, handle and avatar are READ from Oxy**, batched through
+  `POST /users/by-ids` by `lib/agent-identity.ts`. They are nullable on the
+  wire: the lookup fails OPEN, so an unresolvable account renders as nulls
+  rather than blanking a listing whose tagline and rating are Alia's own.
+- **A handle is globally unique across the whole Oxy account graph**, not just
+  across Alia's agents — so Alia neither generates one nor checks one.
+  `POST /agents/generate` returns a `suggestedUsername`; `POST /accounts`
+  decides.
+- **Who may write to an agent is `account:act_as` over its bot account**,
+  resolved by Oxy and cached briefly in `lib/agent-account.ts`.
+  `author_oxy_user_id` survives as the index behind "my agents" and is never an
+  authorization gate — an owner may grant a colleague `act_as` without handing
+  over the row.
+- **Creating an agent takes the caller's own credential**, because the account
+  is minted under their tree and they become its owner. The app does it in one
+  tap: generate → avatar → `createAccount` → `POST /agents`.
+
+  **Known dependency: a new agent is DISCOVERABLE in Oxy immediately.** Every
+  Oxy account is born public — `createAccountRequestSchema` carries no privacy
+  field and the account service never writes the column — so an agent created
+  as a DRAFT (`isPublished: false`, which keeps it out of Alia's catalogue)
+  still appears in Oxy's global people search from the moment its account
+  exists. Nothing Alia can send changes that; it needs a privacy field on
+  `POST /accounts`. `CreateBotAccountInput.private` is declared and passed by
+  the create screen so the landing is one edit, and is deliberately NOT spread
+  into the SDK call, which would drop it silently and read as privacy that
+  works.
+- **Searching the catalogue no longer matches a name or a handle.** They live
+  in another database, and a denormalised copy here is the cache this split
+  exists to delete. A search matches the tagline, the category and the tags.
+
+  A KNOWN GAP with a named fix: Oxy owns the identity, so Oxy should own the
+  search over it, and `GET /profiles/search` has no `kind` filter today
+  (`profileSearchQuerySchema` takes `{query, limit, offset}`). Adding
+  `?kind=bot`, folded into the aggregate's `$match` so it filters BEFORE the
+  page is cut, is what closes it.
+
+  Neither workaround does. Filtering the results in Alia fails because the
+  `$match` precedes `$skip`/`$limit`, so a query matching many people and one
+  bot returns a page with no agents in it. Paginating the Oxy search separately
+  and intersecting fails for a sharper reason: a catalogue query is a
+  conjunction of Alia's own facets AND an identity match, and intersecting two
+  independently paginated result sets breaks `limit`/`offset` the same way —
+  ask for ten, receive two, with no way to ask for the rest.
+
 ## Execution Loop
 
 Every interaction follows one runtime loop:
@@ -72,6 +126,14 @@ Each execution is stored in `trigger_executions` with status, tool calls, tokens
 - Event idempotency (`eventId` dedupe).
 - Persistent `AgentSession` creation before queueing.
 - Guaranteed notification fallback on autonomous failure.
+
+The webhook carries an `oxy_services` id and an HMAC signature over the body,
+and **no user credential of any kind** — so it cannot mint the `bot` account an
+agent now needs. The autonomy runtime agent must therefore already exist,
+created by its owner from a signed-in surface; when it does not, the event still
+reaches the person as a notification (`reason: 'no_autonomy_agent'`). Oxy's
+service-token provisioning does not close the gap: `provisionChannelAccount`
+mints `channel` accounts only, and a channel is deliberately act-as ineligible.
 
 ## Model Abstraction
 

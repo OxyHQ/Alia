@@ -58,6 +58,7 @@ import type { AgentPermissions } from "@/lib/stores/agents-store";
 import { useAgentBots, type AgentBot } from "@/lib/hooks/use-agent-bots";
 import { errorStatus } from "@/lib/errors/error-utils";
 import { ContentPanel } from "@oxyhq/bloom/content-panel";
+import { useOxy } from "@oxyhq/services";
 
 const TOOL_ICONS: Record<string, React.ComponentType<{ size?: number; color?: string; className?: string }>> = {
   Globe, Terminal, Search, FileDown, FolderOpen, Image, Brain, Users,
@@ -83,6 +84,8 @@ export default function EditAgentScreen() {
   const { t } = useTranslation();
   const { colors } = useColorScheme();
   const isLargeScreen = useIsLargeScreen();
+  // The agent's NAME lives on its Oxy bot account, so the editor writes it there.
+  const { oxyServices } = useOxy();
   const getAgent = useAgentsStore((state) => state.getAgent);
   const updateAgent = useAgentsStore((state) => state.updateAgent);
   const deleteAgent = useAgentsStore((state) => state.deleteAgent);
@@ -92,6 +95,15 @@ export default function EditAgentScreen() {
 
   // Form state
   const [name, setName] = useState("");
+  /**
+   * The Oxy `bot` account this agent IS.
+   *
+   * The name below is written to THAT account, not to the agent row: Alia
+   * stores no name any more, and `PATCH /agents/:id` refuses one outright. An
+   * empty string means the agent has not loaded yet, which is why the identity
+   * save below refuses to run on one.
+   */
+  const [oxyAccountId, setOxyAccountId] = useState("");
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [tagline, setTagline] = useState("");
   const [description, setDescription] = useState("");
@@ -102,6 +114,18 @@ export default function EditAgentScreen() {
   const [capabilities, setCapabilities] = useState<string[]>([]);
   const [price, setPrice] = useState("");
   const [allowHiring, setAllowHiring] = useState(false);
+  const [handlesAutonomousEvents, setHandlesAutonomousEvents] = useState(false);
+  /**
+   * The agent's HANDLE — its Oxy username, editable after creation.
+   *
+   * `POST /agents/generate` proposes one and `POST /accounts` resolves a
+   * collision by appending a suffix, so the person can land here with a name
+   * they did not choose. `PATCH /accounts/:id` accepts `username`, so it is
+   * shown and editable rather than permanent.
+   */
+  const [handle, setHandle] = useState("");
+  /** What Oxy last confirmed, so a rejected rename can be put back. */
+  const savedHandle = useRef("");
   const [isPublished, setIsPublished] = useState(false);
   const [permissions, setPermissions] = useState<AgentPermissions>(DEFAULT_PERMISSIONS);
   const [archetype, setArchetype] = useState<AgentArchetype>('general');
@@ -133,6 +157,8 @@ export default function EditAgentScreen() {
 
   // Auto-save debounce
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  /** The identity save has its own timer: it targets a different service. */
+  const identityTimeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const isInitialLoad = useRef(true);
 
   // Load available skills from backend
@@ -149,7 +175,10 @@ export default function EditAgentScreen() {
     setLoading(true);
     getAgent(id).then((agent) => {
       if (agent) {
-        setName(agent.name);
+        setName(agent.name ?? "");
+        setHandle(agent.handle ?? "");
+        savedHandle.current = agent.handle ?? "";
+        setOxyAccountId(agent.oxyAccountId);
         setAvatarUrl(agent.avatar || null);
         setTagline(agent.tagline);
         setDescription(agent.description);
@@ -161,6 +190,7 @@ export default function EditAgentScreen() {
         setLinkedKnowledge(agent.knowledge || []);
         setPrice(agent.price != null ? String(agent.price) : "");
         setAllowHiring(agent.allowHiring);
+        setHandlesAutonomousEvents(agent.handlesAutonomousEvents);
         setIsPublished(agent.isPublished);
         if (agent.permissions) setPermissions({ ...DEFAULT_PERMISSIONS, ...agent.permissions });
         setArchetype(agent.archetype || 'general');
@@ -193,10 +223,52 @@ export default function EditAgentScreen() {
     [id, updateAgent]
   );
 
+  /**
+   * The NAME is saved to Oxy, and everything else to Alia.
+   *
+   * Two writes, two services, two timers — not one call that fans out, because
+   * a failed rename must not take the tagline with it and a failed tagline must
+   * not roll back a rename. `updateAccount` sweeps Oxy's own identity caches,
+   * so the profile surfaces do not serve the old name for a TTL afterwards.
+   */
+  useEffect(() => {
+    if (oxyAccountId === "" || isInitialLoad.current) return;
+    if (identityTimeoutRef.current) clearTimeout(identityTimeoutRef.current);
+    identityTimeoutRef.current = setTimeout(async () => {
+      setSaving(true);
+      const trimmed = handle.trim();
+      try {
+        await oxyServices.updateAccount(oxyAccountId, {
+          name: { displayName: name },
+          // Only when it actually changed: `username` is globally unique, and
+          // re-sending the current one on every keystroke of the NAME field
+          // would ask Oxy to re-check a handle nobody touched.
+          ...(trimmed !== savedHandle.current && trimmed !== "" && { username: trimmed }),
+        });
+        savedHandle.current = trimmed;
+      } catch (error: unknown) {
+        // A taken handle is the one failure worth saying out loud: the field
+        // still shows what the person typed, and without this it silently
+        // reverts on the next load with nothing to explain it.
+        if (errorStatus(error) === 409) {
+          setHandle(savedHandle.current);
+          toast.error(t("agents.handleTaken"));
+        }
+        // Everything else stays silent, as the Alia save beside it is: an
+        // autosave raising a toast on every keystroke-shaped failure is worse
+        // than one that does not.
+      } finally {
+        setSaving(false);
+      }
+    }, 1000);
+    return () => {
+      if (identityTimeoutRef.current) clearTimeout(identityTimeoutRef.current);
+    };
+  }, [name, handle, oxyAccountId, oxyServices, t]);
+
   // Auto-save on field changes
   useEffect(() => {
     debouncedSave({
-      name,
       tagline,
       description,
       systemPrompt,
@@ -207,12 +279,12 @@ export default function EditAgentScreen() {
       knowledge: linkedKnowledge.map((k) => k._id),
       price: price.trim() ? parseFloat(price) : null,
       allowHiring,
+      handlesAutonomousEvents,
       permissions,
       archetype,
       archetypeConfig,
     });
   }, [
-    name,
     tagline,
     description,
     systemPrompt,
@@ -223,6 +295,7 @@ export default function EditAgentScreen() {
     linkedKnowledge,
     price,
     allowHiring,
+    handlesAutonomousEvents,
     permissions,
     archetype,
     archetypeConfig,
@@ -716,6 +789,20 @@ export default function EditAgentScreen() {
               />
             </View>
 
+            {/* Autonomous events — ONE agent per owner, enforced by the API. */}
+            <View className="flex-row items-center justify-between">
+              <View className="flex-1 pr-4">
+                <Label>{t("agents.handlesAutonomousEvents")}</Label>
+                <Text className="text-[13px] text-muted-foreground mt-0.5">
+                  {t("agents.handlesAutonomousEventsHint")}
+                </Text>
+              </View>
+              <Switch
+                value={handlesAutonomousEvents}
+                onValueChange={setHandlesAutonomousEvents}
+              />
+            </View>
+
             {/* Telegram bot */}
             <View className="gap-2 pt-2 border-t border-border">
               <View className="flex-row items-center gap-2 pt-2">
@@ -913,26 +1000,44 @@ export default function EditAgentScreen() {
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
           >
-            {/* Avatar + Name */}
+            {/* Avatar + Name + Handle — all three are the bot ACCOUNT's, saved
+                to Oxy rather than to the agent row. */}
             <View className="flex-row items-center gap-3 mb-6">
               <Avatar className="h-10 w-10">
                 <AvatarImage
                   source={avatarUrl ? { uri: avatarUrl } : DEFAULT_AVATAR}
                 />
               </Avatar>
-              <TextInput
-                value={name}
-                onChangeText={setName}
-                placeholder="Agent name"
-                placeholderTextColor={colors.mutedForeground}
-                className="text-foreground"
-                style={{
-                  fontSize: 24,
-                  fontWeight: "700",
-                  flex: 1,
-                  padding: 0,
-                }}
-              />
+              <View className="flex-1">
+                <TextInput
+                  value={name}
+                  onChangeText={setName}
+                  placeholder={t("agents.namePlaceholder")}
+                  placeholderTextColor={colors.mutedForeground}
+                  className="text-foreground"
+                  style={{
+                    fontSize: 24,
+                    fontWeight: "700",
+                    padding: 0,
+                  }}
+                />
+                {/* The handle was PROPOSED at creation and may carry a
+                    collision suffix nobody chose, so it is editable here
+                    rather than permanent. */}
+                <View className="flex-row items-center">
+                  <Text className="text-[15px] text-muted-foreground">@</Text>
+                  <TextInput
+                    value={handle}
+                    onChangeText={setHandle}
+                    placeholder={t("agents.handlePlaceholder")}
+                    placeholderTextColor={colors.mutedForeground}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    className="text-muted-foreground flex-1"
+                    style={{ fontSize: 15, padding: 0 }}
+                  />
+                </View>
+              </View>
             </View>
 
             {/* System Prompt / Instructions */}

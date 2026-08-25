@@ -1,8 +1,7 @@
 import { Router } from 'express';
 import { generateText } from 'ai';
-import { getDb } from '../../db/index.js';
-import { findAgentByHandle } from '../../db/agents/agentRepository.js';
 import { AGENT_ARCHETYPES } from '../../domain/agent.js';
+import { suggestAgentUsername } from '../../lib/agent-identity.js';
 import { authenticateToken } from '../../middleware/auth.js';
 import { resolveModel, getAIModel, getDefaultAliaModel } from '../../lib/chat-core.js';
 import { log } from '../../lib/logger.js';
@@ -93,24 +92,21 @@ Do not include any text outside the JSON object.`,
       return res.status(500).json({ error: 'Failed to generate agent configuration' });
     }
 
-    // Generate handle from name
-    const baseName = (parsed.name || 'agent').trim();
-    let handle = baseName
-      .toLowerCase()
-      .replace(/[^a-z0-9\s-]/g, '')
-      .replace(/\s+/g, '-')
-      .replace(/-+/g, '-');
-
-    // Check handle uniqueness, append suffix if needed
-    const existing = await findAgentByHandle(getDb(), handle);
-    if (existing) {
-      handle = `${handle}-${Date.now().toString(36).slice(-4)}`;
-    }
-
+    /**
+     * A SUGGESTION, not a reservation, and that is the whole difference.
+     *
+     * This used to slugify the name, ask Alia's own `agents` table whether the
+     * handle was taken and append a timestamp suffix if it was — a check-then-
+     * insert race whose collision surfaced as a 500 rather than a 409. Handles
+     * are Oxy's now and the namespace is the WHOLE account graph, so no query
+     * here could answer the question even in principle. The client offers this
+     * to `POST /accounts` and Oxy resolves uniqueness, which is the only place
+     * that can.
+     */
     const validArchetypes = AGENT_ARCHETYPES;
     res.json({
       name: parsed.name || 'New Agent',
-      handle,
+      suggestedUsername: suggestAgentUsername(parsed.name || 'agent'),
       tagline: parsed.tagline || '',
       description: parsed.description || '',
       systemPrompt: parsed.systemPrompt || '',

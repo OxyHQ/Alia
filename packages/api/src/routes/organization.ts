@@ -34,6 +34,7 @@ import {
 import { uploadToS3, deleteFromS3 } from '../lib/s3';
 import { storedMediaUrl } from '../lib/stored-media.js';
 import { hydrateOxyUsers, type HydratedOxyUser } from '../lib/oxy-user-hydration.js';
+import { attachAgentIdentities } from '../lib/agent-identity.js';
 import { z } from 'zod';
 import { log } from '../lib/logger.js';
 
@@ -726,7 +727,8 @@ router.get('/:id/agents', async (req: Request, res: Response) => {
       return agent ? [agent] : [];
     });
 
-    res.json({ agents });
+    // Identity is the bot account's, resolved for the whole page in one call.
+    res.json({ agents: await attachAgentIdentities(agents) });
   } catch (error: unknown) {
     log.organization.error({ err: error }, 'Error fetching organization agents');
     res.status(500).json({ error: 'Failed to fetch agents' });

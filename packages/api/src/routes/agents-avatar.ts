@@ -7,8 +7,7 @@ import { authenticateToken } from '../middleware/auth.js';
 import { resolveModel, getAIModel, reportModelUsage } from '../lib/chat-core.js';
 import { callProviderAPI, getModelMappingsForTier } from '../lib/gateway-client.js';
 import { extractImageUrl } from '../internal/providers/lib/digitalocean-async.js';
-import { uploadToS3 } from '../lib/s3.js';
-import { storedMediaUrl } from '../lib/stored-media.js';
+import { uploadAgentAvatarToOxy } from '../lib/agent-account.js';
 import { log } from '../lib/logger.js';
 import { getErrorMessage, classifyError } from '../lib/errors/index.js';
 import type { Request, Response } from 'express';
@@ -181,24 +180,26 @@ router.post('/generate', authenticateToken, async (req: Request, res: Response) 
       if (b64Image) {
         imageBuffer = Buffer.from(b64Image, 'base64');
       } else {
-        const imgRes = await fetch(imageUrl!);
+        if (imageUrl === null) {
+          return res.status(502).json({ error: 'Image generation failed — no image was returned' });
+        }
+        const imgRes = await fetch(imageUrl);
         imageBuffer = Buffer.from(await imgRes.arrayBuffer());
       }
 
-      const avatarKey = await uploadToS3(
-        imageBuffer,
-        'avatar.webp',
-        `agents/${req.user.id}`,
-        'avatar'
-      );
-
-      // The KEY is what an agent record should hold; this response is what the
-      // editor displays, so it gets an address instead.
-      const avatarUrl = storedMediaUrl(req, avatarKey, req.user.id);
-      if (avatarUrl === null) {
-        return res.status(500).json({ error: 'The avatar cannot be served by this deployment' });
-      }
-      return res.json({ avatarUrl, avatarKey });
+      /**
+       * The avatar goes to OXY, not to Alia's bucket.
+       *
+       * An agent's avatar is its bot ACCOUNT's avatar — `CreateAccountInput`
+       * and `UpdateAccountInput` take an Oxy asset, and nothing in Alia stores
+       * an avatar any more. An S3 key here would be an address only Alia can
+       * serve, on a record Oxy owns.
+       *
+       * Uploaded with the CALLER's bearer, so the asset belongs to the person
+       * who asked for it rather than to a service principal Alia does not have.
+       */
+      const assetId = await uploadAgentAvatarToOxy(req.accessToken, imageBuffer);
+      return res.json({ avatarAssetId: assetId });
     } catch (genErr: unknown) {
       log.agents.error({ err: genErr }, 'Avatar upload failed');
       return res.status(502).json({ error: 'Avatar upload failed' });

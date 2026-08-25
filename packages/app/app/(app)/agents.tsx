@@ -12,6 +12,7 @@ import { useRouter } from "expo-router";
 import { useTranslation } from "@/lib/hooks/use-translation";
 import { toast } from "@oxyhq/bloom/toast";
 import { cn } from "@/lib/utils";
+import { agentIdentityMatches } from "@/lib/agents/identity";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ContentPanel } from "@oxyhq/bloom/content-panel";
 
@@ -63,8 +64,9 @@ export default function AgentsScreen() {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter(
         (agent) =>
-          agent.name.toLowerCase().includes(query) ||
-          agent.handle.toLowerCase().includes(query) ||
+          // Name and handle are Oxy's and may be unresolved; the shared matcher
+          // is what keeps every surface agreeing on what an agent is called.
+          agentIdentityMatches(agent, query) ||
           agent.tagline.toLowerCase().includes(query) ||
           agent.description.toLowerCase().includes(query) ||
           agent.category.toLowerCase().includes(query) ||

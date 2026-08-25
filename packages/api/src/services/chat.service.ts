@@ -21,6 +21,7 @@ import { getRefreshedUserCredits } from '../lib/user-credits-helpers.js';
 import { getDb } from '../db/index.js';
 import { findSkillPrompt } from '../db/agents/skillRepository.js';
 import { findAgentById } from '../db/agents/agentRepository.js';
+import { agentPromptName, attachAgentIdentity } from '../lib/agent-identity.js';
 import type { UserMemoryProfile } from '../db/memory/userMemoryRepository.js';
 import { processMessagesForPlatform } from '../lib/message-processor.js';
 import { reserveCredits, type CreditReservation } from '../lib/credits-manager.js';
@@ -205,11 +206,13 @@ export async function loadSkillPrompt(skillId: string): Promise<string | null> {
 
 export async function loadAgentPrompt(agentId: string): Promise<string | null> {
   try {
-    const agent = await findAgentById(getDb(), agentId);
-    if (agent) {
-      log.chat.info({ agentName: agent.name }, 'Agent context activated');
+    const found = await findAgentById(getDb(), agentId);
+    if (found) {
+      const agent = await attachAgentIdentity(found);
+      const agentName = agentPromptName(agent);
+      log.chat.info({ agentName }, 'Agent context activated');
       let prompt = agent.systemPrompt
-        || `You are "${agent.name}". ${agent.tagline}\n\n${agent.description}${agent.capabilities.length > 0 ? `\n\nCapabilities: ${agent.capabilities.join(', ')}` : ''}`;
+        || `You are "${agentName}". ${agent.tagline}\n\n${agent.description}${agent.capabilities.length > 0 ? `\n\nCapabilities: ${agent.capabilities.join(', ')}` : ''}`;
 
       // Append soul personality data if available
       if (agent.soul) {

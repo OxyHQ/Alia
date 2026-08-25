@@ -38,16 +38,32 @@ export interface ArchetypeConfig {
   compareWithPrevious?: boolean;
 }
 
+/**
+ * An agent, as the API serves it.
+ *
+ * An agent IS an Oxy `bot` account: `oxyAccountId` is the seam, and `name`,
+ * `handle` and `avatar` are READ from that account rather than stored by Alia.
+ * They are nullable because the API resolves them through a batched Oxy lookup
+ * that FAILS OPEN — an account it cannot resolve leaves the three null and the
+ * listing still renders, because the tagline, the rating and the price are
+ * Alia's own.
+ *
+ * They are also READ-ONLY. `AgentUpdate` cannot carry them and `PATCH /agents`
+ * refuses them outright: editing an agent's name is `updateAccount` at Oxy.
+ */
 export interface Agent {
   _id: string;
-  name: string;
-  handle: string;
+  /** The Oxy `bot` account this agent IS. */
+  oxyAccountId: string;
+  name: string | null;
+  handle: string | null;
   avatar: string | null;
   tagline: string;
   description: string;
+  /** The Oxy account that created the agent. An id, never a name. */
   author: string;
-  authorName: string;
-  authorVerified: boolean;
+  /** The author's display name, resolved by the API from Oxy. */
+  authorName: string | null;
   category: string;
   tags: string[];
   rating: number;
@@ -58,13 +74,18 @@ export interface Agent {
   capabilities: string[];
   skills: Array<{ _id: string; skillId: string; title: string; icon: string; color: string }>;
   knowledge: Array<{ _id: string; name: string; type: string; category: string; url: string }>;
-  isVerified: boolean;
   isFeatured: boolean;
   isTrending: boolean;
   isPublished: boolean;
   status: 'active' | 'idle' | 'offline';
-  creditBalance: number;
   allowHiring: boolean;
+  /**
+   * Whether this is the ONE agent the owner has designated to run autonomous
+   * Oxy service events. A declared fact: the API enforces one per owner with a
+   * partial unique index and answers 409 for a second, so a screen offering the
+   * toggle has to handle that refusal rather than assume it can always set it.
+   */
+  handlesAutonomousEvents: boolean;
   permissions?: AgentPermissions;
   systemPrompt?: string;
   allowedModels?: string[];
@@ -78,11 +99,41 @@ export interface Agent {
  * Write payload for agent updates. Unlike the read {@link Agent} model, `skills`
  * and `knowledge` are sent as bare id arrays — the API resolves them to full
  * objects on the way back.
+ *
+ * The identity fields are OMITTED, not optional. `PATCH /agents/:id` validates
+ * with a strict schema and answers 400 for any of them, so a screen that could
+ * still put `name` in this object would compile and fail at runtime — the exact
+ * shape a type is for.
  */
-export type AgentUpdate = Partial<Omit<Agent, 'skills' | 'knowledge'>> & {
+export type AgentUpdate = Partial<
+  Omit<Agent, 'skills' | 'knowledge' | 'name' | 'handle' | 'avatar' | 'oxyAccountId' | '_id'>
+> & {
   skills?: string[];
   knowledge?: string[];
 };
+
+/**
+ * What `POST /agents` accepts: the runtime, plus the account the agent IS.
+ *
+ * `oxyAccountId` is REQUIRED and the caller mints it first — `useOxy()
+ * .createAccount({ kind: 'bot', … })` — because Oxy owns the account and only
+ * the person's own credential may create one under their tree.
+ */
+export type AgentCreate = Pick<Agent, 'oxyAccountId' | 'tagline' | 'description' | 'category'> &
+  Partial<
+    Pick<
+      Agent,
+      | 'tags'
+      | 'price'
+      | 'capabilities'
+      | 'isPublished'
+      | 'allowHiring'
+      | 'handlesAutonomousEvents'
+      | 'systemPrompt'
+      | 'archetype'
+      | 'archetypeConfig'
+    >
+  > & { skills?: string[]; knowledge?: string[] };
 
 interface AgentsStoreState {
   agents: Agent[];
@@ -91,7 +142,7 @@ interface AgentsStoreState {
   total: number;
   loadAgents: (params?: { category?: string; search?: string; featured?: string; trending?: string }) => Promise<void>;
   getAgent: (id: string) => Promise<Agent | null>;
-  createAgent: (data: Partial<Agent>) => Promise<Agent | null>;
+  createAgent: (data: AgentCreate) => Promise<Agent | null>;
   updateAgent: (id: string, updates: AgentUpdate) => Promise<void>;
   deleteAgent: (id: string) => Promise<void>;
   hireAgent: (id: string, task: string) => Promise<string | null>;

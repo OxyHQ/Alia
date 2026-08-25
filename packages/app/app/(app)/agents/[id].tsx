@@ -32,6 +32,7 @@ import { cn } from "@/lib/utils";
 import { useCreateConversation } from "@/lib/hooks/use-conversations";
 import { useAgentFavoritesStore } from "@/lib/stores/agent-favorites-store";
 import { errorMessage as getErrorMessage, errorStatus, errorResponseData } from "@/lib/errors/error-utils";
+import { agentDisplayName, agentHandle, agentInitial } from "@/lib/agents/identity";
 import { ContentPanel } from "@oxyhq/bloom/content-panel";
 
 const STATUS_COLORS: Record<string, string> = {
@@ -571,7 +572,7 @@ export default function AgentDetailScreen() {
                 ) : (
                   <AvatarFallback>
                     <Text className="text-2xl font-bold text-foreground">
-                      {agent.name.charAt(0)}
+                      {agentInitial(agent)}
                     </Text>
                   </AvatarFallback>
                 )}
@@ -588,11 +589,8 @@ export default function AgentDetailScreen() {
             <View className="mt-3">
               <View className="flex-row items-center gap-1.5">
                 <Text className="text-xl font-bold text-foreground">
-                  {agent.name}
+                  {agentDisplayName(agent)}
                 </Text>
-                {agent.isVerified && (
-                  <BadgeCheck size={16} className="text-blue-500" />
-                )}
                 <View
                   className={cn(
                     "px-2 py-0.5 rounded-full ml-1",
@@ -614,22 +612,23 @@ export default function AgentDetailScreen() {
                 </View>
               </View>
 
-              {/* Handle + Author */}
+              {/* Handle + Author — both read from Oxy, both absent when it
+                  could not resolve the account. Each is rendered only when it
+                  has a value, so an unresolved agent shows a name and a tagline
+                  rather than a row of separators around nothing. */}
               <View className="flex-row items-center gap-1 mt-0.5">
-                <Text className="text-[13px] text-muted-foreground">
-                  @{agent.handle}
-                </Text>
-                <Text className="text-[13px] text-muted-foreground mx-1">·</Text>
-                <Text className="text-[13px] text-muted-foreground">
-                  {agent.authorName}
-                </Text>
-                {agent.authorVerified && (
-                  <CheckCircle2
-                    size={11}
-                    className="text-blue-500"
-                    fill="#3b82f6"
-                    strokeWidth={0}
-                  />
+                {agentHandle(agent) !== "" && (
+                  <Text className="text-[13px] text-muted-foreground">
+                    @{agentHandle(agent)}
+                  </Text>
+                )}
+                {agentHandle(agent) !== "" && agent.authorName !== null && (
+                  <Text className="text-[13px] text-muted-foreground mx-1">·</Text>
+                )}
+                {agent.authorName !== null && (
+                  <Text className="text-[13px] text-muted-foreground">
+                    {agent.authorName}
+                  </Text>
                 )}
               </View>
             </View>

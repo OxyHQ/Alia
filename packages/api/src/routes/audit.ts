@@ -9,6 +9,7 @@ import { Router } from 'express';
 import { authenticateToken } from '../middleware/auth.js';
 import { getDb } from '../db/index.js';
 import { findAgentsByIds } from '../db/agents/agentRepository.js';
+import { agentPromptName, attachAgentIdentities } from '../lib/agent-identity.js';
 import {
   listAgentSessionsForAudit,
   type AuditSessionRef,
@@ -177,9 +178,11 @@ router.get('/threats', authenticateToken, async (req: Request, res: Response) =>
       limitNum,
     );
 
-    // Look up agent names
+    // Look up agent names. Two hops, one round trip each: the rows first, then
+    // ONE batched Oxy call for every bot account the page names, because the
+    // name an audit line shows is the account's.
     const agentIds = [...new Set(sessions.map(s => s.agentId))];
-    const agents = await findAgentsByIds(getDb(), agentIds);
+    const agents = await attachAgentIdentities(await findAgentsByIds(getDb(), agentIds));
     const agentMap = new Map(agents.map(a => [a._id, a]));
 
     const threats = entries.map(entry => {
@@ -190,7 +193,7 @@ router.get('/threats', authenticateToken, async (req: Request, res: Response) =>
         id: entry._id,
         timestamp: new Date(entry.timestamp).toISOString(),
         severity: isBlocked ? 'critical' : entry.content.includes('WARNING') ? 'warning' : 'info',
-        agentName: agent?.name || agent?.handle || 'Unknown',
+        agentName: agent === undefined ? 'Unknown' : agentPromptName(agent),
         description: entry.content,
         sessionId: entry.sessionId,
         type: entry.type,

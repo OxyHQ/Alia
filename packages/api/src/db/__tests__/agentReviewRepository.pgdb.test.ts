@@ -2,7 +2,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest
 import { eq, sql } from 'drizzle-orm';
 import { closePostgres, connectPostgres, type ApiDatabase } from '../index';
 import { agentReviews } from '../schema/agent-sessions';
-import { createAgent, deleteAgentOwnedBy, findAgentById } from '../agents/agentRepository';
+import { createAgent, deleteAgent, findAgentById } from '../agents/agentRepository';
 import {
   deleteOwnAgentReview,
   findAgentReviewById,
@@ -55,12 +55,10 @@ const suffix = () => Math.random().toString(36).slice(2, 10);
 
 async function seedAgent(): Promise<string> {
   const agent = await createAgent(db, {
-    name: 'Reviewed',
-    handle: `reviewed-${suffix()}`,
+    oxyAccountId: `oxy-bot-reviewed-${suffix()}`,
     tagline: 't',
     description: 'd',
     authorOxyUserId: AUTHOR,
-    authorName: 'Nate',
     category: 'research',
   });
   return agent._id;
@@ -275,7 +273,7 @@ describe('deleting a review, and deleting the agent under it', () => {
     const agentId = await seedAgent();
     await upsertAgentReview(db, { agentId, oxyUserId: `oxy-${suffix()}`, rating: 5, comment: '' });
 
-    await deleteAgentOwnedBy(db, agentId, AUTHOR);
+    await deleteAgent(db, agentId);
 
     const [remaining] = await db
       .select({ total: sql<number>`count(*)::int` })

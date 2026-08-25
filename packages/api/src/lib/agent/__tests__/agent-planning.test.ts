@@ -61,8 +61,11 @@ vi.mock('../../logger.js', () => {
 
 vi.mock('../../../db/index.js', () => ({ getDb: vi.fn(() => ({})) }));
 
-vi.mock('../../../db/agents/agentRepository.js', () => ({
-  findHireableAgentByHandle: vi.fn(async () => null),
+// A handle is Oxy's now, so the specialist lookup resolves it there first —
+// `findAgentByOxyHandle` is the two-hop replacement and lives beside the rest
+// of the identity reads, not in the repository.
+vi.mock('../../agent-identity.js', () => ({
+  findAgentByOxyHandle: vi.fn(async () => null),
 }));
 
 vi.mock('../../../db/agents/agentSessionRepository.js', () => ({

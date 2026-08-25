@@ -32,14 +32,105 @@ afterAll(async () => {
   await closePostgres();
 });
 
+/**
+ * Oxy owns an agent's identity, and this is the assertion that keeps it that way.
+ *
+ * An agent IS an Oxy `bot` account. The eight columns below were the state Alia
+ * used to keep about who an agent is (and two orphans that travelled with
+ * them), and the failure this guards against is not a revert — it is somebody
+ * adding `name` back "just as a cache", which compiles, migrates, passes every
+ * functional test, and silently reintroduces a second writer for a value
+ * another service owns.
+ *
+ * ## Names, not a shape
+ *
+ * The forbidden list is SPELLED OUT. A grep for "a text column that looks like
+ * a name" would have to guess, and a guess that drifts is a gate that stops
+ * measuring — so a column that genuinely needs to come back has to be argued
+ * for by deleting a line here, in a diff a reviewer sees.
+ *
+ * ## The positive control
+ *
+ * `agents_oxy_account_id_key` and `oxy_account_id` are asserted PRESENT by the
+ * same two queries. Without them, a typo in the table name, a wrong schema, or
+ * a database migrated to the wrong revision would answer "no forbidden columns"
+ * — which is indistinguishable from success and is exactly how a census reports
+ * a comfortable zero.
+ */
+const COLUMNS_OXY_OWNS = [
+  'name',
+  'handle',
+  'avatar',
+  'author_name',
+  'author_verified',
+] as const;
+
+/** Dropped in the same cut, for reasons of their own. See the schema docblock. */
+const COLUMNS_NOTHING_READ = ['is_verified', 'credit_balance', 'last_scheduled_check'] as const;
+
+describe('Alia stores no identity of its own for an agent', () => {
+  it('has none of the columns Oxy owns, and still has the seam that replaced them', async () => {
+    const rows = await db.execute<{ column_name: string }>(sql`
+      select column_name from information_schema.columns
+      where table_schema = 'public' and table_name = 'agents'
+    `);
+    const present = new Set(rows.map((row) => row.column_name));
+
+    // POSITIVE CONTROL: the query reached a real `agents` table.
+    expect(present.has('oxy_account_id')).toBe(true);
+    expect(present.has('author_oxy_user_id')).toBe(true);
+    expect(present.size).toBeGreaterThan(20);
+
+    for (const column of [...COLUMNS_OXY_OWNS, ...COLUMNS_NOTHING_READ]) {
+      expect(present.has(column)).toBe(false);
+    }
+
+    // The designation is a COLUMN, not a convention over `category` and `tags`.
+    expect(present.has('handles_autonomous_events')).toBe(true);
+  });
+
+  it('keys the seam UNIQUE and no longer indexes a handle', async () => {
+    const rows = await db.execute<{ indexname: string }>(sql`
+      select indexname from pg_indexes
+      where schemaname = 'public' and tablename = 'agents'
+    `);
+    const indexes = new Set(rows.map((row) => row.indexname));
+
+    // POSITIVE CONTROL, again: an empty set would satisfy the refusal below.
+    expect(indexes.has('agents_oxy_account_id_key')).toBe(true);
+    expect(indexes.has('agents_author_oxy_user_id_idx')).toBe(true);
+
+    expect(indexes.has('agents_handle_key')).toBe(false);
+  });
+
+  /**
+   * The designation index exists AND is partial.
+   *
+   * `pg_indexes.indexdef` carries the `WHERE` clause, and it is the only place
+   * the partiality is visible: a plain unique index over the same column has an
+   * identical name, an identical column list, and enforces something entirely
+   * different. Asserting existence alone would pass against it.
+   */
+  it('constrains one autonomy agent per owner, and only the designated rows', async () => {
+    const [row] = await db.execute<{ indexdef: string }>(sql`
+      select indexdef from pg_indexes
+      where schemaname = 'public' and indexname = 'agents_one_autonomy_per_owner'
+    `);
+
+    expect(row).toBeDefined();
+    expect(row.indexdef).toContain('UNIQUE');
+    expect(row.indexdef).toContain('author_oxy_user_id');
+    expect(row.indexdef).toContain('WHERE');
+    expect(row.indexdef).toContain('handles_autonomous_events');
+  });
+});
+
 function agentValues(overrides: Partial<typeof agents.$inferInsert> = {}) {
   return {
-    name: 'Researcher',
-    handle: `@researcher-${Math.random().toString(36).slice(2, 10)}`,
+    oxyAccountId: `oxy-bot-researcher-${Math.random().toString(36).slice(2, 10)}`,
     tagline: 'finds things out',
     description: 'a longer description',
     authorOxyUserId: 'oxy-user-agents',
-    authorName: 'Nate',
     category: 'research',
     ...overrides,
   };
@@ -63,8 +154,8 @@ function skillValues(overrides: Partial<typeof skills.$inferInsert> = {}) {
 describe('agents', () => {
   it('closes status and archetype, and bounds the rating 0..5', async () => {
     const badStatus = db.execute(sql`
-      insert into ${agents} (id, name, handle, tagline, description, author_oxy_user_id, author_name, category, status)
-      values ('ag-badstatus', 'N', '@badstatus', 'T', 'D', 'u', 'A', 'c', 'sleeping')
+      insert into ${agents} (id, oxy_account_id, tagline, description, author_oxy_user_id, category, status)
+      values ('ag-badstatus', 'oxy-bot-badstatus', 'T', 'D', 'u', 'c', 'sleeping')
     `);
     await expect(badStatus).rejects.toSatisfy((error: unknown) => {
       expect(isCheckViolation(error)).toBe(true);
@@ -73,8 +164,8 @@ describe('agents', () => {
     });
 
     const badArchetype = db.execute(sql`
-      insert into ${agents} (id, name, handle, tagline, description, author_oxy_user_id, author_name, category, archetype)
-      values ('ag-badarch', 'N', '@badarch', 'T', 'D', 'u', 'A', 'c', 'oracle')
+      insert into ${agents} (id, oxy_account_id, tagline, description, author_oxy_user_id, category, archetype)
+      values ('ag-badarch', 'oxy-bot-badarch', 'T', 'D', 'u', 'c', 'oracle')
     `);
     await expect(badArchetype).rejects.toSatisfy((error: unknown) => {
       expect(isCheckViolation(error)).toBe(true);
@@ -85,8 +176,8 @@ describe('agents', () => {
     // Mongoose declares `min: 0, max: 5`. The value is an average of 1..5 review
     // ratings, so anything outside means a non-validating write produced it.
     const badRating = db.execute(sql`
-      insert into ${agents} (id, name, handle, tagline, description, author_oxy_user_id, author_name, category, rating)
-      values ('ag-badrating', 'N', '@badrating', 'T', 'D', 'u', 'A', 'c', 5.5)
+      insert into ${agents} (id, oxy_account_id, tagline, description, author_oxy_user_id, category, rating)
+      values ('ag-badrating', 'oxy-bot-badrating', 'T', 'D', 'u', 'c', 5.5)
     `);
     await expect(badRating).rejects.toSatisfy((error: unknown) => {
       expect(isCheckViolation(error)).toBe(true);
@@ -95,16 +186,86 @@ describe('agents', () => {
     });
   });
 
-  it('refuses a duplicate handle', async () => {
-    await db.insert(agents).values(agentValues({ id: 'ag-h1', handle: '@duplicate' }));
+  /**
+   * The uniqueness that replaced `agents_handle_key`.
+   *
+   * A handle is Oxy's now, and its unique index spans the whole account graph,
+   * so nothing here can enforce it. What this table still owns is that two
+   * agents cannot BE the same bot account — which is what makes
+   * `findAgentByOxyAccountId` a single-row lookup, and what a delegation
+   * resolving `@researcher` to one agent depends on.
+   */
+  it('refuses two agents on one bot account', async () => {
+    await db
+      .insert(agents)
+      .values(agentValues({ id: 'ag-h1', oxyAccountId: 'oxy-bot-duplicate' }));
 
-    const second = db.insert(agents).values(agentValues({ id: 'ag-h2', handle: '@duplicate' }));
+    const second = db
+      .insert(agents)
+      .values(agentValues({ id: 'ag-h2', oxyAccountId: 'oxy-bot-duplicate' }));
 
     await expect(second).rejects.toSatisfy((error: unknown) => {
       expect(isUniqueViolation(error)).toBe(true);
-      expect(constraintNameOf(error)).toBe('agents_handle_key');
+      expect(constraintNameOf(error)).toBe('agents_oxy_account_id_key');
       return true;
     });
+  });
+
+  /**
+   * ONE designated autonomy agent per owner, and the DATABASE says so.
+   *
+   * The predecessor was a convention — `category = 'automation'` plus an
+   * `autonomy` tag — over two fields the owner edits by hand, so a second
+   * designation was not refused at all: it produced two matches and whichever
+   * the query returned first won. That failure is invisible to any functional
+   * test that seeds one agent, which is why this seeds two.
+   */
+  it('refuses a SECOND autonomy designation for one owner', async () => {
+    const owner = `oxy-autonomy-${Math.random().toString(36).slice(2, 10)}`;
+    await db
+      .insert(agents)
+      .values(
+        agentValues({ id: 'ag-auto1', authorOxyUserId: owner, handlesAutonomousEvents: true }),
+      );
+
+    const second = db
+      .insert(agents)
+      .values(
+        agentValues({ id: 'ag-auto2', authorOxyUserId: owner, handlesAutonomousEvents: true }),
+      );
+
+    await expect(second).rejects.toSatisfy((error: unknown) => {
+      expect(isUniqueViolation(error)).toBe(true);
+      expect(constraintNameOf(error)).toBe('agents_one_autonomy_per_owner');
+      return true;
+    });
+  });
+
+  /**
+   * The half a plain unique index would get wrong.
+   *
+   * `agents_one_autonomy_per_owner` is PARTIAL. Without the
+   * `where handles_autonomous_events` predicate it would constrain every row,
+   * so an owner could have exactly ONE agent in total — and the failure would
+   * look like "creating a second agent is broken" rather than like a bad index.
+   */
+  it('lets one owner keep many agents that are NOT designated', async () => {
+    const owner = `oxy-many-${Math.random().toString(36).slice(2, 10)}`;
+    await db.insert(agents).values(agentValues({ id: 'ag-many1', authorOxyUserId: owner }));
+    await db.insert(agents).values(agentValues({ id: 'ag-many2', authorOxyUserId: owner }));
+    await db
+      .insert(agents)
+      .values(
+        agentValues({ id: 'ag-many3', authorOxyUserId: owner, handlesAutonomousEvents: true }),
+      );
+
+    const rows = await db
+      .select({ id: agents.id, designated: agents.handlesAutonomousEvents })
+      .from(agents)
+      .where(eq(agents.authorOxyUserId, owner));
+
+    expect(rows).toHaveLength(3);
+    expect(rows.filter((r) => r.designated)).toHaveLength(1);
   });
 
   it('leaves the whole permission group NULL, because absent means ALL ALLOWED', async () => {
