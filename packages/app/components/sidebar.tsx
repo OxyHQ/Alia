@@ -54,6 +54,10 @@ import { SidebarSkeleton } from "@/components/sidebar-skeleton";
 import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/hooks/query-keys";
 import { useConversations, useDeleteConversation, prefetchConversation } from "@/lib/hooks/use-conversations";
+import { conversationsForHistory } from "@/lib/sidebar-history";
+import { useMyAgents } from "@/lib/hooks/use-my-agents";
+import { AgentGlyph } from "@/components/ui/agent-glyph";
+import { agentDisplayName, agentHandle } from "@/lib/agents/identity";
 import * as DropdownMenu from "@/components/ui/dropdown-menu";
 import { ProjectEditDialog } from "@/components/project-edit-dialog";
 import { InviteDialog } from "@/components/invite-dialog";
@@ -146,18 +150,20 @@ export const Sidebar = React.memo(function Sidebar() {
   const [editingProject, setEditingProject] = React.useState<Project | null>(null);
   const [folderEditDialogOpen, setFolderEditDialogOpen] = React.useState(false);
   const [editingFolder, setEditingFolder] = React.useState<FolderType | null>(null);
+  /** This person's own agents, one row each. `?? []` never reaches a render site. */
+  const { data: myAgents = [] } = useMyAgents();
+
   const [agentsExpanded, setAgentsExpanded] = React.useState(false);
+  const [agentsSectionCollapsed, setAgentsSectionCollapsed] = React.useState(false);
   const [projectsCollapsed, setProjectsCollapsed] = React.useState(false);
   const [historyCollapsed, setHistoryCollapsed] = React.useState(false);
   const [inviteDialogOpen, setInviteDialogOpen] = React.useState(false);
   const [appDownloadDialogOpen, setAppDownloadDialogOpen] = React.useState(false);
 
-  // Group and flatten conversations for display
-  const conversationsNotInProjects = React.useMemo(() => {
-    return allConversations.filter((conv) =>
-      !projects.some((p) => p.conversationIds.includes(conv.id))
-    );
-  }, [allConversations, projects]);
+  const historyConversations = React.useMemo(
+    () => conversationsForHistory(allConversations, projects),
+    [allConversations, projects],
+  );
 
   const handleNewChat = React.useCallback(() => {
     // Navigate to home page
@@ -241,6 +247,29 @@ export const Sidebar = React.memo(function Sidebar() {
   const handleToggleAgents = React.useCallback(() => {
     setAgentsExpanded((prev) => !prev);
   }, []);
+
+  const handleToggleAgentsSection = React.useCallback(() => {
+    setAgentsSectionCollapsed((prev) => !prev);
+  }, []);
+
+  const handleNewAgent = React.useCallback(() => {
+    router.push("/(app)/agents/create");
+  }, [router]);
+
+  /**
+   * An agent is opened by its HANDLE, which is Oxy's, and never by its id.
+   *
+   * A handle Oxy did not resolve leaves the row unopenable rather than pointing
+   * at `/@` — the thread has no address without one, and a URL that resolves to
+   * a blank username would answer "agent not found" about an agent that exists.
+   */
+  const handleOpenAgentThread = React.useCallback((handle: string) => {
+    if (handle.length === 0) return;
+    // The sigil belongs to the VALUE, which is what the route strips — see
+    // `app/(app)/[username].tsx`. Built through the typed route rather than as
+    // a string so a rename of the segment is a compile error here.
+    router.push({ pathname: '/(app)/[username]', params: { username: `@${handle}` } });
+  }, [router]);
 
   const handleAppDownload = React.useCallback(() => {
     setAppDownloadDialogOpen(true);
@@ -412,10 +441,10 @@ export const Sidebar = React.memo(function Sidebar() {
 
   // Get pinned conversations (from all conversations not in projects)
   const pinnedConversations = React.useMemo(() => {
-    return conversationsNotInProjects.filter((conv) =>
+    return historyConversations.filter((conv) =>
       pinnedConversationIds.includes(conv.id)
     );
-  }, [conversationsNotInProjects, pinnedConversationIds]);
+  }, [historyConversations, pinnedConversationIds]);
 
   // Get standalone conversations (not in folders and not pinned)
   const standaloneConversations = React.useMemo(() => {
@@ -423,10 +452,10 @@ export const Sidebar = React.memo(function Sidebar() {
     folders.forEach((folder) => {
       folder.conversationIds.forEach((id) => conversationsInFolders.add(id));
     });
-    return conversationsNotInProjects.filter((conv) =>
+    return historyConversations.filter((conv) =>
       !conversationsInFolders.has(conv.id) && !pinnedConversationIds.includes(conv.id)
     );
-  }, [conversationsNotInProjects, folders, pinnedConversationIds]);
+  }, [historyConversations, folders, pinnedConversationIds]);
 
   // Handle scroll for infinite loading
   const handleScroll = React.useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
@@ -547,12 +576,52 @@ export const Sidebar = React.memo(function Sidebar() {
   // Scrollable content - Projects and History (rail: icons that expand)
   const scrollableContent = collapsed ? (
     <View className="gap-px pt-2">
+      <SidebarRow icon={Users} label={t('sidebar.agents')} onPress={handleExpandSidebar} iconOnly />
       <SidebarRow icon={FolderOpen} label={t('sidebar.projects')} onPress={handleExpandSidebar} iconOnly />
       <SidebarRow icon={HistoryIcon} label="History" onPress={handleExpandSidebar} iconOnly />
     </View>
   ) : (
     <View className="gap-2">
         <View className="gap-2">
+            {/* Agents Subsection — one row per agent, not one per stretch of its
+                thread. The conversations behind them are excluded from History
+                above, which is what keeps the two from saying the same thing. */}
+            <View>
+              <SectionHeader
+                label={t('sidebar.agents')}
+                collapsed={agentsSectionCollapsed}
+                onToggle={handleToggleAgentsSection}
+                onAdd={handleNewAgent}
+                addAccessibilityLabel={t('agents.createAgent')}
+              />
+              {!agentsSectionCollapsed && (
+                <View className="gap-1">
+                  {myAgents.length === 0 ? (
+                    <View className="items-center justify-center py-4">
+                      <Text className="text-xs text-muted-foreground">
+                        {t('sidebar.noAgents')}
+                      </Text>
+                    </View>
+                  ) : (
+                    myAgents.map((agent) => {
+                      const handle = agentHandle(agent);
+                      const name = agentDisplayName(agent);
+                      return (
+                        <SidebarRow
+                          key={agent._id}
+                          icon={Users}
+                          leading={<AgentGlyph size={18} color={agent.color} />}
+                          label={name}
+                          accessibilityLabel={handle.length > 0 ? `@${handle}` : name}
+                          onPress={() => handleOpenAgentThread(handle)}
+                        />
+                      );
+                    })
+                  )}
+                </View>
+              )}
+            </View>
+
             {/* Projects Subsection */}
             <View>
               <View className="flex-row items-center justify-between pt-4 pb-1 px-2">
@@ -698,7 +767,7 @@ export const Sidebar = React.memo(function Sidebar() {
               </View>
               {!historyCollapsed && (
                 <View className="gap-1">
-{conversationsNotInProjects.length === 0 ? (
+{historyConversations.length === 0 ? (
                   isLoading ? (
                     <SidebarSkeleton />
                   ) : (
@@ -713,14 +782,14 @@ export const Sidebar = React.memo(function Sidebar() {
                     {/* Render folders (always on top, favorites first) */}
                     {folders
                       .filter((folder) => {
-                        const folderConvs = conversationsNotInProjects.filter((conv) =>
+                        const folderConvs = historyConversations.filter((conv) =>
                           folder.conversationIds.includes(conv.id)
                         );
                         return folderConvs.length > 0 || true;
                       })
                       .sort((a, b) => (b.isFavorite ? 1 : 0) - (a.isFavorite ? 1 : 0))
                       .map((folder) => {
-                        const folderConversations = conversationsNotInProjects.filter((conv) =>
+                        const folderConversations = historyConversations.filter((conv) =>
                           folder.conversationIds.includes(conv.id)
                         );
                         return (

@@ -12,6 +12,8 @@ export const queryKeys = {
     modes: () => ['catalogue', 'modes'] as const,
   },
   agents: {
+    /** The agents this person owns, which the sidebar lists. */
+    mine: ['agents', 'mine'] as const,
     /**
      * Keyed by the USERNAME the URL carries, not by the agent id, because the
      * id is part of what the query answers — `/a/pepe` is resolvable before
