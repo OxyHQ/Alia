@@ -22,6 +22,7 @@ import { useScrollToBottom } from "@/lib/hooks/use-scroll-to-bottom";
 import { ChatHeader } from "@/components/chat-header";
 import { useAuth } from "@oxyhq/services";
 import type { Message } from "@/types/chat";
+import type { ThreadMessage } from "@/lib/thread-history";
 import { toast } from "@oxyhq/bloom/toast";
 import { VoiceControls, useAmbientWave } from "@alia.onl/sdk/voice";
 import { AlertTriangle, Pencil } from "lucide-react-native";
@@ -129,6 +130,17 @@ interface ChatPageContentProps {
    * instance a `composerDraft` belongs to.
    */
   conversationId?: string;
+  /**
+   * The thread's history and how to ask for more of it.
+   *
+   * All four are absent on `/c/:id`: a chat in the sidebar is one conversation
+   * with nothing behind it, so there is no older stretch to page into and no
+   * seam to draw.
+   */
+  historyMessages?: ThreadMessage[];
+  hasMoreHistory?: boolean;
+  isLoadingHistory?: boolean;
+  onLoadHistory?: () => void;
 }
 
 
@@ -157,6 +169,10 @@ export const ChatPageContent = ({
   onAcceptNewConversation,
   onDismissNewConversation,
   conversationId,
+  historyMessages,
+  hasMoreHistory = false,
+  isLoadingHistory = false,
+  onLoadHistory,
 }: ChatPageContentProps) => {
   const attachments = useStore((state) => state.attachments);
   const addAttachment = useStore((state) => state.addAttachment);
@@ -230,8 +246,19 @@ export const ChatPageContent = ({
   const [bottomBarHeight, setBottomBarHeight] = useState(160);
   const isMainScreen = messages.length === 0;
 
-  const { isAtBottom, scrollToBottom, onScroll, onContentSizeChange } =
-    useScrollToBottom(scrollViewRef);
+  /**
+   * Reading upwards asks for the page above, and holds the reader in place
+   * while it lands — both inside the scroll hook, because they are one act: a
+   * page that arrives without the position being restored leaves the reader at
+   * the top again, asking for the next one.
+   */
+  const { isAtBottom, scrollToBottom, onScroll, onContentSizeChange, historyEndsAt } =
+    useScrollToBottom(
+      scrollViewRef,
+      onLoadHistory === undefined
+        ? undefined
+        : { hasMore: hasMoreHistory, isLoading: isLoadingHistory, load: onLoadHistory },
+    );
 
   useEffect(() => {
     useStore.getState().setGhostMode(false);
@@ -488,6 +515,10 @@ export const ChatPageContent = ({
           voiceAgentState={voice?.agentState}
           onScroll={onScroll}
           onContentSizeChange={onContentSizeChange}
+          historyMessages={historyMessages}
+          isLoadingHistory={isLoadingHistory}
+          onHistoryHeight={historyEndsAt}
+          activeConversationId={conversationId}
           agentActivity={agentActivity}
           agentSessionId={agentSessionId}
           onApprovePlan={onApprovePlan}

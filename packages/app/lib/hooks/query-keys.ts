@@ -20,6 +20,12 @@ export const queryKeys = {
      * anything is known about who Pepe is.
      */
     thread: (username: string) => ['agent-thread', username] as const,
+    /**
+     * The thread's history, kept apart from the thread itself: re-reading which
+     * conversation is active is cheap and happens whenever a new stretch
+     * starts, while the pages behind it are immutable and expensive to refetch.
+     */
+    threadMessages: (username: string) => ['agent-thread-messages', username] as const,
   },
   conversations: {
     all: ['conversations'] as const,
