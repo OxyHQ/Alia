@@ -27,8 +27,9 @@ import { getDb } from '../../db/index.js';
 import {
   findEpisodeById,
   findSeriesById,
-  recentRecaps,
+  priorEpisodes,
   updateEpisode,
+  type PriorEpisode,
   type ShowEpisodePatch,
   type ShowEpisodeRow,
   type ShowSeriesRow,
@@ -47,6 +48,7 @@ import { getOrCreateUserCredits } from '../user-credits-helpers.js';
 import { sendNotification } from '../notification-service.js';
 import { syraForTicket } from '../syra/syra.js';
 import { buildScriptSystemPrompt, buildScriptUserPrompt } from './script-prompt.js';
+import { cleanTitle } from './episode-title.js';
 import { concatenateAudioSegments, measureAudioDurationMs } from './show-audio.js';
 import { log } from '../logger.js';
 import { getSafeErrorMessage } from '../errors/sanitize.js';
@@ -56,11 +58,29 @@ import type { ShowSegment, ShowSpeaker } from '../../db/schema/shows.js';
 /** Max concurrent synthesis calls, to stay inside provider rate limits. */
 const TTS_BATCH_SIZE = 3;
 
-/** How many earlier episodes the script is told about. */
+/** How many earlier episodes the script is given the FULL recap of. */
 const RECAP_WINDOW = 3;
+
+/**
+ * How many earlier episodes contribute their subject to the "already covered"
+ * list — the memory that stops a show repeating itself.
+ *
+ * Fifty, because a weekly show reaches fifty in a year and a subject it last
+ * covered more than a year ago is a revisit rather than a repeat. It is a
+ * ceiling, not a promise: past it the OLDEST fall out, so a show longer than
+ * this can cover something it did in its first season and nothing will notice.
+ * The alternative is a prompt that grows for the life of the series.
+ */
+const SUBJECT_LEDGER_LIMIT = 50;
 
 /** What the model is asked to write, per episode. */
 const TARGET_MINUTES = 3;
+
+/**
+ * The longest subject line stored on a row, matching what the route accepts
+ * from a person. A model asked for one line occasionally writes a paragraph.
+ */
+const MAX_TOPIC_LENGTH = 2000;
 
 /**
  * What one episode costs its owner.
@@ -93,8 +113,15 @@ export function showCreditCost(input: {
   return Math.max(1, Math.ceil(input.spokenCharacters / 200)) + SCRIPT_CREDITS;
 }
 
-/** What the model returns. The title is not among them — Syra fixed it at draft time. */
+/** What the model returns, having chosen the subject and named the result. */
 interface ShowScript {
+  /**
+   * The subject the model settled on, or `null` when the row already had one
+   * and the model's restatement of it was therefore never read.
+   */
+  topic: string | null;
+  /** Read off the finished script. `null` when nothing usable came back. */
+  title: string | null;
   description: string;
   summary: string;
   recap: string;
@@ -119,6 +146,13 @@ interface ProgressUpdate {
  *
  * Carries `seriesId` beside `episodeId` because the app renders episodes inside
  * a series and a bare episode id would send it looking for which list to update.
+ *
+ * And the TITLE, which is not merely progress: an episode nobody named has none
+ * until the script writes one, minutes before the run ends, so without this the
+ * screen falls back to the episode number for the whole recording while the row
+ * already holds the real name. `episode` is rebound by every patch, so this
+ * reads whatever the last write left — which is the name from the moment there
+ * is one.
  */
 function emitProgress(episode: ShowEpisodeRow, update: ProgressUpdate): void {
   const io = getIO();
@@ -126,6 +160,10 @@ function emitProgress(episode: ShowEpisodeRow, update: ProgressUpdate): void {
     io.to(`user:${episode.userId}`).emit('show:progress', {
       episodeId: episode.id,
       seriesId: episode.seriesId,
+      // Only once there IS one. An episode nobody named carries null until the
+      // script writes a title, and emitting that would ask the client to blank
+      // a name rather than to wait for one.
+      ...(episode.title === null ? {} : { title: episode.title }),
       ...update,
     });
   }
@@ -188,13 +226,13 @@ export async function runShowPipeline(episodeId: string): Promise<void> {
       currentStep: 'Writing the script...',
     });
 
-    const previousRecaps = await recentRecaps(
+    const previously = await priorEpisodes(
       getDb(),
       series.id,
       episode.episodeNumber,
-      RECAP_WINDOW,
+      SUBJECT_LEDGER_LIMIT,
     );
-    const script = await generateScript(series, episode, previousRecaps);
+    const script = await generateScript(series, episode, previously);
     if (!script) {
       settled = true;
       await refundReservation(reservation);
@@ -202,6 +240,37 @@ export async function runShowPipeline(episodeId: string): Promise<void> {
       emitProgress(episode, { status: 'failed', progress: 0, currentStep: 'Failed' });
       return;
     }
+
+    /**
+     * The subject and the name, written NOW rather than at the end of the run.
+     *
+     * The subject first: this row's `topic` is what the NEXT episode is told not
+     * to cover again, and the rest of this run is minutes of synthesis. Writing
+     * it here rather than after the audio is what stops an episode queued during
+     * those minutes choosing the same subject. It does not close the window
+     * altogether — three episodes whose scripts are being written at the same
+     * moment still see the same list — but it shrinks it from the whole run to
+     * one model call.
+     *
+     * `episode.topic` wins when it exists: an owner who said what this one
+     * covers said it, and the model's restatement is not an improvement on their
+     * own words.
+     *
+     * The name second, and it has the SAME precedence, which is the whole
+     * shape of both fields: an owner's own choice first, the model's reading of
+     * the finished script when they made none, and only then a fallback. A
+     * title already on the row means somebody named this episode and the
+     * pipeline is not entitled to revise it — `episode.title` is null unless
+     * they did, which is exactly why the column is nullable.
+     *
+     * `cleanTitle` answers `null` for a reply that is an explanation rather
+     * than a title, and then `Episode {n}` stands. That is the same string the
+     * route reserved the Syra draft under, so the fallback changes nothing on
+     * either side; a plain name is a name, and refusing to publish over one
+     * would be absurd.
+     */
+    const subject = episode.topic ?? script.topic;
+    const title = episode.title ?? script.title ?? `Episode ${episode.episodeNumber}`;
 
     // ── 2. Audio ─────────────────────────────────────────────────────────────
     const segments: ShowSegment[] = script.segments.map((segment, index) => ({
@@ -212,7 +281,7 @@ export async function runShowPipeline(episodeId: string): Promise<void> {
       ...(segment.sfxPrompt === undefined ? {} : { sfxPrompt: segment.sfxPrompt }),
     }));
 
-    await applyUpdate({ status: 'generating_audio', segments, progress: 15 });
+    await applyUpdate({ status: 'generating_audio', segments, progress: 15, topic: subject, title });
     emitProgress(episode, {
       status: 'generating_audio',
       progress: 15,
@@ -286,6 +355,18 @@ export async function runShowPipeline(episodeId: string): Promise<void> {
       // `Blob` is global on Node 20 and is what the SDK's multipart body wants.
       new Blob([new Uint8Array(audio)], { type: 'audio/mpeg' }),
       {
+        /**
+         * The name the published episode keeps, and the reason it can be sent
+         * at all: Syra's ingest allowlist used to refuse a title, which is what
+         * forced one to be guessed in the route before the episode existed.
+         *
+         * Sent unconditionally, including when the owner chose it — that is the
+         * SAME string the draft was reserved under, so it is a no-op there and
+         * one code path here rather than two. Never empty: `title` resolves to
+         * the owner's name, the script's, or `Episode {n}`, and Syra reads an
+         * ABSENT title as "keep the draft's", not as "blank it".
+         */
+        title,
         // SECONDS. Syra writes this straight into `<itunes:duration>`, so
         // milliseconds here would publish every episode as roughly fifty hours.
         ...(durationMs === null ? {} : { duration: Math.round(durationMs / 1000) }),
@@ -343,7 +424,9 @@ export async function runShowPipeline(episodeId: string): Promise<void> {
       userId: episode.userId,
       type: 'agent_task_complete',
       title: 'Episode Ready',
-      body: `"${episode.title}" is ready to listen on ${series.title}.`,
+      // The local, not `episode.title`: the same string that was written to the
+      // row and sent to Syra, so the three cannot say different names.
+      body: `"${title}" is ready to listen on ${series.title}.`,
       data: { seriesId: series.id, episodeId: episode.id, syraEpisodeId: episode.syraEpisodeId },
     }).catch((err: unknown) => {
       log.general.warn({ err }, 'Failed to send episode completion notification');
@@ -471,7 +554,7 @@ async function renderSegments(
 async function generateScript(
   series: ShowSeriesRow,
   episode: ShowEpisodeRow,
-  previousRecaps: readonly string[],
+  previously: readonly PriorEpisode[],
 ): Promise<ShowScript | null> {
   const MAX_ATTEMPTS = 3;
   const skipProviders = new Set<string>();
@@ -479,15 +562,20 @@ async function generateScript(
   const system = buildScriptSystemPrompt(series.format, series.speakers);
   const user = buildScriptUserPrompt({
     brief: series.brief,
-    title: episode.title,
+    seriesTitle: series.title,
     topic: episode.topic,
     episodeNumber: episode.episodeNumber,
     notes: episode.notes ?? undefined,
-    previousRecaps,
+    previously,
+    recapWindow: RECAP_WINDOW,
     targetDurationMinutes: TARGET_MINUTES,
   });
 
   const castNames = new Set(series.speakers.map((speaker) => speaker.name));
+  // A reply with no usable subject is only a failure when the row has none
+  // either — otherwise the owner's own words are the subject and the model was
+  // never being asked to choose.
+  const needsTopic = episode.topic === null;
 
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
     const resolved = await resolveModel(getDefaultAliaModel(), skipProviders);
@@ -504,7 +592,7 @@ async function generateScript(
         maxRetries: 0,
       });
 
-      const parsed = parseScript(result.text ?? '', castNames);
+      const parsed = parseScript(result.text ?? '', castNames, needsTopic);
       if (parsed) return parsed;
 
       // The model's own answer; only its size distinguishes an empty reply from
@@ -526,15 +614,21 @@ async function generateScript(
 /**
  * Read a script out of a model's reply, or answer `null`.
  *
- * Two rejections beyond "is it JSON", and both were failures the old version
- * shipped as degraded shows rather than as retries:
+ * Three rejections beyond "is it JSON", and the first two were failures the old
+ * version shipped as degraded shows rather than as retries:
  *
  *  - fewer than three segments is not an episode;
  *  - a dialogue segment naming somebody who is not in the cast has no voice to
  *    be spoken in, so it would be dropped silently later. Rejecting the whole
  *    reply here retries with another provider instead, which is what a caller
  *    would want and what the old code could not do because it discovered the
- *    problem three steps downstream.
+ *    problem three steps downstream;
+ *  - no usable `topic`, when the row has none either. That combination is an
+ *    episode nothing can say the subject of: the row's `topic` is what the NEXT
+ *    episode is told not to repeat, so accepting the script would publish this
+ *    one and then let the show cover it again. `title` gets no such rejection —
+ *    it has a placeholder to fall back on, and refusing a whole script over a
+ *    name would be absurd.
  *
  * A dialogue line is stored and forwarded EXACTLY as the model wrote it, and
  * that is deliberate. `[laughs]` is a tag a tag-capable voice performs, so
@@ -542,7 +636,11 @@ async function generateScript(
  * `synthesize-speech.ts` decides per attempt, because only that loop knows
  * which model in the failover chain actually answered.
  */
-function parseScript(reply: string, castNames: ReadonlySet<string>): ShowScript | null {
+function parseScript(
+  reply: string,
+  castNames: ReadonlySet<string>,
+  needsTopic: boolean,
+): ShowScript | null {
   const json = reply.match(/\{[\s\S]*\}/);
   if (!json) return null;
 
@@ -560,7 +658,17 @@ function parseScript(reply: string, castNames: ReadonlySet<string>): ShowScript 
   if (dialogue.length === 0) return null;
   if (dialogue.some((segment) => !castNames.has(segment.speaker))) return null;
 
+  // One line, so a model that answered with a paragraph contributes a marker
+  // rather than a wall — and bounded, because this is what fifty later prompts
+  // will each carry a slice of.
+  const raw = typeof parsed.topic === 'string' ? parsed.topic.trim() : '';
+  const firstLine = (raw.split('\n')[0] ?? '').trim();
+  const topic = firstLine === '' ? null : firstLine.slice(0, MAX_TOPIC_LENGTH);
+  if (needsTopic && topic === null) return null;
+
   return {
+    topic,
+    title: cleanTitle(typeof parsed.title === 'string' ? parsed.title : ''),
     description: typeof parsed.description === 'string' ? parsed.description : '',
     summary: typeof parsed.summary === 'string' ? parsed.summary : '',
     recap: typeof parsed.recap === 'string' ? parsed.recap : '',

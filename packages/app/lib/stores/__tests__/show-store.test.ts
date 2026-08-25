@@ -53,8 +53,19 @@ const EPISODE = {
 async function freshStore() {
   vi.resetModules();
   const module = await import('../show-store');
+  episodeDisplayTitle = module.episodeDisplayTitle;
   return module.useShowStore;
 }
+
+/**
+ * Rebound by `freshStore`, because `vi.resetModules()` gives every test its own
+ * copy of the module and a binding captured at import time would be a different
+ * function from the one the store under test is using.
+ */
+let episodeDisplayTitle: (episode: {
+  title: string | null;
+  episodeNumber: number;
+}) => string;
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -104,64 +115,98 @@ describe('reading a series', () => {
 });
 
 describe('starting an episode', () => {
-  it('posts to the series, and shows it as queued before the first event', async () => {
+  it('asks for another one with nothing to say, and sends a body anyway', async () => {
     const useShowStore = await freshStore();
     post.mockResolvedValueOnce({
       data: {
         episodeId: 'episode-new',
         seriesId: 'series-abc',
         episodeNumber: 3,
-        title: 'The third one',
+        // `null`, which is what the API stores for an episode nobody named.
+        title: null,
         status: 'queued',
       },
     });
 
-    const id = await useShowStore
-      .getState()
-      .createEpisode('series-abc', { title: 'The third one', topic: 'more things' });
+    const id = await useShowStore.getState().createEpisode('series-abc');
 
-    expect(post).toHaveBeenCalledWith('/shows/series/series-abc/episodes', {
-      title: 'The third one',
-      topic: 'more things',
-      notes: undefined,
-    });
+    /**
+     * `{}`, not `undefined`. This is the whole change on this side: the button
+     * asks for another episode and says nothing about it, because the series
+     * already knows what the show is about.
+     *
+     * Asserted as the exact body rather than as "no topic", because the two
+     * differ where it matters — a `POST` with no body at all reaches Express as
+     * `req.body === undefined`, which is not the same request.
+     */
+    expect(post).toHaveBeenCalledWith('/shows/series/series-abc/episodes', {});
     expect(id).toBe('episode-new');
 
     const [first] = useShowStore.getState().episodesBySeries['series-abc'] ?? [];
-    expect(first?.id).toBe('episode-new');
     expect(first?.status).toBe('queued');
     expect(first?.episodeNumber).toBe(3);
+    // No subject is INVENTED for the optimistic row. The script has not chosen
+    // one yet, and a row claiming otherwise would show a subject that never
+    // came from anywhere.
+    expect(first?.topic).toBeUndefined();
   });
 
-  it('shows the name the SERVER chose when the caller supplied none', async () => {
+  it('still carries a subject and a name when the owner supplies them', async () => {
+    // The positive control for the assertion above: a store that dropped every
+    // input would satisfy "posts an empty body" perfectly.
     const useShowStore = await freshStore();
     post.mockResolvedValueOnce({
       data: {
         episodeId: 'episode-new',
         seriesId: 'series-abc',
         episodeNumber: 3,
-        title: 'How leaves eat light',
+        title: 'The Reckoning',
         status: 'queued',
       },
     });
 
     await useShowStore
       .getState()
-      .createEpisode('series-abc', { topic: 'hablemos de la fotosíntesis' });
+      .createEpisode('series-abc', {
+        title: 'The Reckoning',
+        topic: 'hablemos de la fotosíntesis',
+      });
 
-    // No `title` key at all, rather than `title: undefined` — the API treats an
-    // absent title as "name it for me" and a present-but-empty one as invalid.
+    // No `notes: undefined` key either — the API distinguishes an absent field
+    // from a present empty one.
     expect(post).toHaveBeenCalledWith('/shows/series/series-abc/episodes', {
+      title: 'The Reckoning',
       topic: 'hablemos de la fotosíntesis',
-      notes: undefined,
     });
 
-    // The optimistic row shows the model's name, not the raw topic. Without
-    // reading `title` back from the response this renders blank until the next
-    // fetch, which is the whole reason the route echoes it.
     const [first] = useShowStore.getState().episodesBySeries['series-abc'] ?? [];
-    expect(first?.title).toBe('How leaves eat light');
-    expect(first?.title).not.toBe('hablemos de la fotosíntesis');
+    expect(first?.topic).toBe('hablemos de la fotosíntesis');
+    expect(first?.title).toBe('The Reckoning');
+  });
+
+  it('holds no name for an episode nobody named, and shows the number instead', async () => {
+    const useShowStore = await freshStore();
+    post.mockResolvedValueOnce({
+      data: {
+        episodeId: 'episode-new',
+        seriesId: 'series-abc',
+        episodeNumber: 3,
+        title: null,
+        status: 'queued',
+      },
+    });
+
+    await useShowStore.getState().createEpisode('series-abc');
+
+    /**
+     * `null` on the row and `Episode 3` on the screen, which are different
+     * things. Storing the placeholder instead would be a name the database does
+     * not hold and that nothing later replaces — and it is exactly what makes
+     * "the owner chose this" and "nothing named it" indistinguishable.
+     */
+    const [first] = useShowStore.getState().episodesBySeries['series-abc'] ?? [];
+    expect(first?.title).toBeNull();
+    expect(first === undefined ? '' : episodeDisplayTitle(first)).toBe('Episode 3');
   });
 
   it('reports a refusal rather than pretending it started', async () => {
@@ -170,9 +215,7 @@ describe('starting an episode', () => {
       response: { data: { error: { message: 'Maximum 3 episodes generating at once.' } } },
     });
 
-    const id = await useShowStore
-      .getState()
-      .createEpisode('series-abc', { title: 'A fourth', topic: 'too many' });
+    const id = await useShowStore.getState().createEpisode('series-abc');
 
     expect(id).toBeNull();
     expect(useShowStore.getState().error).toContain('Maximum 3');
@@ -199,6 +242,54 @@ describe('progress events', () => {
     expect(episode?.status).toBe('generating_audio');
     expect(episode?.progress).toBe(42);
     expect(useShowStore.getState().activeGenerations.get('episode-xyz')?.progress).toBe(42);
+  });
+
+  it('renames the episode when the script does, mid-run', async () => {
+    const useShowStore = await freshStore();
+    get.mockResolvedValueOnce({
+      data: {
+        series: SERIES,
+        episodes: [{ ...EPISODE, title: 'Episode 2', status: 'queued', progress: 0 }],
+        total: 1,
+      },
+    });
+    await useShowStore.getState().fetchOneSeries('series-abc');
+
+    useShowStore.getState().updateProgress({
+      episodeId: 'episode-xyz',
+      seriesId: 'series-abc',
+      status: 'generating_audio',
+      progress: 15,
+      currentStep: 'Recording...',
+      title: 'What the deep sea is hiding',
+    });
+
+    /**
+     * The API reserves the episode under `Episode {n}` and the script renames it
+     * minutes before the run ends. Without this the row shows the placeholder
+     * for the whole recording, even though the name already exists.
+     */
+    const [episode] = useShowStore.getState().episodesBySeries['series-abc'] ?? [];
+    expect(episode?.title).toBe('What the deep sea is hiding');
+  });
+
+  it('leaves the name alone when an event carries none', async () => {
+    // The positive control. Spreading the field unconditionally blanks the
+    // title on every event an older API sends.
+    const useShowStore = await freshStore();
+    get.mockResolvedValueOnce({ data: { series: SERIES, episodes: [EPISODE], total: 1 } });
+    await useShowStore.getState().fetchOneSeries('series-abc');
+
+    useShowStore.getState().updateProgress({
+      episodeId: 'episode-xyz',
+      seriesId: 'series-abc',
+      status: 'generating_audio',
+      progress: 15,
+      currentStep: 'Recording...',
+    });
+
+    const [episode] = useShowStore.getState().episodesBySeries['series-abc'] ?? [];
+    expect(episode?.title).toBe('The second one');
   });
 
   it('stops tracking an episode once it finishes', async () => {

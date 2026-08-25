@@ -2,9 +2,14 @@
  * Creating a show SERIES — the thing episodes belong to.
  *
  * A series is a real podcast on Syra: it gets cover art, a visibility, and a
- * feed. So this asks for what a podcast needs rather than for one episode's
- * topic — a title, what the show is about, and who may hear it — and the
- * episode dialog asks for the rest, once per episode.
+ * feed. So this asks for what a podcast needs — a title, what the show is
+ * about, and who may hear it.
+ *
+ * The brief is the LOAD-BEARING field, and the copy beside it says so. Asking
+ * for an episode says nothing about what it covers, so every episode's subject
+ * is chosen from this and from the subjects earlier episodes used. A brief that
+ * describes one episode gives a show that can only ever make that episode
+ * again.
  */
 
 import React, { useCallback, useState } from 'react';
@@ -131,7 +136,10 @@ export function SeriesCreateDialog({ open, onOpenChange, onCreated }: SeriesCrea
               className="min-h-[80px]"
             />
             <Text className="text-xs text-muted-foreground">
-              Every episode is written from this, so describe the show rather than one episode.
+              This is the only thing an episode is written from, and — unless you say otherwise
+              for one — the only thing its subject is chosen from. Describe the show and the
+              ground it covers, not one episode: a line or two gives a show with nothing to vary
+              along.
             </Text>
           </View>
 

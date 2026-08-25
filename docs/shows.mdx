@@ -24,16 +24,61 @@ is NOT NULL — and it means "give me another episode" needs no special case.
 | Table | Holds |
 |---|---|
 | `show_series` | One row per Syra podcast: title, brief, format, cast, visibility, `syra_podcast_id`, `next_episode_number` |
-| `show_episodes` | One row per episode: number, topic, status, segments, recap, `syra_episode_id`, the ingest ticket |
+| `show_episodes` | One row per episode: number, title, topic, status, segments, recap, `syra_episode_id`, the ingest ticket |
 | `show_preferences` | An account's default visibility and format |
 
 Voices are cast **once, when the series is created**, and every episode reads
 `series.speakers`. A podcast whose hosts changed voice between episodes would be
 absurd, and the per-episode assignment this replaced did exactly that.
 
-Continuity comes from `show_episodes.recap`: the script prompt for episode N is
-handed the previous few recaps, so it neither repeats them nor pretends they
-never happened.
+## The brief belongs to the series, so an episode asks for nothing
+
+**"New episode" is one press.** Nobody is asked what it should cover, because
+the show already knows what it is about: `show_series.brief` is its standing
+premise and the subjects earlier episodes used say what it has already spent.
+The script model is handed both and chooses. `POST /shows/series/:id/episodes`
+therefore accepts a request with **no body at all**.
+
+An owner may still steer one. `topic` and `title` both survive as **optional
+overrides — not rival defaults** — for the week when there is an election result
+to cover, an article to work from, or a name already in mind. Each has the same
+precedence: supplied, it is stored and nothing second-guesses it; absent, the
+pipeline decides. What was removed is the requirement, not the ability.
+
+That precedence is what makes both columns nullable. Storing a placeholder
+instead would leave "the owner chose this name" and "nothing has named it yet"
+looking identical, and the only way back would be guessing from whether a string
+LOOKS generated.
+
+### Two memories, at two different costs
+
+| | Column | Sent | Costs |
+|---|---|---|---|
+| Breadth | `show_episodes.topic` | every earlier episode, one line each | ~15 words per episode |
+| Detail | `show_episodes.recap` | the last three | a paragraph each |
+
+Recaps alone are exactly how a show repeats itself at episode nine: the window
+holds 6, 7 and 8, and episode 2 is as invisible to the model as if it had never
+aired. So `topic` became the series' long memory — one line per episode is
+affordable for fifty of them, and it is what the prompt lists under *"these
+subjects are used up"*.
+
+`priorEpisodes()` reads both in one query and excludes only **failed** runs. A
+run that died said nothing to a listener, so holding its subject back would
+retire a subject the show never actually did; an episode still *recording* is
+kept, because it has already claimed one — that is what stops two episodes
+queued a minute apart covering the same thing.
+
+**Two honest limits.** The ledger keeps the newest fifty, so a show longer than
+that may revisit something from beyond it. And three episodes whose scripts are
+being written in the same moment still see the same list: the subject is written
+the instant the script parses, which shrinks that window from the whole run to
+one model call, but does not close it.
+
+**A thin brief is the real failure mode.** Ten characters is a valid brief and
+gives a show with nothing to vary along — the ledger will stop it repeating
+itself literally and cannot make it about anything. The series dialog says so
+where an owner will read it; the schema cannot.
 
 ## Routes are `/shows`, not `/v1/shows`
 
@@ -77,10 +122,44 @@ no shortcut past it. `lib/syra/syra.ts` is the whole seam: two clients, one
 carrying the caller's token, one carrying nothing. Every call goes through
 `@syra.fm/sdk` — Syra owns its wire format the way Kaana owns inference.
 
-Syra fixes an episode's `title` at draft time and its ingest allowlist refuses
-one, because a capability has no business renaming a published episode. The
-script therefore cannot name its own episode; a model names it earlier, in the
-route, from the topic.
+### The name is written twice, and the second one is real
+
+Syra requires a `title` to reserve the draft, minutes before any script exists.
+So the route sends a **placeholder** — `Episode {n}`, the one thing that is
+certainly true — and the pipeline replaces it once the script is written, from
+what the episode actually says. The placeholder goes to **Syra only**; the Alia
+row stays `null`, because that null is what says nobody has named this yet.
+
+An owner who did name it wins on both sides at once: the draft is reserved under
+their name, the row stores it, and the pipeline finds a title already there and
+leaves it alone. Precedence in one line — **owner, then script, then
+`Episode {n}`.**
+
+It used to have to be decided in the route, from the topic, because Syra's
+ingest allowlist refused a title outright: a capability has no business renaming
+a published episode. That name was a name for an episode nobody had written yet,
+and production shows what it produced — see the census in migration `0040`.
+
+The ingest sends the name **unconditionally**, including when the owner chose
+it — that is the same string the draft was reserved under, so it is a no-op
+there and one code path here rather than two. Syra reads an *absent* title as
+"keep the draft's", never as "blank it", which is precisely why omitting it on
+the fallback path would look correct and be wrong everywhere else.
+
+Two details that are not incidental:
+
+- **`title` is the LAST field in the script's JSON schema**, after `segments`. A
+  model fills an object in the order it is given, so a title asked for above the
+  dialogue is a title written from the subject — the very thing this replaced.
+  `recap` sits there too, for the same reason.
+- **A bad reply falls back to `Episode {n}`.** `cleanTitle()` answers `null` for
+  an explanation, a list of candidates or a paragraph. That is the same string
+  the draft was reserved under, so the fallback changes nothing on either side.
+  Refusing to publish an episode over its name would be absurd.
+
+There is still no route to RENAME an episode after it exists — a rename is
+Syra's to accept, with the owner's own token, and that call does not exist here.
+Naming one up front does.
 
 ## Playback is `/audio`, not `/stream`
 
@@ -154,6 +233,6 @@ loses everything it asked for is worse than one that admits it.
 `api.syra.fm` with the listener's token, so Alia's web origin must be in Syra's
 CORS allow-list. Native has no CORS and is unaffected.
 
-Key files: `db/schema/shows.ts`, `db/shows/showRepository.ts`,
+Key files: `db/schema/shows.ts`, `db/shows/showRepository.ts` (`priorEpisodes`),
 `lib/show/` (pipeline, prompts, voices, audio, cover art, titles),
 `lib/syra/syra.ts`, `routes/shows.ts`.

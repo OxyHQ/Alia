@@ -24,7 +24,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Plus, Trash2, ChevronLeft, ExternalLink, Lock, Link2, Globe } from 'lucide-react-native';
+import { Plus, Trash2, ChevronLeft, ExternalLink, Lock, Link2, Globe, Pencil } from 'lucide-react-native';
 import { toast } from '@oxyhq/bloom/toast';
 import { ContentPanel } from '@oxyhq/bloom/content-panel';
 import { withAlpha } from '@oxyhq/bloom/theme';
@@ -68,12 +68,14 @@ export default function SeriesDetailScreen() {
   const series = useShowStore((s) => s.series.find((entry) => entry.id === seriesId));
   const episodes = useSeriesEpisodes(seriesId);
   const fetchOneSeries = useShowStore((s) => s.fetchOneSeries);
+  const createEpisode = useShowStore((s) => s.createEpisode);
   const deleteEpisode = useShowStore((s) => s.deleteEpisode);
   const deleteSeries = useShowStore((s) => s.deleteSeries);
 
   useShowProgress();
 
   const [createOpen, setCreateOpen] = useState(false);
+  const [starting, setStarting] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [descriptionExpanded, setDescriptionExpanded] = useState(false);
 
@@ -81,6 +83,24 @@ export default function SeriesDetailScreen() {
     if (seriesId === '') return;
     void fetchOneSeries(seriesId);
   }, [seriesId, fetchOneSeries]);
+
+  /**
+   * The whole action: another episode, please.
+   *
+   * Nothing to fill in, because there is nothing this screen knows that the
+   * show does not — the brief says what it is about and the earlier episodes
+   * say what it has already covered. `starting` is what stops an impatient
+   * second press queueing a second episode against the three-at-once cap.
+   */
+  const handleNewEpisode = useCallback(async () => {
+    setStarting(true);
+    try {
+      const episodeId = await createEpisode(seriesId);
+      if (episodeId) toast.success('Recording started');
+    } finally {
+      setStarting(false);
+    }
+  }, [createEpisode, seriesId]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -219,11 +239,29 @@ export default function SeriesDetailScreen() {
               <Button
                 size="sm"
                 className="flex-row items-center gap-1.5 rounded-full"
-                onPress={() => setCreateOpen(true)}
+                onPress={handleNewEpisode}
+                disabled={starting}
               >
                 <Plus size={14} className="text-primary-foreground" />
-                <Text className="text-sm text-primary-foreground">New episode</Text>
+                <Text className="text-sm text-primary-foreground">
+                  {starting ? 'Starting...' : 'New episode'}
+                </Text>
               </Button>
+              {/*
+                The other case, kept and kept QUIET: usually there is nothing
+                specific to say, and occasionally there is an article to work
+                from or a subject that will not wait.
+              */}
+              <Pressable
+                onPress={() => setCreateOpen(true)}
+                disabled={starting}
+                accessibilityRole="button"
+                accessibilityLabel="Say what this episode should cover"
+                className="h-8 flex-row items-center gap-1.5 rounded-full border border-border px-3 active:opacity-70 web:hover:bg-muted"
+              >
+                <Pencil size={13} className="text-muted-foreground" />
+                <Text className="text-xs font-medium text-muted-foreground">Something specific</Text>
+              </Pressable>
               <Pressable
                 onPress={openOnSyra}
                 accessibilityRole="link"
@@ -307,16 +345,31 @@ export default function SeriesDetailScreen() {
                 No episodes yet
               </Text>
               <Text className="text-center text-sm text-muted-foreground">
-                Say what the first one should cover, and Alia will write it, voice it with{' '}
-                {series.speakers.map((speaker) => speaker.name).join(' and ')}, and publish it.
+                Alia will work out what the first one covers from what this show is about, write
+                it, voice it with {series.speakers.map((speaker) => speaker.name).join(' and ')},
+                and publish it.
               </Text>
               <Button
-                onPress={() => setCreateOpen(true)}
+                onPress={handleNewEpisode}
+                disabled={starting}
                 className="flex-row items-center gap-1.5 rounded-full"
               >
                 <Plus size={14} className="text-primary-foreground" />
-                <Text className="text-primary-foreground">Record the first episode</Text>
+                <Text className="text-primary-foreground">
+                  {starting ? 'Starting...' : 'Record the first episode'}
+                </Text>
               </Button>
+              <Pressable
+                onPress={() => setCreateOpen(true)}
+                disabled={starting}
+                accessibilityRole="button"
+                accessibilityLabel="Say what the first episode should cover"
+                className="active:opacity-70"
+              >
+                <Text className="text-[13px] font-semibold text-primary">
+                  Or say what it should cover
+                </Text>
+              </Pressable>
             </View>
           }
           ListFooterComponent={
