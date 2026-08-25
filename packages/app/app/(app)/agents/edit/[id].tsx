@@ -76,6 +76,21 @@ const CATEGORIES = [
 
 type SidebarTab = "resources" | "settings";
 
+/**
+ * One toast for the whole screen's autosave, reused rather than stacked.
+ *
+ * The autosave is debounced at a second and fires on every field change, so a
+ * toast per save is a toast per pause while somebody writes a prompt — dozens,
+ * piling up. Passing the same id replaces the previous one instead, which is
+ * what makes the toast an INDICATOR rather than a log.
+ *
+ * Errors deliberately do NOT carry it. Two saves can be in flight at once (the
+ * name goes to Oxy while the tagline goes to Alia), and under a shared id a
+ * success arriving second would paint over a failure — which is the exact
+ * silence `agents.saveFailed` was added to break.
+ */
+const SAVE_TOAST_ID = 'agent-editor-save';
+
 export default function EditAgentScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
@@ -153,7 +168,6 @@ export default function EditAgentScreen() {
   const loadLibraryFiles = useLibraryStore((state) => state.loadFiles);
 
   // UI state
-  const [saving, setSaving] = useState(false);
   const [showPanel, setShowPanel] = useState(isLargeScreen);
   const [sidebarTab, setSidebarTab] = useState<SidebarTab>("resources");
 
@@ -231,13 +245,15 @@ export default function EditAgentScreen() {
       if (!id || isInitialLoad.current) return;
       if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
       saveTimeoutRef.current = setTimeout(async () => {
-        setSaving(true);
+        toast.loading(t("agents.saving"), { id: SAVE_TOAST_ID });
         try {
           await updateAgent(id, updates);
+          toast.success(t("agents.autoSaved"), { id: SAVE_TOAST_ID });
         } catch (error: unknown) {
+          // The pending indicator goes first: left under its id it would sit
+          // there spinning next to the failure it is contradicting.
+          toast.dismiss(SAVE_TOAST_ID);
           toast.error(getErrorMessage(error, t("agents.saveFailed")));
-        } finally {
-          setSaving(false);
         }
       }, 1000);
     },
@@ -276,7 +292,7 @@ export default function EditAgentScreen() {
     if (oxyAccountId === "" || isInitialLoad.current) return;
     if (identityTimeoutRef.current) clearTimeout(identityTimeoutRef.current);
     identityTimeoutRef.current = setTimeout(async () => {
-      setSaving(true);
+      toast.loading(t("agents.saving"), { id: SAVE_TOAST_ID });
       const trimmed = handle.trim();
       try {
         await oxyServices.updateAccount(oxyAccountId, {
@@ -293,31 +309,32 @@ export default function EditAgentScreen() {
         });
         savedHandle.current = trimmed;
         savedColor.current = color;
+        toast.success(t("agents.autoSaved"), { id: SAVE_TOAST_ID });
       } catch (error: unknown) {
+        toast.dismiss(SAVE_TOAST_ID);
         // A taken handle is the one failure worth saying out loud: the field
         // still shows what the person typed, and without this it silently
         // reverts on the next load with nothing to explain it.
         if (errorStatus(error) === 409) {
           setHandle(savedHandle.current);
           toast.error(t("agents.handleTaken"));
+        } else {
+          // This used to stay silent, on the reasoning that an autosave raising
+          // a toast per keystroke-shaped failure is worse than one that does
+          // not. The pending state is a toast now, so silence stopped being
+          // neutral: the "Saving…" would simply vanish, which reads as saved.
+          toast.error(getErrorMessage(error, t("agents.saveFailed")));
         }
-        // Everything else stays silent, as the Alia save beside it is: an
-        // autosave raising a toast on every keystroke-shaped failure is worse
-        // than one that does not.
-      } finally {
-        setSaving(false);
       }
     }, 1000);
     return () => {
       if (identityTimeoutRef.current) clearTimeout(identityTimeoutRef.current);
     };
     /**
-     * `t` is deliberately not a dependency. `useTranslation` builds a new one on
-     * every render and this effect calls `setSaving`, so listing it made the
-     * effect re-run once the save finished and write a SECOND time — measured:
-     * one colour pick produced `{name, color}` and then `{name}` a second
-     * later. `i18n.t` reads the current locale when it is called, so the toast
-     * is in the right language without the identity being watched.
+     * `t` is not a dependency, and no longer needs to be excluded for safety —
+     * it is memoised on the locale now. It stays out because a language change
+     * is not a reason to write to Oxy: the only thing this uses it for is a
+     * failure message, and `i18n.t` reads the locale when it is called.
      */
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [name, handle, color, oxyAccountId, oxyServices]);
@@ -916,11 +933,6 @@ export default function EditAgentScreen() {
                     {archetype.replace('_', ' ')}
                   </Text>
                 </View>
-              )}
-              {saving && (
-                <Text className="text-xs text-muted-foreground ml-2">
-                  {t("agents.saving")}
-                </Text>
               )}
             </View>
             <View className="flex-row items-center gap-2">
