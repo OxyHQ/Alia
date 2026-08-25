@@ -7,7 +7,8 @@
  */
 
 import type { TriggerRecord } from '../../db/automation/triggerRepository.js';
-import { findAgentById, type AgentRecord } from '../../db/agents/agentRepository.js';
+import { findAgentById } from '../../db/agents/agentRepository.js';
+import { agentPromptName, type HydratedAgent } from '../agent-identity.js';
 import { createRoutingLog } from '../../db/telemetry/routingLogRepository.js';
 import { getDb } from '../../db/index.js';
 import { startAgentSession } from './session-handoff.js';
@@ -67,7 +68,7 @@ function parseRoutingDecision(aiResult: string): RoutingDecision | null {
  * Creates a routing log, dispatches to the target, and notifies.
  */
 export async function handleRoutingDecision(
-  agent: AgentRecord,
+  agent: HydratedAgent,
   aiResult: string,
   trigger: TriggerRecord,
 ): Promise<void> {
@@ -136,7 +137,7 @@ export async function handleRoutingDecision(
             const handoff = await startAgentSession({
               agent: targetAgent,
               userId,
-              task: `[Routed by ${agent.name}] ${decision.summary}\n\nPriority: ${decision.priority}\nCategory: ${decision.category}`,
+              task: `[Routed by ${agentPromptName(agent)}] ${decision.summary}\n\nPriority: ${decision.priority}\nCategory: ${decision.category}`,
               // Routed by another agent, not chosen by a person: usage, not a hire.
               origin: 'delegation',
             });
@@ -164,7 +165,7 @@ export async function handleRoutingDecision(
           userId,
           type: 'trigger_result',
           title: `${priorityEmoji} ${decision.category}: ${decision.summary.slice(0, 80)}`,
-          body: `Routed by ${agent.name}\n\nPriority: ${decision.priority}\n${decision.reasoning}`,
+          body: `Routed by ${agentPromptName(agent)}\n\nPriority: ${decision.priority}\n${decision.reasoning}`,
           channels: ['in_app'],
           data: {
             routingLogId: routingLog._id,

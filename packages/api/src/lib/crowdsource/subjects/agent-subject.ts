@@ -1,6 +1,7 @@
 import { CONTRACT_LIMITS } from '@oxyhq/crowdsource-contracts';
 import { getDb } from '../../../db/index.js';
 import { findAgentById, type AgentRecord } from '../../../db/agents/agentRepository.js';
+import { attachAgentIdentity } from '../../agent-identity.js';
 import { ReportedType } from '../../../domain/report.js';
 import type {
   ModerationContextResource,
@@ -97,8 +98,12 @@ export function createAgentSubjectProvider(): ModerationSubjectProvider {
        * on. A moderation pipeline reporting success while never looking at
        * anything.
        */
-      const agent = await findAgentById(getDb(), reportedId);
-      if (!agent) return null;
+      const found = await findAgentById(getDb(), reportedId);
+      if (!found) return null;
+      // The handle, the name and the avatar are the bot account's, and a
+      // moderation snapshot must carry what the marketplace SHOWS rather than
+      // what Alia stores — so they are read from Oxy here, once.
+      const agent = await attachAgentIdentity(found);
 
       /**
        * Claims, not evidence. A handle, a category and a tagline are what the
@@ -106,7 +111,7 @@ export function createAgentSubjectProvider(): ModerationSubjectProvider {
        * allegation turns on.
        */
       const claims: Record<string, string> = {};
-      const handle = claim(agent.handle);
+      const handle = claim(agent.handle ?? '');
       if (handle !== undefined) claims.handle = handle;
       const tagline = claim(agent.tagline);
       if (tagline !== undefined) claims.tagline = tagline;
@@ -116,13 +121,6 @@ export function createAgentSubjectProvider(): ModerationSubjectProvider {
       if (archetype !== undefined) claims.archetype = archetype;
       const tags = claim(agent.tags.join(', '));
       if (tags !== undefined) claims.tags = tags;
-      /**
-       * The author's DISPLAY name as the listing shows it — a distinct claim from
-       * the author's identity, which travels as a principal below. An agent
-       * impersonating someone usually does it here.
-       */
-      const authorName = claim(agent.authorName);
-      if (authorName !== undefined) claims.authorName = authorName;
       // Declared, not attached — see the note above.
       claims.avatarPresent = agent.avatar ? 'true' : 'false';
 
@@ -133,7 +131,7 @@ export function createAgentSubjectProvider(): ModerationSubjectProvider {
        * to be what the marketplace actually shows; a name this code assembled
        * would be evidence Alia invented.
        */
-      const displayName = bounded(agent.name, CONTRACT_LIMITS.SHORT_TEXT_MAX_LENGTH);
+      const displayName = bounded(agent.name ?? '', CONTRACT_LIMITS.SHORT_TEXT_MAX_LENGTH);
       const bio = bounded(agent.description, CONTRACT_LIMITS.LONG_TEXT_MAX_LENGTH);
 
       return {

@@ -23,11 +23,7 @@ import {
   updateAgentSession,
   type AgentSessionConfig,
 } from '../../db/agents/agentSessionRepository.js';
-import {
-  findAgentById,
-  findHireableAgentByHandle,
-  type AgentRecord,
-} from '../../db/agents/agentRepository.js';
+import { findAgentById } from '../../db/agents/agentRepository.js';
 import {
   listRecentEventStreamEntries,
   type EventStreamEntryMetadata,
@@ -44,6 +40,12 @@ import { TerminalSession, inferImage } from './terminal-session.js';
 import { BrowserSession } from './browser-session.js';
 import { buildActions } from './actions.js';
 import { buildArchetypeSystemPrompt } from './archetype-prompts.js';
+import {
+  agentPromptName,
+  attachAgentIdentity,
+  findAgentByOxyHandle,
+  type HydratedAgent,
+} from '../agent-identity.js';
 import { buildIdentityGuard } from '../identity-guard.js';
 import { classifyError, getErrorMessage } from '../errors/failover-error.js';
 import { finalizeCredits, safeRefund } from '../credits-manager.js';
@@ -65,7 +67,7 @@ const CONTINUATION_PROMPTS = [
 
 // ── System Prompt Builder (v3 — simplified for 5 actions) ──
 
-function buildSystemPrompt(agent: AgentRecord, config: AgentSessionConfig): string {
+function buildSystemPrompt(agent: HydratedAgent, config: AgentSessionConfig): string {
   if (agent.systemPrompt) {
     return agent.systemPrompt;
   }
@@ -80,7 +82,7 @@ function buildSystemPrompt(agent: AgentRecord, config: AgentSessionConfig): stri
     ? `\n\n## Capabilities\n${agent.capabilities.join(', ')}`
     : '';
 
-  return `You are ${agent.name}. ${agent.tagline}
+  return `You are ${agentPromptName(agent)}. ${agent.tagline}
 
 ${agent.description}${capabilities}
 
@@ -264,11 +266,15 @@ export async function runAgentSession(sessionId: string): Promise<void> {
     return;
   }
 
-  const agent = await findAgentById(getDb(), session.agentId);
-  if (!agent) {
+  const found = await findAgentById(getDb(), session.agentId);
+  if (!found) {
     await updateAgentSession(getDb(), sessionId, { status: 'failed', result: 'Agent not found' });
     return;
   }
+  // Identity is resolved ONCE per run, not per prompt: the system prompt, the
+  // orchestrator's brief and the delegation events all name the same agent, and
+  // three lookups of one account would be three chances to disagree.
+  const agent = await attachAgentIdentity(found);
 
   const agentId = agent._id;
   const userId = session.oxyUserId;
@@ -347,7 +353,7 @@ export async function runAgentSession(sessionId: string): Promise<void> {
   // Agent-to-agent hiring
   const onHireAgent = session.depth < MAX_DELEGATION_DEPTH
     ? async (handle: string, task: string): Promise<string> => {
-        const targetAgent = await findHireableAgentByHandle(getDb(), handle);
+        const targetAgent = await findAgentByOxyHandle(getDb(), handle, { hireableOnly: true });
         if (!targetAgent) throw new Error(`Agent @${handle} not found or not available`);
 
         eventStream.append('action', `Hiring agent @${handle}: ${task.slice(0, 200)}`, {
@@ -440,7 +446,7 @@ export async function runAgentSession(sessionId: string): Promise<void> {
           depth: session.depth,
           config: session.config,
         },
-        agent: { name: agent.name, description: agent.description },
+        agent: { name: agentPromptName(agent), description: agent.description },
         eventStream,
         maxConcurrency: Math.min(session.config.maxVMs, 3),
       });

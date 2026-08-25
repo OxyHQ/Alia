@@ -16,6 +16,7 @@ import { tool, generateText, stepCountIs } from 'ai';
 import { z } from 'zod';
 import { getDb } from '../../db/index.js';
 import { findAgentById } from '../../db/agents/agentRepository.js';
+import { agentPromptName, attachAgentIdentity } from '../agent-identity.js';
 import { resolveModel, getAIModel } from '../chat-core.js';
 import { getCurrentDateTool } from './date.js';
 import { webScraperTool } from './web-scraper.js';
@@ -66,9 +67,9 @@ async function executeAgent(
   const start = Date.now();
 
   try {
-    const agent = await findAgentById(getDb(), agentTask.agentId);
+    const found = await findAgentById(getDb(), agentTask.agentId);
 
-    if (!agent) {
+    if (!found) {
       return {
         role: agentTask.role,
         agentId: agentTask.agentId,
@@ -79,9 +80,12 @@ async function executeAgent(
       };
     }
 
+    // Identity is the bot account's, and every result below names the agent.
+    const agent = await attachAgentIdentity(found);
+
     // Build system prompt with soul
     let systemPrompt = agent.systemPrompt
-      || `You are ${agent.name}, an AI agent. ${agent.tagline}. ${agent.description}\n\nCapabilities: ${agent.capabilities.join(', ')}`;
+      || `You are ${agentPromptName(agent)}, an AI agent. ${agent.tagline}. ${agent.description}\n\nCapabilities: ${agent.capabilities.join(', ')}`;
 
     if (agent.soul) {
       const soulSection = formatSoul(agent.soul);
@@ -104,7 +108,7 @@ async function executeAgent(
       return {
         role: agentTask.role,
         agentId: agentTask.agentId,
-        agentName: agent.name,
+        agentName: agentPromptName(agent),
         response: '',
         tokensUsed: 0,
         error: 'No model available for agent execution',
@@ -133,14 +137,14 @@ async function executeAgent(
 
       const tokensUsed = result.usage?.totalTokens || 0;
       log.general.info(
-        { agentId: agentTask.agentId, agentName: agent.name, role: agentTask.role, tokensUsed, latencyMs: Date.now() - start },
+        { agentId: agentTask.agentId, agentName: agentPromptName(agent), role: agentTask.role, tokensUsed, latencyMs: Date.now() - start },
         'Orchestrated agent completed',
       );
 
       return {
         role: agentTask.role,
         agentId: agentTask.agentId,
-        agentName: agent.name,
+        agentName: agentPromptName(agent),
         response: result.text,
         tokensUsed,
       };

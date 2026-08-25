@@ -4,8 +4,7 @@ import { getAgentCapabilities } from '../../lib/agent/health.js';
 import { getDb } from '../../db/index.js';
 import {
   createAgent,
-  deleteAgentOwnedBy,
-  findAgentByHandle,
+  deleteAgent,
   findAgentById,
   findAgentKnowledge,
   findAgentSkills,
@@ -14,6 +13,14 @@ import {
   updateAgent,
   type AgentRecord,
 } from '../../db/agents/agentRepository.js';
+import {
+  loadAgentForActor,
+  refusalMessage,
+  refusalStatus,
+  verifyAgentAccount,
+  type AgentAccountRefusal,
+} from '../../lib/agent-account.js';
+import { attachAgentIdentities, attachAgentIdentity } from '../../lib/agent-identity.js';
 import {
   createTrigger,
   findAgentTriggerByType,
@@ -29,7 +36,8 @@ import {
   type AgentStatus,
 } from '../../domain/agent.js';
 import { log } from '../../lib/logger.js';
-import { storedMediaUrl } from '../../lib/stored-media.js';
+import { z } from 'zod';
+import { constraintNameOf, isUniqueViolation } from '@oxyhq/db';
 import type { Request, Response } from 'express';
 
 const router = Router();
@@ -56,7 +64,7 @@ function isTriggerScheduleType(value: unknown): value is TriggerScheduleType {
 async function syncArchetypeTriggers(
   agentId: string,
   userId: string,
-  agent: Pick<AgentRecord, 'archetype' | 'archetypeConfig' | 'name'>,
+  agent: Pick<AgentRecord, 'archetype' | 'archetypeConfig'> & { name: string | null },
 ): Promise<void> {
   const config = readArchetypeConfig(agent.archetypeConfig);
 
@@ -143,44 +151,29 @@ async function withChildLists(agent: AgentRecord): Promise<AgentRecord> {
   return { ...agent, skills, knowledge };
 }
 
-/** A `string[]` of ids from a request body, or nothing. */
-function idList(value: unknown): string[] | undefined {
-  if (!Array.isArray(value)) return undefined;
-  return value.filter((item): item is string => typeof item === 'string');
+/**
+ * The message for a refused SECOND autonomy designation, or null.
+ *
+ * `agents_one_autonomy_per_owner` is what makes "one per owner" true, so a
+ * second designation arrives here as a unique violation rather than as a
+ * validation error — and a 500 would tell the owner their edit broke Alia
+ * rather than that they already have one. Recognised by CONSTRAINT NAME, and
+ * the SQLSTATE lives on `cause` rather than on `error.code`, which is what
+ * `isUniqueViolation`/`constraintNameOf` exist to read.
+ */
+function designationConflict(error: unknown): string | null {
+  if (!isUniqueViolation(error)) return null;
+  if (constraintNameOf(error) !== 'agents_one_autonomy_per_owner') return null;
+  return 'Another of your agents already handles autonomous events';
+}
+
+/** The refusal shape every write path here answers with. */
+function answerRefusal(res: Response, refusal: AgentAccountRefusal | 'agent_not_found'): Response {
+  if (refusal === 'agent_not_found') return res.status(404).json({ error: 'Agent not found' });
+  return res.status(refusalStatus(refusal)).json({ error: refusalMessage(refusal) });
 }
 
 // GET /agents - list published agents (public, optional auth)
-/**
- * An agent, with its avatar addressable.
- *
- * `avatar` is polymorphic on purpose: an owner may paste any URL, and the
- * avatar generator stores an object here and records its KEY. A value that
- * already carries a scheme is somebody else's address and is passed through
- * untouched; one that does not is ours, and only ours becomes a link.
- *
- * That check is the honest discriminator rather than a guess — a stored key
- * never has a scheme, because it is a path inside a bucket.
- */
-function withAddressableAvatar<T extends { avatar?: string | null }>(
-  req: Request,
-  userId: string | undefined,
-  agent: T,
-): T {
-  const avatar = agent.avatar;
-  if (avatar === null || avatar === undefined || avatar === '') return agent;
-  if (/^[a-z][a-z0-9+.-]*:/i.test(avatar)) return agent;
-  if (userId === undefined) {
-    // No one to mint a link for. The field is dropped rather than emitted as a
-    // key, which a browser would request against its own origin.
-    const { avatar: _stored, ...rest } = agent;
-    return rest as T;
-  }
-  const link = storedMediaUrl(req, avatar, userId);
-  if (link !== null) return { ...agent, avatar: link };
-  const { avatar: _unservable, ...rest } = agent;
-  return rest as T;
-}
-
 router.get('/', optionalAuth, async (req: Request, res: Response) => {
   try {
     const { category, search, featured, trending, page = '1', limit = '50' } = req.query;
@@ -198,7 +191,7 @@ router.get('/', optionalAuth, async (req: Request, res: Response) => {
       offset: (pageNum - 1) * limitNum,
     });
 
-    res.json({ agents: agents.map((agent) => withAddressableAvatar(req, req.user?.id, agent)), total, page: pageNum, limit: limitNum });
+    res.json({ agents: await attachAgentIdentities(agents), total, page: pageNum, limit: limitNum });
   } catch (error: unknown) {
     log.agents.error({ err: error }, 'Error listing agents');
     res.status(500).json({ error: 'Failed to list agents' });
@@ -215,7 +208,7 @@ router.get('/me', authenticateToken, async (req: Request, res: Response) => {
     const owned = await listAgentsByAuthor(getDb(), req.user.id);
     const agents = await Promise.all(owned.map(withChildLists));
 
-    res.json({ agents: agents.map((agent) => withAddressableAvatar(req, req.user?.id, agent)) });
+    res.json({ agents: await attachAgentIdentities(agents) });
   } catch (error: unknown) {
     log.agents.error({ err: error }, 'Error listing user agents');
     res.status(500).json({ error: 'Failed to list your agents' });
@@ -247,155 +240,228 @@ router.get('/:id', optionalAuth, async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Agent not found' });
     }
 
-    res.json({ agent: withAddressableAvatar(req, req.user?.id, await withChildLists(found)) });
+    res.json({ agent: await attachAgentIdentity(await withChildLists(found)) });
   } catch (error: unknown) {
     log.agents.error({ err: error }, 'Error getting agent');
     res.status(500).json({ error: 'Failed to get agent' });
   }
 });
 
+/**
+ * The archetypes and statuses, as Zod enums built from the domain lists.
+ *
+ * Rebuilt here rather than restated: `AGENT_ARCHETYPES` and `AGENT_STATUSES`
+ * are the same arrays the CHECK constraints derive from, so a value this
+ * accepts is a value the column accepts, and adding an archetype cannot leave
+ * the wire schema behind.
+ */
+const archetypeSchema = z.enum(AGENT_ARCHETYPES as unknown as [AgentArchetype, ...AgentArchetype[]]);
+const statusSchema = z.enum(AGENT_STATUSES as unknown as [AgentStatus, ...AgentStatus[]]);
+
+/**
+ * What `POST /agents` accepts.
+ *
+ * `oxyAccountId` is REQUIRED and is the only identity field on the whole
+ * request: `name`, `handle`, `avatar` and `authorName` used to be here and are
+ * Oxy's now. Sending one is a 400 rather than a silent drop — `strict()` —
+ * because a client still writing `name` believes it is setting the agent's
+ * name, and quietly ignoring it would leave the agent called something else
+ * with nothing to say why.
+ *
+ * The predecessor was a hand-rolled type-guard prelude plus a 28-line block of
+ * conditional spreads. Both are gone: `agent-teams.ts` is the pattern in this
+ * domain and this follows it.
+ */
+const createAgentSchema = z
+  .object({
+    oxyAccountId: z.string().min(1),
+    tagline: z.string().min(1).max(200),
+    description: z.string().min(1).max(5000),
+    category: z.string().min(1).max(100),
+    tags: z.array(z.string()).optional(),
+    price: z.number().int().nullable().optional(),
+    capabilities: z.array(z.string()).optional(),
+    skills: z.array(z.string()).optional(),
+    knowledge: z.array(z.string()).optional(),
+    isPublished: z.boolean().optional(),
+    allowHiring: z.boolean().optional(),
+    handlesAutonomousEvents: z.boolean().optional(),
+    systemPrompt: z.string().optional(),
+    archetype: archetypeSchema.optional(),
+    archetypeConfig: z.unknown().optional(),
+  })
+  .strict();
+
 // POST /agents - create agent
 router.post('/', authenticateToken, async (req: Request, res: Response) => {
   try {
-    if (!req.user?.id) {
+    if (!req.user?.id || req.accessToken === undefined) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const {
-      name, handle, avatar,
-      tagline, description, category, tags, price,
-      capabilities, skills, knowledge,
-      isPublished, creditBalance, allowHiring,
-      systemPrompt, archetype, archetypeConfig,
-    } = req.body;
+    const data = createAgentSchema.parse(req.body);
 
-    if (!name || !handle || !tagline || !description || !category) {
-      return res.status(400).json({
-        error: 'name, handle, tagline, description, and category are required',
-      });
-    }
-
-    const existing = await findAgentByHandle(getDb(), handle);
-    if (existing) {
-      return res.status(409).json({ error: 'Handle already taken' });
-    }
+    /**
+     * The account is verified BEFORE the row is written, and all three
+     * questions are one call: does it exist, is it a `bot`, and may this caller
+     * act as it. Writing first and checking after would leave an agent bound to
+     * somebody else's account on any failure between the two.
+     */
+    const verdict = await verifyAgentAccount({
+      oxyUserId: req.user.id,
+      accessToken: req.accessToken,
+      oxyAccountId: data.oxyAccountId,
+      // A WRITE. Never a cached verdict — see `lib/agent-account.ts`.
+      cache: false,
+    });
+    if (!verdict.permitted) return answerRefusal(res, verdict.refusal);
 
     const agent = await createAgent(getDb(), {
-      name,
-      handle,
-      avatar: avatar || null,
-      tagline,
-      description,
+      oxyAccountId: data.oxyAccountId,
+      tagline: data.tagline,
+      description: data.description,
       authorOxyUserId: req.user.id,
-      authorName: req.user.username || 'Unknown',
-      category,
-      tags: idList(tags) ?? [],
-      price: price ?? null,
-      capabilities: idList(capabilities) ?? [],
-      skillIds: idList(skills) ?? [],
-      libraryFileIds: idList(knowledge) ?? [],
-      isPublished: isPublished ?? true,
-      creditBalance: creditBalance ?? 0,
-      allowHiring: allowHiring ?? false,
-      ...(systemPrompt && { systemPrompt }),
-      ...(isAgentArchetype(archetype) && { archetype }),
-      ...(archetypeConfig && { archetypeConfig }),
+      category: data.category,
+      tags: data.tags ?? [],
+      price: data.price ?? null,
+      capabilities: data.capabilities ?? [],
+      skillIds: data.skills ?? [],
+      libraryFileIds: data.knowledge ?? [],
+      isPublished: data.isPublished ?? true,
+      allowHiring: data.allowHiring ?? false,
+      handlesAutonomousEvents: data.handlesAutonomousEvents ?? false,
+      ...(data.systemPrompt !== undefined && { systemPrompt: data.systemPrompt }),
+      ...(data.archetype !== undefined && { archetype: data.archetype }),
+      ...(data.archetypeConfig !== undefined && { archetypeConfig: data.archetypeConfig }),
     });
 
-    res.status(201).json({ agent });
+    res.status(201).json({ agent: await attachAgentIdentity(agent) });
   } catch (error: unknown) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: 'Invalid input', details: error.errors });
+    }
+    const conflict = designationConflict(error);
+    if (conflict !== null) return res.status(409).json({ error: conflict });
     log.agents.error({ err: error }, 'Error creating agent');
     res.status(500).json({ error: 'Failed to create agent' });
   }
 });
 
-function isAgentArchetype(value: unknown): value is AgentArchetype {
-  return typeof value === 'string' && (AGENT_ARCHETYPES as readonly string[]).includes(value);
-}
+/**
+ * What `PATCH /agents/:id` accepts.
+ *
+ * No `name`, no `avatar`, no `creditBalance`. The first two are the bot
+ * account's and are edited through Oxy; the third named a column nothing ever
+ * spent. `oxyAccountId` is absent too — rebinding an agent to a different
+ * account is not an edit, it is a different agent.
+ *
+ * Every member is optional and `undefined` never reaches the repository, which
+ * builds its SET clause from DEFINED keys only: `{ x: undefined }` is a no-op
+ * in Mongo and a NULL write in Postgres.
+ */
+const updateAgentSchema = z
+  .object({
+    tagline: z.string().min(1).max(200).optional(),
+    description: z.string().min(1).max(5000).optional(),
+    category: z.string().min(1).max(100).optional(),
+    tags: z.array(z.string()).optional(),
+    price: z.number().int().nullable().optional(),
+    capabilities: z.array(z.string()).optional(),
+    isPublished: z.boolean().optional(),
+    status: statusSchema.optional(),
+    allowHiring: z.boolean().optional(),
+    handlesAutonomousEvents: z.boolean().optional(),
+    systemPrompt: z.string().optional(),
+    allowedModels: z.array(z.string()).optional(),
+    scheduleInterval: z.number().int().optional(),
+    archetype: archetypeSchema.optional(),
+    archetypeConfig: z.unknown().optional(),
+    skills: z.array(z.string()).optional(),
+    knowledge: z.array(z.string()).optional(),
+  })
+  .strict();
 
-function isAgentStatus(value: unknown): value is AgentStatus {
-  return typeof value === 'string' && (AGENT_STATUSES as readonly string[]).includes(value);
-}
-
-// PATCH /agents/:id - update agent (owner only)
+// PATCH /agents/:id - update agent (anyone who may act as the bot account)
 router.patch('/:id', authenticateToken, async (req: Request, res: Response) => {
   try {
-    if (!req.user?.id) {
+    if (!req.user?.id || req.accessToken === undefined) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
     const id = String(req.params.id);
-    const body: Record<string, unknown> = req.body;
+    const data = updateAgentSchema.parse(req.body);
 
-    /**
-     * The allow-list, field by field, and NOT a loop over `req.body`.
-     *
-     * The hydrated path assigned every allowed field with `agent.set(field,
-     * value)`, so the schema was the only thing deciding what a value could be —
-     * and `status` and `archetype` are CHECK-constrained columns now, where an
-     * unexpected string is a refused write rather than a stored one. Naming each
-     * field is also what keeps `author` and `handle` unreachable: neither is in
-     * the list, and a spread of `req.body` would put both back.
-     */
-    const patch = {
-      ...(typeof body.name === 'string' && { name: body.name }),
-      ...(body.avatar !== undefined && {
-        avatar: typeof body.avatar === 'string' ? body.avatar : null,
-      }),
-      ...(typeof body.tagline === 'string' && { tagline: body.tagline }),
-      ...(typeof body.description === 'string' && { description: body.description }),
-      ...(typeof body.category === 'string' && { category: body.category }),
-      ...(idList(body.tags) !== undefined && { tags: idList(body.tags) }),
-      ...(body.price !== undefined && {
-        price: typeof body.price === 'number' ? body.price : null,
-      }),
-      ...(idList(body.capabilities) !== undefined && { capabilities: idList(body.capabilities) }),
-      ...(typeof body.isPublished === 'boolean' && { isPublished: body.isPublished }),
-      ...(isAgentStatus(body.status) && { status: body.status }),
-      ...(typeof body.creditBalance === 'number' && { creditBalance: body.creditBalance }),
-      ...(typeof body.allowHiring === 'boolean' && { allowHiring: body.allowHiring }),
-      ...(typeof body.systemPrompt === 'string' && { systemPrompt: body.systemPrompt }),
-      ...(idList(body.allowedModels) !== undefined && {
-        allowedModels: idList(body.allowedModels),
-      }),
-      ...(typeof body.scheduleInterval === 'number' && {
-        scheduleInterval: body.scheduleInterval,
-      }),
-      ...(isAgentArchetype(body.archetype) && { archetype: body.archetype }),
-      ...(body.archetypeConfig !== undefined && { archetypeConfig: body.archetypeConfig }),
-      ...(idList(body.skills) !== undefined && { skillIds: idList(body.skills) }),
-      ...(idList(body.knowledge) !== undefined && { libraryFileIds: idList(body.knowledge) }),
-    };
+    const loaded = await loadAgentForActor(getDb(), {
+      agentId: id,
+      oxyUserId: req.user.id,
+      accessToken: req.accessToken,
+      // A WRITE. Never a cached verdict — see `lib/agent-account.ts`.
+      cache: false,
+    });
+    if (!loaded.ok) return answerRefusal(res, loaded.refusal);
 
-    const agent = await updateAgent(getDb(), id, req.user.id, patch);
+    const { skills, knowledge, ...columns } = data;
+    const agent = await updateAgent(getDb(), id, {
+      ...columns,
+      ...(skills !== undefined && { skillIds: skills }),
+      ...(knowledge !== undefined && { libraryFileIds: knowledge }),
+    });
 
     if (!agent) {
       return res.status(404).json({ error: 'Agent not found' });
     }
 
+    const hydrated = await attachAgentIdentity(agent);
+
     // Auto-manage linked triggers for archetype agents (non-blocking, only when relevant fields change)
-    if (body.archetype !== undefined || body.archetypeConfig !== undefined || body.scheduleInterval !== undefined || body.status !== undefined) {
-      syncArchetypeTriggers(agent._id, agent.author, agent).catch(err => {
-        log.agents.error({ err, agentId: agent._id }, 'Failed to sync archetype triggers');
+    if (
+      data.archetype !== undefined ||
+      data.archetypeConfig !== undefined ||
+      data.scheduleInterval !== undefined ||
+      data.status !== undefined
+    ) {
+      syncArchetypeTriggers(hydrated._id, hydrated.author, hydrated).catch((err) => {
+        log.agents.error({ err, agentId: hydrated._id }, 'Failed to sync archetype triggers');
       });
     }
 
-    res.json({ agent: withAddressableAvatar(req, req.user?.id, agent) });
+    res.json({ agent: hydrated });
   } catch (error: unknown) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: 'Invalid input', details: error.errors });
+    }
+    const conflict = designationConflict(error);
+    if (conflict !== null) return res.status(409).json({ error: conflict });
     log.agents.error({ err: error }, 'Error updating agent');
     res.status(500).json({ error: 'Failed to update agent' });
   }
 });
 
-// DELETE /agents/:id - delete agent (owner only)
+// DELETE /agents/:id - delete agent (anyone who may act as the bot account)
 router.delete('/:id', authenticateToken, async (req: Request, res: Response) => {
   try {
-    if (!req.user?.id) {
+    if (!req.user?.id || req.accessToken === undefined) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const deleted = await deleteAgentOwnedBy(getDb(), String(req.params.id), req.user.id);
+    const id = String(req.params.id);
+    const loaded = await loadAgentForActor(getDb(), {
+      agentId: id,
+      oxyUserId: req.user.id,
+      accessToken: req.accessToken,
+      // A WRITE. Never a cached verdict — see `lib/agent-account.ts`.
+      cache: false,
+    });
+    if (!loaded.ok) return answerRefusal(res, loaded.refusal);
 
+    /**
+     * The Oxy `bot` account SURVIVES the agent, and that is the deliberate
+     * choice. Alia owns the runtime, not the identity: archiving somebody's
+     * account because a row in another service was deleted is a power this
+     * service does not have, and the account may hold posts, a follower graph
+     * and a credit balance of its own. The owner archives it from Oxy.
+     */
+    const deleted = await deleteAgent(getDb(), id);
     if (deleted === 0) {
       return res.status(404).json({ error: 'Agent not found' });
     }

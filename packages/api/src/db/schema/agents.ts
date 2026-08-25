@@ -8,18 +8,34 @@
  * `containers` — points AT it. Ordering by the dependency graph is what lets
  * those later tables carry real foreign keys instead of dangling ids.
  *
- * ## `author_oxy_user_id` says what it holds, because `author` did not
+ * ## An agent IS an Oxy `bot` account, and `oxy_account_id` is the whole seam
  *
- * `Agent.author` is declared `ObjectId, ref: 'User'` and there is no `User`
- * model in this service — Oxy owns identity — and `routes/agents/crud.ts:245`
- * writes `req.user.id` into it. So it is an Oxy account with no foreign key,
- * like every other account id here.
+ * Alia used to hold an agent's identity itself — `name`, `handle`, `avatar`,
+ * `author_name`, `author_verified`. It no longer does. An agent is a `bot`
+ * account in the Oxy account graph, a child of its owner's personal account,
+ * and Oxy owns every one of those fields (`users.name_display`,
+ * `users.username`, `users.avatar`). What is left here is the RUNTIME: the
+ * prompt, the models, the archetype, the soul, the marketplace listing.
+ *
+ * One column carries the seam. No foreign key, for the reason
+ * `user_credits.id` gives one table over: Oxy owns identity and lives in
+ * another service. UNIQUE, because two agents sharing a bot account would each
+ * claim to be it.
+ *
+ * ## `author_oxy_user_id` is a listing index, NEVER an authorization gate
+ *
+ * It answers "show me my agents" in one indexed scan instead of a fan-out to
+ * Oxy. It does NOT decide who may edit an agent — that is `account:act_as` over
+ * the bot account, resolved by Oxy (`lib/agent-identity/authorize.ts`). The two
+ * can legitimately disagree: an owner may grant a colleague `act_as` on the bot
+ * without transferring the row, and a membership may be revoked while this
+ * column still names the person who first created it. Treating this column as a
+ * permission is the failure mode the split exists to prevent.
  *
  * The suffix is not decoration. `skills.author` one table over is a DISPLAY
  * STRING (`lib/seed-skills.ts` writes `'Alia'` and `'Community'`), so the same
  * field name means opposite things one model apart and a backfill pairing fields
- * by name is wrong about both. `author_name` beside this column is the display
- * form for THIS table; the two are separate fields in Mongoose too.
+ * by name is wrong about both.
  *
  * ## The two sub-document GROUPS are all-or-nothing, and that is the fact
  *
@@ -82,27 +98,30 @@ import { libraryFiles } from './library';
  *
  * `rating` is `double precision`, not an integer or a money column:
  * `lib/agent-rating.ts:44` stores `Math.round(avg * 10) / 10`, a fraction to one
- * decimal place. `price` and `credit_balance` are `integer` because they are
- * CREDITS — `routes/agents/hire.ts:44` passes `agent.price` straight to
- * `reserveCredits` — and credits are a count, per the money rule.
+ * decimal place. `price` is `integer` because it is CREDITS —
+ * `routes/agents/hire.ts:44` passes it straight to `reserveCredits` — and
+ * credits are a count, per the money rule. The agent's own balance is NOT here:
+ * a bot account is an Oxy account, so it has a `user_credits` row of its own
+ * keyed by `oxy_account_id`, and the `credit_balance` column this replaced was
+ * written and displayed but never once spent.
  */
 export const agents = pgTable(
   'agents',
   {
     id: generatedId(),
-    name: text().notNull(),
-    handle: text().notNull(),
-    avatar: text(),
+    /**
+     * The Oxy `bot` account this agent IS. No foreign key — Oxy owns identity —
+     * and UNIQUE, because two agents cannot be the same account. Name, handle
+     * and avatar are read from it; none of them is stored here.
+     */
+    oxyAccountId: text().notNull(),
     tagline: text().notNull(),
     description: text().notNull(),
     /**
-     * The Oxy account that authored the agent. No foreign key: Oxy owns
-     * identity. Named for what it holds — see the file comment.
+     * The Oxy account that created the agent. A LISTING INDEX, never a
+     * permission — see the file comment.
      */
     authorOxyUserId: text().notNull(),
-    /** The display form, a separate Mongoose field. Not an id. */
-    authorName: text().notNull(),
-    authorVerified: boolean().notNull().default(false),
     /** Free text. No CHECK — Mongoose declares no enum. */
     category: text().notNull(),
     tags: text().array().notNull().default([]),
@@ -114,21 +133,36 @@ export const agents = pgTable(
     /** CREDITS to hire, not money. NULL means the caller's default applies. */
     price: integer(),
     capabilities: text().array().notNull().default([]),
-    isVerified: boolean().notNull().default(false),
     isFeatured: boolean().notNull().default(false),
     isTrending: boolean().notNull().default(false),
     isPublished: boolean().notNull().default(true),
     status: text({ enum: AGENT_STATUSES as unknown as [string, ...string[]] })
       .notNull()
       .default('active'),
-    /** CREDITS the agent holds. A count, so `integer`. */
-    creditBalance: integer().notNull().default(0),
     allowHiring: boolean().notNull().default(false),
+    /**
+     * The one agent this owner has DESIGNATED to run autonomous Oxy service
+     * events. A declared fact, never an inferred one.
+     *
+     * The predecessor to this column was a convention — an agent whose
+     * `category` was `automation` and whose `tags` contained `autonomy` — and
+     * both of those are things the OWNER edits by hand: `category` is free text
+     * with no CHECK and `tags` is a `text[]` on the edit screen. So a person
+     * tagging an agent "autonomy" for tidiness silently changed which agent
+     * received their events, and two so tagged gave whichever the query
+     * happened to return first.
+     *
+     * `agents_one_autonomy_per_owner` is what makes "the one" true: a PARTIAL
+     * unique index over `author_oxy_user_id` where the flag is set, so a second
+     * designation is a refused write rather than an arbitrary winner. Partial
+     * rather than plain, because every owner has many agents that are NOT
+     * designated and a full unique index would allow only one agent each.
+     */
+    handlesAutonomousEvents: boolean().notNull().default(false),
     systemPrompt: text(),
     preferredImage: text(),
     allowedModels: text().array().notNull().default(['alia-v1', 'alia-v1-pro']),
     scheduleInterval: integer(),
-    lastScheduledCheck: timestamptz(),
 
     /**
      * `permissions`, flattened. ALL NULL means the group is absent, which means
@@ -159,7 +193,7 @@ export const agents = pgTable(
     updatedAt: updatedAt(),
   },
   (t) => [
-    uniqueIndex('agents_handle_key').on(t.handle),
+    uniqueIndex('agents_oxy_account_id_key').on(t.oxyAccountId),
     index('agents_author_oxy_user_id_idx').on(t.authorOxyUserId),
     index('agents_category_idx').on(t.category),
     index('agents_archetype_idx').on(t.archetype),
@@ -170,6 +204,15 @@ export const agents = pgTable(
       t.createdAt.desc(),
     ),
     index('agents_category_published_idx').on(t.category, t.isPublished),
+    /**
+     * ONE designated autonomy agent per owner, enforced by the database.
+     *
+     * Also the lookup the webhook path uses, so the index that makes the rule
+     * true is the same one that makes the read cheap.
+     */
+    uniqueIndex('agents_one_autonomy_per_owner')
+      .on(t.authorOxyUserId)
+      .where(sql`${t.handlesAutonomousEvents}`),
     checkOneOf('agents_status_check', t.status, AGENT_STATUSES),
     checkOneOf('agents_archetype_check', t.archetype, AGENT_ARCHETYPES),
     /**

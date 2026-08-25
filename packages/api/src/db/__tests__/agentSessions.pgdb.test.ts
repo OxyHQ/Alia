@@ -41,12 +41,10 @@ afterAll(async () => {
 
 function agentValues(overrides: Partial<typeof agents.$inferInsert> = {}) {
   return {
-    name: 'Researcher',
-    handle: `@sess-${Math.random().toString(36).slice(2, 10)}`,
+    oxyAccountId: `oxy-bot-sess-${Math.random().toString(36).slice(2, 10)}`,
     tagline: 't',
     description: 'd',
     authorOxyUserId: 'oxy-user-sessions',
-    authorName: 'Nate',
     category: 'research',
     ...overrides,
   };

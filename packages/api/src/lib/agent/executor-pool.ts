@@ -11,7 +11,7 @@ import {
   createAgentSession,
   findAgentSessionById,
 } from '../../db/agents/agentSessionRepository.js';
-import { findHireableAgentByHandle } from '../../db/agents/agentRepository.js';
+import { findAgentByOxyHandle } from '../agent-identity.js';
 import { runAgentSession } from './runner.js';
 import { log } from '../logger.js';
 import { getErrorMessage } from '../errors/index.js';
@@ -136,10 +136,9 @@ async function executeSubtask(
     // Find the target agent (or use the parent's agent)
     let agentId = opts.parentSession.agentId;
     if (subtask.agentHandle) {
-      const specialistAgent = await findHireableAgentByHandle(
-        getDb(),
-        subtask.agentHandle.replace(/^@/, ''),
-      );
+      const specialistAgent = await findAgentByOxyHandle(getDb(), subtask.agentHandle, {
+        hireableOnly: true,
+      });
       if (specialistAgent) {
         agentId = specialistAgent._id;
       }

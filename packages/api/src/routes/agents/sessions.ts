@@ -3,7 +3,9 @@ import { authenticateToken } from '../../middleware/auth.js';
 import { cleanupSessionResources } from '../../lib/agent/tools.js';
 import { getJobStatus, cancelJob } from '../../lib/task-queue.js';
 import { getDb } from '../../db/index.js';
-import { findAgentOwnedBy, updateAgent } from '../../db/agents/agentRepository.js';
+import { updateAgent } from '../../db/agents/agentRepository.js';
+import { loadAgentForActor, refusalMessage, refusalStatus } from '../../lib/agent-account.js';
+import { resolveAgentIdentities, type AgentIdentity } from '../../lib/agent-identity.js';
 import {
   findAgentSessionOwnedBy,
   listActiveAgentSessions,
@@ -22,9 +24,52 @@ import type { Request, Response } from 'express';
 
 const router = Router();
 
+/** An agent reference with its Oxy identity attached, as a task card renders it. */
+type HydratedAgentRef = AgentSessionAgentRef & AgentIdentity;
+
 /** A listing plus the agents its delegated children ran, as the task cards render it. */
-interface SessionWithChildren extends AgentSessionListing {
-  childAgents?: AgentSessionAgentRef[];
+interface SessionWithChildren extends Omit<AgentSessionListing, 'agentId'> {
+  agentId: HydratedAgentRef | null;
+  childAgents?: HydratedAgentRef[];
+}
+
+/**
+ * Attach every agent identity a page needs in ONE Oxy call.
+ *
+ * A task listing names an agent twice — the session's own, and one per
+ * delegated child — and both are bot accounts. Resolving them per row would be
+ * one round trip per card; collecting every account id in the page first makes
+ * it one for the page, which is the whole reason `resolveAgentIdentities`
+ * returns a map instead of doing the attaching itself.
+ */
+function hydrateSessionAgents(
+  sessions: readonly (AgentSessionListing & { childAgents?: AgentSessionAgentRef[] })[],
+  identities: Map<string, AgentIdentity>,
+): SessionWithChildren[] {
+  // A session's embedded agent reference carries no author of its own — the
+  // session belongs to the person who started it, not to whoever built the
+  // agent — so `authorName` is null here whether Oxy resolved the account or not.
+  const UNRESOLVED: AgentIdentity = { name: null, handle: null, avatar: null, authorName: null };
+  const hydrate = (ref: AgentSessionAgentRef): HydratedAgentRef => ({
+    ...ref,
+    ...(identities.get(ref.oxyAccountId) ?? UNRESOLVED),
+  });
+  return sessions.map(({ childAgents, agentId, ...session }) => ({
+    ...session,
+    agentId: agentId === null ? null : hydrate(agentId),
+    ...(childAgents !== undefined && { childAgents: childAgents.map(hydrate) }),
+  }));
+}
+
+/** Every bot account a page of listings names, deduplicated by the resolver. */
+async function withAgentIdentities(
+  sessions: readonly (AgentSessionListing & { childAgents?: AgentSessionAgentRef[] })[],
+): Promise<SessionWithChildren[]> {
+  const accountIds = sessions.flatMap((session) => [
+    ...(session.agentId === null ? [] : [session.agentId.oxyAccountId]),
+    ...(session.childAgents ?? []).map((child) => child.oxyAccountId),
+  ]);
+  return hydrateSessionAgents(sessions, await resolveAgentIdentities(accountIds));
 }
 
 /**
@@ -39,7 +84,7 @@ interface SessionWithChildren extends AgentSessionListing {
 async function withChildAgents(
   sessions: AgentSessionListing[],
   oxyUserId: string,
-): Promise<SessionWithChildren[]> {
+): Promise<(AgentSessionListing & { childAgents?: AgentSessionAgentRef[] })[]> {
   if (sessions.length === 0) return [];
   const children = await listChildAgentSessions(
     getDb(),
@@ -68,14 +113,14 @@ router.get('/:id/sessions', authenticateToken, async (req: Request, res: Respons
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const sessions = await listAgentSessionsForOwner(
+    const listing = await listAgentSessionsForOwner(
       getDb(),
       String(req.params.id),
       req.user.id,
       50,
     );
 
-    res.json({ sessions });
+    res.json({ sessions: await withAgentIdentities(listing) });
   } catch (error: unknown) {
     log.agents.error({ err: error }, 'Error listing sessions');
     res.status(500).json({ error: 'Failed to list sessions' });
@@ -95,19 +140,33 @@ router.patch('/:id/status', authenticateToken, async (req: Request, res: Respons
     }
 
     const id = String(req.params.id);
-    const agent = await findAgentOwnedBy(getDb(), id, req.user.id);
-
-    if (!agent) {
-      return res.status(404).json({ error: 'Agent not found or not owned by you' });
+    if (req.accessToken === undefined) {
+      return res.status(401).json({ error: 'Unauthorized' });
     }
+    const loaded = await loadAgentForActor(getDb(), {
+      agentId: id,
+      oxyUserId: req.user.id,
+      accessToken: req.accessToken,
+      // A WRITE — it patches `status` and cancels running sessions.
+      cache: false,
+    });
+    if (!loaded.ok) {
+      if (loaded.refusal === 'agent_not_found') {
+        return res.status(404).json({ error: 'Agent not found' });
+      }
+      return res.status(refusalStatus(loaded.refusal)).json({
+        error: refusalMessage(loaded.refusal),
+      });
+    }
+    const agent = loaded.agent;
 
     /**
-     * The OWNER's availability toggle, through the owner-scoped patch — not
+     * The OPERATOR's availability toggle, through the ordinary patch — not
      * through `setAgentCatalogueFlags`, which is enforcement's narrow power and
-     * has no ownership predicate. The two must not become one function that
+     * answers to nobody's membership. The two must not become one function that
      * either caller can reach.
      */
-    await updateAgent(getDb(), id, req.user.id, { status });
+    await updateAgent(getDb(), id, { status });
 
     // If setting to idle/offline, cancel running sessions
     if (status !== 'active') {
@@ -213,7 +272,7 @@ router.get('/sessions/active', authenticateToken, async (req: Request, res: Resp
     }
 
     const listing = await listActiveAgentSessions(getDb(), req.user.id, 20);
-    const sessions = await withChildAgents(listing, req.user.id);
+    const sessions = await withAgentIdentities(await withChildAgents(listing, req.user.id));
 
     res.json({ sessions });
   } catch (error: unknown) {
@@ -237,7 +296,7 @@ router.get('/sessions/history', authenticateToken, async (req: Request, res: Res
       limit: limitNum,
       offset: (pageNum - 1) * limitNum,
     });
-    const sessions = await withChildAgents(listing, req.user.id);
+    const sessions = await withAgentIdentities(await withChildAgents(listing, req.user.id));
 
     res.json({ sessions, total, page: pageNum, limit: limitNum });
   } catch (error: unknown) {

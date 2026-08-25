@@ -38,6 +38,18 @@ vi.mock('../../logger.js', () => {
 vi.mock('../../chat-core.js', () => ({
   getAliaModel: vi.fn().mockResolvedValue({ creditMultiplier: 1 }),
 }));
+/**
+ * Oxy, at the seam `lib/agent-identity.ts` reads through. Empty by default, so
+ * a case that does not care about the label gets the fallback rather than a
+ * name a sibling case set.
+ */
+const oxyIdentity = vi.hoisted(() => ({
+  users: [] as { _id: string; username: string; displayName: string; avatar?: string }[],
+}));
+vi.mock('../../oxy-user-hydration.js', () => ({
+  hydrateOxyUsers: async () => new Map(oxyIdentity.users.map((u) => [u._id, u])),
+}));
+
 vi.mock('../../task-queue.js', () => ({
   enqueueAgentSession: vi.fn(async () => ({ queued: true, jobId: 'job-1' })),
 }));
@@ -71,6 +83,9 @@ afterAll(async () => {
 
 afterEach(() => {
   vi.restoreAllMocks();
+  // `restoreAllMocks` does not touch a hoisted fixture, so the identity Oxy
+  // answers with has to be reset by hand or one case leaks into the next.
+  oxyIdentity.users = [];
 });
 
 /**
@@ -112,19 +127,78 @@ async function backdate(agentId: string): Promise<void> {
     .where(eq(agentSessions.agentId, agentId));
 }
 
-async function seedAgent(price: number): Promise<{ _id: string; name: string; price: number }> {
+/**
+ * A hirable agent, in the shape `startAgentSession` reads.
+ *
+ * `oxyAccountId` stands where `name` was: an agent IS an Oxy `bot` account, so
+ * the primitive resolves the queue label from that account rather than from a
+ * column. Nothing about the BILLING assertions below changes — the identity
+ * lookup fails open and cannot turn a handoff into a refund.
+ */
+async function seedAgent(
+  price: number,
+): Promise<{ _id: string; oxyAccountId: string; price: number }> {
   const agent = await createAgent(db, {
-    name: 'Runner',
-    handle: `handoff-${SUITE}-${seq++}`,
+    oxyAccountId: `oxy-bot-handoff-${SUITE}-${seq++}`,
     tagline: 'runs things',
     description: 'd',
     authorOxyUserId: SUITE,
-    authorName: 'Nate',
     category: 'research',
     price,
   });
-  return { _id: agent._id, name: agent.name, price };
+  return { _id: agent._id, oxyAccountId: agent.oxyAccountId, price };
 }
+
+/**
+ * The queue label comes from the agent's Oxy `bot` account.
+ *
+ * `HirableAgent` carries `oxyAccountId` and no name, so this line is the only
+ * thing turning an account into something a queue entry can show — and without
+ * an assertion it is a mechanism that is green and inert: replacing it with a
+ * constant changed nothing anywhere.
+ *
+ * Oxy is stubbed at `hydrateOxyUsers`, the narrow seam `lib/agent-identity.ts`
+ * reads through, so the mapping from an Oxy user to the label is the SHIPPED
+ * one rather than a fixture's opinion of it.
+ */
+describe('the queue label', () => {
+  it('names the bot account, not a constant', async () => {
+    const userId = await account(100, 0);
+    const agent = await seedAgent(15);
+    oxyIdentity.users = [
+      { _id: agent.oxyAccountId, username: 'runner', displayName: 'The Runner' },
+    ];
+
+    const outcome = await startAgentSession({ agent, userId, task: 't', origin: 'hire' });
+
+    expect(outcome.ok).toBe(true);
+    expect(vi.mocked(enqueueAgentSession)).toHaveBeenCalledWith(
+      expect.objectContaining({ agentName: 'The Runner' }),
+    );
+  });
+
+  /**
+   * And an Oxy outage costs the LABEL, never the credits.
+   *
+   * This is the property that lets an identity lookup sit between the
+   * reservation and the enqueue at all: `hydrateOxyUsers` fails open, so a
+   * handoff still succeeds and the reservation is still the worker's to settle.
+   * If it could throw, the refund path would fire on an Oxy blip.
+   */
+  it('still hands off, with a fallback label, when Oxy resolves nothing', async () => {
+    const userId = await account(100, 0);
+    const agent = await seedAgent(15);
+    oxyIdentity.users = [];
+
+    const outcome = await startAgentSession({ agent, userId, task: 't', origin: 'hire' });
+
+    expect(outcome.ok).toBe(true);
+    expect(await balanceOf(userId)).toEqual({ free: 85, paid: 0 });
+    expect(vi.mocked(enqueueAgentSession)).toHaveBeenCalledWith(
+      expect.objectContaining({ agentName: 'Agent' }),
+    );
+  });
+});
 
 describe('startAgentSession', () => {
   it('hands off successfully and keeps the price reserved for the worker', async () => {

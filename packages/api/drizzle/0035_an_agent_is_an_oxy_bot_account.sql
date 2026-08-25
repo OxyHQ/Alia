@@ -1,0 +1,51 @@
+-- oxy:deploy-phase=pre
+-- An agent IS an Oxy `bot` account. `oxy_account_id` is the whole seam.
+--
+-- ## TWO migrations, and they must stay two
+--
+-- This one only ADDS and `0036` only DROPS. That split is not tidiness: when a
+-- single migration both adds and drops columns on one table, drizzle-kit stops
+-- and asks INTERACTIVELY whether each drop is really a rename — and CI has no
+-- TTY, so `drizzle-kit generate` dies with "Interactive prompts require a TTY
+-- terminal" and the answer that would have been given is nobody's to see.
+-- Generating in two passes never raises the question. Merging them back into
+-- one is a six-month-later "simplification" that breaks the generator, not the
+-- schema, which is why it is written here rather than only in a pull request.
+--
+-- ## `NOT NULL` with no default and no backfill
+--
+-- Safe only because the table is EMPTY. Measured against production on
+-- 2026-08-25 through an SSM tunnel to `oxy-postgres`, database `alia`, schema
+-- `public`, 35 migrations applied — and independently by a second person the
+-- same day, with the same numbers:
+--
+--     agents 0, agent_skills 0, agent_knowledge 0, agent_reviews 0,
+--     agent_teams 0, agent_team_agents 0, agent_sessions 0,
+--     rollback_records 0, bots 0, oxy_services 0
+--
+-- With the positive control that says the zero is a real count and not a
+-- mistyped connection: user_credits 3, conversations 30, skills 15 in the same
+-- session. An empty `agents` and an empty database look identical, and this is
+-- the line that tells them apart.
+--
+-- So there is nothing to backfill and nothing to delete: every existing agent
+-- would have needed a bot account minted with its OWNER's bearer, which no
+-- migration can hold, and there are no existing agents. On a database that has
+-- since acquired one this statement FAILS rather than inventing an identity,
+-- which is the correct refusal.
+--
+-- ## `handles_autonomous_events` is a DESIGNATION, not a convention
+--
+-- The one agent an owner has chosen to run autonomous Oxy service events. It
+-- replaces a `category = 'automation'` + `tags @> {autonomy}` guess over two
+-- fields the owner edits by hand — where tagging an agent for tidiness silently
+-- changed which agent received their events.
+--
+-- `agents_one_autonomy_per_owner` is PARTIAL (`where handles_autonomous_events`)
+-- so it constrains only the designated rows: a plain unique index over
+-- `author_oxy_user_id` would allow each person exactly one agent in total.
+
+ALTER TABLE "agents" ADD COLUMN "oxy_account_id" text NOT NULL;--> statement-breakpoint
+ALTER TABLE "agents" ADD COLUMN "handles_autonomous_events" boolean DEFAULT false NOT NULL;--> statement-breakpoint
+CREATE UNIQUE INDEX "agents_oxy_account_id_key" ON "agents" USING btree ("oxy_account_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "agents_one_autonomy_per_owner" ON "agents" USING btree ("author_oxy_user_id") WHERE "agents"."handles_autonomous_events";

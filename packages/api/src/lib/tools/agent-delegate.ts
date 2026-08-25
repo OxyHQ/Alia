@@ -14,6 +14,7 @@ import { tool, generateText, stepCountIs } from 'ai';
 import { z } from 'zod';
 import { getDb } from '../../db/index.js';
 import { findAgentById } from '../../db/agents/agentRepository.js';
+import { agentPromptName, attachAgentIdentity } from '../agent-identity.js';
 import { resolveModel, getAIModel } from '../chat-core.js';
 import { getCurrentDateTool } from './date.js';
 import { webScraperTool } from './web-scraper.js';
@@ -47,9 +48,11 @@ export const createDelegateToAgentTool = () => tool({
     const start = Date.now();
 
     try {
-      // Look up the agent
-      const agent = await findAgentById(getDb(), agentId);
-      if (!agent) {
+      // Look up the agent, then its identity: the delegation result carries the
+      // agent's name, handle and avatar for the client to render, and all three
+      // are the bot account's.
+      const found = await findAgentById(getDb(), agentId);
+      if (!found) {
         return {
           agentId,
           agentName: 'Unknown',
@@ -61,9 +64,11 @@ export const createDelegateToAgentTool = () => tool({
         };
       }
 
+      const agent = await attachAgentIdentity(found);
+
       // Build system prompt
       const systemPrompt = agent.systemPrompt
-        || `You are ${agent.name}, an AI agent. ${agent.tagline}. ${agent.description}\n\nCapabilities: ${agent.capabilities.join(', ')}`;
+        || `You are ${agentPromptName(agent)}, an AI agent. ${agent.tagline}. ${agent.description}\n\nCapabilities: ${agent.capabilities.join(', ')}`;
 
       // Resolve model (prefer agent's first allowed model, fallback to alia-lite)
       const preferredModel = agent.allowedModels[0] || 'alia-lite';
@@ -73,8 +78,8 @@ export const createDelegateToAgentTool = () => tool({
         if (!resolved) {
           return {
             agentId,
-            agentName: agent.name,
-            agentHandle: agent.handle,
+            agentName: agentPromptName(agent),
+            agentHandle: agent.handle ?? 'unknown',
             agentAvatar: agent.avatar,
             response: '',
             tokensUsed: 0,
@@ -111,7 +116,7 @@ export const createDelegateToAgentTool = () => tool({
 
         const tokensUsed = result.usage?.totalTokens || 0;
         log.general.info(
-          { agentId, agentName: agent.name, tokensUsed, latencyMs: Date.now() - start },
+          { agentId, agentName: agentPromptName(agent), tokensUsed, latencyMs: Date.now() - start },
           'Agent delegation completed',
         );
 
@@ -122,8 +127,8 @@ export const createDelegateToAgentTool = () => tool({
 
         return {
           agentId,
-          agentName: agent.name,
-          agentHandle: agent.handle,
+          agentName: agentPromptName(agent),
+          agentHandle: agent.handle ?? 'unknown',
           agentAvatar: agent.avatar,
           response: result.text,
           tokensUsed,

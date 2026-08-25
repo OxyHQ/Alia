@@ -47,7 +47,8 @@ import { oxyClient } from '../../middleware/auth.js';
 import { findSkillPrompt } from '../../db/agents/skillRepository.js';
 import { runBeforeChatHooks } from '../hooks/index.js';
 import { log } from '../logger.js';
-import { findAgentById, type AgentRecord } from '../../db/agents/agentRepository.js';
+import { findAgentById } from '../../db/agents/agentRepository.js';
+import { attachAgentIdentity, type HydratedAgent } from '../agent-identity.js';
 import { findMcpServerForUser } from '../../db/integrations/mcpServerRepository.js';
 import { runAutonomyBeforeChat, type AutonomyRuntimeContext } from '../autonomy/runtime.js';
 import type { ChatMessage } from '../message-converter.js';
@@ -126,7 +127,7 @@ export interface ChatRequestContext {
   oxyUser: OxyUserProfile | null;
   skill: SkillDoc | null;
   entitlements: Entitlements | null;
-  linkedAgent: AgentRecord | null;
+  linkedAgent: HydratedAgent | null;
   /** Initial values for the handler's retry-mutable state. */
   creditReservation: CreditReservation | null;
   resolved: Awaited<ReturnType<typeof resolveModel>>;
@@ -573,10 +574,14 @@ export async function buildChatRequestContext(
      */
     (conversationId && isDirectUserSession)
       ? findConversationAgentById(getDb(), conversationId)
-          .then(conv => conv?.agentId
-            ? findAgentById(getDb(), conv.agentId)
-            : null)
-          .catch(() => null) as Promise<AgentRecord | null>
+          .then(async conv => {
+            if (!conv?.agentId) return null;
+            const agent = await findAgentById(getDb(), conv.agentId);
+            // The agent's name is the bot account's, and the prompt names it —
+            // so identity is resolved once, here, where the agent is loaded.
+            return agent === null ? null : attachAgentIdentity(agent);
+          })
+          .catch(() => null) as Promise<HydratedAgent | null>
       : Promise.resolve(null),
   ]);
 

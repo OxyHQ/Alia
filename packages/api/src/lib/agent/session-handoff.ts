@@ -40,6 +40,7 @@ import {
   claimOrphanedQueuedAgentSessions,
   createAgentSession,
 } from '../../db/agents/agentSessionRepository.js';
+import { agentPromptName, attachAgentIdentity } from '../agent-identity.js';
 import { reserveCredits, safeRefund } from '../credits-manager.js';
 import { log } from '../logger.js';
 import { enqueueAgentSession } from '../task-queue.js';
@@ -75,10 +76,18 @@ const DEFAULT_AGENT_PRICE = 15;
  */
 export type AgentSessionOrigin = 'hire' | 'delegation';
 
-/** The three fields hiring an agent reads. */
+/**
+ * The three fields hiring an agent reads.
+ *
+ * `oxyAccountId` rather than `name`: an agent IS an Oxy `bot` account and has no
+ * name of its own here any more. The queue entry still wants one, so this
+ * function resolves it — which is also why the identity lookup lives HERE and
+ * not at the three callers. They stopped knowing what a reservation is; they do
+ * not get to start knowing what a display name is either.
+ */
 export interface HirableAgent {
   readonly _id: string;
-  readonly name: string;
+  readonly oxyAccountId: string;
   readonly price: number | null;
 }
 
@@ -139,11 +148,21 @@ export async function startAgentSession(input: {
       usageCount: 1,
     });
 
+    /**
+     * The queue label, resolved from the bot account.
+     *
+     * Inside the `try` and yet unable to widen it: `hydrateOxyUsers` FAILS OPEN
+     * — it catches its own transport failure, logs it, and answers an empty map
+     * — and `agentPromptName` never returns null. So an Oxy outage costs this
+     * handoff a generic label, never a refund. That property is the only reason
+     * an identity lookup is allowed to stand between the reservation and the
+     * enqueue at all; if it could throw it would belong before `reserveCredits`.
+     */
     const { queued, jobId } = await enqueueAgentSession({
       sessionId: session._id,
       userId,
       agentId: agent._id,
-      agentName: agent.name,
+      agentName: agentPromptName(await attachAgentIdentity(agent)),
     });
 
     return { ok: true, sessionId: session._id, queued, ...(jobId === undefined ? {} : { jobId }) };

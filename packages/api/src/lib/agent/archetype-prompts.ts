@@ -6,9 +6,9 @@
  */
 
 import { readArchetypeConfig, type ArchetypeConfig, type ArchetypeSourceSet } from '../../domain/agent.js';
-import type { AgentRecord } from '../../db/agents/agentRepository.js';
+import { agentPromptName, type HydratedAgent } from '../agent-identity.js';
 
-export function buildArchetypeSystemPrompt(agent: AgentRecord): string | null {
+export function buildArchetypeSystemPrompt(agent: HydratedAgent): string | null {
   if (agent.archetype === 'general') return null;
 
   const config = readArchetypeConfig(agent.archetypeConfig);
@@ -41,7 +41,7 @@ function buildSourceLines(
 
 // ── Q&A Agent ───────────────────────────────────────────────────────
 
-function buildQAPrompt(agent: AgentRecord, config: ArchetypeConfig): string {
+function buildQAPrompt(agent: HydratedAgent, config: ArchetypeConfig): string {
   const sources: string[] = [];
 
   if (agent.knowledge?.length) {
@@ -61,7 +61,7 @@ function buildQAPrompt(agent: AgentRecord, config: ArchetypeConfig): string {
 - If multiple sources agree, mention the strongest one.`
     : '';
 
-  return `You are **${agent.name}**, a Q&A knowledge agent.
+  return `You are **${agentPromptName(agent)}**, a Q&A knowledge agent.
 
 ## Your Role
 Answer questions accurately using the knowledge and tools available to you. You are an expert at finding, synthesizing, and clearly presenting information from your configured sources.
@@ -85,7 +85,7 @@ ${citationInstructions}
 
 // ── Task Router Agent ───────────────────────────────────────────────
 
-function buildTaskRouterPrompt(agent: AgentRecord, config: ArchetypeConfig): string {
+function buildTaskRouterPrompt(agent: HydratedAgent, config: ArchetypeConfig): string {
   let rulesSection = '';
   if (config.routingRules?.length) {
     const ruleLines = config.routingRules.map((rule, i) => {
@@ -105,7 +105,7 @@ function buildTaskRouterPrompt(agent: AgentRecord, config: ArchetypeConfig): str
     ? `\n\n## Inbound Channels\nYou receive tasks from: ${config.inboundChannels.join(', ')}.`
     : '';
 
-  return `You are **${agent.name}**, a task routing agent.
+  return `You are **${agentPromptName(agent)}**, a task routing agent.
 
 ## Your Role
 You receive incoming tasks, messages, and requests. Your job is to understand each one, classify it, and route it to the right person, team, or agent.
@@ -142,7 +142,7 @@ ${rulesSection}${defaultSection}${channels}
 
 // ── Status Update Agent ─────────────────────────────────────────────
 
-function buildStatusUpdatePrompt(agent: AgentRecord, config: ArchetypeConfig): string {
+function buildStatusUpdatePrompt(agent: HydratedAgent, config: ArchetypeConfig): string {
   const sources = buildSourceLines(config.dataSources, {
     integration: 'Use integration tools to gather the latest data.',
     service: 'Query this service for recent updates.',
@@ -169,7 +169,7 @@ Use a clear, scannable format:
     ? '\n\n## Comparison\nYou will receive the previous report in context. Highlight what changed since the last report — new items, resolved items, trends, and deltas.'
     : '';
 
-  return `You are **${agent.name}**, a status update and reporting agent.
+  return `You are **${agentPromptName(agent)}**, a status update and reporting agent.
 
 ## Your Role
 Gather the latest data from your configured sources, synthesize it into a clear report, and deliver it. You run on a schedule to keep stakeholders informed.

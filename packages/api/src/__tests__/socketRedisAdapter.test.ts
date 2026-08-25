@@ -40,7 +40,11 @@ vi.mock('../middleware/auth.js', () => ({
   oxyClient: { authSocket: () => vi.fn() },
 }));
 vi.mock('../db/index.js', () => ({ getDb: () => ({}) }));
-vi.mock('../db/agents/agentRepository.js', () => ({ agentIsOwnedBy: vi.fn() }));
+// `socket.ts` reads the agent's BOT ACCOUNT and asks Oxy whether the socket's
+// user may act as it — the same gate the HTTP routes use — so this stands in
+// for the projection rather than for a boolean ownership answer.
+vi.mock('../db/agents/agentRepository.js', () => ({ findAgentOxyAccountId: vi.fn() }));
+vi.mock('../lib/agent-account.js', () => ({ verifyAgentAccount: vi.fn() }));
 vi.mock('../db/agents/agentSessionRepository.js', () => ({
   accountHasSessionWithAgent: vi.fn(),
   agentSessionIsOwnedBy: vi.fn(),

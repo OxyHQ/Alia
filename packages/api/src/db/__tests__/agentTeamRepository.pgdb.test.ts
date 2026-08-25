@@ -4,7 +4,7 @@ import { closePostgres, connectPostgres, type ApiDatabase } from '../index';
 import { agentTeamAgents, agentTeams } from '../schema/agent-sessions';
 import { skills } from '../schema/agents-support';
 import { libraryFiles } from '../schema/library';
-import { createAgent, deleteAgentOwnedBy } from '../agents/agentRepository';
+import { createAgent, deleteAgent } from '../agents/agentRepository';
 import {
   AgentTeamChildWriteOutsideTransactionError,
   addAgentToTeam,
@@ -44,12 +44,10 @@ const suffix = () => Math.random().toString(36).slice(2, 10);
 
 async function seedAgent(name = 'Member'): Promise<string> {
   const agent = await createAgent(db, {
-    name,
-    handle: `team-member-${suffix()}`,
+    oxyAccountId: `oxy-bot-${name.toLowerCase()}-${suffix()}`,
     tagline: 't',
     description: 'd',
     authorOxyUserId: OWNER,
-    authorName: 'Nate',
     category: 'research',
   });
   return agent._id;
@@ -104,7 +102,7 @@ describe('a team is created with all three lists populated', () => {
     });
 
     expect(team.agents).toHaveLength(1);
-    expect(team.agents[0]).toMatchObject({ _id: agentId, name: 'Alpha', status: 'active' });
+    expect(team.agents[0]).toMatchObject({ _id: agentId, status: 'active' });
     expect(team.skills.map((s) => s._id)).toEqual([skillId]);
     expect(team.knowledge.map((k) => k._id)).toEqual([fileId]);
   });
@@ -193,7 +191,7 @@ describe('$addToSet and $pull were set semantics all along', () => {
     await addAgentToTeam(db, team._id, OWNER, second);
     const withThird = await addAgentToTeam(db, team._id, OWNER, third);
 
-    expect(withThird?.agents.map((a) => a.name)).toEqual(['One', 'Two', 'Three']);
+    expect(withThird?.agents.map((a) => a._id)).toEqual([first, second, third]);
 
     const positions = await db
       .select({ position: agentTeamAgents.position })
@@ -211,7 +209,7 @@ describe('$addToSet and $pull were set semantics all along', () => {
     await addAgentToTeam(db, team._id, OWNER, dropped);
 
     const after = await removeAgentFromTeam(db, team._id, OWNER, dropped);
-    expect(after?.agents.map((a) => a.name)).toEqual(['Kept']);
+    expect(after?.agents.map((a) => a._id)).toEqual([kept]);
   });
 });
 
@@ -308,11 +306,11 @@ describe('what a deletion takes with it', () => {
       agentIds: [doomed, kept],
     });
 
-    await deleteAgentOwnedBy(db, doomed, OWNER);
+    await deleteAgent(db, doomed);
 
     const after = await findAgentTeamOwnedBy(db, team._id, OWNER);
     expect(after).not.toBeNull();
-    expect(after?.agents.map((a) => a.name)).toEqual(['Kept']);
+    expect(after?.agents.map((a) => a._id)).toEqual([kept]);
 
     const [teamRow] = await db
       .select({ total: sql<number>`count(*)::int` })

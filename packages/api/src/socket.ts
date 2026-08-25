@@ -5,7 +5,8 @@ import { getRedisClient, getRedisSubClient } from './lib/redis.js';
 import { log } from './lib/logger.js';
 import { oxyClient } from './middleware/auth.js';
 import { getDb } from './db/index.js';
-import { agentIsOwnedBy } from './db/agents/agentRepository.js';
+import { findAgentOxyAccountId } from './db/agents/agentRepository.js';
+import { verifyAgentAccount } from './lib/agent-account.js';
 import {
   accountHasSessionWithAgent,
   agentSessionIsOwnedBy,
@@ -22,6 +23,21 @@ import {
 function socketUserId(socket: Socket): string | null {
   const fromData = socket.data?.userId;
   if (typeof fromData === 'string' && fromData.length > 0) return fromData;
+  return null;
+}
+
+/**
+ * The bearer `oxy.authSocket()` verified, kept for the ONE gate that needs it.
+ *
+ * `socket.data.token` is the handshake token the middleware already validated,
+ * so this reads a verified value rather than trusting the client — and it is
+ * what lets a room gate ask Oxy the same `account:act_as` question an HTTP route
+ * asks, instead of falling back to an ownership column that stopped being an
+ * authorization answer.
+ */
+function socketAccessToken(socket: Socket): string | null {
+  const token = socket.data?.token;
+  if (typeof token === 'string' && token.length > 0) return token;
   return null;
 }
 
@@ -152,14 +168,34 @@ export function initSocket(server: http.Server) {
     socket.on('subscribe-agent', async (agentId: string) => {
       if (typeof agentId !== 'string' || agentId.length === 0 || agentId.length > 256) return;
       if (!userId) return;
-      // A user may observe an agent's activity room only if they authored it or
-      // currently have a session with it. Agent-activity events carry tool calls,
-      // file changes, and screenshots from a running (owned) session.
+      // A user may observe an agent's activity room only if they may ACT AS its
+      // bot account, or currently have a session with it. Agent-activity events
+      // carry tool calls, file changes, and screenshots from a running session.
       // The 24-hex shape check that used to gate this is gone with the ObjectIds
       // it described — see `ownsAgentSession`.
-      const authored = await agentIsOwnedBy(getDb(), agentId, userId);
-      const hasSession = authored || (await accountHasSessionWithAgent(getDb(), agentId, userId));
-      if (!authored && !hasSession) return;
+      //
+      // The operator ground is `account:act_as` at Oxy, not the `author` column:
+      // this room shows an agent's live work, and who may watch that is the same
+      // question as who may edit it. The verdict is cached, so a subscription
+      // storm costs one round trip rather than one each.
+      const accessToken = socketAccessToken(socket);
+      const oxyAccountId = accessToken === null
+        ? null
+        : await findAgentOxyAccountId(getDb(), agentId);
+      const operator = oxyAccountId !== null && accessToken !== null
+        && (
+          await verifyAgentAccount({
+            oxyUserId: userId,
+            accessToken,
+            oxyAccountId,
+            // A room SUBSCRIPTION — a read, and the one place a cached verdict
+            // earns its keep: a client reconnecting re-subscribes to every room
+            // it was in, which is a burst of the same question.
+            cache: true,
+          })
+        ).permitted;
+      const hasSession = operator || (await accountHasSessionWithAgent(getDb(), agentId, userId));
+      if (!operator && !hasSession) return;
       Promise.resolve(socket.join(`agent:${agentId}`)).catch((err) => log.general.warn({ err }, 'socket.join agent failed'));
     });
 

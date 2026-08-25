@@ -59,12 +59,10 @@ const TEMPLATE_AGENT = 'ctrr-agent-row';
 beforeAll(async () => {
   await db.insert(agents).values({
     id: TEMPLATE_AGENT,
-    name: 'Snapshotter',
-    handle: `@ctrr-${Math.random().toString(36).slice(2, 10)}`,
+    oxyAccountId: `oxy-bot-ctrr-${Math.random().toString(36).slice(2, 10)}`,
     tagline: 'takes snapshots',
     description: 'a longer description',
     authorOxyUserId: OWNER,
-    authorName: 'Nate',
     category: 'research',
   });
 });

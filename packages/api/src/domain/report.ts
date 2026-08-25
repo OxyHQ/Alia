@@ -39,9 +39,9 @@ export enum ReportedType {
   /**
    * An Alia account.
    *
-   * Accepted, never delivered. Oxy owns identity — Alia stores only a
-   * denormalized `authorName` alongside the objects a person publishes, so there
-   * is no Alia-side profile for §5.6 to pin as "the exact version reported". The
+   * Accepted, never delivered. Oxy owns identity — Alia stores only an Oxy
+   * account id alongside the objects a person publishes, so there is no
+   * Alia-side profile for §5.6 to pin as "the exact version reported". The
    * material a jury would need belongs to a product that is not this one.
    */
   USER = 'user',

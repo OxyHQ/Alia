@@ -49,7 +49,6 @@ export interface ForUserOptions {
   accessToken?: string;
   isDirectSession: boolean;
   agentMode: boolean;
-  username?: string;
   requestId?: string;
   /** Raw OpenAI-format tools from the client (VS Code, Cursor, Cowork) */
   editorToolDefinitions?: OpenAITool[];
@@ -111,7 +110,6 @@ export class ToolPipeline {
       accessToken,
       isDirectSession,
       agentMode,
-      username,
       requestId,
       editorToolDefinitions,
       sseEmitter,
@@ -158,7 +156,7 @@ export class ToolPipeline {
         updateUserMemory: updateUserMemoryTool(userId),
         updateUserPreferences: updateUserPreferencesTool(userId),
         updateUserContext: updateUserContextTool(userId),
-        createAgent: createAgentTool(userId, username),
+        createAgent: createAgentTool(userId, accessToken),
         ...(webSearch && !isLocalRuntime ? { deepResearch: createDeepResearchTool(userId) } : {}),
       });
 

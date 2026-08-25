@@ -7,6 +7,7 @@ import { BadgeCheck, Zap } from "lucide-react-native";
 import { cn } from "@/lib/utils";
 import { useTranslation } from "@/lib/hooks/use-translation";
 import type { Agent } from "@/lib/stores/agents-store";
+import { agentDisplayName, agentHandle, agentInitial } from "@/lib/agents/identity";
 
 interface AgentCardProps {
   agent: Agent;
@@ -58,7 +59,7 @@ export const AgentCard = React.memo(function AgentCard({
               ) : (
                 <AvatarFallback>
                   <Text className={cn("font-bold text-foreground", avatarTextSize)}>
-                    {agent.name.charAt(0)}
+                    {agentInitial(agent)}
                   </Text>
                 </AvatarFallback>
               )}
@@ -95,17 +96,16 @@ export const AgentCard = React.memo(function AgentCard({
             )}
             numberOfLines={1}
           >
-            {agent.name}
+            {agentDisplayName(agent)}
           </Text>
-          {agent.isVerified && (
-            <BadgeCheck size={15} className="text-blue-500" />
-          )}
         </View>
 
-        {/* Handle */}
-        <Text className="text-[13px] text-muted-foreground mt-0.5" numberOfLines={1}>
-          @{agent.handle}
-        </Text>
+        {/* Handle — absent when Oxy could not resolve the bot account. */}
+        {agentHandle(agent) !== "" && (
+          <Text className="text-[13px] text-muted-foreground mt-0.5" numberOfLines={1}>
+            @{agentHandle(agent)}
+          </Text>
+        )}
 
         {/* Tagline */}
         <Text

@@ -46,7 +46,25 @@ vi.mock('../../middleware/auth.js', () => ({
     if (typeof id === 'string' && id !== '') req.user = { id };
     next();
   },
-  oxyClient: { getUsersByIds: () => Promise.resolve([]) },
+  oxyClient: {
+    /**
+     * Answers a profile for the BOT ACCOUNTS only.
+     *
+     * An agent's name is Oxy's now, so the shared-agents route resolves one —
+     * and an empty answer would leave that assertion reading `undefined`
+     * whether the route hydrated or not. Every OTHER id keeps resolving to
+     * nothing, which is what the member-list cases were calibrated against:
+     * widening this to all ids changes the member response shape and takes
+     * seven unrelated cases with it.
+     */
+    getUsersByIds: (ids: string[]) =>
+      Promise.resolve(
+        ids
+          .filter((id) => id.startsWith('oxy-bot-'))
+          .map((id) => ({ id, username: id, name: { displayName: `name:${id}` } })),
+      ),
+    getFileDownloadUrl: (id: string) => `https://cloud.oxy.so/${id}`,
+  },
 }));
 
 const { closePostgres, connectPostgres } = await import('../../db/index.js');
@@ -476,15 +494,13 @@ describe('the agents an organization shares', () => {
   const FIRST = '01900000-0000-7000-8000-0000000000a1';
   const SECOND = '01900000-0000-7000-8000-0000000000a2';
 
-  async function seedAgent(id: string, name: string, handle: string): Promise<void> {
+  async function seedAgent(id: string, oxyAccountId: string): Promise<void> {
     await db.insert(agents).values({
       id,
-      name,
-      handle,
+      oxyAccountId,
       tagline: 'a tagline',
       description: 'a description',
       authorOxyUserId: OWNER,
-      authorName: 'Owner',
       category: 'general',
     });
   }
@@ -495,8 +511,8 @@ describe('the agents an organization shares', () => {
 
   it('serves the shared agents, most recently shared FIRST', async () => {
     const id = await aStaffedOrganization();
-    await seedAgent(FIRST, 'First', 'orgauth-first');
-    await seedAgent(SECOND, 'Second', 'orgauth-second');
+    await seedAgent(FIRST, 'oxy-bot-orgauth-first');
+    await seedAgent(SECOND, 'oxy-bot-orgauth-second');
     expect((await call('POST', `/organization/${id}/agents`, ADMIN, { agentId: FIRST })).status).toBe(200);
     expect((await call('POST', `/organization/${id}/agents`, ADMIN, { agentId: SECOND })).status).toBe(200);
     // Two shares written in the same millisecond tie on `created_at`, and an
@@ -525,7 +541,12 @@ describe('the agents an organization shares', () => {
     expect(served.map((a) => a.id)).toEqual([SECOND, FIRST]);
     // `_id` beside `id`, the shape `res.json({ agent })` has always answered.
     expect(served.map((a) => a._id)).toEqual([SECOND, FIRST]);
-    expect(served.map((a) => a.name)).toEqual(['Second', 'First']);
+    // The NAME comes from Oxy, keyed by the bot account — so this also asserts
+    // that the route hydrated at all, which a bare id ordering could not.
+    expect(served.map((a) => a.name)).toEqual([
+      'name:oxy-bot-orgauth-second',
+      'name:oxy-bot-orgauth-first',
+    ]);
   });
 
   it('drops a share whose agent no longer exists, rather than serving a null', async () => {
@@ -536,7 +557,7 @@ describe('the agents an organization shares', () => {
      * that exist, which is the same set, and this is what says so.
      */
     const id = await aStaffedOrganization();
-    await seedAgent(FIRST, 'First', 'orgauth-first');
+    await seedAgent(FIRST, 'oxy-bot-orgauth-first');
     await call('POST', `/organization/${id}/agents`, ADMIN, { agentId: FIRST });
     await db.insert(organizationAgents).values({
       organizationId: id,
@@ -563,7 +584,7 @@ describe('the agents an organization shares', () => {
 
   it('lets an admin share and unshare, and refuses an ordinary member', async () => {
     const id = await aStaffedOrganization();
-    await seedAgent(FIRST, 'First', 'orgauth-first');
+    await seedAgent(FIRST, 'oxy-bot-orgauth-first');
 
     expect((await call('POST', `/organization/${id}/agents`, MEMBER, { agentId: FIRST })).status).toBe(403);
     expect((await call('DELETE', `/organization/${id}/agents/${FIRST}`, MEMBER)).status).toBe(403);

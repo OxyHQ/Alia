@@ -2,14 +2,26 @@ import { useQuery } from '@tanstack/react-query';
 import { useOxy } from '@oxyhq/services';
 import apiClient from '../api/client';
 
+/**
+ * The agent a task ran, as the listing embeds it.
+ *
+ * `name`, `handle` and `avatar` are the bot ACCOUNT's — the API resolves them
+ * from Oxy for the whole page in one call — so all three are nullable: an
+ * account Oxy cannot resolve leaves them null and the card still draws, because
+ * the task, the plan and the stats are Alia's own.
+ */
+export interface TaskAgentRef {
+  _id: string;
+  /** The Oxy `bot` account the agent IS. */
+  oxyAccountId: string;
+  name: string | null;
+  handle: string | null;
+  avatar: string | null;
+}
+
 export interface TaskSession {
   _id: string;
-  agentId: {
-    _id: string;
-    name: string;
-    handle: string;
-    avatar?: string;
-  } | null;
+  agentId: TaskAgentRef | null;
   status: 'queued' | 'running' | 'completed' | 'failed' | 'cancelled';
   task: string;
   result?: string;
@@ -29,12 +41,7 @@ export interface TaskSession {
     lastActivityAt: string;
   };
   createdAt: string;
-  childAgents?: Array<{
-    _id: string;
-    name: string;
-    handle: string;
-    avatar?: string;
-  }>;
+  childAgents?: TaskAgentRef[];
 }
 
 export function useActiveTasks() {

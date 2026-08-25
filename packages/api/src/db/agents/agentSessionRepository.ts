@@ -34,6 +34,11 @@
  * {@link AgentSessionListing}, which is deliberately a different type from
  * {@link AgentSessionRecord} rather than a widened one.
  *
+ * What that object carries from SQL is now `_id` and `oxy_account_id` only: the
+ * name, the handle and the avatar are the bot account's, so the ROUTE fills
+ * them in with one batched Oxy call (`attachAgentIdentities`) rather than this
+ * query joining columns that no longer exist.
+ *
  * ## Deleting an agent does NOT delete its sessions
  *
  * `agent_sessions.agent_id` carries no foreign key (see the schema), so a
@@ -144,12 +149,16 @@ export interface AgentSessionRecord {
   updatedAt: Date;
 }
 
-/** The agent fields `populate('agentId', 'name handle avatar')` projected. */
+/**
+ * The agent an `agentId` object stands for, before identity is attached.
+ *
+ * `oxyAccountId` is what a caller feeds to `attachAgentIdentities`; nothing
+ * renderable is here, deliberately, so a route that forgets to hydrate produces
+ * an obviously empty card rather than a plausible wrong one.
+ */
 export interface AgentSessionAgentRef {
   _id: string;
-  name: string;
-  handle: string;
-  avatar: string | null;
+  oxyAccountId: string;
 }
 
 /** A session as the task listings render it. See the file comment. */
@@ -314,9 +323,7 @@ export async function accountHasSessionWithAgent(
 
 const AGENT_REF = {
   _id: agents.id,
-  name: agents.name,
-  handle: agents.handle,
-  avatar: agents.avatar,
+  oxyAccountId: agents.oxyAccountId,
 } as const;
 
 const LISTING_COLUMNS = {
@@ -501,12 +508,7 @@ export async function listChildAgentSessions(
       : [
           {
             parentSessionId: row.parentSessionId,
-            agent: {
-              _id: row.agent._id,
-              name: row.agent.name,
-              handle: row.agent.handle,
-              avatar: row.agent.avatar,
-            },
+            agent: { _id: row.agent._id, oxyAccountId: row.agent.oxyAccountId },
           },
         ],
   );
