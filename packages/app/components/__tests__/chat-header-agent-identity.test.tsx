@@ -160,6 +160,19 @@ describe('the chat header, with an agent', () => {
     expect(nodes(r, 'AgentGlyph')[0]?.props.color).toBeNull();
   });
 
+  it('offers to start a new conversation only where a thread never ends', () => {
+    // `/a/:username` has no "new chat" of its own; `/c/:id` does, in the
+    // sidebar. The presence of the handler IS the distinction, so a screen that
+    // cannot cut its thread cannot show the item.
+    const titles = (r: ReactTestRenderer) =>
+      nodes(r, 'DropdownItemTitle').map((node) => node.props.children);
+
+    expect(titles(render(<ChatHeader isConversation onNewConversation={() => {}} />)))
+      .toContain('chatHeader.newConversation');
+    expect(titles(render(<ChatHeader isConversation />)))
+      .not.toContain('chatHeader.newConversation');
+  });
+
   it('draws no identity at all on Alia’s own chat', () => {
     const r = render(<ChatHeader />);
 
@@ -175,9 +188,17 @@ describe('the chat header, while an answer streams', () => {
   const STREAMING_FLUSHES = 20;
 
   it('renders once across a whole stream, identity and all', () => {
+    // Every prop the thread screen actually passes, so the memo is exercised
+    // against the real set rather than a reduced one.
     const onGhostModePress = () => {};
+    const onNewConversation = () => {};
     const header = () => (
-      <ChatHeader onGhostModePress={onGhostModePress} agentName="Pepe" agentColor="#7c3aed" />
+      <ChatHeader
+        onGhostModePress={onGhostModePress}
+        onNewConversation={onNewConversation}
+        agentName="Pepe"
+        agentColor="violet"
+      />
     );
 
     const r = render(header());
