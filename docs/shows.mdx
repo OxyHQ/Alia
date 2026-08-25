@@ -171,7 +171,25 @@ against the show's current visibility."*
 So `GET /api/podcasts/episodes/:id/stream` answers `409` or `422` for exactly the
 episode a user just made. `GET /api/podcasts/episodes/:id/audio` with the
 listener's bearer token works at every visibility, needs no hls.js on the web,
-and is the enclosure Syra publishes in its own RSS.
+and is the enclosure Syra publishes in its own RSS. Syra gates it on the SHOW's
+audience and never on who is asking — `public` and `unlisted` are anonymous
+because podcast clients fetch that same URL with no credentials, and only
+`private` asks, answering anyone but the owner `404`.
+
+**Web has to fetch the audio itself, and that is not optional.** `expo-audio`
+takes `{ uri, headers }` and sends the headers on native only: in `57.0.0` the
+sole web function that reads `source.headers` is `preloadAsync`, and
+`AudioPlayer.web`'s `_createMediaElement` hands `new Audio()` the raw URI unless
+`preloadCache` already holds a blob for it. Nothing called `preloadAsync`, so a
+browser asked Syra for a private episode anonymously, got `404`, and reported
+`NotSupportedError: Failed to load because no supported source was found` — a
+message that names the symptom and hides the cause, and one that only ever
+appeared on web. `lib/hooks/use-episode-audio.ts` owns the fetch on web now:
+it checks the STATUS before treating the body as audio (`preloadAsync` calls
+`response.blob()` with no `ok` check, which is how a refusal became undecodable
+audio), plays from an object URL revoked at the end of that one playback, and
+gives each refusal — signed out, rejected token, nothing there, unreachable —
+its own sentence in the episode row.
 
 **Syra never computes an episode's duration** — the draft inserts `0` and only
 the ingest field sets it. Alia measures the finished file with ffmpeg rather than
@@ -230,8 +248,20 @@ loses everything it asked for is worse than one that admits it.
 | `EXPO_PUBLIC_SYRA_API_URL` | App | Deliberately not tied to the API URL: a local API still plays episodes from the real Syra. |
 
 **One prerequisite lives in Syra, not here.** Web playback fetches audio from
-`api.syra.fm` with the listener's token, so Alia's web origin must be in Syra's
-CORS allow-list. Native has no CORS and is unaffected.
+`api.syra.fm` with the listener's token, and `Authorization` is not a
+CORS-safelisted header, so the request is preflighted and Alia's web origin must
+be listed EXACTLY in Syra's `ALLOWED_ORIGINS` (`packages/backend/server.ts`).
+`https://alia.onl` is listed. No local origin is: neither
+`http://localhost:8150` (`bun run --filter @alia/app web`) nor the random
+`*.exp.direct` host `dev:app`'s tunnel hands out, which could not be listed
+anyway. Syra's origin callback answers `false` rather than an error, so the
+preflight simply comes back without `Access-Control-Allow-Origin` and the fetch
+rejects. A developer playing an
+episode from a local web build therefore reads *"Couldn't reach Syra"*, which is
+the truth: the request never got an answer. Nothing in Alia can fix that from
+here; it is one line in Syra, and only worth adding if local web playback is
+something we want to be able to try. Native sends no `Origin` at all and is
+unaffected either way.
 
 Key files: `db/schema/shows.ts`, `db/shows/showRepository.ts` (`priorEpisodes`),
 `lib/show/` (pipeline, prompts, voices, audio, cover art, titles),
