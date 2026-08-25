@@ -37,7 +37,19 @@ import {
 } from '../../domain/agent.js';
 import { log } from '../../lib/logger.js';
 import { z } from 'zod';
-import { isCapabilityGrant } from '../../domain/capability-grants.js';
+import { formatCapabilityGrant, isCapabilityGrant } from '../../domain/capability-grants.js';
+import {
+  listMcpServersForUser,
+  type McpServerRow,
+} from '../../db/integrations/mcpServerRepository.js';
+import {
+  listActiveOxyServiceDefs,
+  type OxyServiceDefRow,
+} from '../../db/integrations/oxyServiceRepository.js';
+import {
+  listIntegrationsForUser,
+  type IntegrationSafeRow,
+} from '../../db/integrations/integrationRepository.js';
 import { constraintNameOf, isUniqueViolation } from '@oxyhq/db';
 import type { Request, Response } from 'express';
 
@@ -226,6 +238,74 @@ router.get('/health', async (_req: Request, res: Response) => {
     res.status(500).json({ error: 'Failed to check health' });
   }
 });
+
+/**
+ * GET /agents/capability-connectors — the ROWS this caller can grant an agent.
+ *
+ * Three of the twelve capability families are granted one row at a time
+ * (`mcp:<id>`, `oxy_service:<id>`, `integration:<service>`), because their tool
+ * names come from data. A screen offering those grants has to know which rows
+ * exist, and only this service knows all three: MCP connectors and OAuth
+ * integrations are the caller's own rows, and the Oxy service manifests are
+ * global and have no client-facing listing anywhere else.
+ *
+ * The `grant` STRING is built here rather than in the client. It is the value
+ * that goes into `capability_grants` verbatim, so a client that assembled it
+ * from a family and an id would be a second place the separator is written —
+ * and `family:instanceId` disagreeing across the seam is silent in both
+ * directions: an unrecognised grant is refused on write and dropped on read.
+ *
+ * Every source FAILS OPEN and independently. A connector service being down
+ * costs its own section, not the whole screen — the same reasoning the tool
+ * pipeline's `bulkFailure` gives one layer down.
+ */
+router.get('/capability-connectors', authenticateToken, async (req: Request, res: Response) => {
+  if (!req.user?.id) return res.status(401).json({ error: 'Unauthorized' });
+  const oxyUserId = req.user.id;
+
+  const [mcp, oxyService, integration] = await Promise.all([
+    listMcpServersForUser(getDb(), oxyUserId).catch(connectorFailure<McpServerRow>('mcp')),
+    listActiveOxyServiceDefs(getDb()).catch(connectorFailure<OxyServiceDefRow>('oxy_service')),
+    listIntegrationsForUser(getDb(), oxyUserId).catch(connectorFailure<IntegrationSafeRow>('integration')),
+  ]);
+
+  res.json({
+    connectors: [
+      ...mcp.map((server) => ({
+        grant: formatCapabilityGrant('mcp', server.id),
+        family: 'mcp',
+        label: server.displayName,
+        // What the agent would actually gain. A connector with no tools grants
+        // nothing, and saying so is better than an inert toggle.
+        detail: `${server.tools.length} tool${server.tools.length === 1 ? '' : 's'}`,
+      })),
+      ...oxyService.map((service) => ({
+        grant: formatCapabilityGrant('oxy_service', service.serviceId),
+        family: 'oxy_service',
+        label: service.displayName,
+        detail: service.description,
+      })),
+      ...integration.map((row) => ({
+        // The SERVICE, not the row id: `buildIntegrationTools` matches on
+        // `google-calendar` / `google-drive`, which is what
+        // `listConnectedServices` answers, so a grant naming the row's own id
+        // would match nothing and fail silently.
+        grant: formatCapabilityGrant('integration', row.service),
+        family: 'integration',
+        label: row.displayName,
+        detail: row.status === 'active' ? 'Connected' : row.status,
+      })),
+    ],
+  });
+});
+
+/** A connector source that could not be listed contributes nothing, loudly. */
+function connectorFailure<T>(family: string): (err: unknown) => T[] {
+  return (err: unknown) => {
+    log.agents.warn({ err, family }, 'Could not list grantable connectors for a family');
+    return [];
+  };
+}
 
 // GET /agents/:id - get single agent (public)
 router.get('/:id', optionalAuth, async (req: Request, res: Response) => {

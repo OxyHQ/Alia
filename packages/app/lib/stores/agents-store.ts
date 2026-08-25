@@ -3,15 +3,6 @@ import apiClient from '../api/client';
 import { API_ROUTES } from '../api/routes';
 import { errorMessage as getErrorMessage, errorStatus, errorResponseData } from '../errors/error-utils';
 
-export interface AgentPermissions {
-  filesystem: boolean;
-  network: boolean;
-  shell: boolean;
-  communications: boolean;
-  mcp_servers: boolean;
-  delegation: boolean;
-}
-
 export type AgentArchetype = 'general' | 'qa' | 'task_router' | 'status_update';
 
 export interface RoutingRule {
@@ -22,7 +13,6 @@ export interface RoutingRule {
 
 export interface ArchetypeConfig {
   // Q&A
-  knowledgeSources?: { integrations?: string[]; mcpServers?: string[]; oxyServices?: string[] };
   citeSources?: boolean;
   // Task Router
   inboundChannels?: string[];
@@ -30,7 +20,6 @@ export interface ArchetypeConfig {
   defaultAssignee?: { type: 'agent' | 'team' | 'user'; id: string; name?: string };
   escalationTimeoutMinutes?: number;
   // Status Update
-  dataSources?: { integrations?: string[]; mcpServers?: string[]; oxyServices?: string[] };
   reportTemplate?: string;
   reportFormat?: 'markdown' | 'html' | 'plain';
   deliveryChannels?: string[];
@@ -71,7 +60,16 @@ export interface Agent {
   usageCount: number;
   hireCount: number;
   price: number | null;
-  capabilities: string[];
+  /**
+   * What this agent may reach: `family` or `family:instanceId` strings.
+   *
+   * EMPTY DENIES EVERYTHING, which is the reverse of the three vocabularies it
+   * replaced — `capabilities`, `permissions` and
+   * `archetypeConfig.knowledgeSources`, where an unset value meant *allowed*.
+   * The labels live in `lib/constants/capability-families.ts`; the vocabulary
+   * itself is the API's.
+   */
+  capabilityGrants: string[];
   skills: Array<{ _id: string; skillId: string; title: string; icon: string; color: string }>;
   knowledge: Array<{ _id: string; name: string; type: string; category: string; url: string }>;
   isFeatured: boolean;
@@ -86,7 +84,6 @@ export interface Agent {
    * toggle has to handle that refusal rather than assume it can always set it.
    */
   handlesAutonomousEvents: boolean;
-  permissions?: AgentPermissions;
   systemPrompt?: string;
   allowedModels?: string[];
   archetype?: AgentArchetype;
@@ -125,7 +122,7 @@ export type AgentCreate = Pick<Agent, 'oxyAccountId' | 'tagline' | 'description'
       Agent,
       | 'tags'
       | 'price'
-      | 'capabilities'
+      | 'capabilityGrants'
       | 'isPublished'
       | 'allowHiring'
       | 'handlesAutonomousEvents'
@@ -187,16 +184,22 @@ export const useAgentsStore = create<AgentsStoreState>((set, get) => ({
     }
   },
 
+  /**
+   * RETHROWS. A refused save has to reach the screen.
+   *
+   * This used to `console.error` and return, so a caller `await`ing it could
+   * not tell a saved agent from a rejected one — and the agent editor, which
+   * wrapped its call in `} catch { // silent }`, cleared its spinner and looked
+   * saved. Every autosave the editor sent was in fact a 400, on every
+   * keystroke, for as long as the screen existed. Two swallows in a row is what
+   * kept that invisible.
+   */
   updateAgent: async (id, updates) => {
-    try {
-      const res = await apiClient.patch<{ agent: Agent }>(API_ROUTES.agents.update(id), updates);
-      const updated = res.data.agent;
-      set((state) => ({
-        agents: state.agents.map((a) => (a._id === id ? updated : a)),
-      }));
-    } catch (error) {
-      console.error('Error updating agent:', error);
-    }
+    const res = await apiClient.patch<{ agent: Agent }>(API_ROUTES.agents.update(id), updates);
+    const updated = res.data.agent;
+    set((state) => ({
+      agents: state.agents.map((a) => (a._id === id ? updated : a)),
+    }));
   },
 
   deleteAgent: async (id) => {
