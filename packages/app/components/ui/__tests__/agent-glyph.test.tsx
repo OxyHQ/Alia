@@ -5,17 +5,17 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 /**
  * What an agent's face is painted with.
  *
- * The color comes from `User.color` on the agent's Oxy bot account — a column
- * whose format Alia does not control, reached through a lookup that FAILS OPEN
- * and returns null for an account it cannot resolve. So the two paths that
- * matter are "a color arrived" and "nothing usable arrived", and the second is
- * ordinary traffic.
+ * `User.color` on the agent's Oxy bot account holds a Bloom preset KEY — the
+ * WORD `"violet"`, not a colour — and it is reached through a lookup that FAILS
+ * OPEN and returns null for an account it cannot resolve. So the two paths that
+ * matter are "a preset arrived" and "nothing usable arrived", and the second is
+ * ordinary traffic rather than an error.
  *
- * The failure this pins down is silent: `withAlpha` hands back an unparseable
- * color UNCHANGED, and an SVG `fill` that SVG cannot parse renders BLACK. A
- * garbage color would therefore paint a black disc and a black flower on every
- * theme, which looks like a design choice rather than a bug — so it is asserted
- * to take the same path as no color at all.
+ * Both failures this pins down are silent. Not resolving the preset paints every
+ * agent in the theme's own grey, which looks exactly like the honest fallback.
+ * And passing a value through unresolved is worse: `withAlpha` hands back a
+ * colour it cannot parse UNCHANGED, and an SVG `fill` that SVG cannot parse
+ * renders BLACK — a black disc on every theme, which looks like a design choice.
  */
 
 const MUTED = 'rgb(113 113 122)';
@@ -27,17 +27,19 @@ vi.mock('@/lib/useColorScheme', () => ({
 /**
  * Bloom's `theme` entry is a barrel that reaches `react-native` — which has no
  * Node build — through directory imports Node's ESM resolver refuses outright.
- * The two color utilities this component uses are a standalone module inside the
+ * The colour utilities and the preset registry are standalone modules inside the
  * SAME install, so they are loaded from there: what runs here is Bloom's own
- * `parseRgb` and `withAlpha`, and a test of a re-implementation of them would
- * measure nothing.
+ * `parseRgb`, `withAlpha` and `APP_COLOR_PRESETS`, and asserting a colour
+ * against a re-stated copy of the registry would measure nothing — it is
+ * precisely the registry being stale that the assertions are for.
  */
 vi.mock('@oxyhq/bloom/theme', async () => {
   const { createRequire } = await import('node:module');
   const { pathToFileURL } = await import('node:url');
   const require = createRequire(import.meta.url);
   const entry = pathToFileURL(require.resolve('@oxyhq/bloom'));
-  return require(new URL('theme/color-utils.js', entry).pathname);
+  const from = (module: string) => require(new URL(`theme/${module}.js`, entry).pathname);
+  return { ...from('color-utils'), ...from('color-presets') };
 });
 
 vi.mock('react-native-svg', async () => {
@@ -51,6 +53,8 @@ vi.mock('react-native-svg', async () => {
     Path: host('Path'),
   };
 });
+
+import { APP_COLOR_PRESETS, withAlpha } from '@oxyhq/bloom/theme';
 
 import { AgentGlyph } from '../agent-glyph';
 
@@ -88,7 +92,28 @@ afterEach(() => {
 });
 
 describe('AgentGlyph', () => {
-  it("paints the flower and its disc in the agent's own color", () => {
+  /**
+   * The vocabulary `User.color` actually holds, and the one this whole feature
+   * turns on: `POST /agents/generate` proposes a Bloom preset KEY, Oxy stores
+   * that word, and it reaches this component as the word.
+   *
+   * Asserted against Bloom's own registry rather than a hex written here,
+   * because a hex written here would keep passing after Bloom reseeded the
+   * preset — which is the day every agent silently changes colour.
+   */
+  it("resolves the Bloom preset key Oxy stores into the colour it seeds", () => {
+    const { hex } = APP_COLOR_PRESETS.violet;
+
+    expect(fills(render({ color: 'violet' }))).toEqual({
+      flower: hex,
+      disc: withAlpha(hex, 0.16),
+    });
+    // Not the theme's own — the assertion above would pass on the fallback if
+    // the preset happened to seed the same value.
+    expect(hex).not.toBe(MUTED);
+  });
+
+  it("paints a literal colour too, for anything that wrote one to that column", () => {
     expect(fills(render({ color: '#7c3aed' }))).toEqual({
       flower: '#7c3aed',
       disc: 'rgba(124, 58, 237, 0.16)',
@@ -107,9 +132,9 @@ describe('AgentGlyph', () => {
     ['null', null],
     // Oxy resolved nothing at all: the identity lookup failed open.
     ['undefined', undefined],
-    // A stored value that is not a color. Untrusted, and the reason for parsing:
-    // passed through, it would paint black.
-    ['a word', 'sunset'],
+    // A word that is not a preset and not a colour. Untrusted, and the reason
+    // for checking at all: passed through, it would paint black.
+    ['a word that is neither', 'sunset'],
     // The empty string a form can write into the column.
     ['an empty string', ''],
   ])('falls back to the theme when the color is %s', (_label, color) => {
