@@ -298,6 +298,9 @@
     "thanksFeedback": "¡Gracias por tu opinión!",
     "today": "Hoy",
     "yesterday": "Ayer",
+    "newConversationOffer": "¿Empezar una conversación nueva?",
+    "newConversationAccept": "Empezar una nueva",
+    "newConversationDismiss": "Ahora no",
     "sendFailed": "No se pudo enviar el mensaje. Lo tienes de vuelta en el cuadro de texto, inténtalo otra vez."
   },
   "credits": {

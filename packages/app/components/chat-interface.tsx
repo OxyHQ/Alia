@@ -44,6 +44,7 @@ import type { AgentActivityState } from "@/lib/hooks/use-agent-activity";
 import { Skeleton } from "@/components/ui/skeleton";
 import apiClient from "@/lib/api/client";
 import { useTranslation } from "@/lib/hooks/use-translation";
+import { NewConversationOffer } from "@/components/new-conversation-offer";
 import { daySeparators } from "@/lib/message-days";
 
 const isWeb = Platform.OS === "web";
@@ -102,6 +103,10 @@ type ChatInterfaceProps = {
   agentSessionId?: string | null;
   onApprovePlan?: (planId: string) => void;
   onRejectPlan?: (planId: string) => void;
+  /** The agent's reason for offering a fresh stretch, or `null` for no offer. */
+  suggestedNewConversation?: string | null;
+  onAcceptNewConversation?: () => void;
+  onDismissNewConversation?: () => void;
 };
 
 /** True for Alia's own assistant messages (excludes delegated agents and voice cohosts). */
@@ -516,7 +521,7 @@ const MessageRow = React.memo(function MessageRow({
 
 const imageThumbStyle = { width: 120, height: 120 };
 
-export const ChatInterface = React.memo(function ChatInterface({ messages, scrollViewRef, isLoading, conversationLoading, onStartEdit, onCopyMessage, bottomPadding = 160, isVoiceActive = false, voiceAgentState, onAtBottomChange, agentActivity, agentSessionId, onApprovePlan, onRejectPlan }: ChatInterfaceProps) {
+export const ChatInterface = React.memo(function ChatInterface({ messages, scrollViewRef, isLoading, conversationLoading, onStartEdit, onCopyMessage, bottomPadding = 160, isVoiceActive = false, voiceAgentState, onAtBottomChange, agentActivity, agentSessionId, onApprovePlan, onRejectPlan, suggestedNewConversation, onAcceptNewConversation, onDismissNewConversation }: ChatInterfaceProps) {
     const { t, locale } = useTranslation();
     const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
     const [votedMessages, setVotedMessages] = useState<Record<string, 'up' | 'down'>>({});
@@ -758,6 +763,17 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
             ) : (
               <AgentTaskCard activity={agentActivity} />
             )
+          )}
+
+          {/* The agent's offer to start the next stretch fresh. Last in the
+              list on purpose: it must not cover what is being read, and
+              ignoring it has to leave the thread exactly as it was. */}
+          {suggestedNewConversation === null || suggestedNewConversation === undefined ? null : (
+            <NewConversationOffer
+              reason={suggestedNewConversation}
+              onAccept={onAcceptNewConversation ?? (() => {})}
+              onDismiss={onDismissNewConversation ?? (() => {})}
+            />
           )}
 
           {/* Standalone ThinkingIndicator for voice mode — shows when AI is thinking
