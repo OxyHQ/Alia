@@ -6,8 +6,14 @@
  * requests are routed to appropriate provider models.
  */
 
-export type AliaTier = 'lite' | 'v1' | 'v1-codea' | 'v1-cowork' | 'v1-browser' | 'v1-vision' | 'v1-audio' | 'v1-tts' | 'v1-image' | 'v1-multimodal' | 'v1-pro' | 'v1-pro-max' | 'v1-voice' | 'v1-voice-pro';
-
+/**
+ * The tier vocabulary comes from `alia-tiers.ts`, the tuple the database's
+ * CHECK constraints are rendered from. It was restated here as a literal union
+ * and the two copies had drifted: this one had `v1-image` and the tuple did
+ * not, so every image mapping the seeder wrote was refused by
+ * `model_configs_alia_tier_check`, on every boot.
+ */
+import type { AliaTier } from './alia-tiers.js';
 import type { ModelPublisher } from './model-publishers';
 
 export type ModelCategory = 'general' | 'coding' | 'vision' | 'audio' | 'multimodal' | 'voice';

@@ -5,6 +5,9 @@ import { closePostgres, connectPostgres, type ApiDatabase } from '../index';
 import { providerKeyIdByHash, updateProviderKey } from '../providers/providerKeyRepository';
 import { aliaModelProviderMappings, aliaModels, modelConfigs, providerKeys } from '../schema/providers';
 import { apiKeyUsage } from '../schema/telemetry';
+import { ALIA_TIERS } from '../../internal/providers/lib/alia-tiers';
+import { TIER_MODEL_MAPPINGS } from '../../internal/providers/lib/alia-models';
+import { seedModelConfigs } from '../../internal/providers/lib/seed-model-configs';
 
 /**
  * The routing catalogue and its credentials, against a REAL server.
@@ -387,5 +390,68 @@ describe('a provider key can be told why it exists, after it exists', () => {
     // The credential is not what this writes. A provenance update that also
     // moved the hash would silently detach the row from the key it describes.
     expect(row?.keyHash).toBe('hash-provenance-2');
+  });
+});
+
+describe('the deploy seeder can write the catalogue it is given', () => {
+  /**
+   * The seeder ran on every deploy and Postgres refused five of its rows.
+   *
+   * MEASURED in `/oxy/ecs`, stream `alia/alia/*`: five `Error seeding
+   * ModelConfig` per boot, each `new row for relation "model_configs" violates
+   * check constraint "model_configs_alia_tier_check"`, for `dall-e-3`,
+   * `openai-gpt-image-1`, `fal-ai/flux/schnell`, `fal-ai/fast-sdxl` and
+   * `grok-imagine-image` — every mapping of the `v1-image` tier. `ALIA_TIERS`
+   * renders that CHECK and held thirteen values; the routing table it is the
+   * vocabulary FOR held fourteen, because `alia-models.ts` kept a second
+   * literal union with `v1-image` in it.
+   *
+   * The real seeder against the real migrations, because that pairing is the
+   * subject. A tuple widened without its migration, or a migration without its
+   * tuple, is invisible to anything that reads only one of them — and the
+   * seeder itself cannot report the difference: a refused row is a log line and
+   * a `skipped` count, which is also what an idempotent re-run produces. The
+   * rows it leaves behind are the only witness.
+   */
+  it('leaves a row for every mapping in the routing table, refusing none', async () => {
+    const expected = new Set(
+      Object.values(TIER_MODEL_MAPPINGS)
+        .flat()
+        .map((mapping) => `${mapping.provider}:${mapping.modelId}`),
+    );
+    // The vacuity floor. An empty routing table would satisfy the comparison
+    // below by having nothing to look for.
+    expect(expected.size).toBeGreaterThan(50);
+
+    await seedModelConfigs();
+
+    const rows = await db
+      .select({ provider: modelConfigs.provider, modelId: modelConfigs.modelId })
+      .from(modelConfigs);
+    const written = new Set(rows.map((row) => `${row.provider}:${row.modelId}`));
+
+    // Named rather than counted, so a failure says WHICH mapping the database
+    // turned away — the five image models above, in the state this replaces.
+    // One-directional on purpose: this file's other tests leave fixture rows,
+    // and a model that appears in two tiers is still ONE row, so neither an
+    // extra row nor a missing TIER is evidence of anything.
+    expect([...expected].filter((pair) => !written.has(pair)).sort()).toEqual([]);
+  });
+
+  it('admits every tier the vocabulary declares, so the CHECK matches the tuple', async () => {
+    // The half the seeder cannot show: a tier with no mapping of its own, and
+    // `v1-voice`, whose two mappings are the same two rows `v1-voice-pro` has —
+    // one `model_configs` row carries one `alia_tier`, so the last tier written
+    // wins and the other never appears in the table at all.
+    for (const tier of ALIA_TIERS) {
+      const insert = db.insert(modelConfigs).values(
+        modelConfigValues({ id: `mc-tier-${tier}`, modelId: `tier-probe-${tier}`, aliaTier: tier }),
+      );
+      await expect(insert, `the CHECK refused ${tier}`).resolves.toBeDefined();
+    }
+    // The floor: a tuple that had gone empty would pass the loop by not
+    // iterating, and the negative control lives next door — `v9-imaginary` is
+    // still refused by `alia_models_tier_check`.
+    expect(ALIA_TIERS.length).toBeGreaterThan(10);
   });
 });
