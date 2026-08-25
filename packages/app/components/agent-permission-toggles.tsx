@@ -11,9 +11,12 @@
 
 import React from 'react';
 import { Switch } from '@/components/ui/switch';
-import { Terminal, Globe, FileEdit, MessageSquare, Users } from 'lucide-react-native';
+import { Globe, MessageSquare } from 'lucide-react-native';
 import { SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list';
 import { ActionKeyIcon } from '@/components/ui/action-key-icon';
+import { FilesIcon } from '@/components/ui/files-icon';
+import { Robot2Icon } from '@/components/ui/robot-2-icon';
+import { TerminalIcon } from '@/components/ui/terminal-icon';
 import { useColorScheme } from '@/lib/useColorScheme';
 import type { AgentPermissions } from '@/lib/stores/agents-store';
 
@@ -35,7 +38,7 @@ interface PermissionToggleProps {
   disabled?: boolean;
 }
 
-/* `color`, not a NativeWind class: one of these six is an `Svg` whose fill can
+/* `color`, not a NativeWind class: four of these six are an `Svg` whose fill can
    only be a value, and the row reads as one list only if all six take it the
    same way. Same call shape as the sibling rows in `security-section`. */
 const PERMISSION_CONFIG: {
@@ -48,7 +51,7 @@ const PERMISSION_CONFIG: {
     key: 'shell',
     label: 'Shell Access',
     description: 'Execute commands in a terminal container',
-    icon: Terminal,
+    icon: TerminalIcon,
   },
   {
     key: 'network',
@@ -60,7 +63,7 @@ const PERMISSION_CONFIG: {
     key: 'filesystem',
     label: 'File System',
     description: 'Read, write, and edit files in the workspace',
-    icon: FileEdit,
+    icon: FilesIcon,
   },
   {
     key: 'communications',
@@ -78,7 +81,7 @@ const PERMISSION_CONFIG: {
     key: 'delegation',
     label: 'Agent Delegation',
     description: 'Hire and delegate tasks to other agents',
-    icon: Users,
+    icon: Robot2Icon,
   },
 ];
 
