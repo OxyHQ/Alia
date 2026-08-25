@@ -88,7 +88,6 @@ earlier revisions of this page had both wrong:
 | Mount | Owner module |
 |---|---|
 | `/agents` | `routes/agents.ts` |
-| `/agents/avatar` | `routes/agents-avatar.ts` |
 | `/skills` | `routes/skills.ts` |
 | `/containers` | `routes/containers.ts` |
 | `/tools` | `routes/tools-proxy.ts`, proxied to the integrations service |

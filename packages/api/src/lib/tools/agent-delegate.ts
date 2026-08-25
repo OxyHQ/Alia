@@ -45,7 +45,8 @@ export interface AgentDelegationResult {
   agentId: string;
   agentName: string;
   agentHandle: string;
-  agentAvatar: string | null;
+  /** The agent's Bloom colour preset key, for the glyph a client draws. */
+  agentColor: string | null;
   response: string;
   tokensUsed: number;
   error?: string;
@@ -64,7 +65,7 @@ export const createDelegateToAgentTool = () => tool({
 
     try {
       // Look up the agent, then its identity: the delegation result carries the
-      // agent's name, handle and avatar for the client to render, and all three
+      // agent's name, handle and colour for the client to render, and all three
       // are the bot account's.
       const found = await findAgentById(getDb(), agentId);
       if (!found) {
@@ -72,7 +73,7 @@ export const createDelegateToAgentTool = () => tool({
           agentId,
           agentName: 'Unknown',
           agentHandle: 'unknown',
-          agentAvatar: null,
+          agentColor: null,
           response: '',
           tokensUsed: 0,
           error: 'Agent not found',
@@ -97,7 +98,7 @@ export const createDelegateToAgentTool = () => tool({
             agentId,
             agentName: agentPromptName(agent),
             agentHandle: agent.handle ?? 'unknown',
-            agentAvatar: agent.avatar,
+            agentColor: agent.color,
             response: '',
             tokensUsed: 0,
             error: 'No model available for agent execution',
@@ -162,7 +163,7 @@ export const createDelegateToAgentTool = () => tool({
           agentId,
           agentName: agentPromptName(agent),
           agentHandle: agent.handle ?? 'unknown',
-          agentAvatar: agent.avatar,
+          agentColor: agent.color,
           response: result.text,
           tokensUsed,
         };
@@ -175,7 +176,7 @@ export const createDelegateToAgentTool = () => tool({
         agentId,
         agentName: 'Unknown',
         agentHandle: 'unknown',
-        agentAvatar: null,
+        agentColor: null,
         response: '',
         tokensUsed: 0,
         error: error instanceof Error && error.name === 'AbortError'

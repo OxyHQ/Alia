@@ -87,7 +87,7 @@ export async function saveConversationResult(
   ctx: LifecycleContext,
   assistantResponse: string,
   toolInvocations?: Array<{ toolCallId: string; toolName: string; state: 'call' | 'result'; args?: unknown; result?: unknown }>,
-  agentMessages?: Array<{ role: 'assistant'; content: string; agentInfo: { id: string; name: string; avatar: string | null; handle: string } }>,
+  agentMessages?: Array<{ role: 'assistant'; content: string; agentInfo: { id: string; name: string; color: string | null; handle: string } }>,
 ): Promise<void> {
   const { userId, conversationId, messages } = ctx;
   if (!conversationId || !userId || !turnProducedOutput(assistantResponse, toolInvocations)) return;

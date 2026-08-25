@@ -3108,7 +3108,8 @@
       "domain": "provider-runtime",
       "kind": "route",
       "currentPath": "packages/api/src/routes/agents-avatar.ts",
-      "reachable": "live",
+      "removedIn": "feat/agent-color-no-avatar",
+      "reachable": "dead",
       "owner": "relay",
       "targetPath": "relay:images",
       "dependsOn": [

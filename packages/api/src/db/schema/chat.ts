@@ -130,8 +130,11 @@ export const conversations = pgTable(
  *
  * `agent_info` is the opposite and becomes four columns: a single sub-document
  * of fixed, known shape this service composes itself — the `routing_logs`
- * precedent. `agent_info_avatar` is nullable because the model defaults it to
- * `null` rather than leaving it absent.
+ * precedent. `agent_info_color` is nullable because an agent whose Oxy account
+ * has no colour, and one Oxy could not resolve at all, are the same answer to a
+ * client: draw your own fallback. It stands where `agent_info_avatar` did —
+ * agents have no avatar, and that column held a value in zero production rows
+ * when it was dropped in 0044.
  */
 export const messages = pgTable(
   'messages',
@@ -148,7 +151,7 @@ export const messages = pgTable(
     toolInvocations: jsonb(),
     agentInfoId: text(),
     agentInfoName: text(),
-    agentInfoAvatar: text(),
+    agentInfoColor: text(),
     agentInfoHandle: text(),
     audioUrl: text(),
     /** The append index within a conversation. Absent on legacy messages. */

@@ -214,18 +214,27 @@ describe('agent subject provider', () => {
     expect(content).toMatchObject({ data: { claims: { handle: 'nameless' } } });
   });
 
-  /** Declared, not attached: there is no digest for an avatar anywhere in Alia. */
-  it('declares whether an avatar exists instead of attaching it', async () => {
+  /**
+   * An agent has no picture, so a snapshot claims nothing about one.
+   *
+   * The account may still CARRY an avatar — Oxy stores one for every account —
+   * and the fixture sets one on purpose: what this asserts is that the snapshot
+   * no longer reads it, not that Oxy stopped serving it. Nothing is attached
+   * either, which was already true and stays true for the same reason: there is
+   * no digest for an Oxy asset anywhere in Alia.
+   */
+  it('claims nothing about a picture, and attaches nothing', async () => {
     findAgent.mockResolvedValue(agentRecord());
-    const withAvatar = await provider.snapshot(AGENT_ID);
-    expect(withAvatar?.content).toMatchObject({ data: { claims: { avatarPresent: 'true' } } });
-    expect(withAvatar?.attachments).toBeUndefined();
+    oxyIdentity.users = identity({ avatar: 'file-1' });
 
-    oxyIdentity.users = identity({ avatar: '' });
-    const withoutAvatar = await provider.snapshot(AGENT_ID);
-    expect(withoutAvatar?.content).toMatchObject({
-      data: { claims: { avatarPresent: 'false' } },
-    });
+    const snapshot = await provider.snapshot(AGENT_ID);
+    const content = snapshot?.content as ModerationResource;
+
+    expect(Object.keys(content.data.claims ?? {})).not.toContain('avatarPresent');
+    // The floor: the claims bag is populated, so "no avatar claim" is not the
+    // same observation as "no claims were built at all".
+    expect(content).toMatchObject({ data: { claims: { handle: 'helpful' } } });
+    expect(snapshot?.attachments).toBeUndefined();
   });
 
   it('emits no context when the agent has no system prompt', async () => {

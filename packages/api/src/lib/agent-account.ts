@@ -348,46 +348,6 @@ function isConflict(error: unknown): boolean {
 }
 
 /**
- * Store a generated agent avatar as an Oxy asset, and answer its id.
- *
- * `CreateAccountInput.avatar` and `UpdateAccountInput.avatar` take an Oxy asset,
- * so an avatar Alia generated has to become one before it can be an agent's.
- * `visibility: 'public'` is what makes `getFileDownloadUrl` — the ecosystem's
- * one chokepoint for turning an asset id into an address — resolve to the CDN
- * form: the SDK is explicit that a PRIVATE asset resolved that way 404s, and an
- * avatar is public by nature.
- *
- * The response shape is `{ file: { id } }` and that is measured rather than
- * guessed: `uploadAvatar` in `@oxyhq/core` reads `asset.file.id` from the same
- * endpoint. It is still read defensively, because `assetUpload` is typed `any`
- * and a silent `undefined` here would be stored as an agent's avatar.
- */
-export async function uploadAgentAvatarToOxy(
-  accessToken: string | undefined,
-  image: Buffer,
-): Promise<string> {
-  if (accessToken === undefined) {
-    throw new Error('storing an agent avatar requires the caller\'s credential');
-  }
-  const oxy = new OxyServices({ baseURL: process.env.OXY_API_URL || 'https://api.oxy.so' });
-  oxy.setTokens(accessToken);
-
-  const file = new File([new Uint8Array(image)], 'avatar.webp', { type: 'image/webp' });
-  const uploaded: unknown = await oxy.assetUpload(file, 'public');
-  const assetId = readUploadedAssetId(uploaded);
-  if (assetId === null) throw new Error('Oxy accepted the avatar but returned no asset id');
-  return assetId;
-}
-
-function readUploadedAssetId(response: unknown): string | null {
-  if (typeof response !== 'object' || response === null) return null;
-  const file = (response as { file?: unknown }).file;
-  if (typeof file !== 'object' || file === null) return null;
-  const id = (file as { id?: unknown }).id;
-  return typeof id === 'string' && id !== '' ? id : null;
-}
-
-/**
  * The agent a TURN is for, named explicitly by the request.
  *
  * ## Explicit, because the inference was broken for its whole life

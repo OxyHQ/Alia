@@ -42,6 +42,16 @@ export interface HydratedOxyUser {
   /** `name.displayName` when Oxy resolved one, else the normalized handle. */
   readonly displayName: string;
   readonly avatar?: string;
+  /**
+   * A Bloom colour preset KEY, not a hex — `"blue"`, `"lagoon"`. Oxy's own
+   * `User.color`, which is where an ACCOUNT's colour lives for every consumer
+   * in the ecosystem, so Alia reads it here rather than storing a second one.
+   *
+   * Absent when the account never set one, and absent for every account when a
+   * deployment's Oxy is old enough not to serve the field. Both are the same
+   * answer to a consumer: render your own fallback.
+   */
+  readonly color?: string;
 }
 
 function toHydrated(user: User): HydratedOxyUser | null {
@@ -59,6 +69,7 @@ function toHydrated(user: User): HydratedOxyUser | null {
     username: user.username,
     displayName,
     ...(typeof user.avatar === 'string' && user.avatar ? { avatar: user.avatar } : {}),
+    ...(typeof user.color === 'string' && user.color ? { color: user.color } : {}),
   };
 }
 

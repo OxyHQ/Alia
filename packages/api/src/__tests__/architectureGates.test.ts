@@ -599,12 +599,6 @@ const PROVIDER_IMPORT_ALLOWLIST: readonly { from: string; to: string; via: Modul
     why: 'Test-only. Gives every provider a key, so a mapping that fails does so for a reason that is not a missing credential — production’s four `no_credential` mappings otherwise mask the fifth. Retires with the image path (#139 ws7).',
   },
   {
-    from: 'packages/api/src/routes/agents-avatar.ts',
-    to: 'packages/api/src/internal/providers/lib/digitalocean-async',
-    via: 'import',
-    why: 'Async-invoke image URL unwrapping. Moves to Relay (#139 ws7).',
-  },
-  {
     from: 'packages/api/src/routes/canvas/execute.ts',
     to: 'packages/api/src/internal/providers/lib/digitalocean-async',
     via: 'import',
@@ -799,7 +793,7 @@ const PROVIDER_IMPORT_ALLOWLIST: readonly { from: string; to: string; via: Modul
  * produced a plausible wrong answer that still compiled. The same trap caught
  * ws5's rebase, which is why this paragraph is a rule and not a history.
  */
-const PROVIDER_IMPORT_ALLOWLIST_SIZE = 52;
+const PROVIDER_IMPORT_ALLOWLIST_SIZE = 51;
 
 function observedProviderImports(): { from: string; to: string; via: ModuleRef['via'] }[] {
   const seen = new Map<string, { from: string; to: string; via: ModuleRef['via'] }>();
