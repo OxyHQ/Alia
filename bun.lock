@@ -576,13 +576,6 @@
         "vitest": "^4.1.10",
       },
     },
-    "packages/shared-types": {
-      "name": "@alia/shared-types",
-      "version": "1.0.0",
-      "devDependencies": {
-        "typescript": "^5.9.3",
-      },
-    },
   },
   "trustedDependencies": [
     "ffmpeg-static",
@@ -666,8 +659,6 @@
     "@alia/docker-host": ["@alia/docker-host@workspace:packages/alia-docker-host"],
 
     "@alia/integrations": ["@alia/integrations@workspace:packages/integrations"],
-
-    "@alia/shared-types": ["@alia/shared-types@workspace:packages/shared-types"],
 
     "@alloc/quick-lru": ["@alloc/quick-lru@5.2.0", "", {}, "sha512-UrcABB+4bUrFABwbluTIBErXwvbsU/V7TZWfmbgJfbkwiBuziS9gxdODUyuiecfdGQ85jglMW6juS3+z5TsKLw=="],
 

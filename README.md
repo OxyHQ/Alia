@@ -125,7 +125,6 @@ workspace entry. Everything lives under `packages/`.
 | [`packages/api`](packages/api/) | `@alia/api` | Express, drizzle + PostgreSQL |
 | [`packages/integrations`](packages/integrations/) | `@alia/integrations` | Express, drizzle + PostgreSQL, MCP client |
 | [`packages/alia-docker-host`](packages/alia-docker-host/) | `@alia/docker-host` | Express |
-| [`packages/shared-types`](packages/shared-types/) | `@alia/shared-types` | TypeScript |
 
 **Surfaces**
 
