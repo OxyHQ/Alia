@@ -81,7 +81,7 @@ export function AliaChatScreen({
           <View className="flex-row items-center justify-between px-4 py-3">
             <View className="flex-row items-center gap-2.5">
               {headerLeft}
-              <IdentityMark size={28} state={markState} />
+              <IdentityMark size={28} state={markState} spinOnPress />
               <Text className="text-lg font-semibold text-foreground">Alia</Text>
             </View>
             <View className="flex-row items-center gap-2">
