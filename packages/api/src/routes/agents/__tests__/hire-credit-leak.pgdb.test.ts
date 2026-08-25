@@ -179,6 +179,40 @@ describe('POST /agents/:id/hire — the reservation', () => {
     expect(await balanceOf(userId)).toEqual({ free: 0, paid: 100 });
   });
 
+  /**
+   * A first-time owner is PROVISIONED, not refused.
+   *
+   * `reserveCredits` does not create a balance row — `spendCreditsFreeFirst` is
+   * an UPDATE, so an account with no row matches nothing and reads as "cannot
+   * pay". Twelve of the fifteen reserve sites in this service call
+   * `getOrCreateUserCredits` immediately before reserving; this route reached
+   * `reserveCredits` through `startAgentSession`, which did not.
+   *
+   * The symptom was a 402 telling somebody to buy credits while they were
+   * entitled to three hundred free ones they had simply never collected. It
+   * needed no agent balance and no fallback to happen: it is reachable with one
+   * payer, today, by anyone whose first authenticated action is hiring an agent
+   * — a trigger firing for an owner who has never opened the app, or an API-key
+   * consumer who never will.
+   *
+   * `res.body` is asserted BEFORE the balance deliberately: `balanceOf` throws
+   * when the row is absent, which is precisely the pre-fix state, so reading it
+   * first would report this as a helper exception instead of as the 402 it is.
+   * A red for the wrong reason is not a red.
+   */
+  it('provisions a first-time owner rather than telling them to buy credits', async () => {
+    // No `account()` — this id has no `user_credits` row at all.
+    const userId = `${SUITE}-fresh-${seq++}`;
+    const agentId = await seedAgent();
+
+    const res = await hire(userId, agentId, 'first action on this account');
+
+    expect(res.body).toMatchObject({ hired: true });
+    // The default allowance minus the agent's price: the credits they already
+    // had by right, which the refusal was denying them.
+    expect(await balanceOf(userId)).toEqual({ free: 285, paid: 0 });
+  });
+
   it('debits nothing when the balance will not cover the price', async () => {
     const userId = await account(3, 0);
     const agentId = await seedAgent();
