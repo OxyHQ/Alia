@@ -229,11 +229,12 @@ describe('agent subject provider', () => {
 
     const snapshot = await provider.snapshot(AGENT_ID);
     const content = snapshot?.content as ModerationResource;
+    if (content.type !== 'profile') throw new Error('expected a profile resource');
 
     expect(Object.keys(content.data.claims ?? {})).not.toContain('avatarPresent');
     // The floor: the claims bag is populated, so "no avatar claim" is not the
     // same observation as "no claims were built at all".
-    expect(content).toMatchObject({ data: { claims: { handle: 'helpful' } } });
+    expect(content.data.claims).toMatchObject({ handle: 'helpful' });
     expect(snapshot?.attachments).toBeUndefined();
   });
 
