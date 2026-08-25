@@ -13,6 +13,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { AgentGlyph } from "@/components/ui/agent-glyph";
+import { ColorPicker } from "@/components/ui/color-picker";
+import { FREE_COLOR_NAMES } from "@oxyhq/bloom/theme";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Panel } from "@/components/ui/panel";
 import { Dialog } from "@oxyhq/bloom/dialog";
@@ -131,6 +133,8 @@ export default function EditAgentScreen() {
   const [handle, setHandle] = useState("");
   /** What Oxy last confirmed, so a rejected rename can be put back. */
   const savedHandle = useRef("");
+  /** The colour Oxy already holds, so a save only carries one that CHANGED. */
+  const savedColor = useRef<string | null>(null);
   const [isPublished, setIsPublished] = useState(false);
   const [archetype, setArchetype] = useState<AgentArchetype>('general');
   const [archetypeConfig, setArchetypeConfig] = useState<ArchetypeConfig>({});
@@ -184,6 +188,7 @@ export default function EditAgentScreen() {
         savedHandle.current = agent.handle ?? "";
         setOxyAccountId(agent.oxyAccountId);
         setColor(agent.color);
+        savedColor.current = agent.color;
         setTagline(agent.tagline);
         setDescription(agent.description);
         setSystemPrompt(agent.systemPrompt || "");
@@ -256,12 +261,16 @@ export default function EditAgentScreen() {
   }, []);
 
   /**
-   * The NAME is saved to Oxy, and everything else to Alia.
+   * The NAME, the HANDLE and the COLOUR are saved to Oxy; everything else to Alia.
    *
    * Two writes, two services, two timers — not one call that fans out, because
    * a failed rename must not take the tagline with it and a failed tagline must
    * not roll back a rename. `updateAccount` sweeps Oxy's own identity caches,
    * so the profile surfaces do not serve the old name for a TTL afterwards.
+   *
+   * The colour belongs on this side of that split for the same reason the name
+   * does: it is the agent's identity, it lives in `User.color` on the bot
+   * account, and Alia stores no column for it.
    */
   useEffect(() => {
     if (oxyAccountId === "" || isInitialLoad.current) return;
@@ -276,8 +285,14 @@ export default function EditAgentScreen() {
           // re-sending the current one on every keystroke of the NAME field
           // would ask Oxy to re-check a handle nobody touched.
           ...(trimmed !== savedHandle.current && trimmed !== "" && { username: trimmed }),
+          // Same rule as the handle, for a different reason: `color` is
+          // absent-means-unchanged on `UpdateAccountInput`, so sending the
+          // current one on every keystroke of the NAME field would write a
+          // value nobody touched.
+          ...(color !== savedColor.current && color !== null && { color }),
         });
         savedHandle.current = trimmed;
+        savedColor.current = color;
       } catch (error: unknown) {
         // A taken handle is the one failure worth saying out loud: the field
         // still shows what the person typed, and without this it silently
@@ -296,7 +311,16 @@ export default function EditAgentScreen() {
     return () => {
       if (identityTimeoutRef.current) clearTimeout(identityTimeoutRef.current);
     };
-  }, [name, handle, oxyAccountId, oxyServices, t]);
+    /**
+     * `t` is deliberately not a dependency. `useTranslation` builds a new one on
+     * every render and this effect calls `setSaving`, so listing it made the
+     * effect re-run once the save finished and write a SECOND time — measured:
+     * one colour pick produced `{name, color}` and then `{name}` a second
+     * later. `i18n.t` reads the current locale when it is called, so the toast
+     * is in the right language without the identity being watched.
+     */
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [name, handle, color, oxyAccountId, oxyServices]);
 
   // Auto-save on field changes
   useEffect(() => {
@@ -944,9 +968,7 @@ export default function EditAgentScreen() {
             keyboardShouldPersistTaps="handled"
           >
             {/* Mark + Name + Handle — all three are the bot ACCOUNT's, saved
-                to Oxy rather than to the agent row. The mark is not editable
-                here: it is drawn from `User.color`, and `updateAccount` has no
-                way to carry one. */}
+                to Oxy rather than to the agent row. */}
             <View className="flex-row items-center gap-3 mb-6">
               <AgentGlyph size={40} color={color} />
               <View className="flex-1">
@@ -979,6 +1001,21 @@ export default function EditAgentScreen() {
                   />
                 </View>
               </View>
+            </View>
+
+            {/* The colour is the agent's whole likeness, so the picker offers
+                the MARK rather than a dot standing for one. Bloom's own free
+                list, not a copy of it: the premium preset and the two reserved
+                handle colours are excluded by being absent from it, rather than
+                by a rule here that would drift. */}
+            <View className="mb-6">
+              <ColorPicker
+                colors={FREE_COLOR_NAMES}
+                selected={color ?? ""}
+                onSelect={setColor}
+                label={t("agents.colorLabel")}
+                renderSwatch={(preset) => <AgentGlyph size={28} color={preset} />}
+              />
             </View>
 
             {/* System Prompt / Instructions */}
