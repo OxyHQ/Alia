@@ -22,8 +22,9 @@ import {
   CollapsibleTrigger,
   CollapsibleContent,
 } from "@/components/ui/collapsible";
-import { Plus, Plug, ChevronDown, Check } from "lucide-react-native";
+import { Plus, ChevronDown, Check } from "lucide-react-native";
 import { Search } from "@oxyhq/bloom/search";
+import { ActionKeyIcon } from "@/components/ui/action-key-icon";
 import { errorStatus } from "@/lib/errors/error-utils";
 import { useColorScheme } from "@/lib/useColorScheme";
 import { useTranslation } from "@/lib/hooks/use-translation";
@@ -54,7 +55,7 @@ function ConnectorIcon({ icon, size = 20 }: { icon?: string; size?: number }) {
       />
     );
   }
-  return <Plug size={size} className="text-muted-foreground" />;
+  return <ActionKeyIcon size={size} />;
 }
 
 function InstalledTile({
