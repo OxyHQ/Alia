@@ -29,7 +29,6 @@ import { AgentTerminal } from "@/components/agent-terminal";
 import apiClient from "@/lib/api/client";
 import { useColorScheme } from "@/lib/useColorScheme";
 import { cn } from "@/lib/utils";
-import { useCreateConversation } from "@/lib/hooks/use-conversations";
 import { useAgentFavoritesStore } from "@/lib/stores/agent-favorites-store";
 import { CAPABILITY_FAMILIES } from "@/lib/constants/capability-families";
 import { errorMessage as getErrorMessage, errorStatus, errorResponseData } from "@/lib/errors/error-utils";
@@ -274,7 +273,6 @@ export default function AgentDetailScreen() {
   const [hiring, setHiring] = useState(false);
 
   // Chat
-  const createConversationMutation = useCreateConversation();
 
   // Favorites
   const toggleFavorite = useAgentFavoritesStore((s) => s.toggleFavorite);
@@ -362,15 +360,32 @@ export default function AgentDetailScreen() {
     return family === undefined ? [] : [family.label];
   });
 
-  const handleChat = useCallback(async () => {
+  /**
+   * Open the thread with this agent. It does not START one.
+   *
+   * This used to create a conversation and land on `/c/:id`, which was two
+   * wrongs at once. A thread with an agent is many ordinary conversations, so
+   * creating one is beginning a NEW STRETCH — and somebody pressing a button
+   * labelled "Chat" is asking to continue, not to begin. Every press left an
+   * empty stretch behind; five presses, five empty rows.
+   *
+   * Beginning one is a separate act with its own places: the agent can offer it
+   * mid-thread, and a person can take that offer. Neither of them is this
+   * button.
+   *
+   * The address is the HANDLE, which is Oxy's and may be unresolved — the thread
+   * has no address without one. Saying so is better than navigating to `/@`,
+   * which would sit on a loading screen that never resolves.
+   */
+  const handleChat = useCallback(() => {
     if (!agent) return;
-    try {
-      const conversation = await createConversationMutation.mutateAsync({ agentId: agent._id });
-      router.replace({ pathname: "/(app)/c/[id]", params: { id: conversation.id, agentId: agent._id } });
-    } catch {
-      toast.error("Failed to start chat");
+    const handle = agentHandle(agent);
+    if (handle === "") {
+      toast.error(t("agents.chatUnavailable"));
+      return;
     }
-  }, [agent, createConversationMutation, router]);
+    router.push({ pathname: "/(app)/[username]", params: { username: `@${handle}` } });
+  }, [agent, router, t]);
 
   const handleHirePress = () => {
     if (agent?.status !== "active") {

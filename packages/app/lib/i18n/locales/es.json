@@ -563,6 +563,7 @@
     "statusOffline": "Desconectado",
     "share": "Compartir",
     "shareComingSoon": "Compartir agente próximamente!",
+    "chatUnavailable": "Este agente todavía no se puede abrir",
     "hireComingSoon": "Contratar agente próximamente!",
     "activity": "Actividad",
     "taskPlaceholder": "Describe la tarea para este agente...",
