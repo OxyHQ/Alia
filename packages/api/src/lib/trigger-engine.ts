@@ -36,6 +36,7 @@ import {
 } from './agent-identity.js';
 import { readArchetypeConfig } from '../domain/agent.js';
 import { buildIdentityGuard } from './identity-guard.js';
+import { userContextBlock } from './user-context.js';
 import { ToolPipeline } from './tool-pipeline.js';
 import { resolveModel, getAIModel, getDefaultAliaModel } from './chat-core.js';
 import {
@@ -119,25 +120,7 @@ function buildTriggerSystemPrompt(
   memory?: UserMemoryProfile | null,
   source?: string
 ): string {
-  const userContext: string[] = [];
-
-  if (oxyUser) {
-    const fullName = oxyUser.name?.full || [oxyUser.name?.first, oxyUser.name?.middle, oxyUser.name?.last].filter(Boolean).join(' ');
-    if (fullName && fullName !== 'User') userContext.push(`The user's name is ${fullName}.`);
-    if (oxyUser.username) userContext.push(`Username: @${oxyUser.username}.`);
-    if (oxyUser.location) userContext.push(`Location: ${oxyUser.location}.`);
-  }
-
-  if (memory) {
-    if (memory.preferences?.language) userContext.push(`Preferred language: ${memory.preferences.language}.`);
-    if (memory.context?.occupation) userContext.push(`Occupation: ${memory.context.occupation}.`);
-    if (memory.memories?.length) {
-      const items = memory.memories.map(m => `- ${m.title}: ${m.summary}`).join('\n');
-      userContext.push(`\nThings to remember:\n${items}`);
-    }
-  }
-
-  let prompt = `You are Alia, an autonomous AI assistant processing a triggered task.
+  const prompt = `You are Alia, an autonomous AI assistant processing a triggered task.
 
 ## Trigger: "${trigger.name}"
 - Type: ${trigger.type}${source ? `\n- Source: ${source}` : ''}
@@ -149,11 +132,10 @@ function buildTriggerSystemPrompt(
 - Use available tools when they help accomplish the task.
 - Respond with a brief summary of what you did.`;
 
-  if (userContext.length > 0) {
-    prompt = `# USER CONTEXT\n\n${userContext.join('\n')}\n\n---\n\n${prompt}`;
-  }
-
-  return prompt;
+  // The user block is shared with `routes/internal.ts`, which had its own copy
+  // under the same name and a different signature. Only the task prompt above
+  // is this path's own.
+  return `${userContextBlock(oxyUser, memory)}${prompt}`;
 }
 
 // ── Core execution ─────────────────────────────────────────────────

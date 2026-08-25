@@ -23,7 +23,7 @@ const TOOL_ICON_REGISTRY: Record<string, any> = {
   sendWhatsAppMessage: MessageCircle,
   getWhatsAppChats: MessageCircle,
   getWhatsAppMessages: MessageCircle,
-  sendTelegram: Send,
+  sendTelegramMessage: Send,
   getCurrentDate: Calendar,
   generateFile: FileText,
   saveUserMemory: Brain,

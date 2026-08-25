@@ -97,7 +97,7 @@ const TOOL_PILL_LABELS: Record<string, string> = {
   webSearch: 'Web Search',
   webScraper: 'Reading page',
   generateFile: 'Generating file',
-  sendTelegram: 'Telegram',
+  sendTelegramMessage: 'Telegram',
   sendSlack: 'Slack',
   sendDiscord: 'Discord',
   sendSignal: 'Signal',

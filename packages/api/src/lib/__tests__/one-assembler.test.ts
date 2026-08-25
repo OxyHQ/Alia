@@ -56,7 +56,9 @@ function trackedSources(): string[] {
  *  - a function that RETURNS one — `: Promise<ToolSet>`, `: ToolSet`,
  *    `Promise<ForUserResult>`;
  *  - a VALUE annotated as one — `const tools: ToolSet = {`, which is what the
- *    fifth assembler was.
+ *    fifth assembler was;
+ *  - a value CHECKED as one — `{ … } satisfies ToolSet`, which annotates
+ *    nothing and so escapes both of the above.
  *
  * The match is on the NAME plus the shape, not on a spelling of the annotation.
  * A first version anchored on `:\s*ToolSet` and was evaded — measured, by
@@ -101,8 +103,10 @@ function toolSetConstructions(): Map<string, string[]> {
        * The qualifier class allows `import('ai').ToolSet` and `ai.ToolSet`.
        */
       const isBinding = /:\s*[\w.'"()]*\b(?:ToolSet|ForUserResult)\b[^=]*=\s*[({]/.test(line);
+      /** `satisfies ToolSet` — no colon, no annotation, still a construction. */
+      const isSatisfies = /\bsatisfies\s+[\w.'"()]*\b(?:ToolSet|ForUserResult)\b/.test(line);
 
-      if (NAMES_TYPE.test(returnPart) || isBinding) hits.push(line);
+      if (NAMES_TYPE.test(returnPart) || isBinding || isSatisfies) hits.push(line);
     }
     if (hits.length > 0) found.set(file, hits);
   }

@@ -16,6 +16,7 @@ import {
 import { oxyServiceAuth, oxyClient } from '../middleware/auth.js';
 import { ToolPipeline } from '../lib/tool-pipeline.js';
 import { buildIdentityGuard } from '../lib/identity-guard.js';
+import { userContextBlock } from '../lib/user-context.js';
 import { setPlanModelIds } from '../db/billing/planRepository.js';
 import { isAliaModel } from '../lib/gateway-client.js';
 import type { User as OxyUser } from '@oxyhq/core';
@@ -36,46 +37,7 @@ function buildTriggerSystemPrompt(
   memory?: UserMemoryProfile | null,
   appName?: string
 ): string {
-  const userContext: string[] = [];
-
-  if (oxyUser) {
-    if (oxyUser.name?.full || oxyUser.name?.first) {
-      const fullName = oxyUser.name.full || [oxyUser.name.first, oxyUser.name.middle, oxyUser.name.last].filter(Boolean).join(' ');
-      if (fullName && fullName !== 'User') {
-        userContext.push(`The user's name is ${fullName}.`);
-      }
-    }
-    if (oxyUser.username) {
-      userContext.push(`The user's username is @${oxyUser.username}.`);
-    }
-    if (oxyUser.location) {
-      userContext.push(`The user is located in ${oxyUser.location}.`);
-    }
-    if (oxyUser.bio) {
-      userContext.push(`About the user: ${oxyUser.bio}`);
-    }
-  }
-
-  if (memory) {
-    if (memory.preferences?.language) {
-      userContext.push(`User's preferred language: ${memory.preferences.language}.`);
-    }
-    if (memory.context?.occupation) {
-      userContext.push(`The user works as a ${memory.context.occupation}.`);
-    }
-    if (memory.context?.location && !oxyUser?.location) {
-      userContext.push(`The user is located in ${memory.context.location}.`);
-    }
-    if (memory.preferences?.tone) {
-      userContext.push(`The user prefers a ${memory.preferences.tone} tone.`);
-    }
-    if (memory.memories?.length) {
-      const memoryItems = memory.memories.map(m => `- ${m.title}: ${m.summary}`).join('\n');
-      userContext.push(`\nThings to remember about the user:\n${memoryItems}`);
-    }
-  }
-
-  let prompt = `You are Alia, an autonomous AI assistant for the Oxy ecosystem. You are processing an event from ${appName || 'an internal service'} on behalf of a user.
+  const prompt = `You are Alia, an autonomous AI assistant for the Oxy ecosystem. You are processing an event from ${appName || 'an internal service'} on behalf of a user.
 
 ## Available Actions
 
@@ -92,11 +54,7 @@ function buildTriggerSystemPrompt(
 - Do NOT notify for routine events unless the user specifically requested it.
 - Respond with a brief summary of what you decided and why.`;
 
-  if (userContext.length > 0) {
-    prompt = `# USER CONTEXT\n\n${userContext.join('\n')}\n\n---\n\n${prompt}`;
-  }
-
-  return prompt;
+  return `${userContextBlock(oxyUser, memory)}${prompt}`;
 }
 
 /**
