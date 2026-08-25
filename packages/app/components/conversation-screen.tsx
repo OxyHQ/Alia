@@ -130,7 +130,7 @@ export const ConversationScreen = ({
     }
   }, [conversationId, messages, saveConversation]);
 
-  const voice = useVoiceMode({ chatMessages: messages, setMessages, conversationId, onDeactivate: handleVoiceDeactivate });
+  const voice = useVoiceMode({ chatMessages: messages, setMessages, conversationId, agentId, onDeactivate: handleVoiceDeactivate });
 
   // Auto-activate voice when navigated with startVoice (once only)
   const voiceAutoStartedRef = useRef(false);

@@ -659,6 +659,12 @@ const PROVIDER_IMPORT_ALLOWLIST: readonly { from: string; to: string; via: Modul
     why: 'A route driving a provider realtime session directly. Moves to Relay (#139 ws7).',
   },
   {
+    from: 'packages/api/src/routes/v1/__tests__/voice-knows-the-agent.test.ts',
+    to: 'packages/api/src/internal/providers/lib/voice-session-manager',
+    via: 'dynamic',
+    why: 'Test-only. Spies on the session manager to read the INSTRUCTIONS and TOOLS a voice session was created with — the only place either is observable, since the route hands them over and returns a LiveKit token. Retires with the voice path (#139 ws7).',
+  },
+  {
     from: 'packages/api/src/routes/v1/__tests__/voice-transcribe-credits.pgdb.test.ts',
     to: 'packages/api/src/internal/providers/lib/voice-session-manager',
     via: 'import',
@@ -793,7 +799,7 @@ const PROVIDER_IMPORT_ALLOWLIST: readonly { from: string; to: string; via: Modul
  * produced a plausible wrong answer that still compiled. The same trap caught
  * ws5's rebase, which is why this paragraph is a rule and not a history.
  */
-const PROVIDER_IMPORT_ALLOWLIST_SIZE = 51;
+const PROVIDER_IMPORT_ALLOWLIST_SIZE = 52;
 
 function observedProviderImports(): { from: string; to: string; via: ModuleRef['via'] }[] {
   const seen = new Map<string, { from: string; to: string; via: ModuleRef['via'] }>();
