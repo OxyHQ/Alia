@@ -6,7 +6,7 @@
       "name": "alia-monorepo",
       "dependencies": {
         "@oxyhq/bloom": "^1.1.0",
-        "@oxyhq/core": "^21.1.0",
+        "@oxyhq/core": "^21.2.0",
         "@oxyhq/services": "^30.0.1",
         "@tanstack/query-sync-storage-persister": "^5.101.2",
         "@tanstack/react-query": "^5.101.2",
@@ -26,7 +26,7 @@
         "@hugeicons/core-free-icons": "^4.2.2",
         "@hugeicons/react": "^1.1.9",
         "@oxyhq/bloom": "^1.1.0",
-        "@oxyhq/core": "^21.1.0",
+        "@oxyhq/core": "^21.2.0",
         "@oxyhq/services": "^30.0.1",
         "@tailwindcss/vite": "^4.3.2",
         "@tanstack/react-query": "^5.101.2",
@@ -117,7 +117,7 @@
       "name": "alia-codea",
       "version": "1.0.7",
       "dependencies": {
-        "@oxyhq/core": "^21.1.0",
+        "@oxyhq/core": "^21.2.0",
         "openai": "^6.46.0",
       },
       "devDependencies": {
@@ -136,7 +136,7 @@
         "codea": "./dist/index.js",
       },
       "dependencies": {
-        "@oxyhq/core": "^21.1.0",
+        "@oxyhq/core": "^21.2.0",
         "chalk": "^5.6.2",
         "commander": "^15.0.0",
         "conf": "^15.1.0",
@@ -217,7 +217,7 @@
         "@hugeicons/core-free-icons": "^4.2.2",
         "@hugeicons/react": "^1.1.9",
         "@oxyhq/bloom": "^1.1.0",
-        "@oxyhq/core": "^21.1.0",
+        "@oxyhq/core": "^21.2.0",
         "@oxyhq/services": "^30.0.1",
         "@tailwindcss/vite": "^4.3.2",
         "@tanstack/devtools-vite": "^0.8.1",
@@ -282,7 +282,7 @@
         "@hugeicons/core-free-icons": "^3.3.0",
         "@hugeicons/react": "^1.1.9",
         "@oxyhq/bloom": "^1.1.0",
-        "@oxyhq/core": "^21.1.0",
+        "@oxyhq/core": "^21.2.0",
         "@radix-ui/react-alert-dialog": "^1.1.19",
         "@radix-ui/react-avatar": "^1.2.2",
         "@radix-ui/react-dialog": "^1.1.19",
@@ -339,7 +339,7 @@
       "name": "@alia/docker-host",
       "version": "1.0.0",
       "dependencies": {
-        "@oxyhq/core": "^21.1.0",
+        "@oxyhq/core": "^21.2.0",
         "cors": "^2.8.6",
         "dockerode": "^4.0.12",
         "dotenv": "^16.6.1",
@@ -372,7 +372,7 @@
         "@livekit/rtc-node": "^0.13.31",
         "@mozilla/readability": "^0.6.0",
         "@oxyhq/contracts": "^0.29.0",
-        "@oxyhq/core": "^21.1.0",
+        "@oxyhq/core": "^21.2.0",
         "@oxyhq/crowdsource": "0.3.0",
         "@oxyhq/crowdsource-contracts": "0.3.0",
         "@oxyhq/crowdsource-express": "0.3.0",
@@ -439,7 +439,7 @@
         "@livekit/react-native-expo-plugin": "^1.0.2",
         "@livekit/react-native-webrtc": "^144.1.1",
         "@oxyhq/bloom": "^1.1.0",
-        "@oxyhq/core": "^21.1.0",
+        "@oxyhq/core": "^21.2.0",
         "@oxyhq/expo-splash": "^0.2.0",
         "@oxyhq/services": "^30.0.1",
         "@radix-ui/react-dropdown-menu": "^2.1.20",
@@ -551,7 +551,7 @@
       "version": "1.0.0",
       "dependencies": {
         "@modelcontextprotocol/sdk": "^1.29.0",
-        "@oxyhq/core": "^21.1.0",
+        "@oxyhq/core": "^21.2.0",
         "@oxyhq/db": "^0.1.2",
         "@types/express": "^4.17.25",
         "@types/node": "^20.19.43",
@@ -1525,7 +1525,7 @@
 
     "@oxyhq/contracts": ["@oxyhq/contracts@0.29.0", "", { "dependencies": { "zod": "^3.25.64" } }, "sha512-NK2Y2qXCVPmTuL1D0En5z18MqEBgu5xN2IvzINRiJERtz0z1O66HR4BLvS6Mc3O+ZoQMc2aBdfTOiqWM3nmh+Q=="],
 
-    "@oxyhq/core": ["@oxyhq/core@21.1.0", "", { "dependencies": { "@noble/ciphers": "^1.3.0", "@noble/hashes": "^1.8.0", "@oxyhq/contracts": "^0.31.0", "@oxyhq/protocol": "^0.2.0", "@scure/bip39": "^1.6.0", "@types/elliptic": "^6.4.18", "buffer": "^6.0.3", "elliptic": "^6.6.1", "express-rate-limit": "^8.6.0", "helmet": "^8.0.0", "invariant": "^2.2.4", "jwt-decode": "^4.0.0", "socket.io-client": "^4.8.1", "tldts": "^7.4.10", "zod": "^3.25.64" }, "peerDependencies": { "@react-native-async-storage/async-storage": "*", "expo-crypto": "*", "expo-secure-store": "*", "express": "^4.0.0" }, "optionalPeers": ["@react-native-async-storage/async-storage", "expo-crypto", "expo-secure-store", "express"] }, "sha512-g8OjkbyfBqJUnfNcK7jfw64ehz9L9oVY0nd6MJ+4qYpgEUKu4/H2rK10BNubTTfj6zNC87OsWqy67/q+xI1dAA=="],
+    "@oxyhq/core": ["@oxyhq/core@21.2.0", "", { "dependencies": { "@noble/ciphers": "^1.3.0", "@noble/hashes": "^1.8.0", "@oxyhq/contracts": "^0.32.0", "@oxyhq/protocol": "^0.2.0", "@scure/bip39": "^1.6.0", "@types/elliptic": "^6.4.18", "buffer": "^6.0.3", "elliptic": "^6.6.1", "express-rate-limit": "^8.6.0", "helmet": "^8.0.0", "invariant": "^2.2.4", "jwt-decode": "^4.0.0", "socket.io-client": "^4.8.1", "tldts": "^7.4.10", "zod": "^3.25.64" }, "peerDependencies": { "@react-native-async-storage/async-storage": "*", "expo-crypto": "*", "expo-secure-store": "*", "express": "^4.0.0" }, "optionalPeers": ["@react-native-async-storage/async-storage", "expo-crypto", "expo-secure-store", "express"] }, "sha512-tVOmp3/624/5EHzpAS+1GuyJjFESypq3DNcb0Tt2vPV2MT3X2CtG1iASIGko4KEZ8lqsOLZQ1QqvfmgQbqbZkQ=="],
 
     "@oxyhq/crowdsource": ["@oxyhq/crowdsource@0.3.0", "", { "dependencies": { "zod": "^4.4.3" }, "peerDependencies": { "@oxyhq/crowdsource-contracts": "^0.3.0" } }, "sha512-YwLDyeIsXrU9qC8H51DW8KQI571HhdLXS3DjaPlJZ3n9W/Eeb/Xu+bqIHqLdFjViu/3Cvjw+dSYLPz2Zh/VAGg=="],
 
@@ -6101,7 +6101,7 @@
 
     "@opentelemetry/sdk-trace-node/@opentelemetry/core": ["@opentelemetry/core@1.30.1", "", { "dependencies": { "@opentelemetry/semantic-conventions": "1.28.0" }, "peerDependencies": { "@opentelemetry/api": ">=1.0.0 <1.10.0" } }, "sha512-OOCM2C/QIURhJMuKaekP3TRBxBKxG/TWWA0TL2J6nXUtDnuCtccy49LUJF8xPFXMX+0LMcxFpCo8M9cGY1W6rQ=="],
 
-    "@oxyhq/core/@oxyhq/contracts": ["@oxyhq/contracts@0.31.0", "", { "dependencies": { "zod": "^3.25.64" } }, "sha512-xnqnjgqzCggotKuGDPd1xf0oumDSrId8mCEq/mt8l6WOEw/u/oyUm9vGt4g1OfDLpd9gSm2vcNFdDKBWt14wUg=="],
+    "@oxyhq/core/@oxyhq/contracts": ["@oxyhq/contracts@0.32.0", "", { "dependencies": { "zod": "^3.25.64" } }, "sha512-YJ3eePwE6QFGvfKKO3iWkl7RptB9WfpZ2Xpyqz88LWmMlvKB4vrDEo52i0d35n2uLkp8JKYzTG6HEdi+tC7arw=="],
 
     "@oxyhq/crowdsource/zod": ["zod@4.4.3", "", {}, "sha512-ytENFjIJFl2UwYglde2jchW2Hwm4GJFLDiSXWdTrJQBIN9Fcyp7n4DhxJEiWNAJMV1/BqWfW/kkg71UDcHJyTQ=="],
 

@@ -15,10 +15,18 @@ export const COLOR_OPTIONS = [
 ];
 
 interface ColorPickerProps {
-  colors?: string[];
+  colors?: readonly string[];
   selected: string;
   onSelect: (color: string) => void;
   label?: string;
+  /**
+   * What each swatch draws, when the value is not a colour to fill with.
+   *
+   * Projects and folders store a hex and a filled circle IS the choice. An
+   * agent stores a Bloom preset key, and what the choice produces is its mark —
+   * so the mark is what it offers, rather than a dot that stands for one.
+   */
+  renderSwatch?: (value: string) => React.ReactNode;
 }
 
 export function ColorPicker({
@@ -26,6 +34,7 @@ export function ColorPicker({
   selected,
   onSelect,
   label = "Color",
+  renderSwatch,
 }: ColorPickerProps) {
   return (
     <View className="gap-2">
@@ -42,7 +51,11 @@ export function ColorPicker({
                 : "border-transparent"
             )}
           >
-            <View style={{ backgroundColor: color, flex: 1 }} />
+            {renderSwatch ? (
+              <View className="flex-1 items-center justify-center">{renderSwatch(color)}</View>
+            ) : (
+              <View style={{ backgroundColor: color, flex: 1 }} />
+            )}
           </Pressable>
         ))}
       </View>
