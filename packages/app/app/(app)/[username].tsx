@@ -119,15 +119,34 @@ const AgentThreadPage = () => {
    *
    * `undefined` renders no wrapper at all, so an agent with no colour and the
    * rest of the app are untouched rather than merely unchanged.
+   *
+   * ## `asChild` over a `flex-1` View, and it is not a style preference
+   *
+   * WITHOUT `asChild` the scope renders its own wrapper — and the two platforms
+   * disagree about it. Native wraps in a `<View style={[{flex: 1}, style]}>`;
+   * WEB wraps in a plain `<div style={vars}>` with no flex at all, which
+   * collapses to its content height inside a flex column and lifts the whole
+   * conversation to the top of the panel. Shipped that way for an afternoon: the
+   * wrapper did its colour job perfectly while breaking the geometry, and only
+   * an agent WITH a colour showed it, because `undefined` renders no wrapper.
+   *
+   * `ConversationScreen` does not forward `style`, so `asChild` needs a real
+   * element between them — which is what Mention's `ChannelScreen` and
+   * `AccountInfoScreen` both do. `web:z-auto` comes from the same place and for
+   * the reason its comment records: without it this wrapper becomes its own
+   * stacking context and traps the sticky header chrome below the panel's
+   * overlays.
    */
   return (
-    <BloomColorScope colorPreset={agentColorPreset(thread.agent.color)}>
-      <ConversationScreen
-        conversationId={thread.conversationId}
-        agentId={thread.agent._id}
-        agentName={headerName}
-        agentColor={thread.agent.color}
-      />
+    <BloomColorScope colorPreset={agentColorPreset(thread.agent.color)} asChild>
+      <View className="flex-1 web:z-auto">
+        <ConversationScreen
+          conversationId={thread.conversationId}
+          agentId={thread.agent._id}
+          agentName={headerName}
+          agentColor={thread.agent.color}
+        />
+      </View>
     </BloomColorScope>
   );
 };
