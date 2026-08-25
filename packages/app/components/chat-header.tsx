@@ -80,12 +80,31 @@ export const ChatHeader = React.memo(function ChatHeader({
     toast.info(t('chatHeader.helpComingSoon'));
   };
 
+  /*
+   * Three columns, so the title sits in the middle of the HEADER rather than in
+   * the middle of whatever the two flanking groups leave over. Equal side
+   * columns are the whole mechanism: the centre is centred in the header if and
+   * only if left and right are the same width.
+   *
+   * `md:flex-1` and not `flex-1`, because below that breakpoint the two cannot
+   * both be had. Measured on a 375px screen: the controls on the right need
+   * 167px of the 343px available, and mirroring that on the left to centre the
+   * title would leave it 9px. A third is 109px, so equal thirds there puts the
+   * credits pill 58px on top of the name. Below `md` the columns therefore keep
+   * their natural widths — which already centres the title in the band between
+   * them, measured dead-on — and the header stays exactly as it was. Narrowing
+   * the right-hand controls is what would make a centred title possible there.
+   *
+   * `justify-between` still matters for the case with no agent and no centre
+   * column: it is what holds the two groups apart below `md`, and a no-op above
+   * it, where the two thirds already fill the row.
+   */
   return (
       <View
         className="flex-row items-center justify-between px-4"
         style={{ paddingTop: insets.top, height: 56 + insets.top }}
       >
-      <View className="flex-row items-center gap-2">
+      <View className="flex-row items-center justify-start gap-2 md:flex-1">
         <Button
           variant="ghost"
           size="icon"
@@ -97,17 +116,23 @@ export const ChatHeader = React.memo(function ChatHeader({
       </View>
 
       {/* Who this thread is with, iMessage-style. Absent on Alia's own chat,
-          where the two flanking groups sit exactly where they always did. */}
+          where the two flanking groups sit exactly where they always did.
+
+          `shrink` on the name is what makes a long one TRUNCATE instead of
+          push: React Native defaults `flexShrink` to 0, so without it the text
+          keeps its full width and runs under the controls on the right —
+          measured at 8px of overlap on a 375px screen, against 8px of clearance
+          with it. `numberOfLines` only clips what the box already bounds. */}
       {agentName === undefined ? null : (
         <View className="flex-1 flex-row items-center justify-center gap-2 px-2">
           <AgentGlyph size={24} color={agentColor} label={agentName} />
-          <Text className="text-base font-semibold text-foreground" numberOfLines={1}>
+          <Text className="shrink text-base font-semibold text-foreground" numberOfLines={1}>
             {agentName}
           </Text>
         </View>
       )}
 
-      <View className="flex-row items-center gap-2">
+      <View className="flex-row items-center justify-end gap-2 md:flex-1">
         <CreditsMenu />
 
         {!isConversation && (

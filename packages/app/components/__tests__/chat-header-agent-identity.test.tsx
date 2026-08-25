@@ -1,7 +1,7 @@
 import React from 'react';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { act, create, type ReactTestRenderer } from 'react-test-renderer';
+import { act, create, type ReactTestRenderer, type ReactTestInstance } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
@@ -243,5 +243,82 @@ describe('the call site in chat-page-content', () => {
     );
 
     expect(chatHeaderElement(broken)).toMatch(FRESHLY_BUILT);
+  });
+});
+
+/**
+ * Where the title sits.
+ *
+ * The header is three columns, and the title is centred in the HEADER — rather
+ * than in whatever the flanking groups leave over — if and only if the two side
+ * columns are the same width. So that equality is what is pinned here, read off
+ * the columns themselves rather than hardcoded: change one side's width and the
+ * two stop matching, whatever they were changed to.
+ *
+ * Measured in Chromium over the real `react-native-web` layout engine, with the
+ * component's own sizes (36px controls, 8px gaps, 16px padding): before this,
+ * the title sat 83.5px left of centre on a 1280px screen and 65.5px left on a
+ * 375px one — adrift, and adrift by DIFFERENT amounts, because the menu button
+ * on the left is `md:hidden` and so weighs nothing on a desktop. With equal side
+ * columns the same measurement reports an offset of exactly 0.
+ */
+describe('the chat header, as three columns', () => {
+  /** The classes that decide how wide a column gets. */
+  function widthClasses(node: ReactTestInstance): string[] {
+    const className: unknown = node.props.className;
+    if (typeof className !== 'string') return [];
+    return className
+      .split(/\s+/)
+      .filter((name) => /(^|:)(flex-1|grow|basis-|w-|min-w-|max-w-)/.test(name))
+      .sort();
+  }
+
+  /**
+   * The header's own columns — its direct children, not everything nested.
+   *
+   * The outermost host `View` is the header itself; its immediate children are
+   * the three column elements, which carry the classes that size them.
+   */
+  function columns(r: ReactTestRenderer): ReactTestInstance[] {
+    const header = nodes(r, 'View')[0];
+    return header.children.filter(
+      (child): child is ReactTestInstance =>
+        typeof child !== 'string' && typeof child.props.className === 'string',
+    );
+  }
+
+  it('gives the two flanking columns the same width, which is what centres the title', () => {
+    const r = render(<ChatHeader agentName="Pepe" agentColor="#7c3aed" />);
+    const [left, centre, right] = columns(r);
+
+    expect(columns(r)).toHaveLength(3);
+    // Positive control on the reader itself: two columns with no width classes
+    // at all would compare equal and pin nothing, which is exactly the state
+    // this replaced.
+    expect(widthClasses(left)).not.toHaveLength(0);
+    expect(widthClasses(left)).toEqual(widthClasses(right));
+    // And the middle one is the one that takes the slack.
+    expect(widthClasses(centre)).toContain('flex-1');
+  });
+
+  it('lets a long name truncate instead of pushing the controls', () => {
+    const r = render(<ChatHeader agentName="Un agente con un nombre larguísimo" />);
+    const title = nodes(r, 'Text')[0];
+
+    // Both halves are needed: React Native defaults `flexShrink` to 0, so
+    // `numberOfLines` alone clips nothing — the text keeps its full width and
+    // runs under the controls, measured at 8px of overlap on a 375px screen.
+    expect(title.props.numberOfLines).toBe(1);
+    expect(String(title.props.className).split(/\s+/)).toContain('shrink');
+  });
+
+  it('leaves the header with no agent flanked exactly as it was', () => {
+    const r = render(<ChatHeader />);
+    const [left, right] = columns(r);
+
+    // No centre column at all, and the two groups still balance — so nothing
+    // moves on the screen everyone uses.
+    expect(columns(r)).toHaveLength(2);
+    expect(widthClasses(left)).toEqual(widthClasses(right));
   });
 });
