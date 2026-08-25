@@ -209,18 +209,41 @@ export const GENERATED_TIER_MAPPINGS: Record<AliaTier, ModelMapping[]> = {
    * episodes published without a single effect.
    *
    * ElevenLabs leads for the same reason it leads `v1-tts` — its key is a free
-   * monthly quota and `key-manager.ts` prefers a free key — and because it is
-   * the only provider in this chain that production holds a credential for.
-   * MEASURED 2026-08-25 with that key: `POST /v1/sound-generation` answers 200
-   * `audio/mpeg`, 81 kB, in 2.7 s.
+   * monthly quota and `key-manager.ts` prefers a free key. MEASURED 2026-08-25
+   * with that key: `POST /v1/sound-generation` answers 200 `audio/mpeg`, 81 kB
+   * in 2.7 s for v2 and 48 kB in 1.7 s for v3.
    *
-   * DigitalOcean stays, second. It serves nothing today, and a provider with no
-   * key is refused before a request leaves the process, so it costs one entry
-   * and starts serving the day a key arrives.
+   * ## HOW DEEP THIS CHAIN ACTUALLY IS, which is not the same as how long it is
+   *
+   * Three entries, TWO providers, and in production today exactly ONE of those
+   * providers can serve. `provider_keys` holds four rows — `elevenlabs`,
+   * `groq`, `openrouter`, `xai` — and none for `digitalocean`, so the fal entry
+   * is refused at `getBestKeyForModel` before a request leaves the process.
+   * Against the failure that matters most, the ElevenLabs key being exhausted
+   * or revoked, the effective depth is one and this chain buys nothing.
+   *
+   * That is worth stating rather than letting three lines imply resilience they
+   * do not have. What each entry really covers:
+   *
+   *  - `eleven_text_to_sound_v3` covers a MODEL fault — v2 deprecated, or a
+   *    prompt v2 refuses. It shares v2's credential, so it covers no key fault.
+   *    Measured, not assumed: the endpoint's own 422 names these two ids as the
+   *    only ones it accepts, and both answer 200 on our key.
+   *  - the fal entry covers a PROVIDER fault, and is the only entry that does —
+   *    the day a DigitalOcean key exists.
+   *
+   * There is no fourth option to add without a new provider integration, which
+   * is Kaana's to own and not Alia's: of the providers `callProviderAPI` can
+   * already reach, OpenAI and Groq serve speech and transcription but no
+   * text-to-audio, OpenRouter serves no audio endpoint at all (it 400s, as the
+   * `v1-tts` comment records), and Google's branch here is Gemini TTS. So the
+   * honest state is a chain whose depth is one credential away from real, and
+   * the thing that makes it real is an operator's, not a commit's.
    */
   'v1-sfx': [
     createMapping('elevenlabs', 'elevenlabs', 'eleven-text-to-sound-v2', 'eleven_text_to_sound_v2', 1, 92),
-    createMapping('digitalocean', 'stability', 'stable-audio-25', 'fal-ai/stable-audio-25/text-to-audio', 2, 85),
+    createMapping('elevenlabs', 'elevenlabs', 'eleven-text-to-sound-v3', 'eleven_text_to_sound_v3', 2, 90),
+    createMapping('digitalocean', 'stability', 'stable-audio-25', 'fal-ai/stable-audio-25/text-to-audio', 3, 85),
   ],
   'v1-image': [
     createMapping('openai', 'openai', 'dall-e-3', 'dall-e-3', 1, 92),

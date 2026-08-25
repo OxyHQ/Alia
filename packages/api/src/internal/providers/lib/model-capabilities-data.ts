@@ -181,6 +181,11 @@ export const MODEL_CAPABILITIES: Record<string, ModelCapabilities> = {
   // answers 422 naming `eleven_text_to_sound_v2` and `eleven_text_to_sound_v3`
   // as the only two it accepts.
   'eleven_text_to_sound_v2': createCapabilities({ audio: true, tools: false, functionCalling: false, streaming: false, maxContextTokens: 4096, maxOutputTokens: 4096 }),
+  // The other one the 422 names. MEASURED the same way and on the same key:
+  // 200, `audio/mpeg`, 48 kB, 1.7 s. No measurement says which of the two
+  // SOUNDS better, so v2 keeps the lead it has by being the endpoint's own
+  // default and this is the model-level fallback behind it.
+  'eleven_text_to_sound_v3': createCapabilities({ audio: true, tools: false, functionCalling: false, streaming: false, maxContextTokens: 4096, maxOutputTokens: 4096 }),
 
   // DigitalOcean TTS / Audio
   'fal-ai/elevenlabs/tts/multilingual-v2': createCapabilities({ audio: true, tools: false, functionCalling: false, streaming: false, maxContextTokens: 4096, maxOutputTokens: 4096 }),

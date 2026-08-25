@@ -68,8 +68,16 @@ describe('the chain the process actually resolves', () => {
    * Every failover test below passes with a one-entry chain — there is simply
    * nothing to fail over to — and a one-entry chain is exactly the state that
    * lost every sound cue. So the length is asserted before anything else.
+   *
+   * The two counts are DIFFERENT claims and both are load-bearing. A chain of
+   * three mappings on one provider survives a model fault and dies with a
+   * credential; only a second PROVIDER covers the failure that actually
+   * happened here. The tier's own comment records that production holds a key
+   * for exactly one of these providers today, so the second count is a
+   * structural guarantee rather than a live one — which is why it is asserted
+   * here and stated there rather than implied by the shape.
    */
-  it('offers more than one provider, which is what it did not do', () => {
+  it('offers more than one mapping AND more than one provider', () => {
     expect(LIVE_CHAIN.length).toBeGreaterThanOrEqual(2);
     expect(new Set(LIVE_CHAIN.map((m) => m.provider)).size).toBeGreaterThanOrEqual(2);
   });
@@ -84,8 +92,14 @@ describe('the chain the process actually resolves', () => {
   it('leads with the provider production holds a credential for', () => {
     expect(LIVE_CHAIN[0]?.provider).toBe('elevenlabs');
     expect(LIVE_CHAIN[0]?.modelId).toBe('eleven_text_to_sound_v2');
-    // And keeps the route that used to be the only one, so it serves the day a
-    // key for it arrives rather than being deleted.
+    // Both ids the endpoint accepts, and no third: MEASURED, its 422 names
+    // exactly these two, so a mapping outside them fails on its first call.
+    expect(LIVE_CHAIN.filter((m) => m.provider === 'elevenlabs').map((m) => m.modelId)).toEqual([
+      'eleven_text_to_sound_v2',
+      'eleven_text_to_sound_v3',
+    ]);
+    // And it keeps the route that used to be the only one, so it serves the day
+    // a key for it arrives rather than being deleted.
     expect(LIVE_CHAIN.map((m) => m.modelId)).toContain('fal-ai/stable-audio-25/text-to-audio');
   });
 
@@ -111,18 +125,45 @@ describe('synthesizeSoundEffect walks that chain', () => {
    * the same throw is followed by a second provider and an episode that keeps
    * its sound.
    */
-  it('produces the effect anyway when the first provider is unreachable', async () => {
+  it('produces the effect anyway when the leading model fails', async () => {
     vi.mocked(callProviderAPI)
-      .mockRejectedValueOnce(Object.assign(new Error('Provider API exhausted'), { reason: 'no_credential' }))
+      .mockRejectedValueOnce(Object.assign(new Error('Provider API exhausted'), { reason: 'format' }))
       .mockResolvedValueOnce(AUDIO);
 
     const effect = await synthesizeSoundEffect({ prompt: PROMPT });
 
     expect(effect?.audio).toBe(AUDIO);
+    // The next MODEL, on the same credential — which is the only thing a second
+    // ElevenLabs entry can cover.
     expect(routed()).toEqual([
       ['elevenlabs', 'eleven_text_to_sound_v2'],
-      ['digitalocean', 'fal-ai/stable-audio-25/text-to-audio'],
+      ['elevenlabs', 'eleven_text_to_sound_v3'],
     ]);
+  });
+
+  /**
+   * THE assertion, and the one the shipped code could not satisfy at any price.
+   *
+   * The production failure was `Provider API exhausted: digitalocean/… 
+   * (no_credential)` thrown out of the one call there was. A credential fault
+   * takes every mapping of that provider with it, so reaching another PROVIDER
+   * is the only thing that saves the cue — and it is the claim a chain of three
+   * entries on one key would fail while looking identical.
+   */
+  it('crosses to a second PROVIDER when a whole credential is gone', async () => {
+    const exhausted = () =>
+      Object.assign(new Error('Provider API exhausted'), { reason: 'no_credential' });
+    vi.mocked(callProviderAPI)
+      .mockRejectedValueOnce(exhausted())
+      .mockRejectedValueOnce(exhausted())
+      .mockResolvedValueOnce(AUDIO);
+
+    const effect = await synthesizeSoundEffect({ prompt: PROMPT });
+
+    expect(effect?.audio).toBe(AUDIO);
+    const providers = routed().map(([provider]) => provider);
+    expect(new Set(providers).size).toBeGreaterThanOrEqual(2);
+    expect(providers.at(-1)).toBe('digitalocean');
   });
 
   it('treats an empty response as no audio and tries the next provider', async () => {

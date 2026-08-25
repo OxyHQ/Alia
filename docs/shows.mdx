@@ -122,6 +122,16 @@ episode, while the episode published and reported success. Adding a provider to
 the tier is a `createMapping` line; adding one to a hardcoded call was a
 rewrite, which is why the failure survived as long as it did.
 
+**How deep that chain is, honestly.** Three mappings across two providers, and
+in production today exactly one of those providers holds a credential:
+ElevenLabs. The `fal` entry is refused before a request leaves the process, so
+against the failure that actually happened — a provider with no key — the
+effective depth is one until an operator installs a DigitalOcean key. The second
+ElevenLabs mapping covers a MODEL fault and shares the first one's credential,
+so it covers no key fault. The tier's own comment in
+`generate-model-mappings.ts` says which entry covers what, and why there is no
+fourth without a provider integration, which belongs to Kaana rather than here.
+
 **Dialogue is rendered before effects, deliberately.** Speech is the part a
 listener cannot do without, and an effect provider timing out used to poison the
 key pool before the voices had finished.
