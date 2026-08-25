@@ -5,7 +5,12 @@ import { closePostgres, connectPostgres, type ApiDatabase } from '../../../db/in
 import { userCredits } from '../../../db/schema/billing';
 import { showEpisodes, showSeries } from '../../../db/schema/shows';
 import { getOrCreateUserCredits } from '../../../db/billing/userCreditsRepository';
-import { createEpisode, createSeries, findEpisodeById } from '../../../db/shows/showRepository';
+import {
+  createEpisode,
+  createSeries,
+  findEpisodeById,
+  listEpisodesForSeries,
+} from '../../../db/shows/showRepository';
 
 /**
  * The show pipeline's CREDIT behaviour, against a real Postgres balance.
@@ -57,6 +62,21 @@ vi.mock('../../synthesize-speech.js', () => ({
   ),
 }));
 
+/**
+ * The sound-effect chain, stubbed at the SAME seam speech is stubbed at.
+ *
+ * Left real it would reach `provider_keys` on the test database, find nothing
+ * and answer null — which is the production failure and would make every
+ * assertion below about an episode with no effects, quietly.
+ */
+let effectsWork = true;
+const synthesizeSoundEffect = vi.fn(async (_options: { prompt: string }) =>
+  effectsWork ? { audio: Buffer.from('fake-sfx-bytes'), format: 'mp3' } : null,
+);
+vi.mock('../../synthesize-sound-effect.js', () => ({
+  synthesizeSoundEffect: (options: { prompt: string }) => synthesizeSoundEffect(options),
+}));
+
 vi.mock('../../s3.js', () => ({
   uploadToS3: vi.fn(async () => 'test/show-segments/key.mp3'),
   deleteS3Objects: vi.fn(async () => 0),
@@ -93,8 +113,10 @@ afterAll(async () => {
 beforeEach(async () => {
   scriptReply = null;
   synthesisWorks = true;
+  effectsWork = true;
   measuredDurationMs = 90_000;
   ingestEpisode.mockClear();
+  synthesizeSoundEffect.mockClear();
   /**
    * Scoped to THIS file's account, never a bare truncate. One database serves
    * the whole run and vitest runs FILES in parallel, so an unpredicated delete
@@ -156,6 +178,169 @@ const GOOD_SCRIPT = JSON.stringify({
     { type: 'dialogue', speaker: 'Sarah', text: 'Glad to be here.' },
     { type: 'dialogue', speaker: 'Marcus', text: 'So, what happened this week?' },
   ],
+});
+
+/**
+ * The same script with the sound cues a real one carries: an intro, a
+ * transition and an outro, which is what `script-prompt.ts` asks for on every
+ * episode.
+ */
+const SCRIPT_WITH_SFX = JSON.stringify({
+  description: 'A short episode.',
+  summary: 'A longer summary of the episode.',
+  recap: 'They discussed what happened this week.',
+  segments: [
+    { type: 'sfx', speaker: '', text: '', sfxPrompt: 'upbeat show intro jingle, 4 seconds' },
+    { type: 'dialogue', speaker: 'Marcus', text: 'Welcome back to the show.' },
+    { type: 'sfx', speaker: '', text: '', sfxPrompt: 'smooth transition whoosh, 2 seconds' },
+    { type: 'dialogue', speaker: 'Sarah', text: 'Glad to be here.' },
+    { type: 'dialogue', speaker: 'Marcus', text: 'So, what happened this week?' },
+    { type: 'sfx', speaker: '', text: '', sfxPrompt: 'warm outro sting, 3 seconds' },
+  ],
+});
+
+/**
+ * THE ENTRYPOINT, which is the assertion every unit test of the failover loop
+ * cannot make.
+ *
+ * `synthesize-sound-effect.ts` can be perfectly correct and never reached — a
+ * mechanism green and inert — and that is close to what shipped: the pipeline
+ * called one provider inline and no chain existed to walk. So this asserts the
+ * pipeline ASKS, once per cue, with the script's own words, and that what comes
+ * back reaches the finished file.
+ */
+describe('the pipeline asks the sound-effect chain for every cue the script wrote', () => {
+  it('sends each sfxPrompt, and puts the audio into the join', async () => {
+    await fund(50);
+    const episodeId = await queueEpisode();
+    scriptReply = SCRIPT_WITH_SFX;
+
+    const { runShowPipeline } = await import('../show-pipeline.js');
+    await runShowPipeline(episodeId);
+
+    expect(synthesizeSoundEffect).toHaveBeenCalledTimes(3);
+    expect(synthesizeSoundEffect.mock.calls.map((call) => call[0].prompt)).toEqual([
+      'upbeat show intro jingle, 4 seconds',
+      'smooth transition whoosh, 2 seconds',
+      'warm outro sting, 3 seconds',
+    ]);
+
+    /**
+     * And the bytes are really in the episode. `concatenateAudioSegments` is
+     * stubbed to `Buffer.concat`, so the blob handed to Syra is the segments in
+     * playback order — the one place an effect that was generated but dropped
+     * on the floor would show up.
+     */
+    const published = ingestEpisode.mock.calls[0] as unknown as [unknown, Blob];
+    const joined = Buffer.from(await published[1].arrayBuffer()).toString();
+    expect(joined).toBe(
+      'fake-sfx-bytes' +
+        'fake-mp3-bytes' +
+        'fake-sfx-bytes' +
+        'fake-mp3-bytes' +
+        'fake-mp3-bytes' +
+        'fake-sfx-bytes',
+    );
+    expect((await findEpisodeById(db, episodeId))?.status).toBe('completed');
+  });
+
+  it('still publishes when no effect can be produced, because a whoosh is not the show', async () => {
+    await fund(50);
+    const episodeId = await queueEpisode();
+    scriptReply = SCRIPT_WITH_SFX;
+    effectsWork = false;
+
+    const { runShowPipeline } = await import('../show-pipeline.js');
+    await runShowPipeline(episodeId);
+
+    const episode = await findEpisodeById(db, episodeId);
+    expect(episode?.status).toBe('completed');
+    expect(ingestEpisode).toHaveBeenCalledTimes(1);
+
+    // The dialogue survives, in order, with the three cues missing.
+    const published = ingestEpisode.mock.calls[0] as unknown as [unknown, Blob];
+    expect(Buffer.from(await published[1].arrayBuffer()).toString()).toBe(
+      'fake-mp3-bytes' + 'fake-mp3-bytes' + 'fake-mp3-bytes',
+    );
+  });
+});
+
+/**
+ * A lost cue reaches the OWNER, not just the container's logs.
+ *
+ * This is the half that was missing while the bug ran. Every sound effect in
+ * every episode failed for days; the pipeline logged a warning, skipped the
+ * segment, published, and wrote `completed` — so the row, the screen and the
+ * notification all described an episode that had everything it asked for. The
+ * assertion is therefore about the stored row and about what a ROUTE can read
+ * from it, because a flag the pipeline writes and no reader can see is the same
+ * silence with more steps.
+ */
+describe('an episode says which of its segments never rendered', () => {
+  it('marks the cues that were lost, and only those', async () => {
+    await fund(50);
+    const episodeId = await queueEpisode();
+    scriptReply = SCRIPT_WITH_SFX;
+    effectsWork = false;
+
+    const { runShowPipeline } = await import('../show-pipeline.js');
+    await runShowPipeline(episodeId);
+
+    const episode = await findEpisodeById(db, episodeId);
+    expect(episode?.status).toBe('completed');
+
+    const failed = (episode?.segments ?? []).filter((segment) => segment.renderFailed === true);
+    expect(failed.map((segment) => segment.index)).toEqual([0, 2, 5]);
+    // The prompt survives beside the flag, so the row says what the missing
+    // sound was meant to be rather than only that something is missing.
+    expect(failed[0]?.sfxPrompt).toBe('upbeat show intro jingle, 4 seconds');
+
+    // And nothing that DID render is marked. Marking everything would satisfy
+    // the assertion above and tell the owner their whole episode is broken.
+    const spoken = (episode?.segments ?? []).filter((segment) => segment.type === 'dialogue');
+    expect(spoken).toHaveLength(3);
+    expect(spoken.every((segment) => segment.renderFailed === undefined)).toBe(true);
+  });
+
+  /**
+   * The positive control, and the one that stops the flag from being noise: an
+   * episode where everything rendered must carry no mark at all, or the screen
+   * shows a warning on every show ever made.
+   */
+  it('marks nothing when every segment rendered', async () => {
+    await fund(50);
+    const episodeId = await queueEpisode();
+    scriptReply = SCRIPT_WITH_SFX;
+
+    const { runShowPipeline } = await import('../show-pipeline.js');
+    await runShowPipeline(episodeId);
+
+    const episode = await findEpisodeById(db, episodeId);
+    expect(episode?.segments).toHaveLength(6);
+    expect(episode?.segments.some((segment) => segment.renderFailed === true)).toBe(false);
+  });
+
+  it('serves the mark to the screen, through the projection a route reads', async () => {
+    await fund(50);
+    const episodeId = await queueEpisode();
+    scriptReply = SCRIPT_WITH_SFX;
+    effectsWork = false;
+
+    const { runShowPipeline } = await import('../show-pipeline.js');
+    await runShowPipeline(episodeId);
+
+    /**
+     * `EPISODE_PUBLIC_COLUMNS` is an explicit allow-list — a column the table
+     * has is not a column a route returns — so reading the row directly proves
+     * nothing about what the owner can see. This goes through the same function
+     * `GET /shows/series/:id/episodes` calls.
+     */
+    const episode = await findEpisodeById(db, episodeId);
+    const page = await listEpisodesForSeries(db, episode?.seriesId ?? '', 10, 0);
+    const served = page.episodes.find((row) => row.id === episodeId);
+
+    expect(served?.segments.filter((segment) => segment.renderFailed === true)).toHaveLength(3);
+  });
 });
 
 describe('a failure leaves the balance exactly where it was', () => {

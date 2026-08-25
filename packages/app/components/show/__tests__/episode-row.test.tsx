@@ -250,6 +250,83 @@ describe('EpisodeRow', () => {
     expect(nodes(root, 'Play')).toHaveLength(0);
   });
 
+  /**
+   * The user-visible half of a fix whose other half is a column in Postgres.
+   *
+   * Every sound effect in every generated episode failed for days. The pipeline
+   * skipped each one, published, and wrote `completed` — so this row said
+   * `Episode 3 · Today · 12 min` about a recording missing its intro, its
+   * transition and its outro, and the only record was a warning in a container
+   * log. The API now marks the segments it could not render; these assert that
+   * the mark ARRIVES here, in words, at the person who asked for the episode.
+   */
+  describe('a cue the episode could not make', () => {
+    /** Three sfx segments, of which two never rendered, plus a lost line. */
+    const withLosses: ShowEpisode = {
+      ...BASE,
+      segments: [
+        { index: 0, speaker: '', text: '', type: 'sfx', sfxPrompt: 'intro', renderFailed: true },
+        { index: 1, speaker: 'Ana', text: 'Hello.', type: 'dialogue' },
+        { index: 2, speaker: '', text: '', type: 'sfx', sfxPrompt: 'whoosh', renderFailed: true },
+        { index: 3, speaker: 'Ana', text: 'Goodbye.', type: 'dialogue', renderFailed: true },
+        { index: 4, speaker: '', text: '', type: 'sfx', sfxPrompt: 'outro' },
+      ],
+    };
+
+    it('is stated in the same quiet line as the duration, counted by kind', () => {
+      const root = renderRow(withLosses);
+
+      expect(lines(root)).toContain(
+        'Episode 3 · Today · 12 min · 2 sound effects missing · 1 line missing',
+      );
+      // Still an episode: it plays, and nothing calls it broken.
+      expect(nodes(root, 'Play')).toHaveLength(1);
+      expect(nodes(root, 'AlertCircle')).toHaveLength(0);
+    });
+
+    it('says nothing at all when every segment rendered', () => {
+      // The positive control. A row that always showed the phrase would satisfy
+      // the assertion above and label every show ever made as damaged.
+      const root = renderRow({
+        ...BASE,
+        segments: withLosses.segments?.map((segment) => ({ ...segment, renderFailed: false })),
+      });
+
+      expect(lines(root)).toContain('Episode 3 · Today · 12 min');
+      expect(lines(root).join(' ')).not.toMatch(/missing/);
+    });
+
+    it('counts one of a kind in the singular', () => {
+      const root = renderRow({
+        ...BASE,
+        segments: [
+          { index: 0, speaker: '', text: '', type: 'sfx', sfxPrompt: 'intro', renderFailed: true },
+        ],
+      });
+
+      expect(lines(root)).toContain('Episode 3 · Today · 12 min · 1 sound effect missing');
+    });
+
+    it('withholds the count while the episode is still being made', () => {
+      // Segments are marked as each batch finishes, so a count shown here is a
+      // number that climbs beside a progress bar already saying it is not done.
+      const root = renderRow({ ...withLosses, status: 'generating_audio', durationMs: null });
+
+      expect(lines(root).join(' ')).not.toMatch(/missing/);
+      expect(lines(root)).toContain('Episode 3 · Today');
+    });
+
+    it('says nothing for an episode whose segments the API did not send', () => {
+      // `segments` is optional on the client type and absent is not zero — a
+      // row that read `undefined` as "everything failed" would be worse than
+      // the silence this replaces.
+      const root = renderRow({ ...BASE, segments: undefined });
+
+      expect(lines(root)).toContain('Episode 3 · Today · 12 min');
+      expect(lines(root).join(' ')).not.toMatch(/missing/);
+    });
+  });
+
   it('keeps the remove action reachable on native and hover-revealed on web', () => {
     const root = renderRow(BASE);
     const remove = nodes(root, 'Pressable').find(

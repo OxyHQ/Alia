@@ -533,12 +533,6 @@ const PROVIDER_IMPORT_ALLOWLIST: readonly { from: string; to: string; via: Modul
     why: 'Type-only. Voice bridge message shapes.',
   },
   {
-    from: 'packages/api/src/lib/show/show-pipeline.ts',
-    to: 'packages/api/src/internal/providers/lib/digitalocean-async',
-    via: 'import',
-    why: 'Async-invoke result unwrapping for one provider. Moves to Relay (#139 ws7).',
-  },
-  {
     from: 'packages/api/src/scripts/sync-provider-models.ts',
     to: 'packages/api/src/internal/providers/lib/generate-model-mappings',
     via: 'import',
@@ -561,12 +555,6 @@ const PROVIDER_IMPORT_ALLOWLIST: readonly { from: string; to: string; via: Modul
     to: 'packages/api/src/internal/providers/lib/generate-model-mappings',
     via: 'import',
     why: 'Asserts every routed provider is either checkable or explicitly excused.',
-  },
-  {
-    from: 'packages/api/src/lib/show/show-pipeline.ts',
-    to: 'packages/api/src/internal/providers/lib/provider-api',
-    via: 'import',
-    why: 'Calls a provider directly, bypassing gateway-client. The clearest ADR 0001 violation on the list.',
   },
   {
     from: 'packages/api/src/lib/synthesize-speech.ts',
@@ -795,13 +783,23 @@ const PROVIDER_IMPORT_ALLOWLIST: readonly { from: string; to: string; via: Modul
  * the tag vocabulary, the capability rows and the live TTS chain as data.
  * All four go when the TTS path goes.
  *
+ * DOWN for the first time since ws7, when sound effects got a tier. Both
+ * removals are PRODUCT lines and both are `show-pipeline.ts`: it named
+ * `digitalocean` and one fal model inline and called `provider-api` directly —
+ * "the clearest ADR 0001 violation on the list", as its own entry said — and
+ * unwrapped that provider's async-invoke result itself. It now asks
+ * `lib/synthesize-sound-effect.ts` for an effect, which reaches the tier
+ * through `gateway-client` like every other caller. The number below is not
+ * 54 minus 2 reasoned about on a branch: it is what the gate itself reported
+ * against the rebased tree, which is the rule this paragraph ends on.
+ *
  * The number is COUNTED from the list above rather than reasoned about, every
  * time. Two branches each grew it from 23, one to 24 and one to 25, and the
  * array itself merged cleanly — arithmetic on either branch's total would have
  * produced a plausible wrong answer that still compiled. The same trap caught
  * ws5's rebase, which is why this paragraph is a rule and not a history.
  */
-const PROVIDER_IMPORT_ALLOWLIST_SIZE = 54;
+const PROVIDER_IMPORT_ALLOWLIST_SIZE = 52;
 
 function observedProviderImports(): { from: string; to: string; via: ModuleRef['via'] }[] {
   const seen = new Map<string, { from: string; to: string; via: ModuleRef['via'] }>();

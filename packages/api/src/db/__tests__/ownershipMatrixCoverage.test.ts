@@ -99,8 +99,12 @@ const NOT_APPLICABLE: Readonly<Record<string, string>> = {
     'Test of image-providers.ts, which is mapped (row `image-providers`). Moves or dies with it.',
   'packages/api/src/internal/providers/lib/__tests__/voice-session-credits.pgdb.test.ts':
     'Test of voice-session-manager.ts, which is mapped (rows `voice-session-manager` and `behaviour-voice-realtime`). Asserts the CREDIT balance a failed session leaves behind, so it moves or dies with the manager exactly as the eleven above do.',
+  'packages/api/src/internal/providers/lib/__tests__/sound-effect-requests.test.ts':
+    'Test of provider-api.ts, which is mapped (row `provider-api`) — the ElevenLabs and fal request bodies one sound effect is translated into. Moves or dies with it.',
+  'packages/api/src/internal/providers/lib/__tests__/sound-effect-failover.test.ts':
+    'Test of generate-model-mappings.ts, which is mapped (row `tier-mappings-generated`), and of lib/synthesize-sound-effect.ts, which is not in this subtree. It lives here rather than beside its subject because reading the shipped `v1-sfx` chain from lib/__tests__/ would widen gate 1’s frozen importer list — which this change SHRINKS — the way credential-redaction.test.ts already avoids. Moves or dies with them.',
 };
-const NOT_APPLICABLE_COUNT = 13;
+const NOT_APPLICABLE_COUNT = 15;
 
 interface MatrixRow {
   readonly id: string;

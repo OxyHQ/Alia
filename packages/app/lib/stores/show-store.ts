@@ -49,6 +49,25 @@ export interface ShowSpeaker {
   role: string;
 }
 
+/**
+ * One line or sound of an episode, as the API serves it.
+ *
+ * Declared here because `renderFailed` is the only reason the screen reads
+ * `segments` at all: a segment that asked for audio and got none is not in the
+ * finished recording, and an episode that lost every sound cue it wrote used to
+ * look exactly like one that kept them.
+ */
+export interface ShowSegment {
+  index: number;
+  speaker: string;
+  text: string;
+  type: 'dialogue' | 'sfx' | 'transition';
+  sfxPrompt?: string;
+  durationMs?: number;
+  /** Absent means it rendered. See the API's own `ShowSegment`. */
+  renderFailed?: boolean;
+}
+
 export interface ShowSeries {
   id: string;
   userId: string;
@@ -80,6 +99,11 @@ export interface ShowEpisode {
   syraEpisodeId?: string | null;
   recap?: string | null;
   durationMs?: number | null;
+  /**
+   * The script, segment by segment. Already on the wire — `EPISODE_PUBLIC_COLUMNS`
+   * has always served it — and read here only for what did NOT render.
+   */
+  segments?: ShowSegment[];
   createdAt: string;
   updatedAt: string;
 }

@@ -73,6 +73,53 @@ const ELEVENLABS_DEFAULT_VOICE = DO_ELEVENLABS_DEFAULT_VOICE;
 const ELEVENLABS_OUTPUT_FORMAT = 'mp3_44100_128';
 
 /**
+ * Which ElevenLabs endpoint a call is for, and what to send it.
+ *
+ * ElevenLabs serves two things this router reaches and they share nothing but
+ * the key: a voice speaks through `/v1/text-to-speech/{voice}` with the voice in
+ * the PATH, and a sound effect comes from `/v1/sound-generation`, which has no
+ * voice at all and takes its length in the body. Routing on `endpoint` is what
+ * the DigitalOcean branch already does through {@link buildAsyncInvokeInput};
+ * this is the same decision for a provider whose URL, not just its body, changes
+ * with it.
+ *
+ * `model_id` is sent rather than left to the default on both, so the id this
+ * router logs, meters and records a key failure against is the id that actually
+ * served. MEASURED 2026-08-25: the sound endpoint answers 422 naming
+ * `eleven_text_to_sound_v2` and `eleven_text_to_sound_v3` as the only values it
+ * accepts, so a mapping pointing at anything else fails loudly on the first
+ * call rather than silently serving a different model.
+ */
+function elevenLabsRequest(
+  endpoint: string,
+  modelId: string,
+  body: Record<string, unknown> | undefined,
+): { url: string; payload: Record<string, unknown> } {
+  if (endpoint === '/v1/sound-generation') {
+    const duration = body?.duration_seconds;
+    const prompt = body?.prompt;
+    return {
+      url: 'https://api.elevenlabs.io/v1/sound-generation',
+      payload: {
+        text: typeof prompt === 'string' ? prompt : '',
+        ...(typeof duration === 'number' ? { duration_seconds: duration } : {}),
+        model_id: modelId,
+      },
+    };
+  }
+
+  const voice = body?.voice;
+  const input = body?.input;
+  const voiceId = typeof voice === 'string' && voice !== '' ? voice : ELEVENLABS_DEFAULT_VOICE;
+  return {
+    url:
+      `https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voiceId)}` +
+      `?output_format=${ELEVENLABS_OUTPUT_FORMAT}`,
+    payload: { text: typeof input === 'string' ? input : '', model_id: modelId },
+  };
+}
+
+/**
  * Build the async-invoke input object from the standard callProviderAPI body.
  * Translates OpenAI-compatible request bodies to DO async-invoke input format.
  */
@@ -91,6 +138,17 @@ function buildAsyncInvokeInput(modelId: string, endpoint: string, body: any): Re
       prompt: body?.prompt ?? '',
       ...(body?.num_images && { num_images: body.num_images }),
       ...(body?.n && { num_images: body.n }),
+    };
+  }
+
+  // Sound effects: the neutral body { prompt, duration_seconds } → fal input
+  // { prompt, seconds_total }. Ahead of the `audio` catch-all below, which would
+  // forward `duration_seconds` verbatim — a field stable-audio does not read, so
+  // the request would succeed and quietly return a clip of the default length.
+  if (endpoint === '/v1/sound-generation') {
+    return {
+      prompt: body?.prompt ?? '',
+      ...(typeof body?.duration_seconds === 'number' ? { seconds_total: body.duration_seconds } : {}),
     };
   }
 
@@ -253,15 +311,12 @@ export async function callProviderAPI<T = any>(options: ProviderAPIOptions): Pro
         return pcmToWav(pcm, parsePcmSampleRate(inline.mimeType)) as unknown as T;
       }
 
-      // ElevenLabs TTS — not OpenAI-compatible in any part: the voice is in the
-      // PATH, the key is in `xi-api-key` rather than a bearer token, the
-      // container is a query parameter, and the response is raw audio.
+      // ElevenLabs — not OpenAI-compatible in any part: the key is in
+      // `xi-api-key` rather than a bearer token, the response is raw audio, and
+      // which URL and body to build depends on the endpoint asked for.
       if (provider === 'elevenlabs') {
-        const voiceId = (body?.voice as string | undefined) || ELEVENLABS_DEFAULT_VOICE;
-        const elevenUrl =
-          `https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voiceId)}` +
-          `?output_format=${ELEVENLABS_OUTPUT_FORMAT}`;
-        const elevenRes = await fetch(elevenUrl, {
+        const eleven = elevenLabsRequest(endpoint, modelId, body);
+        const elevenRes = await fetch(eleven.url, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -270,10 +325,7 @@ export async function callProviderAPI<T = any>(options: ProviderAPIOptions): Pro
             'xi-api-key': keyConfig.key,
             Accept: 'audio/mpeg',
           },
-          body: JSON.stringify({
-            text: body?.input ?? '',
-            model_id: modelId,
-          }),
+          body: JSON.stringify(eleven.payload),
           signal: combinedSignal,
         });
 
