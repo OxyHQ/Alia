@@ -7,6 +7,8 @@ import { fallbackAgentUsername, suggestAgentUsername } from '../agent-identity.j
 import { log } from '../logger.js';
 import { getErrorMessage } from '../errors/index.js';
 import { FIXED_CAPABILITY_FAMILIES } from '../../domain/capability-grants.js';
+import { AGENT_COLORS, agentColorFor } from '../../domain/agent-color.js';
+import { accountCategoryChoices, isOfferedAccountCategory } from '../../domain/account-category.js';
 
 /**
  * Factory tool for creating AI agents during conversation.
@@ -33,7 +35,20 @@ export const createAgentTool = (userId: string, accessToken: string | undefined)
     'Create immediately with reasonable defaults inferred from the request — do not ask multiple clarifying questions.',
 
   inputSchema: z.object({
-    name: z.string().describe('Agent name (2-4 words, e.g., "Marketing Strategist")'),
+    /**
+     * The same ask as `POST /agents/generate`, in the same words.
+     *
+     * This said "2-4 words, e.g. Marketing Strategist" — a POST, not somebody,
+     * and the exact example the other door now rules out. An agent that arrives
+     * called Nadia through one door and Marketing Strategist through the other
+     * is one product with two naming conventions, decided by a detail nobody
+     * remembers choosing.
+     */
+    name: z.string().describe(
+      'A GIVEN NAME for the agent, as you would name a person — "Claudio", "Nadia", "Bruno", ' +
+        '"Xiomara". Never a job title: not "Community Manager", not "Support Bot". Prefer the ' +
+        'distinctive over the ordinary. One or two words.',
+    ),
     description: z.string().describe('What this agent does and how it should behave (1-3 sentences)'),
     category: z.enum(['Assistant', 'Creative', 'Developer', 'Research', 'Business', 'Education'])
       .optional().default('Assistant')
@@ -51,9 +66,26 @@ export const createAgentTool = (userId: string, accessToken: string | undefined)
       ),
     tags: z.array(z.string()).optional()
       .describe('Tags for discoverability (3-5 lowercase tags)'),
+    /**
+     * Free text, so it is described rather than enumerated — the offered ids
+     * are checked in `execute`, because a model asked for a closed vocabulary
+     * invents plausible members of it.
+     */
+    accountCategory: z.string().optional()
+      .describe(
+        `What the agent is ABOUT, for its account in the wider Oxy graph. Exactly one of: ` +
+          `${accountCategoryChoices}. This is the SUBJECT and "category" above is the KIND of ` +
+          `agent: answer each on its own, they need not agree. Omit it entirely if none fits — ` +
+          `no category is better than a wrong one.`,
+      ),
+    color: z.enum(AGENT_COLORS).optional()
+      .describe(
+        'The agent has no picture — it is drawn as a glyph in this colour — so pick the one ' +
+          'that suits what it does.',
+      ),
   }),
 
-  execute: async ({ name, description, category, systemPrompt, capabilityGrants, tags }) => {
+  execute: async ({ name, description, category, systemPrompt, capabilityGrants, tags, accountCategory, color }) => {
     try {
       if (accessToken === undefined) {
         // An API-key turn has no user bearer, so it cannot mint an account
@@ -71,11 +103,35 @@ export const createAgentTool = (userId: string, accessToken: string | undefined)
       // Auto-generate system prompt if not provided
       const finalSystemPrompt = systemPrompt || `You are ${name}. ${description}`;
 
+      const username = suggestAgentUsername(name) ?? fallbackAgentUsername();
+
       const account = await createAgentBotAccount({
         accessToken,
-        username: suggestAgentUsername(name) ?? fallbackAgentUsername(),
+        username,
         displayName: name,
         bio: tagline,
+        /**
+         * Derived from the handle when the model offered nothing, exactly as the
+         * other door does: asking twice for the same agent proposes the same
+         * colour. Omitting it entirely is not neutral — Oxy assigns a RANDOM
+         * preset — so "no colour" is not a state this can reach anyway, and a
+         * colour chosen for what the agent does beats one chosen by nobody.
+         *
+         * Not re-validated here, unlike `accountCategory` below: `AGENT_COLORS`
+         * is a tuple, so the schema can ENUMERATE it and the tool call is
+         * refused before `execute` runs. The category's vocabulary is a
+         * `readonly` array the schema cannot enumerate, which is exactly why
+         * that one is checked in code and this one is not.
+         */
+        color: color ?? agentColorFor(username),
+        /**
+         * Dropped rather than corrected when the taxonomy does not recognise
+         * it, and OMITTED rather than sent empty: absent means "no categories"
+         * and `[]` means "clear them", which are different requests.
+         */
+        ...(isOfferedAccountCategory(accountCategory)
+          ? { accountCategories: [accountCategory] }
+          : {}),
       });
 
       const agent = await createAgent(getDb(), {
