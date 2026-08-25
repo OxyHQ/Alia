@@ -40,31 +40,47 @@
  * here and are absent from the CHECK. They are gone.
  *
  * **So this list is a subset of two vocabularies, and the source of truth for
- * neither.** Do not "complete" it from Bloom's palette — Bloom is the wider of
- * the two and every key it has that the CHECK lacks is a 400. The constraint is
- * append-only, so a key here keeps working; the way to ADD one is to read the
- * server's catalogue first and take the intersection with Bloom again.
+ * neither.** It is not curated, either: it is exactly the INTERSECTION of
+ * Bloom's sixty-one free presets and the constraint's eleven keys, which comes
+ * to nine. Do not "complete" it from Bloom's palette — Bloom is the wider of
+ * the two and every key it has that the CHECK lacks is a 400.
  *
  * `amber` is the shape of the opposite mistake: the CHECK accepts it and no
  * Bloom palette contains it, so an agent offered `amber` would save and then
  * render in the fallback colour — reachable from the database, not from the
- * app.
+ * app. Premium and reserved presets need no rule of their own, as promised
+ * above: they are absent from `FREE_COLOR_NAMES`, so the intersection drops
+ * them by itself.
+ *
+ * ## The picker declares the same nine, and a gate holds them together
+ *
+ * `packages/app/lib/constants/agent-colors.ts` is the other half — what the
+ * agent editor OFFERS. It has to be a separate declaration, because this
+ * service must not depend on `@oxyhq/bloom` and the app cannot import this
+ * service; and two declarations of one vocabulary is precisely how the picker
+ * came to offer fifty-two colours that could not be saved.
+ *
+ * `scripts/check-agent-colour-vocabulary.mjs` is what makes that safe. It reads
+ * both lists, imports Bloom's real `FREE_COLOR_NAMES`, and fails unless the two
+ * agree with each other AND equal the intersection. Adding a colour here and
+ * not there is red.
  */
 
 /**
  * Keys that are BOTH a Bloom free preset and a member of the server's
  * `users_color_check` catalogue — the only colours a generated agent may be
- * offered. See the subset rule above before editing.
+ * offered. See the intersection rule above before editing.
  */
 export const AGENT_COLORS = [
   'teal',
   'blue',
-  'sky',
   'green',
-  'mint',
-  'orange',
   'red',
   'purple',
+  'pink',
+  'sky',
+  'orange',
+  'mint',
 ] as const;
 
 export type AgentColor = (typeof AGENT_COLORS)[number];

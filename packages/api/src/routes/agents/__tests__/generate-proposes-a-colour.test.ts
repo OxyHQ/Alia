@@ -169,50 +169,27 @@ describe('the generator proposes a colour', () => {
 });
 
 /**
- * The catalogue Oxy will actually STORE, restated.
+ * The route never answers a colour outside the offered vocabulary.
  *
- * `USER_COLOR_PRESETS` in the Oxy server's `db/schema/users.ts`, which renders
- * the CHECK constraint `users_color_check`. Restated rather than imported
- * because the server deliberately publishes no copy of it: `@oxyhq/contracts`
- * types the field as a plain string and says so — "pinning the list a second
- * time in this package would be a second source of truth for what the database
- * accepts, and the two would drift apart silently".
+ * WHICH colours may be offered is not decided here. That is a fact about three
+ * lists — this service's, the editor's, and the CHECK constraint
+ * `users_color_check` on Oxy's `users` table — and it is held by
+ * `scripts/check-agent-colour-vocabulary.mjs`, which reads all three. Restating
+ * the constraint's eleven keys here as well would put a second copy of somebody
+ * else's catalogue in the repository, and two copies drifting apart is the bug
+ * that gate exists for.
  *
- * A local copy CAN go stale, and it is worth being precise about which way:
- * the constraint is append-only, so a key added upstream is missing here and
- * this test fails on a colour that would in fact have worked. It cannot fail
- * the other way — it can never call a refused colour storable. Wrongly red,
- * never wrongly green, which is the direction a restatement is allowed to err.
+ * What is left for a test of the ROUTE is the behaviour: whatever the model
+ * answers, the response carries something the vocabulary contains. That still
+ * fails if the passthrough stops consulting the list at all, which no static
+ * gate can see.
  */
-const OXY_STORABLE_COLORS = [
-  'teal',
-  'blue',
-  'green',
-  'amber',
-  'red',
-  'purple',
-  'pink',
-  'sky',
-  'orange',
-  'mint',
-  'oxy',
-];
-
-describe('every colour the generator can propose is one Oxy will store', () => {
+describe('the route answers only a colour it offered', () => {
   /**
-   * The offer is not free. A proposed colour travels to `POST /accounts` and
-   * lands in a column with a CHECK on it, so a key this service offers but the
-   * constraint omits is not a cosmetic mismatch — it is a 400 on the save, for
-   * a value the person was handed by us and never typed.
-   */
-  it('offers no colour outside the server catalogue', () => {
-    expect(OXY_STORABLE_COLORS).toEqual(expect.arrayContaining([...AGENT_COLORS]));
-  });
-
-  /**
-   * The same invariant one layer out, at the route. The assertion above holds
-   * on the LIST; this one holds on what the response actually carries, so it
-   * still fails if the passthrough stops consulting the list at all.
+   * The four the constraint refuses, which this service offered until it was
+   * measured against the constraint: a model that names one must not have it
+   * passed through, because it would travel to `POST /accounts` and be a 400 on
+   * a value the person never typed.
    */
   it.each(['yellow', 'rose', 'violet', 'brown'])(
     'does not pass %s through to the response',
@@ -221,7 +198,7 @@ describe('every colour the generator can propose is one Oxy will store', () => {
       const body = await generate();
 
       expect(body.color).not.toBe(refused);
-      expect(OXY_STORABLE_COLORS).toContain(body.color);
+      expect(AGENT_COLORS).toContain(body.color);
     },
   );
 });

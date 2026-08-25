@@ -14,7 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { AgentGlyph } from "@/components/ui/agent-glyph";
 import { ColorPicker } from "@/components/ui/color-picker";
-import { FREE_COLOR_NAMES } from "@oxyhq/bloom/theme";
+import { AGENT_SWATCHES } from "@/lib/constants/agent-colors";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Panel } from "@/components/ui/panel";
 import { Dialog } from "@oxyhq/bloom/dialog";
@@ -1004,13 +1004,13 @@ export default function EditAgentScreen() {
             </View>
 
             {/* The colour is the agent's whole likeness, so the picker offers
-                the MARK rather than a dot standing for one. Bloom's own free
-                list, not a copy of it: the premium preset and the two reserved
-                handle colours are excluded by being absent from it, rather than
-                by a rule here that would drift. */}
+                the MARK rather than a dot standing for one. Only the colours
+                Oxy will STORE: this offered all sixty-one of Bloom's free
+                presets, and the fifty-two the `users_color_check` constraint
+                omits were a 400 on a swatch the person had just picked. */}
             <View className="mb-6">
               <ColorPicker
-                colors={FREE_COLOR_NAMES}
+                colors={AGENT_SWATCHES}
                 selected={color ?? ""}
                 onSelect={setColor}
                 label={t("agents.colorLabel")}

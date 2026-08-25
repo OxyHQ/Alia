@@ -387,6 +387,18 @@ jobs:
       - name: Check no client tells a person a profile is a model
         run: node scripts/check-user-visible-model-wording.mjs
 
+      # An agent's colour vocabulary is declared twice — the generator's and the
+      # editor's — because the API must not depend on `@oxyhq/bloom` and the app
+      # does not depend on the API. Nothing held the two together, and the
+      # picker shipped offering all 61 Bloom free presets when Oxy's
+      # `users_color_check` stores 11: fifty-two swatches that 400 on save, each
+      # one rendering perfectly in the picker first.
+      #
+      # In THIS job because it needs the installed Bloom package, whose real
+      # `FREE_COLOR_NAMES` is one of the three lists it crosses.
+      - name: Check an agent is offered no colour it cannot keep
+        run: node scripts/check-agent-colour-vocabulary.mjs
+
   build-api:
     name: Build API
     runs-on: ubuntu-latest
