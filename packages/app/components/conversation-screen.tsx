@@ -1,7 +1,9 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useStore } from "@/lib/stores/global-store";
 import { useChatConversation } from "@/lib/hooks/use-chat-conversation";
-import { useSaveConversation } from "@/lib/hooks/use-conversations";
+import { useCreateConversation, useSaveConversation } from "@/lib/hooks/use-conversations";
+import { useQueryClient } from "@tanstack/react-query";
+import { queryKeys } from "@/lib/hooks/query-keys";
 import { ChatPageContent } from "@/components/chat-page-content";
 import { UsageLimitDialog } from "@/components/usage-limit-dialog";
 import { UsageLimitError } from "@/lib/errors/usage-limit-error";
@@ -24,6 +26,15 @@ interface ConversationScreenProps {
    */
   agentName?: string;
   agentColor?: string | null;
+  /**
+   * The handle whose thread this is, when it is one.
+   *
+   * Only used to re-read the thread after a new stretch is started: the route
+   * shows the ACTIVE stretch, and starting one makes a different conversation
+   * active. Absent on `/c/:id`, which is a single conversation with no thread
+   * behind it and therefore nothing to re-read.
+   */
+  threadHandle?: string;
   /** Open straight into voice, once. */
   startVoice?: boolean;
 }
@@ -42,6 +53,7 @@ export const ConversationScreen = ({
   agentId,
   agentName,
   agentColor,
+  threadHandle,
   startVoice = false,
 }: ConversationScreenProps) => {
   const activeSkillId = useStore((state) => state.activeSkillId);
@@ -80,9 +92,36 @@ export const ConversationScreen = ({
     setMessages,
     approvePlan,
     rejectPlan,
+    suggestedNewConversation,
+    dismissSuggestedNewConversation,
   } = useChatConversation({ conversationId, reasoningEffort, selectedModel: selection.effectiveId ?? undefined, skillId: activeSkillId, agentId });
 
   const saveConversation = useSaveConversation();
+  const createConversation = useCreateConversation();
+  const queryClient = useQueryClient();
+
+  /**
+   * Take the agent up on its offer: start the next stretch of this thread.
+   *
+   * The agent cannot do this — its tool emits one frame and writes nothing — so
+   * the act is the person's, here. A new conversation with the same agent
+   * becomes the most recent, which is the one `GET /agents/thread/:username`
+   * calls active, so re-reading the thread is what moves the screen onto it.
+   *
+   * Dismissed either way: whether the creation succeeds or fails, the offer has
+   * been answered, and a failure is already reported by the mutation.
+   */
+  const handleAcceptNewConversation = useCallback(() => {
+    dismissSuggestedNewConversation();
+    if (agentId === undefined) return;
+    createConversation.mutate({ agentId }, {
+      onSuccess: () => {
+        if (threadHandle !== undefined) {
+          queryClient.invalidateQueries({ queryKey: queryKeys.agents.thread(threadHandle) });
+        }
+      },
+    });
+  }, [agentId, threadHandle, createConversation, queryClient, dismissSuggestedNewConversation]);
 
   // Save voice transcripts when voice mode ends
   const handleVoiceDeactivate = useCallback(() => {
@@ -136,6 +175,9 @@ export const ConversationScreen = ({
           agentColor={agentColor}
           onApprovePlan={approvePlan}
           onRejectPlan={rejectPlan}
+          suggestedNewConversation={suggestedNewConversation}
+          onAcceptNewConversation={handleAcceptNewConversation}
+          onDismissNewConversation={dismissSuggestedNewConversation}
         />
         <UsageLimitDialog error={usageLimitError} onDismiss={clearError} />
       </>

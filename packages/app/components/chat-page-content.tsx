@@ -118,6 +118,10 @@ interface ChatPageContentProps {
   agentSessionId?: string | null;
   onApprovePlan?: (planId: string) => void;
   onRejectPlan?: (planId: string) => void;
+  /** The agent's offer to start a fresh stretch, and the two answers to it. */
+  suggestedNewConversation?: string | null;
+  onAcceptNewConversation?: () => void;
+  onDismissNewConversation?: () => void;
   /**
    * The chat this screen is showing, or omitted for the new-chat screen. The
    * drawer keeps every visited chat mounted, so this is what decides which
@@ -148,6 +152,9 @@ export const ChatPageContent = ({
   agentSessionId,
   onApprovePlan,
   onRejectPlan,
+  suggestedNewConversation,
+  onAcceptNewConversation,
+  onDismissNewConversation,
   conversationId,
 }: ChatPageContentProps) => {
   const attachments = useStore((state) => state.attachments);
@@ -485,6 +492,9 @@ export const ChatPageContent = ({
           agentSessionId={agentSessionId}
           onApprovePlan={onApprovePlan}
           onRejectPlan={onRejectPlan}
+          suggestedNewConversation={suggestedNewConversation}
+          onAcceptNewConversation={onAcceptNewConversation}
+          onDismissNewConversation={onDismissNewConversation}
         />
 
         <LinearGradient

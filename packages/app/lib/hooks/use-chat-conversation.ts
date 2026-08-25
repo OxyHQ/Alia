@@ -75,6 +75,8 @@ export function useChatConversation({ conversationId, reasoningEffort, selectedM
     stop,
     approvePlan,
     rejectPlan,
+    suggestedNewConversation,
+    dismissSuggestedNewConversation,
   } = useStreamingChat(generateAPIUrl(API_ROUTES.chat.alia), conversationId, reasoningEffort, selectedModel, skillId, agentId);
 
   // Expose streaming state globally so sidebar can show a spinner
@@ -305,5 +307,7 @@ export function useChatConversation({ conversationId, reasoningEffort, selectedM
     setMessages,
     approvePlan,
     rejectPlan,
+    suggestedNewConversation,
+    dismissSuggestedNewConversation,
   };
 }
