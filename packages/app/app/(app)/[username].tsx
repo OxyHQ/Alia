@@ -1,8 +1,10 @@
 import { View } from "react-native";
 import { useLocalSearchParams } from "expo-router";
+import { BloomColorScope } from "@oxyhq/bloom/theme";
 import { ContentPanel } from "@oxyhq/bloom/content-panel";
 import { Text } from "@/components/ui/text";
 import { ConversationScreen } from "@/components/conversation-screen";
+import { agentColorPreset } from "@/lib/agents/agent-color";
 import { useAgentThread } from "@/lib/hooks/use-agent-thread";
 import { useTranslation } from "@/lib/hooks/use-translation";
 
@@ -93,13 +95,40 @@ const AgentThreadPage = () => {
    */
   const headerName = thread.agent.name?.trim() || thread.agent.handle?.trim() || handle;
 
+  /**
+   * The agent's own Bloom recipe, applied to this screen and nothing else.
+   *
+   * An agent's colour is a preset KEY, which is a whole theme rather than a
+   * value — so the thread adopts the recipe instead of tinting one icon with
+   * it. `useColorScheme().colors` reads Bloom's `useTheme()`, which is context,
+   * so Alia's own components follow it too: the welcome mark comes out in the
+   * agent's colour with `welcome-message.tsx` untouched, and that it needed no
+   * touching is the evidence the scope reaches what it claims to.
+   *
+   * ONE scope, and it wraps the SCREEN rather than the layout. Mention puts a
+   * second one in its layout because its chrome — the sign-in banner, the
+   * middle column — sits outside the profile screen and has to be themed too.
+   * Alia wants the opposite: the recipe must not escape the panel, and a scope
+   * in `(app)/_layout.tsx` would sit above the drawer and paint the sidebar.
+   *
+   * Which also means there is nothing to go stale. Mention needs a context, an
+   * effect that publishes the colour, a cleanup that clears it and a pathname
+   * check to catch what those miss; here the scope unmounts with the route, so
+   * navigating away cannot leave a colour behind — there is no state that
+   * outlives the screen holding it.
+   *
+   * `undefined` renders no wrapper at all, so an agent with no colour and the
+   * rest of the app are untouched rather than merely unchanged.
+   */
   return (
-    <ConversationScreen
-      conversationId={thread.conversationId}
-      agentId={thread.agent._id}
-      agentName={headerName}
-      agentColor={thread.agent.color}
-    />
+    <BloomColorScope colorPreset={agentColorPreset(thread.agent.color)}>
+      <ConversationScreen
+        conversationId={thread.conversationId}
+        agentId={thread.agent._id}
+        agentName={headerName}
+        agentColor={thread.agent.color}
+      />
+    </BloomColorScope>
   );
 };
 

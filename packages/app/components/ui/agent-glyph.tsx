@@ -1,5 +1,6 @@
 import Svg, { Circle, G, Path } from "react-native-svg";
 import { APP_COLOR_PRESETS, parseRgb, withAlpha } from "@oxyhq/bloom/theme";
+import { agentColorPreset } from "@/lib/agents/agent-color";
 import { useColorScheme } from "@/lib/useColorScheme";
 
 export interface AgentGlyphProps {
@@ -64,21 +65,12 @@ export function AgentGlyph({ size = 28, color, label }: AgentGlyphProps) {
 }
 
 /**
- * Bloom preset key to the color it seeds, so a stored `"violet"` paints violet
- * rather than falling back for not being a color.
- *
- * Keyed as plain strings because the value arrives from a column no one
- * validates — Bloom's own type would only be a claim about it.
- */
-const HEX_BY_PRESET = new Map<string, string>(
-  Object.values(APP_COLOR_PRESETS).map((preset) => [preset.name, preset.hex]),
-);
-
-/**
  * The color to paint, or `null` when the value names none.
  *
  * Two vocabularies, in the order they occur. A preset KEY is what Oxy stores and
- * what Alia's generator proposes. A literal color is what anything else that has
+ * what Alia's generator proposes, recognised by `lib/agents/agent-color.ts` —
+ * the one place that decides whether a key is real, so the glyph and the colour
+ * scope can never disagree about the same value. A literal color is what anything else that has
  * ever written to that column would have put there, and it is checked with
  * `parseRgb` rather than passed through, because `withAlpha` returns an
  * unparseable color UNTOUCHED and an SVG `fill` that SVG cannot parse renders
@@ -90,8 +82,8 @@ const HEX_BY_PRESET = new Map<string, string>(
  */
 function usableTint(color: string | null | undefined): string | null {
   if (color === null || color === undefined) return null;
-  const preset = HEX_BY_PRESET.get(color);
-  if (preset !== undefined) return preset;
+  const preset = agentColorPreset(color);
+  if (preset !== undefined) return APP_COLOR_PRESETS[preset].hex;
   return parseRgb(color) === null ? null : color;
 }
 
