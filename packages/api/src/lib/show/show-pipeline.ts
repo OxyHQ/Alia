@@ -94,70 +94,6 @@ export function showCreditCost(input: {
   return Math.max(1, Math.ceil(input.spokenCharacters / 200)) + SCRIPT_CREDITS;
 }
 
-/**
- * What a dialogue segment actually SAYS: the line with its stage directions
- * taken out, or an empty string when nothing speakable is left.
- *
- * ## Why this exists at all
- *
- * A generated Spanish episode spoke the word "ríe". The script had carried
- * `[ríe]` — the model's own translation of the `[laughs]` the prompt used to
- * ask for — and nothing between the model and the voice removed it. Audio tags
- * like that are an ElevenLabs **v3** feature; the `v1-tts` tier resolves to
- * `eleven_multilingual_v2`, OpenAI `tts-1` and Gemini, and every one of those
- * reads the characters it is given. `script-prompt.ts` no longer asks for a
- * cue, but a prompt is a request: this is what makes it true.
- *
- * ## The rule is structural, not a word list
- *
- * NO bracket character survives into speech. Not "strip `[laughs]`", because
- * the reported failure was `[ríe]` and the next one will be `[rires]` or
- * `[笑い]` — a list of literals in any one language is exactly the check that
- * would have passed while the bug shipped.
- *
- * That trade is deliberate. `[` and `]` are not sounds: a voice handed one
- * either pronounces "bracket" or drops it, so nothing a listener wanted is
- * lost by removing it. The cost is the rare line where a model bracketed real
- * words — "el informe [de 2019] dice" loses three of them — against the
- * benefit of never again narrating a stage direction over a whole episode.
- * Words a speaker really says stay: a line that says "corchete" out loud is
- * untouched, because that is a word and not a bracket.
- *
- * Parentheses and asterisks are NOT stripped, though the prompt forbids them
- * too. A parenthetical aside is ordinary speech that a person reads aloud —
- * "y entonces (bueno, ya sabes) pasó" — so removing it would delete words the
- * script meant to be heard, which is the opposite failure and a far commoner
- * one.
- *
- * ## And what is left has to be sayable
- *
- * Removing a span leaves debris that a naive strip would hand to a provider:
- * `"Ja, ja. [ríe] Eso"` doubles a space, `"genial [ríe]."` orphans the full
- * stop, `"[ríe], claro"` orphans the comma, and `"[ríe]"` alone leaves nothing
- * at all. So the whitespace is closed up, punctuation left dangling at the
- * front is dropped, and a line with no letter or digit surviving answers `''` —
- * which {@link parseScript} treats as a segment to drop rather than send an
- * empty `input` to a TTS endpoint that would 400 on it, or bill a provider call
- * for a silence.
- */
-export function spokenText(text: string): string {
-  const spoken = text
-    // Bounded to one line and to no nested `]`, so an unmatched `[` cannot
-    // swallow the rest of a line. Linear — no nested quantifier.
-    .replace(/\[[^\]\n]*\]/g, '')
-    // Whatever the span rule could not pair up. `[[ríe]]` leaves a `]` behind,
-    // and a stray bracket is no more speakable than a matched one.
-    .replace(/[[\]]/g, '')
-    .replace(/[ \t]+([,.;:!?…])/g, '$1')
-    .replace(/[ \t]{2,}/g, ' ')
-    // Not `¿`, `¡`, `—` or `-`: those legitimately OPEN a line, and a Spanish
-    // script's dialogue dash is not debris.
-    .replace(/^[\s,.;:…]+/, '')
-    .trim();
-
-  return /[\p{L}\p{N}]/u.test(spoken) ? spoken : '';
-}
-
 /** What the model returns. The title is not among them — Syra fixed it at draft time. */
 interface ShowScript {
   description: string;
@@ -591,28 +527,13 @@ async function generateScript(
  *    would want and what the old code could not do because it discovered the
  *    problem three steps downstream.
  *
- * This is also where a line loses its stage directions, and it is the ONLY
- * place: every route to the voice runs through here, so a `[ríe]` that survives
- * this function is one a listener hears. Doing it here rather than at
- * {@link renderSpeech} also means the row Postgres keeps says what the episode
- * says — the script of record and the recording cannot disagree.
- *
- * `sfx` and `transition` segments are handed through UNTOUCHED. Their sound
- * comes from `sfxPrompt` through a text-to-audio model that is supposed to read
- * a description, so it is the one place a direction genuinely belongs; their
- * `text` is never spoken by anything.
- *
- * The order matters: the counts are checked AFTER stripping, so a reply whose
- * dialogue was nothing but cues is rejected and retried on another provider
- * rather than published as an episode of silence.
- *
- * Exported for the same reason `parseFinalTimestampMs` is in `show-audio.ts`:
- * the only public way in is {@link runShowPipeline}, which needs a database, a
- * model and Syra. Testing `spokenText` alone would prove a function works while
- * saying nothing about whether anything calls it — which is precisely how a
- * strip that never ran would pass.
+ * A dialogue line is stored and forwarded EXACTLY as the model wrote it, and
+ * that is deliberate. `[laughs]` is a tag a tag-capable voice performs, so
+ * taking it out here would rob the one model that could have voiced it;
+ * `synthesize-speech.ts` decides per attempt, because only that loop knows
+ * which model in the failover chain actually answered.
  */
-export function parseScript(reply: string, castNames: ReadonlySet<string>): ShowScript | null {
+function parseScript(reply: string, castNames: ReadonlySet<string>): ShowScript | null {
   const json = reply.match(/\{[\s\S]*\}/);
   if (!json) return null;
 
@@ -623,17 +544,8 @@ export function parseScript(reply: string, castNames: ReadonlySet<string>): Show
     return null;
   }
 
-  const replied = parsed.segments;
-  if (!Array.isArray(replied)) return null;
-
-  const segments = replied.flatMap((segment) => {
-    if (segment.type !== 'dialogue') return [segment];
-    // `typeof`, like the three fields below: the declared shape is the model's
-    // claim about its own JSON, not something anything checked.
-    const text = spokenText(typeof segment.text === 'string' ? segment.text : '');
-    return text === '' ? [] : [{ ...segment, text }];
-  });
-  if (segments.length < 3) return null;
+  const segments = parsed.segments;
+  if (!Array.isArray(segments) || segments.length < 3) return null;
 
   const dialogue = segments.filter((segment) => segment.type === 'dialogue');
   if (dialogue.length === 0) return null;

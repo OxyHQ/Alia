@@ -13,21 +13,24 @@
  *    episode 4 of a weekly show re-explains what episodes 1 to 3 explained,
  *    because from the model's side every episode is the first one.
  *
- * ## Laughter is spelled, not cued
+ * ## An audio tag is English, in every language
  *
  * The dialogue rules used to ask for `[laughs]` in one line and forbid stage
- * directions in the next, and the first line won: a Spanish episode came back
- * carrying `[ríe]`, which the voice said ALOUD. Audio tags are an ElevenLabs v3
- * feature and the TTS tier resolves to `eleven_multilingual_v2`, OpenAI `tts-1`
- * and Gemini — none of which perform a bracketed cue; every one of them reads
- * the characters. So the rule now asks for the SOUND, spelled in the script's
- * own language, which any of them can say: "Ja, ja" is a laugh a Spanish voice
- * produces, "[ríe]" is a Spanish voice saying the word "ríe".
+ * directions in the next. The first line won, and a Spanish episode came back
+ * carrying `[ríe]` — the model doing the reasonable thing and translating the
+ * cue with the rest of the script. `[ríe]` is a tag in no model, so the voice
+ * said the word aloud.
  *
- * A prompt is a request, not a guarantee, so `spokenText` in `show-pipeline.ts`
- * takes the brackets out anyway. Neither half replaces the other: without this
- * one a model is being asked for something the engine cannot do, and without
- * that one the next model to ignore the ask is on air.
+ * A tag-capable model performs `[laughs]` and the tag names are ENGLISH
+ * identifiers whatever language is being spoken, so the rule has to say that
+ * outright: the reported failure IS the translation. The tags it names are
+ * generated from `PERFORMABLE_AUDIO_TAGS` rather than written out here, because
+ * a tag this prompt asks for that the code does not know would be stripped from
+ * every script, silently — and two hand-maintained lists is how that happens.
+ *
+ * A prompt is a request, not a guarantee. `speakableText` is what makes it
+ * true, per model: a tag survives to a model that performs it and is removed
+ * for one that does not, and anything else in brackets is removed for both.
  *
  * The model does NOT choose the title. Syra fixes an episode's title when the
  * draft is reserved and refuses to let the ingest change it, so a
@@ -36,7 +39,16 @@
  */
 
 import type { ShowFormat, ShowSpeaker } from '../../db/schema/shows.js';
+import { PERFORMABLE_AUDIO_TAGS } from '../../internal/providers/lib/tts-providers.js';
 import { FORMAT_DEFAULTS } from './voice-roster.js';
+
+/**
+ * The tags this prompt is allowed to ask for, rendered from the set the strip
+ * enforces. Generated rather than typed out: a divergence between the two would
+ * be invisible — the model would emit a tag nobody performs and `speakableText`
+ * would quietly delete it.
+ */
+const AUDIO_TAG_LIST = [...PERFORMABLE_AUDIO_TAGS].map((tag) => `[${tag}]`).join(', ');
 
 const FORMAT_GUIDANCE: Record<ShowFormat, string> = {
   podcast: `Casual, friendly conversation between hosts. They share opinions, joke around, and build on each other's points. Include natural reactions like "Oh, that's interesting" or "Right, exactly."`,
@@ -73,9 +85,10 @@ Every dialogue segment's "speaker" must be one of the names above, spelled exact
 ## Writing Guidelines
 - Write dialogue that sounds SPOKEN: use contractions, short sentences, filler words ("you know", "I mean", "right"), and natural reactions
 - Vary sentence length — mix short punchy lines with longer explanations
-- Include natural interruptions and agreements ("Yeah", "Exactly", "Hmm") — write them as words, because those are sounds a voice can actually make
-- Write laughter as the sound of the laugh itself, spelled the way THIS script's own language spells it: "Haha" in English, "Ja, ja" in Spanish, "Héhé" in French, "Hehe" in German
-- NEVER write an action, a tone or a stage direction in brackets, parentheses or asterisks — not "[laughs]", not "[ríe]", not "(pauses)", not "*sighs*". The voice reads out the characters it is handed, so a cue written like that is PRONOUNCED instead of performed. Write only what the speaker says out loud; a sound that is not speech is its own "sfx" segment, never a cue inside a line
+- Include natural interruptions and agreements ("Yeah", "Exactly", "Hmm")
+- A performed sound goes in an audio tag, and ONLY these tags exist: ${AUDIO_TAG_LIST}
+- Audio tag names are ALWAYS these ENGLISH words, no matter what language the script is written in. A Spanish line laughing is "Ya, claro... [laughs]" — NEVER "[ríe]". Do not translate a tag, do not invent one, do not add a word inside it ("[laughs nervously]" is not a tag). A tag that is not on the list above is deleted before the voice ever sees it
+- Nothing else goes in brackets. No stage directions ("[he looks away]"), no tone notes, and nothing in parentheses or asterisks either. Apart from the tags above, write only what the speaker says out loud; a sound that is not part of someone's speech is its own "sfx" segment
 - Each dialogue segment should be 1-4 sentences (15-60 words). Never write a single segment longer than 80 words.
 - Aim for ~150 words per minute of target duration
 
