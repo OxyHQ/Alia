@@ -1,4 +1,4 @@
-import { View, Pressable, StyleSheet, Platform, type LayoutChangeEvent } from "react-native";
+import { View, Pressable, StyleSheet, Platform, type LayoutChangeEvent, type NativeScrollEvent, type NativeSyntheticEvent } from "react-native";
 import { toast } from "@oxyhq/bloom/toast";
 import { BlurView } from "expo-blur";
 import { KeyboardAwareScrollView } from "@/lib/keyboard";
@@ -35,7 +35,6 @@ import { useUIStore } from "@/lib/stores/ui-store";
 import { useStore, type ChatIdState } from "@/lib/stores/global-store";
 import type { ToolInvocation } from "@/lib/types/messages";
 import type { Message as ConversationMessage } from "@/lib/hooks/use-conversations";
-import { useScrollToBottom } from "@/lib/hooks/use-scroll-to-bottom";
 import { AgentTaskCard } from "@/components/agent-task-card";
 import { AgentResultCard } from "@/components/agent-result-card";
 import { ResearchProgressCard, PlanPreviewCard } from '@alia.onl/sdk';
@@ -98,7 +97,8 @@ type ChatInterfaceProps = {
   bottomPadding?: number;
   isVoiceActive?: boolean;
   voiceAgentState?: 'idle' | 'listening' | 'thinking' | 'speaking';
-  onAtBottomChange?: (isAtBottom: boolean) => void;
+  onScroll?: (e: NativeSyntheticEvent<NativeScrollEvent>) => void;
+  onContentSizeChange?: () => void;
   agentActivity?: AgentActivityState | null;
   agentSessionId?: string | null;
   onApprovePlan?: (planId: string) => void;
@@ -521,7 +521,7 @@ const MessageRow = React.memo(function MessageRow({
 
 const imageThumbStyle = { width: 120, height: 120 };
 
-export const ChatInterface = React.memo(function ChatInterface({ messages, scrollViewRef, isLoading, conversationLoading, onStartEdit, onCopyMessage, bottomPadding = 160, isVoiceActive = false, voiceAgentState, onAtBottomChange, agentActivity, agentSessionId, onApprovePlan, onRejectPlan, suggestedNewConversation, onAcceptNewConversation, onDismissNewConversation }: ChatInterfaceProps) {
+export const ChatInterface = React.memo(function ChatInterface({ messages, scrollViewRef, isLoading, conversationLoading, onStartEdit, onCopyMessage, bottomPadding = 160, isVoiceActive = false, voiceAgentState, onScroll, onContentSizeChange, agentActivity, agentSessionId, onApprovePlan, onRejectPlan, suggestedNewConversation, onAcceptNewConversation, onDismissNewConversation }: ChatInterfaceProps) {
     const { t, locale } = useTranslation();
     const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
     const [votedMessages, setVotedMessages] = useState<Record<string, 'up' | 'down'>>({});
@@ -532,12 +532,6 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
     const { generateAudio, activeMessageId: audioGenActiveMessageId, state: audioGenState } = useAudioGen();
     const chatId = useStore(s => s.chatId);
     const { colors } = useColorScheme();
-
-    const { isAtBottom, onScroll, onContentSizeChange } = useScrollToBottom(scrollViewRef);
-
-    useEffect(() => {
-      onAtBottomChange?.(isAtBottom);
-    }, [isAtBottom, onAtBottomChange]);
 
     // Track previous message count — only animate newly added messages
     const prevMessageCountRef = useRef(messages.length);
@@ -649,14 +643,6 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
         })
         .finally(() => voteInFlightRef.current.delete(messageId));
     }, [chatId, t]);
-
-    // Auto-scroll to bottom when new messages arrive or loading starts
-    useEffect(() => {
-      const timer = setTimeout(() => {
-        scrollViewRef.current?.scrollToEnd({ animated: true });
-      }, 100);
-      return () => clearTimeout(timer);
-    }, [messages.length, isLoading, scrollViewRef]);
 
     const containerClassName = cn(
       "max-w-3xl mx-auto w-full",
