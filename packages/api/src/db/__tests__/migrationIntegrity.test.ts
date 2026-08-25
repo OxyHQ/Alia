@@ -64,9 +64,14 @@ describe('every migration declares the half of the rollout it belongs to', () =>
       .filter((r) => r.markers.length !== 1)
       .map((r) => `${r.file}: ${r.markers.length} markers`);
 
-    // `migrate.ts` refuses a file that does not say which side it belongs to,
-    // so a file without one is not merely undocumented — it cannot be run.
-    expect(wrong).toEqual([]);
+    expect(
+      wrong,
+      'Every migration needs exactly one `-- oxy:deploy-phase=pre` or\n' +
+        '`-- oxy:deploy-phase=post` line. `drizzle-kit` never writes it, and\n' +
+        '`src/db/migrate.ts` REFUSES a file without one — so the failure lands in\n' +
+        'a deploy rather than here unless this catches it first.\n' +
+        'Additive changes are `pre`; drops, renames and narrows are `post`.',
+    ).toEqual([]);
   });
 
   it('the marker test can tell a missing or doubled marker from a correct one', () => {
@@ -90,9 +95,25 @@ describe('the journal is a strictly ordered, complete record', () => {
       .filter((p) => p.cur.when <= p.prev.when)
       .map((p) => `${p.prev.tag} (${p.prev.when}) then ${p.cur.tag} (${p.cur.when})`);
 
-    // A renumbered migration keeps its original timestamp, so this is the
-    // assertion that catches a rename where a regeneration was needed.
-    expect(outOfOrder).toEqual([]);
+    /**
+     * The message carries the REMEDY, because the cheapest way to make this
+     * assertion pass is the thing it exists to prevent.
+     *
+     * A reader who sees only "these two are out of order" reaches for the
+     * journal and edits a number, or renames the file — and a rename keeps the
+     * ORIGINAL timestamp, which is the defect, not the fix. A gate whose
+     * cheapest green is the dangerous action teaches the opposite of what it
+     * was built for.
+     */
+    expect(
+      outOfOrder,
+      'A migration is ordered by its `when`, not by its index or filename.\n' +
+        'REGENERATE it — delete the .sql, its meta/NNNN_snapshot.json and its\n' +
+        'journal entry, then run `bunx drizzle-kit generate` again. Do NOT rename\n' +
+        'the file or hand-edit `when`: a rename keeps the original timestamp, so\n' +
+        'it applies cleanly to a database built from zero — it passes CI — and\n' +
+        'strands the migration on one that is already partway through.',
+    ).toEqual([]);
   });
 
   it('has unique indexes', () => {
@@ -170,9 +191,17 @@ describe('the schema and the migrations agree', () => {
   }
 
   it('drizzle-kit has nothing left to emit', () => {
-    // A commit that deletes tables from the schema and forgets the migration
-    // fails HERE, and nowhere else in this suite.
-    expect(emittedBy()).toEqual([]);
+    expect(
+      emittedBy(),
+      'The schema and the migration history disagree: `drizzle-kit` still has\n' +
+        'something to emit. Run `bunx drizzle-kit generate` and commit ALL THREE\n' +
+        'halves of it — the .sql, meta/NNNN_snapshot.json and the _journal.json\n' +
+        'entry. A freshly generated file is UNTRACKED, so `git add` on a path you\n' +
+        'already changed will miss it; check `git ls-files --others` is empty\n' +
+        'before committing.\n' +
+        'Left unfixed this is contagious: the next unrelated migration absorbs\n' +
+        'this diff, attributed to that change, under whatever phase it chose.',
+    ).toEqual([]);
   }, 120_000);
 
   it('the probe can detect a migration that is missing', () => {
