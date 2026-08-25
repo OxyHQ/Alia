@@ -1,6 +1,27 @@
 import React, { createContext, useContext } from "react";
 import type { TextInput as RNTextInput } from "react-native";
 
+/**
+ * The composer's own corner radius, mirroring the `rounded-[28px]` on the bar in
+ * `prompt-input.tsx`. It lives here as a number because the attachment tiles
+ * DERIVE their corner from it, and a Tailwind class cannot be read back.
+ * `attachments.test.tsx` reads the bar's class and fails if the two drift.
+ */
+export const COMPOSER_RADIUS = 28;
+
+/**
+ * How far the attachment row is inset from the composer's edge — the `px-5` on
+ * its content container.
+ */
+export const ATTACHMENT_ROW_INSET = 20;
+
+/**
+ * A tile's corner, concentric with the composer's rather than a number of its
+ * own: a rounded box nested inside another looks nested when its radius is the
+ * outer one less the gap between them, and merely stuck on top when it is not.
+ */
+export const ATTACHMENT_TILE_RADIUS = COMPOSER_RADIUS - ATTACHMENT_ROW_INSET;
+
 export interface Attachment {
   id: string;
   uri: string;

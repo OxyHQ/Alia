@@ -45,6 +45,17 @@ export function useColorScheme() {
       border: c.border,
       primary: c.primary,
       primaryForeground: c.primaryForeground,
+      // The status hues, for the few places that must tell one KIND of thing
+      // from another by colour — a file-type chip, say. They are surfaced here
+      // rather than reached for through Bloom directly so that
+      // `useColorScheme().colors` stays the single seam the styling rules point
+      // at, and so nothing is tempted back into a literal hex.
+      error: c.error,
+      success: c.success,
+      warning: c.warning,
+      info: c.info,
+      secondary: c.secondary,
+      tertiary: c.tertiary,
     };
   }, [theme]);
 
