@@ -489,9 +489,9 @@ const MessageRow = React.memo(function MessageRow({
             <DropdownMenu.Trigger asChild>
             <Pressable className="group">
             <View className="flex-col items-end gap-0.5">
-                <View className="max-w-[85%] sm:max-w-[75%] rounded-[24px] overflow-hidden border border-border">
+                <View className="max-w-[70%] rounded-[22px] overflow-hidden border border-border">
                   <BlurView intensity={60} tint="default" style={StyleSheet.absoluteFill} />
-                  <View className="px-4 py-2">
+                  <View className="px-4 py-2.5">
                     {/* Inline images from multi-part content */}
                     {messageImages.length > 0 && (
                       <View className="flex-row flex-wrap gap-2 mb-2">
@@ -506,7 +506,7 @@ const MessageRow = React.memo(function MessageRow({
                         ))}
                       </View>
                     )}
-                    <Text className="text-base text-foreground leading-7">
+                    <Text className="text-base text-foreground leading-6">
                       {messageText}
                     </Text>
                   </View>
