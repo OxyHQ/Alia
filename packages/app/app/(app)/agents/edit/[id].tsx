@@ -294,13 +294,60 @@ export default function EditAgentScreen() {
     identityTimeoutRef.current = setTimeout(async () => {
       toast.loading(t("agents.saving"), { id: SAVE_TOAST_ID });
       const trimmed = handle.trim();
+      const handleChanged = trimmed !== savedHandle.current && trimmed !== "";
+
+      /**
+       * Ask Oxy whether the handle is free BEFORE writing it.
+       *
+       * On the same one-second debounce the save already uses, and only when the
+       * handle actually CHANGED — the condition the write itself applies. One
+       * question per pause, never one per keystroke, and none at all while
+       * somebody is editing the name.
+       *
+       * This is UX, not correctness. Between this answer and the write there is
+       * a window in which somebody else can take the name, so the AUTHORITY
+       * stays where it was: the 409 below. A design that trusted this instead
+       * would be a check-then-insert with a friendlier name.
+       *
+       * Which is also why a failure here is not a refusal. If Oxy cannot answer,
+       * the save goes ahead and the server decides — degrading to "I don't know"
+       * is right, degrading to "you may not" is not.
+       */
+      if (handleChanged) {
+        /**
+         * An unanswerable check reads as "free", so the save goes ahead and the
+         * server decides. Measured against Oxy answering 500: the SDK retries
+         * four times with backoff, and the write lands about nine seconds later
+         * carrying the username — the degradation is correct, and slow, and the
+         * pending toast sits there for those nine seconds.
+         *
+         * `try`/`await` rather than `.catch()` on the promise. Both were
+         * measured and behave identically here, because the SDK rejects rather
+         * than throwing; this form is the one that would also survive a version
+         * that throws.
+         */
+        let free = true;
+        try {
+          free = (await oxyServices.checkUsernameAvailability(trimmed)).available;
+        } catch {
+          free = true;
+        }
+
+        if (!free) {
+          toast.dismiss(SAVE_TOAST_ID);
+          setHandle(savedHandle.current);
+          toast.error(t("agents.handleTaken"));
+          return;
+        }
+      }
+
       try {
         await oxyServices.updateAccount(oxyAccountId, {
           name: { displayName: name },
           // Only when it actually changed: `username` is globally unique, and
           // re-sending the current one on every keystroke of the NAME field
           // would ask Oxy to re-check a handle nobody touched.
-          ...(trimmed !== savedHandle.current && trimmed !== "" && { username: trimmed }),
+          ...(handleChanged && { username: trimmed }),
           // Same rule as the handle, for a different reason: `color` is
           // absent-means-unchanged on `UpdateAccountInput`, so sending the
           // current one on every keystroke of the NAME field would write a
@@ -315,6 +362,10 @@ export default function EditAgentScreen() {
         // A taken handle is the one failure worth saying out loud: the field
         // still shows what the person typed, and without this it silently
         // reverts on the next load with nothing to explain it.
+        //
+        // Still here, and still the authority. The check above only makes the
+        // answer arrive sooner and more often; it cannot make this unreachable,
+        // because the name can be taken in the moment between the two.
         if (errorStatus(error) === 409) {
           setHandle(savedHandle.current);
           toast.error(t("agents.handleTaken"));
