@@ -11,6 +11,7 @@ import { getOxyServicePromptFragment, getOxyServiceContext } from './tools/oxy-s
 import { buildArchetypeSystemPrompt } from './agent/archetype-prompts.js';
 import { buildAutonomyPromptFragment, type AutonomyRuntimeContext } from './autonomy/runtime.js';
 import { buildSystemPrompt as loadBasePrompt, loadPrompt } from './prompt-loader.js';
+import { getPromptId } from './routing/presets.js';
 import type { EffortLevel } from './reasoning-effort.js';
 
 /**
@@ -131,8 +132,22 @@ export class SystemPromptBuilder {
       reasoningEffort,
     } = opts;
 
-    // 1. Base prompt
-    let systemMessage = await loadBasePrompt(aliasModelId, clientContext);
+    /**
+     * 1. Base prompt, named by the ROUTING PRESET rather than by the request.
+     *
+     * `loadPrompt` reads `prompts/<name>.md`, so passing `aliasModelId` straight
+     * through made the identifier its own filename — the coupling that keeps
+     * the thirteen `alia-*` names alive in a directory listing. The preset now
+     * says which file each of its identifiers serves
+     * (`lib/routing/presets.ts`), and it says the names that are already there:
+     * `73ce422b` put `prompts/` in the runtime image, so a rename here without
+     * the same rename in the image degrades to an empty prompt, silently.
+     *
+     * An identifier no preset covers keeps today's behaviour exactly — it is
+     * passed through, `loadPrompt` finds no file, and the turn runs on
+     * `base.md` alone.
+     */
+    let systemMessage = await loadBasePrompt(getPromptId(aliasModelId) ?? aliasModelId, clientContext);
 
     // 1b. Extended reasoning, when the request asked for it.
     //

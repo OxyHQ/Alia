@@ -952,13 +952,17 @@ export async function buildCatalogue(options: CatalogueOptions): Promise<Catalog
    * two names. Iterating the preset table instead makes the bijection
    * structural: a profile appears once because it exists once.
    *
-   * The alias has not stopped mattering, it has stopped being the IDENTITY. It
-   * still carries every fact an entry needs — price, tier, category, emoji,
-   * availability — so the entry serves that alias's facts under the profile's
-   * name, and `entitlement` is still resolved against the ALIAS because
-   * `plans.modelIds` and the entitlement read model are both keyed by alias.
-   * Resolving entitlement against the profile id would silently report every
-   * entry as granted by no plan.
+   * The alias has not stopped mattering, it has stopped being the IDENTITY —
+   * and, for price and category, the SOURCE. Those two come from the preset now
+   * (`lib/routing/presets.ts`), which is what lets the identifier be deleted
+   * without taking the entry's price with it. What still comes off the alias
+   * record is what nothing has moved yet: name, description, emoji and the
+   * `isLegacy` flag the admin tool writes.
+   *
+   * `entitlement` is still resolved against the ALIAS because `plans.modelIds`
+   * and the entitlement read model are both keyed by alias. Resolving it
+   * against the profile id would silently report every entry as granted by no
+   * plan.
    */
   for (const preset of ROUTING_PRESETS) {
     const alias = canonicalAliasFor(preset.id);
@@ -990,13 +994,19 @@ export async function buildCatalogue(options: CatalogueOptions): Promise<Catalog
       if (options.entitledOnly === true && entitlement.entitled !== true) continue;
     }
 
-    if (options.surface !== undefined && !surfaceCanOffer(options.surface, source.category)) {
+    if (options.surface !== undefined && !surfaceCanOffer(options.surface, preset.category)) {
       surfaceWithheld += 1;
       continue;
     }
 
     const entry = buildEntry(
-      { ...source, id: preset.id, offeredProfileId: preset.id },
+      {
+        ...source,
+        id: preset.id,
+        offeredProfileId: preset.id,
+        creditMultiplier: preset.creditMultiplier,
+        category: preset.category,
+      },
       candidates,
       entitlement,
       options.audience,

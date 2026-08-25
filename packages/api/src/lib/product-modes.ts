@@ -215,10 +215,12 @@ const ALIAS_NAMESPACE = 'alia-';
  * picks `alia-v1-pro-max` over `alia-v1-thinking`, which is the same answer the
  * general-purpose ordering reaches by category, from an independent direction.
  *
- * It exists because the alias still owns the metadata a request needs: the
- * credit multiplier `lib/credits-manager.ts` bills on, `maxTokens`, the
- * category, and the system prompt. Serving a profile means serving that alias's
- * facts under the profile's name.
+ * It exists because the alias is still the KEY several tables are indexed by:
+ * `plans.modelIds` and the entitlement read model are both keyed by alias, and
+ * so is the `isLegacy` flag the admin tool writes. What it no longer owns is
+ * the metadata a request needs — the credit multiplier `lib/credits-manager.ts`
+ * bills on, `maxTokens`, the category and the prompt file are declared on the
+ * routing preset (`lib/routing/presets.ts`) and read from there.
  *
  * Throws at module load rather than skipping, matching
  * `lib/routing/alias-translation.ts`: a preset with no matching alias is a

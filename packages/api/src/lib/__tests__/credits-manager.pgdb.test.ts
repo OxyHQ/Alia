@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import postgres from 'postgres';
 import { closePostgres, connectPostgres } from '../../db/index';
 import {
@@ -34,17 +34,18 @@ import {
  * server would reject. Asserting the arithmetic against real rows is the only
  * version of these tests that means anything.
  *
- * `chat-core` is still stubbed: the credit MULTIPLIER comes from the model
- * catalogue over HTTP and has nothing to do with the balance.
+ * `chat-core` used to be stubbed here, because the credit multiplier came from
+ * the model catalogue over HTTP. It does not any more: `getCreditMultiplier`
+ * reads `lib/routing/presets.ts`, a static table, so the multiplier in these
+ * assertions is the REAL price of the profile named — `alia-v1-voice` bills at
+ * 2×, and the voice figures below are that 2× rather than the stub's 1×.
+ * Nothing in the billing path fetches anything now, which is why the stub is
+ * gone rather than repointed.
  *
  * Account ids are namespaced `cm-` — the pgdb suite shares one database per run
  * and `user_credits.id` is the account id, so an unqualified `'user-1'` would
  * collide with any other file that ever touches this table.
  */
-
-vi.mock('../chat-core.js', () => ({
-  getAliaModel: vi.fn().mockResolvedValue({ creditMultiplier: 1 }),
-}));
 
 beforeAll(() => {
   const connected = connectPostgres(process.env.DATABASE_URL);
@@ -114,13 +115,17 @@ describe('calculateCreditsFromMinutes', () => {
     );
   });
 
-  it('calculates credits from minutes', async () => {
-    // 2 min * $0.05/min * 1000 = 100 credits
-    expect(await calculateCreditsFromMinutes(2, 'alia-v1-voice', 0.05)).toBe(100);
+  it('calculates credits from minutes, at the profile’s own multiplier', async () => {
+    // 2 min * $0.05/min * 1000 = 100 base credits, x2 for `profile:v1-voice`.
+    expect(await calculateCreditsFromMinutes(2, 'alia-v1-voice', 0.05)).toBe(200);
+    // The multiplier is doing the work, not the arithmetic: the same call on a
+    // 1x profile is the base figure. Without this pair, a table that lost every
+    // multiplier would still pass the line above.
+    expect(await calculateCreditsFromMinutes(2, 'alia-v1', 0.05)).toBe(100);
   });
 
   it('rounds up partial credits', async () => {
-    expect(await calculateCreditsFromMinutes(0.5, 'alia-v1-voice', 0.05)).toBe(25);
+    expect(await calculateCreditsFromMinutes(0.5, 'alia-v1-voice', 0.05)).toBe(50);
   });
 });
 
@@ -288,49 +293,34 @@ describe('finalizeCredits', () => {
    *
    * It cannot, and the reason is structural rather than lucky: every branch of
    * `_adjustReservation` issues exactly one statement and throws only when that
-   * statement matched no row. The realistic throw is earlier still — the credit
-   * multiplier comes from the model catalogue over HTTP, and that is what is
-   * made to fail here.
-   */
-  it('moves nothing when the multiplier lookup fails', async () => {
-    const id = await account('cm-final-throws', 40, 60);
-    const { getAliaModel } = await import('../chat-core.js');
-    vi.mocked(getAliaModel).mockRejectedValueOnce(new Error('catalogue unreachable'));
-
-    await expect(
-      finalizeCredits(
-        { userId: id, creditsReserved: 5, initialFreeCredits: 40, initialPaidCredits: 60, grantKind: 'free_allowance' },
-        { promptTokens: 1000, completionTokens: 1000, totalTokens: 2000 },
-        'alia-v1',
-      ),
-    ).rejects.toThrow('catalogue unreachable');
-
-    expect(await balanceOf(id)).toEqual({ free: 40, paid: 60 });
-  });
-
-  /**
-   * The same guarantee for the failure this change INTRODUCES.
-   *
-   * A lookup that succeeds and returns nothing is not a catalogue outage; it is
-   * a model identifier the catalogue does not price, and until now it settled
-   * the turn at 1× instead of refusing. Now it refuses, and it must refuse the
-   * same way the outage above does: before a single credit has moved, so the
-   * caller's `finally` gives the reservation back exactly once.
+   * statement matched no row. The realistic throw is earlier still — an
+   * identifier no routing preset prices — and that is what is driven here, with
+   * a real identifier rather than a stub, since the multiplier is now a static
+   * read that cannot be made to fail any other way.
    */
   it('moves nothing when the model resolves to no price at all', async () => {
     const id = await account('cm-final-unpriced', 40, 60);
-    const { getAliaModel } = await import('../chat-core.js');
-    vi.mocked(getAliaModel).mockResolvedValueOnce(null);
 
     await expect(
       finalizeCredits(
         { userId: id, creditsReserved: 5, initialFreeCredits: 40, initialPaidCredits: 60, grantKind: 'free_allowance' },
         { promptTokens: 1000, completionTokens: 1000, totalTokens: 2000 },
-        'alia-v1',
+        'alia-not-a-registered-model',
       ),
     ).rejects.toThrow(UnpricedModelError);
 
     expect(await balanceOf(id)).toEqual({ free: 40, paid: 60 });
+
+    // The positive control the assertion above needs: the SAME call on a priced
+    // identifier settles and does move the balance, so "nothing moved" is a
+    // property of the refusal and not of the call shape.
+    const priced = await account('cm-final-priced', 40, 60);
+    await finalizeCredits(
+      { userId: priced, creditsReserved: 5, initialFreeCredits: 40, initialPaidCredits: 60, grantKind: 'free_allowance' },
+      { promptTokens: 1000, completionTokens: 1000, totalTokens: 2000 },
+      'alia-v1',
+    );
+    expect(await balanceOf(priced)).toEqual({ free: 43, paid: 60 });
   });
 
   it('throws when the account vanished before the refund', async () => {
@@ -348,7 +338,8 @@ describe('finalizeCredits', () => {
 
 describe('finalizeVoiceCredits', () => {
   it('refunds the excess when the call was shorter than reserved', async () => {
-    // reserved 100, actual: 0.5 min * $0.05/min * 1000 = 25 → refund 75
+    // reserved 100; actual 0.5 min * $0.05/min * 1000 = 25 base, x2 for
+    // `profile:v1-voice` = 50 → refund 50.
     const id = await account('cm-voice-refund', 400, 500);
 
     const result = await finalizeVoiceCredits(
@@ -358,9 +349,9 @@ describe('finalizeVoiceCredits', () => {
       0.05,
     );
 
-    expect(result.creditsCharged).toBe(25);
-    expect(result.creditsRemaining).toBe(975);
-    expect(await balanceOf(id)).toEqual({ free: 475, paid: 500 });
+    expect(result.creditsCharged).toBe(50);
+    expect(result.creditsRemaining).toBe(950);
+    expect(await balanceOf(id)).toEqual({ free: 450, paid: 500 });
   });
 });
 

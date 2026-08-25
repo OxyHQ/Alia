@@ -6,8 +6,8 @@ import {
   zeroCredits,
   type UserCreditsRow,
 } from '../db/billing/userCreditsRepository.js';
-import { getAliaModel } from './chat-core.js';
 import { log } from './logger.js';
+import { getRoutingPreset } from './routing/presets.js';
 import { fundingSourceOf, type CreditFundingSource } from '../domain/credit-funding.js';
 
 /**
@@ -147,6 +147,15 @@ export class UnpricedModelError extends Error {
  * `between 0.1 and 10` (`db/schema/providers.ts`), so that is not reachable
  * today, but the read no longer depends on it being unreachable.
  *
+ * ## The price comes from the ROUTING PRESET, not from the alias record
+ *
+ * `lib/routing/presets.ts` owns it. The two tables carry the same numbers and
+ * `routing-policy.test.ts` fails if they stop, so this is not a repricing — it
+ * is what lets the thirteen `alia-*` identifiers be deleted without taking
+ * every price with them. It also takes billing off the model catalogue: this
+ * read no longer goes through `gateway-client`, so no charge depends on a
+ * catalogue fetch.
+ *
  * ## It throws BEFORE any balance moves, and callers rely on that
  *
  * Every route into this function goes through `calculateCreditsFromTokens` or
@@ -159,9 +168,9 @@ export class UnpricedModelError extends Error {
  */
 export async function getCreditMultiplier(aliasModelId?: string): Promise<number> {
   if (aliasModelId === undefined) return 1;
-  const model = await getAliaModel(aliasModelId);
-  if (model === null) throw new UnpricedModelError(aliasModelId);
-  return model.creditMultiplier;
+  const preset = getRoutingPreset(aliasModelId);
+  if (preset === null) throw new UnpricedModelError(aliasModelId);
+  return preset.creditMultiplier;
 }
 
 /**

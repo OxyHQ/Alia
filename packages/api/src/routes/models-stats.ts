@@ -65,6 +65,7 @@ import { Router, Request, Response } from 'express';
 import { getAllAliaModels } from '../lib/chat-core.js';
 import { getTierMappings, getAllProviderHealth, type HealthMetrics } from '../lib/gateway-client.js';
 import { log } from '../lib/logger.js';
+import { getRoutingPreset, type RoutingPreset } from '../lib/routing/presets.js';
 
 const router = Router();
 
@@ -165,6 +166,22 @@ function observeModel(
   };
 }
 
+/**
+ * The routing profile an alias is served under, which is where its price and
+ * its output ceiling live (`lib/routing/presets.ts`).
+ *
+ * Throws rather than skipping. Every registered alias names a preset —
+ * `routing-policy.test.ts` asserts the bijection in both directions — so a miss
+ * is a configuration error, and a stats row published with no policy behind it
+ * would state a price nothing charges. Both routes already answer 500 from
+ * their own `catch`.
+ */
+function presetFor(aliasModelId: string): RoutingPreset {
+  const preset = getRoutingPreset(aliasModelId);
+  if (preset === null) throw new Error(`registered alias ${aliasModelId} names no routing profile`);
+  return preset;
+}
+
 interface ModelStats {
   id: string;
   name: string;
@@ -202,14 +219,24 @@ router.get('/stats', async (req: Request, res: Response) => {
 
     for (const model of models) {
       const observations = observeModel(TIER_MODEL_MAPPINGS[model.tier] || [], health);
+      const preset = presetFor(model.id);
 
       modelStats.push({
         id: model.id,
         name: model.name,
         description: model.description,
         tier: model.tier,
+        /**
+         * The IDENTIFIER's own category, deliberately not the profile's.
+         *
+         * This listing has one row per alias, and `alia-v1-thinking` registers
+         * `coding` while the profile it shares with `alia-v1-pro-max` is served
+         * as `general`. Reading the preset here would silently relabel it for
+         * whoever watches this page. `lib/routing/presets.ts` records the
+         * divergence and `routing-policy.test.ts` pins it to that one alias.
+         */
         category: model.category,
-        creditMultiplier: model.creditMultiplier,
+        creditMultiplier: preset.creditMultiplier,
         avgLatencyMs: observations.avgLatencyMs,
         uptime: observations.uptime,
         successRate: observations.successRate,
@@ -217,7 +244,7 @@ router.get('/stats', async (req: Request, res: Response) => {
         isHealthy: observations.isHealthy,
         supportsTools: model.supportsTools,
         supportsVision: model.supportsVision,
-        maxTokens: model.maxTokens
+        maxTokens: preset.maxTokens
       });
     }
 
@@ -285,17 +312,20 @@ router.get('/stats/:modelId', async (req: Request, res: Response) => {
       }
     }
 
+    const preset = presetFor(model.id);
+
     res.json({
       model: {
         id: model.id,
         name: model.name,
         description: model.description,
         tier: model.tier,
+        // The identifier's own, for the reason the listing route gives.
         category: model.category,
-        creditMultiplier: model.creditMultiplier,
+        creditMultiplier: preset.creditMultiplier,
         supportsTools: model.supportsTools,
         supportsVision: model.supportsVision,
-        maxTokens: model.maxTokens
+        maxTokens: preset.maxTokens
       },
       // No `backingProviders`/`healthyProviders`: those counted UPSTREAM
       // PROVIDERS on a public unauthenticated route. See the module comment.

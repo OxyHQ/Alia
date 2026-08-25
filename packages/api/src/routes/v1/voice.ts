@@ -7,6 +7,7 @@ import { reserveCredits, finalizeCredits, safeRefund, type CreditReservation } f
 import { getOrCreateUserCredits } from '../../lib/user-credits-helpers.js';
 import { voiceSessionManager } from '../../internal/providers/lib/voice-session-manager.js';
 import { buildSystemPrompt } from '../../lib/prompt-loader.js';
+import { getPromptId } from '../../lib/routing/presets.js';
 import { buildUserContext } from '../../lib/user-context.js';
 import { log } from '../../lib/logger.js';
 import { getUserEntitlements } from '../../lib/plan-access.js';
@@ -167,7 +168,9 @@ router.post('/token', async (req: Request, res: Response) => {
     let voiceInstructions = 'You are in a real-time voice conversation. Keep responses concise and conversational — avoid long lists, markdown, or code blocks. Speak naturally and expressively — vary your tone, pacing, and energy like a real person would. Use vocal inflections and reactions naturally.\n\n';
 
     try {
-      const basePrompt = await buildSystemPrompt(model);
+      // Named by the routing preset, exactly as the text path names it. See
+      // `lib/system-prompt-builder.ts`.
+      const basePrompt = await buildSystemPrompt(getPromptId(model) ?? model);
       voiceInstructions += basePrompt;
     } catch (e) {
       log.general.error({ err: e }, 'Error loading system prompt for voice');
