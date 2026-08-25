@@ -222,6 +222,13 @@ router.get('/me', authenticateToken, async (req: Request, res: Response) => {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
+    /*
+     * The ORDER is the repository's, and every step below preserves it: the
+     * sidebar draws this array as it arrives, so `listAgentsByAuthor` deciding
+     * that the agent last spoken to comes first only holds if nothing here
+     * re-sorts or re-groups. Both hydration steps are `map`s over the same
+     * array for that reason.
+     */
     const owned = await listAgentsByAuthor(getDb(), req.user.id);
     const agents = await Promise.all(owned.map(withChildLists));
     const identified = await attachAgentIdentities(agents);

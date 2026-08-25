@@ -32,6 +32,9 @@ const agent = (over: Partial<Agent> = {}): Agent =>
     name: 'Pepe',
     lastMessage: 'something older',
     lastMessageAt: '2026-08-01T10:00:00.000Z',
+    // Both halves of the order the server sends: an agent with no thread falls
+    // back to this, so a fixture without it could not tell the two apart.
+    createdAt: '2026-07-01T10:00:00.000Z',
     ...over,
   }) as Agent;
 
@@ -129,14 +132,51 @@ describe('the agent row preview', () => {
     expect(rows()?.[1]).toBe(before);
   });
 
-  it('leaves the order alone, because the list is not ordered by activity', () => {
-    // `listAgentsByAuthor` orders by `created_at DESC`. Moving a row here would
-    // invent an order the next real load undoes.
-    const { preview, rows } = mount([agent({ _id: 'a1' }), agent({ _id: 'a2' })]);
+  it('moves the row you spoke to up, and leaves every other one where it was', () => {
+    // The list as the server sends it: newest thread first. Talking to the one
+    // at the bottom has to lift it to the top, because that is where the next
+    // real load will put it.
+    const { preview, rows } = mount([
+      agent({ _id: 'a1', lastMessageAt: '2026-08-03T10:00:00.000Z' }),
+      agent({ _id: 'a2', lastMessageAt: '2026-08-02T10:00:00.000Z' }),
+      agent({ _id: 'a3', lastMessageAt: '2026-08-01T10:00:00.000Z' }),
+    ]);
 
-    act(() => preview('a2', 'the newer conversation'));
+    act(() => preview('a3', 'the conversation I am having now'));
 
-    expect(rows()?.map((row) => row._id)).toEqual(['a1', 'a2']);
+    expect(rows()?.map((row) => row._id)).toEqual(['a3', 'a1', 'a2']);
+  });
+
+  it('sorts an agent with no thread yet BELOW the ones that have one', () => {
+    // The asymmetry this shares with the SQL. `lastMessageAt` is null on an
+    // agent created a moment ago; a comparator that treated the absence as a
+    // value would float it to the top, and Postgres does exactly that in a
+    // `DESC` order unless `NULLS LAST` says otherwise.
+    // Seeded with the thread-less one FIRST, so the assertion is only satisfied
+    // by actually moving it down — an order that was already right proves
+    // nothing about the comparator.
+    const { preview, rows } = mount([
+      agent({ _id: 'never', lastMessage: null, lastMessageAt: null }),
+      agent({ _id: 'spoken', lastMessageAt: '2026-08-01T10:00:00.000Z' }),
+    ]);
+
+    act(() => preview('spoken', 'still the only thread there is'));
+
+    expect(rows()?.map((row) => row._id)).toEqual(['spoken', 'never']);
+  });
+
+  it('orders agents nobody has spoken to by when they were made', () => {
+    // The whole list on the fallback, which is what a new account sees. Talking
+    // to the older one is what puts it above the newer one — nothing else can.
+    const { preview, rows } = mount([
+      agent({ _id: 'newer', lastMessageAt: null, createdAt: '2026-07-02T10:00:00.000Z' }),
+      agent({ _id: 'older', lastMessageAt: null, createdAt: '2026-07-01T10:00:00.000Z' }),
+    ]);
+    expect(rows()?.map((row) => row._id)).toEqual(['newer', 'older']);
+
+    act(() => preview('older', 'the first thing ever said to it'));
+
+    expect(rows()?.map((row) => row._id)).toEqual(['older', 'newer']);
   });
 
   it('stamps when it happened, so the row does not read as stale', () => {
