@@ -280,9 +280,6 @@ export default function AgentDetailScreen() {
   const isFavorite = useAgentFavoritesStore((s) => s.isFavorite);
   const loadFavorites = useAgentFavoritesStore((s) => s.loadFavorites);
 
-  // Add to team state
-  const [addingToTeam, setAddingToTeam] = useState(false);
-
   // Archetype tab state
   const [detailTab, setDetailTab] = useState<DetailTab>("overview");
   const [reports, setReports] = useState<ReportItem[]>([]);
@@ -422,48 +419,6 @@ export default function AgentDetailScreen() {
   const handleBookmark = () => {
     if (!agent) return;
     toggleFavorite(agent._id);
-  };
-
-  const handleAddToTeam = async () => {
-    if (!agent) return;
-    setAddingToTeam(true);
-    try {
-      const res = await apiClient.get("/agents/teams");
-      const teams = res.data.teams || [];
-
-      if (teams.length === 0) {
-        toast.info(t("agents.noTeams"));
-        return;
-      }
-
-      if (teams.length === 1) {
-        await apiClient.post(`/agents/teams/${teams[0]._id}/agents`, { agentId: agent._id });
-        toast.success(t("agents.addedToTeam"));
-      } else {
-        alert(
-          t("agents.addToTeam"),
-          t("agents.selectTeam"),
-          [
-            ...teams.slice(0, 4).map((team: any) => ({
-              text: team.name,
-              onPress: async () => {
-                try {
-                  await apiClient.post(`/agents/teams/${team._id}/agents`, { agentId: agent._id });
-                  toast.success(t("agents.addedToTeam"));
-                } catch {
-                  toast.error(t("agents.addToTeamFailed"));
-                }
-              },
-            })),
-            { text: t("common.cancel"), style: "cancel" as const },
-          ],
-        );
-      }
-    } catch {
-      toast.error(t("agents.addToTeamFailed"));
-    } finally {
-      setAddingToTeam(false);
-    }
   };
 
   const handleStatusToggle = async (newStatus: "active" | "idle") => {
@@ -715,16 +670,6 @@ export default function AgentDetailScreen() {
                   {agent.price != null
                     ? `${t("agents.hire")} · $${agent.price.toFixed(2)}`
                     : t("agents.hire")}
-                </Text>
-              </Pressable>
-              <View className="w-px bg-border" />
-              <Pressable
-                onPress={handleAddToTeam}
-                disabled={addingToTeam}
-                className="items-center justify-center px-3.5 py-2 active:bg-muted"
-              >
-                <Text className="text-[13px] font-medium text-foreground">
-                  {t("agents.addToTeam")}
                 </Text>
               </Pressable>
               <View className="w-px bg-border" />
