@@ -39,10 +39,16 @@ premise and the subjects earlier episodes used say what it has already spent.
 The script model is handed both and chooses. `POST /shows/series/:id/episodes`
 therefore accepts a request with **no body at all**.
 
-An owner may still steer one — `topic` survives as an optional field, for the
-week when there is an election result to cover or an article to work from — and
-their words are stored and used unchanged. What was removed is the requirement,
-and the *name* field with it.
+An owner may still steer one. `topic` and `title` both survive as **optional
+overrides — not rival defaults** — for the week when there is an election result
+to cover, an article to work from, or a name already in mind. Each has the same
+precedence: supplied, it is stored and nothing second-guesses it; absent, the
+pipeline decides. What was removed is the requirement, not the ability.
+
+That precedence is what makes both columns nullable. Storing a placeholder
+instead would leave "the owner chose this name" and "nothing has named it yet"
+looking identical, and the only way back would be guessing from whether a string
+LOOKS generated.
 
 ### Two memories, at two different costs
 
@@ -119,19 +125,27 @@ carrying the caller's token, one carrying nothing. Every call goes through
 ### The name is written twice, and the second one is real
 
 Syra requires a `title` to reserve the draft, minutes before any script exists.
-So the route inserts a **placeholder** — `Episode {n}`, the one thing that is
+So the route sends a **placeholder** — `Episode {n}`, the one thing that is
 certainly true — and the pipeline replaces it once the script is written, from
-what the episode actually says.
+what the episode actually says. The placeholder goes to **Syra only**; the Alia
+row stays `null`, because that null is what says nobody has named this yet.
+
+An owner who did name it wins on both sides at once: the draft is reserved under
+their name, the row stores it, and the pipeline finds a title already there and
+leaves it alone. Precedence in one line — **owner, then script, then
+`Episode {n}`.**
 
 It used to have to be decided in the route, from the topic, because Syra's
 ingest allowlist refused a title outright: a capability has no business renaming
-a published episode. That name was a name for an episode nobody had written yet.
+a published episode. That name was a name for an episode nobody had written yet,
+and production shows what it produced — see the census in migration `0040`.
 
 **Half of this is live and half is not, so read the version you have.** Alia's
 row and the app carry the generated name today; the ingest still cannot send it,
-so a published Syra episode keeps `Episode {n}` until `@syra.fm/sdk` accepts a
-title on ingest and `show-pipeline.ts` passes it. Until then the two products
-disagree about the name, with Syra's the one a listener sees.
+so a published Syra episode keeps whatever the draft was reserved under until
+`@syra.fm/sdk` accepts a title on ingest and `show-pipeline.ts` passes it. For an
+episode the owner named that is already the right name; for one the script named
+it is not, and Syra's is the name a listener sees.
 
 Two details that are not incidental:
 
@@ -139,13 +153,14 @@ Two details that are not incidental:
   model fills an object in the order it is given, so a title asked for above the
   dialogue is a title written from the subject — the very thing this replaced.
   `recap` sits there too, for the same reason.
-- **A bad reply keeps the placeholder.** `cleanTitle()` answers `null` for an
-  explanation, a list of candidates or a paragraph, and then `Episode {n}`
-  stands. Refusing to publish an episode over its name would be absurd.
+- **A bad reply falls back to `Episode {n}`.** `cleanTitle()` answers `null` for
+  an explanation, a list of candidates or a paragraph. That is the same string
+  the draft was reserved under, so the fallback changes nothing on either side.
+  Refusing to publish an episode over its name would be absurd.
 
-Nobody can name an episode by hand any more, and there is no route to rename
-one. A rename is Syra's to accept, with the owner's own token, and that call
-does not exist here.
+There is still no route to RENAME an episode after it exists — a rename is
+Syra's to accept, with the owner's own token, and that call does not exist here.
+Naming one up front does.
 
 ## Playback is `/audio`, not `/stream`
 

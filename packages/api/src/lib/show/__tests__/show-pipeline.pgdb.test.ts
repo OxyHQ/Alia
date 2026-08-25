@@ -166,11 +166,13 @@ async function balance(): Promise<number> {
  * `topic` defaults to a subject somebody typed, because most of this file is
  * about credits and audio and wants an episode that is simply ready. `null` is
  * the ordinary shape of a real request now — nobody said what it covers — and
- * the tests about the subject pass it explicitly.
+ * the tests about the subject pass it explicitly. `title` is the reverse: null
+ * by default, because an episode nobody named is the ordinary case.
  */
 async function queueEpisode(
   topic: string | null = 'what happened this week',
   episodeNumber = 1,
+  title: string | null = null,
 ): Promise<string> {
   const series = await createSeries(db, {
     id: uuidv7(),
@@ -190,10 +192,10 @@ async function queueEpisode(
     userId: OWNER,
     seriesId: series.id,
     episodeNumber,
-    // The PLACEHOLDER the route reserves the Syra draft with, minutes before
-    // any script exists. Named as such here because half this file's point is
-    // that the published name is not this one.
-    title: `Episode ${episodeNumber}`,
+    // NULL unless a test is about an owner who named their own episode. The
+    // route stores nothing here otherwise — `Episode {n}` goes to Syra's draft
+    // and not to this column, which is what keeps the two states apart.
+    title: title ?? undefined,
     topic: topic ?? undefined,
     syraEpisodeId: 'syra-episode',
     ingestTicket: 'ticket-1',
@@ -738,6 +740,47 @@ describe('naming an episode after it exists', () => {
     // The two strings the old design would have produced instead.
     expect(episode?.title).not.toBe('Episode 1');
     expect(episode?.title).not.toBe('the trouble with photosynthesis');
+  });
+
+  /**
+   * THE PRECEDENCE, asserted rather than assumed.
+   *
+   * Both halves of this design are true at once — an episode is named from its
+   * script, AND an owner who typed a name keeps it — and which one a test
+   * demonstrates depends entirely on its fixture. So the fixture here is the
+   * one where they DISAGREE: a person's name on the row and a different name in
+   * the script. Without this, "generated from the script" and "the owner's name
+   * survives" both pass by accident.
+   */
+  it("does not touch a name the owner chose, however the script would have named it", async () => {
+    await fund(50);
+    const episodeId = await queueEpisode('the trouble with photosynthesis', 1, 'The Reckoning');
+    scriptReply = scriptWith({ title: 'How leaves eat light' });
+
+    const { runShowPipeline } = await import('../show-pipeline.js');
+    await runShowPipeline(episodeId);
+
+    const episode = await findEpisodeById(db, episodeId);
+    expect(episode?.status).toBe('completed');
+    expect(episode?.title).toBe('The Reckoning');
+    // The name the script proposed, which must not have won.
+    expect(episode?.title).not.toBe('How leaves eat light');
+  });
+
+  it('falls back to the episode number when the owner named nothing and the script named nothing', async () => {
+    // Both overrides absent and the model unhelpful. `Episode 1` is the same
+    // string the route reserved the Syra draft under, so the fallback changes
+    // nothing on either side.
+    await fund(50);
+    const episodeId = await queueEpisode('the trouble with photosynthesis');
+    scriptReply = scriptWith({});
+
+    const { runShowPipeline } = await import('../show-pipeline.js');
+    await runShowPipeline(episodeId);
+
+    const episode = await findEpisodeById(db, episodeId);
+    expect(episode?.status).toBe('completed');
+    expect(episode?.title).toBe('Episode 1');
   });
 
   it('keeps the placeholder when the reply is an explanation rather than a title', async () => {

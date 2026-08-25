@@ -147,10 +147,10 @@ interface ProgressUpdate {
  * Carries `seriesId` beside `episodeId` because the app renders episodes inside
  * a series and a bare episode id would send it looking for which list to update.
  *
- * And the TITLE, which is not merely progress: the route reserved the episode
- * under `Episode {n}` and the script renames it minutes before the run ends, so
- * without this the screen shows a placeholder for the whole recording while the
- * row already holds the real name. `episode` is rebound by every patch, so this
+ * And the TITLE, which is not merely progress: an episode nobody named has none
+ * until the script writes one, minutes before the run ends, so without this the
+ * screen falls back to the episode number for the whole recording while the row
+ * already holds the real name. `episode` is rebound by every patch, so this
  * reads whatever the last write left — which is the name from the moment there
  * is one.
  */
@@ -160,7 +160,10 @@ function emitProgress(episode: ShowEpisodeRow, update: ProgressUpdate): void {
     io.to(`user:${episode.userId}`).emit('show:progress', {
       episodeId: episode.id,
       seriesId: episode.seriesId,
-      title: episode.title,
+      // Only once there IS one. An episode nobody named carries null until the
+      // script writes a title, and emitting that would ask the client to blank
+      // a name rather than to wait for one.
+      ...(episode.title === null ? {} : { title: episode.title }),
       ...update,
     });
   }
@@ -253,15 +256,21 @@ export async function runShowPipeline(episodeId: string): Promise<void> {
      * covers said it, and the model's restatement is not an improvement on their
      * own words.
      *
-     * The name second, and it is the whole point of asking the model for one:
-     * the placeholder the route reserved the Syra draft with is `Episode {n}`,
-     * written before a word of the episode existed. `cleanTitle` answers `null`
-     * for a reply that is an explanation rather than a title, and then the
-     * placeholder stands — a plain name is a name, and refusing to publish over
-     * one would be absurd.
+     * The name second, and it has the SAME precedence, which is the whole
+     * shape of both fields: an owner's own choice first, the model's reading of
+     * the finished script when they made none, and only then a fallback. A
+     * title already on the row means somebody named this episode and the
+     * pipeline is not entitled to revise it — `episode.title` is null unless
+     * they did, which is exactly why the column is nullable.
+     *
+     * `cleanTitle` answers `null` for a reply that is an explanation rather
+     * than a title, and then `Episode {n}` stands. That is the same string the
+     * route reserved the Syra draft under, so the fallback changes nothing on
+     * either side; a plain name is a name, and refusing to publish over one
+     * would be absurd.
      */
     const subject = episode.topic ?? script.topic;
-    const title = script.title ?? episode.title;
+    const title = episode.title ?? script.title ?? `Episode ${episode.episodeNumber}`;
 
     // ── 2. Audio ─────────────────────────────────────────────────────────────
     const segments: ShowSegment[] = script.segments.map((segment, index) => ({
@@ -403,7 +412,9 @@ export async function runShowPipeline(episodeId: string): Promise<void> {
       userId: episode.userId,
       type: 'agent_task_complete',
       title: 'Episode Ready',
-      body: `"${episode.title}" is ready to listen on ${series.title}.`,
+      // The local, not `episode.title`: the same string that was written to the
+      // row and sent to Syra, so the three cannot say different names.
+      body: `"${title}" is ready to listen on ${series.title}.`,
       data: { seriesId: series.id, episodeId: episode.id, syraEpisodeId: episode.syraEpisodeId },
     }).catch((err: unknown) => {
       log.general.warn({ err }, 'Failed to send episode completion notification');

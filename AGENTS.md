@@ -12,11 +12,13 @@ solo acepta el JWT de una persona, así que la ruta acuña un **ticket de ingest
 de un solo uso** y el worker lo canjea: no lo sustituyas por un token de
 servicio — esa delegación está cerrada en todo Oxy hasta que aterrice ADR 0012.
 
-Pedir un episodio **no pregunta de qué va**: el brief de la serie y los temas ya
-usados lo deciden. `show_episodes.topic` es una línea por episodio y se manda
-ENTERO — la ventana de recaps sola es justo lo que hace que un show se repita en
-el episodio nueve. El nombre sale del guion terminado, nunca de la petición.
-Detalle en `docs/shows.mdx`.
+Pedir un episodio **no pregunta nada**: el brief de la serie y los temas ya
+usados deciden de qué va, y el guion terminado le pone nombre.
+`show_episodes.topic` es una línea por episodio y se manda ENTERO — la ventana
+de recaps sola es justo lo que hace que un show se repita en el episodio nueve.
+`title` y `topic` son OVERRIDES opcionales, no defaults rivales, y por eso las
+dos columnas admiten NULL: guardar un placeholder haría indistinguible «lo
+nombró su dueño» de «todavía no tiene nombre». Detalle en `docs/shows.mdx`.
 
 **Antes de tocar nada, lee `docs/`.** Ahí está lo que este fichero no cuenta:
 arquitectura, decisiones (`docs/adr/`), despliegue y migraciones. Las normas de

@@ -1,5 +1,5 @@
 {
-  "id": "69709f06-6ac0-4816-9590-c0865fe62164",
+  "id": "e111a0cc-68d6-4208-a7f7-1154c4ec0d23",
   "prevId": "f5159e25-2ada-4ba3-9bac-ea7c24181652",
   "version": "7",
   "dialect": "postgresql",
@@ -11398,7 +11398,7 @@
           "name": "title",
           "type": "text",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
         "topic": {
           "name": "topic",

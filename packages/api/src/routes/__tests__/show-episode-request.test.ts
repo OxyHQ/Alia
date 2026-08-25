@@ -98,7 +98,17 @@ vi.mock('../../db/shows/showRepository.js', async () => {
     allocateEpisodeNumber: async () => 3,
     createEpisode: async (_db: unknown, values: Record<string, unknown>) => {
       inserted.push(values);
-      return { id: 'episode-1', status: 'queued', ...values };
+      // `?? null` the way the real `createEpisode` does. Returning `undefined`
+      // for an absent title would let the route echo a field the database can
+      // never hold, and the response contract — `null` means "unnamed" — would
+      // be tested against a shape production never produces.
+      return {
+        id: 'episode-1',
+        status: 'queued',
+        ...values,
+        title: values.title ?? null,
+        topic: values.topic ?? null,
+      };
     },
     updateEpisode: async () => null,
   };
@@ -177,9 +187,15 @@ describe('asking for another episode', () => {
      */
     expect(drafts).toHaveLength(1);
     expect(drafts[0]?.input.title).toBe('Episode 3');
-    expect(inserted[0]?.title).toBe('Episode 3');
-    // Echoed, so the app can render the queued row rather than a blank one.
-    expect(body.title).toBe('Episode 3');
+    /**
+     * And it is NOT stored. The placeholder goes to Syra, which demands one;
+     * the row stays null, which is what keeps "the owner chose this name" and
+     * "nothing has named it yet" distinguishable without squinting at the
+     * string. Storing `Episode 3` here would make the pipeline read it as a
+     * name somebody chose and never replace it.
+     */
+    expect(inserted[0]?.title).toBeUndefined();
+    expect(body.title).toBeNull();
 
     // The assertion that makes the ones above mean something: nothing on this
     // path asks a model anything. Reintroducing a naming call here fails this
@@ -215,17 +231,33 @@ describe('asking for another episode', () => {
     expect(drafts).toHaveLength(0);
   });
 
-  it('refuses a title, because an episode is named from its script', async () => {
-    // The field is GONE rather than ignored. Zod strips an unknown key by
-    // default, so this asserts what the row got: a caller who still sends the
-    // old field does not get to name the episode.
-    const { status } = await ask({
+  it('takes the name the owner typed, on BOTH sides at once', async () => {
+    const { status, body } = await ask({
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title: 'A name I typed', topic: 'something worth covering' }),
+      body: JSON.stringify({ title: 'The Reckoning', topic: 'something worth covering' }),
     });
 
     expect(status).toBe(201);
-    expect(drafts[0]?.input.title).toBe('Episode 3');
-    expect(inserted[0]?.title).toBe('Episode 3');
+    /**
+     * The draft AND the row, which is one fact and not two: the pipeline finds
+     * a title already on the row and leaves it alone, so the name Syra was
+     * reserved under is the name it keeps.
+     */
+    expect(drafts[0]?.input.title).toBe('The Reckoning');
+    expect(inserted[0]?.title).toBe('The Reckoning');
+    expect(body.title).toBe('The Reckoning');
+    // And still no model was asked for a name.
+    expect(generateText).not.toHaveBeenCalled();
+  });
+
+  it('refuses a name too short to be one, rather than silently dropping it', async () => {
+    const { status } = await ask({
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: 'X' }),
+    });
+
+    expect(status).toBe(400);
+    expect(inserted).toHaveLength(0);
+    expect(drafts).toHaveLength(0);
   });
 });

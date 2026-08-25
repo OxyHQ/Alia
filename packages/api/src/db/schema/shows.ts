@@ -262,20 +262,31 @@ export const showEpisodes = pgTable(
     /** Unique within the series — see the index below. */
     episodeNumber: integer().notNull(),
     /**
-     * The episode's name, on BOTH sides.
+     * The episode's name — NULL until something has named it.
      *
-     * Written TWICE, and the second write is the real one. Syra requires a title
-     * to reserve the draft, minutes before any script exists, so the route
-     * inserts `Episode {n}` — a placeholder that is at least true. The pipeline
-     * replaces it once the script is written, from what the episode actually
-     * says, and sends the same string in the ingest so the two products never
-     * disagree about one episode's name.
+     * Nullable so that "the owner chose this name" and "nobody has named it
+     * yet" are different states rather than a string somebody has to squint at.
+     * Supplied on the request, it is stored here and the pipeline does not
+     * touch it; absent, the script names the episode from what it turned out to
+     * say and writes the result here. A placeholder stored on the row instead
+     * would make the two indistinguishable, and the only way back would be
+     * guessing from whether a title LOOKS generated.
      *
-     * NOT NULL throughout: the placeholder means an unnamed episode is
-     * unrepresentable, and an episode whose run failed keeps `Episode {n}`
-     * rather than a blank.
+     * Syra still needs a title to reserve the draft, minutes before any script
+     * exists, so `Episode {n}` goes THERE — to Syra, not to this column — and
+     * the ingest replaces it.
+     *
+     * ## What the old NOT NULL actually held, measured
+     *
+     * Production, 2026-08-25: three episodes, one series, and all THREE titles
+     * byte-identical — the same 119-character sentence, which is the opening of
+     * the series' own 704-character brief. The route named an episode by
+     * truncating the requested topic when no model would answer, and the owner
+     * had pasted the brief in as the topic every time. Nothing was null and
+     * nothing is lost by this change; those three rows keep exactly what they
+     * have, which is the failure this column's new shape exists to stop.
      */
-    title: text().notNull(),
+    title: text(),
     /**
      * What this episode covers. The series' `brief` says what the show is.
      *

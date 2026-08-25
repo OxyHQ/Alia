@@ -31,6 +31,7 @@ import { useEpisodeAudio } from '@/lib/hooks/use-episode-audio';
 import { useColorScheme } from '@/lib/useColorScheme';
 import {
   ACTIVE_EPISODE_STATUSES,
+  episodeDisplayTitle,
   useShowStore,
   type ShowEpisode,
   type ShowEpisodeStatus,
@@ -76,6 +77,13 @@ export function EpisodeRow({ episode, onDelete }: EpisodeRowProps) {
   const isPlaying = state === 'playing';
 
   const handleDelete = useCallback(() => onDelete(episode.id), [onDelete, episode.id]);
+
+  /**
+   * An episode nobody named has NO name until its script writes one, so this
+   * stands in until then. It is the number Syra's own draft is reserved under,
+   * which is why the two never look like different episodes.
+   */
+  const name = episodeDisplayTitle(episode);
 
   /**
    * What the episode asked for and did not get.
@@ -134,7 +142,7 @@ export function EpisodeRow({ episode, onDelete }: EpisodeRowProps) {
     <View className="group flex-row items-start gap-3 rounded-xl px-2 py-2.5 web:transition-colors web:hover:bg-muted/40">
       <View className="min-w-0 flex-1 gap-1">
         <Text className="text-[15px] font-semibold leading-5 text-foreground" numberOfLines={2}>
-          {episode.title}
+          {name}
         </Text>
 
         <Text className="text-xs text-muted-foreground" numberOfLines={1}>
@@ -178,7 +186,7 @@ export function EpisodeRow({ episode, onDelete }: EpisodeRowProps) {
       <Pressable
         onPress={handleDelete}
         accessibilityRole="button"
-        accessibilityLabel={`Remove ${episode.title}`}
+        accessibilityLabel={`Remove ${name}`}
         className="h-8 w-8 items-center justify-center rounded-full active:opacity-70 web:opacity-0 web:transition-opacity web:group-hover:opacity-100"
       >
         <Trash2 size={15} className="text-muted-foreground" />
@@ -195,7 +203,7 @@ export function EpisodeRow({ episode, onDelete }: EpisodeRowProps) {
             onPress={toggle}
             disabled={state === 'loading'}
             accessibilityRole="button"
-            accessibilityLabel={isPlaying ? `Pause ${episode.title}` : `Play ${episode.title}`}
+            accessibilityLabel={isPlaying ? `Pause ${name}` : `Play ${name}`}
             className="h-10 w-10 items-center justify-center rounded-full border border-border active:opacity-70 web:hover:bg-muted"
           >
             {state === 'loading' ? (

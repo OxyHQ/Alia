@@ -53,8 +53,19 @@ const EPISODE = {
 async function freshStore() {
   vi.resetModules();
   const module = await import('../show-store');
+  episodeDisplayTitle = module.episodeDisplayTitle;
   return module.useShowStore;
 }
+
+/**
+ * Rebound by `freshStore`, because `vi.resetModules()` gives every test its own
+ * copy of the module and a binding captured at import time would be a different
+ * function from the one the store under test is using.
+ */
+let episodeDisplayTitle: (episode: {
+  title: string | null;
+  episodeNumber: number;
+}) => string;
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -111,7 +122,8 @@ describe('starting an episode', () => {
         episodeId: 'episode-new',
         seriesId: 'series-abc',
         episodeNumber: 3,
-        title: 'Episode 3',
+        // `null`, which is what the API stores for an episode nobody named.
+        title: null,
         status: 'queued',
       },
     });
@@ -139,7 +151,7 @@ describe('starting an episode', () => {
     expect(first?.topic).toBeUndefined();
   });
 
-  it('still carries a subject when the owner steers this one', async () => {
+  it('still carries a subject and a name when the owner supplies them', async () => {
     // The positive control for the assertion above: a store that dropped every
     // input would satisfy "posts an empty body" perfectly.
     const useShowStore = await freshStore();
@@ -148,33 +160,38 @@ describe('starting an episode', () => {
         episodeId: 'episode-new',
         seriesId: 'series-abc',
         episodeNumber: 3,
-        title: 'Episode 3',
+        title: 'The Reckoning',
         status: 'queued',
       },
     });
 
     await useShowStore
       .getState()
-      .createEpisode('series-abc', { topic: 'hablemos de la fotosíntesis' });
+      .createEpisode('series-abc', {
+        title: 'The Reckoning',
+        topic: 'hablemos de la fotosíntesis',
+      });
 
     // No `notes: undefined` key either — the API distinguishes an absent field
     // from a present empty one.
     expect(post).toHaveBeenCalledWith('/shows/series/series-abc/episodes', {
+      title: 'The Reckoning',
       topic: 'hablemos de la fotosíntesis',
     });
 
     const [first] = useShowStore.getState().episodesBySeries['series-abc'] ?? [];
     expect(first?.topic).toBe('hablemos de la fotosíntesis');
+    expect(first?.title).toBe('The Reckoning');
   });
 
-  it('shows the PLACEHOLDER name the server reserved, not a name it made up', async () => {
+  it('holds no name for an episode nobody named, and shows the number instead', async () => {
     const useShowStore = await freshStore();
     post.mockResolvedValueOnce({
       data: {
         episodeId: 'episode-new',
         seriesId: 'series-abc',
         episodeNumber: 3,
-        title: 'Episode 3',
+        title: null,
         status: 'queued',
       },
     });
@@ -182,13 +199,14 @@ describe('starting an episode', () => {
     await useShowStore.getState().createEpisode('series-abc');
 
     /**
-     * `Episode 3` is what the route reserved the Syra draft with, minutes
-     * before any script exists. The real name arrives when the script does.
-     * Without reading `title` back from the response this row renders blank
-     * until the next fetch, which is why the route echoes it.
+     * `null` on the row and `Episode 3` on the screen, which are different
+     * things. Storing the placeholder instead would be a name the database does
+     * not hold and that nothing later replaces — and it is exactly what makes
+     * "the owner chose this" and "nothing named it" indistinguishable.
      */
     const [first] = useShowStore.getState().episodesBySeries['series-abc'] ?? [];
-    expect(first?.title).toBe('Episode 3');
+    expect(first?.title).toBeNull();
+    expect(first === undefined ? '' : episodeDisplayTitle(first)).toBe('Episode 3');
   });
 
   it('reports a refusal rather than pretending it started', async () => {

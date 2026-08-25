@@ -276,8 +276,8 @@ export interface NewShowEpisode {
   readonly userId: string;
   readonly seriesId: string;
   readonly episodeNumber: number;
-  /** The placeholder the route reserves the Syra draft with; the script renames it. */
-  readonly title: string;
+  /** Absent when nobody named this episode — the script names it from what it says. */
+  readonly title?: string | undefined;
   /** Absent when nobody said what this episode covers — the script decides it. */
   readonly topic?: string | undefined;
   readonly notes?: string | undefined;
@@ -297,7 +297,7 @@ export async function createEpisode(
       userId: input.userId,
       seriesId: input.seriesId,
       episodeNumber: input.episodeNumber,
-      title: input.title,
+      title: input.title ?? null,
       topic: input.topic ?? null,
       notes: input.notes ?? null,
       syraEpisodeId: input.syraEpisodeId,
@@ -314,11 +314,13 @@ export async function createEpisode(
 /** Fields the pipeline is allowed to patch. `seriesId` and `userId` are not among them. */
 export interface ShowEpisodePatch {
   /**
-   * The name the SCRIPT settled on, replacing the route's `Episode {n}`.
+   * The name, once something has settled on one.
    *
-   * Patchable because the title is now read off the finished episode rather
-   * than guessed from a request, and the same string is what the ingest sends
-   * to Syra — so this write and that call have to agree by construction.
+   * Patchable because a title is now read off the finished episode rather than
+   * guessed from a request, and the same string is what the ingest sends to
+   * Syra — so this write and that call have to agree by construction. The
+   * pipeline writes it only when the row had none: a name the owner chose is
+   * not the pipeline's to revise.
    */
   readonly title?: string;
   /** The subject the script settled on, when the request named none. */

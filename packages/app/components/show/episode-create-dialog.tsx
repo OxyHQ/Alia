@@ -8,8 +8,11 @@
  * — there is something particular to cover this week, or an article to work
  * from — and every field in it is optional.
  *
- * There is no name field. An episode is named from its finished script, which
- * is something nobody can type in advance and the reason this stopped asking.
+ * The name is here too, and it works the same way: blank means the finished
+ * script names the episode, which is something nobody can do in advance.
+ * Typing one keeps it — an owner who has a name in mind should not lose it just
+ * because the usual case is not to have one. Both fields are overrides, neither
+ * is a rival default.
  */
 
 import React, { useCallback, useState } from 'react';
@@ -36,11 +39,16 @@ export function EpisodeCreateDialog({
 }: EpisodeCreateDialogProps) {
   const createEpisode = useShowStore((s) => s.createEpisode);
 
+  const [title, setTitle] = useState('');
   const [topic, setTopic] = useState('');
   const [notes, setNotes] = useState('');
   const [starting, setStarting] = useState(false);
 
+  const trimmedTitle = title.trim();
   const trimmedTopic = topic.trim();
+  // Blank means "name it from the script". A couple of characters is a slip,
+  // and discarding what somebody typed would be worse than saying so.
+  const titleTooShort = trimmedTitle !== '' && trimmedTitle.length < 3;
   // Blank is fine and means "decide it yourself". A few characters is not a
   // subject, and silently discarding what somebody typed would be worse than
   // saying so.
@@ -51,10 +59,15 @@ export function EpisodeCreateDialog({
       toast.error('Say a bit more, or leave it blank and the show will choose');
       return;
     }
+    if (titleTooShort) {
+      toast.error('That name is too short — leave it blank to have one written');
+      return;
+    }
 
     setStarting(true);
     try {
       const episodeId = await createEpisode(seriesId, {
+        ...(trimmedTitle === '' ? {} : { title: trimmedTitle }),
         ...(trimmedTopic === '' ? {} : { topic: trimmedTopic }),
         ...(notes.trim() === '' ? {} : { notes: notes.trim() }),
       });
@@ -62,13 +75,23 @@ export function EpisodeCreateDialog({
       if (episodeId) {
         toast.success('Recording started');
         onOpenChange(false);
+        setTitle('');
         setTopic('');
         setNotes('');
       }
     } finally {
       setStarting(false);
     }
-  }, [trimmedTopic, topicTooShort, notes, seriesId, createEpisode, onOpenChange]);
+  }, [
+    trimmedTitle,
+    titleTooShort,
+    trimmedTopic,
+    topicTooShort,
+    notes,
+    seriesId,
+    createEpisode,
+    onOpenChange,
+  ]);
 
   return (
     <Dialog
@@ -82,7 +105,7 @@ export function EpisodeCreateDialog({
         {
           label: starting ? 'Starting...' : 'Record it',
           onPress: handleStart,
-          disabled: starting || topicTooShort,
+          disabled: starting || topicTooShort || titleTooShort,
           shouldCloseOnPress: false,
         },
       ]}
@@ -115,9 +138,22 @@ export function EpisodeCreateDialog({
             />
           </View>
 
+          <View className="gap-1.5">
+            <Text className="text-sm font-medium text-foreground">Name (optional)</Text>
+            <Input
+              value={title}
+              onChangeText={setTitle}
+              placeholder="Leave blank and it is named once it is written"
+            />
+            <Text className="text-xs text-muted-foreground">
+              This is the name listeners see. Left blank, the script names the episode after what
+              it turned out to say.
+            </Text>
+          </View>
+
           <Text className="text-xs text-muted-foreground">
             Either way the script knows what every earlier episode covered, so it will not repeat
-            one — and it names the episode once it has written it.
+            one.
           </Text>
         </View>
       </ScrollView>

@@ -1,19 +1,45 @@
 -- oxy:deploy-phase=pre
--- The series decides what an episode covers, so a row may not know its subject
--- yet.
+-- The series decides what an episode covers, and the script names it — so a row
+-- may know neither yet.
 --
--- `pre`, and the direction is what settles it. This WIDENS the column: after it
--- runs, every value the old image writes is still legal, and the new image —
--- which inserts an episode with no topic and fills it in minutes later from the
--- script — is only legal after it. A `pre` migration is therefore the one
--- ordering that has no window where the running code and the schema disagree.
--- The opposite direction, restoring NOT NULL, would be `post` and would need
--- the nulls backfilled first.
+-- `pre`, and the DIRECTION is what settles it. Both statements WIDEN: after
+-- they run, every value the old image writes is still legal, and the new image
+-- — which inserts an episode with no subject and no name, and fills both in
+-- minutes later from the script — is only legal after them. A `pre` migration
+-- is therefore the one ordering with no window where the running code and the
+-- schema disagree. The opposite direction, restoring either NOT NULL, would be
+-- `post` and would need the nulls backfilled first.
 --
--- Nothing is read or destroyed, so there is no row count here and none was
--- needed: `DROP NOT NULL` leaves every existing value exactly as it is, and
--- `topic` keeps its writer. It is written by the request when the owner steers
--- an episode, and by `lib/show/show-pipeline.ts` the moment the script parses
--- when they did not — the same column, one more writer than it had.
+-- ## What is in these columns today, measured rather than assumed
+--
+-- Read from production on 2026-08-25 over an SSM port-forward, read-only, with
+-- positive controls in the same statement (`user_credits` 3, `conversations`
+-- 31, so the zeros below are zeros and not a query that read nothing):
+--
+--     show_series                 1
+--     show_episodes               3   (all `completed`, 0 failed)
+--     title IS NULL               0   ── as the constraint guaranteed
+--     topic IS NULL               0   ── likewise
+--     ingest_ticket IS NOT NULL   0   ── nothing in flight
+--
+-- Nothing is read, rewritten or destroyed here: `DROP NOT NULL` leaves all
+-- three rows exactly as they are. They keep their titles, and those titles are
+-- worth naming — all THREE are byte-identical, the same 119-character sentence,
+-- being the opening of the series' own 704-character brief truncated by the
+-- fallback the route used when no naming model would answer. They are published
+-- on Syra under those names and Alia does not rename a published episode, so
+-- they stay. This migration is what stops the fourth one joining them.
+--
+-- Both columns keep a writer. `title`: the request when the owner names an
+-- episode, `lib/show/show-pipeline.ts` from the finished script when they do
+-- not. `topic`: the request when the owner steers one, the same pipeline the
+-- moment the script parses when they do not.
+--
+-- One transient worth stating: an episode already QUEUED when this deploys
+-- carries an old-style title written from its topic, and the new pipeline reads
+-- a non-null title as "the owner chose this", so it keeps it. Zero rows are in
+-- that state today (see `ingest_ticket` above), and at most the three-per-owner
+-- concurrency cap ever can be.
 
+ALTER TABLE "show_episodes" ALTER COLUMN "title" DROP NOT NULL;--> statement-breakpoint
 ALTER TABLE "show_episodes" ALTER COLUMN "topic" DROP NOT NULL;

@@ -89,11 +89,12 @@ export interface ShowEpisode {
   seriesId: string;
   episodeNumber: number;
   /**
-   * `Episode {n}` until the script is written, then the name the script chose.
-   * The API reserves the Syra draft before any script exists, so a queued
-   * episode really is unnamed.
+   * `null` until something names it, which is the ordinary state of a queued
+   * episode: the API reserves the Syra draft before any script exists. An
+   * owner's own name is here from the start; otherwise the script writes one.
+   * Render it through `episodeDisplayTitle`, never raw.
    */
-  title: string;
+  title: string | null;
   /** `null` until the script settles on a subject, unless the owner named one. */
   topic?: string | null;
   notes?: string | null;
@@ -131,12 +132,11 @@ export interface ShowProgress {
   segmentIndex?: number;
   totalSegments?: number;
   /**
-   * The episode's name as it stands right now.
+   * The episode's name, once there is one.
    *
-   * Carried because it CHANGES mid-run: the API reserves the episode under
-   * `Episode {n}` and the script renames it, so without this the row shows a
-   * placeholder for the whole recording. Optional, so an event from an older
-   * API leaves the name alone rather than blanking it.
+   * Carried because it APPEARS mid-run: an episode nobody named has none until
+   * the script writes one, so without this the row shows the episode number for
+   * the whole recording. Absent means "no news", never "blank it".
    */
   title?: string;
 }
@@ -182,11 +182,14 @@ interface ShowStore {
   /**
    * Ask for another episode. Everything is optional, and usually nothing is
    * passed: the series' brief and the subjects earlier episodes used are what
-   * decide this one, server-side.
+   * decide this one, server-side, and the finished script names it.
+   *
+   * `title` and `topic` are OVERRIDES, not rival defaults — supplied, each is
+   * used as given; absent, each is decided.
    */
   createEpisode: (
     seriesId: string,
-    input?: { topic?: string; notes?: string },
+    input?: { title?: string; topic?: string; notes?: string },
   ) => Promise<string | null>;
   deleteEpisode: (seriesId: string, episodeId: string) => Promise<void>;
 
@@ -283,13 +286,14 @@ export const useShowStore = create<ShowStore>((set, get) => ({
        * message.
        */
       const res = await apiClient.post(API_ROUTES.shows.episodes.create(seriesId), input ?? {});
-      // `title` comes BACK from the server because nobody types one any more:
-      // it is `Episode {n}` until the script names the episode, and the row
-      // below would otherwise be blank until the next read.
+      // `title` comes BACK from the server rather than from `input`, because
+      // it is the ROW's own value: null for an episode nobody named, the
+      // owner's own words when they did. The renderer falls back to the
+      // episode number for the null.
       const { episodeId, episodeNumber, title } = res.data as {
         episodeId: string;
         episodeNumber: number;
-        title: string;
+        title: string | null;
       };
 
       // A placeholder, so the list shows the episode as queued immediately
@@ -419,6 +423,22 @@ export const useShowStore = create<ShowStore>((set, get) => ({
 
   clearError: () => set({ error: null }),
 }));
+
+/**
+ * What to call an episode nothing has named yet.
+ *
+ * A queued episode really has no name — the API stores `null` rather than a
+ * placeholder, so that an owner's own name and an absent one stay
+ * distinguishable — and every surface that shows an episode needs the same
+ * answer for it. The episode number is the one thing that is certainly true,
+ * and it is what Syra's own draft is reserved under.
+ */
+export function episodeDisplayTitle(episode: {
+  title: string | null;
+  episodeNumber: number;
+}): string {
+  return episode.title ?? `Episode ${episode.episodeNumber}`;
+}
 
 /**
  * One shared empty array, so a series with no episodes yet does not hand the
