@@ -1,5 +1,5 @@
 /**
- * An agent's name, handle and avatar — read from Oxy, never from Alia.
+ * An agent's name, handle and colour — read from Oxy, never from Alia.
  *
  * `agents` stores an `oxy_account_id` and nothing else about who the agent is.
  * Every response that renders an agent therefore has to resolve that account,
@@ -18,14 +18,15 @@
  * lookup decide whether a marketplace listing can be displayed at all, when the
  * listing itself — the tagline, the rating, the price — is stored right here.
  *
- * ## The avatar is resolved HERE, not by the client
+ * ## An agent has no avatar, and the colour is what replaced it
  *
- * Oxy stores an asset id. `getFileDownloadUrl` is the ecosystem's single
- * chokepoint for turning one into an address, and the API already resolved
- * agent avatars server-side, so the wire contract does not change shape: the
- * field is still a URL a client can put in an `<img>`. A value that already
- * carries a scheme is somebody else's address — an owner may have set one
- * directly on the account — and passes through untouched.
+ * Agent avatars were generated images stored as Oxy assets and resolved to a
+ * URL here. They are gone: an agent is drawn as a glyph tinted with its own
+ * colour, so what a client needs is `User.color` — a Bloom preset key Oxy
+ * already stores for every account — and not an address. The consequence is
+ * accepted and stated once: an agent renders with Oxy's placeholder anywhere
+ * Alia's own client does not reach, Mention included, and the colour is what
+ * lets those surfaces tint a placeholder without an image existing.
  */
 
 import type { Executor } from '../db/index.js';
@@ -44,8 +45,16 @@ export interface AgentIdentity {
   name: string | null;
   /** The Oxy username. Globally unique across the whole account graph. */
   handle: string | null;
-  /** An address, already resolved. Never a bare asset id. */
-  avatar: string | null;
+  /**
+   * A Bloom colour preset key — `"blue"`, `"lagoon"` — never a hex.
+   *
+   * Null far more often than the other two: an owner who never picked one, an
+   * Oxy that does not serve the field, and an account that failed to resolve
+   * all arrive here the same way, so a client's fallback is the NORMAL path
+   * rather than an edge case. `domain/agent-color.ts` says why this service
+   * proposes colours and validates none.
+   */
+  color: string | null;
   /**
    * The AUTHOR's display name — the person who created the agent, which is a
    * different account from the agent's own and a separate claim on the listing.
@@ -62,14 +71,7 @@ export interface AgentIdentity {
   authorName: string | null;
 }
 
-const UNRESOLVED: AgentIdentity = { name: null, handle: null, avatar: null, authorName: null };
-
-/** A stored asset id becomes an address; an address stays one. */
-function toAvatarUrl(stored: string | undefined): string | null {
-  if (stored === undefined || stored === '') return null;
-  if (/^[a-z][a-z0-9+.-]*:/i.test(stored)) return stored;
-  return oxyClient.getFileDownloadUrl(stored, 'thumb');
-}
+const UNRESOLVED: AgentIdentity = { name: null, handle: null, color: null, authorName: null };
 
 /**
  * Resolve many bot accounts in ONE round trip.
@@ -87,7 +89,7 @@ export async function resolveAgentIdentities(
     identities.set(id, {
       name: user.displayName,
       handle: user.username,
-      avatar: toAvatarUrl(user.avatar),
+      color: user.color ?? null,
       // Filled in by `attachAgentIdentities`, which is the only caller that
       // knows which author goes with which agent. A bare account id has no
       // author of its own.

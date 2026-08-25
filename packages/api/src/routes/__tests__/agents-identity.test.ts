@@ -32,7 +32,13 @@ const state = vi.hoisted(() => ({
   /** Every `getAccount` call, so "asked Oxy at all" is assertable. */
   accountLookups: [] as string[],
   /** What `POST /users/by-ids` resolves. Empty means Oxy resolved nothing. */
-  users: [] as { id: string; username: string; name: { displayName?: string }; avatar?: string }[],
+  users: [] as {
+    id: string;
+    username: string;
+    name: { displayName?: string };
+    avatar?: string;
+    color?: string;
+  }[],
   userId: 'oxy-caller',
   accessToken: 'token-abc' as string | undefined,
 }));
@@ -234,7 +240,7 @@ describe('an agent cannot be created without a bot account', () => {
    * nothing anywhere to say why — which is the failure `.strict()` exists to
    * turn into a 400 that names the field.
    */
-  it.each(['name', 'handle', 'avatar', 'authorName', 'creditBalance'])(
+  it.each(['name', 'handle', 'color', 'authorName', 'creditBalance'])(
     'refuses a body still carrying %s',
     async (field) => {
       const res = await post({ ...VALID_BODY, [field]: 'anything' });
@@ -350,12 +356,22 @@ describe('a created agent', () => {
     expect(input.authorOxyUserId).toBe('oxy-caller');
     expect(Object.keys(input)).not.toContain('name');
     expect(Object.keys(input)).not.toContain('handle');
-    expect(Object.keys(input)).not.toContain('avatar');
+    expect(Object.keys(input)).not.toContain('color');
   });
 
   it('answers with the identity read from Oxy, not from the row', async () => {
     state.users = [
-      { id: 'acct-bot', username: 'researcher', name: { displayName: 'The Researcher' }, avatar: 'asset-7' },
+      {
+        id: 'acct-bot',
+        username: 'researcher',
+        name: { displayName: 'The Researcher' },
+        // Still SET on the account, and deliberately so: this asserts Alia
+        // stops reading it rather than that Oxy stops storing one. An account
+        // that carries a picture from somewhere else must not resurface it as
+        // an agent's face.
+        avatar: 'asset-7',
+        color: 'lagoon',
+      },
     ];
 
     const res = await post(VALID_BODY);
@@ -363,7 +379,25 @@ describe('a created agent', () => {
 
     expect(agent.name).toBe('The Researcher');
     expect(agent.handle).toBe('researcher');
-    expect(agent.avatar).toBe('https://cloud.oxy.so/asset-7?variant=thumb');
+    expect(agent.color).toBe('lagoon');
+    expect(agent).not.toHaveProperty('avatar');
+  });
+
+  /**
+   * The colour is null far more often than the name is, and this is the case
+   * that says so: Oxy RESOLVED the account, it simply has no colour. A client
+   * draws its own fallback, which is why nothing here validates the value.
+   */
+  it('answers a null colour for an account that resolved without one', async () => {
+    state.users = [
+      { id: 'acct-bot', username: 'researcher', name: { displayName: 'The Researcher' } },
+    ];
+
+    const res = await post(VALID_BODY);
+    const agent = res.body.agent as Record<string, unknown>;
+
+    expect(agent.name).toBe('The Researcher');
+    expect(agent.color).toBeNull();
   });
 
   /**
@@ -381,7 +415,7 @@ describe('a created agent', () => {
     expect(res.status).toBe(201);
     expect(agent.name).toBeNull();
     expect(agent.handle).toBeNull();
-    expect(agent.avatar).toBeNull();
+    expect(agent.color).toBeNull();
     expect(agent.tagline).toBe('finds things out');
   });
 });
@@ -421,7 +455,7 @@ describe('a patch is gated by act_as, not by the author column', () => {
     expect(repository.updateAgent).not.toHaveBeenCalled();
   });
 
-  it.each(['name', 'avatar', 'oxyAccountId', 'creditBalance'])(
+  it.each(['name', 'color', 'oxyAccountId', 'creditBalance'])(
     'refuses a patch of %s, which is not Alia’s to write',
     async (field) => {
       const res = await patch({ [field]: 'anything' });

@@ -48,7 +48,7 @@ export interface MessageRow {
   readonly toolInvocations: unknown;
   readonly agentInfoId: string | null;
   readonly agentInfoName: string | null;
-  readonly agentInfoAvatar: string | null;
+  readonly agentInfoColor: string | null;
   readonly agentInfoHandle: string | null;
   readonly audioUrl: string | null;
   readonly seq: number | null;
@@ -88,9 +88,9 @@ export interface StoredMessage {
  * Project a row onto the wire shape, reassembling `agent_info`.
  *
  * The sub-document is reconstructed only when the row actually carries one.
- * `agent_info_id` is the discriminator: the Mongoose sub-schema had no optional
- * members except `avatar`, which it defaulted to `null`, so a row with an id has
- * the rest and a row without has none of it.
+ * `agent_info_id` is the discriminator: every other member is either a name
+ * this service wrote or `color`, which is null whenever the agent's Oxy account
+ * has none — so a row with an id has the rest and a row without has none of it.
  */
 export function toStoredMessage(row: MessageRow): StoredMessage {
   return {
@@ -107,7 +107,7 @@ export function toStoredMessage(row: MessageRow): StoredMessage {
           agentInfo: {
             id: row.agentInfoId,
             name: row.agentInfoName ?? '',
-            avatar: row.agentInfoAvatar,
+            color: row.agentInfoColor,
             handle: row.agentInfoHandle ?? '',
           },
         }),
@@ -141,7 +141,7 @@ function toInsert(message: NewMessage): typeof messages.$inferInsert {
     toolInvocations: message.toolInvocations ?? null,
     agentInfoId: message.agentInfo?.id ?? null,
     agentInfoName: message.agentInfo?.name ?? null,
-    agentInfoAvatar: message.agentInfo?.avatar ?? null,
+    agentInfoColor: message.agentInfo?.color ?? null,
     agentInfoHandle: message.agentInfo?.handle ?? null,
     seq: message.seq ?? null,
     ...(message.createdAt === undefined ? {} : { createdAt: message.createdAt }),

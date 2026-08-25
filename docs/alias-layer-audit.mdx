@@ -184,7 +184,7 @@ conclusion, as of its own measurement date: *"TWO TIERS HAVE NO ALIAS. `v1-tts` 
 
 The general rule behind that sentence outlives the count in it. **A capability tier is
 reached by what the caller wants done, not by naming a model** — `lib/image-generation.ts:70`,
-`lib/synthesize-speech.ts`, `routes/agents-avatar.ts:138`, `routes/canvas/execute.ts:271`
+`lib/synthesize-speech.ts`, `routes/canvas/execute.ts:271`
 and `routes/v1/voice.ts:320` all call `getModelMappingsForTier` directly — so such a tier
 has nothing for a caller to send and needs no `ALIA_MODELS` entry. More of them is the
 expected direction of travel, not an anomaly. The conflation is exactly what let one of them

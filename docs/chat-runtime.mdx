@@ -146,7 +146,7 @@ Standard OpenAI-style `chat.completion.chunk` events are emitted alongside them.
 | `alia.model_switch` | `lib/tool-pipeline.ts:122` | `eventVersion`, `model`, `modelName` |
 | `alia.reasoning` | `lib/chat/stream-runner.ts:164`, `:182` | `eventVersion`, `content` |
 | `alia.tool_result` | `lib/chat/stream-runner.ts:234`, `lib/chat/text-tool-fallback.ts:67` | `eventVersion`, `tool_call_id`, `name`, `output` |
-| `alia.agent` | `lib/chat/stream-runner.ts:258` | `eventVersion`, `agentId`, `agentName`, `agentHandle`, `agentAvatar`, `content` |
+| `alia.agent` | `lib/chat/stream-runner.ts:258` | `eventVersion`, `agentId`, `agentName`, `agentHandle`, `agentColor`, `content` |
 | `alia.agent_session` | `routes/v1/chat-completions.ts:164` | `eventVersion`, `sessionId`, `agentId`, `agentName` |
 | `alia.title` | `lib/chat/provider-loop.ts:276` | `eventVersion`, `title`, `conversationId` |
 | `alia.research_progress` | `lib/chat-modes/deep-research-handler.ts:47`, `:67` | `eventVersion`, `phase`, plus phase-specific fields |
