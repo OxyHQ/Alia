@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useStore } from "@/lib/stores/global-store";
 import { useChatConversation } from "@/lib/hooks/use-chat-conversation";
-import { useMarkConversationBreak, useSaveConversation } from "@/lib/hooks/use-conversations";
+import { useSaveConversation } from "@/lib/hooks/use-conversations";
 import { ChatPageContent } from "@/components/chat-page-content";
 import { UsageLimitDialog } from "@/components/usage-limit-dialog";
 import { UsageLimitError } from "@/lib/errors/usage-limit-error";
@@ -24,14 +24,6 @@ interface ConversationScreenProps {
    */
   agentName?: string;
   agentColor?: string | null;
-  /**
-   * Whether this thread never ends — `/a/:username` rather than `/c/:id`.
-   *
-   * It is what puts "start a new conversation" in the menu: a thread with no
-   * "new chat" of its own needs a way to say the subject changed, and an
-   * ordinary chat already has one in the sidebar.
-   */
-  isPermanentThread?: boolean;
   /** Open straight into voice, once. */
   startVoice?: boolean;
 }
@@ -50,7 +42,6 @@ export const ConversationScreen = ({
   agentId,
   agentName,
   agentColor,
-  isPermanentThread = false,
   startVoice = false,
 }: ConversationScreenProps) => {
   const activeSkillId = useStore((state) => state.activeSkillId);
@@ -77,7 +68,6 @@ export const ConversationScreen = ({
 
   const {
     messages,
-    breaks,
     isLoading,
     conversationLoading,
     error,
@@ -93,17 +83,6 @@ export const ConversationScreen = ({
   } = useChatConversation({ conversationId, reasoningEffort, selectedModel: selection.effectiveId ?? undefined, skillId: activeSkillId, agentId });
 
   const saveConversation = useSaveConversation();
-  const markBreak = useMarkConversationBreak();
-
-  /**
-   * Stable, and deliberately so: it reaches the memoized `ChatHeader`, which is
-   * re-rendered ~20x/s worth of chances to break that memo while an answer
-   * streams. Undefined where the thread is not permanent, which is also what
-   * keeps the menu item out of an ordinary chat.
-   */
-  const handleNewConversation = useCallback(() => {
-    markBreak.mutate(conversationId);
-  }, [markBreak, conversationId]);
 
   // Save voice transcripts when voice mode ends
   const handleVoiceDeactivate = useCallback(() => {
@@ -140,7 +119,6 @@ export const ConversationScreen = ({
       <>
         <ChatPageContent
           messages={messages}
-          breaks={breaks}
           conversationId={conversationId}
           scrollViewRef={scrollViewRef}
           isLoading={isLoading}
@@ -156,7 +134,6 @@ export const ConversationScreen = ({
           agentId={agentId}
           agentName={agentName}
           agentColor={agentColor}
-          onNewConversation={isPermanentThread ? handleNewConversation : undefined}
           onApprovePlan={approvePlan}
           onRejectPlan={rejectPlan}
         />
