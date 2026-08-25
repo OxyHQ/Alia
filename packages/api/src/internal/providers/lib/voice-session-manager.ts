@@ -27,6 +27,7 @@ import {
   reserveVoiceCredits,
   finalizeVoiceCredits,
   safeRefund,
+  UnpricedModelError,
   type CreditReservation,
 } from '../../../lib/credits-manager.js';
 import { providers } from './providers/index.js';
@@ -347,17 +348,40 @@ export class VoiceSessionManager {
       // Finalize primary credits
       const endTime = new Date();
       const actualMinutes = Math.max((endTime.getTime() - session.startTime.getTime()) / 60000, 0.01);
+  /**
+   * A finalize that could not price the session, given back rather than kept.
+   *
+   * This is the ONE class of finalize failure that provably moved no balance:
+   * `getCreditMultiplier` resolves before `_adjustReservation` touches a row,
+   * so the reservation is still whole and refunding it is exact. Every other
+   * failure may have landed a partial charge, so it is still only logged —
+   * refunding those would hand the credits back twice.
+   *
+   * Reachable the day an identifier a live session is holding stops being
+   * priced, which is what the alias layer's removal does. Before, that session
+   * silently billed at 1x; without this, it would silently keep the reservation.
+   */
       if (session.creditReservation) {
         try {
           await finalizeVoiceCredits(session.creditReservation, actualMinutes, session.aliaModelId, session.costPerMinute);
-        } catch (e) { log.providers.error({ err: e }, 'Error finalizing primary credits'); }
+        } catch (e) {
+          log.providers.error({ err: e }, 'Error finalizing primary credits');
+          if (e instanceof UnpricedModelError) {
+            await safeRefund(session.creditReservation, 'voice session ended on an unpriced model');
+          }
+        }
       }
 
       // Finalize cohost credits if active
       if (session.cohostCreditReservation) {
         try {
           await finalizeVoiceCredits(session.cohostCreditReservation, session.cohostMinutesElapsed || 0.01, session.aliaModelId, session.cohostCostPerMinute);
-        } catch (e) { log.providers.error({ err: e }, 'Error finalizing cohost credits'); }
+        } catch (e) {
+          log.providers.error({ err: e }, 'Error finalizing cohost credits');
+          if (e instanceof UnpricedModelError) {
+            await safeRefund(session.cohostCreditReservation, 'voice cohost ended on an unpriced model');
+          }
+        }
       }
 
       // Save final usage record
@@ -893,7 +917,13 @@ export class VoiceSessionManager {
           session.aliaModelId,
           session.cohostCostPerMinute
         );
-      } catch (e) { log.providers.error({ err: e }, 'Error finalizing cohost credits'); }
+      } catch (e) {
+        // Same discriminator as `closeSession`; see the comment there.
+        log.providers.error({ err: e }, 'Error finalizing cohost credits');
+        if (e instanceof UnpricedModelError) {
+          await safeRefund(session.cohostCreditReservation, 'voice cohost disabled on an unpriced model');
+        }
+      }
     }
 
     // Clear cohost timers

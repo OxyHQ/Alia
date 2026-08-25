@@ -149,7 +149,14 @@ export interface ModelSelectionResult {
   readonly withheld: readonly WithheldModel[];
 }
 
-/** A profile's facts, from the alias that carries them. */
+/**
+ * A profile's facts, from `presets.ts`.
+ *
+ * `alias` is still here and is still the alias that SERVES the profile: it is
+ * what `lib/catalogue.ts` resolves entitlement against, because `plans.modelIds`
+ * is keyed by alias. What it no longer is, is where the price and the category
+ * come from.
+ */
 interface ProfileFacts {
   readonly profileId: RoutingProfileId;
   readonly alias: string;
@@ -206,7 +213,7 @@ export function classifyModels(
   tierMappings: Readonly<Record<string, readonly ModelMapping[]>>,
   aliases: readonly AliaModel[],
 ): ModelSelectionResult {
-  const aliasById = new Map(aliases.map((alias) => [alias.id, alias] as const));
+  const servedAliases = new Set(aliases.map((alias) => alias.id));
   const admissions = new Map<string, Admission[]>();
   // Every identity the table carries, so a model admitted nowhere can still be
   // reported as withheld rather than silently vanishing.
@@ -216,10 +223,12 @@ export function classifyModels(
   for (const preset of ROUTING_PRESETS) {
     const aliasId = canonicalAliasFor(preset.id);
     if (aliasId === null) continue;
-    const alias = aliasById.get(aliasId);
     // A preset whose alias the runtime catalogue does not know is a profile
-    // pointing at nothing; it prices nothing and admits nothing.
-    if (alias === undefined) continue;
+    // pointing at nothing; it prices nothing and admits nothing. An EXISTENCE
+    // check now, not a read: the profile's own facts come from the preset, and
+    // the only thing the runtime catalogue still decides is whether the alias
+    // this profile is served under is being served at all.
+    if (!servedAliases.has(aliasId)) continue;
 
     const routes = Object.hasOwn(tierMappings, preset.tier) ? [...tierMappings[preset.tier]] : [];
     routes.sort((a, b) => a.priority - b.priority);
@@ -230,8 +239,8 @@ export function classifyModels(
       alias: aliasId,
       tier: preset.tier,
       offered: isProfileOffered(preset.id),
-      creditMultiplier: alias.creditMultiplier,
-      category: alias.category,
+      creditMultiplier: preset.creditMultiplier,
+      category: preset.category,
     };
 
     // The ceiling, from the route the profile takes when nothing has failed.
