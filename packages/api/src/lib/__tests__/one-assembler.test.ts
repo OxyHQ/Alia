@@ -298,16 +298,20 @@ function handBuiltToolArrays(): string[] {
   return [...new Set(found)].sort();
 }
 
-/** A hand-built tool ARRAY handed to a session, and why it is still there. */
-const ARRAY_TOOLS_ALLOWED: Readonly<Record<string, string>> = {
-  'packages/api/src/routes/v1/voice.ts':
-    'IT IS AN ASSEMBLER, and this line is a debt rather than a blessing. Six tools ' +
-    'written out by hand and handed to `voiceSessionManager.createSession`. Its ' +
-    'agent grants ARE enforced (#398), but by a SECOND COPY of the partition — ' +
-    'today the two agree, and nothing makes them keep agreeing. It collapses when ' +
-    'voice asks `ToolPipeline.forUser` for its set and converts to OpenAI format ' +
-    'on the way out; `lib/tool-converter.ts` already goes the other direction.',
-};
+/**
+ * A hand-built tool ARRAY handed to a session, and why it is still there.
+ *
+ * EMPTY, and it should stay that way. `routes/v1/voice.ts` was the one entry:
+ * it wrote six OpenAI descriptors out by hand, which decided what a session
+ * could reach — a permission the capability grants already owned. It now asks
+ * `ToolPipeline.forUser` and projects the result onto the surface a voice
+ * channel can carry, so authorisation is decided once and the projection can
+ * only narrow.
+ *
+ * An entry here is a claim that a second assembler exists and is tolerated for
+ * now. There is no such thing today.
+ */
+const ARRAY_TOOLS_ALLOWED: Readonly<Record<string, string>> = {};
 
 /** A hand-built tool set handed straight to a model, and why it is not an assembler. */
 const INLINE_TOOLS_ALLOWED: Readonly<Record<string, string>> = {
@@ -400,10 +404,21 @@ describe('nothing hands a model a tool set the assembler did not build', () => {
 
   it('passes a hand-built tool ARRAY only where the allow-list says, with the reason', () => {
     const arrays = handBuiltToolArrays();
-    // The floor. An AST walk that stopped matching produces an empty list,
-    // which satisfies "nothing unexpected" perfectly — so the one file that
-    // really does this is named, not counted.
-    expect(arrays).toContain('packages/api/src/routes/v1/voice.ts');
+    /**
+     * There is no floor to put here, and that is worth a sentence rather than
+     * a silence.
+     *
+     * This assertion used to name `routes/v1/voice.ts` as a known positive,
+     * because a floor is what tells an empty scan from a clean tree. Voice
+     * stopped hand-building its array, so the census legitimately answers `[]`
+     * — and a check pinned to a value that has since moved is a check that
+     * inverts silently.
+     *
+     * What replaces it is the PROBE below: it feeds the predicate the exact
+     * shape `voice.ts` had, and the defect and the false positives beside it,
+     * so "the walk still works" is asserted directly instead of through a file
+     * that is allowed to be fixed.
+     */
     const unexpected = arrays.filter((f) => ARRAY_TOOLS_ALLOWED[f] === undefined);
     expect(
       unexpected,

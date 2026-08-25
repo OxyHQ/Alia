@@ -199,6 +199,43 @@ describe('an agent reaches exactly what it was granted', () => {
     expect(asked.oxyService).toEqual([[]]);
   });
 
+  it('does not CALL a bulk source the caller declined', async () => {
+    /**
+     * `instancedSources` is a FETCH decision, and the difference from the case
+     * above is exactly the one that matters: a denied AGENT still reaches each
+     * source, which short-circuits on an empty selection; a caller that
+     * declined the family never reaches it at all.
+     *
+     * `routes/v1/voice.ts` is why it exists. Its projection discards connector
+     * tools whatever they are, so building them first is three network round
+     * trips on a path where somebody is waiting to speak — and a session start
+     * is not a place to spend them.
+     */
+    await namesFor([...EVERY_GRANT], { instancedSources: [] });
+
+    expect(asked.mcp).toEqual([]);
+    expect(asked.integration).toEqual([]);
+    expect(asked.oxyService).toEqual([]);
+  });
+
+  it('calls every bulk source when the caller declines none, which is the control', async () => {
+    // Without this, "was not called" and "the stub was never wired" are the
+    // same observation — and the grant here is EVERY family, so a source that
+    // stayed silent would be silent for a reason this file could not see.
+    await namesFor([...EVERY_GRANT]);
+
+    expect(asked.mcp).toHaveLength(1);
+    expect(asked.integration).toHaveLength(1);
+    expect(asked.oxyService).toHaveLength(1);
+  });
+
+  it('declining a family cannot WIDEN what a grant allows', async () => {
+    // It narrows and only narrows. An agent granted nothing, with every family
+    // declined, still gets exactly the ungranted tools — not more.
+    const names = await namesFor([], { instancedSources: [] });
+    expect(names).toEqual([...UNGRANTED_TOOLS].sort());
+  });
+
   it.each(FIXED_CAPABILITY_FAMILIES)('adds exactly the %s family and nothing else', async (family) => {
     const base = await namesFor([]);
     const granted = await namesFor([family]);

@@ -17,65 +17,39 @@ import { getDb } from '../../db/index.js';
 import { loadTurnAgent } from '../../lib/agent-account.js';
 import { agentPromptName } from '../../lib/agent-identity.js';
 import { buildArchetypeSystemPrompt } from '../../lib/agent/archetype-prompts.js';
-import {
-  FIXED_FAMILY_TOOLS,
-  GRANTS_EVERYTHING,
-  readCapabilityGrants,
-  UNGRANTED_TOOLS,
-  type CapabilityGrantSet,
-  type FixedCapabilityFamily,
-} from '../../domain/capability-grants.js';
+import { ToolPipeline } from '../../lib/tool-pipeline.js';
+import { convertToolSetToOpenAITools } from '../../lib/tool-converter.js';
 import type { Request, Response } from 'express';
-import type { OpenAITool } from '../../internal/providers/lib/types.js';
 
 /**
- * Which family each voice tool belongs to, DERIVED from the one vocabulary.
+ * What a VOICE session can CARRY, whatever the assembler granted.
  *
- * Inverted from `FIXED_FAMILY_TOOLS` rather than restated, so a tool that moves
- * family moves here too and a tool this route wires that belongs to NO family
- * is visible as a `undefined` lookup instead of quietly defaulting to allowed.
+ * ## This is a surface, not a permission, and the distinction is the point
+ *
+ * A voice channel has no screen. A tool whose output is something to render —
+ * `canvas`, `generateFile` — would be called by the model and its result seen
+ * by nobody. A tool that needs the composer, or a live container, or a browser,
+ * is not reachable from a phone call either. That is a physical property of the
+ * channel.
+ *
+ * It can only ever NARROW. Every name here has to have been produced by
+ * `ToolPipeline.forUser` to survive, and an agent's grants have already decided
+ * which of them it did produce — so nothing in this list can hand a session a
+ * tool its owner did not grant. That is what makes it a projection rather than
+ * the sixth assembler it replaced.
+ *
+ * The six names are exactly the six that were written out by hand before, which
+ * is how "the route everybody uses does not move" is a fact rather than a hope:
+ * `__tests__/voice-knows-the-agent.test.ts` enumerates them.
  */
-const FAMILY_OF: ReadonlyMap<string, FixedCapabilityFamily> = new Map(
-  Object.entries(FIXED_FAMILY_TOOLS).flatMap(([family, tools]) =>
-    tools.map((tool) => [tool, family as FixedCapabilityFamily] as const),
-  ),
-);
-
-/**
- * The voice tools this turn may reach.
- *
- * ## Why this exists at all, and why it is in the same change as the agent
- *
- * `voiceTools` is written by hand as an array of `OpenAITool` — a SIXTH tool
- * assembler that `lib/__tests__/one-assembler.test.ts` cannot see, because it
- * censuses `ToolSet` builders and this is not one.
- *
- * That was harmless while voice did not know about agents: the session was
- * ordinary Alia acting for the person, with the person's own tools, and nobody
- * needs permission to write their own memory or use their own Telegram.
- *
- * **Binding the agent is what would have made it a hole.** The moment the
- * session belongs to an agent, those six tools are the AGENT's — so an agent
- * without `messaging` could send Telegram by voice and one without `memory`
- * could rewrite its owner's memory, with deny-by-default bypassed on a path no
- * gate watches. Introducing that in the commit that gives an agent its identity
- * is the failure this function exists to prevent, which is why the two land
- * together.
- *
- * A tool is WITHHELD, never left in to fail when called: a model offered a tool
- * it may not use will call it, and the refusal it gets back is a worse answer
- * than never having been offered it.
- */
-function voiceToolsFor(tools: readonly OpenAITool[], grants: CapabilityGrantSet): OpenAITool[] {
-  return tools.filter((tool) => {
-    const name = tool.function.name;
-    if (UNGRANTED_TOOLS.includes(name)) return true;
-    const family = FAMILY_OF.get(name);
-    // A tool in no family is refused rather than allowed. The alternative makes
-    // a typo in a tool name into a permission.
-    return family === undefined ? false : grants.allows(family);
-  });
-}
+const VOICE_SURFACE: readonly string[] = [
+  'getCurrentDate',
+  'sendTelegramMessage',
+  'saveUserMemory',
+  'updateUserMemory',
+  'updateUserPreferences',
+  'updateUserContext',
+];
 
 const router = Router();
 
@@ -243,97 +217,49 @@ router.post('/token', async (req: Request, res: Response) => {
       modelName: voiceModel?.name,
     })}\n\n---\n\n${voiceInstructions}`;
 
-    // Voice-appropriate tools (executed server-side by VoiceSessionManager)
-    const voiceTools: OpenAITool[] = [
-      {
-        type: 'function',
-        function: {
-          name: 'getCurrentDate',
-          description: 'Get the current date, time, and day of the week',
-          parameters: { type: 'object', properties: {}, required: [] },
-        },
-      },
-      {
-        type: 'function',
-        function: {
-          name: 'sendTelegramMessage',
-          description: "Send a message to user's Telegram. Use ONLY when user explicitly requests (e.g., 'send me X on Telegram', 'remind me via Telegram').",
-          parameters: {
-            type: 'object',
-            properties: {
-              message: { type: 'string', description: 'Complete message to send to user on Telegram' },
-            },
-            required: ['message'],
-          },
-        },
-      },
-      {
-        type: 'function',
-        function: {
-          name: 'saveUserMemory',
-          description: 'Save NEW user information for future conversations. Use when user shares preferences, personal info, goals, or anything they want remembered. To change something already remembered — especially to rename it — use updateUserMemory instead.',
-          parameters: {
-            type: 'object',
-            properties: {
-              title: { type: 'string', description: 'Short, human-readable label (e.g. "Food", "Occupation", a person\'s name) — NOT a snake_case key' },
-              summary: { type: 'string', description: '1-2 sentence description of what to remember' },
-              type: { type: 'string', enum: ['profile', 'topic', 'person'], description: 'profile = a fact about the user themself; topic = a subject/interest/project; person = someone in the user\'s life' },
-              initiatedBy: { type: 'string', enum: ['user', 'assistant'], description: '"user" when the user explicitly asked you to remember this; "assistant" when you decided to capture it yourself' },
-            },
-            required: ['title', 'summary', 'type', 'initiatedBy'],
-          },
-        },
-      },
-      {
-        type: 'function',
-        function: {
-          name: 'updateUserMemory',
-          description: 'Change a memory that already exists: correct it, reword it, re-classify it, or rename its title. Use this — never saveUserMemory — whenever the user refers to something you already remember.',
-          parameters: {
-            type: 'object',
-            properties: {
-              currentTitle: { type: 'string', description: 'The title of the memory to change, exactly as it is stored today' },
-              title: { type: 'string', description: 'New title. Omit to keep the current one' },
-              summary: { type: 'string', description: 'New 1-2 sentence description. Omit to keep the current one' },
-              type: { type: 'string', enum: ['profile', 'topic', 'person'], description: 'New grouping. Omit to keep the current one' },
-            },
-            required: ['currentTitle'],
-          },
-        },
-      },
-      {
-        type: 'function',
-        function: {
-          name: 'updateUserPreferences',
-          description: 'Update user communication preferences: language, tone, response length, interests.',
-          parameters: {
-            type: 'object',
-            properties: {
-              language: { type: 'string', description: 'Preferred language as BCP 47 locale code (e.g., "en-US", "es-ES")' },
-              tone: { type: 'string', description: 'Preferred tone (formal, casual, technical, friendly)' },
-              responseLength: { type: 'string', enum: ['short', 'medium', 'long'], description: 'Preferred response length' },
-            },
-            required: [],
-          },
-        },
-      },
-      {
-        type: 'function',
-        function: {
-          name: 'updateUserContext',
-          description: 'Update user context: occupation, location, timezone.',
-          parameters: {
-            type: 'object',
-            properties: {
-              occupation: { type: 'string', description: 'User occupation/profession' },
-              location: { type: 'string', description: 'User location (city, country)' },
-              timezone: { type: 'string', description: 'User timezone' },
-            },
-            required: [],
-          },
-        },
-      },
-    ];
+    /**
+     * The tools this session may reach, from THE assembler.
+     *
+     * ## Authorisation and surface are different axes, and this is where they
+     * ## used to be confused
+     *
+     * Six descriptors used to be written out here by hand. That list was an
+     * ASSEMBLER: it decided what a session could reach, and once a session can
+     * belong to an agent, that decision is a permission — one the capability
+     * grants already own. Two copies of a partition agree until they do not,
+     * which is what `lib/__tests__/one-assembler.test.ts` exists to prevent.
+     *
+     * So AUTHORISATION comes from `ToolPipeline.forUser` and from nowhere else.
+     * What stays here is SURFACE: a voice channel has no screen, so it cannot
+     * carry a tool whose output is something to render. That is a physical
+     * property of the channel, not a permission, and {@link VOICE_SURFACE} can
+     * only ever narrow what the assembler already granted — it cannot add a
+     * name the assembler did not produce.
+     *
+     * `instancedSources: []` is a FETCH decision of the same kind: a connector's
+     * tools would be discarded by the projection anyway, and building them
+     * first is three network round trips on a path where somebody is waiting to
+     * speak.
+     */
+    const { tools: assembled } = await ToolPipeline.forUser({
+      userId,
+      accessToken: req.accessToken,
+      isDirectSession: true,
+      actsForPerson: true,
+      agentMode: false,
+      toolsEnabled: true,
+      // A voice session reaches no browser and renders no citation.
+      webSearch: false,
+      isLocalRuntime: false,
+      instancedSources: [],
+      agent,
+    });
+
+    const voiceTools = await convertToolSetToOpenAITools(
+      Object.fromEntries(
+        Object.entries(assembled).filter(([name]) => VOICE_SURFACE.includes(name)),
+      ),
+    );
 
     /**
      * The payer's balance row, immediately before the session reserves against
@@ -357,10 +283,7 @@ router.post('/token', async (req: Request, res: Response) => {
       model,
       instructions: voiceInstructions,
       voice,
-      tools: voiceToolsFor(
-        voiceTools,
-        agent ? readCapabilityGrants(agent.capabilityGrants) : GRANTS_EVERYTHING,
-      ),
+      tools: voiceTools,
       maxDuration: maxSessionDuration,
     });
 

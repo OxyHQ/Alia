@@ -166,6 +166,40 @@ describe('an ordinary voice session is untouched', () => {
     ]);
   });
 
+  it('narrows the assembler’s set to the voice surface, and that is measurable', async () => {
+    /**
+     * The control that makes the enumeration above mean something.
+     *
+     * `ToolPipeline.forUser` produces MORE than six for this context — all of
+     * WhatsApp, the four trigger tools, `canvas`, `generateFile`,
+     * `createAgent`. Measured: nineteen names before the projection. If the
+     * session carried exactly the six merely because the assembler happened to
+     * return six, the list above would be asserting the assembler rather than
+     * the projection, and a widened `VOICE_SURFACE` would go unnoticed.
+     *
+     * So this names things the ASSEMBLER GRANTED and the SURFACE refuses.
+     * `canvas` and `generateFile` are the sharpest: their output is something
+     * to render, and a phone call has nowhere to put it.
+     */
+    await token({ model: 'alia-v1-voice' });
+    const names = toolNames();
+
+    for (const withheld of [
+      'canvas',
+      'generateFile',
+      'createAgent',
+      'createTrigger',
+      'listTriggers',
+      'getWhatsAppChats',
+      'sendWhatsAppMessage',
+    ]) {
+      expect(names, `${withheld} reached a voice session`).not.toContain(withheld);
+    }
+    // And the surface did let its own six through, so this is a narrowing
+    // rather than an empty set.
+    expect(names).toHaveLength(6);
+  });
+
   it('says the MODEL name in the guard when there is no agent', async () => {
     // The other side of the same distinction, asserted on the sentence rather
     // than on the bare name for the reason the agent case gives.

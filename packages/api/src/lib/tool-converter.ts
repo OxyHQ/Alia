@@ -5,7 +5,7 @@
  * Handles provider-specific constraints (e.g., Google's function name requirements).
  */
 
-import { tool } from 'ai';
+import { asSchema, tool, type ToolSet } from 'ai';
 import { jsonSchemaToZod } from './tools/mcp-schema.js';
 
 /**
@@ -86,6 +86,60 @@ export function convertOpenAIToolsToToolSet(
   }
 
   return toolSet;
+}
+
+/**
+ * The OTHER direction: a `ToolSet` the assembler built, as OpenAI descriptors.
+ *
+ * Needed by any surface that speaks the OpenAI function format rather than the
+ * AI SDK's — `routes/v1/voice.ts` is the one, because a realtime voice session
+ * is configured with `tools: [{ type: 'function', function: … }]`.
+ *
+ * It exists so that surface can stop writing its tools out by hand. A
+ * hand-written list is an ASSEMBLER: it decides what a session may reach, and
+ * once a session can belong to an agent that decision is a permission the
+ * capability grants were supposed to own. Converting the assembler's output
+ * means the grants are applied once, where they are defined.
+ *
+ * ## The schema is the tool's own, resolved rather than reconstructed
+ *
+ * `asSchema(...).jsonSchema` is the AI SDK's own resolution of a tool's input
+ * schema — the same value it would send a provider — so what a voice session
+ * advertises cannot drift from what the tool actually accepts. Rebuilding the
+ * shape by hand is what the six descriptors in `voice.ts` were.
+ *
+ * `asSchema` rather than `zodSchema`, and the difference is load-bearing:
+ * `inputSchema` is a `FlexibleSchema`, so a tool built from a JSON Schema —
+ * every MCP and Oxy-service tool is — carries an already-resolved schema that
+ * `zodSchema` refuses. `asSchema` accepts both, which is what makes this work
+ * for a set the assembler built rather than only for hand-written tools.
+ *
+ * Async because that resolution is: `jsonSchema` is a promise on the SDK's
+ * schema object, and awaiting it once per session is cheaper than the round
+ * trips this replaces.
+ *
+ * A tool with no resolvable schema is emitted with an EMPTY object schema
+ * rather than dropped. A provider that receives no `parameters` treats the
+ * function as taking none, which is true of `getCurrentDate`; dropping it would
+ * silently shorten the set instead.
+ */
+export async function convertToolSetToOpenAITools(tools: ToolSet): Promise<OpenAITool[]> {
+  return Promise.all(
+    Object.entries(tools).map(async ([name, definition]) => {
+      const parameters = (await asSchema(definition.inputSchema).jsonSchema) as Record<
+        string,
+        unknown
+      >;
+      return {
+        type: 'function' as const,
+        function: {
+          name,
+          ...(definition.description === undefined ? {} : { description: definition.description }),
+          parameters,
+        },
+      };
+    }),
+  );
 }
 
 /**
