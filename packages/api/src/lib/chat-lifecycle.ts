@@ -150,7 +150,13 @@ export async function startParallelTitleGeneration(
     : Array.isArray(firstUserMsgRaw)
       ? (firstUserMsgRaw.find((p: { type: string; text?: string }) => p.type === 'text')?.text ?? '')
       : '';
-  if (!firstUserMsg) return null;
+  if (!firstUserMsg) {
+    // A turn whose only content part is an attachment reaches here. Nothing to
+    // title on is a legitimate outcome, but it is indistinguishable from a
+    // broken titler at the sidebar, which is the whole reason it is said aloud.
+    log.v1.warn({ conversationId }, 'Title generation skipped: the turn carries no user text');
+    return null;
+  }
 
   return generateTitle(firstUserMsg);
 }

@@ -295,7 +295,18 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
       // Start title generation in parallel for new conversations (runs during streaming)
       let titlePromise: Promise<string | null> | null = null;
       if (conversationId && typeof conversationId === 'string' && conversationId.trim() && req.user) {
-        titlePromise = startParallelTitleGeneration(req.user.id, conversationId, messages).catch(() => null);
+        /**
+         * The catch is what keeps a title failure from failing the TURN, and
+         * the log is what keeps it from being invisible. `() => null` was both
+         * at once: `generateTitle` swallows its own faults, so anything that
+         * reaches here is a fault of the two existence queries above it, and
+         * the whole feature could stop working against a sick database with
+         * nothing anywhere to say so.
+         */
+        titlePromise = startParallelTitleGeneration(req.user.id, conversationId, messages).catch((err: unknown) => {
+          log.v1.error({ err, conversationId }, 'Parallel title generation failed');
+          return null;
+        });
       }
 
       // Streaming request
