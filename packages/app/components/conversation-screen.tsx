@@ -5,6 +5,7 @@ import { useCreateConversation, useSaveConversation } from "@/lib/hooks/use-conv
 import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/hooks/query-keys";
 import { ChatPageContent } from "@/components/chat-page-content";
+import { useThreadHistory } from "@/lib/hooks/use-thread-history";
 import { UsageLimitDialog } from "@/components/usage-limit-dialog";
 import { UsageLimitError } from "@/lib/errors/usage-limit-error";
 import { useModelStore } from "@/lib/stores/model-store";
@@ -96,6 +97,14 @@ export const ConversationScreen = ({
     dismissSuggestedNewConversation,
   } = useChatConversation({ conversationId, reasoningEffort, selectedModel: selection.effectiveId ?? undefined, skillId: activeSkillId, agentId });
 
+  /**
+   * Everything said before this conversation, when this screen is a thread.
+   *
+   * `/c/:id` passes no handle and gets nothing: a chat in the sidebar is one
+   * conversation, and there is nothing behind it to page into.
+   */
+  const history = useThreadHistory(threadHandle, conversationId);
+
   const saveConversation = useSaveConversation();
   const createConversation = useCreateConversation();
   const queryClient = useQueryClient();
@@ -116,9 +125,15 @@ export const ConversationScreen = ({
     if (agentId === undefined) return;
     createConversation.mutate({ agentId }, {
       onSuccess: () => {
-        if (threadHandle !== undefined) {
-          queryClient.invalidateQueries({ queryKey: queryKeys.agents.thread(threadHandle) });
-        }
+        if (threadHandle === undefined) return;
+        queryClient.invalidateQueries({ queryKey: queryKeys.agents.thread(threadHandle) });
+        /**
+         * And the history with it. The stretch that was live becomes history
+         * the moment a new one is active, and the pages held were fetched
+         * before its last turns existed — kept, they would put the reader back
+         * at a version of the conversation they just finished having.
+         */
+        queryClient.invalidateQueries({ queryKey: queryKeys.agents.threadMessages(threadHandle) });
       },
     });
   }, [agentId, threadHandle, createConversation, queryClient, dismissSuggestedNewConversation]);
@@ -178,6 +193,10 @@ export const ConversationScreen = ({
           suggestedNewConversation={suggestedNewConversation}
           onAcceptNewConversation={handleAcceptNewConversation}
           onDismissNewConversation={dismissSuggestedNewConversation}
+          historyMessages={history.messages}
+          hasMoreHistory={history.hasMore}
+          isLoadingHistory={history.isLoadingMore}
+          onLoadHistory={history.loadMore}
         />
         <UsageLimitDialog error={usageLimitError} onDismiss={clearError} />
       </>

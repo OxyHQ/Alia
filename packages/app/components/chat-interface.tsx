@@ -45,6 +45,7 @@ import apiClient from "@/lib/api/client";
 import { useTranslation } from "@/lib/hooks/use-translation";
 import { NewConversationOffer } from "@/components/new-conversation-offer";
 import { daySeparators } from "@/lib/message-days";
+import { threadSeamIds, type ThreadMessage } from "@/lib/thread-history";
 
 const isWeb = Platform.OS === "web";
 
@@ -107,7 +108,30 @@ type ChatInterfaceProps = {
   suggestedNewConversation?: string | null;
   onAcceptNewConversation?: () => void;
   onDismissNewConversation?: () => void;
+  /**
+   * Everything said in this thread before the conversation on screen, oldest
+   * first. Empty on `/c/:id`, which is one conversation with nothing behind it.
+   */
+  historyMessages?: ThreadMessage[];
+  /** A page of history is on its way; the reader is at the top waiting for it. */
+  isLoadingHistory?: boolean;
+  /**
+   * How tall the history is, whenever that changes — the anchor that keeps the
+   * reader on the message they were reading while a page lands above them.
+   */
+  onHistoryHeight?: (height: number) => void;
+  /** The conversation being streamed into, which is what a seam is drawn against. */
+  activeConversationId?: string;
 };
+
+/**
+ * The history of a conversation that has none, as ONE array.
+ *
+ * A fresh `[]` per render would be a new dependency every time, which is what
+ * turns a memo on the message list into a memo that never holds — and this list
+ * re-renders per streamed token.
+ */
+const NO_HISTORY: ThreadMessage[] = [];
 
 /** True for Alia's own assistant messages (excludes delegated agents and voice cohosts). */
 function isAliaOwnedMessage(m: Message): boolean {
@@ -186,6 +210,24 @@ const ToolBullet = React.memo(function ToolBullet({ isRunning }: { isRunning: bo
  * memo that never holds — and this one is rendered inside a list that re-renders
  * per streamed token.
  */
+/**
+ * Where one conversation ended and the next began.
+ *
+ * A different line from the day one on purpose: a date is derived from when a
+ * message was written, while this is a fact about the thread — the model was
+ * given a fresh context here, and everything above is out of its sight. Drawing
+ * them the same way would suggest a break happened every midnight.
+ */
+const ConversationSeam = React.memo(function ConversationSeam({ text }: { text: string }) {
+  return (
+    <View className="flex-row items-center gap-3 py-6">
+      <View className="h-px flex-1 bg-border" />
+      <Text className="text-xs font-medium text-muted-foreground">{text}</Text>
+      <View className="h-px flex-1 bg-border" />
+    </View>
+  );
+});
+
 const DaySeparator = React.memo(function DaySeparator({ text }: { text: string }) {
   return (
     <View className="items-center py-4">
@@ -214,7 +256,7 @@ type MessageRowProps = {
   voiceAgentState?: 'idle' | 'listening' | 'thinking' | 'speaking';
   handleMarkLayout: (e: LayoutChangeEvent) => void;
   handleCopyMessage: (messageId: string, content: string) => void;
-  handleVote: (messageId: string, vote: 'up' | 'down') => void;
+  handleVote: (messageId: string, vote: 'up' | 'down', conversationId?: string) => void;
   readAloud: (id: string, text: string, chatId?: string, audioUrl?: string) => void;
   generateAudio: (messageId: string, prompt: string, conversationId?: string) => void;
   // Per-row audio-gen state: 'idle' unless this row is the active one (same
@@ -384,10 +426,10 @@ const MessageRow = React.memo(function MessageRow({
                     <Copy size={14} className="text-muted-foreground" />
                   )}
                 </Pressable>
-                <Pressable key="thumbs-up" className="p-1.5 rounded-lg hover:bg-muted active:bg-muted" onPress={() => handleVote(m.id, 'up')}>
+                <Pressable key="thumbs-up" className="p-1.5 rounded-lg hover:bg-muted active:bg-muted" onPress={() => handleVote(m.id, 'up', chatId?.id)}>
                   <ThumbsUp size={14} className={myVote === 'up' ? "text-primary" : "text-muted-foreground"} />
                 </Pressable>
-                <Pressable key="thumbs-down" className="p-1.5 rounded-lg hover:bg-muted active:bg-muted" onPress={() => handleVote(m.id, 'down')}>
+                <Pressable key="thumbs-down" className="p-1.5 rounded-lg hover:bg-muted active:bg-muted" onPress={() => handleVote(m.id, 'down', chatId?.id)}>
                   <ThumbsDown size={14} className={myVote === 'down' ? "text-primary" : "text-muted-foreground"} />
                 </Pressable>
               </View>
@@ -409,11 +451,11 @@ const MessageRow = React.memo(function MessageRow({
                 <DropdownMenu.ItemIcon ios={{ name: "doc.on.doc" }} />
                 <DropdownMenu.ItemTitle>Copy</DropdownMenu.ItemTitle>
               </DropdownMenu.Item>
-              <DropdownMenu.Item key="thumbs-up" onSelect={() => handleVote(m.id, 'up')}>
+              <DropdownMenu.Item key="thumbs-up" onSelect={() => handleVote(m.id, 'up', chatId?.id)}>
                 <DropdownMenu.ItemIcon ios={{ name: "hand.thumbsup" }} />
                 <DropdownMenu.ItemTitle>Like</DropdownMenu.ItemTitle>
               </DropdownMenu.Item>
-              <DropdownMenu.Item key="thumbs-down" onSelect={() => handleVote(m.id, 'down')}>
+              <DropdownMenu.Item key="thumbs-down" onSelect={() => handleVote(m.id, 'down', chatId?.id)}>
                 <DropdownMenu.ItemIcon ios={{ name: "hand.thumbsdown" }} />
                 <DropdownMenu.ItemTitle>Dislike</DropdownMenu.ItemTitle>
               </DropdownMenu.Item>
@@ -462,13 +504,20 @@ const MessageRow = React.memo(function MessageRow({
                       <Copy size={14} className="text-muted-foreground" />
                     )}
                   </Pressable>
-                  <Pressable
-                    key="edit"
-                    className="p-1.5 rounded-lg hover:bg-muted active:bg-muted"
-                    onPress={() => onStartEdit?.(m.id, messageText)}
-                  >
-                    <Pencil size={14} className="text-muted-foreground" />
-                  </Pressable>
+                  {/* Absent on a message from an earlier conversation. Editing
+                      truncates the live thread at that message and re-sends —
+                      and a message this screen is not streaming is not in that
+                      list, so the truncation finds nothing and the "edit"
+                      silently becomes a brand-new turn. */}
+                  {onStartEdit === undefined ? null : (
+                    <Pressable
+                      key="edit"
+                      className="p-1.5 rounded-lg hover:bg-muted active:bg-muted"
+                      onPress={() => onStartEdit(m.id, messageText)}
+                    >
+                      <Pencil size={14} className="text-muted-foreground" />
+                    </Pressable>
+                  )}
                 </View>
               )}
             </View>
@@ -480,10 +529,12 @@ const MessageRow = React.memo(function MessageRow({
                 <DropdownMenu.ItemIcon ios={{ name: "doc.on.doc" }} />
                 <DropdownMenu.ItemTitle>Copy</DropdownMenu.ItemTitle>
               </DropdownMenu.Item>
-              <DropdownMenu.Item key="edit" onSelect={() => onStartEdit?.(m.id, messageText)}>
-                <DropdownMenu.ItemIcon ios={{ name: "pencil" }} />
-                <DropdownMenu.ItemTitle>Edit</DropdownMenu.ItemTitle>
-              </DropdownMenu.Item>
+              {onStartEdit === undefined ? null : (
+                <DropdownMenu.Item key="edit" onSelect={() => onStartEdit(m.id, messageText)}>
+                  <DropdownMenu.ItemIcon ios={{ name: "pencil" }} />
+                  <DropdownMenu.ItemTitle>Edit</DropdownMenu.ItemTitle>
+                </DropdownMenu.Item>
+              )}
             </DropdownMenu.Content>
             )}
             </DropdownMenu.Root>
@@ -521,7 +572,7 @@ const MessageRow = React.memo(function MessageRow({
 
 const imageThumbStyle = { width: 120, height: 120 };
 
-export const ChatInterface = React.memo(function ChatInterface({ messages, scrollViewRef, isLoading, conversationLoading, onStartEdit, onCopyMessage, bottomPadding = 160, isVoiceActive = false, voiceAgentState, onScroll, onContentSizeChange, agentActivity, agentSessionId, onApprovePlan, onRejectPlan, suggestedNewConversation, onAcceptNewConversation, onDismissNewConversation }: ChatInterfaceProps) {
+export const ChatInterface = React.memo(function ChatInterface({ messages, scrollViewRef, isLoading, conversationLoading, onStartEdit, onCopyMessage, bottomPadding = 160, isVoiceActive = false, voiceAgentState, onScroll, onContentSizeChange, agentActivity, agentSessionId, onApprovePlan, onRejectPlan, suggestedNewConversation, onAcceptNewConversation, onDismissNewConversation, historyMessages, isLoadingHistory = false, onHistoryHeight, activeConversationId }: ChatInterfaceProps) {
     const { t, locale } = useTranslation();
     const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
     const [votedMessages, setVotedMessages] = useState<Record<string, 'up' | 'down'>>({});
@@ -542,7 +593,53 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
     // ── Flying AliaMark ──
     const markY = useSharedValue(0);
 
-    const filteredMessages = useMemo(() => messages.filter(m => m != null && m.role), [messages]);
+    const liveMessages = useMemo(() => messages.filter(m => m != null && m.role), [messages]);
+    const history = historyMessages ?? NO_HISTORY;
+    /**
+     * Everything on screen, in reading order: the thread's history first, the
+     * conversation being streamed into after it.
+     *
+     * Every position below — the separators, the flying mark, which row is
+     * last — is an index into THIS, not into the live messages, which is why it
+     * is built once here rather than concatenated at each use.
+     */
+    const filteredMessages = useMemo(
+      () => (history.length === 0 ? liveMessages : [...history, ...liveMessages]),
+      [history, liveMessages],
+    );
+
+    /**
+     * The conversation each history message belongs to, as the id a row's own
+     * actions address.
+     *
+     * A vote goes to `/conversations/:id/messages/:id/vote` and audio is cached
+     * against a conversation, and both used to take the id of the stretch on
+     * screen — right for a live message and wrong for every history one, which
+     * belongs to a conversation that ended. It would have written to a
+     * conversation that does not contain the message, and failed quietly.
+     *
+     * One entry per conversation rather than per message: these are props of a
+     * memoized row, so a fresh object per row would re-render every one of them
+     * on every streamed token.
+     */
+    const historyChatIds = useMemo(() => {
+      const byConversation = new Map<string, ChatIdState>();
+      for (const message of history) {
+        if (byConversation.has(message.conversationId)) continue;
+        byConversation.set(message.conversationId, { id: message.conversationId, from: 'url' });
+      }
+      return byConversation;
+    }, [history]);
+
+    /**
+     * Which messages begin a new conversation, deduced from the data rather
+     * than from how long the gap was. Empty on `/c/:id`, which is one
+     * conversation and therefore has no seams.
+     */
+    const seamIds = useMemo(
+      () => threadSeamIds(history, liveMessages, activeConversationId ?? ''),
+      [history, liveMessages, activeConversationId],
+    );
 
     /**
      * Where the thread changes day, as the finished line, keyed by the message
@@ -622,7 +719,16 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
       onCopyMessage?.(content);
     }, [onCopyMessage, t]);
 
-    const handleVote = useCallback((messageId: string, vote: 'up' | 'down') => {
+    /**
+     * `conversationId` comes from the ROW, not from the screen.
+     *
+     * The vote is addressed to the conversation the message is in, and a thread
+     * shows several: taking the id of the stretch on screen would send an old
+     * message's vote to a conversation that does not contain it, where it can
+     * only fail — and it fails silently, because the only report is a toast on
+     * success.
+     */
+    const handleVote = useCallback((messageId: string, vote: 'up' | 'down', conversationId?: string) => {
       if (voteInFlightRef.current.has(messageId)) return;
       let newVote: 'up' | 'down' | null = null;
       setVotedMessages(prev => {
@@ -631,9 +737,9 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
         const { [messageId]: _, ...rest } = prev;
         return rest;
       });
-      if (!chatId?.id) return;
+      if (conversationId === undefined) return;
       voteInFlightRef.current.add(messageId);
-      apiClient.patch(`/conversations/${chatId.id}/messages/${messageId}/vote`, { vote: newVote })
+      apiClient.patch(`/conversations/${conversationId}/messages/${messageId}/vote`, { vote: newVote })
         .then(() => toast.success(t('chat.thanksFeedback')))
         .catch(() => {
           setVotedMessages(prev => {
@@ -642,17 +748,80 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
           });
         })
         .finally(() => voteInFlightRef.current.delete(messageId));
-    }, [chatId, t]);
+    }, [t]);
 
     const containerClassName = cn(
       "max-w-3xl mx-auto w-full",
-      messages.length === 0 && "flex-1 justify-center"
+      filteredMessages.length === 0 && "flex-1 justify-center"
     );
 
     const scrollContentStyle = useMemo(
       () => ({ flexGrow: 1, paddingTop: 60, paddingBottom: bottomPadding }),
       [bottomPadding]
     );
+
+    /**
+     * How tall the history is, reported whenever it changes.
+     *
+     * The height rather than a position: what the anchor needs is how much
+     * content was inserted above the reader, and only the history grows that
+     * way — a streamed answer grows the bottom.
+     */
+    const handleHistoryLayout = useCallback((e: LayoutChangeEvent) => {
+      onHistoryHeight?.(e.nativeEvent.layout.height);
+    }, [onHistoryHeight]);
+
+    /**
+     * One message, wherever it sits in the whole of what is shown.
+     *
+     * `index` is a position in `filteredMessages` — history and live together —
+     * because that is what the flying mark, the day separators and "is this the
+     * last one" are all measured in. The two lists are rendered separately only
+     * so the history can be measured as a block.
+     */
+    const renderMessage = (m: Message, index: number) => {
+      const separator = separatorsByMessage.get(m.id);
+      const fromHistory = index < history.length;
+
+      return (
+        <React.Fragment key={m.id || `msg-${index}`}>
+          {separator === undefined ? null : (
+            <DaySeparator text={separator} />
+          )}
+          {!seamIds.has(m.id) ? null : (
+            <ConversationSeam text={t('chat.newStretch')} />
+          )}
+          <MessageRow
+            m={m}
+            index={index}
+            // Only a message that arrived since the last render animates in,
+            // and none of the history ever did: it is older than everything on
+            // screen by definition, and the offset is what keeps a page landing
+            // above from animating the whole conversation.
+            isNewMessage={index >= history.length + prevMessageCountRef.current}
+            isAliaMessage={isAliaOwnedMessage(m)}
+            isLastAlia={index === lastAliaIndex}
+            isLoading={isLoading}
+            isLastMessage={index === filteredMessages.length - 1}
+            isCopied={copiedMessageId === m.id}
+            myVote={votedMessages[m.id] ?? null}
+            ttsState={ttsActiveMessageId === m.id ? ttsPlaybackState : 'idle'}
+            chatId={fromHistory ? historyChatIds.get(history[index].conversationId) ?? chatId : chatId}
+            voiceAgentState={voiceAgentState}
+            handleMarkLayout={handleMarkLayout}
+            handleCopyMessage={handleCopyMessage}
+            handleVote={handleVote}
+            readAloud={readAloud}
+            generateAudio={generateAudio}
+            audioGenRowState={audioGenActiveMessageId === m.id ? audioGenState : 'idle'}
+            openThoughtPanel={openThoughtPanel}
+            onStartEdit={fromHistory ? undefined : onStartEdit}
+            onApprovePlan={onApprovePlan}
+            onRejectPlan={onRejectPlan}
+          />
+        </React.Fragment>
+      );
+    };
 
     return (
       <KeyboardAwareScrollView
@@ -668,7 +837,7 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
         onContentSizeChange={onContentSizeChange}
       >
         <View className={containerClassName}>
-          {!messages.length && (
+          {!filteredMessages.length && (
             conversationLoading ? (
               <View className="gap-5 py-4">
                 <View className="items-end">
@@ -700,43 +869,28 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
               </Animated.View>
             )}
 
-            {filteredMessages.map((m, index) => {
-              const isAliaMessage = isAliaOwnedMessage(m);
-              const isNewMessage = index >= prevMessageCountRef.current;
-              const separator = separatorsByMessage.get(m.id);
-
-              return (
-                <React.Fragment key={m.id || `msg-${index}`}>
-                {separator === undefined ? null : (
-                  <DaySeparator text={separator} />
+            {/* The history, MEASURED as one block. Its height is what the scroll
+                anchor is restored against, and a block is what react-native-web
+                will report a change for — a marker between the two lists never
+                changes size, so its move goes unobserved and the reader is left
+                looking at the wrong message. */}
+            {history.length === 0 && !isLoadingHistory ? null : (
+              <View onLayout={handleHistoryLayout}>
+                {/* Inside the measured block on purpose: it appears when a page
+                    is asked for and vanishes when it lands, and both of those
+                    are height changes the anchor has to account for. Left
+                    outside, its arrival and departure would displace the reader
+                    by its own height, twice, with nothing to correct it. */}
+                {!isLoadingHistory ? null : (
+                  <View className="items-center py-4">
+                    <Text className="text-xs text-muted-foreground">{t('chat.loadingHistory')}</Text>
+                  </View>
                 )}
-                <MessageRow
-                  m={m}
-                  index={index}
-                  isNewMessage={isNewMessage}
-                  isAliaMessage={isAliaMessage}
-                  isLastAlia={index === lastAliaIndex}
-                  isLoading={isLoading}
-                  isLastMessage={index === filteredMessages.length - 1}
-                  isCopied={copiedMessageId === m.id}
-                  myVote={votedMessages[m.id] ?? null}
-                  ttsState={ttsActiveMessageId === m.id ? ttsPlaybackState : 'idle'}
-                  chatId={chatId}
-                  voiceAgentState={voiceAgentState}
-                  handleMarkLayout={handleMarkLayout}
-                  handleCopyMessage={handleCopyMessage}
-                  handleVote={handleVote}
-                  readAloud={readAloud}
-                  generateAudio={generateAudio}
-                  audioGenRowState={audioGenActiveMessageId === m.id ? audioGenState : 'idle'}
-                  openThoughtPanel={openThoughtPanel}
-                  onStartEdit={onStartEdit}
-                  onApprovePlan={onApprovePlan}
-                  onRejectPlan={onRejectPlan}
-                />
-                </React.Fragment>
-              );
-            })}
+                {history.map((m, index) => renderMessage(m, index))}
+              </View>
+            )}
+
+            {liveMessages.map((m, index) => renderMessage(m, history.length + index))}
           </View>
 
           {/* Agent execution — in-progress card or completed result card */}

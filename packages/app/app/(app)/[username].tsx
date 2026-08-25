@@ -145,6 +145,13 @@ const AgentThreadPage = () => {
           agentId={thread.agent._id}
           agentName={headerName}
           agentColor={thread.agent.color}
+          /**
+           * The handle is what makes this screen a THREAD rather than one
+           * conversation: it is what the history is paged from, and what is
+           * re-read when a new stretch begins. Without it the screen shows the
+           * active conversation and nothing behind it.
+           */
+          threadHandle={handle}
         />
       </View>
     </BloomColorScope>
