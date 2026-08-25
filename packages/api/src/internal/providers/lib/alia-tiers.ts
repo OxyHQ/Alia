@@ -35,6 +35,7 @@ export const ALIA_TIERS = [
   'v1-vision',
   'v1-audio',
   'v1-tts',
+  'v1-sfx',
   'v1-image',
   'v1-multimodal',
   'v1-pro',

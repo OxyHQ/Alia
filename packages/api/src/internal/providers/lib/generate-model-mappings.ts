@@ -197,6 +197,31 @@ export const GENERATED_TIER_MAPPINGS: Record<AliaTier, ModelMapping[]> = {
     // other request this chain resolves exactly as it did before it existed.
     createMapping('elevenlabs', 'elevenlabs', 'eleven-v3', 'eleven_v3', 6, 97),
   ],
+  /**
+   * Sound EFFECTS — the non-speech audio a show's script asks for.
+   *
+   * A tier rather than a hardcoded call, and that is the whole fix. The show
+   * pipeline named `digitalocean` / `fal-ai/stable-audio-25/text-to-audio`
+   * inline as its ONLY route, so the chain was exhausted on the first attempt
+   * and every sound cue in every episode was lost. MEASURED in production on
+   * 2026-08-24 and again on 2026-08-25: three `no_credential` failures per
+   * episode, `provider_keys` holds no `digitalocean` row at all, and the
+   * episodes published without a single effect.
+   *
+   * ElevenLabs leads for the same reason it leads `v1-tts` — its key is a free
+   * monthly quota and `key-manager.ts` prefers a free key — and because it is
+   * the only provider in this chain that production holds a credential for.
+   * MEASURED 2026-08-25 with that key: `POST /v1/sound-generation` answers 200
+   * `audio/mpeg`, 81 kB, in 2.7 s.
+   *
+   * DigitalOcean stays, second. It serves nothing today, and a provider with no
+   * key is refused before a request leaves the process, so it costs one entry
+   * and starts serving the day a key arrives.
+   */
+  'v1-sfx': [
+    createMapping('elevenlabs', 'elevenlabs', 'eleven-text-to-sound-v2', 'eleven_text_to_sound_v2', 1, 92),
+    createMapping('digitalocean', 'stability', 'stable-audio-25', 'fal-ai/stable-audio-25/text-to-audio', 2, 85),
+  ],
   'v1-image': [
     createMapping('openai', 'openai', 'dall-e-3', 'dall-e-3', 1, 92),
     createMapping('digitalocean', 'openai', 'gpt-image-1', 'openai-gpt-image-1', 2, 90),

@@ -267,6 +267,13 @@
       "when": 1787626674695,
       "tag": "0037_image_tier_is_a_real_tier",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1787627853129,
+      "tag": "0038_sound_effects_get_a_tier",
+      "breakpoints": true
     }
   ]
 }
