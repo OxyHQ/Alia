@@ -18,6 +18,7 @@ import { PromptInput } from "@/components/ui/prompt-input/prompt-input";
 import type { Attachment } from "@/components/ui/prompt-input/context";
 import { ScrollButton } from "@/components/ui/scroll-button";
 import { ChatInterface } from "@/components/chat-interface";
+import { useScrollToBottom } from "@/lib/hooks/use-scroll-to-bottom";
 import { ChatHeader } from "@/components/chat-header";
 import { useAuth } from "@oxyhq/services";
 import type { Message } from "@/types/chat";
@@ -227,12 +228,10 @@ export const ChatPageContent = ({
   const insets = useSafeAreaInsets();
 
   const [bottomBarHeight, setBottomBarHeight] = useState(160);
-  const [isAtBottom, setIsAtBottom] = useState(true);
   const isMainScreen = messages.length === 0;
 
-  const handleScrollToBottom = useCallback(() => {
-    scrollViewRef.current?.scrollToEnd({ animated: true });
-  }, [scrollViewRef]);
+  const { isAtBottom, scrollToBottom, onScroll, onContentSizeChange } =
+    useScrollToBottom(scrollViewRef);
 
   useEffect(() => {
     useStore.getState().setGhostMode(false);
@@ -487,7 +486,8 @@ export const ChatPageContent = ({
           bottomPadding={bottomBarHeight}
           isVoiceActive={isVoiceActive}
           voiceAgentState={voice?.agentState}
-          onAtBottomChange={setIsAtBottom}
+          onScroll={onScroll}
+          onContentSizeChange={onContentSizeChange}
           agentActivity={agentActivity}
           agentSessionId={agentSessionId}
           onApprovePlan={onApprovePlan}
@@ -563,7 +563,7 @@ export const ChatPageContent = ({
                     <View style={{ position: "absolute", top: -48, right: 0, zIndex: -1 }}>
                       <ScrollButton
                         isAtBottom={isAtBottom}
-                        onScrollToBottom={handleScrollToBottom}
+                        onScrollToBottom={scrollToBottom}
                       />
                     </View>
                   )}
