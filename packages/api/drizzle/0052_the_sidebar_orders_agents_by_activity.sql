@@ -1,0 +1,41 @@
+-- oxy:deploy-phase=post
+-- The sidebar's agent rows are ordered by the thread, so the index that serves
+-- the thread gains the column that orders it.
+--
+-- `listAgentsByAuthor` used to order by `agents.created_at` alone and never
+-- looked at a conversation. It now groups the owner's own conversations by
+-- `agent_id` and takes `max(updated_at)` — the very value the row already
+-- displays as `lastMessageAt` — so the agent you last spoke to comes first.
+-- `latestMessagePerAgent` reads the same group with `DISTINCT ON`.
+--
+-- Both want `(oxy_user_id, agent_id, updated_at DESC)`. The pair the old index
+-- carried is a PREFIX of that triple, so the new one answers every read the old
+-- one did and there is no reason to keep two: a second index on the same
+-- leading columns would only cost every write to `conversations`, which is
+-- every message anyone sends.
+--
+-- ## What the third column is worth, measured
+--
+-- Against a database built to production's schema and seeded with 60k
+-- conversations, of which one owner holds 20.5k:
+--
+--   (oxy_user_id, agent_id)              Bitmap Heap Scan  285 buffers  5.4 ms
+--   (oxy_user_id, agent_id, updated_at)  Index Only Scan   105 buffers  1.8 ms
+--                                        Heap Fetches: 0
+--
+-- The pair alone already avoids a sequential scan — that is not what this buys.
+-- What it buys is not reading the TABLE: the owner's whole conversation history
+-- no longer passes through shared buffers on every load of the sidebar. At a
+-- few hundred conversations the two plans are indistinguishable, so the number
+-- worth quoting is the one from an account heavy enough for it to matter.
+--
+-- ## Why `post` on something that is not destructive to data
+--
+-- It contains a `DROP INDEX`, which is the marker's rule. It is also the safe
+-- order for the rollout: before this runs, the new query is served by the old
+-- pair plus a sort; after it, by the triple alone. At no point is there no
+-- index — which is exactly what marking it `pre` and dropping the old one
+-- ahead of the new image would risk getting wrong.
+
+DROP INDEX "conversations_oxy_user_agent_id_idx";--> statement-breakpoint
+CREATE INDEX "conversations_oxy_user_agent_updated_at_idx" ON "conversations" USING btree ("oxy_user_id","agent_id","updated_at" DESC NULLS LAST);

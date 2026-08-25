@@ -62,11 +62,12 @@
  * parent patch and the child replace are one logical write sharing one handle.
  */
 
-import { and, asc, desc, eq, inArray, sql, type SQL } from 'drizzle-orm';
+import { and, asc, desc, eq, getTableColumns, inArray, max, sql, type SQL } from 'drizzle-orm';
 import { sqlColumnName } from '@oxyhq/db';
 import type { PgColumn } from 'drizzle-orm/pg-core';
 import type { ApiDatabase, Executor } from '../index';
 import { agentKnowledge, agents, agentSkills } from '../schema/agents';
+import { conversations } from '../schema/chat';
 import { libraryFiles } from '../schema/library';
 import { skills } from '../schema/agents-support';
 import type { AgentAccess, AgentArchetype, AgentStatus } from '../../domain/agent';
@@ -313,15 +314,70 @@ export async function findDesignatedAutonomyAgent(
   return row ? toAgentRecord(row) : null;
 }
 
+/**
+ * This owner's agents, the one most recently spoken to first.
+ *
+ * ## The order is the SIDEBAR's order, and it is one rule
+ *
+ * Those rows read as a list of chats, so the agent you were just talking to
+ * belongs at the top. The rule, stated once here and reproduced optimistically
+ * by `packages/app/lib/hooks/use-agent-row-preview.ts` while a turn is still in
+ * flight:
+ *
+ *   the newest thing said in YOUR thread with the agent, newest first;
+ *   an agent nobody has spoken to yet falls back to when it was made.
+ *
+ * `max(updated_at)` over the owner's own conversations with the agent is the
+ * SAME value `latestMessagePerAgent` serves the row as `lastMessageAt` — both
+ * are the newest member of the `(oxy_user_id, agent_id)` group — so the time a
+ * row displays and the place it sits cannot tell different stories.
+ *
+ * ## `NULLS LAST` is the entire never-spoken-to case
+ *
+ * Postgres sorts NULLs FIRST in a `DESC` order. Left implicit, an agent created
+ * a moment ago — no thread, so no `max` — would rank ABOVE every conversation
+ * you have ever had, which is the exact opposite of what its absence means. The
+ * asymmetry is invisible in an `ASC` order, where NULLs land last by default,
+ * and that is what makes it worth spelling out: the same three words are
+ * redundant one way round and load-bearing the other.
+ *
+ * `id` breaks a `created_at` tie, so two agents made in the same millisecond
+ * cannot swap places between two loads of the same list.
+ *
+ * ## The owner is also the READER
+ *
+ * `GET /agents/me` is the only caller and passes `req.user.id` for both. A
+ * thread belongs to the person reading it, so the join is scoped to the same
+ * account on both sides; ordering an owner's list by a STRANGER's activity
+ * would answer a question nobody asked.
+ *
+ * Served by `conversations_oxy_user_agent_updated_at_idx`, which exists for
+ * this grouping and for `latestMessagePerAgent` — see `db/schema/chat.ts`.
+ */
 export async function listAgentsByAuthor(
   db: Executor,
   ownerOxyUserId: string,
 ): Promise<AgentRecord[]> {
+  const thread = db
+    .select({
+      agentId: conversations.agentId,
+      lastMessageAt: max(conversations.updatedAt).as('last_message_at'),
+    })
+    .from(conversations)
+    .where(eq(conversations.oxyUserId, ownerOxyUserId))
+    .groupBy(conversations.agentId)
+    .as('thread');
+
   const rows = await db
-    .select()
+    .select(getTableColumns(agents))
     .from(agents)
+    .leftJoin(thread, eq(thread.agentId, agents.id))
     .where(eq(agents.authorOxyUserId, ownerOxyUserId))
-    .orderBy(desc(agents.createdAt));
+    .orderBy(
+      sql`${thread.lastMessageAt} desc nulls last`,
+      desc(agents.createdAt),
+      desc(agents.id),
+    );
   return rows.map(toAgentRecord);
 }
 

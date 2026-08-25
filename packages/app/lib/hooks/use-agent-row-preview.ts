@@ -4,6 +4,36 @@ import { queryKeys } from './query-keys';
 import type { Agent } from '../types/agents';
 
 /**
+ * The sidebar's order, exactly as `agentRepository.listAgentsByAuthor` states
+ * it: the newest thing said in your thread with the agent, newest first, and an
+ * agent nobody has spoken to falls back to when it was made, newest first.
+ *
+ * A missing `lastMessageAt` sorts LAST — never first. Postgres needs
+ * `NULLS LAST` spelled out to do that in a `DESC` order, and the mirror of that
+ * mistake here is the ordinary one: an absent value compares `false` against
+ * everything, so a comparator that subtracted two timestamps would leave a
+ * brand new agent wherever it happened to be rather than below the ones with a
+ * thread.
+ *
+ * `_id` breaks a `createdAt` tie for the same reason the SQL does — two agents
+ * made in the same millisecond must not swap places between loads. Both
+ * timestamps are ISO-8601 in UTC as the API serialises them, so comparing the
+ * strings is comparing the instants.
+ */
+function byThreadActivity(a: Agent, b: Agent): number {
+  const spokenA = a.lastMessageAt ?? null;
+  const spokenB = b.lastMessageAt ?? null;
+  if (spokenA !== spokenB) {
+    if (spokenA === null) return 1;
+    if (spokenB === null) return -1;
+    return spokenA < spokenB ? 1 : -1;
+  }
+  if (a.createdAt !== b.createdAt) return a.createdAt < b.createdAt ? 1 : -1;
+  if (a._id === b._id) return 0;
+  return a._id < b._id ? 1 : -1;
+}
+
+/**
  * Keeping the sidebar's agent row current while you are talking to it.
  *
  * The row shows the last line of your thread, which `GET /agents/me` supplies.
@@ -31,11 +61,18 @@ import type { Agent } from '../types/agents';
  * replaces it with the reply, which IS what the server stored, so the next real
  * load agrees. Nothing here becomes the source; it only gets there first.
  *
- * ## Position is left alone
+ * ## The row also MOVES, by the server's own rule
  *
- * `listAgentsByAuthor` orders by `created_at DESC` — when the agent was made,
- * not when it last spoke. So talking to one does not move it, and reordering
- * here would invent an order the next load would undo.
+ * `listAgentsByAuthor` orders this list by thread activity, so the agent you
+ * just spoke to belongs at the top and the next real load will put it there.
+ * Writing the line without moving the row would leave the sidebar disagreeing
+ * with itself until then — the freshest preview sitting under two older ones.
+ *
+ * So the same order is applied here, and {@link byThreadActivity} is the one
+ * place it is written on this side. It has to say what the SQL says; a client
+ * rule of its own invention is the failure this used to avoid by not sorting at
+ * all, and it looks the same either way — a row that jumps when the list
+ * reloads.
  */
 export function useAgentRowPreview() {
   const queryClient = useQueryClient();
@@ -57,7 +94,11 @@ export function useAgentRowPreview() {
         });
         // The same array back when this agent is not in the list, so a row that
         // was not touched is not re-rendered for having been rebuilt.
-        return changed ? next : current;
+        if (!changed) return current;
+        // Every other row keeps the position the server gave it: it is the same
+        // comparator over the same unchanged fields, so sorting the list again
+        // can only move the row whose timestamp just changed.
+        return next.sort(byThreadActivity);
       });
     },
     [queryClient],

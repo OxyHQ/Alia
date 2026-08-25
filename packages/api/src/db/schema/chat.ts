@@ -27,8 +27,8 @@ import { checkOneOf } from './columns';
  * every lookup in the package carries both columns. Two users can hold the same
  * `conversation_id` and the schema must let them.
  *
- * ## An agent thread is MANY rows, and `conversations_oxy_user_agent_id_idx`
- * serves them
+ * ## An agent thread is MANY rows, and
+ * ## `conversations_oxy_user_agent_updated_at_idx` serves them
  *
  * `/a/:username` shows one continuous thread with an agent. Underneath, each
  * stretch of it is an ordinary Alia conversation — many rows sharing one
@@ -84,9 +84,16 @@ export const conversations = pgTable(
     uniqueIndex('conversations_oxy_user_conversation_id_key').on(t.oxyUserId, t.conversationId),
     // Serves `GET /conversations`: one user's threads, most recent first.
     index('conversations_oxy_user_updated_at_idx').on(t.oxyUserId, t.updatedAt.desc()),
-    // Serves the thread: every conversation this person holds with one agent,
-    // which is many. NOT unique — see the table comment.
-    index('conversations_oxy_user_agent_id_idx').on(t.oxyUserId, t.agentId),
+    // Serves the thread — every conversation this person holds with one agent,
+    // which is many — AND the sidebar's order, which is `max(updated_at)` per
+    // agent for one owner (`agentRepository.listAgentsByAuthor`). NOT unique;
+    // see the table comment. The pair is a prefix of the triple, so this one
+    // index answers both.
+    index('conversations_oxy_user_agent_updated_at_idx').on(
+      t.oxyUserId,
+      t.agentId,
+      t.updatedAt.desc(),
+    ),
     checkOneOf('conversations_source_check', t.source, CONVERSATION_SOURCES),
   ],
 );

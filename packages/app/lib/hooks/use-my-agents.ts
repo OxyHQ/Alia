@@ -17,6 +17,11 @@ import type { Agent } from '../types/agents';
  * Their identities are resolved through the same batched Oxy lookup that fails
  * open, so `name`, `handle` and `color` are all nullable and every row renders
  * through the shared fallbacks.
+ *
+ * The array ARRIVES ordered — the agent last spoken to first, then by when each
+ * was made — and the sidebar renders it in that order. `use-agent-row-preview`
+ * keeps that true between loads; nothing else may sort it, because a second
+ * order would only disagree with the one the next fetch brings.
  */
 export function useMyAgents() {
   const { isAuthenticated } = useOxy();
