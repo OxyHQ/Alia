@@ -2,6 +2,8 @@ import React from "react";
 import { View, Platform } from "react-native";
 import { Search, MoreHorizontal, Menu } from "lucide-react-native";
 import { GhostIcon } from "@/components/ui/ghost-icon";
+import { AgentGlyph } from "@/components/ui/agent-glyph";
+import { Text } from "@/components/ui/text";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Button } from "@/components/ui/button";
 import { CreditsMenu } from "@/components/credits-menu";
@@ -18,6 +20,18 @@ interface ChatHeaderProps {
   onSearchPress?: () => void;
   onClear?: () => void;
   isConversation?: boolean;
+  /**
+   * The agent this thread belongs to. Omitted on Alia's own chat, where the
+   * header stays exactly as it was — no title, no mark.
+   *
+   * TWO PRIMITIVES rather than one object, and that is the whole point of the
+   * shape: this component is memoized because the chat screen re-renders ~20×/s
+   * while streaming, and an identity object built at the call site would be a
+   * new reference on every one of those renders, handing all twenty back to the
+   * whole header. Strings compare by value, so they cost nothing.
+   */
+  agentName?: string;
+  agentColor?: string | null;
 }
 
 // Memoized: the chat screen re-renders ~20×/s while streaming and none of
@@ -28,6 +42,8 @@ export const ChatHeader = React.memo(function ChatHeader({
   onSearchPress,
   onClear,
   isConversation = false,
+  agentName,
+  agentColor,
 }: ChatHeaderProps) {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
@@ -79,6 +95,17 @@ export const ChatHeader = React.memo(function ChatHeader({
           <Menu size={20} className="text-muted-foreground" />
         </Button>
       </View>
+
+      {/* Who this thread is with, iMessage-style. Absent on Alia's own chat,
+          where the two flanking groups sit exactly where they always did. */}
+      {agentName === undefined ? null : (
+        <View className="flex-1 flex-row items-center justify-center gap-2 px-2">
+          <AgentGlyph size={24} color={agentColor} label={agentName} />
+          <Text className="text-base font-semibold text-foreground" numberOfLines={1}>
+            {agentName}
+          </Text>
+        </View>
+      )}
 
       <View className="flex-row items-center gap-2">
         <CreditsMenu />

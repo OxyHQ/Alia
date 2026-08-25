@@ -106,6 +106,15 @@ interface ChatPageContentProps {
   onVoiceStart?: () => void;
   agentActivity?: AgentActivityState | null;
   agentId?: string | null;
+  /**
+   * The agent this thread belongs to, for the header.
+   *
+   * Two primitives rather than an identity object, because `ChatHeader` is
+   * memoized against a screen that re-renders ~20×/s while streaming — see the
+   * note on its props. They are passed straight through, never repackaged.
+   */
+  agentName?: string;
+  agentColor?: string | null;
   agentSessionId?: string | null;
   onApprovePlan?: (planId: string) => void;
   onRejectPlan?: (planId: string) => void;
@@ -134,6 +143,8 @@ export const ChatPageContent = ({
   onVoiceStart,
   agentActivity,
   agentId,
+  agentName,
+  agentColor,
   agentSessionId,
   onApprovePlan,
   onRejectPlan,
@@ -486,6 +497,8 @@ export const ChatPageContent = ({
             ghostModeActive={activeModes.has('ghost')}
             onClear={onClear}
             isConversation={messages.length > 0}
+            agentName={agentName}
+            agentColor={agentColor}
           />
         </LinearGradient>
 

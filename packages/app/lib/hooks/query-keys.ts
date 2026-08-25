@@ -11,6 +11,14 @@ export const queryKeys = {
      */
     modes: () => ['catalogue', 'modes'] as const,
   },
+  agents: {
+    /**
+     * Keyed by the USERNAME the URL carries, not by the agent id, because the
+     * id is part of what the query answers — `/a/pepe` is resolvable before
+     * anything is known about who Pepe is.
+     */
+    thread: (username: string) => ['agent-thread', username] as const,
+  },
   conversations: {
     all: ['conversations'] as const,
     detail: (id: string) => ['conversation', id] as const,

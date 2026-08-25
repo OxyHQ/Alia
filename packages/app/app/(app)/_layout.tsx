@@ -27,7 +27,7 @@ import { useIsLargeScreen } from '@/lib/hooks/use-is-large-screen';
 const VISIBLE_ROUTES = new Set(['c/[id]/index', 'settings']);
 
 // Routes that handle their own top safe area insets
-const SELF_INSET_ROUTES = new Set(['index', 'c/[id]/index', 'settings']);
+const SELF_INSET_ROUTES = new Set(['index', 'c/[id]/index', 'a/[username]', 'settings']);
 
 export default function AppLayout() {
   const isLargeScreen = useIsLargeScreen();
