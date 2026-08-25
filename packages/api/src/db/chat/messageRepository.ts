@@ -34,7 +34,7 @@ import type {
   ToolInvocation,
 } from '../../domain/conversation.js';
 import type { ApiDatabase } from '../index';
-import { messages } from '../schema/chat';
+import { conversations, messages } from '../schema/chat';
 
 /** A stored message, as this repository reads it. */
 export interface MessageRow {
@@ -243,26 +243,202 @@ export async function listRecentUserText(
 }
 
 /**
- * One search hit: the message, and the text that matched.
+ * Reading a THREAD, which spans many conversations.
  *
- * `text` is what `alia_message_text` extracted, not the raw `content` — a
- * client rendering a result list wants the line, and the caller already has the
- * `clientMessageId` to jump to the message itself.
+ * `/a/:username` shows one continuous history with an agent, and underneath it
+ * is many ordinary conversations sharing an `agent_id` — so every read here
+ * JOINS `conversations` rather than taking a `conversation_id`. That join is
+ * the one place this file reaches a table it does not own, and it is
+ * deliberate: a thread-scoped query cannot be expressed without it, and putting
+ * it in `conversationRepository.ts` instead would put a `messages` query there.
+ *
+ * ## The cursor is OPAQUE and is not `seq`
+ *
+ * `seq` is out twice over. It is ABSENT on legacy messages — `routes/webhooks.ts`
+ * appends bot turns without one — so paging by it skips old rows silently, which
+ * is the worst failure a history that claims to be permanent can have. And it is
+ * unique only WITHIN a conversation, so it does not even order a thread.
+ *
+ * The cursor is `(created_at, id)`, base64 of a JSON pair, and it is opaque so
+ * the implementation can change without touching a client. `id` is what makes
+ * the order total: two turns of one exchange land in the same millisecond
+ * routinely.
  */
-export interface MessageSearchHit {
+
+/** The anchor a client holds: a point in a thread, ordered and total. */
+export interface ThreadCursor {
+  readonly at: Date;
+  readonly id: string;
+}
+
+export function encodeThreadCursor(cursor: ThreadCursor): string {
+  return Buffer.from(JSON.stringify({ at: cursor.at.toISOString(), id: cursor.id })).toString(
+    'base64url',
+  );
+}
+
+/**
+ * Read a cursor a client sent back, or nothing.
+ *
+ * Every malformed shape answers `null` rather than throwing: a cursor is
+ * client input, and the route turns `null` into a 400 that says so. A cursor
+ * whose `at` does not parse is as malformed as one that is not base64.
+ */
+export function decodeThreadCursor(encoded: string): ThreadCursor | null {
+  try {
+    const parsed: unknown = JSON.parse(Buffer.from(encoded, 'base64url').toString('utf8'));
+    if (typeof parsed !== 'object' || parsed === null) return null;
+    const { at, id } = parsed as { at?: unknown; id?: unknown };
+    if (typeof at !== 'string' || typeof id !== 'string' || id === '') return null;
+    const date = new Date(at);
+    return Number.isNaN(date.getTime()) ? null : { at: date, id };
+  } catch {
+    return null;
+  }
+}
+
+/** One message of a thread, with the conversation it belongs to. */
+export interface ThreadMessageRow extends MessageRow {
+  /** The stretch this message is in. A client draws a seam where it changes. */
+  readonly threadConversationId: string;
+}
+
+/**
+ * A row-value comparison against a cursor, with the instant bound as TEXT.
+ *
+ * `postgres.js` will not serialise a `Date` inside a raw `sql` template — it
+ * throws `ERR_INVALID_ARG_TYPE` at bind time, which is a runtime error the
+ * types do not see. The ISO string plus an explicit `::timestamptz` is what
+ * makes the comparison a `timestamptz` one rather than a lexical string
+ * comparison that would be right by luck and wrong across a timezone.
+ */
+function cursorTuple(cursor: ThreadCursor) {
+  return sql`(${cursor.at.toISOString()}::timestamptz, ${cursor.id})`;
+}
+
+function olderThan(cursor: ThreadCursor) {
+  return sql`(${messages.createdAt}, ${messages.id}) < ${cursorTuple(cursor)}`;
+}
+
+/** Every message of one (person, agent) pair, whichever conversation it is in. */
+function threadScope(oxyUserId: string, agentId: string) {
+  return and(
+    eq(conversations.oxyUserId, oxyUserId),
+    eq(conversations.agentId, agentId),
+    eq(messages.oxyUserId, conversations.oxyUserId),
+    eq(messages.conversationId, conversations.conversationId),
+  );
+}
+
+/**
+ * A page of a thread, newest-last, crossing conversation boundaries.
+ *
+ * `before` is EXCLUSIVE: it is the cursor of the oldest row the caller already
+ * has, so a page never repeats one. Absent, the newest page is served.
+ *
+ * `hasMore` is decided by asking for one row more than will be returned, not by
+ * `rows.length < limit` — that inference is wrong at the exact boundary where
+ * the thread's length is a multiple of the page size, which is the one case a
+ * reader will hit by scrolling.
+ */
+export async function listThreadPage(
+  db: ApiDatabase,
+  params: {
+    oxyUserId: string;
+    agentId: string;
+    limit: number;
+    before?: ThreadCursor;
+  },
+): Promise<{ messages: ThreadMessageRow[]; hasMore: boolean }> {
+  const rows = await db
+    .select({
+      message: messages,
+      threadConversationId: conversations.conversationId,
+    })
+    .from(messages)
+    .innerJoin(conversations, threadScope(params.oxyUserId, params.agentId))
+    .where(params.before === undefined ? undefined : olderThan(params.before))
+    .orderBy(desc(messages.createdAt), desc(messages.id))
+    .limit(params.limit + 1);
+
+  const hasMore = rows.length > params.limit;
+  const page = (hasMore ? rows.slice(0, params.limit) : rows).map((row) => ({
+    ...row.message,
+    threadConversationId: row.threadConversationId,
+  }));
+  // Read oldest-first, which is how a transcript renders.
+  return { messages: page.reverse(), hasMore };
+}
+
+/**
+ * The window CONTAINING one message, with context on both sides.
+ *
+ * What a search result is for: a hit carries a cursor, and this is what that
+ * cursor opens. `before` cannot serve it — `before` is exclusive, so the hit
+ * itself would be the one message missing from the window it was supposed to
+ * reveal.
+ *
+ * Half the budget above and half below, and the anchor is returned whether or
+ * not anything surrounds it. A window that silently omitted its own anchor
+ * because the thread ended is the failure this shape exists to prevent.
+ */
+export async function listThreadWindow(
+  db: ApiDatabase,
+  params: { oxyUserId: string; agentId: string; limit: number; at: ThreadCursor },
+): Promise<{ messages: ThreadMessageRow[]; hasMore: boolean }> {
+  const half = Math.max(1, Math.floor(params.limit / 2));
+
+  const select = () =>
+    db
+      .select({ message: messages, threadConversationId: conversations.conversationId })
+      .from(messages)
+      .innerJoin(conversations, threadScope(params.oxyUserId, params.agentId));
+
+  const project = (rows: { message: MessageRow; threadConversationId: string }[]) =>
+    rows.map((row) => ({ ...row.message, threadConversationId: row.threadConversationId }));
+
+  const newer = await select()
+    .where(sql`(${messages.createdAt}, ${messages.id}) > ${cursorTuple(params.at)}`)
+    .orderBy(asc(messages.createdAt), asc(messages.id))
+    .limit(half);
+
+  /**
+   * `<=`, so the anchor itself is the newest row of this half.
+   *
+   * The alternative — reusing `listThreadPage` with the cursor nudged one
+   * millisecond forward — reads as clever and is wrong: two turns of one
+   * exchange land in the same millisecond routinely, so the nudge would drag in
+   * whatever else shared that instant and put it on the wrong side of the
+   * anchor.
+   */
+  const olderRows = await select()
+    .where(sql`(${messages.createdAt}, ${messages.id}) <= ${cursorTuple(params.at)}`)
+    .orderBy(desc(messages.createdAt), desc(messages.id))
+    .limit(half + 1);
+
+  const hasMore = olderRows.length > half;
+  const older = project(hasMore ? olderRows.slice(0, half) : olderRows).reverse();
+
+  return { messages: [...older, ...project(newer)], hasMore };
+}
+
+/** One search hit: the message, the text that matched, and where to jump. */
+export interface ThreadSearchHit {
+  readonly id: string;
   readonly clientMessageId: string | null;
+  readonly conversationId: string;
   readonly role: string;
   readonly text: string;
-  readonly seq: number | null;
   readonly createdAt: Date;
 }
 
 /**
- * Search what was SAID in one thread.
+ * Search what was SAID across a whole thread.
  *
  * Serves both consumers deliberately: the person searching their own history,
- * and the AGENT recalling something from earlier in the same thread. One index,
- * one query, one definition of what counts as text.
+ * and the AGENT recalling something from earlier. One index, one query, one
+ * definition of what counts as text — and it spans every conversation of the
+ * pair, because a thread does.
  *
  * ## Text, not embeddings, and that is a decision with a cost attached
  *
@@ -301,27 +477,23 @@ export interface MessageSearchHit {
  *
  * Both bind parameters, so nothing here is a concatenation.
  */
-export async function searchMessages(
+export async function searchThread(
   db: ApiDatabase,
-  oxyUserId: string,
-  conversationId: string,
-  query: string,
-  limit: number,
-): Promise<MessageSearchHit[]> {
-  const text = sql<string>`alia_message_text(${messages.content})`;
+  params: { oxyUserId: string; agentId: string; query: string; limit: number },
+): Promise<ThreadSearchHit[]> {
   return db
     .select({
+      id: messages.id,
       clientMessageId: messages.clientMessageId,
+      conversationId: conversations.conversationId,
       role: messages.role,
-      text,
-      seq: messages.seq,
+      text: sql<string>`alia_message_text(${messages.content})`,
       createdAt: messages.createdAt,
     })
     .from(messages)
+    .innerJoin(conversations, threadScope(params.oxyUserId, params.agentId))
     .where(
       and(
-        eq(messages.oxyUserId, oxyUserId),
-        eq(messages.conversationId, conversationId),
         /**
          * Spelled exactly as `messages_search_idx`'s predicate is, so the
          * partial index is usable for this query at all. A different spelling
@@ -329,11 +501,11 @@ export async function searchMessages(
          * the predicate, and the planner would silently stop using the index.
          */
         sql`${messages.role} in ('user', 'assistant')`,
-        sql`to_tsvector('simple', alia_message_text(${messages.content})) @@ websearch_to_tsquery('simple', ${query})`,
+        sql`to_tsvector('simple', alia_message_text(${messages.content})) @@ websearch_to_tsquery('simple', ${params.query})`,
       ),
     )
-    .orderBy(desc(messages.createdAt))
-    .limit(limit);
+    .orderBy(desc(messages.createdAt), desc(messages.id))
+    .limit(params.limit);
 }
 
 /**
