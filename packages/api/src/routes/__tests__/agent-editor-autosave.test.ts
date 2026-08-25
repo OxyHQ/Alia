@@ -36,7 +36,12 @@ import type { Server } from 'node:http';
 import path from 'node:path';
 import ts from 'typescript';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { CAPABILITY_FAMILIES } from '../../domain/capability-grants.js';
+import {
+  CAPABILITY_FAMILIES,
+  FIXED_FAMILY_TOOLS,
+  UNGRANTED_TOOLS,
+  type FixedCapabilityFamily,
+} from '../../domain/capability-grants.js';
 
 const REPO_ROOT = path.resolve(__dirname, '../../../../..');
 const EDITOR = 'packages/app/app/(app)/agents/edit/[id].tsx';
@@ -324,6 +329,37 @@ describe('the editor and the route agree on what a save contains', () => {
  * let `AGENT_TOOLS` and `PERMISSION_CONFIG` disagree for as long as they both
  * existed. This is the check that stops the new pair repeating it.
  */
+function appRuntimeToolFamilies(): Record<string, string> {
+  const file = path.join(REPO_ROOT, FAMILIES);
+  const source = ts.createSourceFile(file, readFileSync(file, 'utf8'), ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+  const map: Record<string, string> = {};
+
+  const visit = (node: ts.Node): void => {
+    if (
+      ts.isVariableDeclaration(node) &&
+      ts.isIdentifier(node.name) &&
+      node.name.text === 'RUNTIME_TOOL_FAMILIES' &&
+      node.initializer !== undefined
+    ) {
+      const literal = ts.isAsExpression(node.initializer) ? node.initializer.expression : node.initializer;
+      if (ts.isObjectLiteralExpression(literal)) {
+        for (const property of literal.properties) {
+          if (
+            ts.isPropertyAssignment(property) &&
+            (ts.isIdentifier(property.name) || ts.isStringLiteralLike(property.name)) &&
+            ts.isStringLiteralLike(property.initializer)
+          ) {
+            map[property.name.text] = property.initializer.text;
+          }
+        }
+      }
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(source);
+  return map;
+}
+
 function appFamilyIds(): string[] {
   const file = path.join(REPO_ROOT, FAMILIES);
   const source = ts.createSourceFile(file, readFileSync(file, 'utf8'), ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
@@ -386,6 +422,54 @@ describe('the app and the API name the same capability families', () => {
      * quietly become unreachable the day somebody added it to one side only.
      */
     expect(appFamilyIds()).toEqual([...CAPABILITY_FAMILIES].sort());
+  });
+
+  /**
+   * The app's tool-to-family map agrees with the ASSEMBLER's.
+   *
+   * `RUNTIME_TOOL_FAMILIES` exists so the activity panel takes a tool's icon
+   * from the family that grants it, instead of choosing its own — which is how
+   * `delegate` ended up as lucide's `Users` in the panel and the owner's
+   * `robot_2` in the editor, the same label under two icons two screens apart.
+   *
+   * It is a SECOND declaration of something the API already knows, so it needs
+   * this: put `file_edit` under `shell` on the app side and the panel would
+   * draw a terminal for a file write, silently and forever.
+   */
+  it('maps each runtime tool to the family the assembler grants it from', () => {
+    const app = appRuntimeToolFamilies();
+
+    // The floor: a parse that found nothing would satisfy every comparison
+    // below by iterating an empty object.
+    expect(Object.keys(app).length).toBeGreaterThanOrEqual(4);
+
+    // `Object.hasOwn` first: `family` is a string parsed out of another
+    // package's source, so indexing the table with it directly would answer an
+    // inherited `Object.prototype` member for `constructor` — and `?.includes`
+    // is a guard against `undefined`, not against inheritance.
+    const wrong = Object.entries(app)
+      .filter(
+        ([tool, family]) =>
+          !Object.hasOwn(FIXED_FAMILY_TOOLS, family) ||
+          !FIXED_FAMILY_TOOLS[family as FixedCapabilityFamily].includes(tool),
+      )
+      .map(([tool, family]) => `${tool} is mapped to ${family}`);
+    expect(
+      wrong,
+      `${wrong.join(', ')} — the app puts a tool in a family the assembler does not. ` +
+        'The icon a tool carries has to come from the family that actually grants it.',
+    ).toEqual([]);
+  });
+
+  it('covers every session primitive except the ungranted one', () => {
+    // `plan` is in `UNGRANTED_TOOLS`, so it has no family and no icon to
+    // inherit. Every OTHER primitive must be mapped, or the panel silently
+    // falls back to a generic glyph for it.
+    const app = appRuntimeToolFamilies();
+    const primitives = ['shell', 'browser', 'file_edit', 'delegate'];
+    expect(primitives.filter((tool) => app[tool] === undefined)).toEqual([]);
+    expect(app.plan).toBeUndefined();
+    expect(UNGRANTED_TOOLS).toContain('plan');
   });
 });
 

@@ -12,7 +12,6 @@ import { Text } from "@/components/ui/text";
 import {
   X,
   Globe,
-  Terminal,
   FileText,
   ChevronRight,
   Monitor,
@@ -23,11 +22,10 @@ import {
   Search,
   Code,
   Eye,
-  Edit3,
-  Users,
 } from "lucide-react-native";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { useTheme, type ThemeColors } from "@oxyhq/bloom/theme";
+import { capabilityIconForTool } from "@/lib/constants/capability-families";
 import {
   useAgentActivity,
   type AgentActivityEvent,
@@ -124,13 +122,25 @@ function getStepIcon(event: AgentActivityEvent, colors: ThemeColors) {
     case "error":
     case "threat":
       return <AlertCircle size={14} color={colors.error} />;
-    case "tool_call":
-      if (toolName === "shell") return <Terminal size={14} className="text-foreground" />;
-      if (toolName === "browser") return <Globe size={14} className="text-foreground" />;
-      if (toolName === "file_edit") return <Edit3 size={14} className="text-foreground" />;
+    case "tool_call": {
+      /**
+       * The icon comes from the CAPABILITY FAMILY that grants the tool, so this
+       * panel and the agent editor draw one concept one way.
+       *
+       * They did not. These five were lucide glyphs chosen here while the
+       * editor's rows carried the owner's Material Symbols, so `delegate` was
+       * `Users` in the activity stream and `robot_2` two screens away. One
+       * table decides now, and a glyph the owner sends next lands in it once.
+       *
+       * `color`, not a NativeWind class: four of the family glyphs are `Svg`
+       * and their fill cannot be painted with `className`.
+       */
+      const FamilyIcon = capabilityIconForTool(toolName);
+      if (FamilyIcon) return <FamilyIcon size={14} color={colors.text} />;
+      // `plan` belongs to no family — it is ungranted — so it keeps its own.
       if (toolName === "plan") return <CheckCircle2 size={14} className="text-foreground" />;
-      if (toolName === "delegate") return <Users size={14} className="text-foreground" />;
       return <Code size={14} className="text-foreground" />;
+    }
     case "tool_result":
       return <Eye size={14} className="text-muted-foreground" />;
     case "source_found":
