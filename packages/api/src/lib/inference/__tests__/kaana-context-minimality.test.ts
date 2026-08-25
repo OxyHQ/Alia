@@ -156,6 +156,26 @@ async function sendOnce(
 /*  The envelope is exactly the contract's shape                               */
 /* -------------------------------------------------------------------------- */
 
+/**
+ * Contract fields Alia deliberately leaves out, and why each one.
+ *
+ * Not a suppression list. Every entry is asserted to still BE a contract field
+ * and to still be OPTIONAL, so an entry that stops applying turns this file red
+ * instead of quietly excusing a field that has become mandatory — which is the
+ * failure mode a bare exclusion list has.
+ *
+ * `authorizedRoutes`: the routes a customer's routing policy has already
+ * authorized, in preference order. Oxy's public edge resolves them by APPLYING
+ * the policy, and Alia is a consumer of the data plane, not the authority that
+ * authorizes routes — it has nothing it could truthfully put here. The contract
+ * makes the omission the safe reading on purpose: absent means "no failover is
+ * authorized", never "choose freely", and it is the state every envelope built
+ * before the field existed is in. Permission is granted by an ENTRY, so an
+ * absent list can only ever narrow what may be served. Synthesising one from
+ * this side would be Alia granting itself failover it was never delegated.
+ */
+const NOT_ALIA_S_TO_SEND = ['authorizedRoutes'];
+
 describe('the wire envelope has the contract shape and nothing else', () => {
   it('carries exactly the contract top-level fields, read off the contract itself', async () => {
     // A MAXIMAL payload: `maxOutputTokens`, `responseFormat` and `toolChoice`
@@ -181,14 +201,26 @@ describe('the wire envelope has the contract shape and nothing else', () => {
       }),
     });
 
-    const schema = inferenceRequestSchema as unknown as { _def: { schema: { shape: Record<string, unknown> } } };
-    const contractKeys = Object.keys(schema._def.schema.shape).sort();
+    const schema = inferenceRequestSchema as unknown as {
+      _def: { schema: { shape: Record<string, { isOptional(): boolean }> } };
+    };
+    const shape = schema._def.schema.shape;
+    const contractKeys = Object.keys(shape).sort();
     // The floor: a shape that failed to load reads as an empty key list, and
     // "sent keys equal contract keys" would then be two empty arrays.
     expect(contractKeys.length).toBeGreaterThanOrEqual(10);
     expect(contractKeys).toContain('attribution');
 
-    expect(Object.keys(request).sort()).toEqual(contractKeys);
+    // Still EXACT equality, against the contract minus what Alia is not the
+    // authority to fill — so an unexpected key is still a failure and a dropped
+    // one still is too. The guard below is what keeps the exclusion honest.
+    for (const key of NOT_ALIA_S_TO_SEND) {
+      expect(contractKeys, `${key} is no longer a contract field`).toContain(key);
+      expect(shape[key].isOptional(), `${key} is now REQUIRED`).toBe(true);
+    }
+    const expectedKeys = contractKeys.filter((key) => !NOT_ALIA_S_TO_SEND.includes(key));
+
+    expect(Object.keys(request).sort()).toEqual(expectedKeys);
   });
 
   it('sends the SURFACE as a cost label, which is the one deliberate exception', async () => {
