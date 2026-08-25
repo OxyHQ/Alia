@@ -297,6 +297,7 @@
     "thanksFeedback": "¡Gracias por tu opinión!",
     "today": "Hoy",
     "yesterday": "Ayer",
+    "newConversation": "Nueva conversación",
     "sendFailed": "No se pudo enviar el mensaje. Lo tienes de vuelta en el cuadro de texto, inténtalo otra vez."
   },
   "credits": {
@@ -511,6 +512,7 @@
     "export": "Exportar",
     "settings": "Configuración",
     "help": "Ayuda",
+    "newConversation": "Empezar una conversación nueva",
     "clearConversation": "Limpiar conversación",
     "clearConfirmTitle": "Limpiar conversación",
     "clearConfirmDescription": "¿Estás seguro de que quieres limpiar esta conversación? Esta acción no se puede deshacer.",

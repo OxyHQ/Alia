@@ -19,6 +19,12 @@ export const API_ROUTES = {
     get: (id: string) => `/conversations/${id}`,
     update: (id: string) => `/conversations/${id}`,
     delete: (id: string) => `/conversations/${id}`,
+    /**
+     * Mark where a new conversation starts inside a permanent thread. Not
+     * idempotent by design — the API keeps every mark, and the client collapses
+     * coincident ones when it draws them.
+     */
+    break: (id: string) => `/conversations/${id}/break`,
   },
 
   // Folder routes

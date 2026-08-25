@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { daySeparators } from '../message-days';
+import { conversationBreaks, daySeparators } from '../thread-separators';
 
 /**
  * Whether the line lands where the READER's midnight is.
@@ -192,5 +192,85 @@ describe('day separators', () => {
       // 28 March 23:00 local — the day before the shift.
       expect(separator).toEqual({ messageId: 'b', label: { kind: 'yesterday' } });
     });
+  });
+});
+
+describe('new-conversation rules', () => {
+  const THREAD = [
+    message('a', '2026-03-04T09:00:00Z'),
+    message('b', '2026-03-04T11:00:00Z'),
+    message('c', '2026-03-04T15:00:00Z'),
+  ];
+
+  it('sits above the first message written after the break', () => {
+    const { above, afterLast } = conversationBreaks(THREAD, ['2026-03-04T10:00:00Z']);
+
+    expect([...above]).toEqual(['b']);
+    expect(afterLast).toBe(false);
+  });
+
+  it('sits above a message written at the very instant of the break', () => {
+    // The boundary itself, which an exclusive comparison would push onto the
+    // NEXT message and quietly put the first message of the new conversation at
+    // the end of the old one.
+    expect([...conversationBreaks(THREAD, ['2026-03-04T11:00:00Z']).above]).toEqual(['b']);
+  });
+
+  it('sits at the end while nothing has been written under it yet', () => {
+    // What a break looks like the moment it is made — and the only feedback the
+    // person who pressed the button gets until they type.
+    const { above, afterLast } = conversationBreaks(THREAD, ['2026-03-04T16:00:00Z']);
+
+    expect([...above]).toEqual([]);
+    expect(afterLast).toBe(true);
+  });
+
+  it('collapses two marks with nothing between them into one rule', () => {
+    // The API keeps both, deliberately, because it cannot know what they are
+    // for. Two identical rules on one message say nothing the first does not.
+    const { above } = conversationBreaks(THREAD, [
+      '2026-03-04T10:00:00Z',
+      '2026-03-04T10:30:00Z',
+    ]);
+
+    expect([...above]).toEqual(['b']);
+  });
+
+  it('takes several real breaks in one thread', () => {
+    const { above, afterLast } = conversationBreaks(THREAD, [
+      '2026-03-04T10:00:00Z',
+      '2026-03-04T12:00:00Z',
+    ]);
+
+    expect([...above].sort()).toEqual(['b', 'c']);
+    expect(afterLast).toBe(false);
+  });
+
+  it('draws nothing at all when there are no breaks', () => {
+    const { above, afterLast } = conversationBreaks(THREAD, []);
+
+    expect(above.size).toBe(0);
+    expect(afterLast).toBe(false);
+  });
+
+  it('ignores a break that is not an instant, rather than parking it at the end', () => {
+    // `afterLast` would otherwise turn every unreadable value into a visible
+    // rule below the thread — a line drawn BECAUSE something was unreadable.
+    const { above, afterLast } = conversationBreaks(THREAD, ['not an instant']);
+
+    expect(above.size).toBe(0);
+    expect(afterLast).toBe(false);
+  });
+
+  it('skips a message it cannot place the break against', () => {
+    // An in-flight turn carries no timestamp until it is stamped. It cannot be
+    // compared, so the rule goes to the next message that can be — never to the
+    // untimed one, which would put it in a place a reload moves.
+    const { above } = conversationBreaks(
+      [message('a', '2026-03-04T09:00:00Z'), message('pending'), message('c', '2026-03-04T15:00:00Z')],
+      ['2026-03-04T10:00:00Z'],
+    );
+
+    expect([...above]).toEqual(['c']);
   });
 });

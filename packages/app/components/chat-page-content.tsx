@@ -92,6 +92,8 @@ function ConnectorMenuIcon({ icon, color }: { icon?: string; color: string }) {
 
 interface ChatPageContentProps {
   messages: Message[];
+  /** The instants a new conversation was declared, passed straight to the list. */
+  breaks?: readonly string[];
   scrollViewRef: React.RefObject<GHScrollView | null>;
   isLoading: boolean;
   onSubmit: (value: string, attachments?: Attachment[], options?: SendOptions) => Promise<boolean>;
@@ -115,6 +117,8 @@ interface ChatPageContentProps {
    */
   agentName?: string;
   agentColor?: string | null;
+  /** Cut the thread here. Present only where a thread never ends — see `ChatHeader`. */
+  onNewConversation?: () => void;
   agentSessionId?: string | null;
   onApprovePlan?: (planId: string) => void;
   onRejectPlan?: (planId: string) => void;
@@ -129,6 +133,7 @@ interface ChatPageContentProps {
 
 export const ChatPageContent = ({
   messages,
+  breaks,
   scrollViewRef,
   isLoading,
   onSubmit,
@@ -145,6 +150,7 @@ export const ChatPageContent = ({
   agentId,
   agentName,
   agentColor,
+  onNewConversation,
   agentSessionId,
   onApprovePlan,
   onRejectPlan,
@@ -473,6 +479,7 @@ export const ChatPageContent = ({
 
         <ChatInterface
           messages={messages}
+          breaks={breaks}
           scrollViewRef={scrollViewRef}
           isLoading={isLoading}
           conversationLoading={conversationLoading}
@@ -499,6 +506,7 @@ export const ChatPageContent = ({
             isConversation={messages.length > 0}
             agentName={agentName}
             agentColor={agentColor}
+            onNewConversation={onNewConversation}
           />
         </LinearGradient>
 

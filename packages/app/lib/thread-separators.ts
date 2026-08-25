@@ -1,5 +1,14 @@
 /**
- * Where a thread changes day, and which day it changed to.
+ * The rules drawn between the messages of a thread, and where each one belongs.
+ *
+ * Two KINDS, and they are not the same fact. A date line is derived — it says
+ * the clock passed midnight, and nobody decided it. A "new conversation" line is
+ * DECLARED — somebody said "what follows is a new subject", and the API stores
+ * the instant they said it. Deriving the second from the first (or from "N hours
+ * passed") is a heuristic that lies the day somebody comes back a week later to
+ * continue the same idea.
+ *
+ * # Date lines
  *
  * ## The timezone is the client's, and that is the whole difficulty
  *
@@ -20,6 +29,13 @@
  * skipped rather than assumed to be today, because assuming would draw a line
  * that a reload then removes — and a separator that appears and disappears is
  * worse than one that arrives a moment late.
+ *
+ * # New-conversation lines
+ *
+ * `GET /conversations/:id` returns `breaks` as bare INSTANTS, deliberately
+ * beside the messages rather than merged into them — a break is not a message
+ * and the API refuses to make it one. Placing them is this file's job, and it is
+ * the same timestamp arithmetic, so it lives beside it.
  */
 
 /** What a separator says. `today` and `yesterday` are named so the caller can translate them. */
@@ -110,4 +126,56 @@ export function daySeparators(
   }
 
   return separators;
+}
+
+/** Where the "new conversation" rules go. */
+export interface ConversationBreaks {
+  /** The ids of the messages a rule sits directly above. */
+  readonly above: ReadonlySet<string>;
+  /**
+   * Whether a rule sits below the LAST message.
+   *
+   * This is what a break looks like the moment it is made: nothing has been
+   * written under it yet. Without it, pressing "new conversation" would appear
+   * to do nothing until the next message, which is feedback arriving after the
+   * thing it is feedback for.
+   */
+  readonly afterLast: boolean;
+}
+
+/**
+ * Place each break above the first message written after it.
+ *
+ * That message is where the new conversation actually starts, so the rule goes
+ * over it. A break with nothing after it yet lands at the end instead.
+ *
+ * Coincident breaks COLLAPSE. The API keeps every mark and says why — it does
+ * not know what the marks are for, so it refuses to invent a dedupe window —
+ * but two marks with nothing between them are one boundary, and two identical
+ * rules stacked on one message say nothing the first does not.
+ *
+ * The messages are assumed to be in the order they were written, which is the
+ * order every reader of a thread has them in.
+ */
+export function conversationBreaks(
+  messages: readonly DatedMessage[],
+  breaks: readonly string[],
+): ConversationBreaks {
+  const above = new Set<string>();
+  let afterLast = false;
+
+  for (const value of breaks) {
+    const at = instant(value);
+    if (at === null) continue;
+
+    const next = messages.find((message) => {
+      const written = instant(message.createdAt);
+      return written !== null && written.getTime() >= at.getTime();
+    });
+
+    if (next === undefined) afterLast = true;
+    else above.add(next.id);
+  }
+
+  return { above, afterLast };
 }
