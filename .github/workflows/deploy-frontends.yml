@@ -114,9 +114,18 @@ jobs:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
           NODE_ENV: production
           VITE_API_URL: https://api.alia.onl
-      - name: Deploy to Cloudflare Pages
+      # A WORKER, not a Pages project. A Pages project always serves
+      # `<project>.pages.dev` and Cloudflare offers no way to switch it off, so
+      # Canvas had a second working copy at a URL nobody chose. A Worker declines
+      # its default hostname (`workers_dev = false` in
+      # packages/alia-canvas/wrangler.toml), leaving `canvas.alia.onl` as the only
+      # name that reaches it. Everything else — the assets directory, the SPA
+      # fallback, the custom domain — is declared in that file rather than passed
+      # here, so a deploy cannot disagree with the config.
+      - name: Deploy the Worker
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy packages/alia-canvas/dist --project-name=alia-canvas --branch=main
+          workingDirectory: packages/alia-canvas
+          command: deploy
