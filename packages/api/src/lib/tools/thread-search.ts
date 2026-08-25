@@ -25,25 +25,31 @@
  * justify adding them is a measurement of this failing rather than the absence
  * of one.
  *
+ * ## The whole thread, not the current conversation
+ *
+ * A thread is MANY conversations sharing one `agent_id`, so this searches the
+ * pair. Searching only the active stretch would be the same as not searching:
+ * everything in it is already in the window the model was given.
+ *
  * ## Bound to the turn, not chosen by the model
  *
- * `conversationId` is closed over rather than being an argument. A model given
- * a thread id as a parameter would be one hallucinated uuid away from asking
- * for somebody else's history, and the owner is in the WHERE either way — so
- * the parameter would buy nothing and could only ever be wrong.
+ * `agentId` is closed over rather than being an argument. A model given one as
+ * a parameter would be one hallucinated uuid away from asking for somebody
+ * else's history, and the owner is in the WHERE either way — so the parameter
+ * would buy nothing and could only ever be wrong.
  */
 
 import { tool } from 'ai';
 import { z } from 'zod';
 import { getDb } from '../../db/index.js';
-import { searchMessages } from '../../db/chat/messageRepository.js';
+import { searchThread } from '../../db/chat/messageRepository.js';
 import { log } from '../logger.js';
 import { getErrorMessage } from '../errors/index.js';
 
 /** How many turns one recall may pull into the context window. */
 const MAX_HITS = 10;
 
-export const createSearchThreadTool = (oxyUserId: string, conversationId: string) =>
+export const createSearchThreadTool = (oxyUserId: string, agentId: string) =>
   tool({
     description:
       'Search everything said earlier in THIS conversation, including turns far above what you can currently see. Use it whenever the person refers to something from before — a decision, a name, a preference, a link — rather than saying you do not remember. EVERY word in the query must appear in the message, so search for one or two distinctive words the person would actually have written, never a whole question.',
@@ -63,7 +69,12 @@ export const createSearchThreadTool = (oxyUserId: string, conversationId: string
           return { results: [], message: 'Nothing was searched for.' };
         }
 
-        const hits = await searchMessages(getDb(), oxyUserId, conversationId, trimmed, MAX_HITS);
+        const hits = await searchThread(getDb(), {
+          oxyUserId,
+          agentId,
+          query: trimmed,
+          limit: MAX_HITS,
+        });
 
         return {
           results: hits.map((hit) => ({
@@ -89,7 +100,7 @@ export const createSearchThreadTool = (oxyUserId: string, conversationId: string
             : {}),
         };
       } catch (error: unknown) {
-        log.chat.error({ err: error, conversationId }, 'Thread search failed');
+        log.chat.error({ err: error, agentId }, 'Thread search failed');
         return { results: [], error: getErrorMessage(error) };
       }
     },

@@ -337,6 +337,13 @@
       "when": 1787663144647,
       "tag": "0047_a_thread_is_searchable",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1787670455508,
+      "tag": "0048_a_thread_is_many_conversations",
+      "breakpoints": true
     }
   ]
 }

@@ -127,10 +127,6 @@ async function namesFor(
     toolsEnabled: true,
     webSearch: true,
     isLocalRuntime: false,
-    // A turn inside a thread, so `searchThread` has its structural
-    // precondition. Without it the whole `memory` family would be one tool
-    // short here and the partition assertion would report a false gap.
-    conversationId: 'conv-1',
     sseEmitter: { emit: vi.fn() } as unknown as Parameters<typeof ToolPipeline.forUser>[0]['sseEmitter'],
     deviceInfo: { platform: 'web' } as unknown as Parameters<typeof ToolPipeline.forUser>[0]['deviceInfo'],
     runtime: runtimeDouble(),

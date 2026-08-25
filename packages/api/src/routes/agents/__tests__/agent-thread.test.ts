@@ -104,7 +104,10 @@ const repository = vi.hoisted(() => ({
 }));
 vi.mock('../../../db/agents/agentRepository.js', () => repository);
 
-const threads = vi.hoisted(() => ({ resolveAgentThread: vi.fn() }));
+const threads = vi.hoisted(() => ({
+  findActiveThreadConversation: vi.fn(),
+  createConversation: vi.fn(),
+}));
 vi.mock('../../../db/chat/conversationRepository.js', () => threads);
 
 vi.mock('../../../db/index.js', () => ({ getDb: () => ({}) }));
@@ -173,7 +176,8 @@ beforeEach(() => {
   state.account = { kind: 'bot', relationship: 'none', callerMembership: null };
   repository.findAgentByOxyAccountId.mockResolvedValue(AGENT_ROW);
   repository.findHireableAgentByOxyAccountId.mockResolvedValue(AGENT_ROW);
-  threads.resolveAgentThread.mockResolvedValue({ conversationId: 'conv-1' });
+  threads.findActiveThreadConversation.mockResolvedValue({ conversationId: 'conv-1' });
+  threads.createConversation.mockResolvedValue({ conversationId: 'conv-new' });
 });
 
 async function thread(username = 'pepe'): Promise<{ status: number; body: Record<string, unknown> }> {
@@ -216,10 +220,47 @@ describe('the route is reachable, and resolves the pair', () => {
 
     await thread();
 
-    expect(threads.resolveAgentThread).toHaveBeenCalledTimes(1);
-    const input = threads.resolveAgentThread.mock.calls[0][1] as Record<string, unknown>;
-    expect(input.oxyUserId).toBe('oxy-somebody-else');
+    expect(threads.findActiveThreadConversation).toHaveBeenCalledTimes(1);
+    const [, oxyUserId, agentId] = threads.findActiveThreadConversation.mock.calls[0];
+    expect(oxyUserId).toBe('oxy-somebody-else');
+    expect(agentId).toBe('agent-1');
+  });
+
+  /**
+   * A thread is MANY conversations, so "open it" continues the newest stretch.
+   * It creates one only when the two have never spoken — and a route that
+   * created one every time would bury the history it was asked to continue.
+   */
+  it('continues the ACTIVE conversation rather than starting another', async () => {
+    state.account = {
+      kind: 'bot',
+      relationship: 'owner',
+      callerMembership: { permissions: ['account:act_as'] },
+    };
+
+    const res = await thread();
+
+    expect(res.body.conversationId).toBe('conv-1');
+    expect(threads.createConversation).not.toHaveBeenCalled();
+  });
+
+  it('starts one only when the two have never spoken', async () => {
+    state.account = {
+      kind: 'bot',
+      relationship: 'owner',
+      callerMembership: { permissions: ['account:act_as'] },
+    };
+    threads.findActiveThreadConversation.mockResolvedValue(undefined);
+
+    const res = await thread();
+
+    expect(res.body.conversationId).toBe('conv-new');
+    expect(threads.createConversation).toHaveBeenCalledTimes(1);
+    // Carrying the agent, or the new conversation is not part of the thread at
+    // all and the next open would start yet another.
+    const input = threads.createConversation.mock.calls[0][1] as Record<string, unknown>;
     expect(input.agentId).toBe('agent-1');
+    expect(input.oxyUserId).toBe('oxy-caller');
   });
 
   it('serves a handle that collides with a route segment', async () => {
@@ -268,7 +309,7 @@ describe('an agent nobody has told you about does not exist', () => {
     // The BODY, exactly. A message that named the reason would confirm the
     // agent exists just as surely as a 403 would.
     expect(res.body).toEqual(NOT_FOUND_BODY);
-    expect(threads.resolveAgentThread).not.toHaveBeenCalled();
+    expect(threads.findActiveThreadConversation).not.toHaveBeenCalled();
     // And Oxy really was asked, so this is a refusal rather than a short
     // circuit that would refuse an owner too.
     expect(state.accountLookups).toEqual(['acct-bot']);

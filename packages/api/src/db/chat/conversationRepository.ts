@@ -22,7 +22,7 @@
  * placement out; see `messageRepository.ts`, which is where `seq` actually lives.
  */
 
-import { and, asc, desc, eq, gte, isNotNull, lt, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, lt, sql } from 'drizzle-orm';
 import type { ConversationSource } from '../../domain/conversation.js';
 import type { ApiDatabase, Executor } from '../index';
 import { conversations } from '../schema/chat';
@@ -284,7 +284,13 @@ export async function deleteConversation(
 }
 
 /**
- * The permanent thread between one person and one agent, or nothing.
+ * The ACTIVE conversation of a thread — the newest stretch, or nothing.
+ *
+ * A thread with an agent is MANY conversations (`db/schema/chat.ts` argues why),
+ * so "open `/a/pepe`" means "continue the most recent one" rather than "resolve
+ * the single row". Starting a new stretch is an ordinary
+ * `createConversation` with the same `agent_id`; there is no resolve-or-create
+ * any more, because there is nothing unique to resolve.
  *
  * Scoped by `oxy_user_id` as well as `agent_id`, and that is THE thing this
  * function must not get wrong: an agent is talked to by many people, so a
@@ -292,13 +298,11 @@ export async function deleteConversation(
  * is in the WHERE rather than checked afterwards, which is how every other read
  * in this file scopes its owner.
  *
- * Ordered rather than bare, even though `conversations_oxy_user_agent_id_key`
- * makes at most one row possible. The unique index is a `post` migration, so
- * there is a window in a rollout during which it does not exist yet and a race
- * could leave two — and "whichever the planner returns" would then flip a
- * person between two histories on consecutive reads. Oldest wins, always.
+ * Ordered by `created_at DESC` with `id` breaking the tie, so two conversations
+ * minted in the same millisecond do not make "the active one" depend on the
+ * planner.
  */
-export async function findAgentThread(
+export async function findActiveThreadConversation(
   db: ApiDatabase,
   oxyUserId: string,
   agentId: string,
@@ -307,112 +311,30 @@ export async function findAgentThread(
     .select()
     .from(conversations)
     .where(and(eq(conversations.oxyUserId, oxyUserId), eq(conversations.agentId, agentId)))
-    .orderBy(asc(conversations.createdAt), asc(conversations.id))
+    .orderBy(desc(conversations.createdAt), desc(conversations.id))
     .limit(1);
   return row;
 }
 
 /**
- * That thread, creating it if this is the first time these two have met.
+ * Every conversation of a thread, oldest first.
  *
- * Resolve-or-create, so opening `/a/pepe` twice answers the SAME conversation.
- * That is the whole difference between a DM and yet another sidebar entry, and
- * it is the property `__tests__/agent-thread.pgdb.test.ts` pins.
- *
- * ## Read first, then insert, then read again
- *
- * **The read-first is not what makes it correct, and the test says so:**
- * deleting it leaves the whole suite green, because the index catches the
- * duplicate and the third step answers the existing row. It stays for two
- * reasons that are not correctness — the common case is a thread that already
- * exists, so it costs one SELECT and attempts no write; and it is the only
- * thing standing during the rollout WINDOW in which the unique index does not
- * exist yet, because 0046 is a `post` migration and this code ships in the
- * image before it.
- *
- * The insert takes a bare `ON CONFLICT DO NOTHING` — no target — for a specific
- * reason: naming `(oxy_user_id, agent_id)` as the target REQUIRES the unique
- * index to exist, so during that same window the statement would not even
- * parse. With no target it is valid either way; before the index exists there
- * is simply no conflict to take, and `conversation_id` is a fresh
- * `randomUUID()` so the other unique on this table cannot fire.
- *
- * The second read is the race: two tabs opening `/a/pepe` at once, one insert
- * wins and the other returns no row. Answering the loser an error would be a
- * spurious failure on a request that is perfectly satisfiable — the thread it
- * asked for exists, somebody else just created it a millisecond earlier.
- *
- * ## The title is a SNAPSHOT and the thread is marked manually titled
- *
- * `titleOnCreate` is the agent's display name at the moment the thread opens.
- * `is_manual_title` is set so `generateConversationTitle` leaves it alone: a
- * permanent thread with an agent is not "New chat", and having the auto-titler
- * rename it to whatever the first exchange was about would lose the one label
- * that identifies it in the sidebar.
+ * The thread's spine: the seam a client draws between two stretches is exactly
+ * the boundary between two of these, which is why there is no table of breaks.
  */
-export async function resolveAgentThread(
+export async function listThreadConversations(
   db: ApiDatabase,
-  input: {
-    oxyUserId: string;
-    agentId: string;
-    conversationId: string;
-    titleOnCreate: string;
-  },
-): Promise<ConversationRow> {
-  const existing = await findAgentThread(db, input.oxyUserId, input.agentId);
-  if (existing !== undefined) return existing;
-
-  const [inserted] = await db
-    .insert(conversations)
-    .values({
-      oxyUserId: input.oxyUserId,
-      conversationId: input.conversationId,
-      title: input.titleOnCreate,
-      isManualTitle: true,
-      source: 'app',
-      agentId: input.agentId,
-    })
-    .onConflictDoNothing()
-    .returning();
-  if (inserted !== undefined) return inserted;
-
-  const raced = await findAgentThread(db, input.oxyUserId, input.agentId);
-  if (raced === undefined) throw new Error('agent thread neither inserted nor found');
-  return raced;
-}
-
-/**
- * Every `(oxy_user_id, agent_id)` pair this table holds more than one row for.
- *
- * Read by nothing on the request path. It exists so a test can assert the state
- * `conversations_oxy_user_agent_id_key` forbids, and so an operator can ask the
- * question the migration's failure would pose, in the shape the index does.
- */
-export async function findDuplicateAgentThreads(
-  db: ApiDatabase,
-): Promise<{ oxyUserId: string; agentId: string; count: number }[]> {
+  oxyUserId: string,
+  agentId: string,
+): Promise<ConversationRow[]> {
   return db
-    .select({
-      oxyUserId: conversations.oxyUserId,
-      agentId: sql<string>`${conversations.agentId}`,
-      count: sql<number>`count(*)::int`,
-    })
+    .select()
     .from(conversations)
-    .where(isNotNull(conversations.agentId))
-    .groupBy(conversations.oxyUserId, conversations.agentId)
-    .having(sql`count(*) > 1`);
+    .where(and(eq(conversations.oxyUserId, oxyUserId), eq(conversations.agentId, agentId)))
+    .orderBy(asc(conversations.createdAt), asc(conversations.id));
 }
 
-/**
- * One day of the activity heatmap.
- *
- * **What this counts changed when the thread became permanent.** One person now
- * holds ONE conversation per agent (`conversations_oxy_user_agent_id_key`), so a
- * day's number is the count of PEOPLE who opened a thread with this agent that
- * day, not the count of conversations they started. The query is unchanged; the
- * invariant under it is not, and a reader who assumed the old meaning would read
- * a busy agent's grid as almost empty.
- */
+/** One day of the activity heatmap: threads this agent started that day. */
 export interface ConversationsPerDay {
   readonly day: string;
   readonly count: number;
