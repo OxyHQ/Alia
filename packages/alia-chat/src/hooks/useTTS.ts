@@ -1,16 +1,10 @@
 import { useCallback, useEffect, useRef } from 'react';
-import type { AudioPlayer, AudioStatus } from 'expo-audio';
-import {
-  useSharedValue,
-  withRepeat,
-  withSequence,
-  withTiming,
-  cancelAnimation,
-  Easing,
-} from 'react-native-reanimated';
+import type { AudioPlayer, AudioSample, AudioStatus } from 'expo-audio';
+import { makeMutable, withTiming } from 'react-native-reanimated';
 import { useOxy } from '@oxyhq/services';
 import { errorMessage } from '../lib/utils';
 import { create } from 'zustand';
+import { createAudioLevelMeter } from '../lib/audio-level';
 import { PREFERRED_VOICE_MODEL_ID } from '../lib/config';
 
 const API_URL = process.env.EXPO_PUBLIC_ALIA_API_URL ?? 'https://api.alia.onl';
@@ -57,6 +51,39 @@ const useTTSStore = create<TTSStore>((set) => ({
   reset: () => set({ activeMessageId: null, playbackState: 'idle', error: null }),
 }));
 
+// ============== PLAYBACK LEVEL ==============
+
+/** How long the level takes to reach silence once a clip stops sounding. */
+const SILENCE_FADE_MS = 300;
+
+/**
+ * The live playback level, 0..1, shared by every consumer.
+ *
+ * At module scope rather than inside the hook because the two ends of it live
+ * in different components: the message list calls `readAloud` and therefore
+ * owns the player, while the ambient field behind the conversation is rendered
+ * somewhere else entirely. Each `useTTS()` call is its own React instance, so a
+ * per-instance `useSharedValue` leaves the field reading a value that nothing
+ * writes — which is why the animation it replaces had to be driven off the
+ * shared playback STATE instead of off the audio. One player, one store, one
+ * level.
+ */
+const ttsWaveAmplitude = makeMutable(0);
+
+/**
+ * Silence is a projection of playback state, not an animation of its own.
+ *
+ * Every platform stops delivering buffers the instant a clip pauses, ends or
+ * fails, so nothing would write the level down again and the field would freeze
+ * swollen wherever the last syllable left it. Subscribed once, beside the store
+ * that owns the transitions, so a transition added later cannot forget it.
+ */
+useTTSStore.subscribe((state, previous) => {
+  if (state.playbackState === 'playing') return;
+  if (previous.playbackState !== 'playing') return;
+  ttsWaveAmplitude.value = withTiming(0, { duration: SILENCE_FADE_MS });
+});
+
 // ============== HOOK ==============
 
 export function useTTS(options: UseTTSOptions = {}) {
@@ -79,33 +106,12 @@ export function useTTS(options: UseTTSOptions = {}) {
 
   const playerRef = useRef<AudioPlayer | null>(null);
 
-  // Simulated wave amplitude for visualization
-  const ttsWaveAmplitude = useSharedValue(0);
-
   // ============== AUTH ==============
 
   const getToken = useCallback((): string | null => {
     if (options.accessToken) return options.accessToken;
     return oxyServices.httpService.getAccessToken();
   }, [options.accessToken, oxyServices]);
-
-  // Animate wave when playing
-  useEffect(() => {
-    if (playbackState === 'playing') {
-      ttsWaveAmplitude.value = withRepeat(
-        withSequence(
-          withTiming(0.5, { duration: 800, easing: Easing.inOut(Easing.sin) }),
-          withTiming(0.2, { duration: 600, easing: Easing.inOut(Easing.sin) }),
-          withTiming(0.6, { duration: 700, easing: Easing.inOut(Easing.sin) }),
-          withTiming(0.15, { duration: 500, easing: Easing.inOut(Easing.sin) }),
-        ),
-        -1,
-      );
-    } else {
-      cancelAnimation(ttsWaveAmplitude);
-      ttsWaveAmplitude.value = withTiming(0, { duration: 300 });
-    }
-  }, [playbackState]);
 
   const getTTSVoice = useCallback(() => {
     return voicePref === 'male' ? 'echo' : 'nova';
@@ -151,8 +157,46 @@ export function useTTS(options: UseTTSOptions = {}) {
     (async () => {
       try {
         const { createAudioPlayer } = await import('expo-audio');
-        const player = createAudioPlayer({ uri: audioUrl });
+        /**
+         * `crossOrigin` is web-only and ignored elsewhere, and it is what makes
+         * the waveform readable there: a browser will not let an `AnalyserNode`
+         * see a cross-origin media element loaded without CORS, so without this
+         * `setAudioSamplingEnabled` below silently declines and the field never
+         * moves. Clips are served by `GET /media` on the API host, which is a
+         * different origin from the app on every deployment.
+         *
+         * It costs the clip its CORS headers if the app's origin is not on the
+         * API's allowlist — but such an origin cannot load a conversation to
+         * read aloud in the first place, since `/media` and `/conversations`
+         * share that allowlist. Measured against production 2026-08-26:
+         * `Origin: https://alia.onl` is answered
+         * `access-control-allow-origin: https://alia.onl`, with `Vary: Origin`.
+         */
+        const player = createAudioPlayer({ uri: audioUrl }, { crossOrigin: 'anonymous' });
         playerRef.current = player;
+
+        /**
+         * The real waveform, which is what the ambient field behind the
+         * conversation moves to. Enabled BEFORE `play()`: on web this is what
+         * builds the analyser, and the sampling loop only starts if the player
+         * is already playing or starts afterwards.
+         *
+         * It can decline, and declining is not an error. Android routes
+         * playback sampling through `android.media.audiofx.Visualizer`, which
+         * needs `RECORD_AUDIO` already granted — and asking a person for the
+         * microphone so that a background can move would be a worse trade than
+         * the background not moving. Where it declines no buffer ever arrives,
+         * the level stays at zero and the field simply rests. That is the
+         * honest reading of "we cannot hear this", and it is deliberately not
+         * papered over with motion that does not come from the audio.
+         */
+        player.setAudioSamplingEnabled(true);
+        const meter = createAudioLevelMeter();
+        player.addListener('audioSampleUpdate', (sample: AudioSample) => {
+          const frames = sample.channels[0]?.frames;
+          if (frames === undefined) return;
+          ttsWaveAmplitude.value = meter.push(frames, Date.now());
+        });
 
         player.addListener('playbackStatusUpdate', (status: AudioStatus) => {
           if (status.error) {
