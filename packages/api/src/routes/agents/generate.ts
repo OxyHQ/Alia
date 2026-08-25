@@ -3,7 +3,7 @@ import { generateText } from 'ai';
 import { AGENT_ARCHETYPES } from '../../domain/agent.js';
 import { AGENT_COLORS, agentColorFor, isAgentColor } from '../../domain/agent-color.js';
 import { FIXED_CAPABILITY_FAMILIES, isCapabilityGrant } from '../../domain/capability-grants.js';
-import { accountCategoryChoices, isOfferedAccountCategory } from '../../domain/account-category.js';
+import { accountCategoryChoices, isOfferedAccountCategory } from '../../lib/account-category.js';
 import { fallbackAgentUsername, suggestAgentUsername } from '../../lib/agent-identity.js';
 import { authenticateToken } from '../../middleware/auth.js';
 import { resolveModel, getAIModel, getDefaultAliaModel } from '../../lib/chat-core.js';

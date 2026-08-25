@@ -3,6 +3,13 @@ import { SELECTABLE_ACCOUNT_CATEGORY_IDS, type AccountCategoryId } from '@oxyhq/
 /**
  * What an agent's bot ACCOUNT is about, in Oxy's own taxonomy.
  *
+ * In `lib/` rather than `domain/`, and the gate in
+ * `db/__tests__/schemaModelIndependence.test.ts` is why: a domain module is a
+ * LEAF that imports nothing, which is right for Alia's own frozen vocabularies
+ * (`agent-color.ts`, `capability-grants.ts`) and wrong for this — it is a thin
+ * reading of somebody else's contract, and its whole point is not restating
+ * what `@oxyhq/contracts` already says.
+ *
  * One definition for both doors an agent can be born through — `POST
  * /agents/generate` behind the create screen, and the chat tool that makes one
  * mid-conversation. Two copies of this rule would be two chances for an agent

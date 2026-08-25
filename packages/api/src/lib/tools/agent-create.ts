@@ -8,7 +8,7 @@ import { log } from '../logger.js';
 import { getErrorMessage } from '../errors/index.js';
 import { FIXED_CAPABILITY_FAMILIES } from '../../domain/capability-grants.js';
 import { AGENT_COLORS, agentColorFor } from '../../domain/agent-color.js';
-import { accountCategoryChoices, isOfferedAccountCategory } from '../../domain/account-category.js';
+import { accountCategoryChoices, isOfferedAccountCategory } from '../account-category.js';
 
 /**
  * Factory tool for creating AI agents during conversation.
