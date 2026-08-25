@@ -51,7 +51,7 @@ jobs:
   bind:
     name: Bind ${{ inputs.hostname }}
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     env:
       CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CF_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -173,9 +173,18 @@ jobs:
       - name: A browser can actually reach it
         run: |
           set -euo pipefail
-          for i in $(seq 1 30); do
+          # A wall-clock deadline, not an attempt count. With 30 attempts of
+          # `--max-time 15` plus `sleep 20` this loop could run 17 minutes
+          # against a 10-minute job: the runner killed the job BEFORE the loop
+          # exhausted, so the `::error::` below — the line that says this is
+          # probably certificate issuance and to re-run — was unreachable in
+          # exactly the case it was written for.
+          end=$((SECONDS + 480))
+          i=0
+          while [ $SECONDS -lt $end ]; do
+            i=$((i+1))
             code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 "https://$HOSTNAME/" || echo 000)
-            echo "attempt $i: http=$code"
+            echo "attempt $i (${SECONDS}s of 480): http=$code"
             if [ "$code" = "200" ]; then
               echo "### After" >> "$GITHUB_STEP_SUMMARY"
               echo '```' >> "$GITHUB_STEP_SUMMARY"
@@ -186,5 +195,5 @@ jobs:
             fi
             sleep 20
           done
-          echo "::error::$HOSTNAME still does not serve after 10 minutes. The record and the project binding are in place (both asserted above), so this is certificate issuance or propagation — re-run this step before assuming it failed."
+          echo "::error::$HOSTNAME still does not serve after 8 minutes. The record and the project binding are in place (both asserted above), so this is certificate issuance or propagation — re-run this step before assuming it failed."
           exit 1

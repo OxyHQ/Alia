@@ -21,33 +21,20 @@ import { log } from './logger.js';
 /**
  * The first-party browser origins this repo deploys.
  *
- * `packages/alia-canvas` is published by `.github/workflows/deploy-frontends.yml`
- * to the Cloudflare Pages project `alia-canvas`, and it is served on
- * `canvas.alia.onl`.
- *
- * The Pages DEFAULT origin (`alia-canvas.pages.dev`) is deliberately absent,
- * and its absence is the only way it can be retired: Cloudflare always serves a
- * project's default hostname and offers no way to switch it off, so what gets
- * withdrawn is its AUTHORITY. Loading the app there now fails every call it
- * makes, which is the intent.
- *
- * Nothing is lost by refusing it. Measured at the cutover, `canvas.alia.onl`
- * and `alia-canvas.pages.dev` returned a byte-identical document
- * (md5 `7d3d4ceb6056`) — the same deployment under two names.
- *
- * Until 2026-08-24 `canvas.alia.onl` pointed at the decommissioned DigitalOcean
- * app `.do/app.yaml` declares and answered nothing (`http=000`), which is why
- * the Pages default was ever admitted. `.github/workflows/bind-pages-domain.yml`
- * repointed it, and the record is now a PROXIED CNAME to the Pages project.
+ * `packages/alia-canvas` is served on `canvas.alia.onl` and nowhere else: it is
+ * a Cloudflare WORKER with `workers_dev = false` (see its `wrangler.toml`), so
+ * it has no default hostname to admit. The Pages project it used to live on,
+ * and that project's `alia-canvas.pages.dev`, were deleted in the migration.
  *
  * This list is Alia's OWN CORS surface. `api.oxy.so` is a separate one, whose
  * origins come from `BOOTSTRAP_CORE_ORIGINS` and the Application registry in
- * the Oxy platform — authorising an origin there cannot be done from this repo.
+ * the Oxy platform — authorising an origin there cannot be done from this repo,
+ * and forgetting that is how an origin ends up allowed here and refused there.
  *
  * Exact origins only, never a pattern: `createOxyCors` matches the normalized
- * origin against this set, so a Cloudflare Pages PREVIEW deployment
- * (`<hash>.alia-canvas.pages.dev`) is not admitted by this entry, which is the
- * intent.
+ * origin against this set, so a neighbouring host — `staging.alia.onl`, a
+ * preview build, anything sharing the suffix — is not admitted by an entry
+ * here, which is the intent.
  */
 export const PRODUCTION_ORIGINS: readonly string[] = [
   'https://alia.onl',
