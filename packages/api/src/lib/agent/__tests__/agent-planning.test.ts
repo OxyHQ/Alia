@@ -209,15 +209,25 @@ describe('the in-chat planner reaches the client (#139 ws6)', () => {
       /aliaTools\.planPreview = createPlanPreviewTool\(\(steps\) => \{\s*sseEmitter\.emit\('alia\.plan_preview'/,
     );
 
-    // And it sits inside the `isDirectSession` branch, above the emitter guard.
-    // An API-key session must not be handed a tool whose only effect is an SSE
-    // event on a response it is not streaming.
-    const directAt = pipeline.indexOf('if (isDirectSession) {');
-    const emitterAt = pipeline.indexOf('if (sseEmitter) {');
+    /**
+     * And it sits behind a guard that requires BOTH an emitter and a session.
+     *
+     * An API-key session must not be handed a tool whose only effect is an SSE
+     * event on a response it is not streaming — and the emitter alone does not
+     * say that, because the route builds one either way.
+     *
+     * This asserts the GUARD, not the indentation. The predecessor compared the
+     * offsets of two separate `if` lines, so flattening one nested pair into a
+     * single `&&` — which changed nothing about what is registered — turned it
+     * red. What the fixtures in `routes/v1/__tests__/chatFlowFixtures.test.ts`
+     * assert behaviourally is that an API-key turn never sees this tool; this
+     * is the source-level half, and it exists for the EVENT NAME above, which
+     * no behavioural test can see.
+     */
+    const guardAt = pipeline.indexOf('if (sseEmitter && isDirectSession) {');
     const planAt = pipeline.indexOf('aliaTools.planPreview =');
-    expect(directAt).toBeGreaterThan(-1);
-    expect(emitterAt).toBeGreaterThan(directAt);
-    expect(planAt).toBeGreaterThan(emitterAt);
+    expect(guardAt).toBeGreaterThan(-1);
+    expect(planAt).toBeGreaterThan(guardAt);
   });
 
   it('the product runtime builds the emitter it needs and passes it in', () => {

@@ -66,6 +66,7 @@
 import { OxyServices, canSwitchIntoAccount } from '@oxyhq/core';
 import type { Executor } from '../db/index.js';
 import { findAgentById, type AgentRecord } from '../db/agents/agentRepository.js';
+import { attachAgentIdentity, type HydratedAgent } from './agent-identity.js';
 import { log } from './logger.js';
 
 /** Why a caller may not act as an account. Maps 1:1 onto an HTTP status. */
@@ -384,4 +385,60 @@ function readUploadedAssetId(response: unknown): string | null {
   if (typeof file !== 'object' || file === null) return null;
   const id = (file as { id?: unknown }).id;
   return typeof id === 'string' && id !== '' ? id : null;
+}
+
+/**
+ * The agent a TURN is for, named explicitly by the request.
+ *
+ * ## Explicit, because the inference was broken for its whole life
+ *
+ * This replaces `findConversationAgentById(conversationId)`, which addressed the
+ * conversations table's PRIMARY KEY while `conversationId` is the client's
+ * BUSINESS key (a `randomUUID()` minted by `POST /conversations/new`). It could
+ * not match, so the escalation branch behind it never ran once — and the
+ * Mongoose original threw a CastError that both call sites caught and turned
+ * into `null`, which is why nothing ever looked wrong.
+ *
+ * The client has been sending `agentId` on the request body all along
+ * (`use-streaming-chat.ts`) and nothing read it. So the turn reads it, and
+ * derives nothing: an agent is a parameter, not a thing to work out from a
+ * thread id.
+ *
+ * ## `agentId` is CLIENT INPUT, so it is authorised
+ *
+ * Two grounds, and the first is why this is not expensive:
+ *
+ *  - The agent is PUBLISHED and active. Its prompt is already public — a
+ *    published agent's whole record, `system_prompt` included, is what
+ *    `GET /agents/:id` serves to anyone — so using it for your own turn leaks
+ *    nothing, and the escalation branch bills the CALLER either way.
+ *  - Otherwise the caller must be able to ACT AS its bot account, which is what
+ *    lets somebody chat with their own draft. That is a read, so it takes the
+ *    cached verdict: one Oxy round trip per caller per agent per five minutes,
+ *    not one per turn.
+ *
+ * A refusal is `null` rather than an error. A turn naming an agent the caller
+ * may not use is still a valid chat turn; it simply runs as ordinary Alia,
+ * which is exactly what happened for every turn before this worked.
+ */
+export async function loadTurnAgent(
+  db: Executor,
+  params: { agentId: string; oxyUserId: string; accessToken: string | undefined },
+): Promise<HydratedAgent | null> {
+  const agent = await findAgentById(db, params.agentId);
+  if (agent === null) return null;
+
+  if (!(agent.isPublished && agent.status === 'active')) {
+    if (params.accessToken === undefined) return null;
+    const verdict = await verifyAgentAccount({
+      oxyUserId: params.oxyUserId,
+      accessToken: params.accessToken,
+      oxyAccountId: agent.oxyAccountId,
+      // A READ: the turn is about to render this agent's prompt, not write to it.
+      cache: true,
+    });
+    if (!verdict.permitted) return null;
+  }
+
+  return attachAgentIdentity(agent);
 }

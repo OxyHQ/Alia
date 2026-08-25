@@ -1,8 +1,6 @@
 import crypto from 'crypto';
 import { Router, Request, Response } from 'express';
 import { getAliaModel, getModelMappingsForTier } from '../../lib/gateway-client.js';
-import { getDb } from '../../db/index.js';
-import { findConversationAgentById } from '../../db/chat/conversationRepository.js';
 import { refundReservation, safeRefund } from '../../lib/credits-manager.js';
 import { handleDeepResearch } from '../../lib/chat-modes/deep-research-handler.js';
 import { ToolPipeline } from '../../lib/tool-pipeline.js';
@@ -144,6 +142,8 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
       userId: req.user?.id || '',
       accessToken: req.accessToken,
       isDirectSession: isDirectUserSession,
+      // A session acts for the person holding it; an API key does not.
+      actsForPerson: isDirectUserSession,
       agentMode,
       requestId,
       editorToolDefinitions: body.tools,
@@ -151,79 +151,70 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
       webSearch,
       mcpServerId,
       isLocalRuntime,
+      toolsEnabled: true,
+      agent: linkedAgent,
     });
 
     // Agent mode: full agent escalation for linked conversations
     const agentMessages: AgentMessage[] = [];
-    if (agentMode && isDirectUserSession) {
+    /**
+     * The agent this turn NAMED, already resolved and authorised by
+     * `request-context`. It used to be looked up again here through a thread id
+     * that could not match, so this branch never ran once — every line below is
+     * reached for the first time by this change, including the credit
+     * reservation the handoff owns.
+     */
+    if (agentMode && isDirectUserSession && linkedAgent && req.user?.id) {
+      try {
+        const { startAgentSession } = await import('../../lib/agent/session-handoff.js');
+        const { agentPromptName } = await import('../../lib/agent-identity.js');
 
-      // Check if this conversation is linked to a specific agent — enable full agent execution
-      if (conversationId && req.user?.id) {
-        try {
-          // Addresses the PRIMARY KEY, not the client's business key. See
-          // `findConversationAgentById` — this branch has never been reachable.
-          const conv = await findConversationAgentById(getDb(), conversationId);
-          if (conv?.agentId) {
-            const { findAgentById } = await import('../../db/agents/agentRepository.js');
-            const { startAgentSession } = await import('../../lib/agent/session-handoff.js');
-            const { agentPromptName, attachAgentIdentity } = await import(
-              '../../lib/agent-identity.js'
-            );
+        const linkedAgentName = agentPromptName(linkedAgent);
+        // Get the user's latest message as the task
+        const lastUserMsg = [...messages].reverse().find(m => m.role === 'user');
+        const taskText = typeof lastUserMsg?.content === 'string'
+          ? lastUserMsg.content
+          : Array.isArray(lastUserMsg?.content)
+            ? lastUserMsg.content.filter((p: any) => p.type === 'text').map((p: any) => p.text).join(' ')
+            : 'Execute task';
 
-            const foundAgent = await findAgentById(getDb(), conv.agentId);
-            if (foundAgent && foundAgent.isPublished && foundAgent.status === 'active') {
-              // The queue entry and the SSE event both name the agent, and the
-              // name is the bot account's — resolved once for both.
-              const linkedAgent = await attachAgentIdentity(foundAgent);
-              const linkedAgentName = agentPromptName(linkedAgent);
-              // Get the user's latest message as the task
-              const lastUserMsg = [...messages].reverse().find(m => m.role === 'user');
-              const taskText = typeof lastUserMsg?.content === 'string'
-                ? lastUserMsg.content
-                : Array.isArray(lastUserMsg?.content)
-                  ? lastUserMsg.content.filter((p: any) => p.type === 'text').map((p: any) => p.text).join(' ')
-                  : 'Execute task';
+        /**
+         * A SECOND reservation, on top of the turn's own, and the `finally` at
+         * the bottom of this handler cannot see it — it releases
+         * `state.creditReservation` and nothing else.
+         *
+         * So this branch reserved the agent's price and answered a failure of
+         * the session write or the enqueue with the `catch` below: a
+         * `log.warn`, while the price stayed debited. `startAgentSession` owns
+         * the undo, which is the only way a reservation this handler does not
+         * know about can be released.
+         */
+        const handoff = await startAgentSession({
+          agent: linkedAgent,
+          userId: req.user.id,
+          task: taskText.slice(0, 2000),
+          // The person named this agent on the request, so the escalation is
+          // them choosing it.
+          origin: 'hire',
+        });
 
-              /**
-               * A SECOND reservation, on top of the turn's own, and the
-               * `finally` at the bottom of this handler cannot see it — it
-               * releases `state.creditReservation` and nothing else.
-               *
-               * So this branch reserved the agent's price and answered a
-               * failure of the session write or the enqueue with the `catch`
-               * below: a `log.warn`, while the price stayed debited.
-               * `startAgentSession` owns the undo, which is the only way a
-               * reservation this handler does not know about can be released.
-               */
-              const handoff = await startAgentSession({
-                agent: linkedAgent,
-                userId: req.user.id,
-                task: taskText.slice(0, 2000),
-                // The person linked this conversation to this agent, so the
-                // escalation is them choosing it.
-                origin: 'hire',
-              });
-
-              if (handoff.ok) {
-                // Emit agent session event via SSE so frontend can subscribe
-                if (body.stream) {
-                  res.write(`event: alia.agent_session\ndata: ${JSON.stringify({
-                    eventVersion: 1,
-                    sessionId: handoff.sessionId,
-                    agentId: linkedAgent._id,
-                    agentName: linkedAgentName,
-                  })}\n\n`);
-                }
-
-                log.v1.info({ sessionId: handoff.sessionId, agentId: linkedAgent._id }, 'Agent session created from chat');
-              } else {
-                log.v1.warn({ agentId: linkedAgent._id, reason: handoff.reason }, 'Could not escalate this turn to its linked agent');
-              }
-            }
+        if (handoff.ok) {
+          // Emit agent session event via SSE so frontend can subscribe
+          if (body.stream) {
+            res.write(`event: alia.agent_session\ndata: ${JSON.stringify({
+              eventVersion: 1,
+              sessionId: handoff.sessionId,
+              agentId: linkedAgent._id,
+              agentName: linkedAgentName,
+            })}\n\n`);
           }
-        } catch (agentErr) {
-          log.v1.warn({ err: agentErr }, 'Failed to check/create agent session from chat');
+
+          log.v1.info({ sessionId: handoff.sessionId, agentId: linkedAgent._id }, 'Agent session created from chat');
+        } else {
+          log.v1.warn({ agentId: linkedAgent._id, reason: handoff.reason }, 'Could not escalate this turn to its linked agent');
         }
+      } catch (agentErr) {
+        log.v1.warn({ err: agentErr }, 'Failed to check/create agent session from chat');
       }
     }
 

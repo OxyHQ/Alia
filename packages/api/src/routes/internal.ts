@@ -9,20 +9,12 @@
  */
 
 import { Router } from 'express';
-import { generateText, stepCountIs, type ToolSet } from 'ai';
+import { generateText, stepCountIs } from 'ai';
 import { resolveModel, getAIModel, getDefaultAliaModel, reportModelUsage } from '../lib/chat-core.js';
 import {
-  getCurrentDateTool,
-  webSearchTool,
-  browseTool,
-  saveUserMemoryTool,
-  updateUserMemoryTool,
-  updateUserPreferencesTool,
-  updateUserContextTool,
-  createSendTelegramTool,
-  webScraperTool,
 } from '../lib/tools/index.js';
 import { oxyServiceAuth, oxyClient } from '../middleware/auth.js';
+import { ToolPipeline } from '../lib/tool-pipeline.js';
 import { setPlanModelIds } from '../db/billing/planRepository.js';
 import { isAliaModel } from '../lib/gateway-client.js';
 import type { User as OxyUser } from '@oxyhq/core';
@@ -176,18 +168,24 @@ router.post('/trigger', oxyServiceAuth, async (req, res) => {
     }
 
     const model = getAIModel(resolved, 'background');
-    // Build tools — authenticated user tools + general tools
-    const tools: ToolSet = {
-      getCurrentDate: getCurrentDateTool,
-      webScraper: webScraperTool,
-      webSearch: webSearchTool,
-      browse: browseTool,
-      saveUserMemory: saveUserMemoryTool(userId),
-      updateUserMemory: updateUserMemoryTool(userId),
-      updateUserPreferences: updateUserPreferencesTool(userId),
-      updateUserContext: updateUserContextTool(userId),
-      sendTelegramMessage: createSendTelegramTool(userId),
-    };
+    /**
+     * Through the ONE assembler, like every other surface.
+     *
+     * This was an inline `ToolSet` literal — a fifth assembler that no census
+     * over exported function names could see, which is why it outlived the four
+     * that had names. It is also why `__tests__/one-assembler.test.ts` counts
+     * inline literals and not just exports.
+     */
+    const { tools } = await ToolPipeline.forUser({
+      userId,
+      isDirectSession: false,
+      // A service token delegates a named end user, and acts for them.
+      actsForPerson: true,
+      agentMode: false,
+      toolsEnabled: true,
+      webSearch: true,
+      isLocalRuntime: false,
+    });
 
     // Build the user message from the event
     const eventDescription = `[Event: ${event}]${data ? `\n\nEvent data:\n${JSON.stringify(data, null, 2)}` : ''}${instructions ? `\n\nAdditional instructions: ${instructions}` : ''}`;

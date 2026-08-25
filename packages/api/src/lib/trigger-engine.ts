@@ -8,7 +8,7 @@
 
 import crypto from 'crypto';
 import cron, { type ScheduledTask } from 'node-cron';
-import { generateText, stepCountIs, type ToolSet } from 'ai';
+import { generateText, stepCountIs } from 'ai';
 import {
   claimTriggerForRun,
   completeTriggerExecution,
@@ -35,20 +35,10 @@ import {
   type HydratedAgent,
 } from './agent-identity.js';
 import { readArchetypeConfig } from '../domain/agent.js';
+import { ToolPipeline } from './tool-pipeline.js';
 import { resolveModel, getAIModel, getDefaultAliaModel } from './chat-core.js';
 import {
-  getCurrentDateTool,
-  webSearchTool,
-  browseTool,
-  saveUserMemoryTool,
-  updateUserMemoryTool,
-  updateUserPreferencesTool,
-  updateUserContextTool,
-  createSendTelegramTool,
-  webScraperTool,
 } from './tools/index.js';
-import { buildIntegrationTools } from './tools/integrations.js';
-import { buildMcpTools } from './tools/mcp.js';
 import { getDb } from '../db/index.js';
 import { findUserMemory, type UserMemoryProfile } from '../db/memory/userMemoryRepository.js';
 import { oxyClient } from '../middleware/auth.js';
@@ -118,47 +108,6 @@ function scheduleToCron(schedule: TriggerSchedule): string | null {
   }
 
   return null;
-}
-
-// ── Tool builder ───────────────────────────────────────────────────
-
-async function buildTriggerTools(userId: string, useTools: boolean): Promise<ToolSet> {
-  // Always include basic tools
-  const tools: ToolSet = {
-    getCurrentDate: getCurrentDateTool,
-  };
-
-  if (!useTools) return tools;
-
-  // Full tool set for triggers that opt in
-  Object.assign(tools, {
-    webSearch: webSearchTool,
-    browse: browseTool,
-    webScraper: webScraperTool,
-    saveUserMemory: saveUserMemoryTool(userId),
-    updateUserMemory: updateUserMemoryTool(userId),
-    updateUserPreferences: updateUserPreferencesTool(userId),
-    updateUserContext: updateUserContextTool(userId),
-    sendTelegramMessage: createSendTelegramTool(userId),
-  });
-
-  // Add integration tools (GitHub, Notion, etc.)
-  try {
-    const integrationTools = await buildIntegrationTools(userId);
-    Object.assign(tools, integrationTools);
-  } catch (error) {
-    log.triggers.error({ err: error, userId }, 'Failed to load integration tools for trigger');
-  }
-
-  // Add MCP tools
-  try {
-    const mcpTools = await buildMcpTools(userId);
-    Object.assign(tools, mcpTools);
-  } catch (error) {
-    log.triggers.error({ err: error, userId }, 'Failed to load MCP tools for trigger');
-  }
-
-  return tools;
 }
 
 // ── System prompt builder ──────────────────────────────────────────
@@ -271,7 +220,18 @@ export async function executeTrigger(
     }
 
     const model = getAIModel(resolved, 'trigger');
-    const tools = await buildTriggerTools(userId, trigger.action.useTools);
+    const { tools } = await ToolPipeline.forUser({
+      userId,
+      isDirectSession: false,
+      // A trigger runs for the person who wrote it.
+      actsForPerson: true,
+      agentMode: false,
+      // The trigger's author decides whether it may use tools at all.
+      toolsEnabled: trigger.action.useTools === true,
+      webSearch: true,
+      isLocalRuntime: false,
+      agent: linkedAgent,
+    });
 
     // Use archetype system prompt if the linked agent has one
     let systemPrompt: string;

@@ -1,8 +1,26 @@
 /**
- * Agent Actions — 5 Manus-Style Action Primitives
+ * The five session-bound primitives an autonomous run acts THROUGH, and the
+ * policy that wraps whatever it ends up holding.
  *
- * Replaces the 20+ structured tools from agent-tools.ts with
- * 5 general-purpose actions that cover all agent capabilities:
+ * ## This is a SOURCE and a POLICY, not an assembler
+ *
+ * It used to be `buildActions`, one of five tool assemblers: it built these
+ * five, then merged MCP and integration tools itself, then wrapped the lot.
+ * `ToolPipeline` is the only assembler now, so the merging left and what
+ * remains is two things it can call:
+ *
+ *  - {@link buildRuntimeTools} — the five primitives, and nothing else. A
+ *    source, exactly like `buildMcpTools`, distinguished only by needing a live
+ *    container, browser and plan to act on.
+ *  - {@link applyRuntimePolicy} — the agent's permission stubs and the threat
+ *    detector, applied to the WHOLE assembled set including MCP tools, which is
+ *    why it is a separate pass that runs last.
+ *
+ * The policy stays scoped to a RUNTIME turn, which is where it has always run.
+ * Extending it over the chat path would be a change to what Alia refuses, not a
+ * change to how tools are assembled, and it is not this one.
+ *
+ * The five primitives replace the 20+ structured tools from agent-tools.ts:
  *
  *   shell     — Persistent terminal (lazy container creation)
  *   browser   — Web search, navigation, screenshots
@@ -23,8 +41,6 @@ import { TerminalSession } from './terminal-session.js';
 import { BrowserSession } from './browser-session.js';
 import { TodoManager } from './todo-manager.js';
 import { WorkspaceMemory } from './workspace-memory.js';
-import { buildMcpTools } from '../tools/mcp.js';
-import { buildIntegrationTools } from '../tools/integrations.js';
 import { log } from '../logger.js';
 import { getErrorMessage } from '../errors/index.js';
 import { analyzeThreat, formatThreatSummary } from './threat-detector.js';
@@ -37,7 +53,7 @@ import { updateAgentSession, type AgentSessionRecord } from '../../db/agents/age
 import type { AgentRecord } from '../../db/agents/agentRepository.js';
 import type { EventStream } from './event-stream.js';
 
-export interface ActionContext {
+export interface AgentRuntimeContext {
   agent: AgentRecord;
   session: AgentSessionRecord;
   onComplete: (result: string) => void;
@@ -50,10 +66,13 @@ export interface ActionContext {
 }
 
 /**
- * Build the 5 action primitives + any MCP/integration tools.
- * All actions are always returned (no state-based filtering).
+ * The five primitives. All of them, always — no state-based filtering, because
+ * a tool set that changes shape between steps invalidates the KV cache.
+ *
+ * `delegate` is the one exception and it is structural rather than stateful:
+ * it exists only when the caller supplied something to delegate THROUGH.
  */
-export async function buildActions(ctx: ActionContext) {
+export function buildRuntimeTools(ctx: AgentRuntimeContext): ToolSet {
   const {
     session, onComplete, onHireAgent,
     todoManager, workspaceMemory,
@@ -61,7 +80,6 @@ export async function buildActions(ctx: ActionContext) {
     eventStream,
   } = ctx;
 
-  const userId = session.oxyUserId;
   const actions: ToolSet = {};
 
   // ── 1. shell — Persistent terminal ──
@@ -256,6 +274,36 @@ export async function buildActions(ctx: ActionContext) {
     });
   }
 
+  return actions;
+}
+
+/**
+ * The agent's permissions and the threat detector, over the WHOLE set.
+ *
+ * Runs LAST and over everything the pipeline assembled — the five primitives,
+ * the MCP tools, the integrations — because both wrappers are about what an
+ * agent may DO, not about where a tool came from. Mutates in place and returns
+ * the same object, which is what a wrapper that swaps `execute` can honestly
+ * claim to do.
+ */
+export async function applyRuntimePolicy(
+  actions: ToolSet,
+  ctx: AgentRuntimeContext,
+  /**
+   * Which of the assembled names came from MCP, handed over by the pipeline
+   * that fetched them.
+   *
+   * NOT re-derived from the names. MCP tools happen to be prefixed `mcp_`, but
+   * integration tools are not prefixed at all (`listCalendarEvents`,
+   * `createCalendarEvent`), so any rule that worked for one would be a guess
+   * for the other — and a guess that drifts silently the day a source renames
+   * something. The assembler knows the answer exactly; it says so.
+   */
+  mcpToolNames: ReadonlySet<string>,
+): Promise<ToolSet> {
+  const { session, eventStream } = ctx;
+  const userId = session.oxyUserId;
+
   // ── Agent Permission Enforcement ──
   // If the agent has explicit permissions set, replace disabled tools with stubs.
   // undefined permissions = all allowed (backward compatible with existing agents).
@@ -272,39 +320,29 @@ export async function buildActions(ctx: ActionContext) {
     if (perms.delegation === false && actions.delegate) actions.delegate.execute = denyStub('Agent delegation');
   }
 
-  // ── MCP + Integration tools (keep as-is — already well-designed) ──
-
-  try {
-    const [integrationTools, mcpTools] = await Promise.all([
-      buildIntegrationTools(userId),
-      buildMcpTools(userId),
-    ]);
-
-    // Skip integration tools if communications disabled
-    if (!perms || perms.communications !== false) {
-      Object.assign(actions, integrationTools);
+  /**
+   * An MCP tool that throws answers the model instead of failing the step.
+   *
+   * Kept from the version that fetched MCP itself, because it is about what the
+   * MODEL sees when a remote connector misbehaves, not about who loaded it. The
+   * permission gates that used to sit beside it moved to the assembler, which
+   * can decline to FETCH a denied source rather than fetch and discard it.
+   */
+  for (const name of mcpToolNames) {
+    const action = actions[name];
+    if (!action) continue;
+    const originalExecute = action.execute;
+    if (!originalExecute) {
+      log.agents.warn({ toolName: name }, 'MCP tool has no execute function, skipping');
+      continue;
     }
-
-    // Add MCP tools (skip if mcp_servers disabled)
-    if (perms?.mcp_servers !== false) {
-      for (const [name, mcpTool] of Object.entries(mcpTools)) {
-        const originalExecute = mcpTool.execute;
-        if (!originalExecute) {
-          log.agents.warn({ toolName: name }, 'MCP tool has no execute function, skipping');
-          continue;
-        }
-        mcpTool.execute = async (input, options) => {
-          try {
-            return await originalExecute(input, options);
-          } catch (err: unknown) {
-            return `MCP tool error: ${getErrorMessage(err).slice(0, 150)}`;
-          }
-        };
-        actions[name] = mcpTool;
+    action.execute = async (input, options) => {
+      try {
+        return await originalExecute(input, options);
+      } catch (err: unknown) {
+        return `MCP tool error: ${getErrorMessage(err).slice(0, 150)}`;
       }
-    }
-  } catch (err) {
-    log.agents.warn({ err, userId }, 'Failed to load integration/MCP tools');
+    };
   }
 
   // ── Threat Detection Wrapper ──

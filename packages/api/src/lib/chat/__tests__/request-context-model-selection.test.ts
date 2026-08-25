@@ -49,7 +49,6 @@ vi.mock('../../../db/memory/userMemoryRepository.js', () => ({
   findUserMemory: async () => undefined,
 }));
 vi.mock('../../../db/chat/conversationRepository.js', () => ({
-  findConversationAgentById: async () => undefined,
 }));
 vi.mock('../../../db/agents/skillRepository.js', () => ({ findSkillPrompt: async () => undefined }));
 vi.mock('../../../db/agents/agentRepository.js', () => ({ findAgentById: async () => null }));

@@ -5,7 +5,8 @@ import { generateText, stepCountIs } from 'ai';
 import { getChannel } from '../lib/channels/registry.js';
 import { resolveModel, getAIModel, reportModelUsage, getDefaultAliaModel } from '../lib/chat-core.js';
 import { sendChannelMessage } from '../lib/channels/outbound.js';
-import { buildChatTools } from '../services/chat.service.js';
+import { ToolPipeline } from '../lib/tool-pipeline.js';
+import { attachAgentIdentity } from '../lib/agent-identity.js';
 import { loadPrompt } from '../lib/prompt-loader.js';
 import { getDb } from '../db/index.js';
 import {
@@ -409,10 +410,11 @@ export async function processAgentBotMessage(
     const userMessageAt = new Date();
     messages.push({ role: 'user', content: message.text });
 
-    // Resolve the bound agent's configuration (prompt + preferred model).
-    const agent = bot.agentId
-      ? await findAgentById(getDb(), bot.agentId)
-      : null;
+    // Resolve the bound agent's configuration (prompt + preferred model), with
+    // its Oxy identity attached — the assembler takes the agent as an input and
+    // the prompt below names it.
+    const found = bot.agentId ? await findAgentById(getDb(), bot.agentId) : null;
+    const agent = found === null ? null : await attachAgentIdentity(found);
 
     const aliasModelId = agent?.allowedModels[0] || getDefaultAliaModel();
     const resolved = await resolveModel(aliasModelId);
@@ -424,10 +426,27 @@ export async function processAgentBotMessage(
 
     const systemPrompt = agent?.systemPrompt || (await getChannelSystemPrompt(channelType));
 
-    // Wire the bot owner's REAL tool pipeline (memory, integrations, MCP, triggers, …).
-    // buildChatTools is the same assembly the internal chat uses; it runs on behalf of a
-    // user without a live JWT, which is exactly this background context.
-    const tools = await buildChatTools({ userId: ownerUserId });
+    /**
+     * The bot owner's REAL tool set, through the ONE assembler.
+     *
+     * It used to be `buildChatTools`, which was the only path with `canvas` and
+     * the trigger tools and the only path WITHOUT Oxy services — so an agent
+     * answering here could not reach a single first-party Oxy service. It can
+     * now, on the same assembly every other surface uses.
+     */
+    const { tools } = await ToolPipeline.forUser({
+      userId: ownerUserId,
+      // A bot turn has no browser session and no bearer of its own: it acts for
+      // the OWNER, on their credits, through the token-less server paths.
+      isDirectSession: false,
+      // No bearer, but it answers FOR the bot owner and on their credits.
+      actsForPerson: true,
+      agentMode: false,
+      toolsEnabled: true,
+      webSearch: true,
+      isLocalRuntime: false,
+      agent,
+    });
 
     const startTime = Date.now();
     const result = await generateText({

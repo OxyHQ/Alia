@@ -6,14 +6,15 @@ import type { ToolCallOptions, ToolSet } from 'ai';
  * epic #139 workstream 13, "Preserve agent governance and the R0–R3 action
  * policy" and "Preserve tool execution and rollback records".
  *
- * ## Why this drives `buildActions` and not `classifyActionRisk`
+ * ## Why this drives the real wrapper and not `classifyActionRisk`
  *
  * A test of `classifyActionRisk` alone measures a pure function that four
- * distinct behaviours are supposed to hang off. It is green whether or not the
- * wrapper in `actions.ts:313-412` consults it, whether or not R3 blocks, whether
- * or not R1 opens a rollback window. The wrapper is where the policy either
- * happens or does not, so the wrapper is what runs here: every assertion below
- * is about what a REAL `buildActions` tool does when it is called.
+ * distinct behaviours are supposed to hang off. It is green whether or not
+ * `applyRuntimePolicy` consults it, whether or not R3 blocks, whether or not R1
+ * opens a rollback window. The wrapper is where the policy either happens or
+ * does not, so the wrapper is what runs here: every assertion below is about
+ * what a REAL primitive does when it is called, after the policy pass the
+ * assembler runs over it.
  *
  * The seam is therefore the two things that leave the process — the approval
  * round trip (`action-approval.ts`, which reaches Socket.IO) and the rollback
@@ -27,11 +28,12 @@ import type { ToolCallOptions, ToolSet } from 'ai';
  * `delegate`) appears in any of them, so none of them can be classified R0 or
  * R1 — a fact this file records explicitly below rather than working around.
  * The names in the R0/R1 sets (`read_file`, `write_file`, …) reach the wrapper
- * today through MCP: `buildActions` merges `buildMcpTools`' output into the same
- * action set and wraps it identically (`actions.ts:290-304, 313`), and a
+ * today through MCP: `ToolPipeline` merges `buildMcpTools`' output into the
+ * same set and `applyRuntimePolicy` wraps everything in it identically, and a
  * filesystem MCP server publishes exactly those names. So the R0 and R1 paths
  * exercised here are reachable in production, through the door they are actually
- * reachable through.
+ * reachable through. The merge moved from `buildActions` to the assembler when
+ * the five assemblers became one; what the wrapper sees did not change.
  */
 
 const H = vi.hoisted(() => {
@@ -97,7 +99,12 @@ vi.mock('../../logger.js', () => {
   return { log: { agents: child, chat: child, general: child, v1: child, providers: child, codea: child } };
 });
 
-import { buildActions, type ActionContext } from '../actions.js';
+import {
+  applyRuntimePolicy,
+  buildRuntimeTools,
+  type AgentRuntimeContext,
+} from '../actions.js';
+import { buildMcpTools } from '../../tools/mcp.js';
 import { classifyActionRisk } from '../governance.js';
 import { requestApproval } from '../action-approval.js';
 import { insertRollbackRecord } from '../../../db/agents/rollbackRecordRepository.js';
@@ -110,7 +117,7 @@ import { insertRollbackRecord } from '../../../db/agents/rollbackRecordRepositor
  * container. Each double carries exactly the surface the function touches, and
  * the cast is `unknown`-mediated rather than `any`.
  */
-function actionContext(overrides: { permissions?: Record<string, boolean> } = {}): ActionContext {
+function actionContext(overrides: { permissions?: Record<string, boolean> } = {}): AgentRuntimeContext {
   const ctx = {
     agent: { permissions: overrides.permissions },
     session: {
@@ -154,7 +161,7 @@ function actionContext(overrides: { permissions?: Record<string, boolean> } = {}
       },
     },
   };
-  return ctx as unknown as ActionContext;
+  return ctx as unknown as AgentRuntimeContext;
 }
 
 const CALL_OPTIONS = { toolCallId: 'tc-ws13', messages: [] } as unknown as ToolCallOptions;
@@ -228,13 +235,32 @@ describe('the risk classifier answers each level for a distinct reason', () => {
   });
 });
 
+/**
+ * The three steps, in the order `ToolPipeline` runs them.
+ *
+ * It was one call to `buildActions`, which built the primitives, merged MCP
+ * itself and wrapped the lot. The assembler owns the first two now, so a test
+ * of the wrapper has to reproduce them — and the MERGE is not optional here:
+ * the R0 and R1 levels are reachable only through MCP tool NAMES
+ * (`read_file`, `write_file`), so a set without them would leave two of the
+ * four levels unexercised while still passing.
+ *
+ * The MCP key set is handed over rather than derived from the names, exactly as
+ * the assembler hands it over — see `applyRuntimePolicy`.
+ */
+async function policyApplied(ctx: AgentRuntimeContext) {
+  const mcpTools = await buildMcpTools(ctx.session.oxyUserId);
+  const tools = { ...buildRuntimeTools(ctx), ...mcpTools };
+  return applyRuntimePolicy(tools, ctx, new Set(Object.keys(mcpTools)));
+}
+
 // ===========================================================================
 // The wrapper: each level produces its own outcome
 // ===========================================================================
 
 describe('the governance wrapper enforces the level it classified', () => {
   it('R3 blocks before the tool runs, and says so on the event stream', async () => {
-    const actions = await buildActions(actionContext());
+    const actions = await policyApplied(actionContext());
     const result = await run(actions, 'shell', { command: 'rm -rf /workspace' });
 
     // The refusal reaches the model as a tool result, so the agent can react.
@@ -250,7 +276,7 @@ describe('the governance wrapper enforces the level it classified', () => {
 
   it('R2 asks for approval and refuses when the answer is not yes', async () => {
     H.state.approval = 'denied';
-    const actions = await buildActions(actionContext());
+    const actions = await policyApplied(actionContext());
     const result = await run(actions, 'shell', { command: 'echo hello' });
 
     expect(result).toBe('Error: Action requires approval (denied).');
@@ -265,7 +291,7 @@ describe('the governance wrapper enforces the level it classified', () => {
     // Without this, "denied blocks execution" is also what a wrapper that never
     // executed anything would report.
     H.state.approval = 'approved';
-    const actions = await buildActions(actionContext());
+    const actions = await policyApplied(actionContext());
     const result = await run(actions, 'shell', { command: 'echo hello' });
 
     expect(result).toBe('shell output');
@@ -273,7 +299,7 @@ describe('the governance wrapper enforces the level it classified', () => {
   });
 
   it('R1 executes, then opens a rollback window recording what was done', async () => {
-    const actions = await buildActions(actionContext());
+    const actions = await policyApplied(actionContext());
     const result = await run(actions, 'write_file', { path: 'notes.txt', content: 'hi' });
 
     expect(result).toBe('written');
@@ -303,7 +329,7 @@ describe('the governance wrapper enforces the level it classified', () => {
   });
 
   it('R0 runs with no approval and no rollback record', async () => {
-    const actions = await buildActions(actionContext());
+    const actions = await policyApplied(actionContext());
     const result = await run(actions, 'read_file', { path: 'notes.txt' });
 
     expect(result).toBe('file contents');
@@ -319,10 +345,10 @@ describe('the governance wrapper enforces the level it classified', () => {
 
 describe('every action carries the wrapper, and the exemption is exactly one', () => {
   it('wraps every executable action except plan', async () => {
-    const actions = await buildActions({
+    const actions = await policyApplied({
       ...actionContext(),
       onHireAgent: async () => 'delegated',
-    } as unknown as ActionContext);
+    } as unknown as AgentRuntimeContext);
 
     const executable = Object.entries(actions)
       .filter(([, action]) => action.execute !== undefined)
@@ -376,7 +402,7 @@ describe('every action carries the wrapper, and the exemption is exactly one', (
     // approved R2 therefore still refuses — which is the property that makes
     // agent permissions a hard boundary rather than a default.
     H.state.approval = 'approved';
-    const actions = await buildActions(actionContext({ permissions: { shell: false } }));
+    const actions = await policyApplied(actionContext({ permissions: { shell: false } }));
     const result = await run(actions, 'shell', { command: 'echo hello' });
 
     expect(result).toBe('Error: Shell access is disabled for this agent. Contact the agent creator to enable it.');

@@ -168,8 +168,22 @@ interface MatrixRow {
  * else's work, which is worse than an unusual-looking one that resolves. Swap it
  * for the number when the PR opens — the parse only requires a non-empty
  * string, so nothing here fails in the meantime.
+ *
+ * ## 46 -> 47: `gwc-import-chat-service`
+ *
+ * `services/chat.service.ts` is gone, and with it the last file under
+ * `src/services/`. It held one of the FIVE tool assemblers this repository had
+ * — `buildChatTools`, the Telegram path — and when those five became one every
+ * other export in the file turned out to be dead too: fifteen of them, with
+ * zero callers between them, including a `loadUserContext` that reserved a
+ * credit nobody could ever trigger.
+ *
+ * It carries a branch name for the reason the five above do, and its
+ * `reachable` moved `live` -> `dead` in the same edit: a row claiming removal
+ * while still claiming to be live is a contradiction this gate does not check
+ * for, so it is not left to be found.
  */
-const REMOVED_ROW_COUNT = 46;
+const REMOVED_ROW_COUNT = 47;
 
 const OWNERS = new Set(['alia', 'oxy', 'relay', 'delete']);
 const REACHABLE = new Set(['live', 'dead', 'unverified', 'loaded-not-invoked']);

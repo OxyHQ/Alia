@@ -9,7 +9,6 @@ import {
   createConversation,
   deleteConversation,
   findConversation,
-  findConversationAgentById,
   listConversations,
   updateConversationTitle,
   upsertConversation,
@@ -253,28 +252,6 @@ describe('reads and ownership', () => {
     expect(after?.updatedAt.getTime()).toBeGreaterThan(before.updatedAt.getTime());
   });
 
-  it('addresses findConversationAgentById by the PRIMARY KEY, not the business key', async () => {
-    /**
-     * Pinning the port's most surprising decision as behaviour. The two call
-     * sites hand this the CLIENT's `conversationId`, and it does not match —
-     * exactly as the Mongoose `findById` it replaces did not (it threw a
-     * CastError on a uuid). Repointing it at `(oxy_user_id, conversation_id)`
-     * switches on an agent-escalation branch that reserves credits and starts a
-     * container, which is why the repository says out loud that it is a fix and
-     * not a translation. This test goes red on that change, which is the point:
-     * it must be a deliberate one.
-     */
-    const row = await createConversation(db, {
-      oxyUserId: 'agentid-user',
-      conversationId: 'agentid-conv',
-      title: 'T',
-      source: 'app',
-      agentId: 'agent-77',
-    });
-
-    expect(await findConversationAgentById(db, row.id)).toEqual({ agentId: 'agent-77' });
-    expect(await findConversationAgentById(db, 'agentid-conv')).toBeUndefined();
-  });
 
   it('deletes only the owner’s thread, and reports the count off count', async () => {
     await createConversation(db, {

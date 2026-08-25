@@ -1,14 +1,38 @@
 /**
- * Tool Pipeline — unified assembly of all tool sources for chat and agent contexts.
+ * THE tool assembler. There is exactly one, and `__tests__/one-assembler.test.ts`
+ * is what keeps it that way.
  *
- * Replaces the ad-hoc tool assembly scattered across chat-completions.ts and agent-tools.ts.
- * All 6 tool sources converge here:
- *   1. Alia built-in tools (static)
- *   2. User-specific factory tools (memory, telegram, whatsapp, triggers, etc.)
- *   3. MCP tools
- *   4. Integration tools (GitHub, Notion, Google Calendar, Linear, Google Drive)
- *   5. Oxy Service tools (first-party ecosystem)
- *   6. Editor/client tools (VS Code, Cursor, Cowork — OpenAI format)
+ * ## What it replaced, and what that cost
+ *
+ * There were FIVE, with no shared code: this one, `buildChatTools`
+ * (`services/chat.service.ts`, the Telegram path), `buildActions`
+ * (`lib/agent/actions.ts`, the autonomous runner), `buildTriggerTools`
+ * (`lib/trigger-engine.ts`) and an inline `ToolSet` literal in
+ * `routes/internal.ts` that no census over exported names could see.
+ *
+ * They diverged in ways nobody chose:
+ *
+ *  - Only THIS one included `buildOxyServiceTools`, so an agent answering on
+ *    its owner's Telegram bot could not reach a single first-party Oxy service.
+ *  - Only `buildChatTools` included `canvas` and the four trigger-management
+ *    tools, so the main chat could not create a trigger and Telegram could.
+ *  - The Telegram tool had TWO NAMES for one factory — `sendTelegram` here,
+ *    `sendTelegramMessage` in the other three — so a prompt or a skill naming
+ *    one silently did nothing on the other paths. `sendTelegramMessage` won.
+ *  - `buildTriggerTools` contributed nothing of its own at all: a pure subset.
+ *
+ * The collapse is a UNION, not an intersection. A capability that existed on
+ * any path exists on all of them now, and what still differs does so because it
+ * has a structural precondition — an SSE emitter to push events through, a live
+ * container and browser to act on, a device to describe — never because of
+ * which function happened to build the set.
+ *
+ * ## The agent is an INPUT, not something derived from the user
+ *
+ * `agent` says whose turn this is. Before, the only identity in scope was
+ * `userId`, so an agent saw exactly what its owner saw and no partition was
+ * expressible. The capability vocabulary that partitions it is the next piece
+ * of work, and it lands here rather than in a sixth assembler.
  */
 
 import type { ToolSet } from 'ai';
@@ -39,6 +63,21 @@ import { buildOxyServiceTools } from './tools/oxy-services.js';
 import { convertOpenAIToolsToToolSet, type OpenAITool } from './tool-converter.js';
 import { log } from './logger.js';
 import type { SSEEmitter } from './sse-emitter.js';
+import type { HydratedAgent } from './agent-identity.js';
+import type { DeviceInfo } from './tools/device-info.js';
+import {
+  applyRuntimePolicy,
+  buildRuntimeTools,
+  type AgentRuntimeContext,
+} from './agent/actions.js';
+import { canvasTool } from './tools/canvas.js';
+import { createGetDeviceInfoTool } from './tools/device-info.js';
+import {
+  createTriggerTool,
+  listTriggersTool,
+  updateTriggerTool,
+  deleteTriggerTool,
+} from './tools/trigger-management.js';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -47,9 +86,62 @@ import type { SSEEmitter } from './sse-emitter.js';
 export interface ForUserOptions {
   userId: string;
   accessToken?: string;
+  /**
+   * The caller holds a live user SESSION — an Oxy bearer, not an `alia_sk_` key.
+   *
+   * Governs only what needs that bearer to exist: minting an agent under the
+   * caller's own Oxy tree, and the agent-mode search and delegation tools.
+   */
   isDirectSession: boolean;
+  /**
+   * Whether this turn acts for a specific PERSON and may touch their own data.
+   *
+   * The distinction `isDirectSession` could not make, and the reason the four
+   * assemblers diverged: Telegram, a trigger and an autonomous run all act for
+   * a real person while holding no session of their own, so each rebuilt the
+   * personal tool set by hand and each ended up with a different one.
+   *
+   * FALSE for an API-key turn. A developer key carries its owner's `userId`, so
+   * every one of these tools would compile and run — and would hand a key
+   * HOLDER the key OWNER's memory, WhatsApp threads and triggers. That is what
+   * `isDirectSession` was standing in for here, and it is now said directly.
+   */
+  actsForPerson: boolean;
   agentMode: boolean;
   requestId?: string;
+  /**
+   * Whether this turn may use tools AT ALL. No default: every caller states it.
+   *
+   * The one caller that says `false` is a trigger whose author opted out
+   * (`trigger.action.useTools`), and what it gets is the date and nothing else
+   * — which is what `buildTriggerTools` did, preserved rather than reasoned
+   * away. A default would make the opt-out something a new call site forgets.
+   */
+  toolsEnabled: boolean;
+  /**
+   * The agent this turn is FOR, already resolved and authorised.
+   *
+   * Present on a turn that named one, absent on ordinary Alia. It is an input
+   * rather than something worked out from `userId` — see the file comment.
+   */
+  agent?: HydratedAgent | null;
+  /**
+   * The device on the other end, when the surface knows it.
+   *
+   * A structural precondition: `getDeviceInfo` can only describe a device that
+   * was described to us. Came from `buildChatTools`, whose Telegram caller has
+   * one and whose other callers did not.
+   */
+  deviceInfo?: DeviceInfo | null;
+  /**
+   * A live autonomous-agent session: its container, its browser, its plan.
+   *
+   * The other structural precondition. `shell`, `browser`, `file_edit`, `plan`
+   * and `delegate` act ON these objects, so they exist only for a turn that has
+   * them — which is the runner's, and no other. Absent everywhere else, and
+   * that is why they are not simply always-on like the rest.
+   */
+  runtime?: AgentRuntimeContext | null;
   /** Raw OpenAI-format tools from the client (VS Code, Cursor, Cowork) */
   editorToolDefinitions?: OpenAITool[];
   /** SSE emitter for tools that need to push events (switchModel, planPreview) */
@@ -100,16 +192,20 @@ export interface ForUserResult {
 
 export class ToolPipeline {
   /**
-   * Assemble the complete tool set for a chat user session.
-   *
-   * This replaces the inline tool assembly in chat-completions.ts (lines 596-727).
+   * Assemble the complete tool set for a turn — chat, Telegram, trigger or
+   * autonomous run.
    */
   static async forUser(opts: ForUserOptions): Promise<ForUserResult> {
     const {
       userId,
       accessToken,
       isDirectSession,
+      actsForPerson,
       agentMode,
+      toolsEnabled,
+      agent,
+      deviceInfo,
+      runtime,
       requestId,
       editorToolDefinitions,
       sseEmitter,
@@ -118,8 +214,20 @@ export class ToolPipeline {
       isLocalRuntime,
     } = opts;
 
-    // 1. Convert editor tools from OpenAI format and build name mapping
     const toolNameMapping = new Map<string, string>();
+
+    /**
+     * A trigger whose author opted out of tools gets the date and nothing else.
+     *
+     * Returned before anything is fetched, so an opted-out trigger costs no MCP
+     * round trip either — which is what `buildTriggerTools` did by never
+     * reaching its own fetch, and is preserved here rather than reasoned away.
+     */
+    if (!toolsEnabled) {
+      return { tools: { getCurrentDate: getCurrentDateTool }, toolNameMapping };
+    }
+
+    // 1. Convert editor tools from OpenAI format and build name mapping
     const editorTools = Array.isArray(editorToolDefinitions)
       ? convertOpenAIToolsToToolSet(editorToolDefinitions, toolNameMapping)
       : {};
@@ -128,6 +236,7 @@ export class ToolPipeline {
     const aliaTools: ToolSet = {
       getCurrentDate: getCurrentDateTool,
       generateFile: generateFileTool,
+      canvas: canvasTool,
     };
 
     /**
@@ -145,45 +254,87 @@ export class ToolPipeline {
       aliaTools.browse = browseTool;
     }
 
-    // 3. User-specific factory tools (only for direct user sessions, not API key requests)
-    if (isDirectSession) {
-      Object.assign(aliaTools, {
-        sendTelegram: createSendTelegramTool(userId),
-        getWhatsAppChats: createGetWhatsAppChatsTool(userId),
-        getWhatsAppMessages: createGetWhatsAppMessagesTool(userId),
-        sendWhatsAppMessage: createSendWhatsAppMessageTool(userId),
-        saveUserMemory: saveUserMemoryTool(userId),
-        updateUserMemory: updateUserMemoryTool(userId),
-        updateUserPreferences: updateUserPreferencesTool(userId),
-        updateUserContext: updateUserContextTool(userId),
-        createAgent: createAgentTool(userId, accessToken),
-        ...(webSearch && !isLocalRuntime ? { deepResearch: createDeepResearchTool(userId) } : {}),
+    // A device can only be described when the surface knows one.
+    if (deviceInfo) aliaTools.getDeviceInfo = createGetDeviceInfoTool(deviceInfo);
+
+    /**
+     * 3. Tools bound to the PERSON. Every surface that acts for one gets them,
+     * and only those.
+     *
+     * The gate used to be `isDirectSession`, which conflated "has a bearer"
+     * with "acts for somebody" — so Telegram, triggers and the runner, which
+     * act for a person without holding a session, each rebuilt a subset by hand
+     * and each ended up with a different one. See {@link ForUserOptions.actsForPerson}
+     * for why an API-key turn must still be refused here.
+     */
+    if (actsForPerson) Object.assign(aliaTools, {
+      saveUserMemory: saveUserMemoryTool(userId),
+      updateUserMemory: updateUserMemoryTool(userId),
+      updateUserPreferences: updateUserPreferencesTool(userId),
+      updateUserContext: updateUserContextTool(userId),
+      /**
+       * ONE name. It was `sendTelegram` here and `sendTelegramMessage` on the
+       * other three paths, for the same factory — so a prompt or a skill naming
+       * one silently did nothing on the other. The three-way spelling wins, and
+       * it is the one `lib/agent/tool-router.ts` already maps.
+       */
+      sendTelegramMessage: createSendTelegramTool(userId),
+      getWhatsAppChats: createGetWhatsAppChatsTool(userId),
+      getWhatsAppMessages: createGetWhatsAppMessagesTool(userId),
+      sendWhatsAppMessage: createSendWhatsAppMessageTool(userId),
+      createTrigger: createTriggerTool(userId),
+      listTriggers: listTriggersTool(userId),
+      updateTrigger: updateTriggerTool(userId),
+      deleteTrigger: deleteTriggerTool(userId),
+      ...(webSearch && !isLocalRuntime ? { deepResearch: createDeepResearchTool(userId) } : {}),
+    });
+
+    // Minting an agent needs the caller's own credential, so only a session has it.
+    if (isDirectSession) aliaTools.createAgent = createAgentTool(userId, accessToken);
+
+    /**
+     * SSE-emitting tools: they need an emitter to push through AND a client
+     * that renders what comes out.
+     *
+     * `isDirectSession` as well as the emitter, because both events drive
+     * Alia's own composer — a model switch chip and a plan preview — and a
+     * developer-key client (Codea, Cowork) has no surface for either. Offering
+     * them there is a tool the model can call whose whole effect is a frame
+     * nobody draws.
+     */
+    if (sseEmitter && isDirectSession) {
+      aliaTools.switchModel = await createSwitchModelTool((modelId, modelName) => {
+        sseEmitter.emit('alia.model_switch', { eventVersion: 1, model: modelId, modelName });
       });
-
-      // SSE-emitting tools (need the emitter to push events to the client)
-      if (sseEmitter) {
-        aliaTools.switchModel = await createSwitchModelTool((modelId, modelName) => {
-          sseEmitter.emit('alia.model_switch', { eventVersion: 1, model: modelId, modelName });
-        });
-        aliaTools.planPreview = createPlanPreviewTool((steps) => {
-          sseEmitter.emit('alia.plan_preview', { eventVersion: 1, planId: `plan-${requestId}`, steps });
-        });
-      }
+      aliaTools.planPreview = createPlanPreviewTool((steps) => {
+        sseEmitter.emit('alia.plan_preview', { eventVersion: 1, planId: `plan-${requestId}`, steps });
+      });
     }
 
-    // 4. External tool sources (MCP, integrations, Oxy services) — direct sessions only
-    if (isDirectSession) {
-      try {
-        const [mcpTools, integrationTools, oxyServiceTools] = await Promise.all([
-          buildMcpTools(userId, mcpServerId),
-          buildIntegrationTools(userId),
-          buildOxyServiceTools(userId, accessToken!),
-        ]);
-        Object.assign(aliaTools, mcpTools, integrationTools, oxyServiceTools);
-      } catch (err) {
-        log.general.warn({ err }, 'Failed to load MCP/integration/oxy-service tools');
-      }
-    }
+    // The five session primitives: only a turn with a live session can act on one.
+    if (runtime) Object.assign(aliaTools, buildRuntimeTools(runtime));
+
+    /**
+     * 4. The bulk sources. ALL THREE, on every surface.
+     *
+     * `buildOxyServiceTools` used to be here alone, so an agent answering on
+     * its owner's Telegram bot could not reach one first-party Oxy service —
+     * the divergence this collapse exists to end.
+     *
+     * An agent's own permissions can decline a source, and declining means NOT
+     * FETCHING rather than fetching and discarding: the runtime policy pass
+     * cannot tell an integration tool from a static one by name, and should not
+     * have to.
+     */
+    const permissions = agent?.permissions;
+    const [mcpTools, integrationTools, oxyServiceTools] = actsForPerson
+      ? await Promise.all([
+          permissions?.mcp_servers === false ? {} : buildMcpTools(userId, mcpServerId).catch(bulkFailure('mcp')),
+          permissions?.communications === false ? {} : buildIntegrationTools(userId).catch(bulkFailure('integration')),
+          accessToken === undefined ? {} : buildOxyServiceTools(userId, accessToken).catch(bulkFailure('oxy-service')),
+        ])
+      : [{}, {}, {}];
+    Object.assign(aliaTools, mcpTools, integrationTools, oxyServiceTools);
 
     // 5. Merge server tools with editor tools
     const tools: ToolSet = { ...aliaTools, ...editorTools };
@@ -194,6 +345,31 @@ export class ToolPipeline {
       tools.delegateToAgent = createDelegateToAgentTool();
     }
 
+    /**
+     * 7. The runtime policy, LAST and over everything.
+     *
+     * The permission stubs and the threat detector are about what an agent may
+     * DO, so they run over the whole assembled set — MCP tools included — and
+     * only for a turn that has a runtime, which is where they have always run.
+     */
+    if (runtime) await applyRuntimePolicy(tools, runtime, new Set(Object.keys(mcpTools)));
+
     return { tools, toolNameMapping };
   }
+}
+
+/**
+ * A bulk source that could not be loaded contributes NOTHING, loudly.
+ *
+ * One source failing used to take the other two with it: all three shared a
+ * `Promise.all` inside a single `try`, so an MCP connector being down cost the
+ * turn its integrations and its Oxy services as well. Catching per source is
+ * what makes "the connector is down" a smaller event than "the turn has no
+ * tools".
+ */
+function bulkFailure(source: string): (err: unknown) => ToolSet {
+  return (err: unknown) => {
+    log.general.warn({ err, source }, 'A tool source failed to load; the turn continues without it');
+    return {};
+  };
 }

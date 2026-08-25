@@ -98,7 +98,6 @@ vi.mock('../../../db/agents/skillRepository.js', () => ({
  * suite observes. Stubbed at the module boundary, as the Mongoose model was.
  */
 vi.mock('../../../db/chat/conversationRepository.js', () => ({
-  findConversationAgentById: vi.fn(async () => undefined),
   conversationExists: vi.fn(async () => false),
   updateConversationTitle: vi.fn(async () => 1),
   upsertConversation: vi.fn(async () => ({})),
