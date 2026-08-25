@@ -109,13 +109,32 @@ de la verdad" is the requirement that came out of it.
 
 `syraLetGoOf` in `routes/shows.ts` encodes the one judgement both routes share:
 
-- **`404` is success.** The row is gone, which is the state the caller asked
-  for. Refusing to clean up Alia's copy because Syra had nothing to delete
-  would strand the pair the other way round.
-- **Every other refusal leaves BOTH records standing** — `403` for a show that
-  is not the caller's or is RSS-mirrored, `409` for one under a platform
-  takedown — and the route answers `502`. Half a delete is the outcome worth
-  refusing.
+- **A `403` is not, by itself, a refusal — it asks a second question.** Syra
+  answers `403 {"error":"You do not own this podcast"}` for a show that does
+  not exist AND for one that is not the caller's: same status, same body, byte
+  for byte. `loadOwnedShowOrRespond` merges them on purpose, so nobody can
+  probe for a private show's id, and there is nothing in the response to
+  discriminate on. Reading it as a refusal wedges Alia permanently on any show
+  whose Syra side is already gone — a creator who deleted it in Studio first,
+  or a retry after a partial failure — leaving Alia holding a record of a
+  podcast that is not there, with no way to drop it. **That is this bug's
+  mirror image, and the first version of this fix shipped with it.** So a `403`
+  is followed by a read the same session already has: `404` on that read means
+  no such show FOR THIS USER, which is the goal state; `200` means it exists
+  and Syra will not delete it — RSS-mirrored, or somebody else's — and both
+  records stand. What the read cannot see: another person's PRIVATE show also
+  reads `404`. Narrow here, because the id came from a row Alia minted for this
+  user, but not zero.
+- **`404` on the delete itself is success**, and needs no second look. Syra
+  answers it only in the narrow race where the row goes between its ownership
+  check and its delete.
+- **Every other status leaves BOTH records standing** and answers `502`: `409`
+  for a platform takedown, honoured as stated and without a second look; `400`
+  and `401`, which are faults on Alia's side rather than statements about the
+  show; and any `5xx`, which must be retried rather than assumed — Syra sets
+  the show `unavailable` before deleting a single object, so a partial failure
+  leaves an unpublished show with dead audio that a second delete finishes off.
+  Half a delete is the outcome worth refusing.
 
 ### What a Syra delete actually destroys
 
