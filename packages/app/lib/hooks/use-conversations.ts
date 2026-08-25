@@ -72,7 +72,16 @@ export interface Conversation {
   title: string;
   lastMessage?: string;
   source?: string;
-  agentId?: string;
+  /**
+   * The agent this conversation is a stretch of, or none.
+   *
+   * NULLABLE, not optional-absent: the column is `agent_id text` and the list
+   * route sends `c.agentId` straight through, so an ordinary conversation
+   * arrives carrying an explicit `null`. Typing it `string | undefined` made
+   * `agentId === undefined` read as "no agent" and it is false for every row
+   * the server sends.
+   */
+  agentId?: string | null;
   createdAt: Date;
   updatedAt: Date;
   messages: Message[];

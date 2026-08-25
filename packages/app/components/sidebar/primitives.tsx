@@ -83,6 +83,15 @@ export function useSidebarCollapse() {
 
 export interface SidebarRowProps {
   icon: LucideIcon;
+  /**
+   * Drawn instead of `icon`, for a row whose mark is not an icon.
+   *
+   * An agent's mark carries its own colour and so cannot be a `LucideIcon`,
+   * which is styled by class. Passing the node keeps every row's height,
+   * spacing and hover on the one component rather than starting a second
+   * kind of row.
+   */
+  leading?: React.ReactNode;
   label: string;
   onPress: () => void;
   accessibilityLabel?: string;
@@ -97,6 +106,7 @@ export interface SidebarRowProps {
 /** Ghost menu row shared by every sidebar navigation entry. */
 export function SidebarRow({
   icon: Icon,
+  leading,
   label,
   onPress,
   accessibilityLabel,
@@ -119,7 +129,7 @@ export function SidebarRow({
           active && "bg-muted"
         )}
       >
-        <Icon size={sub ? 16 : 18} className="text-foreground" />
+        {leading ?? <Icon size={sub ? 16 : 18} className="text-foreground" />}
         {!iconOnly && (
           <Text
             className={cn(

@@ -236,6 +236,7 @@
     "automations": "Automations",
     "skills": "Skills",
     "projects": "Projects",
+    "noAgents": "No agents yet",
     "noProjects": "No projects yet",
     "editProject": "Edit Project",
     "deleteProject": "Delete Project",
