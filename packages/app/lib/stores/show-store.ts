@@ -14,7 +14,7 @@
  *
  * An episode carries `syraEpisodeId` and nothing else about its media. What is
  * playable, and by whom, is Syra's decision and is resolved at play time by
- * `components/show/episode-player.tsx`.
+ * `lib/hooks/use-episode-audio.ts`.
  */
 
 import { create } from 'zustand';
