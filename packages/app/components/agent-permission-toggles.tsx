@@ -3,14 +3,17 @@
  *
  * Allows agent creators to configure which capabilities their agent can use.
  * All permissions default to true (enabled) for backward compatibility.
+ *
+ * The component owns its `SettingsListGroup`, it does not go inside one:
+ * `SettingsListGroup` draws its dividers from `React.Children.toArray`, which
+ * sees a nested component as ONE child however many rows it renders.
  */
 
 import React from 'react';
-import { View } from 'react-native';
-import { Text } from '@/components/ui/text';
 import { Switch } from '@/components/ui/switch';
-import { Label } from '@/components/ui/label';
-import { Terminal, Globe, FileEdit, MessageSquare, Plug, Users } from 'lucide-react-native';
+import { Terminal, Globe, FileEdit, MessageSquare, Users } from 'lucide-react-native';
+import { SettingsListGroup, SettingsListItem } from '@oxyhq/bloom/settings-list';
+import { ActionKeyIcon } from '@/components/ui/action-key-icon';
 import { useColorScheme } from '@/lib/useColorScheme';
 import type { AgentPermissions } from '@/lib/stores/agents-store';
 
@@ -24,81 +27,94 @@ export const DEFAULT_PERMISSIONS: AgentPermissions = {
 };
 
 interface PermissionToggleProps {
+  /** Group heading, since the group belongs to this component. */
+  title: string;
+  footer?: string;
   permissions: AgentPermissions;
   onChange: (permissions: AgentPermissions) => void;
   disabled?: boolean;
 }
 
-const PERMISSION_CONFIG = [
+/* `color`, not a NativeWind class: one of these six is an `Svg` whose fill can
+   only be a value, and the row reads as one list only if all six take it the
+   same way. Same call shape as the sibling rows in `security-section`. */
+const PERMISSION_CONFIG: {
+  key: keyof AgentPermissions;
+  label: string;
+  description: string;
+  icon: React.ComponentType<{ size?: number; color?: string }>;
+}[] = [
   {
-    key: 'shell' as const,
+    key: 'shell',
     label: 'Shell Access',
     description: 'Execute commands in a terminal container',
     icon: Terminal,
   },
   {
-    key: 'network' as const,
+    key: 'network',
     label: 'Web Browsing',
     description: 'Search the web, navigate pages, scrape content',
     icon: Globe,
   },
   {
-    key: 'filesystem' as const,
+    key: 'filesystem',
     label: 'File System',
     description: 'Read, write, and edit files in the workspace',
     icon: FileEdit,
   },
   {
-    key: 'communications' as const,
+    key: 'communications',
     label: 'Communications',
     description: 'Send messages via Telegram, WhatsApp, Email',
     icon: MessageSquare,
   },
   {
-    key: 'mcp_servers' as const,
+    key: 'mcp_servers',
     label: 'MCP Tools',
     description: 'Access external MCP tool servers',
-    icon: Plug,
+    icon: ActionKeyIcon,
   },
   {
-    key: 'delegation' as const,
+    key: 'delegation',
     label: 'Agent Delegation',
     description: 'Hire and delegate tasks to other agents',
     icon: Users,
   },
 ];
 
-export function AgentPermissionToggles({ permissions, onChange, disabled }: PermissionToggleProps) {
-  const { isDarkColorScheme } = useColorScheme();
-
-  const handleToggle = (key: keyof AgentPermissions) => {
-    onChange({ ...permissions, [key]: !permissions[key] });
-  };
+export function AgentPermissionToggles({
+  title,
+  footer,
+  permissions,
+  onChange,
+  disabled,
+}: PermissionToggleProps) {
+  const { colors } = useColorScheme();
 
   return (
-    <View className="gap-1">
+    <SettingsListGroup title={title} footer={footer}>
       {PERMISSION_CONFIG.map(({ key, label, description, icon: Icon }) => (
-        <View
+        <SettingsListItem
           key={key}
-          className="flex-row items-center justify-between py-3 px-1"
-        >
-          <View className="flex-row items-center gap-3 flex-1 mr-3">
+          icon={
             <Icon
               size={18}
-              className={permissions[key] ? 'text-foreground' : 'text-muted-foreground'}
+              color={permissions[key] ? colors.foreground : colors.mutedForeground}
             />
-            <View className="flex-1">
-              <Label className="text-sm font-medium">{label}</Label>
-              <Text className="text-xs text-muted-foreground">{description}</Text>
-            </View>
-          </View>
-          <Switch
-            value={permissions[key]}
-            onValueChange={() => handleToggle(key)}
-            disabled={disabled}
-          />
-        </View>
+          }
+          title={label}
+          description={description}
+          disabled={disabled}
+          showChevron={false}
+          rightElement={
+            <Switch
+              value={permissions[key]}
+              onValueChange={() => onChange({ ...permissions, [key]: !permissions[key] })}
+              disabled={disabled}
+            />
+          }
+        />
       ))}
-    </View>
+    </SettingsListGroup>
   );
 }

@@ -9,8 +9,9 @@ import { LinearGradient } from "expo-linear-gradient";
 import type { ScrollView as GHScrollView } from "react-native-gesture-handler";
 import { useStore } from "@/lib/stores/global-store";
 import { useUIStore } from "@/lib/stores/ui-store";
-import { X, Ghost, Bot, Search, Plug } from "lucide-react-native";
+import { X, Ghost, Bot, Search } from "lucide-react-native";
 import * as DropdownMenu from "@/components/ui/dropdown-menu";
+import { ActionKeyIcon } from "@/components/ui/action-key-icon";
 import { Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
 import { PromptInput } from "@/components/ui/prompt-input/prompt-input";
@@ -86,7 +87,7 @@ function ConnectorMenuIcon({ icon, color }: { icon?: string; color: string }) {
   if (icon && /^https?:\/\//i.test(icon)) {
     return <Image source={{ uri: icon }} style={{ width: 20, height: 20 }} contentFit="contain" />;
   }
-  return <Plug size={20} color={color} />;
+  return <ActionKeyIcon size={20} color={color} />;
 }
 
 interface ChatPageContentProps {

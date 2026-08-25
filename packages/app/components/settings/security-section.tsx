@@ -208,14 +208,12 @@ export function SecuritySection() {
 
   return (
     <View className="gap-8">
-      <SettingsListGroup
+      <AgentPermissionToggles
         title={t("settings.security.defaultPermissions")}
         footer={t("settings.security.defaultPermissionsDesc")}
-      >
-        <View className="p-3">
-          <AgentPermissionToggles permissions={permissions} onChange={setPermissions} />
-        </View>
-      </SettingsListGroup>
+        permissions={permissions}
+        onChange={setPermissions}
+      />
 
       {/* Section B: Approval Preferences */}
       <SettingsListGroup title={t("settings.security.approvalPreferences")}>
