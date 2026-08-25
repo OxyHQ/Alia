@@ -290,12 +290,6 @@ export function useChatConversation({ conversationId, reasoningEffort, selectedM
     // State
     conversationId,
     messages,
-    /**
-     * The declared boundaries in this thread, straight from the conversation as
-     * the server sent it — never derived from the messages, which is the whole
-     * point of the API storing them.
-     */
-    breaks: conversation?.breaks,
     isLoading,
     conversationLoading,
     error,

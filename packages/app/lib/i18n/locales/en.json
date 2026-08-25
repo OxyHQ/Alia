@@ -323,7 +323,6 @@
     "thanksFeedback": "Thanks for your feedback!",
     "today": "Today",
     "yesterday": "Yesterday",
-    "newConversation": "New conversation",
     "sendFailed": "Couldn't send that message. It's back in the box — try again."
   },
   "credits": {
@@ -538,7 +537,6 @@
     "export": "Export",
     "settings": "Settings",
     "help": "Help",
-    "newConversation": "Start a new conversation",
     "clearConversation": "Clear conversation",
     "clearConfirmTitle": "Clear Conversation",
     "clearConfirmDescription": "Are you sure you want to clear this conversation? This action cannot be undone.",

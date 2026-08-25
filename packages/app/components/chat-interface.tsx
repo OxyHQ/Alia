@@ -44,12 +44,9 @@ import type { AgentActivityState } from "@/lib/hooks/use-agent-activity";
 import { Skeleton } from "@/components/ui/skeleton";
 import apiClient from "@/lib/api/client";
 import { useTranslation } from "@/lib/hooks/use-translation";
-import { conversationBreaks, daySeparators } from "@/lib/thread-separators";
+import { daySeparators } from "@/lib/message-days";
 
 const isWeb = Platform.OS === "web";
-
-/** One frozen empty list, so a thread with no breaks is not a new array per render. */
-const EMPTY_BREAKS: readonly string[] = [];
 
 type MessagePart = {
   type: string;
@@ -92,14 +89,6 @@ type Message = {
 
 type ChatInterfaceProps = {
   messages: Message[];
-  /**
-   * The instants somebody declared a new conversation, straight from the API.
-   *
-   * Bare instants rather than rows in the message list, exactly as the server
-   * sends them: a break is not a message. Placing them against the thread is
-   * `lib/thread-separators.ts`'s job.
-   */
-  breaks?: readonly string[];
   scrollViewRef: React.RefObject<GHScrollView | null>;
   isLoading?: boolean;
   conversationLoading?: boolean;
@@ -181,23 +170,6 @@ const ToolBullet = React.memo(function ToolBullet({ isRunning }: { isRunning: bo
         ●
       </Text>
     </Animated.View>
-  );
-});
-
-/**
- * The rule that says a new conversation starts here.
- *
- * Deliberately a different SHAPE from the date pill, because it is a different
- * kind of fact: a date is derived from the clock, this was declared by a person.
- * Two pills would read as two dates.
- */
-const ConversationBreakRule = React.memo(function ConversationBreakRule({ text }: { text: string }) {
-  return (
-    <View className="flex-row items-center gap-3 py-4">
-      <View className="h-px flex-1 bg-border" />
-      <Text className="text-xs font-medium text-muted-foreground">{text}</Text>
-      <View className="h-px flex-1 bg-border" />
-    </View>
   );
 });
 
@@ -544,7 +516,7 @@ const MessageRow = React.memo(function MessageRow({
 
 const imageThumbStyle = { width: 120, height: 120 };
 
-export const ChatInterface = React.memo(function ChatInterface({ messages, breaks, scrollViewRef, isLoading, conversationLoading, onStartEdit, onCopyMessage, bottomPadding = 160, isVoiceActive = false, voiceAgentState, onAtBottomChange, agentActivity, agentSessionId, onApprovePlan, onRejectPlan }: ChatInterfaceProps) {
+export const ChatInterface = React.memo(function ChatInterface({ messages, scrollViewRef, isLoading, conversationLoading, onStartEdit, onCopyMessage, bottomPadding = 160, isVoiceActive = false, voiceAgentState, onAtBottomChange, agentActivity, agentSessionId, onApprovePlan, onRejectPlan }: ChatInterfaceProps) {
     const { t, locale } = useTranslation();
     const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
     const [votedMessages, setVotedMessages] = useState<Record<string, 'up' | 'down'>>({});
@@ -588,17 +560,11 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, break
      */
     const separatorsByMessage = useMemo(() => {
       const separators = daySeparators(filteredMessages, new Date(), locale);
-      return new Map<string, string>(separators.map(({ messageId, label }) => [
+      return new Map(separators.map(({ messageId, label }) => [
         messageId,
         label.kind === 'date' ? label.text : t(`chat.${label.kind}`),
       ]));
     }, [filteredMessages, locale]);
-
-    /** Where the declared boundaries fall, against the messages beside them. */
-    const breakRules = useMemo(
-      () => conversationBreaks(filteredMessages, breaks ?? EMPTY_BREAKS),
-      [filteredMessages, breaks],
-    );
     const lastAliaIndex = useMemo(() => filteredMessages.reduce((acc, m, i) =>
       isAliaOwnedMessage(m) ? i : acc, -1), [filteredMessages]);
 
@@ -753,11 +719,6 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, break
                 {separator === undefined ? null : (
                   <DaySeparator text={separator} />
                 )}
-                {/* The date first, then the boundary: the day changed, and then
-                    somebody started something new inside it. */}
-                {breakRules.above.has(m.id) ? (
-                  <ConversationBreakRule text={t('chat.newConversation')} />
-                ) : null}
                 <MessageRow
                   m={m}
                   index={index}
@@ -785,11 +746,6 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, break
                 </React.Fragment>
               );
             })}
-            {/* A break with nothing written under it yet — what pressing the
-                button looks like before the next message arrives. */}
-            {breakRules.afterLast ? (
-              <ConversationBreakRule text={t('chat.newConversation')} />
-            ) : null}
           </View>
 
           {/* Agent execution — in-progress card or completed result card */}

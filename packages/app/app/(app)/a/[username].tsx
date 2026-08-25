@@ -68,7 +68,6 @@ const AgentThreadPage = () => {
       agentId={thread.agent._id}
       agentName={headerName}
       agentColor={thread.agent.color}
-      isPermanentThread
     />
   );
 };
