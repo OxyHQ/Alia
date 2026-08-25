@@ -148,6 +148,12 @@ export const FIXED_FAMILY_TOOLS: Readonly<Record<FixedCapabilityFamily, readonly
  *  - `plan` — the autonomous runner's own checklist AND its completion signal.
  *    An agent denied it could never finish a session, so it is protocol rather
  *    than capability.
+ *  - `suggestNewConversation` — proposes that the next stretch of the thread
+ *    start fresh, and is structurally incapable of starting one: its whole
+ *    effect is an SSE frame the person may ignore. It reads nothing, writes
+ *    nothing and reaches nothing outside the process, so there is no capability
+ *    to grant — and it is not `delegation`, which it would be nearest to, since
+ *    it delegates to nobody.
  */
 export const UNGRANTED_TOOLS: readonly string[] = [
   'getCurrentDate',
@@ -155,6 +161,7 @@ export const UNGRANTED_TOOLS: readonly string[] = [
   'switchModel',
   'planPreview',
   'plan',
+  'suggestNewConversation',
 ];
 
 /** `family` or `family:instanceId`, which is how a grant is stored and sent. */

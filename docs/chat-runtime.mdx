@@ -143,6 +143,7 @@ Standard OpenAI-style `chat.completion.chunk` events are emitted alongside them.
 |---|---|---|
 | `alia.deprecation` | `routes/v1/chat-completions.ts:97` | `eventVersion`, `identifier`, `replacement`, `deprecatedAt`, `sunsetAt`, `documentation` |
 | `alia.plan_preview` | `lib/tool-pipeline.ts:125` | `eventVersion`, `planId`, `steps` |
+| `alia.suggest_new_conversation` | `lib/tools/suggest-new-conversation.ts` | `eventVersion`, `reason` |
 | `alia.model_switch` | `lib/tool-pipeline.ts:122` | `eventVersion`, `model`, `modelName` |
 | `alia.reasoning` | `lib/chat/stream-runner.ts:164`, `:182` | `eventVersion`, `content` |
 | `alia.tool_result` | `lib/chat/stream-runner.ts:234`, `lib/chat/text-tool-fallback.ts:67` | `eventVersion`, `tool_call_id`, `name`, `output` |

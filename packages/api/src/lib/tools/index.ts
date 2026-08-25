@@ -23,6 +23,10 @@ export { getCurrentDateTool } from './date.js';
 export { webSearchTool, type WebSearchResult, type WebSearchResponse } from './web-search.js';
 export { saveUserMemoryTool, updateUserMemoryTool, updateUserPreferencesTool, updateUserContextTool } from './user-memory.js';
 export { createSearchThreadTool } from './thread-search.js';
+export {
+  createSuggestNewConversationTool,
+  type NewConversationSuggestion,
+} from './suggest-new-conversation.js';
 export { createGetDeviceInfoTool, type DeviceInfo } from './device-info.js';
 export { createSendTelegramTool } from './telegram.js';
 export { createGetWhatsAppChatsTool, createGetWhatsAppMessagesTool, createSendWhatsAppMessageTool } from './whatsapp.js';

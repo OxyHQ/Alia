@@ -143,6 +143,7 @@ vi.mock('../../../lib/tools/index.js', () => ({
   createSwitchModelTool: vi.fn(() => ({ execute: vi.fn() })),
   createAgentTool: vi.fn(() => ({ execute: vi.fn() })),
   createPlanPreviewTool: vi.fn(() => ({ execute: vi.fn() })),
+  createSuggestNewConversationTool: vi.fn(() => ({ execute: vi.fn() })),
 }));
 
 vi.mock('../../../middleware/api-key-rate-limit.js', () => ({

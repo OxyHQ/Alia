@@ -76,6 +76,7 @@ import {
   createDeepResearchTool,
   createSwitchModelTool,
   createPlanPreviewTool,
+  createSuggestNewConversationTool,
 } from './tools/index.js';
 import { buildMcpTools } from './tools/mcp.js';
 import { buildIntegrationTools } from './tools/integrations.js';
@@ -384,6 +385,17 @@ export class ToolPipeline {
       });
       aliaTools.planPreview = createPlanPreviewTool((steps) => {
         sseEmitter.emit('alia.plan_preview', { eventVersion: 1, planId: `plan-${requestId}`, steps });
+      });
+      /**
+       * Built per turn, which is what makes its once-per-turn bound real: the
+       * closure that remembers it already fired lives in the factory, and the
+       * factory runs here.
+       */
+      aliaTools.suggestNewConversation = createSuggestNewConversationTool((suggestion) => {
+        // Spread rather than passed: `SSEEmitter.emit` takes an index
+        // signature, which a closed interface does not satisfy. The frame is
+        // the same two fields either way.
+        sseEmitter.emit('alia.suggest_new_conversation', { ...suggestion });
       });
     }
 
