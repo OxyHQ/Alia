@@ -526,6 +526,12 @@ async function generateScript(
  *    reply here retries with another provider instead, which is what a caller
  *    would want and what the old code could not do because it discovered the
  *    problem three steps downstream.
+ *
+ * A dialogue line is stored and forwarded EXACTLY as the model wrote it, and
+ * that is deliberate. `[laughs]` is a tag a tag-capable voice performs, so
+ * taking it out here would rob the one model that could have voiced it;
+ * `synthesize-speech.ts` decides per attempt, because only that loop knows
+ * which model in the failover chain actually answered.
  */
 function parseScript(reply: string, castNames: ReadonlySet<string>): ShowScript | null {
   const json = reply.match(/\{[\s\S]*\}/);

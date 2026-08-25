@@ -13,6 +13,9 @@ export const DEFAULT_CAPABILITIES: ModelCapabilities = {
   audio: false,
   video: false,
   voice: false,
+  // False by default on purpose: a model nobody has checked reads a `[laughs]`
+  // out loud, so "unknown" and "cannot" have to be the same answer here.
+  audioTags: false,
   tools: true,
   codeExecution: false,
   webSearch: false,
@@ -157,7 +160,17 @@ export const MODEL_CAPABILITIES: Record<string, ModelCapabilities> = {
 
   // ElevenLabs direct. Same voices and same container as the DigitalOcean entry
   // below — it is the same catalogue reached without the intermediary.
+  //
+  // `audioTags` is the difference between these two rows and the ONLY one that
+  // matters to a caller: v3 performs `[laughs]`, v2 pronounces it. v2 inherits
+  // the default `false`, which is why it is not restated here.
   'eleven_multilingual_v2': createCapabilities({ audio: true, tools: false, functionCalling: false, streaming: false, maxContextTokens: 4096, maxOutputTokens: 4096 }),
+  // Not in any tier's chain — see `generate-model-mappings.ts`, which routes no
+  // v3 today. The row is here because the capability is a FACT about the model
+  // rather than a consequence of routing to it, and `MODEL_CAPABILITIES` is
+  // full of models nothing routes. It also makes admitting v3 a one-line
+  // `createMapping`, with the strip in `synthesize-speech.ts` already correct.
+  'eleven_v3': createCapabilities({ audio: true, audioTags: true, tools: false, functionCalling: false, streaming: false, maxContextTokens: 4096, maxOutputTokens: 4096 }),
 
   // DigitalOcean TTS / Audio
   'fal-ai/elevenlabs/tts/multilingual-v2': createCapabilities({ audio: true, tools: false, functionCalling: false, streaming: false, maxContextTokens: 4096, maxOutputTokens: 4096 }),

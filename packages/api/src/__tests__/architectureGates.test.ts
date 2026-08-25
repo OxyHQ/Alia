@@ -554,7 +554,31 @@ const PROVIDER_IMPORT_ALLOWLIST: readonly { from: string; to: string; via: Modul
     from: 'packages/api/src/lib/synthesize-speech.ts',
     to: 'packages/api/src/internal/providers/lib/tts-providers',
     via: 'import',
-    why: 'The voice translation table. Moves to Relay (#139 ws7).',
+    why: 'The voice translation table, plus `speakableText` — which bracketed cue a model can PERFORM rather than pronounce, decided per mapping because the TTS tier fails over. Moves to Relay (#139 ws7).',
+  },
+  {
+    from: 'packages/api/src/lib/__tests__/audio-tags.test.ts',
+    to: 'packages/api/src/internal/providers/lib/tts-providers',
+    via: 'import',
+    why: 'Test-only. Drives `speakableText` and the tag vocabulary directly, which is the half of the rule a mocked provider cannot show. Retires with the TTS path.',
+  },
+  {
+    from: 'packages/api/src/lib/__tests__/audio-tags.test.ts',
+    to: 'packages/api/src/internal/providers/lib/model-capabilities-data',
+    via: 'import',
+    why: 'Test-only. Reads the SHIPPED capability row for each model rather than asserting a hand-written `{ audioTags: true }`, so the test measures the table and not its own opinion. Retires with the TTS path.',
+  },
+  {
+    from: 'packages/api/src/lib/__tests__/audio-tags.test.ts',
+    to: 'packages/api/src/internal/providers/lib/generate-model-mappings',
+    via: 'import',
+    why: 'Test-only. The census walks the LIVE `v1-tts` chain, so it keeps meaning something on the day a tag-capable model is admitted to it — a fixture chain could not. Retires with the TTS path.',
+  },
+  {
+    from: 'packages/api/src/lib/show/script-prompt.ts',
+    to: 'packages/api/src/internal/providers/lib/tts-providers',
+    via: 'import',
+    why: 'One constant, `PERFORMABLE_AUDIO_TAGS`, rendered into the prompt so the tags a script is ASKED for are the tags the strip KEEPS. No adapter, no key, no call. Two hand-maintained copies is the alternative, and its failure is silent: the model emits a tag nobody performs and `speakableText` deletes it from every episode. Moves to Relay (#139 ws7) with the TTS path.',
   },
   {
     from: 'packages/api/src/routes/agents-avatar.ts',
@@ -719,13 +743,21 @@ const PROVIDER_IMPORT_ALLOWLIST: readonly { from: string; to: string; via: Modul
  * fixture cannot answer. Every other line is a product module, and the
  * direction of travel for those is down.
  *
+ * → 48 for the audio-tag work. One is a PRODUCT module and is named rather
+ * than folded into the sentence above: `show/script-prompt.ts` reads ONE
+ * constant, the set of audio tags a voice can perform, so that the tags a
+ * script is asked for and the tags the strip keeps cannot drift apart. It
+ * calls nothing and holds no key. The other three are one test file reading
+ * the tag vocabulary, the capability rows and the live TTS chain as data.
+ * All four go when the TTS path goes.
+ *
  * The number is COUNTED from the list above rather than reasoned about, every
  * time. Two branches each grew it from 23, one to 24 and one to 25, and the
  * array itself merged cleanly — arithmetic on either branch's total would have
  * produced a plausible wrong answer that still compiled. The same trap caught
  * ws5's rebase, which is why this paragraph is a rule and not a history.
  */
-const PROVIDER_IMPORT_ALLOWLIST_SIZE = 44;
+const PROVIDER_IMPORT_ALLOWLIST_SIZE = 48;
 
 function observedProviderImports(): { from: string; to: string; via: ModuleRef['via'] }[] {
   const seen = new Map<string, { from: string; to: string; via: ModuleRef['via'] }>();
