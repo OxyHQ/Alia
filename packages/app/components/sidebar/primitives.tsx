@@ -128,7 +128,7 @@ export function SidebarRow({
         accessibilityLabel={accessibilityLabel ?? label}
         onPress={onPress}
         className={cn(
-          "flex-row items-center rounded-xl hover:bg-muted active:bg-muted",
+          "flex-row items-center rounded-full hover:bg-muted active:bg-muted",
           iconOnly ? "h-9 w-9 justify-center" : "gap-2 px-1.5 w-full",
           !iconOnly && (sub ? "h-8" : "h-9"),
           active && "bg-muted"

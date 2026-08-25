@@ -1,7 +1,7 @@
 import * as React from "react";
-import { createPortal } from "react-dom";
 import { Command as CommandPrimitive } from "cmdk";
 import { Search } from "lucide-react-native";
+import { Dialog } from "@oxyhq/bloom/dialog";
 import { cn } from "@/lib/utils";
 
 function Command({
@@ -11,7 +11,7 @@ function Command({
   return (
     <CommandPrimitive
       className={cn(
-        "bg-popover text-popover-foreground flex h-full w-full flex-col overflow-hidden rounded-xl p-1",
+        "bg-popover text-popover-foreground flex w-full flex-col overflow-hidden rounded-xl p-1",
         className
       )}
       {...props}
@@ -28,64 +28,24 @@ interface CommandDialogProps extends Omit<React.ComponentProps<typeof Command>, 
 /**
  * Anything the dialog does not consume itself reaches the `Command` root, so a
  * caller can supply its own `filter` to rank results.
+ *
+ * The surface is Bloom's `Dialog` — it owns the portal, the backdrop, Escape
+ * and the focus lock — with the chrome stripped (`contentPadding={0}`) and its
+ * scroll container off, because `CommandList` scrolls itself.
  */
 function CommandDialog({ open, onOpenChange, children, ...commandProps }: CommandDialogProps) {
-  const [mounted, setMounted] = React.useState(false);
-  const [visible, setVisible] = React.useState(false);
-
-  React.useEffect(() => {
-    if (open) {
-      setMounted(true);
-      // Trigger enter animation on next frame
-      requestAnimationFrame(() => setVisible(true));
-    } else if (mounted) {
-      // Trigger exit animation, then unmount
-      setVisible(false);
-      const timer = setTimeout(() => setMounted(false), 150);
-      return () => clearTimeout(timer);
-    }
-  }, [open]);
-
-  React.useEffect(() => {
-    if (!mounted) return;
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        onOpenChange?.(false);
-      }
-    };
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [mounted, onOpenChange]);
-
-  if (!mounted) return null;
-
-  return createPortal(
-    <div className="fixed inset-0 z-50 isolate">
-      <div
-        className={cn(
-          "fixed inset-0 bg-black/10 backdrop-blur-[2px] transition-opacity duration-150",
-          visible ? "opacity-100" : "opacity-0"
-        )}
-        onMouseDown={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          onOpenChange?.(false);
-        }}
-      />
-      <div
-        className={cn(
-          "fixed left-1/2 top-1/3 z-50 w-full max-w-lg -translate-x-1/2 rounded-xl bg-background p-0 text-sm ring-1 ring-foreground/10 shadow-lg overflow-hidden transition-all duration-150",
-          visible
-            ? "opacity-100 scale-100 translate-y-0"
-            : "opacity-0 scale-95 -translate-y-2"
-        )}
-      >
-        <Command {...commandProps}>
-          {children}
-        </Command>
-      </div>
-    </div>,
-    document.body
+  return (
+    <Dialog
+      open={open}
+      onClose={() => onOpenChange?.(false)}
+      placement={{ base: "bottom", md: "center" }}
+      maxWidth={512}
+      contentPadding={0}
+      scrollable={false}
+      label="Command palette"
+    >
+      <Command {...commandProps}>{children}</Command>
+    </Dialog>
   );
 }
 
