@@ -3,12 +3,18 @@ import { randomUUID } from 'crypto';
 import { getDb } from '../db/index.js';
 import { storedMediaUrl } from '../lib/stored-media.js';
 import {
+  conversationExists,
   createConversation,
   deleteConversation,
   findConversation,
   listConversations,
   upsertConversation,
 } from '../db/chat/conversationRepository.js';
+import {
+  deleteConversationBreaks,
+  insertConversationBreak,
+  listConversationBreaks,
+} from '../db/chat/conversationBreakRepository.js';
 import {
   deleteMessages,
   listMessages,
@@ -280,7 +286,18 @@ router.get('/:id', authenticateTokenOrApiKey, async (req: Request, res: Response
       return res.status(404).json({ error: 'Conversation not found' });
     }
 
-    const rows = await listMessages(getDb(), userId, conversationId);
+    /**
+     * The breaks come back BESIDE the messages, not merged into them.
+     *
+     * Merging is the client's, by timestamp, because a break is not a message
+     * and must never be one: `db/schema/chat.ts` records what a `separator`
+     * role would have cost. The two reads are concurrent because neither
+     * depends on the other.
+     */
+    const [rows, breaks] = await Promise.all([
+      listMessages(getDb(), userId, conversationId),
+      listConversationBreaks(getDb(), userId, conversationId),
+    ]);
 
     res.json({
       id: conversation.conversationId,
@@ -303,6 +320,13 @@ router.get('/:id', authenticateTokenOrApiKey, async (req: Request, res: Response
         const { audioUrl: _stored, ...rest } = message;
         return link === null ? rest : { ...rest, audioUrl: link };
       }),
+      /**
+       * Instants, not rendered rules. A DATE separator is derived from these
+       * and from `createdAt` on each message by the client, which is the only
+       * party that knows the reader's timezone — storing one would be storing a
+       * rendering decision, wrong for anybody reading from another zone.
+       */
+      breaks: breaks.map((at) => at.toISOString()),
       createdAt: conversation.createdAt,
       updatedAt: conversation.updatedAt,
     });
@@ -410,6 +434,42 @@ router.patch(
   },
 );
 
+/**
+ * Start a new conversation inside a thread.
+ *
+ * `/a/:username` never ends, so this is how a person says "what follows is a
+ * new subject" without losing what came before. It answers the instant rather
+ * than the row, because the instant is all the client merges on.
+ *
+ * Scoped to a thread the CALLER holds: `findConversation` puts the owner in the
+ * WHERE, so marking a break in somebody else's thread is a 404 rather than a
+ * 403, exactly as reading it already is.
+ *
+ * Deliberately not idempotent and deliberately unlimited. Two marks a second
+ * apart are two marks; the client draws one rule per mark and the person who
+ * pressed the button twice sees what they did. A dedupe window here would be a
+ * rule invented in the API for a gesture the UI already controls.
+ */
+router.post('/:id/break', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    if (!req.user?.id) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+    const userId = req.user.id;
+    const conversationId = String(req.params.id);
+
+    if (!(await conversationExists(getDb(), userId, conversationId))) {
+      return res.status(404).json({ error: 'Conversation not found' });
+    }
+
+    const createdAt = await insertConversationBreak(getDb(), userId, conversationId);
+    res.status(201).json({ createdAt: createdAt.toISOString() });
+  } catch (error: unknown) {
+    log.chat.error({ err: error }, 'Error marking a conversation break');
+    res.status(500).json({ error: 'Failed to start a new conversation' });
+  }
+});
+
 // Delete a conversation
 router.delete('/:id', authenticateToken, async (req: Request, res: Response) => {
   try {
@@ -418,16 +478,21 @@ router.delete('/:id', authenticateToken, async (req: Request, res: Response) => 
     }
 
     /**
-     * Both statements, concurrently, exactly as the source ran them. There is no
-     * cascade to lean on — `db/schema/chat.ts` refuses the foreign key — so the
-     * messages are removed here or not at all, and the messages are removed even
-     * when no conversation row matched, which is how orphans left by an earlier
-     * failure get cleared.
+     * All three statements, concurrently, exactly as the source ran the first
+     * two. There is no cascade to lean on — `db/schema/chat.ts` refuses the
+     * foreign key — so the children are removed here or not at all, and they
+     * are removed even when no conversation row matched, which is how orphans
+     * left by an earlier failure get cleared.
+     *
+     * `conversation_breaks` joins that list for the same reason `messages` is
+     * in it: a new child table with no foreign key is a new thing to leak, and
+     * this is the only place a thread is deleted.
      */
     const conversationId = String(req.params.id);
     const [removed] = await Promise.all([
       deleteConversation(getDb(), req.user.id, conversationId),
       deleteMessages(getDb(), req.user.id, conversationId),
+      deleteConversationBreaks(getDb(), req.user.id, conversationId),
     ]);
 
     if (removed === 0) {
