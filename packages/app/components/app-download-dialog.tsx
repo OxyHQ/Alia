@@ -1,9 +1,10 @@
 import React from "react";
 import { View } from "react-native";
-import { Smartphone } from "lucide-react-native";
 import QRCode from "react-native-qrcode-svg";
 import { Text } from "@/components/ui/text";
+import { GetAppIcon } from "@/components/ui/get-app-icon";
 import { Dialog } from "@oxyhq/bloom/dialog";
+import { useColorScheme } from "@/lib/useColorScheme";
 
 const DOWNLOAD_URL = "https://alia.onl/download";
 
@@ -13,6 +14,8 @@ interface AppDownloadDialogProps {
 }
 
 export function AppDownloadDialog({ open, onOpenChange }: AppDownloadDialogProps) {
+  const { colors } = useColorScheme();
+
   return (
     <Dialog
       open={open}
@@ -25,7 +28,7 @@ export function AppDownloadDialog({ open, onOpenChange }: AppDownloadDialogProps
         {/* Header Icon */}
         <View className="items-center mb-4">
           <View className="h-16 w-16 items-center justify-center rounded-full bg-primary/10">
-            <Smartphone size={32} className="text-primary" />
+            <GetAppIcon size={32} color={colors.primary} />
           </View>
         </View>
 
