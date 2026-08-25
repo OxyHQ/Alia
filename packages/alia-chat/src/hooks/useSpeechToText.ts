@@ -9,6 +9,7 @@ import {
 } from 'expo-audio';
 import { useOxy } from '@oxyhq/services';
 import { create } from 'zustand';
+import { levelFromDbfs } from '../lib/audio-level';
 
 const API_URL = process.env.EXPO_PUBLIC_ALIA_API_URL ?? 'https://api.alia.onl';
 
@@ -67,8 +68,9 @@ export function useSpeechToText(options: UseSTTOptions = {}) {
     if (state === 'recording') {
       let target: number;
       if (recorderState.metering != null) {
-        // dBFS: -160 (silence) to 0 (max). Normalize using -60 as practical floor.
-        target = Math.min(1, Math.max(0, (recorderState.metering + 60) / 60));
+        // The same curve read-aloud playback uses, so one background answers
+        // both the same way — see `lib/audio-level.ts`.
+        target = levelFromDbfs(recorderState.metering);
       } else {
         // Metering unavailable — simulate gentle activity
         target = 0.12 + Math.random() * 0.18;

@@ -2,29 +2,40 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
-import { createAudioLevelMeter } from '../../alia-chat/src/lib/audio-level';
+import {
+  LEVEL_ATTACK_MS,
+  LEVEL_RELEASE_MS,
+  createAudioLevelMeter,
+  levelFromDbfs,
+  levelFromFrames,
+} from '../../alia-chat/src/lib/audio-level';
 
 /**
- * The background behind a conversation must move to the clip that is actually
- * playing, and must not move when nothing is sounding.
+ * One ambient field, one level, two sources.
  *
- * It used to move to a `withRepeat(withSequence(0.5, 0.2, 0.6, 0.15))` started
- * by `playbackState === 'playing'` — a four-keyframe loop with no connection to
- * the audio whatsoever. It looked alive, which is what made it hard to see: the
- * complaint was not "nothing happens", it was "it moves, but not to what I am
- * hearing".
+ * Dictation got here first: the recorder reports dBFS, it is normalised against
+ * a -60 floor and smoothed with a fast attack and a slow decay, and the field
+ * that comes out is the one people like. Read aloud drove the SAME field from
+ * `withRepeat(withSequence(0.5, 0.2, 0.6, 0.15))` started by
+ * `playbackState === 'playing'` — a four-keyframe loop that had never heard the
+ * clip. That is why the report was not "nothing happens" but "it moves, but not
+ * to what I am hearing".
  *
- * The positive control is the whole point of this file. A canned animation
- * passes any test that only asks "does the level change while playing"; what it
- * cannot pass is being fed silence and asked to stay still. So every assertion
- * here is paired — the same meter, the same call, one buffer of speech and one
- * of silence — and a re-canned level fails the silent half.
+ * So this file has two jobs and they pull in opposite directions:
+ *
+ * - The **positive control**: fed silence, the level must be still. A canned
+ *   animation passes anything that only asks "does it change while playing";
+ *   what it cannot pass is silence. Every dynamic assertion below is paired
+ *   with its silent case.
+ * - The **dictation control**: the curve is shared now, so a change made for
+ *   playback lands on dictation too. `levelFromDbfs` is asserted to reproduce
+ *   the expression dictation used before, across the whole dBFS range, with
+ *   zero deviation.
  *
  * `useTTS.ts` itself cannot be imported here: it pulls in
  * `react-native-reanimated`, which does not resolve outside a bundler (its
- * `lib/module/ReanimatedModule` is a directory import). That is why the meter
- * is its own module, and why the wiring around it is asserted over the source
- * at the bottom.
+ * `lib/module/ReanimatedModule` is a directory import). That is why the level
+ * is its own module, and why the wiring around it is asserted over the source.
  */
 
 /** 1024 frames, the buffer size Android's `Visualizer` reports. */
@@ -35,10 +46,7 @@ function silence(): number[] {
   return new Array<number>(FRAME_COUNT).fill(0);
 }
 
-/**
- * A sine at `peak`, which is what a vowel looks like. Its RMS is `peak/√2`, so
- * a peak of 0.5 sits at 0.354 — squarely in the band speech occupies.
- */
+/** A sine at `peak`, which is what a vowel looks like. Its RMS is `peak/√2`. */
 function tone(peak: number): number[] {
   return Array.from(
     { length: FRAME_COUNT },
@@ -60,40 +68,62 @@ function play(
   return level;
 }
 
-describe('the read-aloud level', () => {
-  it('stays at silence for a silent clip', () => {
-    const meter = createAudioLevelMeter();
-    expect(play(meter, silence(), 1000)).toBe(0);
+describe('the level curve, shared with dictation', () => {
+  /**
+   * The dictation control. `useSpeechToText` used to inline
+   * `Math.min(1, Math.max(0, (metering + 60) / 60))`; it now calls
+   * `levelFromDbfs`. If those two ever disagree anywhere on the range a
+   * recorder can report, dictation has silently changed — which is a
+   * regression in the one place the person said already looked right.
+   */
+  it('reproduces the expression dictation was using, exactly', () => {
+    const asDictationDid = (dbfs: number) => Math.min(1, Math.max(0, (dbfs + 60) / 60));
+    let worst = 0;
+    for (let dbfs = -160; dbfs <= 0; dbfs += 0.25) {
+      worst = Math.max(worst, Math.abs(asDictationDid(dbfs) - levelFromDbfs(dbfs)));
+    }
+    expect(worst).toBe(0);
   });
 
-  it('rises for a clip that is sounding', () => {
-    const meter = createAudioLevelMeter();
-    expect(play(meter, tone(0.5), 1000)).toBeGreaterThan(0.5);
+  /**
+   * Also dictation's, and shared for the same reason: a retune for playback
+   * retunes dictation. Read this before changing either number.
+   */
+  it('keeps the attack and decay dictation was tuned to', () => {
+    expect(LEVEL_ATTACK_MS).toBe(60);
+    expect(LEVEL_RELEASE_MS).toBe(200);
   });
 
-  it('separates a loud clip from a quiet one', () => {
-    // Both below the -10 dBFS reference, so neither is clipped and the
-    // comparison is between two levels the meter actually computed.
-    const loud = play(createAudioLevelMeter(), tone(0.2), 1000);
-    const quiet = play(createAudioLevelMeter(), tone(0.08), 1000);
-    expect(quiet).toBeGreaterThan(0);
-    expect(quiet).toBeLessThan(loud / 2);
+  it('puts digital silence at exactly zero', () => {
+    // A player computes silence to -Infinity dBFS, a recorder reports -160.
+    expect(levelFromFrames(silence())).toBe(0);
+    expect(levelFromDbfs(Number.NEGATIVE_INFINITY)).toBe(0);
+    expect(levelFromDbfs(-160)).toBe(0);
+  });
+
+  it('answers quiet speech nearly as much as loud, the way dictation does', () => {
+    // The compression is the point: on a linear reading everything below a
+    // shout sits near zero and the field barely moves.
+    const quiet = levelFromFrames(tone(0.08));
+    const loud = levelFromFrames(tone(0.5));
+    expect(quiet).toBeGreaterThan(0.5);
+    expect(loud).toBeGreaterThan(quiet);
+    expect(loud - quiet).toBeLessThan(0.3);
   });
 
   it('never exceeds the 0..1 the field is scaled by', () => {
-    // A shout, well past what the gain maps onto the top of the range.
-    expect(play(createAudioLevelMeter(), tone(1), 1000)).toBeLessThanOrEqual(1);
+    expect(levelFromFrames(tone(1))).toBeLessThanOrEqual(1);
+    expect(levelFromDbfs(12)).toBe(1);
+  });
+});
+
+describe('the read-aloud level', () => {
+  it('stays at silence for a silent clip', () => {
+    expect(play(createAudioLevelMeter(), silence(), 1000)).toBe(0);
   });
 
-  it('falls silent within a clip, not only when playback stops', () => {
-    const meter = createAudioLevelMeter();
-    const sounding = play(meter, tone(0.5), 500);
-    // The gap between two sentences: still playing, nothing to hear. 500ms is
-    // most of three release constants, and 0.068 of full deflection is 2% of
-    // the blob scale the field derives from it — still, to the eye.
-    const pause = play(meter, silence(), 500, 500);
-    expect(sounding).toBeGreaterThan(0.9);
-    expect(pause).toBeLessThan(0.1);
+  it('rises for a clip that is sounding', () => {
+    expect(play(createAudioLevelMeter(), tone(0.5), 1000)).toBeGreaterThan(0.8);
   });
 
   it('tracks the envelope inside one clip', () => {
@@ -103,32 +133,53 @@ describe('the read-aloud level', () => {
     const first = play(meter, tone(0.5), 200);
     const gap = play(meter, silence(), 120, 200);
     const second = play(meter, tone(0.5), 200, 320);
-    // The release is deliberately slower than a syllable: this follows phrasing
-    // and emphasis, not individual consonants, because the thing it drives is a
-    // 50vmax blurred blob and strobing it would read as noise.
     expect(gap).toBeLessThan(first * 0.6);
-    expect(second).toBeGreaterThan(gap * 1.8);
+    expect(second).toBeGreaterThan(gap * 1.7);
   });
 
-  it('reads the same speech the same way whatever rate the buffers arrive at', () => {
-    // Web samples once per animation frame; the native taps are driven by the
-    // audio hardware and are neither 60Hz nor each other's rate. Held below the
-    // reference so the comparison is not two clipped values agreeing at 1.
-    const at = (hz: number) => {
+  it('falls silent within a clip, not only when playback stops', () => {
+    const meter = createAudioLevelMeter();
+    const sounding = play(meter, tone(0.5), 500);
+    // The gap between two sentences: still playing, nothing to hear.
+    const pause = play(meter, silence(), 500, 500);
+    expect(sounding).toBeGreaterThan(0.8);
+    expect(pause).toBeLessThan(0.1);
+  });
+
+  it('decays at the rate the shared release constant states', () => {
+    const meter = createAudioLevelMeter();
+    const sounding = play(meter, tone(0.5), 300);
+    const afterOneConstant = play(meter, silence(), LEVEL_RELEASE_MS, 300);
+    expect(afterOneConstant).toBeCloseTo(sounding * Math.exp(-1), 4);
+  });
+
+  it('reads the same audio the same way whatever rate the buffers arrive at', () => {
+    // Web samples once per animation frame; the native taps run at the audio
+    // hardware's rate. Same audio, same 200ms of wall clock, different buffer
+    // counts — which is the only comparison that isolates the rate.
+    const decayOver = (buffers: number) => {
       const meter = createAudioLevelMeter();
+      play(meter, tone(0.5), 300);
       let level = 0;
-      for (let elapsed = 0; elapsed <= 400; elapsed += 1000 / hz) {
-        level = meter.push(tone(0.15), elapsed);
+      for (let index = 1; index <= buffers; index += 1) {
+        level = meter.push(silence(), 300 + (index * LEVEL_RELEASE_MS) / buffers);
       }
       return level;
     };
-    expect(at(30)).toBeGreaterThan(0.3);
-    expect(Math.abs(at(90) - at(30))).toBeLessThan(0.02);
+    expect(decayOver(36)).toBeCloseTo(decayOver(6), 6);
   });
 });
 
 const HOOK_SOURCE = readFileSync(
   fileURLToPath(new URL('../../alia-chat/src/hooks/useTTS.ts', import.meta.url)),
+  'utf8',
+);
+const WAVE_SOURCE = readFileSync(
+  fileURLToPath(new URL('../../alia-chat/src/hooks/useAmbientWave.ts', import.meta.url)),
+  'utf8',
+);
+const STT_SOURCE = readFileSync(
+  fileURLToPath(new URL('../../alia-chat/src/hooks/useSpeechToText.ts', import.meta.url)),
   'utf8',
 );
 
@@ -157,5 +208,13 @@ describe('the read-aloud player', () => {
    */
   it('shares one level across every consumer', () => {
     expect(HOOK_SOURCE).toContain('const ttsWaveAmplitude = makeMutable(0)');
+  });
+});
+
+describe('both sources reach the field the same way', () => {
+  it('leaves neither with a curve or a time constant of its own', () => {
+    expect(STT_SOURCE).toContain('levelFromDbfs(recorderState.metering)');
+    expect(STT_SOURCE).not.toContain('+ 60) / 60');
+    expect(WAVE_SOURCE).toContain('LEVEL_ATTACK_MS : LEVEL_RELEASE_MS');
   });
 });

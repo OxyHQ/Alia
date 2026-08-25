@@ -11,6 +11,7 @@ import {
   type SharedValue,
 } from 'react-native-reanimated';
 import { useSTTStore } from './useSpeechToText';
+import { LEVEL_ATTACK_MS, LEVEL_RELEASE_MS } from '../lib/audio-level';
 import type { AgentState } from '../types';
 
 export type AmbientWaveMode = 'voice' | 'tts' | 'stt' | 'thinking' | 'idle';
@@ -78,6 +79,12 @@ export function useAmbientWave({ voice, isTTSPlaying, ttsWaveAmplitude, isGenera
   );
 
   // ── STT metering smoothing (floor 0.08, fast attack / slow decay, →0 on stop) ──
+  //
+  // The recorder publishes on a 100ms poll, so what makes this read as speech
+  // rather than as ten steps a second is `withTiming` interpolating between
+  // them. Read-aloud reaches the same place by a different mechanism — its
+  // player pushes buffers far too fast to route through React — but off the
+  // same two constants, so both settle at the same rate.
   const sttIsRecording = useSTTStore((s) => s.isRecording);
   const sttMetering = useSTTStore((s) => s.metering);
   const stt = useSharedValue(0);
@@ -88,7 +95,7 @@ export function useAmbientWave({ voice, isTTSPlaying, ttsWaveAmplitude, isGenera
         stt.value = withTiming(0, { duration: 300 });
         return;
       }
-      const duration = target > stt.value ? 60 : 200;
+      const duration = target > stt.value ? LEVEL_ATTACK_MS : LEVEL_RELEASE_MS;
       stt.value = withTiming(target, { duration, easing: Easing.bezier(0.33, 1, 0.68, 1) });
     },
     [sttIsRecording, sttMetering],
