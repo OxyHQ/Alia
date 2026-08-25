@@ -2,7 +2,7 @@ import React from "react";
 import { View, Platform } from "react-native";
 import { Search, MoreHorizontal, Menu } from "lucide-react-native";
 import { GhostIcon } from "@/components/ui/ghost-icon";
-import { AgentGlyph } from "@/components/ui/agent-glyph";
+import { IdentityMark } from "@alia.onl/sdk";
 import { Text } from "@/components/ui/text";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Button } from "@/components/ui/button";
@@ -13,6 +13,8 @@ import * as DropdownMenu from "@/components/ui/dropdown-menu";
 import { toast } from "@oxyhq/bloom/toast";
 import { confirm } from "@oxyhq/bloom/surfaces";
 import { useTranslation } from "@/lib/hooks/use-translation";
+import { agentTint } from "@/lib/agents/agent-color";
+import { useColorScheme } from "@/lib/useColorScheme";
 
 interface ChatHeaderProps {
   onGhostModePress?: () => void;
@@ -46,6 +48,7 @@ export const ChatHeader = React.memo(function ChatHeader({
   agentColor,
 }: ChatHeaderProps) {
   const { t } = useTranslation();
+  const { colors } = useColorScheme();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<DrawerNavigationProp<ReactNavigation.RootParamList>>();
   const router = useRouter();
@@ -125,7 +128,7 @@ export const ChatHeader = React.memo(function ChatHeader({
           with it. `numberOfLines` only clips what the box already bounds. */}
       {agentName === undefined ? null : (
         <View className="flex-1 flex-row items-center justify-center gap-2 px-2">
-          <AgentGlyph size={24} color={agentColor} label={agentName} />
+          <IdentityMark size={24} color={agentTint(agentColor, colors)} accessibilityLabel={agentName} />
           <Text className="shrink text-base font-semibold text-foreground" numberOfLines={1}>
             {agentName}
           </Text>

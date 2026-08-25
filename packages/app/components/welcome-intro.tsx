@@ -9,7 +9,7 @@ import Animated, {
   withRepeat,
   withTiming,
 } from 'react-native-reanimated';
-import { AliaMark } from '@alia.onl/sdk';
+import { IdentityMark } from '@alia.onl/sdk';
 import { useAuth } from '@oxyhq/services';
 import { AmbientField, PARALLAX_DURATION, PARALLAX_EASE } from '@/components/ambient-field';
 import { Button } from '@/components/ui/button';
@@ -237,7 +237,7 @@ export function WelcomeIntro({
       <View className="w-full max-w-[640px] items-center gap-3">
         <Animated.View className="max-w-[560px] items-center gap-4">
           <Animated.View style={markStyle}>
-            <AliaMark size={40} />
+            <IdentityMark size={40} />
           </Animated.View>
           <Animated.View
             className="flex-row items-center justify-center"

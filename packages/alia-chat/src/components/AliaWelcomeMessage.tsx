@@ -2,7 +2,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { Text } from './ui/text';
 import Animated, { FadeIn } from 'react-native-reanimated';
-import { AliaMark } from './AliaMark';
+import { IdentityMark } from './IdentityMark';
 import type { WelcomeSuggestion } from '../types';
 
 export type { WelcomeSuggestion };
@@ -28,7 +28,7 @@ export function AliaWelcomeMessage({
         {/* Mark + Title */}
         <View className="items-start mb-8">
           <View className="mb-4">
-            <AliaMark size={markSize} />
+            <IdentityMark size={markSize} />
           </View>
           <View className="space-y-2">
             <Text className="text-3xl font-bold tracking-tight text-foreground">

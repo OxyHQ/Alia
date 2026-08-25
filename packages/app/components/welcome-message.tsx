@@ -1,7 +1,7 @@
 import { View } from "react-native";
 import { useAuth } from "@oxyhq/services";
 import { Text } from "@/components/ui/text";
-import { AliaMark } from '@alia.onl/sdk';
+import { IdentityMark } from '@alia.onl/sdk';
 import { useColorScheme } from "@/lib/useColorScheme";
 import { useTranslation } from "@/lib/hooks/use-translation";
 
@@ -18,7 +18,7 @@ export const WelcomeMessage = () => {
 
   return (
     <View className="flex-col md:flex-row items-center justify-center gap-3">
-      <AliaMark size={38} color={colors.primary} />
+      <IdentityMark size={38} color={colors.primary} />
       <Text className="text-4xl tracking-tight text-foreground text-center md:text-left">
         {greeting}
       </Text>

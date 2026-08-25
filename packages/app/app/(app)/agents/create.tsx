@@ -86,10 +86,10 @@ export default function CreateAgentScreen() {
        * This is where the agent's name and handle now live. Alia never sees
        * them again except by reading them back.
        *
-       * There is no avatar step. An agent's likeness is
-       * `components/ui/agent-glyph.tsx` drawn in the account's own `User.color`
-       * — a field `createAccount` cannot carry, so a new agent starts out drawn
-       * in the theme's color and stays that way until Oxy can set one.
+       * There is no avatar step. An agent's likeness is the `IdentityMark`
+       * Alia herself wears, drawn in the account's own `User.color` — a field
+       * `createAccount` cannot carry, so a new agent starts out drawn in the
+       * theme's color and stays that way until Oxy can set one.
        */
       const account = await createBotAccount({
         createAccount,

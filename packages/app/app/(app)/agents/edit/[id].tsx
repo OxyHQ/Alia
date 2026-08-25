@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { AgentGlyph } from "@/components/ui/agent-glyph";
+import { IdentityMark } from "@alia.onl/sdk";
 import { ColorPicker } from "@/components/ui/color-picker";
 import { AGENT_SWATCHES } from "@/lib/constants/agent-colors";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
@@ -49,6 +49,7 @@ import { useAgent, useUpdateAgent, useDeleteAgent } from "@/lib/hooks/use-agents
 import type { Agent, AgentUpdate, AgentArchetype, ArchetypeConfig, RoutingRule } from "@/lib/types/agents";
 import { useTranslation } from "@/lib/hooks/use-translation";
 import { useColorScheme } from "@/lib/useColorScheme";
+import { agentTint } from "@/lib/agents/agent-color";
 import { toast } from "@oxyhq/bloom/toast";
 import { confirm } from "@oxyhq/bloom/surfaces";
 import { cn } from "@/lib/utils";
@@ -1047,7 +1048,7 @@ export default function EditAgentScreen() {
             {/* Mark + Name + Handle — all three are the bot ACCOUNT's, saved
                 to Oxy rather than to the agent row. */}
             <View className="flex-row items-center gap-3 mb-6">
-              <AgentGlyph size={40} color={color} />
+              <IdentityMark size={40} color={agentTint(color, colors)} />
               <View className="flex-1">
                 <TextInput
                   value={name}
@@ -1091,7 +1092,9 @@ export default function EditAgentScreen() {
                 selected={color ?? ""}
                 onSelect={setColor}
                 label={t("agents.colorLabel")}
-                renderSwatch={(preset) => <AgentGlyph size={28} color={preset} />}
+                renderSwatch={(preset) => (
+                  <IdentityMark size={28} color={agentTint(preset, colors)} />
+                )}
               />
             </View>
 

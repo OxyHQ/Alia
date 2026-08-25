@@ -22,6 +22,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const renders = { credits: 0 };
 
+/** The theme's own, which an agent Oxy could not resolve is drawn in. */
+const MUTED = 'rgb(113 113 122)';
+
 vi.mock('react-native', async () => {
   const ReactModule = await import('react');
   return {
@@ -63,9 +66,32 @@ vi.mock('@/components/ui/text', async () => {
   };
 });
 
-vi.mock('@/components/ui/agent-glyph', async () => {
+vi.mock('@alia.onl/sdk', async () => {
   const ReactModule = await import('react');
-  return { AgentGlyph: (props: Record<string, unknown>) => ReactModule.createElement('AgentGlyph', props) };
+  return {
+    IdentityMark: (props: Record<string, unknown>) =>
+      ReactModule.createElement('IdentityMark', props),
+  };
+});
+
+vi.mock('@/lib/useColorScheme', () => ({
+  useColorScheme: () => ({ colors: { mutedForeground: MUTED } }),
+}));
+
+/**
+ * Bloom's `theme` entry is a barrel that reaches `react-native`, which has no
+ * Node build. The colour utilities and the preset registry are standalone
+ * modules in the SAME install, so the header resolves the agent's colour through
+ * Bloom's OWN `parseRgb` and `APP_COLOR_PRESETS` here — which is what makes the
+ * assertions below about a painted colour rather than a value passed along.
+ */
+vi.mock('@oxyhq/bloom/theme', async () => {
+  const { createRequire } = await import('node:module');
+  const { pathToFileURL } = await import('node:url');
+  const require = createRequire(import.meta.url);
+  const entry = pathToFileURL(require.resolve('@oxyhq/bloom'));
+  const from = (module: string) => require(new URL(`theme/${module}.js`, entry).pathname);
+  return { ...from('color-utils'), ...from('color-presets') };
 });
 
 /**
@@ -145,25 +171,29 @@ describe('the chat header, with an agent', () => {
   it("shows the agent's mark in its own color, beside its name", () => {
     const r = render(<ChatHeader agentName="Pepe" agentColor="#7c3aed" />);
 
-    expect(nodes(r, 'AgentGlyph')[0]?.props).toMatchObject({ color: '#7c3aed', label: 'Pepe' });
+    expect(nodes(r, 'IdentityMark')[0]?.props).toMatchObject({
+      color: '#7c3aed',
+      accessibilityLabel: 'Pepe',
+    });
     expect(
       nodes(r, 'Text').map((node) => node.props.children),
     ).toContain('Pepe');
   });
 
-  it('passes an unresolved color through untouched, for the glyph to fall back on', () => {
-    // Oxy failing to resolve the account is ordinary traffic, and the decision
-    // about what to draw then belongs to the glyph — the header must not invent
-    // a color of its own on the way, which would make the fallback unreachable.
+  it('draws an unresolved color in the theme’s own, never in Alia’s', () => {
+    // Oxy failing to resolve the account is ordinary traffic. The mark takes a
+    // colour and nothing else, and its own default is the Alia brand purple —
+    // so handing the raw null along would dress an agent nobody could resolve
+    // in Alia's face.
     const r = render(<ChatHeader agentName="Pepe" agentColor={null} />);
 
-    expect(nodes(r, 'AgentGlyph')[0]?.props.color).toBeNull();
+    expect(nodes(r, 'IdentityMark')[0]?.props.color).toBe(MUTED);
   });
 
   it('draws no identity at all on Alia’s own chat', () => {
     const r = render(<ChatHeader />);
 
-    expect(nodes(r, 'AgentGlyph')).toHaveLength(0);
+    expect(nodes(r, 'IdentityMark')).toHaveLength(0);
     // The rest of the header is still there — this is the same header, minus a
     // title it never had.
     expect(nodes(r, 'CreditsMenu')).toHaveLength(1);
