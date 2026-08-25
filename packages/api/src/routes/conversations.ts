@@ -19,6 +19,7 @@ import {
   deleteMessages,
   listMessages,
   replaceMessages,
+  searchMessages,
   toStoredMessage,
   voteMessage,
   type NewMessage,
@@ -433,6 +434,69 @@ router.patch(
     }
   },
 );
+
+/** The most hits one search answers with, whatever the caller asks for. */
+const MAX_SEARCH_HITS = 50;
+const DEFAULT_SEARCH_HITS = 20;
+
+/**
+ * Search what was said in one thread.
+ *
+ * A permanent thread with an agent outgrows scrolling, so this is the second of
+ * the three ways back to something old — after scrolling and beside the agent's
+ * own recall, which reads the SAME index through the same query
+ * (`searchMessages`). One definition of what counts as text, not two.
+ *
+ * Scoped to a thread the CALLER holds, so searching somebody else's thread is a
+ * 404 rather than a 403, exactly as reading it already is.
+ *
+ * Every word in the query has to be present — `websearch_to_tsquery` ANDs
+ * unquoted terms, which is what a search box does — with quoted phrases and `-`
+ * exclusion on top. `db/chat/messageRepository.ts` records that this was
+ * measured rather than assumed.
+ *
+ * An empty query answers an empty list rather than everything. `websearch_to_tsquery`
+ * turns whitespace into an empty tsquery, which matches nothing — but returning
+ * early says so rather than leaving it to a coincidence of that function's
+ * behaviour.
+ */
+router.get('/:id/search', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    if (!req.user?.id) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+    const userId = req.user.id;
+    const conversationId = String(req.params.id);
+
+    if (!(await conversationExists(getDb(), userId, conversationId))) {
+      return res.status(404).json({ error: 'Conversation not found' });
+    }
+
+    const query = typeof req.query.q === 'string' ? req.query.q.trim() : '';
+    if (query === '') return res.json({ results: [] });
+
+    const limit = Math.min(
+      Math.max(parseInt(req.query.limit as string, 10) || DEFAULT_SEARCH_HITS, 1),
+      MAX_SEARCH_HITS,
+    );
+
+    const hits = await searchMessages(getDb(), userId, conversationId, query, limit);
+
+    res.json({
+      results: hits.map((hit) => ({
+        // The CLIENT's id, which is what a result has to carry: it is the one a
+        // client can scroll to. See `toStoredMessage` for why `id` means that.
+        id: hit.clientMessageId,
+        role: hit.role,
+        text: hit.text,
+        createdAt: hit.createdAt,
+      })),
+    });
+  } catch (error: unknown) {
+    log.chat.error({ err: error }, 'Error searching a conversation');
+    res.status(500).json({ error: 'Failed to search this conversation' });
+  }
+});
 
 /**
  * Start a new conversation inside a thread.

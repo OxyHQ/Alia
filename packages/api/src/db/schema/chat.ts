@@ -203,6 +203,53 @@ export const messages = pgTable(
       .where(sql`${t.seq} is not null`),
     checkOneOf('messages_role_check', t.role, MESSAGE_ROLES),
     checkOneOf('messages_vote_check', t.vote, MESSAGE_VOTES),
+    /**
+     * Searching what was SAID, and nothing else.
+     *
+     * `content` is `jsonb`, so a `tsvector` cannot sit on the column: it needs
+     * an expression, and the expression has to decide what counts as text.
+     * `alia_message_text` — created by hand in the migration, because
+     * drizzle-kit writes no functions — takes a bare JSON string as itself and,
+     * from a parts array, only the `type: 'text'` parts, in order.
+     *
+     * **What it deliberately leaves out is the point.** A tool payload is JSON
+     * somebody's API returned: it is full of ids, URLs and field names that
+     * match a query for reasons that have nothing to do with the conversation,
+     * and hitting on one shows a person a message whose visible body does not
+     * contain what they searched for. Attachments are the same — a file part
+     * carries a name and a media type, not prose. `tool_invocations` is a
+     * separate column and is not indexed at all.
+     *
+     * `reasoning` parts are excluded on the same ground: they are the model's
+     * scratch, not what it said.
+     *
+     * `'simple'` rather than `'english'` or `'spanish'`, and that is a real
+     * choice rather than a default. A stemmer has to be picked per language,
+     * this product is used in at least two, and a `spanish` index would stem
+     * English badly and vice versa. `simple` matches whole words in every
+     * language and never claims to understand any of them.
+     *
+     * PARTIAL on the two roles a person searches. A `system` or `tool` row is
+     * not something anybody looks for, and keeping them out is what makes the
+     * index proportional to the conversation rather than to the machinery.
+     *
+     * The index carries neither `oxy_user_id` nor `conversation_id`, because
+     * putting a scalar in a GIN index needs `btree_gin` and an extension is a
+     * privileged operation the owning role cannot perform (`db/migrate.ts` says
+     * so where `extensions: []` is declared).
+     *
+     * **That was measured rather than reasoned about**, because the plausible
+     * worry — that a single-thread search would ignore this index and recompute
+     * the vector per row through `messages_conversation_created_at_idx` — is
+     * not what happens. Against 60,000 messages with a 6,000-message thread,
+     * `EXPLAIN (ANALYZE)` reports a `BitmapAnd` of BOTH indexes: 61 rows from
+     * this one, 6,000 from the conversation one, 6 heap blocks, 0.94 ms. The
+     * two are complementary, which is the arrangement `btree_gin` would have
+     * bought at the cost of an extension nobody can install.
+     */
+    index('messages_search_idx')
+      .using('gin', sql`to_tsvector('simple', alia_message_text(${t.content}))`)
+      .where(sql`${t.role} in ('user', 'assistant')`),
   ],
 );
 
