@@ -314,6 +314,13 @@ jobs:
       - name: Check no client hardcodes a model default
         run: node scripts/check-model-defaults.mjs
 
+      # The image build is the only thing that reads the Dockerfile, and CI does
+      # not build the image — `Build API` runs `bun build`. So a COPY naming a
+      # deleted workspace leaves every gate green and kills the deploy, which is
+      # exactly what happened when `packages/shared-types` was removed.
+      - name: Check the Dockerfile copies only workspaces that exist
+        run: node scripts/check-dockerfile-workspaces.mjs
+
       # The picker labels a routing profile with the product's own words —
       # Fast, Balanced, Maximum quality, Coding — rather than the display name
       # of the alias it came from. The server half is gated by
