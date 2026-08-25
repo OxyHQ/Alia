@@ -107,19 +107,24 @@ const seed = (userId = USER, syraPodcastId = 'syra-pod-1') =>
  * `topic` is spelled out per episode rather than shared, because the ledger
  * tests turn on which subjects come back and a single constant would make every
  * row indistinguishable from every other.
+ *
+ * `null` is how a caller asks for an episode with NO subject, not `undefined`:
+ * a default parameter is applied for `undefined`, so passing that would silently
+ * seed the default topic and turn "an episode that has not chosen one" into a
+ * test of nothing.
  */
 const seedEpisode = (
   seriesId: string,
   episodeNumber: number,
   userId = USER,
-  topic: string | undefined = 'what happened this week',
+  topic: string | null = 'what happened this week',
 ) =>
   createEpisode(db, {
     userId,
     seriesId,
     episodeNumber,
     title: `Episode ${episodeNumber}`,
-    topic,
+    topic: topic ?? undefined,
     syraEpisodeId: `syra-ep-${episodeNumber}`,
     ingestTicket: `ticket-${episodeNumber}`,
     ingestTicketExpiresAt: new Date(Date.now() + 86_400_000),
@@ -498,7 +503,7 @@ describe('what the earlier episodes were about', () => {
     const series = await seed();
     // Nobody steered it and its script has not returned: `topic` is genuinely
     // unknown, which is not the same as the episode not existing.
-    await seedEpisode(series.id, 1, USER, undefined);
+    await seedEpisode(series.id, 1, USER, null);
 
     expect(await priorEpisodes(db, series.id, 2, 5)).toEqual([
       { episodeNumber: 1, topic: null, recap: null },

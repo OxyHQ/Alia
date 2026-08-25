@@ -10,6 +10,7 @@ import {
   createSeries,
   findEpisodeById,
   listEpisodesForSeries,
+  updateEpisode,
 } from '../../../db/shows/showRepository';
 
 /**
@@ -49,11 +50,30 @@ vi.mock('../../chat-core.js', () => ({
   getAliaModel: vi.fn(async () => ({ creditMultiplier: 1 })),
 }));
 
-vi.mock('ai', () => ({
-  generateText: vi.fn(async () => {
+/**
+ * Every prompt the pipeline sent, so what the model was TOLD is measurable.
+ *
+ * The subject of an episode is now the model's to choose, which makes the
+ * contents of this prompt a behaviour rather than an implementation detail: a
+ * show that repeats itself at episode nine is a show whose prompt did not
+ * mention episode two.
+ */
+const scriptPrompts: { system: string; user: string }[] = [];
+const generateText = vi.fn(
+  async (options: { messages: { role: string; content: string }[] }) => {
+    scriptPrompts.push({
+      system: options.messages.find((message) => message.role === 'system')?.content ?? '',
+      user: options.messages.find((message) => message.role === 'user')?.content ?? '',
+    });
     if (scriptReply === null) throw new Error('stubbed model refused');
     return { text: scriptReply };
-  }),
+  },
+);
+// Wrapped rather than passed, so the factory does not capture the binding
+// before this module has finished initialising.
+vi.mock('ai', () => ({
+  generateText: (options: { messages: { role: string; content: string }[] }) =>
+    generateText(options),
 }));
 
 vi.mock('../../synthesize-speech.js', () => ({
@@ -117,6 +137,8 @@ beforeEach(async () => {
   measuredDurationMs = 90_000;
   ingestEpisode.mockClear();
   synthesizeSoundEffect.mockClear();
+  generateText.mockClear();
+  scriptPrompts.length = 0;
   /**
    * Scoped to THIS file's account, never a bare truncate. One database serves
    * the whole run and vitest runs FILES in parallel, so an unpredicated delete
@@ -138,8 +160,18 @@ async function balance(): Promise<number> {
   return (row?.creditsFree ?? 0) + (row?.creditsPaid ?? 0);
 }
 
-/** A series and one queued episode, ready to run. */
-async function queueEpisode(): Promise<string> {
+/**
+ * A series and one queued episode, ready to run.
+ *
+ * `topic` defaults to a subject somebody typed, because most of this file is
+ * about credits and audio and wants an episode that is simply ready. `null` is
+ * the ordinary shape of a real request now — nobody said what it covers — and
+ * the tests about the subject pass it explicitly.
+ */
+async function queueEpisode(
+  topic: string | null = 'what happened this week',
+  episodeNumber = 1,
+): Promise<string> {
   const series = await createSeries(db, {
     id: uuidv7(),
     userId: OWNER,
@@ -157,15 +189,57 @@ async function queueEpisode(): Promise<string> {
   const episode = await createEpisode(db, {
     userId: OWNER,
     seriesId: series.id,
-    episodeNumber: 1,
-    title: 'The first one',
-    topic: 'what happened this week',
+    episodeNumber,
+    // The PLACEHOLDER the route reserves the Syra draft with, minutes before
+    // any script exists. Named as such here because half this file's point is
+    // that the published name is not this one.
+    title: `Episode ${episodeNumber}`,
+    topic: topic ?? undefined,
     syraEpisodeId: 'syra-episode',
     ingestTicket: 'ticket-1',
     ingestTicketExpiresAt: new Date(Date.now() + 86_400_000),
   });
 
   return episode.id;
+}
+
+/**
+ * An earlier episode of the SAME series, so the script's prompt has a history
+ * to be told about.
+ *
+ * Takes the episode's number, its subject and its status, because those three
+ * are exactly what decides whether it reaches the prompt: a failed run said
+ * nothing to a listener and must not retire its subject, while one still
+ * recording has already claimed its own.
+ */
+async function seedPrior(
+  seriesId: string,
+  episodeNumber: number,
+  topic: string,
+  options: { readonly recap?: string; readonly status?: 'completed' | 'failed' | 'generating_audio' } = {},
+): Promise<void> {
+  const episode = await createEpisode(db, {
+    userId: OWNER,
+    seriesId,
+    episodeNumber,
+    title: `Episode ${episodeNumber}`,
+    topic,
+    syraEpisodeId: `syra-episode-${episodeNumber}`,
+    ingestTicket: `ticket-${episodeNumber}`,
+    ingestTicketExpiresAt: new Date(Date.now() + 86_400_000),
+  });
+
+  await updateEpisode(db, episode.id, {
+    status: options.status ?? 'completed',
+    ...(options.recap === undefined ? {} : { recap: options.recap }),
+  });
+}
+
+/** The queued episode's own series, for seeding history around it. */
+async function seriesOf(episodeId: string): Promise<string> {
+  const episode = await findEpisodeById(db, episodeId);
+  if (!episode) throw new Error('the queued episode vanished');
+  return episode.seriesId;
 }
 
 /** A well-formed script naming only the series' own cast. */
@@ -609,5 +683,264 @@ describe('the script parser refuses what would fail later', () => {
     await runShowPipeline(episodeId);
 
     expect((await findEpisodeById(db, episodeId))?.status).toBe('failed');
+  });
+});
+
+/* -------------------------------------------------------------------------- */
+/*  The subject, and the name                                                 */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * A script carrying whichever of the two new fields a test is about.
+ *
+ * The key ORDER matters and is the real schema's: `topic` first, because it is
+ * the decision the rest follows, and `title` last, after the segments, because
+ * a model fills an object in the order it is given and a title asked for above
+ * the dialogue is a title written from the subject rather than from the
+ * episode.
+ */
+function scriptWith(fields: { topic?: string; title?: string }): string {
+  return JSON.stringify({
+    ...(fields.topic === undefined ? {} : { topic: fields.topic }),
+    description: 'A short episode.',
+    summary: 'A longer summary of the episode.',
+    segments: [
+      { type: 'dialogue', speaker: 'Marcus', text: 'Welcome back to the show.' },
+      { type: 'dialogue', speaker: 'Sarah', text: 'Glad to be here.' },
+      { type: 'dialogue', speaker: 'Marcus', text: 'So, what happened this week?' },
+    ],
+    recap: 'They discussed what happened this week.',
+    ...(fields.title === undefined ? {} : { title: fields.title }),
+  });
+}
+
+/**
+ * The episode is named from what it SAYS, and the distinction is the point.
+ *
+ * The route reserves the Syra draft under `Episode {n}` and the request may
+ * carry a subject; neither is the name. A test asserting only that "a title
+ * exists" would pass under the design this replaces, where a model turned the
+ * requested topic into a title before a word of the episode was written — so
+ * every assertion here names the string it must NOT be.
+ */
+describe('naming an episode after it exists', () => {
+  it('takes the name off the script, not off the placeholder or the request', async () => {
+    await fund(50);
+    const episodeId = await queueEpisode('the trouble with photosynthesis');
+    scriptReply = scriptWith({ title: 'How leaves eat light' });
+
+    const { runShowPipeline } = await import('../show-pipeline.js');
+    await runShowPipeline(episodeId);
+
+    const episode = await findEpisodeById(db, episodeId);
+    expect(episode?.status).toBe('completed');
+    expect(episode?.title).toBe('How leaves eat light');
+    // The two strings the old design would have produced instead.
+    expect(episode?.title).not.toBe('Episode 1');
+    expect(episode?.title).not.toBe('the trouble with photosynthesis');
+  });
+
+  it('keeps the placeholder when the reply is an explanation rather than a title', async () => {
+    // The positive control. A pipeline that stored whatever came back would
+    // pass the test above and put a paragraph on a published episode.
+    await fund(50);
+    const episodeId = await queueEpisode('the trouble with photosynthesis');
+    scriptReply = scriptWith({
+      title:
+        'Certainly! Here are a few possible names for this episode, depending on the tone you are '.repeat(
+          3,
+        ),
+    });
+
+    const { runShowPipeline } = await import('../show-pipeline.js');
+    await runShowPipeline(episodeId);
+
+    const episode = await findEpisodeById(db, episodeId);
+    expect(episode?.status).toBe('completed');
+    expect(episode?.title).toBe('Episode 1');
+  });
+
+  it('cleans the name, so the cleaner is reached rather than merely correct', async () => {
+    // `episode-title.ts` can be perfectly right and never called — a mechanism
+    // green and inert. This asserts the ENTRYPOINT runs it.
+    await fund(50);
+    const episodeId = await queueEpisode('the trouble with photosynthesis');
+    scriptReply = scriptWith({ title: 'Title: "How leaves eat light."' });
+
+    const { runShowPipeline } = await import('../show-pipeline.js');
+    await runShowPipeline(episodeId);
+
+    expect((await findEpisodeById(db, episodeId))?.title).toBe('How leaves eat light');
+  });
+});
+
+/**
+ * Nobody says what an episode covers, so the script decides — and what it
+ * decided is STORED, because that is what the next episode is told not to do
+ * again.
+ */
+describe('deciding what an episode covers', () => {
+  it('stores the subject the script chose when the request named none', async () => {
+    await fund(50);
+    const episodeId = await queueEpisode(null);
+    scriptReply = scriptWith({ topic: 'how a leaf turns light into sugar', title: 'Leaf work' });
+
+    const { runShowPipeline } = await import('../show-pipeline.js');
+    await runShowPipeline(episodeId);
+
+    const episode = await findEpisodeById(db, episodeId);
+    expect(episode?.status).toBe('completed');
+    expect(episode?.topic).toBe('how a leaf turns light into sugar');
+
+    // And the prompt asked it to choose, rather than handing it a subject.
+    expect(scriptPrompts[0]?.user).toContain('Choosing what this episode covers');
+  });
+
+  it("keeps the owner's own words when they steered this one", async () => {
+    // The positive control: a pipeline that always overwrote `topic` with the
+    // model's restatement would pass the test above and quietly rewrite what
+    // somebody typed.
+    await fund(50);
+    const episodeId = await queueEpisode('the election result, and what it changes');
+    scriptReply = scriptWith({ topic: 'something else entirely', title: 'After the count' });
+
+    const { runShowPipeline } = await import('../show-pipeline.js');
+    await runShowPipeline(episodeId);
+
+    const episode = await findEpisodeById(db, episodeId);
+    expect(episode?.topic).toBe('the election result, and what it changes');
+    expect(scriptPrompts[0]?.user).toContain('the election result, and what it changes');
+  });
+
+  it('refuses a script that chose no subject, rather than publishing one nothing can describe', async () => {
+    await fund(50);
+    const before = await balance();
+    const episodeId = await queueEpisode(null);
+    // A well-formed script in every other respect, with no `topic`. Accepting
+    // it publishes an episode the NEXT one is never told about, so the show is
+    // free to cover the same thing again.
+    scriptReply = scriptWith({ title: 'Leaf work' });
+
+    const { runShowPipeline } = await import('../show-pipeline.js');
+    await runShowPipeline(episodeId);
+
+    const episode = await findEpisodeById(db, episodeId);
+    expect(episode?.status).toBe('failed');
+    expect(ingestEpisode).not.toHaveBeenCalled();
+    // Retried across the failover loop first, exactly as an unusable script is.
+    expect(generateText).toHaveBeenCalledTimes(3);
+    // And nothing was charged for it.
+    expect(await balance()).toBe(before);
+  });
+
+  it('accepts the same script when the owner already named the subject', async () => {
+    // The control for the rejection above: the missing `topic` is only a fault
+    // when the row has none either.
+    await fund(50);
+    const episodeId = await queueEpisode('the election result');
+    scriptReply = scriptWith({ title: 'After the count' });
+
+    const { runShowPipeline } = await import('../show-pipeline.js');
+    await runShowPipeline(episodeId);
+
+    expect((await findEpisodeById(db, episodeId))?.status).toBe('completed');
+    expect(generateText).toHaveBeenCalledTimes(1);
+  });
+});
+
+/**
+ * What the script is TOLD about the episodes before it.
+ *
+ * This is the failure the whole design turns on: a prompt carrying only the
+ * last few recaps makes episode nine free to cover what episode two covered,
+ * because from the model's side episode two never happened. So the assertion is
+ * that EVERY earlier subject reaches the prompt while only the recent recaps
+ * do — breadth and detail at two different costs.
+ */
+describe('the script is told what the show has already covered', () => {
+  it('lists every earlier subject, and only the recent few in full', async () => {
+    await fund(50);
+    const episodeId = await queueEpisode(null, 7);
+    const seriesId = await seriesOf(episodeId);
+    for (const n of [1, 2, 3, 4, 5, 6]) {
+      await seedPrior(seriesId, n, `subject ${n}`, { recap: `recap ${n}` });
+    }
+    scriptReply = scriptWith({ topic: 'something new', title: 'Something new' });
+
+    const { runShowPipeline } = await import('../show-pipeline.js');
+    await runShowPipeline(episodeId);
+
+    const prompt = scriptPrompts[0]?.user ?? '';
+    // Breadth: all six, including the three the recap window cannot reach.
+    for (const n of [1, 2, 3, 4, 5, 6]) {
+      expect(prompt).toContain(`Episode ${n}: subject ${n}`);
+    }
+    // Detail: the last three recaps, and NOT the older ones. Without this the
+    // first assertion would also pass a prompt that simply sent everything,
+    // which is the cost the split exists to avoid.
+    expect(prompt).toContain('Episode 6: recap 6');
+    expect(prompt).toContain('Episode 4: recap 4');
+    expect(prompt).not.toContain('recap 3');
+    expect(prompt).not.toContain('recap 1');
+  });
+
+  it('leaves out an episode whose run failed, and keeps one still recording', async () => {
+    await fund(50);
+    const episodeId = await queueEpisode(null, 4);
+    const seriesId = await seriesOf(episodeId);
+    await seedPrior(seriesId, 1, 'a subject that aired', { recap: 'recap 1' });
+    await seedPrior(seriesId, 2, 'a subject nobody ever heard', { status: 'failed' });
+    await seedPrior(seriesId, 3, 'a subject being recorded now', { status: 'generating_audio' });
+    scriptReply = scriptWith({ topic: 'something new', title: 'Something new' });
+
+    const { runShowPipeline } = await import('../show-pipeline.js');
+    await runShowPipeline(episodeId);
+
+    const prompt = scriptPrompts[0]?.user ?? '';
+    // A run that died said nothing to a listener, so its subject is free again.
+    expect(prompt).not.toContain('a subject nobody ever heard');
+    // One still being recorded has already claimed its subject. Leaving it out
+    // is how two episodes queued a minute apart cover the same thing.
+    expect(prompt).toContain('Episode 3: a subject being recorded now');
+    expect(prompt).toContain('Episode 1: a subject that aired');
+  });
+
+  it('numbers the recaps from the rows, not by counting backwards from this one', async () => {
+    await fund(50);
+    const episodeId = await queueEpisode(null, 4);
+    const seriesId = await seriesOf(episodeId);
+    await seedPrior(seriesId, 1, 'the first subject', { recap: 'recap one' });
+    // Episode 2 failed, so the surviving recaps are not contiguous. A prompt
+    // that counted backwards from episode 4 would label these 2 and 3, and a
+    // host saying "last week we talked about X" when it did not is worse than
+    // one that never refers back at all.
+    await seedPrior(seriesId, 2, 'a subject nobody ever heard', { status: 'failed' });
+    await seedPrior(seriesId, 3, 'the third subject', { recap: 'recap three' });
+    scriptReply = scriptWith({ topic: 'something new', title: 'Something new' });
+
+    const { runShowPipeline } = await import('../show-pipeline.js');
+    await runShowPipeline(episodeId);
+
+    const prompt = scriptPrompts[0]?.user ?? '';
+    expect(prompt).toContain('Episode 1: recap one');
+    expect(prompt).toContain('Episode 3: recap three');
+    expect(prompt).not.toContain('Episode 2: recap');
+  });
+
+  it('tells a first episode it is the first, rather than nothing at all', async () => {
+    // The vacuity floor for this whole describe: with no history the prompt
+    // must still say something, or "contains no earlier subject" would be
+    // satisfied by a prompt that was never built.
+    await fund(50);
+    const episodeId = await queueEpisode(null, 1);
+    scriptReply = scriptWith({ topic: 'where this show begins', title: 'Where we begin' });
+
+    const { runShowPipeline } = await import('../show-pipeline.js');
+    await runShowPipeline(episodeId);
+
+    const prompt = scriptPrompts[0]?.user ?? '';
+    expect(prompt).toContain('This is the FIRST episode');
+    expect(prompt).toContain('Write episode 1.');
+    expect(prompt).not.toContain('What this show has already covered');
   });
 });
