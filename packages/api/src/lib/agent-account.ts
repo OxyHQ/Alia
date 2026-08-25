@@ -66,7 +66,11 @@
 import { OxyServices, canSwitchIntoAccount } from '@oxyhq/core';
 import type { Executor } from '../db/index.js';
 import { findAgentById, type AgentRecord } from '../db/agents/agentRepository.js';
-import { attachAgentIdentity, type HydratedAgent } from './agent-identity.js';
+import {
+  attachAgentIdentity,
+  findAgentByOxyHandle,
+  type HydratedAgent,
+} from './agent-identity.js';
 import { log } from './logger.js';
 
 /** Why a caller may not act as an account. Maps 1:1 onto an HTTP status. */
@@ -348,6 +352,74 @@ function isConflict(error: unknown): boolean {
 }
 
 /**
+ * May this caller REACH this agent at all — chat with it, open its thread?
+ *
+ * The one place the rule is written, because two copies of it would be two
+ * chances to leave one of them at "published only" or at "owner only", and
+ * neither mistake is visible from the call site.
+ *
+ * Two grounds, and the first is why this is not expensive:
+ *
+ *  - The agent is PUBLISHED and active. Its prompt is already public — a
+ *    published agent's whole record, `system_prompt` included, is what
+ *    `GET /agents/:id` serves to anyone — so using it for your own turn leaks
+ *    nothing, and a turn bills the CALLER either way.
+ *  - Otherwise the caller must be able to ACT AS its bot account, which is what
+ *    lets somebody chat with their own draft and what lets a colleague they
+ *    granted membership to do the same. That is a READ, so it takes the cached
+ *    verdict: one Oxy round trip per caller per agent per five minutes, not one
+ *    per turn.
+ *
+ * The Oxy graph decides the second ground and Alia adds no permission of its
+ * own: `account:act_as` over the bot account is exactly what
+ * {@link verifyAgentAccount} asks, and it already answers for a direct owner
+ * and for an inherited membership alike.
+ *
+ * A caller with no bearer cannot be asked about, so an unpublished agent is
+ * unreachable to them. That is the same answer as "no such agent", which is the
+ * answer a route must give: see {@link loadThreadAgent}.
+ */
+export async function canReachAgent(
+  agent: AgentRecord,
+  caller: { oxyUserId: string; accessToken: string | undefined },
+): Promise<boolean> {
+  if (agent.isPublished && agent.status === 'active') return true;
+  if (caller.accessToken === undefined) return false;
+  const verdict = await verifyAgentAccount({
+    oxyUserId: caller.oxyUserId,
+    accessToken: caller.accessToken,
+    oxyAccountId: agent.oxyAccountId,
+    // A READ: the caller is about to render this agent's prompt, not write to it.
+    cache: true,
+  });
+  return verdict.permitted;
+}
+
+/**
+ * The agent behind an @handle that this caller may reach, or null.
+ *
+ * What `GET /agents/thread/:username` resolves `/a/pepe` through. Two hops,
+ * because a handle is Oxy's: the username resolves to an ACCOUNT and the
+ * account to an agent, which is why `agents.oxy_account_id` is unique.
+ *
+ * **Every refusal is the same `null`, and that is the point.** No such
+ * username, a username that is a person rather than an agent, an unpublished
+ * agent belonging to somebody else, and Oxy being unreachable all mean "you
+ * cannot open this thread". A route that distinguished them would answer 403
+ * for the third — and a 403 confirms the agent EXISTS, which is precisely what
+ * an unpublished draft must not leak to a stranger who guessed a handle.
+ */
+export async function loadThreadAgent(
+  db: Executor,
+  params: { username: string; oxyUserId: string; accessToken: string | undefined },
+): Promise<HydratedAgent | null> {
+  const agent = await findAgentByOxyHandle(db, params.username, { hireableOnly: false });
+  if (agent === null) return null;
+  if (!(await canReachAgent(agent, params))) return null;
+  return attachAgentIdentity(agent);
+}
+
+/**
  * The agent a TURN is for, named explicitly by the request.
  *
  * ## Explicit, because the inference was broken for its whole life
@@ -366,16 +438,8 @@ function isConflict(error: unknown): boolean {
  *
  * ## `agentId` is CLIENT INPUT, so it is authorised
  *
- * Two grounds, and the first is why this is not expensive:
- *
- *  - The agent is PUBLISHED and active. Its prompt is already public — a
- *    published agent's whole record, `system_prompt` included, is what
- *    `GET /agents/:id` serves to anyone — so using it for your own turn leaks
- *    nothing, and the escalation branch bills the CALLER either way.
- *  - Otherwise the caller must be able to ACT AS its bot account, which is what
- *    lets somebody chat with their own draft. That is a read, so it takes the
- *    cached verdict: one Oxy round trip per caller per agent per five minutes,
- *    not one per turn.
+ * By {@link canReachAgent}, which is the same rule `GET /agents/thread/:username`
+ * applies — published-and-active, or `account:act_as` on the bot account.
  *
  * A refusal is `null` rather than an error. A turn naming an agent the caller
  * may not use is still a valid chat turn; it simply runs as ordinary Alia,
@@ -387,18 +451,6 @@ export async function loadTurnAgent(
 ): Promise<HydratedAgent | null> {
   const agent = await findAgentById(db, params.agentId);
   if (agent === null) return null;
-
-  if (!(agent.isPublished && agent.status === 'active')) {
-    if (params.accessToken === undefined) return null;
-    const verdict = await verifyAgentAccount({
-      oxyUserId: params.oxyUserId,
-      accessToken: params.accessToken,
-      oxyAccountId: agent.oxyAccountId,
-      // A READ: the turn is about to render this agent's prompt, not write to it.
-      cache: true,
-    });
-    if (!verdict.permitted) return null;
-  }
-
+  if (!(await canReachAgent(agent, params))) return null;
   return attachAgentIdentity(agent);
 }
