@@ -54,7 +54,7 @@ export default function CreateAgentScreen() {
   const router = useRouter();
   const { t } = useTranslation();
   const createAgent = useAgentsStore((state) => state.createAgent);
-  const { createAccount } = useOxy();
+  const { createAccount, oxyServices } = useOxy();
 
   const [inputValue, setInputValue] = useState("");
   const [generating, setGenerating] = useState(false);
@@ -87,6 +87,14 @@ export default function CreateAgentScreen() {
       const account = await createBotAccount({
         createAccount,
         username: config.suggestedUsername,
+        /**
+         * Ask before minting, so a taken suggestion becomes a free handle the
+         * person is TOLD about below — rather than the silent rename they used
+         * to discover afterwards, when `community-maestro` had quietly become
+         * `community-maestro1`.
+         */
+        checkAvailability: async (candidate) =>
+          (await oxyServices.checkUsernameAvailability(candidate)).available,
         displayName: config.name,
         bio: config.tagline,
         // This screen builds a DRAFT (`isPublished: false` below), so the
@@ -110,7 +118,20 @@ export default function CreateAgentScreen() {
       });
 
       if (agent) {
-        toast.success(t("agents.agentUpdated"));
+        /**
+         * Say which handle it got, and only when it is not the one proposed.
+         *
+         * Informative, never blocking: the account exists either way, and the
+         * screen this navigates to is the agent editor, which has a handle
+         * field. So the person reads what they were given and is already
+         * standing where they can change it.
+         */
+        const granted = account.account.username;
+        if (granted !== undefined && granted !== config.suggestedUsername) {
+          toast.info(t("agents.handleAdjusted", { handle: granted }));
+        } else {
+          toast.success(t("agents.agentUpdated"));
+        }
         router.replace({ pathname: "/(app)/agents/edit/[id]", params: { id: agent._id } });
       } else {
         toast.error("Failed to create agent");

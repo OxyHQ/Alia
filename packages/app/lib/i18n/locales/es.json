@@ -625,6 +625,7 @@
     "namePlaceholder": "Nombre del agente",
     "colorLabel": "Color",
     "handlePlaceholder": "identificador",
+    "handleAdjusted": "Ese handle estaba cogido — tu agente es @%{handle}",
     "handleTaken": "Ese identificador ya está en uso. Prueba con otro.",
     "handlesAutonomousEvents": "Atiende eventos autónomos",
     "handlesAutonomousEventsHint": "Ejecuta por su cuenta los eventos de servicios Oxy. Solo uno de tus agentes puede.",
