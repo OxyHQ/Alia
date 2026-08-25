@@ -330,9 +330,12 @@ describe('EpisodeRow', () => {
   it('keeps the remove action reachable on native and hover-revealed on web', () => {
     const root = renderRow(BASE);
     const remove = nodes(root, 'Pressable').find(
-      (node) => node.props.accessibilityLabel === `Remove ${BASE.title}`,
+      (node) => node.props.accessibilityLabel === `Remove ${BASE.title} from Alia`,
     );
 
+    // `from Alia` is part of the contract, not decoration: the control removes
+    // Alia's record and the recording stays published on Syra, so a label that
+    // said only `Remove ${title}` promised something wider than it does.
     expect(remove).toBeDefined();
     // Web-scoped, so the control never disappears on a device with no pointer.
     expect(String(remove?.props.className)).toContain('web:opacity-0');
