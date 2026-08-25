@@ -24,11 +24,20 @@ workers_dev = false
 [assets]
 directory = "./dist"
 # The SPA fallback, as a first-class setting rather than a catch-all rule: a
-# navigation that matches no asset gets `index.html`. Note this differs from the
-# Pages behaviour it replaces — `/*  /index.html  200` answered EVERY miss with
-# the shell, including a missing script. This answers navigations only, so a
-# missing asset now 404s honestly. That is a deliberate improvement, and it is
-# called out here because it is a behaviour change and not a like-for-like port.
+# request that matches no asset gets `index.html`.
+#
+# I claimed, in the commit that introduced this file, that it answers
+# NAVIGATIONS only and that a missing asset would therefore 404 honestly. That
+# is FALSE, and it is corrected here rather than left standing. Measured against
+# the deployed Worker with a path that had never existed:
+#
+#   GET /assets/nope-<nonce>.js  ->  200, content-type: text/html, the app shell
+#
+# So this behaves exactly like the `/*  /index.html  200` it replaced: EVERY
+# miss gets the shell, including a script. That is a wart — a `<script>` tag
+# receiving HTML fails in a confusing way — but it is the wart that shipped
+# before, so nothing regressed. Changing it is a routing decision on its own
+# merits, not something to slip into a hostname migration.
 not_found_handling = "single-page-application"
 
 # The only way in.
