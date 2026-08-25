@@ -146,6 +146,13 @@ interface ProgressUpdate {
  *
  * Carries `seriesId` beside `episodeId` because the app renders episodes inside
  * a series and a bare episode id would send it looking for which list to update.
+ *
+ * And the TITLE, which is not merely progress: the route reserved the episode
+ * under `Episode {n}` and the script renames it minutes before the run ends, so
+ * without this the screen shows a placeholder for the whole recording while the
+ * row already holds the real name. `episode` is rebound by every patch, so this
+ * reads whatever the last write left — which is the name from the moment there
+ * is one.
  */
 function emitProgress(episode: ShowEpisodeRow, update: ProgressUpdate): void {
   const io = getIO();
@@ -153,6 +160,7 @@ function emitProgress(episode: ShowEpisodeRow, update: ProgressUpdate): void {
     io.to(`user:${episode.userId}`).emit('show:progress', {
       episodeId: episode.id,
       seriesId: episode.seriesId,
+      title: episode.title,
       ...update,
     });
   }

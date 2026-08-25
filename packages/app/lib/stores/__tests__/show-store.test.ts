@@ -226,6 +226,54 @@ describe('progress events', () => {
     expect(useShowStore.getState().activeGenerations.get('episode-xyz')?.progress).toBe(42);
   });
 
+  it('renames the episode when the script does, mid-run', async () => {
+    const useShowStore = await freshStore();
+    get.mockResolvedValueOnce({
+      data: {
+        series: SERIES,
+        episodes: [{ ...EPISODE, title: 'Episode 2', status: 'queued', progress: 0 }],
+        total: 1,
+      },
+    });
+    await useShowStore.getState().fetchOneSeries('series-abc');
+
+    useShowStore.getState().updateProgress({
+      episodeId: 'episode-xyz',
+      seriesId: 'series-abc',
+      status: 'generating_audio',
+      progress: 15,
+      currentStep: 'Recording...',
+      title: 'What the deep sea is hiding',
+    });
+
+    /**
+     * The API reserves the episode under `Episode {n}` and the script renames it
+     * minutes before the run ends. Without this the row shows the placeholder
+     * for the whole recording, even though the name already exists.
+     */
+    const [episode] = useShowStore.getState().episodesBySeries['series-abc'] ?? [];
+    expect(episode?.title).toBe('What the deep sea is hiding');
+  });
+
+  it('leaves the name alone when an event carries none', async () => {
+    // The positive control. Spreading the field unconditionally blanks the
+    // title on every event an older API sends.
+    const useShowStore = await freshStore();
+    get.mockResolvedValueOnce({ data: { series: SERIES, episodes: [EPISODE], total: 1 } });
+    await useShowStore.getState().fetchOneSeries('series-abc');
+
+    useShowStore.getState().updateProgress({
+      episodeId: 'episode-xyz',
+      seriesId: 'series-abc',
+      status: 'generating_audio',
+      progress: 15,
+      currentStep: 'Recording...',
+    });
+
+    const [episode] = useShowStore.getState().episodesBySeries['series-abc'] ?? [];
+    expect(episode?.title).toBe('The second one');
+  });
+
   it('stops tracking an episode once it finishes', async () => {
     const useShowStore = await freshStore();
     get.mockResolvedValueOnce({ data: { series: SERIES, episodes: [EPISODE], total: 1 } });

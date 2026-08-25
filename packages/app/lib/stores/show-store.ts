@@ -130,6 +130,15 @@ export interface ShowProgress {
   currentStep: string;
   segmentIndex?: number;
   totalSegments?: number;
+  /**
+   * The episode's name as it stands right now.
+   *
+   * Carried because it CHANGES mid-run: the API reserves the episode under
+   * `Episode {n}` and the script renames it, so without this the row shows a
+   * placeholder for the whole recording. Optional, so an event from an older
+   * API leaves the name alone rather than blanking it.
+   */
+  title?: string;
 }
 
 export interface ShowPreferences {
@@ -366,7 +375,11 @@ export const useShowStore = create<ShowStore>((set, get) => ({
       if (
         existing &&
         existing.progress === progress.progress &&
-        existing.status === progress.status
+        existing.status === progress.status &&
+        // The name changes mid-run, and it can change on an event that repeats
+        // the step and the percentage. Left out of this comparison, the rename
+        // would be dropped as a duplicate.
+        existing.title === progress.title
       ) {
         return state;
       }
@@ -381,6 +394,9 @@ export const useShowStore = create<ShowStore>((set, get) => ({
               ...episode,
               status: progress.status as ShowEpisodeStatus,
               progress: progress.progress,
+              // Only when the event carried one. Spreading `undefined` would
+              // blank the name every time an older API emitted.
+              ...(progress.title === undefined ? {} : { title: progress.title }),
             }
           : episode,
       );
