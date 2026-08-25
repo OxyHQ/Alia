@@ -243,6 +243,100 @@ export async function listRecentUserText(
 }
 
 /**
+ * One search hit: the message, and the text that matched.
+ *
+ * `text` is what `alia_message_text` extracted, not the raw `content` — a
+ * client rendering a result list wants the line, and the caller already has the
+ * `clientMessageId` to jump to the message itself.
+ */
+export interface MessageSearchHit {
+  readonly clientMessageId: string | null;
+  readonly role: string;
+  readonly text: string;
+  readonly seq: number | null;
+  readonly createdAt: Date;
+}
+
+/**
+ * Search what was SAID in one thread.
+ *
+ * Serves both consumers deliberately: the person searching their own history,
+ * and the AGENT recalling something from earlier in the same thread. One index,
+ * one query, one definition of what counts as text.
+ *
+ * ## Text, not embeddings, and that is a decision with a cost attached
+ *
+ * The obvious alternative is an embedding per message and a vector search. It
+ * was refused for two measured reasons rather than on taste:
+ *
+ *  - It costs an embedding call **per turn**, forever, on a path that already
+ *    reserves credits.
+ *  - It is a second store that grows without bound. `db/schema/context-graph.ts`
+ *    already records that the autonomy graph mints a node per chat turn and that
+ *    **nothing reaps them** — a problem ported from Mongo rather than
+ *    introduced. Adding message embeddings would make that two, and the
+ *    retention answer would still not exist.
+ *
+ * A `tsvector` index adds no new store: it indexes a column that is already
+ * there. If the text search turns out to be too blunt — a person searching for
+ * a concept they never wrote the word for — embeddings are the answer, and the
+ * evidence for adding them is a measurement of THIS failing, not the absence of
+ * one.
+ *
+ * ## `websearch_to_tsquery`, and what it does and does not buy
+ *
+ * `to_tsquery` takes operator syntax and THROWS on a stray `&` or an unbalanced
+ * bracket — which a person types, so it is a 500 on an apostrophe.
+ * `websearch_to_tsquery` never raises, and it adds quoted phrases and `-`
+ * exclusion.
+ *
+ * **It does NOT loosen the conjunction**, which was measured rather than
+ * assumed: unquoted terms are ANDed exactly as `plainto_tsquery` ANDs them, so
+ * a natural-language question finds nothing unless every one of its words is in
+ * the message. That is what a search box does — Google, Slack and GitHub all
+ * AND — so it is kept rather than worked around, and it is stated where the two
+ * consumers can see it: `lib/tools/thread-search.ts` tells the model in its
+ * description AND in the answer it gives for an empty result, because a bare
+ * `[]` reads to a model as a broken tool rather than as an answer.
+ *
+ * Both bind parameters, so nothing here is a concatenation.
+ */
+export async function searchMessages(
+  db: ApiDatabase,
+  oxyUserId: string,
+  conversationId: string,
+  query: string,
+  limit: number,
+): Promise<MessageSearchHit[]> {
+  const text = sql<string>`alia_message_text(${messages.content})`;
+  return db
+    .select({
+      clientMessageId: messages.clientMessageId,
+      role: messages.role,
+      text,
+      seq: messages.seq,
+      createdAt: messages.createdAt,
+    })
+    .from(messages)
+    .where(
+      and(
+        eq(messages.oxyUserId, oxyUserId),
+        eq(messages.conversationId, conversationId),
+        /**
+         * Spelled exactly as `messages_search_idx`'s predicate is, so the
+         * partial index is usable for this query at all. A different spelling
+         * of the same set — `role != 'system'`, say — cannot be proved to imply
+         * the predicate, and the planner would silently stop using the index.
+         */
+        sql`${messages.role} in ('user', 'assistant')`,
+        sql`to_tsvector('simple', alia_message_text(${messages.content})) @@ websearch_to_tsquery('simple', ${query})`,
+      ),
+    )
+    .orderBy(desc(messages.createdAt))
+    .limit(limit);
+}
+
+/**
  * The last message of a thread, as the append fast path reads it.
  *
  * `seq DESC NULLS LAST` is Mongo's `sort({ seq: -1 })`: descending, a number
