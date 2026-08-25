@@ -569,6 +569,8 @@
     "reportSubmitted": "Reporte enviado",
     "bookmark": "Guardar",
     "removeBookmark": "Quitar guardado",
+    "removeSkill": "Quitar habilidad",
+    "removeKnowledge": "Quitar conocimiento",
     "edit": "Editar",
     "editAgent": "Editar Agente",
     "saveAgent": "Guardar",
