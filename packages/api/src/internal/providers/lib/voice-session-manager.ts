@@ -811,16 +811,58 @@ export class VoiceSessionManager {
 
       if (session.cohostEnabled) {
         // Fully up before it failed: the normal teardown settles the minute
-        // against the time the cohost actually spoke.
+        // against the time the cohost actually spoke, and closes what it opened.
         void this.disableCohost(sessionId, 'setup_failed');
-      } else if (cohostReservation) {
+      } else {
         /**
-         * It never became enabled, so `disableCohost` would return without
-         * looking at it. The cohost spoke for no time at all, so the whole
-         * minute goes back rather than being settled at the one-credit floor.
+         * It never became enabled, so `disableCohost` returns on its first line
+         * and none of this is its to undo. Everything the setup got as far as
+         * assigning is undone here instead, in reverse.
+         *
+         * Not tidiness. `closeSession` would close the socket at the end of the
+         * call, which bounds the leak — but a RETRY is not bounded: the client
+         * may send `cohost.enable` again, `enableCohost` refuses only while
+         * `cohostEnabled` is true, and the second attempt overwrites
+         * `cohostProviderSocket`. The first socket is then open with nothing
+         * referencing it, past the reach of the teardown that would have closed
+         * it. Assigning the socket to the session BEFORE the bridge is built is
+         * what makes that recoverable at all, so it stays that way: a local that
+         * went out of scope on the throw could never be closed by anyone.
+         *
+         * The bridge and the billing timer are assigned later in the same
+         * window and are undone for the same reason. Only the socket is
+         * reachable today — `join` is the throw that happens, and it lands
+         * before either of them exists — so they are teardown for the window
+         * rather than for a failure anybody has seen.
          */
-        session.cohostCreditReservation = null;
-        await safeRefund(cohostReservation, 'voice cohost never started');
+        if (session.cohostProviderSocket) {
+          if (session.cohostProviderSocket.readyState === WebSocket.OPEN) {
+            session.cohostProviderSocket.close(1000, 'Cohost setup failed');
+          }
+          session.cohostProviderSocket = null;
+        }
+        if (session.cohostBridge) {
+          await session.cohostBridge
+            .disconnect()
+            .catch((err: unknown) => log.providers.warn({ err, sessionId }, 'cohostBridge disconnect failed after a setup failure'));
+          session.cohostBridge = null;
+        }
+        if (session.cohostBillingTimer) {
+          clearInterval(session.cohostBillingTimer);
+          session.cohostBillingTimer = null;
+        }
+        session.cohostProvider = null;
+        session.cohostProviderModelId = null;
+        session.cohostToolExecutors = undefined;
+
+        if (cohostReservation) {
+          /**
+           * The cohost spoke for no time at all, so the whole minute goes back
+           * rather than being settled at the one-credit floor.
+           */
+          session.cohostCreditReservation = null;
+          await safeRefund(cohostReservation, 'voice cohost never started');
+        }
       }
     }
   }
