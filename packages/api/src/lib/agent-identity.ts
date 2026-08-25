@@ -29,6 +29,12 @@
  * lets those surfaces tint a placeholder without an image existing.
  */
 
+import { randomUUID } from 'crypto';
+import {
+  USERNAME_MAX_LENGTH,
+  isValidUsername,
+  stripDisallowedUsernameCharacters,
+} from '@oxyhq/contracts';
 import type { Executor } from '../db/index.js';
 import {
   findAgentByOxyAccountId,
@@ -204,24 +210,56 @@ export async function findAgentByOxyHandle(
  * duplicate answer is the only true one, and the CLIENT retries with a fresh
  * suggestion — it is the only layer with the person in front of it.
  *
- * A leading digit or an empty slug both fail Oxy's username rules, so a name of
- * pure punctuation falls back rather than proposing something guaranteed to be
- * rejected. The random suffix is only appended when the slug is empty; a
- * COLLIDING slug is not this function's business.
+ * ## It SHAPES a candidate and lets the schema judge it
+ *
+ * `@oxyhq/contracts` owns the username rules — one Zod schema, replacing the
+ * seven copies that used to disagree. This was the eighth, and it re-encoded a
+ * SUBSET, which is the worst of both: it knew about empty slugs and leading
+ * digits, and it did not know about the minimum length, so "Al" proposed `al`
+ * and collected a 400 from a server it had never asked.
+ *
+ * It also invented a rule. Leading digits are FINE — `isValidUsername('123')`
+ * is true — so agents named "1984" were being handed a random fallback for a
+ * name the server would have taken.
+ *
+ * What is left here is shaping, which is style rather than law: lowercase,
+ * whitespace to a single hyphen, disallowed characters removed by the schema's
+ * own `stripDisallowedUsernameCharacters`, and a cut at the schema's own
+ * maximum. Truncating can land on a separator, and a trailing one is refused,
+ * so it is trimmed — an improvement to the proposal, not a verdict on it.
+ * `isValidUsername` gives the verdict, and it gives it last.
+ *
+ * ## `null` means "I have nothing to offer"
+ *
+ * Better than proposing something the server will refuse. The caller supplies
+ * {@link fallbackAgentUsername}, which is not this function's judgement to
+ * make — a screen with somebody in front of it may want to ask instead.
+ *
+ * A COLLIDING username is nobody's business here: `POST /accounts` is the
+ * authority on uniqueness, its answer is the only true one, and the client
+ * retries.
  */
-export function suggestAgentUsername(name: string): string {
-  const slug = name
-    .toLowerCase()
-    .normalize('NFKD')
-    .replace(/[^a-z0-9\s-]/g, '')
-    .trim()
-    .replace(/\s+/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-|-$/g, '')
-    .slice(0, 24)
-    .replace(/-$/, '');
-  if (slug === '' || /^[0-9]/.test(slug)) {
-    return `agent-${Math.random().toString(36).slice(2, 8)}`;
-  }
-  return slug;
+export function suggestAgentUsername(name: string): string | null {
+  const shaped = stripDisallowedUsernameCharacters(
+    name.toLowerCase().normalize('NFKD').trim().replace(/\s+/g, '-'),
+  )
+    .slice(0, USERNAME_MAX_LENGTH)
+    .replace(/[-_]+$/, '');
+
+  return isValidUsername(shaped) ? shaped : null;
+}
+
+/**
+ * A username for an agent whose name proposes none.
+ *
+ * Built from a UUID rather than `Math.random().toString(36)`, whose suffix can
+ * come back SHORT — `(0).toString(36).slice(2, 8)` is the empty string, which
+ * makes `agent-`, which ends in a separator and is refused. Rare enough never
+ * to be seen and certain enough to be avoided.
+ *
+ * Asserted valid by the suite rather than by reading: a fallback that the
+ * schema refuses would turn "no name to propose" into "cannot create an agent".
+ */
+export function fallbackAgentUsername(): string {
+  return `agent-${randomUUID().replace(/-/g, '').slice(0, 8)}`;
 }

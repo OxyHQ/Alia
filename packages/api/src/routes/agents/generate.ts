@@ -3,7 +3,7 @@ import { generateText } from 'ai';
 import { AGENT_ARCHETYPES } from '../../domain/agent.js';
 import { AGENT_COLORS, agentColorFor, isAgentColor } from '../../domain/agent-color.js';
 import { FIXED_CAPABILITY_FAMILIES, isCapabilityGrant } from '../../domain/capability-grants.js';
-import { suggestAgentUsername } from '../../lib/agent-identity.js';
+import { fallbackAgentUsername, suggestAgentUsername } from '../../lib/agent-identity.js';
 import { authenticateToken } from '../../middleware/auth.js';
 import { resolveModel, getAIModel, getDefaultAliaModel } from '../../lib/chat-core.js';
 import { log } from '../../lib/logger.js';
@@ -107,7 +107,10 @@ Do not include any text outside the JSON object.`,
      * that can.
      */
     const validArchetypes = AGENT_ARCHETYPES;
-    const suggestedUsername = suggestAgentUsername(parsed.name || 'agent');
+    // `null` when the name shapes into nothing the schema accepts — a
+    // two-letter agent, or a name of pure punctuation. The fallback is the
+    // caller's call, and here there is nobody to ask.
+    const suggestedUsername = suggestAgentUsername(parsed.name || 'agent') ?? fallbackAgentUsername();
     res.json({
       name: parsed.name || 'New Agent',
       suggestedUsername,

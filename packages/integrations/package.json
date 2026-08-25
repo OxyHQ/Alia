@@ -16,7 +16,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
-    "@oxyhq/core": "^21.2.0",
+    "@oxyhq/core": "^22.0.0",
     "@oxyhq/db": "^0.1.2",
     "@types/express": "^4.17.25",
     "@types/node": "^20.19.43",
