@@ -43,6 +43,7 @@ import {
 import { agentPromptName, attachAgentIdentity } from '../agent-identity.js';
 import { reserveCredits, safeRefund } from '../credits-manager.js';
 import { log } from '../logger.js';
+import { getOrCreateUserCredits } from '../user-credits-helpers.js';
 import { enqueueAgentSession } from '../task-queue.js';
 
 /**
@@ -118,6 +119,36 @@ export async function startAgentSession(input: {
 }): Promise<AgentSessionHandoff> {
   const { agent, userId, task, origin } = input;
   const price = agent.price || DEFAULT_AGENT_PRICE;
+
+  /**
+   * The PAYER's balance row, and only the payer's.
+   *
+   * `reserveCredits` does not create one — `spendCreditsFreeFirst` is an
+   * UPDATE, so an account with no row matches nothing and reads as "cannot
+   * pay". Twelve of the fifteen reserve sites in this service call this
+   * immediately before reserving; this one and `POST /v1/voice/token` were the
+   * two that did not, and the symptom was a person entitled to three hundred
+   * free credits being told to buy some.
+   *
+   * ONLY the payer, and that asymmetry is NOT an oversight waiting to be tidied
+   * up into a uniform rule. `getOrCreateUserCredits` seeds 300 free credits and
+   * a daily refresh; agent accounts are cheap to create and `user_credits`
+   * records no account kind, so provisioning agents the same way is N agents to
+   * 300N free credits a day, for as long as somebody keeps making them. A
+   * person is entitled to that allowance and a bot is not: an agent's balance
+   * arrives only by an explicit transfer from its owner, which
+   * `lib/agent/turn-funding.ts` states as the decision it is built against.
+   *
+   * `turn-funding.pgdb.test.ts` asserts the ABSENCE of an agent's row, so
+   * extending this call to the agent account turns that test red rather than
+   * quietly reopening the farm.
+   *
+   * Imported from `user-credits-helpers.js` rather than the repository on
+   * purpose: `billingSeparation.test.ts` censuses modules by module SPECIFIER
+   * against `userCreditsRepository`, and importing that directly would add this
+   * module to a frozen list it does not belong on.
+   */
+  await getOrCreateUserCredits(userId);
 
   const reservation = await reserveCredits(userId, price);
   if (!reservation) {
