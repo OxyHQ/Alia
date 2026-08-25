@@ -3,6 +3,10 @@ import { generateText } from 'ai';
 import { AGENT_ARCHETYPES } from '../../domain/agent.js';
 import { AGENT_COLORS, agentColorFor, isAgentColor } from '../../domain/agent-color.js';
 import { FIXED_CAPABILITY_FAMILIES, isCapabilityGrant } from '../../domain/capability-grants.js';
+import {
+  SELECTABLE_ACCOUNT_CATEGORY_IDS,
+  type AccountCategoryId,
+} from '@oxyhq/contracts';
 import { fallbackAgentUsername, suggestAgentUsername } from '../../lib/agent-identity.js';
 import { authenticateToken } from '../../middleware/auth.js';
 import { resolveModel, getAIModel, getDefaultAliaModel } from '../../lib/chat-core.js';
@@ -12,6 +16,30 @@ import type { Request, Response } from 'express';
 const router = Router();
 
 // POST /agents/generate - AI generates agent config from natural language prompt
+/**
+ * The categories a generated agent may be offered, straight from the contract.
+ *
+ * `SELECTABLE_…` rather than the full set: that one still carries WITHDRAWN ids
+ * so an account already holding one keeps it, and offering one of those to a
+ * brand-new account would propose something the server refuses.
+ */
+const accountCategoryChoices = SELECTABLE_ACCOUNT_CATEGORY_IDS.map((id) => `"${id}"`).join(', ');
+
+/**
+ * Whether a value IS one of the offered categories.
+ *
+ * Membership, and it has to be spelled out. `isSelectableAccountCategoryId`
+ * answers a narrower question than its name suggests — "is this id still
+ * offered", i.e. `!RETIRED.includes(id)` — and `RETIRED` is empty today, so it
+ * answers TRUE for `undefined`, for `42`, for `community_management`, for
+ * everything. Validating with it alone forwards whatever the model invented
+ * straight to Oxy. Caught by the case below that feeds it exactly that.
+ */
+function isOfferedAccountCategory(value: unknown): value is AccountCategoryId {
+  return typeof value === 'string'
+    && (SELECTABLE_ACCOUNT_CATEGORY_IDS as readonly string[]).includes(value);
+}
+
 router.post('/generate', authenticateToken, async (req: Request, res: Response) => {
   try {
     if (!req.user?.id) {
@@ -47,7 +75,7 @@ router.post('/generate', authenticateToken, async (req: Request, res: Response) 
               content: `You are an agent configuration generator. Given a user's description of what they want their AI agent to do, generate a structured JSON configuration for the agent.
 
 Return ONLY valid JSON with these fields:
-- "name": A short, memorable name for the agent (2-4 words max)
+- "name": A GIVEN NAME for the agent, as you would name a person — "Claudio", "Nadia", "Bruno", "Xiomara". Never a job title: not "Community Manager", not "Support Bot", not "Research Assistant". Prefer the distinctive over the ordinary: not "Albert", "John" or "Maria". One or two words.
 - "tagline": A one-sentence description (under 100 chars)
 - "description": A detailed description of the agent's purpose and behavior (2-3 sentences)
 - "systemPrompt": Detailed instructions for the agent including its role, goals, behavior guidelines, and how it should interact with users. This should be comprehensive and specific.
@@ -55,6 +83,7 @@ Return ONLY valid JSON with these fields:
 - "color": Exactly one of: ${AGENT_COLORS.map((c) => `"${c}"`).join(', ')}. The agent has no picture — it is drawn as a glyph in this colour — so pick the one that suits what it does.
 - "tags": An array of 3-5 relevant lowercase tags
 - "capabilityGrants": An array of capability families this agent may reach. Choose from: ${FIXED_CAPABILITY_FAMILIES.map((f) => `"${f}"`).join(', ')}. The agent gets NOTHING it is not granted, so pick every family its purpose needs and none it does not.
+- "accountCategory": What the agent is ABOUT, exactly one of: ${accountCategoryChoices}. This is the SUBJECT and "category" above is the KIND of agent: answer each on its own, they need not agree. Omit the field entirely if none of them fits — no category is better than a wrong one.
 - "archetype": Exactly one of: "general", "qa", "task_router", "status_update". Use "qa" if the agent answers questions from knowledge/data sources. Use "task_router" if the agent triages and routes tasks to people or teams. Use "status_update" if the agent gathers data and generates periodic reports or summaries. Use "general" for everything else.
 
 Do not include any text outside the JSON object.`,
@@ -107,6 +136,37 @@ Do not include any text outside the JSON object.`,
      * that can.
      */
     const validArchetypes = AGENT_ARCHETYPES;
+
+    /**
+     * Oxy's category for the bot ACCOUNT, which is a different question from
+     * Alia's `category` below and answered in a different language.
+     *
+     * This one is a closed taxonomy owned by `@oxyhq/contracts` and lives on
+     * the account, where the account graph and every profile surface outside
+     * Alia can read it. Alia's own `category` is free text that feeds the
+     * catalogue's `ilike` search and is rendered nowhere. Neither can stand in
+     * for the other: merging them would either cost the search its free text or
+     * hand Oxy an id it does not know.
+     *
+     * THE TWO MAY DIVERGE, AND THAT IS NOT A BUG. `category: "Research"` beside
+     * `accountCategory: "finance"` is the right answer for an agent that reads
+     * markets — one names the KIND of agent, the other the SUBJECT of the
+     * account, and different questions are allowed different answers. Deriving
+     * either from the other fails in both directions: no subject says whether
+     * an agent assists or writes code, and "Assistant" fits all forty-six of
+     * them. So the model is never asked to make them match, because agreement
+     * across axes is not coherence — it is what files a "Developer" agent about
+     * money under `software`.
+     *
+     * Validated, never trusted — a model asked for a closed vocabulary invents
+     * members of it, and `community_management` is exactly the kind of thing it
+     * will propose. Anything the taxonomy does not recognise is dropped rather
+     * than corrected, because no category is a valid state and a wrong one is
+     * not.
+     */
+    const accountCategory = isOfferedAccountCategory(parsed.accountCategory)
+      ? parsed.accountCategory
+      : undefined;
     // `null` when the name shapes into nothing the schema accepts — a
     // two-letter agent, or a name of pure punctuation. The fallback is the
     // caller's call, and here there is nobody to ask.
@@ -114,6 +174,10 @@ Do not include any text outside the JSON object.`,
     res.json({
       name: parsed.name || 'New Agent',
       suggestedUsername,
+      // Omitted rather than null when nothing fitted: the client forwards this
+      // straight to `CreateAccountInput.accountCategories`, where absent means
+      // "no categories" and an empty array means "clear them".
+      ...(accountCategory === undefined ? {} : { accountCategory }),
       /**
        * A SUGGESTION too, and the same shape as the archetype below it: a model
        * asked for a closed vocabulary still invents members of it, so an
@@ -127,6 +191,9 @@ Do not include any text outside the JSON object.`,
       tagline: parsed.tagline || '',
       description: parsed.description || '',
       systemPrompt: parsed.systemPrompt || '',
+      // Alia's own axis — the kind of agent, not the subject of the account.
+      // Free text in the column and the owner may later type anything, so the
+      // six here are what this route OFFERS, not what the schema allows.
       category: ['Assistant', 'Creative', 'Developer', 'Research', 'Business', 'Education'].includes(parsed.category)
         ? parsed.category
         : 'Assistant',

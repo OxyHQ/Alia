@@ -5,6 +5,7 @@ import { PromptInput } from "@/components/ui/prompt-input/prompt-input";
 import { useRouter } from "expo-router";
 import { useAgentsStore } from "@/lib/stores/agents-store";
 import { useOxy } from "@oxyhq/services";
+import { SELECTABLE_ACCOUNT_CATEGORY_IDS, type AccountCategoryId } from "@oxyhq/core";
 import { createBotAccount } from "@/lib/agents/bot-account";
 import { useTranslation } from "@/lib/hooks/use-translation";
 import { toast } from "@oxyhq/bloom/toast";
@@ -21,6 +22,12 @@ interface ArchetypeOption {
   label: string;
   description: string;
   Icon: React.ComponentType<{ size: number; className?: string }>;
+}
+
+/** Whether a value IS one of Oxy's offered categories. See the note at the call site. */
+function isOfferedAccountCategory(value: unknown): value is AccountCategoryId {
+  return typeof value === 'string'
+    && (SELECTABLE_ACCOUNT_CATEGORY_IDS as readonly string[]).includes(value);
 }
 
 const ARCHETYPE_OPTIONS: ArchetypeOption[] = [
@@ -97,6 +104,23 @@ export default function CreateAgentScreen() {
           (await oxyServices.checkUsernameAvailability(candidate)).available,
         displayName: config.name,
         bio: config.tagline,
+        /**
+         * Only when the taxonomy recognises it. The generate route validated
+         * this already, and it is checked again here for a reason that is not
+         * distrust: `genRes.data` is `any`, so without a narrowing the union
+         * `CreateAccountInput` declares would be satisfied by a claim rather
+         * than by a check.
+         *
+         * MEMBERSHIP, not `isSelectableAccountCategoryId` — that one asks "is
+         * this id still offered" against a retired list that is empty today, so
+         * it answers true for anything at all, `undefined` included.
+         *
+         * Nothing fitting is a valid agent, so absent travels as absent. An
+         * empty array would mean "clear them", which is a different request.
+         */
+        ...(isOfferedAccountCategory(config.accountCategory)
+          ? { accountCategories: [config.accountCategory] }
+          : {}),
         // This screen builds a DRAFT (`isPublished: false` below), so the
         // account is minted undiscoverable to match: kept out of Oxy's global
         // people search from the moment it exists, rather than listed there

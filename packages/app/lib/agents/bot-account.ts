@@ -36,7 +36,7 @@
  * what the first one did.
  */
 
-import type { AccountNode, CreateAccountInput } from '@oxyhq/core';
+import type { AccountCategoryId, AccountNode, CreateAccountInput } from '@oxyhq/core';
 
 const USERNAME_ATTEMPTS = 5;
 
@@ -61,6 +61,16 @@ export interface CreateBotAccountInput {
   /** The agent's name, as a person reads it. */
   displayName: string;
   bio?: string;
+  /**
+   * What the account is ABOUT, as Oxy's own taxonomy names it — validated by
+   * `POST /agents/generate` against `@oxyhq/contracts` before it ever gets
+   * here, so this forwards and does not judge.
+   *
+   * ORDERED at Oxy, first element primary; an agent is offered exactly one.
+   * Absent means "no categories", which is a valid state — an empty array
+   * would mean "clear them", and those are not the same request.
+   */
+  accountCategories?: AccountCategoryId[];
   /**
    * Create the account already opted OUT of discovery, sent to Oxy as
    * `CreateAccountInput.isPrivateAccount`. The create screen sets it because it
@@ -119,6 +129,7 @@ export async function createBotAccount(input: CreateBotAccountInput): Promise<Ac
         username,
         name: { displayName: input.displayName },
         ...(input.bio !== undefined && { bio: input.bio }),
+        ...(input.accountCategories !== undefined && { accountCategories: input.accountCategories }),
         ...(input.private !== undefined && { isPrivateAccount: input.private }),
       });
     } catch (error: unknown) {
