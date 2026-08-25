@@ -93,27 +93,29 @@ const ELEVENLABS_OUTPUT_FORMAT = 'mp3_44100_128';
 function elevenLabsRequest(
   endpoint: string,
   modelId: string,
-  body: any,
+  body: Record<string, unknown> | undefined,
 ): { url: string; payload: Record<string, unknown> } {
   if (endpoint === '/v1/sound-generation') {
+    const duration = body?.duration_seconds;
+    const prompt = body?.prompt;
     return {
       url: 'https://api.elevenlabs.io/v1/sound-generation',
       payload: {
-        text: body?.prompt ?? '',
-        ...(typeof body?.duration_seconds === 'number'
-          ? { duration_seconds: body.duration_seconds }
-          : {}),
+        text: typeof prompt === 'string' ? prompt : '',
+        ...(typeof duration === 'number' ? { duration_seconds: duration } : {}),
         model_id: modelId,
       },
     };
   }
 
-  const voiceId = (body?.voice as string | undefined) || ELEVENLABS_DEFAULT_VOICE;
+  const voice = body?.voice;
+  const input = body?.input;
+  const voiceId = typeof voice === 'string' && voice !== '' ? voice : ELEVENLABS_DEFAULT_VOICE;
   return {
     url:
       `https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voiceId)}` +
       `?output_format=${ELEVENLABS_OUTPUT_FORMAT}`,
-    payload: { text: body?.input ?? '', model_id: modelId },
+    payload: { text: typeof input === 'string' ? input : '', model_id: modelId },
   };
 }
 
