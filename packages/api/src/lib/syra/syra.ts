@@ -8,9 +8,11 @@
  *  - {@link syraForRequest} carries the CALLER's own Oxy access token, and is
  *    the only thing that may create a podcast, edit one or reserve an episode.
  *    Syra authenticates a user, never a service.
- *  - {@link syraForTicket} carries nothing at all. It exists for one call —
- *    `ingestEpisode` — which is authenticated by the single-use ingest ticket
- *    in a header rather than by a session.
+ *  - {@link syraForTicket} carries nothing at all. It exists for the two calls
+ *    that answer for a reserved episode — `ingestEpisode` and
+ *    `abandonEpisodeIngest` — each authenticated by the single-use ingest
+ *    ticket in a header rather than by a session, and each spending the same
+ *    one redemption.
  *
  * ## Why the ticket exists, so nobody tries to be clever about it
  *
@@ -90,10 +92,14 @@ export function syraForRequest(req: Request): SyraClient {
 /**
  * A Syra client with NO credential, for redeeming an ingest ticket.
  *
- * Deliberately unable to do anything else. `ingestEpisode` is the one method
- * that works without `getAccessToken`, so a worker holding this client cannot
- * accidentally reach a method that would need a user's identity — it would get
- * a 401 raised by the SDK itself, before any request left the process.
+ * Deliberately unable to do anything else. `ingestEpisode` and
+ * `abandonEpisodeIngest` are the only methods that work without
+ * `getAccessToken` — they are the two answers a reserved episode can be given,
+ * and a ticket buys exactly one of them. A worker holding this client cannot
+ * accidentally reach a method that would need a user's identity: it would get
+ * a 401 raised by the SDK itself, before any request left the process. That is
+ * also why the ticket must never grow a third power, a delete above all: a
+ * credential that outlives its request should not be able to destroy anything.
  */
 export function syraForTicket(): SyraClient {
   return createSyraClient({ baseURL: SYRA_API_URL });
