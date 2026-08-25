@@ -563,7 +563,7 @@ export const Sidebar = React.memo(function Sidebar() {
             accessibilityRole="button"
             accessibilityLabel={t('sidebar.agents')}
             onPress={handleToggleAgents}
-            className="h-9 flex-row items-center justify-between rounded-xl px-1.5 w-full hover:bg-muted active:bg-muted"
+            className="h-9 flex-row items-center justify-between rounded-full px-1.5 w-full hover:bg-muted active:bg-muted"
           >
             <View className="flex-row items-center gap-2">
               <AgentRobotIcon size={18} color={colors.foreground} />
