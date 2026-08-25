@@ -122,6 +122,14 @@ type ChatInterfaceProps = {
   onHistoryHeight?: (height: number) => void;
   /** The conversation being streamed into, which is what a seam is drawn against. */
   activeConversationId?: string;
+  /**
+   * The message a jump was aimed at, by cursor, or `null` at the present.
+   *
+   * A window is half before the hit and half after, so landing at its end —
+   * which is what the follow-the-newest half does with any list — leaves the
+   * reader twenty messages past the thing they searched for.
+   */
+  focusCursor?: string | null;
 };
 
 /**
@@ -255,6 +263,8 @@ type MessageRowProps = {
   chatId: ChatIdState;
   voiceAgentState?: 'idle' | 'listening' | 'thinking' | 'speaking';
   handleMarkLayout: (e: LayoutChangeEvent) => void;
+  /** Where this row ended up, for the one row a jump is aimed at. */
+  onRowLayout?: (e: LayoutChangeEvent) => void;
   handleCopyMessage: (messageId: string, content: string) => void;
   handleVote: (messageId: string, vote: 'up' | 'down', conversationId?: string) => void;
   readAloud: (id: string, text: string, chatId?: string, audioUrl?: string) => void;
@@ -272,7 +282,7 @@ const MessageRow = React.memo(function MessageRow({
   m, index, isNewMessage, isAliaMessage, isLastAlia,
   isLoading, isLastMessage, isCopied, myVote,
   ttsState, chatId, voiceAgentState,
-  handleMarkLayout, handleCopyMessage, handleVote, readAloud,
+  handleMarkLayout, onRowLayout, handleCopyMessage, handleVote, readAloud,
   generateAudio, audioGenRowState,
   openThoughtPanel, onStartEdit, onApprovePlan, onRejectPlan,
 }: MessageRowProps) {
@@ -285,7 +295,18 @@ const MessageRow = React.memo(function MessageRow({
       key={m.id || `msg-${index}`}
       entering={isNewMessage ? FadeInUp.springify() : undefined}
       style={isAliaMessage && isLastAlia ? { paddingTop: 36 } : undefined}
-      onLayout={isAliaMessage && isLastAlia ? handleMarkLayout : undefined}
+      /**
+       * Two things want this row's position and one element can report it: the
+       * flying mark follows the last Alia message, and a jump aims at whichever
+       * message was searched for. They coincide often enough to matter.
+       */
+      onLayout={
+        isAliaMessage && isLastAlia
+          ? (onRowLayout === undefined
+              ? handleMarkLayout
+              : (e: LayoutChangeEvent) => { handleMarkLayout(e); onRowLayout(e); })
+          : onRowLayout
+      }
     >
       {/* Plan Preview — shown before tool execution */}
       {m.pendingPlan && (() => {
@@ -572,7 +593,7 @@ const MessageRow = React.memo(function MessageRow({
 
 const imageThumbStyle = { width: 120, height: 120 };
 
-export const ChatInterface = React.memo(function ChatInterface({ messages, scrollViewRef, isLoading, conversationLoading, onStartEdit, onCopyMessage, bottomPadding = 160, isVoiceActive = false, voiceAgentState, onScroll, onContentSizeChange, agentActivity, agentSessionId, onApprovePlan, onRejectPlan, suggestedNewConversation, onAcceptNewConversation, onDismissNewConversation, historyMessages, isLoadingHistory = false, onHistoryHeight, activeConversationId }: ChatInterfaceProps) {
+export const ChatInterface = React.memo(function ChatInterface({ messages, scrollViewRef, isLoading, conversationLoading, onStartEdit, onCopyMessage, bottomPadding = 160, isVoiceActive = false, voiceAgentState, onScroll, onContentSizeChange, agentActivity, agentSessionId, onApprovePlan, onRejectPlan, suggestedNewConversation, onAcceptNewConversation, onDismissNewConversation, historyMessages, isLoadingHistory = false, onHistoryHeight, activeConversationId, focusCursor }: ChatInterfaceProps) {
     const { t, locale } = useTranslation();
     const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
     const [votedMessages, setVotedMessages] = useState<Record<string, 'up' | 'down'>>({});
@@ -772,6 +793,23 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
     }, [onHistoryHeight]);
 
     /**
+     * Put the message a jump was aimed at under the reader's eyes.
+     *
+     * Re-applied on every layout of that row rather than once, for the same
+     * reason the history anchor is: the rows above it settle in installments,
+     * so the first position it reports is not the one it keeps. Each call
+     * supersedes the last and the final one is right.
+     *
+     * The `y` is measured inside the history block, which begins exactly at the
+     * list's top padding — so scrolling to it lands the message a padding's
+     * width below the top edge rather than flush against it, which is where a
+     * message you went looking for wants to be.
+     */
+    const handleFocusLayout = useCallback((e: LayoutChangeEvent) => {
+      scrollViewRef.current?.scrollTo({ y: Math.max(0, e.nativeEvent.layout.y), animated: false });
+    }, [scrollViewRef]);
+
+    /**
      * One message, wherever it sits in the whole of what is shown.
      *
      * `index` is a position in `filteredMessages` — history and live together —
@@ -809,6 +847,12 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
             chatId={fromHistory ? historyChatIds.get(history[index].conversationId) ?? chatId : chatId}
             voiceAgentState={voiceAgentState}
             handleMarkLayout={handleMarkLayout}
+            onRowLayout={
+              fromHistory && focusCursor !== undefined && focusCursor !== null
+                && history[index].cursor === focusCursor
+                ? handleFocusLayout
+                : undefined
+            }
             handleCopyMessage={handleCopyMessage}
             handleVote={handleVote}
             readAloud={readAloud}
