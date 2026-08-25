@@ -30,6 +30,26 @@
  * egress block is not installed. Until the cutover happens a deployment that set
  * this by accident would degrade loudly rather than route production traffic at
  * a service that is not mounted.
+ *
+ * ## Before this is turned on: the owner account has to be able to pay
+ *
+ * Turning this on makes Oxy the billing principal for inference, and the
+ * principal is the account that OWNS Alia's Oxy Application — not Alia's own
+ * credit ledger. That owner changed on 2026-08-25 from the platform owner `oxy`
+ * to the `alia-production-chat` project account
+ * (`01a0369b-1222-712f-8df6-f8ffeb78ccc2`), so Alia's spend gets its own line in
+ * the cost-centre report.
+ *
+ * `account_balances` was measured EMPTY on 2026-08-25 — zero rows in the whole
+ * table, for that account and for every other. That is not a defect today,
+ * because nothing spends while this flag is off, and it is not a reason to
+ * withhold anything: the service credential Alia holds is used to mint sessions
+ * (`accounts:act-as-session`), which cost nothing.
+ *
+ * It is a PRECONDITION of flipping this flag, and it is written here because
+ * this is the line somebody reads when they flip it. Skip it and the first real
+ * request fails on balance — a long way from its cause, which was a correct
+ * cost-centre registration weeks earlier rather than anything in the cutover.
  */
 export const RELAY_CLIENT_ENABLED_ENV = 'ALIA_RELAY_CLIENT_ENABLED';
 
