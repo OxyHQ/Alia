@@ -85,6 +85,21 @@ export function useStreamingChat(apiUrl: string, conversationId?: string, reason
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
   const [conversationTitle, setConversationTitle] = useState<string | null>(null);
+  /**
+   * The agent proposing that the next stretch of the thread start fresh, or
+   * `null` for none.
+   *
+   * The `reason` is the model's own sentence, in the model's own words. It is
+   * carried through untouched so the offer can say WHY instead of appearing as
+   * a button with no context.
+   *
+   * At most one is ever in flight: the server bounds it to one per turn and a
+   * later one replaces an unanswered earlier one, so there is nothing to
+   * collapse here. And nothing has been written when it arrives — the tool that
+   * emits it creates nothing — so ignoring it leaves the thread exactly as it
+   * was.
+   */
+  const [suggestedNewConversation, setSuggestedNewConversation] = useState<string | null>(null);
   const { oxyServices } = useOxy();
   const queryClient = useQueryClient();
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -589,6 +604,19 @@ export function useStreamingChat(apiUrl: string, conversationId?: string, reason
                     currentEventType = '';
                     continue;
                   }
+                  case 'alia.suggest_new_conversation': {
+                    // A missing or blank reason degrades to an offer without
+                    // one rather than to an invented one: the sentence belongs
+                    // to the model, and a plausible substitute would be worse
+                    // than none.
+                    setSuggestedNewConversation(
+                      typeof parsed.reason === 'string' && parsed.reason.trim() !== ''
+                        ? parsed.reason.trim()
+                        : '',
+                    );
+                    currentEventType = '';
+                    continue;
+                  }
                   case 'alia.agent_session': {
                     if (parsed.sessionId) {
                       const { useUIStore } = await import('@/lib/stores/ui-store');
@@ -916,6 +944,11 @@ export function useStreamingChat(apiUrl: string, conversationId?: string, reason
     stop();
   }, [stop]);
 
+  /** Put the offer away. It wrote nothing, so there is nothing else to undo. */
+  const dismissSuggestedNewConversation = useCallback(() => {
+    setSuggestedNewConversation(null);
+  }, []);
+
   return {
     messages,
     isLoading,
@@ -927,5 +960,7 @@ export function useStreamingChat(apiUrl: string, conversationId?: string, reason
     clearError,
     approvePlan,
     rejectPlan,
+    suggestedNewConversation,
+    dismissSuggestedNewConversation,
   };
 }
