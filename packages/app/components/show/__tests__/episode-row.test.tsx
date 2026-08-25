@@ -18,6 +18,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const audio = vi.hoisted(() => ({
   state: 'idle' as 'idle' | 'loading' | 'playing' | 'paused' | 'unplayable',
+  problem: null as
+    | null
+    | 'signed-out'
+    | 'forbidden'
+    | 'missing'
+    | 'unavailable'
+    | 'unreachable',
   toggle: vi.fn(),
 }));
 
@@ -59,8 +66,14 @@ vi.mock('@/lib/useColorScheme', () => ({
   useColorScheme: () => ({ colors: { foreground: '#000', mutedForeground: '#888' } }),
 }));
 
+/**
+ * Only the hook. `EPISODE_AUDIO_PROBLEM_LABEL` deliberately lives in the row
+ * itself, so these read the REAL words a listener sees rather than a copy of
+ * them kept alive in a mock — a test of a re-implementation measures the
+ * re-implementation.
+ */
 vi.mock('@/lib/hooks/use-episode-audio', () => ({
-  useEpisodeAudio: () => ({ state: audio.state, toggle: audio.toggle }),
+  useEpisodeAudio: () => ({ state: audio.state, problem: audio.problem, toggle: audio.toggle }),
 }));
 
 /** The real store, with only its transport stubbed — the row reads live progress from it. */
@@ -129,6 +142,7 @@ beforeEach(() => {
   vi.useFakeTimers();
   vi.setSystemTime(NOW);
   audio.state = 'idle';
+  audio.problem = null;
   audio.toggle.mockReset();
   onDelete.mockReset();
   act(() => {
@@ -168,15 +182,53 @@ describe('EpisodeRow', () => {
     expect(nodes(root, 'Play')).toHaveLength(0);
   });
 
-  it('reads a failed PLAYBACK as this attempt, never as work still happening', () => {
-    audio.state = 'unplayable';
-    const root = renderRow(BASE);
-    const rendered = lines(root);
+  /**
+   * What replaced `NotSupportedError: Failed to load because no supported source
+   * was found`, which is what an owner actually got in a browser: the row said
+   * `12 min`, the console said that, and neither said the request had gone out
+   * without the token. Each refusal now reads as a different sentence, because
+   * "couldn't play this one" is as actionable as the DOMException was to
+   * somebody who is simply signed out.
+   */
+  describe('an episode that would not play', () => {
+    it('names the refusal in the same quiet line as the duration it stands in for', () => {
+      audio.state = 'unplayable';
+      audio.problem = 'missing';
+      const root = renderRow(BASE);
+      const rendered = lines(root);
 
-    expect(rendered).toContain("Episode 3 · Today · Couldn't play this one");
-    // The words that would misdescribe a finished episode. Syra parks a private
-    // episode at `processing` for good; Alia must not repeat that here.
-    expect(rendered.join(' ')).not.toMatch(/processing|failed|broken/i);
+      expect(rendered).toContain('Episode 3 · Today · Syra has no recording for this');
+      // The words that would misdescribe a finished episode. Syra parks a private
+      // episode at `processing` for good; Alia must not repeat that here.
+      expect(rendered.join(' ')).not.toMatch(/processing|failed|broken/i);
+    });
+
+    it('tells somebody who is signed out to sign in, rather than blaming the episode', () => {
+      audio.state = 'unplayable';
+      audio.problem = 'signed-out';
+      const root = renderRow(BASE);
+
+      expect(lines(root)).toContain('Episode 3 · Today · Sign in to play this');
+    });
+
+    it('says the request never reached Syra when that is what happened', () => {
+      // A developer on `localhost` is not in Syra's CORS allow-list, so the
+      // preflight fails and the fetch rejects without ever being answered.
+      audio.state = 'unplayable';
+      audio.problem = 'unreachable';
+      const root = renderRow(BASE);
+
+      expect(lines(root)).toContain("Episode 3 · Today · Couldn't reach Syra");
+    });
+
+    it('shows the duration, and no refusal at all, when there is none', () => {
+      // The positive control. A row that always printed a refusal would satisfy
+      // every assertion above and lie about every episode that plays.
+      const root = renderRow(BASE);
+
+      expect(lines(root)).toContain('Episode 3 · Today · 12 min');
+      expect(lines(root).join(' ')).not.toMatch(/Sign in|reach Syra|no recording|wouldn/);
+    });
   });
 
   it('shows an episode still being made as work in progress, with no play control', () => {

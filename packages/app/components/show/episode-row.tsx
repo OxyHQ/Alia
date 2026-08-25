@@ -27,7 +27,7 @@ import React, { useCallback } from 'react';
 import { ActivityIndicator, Pressable, View } from 'react-native';
 import { AlertCircle, Pause, Play, Trash2 } from 'lucide-react-native';
 import { Text } from '@/components/ui/text';
-import { useEpisodeAudio } from '@/lib/hooks/use-episode-audio';
+import { useEpisodeAudio, type EpisodeAudioProblem } from '@/lib/hooks/use-episode-audio';
 import { useColorScheme } from '@/lib/useColorScheme';
 import {
   ACTIVE_EPISODE_STATUSES,
@@ -41,6 +41,23 @@ import {
   formatEpisodeDuration,
   joinEpisodeMeta,
 } from '@/lib/utils/show-format';
+
+/**
+ * What a listener reads when an episode will not play, one line each.
+ *
+ * All five replace a single `NotSupportedError` in the browser console, which
+ * said nothing to the person holding the phone and named the symptom rather than
+ * the cause. They live here, beside the line that renders them, because they are
+ * the row's words; the hook owns only WHICH refusal happened. `Record` over the
+ * union is what makes a sixth refusal impossible to add without words for it.
+ */
+export const EPISODE_AUDIO_PROBLEM_LABEL: Record<EpisodeAudioProblem, string> = {
+  'signed-out': 'Sign in to play this',
+  forbidden: 'Sign in again to play this',
+  missing: 'Syra has no recording for this',
+  unavailable: "This one wouldn't play",
+  unreachable: "Couldn't reach Syra",
+};
 
 /** What each production step is called while it is happening. */
 const STEP_LABEL: Record<ShowEpisodeStatus, string> = {
@@ -60,7 +77,7 @@ interface EpisodeRowProps {
 
 export function EpisodeRow({ episode, onDelete }: EpisodeRowProps) {
   const { colors } = useColorScheme();
-  const { state, toggle } = useEpisodeAudio(episode.syraEpisodeId);
+  const { state, problem, toggle } = useEpisodeAudio(episode.syraEpisodeId);
   /**
    * The step text and the segment counter exist only on the live event. The
    * status and the percentage are patched onto the episode itself by
@@ -121,15 +138,19 @@ export function EpisodeRow({ episode, onDelete }: EpisodeRowProps) {
    *
    * An episode that will not play says so HERE, in the same quiet line as the
    * duration it is standing in for. It is a fact about this attempt, not a fault
-   * report, and it never claims the episode is still being made. A cue that
-   * could not be produced belongs in the same line for the same reason: the
-   * recording IS the episode and it plays, so this states what is not in it
-   * rather than raising an alarm about it.
+   * report, and it never claims the episode is still being made. It says WHICH
+   * refusal, because "couldn't play this one" is as useless to somebody who is
+   * signed out as the `NotSupportedError` it replaced. A cue that could not be
+   * produced belongs in the same line for the same reason: the recording IS the
+   * episode and it plays, so this states what is not in it rather than raising
+   * an alarm about it.
    */
   const meta = joinEpisodeMeta([
     `Episode ${episode.episodeNumber}`,
     formatEpisodeDate(episode.createdAt),
-    state === 'unplayable' ? "Couldn't play this one" : formatEpisodeDuration(episode.durationMs),
+    problem === null
+      ? formatEpisodeDuration(episode.durationMs)
+      : EPISODE_AUDIO_PROBLEM_LABEL[problem],
     episode.creditsCharged ? `${episode.creditsCharged} credits` : '',
     missingEffectsLabel,
     missingLinesLabel,
