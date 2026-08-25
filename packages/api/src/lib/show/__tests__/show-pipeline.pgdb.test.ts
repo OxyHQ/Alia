@@ -102,8 +102,23 @@ vi.mock('../../s3.js', () => ({
   deleteS3Objects: vi.fn(async () => 0),
 }));
 
-/** Counts redemptions, so a test can assert nothing was published. */
-const ingestEpisode = vi.fn(async () => ({ id: 'syra-episode' }));
+/**
+ * Counts redemptions AND keeps what was sent, so a test can assert both that
+ * nothing was published and what the published episode was called.
+ *
+ * The metadata argument is the only place the name a LISTENER sees is
+ * observable: the row is Alia's copy, and a pipeline that wrote the row
+ * correctly and sent the draft's placeholder would look right everywhere except
+ * on Syra.
+ */
+const ingestEpisode = vi.fn(
+  async (
+    _draft: { episodeId: string; ingestTicket: string },
+    _audio: Blob,
+    _input?: { title?: string },
+    _filename?: string,
+  ) => ({ id: 'syra-episode' }),
+);
 vi.mock('../../syra/syra.js', () => ({
   syraForTicket: () => ({ ingestEpisode }),
 }));
@@ -740,6 +755,18 @@ describe('naming an episode after it exists', () => {
     // The two strings the old design would have produced instead.
     expect(episode?.title).not.toBe('Episode 1');
     expect(episode?.title).not.toBe('the trouble with photosynthesis');
+
+    /**
+     * And it reached SYRA, which is the half that matters to a listener.
+     *
+     * The row is Alia's own copy; a pipeline that named the row correctly and
+     * sent the draft's placeholder would satisfy every assertion above and
+     * still publish `Episode 1`. So the metadata handed to `ingestEpisode` is
+     * asserted directly, and against the strings it must NOT be.
+     */
+    expect(ingestEpisode.mock.calls[0]?.[2]?.title).toBe('How leaves eat light');
+    expect(ingestEpisode.mock.calls[0]?.[2]?.title).not.toBe('Episode 1');
+    expect(ingestEpisode.mock.calls[0]?.[2]?.title).not.toBe('the trouble with photosynthesis');
   });
 
   /**
@@ -765,6 +792,9 @@ describe('naming an episode after it exists', () => {
     expect(episode?.title).toBe('The Reckoning');
     // The name the script proposed, which must not have won.
     expect(episode?.title).not.toBe('How leaves eat light');
+    // On Syra too, which is where the owner will go looking for it.
+    expect(ingestEpisode.mock.calls[0]?.[2]?.title).toBe('The Reckoning');
+    expect(ingestEpisode.mock.calls[0]?.[2]?.title).not.toBe('How leaves eat light');
   });
 
   it('falls back to the episode number when the owner named nothing and the script named nothing', async () => {
@@ -801,6 +831,13 @@ describe('naming an episode after it exists', () => {
     const episode = await findEpisodeById(db, episodeId);
     expect(episode?.status).toBe('completed');
     expect(episode?.title).toBe('Episode 1');
+    /**
+     * Sent, not omitted. Syra reads an ABSENT title as "keep the draft's",
+     * which happens to give the same answer here — so omitting it would look
+     * correct on this path and be wrong on every other, and the assertion is
+     * that the pipeline always states the name it settled on.
+     */
+    expect(ingestEpisode.mock.calls[0]?.[2]?.title).toBe('Episode 1');
   });
 
   it('cleans the name, so the cleaner is reached rather than merely correct', async () => {
@@ -814,6 +851,7 @@ describe('naming an episode after it exists', () => {
     await runShowPipeline(episodeId);
 
     expect((await findEpisodeById(db, episodeId))?.title).toBe('How leaves eat light');
+    expect(ingestEpisode.mock.calls[0]?.[2]?.title).toBe('How leaves eat light');
   });
 });
 

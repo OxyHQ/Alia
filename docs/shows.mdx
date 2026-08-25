@@ -140,12 +140,11 @@ ingest allowlist refused a title outright: a capability has no business renaming
 a published episode. That name was a name for an episode nobody had written yet,
 and production shows what it produced — see the census in migration `0040`.
 
-**Half of this is live and half is not, so read the version you have.** Alia's
-row and the app carry the generated name today; the ingest still cannot send it,
-so a published Syra episode keeps whatever the draft was reserved under until
-`@syra.fm/sdk` accepts a title on ingest and `show-pipeline.ts` passes it. For an
-episode the owner named that is already the right name; for one the script named
-it is not, and Syra's is the name a listener sees.
+The ingest sends the name **unconditionally**, including when the owner chose
+it — that is the same string the draft was reserved under, so it is a no-op
+there and one code path here rather than two. Syra reads an *absent* title as
+"keep the draft's", never as "blank it", which is precisely why omitting it on
+the fallback path would look correct and be wrong everywhere else.
 
 Two details that are not incidental:
 

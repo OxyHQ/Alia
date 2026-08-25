@@ -355,6 +355,18 @@ export async function runShowPipeline(episodeId: string): Promise<void> {
       // `Blob` is global on Node 20 and is what the SDK's multipart body wants.
       new Blob([new Uint8Array(audio)], { type: 'audio/mpeg' }),
       {
+        /**
+         * The name the published episode keeps, and the reason it can be sent
+         * at all: Syra's ingest allowlist used to refuse a title, which is what
+         * forced one to be guessed in the route before the episode existed.
+         *
+         * Sent unconditionally, including when the owner chose it — that is the
+         * SAME string the draft was reserved under, so it is a no-op there and
+         * one code path here rather than two. Never empty: `title` resolves to
+         * the owner's name, the script's, or `Episode {n}`, and Syra reads an
+         * ABSENT title as "keep the draft's", not as "blank it".
+         */
+        title,
         // SECONDS. Syra writes this straight into `<itunes:duration>`, so
         // milliseconds here would publish every episode as roughly fifty hours.
         ...(durationMs === null ? {} : { duration: Math.round(durationMs / 1000) }),
