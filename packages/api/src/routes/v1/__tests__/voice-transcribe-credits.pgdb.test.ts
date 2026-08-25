@@ -53,6 +53,9 @@ import { closePostgres, connectPostgres, type ApiDatabase } from '../../../db/in
 import { userCredits } from '../../../db/schema/billing.js';
 import { getOrCreateUserCredits } from '../../../db/billing/userCreditsRepository.js';
 import { callProviderAPI, getModelMappingsForTier } from '../../../lib/gateway-client.js';
+import { createVoiceToken, isLiveKitConfigured } from '../../../lib/livekit-token.js';
+import { getUserEntitlements } from '../../../lib/plan-access.js';
+import { voiceSessionManager } from '../../../internal/providers/lib/voice-session-manager.js';
 import voiceRouter from '../voice.js';
 
 let db: ApiDatabase;
@@ -113,6 +116,11 @@ async function account(free: number, paid: number): Promise<string> {
   await getOrCreateUserCredits(db, id);
   await db.update(userCredits).set({ creditsFree: free, creditsPaid: paid }).where(eq(userCredits.id, id));
   return id;
+}
+
+async function rowExists(id: string): Promise<boolean> {
+  const [row] = await db.select().from(userCredits).where(eq(userCredits.id, id));
+  return row !== undefined;
 }
 
 async function balanceOf(id: string): Promise<{ free: number; paid: number }> {
@@ -184,5 +192,81 @@ describe('POST /v1/voice/transcribe — the reservation', () => {
 
     expect(res.status).toBe(402);
     expect(await balanceOf(userId)).toEqual({ free: 0, paid: 0 });
+  });
+});
+
+/**
+ * `POST /v1/voice/token`, for the same broken invariant on an unrelated path.
+ *
+ * `createSession` reserves a MINUTE — fifty credits — through
+ * `reserveVoiceCredits`, and like every other reserve it does not create the
+ * balance row it spends from. This route never provisioned one, so a Pro
+ * account that had never opened chat was told it had no credits when it opened
+ * voice mode.
+ *
+ * The assertion is the ROW's EXISTENCE, not a balance, and that is deliberate:
+ * `createSession` is mocked here (the real one dials LiveKit and a provider
+ * socket), so nothing reserves and no balance moves. Provisioning is the entire
+ * behaviour this route gains, so its trace is the only honest thing to measure.
+ */
+describe('POST /v1/voice/token — the payer balance row', () => {
+  /** The token route's preconditions, which the transcribe suite mocks away. */
+  function allowVoice(): void {
+    vi.mocked(isLiveKitConfigured).mockReturnValue(true);
+    vi.mocked(getUserEntitlements).mockResolvedValue({
+      features: { 'voice-mode': true },
+      allowedModelIds: ['alia-v1-voice'],
+    } as unknown as Awaited<ReturnType<typeof getUserEntitlements>>);
+    vi.mocked(voiceSessionManager.createSession).mockResolvedValue({
+      roomName: 'voice-test',
+      sessionId: 'sess-test',
+    } as unknown as Awaited<ReturnType<typeof voiceSessionManager.createSession>>);
+    vi.mocked(createVoiceToken).mockResolvedValue('livekit-token');
+  }
+
+  async function requestToken(userId: string): Promise<{ status: number; body: unknown }> {
+    const recorded = { status: 200, body: undefined as unknown };
+    const res = {
+      status(code: number) { recorded.status = code; return res; },
+      json(payload: unknown) { recorded.body = payload; return res; },
+      send(payload: unknown) { recorded.body = payload; return res; },
+      setHeader() { /* unused */ },
+    };
+    const stack = (voiceRouter as unknown as { stack: RouteLayer[] }).stack;
+    const layer = stack.find(
+      (entry) => entry.route?.path === '/token' && entry.route.methods?.post === true,
+    );
+    expect(layer?.route, 'POST /token is not mounted').toBeDefined();
+    const handlers = layer?.route?.stack ?? [];
+    await handlers[handlers.length - 1].handle(
+      { user: { id: userId }, params: {}, query: {}, body: {} },
+      res,
+    );
+    return recorded;
+  }
+
+  it('provisions a first-time caller rather than refusing them', async () => {
+    allowVoice();
+    // No `account()` — this id has no `user_credits` row at all.
+    const userId = `${SUITE}-voice-fresh-${seq++}`;
+
+    const res = await requestToken(userId);
+
+    expect(res.body).toMatchObject({ roomName: 'voice-test' });
+    expect(await rowExists(userId)).toBe(true);
+  });
+
+  /**
+   * The positive control. Without it, "the row exists" would also pass on a
+   * version that provisioned every caller of every route on this router, or on
+   * one where some earlier test had already created the id.
+   */
+  it('leaves an existing balance untouched while doing it', async () => {
+    allowVoice();
+    const userId = await account(120, 30);
+
+    await requestToken(userId);
+
+    expect(await balanceOf(userId)).toEqual({ free: 120, paid: 30 });
   });
 });
