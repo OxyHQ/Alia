@@ -1,8 +1,7 @@
 import * as React from "react";
-import { createPortal } from "react-dom";
-import { Platform } from "react-native";
-import { X } from "lucide-react-native";
-import { cn } from "@/lib/utils";
+import { Platform, View } from "react-native";
+import { Dialog } from "@oxyhq/bloom/dialog";
+import { Text } from "@/components/ui/text";
 import { Kbd, KbdGroup } from "@/components/ui/kbd";
 import { useTranslation } from "@/lib/hooks/use-translation";
 import { useUIStore } from "@/lib/stores/ui-store";
@@ -45,103 +44,51 @@ const SHORTCUT_SECTIONS = [
   },
 ];
 
+/**
+ * The shortcut reference, opened from the sidebar's ⌘ button. Desktop-only:
+ * the trigger is web-gated too, and `modKey()` reads `navigator.platform`.
+ */
 export function KeyboardShortcutsDialog() {
   const open = useUIStore((s) => s.shortcutsDialogOpen);
   const setOpen = useUIStore((s) => s.setShortcutsDialogOpen);
   const { t } = useTranslation();
 
-  const [mounted, setMounted] = React.useState(false);
-  const [visible, setVisible] = React.useState(false);
+  if (Platform.OS !== "web") return null;
 
-  React.useEffect(() => {
-    if (open) {
-      setMounted(true);
-      requestAnimationFrame(() => setVisible(true));
-    } else if (mounted) {
-      setVisible(false);
-      const timer = setTimeout(() => setMounted(false), 150);
-      return () => clearTimeout(timer);
-    }
-  }, [open]);
-
-  React.useEffect(() => {
-    if (!mounted) return;
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        setOpen(false);
-      }
-    };
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [mounted, setOpen]);
-
-  if (Platform.OS !== "web" || !mounted) return null;
-
-  return createPortal(
-    <div className="fixed inset-0 z-50 isolate">
-      {/* Backdrop */}
-      <div
-        className={cn(
-          "fixed inset-0 bg-black/50 transition-opacity duration-150",
-          visible ? "opacity-100" : "opacity-0"
-        )}
-        onMouseDown={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          setOpen(false);
-        }}
-      />
-      {/* Dialog */}
-      <div
-        className={cn(
-          "fixed left-1/2 top-1/2 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-background p-6 shadow-lg ring-1 ring-foreground/10 transition-all duration-150",
-          visible
-            ? "opacity-100 scale-100"
-            : "opacity-0 scale-95"
-        )}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between mb-5">
-          <h2 className="text-lg font-semibold text-foreground">
-            {t("keyboardShortcuts.title")}
-          </h2>
-          <button
-            className="rounded-lg p-1 hover:bg-muted text-muted-foreground transition-colors"
-            onClick={() => setOpen(false)}
-          >
-            <X size={20} />
-          </button>
-        </div>
-
-        {/* Sections */}
-        <div className="space-y-5">
-          {SHORTCUT_SECTIONS.map((section) => (
-            <div key={section.titleKey}>
-              <div className="text-xs font-medium text-muted-foreground mb-2">
-                {t(section.titleKey)}
-              </div>
-              <div className="space-y-0.5">
-                {section.shortcuts.map((shortcut) => (
-                  <div
-                    key={shortcut.labelKey}
-                    className="flex items-center justify-between py-1.5"
-                  >
-                    <span className="text-sm text-foreground">
-                      {t(shortcut.labelKey)}
-                    </span>
-                    <KbdGroup>
-                      {shortcut.keys().map((key, i) => (
-                        <Kbd key={i}>{key}</Kbd>
-                      ))}
-                    </KbdGroup>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>,
-    document.body
+  return (
+    <Dialog
+      open={open}
+      onClose={() => setOpen(false)}
+      placement={{ base: "bottom", md: "center" }}
+      title={t("keyboardShortcuts.title")}
+      maxWidth={448}
+    >
+      <View className="gap-5">
+        {SHORTCUT_SECTIONS.map((section) => (
+          <View key={section.titleKey}>
+            <Text className="text-xs font-medium text-muted-foreground mb-2">
+              {t(section.titleKey)}
+            </Text>
+            <View className="gap-0.5">
+              {section.shortcuts.map((shortcut) => (
+                <View
+                  key={shortcut.labelKey}
+                  className="flex-row items-center justify-between py-1.5"
+                >
+                  <Text className="text-sm text-foreground">
+                    {t(shortcut.labelKey)}
+                  </Text>
+                  <KbdGroup>
+                    {shortcut.keys().map((key, i) => (
+                      <Kbd key={i}>{key}</Kbd>
+                    ))}
+                  </KbdGroup>
+                </View>
+              ))}
+            </View>
+          </View>
+        ))}
+      </View>
+    </Dialog>
   );
 }
