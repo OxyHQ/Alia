@@ -177,7 +177,15 @@ interface ShowStore {
       regenerateCover?: boolean;
     },
   ) => Promise<boolean>;
-  deleteSeries: (id: string) => Promise<void>;
+  /**
+   * Forget a show, and say whether it worked.
+   *
+   * `boolean` rather than `void`, like {@link ShowStore.updateSeries}: the
+   * screen toasted "removed" the moment it called this and never learned
+   * otherwise, so a request that 500'd still told the person their show was
+   * gone while the row it names is still there.
+   */
+  deleteSeries: (id: string) => Promise<boolean>;
 
   /**
    * Ask for another episode. Everything is optional, and usually nothing is
@@ -191,7 +199,8 @@ interface ShowStore {
     seriesId: string,
     input?: { title?: string; topic?: string; notes?: string },
   ) => Promise<string | null>;
-  deleteEpisode: (seriesId: string, episodeId: string) => Promise<void>;
+  /** Forget an episode. `boolean` for the reason {@link ShowStore.deleteSeries} is. */
+  deleteEpisode: (seriesId: string, episodeId: string) => Promise<boolean>;
 
   fetchVoices: () => Promise<void>;
   fetchPreferences: () => Promise<void>;
@@ -272,8 +281,10 @@ export const useShowStore = create<ShowStore>((set, get) => ({
         const { [id]: _removed, ...rest } = state.episodesBySeries;
         return { series: state.series.filter((s) => s.id !== id), episodesBySeries: rest };
       });
+      return true;
     } catch (err: unknown) {
       set({ error: getErrorMessage(err, 'Failed to delete the show') });
+      return false;
     }
   },
 
@@ -337,8 +348,10 @@ export const useShowStore = create<ShowStore>((set, get) => ({
           [seriesId]: (state.episodesBySeries[seriesId] ?? []).filter((e) => e.id !== episodeId),
         },
       }));
+      return true;
     } catch (err: unknown) {
       set({ error: getErrorMessage(err, 'Failed to delete the episode') });
+      return false;
     }
   },
 

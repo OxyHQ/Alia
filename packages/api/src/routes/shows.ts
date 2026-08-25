@@ -445,10 +445,18 @@ router.patch('/series/:id', async (req: Request, res: Response) => {
 /**
  * Forget a series, and its episodes with it.
  *
- * ALIA's record only. The Syra podcast is a published resource with its own
- * listeners and its own subscriptions, and deleting somebody's podcast because
- * they tidied up an Alia list would be a surprise of the worst kind. The
- * response says so explicitly rather than leaving a client to guess.
+ * ALIA's record only, and that is a LIMIT before it is a preference. **Syra
+ * exposes no delete for a podcast** — its podcast router carries `publish`,
+ * `unpublish` and `PATCH`, and no `router.delete` — so there is no call this
+ * handler could make that would remove the published show, and `@syra.fm/sdk`
+ * exposes neither the unpublish nor a delete. `syraPodcastKept` says so in the
+ * response rather than leaving a client to guess.
+ *
+ * The care is real too: the Syra podcast has its own listeners and its own
+ * subscriptions, and deleting somebody's podcast because they tidied up an Alia
+ * list would be a surprise of the worst kind. But it is not what decides this
+ * today, and writing it as though it were hides the missing endpoint from the
+ * next person to read the file. See `docs/shows.mdx`.
  */
 router.delete('/series/:id', async (req: Request, res: Response) => {
   try {
@@ -626,8 +634,10 @@ router.get('/episodes/:id', async (req: Request, res: Response) => {
 /**
  * Forget an episode.
  *
- * ALIA's record only, for the reason a series delete keeps the podcast: the
- * recording is published on Syra, where people may already be listening to it.
+ * ALIA's record only, for the reason a series delete keeps the podcast: Syra's
+ * episode router offers `publish`, `unpublish` and `PATCH` and no delete, so
+ * the recording stays where it is published and where people may already be
+ * listening to it.
  */
 router.delete('/episodes/:id', async (req: Request, res: Response) => {
   try {

@@ -95,9 +95,38 @@ GET         /shows/voices
 GET|PUT     /shows/preferences
 ```
 
+## Deleting removes Alia's record only, and that is a LIMIT, not a preference
+
 Deleting either a series or an episode removes **Alia's record only**. The
-podcast is published and may have listeners; the response says so rather than
-leaving a client to guess.
+podcast is published and may have listeners, which is a reason to be careful —
+but it is not why it works this way. **Syra exposes no delete for a podcast or
+an episode.** Measured against `packages/backend/src/routes/podcasts.routes.ts`
+and `episodes.routes.ts`: the mutations are `POST /:id/publish`,
+`POST /:id/unpublish` and `PATCH /:id`, and there is no `router.delete` on
+either router. Syra's own studio offers neither control, and `@syra.fm/sdk`
+exposes neither endpoint. So a person who removes a show here still owns a
+podcast there, and no code in this repository can change that.
+
+Two consequences worth stating, because both are reachable today:
+
+- **Unpublish is not a stand-in, for the owner least of all.** `status:
+  'unavailable'` hides a show from a stranger — browse, search, `GET
+  /api/podcasts/:id` and its RSS feed all 404 through `findPodcastForViewer`.
+  It does not hide it from its OWNER: `GET /api/podcasts/mine` filters on
+  nothing, so an unpublished show stays in the creator's own library, which is
+  precisely where the person who pressed delete goes looking. Nor does it stop
+  playback — the media gate (`requestMayReachShowMedia`) reads the show's
+  `visibility`, not its `status`, so a `public` or `unlisted` show's episodes
+  keep serving from `/audio` after the show is unpublished.
+- **Deleting a series mid-run does not stop the run.** `show_episodes.series_id`
+  is `ON DELETE CASCADE`, so the episode rows and their ingest tickets go with
+  it, while a job already past `findEpisodeById` keeps its local copy and
+  publishes the finished audio to a podcast Alia has forgotten.
+
+Until Syra offers a delete, the UI's job is to not overstate what its button
+does: the control says **"Remove from Alia"**, a confirmation says the podcast
+stays published on Syra BEFORE the press, and the success message is sent only
+after the request actually succeeded.
 
 ## The ingest ticket, and why it cannot be a service token
 

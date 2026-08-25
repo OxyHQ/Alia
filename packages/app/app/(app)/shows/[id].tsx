@@ -26,6 +26,7 @@ import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Plus, Trash2, ChevronLeft, ExternalLink, Lock, Link2, Globe, Pencil } from 'lucide-react-native';
 import { toast } from '@oxyhq/bloom/toast';
+import { confirm } from '@oxyhq/bloom/surfaces';
 import { ContentPanel } from '@oxyhq/bloom/content-panel';
 import { withAlpha } from '@oxyhq/bloom/theme';
 import {
@@ -108,19 +109,70 @@ export default function SeriesDetailScreen() {
     setRefreshing(false);
   }, [fetchOneSeries, seriesId]);
 
+  /**
+   * Removing an episode, and saying only what actually happened.
+   *
+   * Two things this used to get wrong, and both told a person something untrue
+   * about their own recording. It asked nothing before acting, on a button
+   * whose whole affordance is a red bin; and it toasted "removed" in the same
+   * tick it started the request, so a delete that failed still reported
+   * success while the row it names sat there.
+   *
+   * What it still does not do is remove anything from Syra. That is stated up
+   * front now, where a person reads it BEFORE pressing, rather than in a toast
+   * afterwards — see the note on `handleDeleteSeries`.
+   */
   const handleDeleteEpisode = useCallback(
-    (episodeId: string) => {
-      void deleteEpisode(seriesId, episodeId);
-      // Precise about what happened: the recording is published on Syra and
-      // stays there, and a message that said "deleted" would be a lie a user
-      // discovers later.
+    async (episodeId: string) => {
+      const ok = await confirm({
+        title: 'Remove this episode from Alia?',
+        description:
+          'The recording stays published on Syra. Alia only forgets the script and the run that made it.',
+        confirmLabel: 'Remove from Alia',
+        cancelLabel: 'Cancel',
+        destructive: true,
+      });
+      if (!ok) return;
+
+      const removed = await deleteEpisode(seriesId, episodeId);
+      if (!removed) {
+        toast.error(useShowStore.getState().error ?? 'Could not remove the episode');
+        return;
+      }
       toast.success('Removed from Alia — the episode stays on Syra');
     },
     [deleteEpisode, seriesId],
   );
 
-  const handleDeleteSeries = useCallback(() => {
-    void deleteSeries(seriesId);
+  /**
+   * Removing the show, and NOT leaving the screen until it is actually gone.
+   *
+   * `router.back()` used to fire beside an unconditional success toast, so a
+   * failed delete navigated away from the show it had not removed — the person
+   * was told it was gone, and found it again on the next visit.
+   *
+   * The confirmation says what "remove" costs and what it does not: the Syra
+   * podcast is untouched, because there is no endpoint that would touch it.
+   * Syra exposes no delete for a podcast or an episode — only an unpublish
+   * that no client calls — so this button cannot mean what "delete" means, and
+   * the copy has to say so at the moment of the decision.
+   */
+  const handleDeleteSeries = useCallback(async () => {
+    const ok = await confirm({
+      title: 'Remove this show from Alia?',
+      description:
+        'The podcast stays published on Syra, with its episodes and anyone subscribed to it. Alia only forgets how it was made.',
+      confirmLabel: 'Remove from Alia',
+      cancelLabel: 'Cancel',
+      destructive: true,
+    });
+    if (!ok) return;
+
+    const removed = await deleteSeries(seriesId);
+    if (!removed) {
+      toast.error(useShowStore.getState().error ?? 'Could not remove the show');
+      return;
+    }
     toast.success('Removed from Alia — the podcast stays on Syra');
     router.back();
   }, [deleteSeries, seriesId, router]);

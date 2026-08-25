@@ -345,3 +345,54 @@ describe('preferences', () => {
     });
   });
 });
+
+/**
+ * A delete that failed, and what the store lets a screen say about it.
+ *
+ * `deleteSeries` and `deleteEpisode` answered `void`, so a caller had no way
+ * to tell a request that removed the row from one that 500'd — and the show
+ * screen took the only option that shape allowed: it toasted "Removed from
+ * Alia" the moment it called them. The person was told their show was gone, the
+ * row was still there, and the next visit showed it again.
+ *
+ * These assert the ANSWER as well as the surviving state, because the state
+ * alone was already right on the failure path: the row survived, silently.
+ */
+describe('a delete that did not happen', () => {
+  it('says so, and keeps the series it did not remove', async () => {
+    const useShowStore = await freshStore();
+    get.mockResolvedValueOnce({ data: { series: [SERIES], pagination: {} } });
+    del.mockRejectedValueOnce(new Error('Failed to delete the series'));
+
+    await useShowStore.getState().fetchSeries();
+    const removed = await useShowStore.getState().deleteSeries('series-abc');
+
+    expect(removed).toBe(false);
+    expect(useShowStore.getState().series.map((s) => s.id)).toEqual(['series-abc']);
+  });
+
+  it('says so, and keeps the episode it did not remove', async () => {
+    const useShowStore = await freshStore();
+    get.mockResolvedValueOnce({ data: { series: SERIES, episodes: [EPISODE], total: 1 } });
+    del.mockRejectedValueOnce(new Error('Failed to delete the episode'));
+
+    await useShowStore.getState().fetchOneSeries('series-abc');
+    const removed = await useShowStore.getState().deleteEpisode('series-abc', 'episode-xyz');
+
+    expect(removed).toBe(false);
+    expect(useShowStore.getState().episodesBySeries['series-abc']?.map((e) => e.id)).toEqual([
+      'episode-xyz',
+    ]);
+  });
+
+  it('answers true only when the row actually went', async () => {
+    const useShowStore = await freshStore();
+    get.mockResolvedValueOnce({ data: { series: SERIES, episodes: [EPISODE], total: 1 } });
+    del.mockResolvedValueOnce({ data: { deleted: true } });
+
+    await useShowStore.getState().fetchOneSeries('series-abc');
+
+    expect(await useShowStore.getState().deleteEpisode('series-abc', 'episode-xyz')).toBe(true);
+    expect(useShowStore.getState().episodesBySeries['series-abc']).toEqual([]);
+  });
+});
