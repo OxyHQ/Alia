@@ -31,12 +31,27 @@
  * It resolves `@/…` (the app's alias for its own root) and relative paths, and
  * skips anything else — a bare package specifier is a dependency, and whether
  * one is installed is `bun install`'s business, not this file's.
+ *
+ * ## `--root`, and why it is not a testing hook bolted on
+ *
+ * The repository root is an ARGUMENT rather than a constant, so
+ * `.github/scripts/test-check-static-assets.mjs` can point this at a tree built
+ * to be broken and require that it says so. Nothing else changes with it: the
+ * scan directory and the alias roots derive from it exactly as they do from the
+ * real one, so the fixture exercises this file rather than a variant of it.
+ *
+ * That test is the difference between a gate somebody once watched fail and a
+ * gate whose ability to fail is itself gated, six months from now, by someone
+ * refactoring it.
  */
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const rootFlag = process.argv.indexOf('--root');
+const root = rootFlag === -1
+  ? resolve(dirname(fileURLToPath(import.meta.url)), '..')
+  : resolve(process.argv[rootFlag + 1] ?? '.');
 
 /** Walked, not listed — see the header. */
 const SKIP = new Set(['node_modules', '.git', '.worktrees', 'dist', 'build', '.expo', 'coverage', 'ios', 'android']);
@@ -58,6 +73,14 @@ const REFERENCES = new RegExp(
 
 /** Where `@/` points, per package that declares it. Only the app does today. */
 const ALIAS_ROOTS = new Map([[join(root, 'packages/app'), join(root, 'packages/app')]]);
+
+const PACKAGES = join(root, 'packages');
+
+if (!existsSync(PACKAGES)) {
+  console.error(`check-static-assets: no packages directory under ${root}.`);
+  console.error('  Nothing to scan, so this gate is measuring nothing.');
+  process.exit(1);
+}
 
 function sourceFiles(dir) {
   const found = [];
@@ -83,7 +106,7 @@ function resolveAsset(specifier, fromFile) {
   return null;
 }
 
-const files = sourceFiles(join(root, 'packages'));
+const files = sourceFiles(PACKAGES);
 
 if (files.length === 0) {
   console.error('check-static-assets: found no source files under packages/.');
