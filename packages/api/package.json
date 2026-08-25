@@ -40,7 +40,7 @@
     "@oxyhq/crowdsource-express": "0.3.0",
     "@oxyhq/db": "^0.1.2",
     "@socket.io/redis-adapter": "^8.3.0",
-    "@syra.fm/sdk": "^0.12.0",
+    "@syra.fm/sdk": "^0.13.0",
     "ai": "^6.0.225",
     "bullmq": "^5.80.2",
     "cors": "^2.8.6",
