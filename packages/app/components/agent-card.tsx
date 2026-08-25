@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { BadgeCheck, Zap } from "lucide-react-native";
 import { cn } from "@/lib/utils";
 import { useTranslation } from "@/lib/hooks/use-translation";
-import type { Agent } from "@/lib/stores/agents-store";
+import type { Agent } from "@/lib/types/agents";
 import { agentDisplayName, agentHandle } from "@/lib/agents/identity";
 
 interface AgentCardProps {

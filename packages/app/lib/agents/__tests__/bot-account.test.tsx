@@ -92,9 +92,11 @@ vi.mock('@oxyhq/services', () => ({
   }),
 }));
 
-vi.mock('@/lib/stores/agents-store', () => ({
-  useAgentsStore: (selector: (state: { createAgent: unknown }) => unknown) =>
-    selector({ createAgent: mocks.createAgent }),
+// The create screen writes through the agent MUTATION now, not a store. Stubbing
+// the hook keeps this file about which account gets minted, and means no query
+// client has to be stood up to ask that question.
+vi.mock('@/lib/hooks/use-agents', () => ({
+  useCreateAgent: () => ({ mutateAsync: mocks.createAgent }),
 }));
 
 vi.mock('@/lib/hooks/use-translation', () => ({

@@ -3,12 +3,12 @@ import { useOxy } from '@oxyhq/services';
 import apiClient from '../api/client';
 import { API_ROUTES } from '../api/routes';
 import { queryKeys } from './query-keys';
-import type { Agent } from '../stores/agents-store';
+import type { Agent } from '../types/agents';
 
 /**
  * The agents this person owns — the sidebar's own list, not the marketplace's.
  *
- * `useAgentsStore.loadAgents` reads `GET /agents`, which is the CATALOGUE:
+ * `useAgentCatalogue` reads `GET /agents`, which is the CATALOGUE:
  * everything published, by anybody, filtered by category and search. The
  * sidebar wants the opposite list — the ones this person made, published or
  * not — which is `GET /agents/me`, scoped by author in the query rather than

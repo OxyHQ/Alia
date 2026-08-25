@@ -16,7 +16,7 @@
  * is called is a difference nobody reports.
  */
 
-import type { Agent } from '@/lib/stores/agents-store';
+import type { Agent } from '@/lib/types/agents';
 
 /** The identity fields any renderable agent-like row carries. */
 type AgentIdentityFields = Pick<Agent, 'name' | 'handle'>;

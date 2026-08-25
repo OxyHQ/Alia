@@ -45,7 +45,8 @@ import * as DropdownMenu from "@/components/ui/dropdown-menu";
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 import { useRouter, useLocalSearchParams } from "expo-router";
-import { useAgentsStore, type Agent, type AgentUpdate, type AgentArchetype, type ArchetypeConfig, type RoutingRule } from "@/lib/stores/agents-store";
+import { useAgent, useUpdateAgent, useDeleteAgent } from "@/lib/hooks/use-agents";
+import type { Agent, AgentUpdate, AgentArchetype, ArchetypeConfig, RoutingRule } from "@/lib/types/agents";
 import { useTranslation } from "@/lib/hooks/use-translation";
 import { useColorScheme } from "@/lib/useColorScheme";
 import { toast } from "@oxyhq/bloom/toast";
@@ -99,9 +100,9 @@ export default function EditAgentScreen() {
   const isLargeScreen = useIsLargeScreen();
   // The agent's NAME lives on its Oxy bot account, so the editor writes it there.
   const { oxyServices } = useOxy();
-  const getAgent = useAgentsStore((state) => state.getAgent);
-  const updateAgent = useAgentsStore((state) => state.updateAgent);
-  const deleteAgent = useAgentsStore((state) => state.deleteAgent);
+  const { data: loadedAgent, isPending: agentPending } = useAgent(id);
+  const updateAgent = useUpdateAgent();
+  const deleteAgent = useDeleteAgent();
 
   // Loading
   const [loading, setLoading] = useState(true);
@@ -191,11 +192,19 @@ export default function EditAgentScreen() {
     loadLibraryFiles();
   }, [loadLibraryFiles]);
 
-  // Load agent data
+  /*
+   * Seed the form from the fetched agent, once it arrives.
+   *
+   * These eighteen fields ARE client state — they are what is being edited, and
+   * they diverge from the server the moment somebody types. So this is the one
+   * legitimate copy: an editable draft taken from the record, not a second
+   * cache of it.
+   */
   useEffect(() => {
     if (!id) return;
-    setLoading(true);
-    getAgent(id).then((agent) => {
+    if (agentPending) return;
+    {
+      const agent = loadedAgent;
       if (agent) {
         setName(agent.name ?? "");
         setHandle(agent.handle ?? "");
@@ -223,8 +232,8 @@ export default function EditAgentScreen() {
       setTimeout(() => {
         isInitialLoad.current = false;
       }, 500);
-    });
-  }, [id, getAgent]);
+    }
+  }, [id, loadedAgent, agentPending]);
 
   /**
    * Debounced auto-save — and a FAILED save is now visible.
@@ -247,7 +256,7 @@ export default function EditAgentScreen() {
       saveTimeoutRef.current = setTimeout(async () => {
         toast.loading(t("agents.saving"), { id: SAVE_TOAST_ID });
         try {
-          await updateAgent(id, updates);
+          await updateAgent.mutateAsync({ id, updates });
           toast.success(t("agents.autoSaved"), { id: SAVE_TOAST_ID });
         } catch (error: unknown) {
           // The pending indicator goes first: left under its id it would sit
@@ -257,7 +266,7 @@ export default function EditAgentScreen() {
         }
       }, 1000);
     },
-    [id, updateAgent, t]
+    [id, updateAgent.mutateAsync, t]
   );
 
   /**
@@ -429,13 +438,13 @@ export default function EditAgentScreen() {
     const newValue = !isPublished;
     setIsPublished(newValue);
     try {
-      await updateAgent(id, { isPublished: newValue });
+      await updateAgent.mutateAsync({ id, updates: { isPublished: newValue } });
       toast.success(newValue ? t("agents.published") : t("agents.draft"));
     } catch {
       setIsPublished(!newValue);
       toast.error("Failed to update");
     }
-  }, [id, isPublished, updateAgent, t]);
+  }, [id, isPublished, updateAgent.mutateAsync, t]);
 
   const handleDelete = useCallback(async () => {
     if (!id) return;
@@ -448,13 +457,13 @@ export default function EditAgentScreen() {
     });
     if (!ok) return;
     try {
-      await deleteAgent(id);
+      await deleteAgent.mutateAsync(id);
       toast.success(t("agents.agentDeleted"));
       router.back();
     } catch {
       toast.error("Failed to delete agent");
     }
-  }, [id, deleteAgent, router, t]);
+  }, [id, deleteAgent.mutateAsync, router, t]);
 
   const addTag = useCallback(() => {
     const trimmed = tagInput.trim();
