@@ -88,8 +88,14 @@ export interface ShowEpisode {
   id: string;
   seriesId: string;
   episodeNumber: number;
+  /**
+   * `Episode {n}` until the script is written, then the name the script chose.
+   * The API reserves the Syra draft before any script exists, so a queued
+   * episode really is unnamed.
+   */
   title: string;
-  topic: string;
+  /** `null` until the script settles on a subject, unless the owner named one. */
+  topic?: string | null;
   notes?: string | null;
   status: ShowEpisodeStatus;
   progress: number;
@@ -164,10 +170,14 @@ interface ShowStore {
   ) => Promise<boolean>;
   deleteSeries: (id: string) => Promise<void>;
 
+  /**
+   * Ask for another episode. Everything is optional, and usually nothing is
+   * passed: the series' brief and the subjects earlier episodes used are what
+   * decide this one, server-side.
+   */
   createEpisode: (
     seriesId: string,
-    /** `title` omitted means "name it for me" — the API proposes one. */
-    input: { title?: string; topic: string; notes?: string },
+    input?: { topic?: string; notes?: string },
   ) => Promise<string | null>;
   deleteEpisode: (seriesId: string, episodeId: string) => Promise<void>;
 
@@ -258,10 +268,15 @@ export const useShowStore = create<ShowStore>((set, get) => ({
   createEpisode: async (seriesId, input) => {
     set({ error: null });
     try {
-      const res = await apiClient.post(API_ROUTES.shows.episodes.create(seriesId), input);
-      // `title` comes BACK from the server, because the caller may not have
-      // chosen it: an omitted title is named by a model server-side, and the
-      // placeholder below would otherwise be blank until the next read.
+      /**
+       * `{}` rather than `undefined`, so the request carries a JSON body even
+       * when there is nothing to say. Asking for another episode is the whole
+       * message.
+       */
+      const res = await apiClient.post(API_ROUTES.shows.episodes.create(seriesId), input ?? {});
+      // `title` comes BACK from the server because nobody types one any more:
+      // it is `Episode {n}` until the script names the episode, and the row
+      // below would otherwise be blank until the next read.
       const { episodeId, episodeNumber, title } = res.data as {
         episodeId: string;
         episodeNumber: number;
@@ -277,7 +292,9 @@ export const useShowStore = create<ShowStore>((set, get) => ({
         seriesId,
         episodeNumber,
         title,
-        topic: input.topic,
+        // Only when the owner steered this one. Absent means the script has not
+        // chosen a subject yet, which is what the row should say.
+        ...(input?.topic === undefined ? {} : { topic: input.topic }),
         status: 'queued',
         progress: 0,
         createdAt: now,

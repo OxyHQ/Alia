@@ -1,14 +1,15 @@
 /**
- * Adding an episode to an existing series.
+ * Steering ONE episode — the path for when you want a specific one.
  *
- * Deliberately short. The show's premise, its format and its cast were decided
- * when the series was created and apply to every episode, so this asks only
- * what changes: what this one is called and what it covers.
+ * It is not how an episode is normally made. "New episode" on the show screen
+ * is a single press with nothing to fill in, because the show already knows
+ * what it is about: its brief and the subjects its earlier episodes used are
+ * what decide the next one, server-side. This dialog exists for the other case
+ * — there is something particular to cover this week, or an article to work
+ * from — and every field in it is optional.
  *
- * The name is OPTIONAL and usually left blank. Syra fixes an episode's title
- * when the draft is reserved and refuses to let the ingest change it, so the
- * script can never name its own episode — a model names it from the topic
- * instead, server-side, before the draft. Typing one here overrides that.
+ * There is no name field. An episode is named from its finished script, which
+ * is something nobody can type in advance and the reason this stopped asking.
  */
 
 import React, { useCallback, useState } from 'react';
@@ -23,7 +24,7 @@ interface EpisodeCreateDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   seriesId: string;
-  /** Shown as the suggested name, so the person does not have to count. */
+  /** Shown as the heading, so the person does not have to count. */
   nextEpisodeNumber: number;
 }
 
@@ -35,43 +36,39 @@ export function EpisodeCreateDialog({
 }: EpisodeCreateDialogProps) {
   const createEpisode = useShowStore((s) => s.createEpisode);
 
-  const [title, setTitle] = useState('');
   const [topic, setTopic] = useState('');
   const [notes, setNotes] = useState('');
   const [starting, setStarting] = useState(false);
 
+  const trimmedTopic = topic.trim();
+  // Blank is fine and means "decide it yourself". A few characters is not a
+  // subject, and silently discarding what somebody typed would be worse than
+  // saying so.
+  const topicTooShort = trimmedTopic !== '' && trimmedTopic.length < 5;
+
   const handleStart = useCallback(async () => {
-    if (topic.trim().length < 5) {
-      toast.error('Say what the episode should cover');
-      return;
-    }
-    // A name that is present but too short is a mistake, not a request to name
-    // it automatically — refuse it rather than silently discarding what they
-    // typed.
-    if (title.trim() !== '' && title.trim().length < 3) {
-      toast.error('That name is too short — leave it blank to have one written');
+    if (topicTooShort) {
+      toast.error('Say a bit more, or leave it blank and the show will choose');
       return;
     }
 
     setStarting(true);
     try {
       const episodeId = await createEpisode(seriesId, {
-        ...(title.trim() === '' ? {} : { title: title.trim() }),
-        topic: topic.trim(),
-        notes: notes.trim() || undefined,
+        ...(trimmedTopic === '' ? {} : { topic: trimmedTopic }),
+        ...(notes.trim() === '' ? {} : { notes: notes.trim() }),
       });
 
       if (episodeId) {
         toast.success('Recording started');
         onOpenChange(false);
-        setTitle('');
         setTopic('');
         setNotes('');
       }
     } finally {
       setStarting(false);
     }
-  }, [title, topic, notes, seriesId, createEpisode, onOpenChange]);
+  }, [trimmedTopic, topicTooShort, notes, seriesId, createEpisode, onOpenChange]);
 
   return (
     <Dialog
@@ -85,7 +82,7 @@ export function EpisodeCreateDialog({
         {
           label: starting ? 'Starting...' : 'Record it',
           onPress: handleStart,
-          disabled: starting || topic.trim().length < 5,
+          disabled: starting || topicTooShort,
           shouldCloseOnPress: false,
         },
       ]}
@@ -93,11 +90,13 @@ export function EpisodeCreateDialog({
       <ScrollView className="max-h-96" showsVerticalScrollIndicator={false}>
         <View className="gap-4 py-2">
           <View className="gap-1.5">
-            <Text className="text-sm font-medium text-foreground">What should it cover?</Text>
+            <Text className="text-sm font-medium text-foreground">
+              Anything specific this time?
+            </Text>
             <Input
               value={topic}
               onChangeText={setTopic}
-              placeholder="What happened this week, and why it matters."
+              placeholder="Leave blank and the show picks something it has not covered."
               multiline
               numberOfLines={3}
               className="min-h-[80px]"
@@ -116,21 +115,9 @@ export function EpisodeCreateDialog({
             />
           </View>
 
-          <View className="gap-1.5">
-            <Text className="text-sm font-medium text-foreground">Name (optional)</Text>
-            <Input
-              value={title}
-              onChangeText={setTitle}
-              placeholder="Leave blank and one will be written for you"
-            />
-            <Text className="text-xs text-muted-foreground">
-              This is the name listeners see, and it cannot be changed once the episode is
-              published.
-            </Text>
-          </View>
-
           <Text className="text-xs text-muted-foreground">
-            The script knows what your last few episodes covered, so it will not repeat them.
+            Either way the script knows what every earlier episode covered, so it will not repeat
+            one — and it names the episode once it has written it.
           </Text>
         </View>
       </ScrollView>

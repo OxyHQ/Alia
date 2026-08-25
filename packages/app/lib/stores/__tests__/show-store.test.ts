@@ -104,43 +104,51 @@ describe('reading a series', () => {
 });
 
 describe('starting an episode', () => {
-  it('posts to the series, and shows it as queued before the first event', async () => {
+  it('asks for another one with nothing to say, and sends a body anyway', async () => {
     const useShowStore = await freshStore();
     post.mockResolvedValueOnce({
       data: {
         episodeId: 'episode-new',
         seriesId: 'series-abc',
         episodeNumber: 3,
-        title: 'The third one',
+        title: 'Episode 3',
         status: 'queued',
       },
     });
 
-    const id = await useShowStore
-      .getState()
-      .createEpisode('series-abc', { title: 'The third one', topic: 'more things' });
+    const id = await useShowStore.getState().createEpisode('series-abc');
 
-    expect(post).toHaveBeenCalledWith('/shows/series/series-abc/episodes', {
-      title: 'The third one',
-      topic: 'more things',
-      notes: undefined,
-    });
+    /**
+     * `{}`, not `undefined`. This is the whole change on this side: the button
+     * asks for another episode and says nothing about it, because the series
+     * already knows what the show is about.
+     *
+     * Asserted as the exact body rather than as "no topic", because the two
+     * differ where it matters — a `POST` with no body at all reaches Express as
+     * `req.body === undefined`, which is not the same request.
+     */
+    expect(post).toHaveBeenCalledWith('/shows/series/series-abc/episodes', {});
     expect(id).toBe('episode-new');
 
     const [first] = useShowStore.getState().episodesBySeries['series-abc'] ?? [];
-    expect(first?.id).toBe('episode-new');
     expect(first?.status).toBe('queued');
     expect(first?.episodeNumber).toBe(3);
+    // No subject is INVENTED for the optimistic row. The script has not chosen
+    // one yet, and a row claiming otherwise would show a subject that never
+    // came from anywhere.
+    expect(first?.topic).toBeUndefined();
   });
 
-  it('shows the name the SERVER chose when the caller supplied none', async () => {
+  it('still carries a subject when the owner steers this one', async () => {
+    // The positive control for the assertion above: a store that dropped every
+    // input would satisfy "posts an empty body" perfectly.
     const useShowStore = await freshStore();
     post.mockResolvedValueOnce({
       data: {
         episodeId: 'episode-new',
         seriesId: 'series-abc',
         episodeNumber: 3,
-        title: 'How leaves eat light',
+        title: 'Episode 3',
         status: 'queued',
       },
     });
@@ -149,19 +157,38 @@ describe('starting an episode', () => {
       .getState()
       .createEpisode('series-abc', { topic: 'hablemos de la fotosíntesis' });
 
-    // No `title` key at all, rather than `title: undefined` — the API treats an
-    // absent title as "name it for me" and a present-but-empty one as invalid.
+    // No `notes: undefined` key either — the API distinguishes an absent field
+    // from a present empty one.
     expect(post).toHaveBeenCalledWith('/shows/series/series-abc/episodes', {
       topic: 'hablemos de la fotosíntesis',
-      notes: undefined,
     });
 
-    // The optimistic row shows the model's name, not the raw topic. Without
-    // reading `title` back from the response this renders blank until the next
-    // fetch, which is the whole reason the route echoes it.
     const [first] = useShowStore.getState().episodesBySeries['series-abc'] ?? [];
-    expect(first?.title).toBe('How leaves eat light');
-    expect(first?.title).not.toBe('hablemos de la fotosíntesis');
+    expect(first?.topic).toBe('hablemos de la fotosíntesis');
+  });
+
+  it('shows the PLACEHOLDER name the server reserved, not a name it made up', async () => {
+    const useShowStore = await freshStore();
+    post.mockResolvedValueOnce({
+      data: {
+        episodeId: 'episode-new',
+        seriesId: 'series-abc',
+        episodeNumber: 3,
+        title: 'Episode 3',
+        status: 'queued',
+      },
+    });
+
+    await useShowStore.getState().createEpisode('series-abc');
+
+    /**
+     * `Episode 3` is what the route reserved the Syra draft with, minutes
+     * before any script exists. The real name arrives when the script does.
+     * Without reading `title` back from the response this row renders blank
+     * until the next fetch, which is why the route echoes it.
+     */
+    const [first] = useShowStore.getState().episodesBySeries['series-abc'] ?? [];
+    expect(first?.title).toBe('Episode 3');
   });
 
   it('reports a refusal rather than pretending it started', async () => {
@@ -170,9 +197,7 @@ describe('starting an episode', () => {
       response: { data: { error: { message: 'Maximum 3 episodes generating at once.' } } },
     });
 
-    const id = await useShowStore
-      .getState()
-      .createEpisode('series-abc', { title: 'A fourth', topic: 'too many' });
+    const id = await useShowStore.getState().createEpisode('series-abc');
 
     expect(id).toBeNull();
     expect(useShowStore.getState().error).toContain('Maximum 3');
