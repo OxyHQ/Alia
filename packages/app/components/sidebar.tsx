@@ -497,23 +497,40 @@ export const Sidebar = React.memo(function Sidebar() {
     </View>
   );
 
-  // Top section with New Chat as a highlighted menu row (icon-only in the rail)
+  /*
+   * New Chat, as a primary action rather than a menu row.
+   *
+   * Deliberately NOT a `SidebarRow`: the primitives exist so that rows look
+   * alike, and the whole point here is that this one does not — a filled pill
+   * that reads as the thing to press, above a list of quieter links.
+   *
+   * `bg-primary` because Alia has no `tertiary`: `global.css` declares
+   * primary / secondary / destructive / muted / accent / popover / card /
+   * surface, and primary is the pair that means "the action". Its own
+   * foreground token comes with it, which is what keeps it legible in both
+   * schemes without naming a colour here.
+   *
+   * Open it is a full-width pill with its label centred and no icon; in the
+   * rail it is a circle with only the icon. 50px of circle sits in a 56px rail
+   * (`app/(app)/_layout.tsx`) with three pixels either side.
+   */
   const newChatTooltip = useRailTooltip(t('sidebar.newChat'));
   const expandTooltip = useRailTooltip(t('sidebar.expand'));
-  const newChatRow = (
+  const newChatButton = (
       <Pressable
         {...(collapsed ? newChatTooltip.anchorProps : null)}
         accessibilityLabel={t('sidebar.newChat')}
         accessibilityRole="button"
         onPress={handleNewChat}
         className={cn(
-          "h-9 rounded-xl flex-row items-center bg-muted hover:bg-muted/80 active:bg-muted/70",
-          collapsed ? "w-9 justify-center" : "px-1.5 w-full gap-2"
+          "items-center justify-center rounded-full bg-primary hover:bg-primary/90 active:bg-primary/80",
+          collapsed ? "h-[50px] w-[50px]" : "w-full py-3"
         )}
       >
-        <Plus size={18} className="text-foreground" />
-        {!collapsed && (
-          <Text className="text-sm font-semibold text-foreground">
+        {collapsed ? (
+          <Plus size={26} className="text-primary-foreground" />
+        ) : (
+          <Text className="text-center text-[17px] font-extrabold text-primary-foreground">
             {t('sidebar.newChat')}
           </Text>
         )}
@@ -528,7 +545,7 @@ export const Sidebar = React.memo(function Sidebar() {
         onAddAccount={handleAddAccount}
       />
       <View className="gap-px">
-        {newChatRow}
+        {newChatButton}
         {collapsed && newChatTooltip.tooltip}
       </View>
     </View>
