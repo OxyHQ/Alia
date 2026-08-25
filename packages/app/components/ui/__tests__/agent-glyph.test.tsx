@@ -56,6 +56,7 @@ vi.mock('react-native-svg', async () => {
 
 import { APP_COLOR_PRESETS, withAlpha } from '@oxyhq/bloom/theme';
 
+import { AGENT_SWATCHES } from '@/lib/constants/agent-colors';
 import { AgentGlyph } from '../agent-glyph';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
@@ -152,5 +153,44 @@ describe('AgentGlyph', () => {
   it('renders at the size it is given, square', () => {
     const svg = nodes(render({ size: 20 }), 'Svg')[0]?.props;
     expect(svg).toMatchObject({ width: 20, height: 20, viewBox: '0 0 100 100' });
+  });
+});
+
+/**
+ * Every colour the picker offers paints a real one.
+ *
+ * The static gate `scripts/check-agent-colour-vocabulary.mjs` holds the two
+ * declarations of this vocabulary equal and proves each key is one Oxy will
+ * STORE. It cannot answer this half: whether the key RENDERS. Those are two
+ * different Bloom exports — the gate reads `FREE_COLOR_NAMES`, and the glyph
+ * resolves through `APP_COLOR_PRESETS`, a map built from different entries —
+ * so a key present in one and absent from the other is a swatch that saves
+ * correctly and draws in the theme's grey.
+ *
+ * That is not a hypothetical pairing of exports. It is the failure this
+ * component already had: every agent grey, every half self-consistent, nothing
+ * red. Here the swatch and the saved value are checked against each other.
+ */
+describe('the colours the editor offers', () => {
+  it('paints each one, rather than falling back', () => {
+    // The floor. An empty or unreadable list makes `every` vacuously true and
+    // the loop below assert nothing at all.
+    expect(AGENT_SWATCHES.length).toBeGreaterThan(1);
+
+    for (const swatch of AGENT_SWATCHES) {
+      const { flower } = fills(render({ color: swatch }));
+      expect(flower, `${swatch} does not resolve, so its swatch is the theme's grey`).not.toBe(
+        MUTED,
+      );
+      expect(flower, `${swatch} resolves to no colour at all`).toBe(APP_COLOR_PRESETS[swatch].hex);
+    }
+  });
+
+  it('gives no two of them the same colour', () => {
+    // Otherwise the picker shows two swatches a person cannot tell apart, and
+    // the assertion above holds for a list that is one colour repeated.
+    const painted = AGENT_SWATCHES.map((swatch) => fills(render({ color: swatch })).flower);
+
+    expect(new Set(painted).size).toBe(AGENT_SWATCHES.length);
   });
 });
