@@ -18,6 +18,24 @@ export const AGENT_STATUSES = ['active', 'idle', 'offline'] as const;
 export type AgentStatus = (typeof AGENT_STATUSES)[number];
 
 /**
+ * Who may USE an agent — a different question from whether it is listed.
+ *
+ * `is_published` answers "does it appear in the catalogue", and until now it
+ * answered both: anything published could be used by anyone, so "let people
+ * find it" and "let people run it" were one switch and the useful combination
+ * — listed, but mine to lend — could not be expressed.
+ *
+ *  - `private` — its owner, and whoever holds a membership on its bot account.
+ *    Sharing IS adding a member, which is what "hiring" became.
+ *  - `public` — anyone.
+ *
+ * The default is `private`, matching the account the agent is born with, which
+ * is created opted out of discovery.
+ */
+export const AGENT_ACCESS = ['private', 'public'] as const;
+export type AgentAccess = (typeof AGENT_ACCESS)[number];
+
+/**
  * `archetype_config`, and the ONE place its stored shape is narrowed.
  *
  * The column is `jsonb` and nothing validates it on the way in: it holds a union

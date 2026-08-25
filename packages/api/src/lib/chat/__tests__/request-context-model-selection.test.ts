@@ -165,6 +165,9 @@ describe('the turn resolves the agent it NAMED', () => {
       _id: 'agent-1',
       oxyAccountId: 'oxy-bot-1',
       isPublished: true,
+      // PUBLIC, which is what makes it reachable — being listed is a separate
+      // question and stopped granting use.
+      access: 'public',
       status: 'active',
       systemPrompt: 'p',
     });
@@ -186,14 +189,16 @@ describe('the turn resolves the agent it NAMED', () => {
     expect(ctx?.linkedAgent).toBeNull();
   });
 
-  it('refuses a DRAFT agent the caller cannot act as', async () => {
-    // `body.agentId` is client input. An unpublished agent is reachable only
-    // through `account:act_as`, and the Oxy client is not configured here — so
-    // the verdict cannot be granted and the turn runs as ordinary Alia.
+  it('refuses a PRIVATE agent the caller has no standing in', async () => {
+    // `body.agentId` is client input. A private agent is reachable only through
+    // ownership or a membership on its bot account, and the Oxy client is not
+    // configured here — so nothing can be granted and the turn runs as ordinary
+    // Alia. Published, deliberately: being listed is not being usable.
     findAgentById.mockResolvedValue({
       _id: 'agent-2',
       oxyAccountId: 'oxy-bot-2',
-      isPublished: false,
+      isPublished: true,
+      access: 'private',
       status: 'active',
       systemPrompt: 'p',
     });

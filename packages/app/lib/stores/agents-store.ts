@@ -80,7 +80,12 @@ export interface Agent {
   isTrending: boolean;
   isPublished: boolean;
   status: 'active' | 'idle' | 'offline';
-  allowHiring: boolean;
+  /**
+   * Who may USE this agent, as opposed to who may FIND it — `isPublished`
+   * answers the second. `private` is its owner plus whoever holds a membership
+   * on its bot account, which is how an agent is shared; `public` is anyone.
+   */
+  access: 'private' | 'public';
   /**
    * Whether this is the ONE agent the owner has designated to run autonomous
    * Oxy service events. A declared fact: the API enforces one per owner with a
@@ -128,7 +133,7 @@ export type AgentCreate = Pick<Agent, 'oxyAccountId' | 'tagline' | 'description'
       | 'price'
       | 'capabilityGrants'
       | 'isPublished'
-      | 'allowHiring'
+      | 'access'
       | 'handlesAutonomousEvents'
       | 'systemPrompt'
       | 'archetype'
