@@ -225,6 +225,23 @@ router.post('/token', async (req: Request, res: Response) => {
       },
     ];
 
+    /**
+     * The payer's balance row, immediately before the session reserves against
+     * it.
+     *
+     * `createSession` calls `reserveVoiceCredits`, which reserves a MINUTE —
+     * fifty credits — and, like every other reserve, does not create the row it
+     * spends from. Without this, an account entitled to the default allowance
+     * but never provisioned was told it had no credits the first time it opened
+     * voice mode, which for a plan that gates voice behind Pro is the least
+     * likely moment to be believed.
+     *
+     * The same broken invariant as `lib/agent/session-handoff.ts`, on a path
+     * that shares no code with it — hence a separate commit rather than one
+     * "provisioning" change spanning both.
+     */
+    await getOrCreateUserCredits(userId);
+
     // Create the voice session (creates LiveKit room, joins as agent, connects to provider)
     const session = await voiceSessionManager.createSession(userId, model, {
       model,
