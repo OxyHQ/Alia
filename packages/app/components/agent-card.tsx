@@ -1,13 +1,15 @@
 import React from "react";
 import { View, Pressable } from "react-native";
 import { Text } from "@/components/ui/text";
-import { AgentGlyph } from "@/components/ui/agent-glyph";
+import { IdentityMark } from "@alia.onl/sdk";
 import { Button } from "@/components/ui/button";
 import { BadgeCheck, Zap } from "lucide-react-native";
 import { cn } from "@/lib/utils";
 import { useTranslation } from "@/lib/hooks/use-translation";
 import type { Agent } from "@/lib/types/agents";
 import { agentDisplayName, agentHandle } from "@/lib/agents/identity";
+import { agentTint } from "@/lib/agents/agent-color";
+import { useColorScheme } from "@/lib/useColorScheme";
 
 interface AgentCardProps {
   agent: Agent;
@@ -36,8 +38,9 @@ export const AgentCard = React.memo(function AgentCard({
   variant = "grid",
 }: AgentCardProps) {
   const { t } = useTranslation();
+  const { colors } = useColorScheme();
   const isFeatured = variant === "featured";
-  const glyphSize = isFeatured ? 64 : 56;
+  const markSize = isFeatured ? 64 : 56;
   const statusDotSize = isFeatured
     ? "w-3.5 h-3.5 border-[2.5px]"
     : "w-3 h-3 border-2";
@@ -52,7 +55,11 @@ export const AgentCard = React.memo(function AgentCard({
         {/* Top row: the agent's mark (left) + Chat button (right) — like Twitter avatar + Follow */}
         <View className="flex-row items-start justify-between">
           <View className="relative">
-            <AgentGlyph size={glyphSize} color={agent.color} label={agentDisplayName(agent)} />
+            <IdentityMark
+              size={markSize}
+              color={agentTint(agent.color, colors)}
+              accessibilityLabel={agentDisplayName(agent)}
+            />
             <View
               className={cn(
                 "absolute bottom-0 right-0 rounded-full border-surface",

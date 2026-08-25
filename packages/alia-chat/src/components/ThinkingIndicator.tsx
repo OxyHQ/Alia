@@ -6,7 +6,7 @@ import Animated, {
   withTiming,
   withSequence,
 } from "react-native-reanimated";
-import { AliaMark } from "./AliaMark";
+import { IdentityMark } from "./IdentityMark";
 
 const thinkingPhrases = [
   "Thinking...",
@@ -84,7 +84,7 @@ export function ThinkingIndicator({ isWorking = false, statusText, color }: { is
 
   return (
     <View className="flex-row items-center gap-2 py-2">
-      <AliaMark size={16} state={isWorking ? 'working' : 'thinking'} color={color} />
+      <IdentityMark size={16} state={isWorking ? 'working' : 'thinking'} color={color} />
       <View className="flex-row items-center">
         <Text className="text-base text-muted-foreground">{shownText}</Text>
         {(statusText || isTyping) && (

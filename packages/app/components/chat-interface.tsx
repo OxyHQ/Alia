@@ -10,9 +10,9 @@ import React, { useEffect, useState, useCallback, useRef, useMemo } from "react"
 import type { ScrollView as GHScrollView } from "react-native-gesture-handler";
 import { processMessage } from "@/lib/message-processor";
 import { cn } from "@/lib/utils";
-import { ThinkingIndicator, AliaMark, type AliaMarkState } from '@alia.onl/sdk';
+import { ThinkingIndicator, IdentityMark, type IdentityMarkState } from '@alia.onl/sdk';
 import { useColorScheme } from "@/lib/useColorScheme";
-import { AgentGlyph } from "@/components/ui/agent-glyph";
+import { agentTint } from "@/lib/agents/agent-color";
 import { Copy, ThumbsUp, ThumbsDown, Pencil, Check, Volume2, Square, Music } from "lucide-react-native";
 import * as DropdownMenu from "@/components/ui/dropdown-menu";
 import { useTTS } from "@/lib/hooks/use-tts";
@@ -393,7 +393,11 @@ const MessageRow = React.memo(function MessageRow({
               {/* Agent identity or cohost label (Alia face is floating) */}
               {m.agentInfo ? (
                 <View className="flex-row items-center gap-2 mb-0.5">
-                  <AgentGlyph size={20} color={m.agentInfo.color} label={m.agentInfo.name} />
+                  <IdentityMark
+                    size={20}
+                    color={agentTint(m.agentInfo.color, colors)}
+                    accessibilityLabel={m.agentInfo.name}
+                  />
                   <Text className="text-xs font-semibold text-foreground">
                     {m.agentInfo.name}
                   </Text>
@@ -611,7 +615,7 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
       prevMessageCountRef.current = messages.length;
     }, [messages.length]);
 
-    // ── Flying AliaMark ──
+    // ── Flying IdentityMark ──
     const markY = useSharedValue(0);
 
     const liveMessages = useMemo(() => messages.filter(m => m != null && m.role), [messages]);
@@ -686,7 +690,7 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
       isAliaOwnedMessage(m) ? i : acc, -1), [filteredMessages]);
 
     // Derive mark state from voice state or text chat state
-    const markState = useMemo<AliaMarkState>(() => {
+    const markState = useMemo<IdentityMarkState>(() => {
       if (isVoiceActive && voiceAgentState) {
         if (voiceAgentState === 'thinking') return 'thinking';
         if (voiceAgentState === 'speaking') return 'writing';
@@ -906,10 +910,10 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
           )}
 
           <View style={{ position: 'relative' }}>
-            {/* Single flying AliaMark */}
+            {/* Single flying IdentityMark */}
             {lastAliaIndex >= 0 && (
               <Animated.View style={markAnimatedStyle}>
-                <AliaMark size={28} color={colors.primary} state={markState} />
+                <IdentityMark size={28} color={colors.primary} state={markState} />
               </Animated.View>
             )}
 

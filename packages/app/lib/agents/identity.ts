@@ -7,9 +7,9 @@
  * afternoon — arrives as three nulls, and the listing still renders because the
  * tagline, the rating and the price are Alia's own.
  *
- * `color` has no helper here because it needs none that is about IDENTITY: the
- * glyph is the only thing that reads it, and what it does with an unusable
- * value is a RENDERING decision, made once in `components/ui/agent-glyph.tsx`.
+ * `color` has no helper here because it needs none that is about IDENTITY: what
+ * to do with an unusable value is a RENDERING decision, made once in
+ * `lib/agents/agent-color.ts` and handed to the mark as a colour.
  *
  * Every surface therefore needs the same fallback, and it is here rather than
  * inlined at each one: two screens disagreeing about what an unresolved agent

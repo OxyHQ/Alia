@@ -28,12 +28,24 @@ vi.mock('@/components/ui/text', async () => {
   };
 });
 
-vi.mock('@/components/ui/agent-glyph', async () => {
+vi.mock('@alia.onl/sdk', async () => {
   const ReactModule = await import('react');
   return {
-    AgentGlyph: (props: Record<string, unknown>) => ReactModule.createElement('AgentGlyph', props),
+    IdentityMark: (props: Record<string, unknown>) =>
+      ReactModule.createElement('IdentityMark', props),
   };
 });
+
+/**
+ * The colour the mark is painted in is resolved by `lib/agents/agent-color.ts`
+ * and asserted in its own test, against Bloom's real registry. Reaching it from
+ * here would pull in Bloom's `theme` barrel — which has no Node build — for a
+ * value this file makes no claim about.
+ */
+vi.mock('@/lib/agents/agent-color', () => ({ agentTint: (color: string | null) => color }));
+vi.mock('@/lib/useColorScheme', () => ({
+  useColorScheme: () => ({ colors: { mutedForeground: 'rgb(113 113 122)' } }),
+}));
 
 import { AgentRow } from '../agent-row';
 

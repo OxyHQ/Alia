@@ -21,7 +21,7 @@ import React from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AliaChatContent } from './AliaChatContent';
-import { AliaMark } from './AliaMark';
+import { IdentityMark } from './IdentityMark';
 import type { WelcomeSuggestion } from './AliaWelcomeMessage';
 import type { VoiceSessionComponent } from '../types';
 
@@ -81,7 +81,7 @@ export function AliaChatScreen({
           <View className="flex-row items-center justify-between px-4 py-3">
             <View className="flex-row items-center gap-2.5">
               {headerLeft}
-              <AliaMark size={28} state={markState} />
+              <IdentityMark size={28} state={markState} />
               <Text className="text-lg font-semibold text-foreground">Alia</Text>
             </View>
             <View className="flex-row items-center gap-2">
