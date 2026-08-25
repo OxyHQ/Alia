@@ -17,10 +17,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
  * branch on. A test that mocked the store would measure a re-implementation of
  * exactly the thing that was wrong.
  *
- * The one that is NOT fixable here: the Syra podcast survives, and no amount of
- * copy makes "remove" mean "delete" while Syra exposes no delete endpoint for a
- * podcast or an episode. What this file can hold Alia to is that the screen
- * never claims otherwise — hence the assertion on the confirmation's own words.
+ * The limit this file used to record is gone: Syra now deletes, the API deletes
+ * there before it deletes here, and the button means what "delete" means. So
+ * the assertions on the confirmation's own words changed with it — they pin the
+ * screen to naming what is destroyed BEFORE the press, which is the whole
+ * reason a destructive confirmation exists.
  */
 
 const httpDelete = vi.hoisted(() => vi.fn());
@@ -288,21 +289,21 @@ describe('removing a show', () => {
     expect(useShowStore.getState().series.map((s) => s.id)).toEqual(['series-abc']);
   });
 
-  it('says it is gone from Alia, and only Alia, when the request succeeded', async () => {
-    httpDelete.mockResolvedValueOnce({ data: { deleted: true, syraPodcastKept: true } });
+  it('says it is gone from both, when the request succeeded', async () => {
+    httpDelete.mockResolvedValueOnce({ data: { deleted: true, syraPodcastDeleted: true } });
     const rendered = await renderScreen();
 
     await pressRemoveShow(rendered);
 
     expect(httpDelete).toHaveBeenCalledWith('/shows/series/series-abc');
     expect(toastError).not.toHaveBeenCalled();
-    // Never a bare "Deleted": what happened is narrower, and the message a
-    // person reads has to be the narrow one.
-    expect(toastSuccess).toHaveBeenCalledWith('Removed from Alia — the podcast stays on Syra');
+    // The message names both places, because both is what happened. It used to
+    // promise the podcast survived on Syra, which stopped being true.
+    expect(toastSuccess).toHaveBeenCalledWith('Show deleted from Alia and Syra');
     expect(routerBack).toHaveBeenCalled();
   });
 
-  it('asks first, and says the podcast survives before anything is removed', async () => {
+  it('asks first, and names what is destroyed before anything is removed', async () => {
     confirmSurface.mockResolvedValue(false);
     const rendered = await renderScreen();
 
@@ -313,12 +314,16 @@ describe('removing a show', () => {
     expect(toastSuccess).not.toHaveBeenCalled();
     expect(routerBack).not.toHaveBeenCalled();
 
-    // And the words it asked with. Syra has no delete endpoint for a podcast,
-    // so this screen cannot make the show go away there; the confirmation is
-    // the one surface that says so BEFORE the press rather than after it.
+    /**
+     * And the words it asked with. This deletes the Syra podcast, its episodes,
+     * their audio and everyone subscribed to it, and it cannot be undone — so
+     * the confirmation has to say that at the moment of the decision, not in a
+     * toast once it is too late to decline.
+     */
     const asked = confirmSurface.mock.calls[0]?.[0] as { title: string; description: string };
-    expect(asked.title).toContain('from Alia');
-    expect(asked.description).toContain('stays published on Syra');
+    expect(asked.title).toContain('everywhere');
+    expect(asked.description).toContain('deleted from Syra too');
+    expect(asked.description).toContain('cannot be undone');
   });
 });
 

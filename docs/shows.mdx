@@ -95,38 +95,55 @@ GET         /shows/voices
 GET|PUT     /shows/preferences
 ```
 
-## Deleting removes Alia's record only, and that is a LIMIT, not a preference
+## Deleting deletes in BOTH places, because there is only one of the thing
 
-Deleting either a series or an episode removes **Alia's record only**. The
-podcast is published and may have listeners, which is a reason to be careful —
-but it is not why it works this way. **Syra exposes no delete for a podcast or
-an episode.** Measured against `packages/backend/src/routes/podcasts.routes.ts`
-and `episodes.routes.ts`: the mutations are `POST /:id/publish`,
-`POST /:id/unpublish` and `PATCH /:id`, and there is no `router.delete` on
-either router. Syra's own studio offers neither control, and `@syra.fm/sdk`
-exposes neither endpoint. So a person who removes a show here still owns a
-podcast there, and no code in this repository can change that.
+Deleting a series or an episode deletes it **in Alia and in Syra**, and the
+order is not an implementation detail: Syra goes first, and Alia forgets its
+own row only if Syra let go.
 
-Two consequences worth stating, because both are reachable today:
+The other order is not a style preference, it is a bug that shipped. A user
+deleted a series here while Syra had no delete wired to any client; the podcast
+survived there with seven episodes, owned by an Alia series id that no longer
+existed, and no surface in either product could remove it. "Sólo hay un sitio
+de la verdad" is the requirement that came out of it.
 
-- **Unpublish is not a stand-in, for the owner least of all.** `status:
-  'unavailable'` hides a show from a stranger — browse, search, `GET
-  /api/podcasts/:id` and its RSS feed all 404 through `findPodcastForViewer`.
-  It does not hide it from its OWNER: `GET /api/podcasts/mine` filters on
-  nothing, so an unpublished show stays in the creator's own library, which is
-  precisely where the person who pressed delete goes looking. Nor does it stop
-  playback — the media gate (`requestMayReachShowMedia`) reads the show's
-  `visibility`, not its `status`, so a `public` or `unlisted` show's episodes
-  keep serving from `/audio` after the show is unpublished.
+`syraLetGoOf` in `routes/shows.ts` encodes the one judgement both routes share:
+
+- **`404` is success.** The row is gone, which is the state the caller asked
+  for. Refusing to clean up Alia's copy because Syra had nothing to delete
+  would strand the pair the other way round.
+- **Every other refusal leaves BOTH records standing** — `403` for a show that
+  is not the caller's or is RSS-mirrored, `409` for one under a platform
+  takedown — and the route answers `502`. Half a delete is the outcome worth
+  refusing.
+
+### What a Syra delete actually destroys
+
+Its episodes, their audio across three S3 trees, the HLS ladder, transcripts,
+AES keys, outstanding ingest tickets, every subscriber's subscription and every
+listener's saved position. **Not the cover artwork:** `image_assets` is
+referenced `ON DELETE set null` and the bytes live under `images/{imageId}/`,
+outside the swept trees, because one asset may back several shows and nothing
+records how many — deleting it could blank a show nobody touched. Reclaiming
+that storage needs a sweeper that can prove non-reference.
+
+Two more things that are true and reachable today:
+
 - **Deleting a series mid-run does not stop the run.** `show_episodes.series_id`
-  is `ON DELETE CASCADE`, so the episode rows and their ingest tickets go with
-  it, while a job already past `findEpisodeById` keeps its local copy and
-  publishes the finished audio to a podcast Alia has forgotten.
+  is `ON DELETE CASCADE`, so the episode rows and their tickets go with it,
+  while a job already past `findEpisodeById` keeps its local copy. It now fails
+  SAFELY rather than publishing into a void: the ingest 404s, the pipeline marks
+  the episode failed and refunds, and its attempt to abandon the draft 404s too,
+  which `syraLetGoOf`'s sibling logic in the worker treats as already gone.
+- **Unpublish is still not delete, and still does not hide a show from its
+  owner.** `status: 'unavailable'` 404s browse, search, `GET /api/podcasts/:id`
+  and the RSS feed through `findPodcastForViewer`, but `GET /api/podcasts/mine`
+  filters on nothing, so an unpublished show stays in the creator's library.
+  Nor does it stop playback: the media gate reads `visibility`, not `status`.
 
-Until Syra offers a delete, the UI's job is to not overstate what its button
-does: the control says **"Remove from Alia"**, a confirmation says the podcast
-stays published on Syra BEFORE the press, and the success message is sent only
-after the request actually succeeded.
+The UI matches what the button does. The control confirms **"Delete this show
+everywhere?"**, names what is destroyed before the press, and reports success
+only after the request actually succeeded.
 
 ## The ingest ticket, and why it cannot be a service token
 

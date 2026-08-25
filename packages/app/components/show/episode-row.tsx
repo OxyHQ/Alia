@@ -205,16 +205,16 @@ export function EpisodeRow({ episode, onDelete }: EpisodeRowProps) {
       </View>
 
       {/*
-        "from Alia" is load-bearing, not padding. A bare bin beside an episode
-        reads as "delete this recording", and what it does is narrower: Alia
-        forgets the run, the episode stays published on Syra. The show's own
-        footer control has said "from Alia" since it existed; this one said
-        only "Remove {name}", which is the promise a person acted on.
+        The qualifier is load-bearing, not padding, and it had to change when
+        the action did. This used to say "from Alia" because the recording
+        survived on Syra; it now deletes there first and here second, so a
+        label that still said "from Alia" would UNDERSTATE what a screen reader
+        announces before someone presses it. "everywhere" is the whole promise.
       */}
       <Pressable
         onPress={handleDelete}
         accessibilityRole="button"
-        accessibilityLabel={`Remove ${name} from Alia`}
+        accessibilityLabel={`Delete ${name} everywhere`}
         className="h-8 w-8 items-center justify-center rounded-full active:opacity-70 web:opacity-0 web:transition-opacity web:group-hover:opacity-100"
       >
         <Trash2 size={15} className="text-muted-foreground" />
