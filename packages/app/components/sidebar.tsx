@@ -73,6 +73,7 @@ import {
   useSidebarCollapse,
 } from "@/components/sidebar/primitives";
 import { ConversationItem } from "@/components/sidebar/conversation-item";
+import { AgentRow } from "@/components/sidebar/agent-row";
 import { FolderSection } from "@/components/sidebar/folder-section";
 import { HistoryList } from "@/components/sidebar/history-list";
 import type { Project } from "@/lib/stores/projects-store";
@@ -622,14 +623,15 @@ export const Sidebar = React.memo(function Sidebar() {
                   ) : (
                     myAgents.map((agent) => {
                       const handle = agentHandle(agent);
-                      const name = agentDisplayName(agent);
                       return (
-                        <SidebarRow
+                        <AgentRow
                           key={agent._id}
-                          icon={Users}
-                          leading={<AgentGlyph size={18} color={agent.color} />}
-                          label={name}
-                          accessibilityLabel={handle.length > 0 ? `@${handle}` : name}
+                          name={agentDisplayName(agent)}
+                          handle={handle}
+                          color={agent.color}
+                          lastMessage={agent.lastMessage}
+                          lastMessageAt={agent.lastMessageAt}
+                          emptyLabel={t('sidebar.noAgentMessages')}
                           onPress={() => handleOpenAgentThread(handle)}
                         />
                       );

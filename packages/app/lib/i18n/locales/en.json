@@ -252,7 +252,8 @@
     "previous7Days": "Previous 7 days",
     "earlier": "Earlier",
     "collapse": "Collapse sidebar",
-    "expand": "Expand sidebar"
+    "expand": "Expand sidebar",
+    "noAgentMessages": "No messages yet"
   },
   "billing": {
     "title": "Billing",
