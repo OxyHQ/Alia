@@ -648,12 +648,6 @@ const PROVIDER_IMPORT_ALLOWLIST: readonly { from: string; to: string; via: Modul
   },
   {
     from: 'packages/api/src/routes/v1/voice.ts',
-    to: 'packages/api/src/internal/providers/lib/types',
-    via: 'import',
-    why: 'Type-only. The OpenAI-shaped tool type used by the realtime session.',
-  },
-  {
-    from: 'packages/api/src/routes/v1/voice.ts',
     to: 'packages/api/src/internal/providers/lib/voice-session-manager',
     via: 'import',
     why: 'A route driving a provider realtime session directly. Moves to Relay (#139 ws7).',
@@ -799,7 +793,7 @@ const PROVIDER_IMPORT_ALLOWLIST: readonly { from: string; to: string; via: Modul
  * produced a plausible wrong answer that still compiled. The same trap caught
  * ws5's rebase, which is why this paragraph is a rule and not a history.
  */
-const PROVIDER_IMPORT_ALLOWLIST_SIZE = 52;
+const PROVIDER_IMPORT_ALLOWLIST_SIZE = 51;
 
 function observedProviderImports(): { from: string; to: string; via: ModuleRef['via'] }[] {
   const seen = new Map<string, { from: string; to: string; via: ModuleRef['via'] }>();

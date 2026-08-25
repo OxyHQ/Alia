@@ -89,6 +89,7 @@ import {
   GRANTS_EVERYTHING,
   readCapabilityGrants,
   type CapabilityGrantSet,
+  type InstancedCapabilityFamily,
 } from '../domain/capability-grants.js';
 import type { DeviceInfo } from './tools/device-info.js';
 import {
@@ -198,6 +199,26 @@ export interface ForUserOptions {
    */
   isLocalRuntime: boolean;
   /**
+   * The INSTANCED families this caller will actually use.
+   *
+   * `undefined` means all three, which is every caller that existed before
+   * this. `[]` means none, and the three sources are then not FETCHED at all.
+   *
+   * ## It is a fetch decision, never a permission one
+   *
+   * Nothing here can widen what a turn may reach: the grants already decided
+   * that, and this can only narrow further. It exists because a caller that is
+   * going to DISCARD connector tools should not pay three network round trips
+   * to build them first — and `routes/v1/voice.ts` is exactly that: a channel
+   * with no surface for a connector's output, on a path where somebody is
+   * waiting to speak.
+   *
+   * `mcpServerId` still narrows WITHIN `mcp` when `mcp` is in the set; the two
+   * answer different questions — which families to fetch at all, and which
+   * connector the person picked.
+   */
+  instancedSources?: readonly InstancedCapabilityFamily[];
+  /**
    * One hosted MCP connector selected for this turn, by the person composing it.
    *
    * `undefined` keeps the compatibility behaviour (all runnable connectors),
@@ -243,6 +264,7 @@ export class ToolPipeline {
       webSearch,
       mcpServerId,
       isLocalRuntime,
+      instancedSources,
     } = opts;
 
     const toolNameMapping = new Map<string, string>();
@@ -422,12 +444,24 @@ export class ToolPipeline {
      * discarding: an empty selection short-circuits inside each source, so an
      * agent granted no connector costs no round trip and no cache entry.
      */
+    /**
+     * A family the CALLER declined is not fetched, which is the whole point of
+     * `instancedSources`: three round trips to build tools that are about to be
+     * thrown away is latency somebody is standing in.
+     */
+    const wants = (family: InstancedCapabilityFamily): boolean =>
+      instancedSources === undefined || instancedSources.includes(family);
+
     const [mcpTools, integrationTools, oxyServiceTools] = actsForPerson
       ? await Promise.all([
-          buildMcpTools(userId, mcpSelection(mcpServerId, grants)).catch(bulkFailure('mcp')),
-          buildIntegrationTools(userId, grants.instances('integration') ?? undefined)
-            .catch(bulkFailure('integration')),
-          accessToken === undefined
+          wants('mcp')
+            ? buildMcpTools(userId, mcpSelection(mcpServerId, grants)).catch(bulkFailure('mcp'))
+            : {},
+          wants('integration')
+            ? buildIntegrationTools(userId, grants.instances('integration') ?? undefined)
+                .catch(bulkFailure('integration'))
+            : {},
+          accessToken === undefined || !wants('oxy_service')
             ? {}
             : buildOxyServiceTools(userId, accessToken, grants.instances('oxy_service') ?? undefined)
                 .catch(bulkFailure('oxy-service')),
