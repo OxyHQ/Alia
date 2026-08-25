@@ -48,8 +48,6 @@ export interface CreateBotAccountInput {
   /** The agent's name, as a person reads it. */
   displayName: string;
   bio?: string;
-  /** An Oxy asset id, from `POST /agents/avatar/generate`. Never a URL. */
-  avatar?: string;
   /**
    * Create the account already opted OUT of discovery, sent to Oxy as
    * `CreateAccountInput.isPrivateAccount`. The create screen sets it because it
@@ -76,7 +74,6 @@ export async function createBotAccount(input: CreateBotAccountInput): Promise<Ac
         username,
         name: { displayName: input.displayName },
         ...(input.bio !== undefined && { bio: input.bio }),
-        ...(input.avatar !== undefined && { avatar: input.avatar }),
         ...(input.private !== undefined && { isPrivateAccount: input.private }),
       });
     } catch (error: unknown) {

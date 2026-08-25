@@ -222,7 +222,8 @@ describe('the create screen', () => {
     vi.clearAllMocks();
   });
 
-  it('asks for a private account, because the agent it builds is a draft', async () => {
+  /** Drives the screen through one whole agent creation, from prompt to row. */
+  async function createOneAgent() {
     mocks.post.mockImplementation((route: string) => {
       if (route === '/agents/generate') {
         return Promise.resolve({
@@ -239,7 +240,7 @@ describe('the create screen', () => {
           },
         });
       }
-      return Promise.reject(new Error('no avatar service in this test'));
+      return Promise.reject(new Error(`the create screen called an unexpected route: ${route}`));
     });
     mocks.createAccount.mockResolvedValue(account);
     mocks.createAgent.mockResolvedValue({ _id: 'agent_1' });
@@ -258,9 +259,30 @@ describe('the create screen', () => {
     await act(async () => {
       root.findByType(PromptInput).props.onSubmit();
     });
+  }
+
+  it('asks for a private account, because the agent it builds is a draft', async () => {
+    await createOneAgent();
 
     expect(mocks.createAccount).toHaveBeenCalledWith(
       expect.objectContaining({ kind: 'bot', isPrivateAccount: true }),
     );
+  });
+
+  /**
+   * An agent's likeness is `components/ui/agent-glyph.tsx` drawn in its
+   * account's own color, and there is no image anywhere in it — so the
+   * generate-an-avatar round trip is gone and nothing is minted with one.
+   *
+   * Asserted on the WHOLE list of routes rather than on the absence of the one
+   * that was removed: "`/agents/avatar/generate` was not called" would stay
+   * green if the step came back under another name, and an avatar step is
+   * exactly the kind of thing that comes back renamed.
+   */
+  it('mints the account with no avatar, and asks Alia for nothing but the config', async () => {
+    await createOneAgent();
+
+    expect(mocks.post.mock.calls.map((call) => call[0])).toEqual(['/agents/generate']);
+    expect(mocks.createAccount.mock.calls[0]?.[0]).not.toHaveProperty('avatar');
   });
 });

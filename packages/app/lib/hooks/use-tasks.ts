@@ -5,7 +5,7 @@ import apiClient from '../api/client';
 /**
  * The agent a task ran, as the listing embeds it.
  *
- * `name`, `handle` and `avatar` are the bot ACCOUNT's — the API resolves them
+ * `name`, `handle` and `color` are the bot ACCOUNT's — the API resolves them
  * from Oxy for the whole page in one call — so all three are nullable: an
  * account Oxy cannot resolve leaves them null and the card still draws, because
  * the task, the plan and the stats are Alia's own.
@@ -16,7 +16,7 @@ export interface TaskAgentRef {
   oxyAccountId: string;
   name: string | null;
   handle: string | null;
-  avatar: string | null;
+  color: string | null;
 }
 
 export interface TaskSession {

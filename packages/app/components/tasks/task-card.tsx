@@ -6,7 +6,7 @@ import { ChevronDown, ChevronUp, Loader } from 'lucide-react-native';
 import { useColorScheme } from '@/lib/useColorScheme';
 import type { TaskSession } from '@/lib/hooks/use-tasks';
 import type { AgentActivityState } from '@/lib/hooks/use-agent-activity';
-import { AgentAvatarRow } from './agent-avatar-row';
+import { AgentGlyphRow } from './agent-glyph-row';
 import { TaskTimelineStep } from './task-timeline-step';
 import { getStatusConfig, formatDuration, getToolPillLabel } from '@/lib/task-utils';
 import { agentDisplayName } from "@/lib/agents/identity";
@@ -61,17 +61,17 @@ export const TaskCard = React.memo(function TaskCard({
   const currentToolName = activity?.currentAction?.toolName ?? null;
   const currentToolLabel = currentToolName ? getToolPillLabel(currentToolName) : null;
 
-  // Build agents list for avatar row
+  // Build the agents list for the mark row
   const agents = useMemo(() => {
     // The names are Oxy's and may be unresolved, so the row is built through the
-    // shared fallback rather than each avatar inventing its own.
-    const list: Array<{ _id: string; name: string; avatar?: string }> = [];
+    // shared fallback rather than each mark inventing its own.
+    const list: Array<{ _id: string; name: string; color: string | null }> = [];
     const push = (agent: TaskAgentRef) => {
       if (list.some((a) => a._id === agent._id)) return;
       list.push({
         _id: agent._id,
         name: agentDisplayName(agent),
-        ...(agent.avatar !== null && { avatar: agent.avatar }),
+        color: agent.color,
       });
     };
     if (task.agentId) push(task.agentId);
@@ -82,9 +82,9 @@ export const TaskCard = React.memo(function TaskCard({
   return (
     <Animated.View entering={FadeIn.duration(300)}>
       <Pressable onPress={onPress} className="active:opacity-70">
-        {/* Header: agent avatars + status badge + elapsed time */}
+        {/* Header: agent marks + status badge + elapsed time */}
         <View className="flex-row items-center justify-between mb-2">
-          <AgentAvatarRow agents={agents} />
+          <AgentGlyphRow agents={agents} />
           <View className="flex-row items-center gap-2">
             {elapsed ? (
               <Text className="text-xs text-muted-foreground">{elapsed}</Text>

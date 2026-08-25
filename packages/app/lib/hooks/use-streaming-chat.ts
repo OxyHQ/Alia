@@ -456,7 +456,7 @@ export function useStreamingChat(apiUrl: string, conversationId?: string, reason
                         agentInfo: {
                           id: am.agentId,
                           name: am.agentName,
-                          avatar: am.agentAvatar,
+                          color: am.agentColor ?? null,
                           handle: am.agentHandle,
                         },
                       };
@@ -783,7 +783,7 @@ export function useStreamingChat(apiUrl: string, conversationId?: string, reason
                     agentInfo: {
                       id: am.agentId,
                       name: am.agentName,
-                      avatar: am.agentAvatar,
+                      color: am.agentColor ?? null,
                       handle: am.agentHandle,
                     },
                   };

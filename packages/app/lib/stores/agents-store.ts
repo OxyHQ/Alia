@@ -31,7 +31,7 @@ export interface ArchetypeConfig {
  * An agent, as the API serves it.
  *
  * An agent IS an Oxy `bot` account: `oxyAccountId` is the seam, and `name`,
- * `handle` and `avatar` are READ from that account rather than stored by Alia.
+ * `handle` and `color` are READ from that account rather than stored by Alia.
  * They are nullable because the API resolves them through a batched Oxy lookup
  * that FAILS OPEN — an account it cannot resolve leaves the three null and the
  * listing still renders, because the tagline, the rating and the price are
@@ -39,6 +39,10 @@ export interface ArchetypeConfig {
  *
  * They are also READ-ONLY. `AgentUpdate` cannot carry them and `PATCH /agents`
  * refuses them outright: editing an agent's name is `updateAccount` at Oxy.
+ *
+ * There is no avatar. An agent's likeness is `components/ui/agent-glyph.tsx`
+ * drawn in `color` — so an agent with no color resolved is drawn in the theme's
+ * own, which is the same fallback an unresolved name takes.
  */
 export interface Agent {
   _id: string;
@@ -46,7 +50,7 @@ export interface Agent {
   oxyAccountId: string;
   name: string | null;
   handle: string | null;
-  avatar: string | null;
+  color: string | null;
   tagline: string;
   description: string;
   /** The Oxy account that created the agent. An id, never a name. */

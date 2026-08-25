@@ -12,7 +12,7 @@ import { processMessage } from "@/lib/message-processor";
 import { cn } from "@/lib/utils";
 import { ThinkingIndicator, AliaMark, type AliaMarkState } from '@alia.onl/sdk';
 import { useColorScheme } from "@/lib/useColorScheme";
-import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { AgentGlyph } from "@/components/ui/agent-glyph";
 import { Copy, ThumbsUp, ThumbsDown, Pencil, Check, Volume2, Square, Music } from "lucide-react-native";
 import * as DropdownMenu from "@/components/ui/dropdown-menu";
 import { useTTS } from "@/lib/hooks/use-tts";
@@ -78,7 +78,7 @@ type Message = {
   agentInfo?: {
     id: string;
     name: string;
-    avatar: string | null;
+    color?: string | null;
     handle: string;
   };
   audioUrl?: string;
@@ -304,18 +304,8 @@ const MessageRow = React.memo(function MessageRow({
               {/* Agent identity or cohost label (Alia face is floating) */}
               {m.agentInfo ? (
                 <View className="flex-row items-center gap-2 mb-0.5">
-                  <Avatar className="h-5 w-5">
-                    {m.agentInfo.avatar ? (
-                      <AvatarImage source={{ uri: m.agentInfo.avatar }} />
-                    ) : (
-                      <AvatarFallback>
-                        <Text className="text-[10px] font-bold text-foreground">
-                          {m.agentInfo.name.charAt(0)}
-                        </Text>
-                      </AvatarFallback>
-                    )}
-                  </Avatar>
-                  <Text className="text-xs font-semibold" style={{ color: '#f97316' }}>
+                  <AgentGlyph size={20} color={m.agentInfo.color} label={m.agentInfo.name} />
+                  <Text className="text-xs font-semibold text-foreground">
                     {m.agentInfo.name}
                   </Text>
                 </View>

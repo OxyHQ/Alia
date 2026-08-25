@@ -72,36 +72,23 @@ export default function CreateAgentScreen() {
       });
       const config = genRes.data;
 
-      // Step 2: Generate avatar (graceful degradation).
-      //
-      // The API stores it as an OXY ASSET and answers with the asset id, which
-      // is what an account's `avatar` is. The previous S3 key was an address
-      // only Alia could serve, on a record Oxy owns.
-      let avatarAssetId: string | undefined;
-      try {
-        const avatarRes = await apiClient.post(
-          API_ROUTES.agents.generateAvatar,
-          { name: config.name, description: config.description },
-          { timeout: 60000 }
-        );
-        avatarAssetId = avatarRes.data.avatarAssetId;
-      } catch {
-        // Continue without avatar
-      }
-
       /**
-       * Step 3: mint the agent's IDENTITY at Oxy — a `bot` account under the
+       * Step 2: mint the agent's IDENTITY at Oxy — a `bot` account under the
        * signed-in person's own tree, which makes them its owner.
        *
-       * This is where the agent's name, handle and avatar now live. Alia never
-       * sees them again except by reading them back.
+       * This is where the agent's name and handle now live. Alia never sees
+       * them again except by reading them back.
+       *
+       * There is no avatar step. An agent's likeness is
+       * `components/ui/agent-glyph.tsx` drawn in the account's own `User.color`
+       * — a field `createAccount` cannot carry, so a new agent starts out drawn
+       * in the theme's color and stays that way until Oxy can set one.
        */
       const account = await createBotAccount({
         createAccount,
         username: config.suggestedUsername,
         displayName: config.name,
         bio: config.tagline,
-        ...(avatarAssetId !== undefined && { avatar: avatarAssetId }),
         // This screen builds a DRAFT (`isPublished: false` below), so the
         // account is minted undiscoverable to match: kept out of Oxy's global
         // people search from the moment it exists, rather than listed there
@@ -109,7 +96,7 @@ export default function CreateAgentScreen() {
         private: true,
       });
 
-      // Step 4: create the RUNTIME, bound to that account.
+      // Step 3: create the RUNTIME, bound to that account.
       const agent = await createAgent({
         oxyAccountId: account.accountId,
         tagline: config.tagline,
