@@ -57,6 +57,21 @@ vi.mock('../../synthesize-speech.js', () => ({
   ),
 }));
 
+/**
+ * The sound-effect chain, stubbed at the SAME seam speech is stubbed at.
+ *
+ * Left real it would reach `provider_keys` on the test database, find nothing
+ * and answer null — which is the production failure and would make every
+ * assertion below about an episode with no effects, quietly.
+ */
+let effectsWork = true;
+const synthesizeSoundEffect = vi.fn(async (_options: { prompt: string }) =>
+  effectsWork ? { audio: Buffer.from('fake-sfx-bytes'), format: 'mp3' } : null,
+);
+vi.mock('../../synthesize-sound-effect.js', () => ({
+  synthesizeSoundEffect: (options: { prompt: string }) => synthesizeSoundEffect(options),
+}));
+
 vi.mock('../../s3.js', () => ({
   uploadToS3: vi.fn(async () => 'test/show-segments/key.mp3'),
   deleteS3Objects: vi.fn(async () => 0),
@@ -93,8 +108,10 @@ afterAll(async () => {
 beforeEach(async () => {
   scriptReply = null;
   synthesisWorks = true;
+  effectsWork = true;
   measuredDurationMs = 90_000;
   ingestEpisode.mockClear();
+  synthesizeSoundEffect.mockClear();
   /**
    * Scoped to THIS file's account, never a bare truncate. One database serves
    * the whole run and vitest runs FILES in parallel, so an unpredicated delete
@@ -156,6 +173,91 @@ const GOOD_SCRIPT = JSON.stringify({
     { type: 'dialogue', speaker: 'Sarah', text: 'Glad to be here.' },
     { type: 'dialogue', speaker: 'Marcus', text: 'So, what happened this week?' },
   ],
+});
+
+/**
+ * The same script with the sound cues a real one carries: an intro, a
+ * transition and an outro, which is what `script-prompt.ts` asks for on every
+ * episode.
+ */
+const SCRIPT_WITH_SFX = JSON.stringify({
+  description: 'A short episode.',
+  summary: 'A longer summary of the episode.',
+  recap: 'They discussed what happened this week.',
+  segments: [
+    { type: 'sfx', speaker: '', text: '', sfxPrompt: 'upbeat show intro jingle, 4 seconds' },
+    { type: 'dialogue', speaker: 'Marcus', text: 'Welcome back to the show.' },
+    { type: 'sfx', speaker: '', text: '', sfxPrompt: 'smooth transition whoosh, 2 seconds' },
+    { type: 'dialogue', speaker: 'Sarah', text: 'Glad to be here.' },
+    { type: 'dialogue', speaker: 'Marcus', text: 'So, what happened this week?' },
+    { type: 'sfx', speaker: '', text: '', sfxPrompt: 'warm outro sting, 3 seconds' },
+  ],
+});
+
+/**
+ * THE ENTRYPOINT, which is the assertion every unit test of the failover loop
+ * cannot make.
+ *
+ * `synthesize-sound-effect.ts` can be perfectly correct and never reached — a
+ * mechanism green and inert — and that is close to what shipped: the pipeline
+ * called one provider inline and no chain existed to walk. So this asserts the
+ * pipeline ASKS, once per cue, with the script's own words, and that what comes
+ * back reaches the finished file.
+ */
+describe('the pipeline asks the sound-effect chain for every cue the script wrote', () => {
+  it('sends each sfxPrompt, and puts the audio into the join', async () => {
+    await fund(50);
+    const episodeId = await queueEpisode();
+    scriptReply = SCRIPT_WITH_SFX;
+
+    const { runShowPipeline } = await import('../show-pipeline.js');
+    await runShowPipeline(episodeId);
+
+    expect(synthesizeSoundEffect).toHaveBeenCalledTimes(3);
+    expect(synthesizeSoundEffect.mock.calls.map((call) => call[0].prompt)).toEqual([
+      'upbeat show intro jingle, 4 seconds',
+      'smooth transition whoosh, 2 seconds',
+      'warm outro sting, 3 seconds',
+    ]);
+
+    /**
+     * And the bytes are really in the episode. `concatenateAudioSegments` is
+     * stubbed to `Buffer.concat`, so the blob handed to Syra is the segments in
+     * playback order — the one place an effect that was generated but dropped
+     * on the floor would show up.
+     */
+    const published = ingestEpisode.mock.calls[0] as unknown as [unknown, Blob];
+    const joined = Buffer.from(await published[1].arrayBuffer()).toString();
+    expect(joined).toBe(
+      'fake-sfx-bytes' +
+        'fake-mp3-bytes' +
+        'fake-sfx-bytes' +
+        'fake-mp3-bytes' +
+        'fake-mp3-bytes' +
+        'fake-sfx-bytes',
+    );
+    expect((await findEpisodeById(db, episodeId))?.status).toBe('completed');
+  });
+
+  it('still publishes when no effect can be produced, because a whoosh is not the show', async () => {
+    await fund(50);
+    const episodeId = await queueEpisode();
+    scriptReply = SCRIPT_WITH_SFX;
+    effectsWork = false;
+
+    const { runShowPipeline } = await import('../show-pipeline.js');
+    await runShowPipeline(episodeId);
+
+    const episode = await findEpisodeById(db, episodeId);
+    expect(episode?.status).toBe('completed');
+    expect(ingestEpisode).toHaveBeenCalledTimes(1);
+
+    // The dialogue survives, in order, with the three cues missing.
+    const published = ingestEpisode.mock.calls[0] as unknown as [unknown, Blob];
+    expect(Buffer.from(await published[1].arrayBuffer()).toString()).toBe(
+      'fake-mp3-bytes' + 'fake-mp3-bytes' + 'fake-mp3-bytes',
+    );
+  });
 });
 
 describe('a failure leaves the balance exactly where it was', () => {
