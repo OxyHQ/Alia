@@ -261,7 +261,7 @@ export const AliaChatSheet = forwardRef<AliaChatSheetRef, AliaChatSheetProps>(
                   header={({ markState, hasMessages, clear }) => (
                     <View style={styles.header}>
                       <View style={styles.headerLeft}>
-                        <IdentityMark size={28} state={markState} />
+                        <IdentityMark size={28} state={markState} spinOnPress />
                         <Text className="text-lg font-semibold text-foreground">
                           Alia
                         </Text>
