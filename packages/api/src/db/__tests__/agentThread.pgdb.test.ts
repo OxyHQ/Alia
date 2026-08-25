@@ -1,20 +1,27 @@
 /**
- * `/a/:username` is ONE thread per (person, agent), against a real server.
+ * A thread with an agent is MANY conversations, read as one — against a real
+ * server, because every property here is the database's.
  *
- * Two properties, and the second is the one that would hurt:
+ * ## The property this file exists for, and the one it replaced
  *
- *  - **Opening the thread twice answers the SAME conversation.** Without it,
- *    `/a/pepe` is an ordinary "new chat" button wearing a permanent URL, and
- *    every visit buries the previous one in the sidebar.
- *  - **Two people talking to one agent see two histories.** A lookup keyed on
- *    `agent_id` alone passes every single-user test ever written and shows one
- *    person another person's conversation. It is the worst thing in this
- *    feature and it is one missing `AND` away at all times.
+ * An earlier version of this feature made `(oxy_user_id, agent_id)` UNIQUE and
+ * this file asserted that opening the thread twice answered the same row. That
+ * was the wrong model, and the reason is worth stating where the test is:
+ * **what the model is given as context is the ACTIVE conversation, not the
+ * whole thread**, so starting a new stretch is what keeps that context bounded.
+ * One row forever grows it without limit and makes "start a new conversation" a
+ * line that draws and changes nothing.
  *
- * The unique index is asserted through the DATABASE rather than through the
- * repository, because the repository's resolve-first shape means it would never
- * attempt the duplicate — so a test that only went through it would be green
- * with no index at all.
+ * So the first assertion below is the exact inverse of the old one: a person may
+ * hold MANY conversations with one agent, and the thread is all of them in
+ * order. It goes red against 0046's unique index, which is what 0048 removes.
+ *
+ * ## What has not changed, and must not
+ *
+ * **Two people talking to one agent see two histories.** A read keyed on
+ * `agent_id` alone passes every single-user test ever written and shows one
+ * person another person's conversation. It is one missing `AND` away at all
+ * times, and it is now three reads rather than one, so it is asserted on each.
  *
  * Every account, agent and conversation id is unique to its test: the pgdb suite
  * shares one database across every file in it.
@@ -22,24 +29,25 @@
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { sql } from 'drizzle-orm';
-import { isUniqueViolation, constraintNameOf } from '@oxyhq/db';
 import { closePostgres, connectPostgres, type ApiDatabase } from '../index';
 import { conversations } from '../schema/chat';
 import {
   createConversation,
-  deleteConversation,
-  findAgentThread,
-  findDuplicateAgentThreads,
-  resolveAgentThread,
+  findActiveThreadConversation,
+  listThreadConversations,
 } from '../chat/conversationRepository';
 import {
-  deleteConversationBreaks,
-  insertConversationBreak,
-  listConversationBreaks,
-} from '../chat/conversationBreakRepository';
-import { deleteMessages, insertMessages, listMessages } from '../chat/messageRepository';
+  decodeThreadCursor,
+  encodeThreadCursor,
+  insertMessages,
+  listThreadPage,
+  listThreadWindow,
+  searchThread,
+} from '../chat/messageRepository';
 
 let db: ApiDatabase;
+
+const SUITE = `thread-${process.pid}`;
 
 beforeAll(() => {
   const connected = connectPostgres(process.env.DATABASE_URL);
@@ -51,218 +59,257 @@ afterAll(async () => {
   await closePostgres();
 });
 
-/** Open a thread the way the route does: a fresh id it may or may not use. */
-function open(oxyUserId: string, agentId: string, titleOnCreate = 'The Researcher') {
-  return resolveAgentThread(db, {
-    oxyUserId,
-    agentId,
-    conversationId: `thread-${Math.random().toString(36).slice(2)}`,
-    titleOnCreate,
-  });
+/** A stretch of a thread: an ordinary conversation carrying the agent. */
+async function stretch(oxyUserId: string, agentId: string, id: string, createdAt: string) {
+  await db.execute(sql`
+    insert into ${conversations} (id, oxy_user_id, conversation_id, title, agent_id, created_at)
+    values (${`${id}-row`}, ${oxyUserId}, ${id}, 'New chat', ${agentId}, ${createdAt})
+  `);
+  return id;
 }
 
-describe('one thread per (person, agent)', () => {
-  it('answers the same conversation when the same person opens it twice', async () => {
-    const first = await open('thread-owner-a', 'agent-a');
-    const second = await open('thread-owner-a', 'agent-a');
+/** One turn, at a stated instant, so ordering is a fact rather than a race. */
+async function say(
+  oxyUserId: string,
+  conversationId: string,
+  seq: number,
+  content: string,
+  at: string,
+  role: 'user' | 'assistant' = 'user',
+) {
+  await insertMessages(db, [
+    { conversationId, oxyUserId, role, content, seq, createdAt: new Date(at) },
+  ]);
+}
 
-    expect(second.conversationId).toBe(first.conversationId);
-    expect(second.id).toBe(first.id);
+describe('a person may hold many conversations with one agent', () => {
+  it('accepts a second conversation for the same pair', async () => {
+    // The inverse of what the unique index enforced. Red against 0046, which is
+    // exactly what 0048 exists to take back out.
+    const user = `${SUITE}-many`;
+    await stretch(user, 'agent-many', `${SUITE}-m1`, '2026-08-01T10:00:00Z');
+    await stretch(user, 'agent-many', `${SUITE}-m2`, '2026-08-01T11:00:00Z');
+    await stretch(user, 'agent-many', `${SUITE}-m3`, '2026-08-01T12:00:00Z');
 
-    // And there really is one row, not two the reader is picking between.
-    const [{ n }] = await db
-      .select({ n: sql<number>`count(*)::int` })
-      .from(conversations)
-      .where(sql`oxy_user_id = 'thread-owner-a' and agent_id = 'agent-a'`);
-    expect(n).toBe(1);
-  });
+    const spine = await listThreadConversations(db, user, 'agent-many');
 
-  it('gives two people two threads, with two histories', async () => {
-    const mine = await open('thread-owner-b', 'agent-shared');
-    const theirs = await open('thread-stranger-b', 'agent-shared');
-
-    expect(theirs.conversationId).not.toBe(mine.conversationId);
-
-    await insertMessages(db, [
-      {
-        conversationId: mine.conversationId,
-        oxyUserId: 'thread-owner-b',
-        role: 'user',
-        content: 'my secret',
-        seq: 0,
-      },
-      {
-        conversationId: theirs.conversationId,
-        oxyUserId: 'thread-stranger-b',
-        role: 'user',
-        content: 'their secret',
-        seq: 0,
-      },
+    expect(spine.map((c) => c.conversationId)).toEqual([
+      `${SUITE}-m1`,
+      `${SUITE}-m2`,
+      `${SUITE}-m3`,
     ]);
-
-    const mineRead = await listMessages(db, 'thread-owner-b', mine.conversationId);
-    const theirsRead = await listMessages(db, 'thread-stranger-b', theirs.conversationId);
-
-    expect(mineRead.map((m) => m.content)).toEqual(['my secret']);
-    expect(theirsRead.map((m) => m.content)).toEqual(['their secret']);
-
-    // The lookup is scoped by BOTH columns, so my open never reaches theirs.
-    const resolved = await findAgentThread(db, 'thread-owner-b', 'agent-shared');
-    expect(resolved?.conversationId).toBe(mine.conversationId);
-
-    await deleteMessages(db, 'thread-owner-b', mine.conversationId);
-    await deleteMessages(db, 'thread-stranger-b', theirs.conversationId);
   });
 
-  it('titles a new thread with the agent, and marks it manually titled', async () => {
-    // A permanent thread is not "New chat", and the auto-titler must not rename
-    // it to whatever the first exchange happened to be about.
-    const thread = await open('thread-owner-c', 'agent-c', 'Deep Reader');
+  it('answers the NEWEST conversation as the active one', async () => {
+    // What `/a/:username` sends to. Not the oldest, and not "the" one — a
+    // thread has no single row.
+    const user = `${SUITE}-active`;
+    await stretch(user, 'agent-active', `${SUITE}-a1`, '2026-08-01T10:00:00Z');
+    await stretch(user, 'agent-active', `${SUITE}-a2`, '2026-08-01T12:00:00Z');
+    await stretch(user, 'agent-active', `${SUITE}-a3`, '2026-08-01T11:00:00Z');
 
-    expect(thread.title).toBe('Deep Reader');
-    expect(thread.isManualTitle).toBe(true);
-    expect(thread.agentId).toBe('agent-c');
+    const active = await findActiveThreadConversation(db, user, 'agent-active');
+
+    expect(active?.conversationId).toBe(`${SUITE}-a2`);
   });
 
-  it('keeps a thread apart from the same person’s other agents', async () => {
-    const one = await open('thread-owner-d', 'agent-d1');
-    const two = await open('thread-owner-d', 'agent-d2');
-
-    expect(two.conversationId).not.toBe(one.conversationId);
+  it('answers nothing when the two have never spoken', async () => {
+    expect(await findActiveThreadConversation(db, `${SUITE}-never`, 'agent-never')).toBeUndefined();
   });
 
-  it('does not treat an ordinary conversation as a thread', async () => {
-    // Every conversation that is not an agent thread carries a NULL `agent_id`,
-    // and there are far more of those than of these. The partial index must not
-    // collect them, and the lookup must not answer one.
+  it('does not treat an ordinary conversation as part of any thread', async () => {
+    // Every conversation that is not an agent's carries a NULL `agent_id`, and
+    // there are far more of those than of these.
+    const user = `${SUITE}-plain`;
     await createConversation(db, {
-      oxyUserId: 'thread-owner-e',
-      conversationId: 'plain-conv-e',
+      oxyUserId: user,
+      conversationId: `${SUITE}-plain-1`,
       title: 'New chat',
       source: 'app',
     });
 
-    expect(await findAgentThread(db, 'thread-owner-e', 'agent-e')).toBeUndefined();
-    await deleteConversation(db, 'thread-owner-e', 'plain-conv-e');
+    expect(await listThreadConversations(db, user, 'agent-plain')).toEqual([]);
+    expect(await findActiveThreadConversation(db, user, 'agent-plain')).toBeUndefined();
   });
 });
 
-describe('the database refuses a second thread for one pair', () => {
-  it('rejects a duplicate `(oxy_user_id, agent_id)` insert', async () => {
-    await open('thread-owner-f', 'agent-f');
+describe('the thread reads as one history across the seams', () => {
+  const user = `${SUITE}-read`;
+  const agent = 'agent-read';
 
-    // Straight to the table, bypassing the resolve-first repository — which is
-    // the only way to ask the INDEX the question. The repository would answer
-    // the existing row and never attempt the insert, so a green test through it
-    // would say nothing about whether the index exists.
-    const duplicate = createConversation(db, {
-      oxyUserId: 'thread-owner-f',
-      conversationId: 'second-thread-f',
-      title: 'a second thread',
-      source: 'app',
-      agentId: 'agent-f',
-    });
-
-    await expect(duplicate).rejects.toSatisfy((error: unknown) => {
-      return isUniqueViolation(error) && constraintNameOf(error) === 'conversations_oxy_user_agent_id_key';
-    });
+  beforeAll(async () => {
+    // Two stretches. The seam is between turn 2 and turn 3, and nothing records
+    // it — it is deduced from which conversation each message is in.
+    await stretch(user, agent, `${SUITE}-r1`, '2026-08-01T10:00:00Z');
+    await stretch(user, agent, `${SUITE}-r2`, '2026-08-01T12:00:00Z');
+    await say(user, `${SUITE}-r1`, 0, 'one', '2026-08-01T10:00:00Z');
+    await say(user, `${SUITE}-r1`, 1, 'two', '2026-08-01T10:00:01Z', 'assistant');
+    await say(user, `${SUITE}-r2`, 0, 'three', '2026-08-01T12:00:00Z');
+    await say(user, `${SUITE}-r2`, 1, 'four', '2026-08-01T12:00:01Z', 'assistant');
   });
 
-  it('admits many NULL `agent_id` rows for one person', async () => {
-    // The other half, and the reason the index is PARTIAL: without the
-    // predicate this assertion would still pass — Postgres treats NULLs as
-    // distinct — so what it really pins is that the predicate did not
-    // accidentally become `agent_id IS NULL`, which would forbid a person from
-    // holding two ordinary conversations.
-    for (const id of ['plain-g1', 'plain-g2', 'plain-g3']) {
-      await createConversation(db, {
-        oxyUserId: 'thread-owner-g',
-        conversationId: id,
-        title: 'New chat',
-        source: 'app',
-      });
-    }
+  it('serves every message of every stretch, oldest first', async () => {
+    const page = await listThreadPage(db, { oxyUserId: user, agentId: agent, limit: 10 });
 
-    const [{ n }] = await db
-      .select({ n: sql<number>`count(*)::int` })
-      .from(conversations)
-      .where(sql`oxy_user_id = 'thread-owner-g'`);
-    expect(n).toBe(3);
-
-    for (const id of ['plain-g1', 'plain-g2', 'plain-g3']) {
-      await deleteConversation(db, 'thread-owner-g', id);
-    }
+    expect(page.messages.map((m) => m.content)).toEqual(['one', 'two', 'three', 'four']);
+    expect(page.hasMore).toBe(false);
   });
 
-  it('makes the duplicate state unreachable, and says so by trying', async () => {
-    /**
-     * The shape of the check run against production before 0046 was written,
-     * turned into an assertion with its own control built in.
-     *
-     * The planted pair is what makes it mean something: `findDuplicateAgentThreads`
-     * answering `[]` over a table nobody tried to corrupt is the same reading as
-     * a query that matches nothing. Here the statement below REALLY attempts two
-     * rows for one pair, and the index is what turns them into one — measured by
-     * mutation: drop `UNIQUE` from the migration and both assertions go red.
-     */
-    expect(await findDuplicateAgentThreads(db)).toEqual([]);
+  it('says which stretch each message is in, which IS the seam', async () => {
+    const page = await listThreadPage(db, { oxyUserId: user, agentId: agent, limit: 10 });
 
-    await db.execute(sql`
-      insert into ${conversations} (id, oxy_user_id, conversation_id, title, agent_id)
-      values ('dup-h-1', 'thread-owner-h', 'dup-h-1', 'one', 'agent-h'),
-             ('dup-h-2', 'thread-owner-h', 'dup-h-2', 'two', 'agent-h')
-      on conflict do nothing
-    `);
+    expect(page.messages.map((m) => m.threadConversationId)).toEqual([
+      `${SUITE}-r1`,
+      `${SUITE}-r1`,
+      `${SUITE}-r2`,
+      `${SUITE}-r2`,
+    ]);
+  });
 
-    expect(await findDuplicateAgentThreads(db)).toEqual([]);
-    const [{ n }] = await db
-      .select({ n: sql<number>`count(*)::int` })
-      .from(conversations)
-      .where(sql`oxy_user_id = 'thread-owner-h'`);
-    expect(n).toBeLessThanOrEqual(1);
+  it('pages backwards across a seam without repeating or skipping', async () => {
+    const newest = await listThreadPage(db, { oxyUserId: user, agentId: agent, limit: 2 });
+    expect(newest.messages.map((m) => m.content)).toEqual(['three', 'four']);
+    expect(newest.hasMore).toBe(true);
+
+    const oldest = newest.messages[0];
+    const older = await listThreadPage(db, {
+      oxyUserId: user,
+      agentId: agent,
+      limit: 2,
+      before: { at: oldest.createdAt, id: oldest.id },
+    });
+
+    // The page BEFORE the seam. Not one of these was in the page above, and
+    // nothing between them was dropped.
+    expect(older.messages.map((m) => m.content)).toEqual(['one', 'two']);
+    expect(older.hasMore).toBe(false);
+  });
+
+  it('reports hasMore from a fetched row, not from the page being full', async () => {
+    // The boundary `messages.length < limit` gets wrong: a thread whose length
+    // is an exact multiple of the page size. Four messages, page of four.
+    const exact = await listThreadPage(db, { oxyUserId: user, agentId: agent, limit: 4 });
+
+    expect(exact.messages).toHaveLength(4);
+    expect(exact.hasMore).toBe(false);
+  });
+
+  it('does not read another person’s thread with the same agent', async () => {
+    await stretch(`${SUITE}-other`, agent, `${SUITE}-o1`, '2026-08-01T10:00:00Z');
+    await say(`${SUITE}-other`, `${SUITE}-o1`, 0, 'not yours', '2026-08-01T10:00:00Z');
+
+    const mine = await listThreadPage(db, { oxyUserId: user, agentId: agent, limit: 50 });
+    expect(mine.messages.map((m) => m.content)).not.toContain('not yours');
+
+    // The control: it really is there, under the same agent.
+    const theirs = await listThreadPage(db, {
+      oxyUserId: `${SUITE}-other`,
+      agentId: agent,
+      limit: 50,
+    });
+    expect(theirs.messages.map((m) => m.content)).toEqual(['not yours']);
   });
 });
 
-describe('breaks cut a permanent thread into conversations', () => {
-  it('records marks in order and reads them back', async () => {
-    const thread = await open('break-owner-a', 'agent-break-a');
+describe('a search hit can be jumped to, however far back it lives', () => {
+  const user = `${SUITE}-jump`;
+  const agent = 'agent-jump';
 
-    const first = await insertConversationBreak(db, 'break-owner-a', thread.conversationId);
-    const second = await insertConversationBreak(db, 'break-owner-a', thread.conversationId);
-
-    const marks = await listConversationBreaks(db, 'break-owner-a', thread.conversationId);
-    expect(marks).toHaveLength(2);
-    expect(marks.map((d) => d.getTime())).toEqual(
-      [first, second].map((d) => d.getTime()).sort((a, b) => a - b),
-    );
+  beforeAll(async () => {
+    // Three stretches; the needle is in the FIRST, so reaching it means
+    // crossing two seams.
+    for (const [n, at] of [
+      [1, '2026-08-01T10:00:00Z'],
+      [2, '2026-08-02T10:00:00Z'],
+      [3, '2026-08-03T10:00:00Z'],
+    ] as const) {
+      await stretch(user, agent, `${SUITE}-j${n}`, at);
+    }
+    await say(user, `${SUITE}-j1`, 0, 'the codename is kingfisher', '2026-08-01T10:00:00Z');
+    for (let i = 0; i < 40; i++) {
+      await say(
+        user,
+        `${SUITE}-j${i < 20 ? 2 : 3}`,
+        i,
+        `filler ${i}`,
+        new Date(Date.parse('2026-08-02T10:00:00Z') + i * 60_000).toISOString(),
+      );
+    }
   });
 
-  it('does not leak a mark into another person’s thread of the same name', async () => {
-    // `conversation_id` is unique only WITHIN a person, so the owner is part of
-    // every read — the same rule the messages table lives by.
-    await db.execute(sql`
-      insert into ${conversations} (id, oxy_user_id, conversation_id, title)
-      values ('shared-name-1', 'break-owner-b', 'shared-name', 'mine'),
-             ('shared-name-2', 'break-owner-c', 'shared-name', 'theirs')
-    `);
+  it('finds it across the whole thread, not just the active stretch', async () => {
+    const hits = await searchThread(db, { oxyUserId: user, agentId: agent, query: 'kingfisher', limit: 10 });
 
-    await insertConversationBreak(db, 'break-owner-b', 'shared-name');
-
-    expect(await listConversationBreaks(db, 'break-owner-b', 'shared-name')).toHaveLength(1);
-    expect(await listConversationBreaks(db, 'break-owner-c', 'shared-name')).toHaveLength(0);
-
-    await deleteConversationBreaks(db, 'break-owner-b', 'shared-name');
-    await deleteConversation(db, 'break-owner-b', 'shared-name');
-    await deleteConversation(db, 'break-owner-c', 'shared-name');
+    expect(hits).toHaveLength(1);
+    expect(hits[0].conversationId).toBe(`${SUITE}-j1`);
   });
 
-  it('clears every mark when a thread is deleted', async () => {
-    const thread = await open('break-owner-d', 'agent-break-d');
-    await insertConversationBreak(db, 'break-owner-d', thread.conversationId);
+  /**
+   * The property the lead made non-negotiable, end to end: take a hit's cursor,
+   * feed it to the pagination, and the message is IN the answer.
+   *
+   * It cannot be served by `before`, which is exclusive — the hit would be the
+   * one message missing from the window meant to reveal it. That is why `at`
+   * exists and why this test would fail against a single-parameter design.
+   */
+  it('opens the window CONTAINING the hit when its cursor is fed back', async () => {
+    const [hit] = await searchThread(db, {
+      oxyUserId: user,
+      agentId: agent,
+      query: 'kingfisher',
+      limit: 10,
+    });
+    const cursor = encodeThreadCursor({ at: hit.createdAt, id: hit.id });
 
-    const removed = await deleteConversationBreaks(db, 'break-owner-d', thread.conversationId);
+    const decoded = decodeThreadCursor(cursor);
+    expect(decoded).not.toBeNull();
 
-    expect(removed).toBe(1);
-    expect(await listConversationBreaks(db, 'break-owner-d', thread.conversationId)).toEqual([]);
+    const window = await listThreadWindow(db, {
+      oxyUserId: user,
+      agentId: agent,
+      limit: 10,
+      at: decoded!,
+    });
+
+    expect(window.messages.map((m) => m.content)).toContain('the codename is kingfisher');
+  });
+
+  it('does not find another person’s thread', async () => {
+    await stretch(`${SUITE}-jump-other`, agent, `${SUITE}-jo1`, '2026-08-01T10:00:00Z');
+    await say(`${SUITE}-jump-other`, `${SUITE}-jo1`, 0, 'kingfisher is mine', '2026-08-01T10:00:00Z');
+
+    const hits = await searchThread(db, { oxyUserId: user, agentId: agent, query: 'kingfisher', limit: 10 });
+
+    expect(hits.map((h) => h.text)).not.toContain('kingfisher is mine');
+    expect(hits).toHaveLength(1);
+  });
+});
+
+describe('the cursor is opaque, and refuses what it cannot read', () => {
+  it('round-trips an instant and an id', () => {
+    const at = new Date('2026-08-01T10:00:00.123Z');
+    const decoded = decodeThreadCursor(encodeThreadCursor({ at, id: 'row-1' }));
+
+    expect(decoded?.at.toISOString()).toBe(at.toISOString());
+    expect(decoded?.id).toBe('row-1');
+  });
+
+  it('answers null for anything malformed, rather than throwing', () => {
+    // Client input. Each of these is a different way a cursor arrives broken,
+    // and every one must be a 400 rather than a 500.
+    for (const bad of ['', 'not-base64!!', Buffer.from('{}').toString('base64url'), Buffer.from('{"at":"nope","id":"x"}').toString('base64url'), Buffer.from('[]').toString('base64url')]) {
+      expect(decodeThreadCursor(bad)).toBeNull();
+    }
+  });
+
+  it('does not encode `seq`, which is why it can cross a seam', () => {
+    // `seq` is absent on legacy rows AND unique only within a conversation, so
+    // a cursor carrying it could neither page a legacy thread nor order one
+    // that spans stretches. Read the payload to be sure it is not in there.
+    const encoded = encodeThreadCursor({ at: new Date('2026-08-01T10:00:00Z'), id: 'row-1' });
+    const payload = Buffer.from(encoded, 'base64url').toString('utf8');
+
+    expect(payload).not.toContain('seq');
+    expect(JSON.parse(payload)).toEqual({ at: '2026-08-01T10:00:00.000Z', id: 'row-1' });
   });
 });

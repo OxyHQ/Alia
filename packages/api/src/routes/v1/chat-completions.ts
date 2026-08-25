@@ -136,13 +136,7 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
       if (handled) return;
     }
 
-    /**
-     * Assemble all tools via the unified pipeline.
-     *
-     * `conversationId` is spread rather than passed as `undefined`, because it
-     * is what `searchThread` closes over — a turn that is in no thread has no
-     * history to search, and the tool is simply not built.
-     */
+    // Assemble all tools via the unified pipeline
     const sseEmitter = createResponseSSEEmitter(res, sse.ensureHeaders);
     const { tools: allTools, toolNameMapping } = await ToolPipeline.forUser({
       userId: req.user?.id || '',
@@ -159,7 +153,6 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
       isLocalRuntime,
       toolsEnabled: true,
       agent: linkedAgent,
-      ...(conversationId === undefined ? {} : { conversationId }),
     });
 
     // Agent mode: full agent escalation for linked conversations

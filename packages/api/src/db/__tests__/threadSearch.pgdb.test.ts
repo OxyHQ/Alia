@@ -21,7 +21,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { sql } from 'drizzle-orm';
 import { closePostgres, connectPostgres, type ApiDatabase } from '../index';
-import { insertMessages, searchMessages } from '../chat/messageRepository';
+import { insertMessages, searchThread } from '../chat/messageRepository';
 import type { MessageContent, MessageRole } from '../../domain/conversation';
 
 let db: ApiDatabase;
@@ -29,11 +29,19 @@ let db: ApiDatabase;
 const SUITE = `search-${process.pid}`;
 const OWNER = `${SUITE}-owner`;
 const THREAD = `${SUITE}-thread`;
+const AGENT = `${SUITE}-agent`;
 
 beforeAll(async () => {
   const connected = connectPostgres(process.env.DATABASE_URL);
   if (!connected) throw new Error('DATABASE_URL is not set; vitest.pg.globalSetup.ts must run.');
   db = connected;
+
+  // A thread is a (person, agent) pair, so the conversations that make it up
+  // have to exist and carry the agent — the search JOINS them.
+  await db.execute(sql`
+    insert into conversations (id, oxy_user_id, conversation_id, title, agent_id)
+    values (${`${SUITE}-c1`}, ${OWNER}, ${THREAD}, 'thread', ${AGENT})
+  `);
 
   await insertMessages(db, [
     {
@@ -87,12 +95,13 @@ afterAll(async () => {
   await closePostgres();
 });
 
-const found = (query: string) => searchMessages(db, OWNER, THREAD, query, 20);
+const found = (query: string) =>
+  searchThread(db, { oxyUserId: OWNER, agentId: AGENT, query, limit: 20 });
 
 describe('a thread is searchable by what was said', () => {
   it('finds a word the person typed', async () => {
     const hits = await found('codename');
-    expect(hits.map((h) => h.role)).toEqual(['user']);
+    expect(hits.map((h: { role: string }) => h.role)).toEqual(['user']);
     expect(hits[0].text).toContain('kingfisher');
   });
 
@@ -107,7 +116,7 @@ describe('a thread is searchable by what was said', () => {
 
   it('finds both sides of one exchange', async () => {
     const hits = await found('kingfisher');
-    expect(hits.map((h) => h.role).sort()).toEqual(['assistant', 'user']);
+    expect(hits.map((h: { role: string }) => h.role).sort()).toEqual(['assistant', 'user']);
   });
 });
 
@@ -133,6 +142,10 @@ describe('what a search must NOT find', () => {
   });
 
   it('does not reach into another person’s thread', async () => {
+    await db.execute(sql`
+      insert into conversations (id, oxy_user_id, conversation_id, title, agent_id)
+      values (${`${SUITE}-c2`}, ${`${SUITE}-stranger`}, ${`${SUITE}-other-thread`}, 't', ${AGENT})
+    `);
     await insertMessages(db, [
       {
         conversationId: `${SUITE}-other-thread`,
@@ -145,25 +158,30 @@ describe('what a search must NOT find', () => {
 
     expect(await found('nightjar')).toEqual([]);
     // And the stranger's own search does find it, so the scoping is a filter
-    // rather than the row being missing.
-    const theirs = await searchMessages(
-      db,
-      `${SUITE}-stranger`,
-      `${SUITE}-other-thread`,
-      'nightjar',
-      20,
-    );
+    // rather than the row being missing. Same AGENT, which is what makes this
+    // a scoping assertion rather than two unrelated threads.
+    const theirs = await searchThread(db, {
+      oxyUserId: `${SUITE}-stranger`,
+      agentId: AGENT,
+      query: 'nightjar',
+      limit: 20,
+    });
     expect(theirs).toHaveLength(1);
   });
 
   it('does not cross into another person’s thread of the SAME name', async () => {
     /**
-     * The leak the previous case cannot see. `conversation_id` is unique only
-     * WITHIN a person, so two accounts may hold the same one — and then a
-     * search filtered on the conversation alone answers with somebody else's
-     * messages. Measured by mutation: dropping `oxy_user_id` from the WHERE
-     * leaves the case above green and reds this one.
+     * The leak the previous case cannot see, and it survives the move to a
+     * thread-scoped search. `conversation_id` is unique only WITHIN a person,
+     * so two accounts may hold the same one — and then a search filtered on the
+     * conversation alone answers with somebody else's messages. Measured by
+     * mutation: dropping `oxy_user_id` from the join leaves the case above
+     * green and reds this one.
      */
+    await db.execute(sql`
+      insert into conversations (id, oxy_user_id, conversation_id, title, agent_id)
+      values (${`${SUITE}-c3`}, ${`${SUITE}-namesake`}, ${THREAD}, 't', ${AGENT})
+    `);
     await insertMessages(db, [
       {
         conversationId: THREAD,
@@ -176,7 +194,14 @@ describe('what a search must NOT find', () => {
 
     expect(await found('bittern')).toEqual([]);
     // The control: it really is there, under the same conversation id.
-    expect(await searchMessages(db, `${SUITE}-namesake`, THREAD, 'bittern', 20)).toHaveLength(1);
+    expect(
+      await searchThread(db, {
+        oxyUserId: `${SUITE}-namesake`,
+        agentId: AGENT,
+        query: 'bittern',
+        limit: 20,
+      }),
+    ).toHaveLength(1);
   });
 
   it('finds nothing for a query nobody wrote', async () => {

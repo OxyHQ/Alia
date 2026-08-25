@@ -1,4 +1,46 @@
 -- oxy:deploy-phase=post
+-- The index this file was named for is GONE, and only the lossless cleanup is
+-- left. Read this header before the rest, which still argues for a constraint
+-- that no longer exists here.
+--
+-- ## The model changed, and then this could not apply
+--
+-- `/a/:username` is NOT one thread per (person, agent). It is one continuous
+-- view over MANY conversations sharing an `agent_id` — because what the model
+-- is given as context is the ACTIVE conversation, not the whole thread, so
+-- starting a new stretch is what keeps that context bounded. 0048 states it at
+-- length. A UNIQUE index forbids exactly that.
+--
+-- So the index had to go, and there were two ways to get there. The one not
+-- taken: leave it here, let 0048 drop it a moment later. Rehearsed against a
+-- database carrying production's actual rows, that DOES NOT WORK — two
+-- conversations with real history make this file fail, and 0048 sits BEHIND it
+-- in the ledger, so the migration that removes the index can never run. The
+-- deploy is stuck until somebody edits somebody else's conversations.
+--
+-- ## Why editing an already-merged migration is legitimate HERE
+--
+-- It is the objection a reviewer should raise first, and the answer is three
+-- facts rather than a preference:
+--
+--  - **The ledger records SUCCESSFUL applications.** Production never applied
+--    this file: it failed on `CREATE UNIQUE INDEX` and the deploy rolled back.
+--    So production will run the edited version, once, as its first attempt.
+--  - **The databases that DID apply the original are CI's**, built from empty
+--    on every run and discarded. They have no duplicate pairs, so the `UPDATE`
+--    below was a no-op there and the index they created is dropped by 0048
+--    regardless. No durable database diverges.
+--  - **There is nowhere else to put it.** A new migration runs AFTER this one,
+--    which is the one that fails. The only place a fix for this file can live
+--    is inside it.
+--
+-- What remains below is the `UPDATE`, which is kept rather than deleted: it is
+-- lossless, it was reviewed, and an agent-linked conversation with no messages
+-- and no breaks is residue under the new model too — the `New chat` row that
+-- `POST /conversations/new` minted on every visit.
+--
+-- ---- the original header follows, and its constraint no longer exists ----
+--
 -- `/a/:username` is ONE thread per (person, agent). This is what makes that
 -- true rather than merely intended.
 --
@@ -116,5 +158,3 @@ UPDATE "conversations" c
           OR (o."created_at", o."id") > (c."created_at", c."id")
         )
    );--> statement-breakpoint
-DROP INDEX "conversations_oxy_user_agent_id_idx";--> statement-breakpoint
-CREATE UNIQUE INDEX "conversations_oxy_user_agent_id_key" ON "conversations" USING btree ("oxy_user_id","agent_id") WHERE "conversations"."agent_id" is not null;

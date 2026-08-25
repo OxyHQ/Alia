@@ -27,19 +27,26 @@ import { checkOneOf } from './columns';
  * every lookup in the package carries both columns. Two users can hold the same
  * `conversation_id` and the schema must let them.
  *
- * ## An agent thread is ONE row per (person, agent), and the index says so
+ * ## An agent thread is MANY rows, and `conversations_oxy_user_agent_id_idx`
+ * serves them
  *
- * `/a/:username` is a permanent thread between a person and an agent, like a
- * DM — not one of the conversations that accumulate in the sidebar. What makes
- * "one per pair" true is `conversations_oxy_user_agent_id_key` below: unique,
- * and PARTIAL on `agent_id IS NOT NULL` so that the thousands of ordinary
- * conversations, which all carry a NULL `agent_id`, are not in it at all.
+ * `/a/:username` shows one continuous thread with an agent. Underneath, each
+ * stretch of it is an ordinary Alia conversation — many rows sharing one
+ * `agent_id` — and the thread is a VIEW over the pair, never a row.
  *
- * Postgres already treats NULLs as distinct, so a plain unique would admit them
- * too — the predicate is what keeps the index off every row that is not an
- * agent thread, which is nearly all of them. It replaces a NON-unique index on
- * the same pair; the pair was always the access path, it simply did not enforce
- * anything.
+ * **A `UNIQUE` index on `(oxy_user_id, agent_id)` would forbid exactly that**,
+ * and 0046 briefly declared one before 0048 took it back out. It is worth a
+ * paragraph rather than a silent revert, because "one thread, one row" is the
+ * obvious reading of the feature and it is wrong: what the model is given as
+ * context is the ACTIVE conversation, not the whole thread, so starting a new
+ * stretch is what keeps that context bounded. Collapse the thread into one row
+ * and the context grows without limit while "start a new conversation" becomes
+ * decorative.
+ *
+ * The same reasoning is why there is no `conversation_breaks` table. **A break
+ * is not a datum — it is the SEAM between two conversations**, and which
+ * conversation a message belongs to is already recorded on the message. A table
+ * would be a second, rival answer to a question the schema already answers.
  *
  * **Neither `folder_id` nor `agent_id` gets a foreign key, for different
  * reasons.** `folder_id` was declared `ref: 'Folder'` and **no `Folder` model
@@ -77,9 +84,9 @@ export const conversations = pgTable(
     uniqueIndex('conversations_oxy_user_conversation_id_key').on(t.oxyUserId, t.conversationId),
     // Serves `GET /conversations`: one user's threads, most recent first.
     index('conversations_oxy_user_updated_at_idx').on(t.oxyUserId, t.updatedAt.desc()),
-    uniqueIndex('conversations_oxy_user_agent_id_key')
-      .on(t.oxyUserId, t.agentId)
-      .where(sql`${t.agentId} is not null`),
+    // Serves the thread: every conversation this person holds with one agent,
+    // which is many. NOT unique — see the table comment.
+    index('conversations_oxy_user_agent_id_idx').on(t.oxyUserId, t.agentId),
     checkOneOf('conversations_source_check', t.source, CONVERSATION_SOURCES),
   ],
 );
@@ -289,53 +296,3 @@ export const canvasSessions = pgTable(
   ],
 );
 
-/**
- * A "start a new conversation here" mark inside a permanent agent thread.
- *
- * `/a/:username` never ends, so a person needs a way to say "what follows is a
- * new subject" without losing what came before. The mark is a ROW with a
- * timestamp; the client merges these into the message stream by `created_at`
- * and draws a rule where one lands.
- *
- * ## A table, and deliberately NOT a new `messages.role`
- *
- * The cheap version is a message whose role is `separator`. It is wrong in a
- * way that fails silently: every path that feeds history to a model — the two
- * bot webhooks, `listRecentTurns`, the request context — would have to filter
- * that role out FIRST, and the one that forgets sends the model a turn with an
- * empty body and an unknown role. `MESSAGE_ROLES` is a CHECK constraint the
- * providers' own vocabulary derives from; adding a member Alia invented is how
- * a `400 invalid role` arrives from an upstream nobody was thinking about.
- *
- * A separate table cannot be sent to a model by accident, and it costs one
- * extra read on a screen that is already reading messages.
- *
- * ## Date separators are NOT here, on purpose
- *
- * A rule between two days is DERIVED from `created_at` and belongs to the
- * client, which is the only party that knows the reader's timezone. Storing one
- * would be storing a rendering decision, and it would be wrong for anybody
- * reading the same thread from another zone.
- *
- * Keyed by `(oxy_user_id, conversation_id)` like everything else in this file,
- * and with no foreign key for the reason `messages` gives — which is why
- * `DELETE /conversations/:id` removes these by hand too.
- */
-export const conversationBreaks = pgTable(
-  'conversation_breaks',
-  {
-    id: generatedId(),
-    /** An Oxy account. No foreign key: Oxy owns identity. */
-    oxyUserId: text().notNull(),
-    conversationId: text().notNull(),
-    createdAt: createdAt(),
-  },
-  (t) => [
-    // Serves the only read there is: every mark in one thread, in order.
-    index('conversation_breaks_oxy_user_conversation_idx').on(
-      t.oxyUserId,
-      t.conversationId,
-      t.createdAt,
-    ),
-  ],
-);

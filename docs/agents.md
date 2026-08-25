@@ -65,43 +65,49 @@ one column, no foreign key, UNIQUE.
   independently paginated result sets breaks `limit`/`offset` the same way —
   ask for ten, receive two, with no way to ask for the rest.
 
-## Talking to one is a thread, not a conversation
+## Talking to one is a thread — a VIEW over many conversations
 
-`/a/:username` is the permanent thread between a person and an agent, like a DM
-— **one per (person, agent) pair**, resolved-or-created rather than started.
-Two people talking to the same agent hold two threads and see two histories.
+`/a/:username` shows one continuous history with an agent. Underneath, **each
+stretch of it is an ordinary Alia conversation** carrying the same `agent_id`,
+and there are many. The thread is a view over the (person, agent) pair, never a
+row.
 
-- `GET /agents/thread/:username` answers `{ agent, conversationId }`. The
-  username is Oxy's, so it resolves username → account → agent, and the
-  conversation screen takes over from there.
-- What makes "one per pair" true is `conversations_oxy_user_agent_id_key`, a
-  PARTIAL unique index on `(oxy_user_id, agent_id) WHERE agent_id IS NOT NULL`
-  — ordinary conversations all carry a NULL there and stay out of it.
+That is not an implementation detail. **What the model is given as context is
+the ACTIVE conversation, not the whole thread**, so starting a new stretch is
+what keeps that context bounded — no compaction to invent, and the machinery
+Alia already has (per-conversation model choice, titles) applies unchanged. One
+row forever would grow the context without limit and make "start a new
+conversation" a line that draws and changes nothing.
+
+- `GET /agents/thread/:username` answers `{ agent, conversationId }`, where
+  `conversationId` is the **active** stretch: the most recent conversation of
+  the pair, or a new one when the two have never spoken. There is no unique
+  index on `(oxy_user_id, agent_id)` — one would forbid the model outright, and
+  0046 briefly declared one before 0048 took it back out.
+- **A break is the SEAM between two conversations**, deduced from which one each
+  message belongs to. There is no `conversation_breaks` table and no endpoint to
+  create a break: starting a new stretch is `POST /conversations/new` with the
+  same `agentId`. Date separators are not stored either — the client derives
+  them from `created_at`, being the only party that knows the reader's timezone.
 - **Every refusal is 404, never 403.** A handle is guessable, and a 403 would
   confirm that somebody's unpublished draft exists. `canReachAgent` is the one
   place the rule lives: published-and-active, or `account:act_as` on the bot
   account — the Oxy graph decides, Alia adds no permission of its own.
-- A thread never ends, so `POST /conversations/:id/break` marks "start a new
-  conversation here". It is a row in `conversation_breaks`, deliberately NOT a
-  new `messages.role`: a separator role would have to be filtered out of every
-  history fed to a model, and the path that forgets sends an unknown role
-  upstream. DATE separators are not stored at all — they are derived from
-  `created_at` by the client, which is the only party that knows the reader's
-  timezone.
-- Consequence, stated once: `GET /agents/:id/activity-grid` now counts PEOPLE
-  who opened a thread that day, not conversations started. Same query, changed
-  invariant.
+- Two people talking to the same agent hold two threads and see two histories.
+  Every read is scoped by `oxy_user_id` as well as `agent_id`; a lookup on the
+  agent alone passes every single-user test ever written.
 
 ### Getting back to something old
 
 Three ways, in order of cost, and the third is the one with a decision in it:
 
-1. **Scroll**, served by `messages_conversation_created_at_idx`.
-2. **`GET /conversations/:id/search?q=`** — the person's own search.
+1. **`GET /agents/thread/:username/messages`** — a page of the thread, crossing
+   the seams.
+2. **`GET /agents/thread/:username/search?q=`** — the person's own search.
 3. **The `searchThread` tool** — the agent's recall, over the SAME index and the
    same query, so what counts as text is defined once.
 
-Both go through `searchMessages`, which matches a `tsvector` built by
+Both search paths go through `searchThread`, which matches a `tsvector` built by
 `alia_message_text` — a Postgres function created by hand in `0047`, because
 `content` is `jsonb` and an index expression may not contain a subquery. It
 takes a bare JSON string as itself and, from a parts array, only the
@@ -120,6 +126,14 @@ Every word in a query must be present (`websearch_to_tsquery` ANDs unquoted
 terms — measured), with quoted phrases and `-` exclusion on top. The tool says
 so in its description and again in the sentence it returns for an empty result,
 because a bare `[]` reads to a model as a broken tool.
+
+**The cursor is opaque and is not `seq`.** `seq` is absent on legacy messages
+(`routes/webhooks.ts` appends bot turns without one) so paging by it skips old
+rows silently, and it is unique only within a conversation so it cannot even
+order a thread. The cursor is `(created_at, id)`, base64. `?before=` is
+exclusive and scrolls back; `?at=` opens the window CONTAINING a message, which
+is what a search hit's `cursor` is for — `before` cannot serve it, since the hit
+would be the one message missing from the window meant to reveal it.
 
 ## Execution Loop
 
