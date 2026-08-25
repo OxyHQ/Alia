@@ -1,13 +1,13 @@
 import React from "react";
 import { View, Pressable } from "react-native";
 import { Text } from "@/components/ui/text";
-import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { AgentGlyph } from "@/components/ui/agent-glyph";
 import { Button } from "@/components/ui/button";
 import { BadgeCheck, Zap } from "lucide-react-native";
 import { cn } from "@/lib/utils";
 import { useTranslation } from "@/lib/hooks/use-translation";
 import type { Agent } from "@/lib/stores/agents-store";
-import { agentDisplayName, agentHandle, agentInitial } from "@/lib/agents/identity";
+import { agentDisplayName, agentHandle } from "@/lib/agents/identity";
 
 interface AgentCardProps {
   agent: Agent;
@@ -37,8 +37,7 @@ export const AgentCard = React.memo(function AgentCard({
 }: AgentCardProps) {
   const { t } = useTranslation();
   const isFeatured = variant === "featured";
-  const avatarSize = isFeatured ? "h-16 w-16" : "h-14 w-14";
-  const avatarTextSize = isFeatured ? "text-xl" : "text-lg";
+  const glyphSize = isFeatured ? 64 : 56;
   const statusDotSize = isFeatured
     ? "w-3.5 h-3.5 border-[2.5px]"
     : "w-3 h-3 border-2";
@@ -50,20 +49,10 @@ export const AgentCard = React.memo(function AgentCard({
       style={isFeatured ? { width: 300 } : { flex: 1 }}
     >
       <View className="rounded-2xl border border-border bg-surface p-4 flex-1">
-        {/* Top row: Avatar (left) + Chat button (right) — like Twitter avatar + Follow */}
+        {/* Top row: the agent's mark (left) + Chat button (right) — like Twitter avatar + Follow */}
         <View className="flex-row items-start justify-between">
           <View className="relative">
-            <Avatar className={cn(avatarSize)}>
-              {agent.avatar ? (
-                <AvatarImage source={{ uri: agent.avatar }} />
-              ) : (
-                <AvatarFallback>
-                  <Text className={cn("font-bold text-foreground", avatarTextSize)}>
-                    {agentInitial(agent)}
-                  </Text>
-                </AvatarFallback>
-              )}
-            </Avatar>
+            <AgentGlyph size={glyphSize} color={agent.color} label={agentDisplayName(agent)} />
             <View
               className={cn(
                 "absolute bottom-0 right-0 rounded-full border-surface",

@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { Avatar, AvatarImage } from "@/components/ui/avatar";
+import { AgentGlyph } from "@/components/ui/agent-glyph";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Panel } from "@/components/ui/panel";
 import { Dialog } from "@oxyhq/bloom/dialog";
@@ -42,7 +42,6 @@ import { SettingsListGroup, SettingsListItem } from "@oxyhq/bloom/settings-list"
 import * as DropdownMenu from "@/components/ui/dropdown-menu";
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
-const DEFAULT_AVATAR = require("@/assets/images/agent-avatar-reference.png");
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useAgentsStore, type Agent, type AgentUpdate, type AgentArchetype, type ArchetypeConfig, type RoutingRule } from "@/lib/stores/agents-store";
 import { useTranslation } from "@/lib/hooks/use-translation";
@@ -101,7 +100,7 @@ export default function EditAgentScreen() {
    * save below refuses to run on one.
    */
   const [oxyAccountId, setOxyAccountId] = useState("");
-  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [color, setColor] = useState<string | null>(null);
   const [tagline, setTagline] = useState("");
   const [description, setDescription] = useState("");
   const [systemPrompt, setSystemPrompt] = useState("");
@@ -184,7 +183,7 @@ export default function EditAgentScreen() {
         setHandle(agent.handle ?? "");
         savedHandle.current = agent.handle ?? "";
         setOxyAccountId(agent.oxyAccountId);
-        setAvatarUrl(agent.avatar || null);
+        setColor(agent.color);
         setTagline(agent.tagline);
         setDescription(agent.description);
         setSystemPrompt(agent.systemPrompt || "");
@@ -944,14 +943,12 @@ export default function EditAgentScreen() {
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
           >
-            {/* Avatar + Name + Handle — all three are the bot ACCOUNT's, saved
-                to Oxy rather than to the agent row. */}
+            {/* Mark + Name + Handle — all three are the bot ACCOUNT's, saved
+                to Oxy rather than to the agent row. The mark is not editable
+                here: it is drawn from `User.color`, and `updateAccount` has no
+                way to carry one. */}
             <View className="flex-row items-center gap-3 mb-6">
-              <Avatar className="h-10 w-10">
-                <AvatarImage
-                  source={avatarUrl ? { uri: avatarUrl } : DEFAULT_AVATAR}
-                />
-              </Avatar>
+              <AgentGlyph size={40} color={color} />
               <View className="flex-1">
                 <TextInput
                   value={name}

@@ -35,11 +35,18 @@ export interface Message {
   source?: 'text' | 'voice';
   speaker?: 'primary' | 'cohost';
   isStreaming?: boolean;
-  // Agent delegation metadata (when agent mode delegates to a specialist agent)
+  /**
+   * Agent delegation metadata, when agent mode delegates to a specialist agent.
+   *
+   * `color` is the agent's own — `User.color` on its Oxy bot account — and is
+   * what `components/ui/agent-glyph.tsx` paints it with. Absent means the
+   * identity lookup resolved nothing, which is ordinary traffic rather than an
+   * error, and the glyph falls back to the theme.
+   */
   agentInfo?: {
     id: string;
     name: string;
-    avatar: string | null;
+    color?: string | null;
     handle: string;
   };
   audioUrl?: string;
