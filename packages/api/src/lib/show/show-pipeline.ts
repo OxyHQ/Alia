@@ -638,12 +638,13 @@ function parseScript(
   // One line, so a model that answered with a paragraph contributes a marker
   // rather than a wall — and bounded, because this is what fifty later prompts
   // will each carry a slice of.
-  const rawTopic = typeof parsed.topic === 'string' ? parsed.topic.trim() : '';
-  const topic = rawTopic === '' ? null : (rawTopic.split('\n')[0] ?? '').trim().slice(0, MAX_TOPIC_LENGTH);
-  if (needsTopic && (topic === null || topic === '')) return null;
+  const raw = typeof parsed.topic === 'string' ? parsed.topic.trim() : '';
+  const firstLine = (raw.split('\n')[0] ?? '').trim();
+  const topic = firstLine === '' ? null : firstLine.slice(0, MAX_TOPIC_LENGTH);
+  if (needsTopic && topic === null) return null;
 
   return {
-    topic: topic === '' ? null : topic,
+    topic,
     title: cleanTitle(typeof parsed.title === 'string' ? parsed.title : ''),
     description: typeof parsed.description === 'string' ? parsed.description : '',
     summary: typeof parsed.summary === 'string' ? parsed.summary : '',
