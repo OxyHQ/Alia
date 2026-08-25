@@ -1,23 +1,30 @@
 import React from "react";
 import { View, Pressable, Platform, NativeSyntheticEvent, NativeScrollEvent, Linking } from "react-native";
 import { AliaLogo } from "@/components/ui/alia-logo";
-import { PremiumSparkIcon } from "@/components/ui/premium-spark-icon";
 import { BellIcon } from "@/components/ui/bell-icon";
 import { GetAppIcon } from "@/components/ui/get-app-icon";
-import { CommandKeyIcon } from "@/components/ui/command-key-icon";
+import { AgentRobotIcon } from "@/components/ui/icons/agent-robot-icon";
+import { ChevronDownIcon } from "@/components/ui/icons/chevron-down-icon";
+import { ChevronRightIcon } from "@/components/ui/icons/chevron-right-icon";
+import { ClockIcon } from "@/components/ui/icons/clock-icon";
+import { DotsHorizontalIcon } from "@/components/ui/icons/dots-horizontal-icon";
+import { GiftIcon } from "@/components/ui/icons/gift-icon";
+import { LibraryIcon } from "@/components/ui/icons/library-icon";
+import { MicrophoneIcon } from "@/components/ui/icons/microphone-icon";
+import { PlusIcon } from "@/components/ui/icons/plus-icon";
+import { ProjectsIcon } from "@/components/ui/icons/projects-icon";
+import { SettingsIcon } from "@/components/ui/icons/settings-icon";
+import { ShortcutsIcon } from "@/components/ui/icons/shortcuts-icon";
+import { SidebarToggleIcon } from "@/components/ui/icons/sidebar-toggle-icon";
+import { SkillsIcon } from "@/components/ui/icons/skills-icon";
+import { TasksIcon } from "@/components/ui/icons/tasks-icon";
+import { UpgradePlanIcon } from "@/components/ui/icons/upgrade-plan-icon";
 import { IdentityMark } from "@alia.onl/sdk";
 import { useColorScheme } from "@/lib/useColorScheme";
 import { Text } from "@/components/ui/text";
 import { BaseSidebar } from "@/components/base-sidebar";
 import {
-  Users,
-  Settings2,
-  Library,
   FolderOpen,
-  Plus,
-  BookOpen,
-  CloudCog,
-  MoreHorizontal,
   Briefcase,
   Folder,
   Package,
@@ -27,18 +34,11 @@ import {
   Star as StarIcon,
   Heart,
   Zap,
-  ChevronDown,
-  ChevronRight,
-  ChevronsLeft,
-  ChevronsRight,
-  History as HistoryIcon,
   Archive,
   Inbox,
   BookMarked,
   FolderClosed,
-  Gift,
-  ListTodo,
-  Mic,
+  History as HistoryIcon,
   type LucideIcon,
 } from "lucide-react-native";
 import { cn } from "@/lib/utils";
@@ -488,7 +488,7 @@ export const Sidebar = React.memo(function Sidebar() {
       {!collapsed && (
         <View className="ml-auto">
           <GhostIconButton
-            icon={ChevronsLeft}
+            icon={SidebarToggleIcon}
             label={t('sidebar.collapse')}
             onPress={handleCollapseSidebar}
           />
@@ -528,7 +528,7 @@ export const Sidebar = React.memo(function Sidebar() {
         )}
       >
         {collapsed ? (
-          <Plus size={26} className="text-primary-foreground" />
+          <PlusIcon size={26} color={colors.primaryForeground} />
         ) : (
           <Text className="text-center text-[17px] font-extrabold text-primary-foreground">
             {t('sidebar.newChat')}
@@ -556,7 +556,7 @@ export const Sidebar = React.memo(function Sidebar() {
   const navigation = (
     <>
       {collapsed ? (
-        <SidebarRow icon={Users} label={t('sidebar.agents')} onPress={handleExpandSidebar} iconOnly />
+        <SidebarRow icon={AgentRobotIcon} label={t('sidebar.agents')} onPress={handleExpandSidebar} iconOnly />
       ) : (
         <View>
           <Pressable
@@ -566,35 +566,35 @@ export const Sidebar = React.memo(function Sidebar() {
             className="h-9 flex-row items-center justify-between rounded-xl px-1.5 w-full hover:bg-muted active:bg-muted"
           >
             <View className="flex-row items-center gap-2">
-              <Users size={18} className="text-foreground" />
+              <AgentRobotIcon size={18} color={colors.foreground} />
               <Text className="text-sm text-foreground">{t('sidebar.agents')}</Text>
             </View>
             {agentsExpanded ? (
-              <ChevronDown size={12} className="text-muted-foreground" />
+              <ChevronDownIcon size={12} color={colors.mutedForeground} />
             ) : (
-              <ChevronRight size={12} className="text-muted-foreground" />
+              <ChevronRightIcon size={12} color={colors.mutedForeground} />
             )}
           </Pressable>
           {agentsExpanded && (
             <View className="ml-7 gap-px">
-              <SidebarRow icon={Users} label={t('agents.allAgents')} onPress={handleAgents} sub />
+              <SidebarRow icon={AgentRobotIcon} label={t('agents.allAgents')} onPress={handleAgents} sub />
             </View>
           )}
         </View>
       )}
-      <SidebarRow icon={Library} label={t('sidebar.library')} onPress={handleLibrary} iconOnly={collapsed} />
-      <SidebarRow icon={ListTodo} label="Tasks" onPress={handleTasks} iconOnly={collapsed} />
-      <SidebarRow icon={CloudCog} label={t('sidebar.automations')} onPress={handleAutomations} iconOnly={collapsed} />
-      <SidebarRow icon={BookOpen} label={t('sidebar.skills')} onPress={handleSkills} iconOnly={collapsed} />
-      <SidebarRow icon={Mic} label="Shows" onPress={handleShows} iconOnly={collapsed} />
+      <SidebarRow icon={LibraryIcon} label={t('sidebar.library')} onPress={handleLibrary} iconOnly={collapsed} />
+      <SidebarRow icon={TasksIcon} label="Tasks" onPress={handleTasks} iconOnly={collapsed} />
+      <SidebarRow icon={ClockIcon} label={t('sidebar.automations')} onPress={handleAutomations} iconOnly={collapsed} />
+      <SidebarRow icon={SkillsIcon} label={t('sidebar.skills')} onPress={handleSkills} iconOnly={collapsed} />
+      <SidebarRow icon={MicrophoneIcon} label="Shows" onPress={handleShows} iconOnly={collapsed} />
     </>
   );
 
   // Scrollable content - Projects and History (rail: icons that expand)
   const scrollableContent = collapsed ? (
     <View className="gap-px pt-2">
-      <SidebarRow icon={Users} label={t('sidebar.agents')} onPress={handleExpandSidebar} iconOnly />
-      <SidebarRow icon={FolderOpen} label={t('sidebar.projects')} onPress={handleExpandSidebar} iconOnly />
+      <SidebarRow icon={AgentRobotIcon} label={t('sidebar.agents')} onPress={handleExpandSidebar} iconOnly />
+      <SidebarRow icon={ProjectsIcon} label={t('sidebar.projects')} onPress={handleExpandSidebar} iconOnly />
       <SidebarRow icon={HistoryIcon} label="History" onPress={handleExpandSidebar} iconOnly />
     </View>
   ) : (
@@ -651,16 +651,16 @@ export const Sidebar = React.memo(function Sidebar() {
                     {t('sidebar.projects')}
                   </Text>
                   {projectsCollapsed ? (
-                    <ChevronRight size={12} className="text-foreground" />
+                    <ChevronRightIcon size={12} color={colors.foreground} />
                   ) : (
-                    <ChevronDown size={12} className="text-foreground" />
+                    <ChevronDownIcon size={12} color={colors.foreground} />
                   )}
                 </Pressable>
                 <Pressable
                   onPress={handleNewProject}
                   className="h-6 w-6 items-center justify-center rounded-lg hover:bg-muted active:bg-muted"
                 >
-                  <Plus size={14} className="text-muted-foreground" />
+                  <PlusIcon size={14} color={colors.mutedForeground} />
                 </Pressable>
               </View>
               {!projectsCollapsed && (
@@ -701,15 +701,15 @@ export const Sidebar = React.memo(function Sidebar() {
                             {projectConversations.length}
                           </Text>
                           {project.isExpanded ? (
-                            <ChevronDown size={14} className="text-muted-foreground" />
+                            <ChevronDownIcon size={14} color={colors.mutedForeground} />
                           ) : (
-                            <ChevronRight size={14} className="text-muted-foreground" />
+                            <ChevronRightIcon size={14} color={colors.mutedForeground} />
                           )}
                         </Pressable>
                         <DropdownMenu.Root>
                           <DropdownMenu.Trigger>
                             <Pressable className="h-6 w-6 items-center justify-center rounded-lg mr-1 web:opacity-0 web:group-hover:opacity-100 active:bg-muted/70">
-                              <MoreHorizontal size={14} className="text-muted-foreground" />
+                              <DotsHorizontalIcon size={14} color={colors.mutedForeground} />
                             </Pressable>
                           </DropdownMenu.Trigger>
                           <DropdownMenu.Content>
@@ -769,9 +769,9 @@ export const Sidebar = React.memo(function Sidebar() {
                     History
                   </Text>
                   {historyCollapsed ? (
-                    <ChevronRight size={12} className="text-foreground" />
+                    <ChevronRightIcon size={12} color={colors.foreground} />
                   ) : (
-                    <ChevronDown size={12} className="text-foreground" />
+                    <ChevronDownIcon size={12} color={colors.foreground} />
                   )}
                 </Pressable>
                 <Pressable
@@ -780,7 +780,7 @@ export const Sidebar = React.memo(function Sidebar() {
                   onPress={handleNewFolder}
                   className="h-6 w-6 items-center justify-center rounded-lg hover:bg-muted active:bg-muted"
                 >
-                  <Plus size={14} className="text-muted-foreground" />
+                  <PlusIcon size={14} color={colors.mutedForeground} />
                 </Pressable>
               </View>
               {!historyCollapsed && (
@@ -893,7 +893,7 @@ export const Sidebar = React.memo(function Sidebar() {
       onPress={() => setInviteDialogOpen(true)}
       className="flex-row items-center gap-3 md:gap-2 p-2.5 md:p-2 rounded-xl bg-muted active:bg-muted/80"
     >
-      <Gift size={18} className="text-foreground" />
+      <GiftIcon size={18} color={colors.foreground} />
       <View className="flex-1">
         <Text className="text-sm md:text-xs font-medium text-foreground">
           Share Alia with a friend
@@ -902,7 +902,7 @@ export const Sidebar = React.memo(function Sidebar() {
           Get 500 credits each
         </Text>
       </View>
-      <ChevronRight size={16} className="text-muted-foreground" />
+      <ChevronRightIcon size={16} color={colors.mutedForeground} />
     </Pressable>
   ) : null;
 
@@ -911,7 +911,7 @@ export const Sidebar = React.memo(function Sidebar() {
   const footer = collapsed ? (
     <View className="gap-2 items-center">
       <GhostIconButton
-        icon={ChevronsRight}
+        icon={SidebarToggleIcon}
         label={t('sidebar.expand')}
         onPress={handleExpandSidebar}
         anchorProps={expandTooltip.anchorProps}
@@ -923,19 +923,19 @@ export const Sidebar = React.memo(function Sidebar() {
             {/* Icon Button Bar */}
             {isAuthenticated && (
             <View className="flex-row items-center gap-1">
-              <GhostIconButton icon={PremiumSparkIcon} label={t('sidebar.upgradeToPro')} onPress={handleUpgrade} />
+              <GhostIconButton icon={UpgradePlanIcon} label={t('sidebar.upgradeToPro')} onPress={handleUpgrade} />
               <GhostIconButton
                 icon={BellIcon}
                 label={t('sidebar.notifications')}
                 onPress={handleNotifications}
                 badge={(unreadData?.count ?? 0) > 0}
               />
-              <GhostIconButton icon={Settings2} label="Settings" onPress={handleSettings} />
+              <GhostIconButton icon={SettingsIcon} label="Settings" onPress={handleSettings} />
               {Platform.OS === "web" && (
                 <>
                   <GhostIconButton icon={GetAppIcon} label="App download" onPress={handleAppDownload} />
                   <GhostIconButton
-                    icon={CommandKeyIcon}
+                    icon={ShortcutsIcon}
                     label="Keyboard shortcuts"
                     onPress={() => setShortcutsDialogOpen(true)}
                   />

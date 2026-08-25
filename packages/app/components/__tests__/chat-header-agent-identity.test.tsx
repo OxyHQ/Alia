@@ -34,11 +34,38 @@ vi.mock('react-native', async () => {
   };
 });
 
-vi.mock('lucide-react-native', async () => {
+/**
+ * The header's three glyphs, one module each.
+ *
+ * Stubbed rather than rendered because each is a real `react-native-svg` tree,
+ * which this runner cannot parse — and because what is under test is the button
+ * the magnifier sits in, not the magnifier. `Search` keeps its host name, so the
+ * assertions below still address the same node they always did.
+ *
+ * Three literal factories rather than one helper: `vi.mock` is hoisted above
+ * everything else in the file, so a factory that closes over a `const` is
+ * called before that `const` exists.
+ */
+vi.mock('@/components/ui/icons/search-icon', async () => {
   const ReactModule = await import('react');
-  const icon = (name: string) => (props: Record<string, unknown>) =>
-    ReactModule.createElement(name, props);
-  return { Search: icon('Search'), MoreHorizontal: icon('MoreHorizontal'), Menu: icon('Menu') };
+  return {
+    SearchIcon: (props: Record<string, unknown>) => ReactModule.createElement('Search', props),
+  };
+});
+
+vi.mock('@/components/ui/icons/menu-icon', async () => {
+  const ReactModule = await import('react');
+  return {
+    MenuIcon: (props: Record<string, unknown>) => ReactModule.createElement('Menu', props),
+  };
+});
+
+vi.mock('@/components/ui/icons/dots-horizontal-icon', async () => {
+  const ReactModule = await import('react');
+  return {
+    DotsHorizontalIcon: (props: Record<string, unknown>) =>
+      ReactModule.createElement('DotsHorizontal', props),
+  };
 });
 
 vi.mock('react-native-safe-area-context', () => ({

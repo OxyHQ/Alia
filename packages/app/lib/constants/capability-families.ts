@@ -37,24 +37,23 @@
 import {
   AppWindow,
   Brain,
-  Clock,
   Globe,
   MessageSquare,
   Shapes,
 } from 'lucide-react-native';
 import { ActionKeyIcon } from '@/components/ui/action-key-icon';
 import { FilesIcon } from '@/components/ui/files-icon';
-import { Robot2Icon } from '@/components/ui/robot-2-icon';
+import { AgentRobotIcon } from '@/components/ui/icons/agent-robot-icon';
+import { ClockIcon } from '@/components/ui/icons/clock-icon';
 import { TerminalIcon } from '@/components/ui/terminal-icon';
-
-export type CapabilityIcon = React.ComponentType<{ size?: number; color?: string }>;
+import type { IconComponent } from '@/lib/types/icon';
 
 export interface CapabilityFamily {
   /** The grant string, exactly as it is stored and sent. */
   id: string;
   label: string;
   description: string;
-  icon: CapabilityIcon;
+  icon: IconComponent;
 }
 
 /**
@@ -65,10 +64,15 @@ export interface CapabilityFamily {
  * messages, then acting through other agents. Not alphabetical: the ones with
  * the widest blast radius are the ones an owner should decide about first.
  *
- * Four of the glyphs are the Material Symbols the two lists this replaces
- * already carried, kept deliberately rather than re-chosen: `shell` keeps
- * `TerminalIcon`, `files` keeps `FilesIcon`, `delegation` keeps `Robot2Icon`,
- * and `mcp` — now an instanced family — keeps `ActionKeyIcon` below.
+ * `shell`, `files` and `mcp` keep the Material Symbols the two lists this
+ * replaces already carried — `TerminalIcon`, `FilesIcon` and, on the instanced
+ * family below, `ActionKeyIcon`.
+ *
+ * `delegation` and `automation` do not, and for the same reason #365 existed:
+ * the SIDEBAR names both concepts too, so a glyph chosen only here would be the
+ * second one for it. Both now draw the sheet's own — `AgentRobotIcon` and
+ * `ClockIcon` — and the sidebar imports the same components, so "Other agents"
+ * and "Agents", "Automations" and the scheduled-trigger grant, cannot disagree.
  */
 export const CAPABILITY_FAMILIES: readonly CapabilityFamily[] = [
   {
@@ -117,13 +121,13 @@ export const CAPABILITY_FAMILIES: readonly CapabilityFamily[] = [
     id: 'automation',
     label: 'Automations',
     description: 'Create, edit and delete your scheduled triggers',
-    icon: Clock,
+    icon: ClockIcon,
   },
   {
     id: 'delegation',
     label: 'Other agents',
     description: 'Find, hire and create agents to work on its behalf',
-    icon: Robot2Icon,
+    icon: AgentRobotIcon,
   },
 ];
 
@@ -138,7 +142,8 @@ export const CAPABILITY_FAMILIES: readonly CapabilityFamily[] = [
  * way. They did not: once the owner's Material glyphs landed, "Agent
  * Delegation" was `robot_2` in the editor and lucide's `Users` in the panel,
  * two screens apart inside one feature — the same label under two icons, which
- * is the duplication the single capability vocabulary exists to end.
+ * is the duplication the single capability vocabulary exists to end. The
+ * sidebar was the third such screen, and now takes its glyph from here too.
  *
  * The mapping is checked against the API's `FIXED_FAMILY_TOOLS` in
  * `agent-editor-autosave.test.ts`, so it cannot quietly disagree with the
@@ -161,7 +166,7 @@ export const RUNTIME_TOOL_FAMILIES: Readonly<Record<string, string>> = {
  * something that is not a component — the shape
  * `packages/api/src/__tests__/prototype-keyed-lookups.test.ts` exists for.
  */
-export function capabilityIconForTool(toolName: string): CapabilityIcon | undefined {
+export function capabilityIconForTool(toolName: string): IconComponent | undefined {
   if (!Object.hasOwn(RUNTIME_TOOL_FAMILIES, toolName)) return undefined;
   const family = RUNTIME_TOOL_FAMILIES[toolName];
   return CAPABILITY_FAMILIES.find((entry) => entry.id === family)?.icon;
@@ -190,7 +195,7 @@ export const INSTANCED_FAMILY_LABELS: Readonly<Record<string, string>> = {
   integration: 'Integrations',
 };
 
-export const INSTANCED_FAMILY_ICONS: Readonly<Record<string, CapabilityIcon>> = {
+export const INSTANCED_FAMILY_ICONS: Readonly<Record<string, IconComponent>> = {
   mcp: ActionKeyIcon,
   oxy_service: Shapes,
   integration: AppWindow,

@@ -2,19 +2,19 @@ import React from "react";
 import { View, Pressable } from "react-native";
 import { Text } from "@/components/ui/text";
 import * as DropdownMenu from "@/components/ui/dropdown-menu";
-import {
-  ChevronDown,
-  ChevronRight,
-  MoreHorizontal,
-  Folder as FolderIcon,
-} from "lucide-react-native";
+import { Folder as FolderIcon, type LucideIcon } from "lucide-react-native";
+import { ChevronDownIcon } from "@/components/ui/icons/chevron-down-icon";
+import { ChevronRightIcon } from "@/components/ui/icons/chevron-right-icon";
+import { DotsHorizontalIcon } from "@/components/ui/icons/dots-horizontal-icon";
+import { useColorScheme } from "@/lib/useColorScheme";
 import type { Conversation } from "@/lib/hooks/use-conversations";
 import type { Folder } from "@/lib/stores/folders-store";
 import type { Project } from "@/lib/stores/projects-store";
 import { ConversationItem } from "./conversation-item";
 import type { StopPropagationEvent } from '@/lib/types/events';
 
-const ICON_MAP: Record<string, any> = {
+/** A folder's stored icon name. Lucide, because the name is what the folder editor writes. */
+const ICON_MAP: Record<string, LucideIcon> = {
   Folder: FolderIcon,
   FolderIcon,
 };
@@ -64,6 +64,7 @@ export const FolderSection = React.memo<FolderSectionProps>(({
   getConversationProject,
   getConversationFolder,
 }) => {
+  const { colors } = useColorScheme();
   const Icon = ICON_MAP[folder.icon || "Folder"] || FolderIcon;
 
   return (
@@ -89,15 +90,15 @@ export const FolderSection = React.memo<FolderSectionProps>(({
             {conversations.length}
           </Text>
           {folder.isExpanded ? (
-            <ChevronDown size={12} className="text-muted-foreground" />
+            <ChevronDownIcon size={12} color={colors.mutedForeground} />
           ) : (
-            <ChevronRight size={12} className="text-muted-foreground" />
+            <ChevronRightIcon size={12} color={colors.mutedForeground} />
           )}
         </Pressable>
         <DropdownMenu.Root>
           <DropdownMenu.Trigger>
             <Pressable className="h-6 w-6 items-center justify-center rounded-lg mr-1 web:opacity-0 web:group-hover:opacity-100 active:bg-muted/70">
-              <MoreHorizontal size={12} className="text-muted-foreground" />
+              <DotsHorizontalIcon size={12} color={colors.mutedForeground} />
             </Pressable>
           </DropdownMenu.Trigger>
           <DropdownMenu.Content>

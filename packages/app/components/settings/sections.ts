@@ -1,24 +1,17 @@
 import type { Href } from "expo-router";
-import {
-  Settings2,
-  CreditCard,
-  Palette,
-  Brain,
-  PenTool,
-  Smartphone,
-  Bot,
-  Blocks,
-  Plug,
-  Zap,
-  Shield,
-  HardDrive,
-  type LucideIcon,
-} from "lucide-react-native";
+import { Palette, Brain, Smartphone, Bot, Plug, HardDrive } from "lucide-react-native";
+import { CurrencyDollarIcon } from "@/components/ui/icons/currency-dollar-icon";
+import { LockShieldIcon } from "@/components/ui/icons/lock-shield-icon";
+import { PencilIcon } from "@/components/ui/icons/pencil-icon";
+import { PluginsIcon } from "@/components/ui/icons/plugins-icon";
+import { SettingsIcon } from "@/components/ui/icons/settings-icon";
+import { SkillsIcon } from "@/components/ui/icons/skills-icon";
+import type { IconComponent } from "@/lib/types/icon";
 
 export interface SettingsSection {
   id: string;
   route: Href;
-  icon: LucideIcon;
+  icon: IconComponent;
   labelKey: string;
 }
 
@@ -29,8 +22,8 @@ export const SETTINGS_GROUPS: { titleKey: string; sections: SettingsSection[] }[
     sections: [
       { id: "personalization", route: "/(app)/settings/personalization", icon: Palette, labelKey: "settings.sections.personalization" },
       { id: "memory", route: "/(app)/settings/memory", icon: Brain, labelKey: "settings.sections.memory" },
-      { id: "writing-style", route: "/(app)/settings/writing-style", icon: PenTool, labelKey: "settings.sections.writingStyle" },
-      { id: "skills", route: "/(app)/settings/skills", icon: Zap, labelKey: "settings.sections.skills" },
+      { id: "writing-style", route: "/(app)/settings/writing-style", icon: PencilIcon, labelKey: "settings.sections.writingStyle" },
+      { id: "skills", route: "/(app)/settings/skills", icon: SkillsIcon, labelKey: "settings.sections.skills" },
     ],
   },
   {
@@ -38,17 +31,17 @@ export const SETTINGS_GROUPS: { titleKey: string; sections: SettingsSection[] }[
     sections: [
       { id: "accounts", route: "/(app)/settings/accounts", icon: Smartphone, labelKey: "settings.sections.accounts" },
       { id: "bots", route: "/(app)/settings/bots", icon: Bot, labelKey: "settings.sections.bots" },
-      { id: "connectors", route: "/(app)/settings/connectors", icon: Blocks, labelKey: "settings.sections.connectors" },
+      { id: "connectors", route: "/(app)/settings/connectors", icon: PluginsIcon, labelKey: "settings.sections.connectors" },
       { id: "integrations", route: "/(app)/settings/integrations", icon: Plug, labelKey: "settings.sections.integrations" },
     ],
   },
   {
     titleKey: "settings.groups.app",
     sections: [
-      { id: "general", route: "/(app)/settings/general", icon: Settings2, labelKey: "settings.sections.general" },
+      { id: "general", route: "/(app)/settings/general", icon: SettingsIcon, labelKey: "settings.sections.general" },
       { id: "local-models", route: "/(app)/settings/local-models", icon: HardDrive, labelKey: "settings.sections.localModels" },
-      { id: "usage", route: "/(app)/settings/usage", icon: CreditCard, labelKey: "settings.sections.billing" },
-      { id: "security", route: "/(app)/settings/security", icon: Shield, labelKey: "settings.sections.security" },
+      { id: "usage", route: "/(app)/settings/usage", icon: CurrencyDollarIcon, labelKey: "settings.sections.billing" },
+      { id: "security", route: "/(app)/settings/security", icon: LockShieldIcon, labelKey: "settings.sections.security" },
     ],
   },
 ];

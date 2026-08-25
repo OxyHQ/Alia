@@ -1,13 +1,17 @@
 import React from "react";
 import { View, Pressable, Platform } from "react-native";
-import { Plus, ChevronDown, ChevronRight, type LucideIcon } from "lucide-react-native";
 import { Portal } from "@oxyhq/bloom/portal";
 import { useNavigation } from "expo-router";
 import type { DrawerNavigationProp } from "expo-router/drawer";
 import { Text } from "@/components/ui/text";
+import { ChevronDownIcon } from "@/components/ui/icons/chevron-down-icon";
+import { ChevronRightIcon } from "@/components/ui/icons/chevron-right-icon";
+import { PlusIcon } from "@/components/ui/icons/plus-icon";
 import { cn } from "@/lib/utils";
 import { useIsLargeScreen } from "@/lib/hooks/use-is-large-screen";
+import { useColorScheme } from "@/lib/useColorScheme";
 import { useUIStore } from "@/lib/stores/ui-store";
+import type { IconComponent } from "@/lib/types/icon";
 
 export interface RailTooltipHandle {
   anchorProps: {
@@ -82,14 +86,14 @@ export function useSidebarCollapse() {
 }
 
 export interface SidebarRowProps {
-  icon: LucideIcon;
+  icon: IconComponent;
   /**
    * Drawn instead of `icon`, for a row whose mark is not an icon.
    *
-   * An agent's mark carries its own colour and so cannot be a `LucideIcon`,
-   * which is styled by class. Passing the node keeps every row's height,
-   * spacing and hover on the one component rather than starting a second
-   * kind of row.
+   * An agent's mark carries its own colour, chosen per agent, and so cannot be
+   * an `IconComponent` — the row would hand it the row's colour. Passing the
+   * node keeps every row's height, spacing and hover on the one component
+   * rather than starting a second kind of row.
    */
   leading?: React.ReactNode;
   label: string;
@@ -115,6 +119,7 @@ export function SidebarRow({
   active = false,
 }: SidebarRowProps) {
   const { anchorProps, tooltip } = useRailTooltip(label);
+  const { colors } = useColorScheme();
   return (
     <>
       <Pressable
@@ -129,7 +134,7 @@ export function SidebarRow({
           active && "bg-muted"
         )}
       >
-        {leading ?? <Icon size={sub ? 16 : 18} className="text-foreground" />}
+        {leading ?? <Icon size={sub ? 16 : 18} color={colors.foreground} />}
         {!iconOnly && (
           <Text
             className={cn(
@@ -163,7 +168,8 @@ export function SectionHeader({
   onAdd,
   addAccessibilityLabel,
 }: SectionHeaderProps) {
-  const Chevron = collapsed ? ChevronRight : ChevronDown;
+  const { colors } = useColorScheme();
+  const Chevron = collapsed ? ChevronRightIcon : ChevronDownIcon;
   return (
     <View className="flex-row items-center justify-between pt-4 pb-1 px-2">
       <Pressable
@@ -171,7 +177,7 @@ export function SectionHeader({
         className="flex-row items-center gap-1 flex-1 rounded-lg active:opacity-70"
       >
         <Text className="text-xs font-semibold text-foreground select-none">{label}</Text>
-        <Chevron size={12} className="text-foreground" />
+        <Chevron size={12} color={colors.foreground} />
       </Pressable>
       <Pressable
         accessibilityRole="button"
@@ -179,15 +185,14 @@ export function SectionHeader({
         onPress={onAdd}
         className="h-6 w-6 items-center justify-center rounded-lg hover:bg-muted active:bg-muted"
       >
-        <Plus size={14} className="text-muted-foreground" />
+        <PlusIcon size={14} color={colors.mutedForeground} />
       </Pressable>
     </View>
   );
 }
 
 export interface GhostIconButtonProps {
-  /** Accepts lucide icons and the app's custom `react-native-svg` icons (size + theme color). */
-  icon: React.ComponentType<{ size?: number; className?: string }>;
+  icon: IconComponent;
   label: string;
   onPress: () => void;
   badge?: boolean;
@@ -203,6 +208,7 @@ export function GhostIconButton({
   badge = false,
   anchorProps,
 }: GhostIconButtonProps) {
+  const { colors } = useColorScheme();
   return (
     <Pressable
       {...anchorProps}
@@ -211,7 +217,7 @@ export function GhostIconButton({
       onPress={onPress}
       className="h-8 w-8 items-center justify-center rounded-xl hover:bg-muted active:bg-muted"
     >
-      <Icon size={18} className="text-muted-foreground" />
+      <Icon size={18} color={colors.mutedForeground} />
       {badge && (
         <View className="absolute top-0.5 right-0.5 h-2.5 w-2.5 rounded-full bg-red-500 border border-background" />
       )}

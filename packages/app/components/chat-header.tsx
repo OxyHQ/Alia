@@ -1,7 +1,9 @@
 import React from "react";
 import { View, Platform } from "react-native";
-import { Search, MoreHorizontal, Menu } from "lucide-react-native";
 import { GhostIcon } from "@/components/ui/ghost-icon";
+import { DotsHorizontalIcon } from "@/components/ui/icons/dots-horizontal-icon";
+import { MenuIcon } from "@/components/ui/icons/menu-icon";
+import { SearchIcon } from "@/components/ui/icons/search-icon";
 import { IdentityMark } from "@alia.onl/sdk";
 import { Text } from "@/components/ui/text";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -114,7 +116,7 @@ export const ChatHeader = React.memo(function ChatHeader({
           onPress={handleDrawerToggle}
           className="h-9 w-9 rounded-full md:hidden"
         >
-          <Menu size={20} className="text-muted-foreground" />
+          <MenuIcon size={20} color={colors.mutedForeground} />
         </Button>
       </View>
 
@@ -172,7 +174,7 @@ export const ChatHeader = React.memo(function ChatHeader({
           }}
           className="h-9 w-9 rounded-full"
         >
-          <Search size={20} className="text-muted-foreground" />
+          <SearchIcon size={20} color={colors.mutedForeground} />
         </Button>
 
         <DropdownMenu.Root>
@@ -182,7 +184,7 @@ export const ChatHeader = React.memo(function ChatHeader({
               size="icon"
               className="h-9 w-9 rounded-full"
             >
-              <MoreHorizontal size={20} className="text-muted-foreground" />
+              <DotsHorizontalIcon size={20} color={colors.mutedForeground} />
             </Button>
           </DropdownMenu.Trigger>
           <DropdownMenu.Content align="end">

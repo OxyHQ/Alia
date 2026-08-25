@@ -1,7 +1,8 @@
 import React from "react";
 import { Button, type ButtonProps } from "@/components/ui/button";
+import { useColorScheme } from "@/lib/useColorScheme";
 import { cn } from "@/lib/utils";
-import { ChevronDown } from "lucide-react-native";
+import { ChevronDownIcon } from "@/components/ui/icons/chevron-down-icon";
 import Animated, { FadeInDown, FadeOutDown } from "react-native-reanimated";
 
 export type ScrollButtonProps = Omit<ButtonProps, "children"> & {
@@ -17,6 +18,8 @@ function ScrollButton({
   onScrollToBottom,
   ...props
 }: ScrollButtonProps) {
+  const { colors } = useColorScheme();
+
   if (isAtBottom) return null;
 
   return (
@@ -28,7 +31,7 @@ function ScrollButton({
         onPress={onScrollToBottom}
         {...props}
       >
-        <ChevronDown size={20} className="text-foreground" />
+        <ChevronDownIcon size={20} color={colors.foreground} />
       </Button>
     </Animated.View>
   );
