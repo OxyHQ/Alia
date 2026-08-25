@@ -285,11 +285,19 @@ describe('the activity heatmap buckets in UTC, whatever the session says', () =>
      * `tsc` types this `number`. The caller does `countMap.get(day) + count`, so
      * without the `::int` the heatmap silently fills with `"01"`-style
      * concatenations. `typeof` is the only thing that separates them.
+     *
+     * The two rows that share a day are two PEOPLE, not one person twice. They
+     * used to be one person's two conversations with one agent, which
+     * `conversations_oxy_user_agent_id_key` now forbids — a thread with an agent
+     * is permanent and there is one per pair. What this bucket counts is
+     * therefore "people who opened a thread with this agent that day" rather
+     * than "conversations started", and the day it changed is the day the index
+     * landed.
      */
     await db.execute(sql`
       insert into ${conversations} (id, oxy_user_id, conversation_id, agent_id, created_at)
       values ('grid-1', 'grid-user', 'grid-conv-1', 'grid-agent', '2026-03-01T20:00:00Z'),
-             ('grid-2', 'grid-user', 'grid-conv-2', 'grid-agent', '2026-03-01T23:30:00Z'),
+             ('grid-2', 'grid-user-two', 'grid-conv-2', 'grid-agent', '2026-03-01T23:30:00Z'),
              ('grid-3', 'grid-user', 'grid-conv-3', 'grid-other', '2026-03-01T20:00:00Z')
     `);
 

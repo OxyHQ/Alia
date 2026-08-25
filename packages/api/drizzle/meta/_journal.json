@@ -316,6 +316,20 @@
       "when": 1787660902824,
       "tag": "0044_the_agent_avatar_column_leaves",
       "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1787661954543,
+      "tag": "0045_a_thread_can_be_cut_into_conversations",
+      "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "7",
+      "when": 1787661965493,
+      "tag": "0046_one_thread_per_person_and_agent",
+      "breakpoints": true
     }
   ]
 }

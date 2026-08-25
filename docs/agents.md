@@ -65,6 +65,33 @@ one column, no foreign key, UNIQUE.
   independently paginated result sets breaks `limit`/`offset` the same way —
   ask for ten, receive two, with no way to ask for the rest.
 
+## Talking to one is a thread, not a conversation
+
+`/a/:username` is the permanent thread between a person and an agent, like a DM
+— **one per (person, agent) pair**, resolved-or-created rather than started.
+Two people talking to the same agent hold two threads and see two histories.
+
+- `GET /agents/thread/:username` answers `{ agent, conversationId }`. The
+  username is Oxy's, so it resolves username → account → agent, and the
+  conversation screen takes over from there.
+- What makes "one per pair" true is `conversations_oxy_user_agent_id_key`, a
+  PARTIAL unique index on `(oxy_user_id, agent_id) WHERE agent_id IS NOT NULL`
+  — ordinary conversations all carry a NULL there and stay out of it.
+- **Every refusal is 404, never 403.** A handle is guessable, and a 403 would
+  confirm that somebody's unpublished draft exists. `canReachAgent` is the one
+  place the rule lives: published-and-active, or `account:act_as` on the bot
+  account — the Oxy graph decides, Alia adds no permission of its own.
+- A thread never ends, so `POST /conversations/:id/break` marks "start a new
+  conversation here". It is a row in `conversation_breaks`, deliberately NOT a
+  new `messages.role`: a separator role would have to be filtered out of every
+  history fed to a model, and the path that forgets sends an unknown role
+  upstream. DATE separators are not stored at all — they are derived from
+  `created_at` by the client, which is the only party that knows the reader's
+  timezone.
+- Consequence, stated once: `GET /agents/:id/activity-grid` now counts PEOPLE
+  who opened a thread that day, not conversations started. Same query, changed
+  invariant.
+
 ## Execution Loop
 
 Every interaction follows one runtime loop:
