@@ -7,11 +7,32 @@ import { useAgentThread } from "@/lib/hooks/use-agent-thread";
 import { useTranslation } from "@/lib/hooks/use-translation";
 
 /**
- * `/a/pepe` — the permanent thread with one agent.
+ * `/@pepe` — the permanent thread with one agent.
  *
  * The conversation LIVES here. This route does not hand off to `/c/:id`: the
  * pair (person, agent) has one thread, and this URL is its address, so coming
  * back tomorrow is the same page rather than a new chat in the sidebar.
+ *
+ * ## The `@` is in the VALUE, not in the filename
+ *
+ * Expo Router does not mix static text with a dynamic segment, so there is no
+ * `@[username].tsx`. `/@pepe` matches this file with `username` set to the whole
+ * `"@pepe"`, and the sigil is stripped here — the same shape Mention uses.
+ *
+ * ## Which makes this the app's catch-all for one-segment paths
+ *
+ * A dynamic segment at the root of the group swallows every single-segment URL
+ * that no static route claims. Expo Router prefers a static route over a dynamic
+ * one, so `/settings` still reaches `settings` — asserted for every static route
+ * and directory in `__tests__/single-segment-routes.test.ts`, because that
+ * preference is the only thing standing between this file and the rest of the
+ * app.
+ *
+ * What it does mean is that `/anything-that-is-not-a-route` lands HERE and gets
+ * the agent 404. That is deliberate rather than a side effect: the thread's
+ * refusal is already built to reveal nothing — an agent that does not exist, an
+ * agent you cannot reach and a path that is not a route are one answer — and a
+ * separate generic 404 would be a second page saying less.
  *
  * Everything below the identity is the ordinary conversation screen, which is
  * why this file is short — see `components/conversation-screen.tsx`.
@@ -19,7 +40,17 @@ import { useTranslation } from "@/lib/hooks/use-translation";
 const AgentThreadPage = () => {
   const { username } = useLocalSearchParams<{ username: string }>();
   const { t } = useTranslation();
-  const { data: thread, isPending, isError } = useAgentThread(username);
+
+  /**
+   * The handle Oxy knows, stripped of the sigil the URL carries.
+   *
+   * Normalised in ONE place and for any number of `@`: `/@pepe`, `/pepe` and
+   * `/@@pepe` are the same person, and three spellings that reached three
+   * behaviours would be three bugs nobody could tell apart. What goes to the API
+   * is the bare username, which is what `GET /agents/thread/:username` expects.
+   */
+  const handle = username?.replace(/^@+/, '') ?? '';
+  const { data: thread, isPending, isError } = useAgentThread(handle);
 
   /**
    * An agent that does not exist and an agent this person cannot reach are ONE
@@ -56,11 +87,11 @@ const AgentThreadPage = () => {
    *
    * `agentDisplayName` ends at the generic word "Agent", which is right for a
    * listing where nothing else is known about the row. Here something else IS
-   * known: the username in the URL is the handle this person followed, so an
-   * agent whose Oxy account resolved nothing still gets called what they called
-   * it rather than being renamed to a noun.
+   * known: the handle in the URL is what this person followed, so an agent whose
+   * Oxy account resolved nothing still gets called what they called it rather
+   * than being renamed to a noun.
    */
-  const headerName = thread.agent.name?.trim() || thread.agent.handle?.trim() || username;
+  const headerName = thread.agent.name?.trim() || thread.agent.handle?.trim() || handle;
 
   return (
     <ConversationScreen
