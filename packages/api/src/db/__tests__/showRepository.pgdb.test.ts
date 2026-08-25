@@ -22,7 +22,7 @@ import {
   findSeriesForUser,
   listEpisodesForSeries,
   listSeriesForUser,
-  recentRecaps,
+  priorEpisodes,
   updateEpisode,
   updateSeriesForUser,
   upsertPreferences,
@@ -103,13 +103,28 @@ const seed = (userId = USER, syraPodcastId = 'syra-pod-1') =>
     visibility: 'private',
   });
 
-const seedEpisode = (seriesId: string, episodeNumber: number, userId = USER) =>
+/**
+ * `topic` is spelled out per episode rather than shared, because the ledger
+ * tests turn on which subjects come back and a single constant would make every
+ * row indistinguishable from every other.
+ *
+ * `null` is how a caller asks for an episode with NO subject, not `undefined`:
+ * a default parameter is applied for `undefined`, so passing that would silently
+ * seed the default topic and turn "an episode that has not chosen one" into a
+ * test of nothing.
+ */
+const seedEpisode = (
+  seriesId: string,
+  episodeNumber: number,
+  userId = USER,
+  topic: string | null = 'what happened this week',
+) =>
   createEpisode(db, {
     userId,
     seriesId,
     episodeNumber,
     title: `Episode ${episodeNumber}`,
-    topic: 'what happened this week',
+    topic: topic ?? undefined,
     syraEpisodeId: `syra-ep-${episodeNumber}`,
     ingestTicket: `ticket-${episodeNumber}`,
     ingestTicketExpiresAt: new Date(Date.now() + 86_400_000),
@@ -410,48 +425,102 @@ describe('episodes', () => {
 /*  Continuity                                                                */
 /* -------------------------------------------------------------------------- */
 
-describe('recaps, which are what make a series continuous', () => {
-  it('returns the previous episodes oldest first, bounded by the limit', async () => {
+/**
+ * The series' memory: one line per episode for breadth, a recap for detail.
+ *
+ * This is what decides what episode N is about, now that nobody types it. A
+ * query that quietly returned less than it should — a failed episode's subject
+ * held back, an in-flight one omitted, an off-by-one at the near end — presents
+ * as a show that repeats itself, weeks later, and never as an error.
+ */
+describe('what the earlier episodes were about', () => {
+  it('returns them oldest first, keeping the NEWEST when the limit bites', async () => {
     const series = await seed();
     for (const n of [1, 2, 3, 4]) {
-      const episode = await seedEpisode(series.id, n);
-      await updateEpisode(db, episode.id, { recap: `recap ${n}` });
+      const episode = await seedEpisode(series.id, n, USER, `subject ${n}`);
+      await updateEpisode(db, episode.id, { recap: `recap ${n}`, status: 'completed' });
     }
 
     // Episode 5 asks for the two before it: 4 and 3, read in listening order.
-    expect(await recentRecaps(db, series.id, 5, 2)).toEqual(['recap 3', 'recap 4']);
+    expect(await priorEpisodes(db, series.id, 5, 2)).toEqual([
+      { episodeNumber: 3, topic: 'subject 3', recap: 'recap 3' },
+      { episodeNumber: 4, topic: 'subject 4', recap: 'recap 4' },
+    ]);
+
+    // And with room for all of them, all of them — the positive control for the
+    // assertion above, which a query returning nothing at all would also pass
+    // if the limit were the only thing tested.
+    expect((await priorEpisodes(db, series.id, 5, 50)).map((e) => e.episodeNumber)).toEqual([
+      1, 2, 3, 4,
+    ]);
   });
 
-  it('never returns an episode at or after the one asking', async () => {
+  it('never returns the episode asking, or one after it', async () => {
     const series = await seed();
     for (const n of [1, 2, 3]) {
-      const episode = await seedEpisode(series.id, n);
-      await updateEpisode(db, episode.id, { recap: `recap ${n}` });
+      const episode = await seedEpisode(series.id, n, USER, `subject ${n}`);
+      await updateEpisode(db, episode.id, { recap: `recap ${n}`, status: 'completed' });
     }
 
-    // The bug this catches is an off-by-one that feeds episode 2 its OWN recap,
-    // which reads as a model repeating itself rather than as a query fault.
-    expect(await recentRecaps(db, series.id, 2, 5)).toEqual(['recap 1']);
-    expect(await recentRecaps(db, series.id, 1, 5)).toEqual([]);
+    // The bug this catches is an off-by-one that feeds episode 2 its OWN
+    // subject, which reads as a model repeating itself rather than as a query
+    // fault.
+    expect((await priorEpisodes(db, series.id, 2, 5)).map((e) => e.episodeNumber)).toEqual([1]);
+    expect(await priorEpisodes(db, series.id, 1, 5)).toEqual([]);
   });
 
-  it('skips an episode that has no recap rather than yielding a gap', async () => {
+  it('carries an episode that has no recap yet, for its subject alone', async () => {
     const series = await seed();
-    const first = await seedEpisode(series.id, 1);
-    await updateEpisode(db, first.id, { recap: 'recap 1' });
-    // Episode 2 failed before it could write one.
-    await seedEpisode(series.id, 2);
+    const first = await seedEpisode(series.id, 1, USER, 'the first subject');
+    await updateEpisode(db, first.id, { recap: 'recap 1', status: 'completed' });
+    // Episode 2 is still being recorded: it has claimed a subject and has
+    // nothing to recap. Dropping it here is how two episodes queued a minute
+    // apart end up covering the same thing.
+    const second = await seedEpisode(series.id, 2, USER, 'the second subject');
+    await updateEpisode(db, second.id, { status: 'generating_audio' });
 
-    expect(await recentRecaps(db, series.id, 3, 5)).toEqual(['recap 1']);
+    expect(await priorEpisodes(db, series.id, 3, 5)).toEqual([
+      { episodeNumber: 1, topic: 'the first subject', recap: 'recap 1' },
+      { episodeNumber: 2, topic: 'the second subject', recap: null },
+    ]);
+  });
+
+  it('leaves out an episode that FAILED, so its subject is free again', async () => {
+    const series = await seed();
+    const first = await seedEpisode(series.id, 1, USER, 'the first subject');
+    await updateEpisode(db, first.id, { recap: 'recap 1', status: 'completed' });
+    const second = await seedEpisode(series.id, 2, USER, 'a subject nobody ever heard');
+    await updateEpisode(db, second.id, { status: 'failed', error: 'no script' });
+
+    // A run that died said nothing to a listener. Holding its subject out of
+    // every future episode would retire a subject the show never did.
+    expect(await priorEpisodes(db, series.id, 3, 5)).toEqual([
+      { episodeNumber: 1, topic: 'the first subject', recap: 'recap 1' },
+    ]);
+  });
+
+  it('carries a queued episode that has not chosen a subject yet, as a null', async () => {
+    const series = await seed();
+    // Nobody steered it and its script has not returned: `topic` is genuinely
+    // unknown, which is not the same as the episode not existing.
+    await seedEpisode(series.id, 1, USER, null);
+
+    expect(await priorEpisodes(db, series.id, 2, 5)).toEqual([
+      { episodeNumber: 1, topic: null, recap: null },
+    ]);
   });
 
   it('does not reach into another series', async () => {
     const a = await seed(USER, 'syra-pod-a');
     const b = await seed(USER, 'syra-pod-b');
-    const episode = await seedEpisode(a.id, 1);
-    await updateEpisode(db, episode.id, { recap: 'from series a' });
+    const episode = await seedEpisode(a.id, 1, USER, 'from series a');
+    await updateEpisode(db, episode.id, { recap: 'from series a', status: 'completed' });
 
-    expect(await recentRecaps(db, b.id, 5, 5)).toEqual([]);
+    expect(await priorEpisodes(db, b.id, 5, 5)).toEqual([]);
+    // The positive control for the line above: the same call against the series
+    // that DOES own it finds it, so "empty" is a scope result and not a query
+    // that reads nothing.
+    expect(await priorEpisodes(db, a.id, 5, 5)).toHaveLength(1);
   });
 });
 

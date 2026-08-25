@@ -64,7 +64,6 @@ import {
   type ShowSeriesPatch,
 } from '../db/shows/showRepository.js';
 import { enqueueShowGeneration } from '../lib/show/show-queue.js';
-import { proposeEpisodeTitle } from '../lib/show/episode-title.js';
 import { buildSeriesCast, FORMAT_DEFAULTS, SHOW_VOICES } from '../lib/show/voice-roster.js';
 import { generateCoverArt } from '../lib/show/cover-art.js';
 import { syraForRequest } from '../lib/syra/syra.js';
@@ -115,15 +114,24 @@ const patchSeriesSchema = z.object({
   regenerateCover: z.boolean().optional(),
 });
 
+/**
+ * Everything about one episode is OPTIONAL, including what it covers and what
+ * it is called.
+ *
+ * The series already knows what the show is about, so asking for another
+ * episode is a request with no body — `POST` with nothing at all is the normal
+ * case, and the pipeline works the subject out from the brief and the subjects
+ * earlier episodes used, then names the result from the finished script.
+ *
+ * Both remaining fields are OVERRIDES rather than rival defaults, and the
+ * precedence is the same for each: supplied, it is stored and nothing
+ * second-guesses it; absent, the pipeline decides. An owner who wants this one
+ * to be about the election result, or wants it called "The Reckoning", should
+ * be able to say so — what was removed is the requirement, not the ability.
+ */
 const createEpisodeSchema = z.object({
-  /**
-   * OPTIONAL, and usually absent. What a person types into "what should this
-   * episode cover" is a topic, not a title — so when this is omitted a model
-   * proposes one from the topic. Supplied, it wins outright: the person named
-   * their own episode and nothing should second-guess that.
-   */
   title: z.string().trim().min(3).max(200).optional(),
-  topic: z.string().trim().min(5).max(2000),
+  topic: z.string().trim().min(5).max(2000).optional(),
   notes: z.string().max(10_000).optional(),
   sourceConversationId: z.string().optional(),
 });
@@ -468,12 +476,24 @@ router.delete('/series/:id', async (req: Request, res: Response) => {
 /* -------------------------------------------------------------------------- */
 
 /**
- * Ask for another episode.
+ * Ask for another episode. That is the whole request — a body is optional.
  *
  * Reserves the Syra episode NOW, while the caller's token is live, and stores
  * the ticket the worker will redeem minutes later with no credential of its own.
  * That ordering is the whole design and is not an implementation detail: see
  * `lib/syra/syra.ts`.
+ *
+ * ## What this handler no longer decides
+ *
+ * It used to decide the episode's subject — by requiring the caller to type one
+ * — and its name, by asking a model to turn that subject into a title before a
+ * word of the episode existed. Neither belongs here. The series' `brief` says
+ * what the show is about and the earlier episodes' subjects say what it has
+ * already used, so the subject is the script model's to choose from those; and
+ * a name is worth having only once there is something to name it after.
+ *
+ * What is left is exactly the part that needs the caller's credential: allocate
+ * the number, reserve the Syra draft, mint the ticket, queue the job.
  */
 router.post('/series/:id/episodes', async (req: Request, res: Response) => {
   try {
@@ -483,9 +503,13 @@ router.post('/series/:id/episodes', async (req: Request, res: Response) => {
     const { id } = req.params;
     if (typeof id !== 'string') return notFound(res, 'Series');
 
-    const parsed = createEpisodeSchema.safeParse(req.body);
+    // `req.body` is `undefined` for a POST with no body at all, which is the
+    // ordinary shape of this request. `z.object()` refuses `undefined`, so the
+    // empty object is supplied here rather than letting "just another episode"
+    // read as a malformed request.
+    const parsed = createEpisodeSchema.safeParse(req.body ?? {});
     if (!parsed.success) {
-      return invalid(res, 'An episode needs a topic of at least 5 characters');
+      return invalid(res, 'A topic, if you give one, needs at least 5 characters');
     }
     const input = parsed.data;
 
@@ -508,33 +532,29 @@ router.post('/series/:id/episodes', async (req: Request, res: Response) => {
     if (episodeNumber === null) return notFound(res, 'Series');
 
     /**
-     * The name, decided BEFORE the draft, because Syra fixes it there.
+     * The name Syra's DRAFT gets, which is not the same thing as the episode's
+     * name.
      *
-     * `createEpisodeDraft` requires a title and the ingest allowlist refuses
-     * one, so this is the name the published episode keeps — the script cannot
-     * rename it later, and a name stored only in Alia would leave the two
-     * products disagreeing about the same episode.
+     * `createEpisodeDraft` requires a title and this request happens minutes
+     * before the episode exists, so when nobody has named it the one certainly
+     * true thing goes in: which episode it is. That placeholder is sent to Syra
+     * and deliberately NOT stored — `show_episodes.title` stays null, which is
+     * what keeps "the owner chose this name" and "nothing has named it yet"
+     * distinguishable without guessing from how a string looks. The ingest
+     * replaces it with what the script called the episode.
      *
-     * Three sources in order, and the fallback chain is the whole design: the
-     * person's own title if they gave one, otherwise a model's suggestion from
-     * the topic, otherwise the topic itself trimmed to something title-shaped.
-     * The last is not good, but it is the person's own words and it never fails
-     * — an episode must not be impossible to create because a naming model was
-     * busy. See `lib/show/episode-title.ts`.
+     * An owner who did name it wins outright, on both sides at once: the draft
+     * is reserved under their name and the row stores it, so the pipeline finds
+     * a title already there and leaves it alone.
+     *
+     * This used to be a synchronous model call on the request path, guessing a
+     * title from the topic. It is now no call at all, which is also why asking
+     * for another episode is a single press: there is nothing left to answer.
      */
-    const suggested =
-      input.title === undefined
-        ? await proposeEpisodeTitle({
-            seriesTitle: series.title,
-            brief: series.brief,
-            topic: input.topic,
-            episodeNumber,
-          })
-        : null;
-    const title = input.title ?? suggested ?? input.topic.slice(0, 120).trim();
+    const draftTitle = input.title ?? `Episode ${episodeNumber}`;
 
     const draft = await syraForRequest(req).createEpisodeDraft(series.syraPodcastId, {
-      title,
+      title: draftTitle,
       episodeNumber,
       aiGenerated: true,
     });
@@ -543,7 +563,9 @@ router.post('/series/:id/episodes', async (req: Request, res: Response) => {
       userId,
       seriesId: series.id,
       episodeNumber,
-      title,
+      // Both absent unless the caller said so; the pipeline decides each and
+      // writes it back the moment the script parses.
+      title: input.title,
       topic: input.topic,
       notes: input.notes,
       syraEpisodeId: draft.episodeId,
@@ -562,10 +584,16 @@ router.post('/series/:id/episodes', async (req: Request, res: Response) => {
       episodeId: episode.id,
       seriesId: series.id,
       episodeNumber,
-      // Echoed, because the caller may not have chosen it — the app renders
-      // the episode immediately and would otherwise show a blank name until
-      // its next read.
-      title,
+      /**
+       * The row's own title, which is `null` for an episode nobody named.
+       *
+       * NOT the draft placeholder. A client rendering the queued row falls back
+       * to the episode number itself, and gets the real name when the script
+       * writes one — echoing `Episode {n}` here instead would put a string into
+       * the client that the database does not hold and that nothing later
+       * replaces.
+       */
+      title: episode.title,
       status: episode.status,
       queued,
     });

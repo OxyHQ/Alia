@@ -313,7 +313,7 @@ describe('every socket event the app listens for is one the API emits', () => {
     // rather than by `socket.ts`; each is named with the file that emits it so
     // the exemption is checkable rather than a hole.
     emitted.add('notification'); // lib/notification-service.ts:116, driven above
-    emitted.add('show:progress'); // lib/show/show-pipeline.ts:63
+    emitted.add('show:progress'); // lib/show/show-pipeline.ts, emitProgress()
     /**
      * The two frames a device serving a local model receives. They are emitted
      * from `lib/inference/user-runtime-bridge.ts` rather than `socket.ts`,
