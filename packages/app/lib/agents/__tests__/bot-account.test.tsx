@@ -257,6 +257,33 @@ describe('createBotAccount', () => {
     expect(attempted[1]).not.toBe(attempted[0]);
   });
 
+  it('resolves the collision a first name makes likely, with a handle a person can read', async () => {
+    /**
+     * Generated agents are named like people now — "Claudio", "Nadia" — so the
+     * handle is one short word in a namespace shared with every person on Oxy.
+     * Collisions stop being the rare case and become the ordinary one, which
+     * moves this whole path from "never runs" to "runs most of the time".
+     *
+     * `claudio2`, not `claudio-a7f3`: the pre-flight picks the readable one, and
+     * the random suffix stays where it belongs — reacting to a race it has
+     * already lost.
+     */
+    const createAccount = vi.fn<(data: CreateAccountInput) => Promise<AccountNode>>()
+      .mockResolvedValue(accountNamed('claudio2'));
+    const checkAvailability = vi.fn<(username: string) => Promise<boolean>>()
+      .mockImplementation((username) => Promise.resolve(username !== 'claudio'));
+
+    await createBotAccount({
+      createAccount,
+      checkAvailability,
+      username: 'claudio',
+      displayName: 'Claudio',
+    });
+
+    expect(checkAvailability.mock.calls.map(([u]) => u)).toEqual(['claudio', 'claudio2']);
+    expect(createAccount.mock.calls[0][0].username).toBe('claudio2');
+  });
+
   it('rethrows anything that is not a conflict instead of retrying it', async () => {
     const createAccount = vi.fn<(data: CreateAccountInput) => Promise<AccountNode>>()
       .mockRejectedValue({ status: 403 });
