@@ -255,6 +255,9 @@ export const GENERATED_TIER_MAPPINGS: Record<AliaTier, ModelMapping[]> = {
       capabilities: {
         voice: true,
         audio: true,
+        // A realtime voice model, not a TTS one: it is never handed a written
+        // line to read, so there is no bracketed cue for it to perform.
+        audioTags: false,
         video: false,
         vision: false,
         tools: true,
@@ -281,6 +284,9 @@ export const GENERATED_TIER_MAPPINGS: Record<AliaTier, ModelMapping[]> = {
       capabilities: {
         voice: true,
         audio: true,
+        // A realtime voice model, not a TTS one: it is never handed a written
+        // line to read, so there is no bracketed cue for it to perform.
+        audioTags: false,
         video: false,
         vision: false,
         tools: true,
@@ -309,6 +315,9 @@ export const GENERATED_TIER_MAPPINGS: Record<AliaTier, ModelMapping[]> = {
       capabilities: {
         voice: true,
         audio: true,
+        // A realtime voice model, not a TTS one: it is never handed a written
+        // line to read, so there is no bracketed cue for it to perform.
+        audioTags: false,
         video: false,
         vision: false,
         tools: true,
@@ -335,6 +344,9 @@ export const GENERATED_TIER_MAPPINGS: Record<AliaTier, ModelMapping[]> = {
       capabilities: {
         voice: true,
         audio: true,
+        // A realtime voice model, not a TTS one: it is never handed a written
+        // line to read, so there is no bracketed cue for it to perform.
+        audioTags: false,
         video: false,
         vision: false,
         tools: true,
