@@ -14,6 +14,9 @@
  * Merging them would cost the search its free text or hand Oxy an id it does
  * not know. So both stay, and this file is about the second.
  *
+ * They are allowed to DISAGREE — a Developer agent about `finance` is the right
+ * answer, not a bug — and that is asserted below rather than left to a comment.
+ *
  * As with the colour beside it, the model is a fixture: `generateText` is
  * replaced with whatever JSON a case wants, so what is under test is the
  * route's handling and not a model's good behaviour.
@@ -156,6 +159,26 @@ describe('the generator proposes an account category', () => {
     const body = await generate();
 
     expect(body).toMatchObject({ category: 'Research', accountCategory: 'science' });
+  });
+
+  it('lets the two disagree, because they are different axes', async () => {
+    // The decision, asserted where a future "normalise them" would break it: an
+    // agent that writes trading code IS a Developer and IS about finance, and
+    // neither answer is derivable from the other. Both survive verbatim; any
+    // rule that made one follow the other rewrites one of these two fields.
+    state.modelText = modelAnswer({ category: 'Developer', accountCategory: 'finance' });
+    const body = await generate();
+
+    expect(body).toMatchObject({ category: 'Developer', accountCategory: 'finance' });
+  });
+
+  it('tells the model not to bother making them agree', async () => {
+    // Without this the model harmonises them on its own — asked for a subject
+    // right after a kind, it echoes the kind — and the divergence above stops
+    // being reachable in production even though the route still allows it.
+    await generate();
+
+    expect(state.systemPrompt).toMatch(/they need not agree/i);
   });
 });
 

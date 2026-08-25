@@ -83,7 +83,7 @@ Return ONLY valid JSON with these fields:
 - "color": Exactly one of: ${AGENT_COLORS.map((c) => `"${c}"`).join(', ')}. The agent has no picture — it is drawn as a glyph in this colour — so pick the one that suits what it does.
 - "tags": An array of 3-5 relevant lowercase tags
 - "capabilityGrants": An array of capability families this agent may reach. Choose from: ${FIXED_CAPABILITY_FAMILIES.map((f) => `"${f}"`).join(', ')}. The agent gets NOTHING it is not granted, so pick every family its purpose needs and none it does not.
-- "accountCategory": What the agent is ABOUT, exactly one of: ${accountCategoryChoices}. Omit the field entirely if none of them fits — no category is better than a wrong one.
+- "accountCategory": What the agent is ABOUT, exactly one of: ${accountCategoryChoices}. This is the SUBJECT and "category" above is the KIND of agent: answer each on its own, they need not agree. Omit the field entirely if none of them fits — no category is better than a wrong one.
 - "archetype": Exactly one of: "general", "qa", "task_router", "status_update". Use "qa" if the agent answers questions from knowledge/data sources. Use "task_router" if the agent triages and routes tasks to people or teams. Use "status_update" if the agent gathers data and generates periodic reports or summaries. Use "general" for everything else.
 
 Do not include any text outside the JSON object.`,
@@ -148,6 +148,16 @@ Do not include any text outside the JSON object.`,
      * for the other: merging them would either cost the search its free text or
      * hand Oxy an id it does not know.
      *
+     * THE TWO MAY DIVERGE, AND THAT IS NOT A BUG. `category: "Research"` beside
+     * `accountCategory: "finance"` is the right answer for an agent that reads
+     * markets — one names the KIND of agent, the other the SUBJECT of the
+     * account, and different questions are allowed different answers. Deriving
+     * either from the other fails in both directions: no subject says whether
+     * an agent assists or writes code, and "Assistant" fits all forty-six of
+     * them. So the model is never asked to make them match, because agreement
+     * across axes is not coherence — it is what files a "Developer" agent about
+     * money under `software`.
+     *
      * Validated, never trusted — a model asked for a closed vocabulary invents
      * members of it, and `community_management` is exactly the kind of thing it
      * will propose. Anything the taxonomy does not recognise is dropped rather
@@ -181,6 +191,9 @@ Do not include any text outside the JSON object.`,
       tagline: parsed.tagline || '',
       description: parsed.description || '',
       systemPrompt: parsed.systemPrompt || '',
+      // Alia's own axis — the kind of agent, not the subject of the account.
+      // Free text in the column and the owner may later type anything, so the
+      // six here are what this route OFFERS, not what the schema allows.
       category: ['Assistant', 'Creative', 'Developer', 'Research', 'Business', 'Education'].includes(parsed.category)
         ? parsed.category
         : 'Assistant',
