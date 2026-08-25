@@ -15,6 +15,15 @@ export const queryKeys = {
     /** The agents this person owns, which the sidebar lists. */
     mine: ['agents', 'mine'] as const,
     /**
+     * The CATALOGUE: everything published, by anybody, narrowed by whatever the
+     * screen is filtering on. A different question from `mine` — see the
+     * docblock on `useMyAgents` — so a different key, and the filters are part
+     * of it because two filters are two answers.
+     */
+    catalogue: (params?: object) => ['agents', 'catalogue', params ?? {}] as const,
+    /** One agent, whole, as the detail and edit screens read it. */
+    detail: (id: string) => ['agents', 'detail', id] as const,
+    /**
      * Keyed by the USERNAME the URL carries, not by the agent id, because the
      * id is part of what the query answers — `/a/pepe` is resolvable before
      * anything is known about who Pepe is.

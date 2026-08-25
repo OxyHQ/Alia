@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo, useCallback } from "react";
+import React, { useState, useMemo, useCallback } from "react";
 import { View, ScrollView, Pressable, RefreshControl } from "react-native";
 import { useIsLargeScreen } from "@/lib/hooks/use-is-large-screen";
 import { FlashList } from "@shopify/flash-list";
@@ -6,7 +6,7 @@ import { Search } from "@oxyhq/bloom/search";
 import { Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react-native";
-import { useAgentsStore } from "@/lib/stores/agents-store";
+import { useAgentCatalogue } from "@/lib/hooks/use-agents";
 import { AgentCard } from "@/components/agent-card";
 import { useRouter } from "expo-router";
 import { useTranslation } from "@/lib/hooks/use-translation";
@@ -18,25 +18,20 @@ import { ContentPanel } from "@oxyhq/bloom/content-panel";
 
 export default function AgentsScreen() {
   const { t } = useTranslation();
-  const agents = useAgentsStore((state) => state.agents);
-  const loadAgents = useAgentsStore((state) => state.loadAgents);
-  const loading = useAgentsStore((state) => state.loading);
+  const { data, isPending: loading, refetch } = useAgentCatalogue();
+  const agents = data?.agents ?? [];
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const router = useRouter();
   const isLargeScreen = useIsLargeScreen();
   const numColumns = isLargeScreen ? 3 : 2;
 
-  useEffect(() => {
-    loadAgents();
-  }, [loadAgents]);
-
   const [refreshing, setRefreshing] = useState(false);
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await loadAgents();
+    await refetch();
     setRefreshing(false);
-  }, [loadAgents]);
+  }, [refetch]);
 
   const handleSelectAgent = useCallback((agentId: string) => {
     router.push(`/(app)/agents/${agentId}`);

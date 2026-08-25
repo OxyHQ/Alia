@@ -16,7 +16,10 @@ import {
   Share2,
   Trash2,
 } from "lucide-react-native";
-import { useAgentsStore, type Agent } from "@/lib/stores/agents-store";
+import { useAgent } from "@/lib/hooks/use-agents";
+import type { Agent } from "@/lib/types/agents";
+import { queryKeys } from "@/lib/hooks/query-keys";
+import { useQueryClient } from "@tanstack/react-query";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useTranslation } from "@/lib/hooks/use-translation";
 import { useOxy } from "@oxyhq/services";
@@ -258,14 +261,23 @@ function DetailTabBar({
 
 export default function AgentDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const getAgent = useAgentsStore((state) => state.getAgent);
+  const queryClient = useQueryClient();
   const router = useRouter();
   const { t } = useTranslation();
   const { user } = useOxy();
   const { colors } = useColorScheme();
   const isLargeScreen = useIsLargeScreen();
-  const [agent, setAgent] = useState<Agent | null>(null);
-  const [loading, setLoading] = useState(true);
+  /*
+   * One cache, not two. This screen used to copy the fetched agent into local
+   * state and then hand-patch that copy after a write — a third place holding
+   * the same record, and the reason a change made here could go unseen
+   * elsewhere. The query IS the state; a write updates it where it lives.
+   */
+  const { data: agent, isPending: loading } = useAgent(id);
+  const setAgent = useCallback(
+    (next: Agent) => queryClient.setQueryData(queryKeys.agents.detail(next._id), next),
+    [queryClient],
+  );
 
   // Hire input state
   const [showHireInput, setShowHireInput] = useState(false);
@@ -297,16 +309,6 @@ export default function AgentDetailScreen() {
   useEffect(() => {
     loadFavorites();
   }, [loadFavorites]);
-
-  useEffect(() => {
-    if (id) {
-      setLoading(true);
-      getAgent(id).then((data) => {
-        setAgent(data);
-        setLoading(false);
-      });
-    }
-  }, [id, getAgent]);
 
   // Load reviews
   useEffect(() => {
@@ -498,16 +500,17 @@ export default function AgentDetailScreen() {
       setReviewRating(0);
       setReviewComment("");
       toast.success(t("agents.reviewDeleted"));
-      const [agentRes, reviewsRes] = await Promise.all([
-        getAgent(agent._id),
+      const [, reviewsRes] = await Promise.all([
+        // The rating the deletion changed comes back from the server rather
+        // than being recomputed here.
+        queryClient.invalidateQueries({ queryKey: queryKeys.agents.detail(agent._id) }),
         apiClient.get(`/agents/${agent._id}/reviews`),
       ]);
-      if (agentRes) setAgent(agentRes);
       setReviews(reviewsRes.data?.reviews || []);
     } catch {
       toast.error("Failed to delete review");
     }
-  }, [agent, t, getAgent]);
+  }, [agent, t, queryClient]);
 
   if (loading) {
     return (

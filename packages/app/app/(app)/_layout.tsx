@@ -5,7 +5,6 @@ import { AppErrorBoundary } from '@/components/error-boundary';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Platform, View } from 'react-native';
 import { useProjectsStore } from '@/lib/stores/projects-store';
-import { useAgentsStore } from '@/lib/stores/agents-store';
 import { useFoldersStore } from '@/lib/stores/folders-store';
 import { useFavoritesStore } from '@/lib/stores/favorites-store';
 import { usePinnedStore } from '@/lib/stores/pinned-store';
@@ -35,7 +34,6 @@ export default function AppLayout() {
   const { colors: themeColors } = useTheme();
   const insets = useSafeAreaInsets();
   const loadProjects = useProjectsStore((state) => state.loadProjects);
-  const loadAgents = useAgentsStore((state) => state.loadAgents);
   const loadFolders = useFoldersStore((state) => state.loadFolders);
   const loadFavorites = useFavoritesStore((state) => state.loadFavorites);
   const loadPinned = usePinnedStore((state) => state.loadPinned);
@@ -61,11 +59,10 @@ export default function AppLayout() {
   // Load projects, folders, favorites, and pinned on mount
   useEffect(() => {
     loadProjects();
-    loadAgents();
     loadFolders();
     loadFavorites();
     loadPinned();
-  }, [loadProjects, loadAgents, loadFolders, loadFavorites, loadPinned]);
+  }, [loadProjects, loadFolders, loadFavorites, loadPinned]);
 
   const renderDrawerContent = useCallback(() => <Sidebar />, []);
 
