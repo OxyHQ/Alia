@@ -256,7 +256,7 @@ type MessageRowProps = {
   voiceAgentState?: 'idle' | 'listening' | 'thinking' | 'speaking';
   handleMarkLayout: (e: LayoutChangeEvent) => void;
   handleCopyMessage: (messageId: string, content: string) => void;
-  handleVote: (messageId: string, vote: 'up' | 'down') => void;
+  handleVote: (messageId: string, vote: 'up' | 'down', conversationId?: string) => void;
   readAloud: (id: string, text: string, chatId?: string, audioUrl?: string) => void;
   generateAudio: (messageId: string, prompt: string, conversationId?: string) => void;
   // Per-row audio-gen state: 'idle' unless this row is the active one (same
@@ -426,10 +426,10 @@ const MessageRow = React.memo(function MessageRow({
                     <Copy size={14} className="text-muted-foreground" />
                   )}
                 </Pressable>
-                <Pressable key="thumbs-up" className="p-1.5 rounded-lg hover:bg-muted active:bg-muted" onPress={() => handleVote(m.id, 'up')}>
+                <Pressable key="thumbs-up" className="p-1.5 rounded-lg hover:bg-muted active:bg-muted" onPress={() => handleVote(m.id, 'up', chatId?.id)}>
                   <ThumbsUp size={14} className={myVote === 'up' ? "text-primary" : "text-muted-foreground"} />
                 </Pressable>
-                <Pressable key="thumbs-down" className="p-1.5 rounded-lg hover:bg-muted active:bg-muted" onPress={() => handleVote(m.id, 'down')}>
+                <Pressable key="thumbs-down" className="p-1.5 rounded-lg hover:bg-muted active:bg-muted" onPress={() => handleVote(m.id, 'down', chatId?.id)}>
                   <ThumbsDown size={14} className={myVote === 'down' ? "text-primary" : "text-muted-foreground"} />
                 </Pressable>
               </View>
@@ -451,11 +451,11 @@ const MessageRow = React.memo(function MessageRow({
                 <DropdownMenu.ItemIcon ios={{ name: "doc.on.doc" }} />
                 <DropdownMenu.ItemTitle>Copy</DropdownMenu.ItemTitle>
               </DropdownMenu.Item>
-              <DropdownMenu.Item key="thumbs-up" onSelect={() => handleVote(m.id, 'up')}>
+              <DropdownMenu.Item key="thumbs-up" onSelect={() => handleVote(m.id, 'up', chatId?.id)}>
                 <DropdownMenu.ItemIcon ios={{ name: "hand.thumbsup" }} />
                 <DropdownMenu.ItemTitle>Like</DropdownMenu.ItemTitle>
               </DropdownMenu.Item>
-              <DropdownMenu.Item key="thumbs-down" onSelect={() => handleVote(m.id, 'down')}>
+              <DropdownMenu.Item key="thumbs-down" onSelect={() => handleVote(m.id, 'down', chatId?.id)}>
                 <DropdownMenu.ItemIcon ios={{ name: "hand.thumbsdown" }} />
                 <DropdownMenu.ItemTitle>Dislike</DropdownMenu.ItemTitle>
               </DropdownMenu.Item>
@@ -504,13 +504,20 @@ const MessageRow = React.memo(function MessageRow({
                       <Copy size={14} className="text-muted-foreground" />
                     )}
                   </Pressable>
-                  <Pressable
-                    key="edit"
-                    className="p-1.5 rounded-lg hover:bg-muted active:bg-muted"
-                    onPress={() => onStartEdit?.(m.id, messageText)}
-                  >
-                    <Pencil size={14} className="text-muted-foreground" />
-                  </Pressable>
+                  {/* Absent on a message from an earlier conversation. Editing
+                      truncates the live thread at that message and re-sends —
+                      and a message this screen is not streaming is not in that
+                      list, so the truncation finds nothing and the "edit"
+                      silently becomes a brand-new turn. */}
+                  {onStartEdit === undefined ? null : (
+                    <Pressable
+                      key="edit"
+                      className="p-1.5 rounded-lg hover:bg-muted active:bg-muted"
+                      onPress={() => onStartEdit(m.id, messageText)}
+                    >
+                      <Pencil size={14} className="text-muted-foreground" />
+                    </Pressable>
+                  )}
                 </View>
               )}
             </View>
@@ -522,10 +529,12 @@ const MessageRow = React.memo(function MessageRow({
                 <DropdownMenu.ItemIcon ios={{ name: "doc.on.doc" }} />
                 <DropdownMenu.ItemTitle>Copy</DropdownMenu.ItemTitle>
               </DropdownMenu.Item>
-              <DropdownMenu.Item key="edit" onSelect={() => onStartEdit?.(m.id, messageText)}>
-                <DropdownMenu.ItemIcon ios={{ name: "pencil" }} />
-                <DropdownMenu.ItemTitle>Edit</DropdownMenu.ItemTitle>
-              </DropdownMenu.Item>
+              {onStartEdit === undefined ? null : (
+                <DropdownMenu.Item key="edit" onSelect={() => onStartEdit(m.id, messageText)}>
+                  <DropdownMenu.ItemIcon ios={{ name: "pencil" }} />
+                  <DropdownMenu.ItemTitle>Edit</DropdownMenu.ItemTitle>
+                </DropdownMenu.Item>
+              )}
             </DropdownMenu.Content>
             )}
             </DropdownMenu.Root>
@@ -598,6 +607,29 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
       () => (history.length === 0 ? liveMessages : [...history, ...liveMessages]),
       [history, liveMessages],
     );
+
+    /**
+     * The conversation each history message belongs to, as the id a row's own
+     * actions address.
+     *
+     * A vote goes to `/conversations/:id/messages/:id/vote` and audio is cached
+     * against a conversation, and both used to take the id of the stretch on
+     * screen — right for a live message and wrong for every history one, which
+     * belongs to a conversation that ended. It would have written to a
+     * conversation that does not contain the message, and failed quietly.
+     *
+     * One entry per conversation rather than per message: these are props of a
+     * memoized row, so a fresh object per row would re-render every one of them
+     * on every streamed token.
+     */
+    const historyChatIds = useMemo(() => {
+      const byConversation = new Map<string, ChatIdState>();
+      for (const message of history) {
+        if (byConversation.has(message.conversationId)) continue;
+        byConversation.set(message.conversationId, { id: message.conversationId, from: 'url' });
+      }
+      return byConversation;
+    }, [history]);
 
     /**
      * Which messages begin a new conversation, deduced from the data rather
@@ -687,7 +719,16 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
       onCopyMessage?.(content);
     }, [onCopyMessage, t]);
 
-    const handleVote = useCallback((messageId: string, vote: 'up' | 'down') => {
+    /**
+     * `conversationId` comes from the ROW, not from the screen.
+     *
+     * The vote is addressed to the conversation the message is in, and a thread
+     * shows several: taking the id of the stretch on screen would send an old
+     * message's vote to a conversation that does not contain it, where it can
+     * only fail — and it fails silently, because the only report is a toast on
+     * success.
+     */
+    const handleVote = useCallback((messageId: string, vote: 'up' | 'down', conversationId?: string) => {
       if (voteInFlightRef.current.has(messageId)) return;
       let newVote: 'up' | 'down' | null = null;
       setVotedMessages(prev => {
@@ -696,9 +737,9 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
         const { [messageId]: _, ...rest } = prev;
         return rest;
       });
-      if (!chatId?.id) return;
+      if (conversationId === undefined) return;
       voteInFlightRef.current.add(messageId);
-      apiClient.patch(`/conversations/${chatId.id}/messages/${messageId}/vote`, { vote: newVote })
+      apiClient.patch(`/conversations/${conversationId}/messages/${messageId}/vote`, { vote: newVote })
         .then(() => toast.success(t('chat.thanksFeedback')))
         .catch(() => {
           setVotedMessages(prev => {
@@ -707,7 +748,7 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
           });
         })
         .finally(() => voteInFlightRef.current.delete(messageId));
-    }, [chatId, t]);
+    }, [t]);
 
     const containerClassName = cn(
       "max-w-3xl mx-auto w-full",
@@ -740,6 +781,7 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
      */
     const renderMessage = (m: Message, index: number) => {
       const separator = separatorsByMessage.get(m.id);
+      const fromHistory = index < history.length;
 
       return (
         <React.Fragment key={m.id || `msg-${index}`}>
@@ -764,7 +806,7 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
             isCopied={copiedMessageId === m.id}
             myVote={votedMessages[m.id] ?? null}
             ttsState={ttsActiveMessageId === m.id ? ttsPlaybackState : 'idle'}
-            chatId={chatId}
+            chatId={fromHistory ? historyChatIds.get(history[index].conversationId) ?? chatId : chatId}
             voiceAgentState={voiceAgentState}
             handleMarkLayout={handleMarkLayout}
             handleCopyMessage={handleCopyMessage}
@@ -773,7 +815,7 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
             generateAudio={generateAudio}
             audioGenRowState={audioGenActiveMessageId === m.id ? audioGenState : 'idle'}
             openThoughtPanel={openThoughtPanel}
-            onStartEdit={onStartEdit}
+            onStartEdit={fromHistory ? undefined : onStartEdit}
             onApprovePlan={onApprovePlan}
             onRejectPlan={onRejectPlan}
           />
