@@ -378,18 +378,35 @@ jobs:
       # tree is deleted, and an outage today, when Kaana serves text and Alia
       # still serves speech, images and realtime voice itself.
       #
-      # ## The attribution ids are placeholders, and knowingly so
+      # ## The attribution ids are REAL Oxy ids as of 2026-08-25
       #
-      # Kaana treats every Oxy id as an opaque string — it never parses one, and
-      # `AGENTS.md` in that repo forbids it joining them against anything. So
-      # these three values are accepted today whatever they say. They are not
-      # yet REAL Oxy ids, because Oxy issues none for Alia-as-a-caller: the
-      # inference edge does not exist there (`docs/migration/relay-client-gap.md`
-      # §1) and the machine credential that would name one is blocked on
-      # OxyHQ/oxy#981 pending metering. The consequence to know: usage Kaana
-      # records against `acc_alia_platform` is attributed to an account that
-      # does not exist in Oxy's ledger, which is harmless while nothing consumes
-      # the receipts and is the first thing to fix when something does.
+      # They used to be placeholders — `app_alia`, `acc_alia_platform`,
+      # `cred_alia_edge_2026_08_24` — because Oxy issued none for
+      # Alia-as-a-caller. It does now: the `Alia` Application is registered and
+      # `internal`, it carries a `service` ApplicationCredential, and it is owned
+      # by its own project account. Each value below was read back out of the Oxy
+      # database, and the credential was exchanged once against
+      # `POST https://api.oxy.so/auth/service-token` — the token came back
+      # naming this `applicationId`, this `credentialId` and this
+      # `ownerAccountId`, so these three are not merely plausible, they are what
+      # Oxy itself puts in the token.
+      #
+      # Kaana still treats every Oxy id as an opaque string and never joins them
+      # against anything, so nothing here DEPENDS on their being real. What
+      # changes is that usage Kaana records is now attributable: it books to an
+      # account that exists in Oxy's ledger instead of one that does not.
+      #
+      # THE ACCOUNT ID IS THE ONE TO GET RIGHT. `acc_alia_platform` was replaced
+      # by the `alia-production-chat` PROJECT account, minted 2026-08-25, not by
+      # the platform owner `oxy` — the two are different accounts and the whole
+      # point of the project account is that Alia's spend gets its own line in
+      # the cost-centre report rather than being absorbed into the platform's.
+      #
+      # Before Alia consumes inference THROUGH OXY, that account's billing face
+      # has to be provisioned: `account_balances` was empty on 2026-08-25 — zero
+      # rows in the whole table. Nothing is spending today, so this is a
+      # precondition of the cutover and not a defect; it is restated where the
+      # cutover flag is defined (`lib/inference/kaana-cutover.ts`).
       - name: Stage the Kaana edge configuration
         id: kaana
         env:
@@ -408,14 +425,27 @@ jobs:
           # binding naming a parameter that does not exist does not warn, it
           # fails every task launch with `ResourceInitializationError` AFTER a
           # green deploy. The gate turned that into a failed deploy instead.
-          kaana_secrets="$(jq -cn --arg arn "arn:aws:ssm:$AWS_REGION:237343248947:parameter/oxy/$APP/KAANA_EDGE_SIGNING_PRIVATE_KEY" \
-            '{KAANA_EDGE_SIGNING_PRIVATE_KEY: $arn}')"
+          # All three are written to SSM by the sync step ABOVE, in this same
+          # job, before this render — which is the ordering that makes binding
+          # them safe. A `secrets[]` entry naming a parameter that does not
+          # exist fails every task launch with `ResourceInitializationError`
+          # AFTER a green deploy, so the sync has to have run first. It also
+          # means an EMPTY GitHub secret is the hazard rather than a missing
+          # one: `sync_secret` skips an empty value with a warning, the
+          # parameter never appears, and this binding then points at nothing.
+          kaana_secrets="$(jq -cn \
+            --arg sign "arn:aws:ssm:$AWS_REGION:237343248947:parameter/oxy/$APP/KAANA_EDGE_SIGNING_PRIVATE_KEY" \
+            --arg key "arn:aws:ssm:$AWS_REGION:237343248947:parameter/oxy/$APP/ALIA_RELAY_CREDENTIAL_KEY" \
+            --arg secret "arn:aws:ssm:$AWS_REGION:237343248947:parameter/oxy/$APP/ALIA_RELAY_CREDENTIAL_SECRET" \
+            '{KAANA_EDGE_SIGNING_PRIVATE_KEY: $sign,
+              ALIA_RELAY_CREDENTIAL_KEY: $key,
+              ALIA_RELAY_CREDENTIAL_SECRET: $secret}')"
           kaana_env="$(jq -cn '{
             RELAY_BASE_URL: "https://relay.oxy.so",
             KAANA_EDGE_KEY_ID: "alia-edge-2026-08-24",
-            ALIA_RELAY_ACCOUNT_ID: "acc_alia_platform",
-            ALIA_RELAY_APPLICATION_ID: "app_alia",
-            ALIA_RELAY_CREDENTIAL_ID: "cred_alia_edge_2026_08_24",
+            ALIA_RELAY_ACCOUNT_ID: "01a0369b-1222-712f-8df6-f8ffeb78ccc2",
+            ALIA_RELAY_APPLICATION_ID: "6a2f851751b784a86fd0e934",
+            ALIA_RELAY_CREDENTIAL_ID: "01a0371d-509c-7d1f-9fa5-1fb7a6e03174",
             ALIA_RELAY_ENVIRONMENT: "production",
             ALIA_RELAY_INFERENCE_SCOPES: "inference:invoke"
           }')"
