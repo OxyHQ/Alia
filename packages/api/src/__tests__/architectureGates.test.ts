@@ -443,6 +443,24 @@ const PROVIDER_IMPORT_ALLOWLIST: readonly { from: string; to: string; via: Modul
     why: 'A value tuple that renders a CHECK constraint. Retires with the routing catalogue tables (#139 ws10).',
   },
   {
+    from: 'packages/api/src/db/__tests__/providers.pgdb.test.ts',
+    to: 'packages/api/src/internal/providers/lib/alia-tiers',
+    via: 'import',
+    why: 'Test-only. The tuple that renders the CHECK, checked against the CHECK the shipped migrations actually built — the pairing nothing else reads both halves of. Retires with the routing catalogue tables (#139 ws10).',
+  },
+  {
+    from: 'packages/api/src/db/__tests__/providers.pgdb.test.ts',
+    to: 'packages/api/src/internal/providers/lib/alia-models',
+    via: 'import',
+    why: 'Test-only. Reads TIER_MODEL_MAPPINGS as DATA — the seeder’s own input, so "every mapping got a row" is measured over what it is really given rather than a fixture. Retires with the routing catalogue tables (#139 ws10).',
+  },
+  {
+    from: 'packages/api/src/db/__tests__/providers.pgdb.test.ts',
+    to: 'packages/api/src/internal/providers/lib/seed-model-configs',
+    via: 'import',
+    why: 'Test-only. Runs the REAL deploy seeder against a real migrated database: it refused five rows on every production boot and reported them as a `skipped` count, which an idempotent re-run also produces. Retires with the routing catalogue tables (#139 ws10).',
+  },
+  {
     from: 'packages/api/src/db/schema/providers.ts',
     to: 'packages/api/src/internal/providers/lib/provider-names',
     via: 'import',
@@ -780,7 +798,7 @@ const PROVIDER_IMPORT_ALLOWLIST: readonly { from: string; to: string; via: Modul
  * produced a plausible wrong answer that still compiled. The same trap caught
  * ws5's rebase, which is why this paragraph is a rule and not a history.
  */
-const PROVIDER_IMPORT_ALLOWLIST_SIZE = 51;
+const PROVIDER_IMPORT_ALLOWLIST_SIZE = 53;
 
 function observedProviderImports(): { from: string; to: string; via: ModuleRef['via'] }[] {
   const seen = new Map<string, { from: string; to: string; via: ModuleRef['via'] }>();

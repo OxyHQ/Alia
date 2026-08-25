@@ -14,7 +14,6 @@ import {
   isAliaModel,
   getAliaModel,
   type AliaModel,
-  type AliaTier,
 } from './alia-models';
 import { resolveWithFallback, type FallbackOptions, type FallbackResult, type FallbackAttempt } from './fallback-engine';
 
@@ -103,7 +102,7 @@ export async function resolveAliaModelWithAttempts(
  */
 
 // Re-export utilities from alia-models
-export { isAliaModel, getAliaModel, ALIA_MODELS, type AliaModel, type AliaTier };
+export { isAliaModel, getAliaModel, ALIA_MODELS, type AliaModel };
 
 // Re-export fallback types for consumers
 export type { FallbackOptions, FallbackResult, FallbackAttempt };
