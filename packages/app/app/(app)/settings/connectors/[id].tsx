@@ -14,11 +14,11 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useState } from "react";
 import {
   ChevronLeft,
-  Plug,
   Check,
   ArrowUp,
   ExternalLink,
 } from "lucide-react-native";
+import { ActionKeyIcon } from "@/components/ui/action-key-icon";
 import { confirm } from "@oxyhq/bloom/surfaces";
 import { withAlpha } from "@oxyhq/bloom/theme";
 import { Text } from "@/components/ui/text";
@@ -211,7 +211,7 @@ export default function ConnectorDetailScreen() {
                   contentFit="contain"
                 />
               ) : (
-                <Plug size={30} className="text-muted-foreground" />
+                <ActionKeyIcon size={30} />
               )}
             </View>
             <View className="flex-1 min-w-0">

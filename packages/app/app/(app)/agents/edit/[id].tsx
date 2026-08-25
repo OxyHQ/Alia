@@ -36,6 +36,8 @@ import {
   Trash2,
 } from "lucide-react-native";
 import { Search } from "@oxyhq/bloom/search";
+import { GhostButton } from "@oxyhq/bloom/button";
+import { Item } from "@oxyhq/bloom/item";
 import { SettingsListGroup, SettingsListItem } from "@oxyhq/bloom/settings-list";
 import { AGENT_TOOLS } from "@/lib/constants/agent-tools";
 import * as DropdownMenu from "@/components/ui/dropdown-menu";
@@ -509,14 +511,12 @@ export default function EditAgentScreen() {
                   icon={<Text className="text-base">{skill.icon}</Text>}
                   title={skill.title}
                   rightElement={
-                    <Pressable
-                      accessibilityRole="button"
+                    <GhostButton
+                      size="small"
                       accessibilityLabel={`${t("agents.removeSkill")}: ${skill.title}`}
                       onPress={() => removeLinkedSkill(skill._id)}
-                      className="w-7 h-7 items-center justify-center rounded-md active:bg-destructive/10"
-                    >
-                      <X size={14} className="text-muted-foreground" />
-                    </Pressable>
+                      icon={<X size={14} className="text-muted-foreground" />}
+                    />
                   }
                 />
               ))}
@@ -552,14 +552,12 @@ export default function EditAgentScreen() {
                       (!skillSearch || s.title.toLowerCase().includes(skillSearch.toLowerCase()))
                     )
                     .map((skill) => (
-                      <Pressable
+                      <Item
                         key={skill._id}
                         onPress={() => addLinkedSkill(skill)}
-                        className="flex-row items-center gap-2 px-4 py-2 active:bg-muted"
-                      >
-                        <Text className="text-base">{skill.icon}</Text>
-                        <Text className="text-sm text-foreground">{skill.title}</Text>
-                      </Pressable>
+                        leading={<Text className="text-base">{skill.icon}</Text>}
+                        title={skill.title}
+                      />
                     ))}
                 </ScrollView>
             </Dialog>
@@ -596,14 +594,11 @@ export default function EditAgentScreen() {
             </SettingsListGroup>
 
             {/* Permissions */}
-            <SettingsListGroup title="Permissions">
-              <View className="p-3">
-                <AgentPermissionToggles
-                  permissions={permissions}
-                  onChange={setPermissions}
-                />
-              </View>
-            </SettingsListGroup>
+            <AgentPermissionToggles
+              title="Permissions"
+              permissions={permissions}
+              onChange={setPermissions}
+            />
 
             {/* Knowledge (Library Files) */}
             <SettingsListGroup title={t("agents.knowledge")}>
@@ -613,14 +608,12 @@ export default function EditAgentScreen() {
                   icon={<FileText size={18} className="text-muted-foreground" />}
                   title={file.name}
                   rightElement={
-                    <Pressable
-                      accessibilityRole="button"
+                    <GhostButton
+                      size="small"
                       accessibilityLabel={`${t("agents.removeKnowledge")}: ${file.name}`}
                       onPress={() => removeLinkedKnowledge(file._id)}
-                      className="w-7 h-7 items-center justify-center rounded-md active:bg-destructive/10"
-                    >
-                      <X size={14} className="text-muted-foreground" />
-                    </Pressable>
+                      icon={<X size={14} className="text-muted-foreground" />}
+                    />
                   }
                 />
               ))}
@@ -656,7 +649,7 @@ export default function EditAgentScreen() {
                       (!knowledgeSearch || f.name.toLowerCase().includes(knowledgeSearch.toLowerCase()))
                     )
                     .map((file) => (
-                      <Pressable
+                      <Item
                         key={file._id}
                         onPress={() => addLinkedKnowledge({
                           _id: file._id,
@@ -665,13 +658,9 @@ export default function EditAgentScreen() {
                           category: file.category,
                           url: file.url,
                         })}
-                        className="flex-row items-center gap-2 px-4 py-2 active:bg-muted"
-                      >
-                        <FileText size={14} className="text-muted-foreground" />
-                        <Text className="text-sm text-foreground flex-1" numberOfLines={1}>
-                          {file.name}
-                        </Text>
-                      </Pressable>
+                        leading={<FileText size={14} className="text-muted-foreground" />}
+                        title={file.name}
+                      />
                     ))}
                   {libraryFiles.length === 0 && (
                     <Text className="text-xs text-muted-foreground px-4 py-3 text-center">
