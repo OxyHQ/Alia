@@ -191,7 +191,13 @@ export function useStreamingChat(apiUrl: string, conversationId?: string, reason
     /** Keep a half-streamed turn — destroying real output is worse than showing the error. */
     const settleError = (): SendOutcome => (realOutputChars || hasToolInvocations ? 'sent' : rollback());
 
-    const userMessage: Message = { ...message, id: Date.now().toString() };
+    /**
+     * Stamped here, not on the way back: a thread left open across midnight has
+     * to draw its date line as the turn happens, and the server's own stamp only
+     * arrives with the next full load. `POST /conversations` already accepts a
+     * client `createdAt`, so this is the value that persists too.
+     */
+    const userMessage: Message = { ...message, id: Date.now().toString(), createdAt: new Date().toISOString() };
     // Build from the pre-send snapshot before any await. The optimistic user
     // row and assistant placeholder may reach messagesRef while device info is
     // collected; reading the ref afterwards used to send both plus userMessage
@@ -205,6 +211,7 @@ export function useStreamingChat(apiUrl: string, conversationId?: string, reason
       role: 'assistant',
       content: '',
       toolInvocations: [],
+      createdAt: new Date().toISOString(),
     };
     setMessages((prev) => [...prev, assistantMessage]);
 
