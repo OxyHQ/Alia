@@ -119,8 +119,13 @@ const ingestEpisode = vi.fn(
     _filename?: string,
   ) => ({ id: 'syra-episode' }),
 );
+const abandonEpisodeIngest = vi.fn(
+  async (_draft: { episodeId: string; ingestTicket: string }, _reason?: string) => ({
+    id: 'syra-episode',
+  }),
+);
 vi.mock('../../syra/syra.js', () => ({
-  syraForTicket: () => ({ ingestEpisode }),
+  syraForTicket: () => ({ ingestEpisode, abandonEpisodeIngest }),
 }));
 
 vi.mock('../../../socket.js', () => ({ getIO: () => null }));
@@ -151,6 +156,7 @@ beforeEach(async () => {
   effectsWork = true;
   measuredDurationMs = 90_000;
   ingestEpisode.mockClear();
+  abandonEpisodeIngest.mockClear();
   synthesizeSoundEffect.mockClear();
   generateText.mockClear();
   scriptPrompts.length = 0;
@@ -532,6 +538,159 @@ describe('a failure leaves the balance exactly where it was', () => {
     const episode = await findEpisodeById(db, episodeId);
     expect(episode?.status).toBe('failed');
     expect(episode?.error).toBe('Insufficient credits');
+  });
+});
+
+/**
+ * A Syra episode is a DRAFT from the moment the route reserves it until audio
+ * arrives, and NOTHING in Syra times a draft out. So a run that dies without
+ * saying so leaves a row at `processing` forever — measured in production,
+ * where three episodes of one show had no S3 object at all and sat there until
+ * they were repaired by hand.
+ *
+ * The balance block above proves each exit gives the credit back. This one
+ * proves the same exits pay the other debt.
+ */
+describe('a failure tells Syra its draft is never coming', () => {
+  it('when the script cannot be written', async () => {
+    await fund(50);
+    const episodeId = await queueEpisode();
+    scriptReply = null;
+
+    const { runShowPipeline } = await import('../show-pipeline.js');
+    await runShowPipeline(episodeId);
+
+    expect(abandonEpisodeIngest).toHaveBeenCalledTimes(1);
+    const [draft, reason] = abandonEpisodeIngest.mock.calls[0] as [
+      { episodeId: string; ingestTicket: string },
+      string,
+    ];
+    const episode = await findEpisodeById(db, episodeId);
+    expect(draft.episodeId).toBe(episode?.syraEpisodeId);
+    expect(draft.ingestTicket).toBe(episode?.ingestTicket);
+    /**
+     * Short, ours, and about what THIS pipeline did. It lands in another
+     * product's operator log, so it must never carry an upstream message: the
+     * SDK caps it at 200 characters and redaction across that boundary is
+     * absolute.
+     */
+    expect(reason).toBe('alia: script generation failed');
+    expect(reason.length).toBeLessThanOrEqual(200);
+  });
+
+  it('when no audio can be produced', async () => {
+    await fund(50);
+    const episodeId = await queueEpisode();
+    scriptReply = GOOD_SCRIPT;
+    synthesisWorks = false;
+
+    const { runShowPipeline } = await import('../show-pipeline.js');
+    await runShowPipeline(episodeId);
+
+    expect(abandonEpisodeIngest).toHaveBeenCalledTimes(1);
+    expect((abandonEpisodeIngest.mock.calls[0] as [unknown, string])[1]).toBe(
+      'alia: no audio segments were produced',
+    );
+  });
+
+  it('when the account cannot reserve anything at all', async () => {
+    await fund(0);
+    const episodeId = await queueEpisode();
+    scriptReply = GOOD_SCRIPT;
+
+    const { runShowPipeline } = await import('../show-pipeline.js');
+    await runShowPipeline(episodeId);
+
+    /**
+     * The exit that owed the least and still owed this: nothing was reserved so
+     * there is nothing to refund, but the route had already reserved the Syra
+     * episode before the row existed, so the draft is real.
+     */
+    expect(abandonEpisodeIngest).toHaveBeenCalledTimes(1);
+  });
+
+  it('when publishing to Syra throws', async () => {
+    await fund(50);
+    const episodeId = await queueEpisode();
+    scriptReply = GOOD_SCRIPT;
+    ingestEpisode.mockRejectedValueOnce(new Error('Syra refused the ingest'));
+
+    const { runShowPipeline } = await import('../show-pipeline.js');
+    await runShowPipeline(episodeId);
+
+    expect(abandonEpisodeIngest).toHaveBeenCalledTimes(1);
+    expect((abandonEpisodeIngest.mock.calls[0] as [unknown, string])[1]).toBe(
+      'alia: pipeline error before ingest',
+    );
+  });
+
+  it('and says nothing at all when there is no draft to abandon', async () => {
+    await fund(50);
+    const episodeId = await queueEpisode();
+    // A re-run of an episode already published: the ticket is spent, so there
+    // is no capability to abandon with and no draft left to abandon.
+    await db.update(showEpisodes).set({ ingestTicket: null }).where(eq(showEpisodes.id, episodeId));
+    scriptReply = GOOD_SCRIPT;
+
+    const { runShowPipeline } = await import('../show-pipeline.js');
+    await runShowPipeline(episodeId);
+
+    expect(abandonEpisodeIngest).not.toHaveBeenCalled();
+  });
+
+  it('and says nothing when the row names no Syra episode', async () => {
+    await fund(50);
+    const episodeId = await queueEpisode();
+    await db.update(showEpisodes).set({ syraEpisodeId: null }).where(eq(showEpisodes.id, episodeId));
+    scriptReply = GOOD_SCRIPT;
+
+    const { runShowPipeline } = await import('../show-pipeline.js');
+    await runShowPipeline(episodeId);
+
+    expect(abandonEpisodeIngest).not.toHaveBeenCalled();
+  });
+
+  it('and says nothing on a run that simply worked', async () => {
+    await fund(50);
+    const episodeId = await queueEpisode();
+    scriptReply = GOOD_SCRIPT;
+
+    const { runShowPipeline } = await import('../show-pipeline.js');
+    await runShowPipeline(episodeId);
+
+    expect((await findEpisodeById(db, episodeId))?.status).toBe('completed');
+    expect(ingestEpisode).toHaveBeenCalledTimes(1);
+    expect(abandonEpisodeIngest).not.toHaveBeenCalled();
+  });
+
+  /**
+   * The one case the guard exists for, and the reason it is a guard rather than
+   * a comment: everything AFTER the ingest can still throw, and by then the
+   * audio is published and the ticket is spent. Withdrawing there would be a
+   * lie about audio that listeners can already hear.
+   *
+   * The failure is injected through the Syra mock itself — it publishes, and
+   * while it is standing in for Syra it removes the credit row the settlement
+   * is about to read, which is what a concurrent write looks like from inside
+   * this run. Without that injection the guard cannot be reached at all, and a
+   * test that cannot reach it measures nothing: this exact assertion, written
+   * against a plain successful run, survived deleting the guard.
+   */
+  it('and never withdraws an episode that already published', async () => {
+    await fund(50);
+    const episodeId = await queueEpisode();
+    scriptReply = GOOD_SCRIPT;
+    ingestEpisode.mockImplementationOnce(async () => {
+      await db.delete(userCredits).where(eq(userCredits.id, OWNER));
+      return { id: 'syra-episode' };
+    });
+
+    const { runShowPipeline } = await import('../show-pipeline.js');
+    await runShowPipeline(episodeId);
+
+    expect(ingestEpisode).toHaveBeenCalledTimes(1);
+    expect((await findEpisodeById(db, episodeId))?.status).toBe('failed');
+    expect(abandonEpisodeIngest).not.toHaveBeenCalled();
   });
 });
 
