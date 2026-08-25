@@ -6,6 +6,27 @@ vi.mock('../../../db/agents/agentRepository.js', () => ({ findAgentById: vi.fn()
 vi.mock('../../../db/agents/agentReviewRepository.js', () => ({ findAgentReviewById: vi.fn() }));
 vi.mock('../../../db/agents/skillRepository.js', () => ({ findReportedSkill: vi.fn() }));
 
+/**
+ * Identity is OXY'S, so a snapshot's `displayName`, `handle` and
+ * `avatarPresent` come from a batch lookup rather than from the agent row.
+ *
+ * Mocked at `hydrateOxyUsers` — the narrow seam `lib/agent-identity.ts` reads
+ * through — rather than at `attachAgentIdentity`, so the mapping from an Oxy
+ * user to the three rendered fields is the SHIPPED one. `middleware/auth`'s
+ * `oxyClient` goes with it because the avatar resolution calls
+ * `getFileDownloadUrl`, and importing the real middleware here would drag in
+ * the whole database and telemetry stack.
+ */
+const oxyIdentity = vi.hoisted(() => ({
+  users: [] as { _id: string; username: string; displayName: string; avatar?: string }[],
+}));
+vi.mock('../../oxy-user-hydration.js', () => ({
+  hydrateOxyUsers: async () => new Map(oxyIdentity.users.map((u) => [u._id, u])),
+}));
+vi.mock('../../../middleware/auth.js', () => ({
+  oxyClient: { getFileDownloadUrl: (id: string) => `https://cloud.oxy.so/${id}` },
+}));
+
 import { findAgentById } from '../../../db/agents/agentRepository.js';
 import { findAgentReviewById } from '../../../db/agents/agentReviewRepository.js';
 import {
@@ -16,6 +37,14 @@ import { createAgentSubjectProvider } from '../subjects/agent-subject.js';
 import { createAgentReviewSubjectProvider } from '../subjects/agent-review-subject.js';
 import { createSkillSubjectProvider } from '../subjects/skill-subject.js';
 import type { ModerationResource } from '../subjects/types.js';
+
+/** The bot account every agent fixture below IS. */
+const BOT_ACCOUNT = '01996a6f-0000-7000-8000-00000000b07a';
+
+/** What Oxy says about {@link BOT_ACCOUNT}, as the default fixture. */
+function identity(overrides: Partial<{ username: string; displayName: string; avatar: string }> = {}) {
+  return [{ _id: BOT_ACCOUNT, username: 'helpful', displayName: 'Helpful Bot', avatar: 'file-1', ...overrides }];
+}
 
 const findAgent = vi.mocked(findAgentById);
 const findReview = vi.mocked(findAgentReviewById);
@@ -42,14 +71,10 @@ function agentRecord(overrides: Record<string, unknown> = {}) {
   return {
     _id: AGENT_ID,
     id: AGENT_ID,
-    name: 'Helpful Bot',
-    handle: 'helpful',
-    avatar: 'file-1',
+    oxyAccountId: BOT_ACCOUNT,
     tagline: 'Does helpful things',
     description: 'A long description',
     author: AUTHOR_ID,
-    authorName: 'Nate',
-    authorVerified: false,
     category: 'productivity',
     tags: ['a', 'b'],
     rating: 0,
@@ -58,18 +83,15 @@ function agentRecord(overrides: Record<string, unknown> = {}) {
     hireCount: 0,
     price: null,
     capabilities: [],
-    isVerified: false,
     isFeatured: false,
     isTrending: false,
     isPublished: true,
     status: 'active',
-    creditBalance: 0,
     allowHiring: false,
     systemPrompt: 'You are helpful.',
     preferredImage: null,
     allowedModels: [],
     scheduleInterval: null,
-    lastScheduledCheck: null,
     archetype: 'general',
     archetypeConfig: null,
     createdAt: new Date('2026-01-01T00:00:00.000Z'),
@@ -120,7 +142,12 @@ function assertContractValid(resource: ModerationResource): void {
 describe('agent subject provider', () => {
   const provider = createAgentSubjectProvider();
 
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    // Reset the identity Oxy answers with: a case that changes it must not leak
+    // into the next, and `clearAllMocks` does not touch a hoisted fixture.
+    oxyIdentity.users = identity();
+  });
 
   it('describes the listing as a profile and the instructions as evidence', async () => {
     findAgent.mockResolvedValue(agentRecord());
@@ -142,7 +169,7 @@ describe('agent subject provider', () => {
       data: {
         displayName: 'Helpful Bot',
         bio: 'A long description',
-        claims: { handle: 'helpful', authorName: 'Nate' },
+        claims: { handle: 'helpful' },
       },
     });
 
@@ -176,9 +203,8 @@ describe('agent subject provider', () => {
    * marketplace actually shows.
    */
   it('omits a display name it does not have rather than composing one', async () => {
-    findAgent.mockResolvedValue(
-      agentRecord({ name: '', handle: 'nameless', description: 'has a description' }),
-    );
+    findAgent.mockResolvedValue(agentRecord({ description: 'has a description' }));
+    oxyIdentity.users = identity({ displayName: '', username: 'nameless' });
 
     const snapshot = await provider.snapshot(AGENT_ID);
     const content = snapshot?.content as ModerationResource;
@@ -190,12 +216,12 @@ describe('agent subject provider', () => {
 
   /** Declared, not attached: there is no digest for an avatar anywhere in Alia. */
   it('declares whether an avatar exists instead of attaching it', async () => {
-    findAgent.mockResolvedValue(agentRecord({ avatar: 'file-1' }));
+    findAgent.mockResolvedValue(agentRecord());
     const withAvatar = await provider.snapshot(AGENT_ID);
     expect(withAvatar?.content).toMatchObject({ data: { claims: { avatarPresent: 'true' } } });
     expect(withAvatar?.attachments).toBeUndefined();
 
-    findAgent.mockResolvedValue(agentRecord({ avatar: null }));
+    oxyIdentity.users = identity({ avatar: '' });
     const withoutAvatar = await provider.snapshot(AGENT_ID);
     expect(withoutAvatar?.content).toMatchObject({
       data: { claims: { avatarPresent: 'false' } },
@@ -216,11 +242,17 @@ describe('agent subject provider', () => {
 describe('agent review subject provider', () => {
   const provider = createAgentReviewSubjectProvider();
 
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    // Reset the identity Oxy answers with: a case that changes it must not leak
+    // into the next, and `clearAllMocks` does not touch a hoisted fixture.
+    oxyIdentity.users = identity();
+  });
 
   it('describes the comment, with the agent as context', async () => {
     findReview.mockResolvedValue(reviewRecord());
-    findAgent.mockResolvedValue(agentRecord({ name: 'Bot', tagline: 'Tag' }));
+    findAgent.mockResolvedValue(agentRecord({ tagline: 'Tag' }));
+    oxyIdentity.users = identity({ displayName: 'Bot' });
 
     const snapshot = await provider.snapshot(REVIEW_ID);
     expect(snapshot?.subject.type).toBe('commerce.review');
@@ -268,7 +300,12 @@ describe('agent review subject provider', () => {
 describe('skill subject provider', () => {
   const provider = createSkillSubjectProvider();
 
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    // Reset the identity Oxy answers with: a case that changes it must not leak
+    // into the next, and `clearAllMocks` does not touch a hoisted fixture.
+    oxyIdentity.users = identity();
+  });
 
   /**
    * A row as `findReportedSkill` hands it back — every column NOT NULL except

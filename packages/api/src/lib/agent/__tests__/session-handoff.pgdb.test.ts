@@ -112,18 +112,26 @@ async function backdate(agentId: string): Promise<void> {
     .where(eq(agentSessions.agentId, agentId));
 }
 
-async function seedAgent(price: number): Promise<{ _id: string; name: string; price: number }> {
+/**
+ * A hirable agent, in the shape `startAgentSession` reads.
+ *
+ * `oxyAccountId` stands where `name` was: an agent IS an Oxy `bot` account, so
+ * the primitive resolves the queue label from that account rather than from a
+ * column. Nothing about the BILLING assertions below changes — the identity
+ * lookup fails open and cannot turn a handoff into a refund.
+ */
+async function seedAgent(
+  price: number,
+): Promise<{ _id: string; oxyAccountId: string; price: number }> {
   const agent = await createAgent(db, {
-    name: 'Runner',
-    handle: `handoff-${SUITE}-${seq++}`,
+    oxyAccountId: `oxy-bot-handoff-${SUITE}-${seq++}`,
     tagline: 'runs things',
     description: 'd',
     authorOxyUserId: SUITE,
-    authorName: 'Nate',
     category: 'research',
     price,
   });
-  return { _id: agent._id, name: agent.name, price };
+  return { _id: agent._id, oxyAccountId: agent.oxyAccountId, price };
 }
 
 describe('startAgentSession', () => {

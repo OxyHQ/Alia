@@ -6,9 +6,9 @@ import { skills } from '../schema/agents-support';
 import { libraryFiles } from '../schema/library';
 import {
   AgentChildWriteOutsideTransactionError,
-  agentIsOwnedBy,
   createAgent,
-  deleteAgentOwnedBy,
+  deleteAgent,
+  findAgentOxyAccountId,
   evolveAgentSoul,
   findAgentById,
   findAgentKnowledge,
@@ -33,7 +33,6 @@ import {
 
 let db: ApiDatabase;
 const OWNER = `oxy-owner-${Math.random().toString(36).slice(2, 10)}`;
-const OTHER = `oxy-other-${Math.random().toString(36).slice(2, 10)}`;
 
 beforeAll(() => {
   const connected = connectPostgres(process.env.DATABASE_URL);
@@ -45,16 +44,14 @@ afterAll(async () => {
   await closePostgres();
 });
 
-const handle = () => `@a-${Math.random().toString(36).slice(2, 10)}`;
+const botAccount = () => `oxy-bot-${Math.random().toString(36).slice(2, 10)}`;
 
 function newAgentInput(overrides: Record<string, unknown> = {}) {
   return {
-    name: 'Researcher',
-    handle: handle(),
+    oxyAccountId: botAccount(),
     tagline: 'finds things out',
     description: 'a longer description',
     authorOxyUserId: OWNER,
-    authorName: 'Nate',
     category: 'research',
     ...overrides,
   };
@@ -129,24 +126,36 @@ describe('permissions and soul are ABSENT, never synthesised', () => {
   });
 });
 
-describe('ownership is a predicate, not a caller-side comparison', () => {
-  it('agentIsOwnedBy answers a boolean and never the row', async () => {
-    const created = await createAgent(db, newAgentInput());
-    expect(await agentIsOwnedBy(db, created._id, OWNER)).toBe(true);
-    expect(await agentIsOwnedBy(db, created._id, OTHER)).toBe(false);
+/**
+ * WHO MAY WRITE IS NO LONGER A QUESTION THIS FILE CAN ASK.
+ *
+ * `agentIsOwnedBy` and `deleteAgentOwnedBy` are gone with the `{_id, author}`
+ * predicate they carried: an agent IS an Oxy `bot` account, and the answer is
+ * `account:act_as` over that account, which lives in another service. It is
+ * asserted in `lib/__tests__/agent-account.test.ts` against a stubbed Oxy, and
+ * the only thing left here is the PROJECTION a gate starts from.
+ *
+ * `author_oxy_user_id` survives as a listing index. `listAgentsByAuthor` below
+ * is what it is for, and that it no longer gates a write is exactly the point.
+ */
+describe('what a permission gate starts from', () => {
+  it('findAgentOxyAccountId answers the account, never the row', async () => {
+    const oxyAccountId = botAccount();
+    const created = await createAgent(db, newAgentInput({ oxyAccountId }));
+    expect(await findAgentOxyAccountId(db, created._id)).toBe(oxyAccountId);
+    expect(await findAgentOxyAccountId(db, 'no-such-agent')).toBeNull();
   });
 
-  it('a stranger cannot patch or delete', async () => {
-    const created = await createAgent(db, newAgentInput({ name: 'Before' }));
+  it('a patch and a delete no longer carry an owner predicate', async () => {
+    const created = await createAgent(db, newAgentInput({ tagline: 'Before' }));
 
-    expect(await updateAgent(db, created._id, OTHER, { name: 'After' })).toBeNull();
-    expect((await findAgentById(db, created._id))?.name).toBe('Before');
+    // Anybody the ROUTE let through may write, because the route asked Oxy.
+    expect(await updateAgent(db, created._id, { tagline: 'After' })).not.toBeNull();
+    expect((await findAgentById(db, created._id))?.tagline).toBe('After');
 
-    expect(await deleteAgentOwnedBy(db, created._id, OTHER)).toBe(0);
-    expect(await findAgentById(db, created._id)).not.toBeNull();
-
-    expect(await deleteAgentOwnedBy(db, created._id, OWNER)).toBe(1);
+    expect(await deleteAgent(db, created._id)).toBe(1);
     expect(await findAgentById(db, created._id)).toBeNull();
+    expect(await deleteAgent(db, created._id)).toBe(0);
   });
 });
 
@@ -159,8 +168,8 @@ describe('the update SET clause is built from DEFINED keys only', () => {
    */
   it('does not erase columns absent from the input', async () => {
     const created = await createAgent(db, newAgentInput({ systemPrompt: 'keep me' }));
-    const patched = await updateAgent(db, created._id, OWNER, { name: 'Renamed' });
-    expect(patched?.name).toBe('Renamed');
+    const patched = await updateAgent(db, created._id, { category: 'renamed' });
+    expect(patched?.category).toBe('renamed');
     expect(patched?.systemPrompt).toBe('keep me');
     expect(patched?.tagline).toBe('finds things out');
   });
@@ -170,15 +179,15 @@ describe('the update SET clause is built from DEFINED keys only', () => {
    * that changes nothing must still report a hit, or a retry 404s.
    */
   it('a no-change patch still matches rather than 404ing', async () => {
-    const created = await createAgent(db, newAgentInput({ name: 'Same' }));
-    const patched = await updateAgent(db, created._id, OWNER, { name: 'Same' });
+    const created = await createAgent(db, newAgentInput({ category: 'same' }));
+    const patched = await updateAgent(db, created._id, { category: 'same' });
     expect(patched).not.toBeNull();
-    expect(patched?.name).toBe('Same');
+    expect(patched?.category).toBe('same');
   });
 
   it('an empty patch returns the row rather than null', async () => {
     const created = await createAgent(db, newAgentInput());
-    expect(await updateAgent(db, created._id, OWNER, {})).not.toBeNull();
+    expect(await updateAgent(db, created._id, {})).not.toBeNull();
   });
 });
 
@@ -189,17 +198,17 @@ describe('the child lists', () => {
     const b = await seedSkill();
     const c = await seedSkill();
 
-    await updateAgent(db, created._id, OWNER, { skillIds: [c, a, b] });
+    await updateAgent(db, created._id, { skillIds: [c, a, b] });
     expect((await findAgentSkills(db, created._id)).map((s) => s._id)).toEqual([c, a, b]);
 
-    await updateAgent(db, created._id, OWNER, { skillIds: [b, c] });
+    await updateAgent(db, created._id, { skillIds: [b, c] });
     expect((await findAgentSkills(db, created._id)).map((s) => s._id)).toEqual([b, c]);
   });
 
   it('replacing with an empty list clears it', async () => {
     const created = await createAgent(db, newAgentInput());
-    await updateAgent(db, created._id, OWNER, { skillIds: [await seedSkill()] });
-    await updateAgent(db, created._id, OWNER, { skillIds: [] });
+    await updateAgent(db, created._id, { skillIds: [await seedSkill()] });
+    await updateAgent(db, created._id, { skillIds: [] });
     expect(await findAgentSkills(db, created._id)).toEqual([]);
   });
 
@@ -214,7 +223,7 @@ describe('the child lists', () => {
     const created = await createAgent(db, newAgentInput());
     const f1 = await seedLibraryFile();
     const f2 = await seedLibraryFile();
-    await updateAgent(db, created._id, OWNER, { libraryFileIds: [f2, f1] });
+    await updateAgent(db, created._id, { libraryFileIds: [f2, f1] });
 
     const knowledge = await findAgentKnowledge(db, created._id);
     expect(knowledge.map((k) => k._id)).toEqual([f2, f1]);
@@ -254,7 +263,7 @@ describe('the child lists', () => {
   it('is a no-op against an agent that no longer exists', async () => {
     const created = await createAgent(db, newAgentInput());
     const skillId = await seedSkill();
-    await deleteAgentOwnedBy(db, created._id, OWNER);
+    await deleteAgent(db, created._id);
     await db.transaction(async (tx) => {
       await replaceAgentSkills(tx, created._id, [skillId]);
     });
@@ -370,12 +379,22 @@ describe('counters and the catalogue', () => {
   it('search escapes ILIKE metacharacters rather than a regex\'s', async () => {
     // A literal '%' must match itself, not "anything". Escaping for the wrong
     // language is how a search silently starts matching everything.
+    //
+    // The searchable field is the TAGLINE. `name` and `handle` were two of the
+    // five this matched and they are Oxy's now — see `catalogueFilter`, which
+    // says why they are not replaced by a copy.
     const token = `pc${Math.random().toString(36).slice(2, 8)}`;
-    await createAgent(db, newAgentInput({ name: `100%${token} pure`, isPublished: true }));
-    const other = await createAgent(db, newAgentInput({ name: `100${token} pure`, isPublished: true }));
+    const literal = await createAgent(
+      db,
+      newAgentInput({ tagline: `100%${token} pure`, isPublished: true }),
+    );
+    const other = await createAgent(
+      db,
+      newAgentInput({ tagline: `100${token} pure`, isPublished: true }),
+    );
 
     const found = await listAgentCatalogue(db, { search: `100%${token}`, limit: 50, offset: 0 });
-    expect(found.agents.map((a) => a.name)).toContain(`100%${token} pure`);
+    expect(found.agents.map((a) => a._id)).toContain(literal._id);
     expect(found.agents.map((a) => a._id)).not.toContain(other._id);
   });
 
@@ -383,7 +402,7 @@ describe('counters and the catalogue', () => {
     const token = `sp${Math.random().toString(36).slice(2, 8)}`;
     const created = await createAgent(
       db,
-      newAgentInput({ name: token, systemPrompt: 'secret', isPublished: true }),
+      newAgentInput({ tagline: token, systemPrompt: 'secret', isPublished: true }),
     );
     const found = await listAgentCatalogue(db, { search: token, limit: 50, offset: 0 });
     const row = found.agents.find((a) => a._id === created._id);
@@ -480,13 +499,13 @@ describe('cascade behaviour that arrives WITH the switch', () => {
    */
   it('deleting an agent takes its skill and knowledge links with it', async () => {
     const created = await createAgent(db, newAgentInput());
-    await updateAgent(db, created._id, OWNER, {
+    await updateAgent(db, created._id, {
       skillIds: [await seedSkill()],
       libraryFileIds: [await seedLibraryFile()],
     });
     expect(await findAgentSkills(db, created._id)).toHaveLength(1);
 
-    await deleteAgentOwnedBy(db, created._id, OWNER);
+    await deleteAgent(db, created._id);
 
     const [{ s }] = await db
       .select({ s: sql<number>`count(*)::int` })

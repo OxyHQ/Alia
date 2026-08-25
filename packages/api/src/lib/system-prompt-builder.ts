@@ -42,7 +42,7 @@ import type { EffortLevel } from './reasoning-effort.js';
  */
 const EXTENDED_REASONING_PROMPT = 'alia-v1-thinking';
 import { log } from './logger.js';
-import type { AgentRecord } from '../db/agents/agentRepository.js';
+import { agentPromptName, type HydratedAgent } from './agent-identity.js';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -79,7 +79,7 @@ export interface SystemPromptOptions {
   /** Active skill document */
   skill?: { title?: string; systemPrompt?: string } | null;
   /** Linked agent (for archetype prompt injection) */
-  linkedAgent?: AgentRecord | null;
+  linkedAgent?: HydratedAgent | null;
   /** Whether agent mode is active */
   agentMode?: boolean;
   /**
@@ -230,8 +230,9 @@ export class SystemPromptBuilder {
     if (linkedAgent && isDirectUserSession) {
       const agentPrompt = linkedAgent.systemPrompt || buildArchetypeSystemPrompt(linkedAgent);
       if (agentPrompt) {
-        systemMessage = `# AGENT: ${linkedAgent.name}\n\n${agentPrompt}\n\n---\n\n${systemMessage}`;
-        log.general.info({ agentName: linkedAgent.name, archetype: linkedAgent.archetype }, 'Agent prompt injected');
+        const agentName = agentPromptName(linkedAgent);
+        systemMessage = `# AGENT: ${agentName}\n\n${agentPrompt}\n\n---\n\n${systemMessage}`;
+        log.general.info({ agentName, archetype: linkedAgent.archetype }, 'Agent prompt injected');
       }
     }
 

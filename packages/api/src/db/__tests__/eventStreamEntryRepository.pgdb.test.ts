@@ -43,12 +43,10 @@ const suffix = () => Math.random().toString(36).slice(2, 10);
 
 async function seedSession(): Promise<string> {
   const agent = await createAgent(db, {
-    name: 'Logger',
-    handle: `logger-${suffix()}`,
+    oxyAccountId: `oxy-bot-logger-${suffix()}`,
     tagline: 't',
     description: 'd',
     authorOxyUserId: OWNER,
-    authorName: 'Nate',
     category: 'research',
   });
   const session = await createAgentSession(db, {

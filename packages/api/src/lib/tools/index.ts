@@ -92,7 +92,7 @@ registerTool({
 registerTool({
   name: 'createAgent',
   description: 'Create a new AI agent from a description',
-  tool: createAgentTool,             // factory: (userId, username?) => Tool
+  tool: createAgentTool,             // factory: (userId, accessToken?) => Tool
   enabledByDefault: true,
   category: 'agent',
 });

@@ -36,6 +36,7 @@ import { getOrCreateUserCredits } from '../../../db/billing/userCreditsRepositor
 import type { TriggerRecord } from '../../../db/automation/triggerRepository.js';
 import { enqueueAgentSession } from '../../task-queue.js';
 import { handleRoutingDecision } from '../routing-handler.js';
+import type { HydratedAgent } from '../../agent-identity.js';
 
 let db: ApiDatabase;
 
@@ -70,14 +71,22 @@ async function balanceOf(id: string): Promise<{ free: number; paid: number }> {
   return { free: row.creditsFree, paid: row.creditsPaid };
 }
 
+/**
+ * `handleRoutingDecision` takes a HYDRATED router agent, because it writes that
+ * agent's display name into the routed task. Identity is Oxy's, so a record
+ * alone is no longer enough — the three fields are attached here with the
+ * fallbacks a real unresolvable account would produce.
+ */
+function hydrated(agent: AgentRecord): HydratedAgent {
+  return { ...agent, name: 'Target', handle: 'target', avatar: null, authorName: null };
+}
+
 async function seedAgent(): Promise<AgentRecord> {
   return createAgent(db, {
-    name: 'Target',
-    handle: `routing-${SUITE}-${seq++}`,
+    oxyAccountId: `oxy-bot-routing-${SUITE}-${seq++}`,
     tagline: 'does the work',
     description: 'd',
     authorOxyUserId: SUITE,
-    authorName: 'Nate',
     category: 'research',
     price: 15,
     isPublished: true,
@@ -98,7 +107,7 @@ function decisionDelegatingTo(target: AgentRecord): string {
     category: 'support',
     priority: 'high',
     confidence: 0.9,
-    assignTo: { type: 'agent', id: target._id, name: target.name },
+    assignTo: { type: 'agent', id: target._id, name: 'Target' },
     reasoning: 'the target handles these',
     summary: 'a customer is waiting',
   });
@@ -110,7 +119,7 @@ describe('handleRoutingDecision — delegating to an agent', () => {
     const router = await seedAgent();
     const target = await seedAgent();
 
-    await handleRoutingDecision(router, decisionDelegatingTo(target), trigger(userId));
+    await handleRoutingDecision(hydrated(router), decisionDelegatingTo(target), trigger(userId));
 
     // The worker settles it. This is the positive control: an implementation
     // that refunded unconditionally would pass every case below and fail here.
@@ -125,7 +134,7 @@ describe('handleRoutingDecision — delegating to an agent', () => {
     const target = await seedAgent();
     vi.mocked(enqueueAgentSession).mockRejectedValueOnce(new Error('redis is gone'));
 
-    await handleRoutingDecision(router, decisionDelegatingTo(target), trigger(userId));
+    await handleRoutingDecision(hydrated(router), decisionDelegatingTo(target), trigger(userId));
 
     expect(await balanceOf(userId)).toEqual({ free: 100, paid: 0 });
     // ...and leaves nothing `queued` for the reclaim sweep to pay a second time.
@@ -139,7 +148,7 @@ describe('handleRoutingDecision — delegating to an agent', () => {
     const target = await seedAgent();
     vi.mocked(enqueueAgentSession).mockRejectedValueOnce(new Error('redis is gone'));
 
-    await handleRoutingDecision(router, decisionDelegatingTo(target), trigger(userId));
+    await handleRoutingDecision(hydrated(router), decisionDelegatingTo(target), trigger(userId));
 
     expect(await balanceOf(userId)).toEqual({ free: 0, paid: 100 });
   });
@@ -159,7 +168,7 @@ describe('handleRoutingDecision — delegating to an agent', () => {
     const router = await seedAgent();
     const target = await seedAgent();
 
-    await handleRoutingDecision(router, decisionDelegatingTo(target), trigger(userId));
+    await handleRoutingDecision(hydrated(router), decisionDelegatingTo(target), trigger(userId));
 
     const [row] = await db.select().from(agents).where(eq(agents.id, target._id));
     expect({ hireCount: row?.hireCount, usageCount: row?.usageCount }).toEqual({
@@ -173,7 +182,7 @@ describe('handleRoutingDecision — delegating to an agent', () => {
     const router = await seedAgent();
     const target = await seedAgent();
 
-    await handleRoutingDecision(router, decisionDelegatingTo(target), trigger(userId));
+    await handleRoutingDecision(hydrated(router), decisionDelegatingTo(target), trigger(userId));
 
     expect(await balanceOf(userId)).toEqual({ free: 3, paid: 0 });
     expect(await db.select().from(agentSessions).where(eq(agentSessions.agentId, target._id))).toEqual([]);

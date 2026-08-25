@@ -118,14 +118,15 @@ export interface AgentKnowledgeRef {
 export interface AgentRecord {
   _id: string;
   id: string;
-  name: string;
-  handle: string;
-  avatar: string | null;
+  /**
+   * The Oxy `bot` account this agent IS. Name, handle and avatar are read from
+   * it — see `lib/agent-identity/hydrate.ts` — and are NOT fields of this
+   * record, so nothing here can disagree with Oxy.
+   */
+  oxyAccountId: string;
   tagline: string;
   description: string;
   author: string;
-  authorName: string;
-  authorVerified: boolean;
   category: string;
   tags: string[];
   rating: number;
@@ -134,18 +135,17 @@ export interface AgentRecord {
   hireCount: number;
   price: number | null;
   capabilities: string[];
-  isVerified: boolean;
   isFeatured: boolean;
   isTrending: boolean;
   isPublished: boolean;
   status: AgentStatus;
-  creditBalance: number;
   allowHiring: boolean;
+  /** Whether this is the owner's designated autonomous-events agent. */
+  handlesAutonomousEvents: boolean;
   systemPrompt: string | null;
   preferredImage: string | null;
   allowedModels: string[];
   scheduleInterval: number | null;
-  lastScheduledCheck: Date | null;
   /** ABSENT means all allowed. Never synthesised — see the file comment. */
   permissions?: AgentPermissions;
   /** ABSENT on an agent that has never evolved. */
@@ -235,14 +235,10 @@ export function toAgentRecord(row: AgentRow): AgentRecord {
   return {
     _id: row.id,
     id: row.id,
-    name: row.name,
-    handle: row.handle,
-    avatar: row.avatar,
+    oxyAccountId: row.oxyAccountId,
     tagline: row.tagline,
     description: row.description,
     author: row.authorOxyUserId,
-    authorName: row.authorName,
-    authorVerified: row.authorVerified,
     category: row.category,
     tags: row.tags,
     rating: row.rating,
@@ -251,18 +247,16 @@ export function toAgentRecord(row: AgentRow): AgentRecord {
     hireCount: row.hireCount,
     price: row.price,
     capabilities: row.capabilities,
-    isVerified: row.isVerified,
     isFeatured: row.isFeatured,
     isTrending: row.isTrending,
     isPublished: row.isPublished,
     status: row.status as AgentStatus,
-    creditBalance: row.creditBalance,
     allowHiring: row.allowHiring,
+    handlesAutonomousEvents: row.handlesAutonomousEvents,
     systemPrompt: row.systemPrompt,
     preferredImage: row.preferredImage,
     allowedModels: row.allowedModels,
     scheduleInterval: row.scheduleInterval,
-    lastScheduledCheck: row.lastScheduledCheck,
     permissions: toPermissions(row),
     soul: toSoul(row),
     archetype: row.archetype as AgentArchetype,
@@ -279,49 +273,40 @@ export async function findAgentById(db: Executor, id: string): Promise<AgentReco
   return row ? toAgentRecord(row) : null;
 }
 
-export async function findAgentByHandle(db: Executor, handle: string): Promise<AgentRecord | null> {
-  const [row] = await db.select().from(agents).where(eq(agents.handle, handle)).limit(1);
-  return row ? toAgentRecord(row) : null;
-}
-
 /**
- * An agent owned by a named account.
+ * The agent that IS a named Oxy bot account.
  *
- * The ownership predicate is in the WHERE, not in the caller: `routes/agents/
- * crud.ts:277` and `:324` both address an agent as `{_id, author}` and a caller
- * that fetched by id and compared afterwards is one edit away from leaking.
+ * The only way to reach an agent from an identity now, and the reason
+ * `oxy_account_id` is UNIQUE: a handle lookup resolves the handle at Oxy first
+ * (`GET /profiles/username/:handle`) and arrives here with an account id.
  */
-export async function findAgentOwnedBy(
+export async function findAgentByOxyAccountId(
   db: Executor,
-  id: string,
-  ownerOxyUserId: string,
+  oxyAccountId: string,
 ): Promise<AgentRecord | null> {
   const [row] = await db
     .select()
     .from(agents)
-    .where(and(eq(agents.id, id), eq(agents.authorOxyUserId, ownerOxyUserId)))
+    .where(eq(agents.oxyAccountId, oxyAccountId))
     .limit(1);
   return row ? toAgentRecord(row) : null;
 }
 
 /**
- * Does this account own this agent? A BOOLEAN, never the row.
+ * The bot account an agent IS, and nothing else.
  *
- * `socket.ts:99` is `Agent.exists({_id, author})` — a permission gate. Returning
- * the row would make a future leak a one-line change by somebody who does not
- * know whose object it is; an EXISTS cannot leak.
+ * A PROJECTION rather than the row, because every caller of this is about to
+ * ask Oxy a permission question and has no business holding an agent it has not
+ * been authorised for yet. `lib/agent-account.ts` is the only place that turns
+ * this into a verdict.
  */
-export async function agentIsOwnedBy(
-  db: Executor,
-  id: string,
-  ownerOxyUserId: string,
-): Promise<boolean> {
+export async function findAgentOxyAccountId(db: Executor, id: string): Promise<string | null> {
   const [row] = await db
-    .select({ ok: sql<number>`1` })
+    .select({ oxyAccountId: agents.oxyAccountId })
     .from(agents)
-    .where(and(eq(agents.id, id), eq(agents.authorOxyUserId, ownerOxyUserId)))
+    .where(eq(agents.id, id))
     .limit(1);
-  return row !== undefined;
+  return row?.oxyAccountId ?? null;
 }
 
 export async function findAgentsByIds(db: Executor, ids: string[]): Promise<AgentRecord[]> {
@@ -330,6 +315,37 @@ export async function findAgentsByIds(db: Executor, ids: string[]): Promise<Agen
   if (ids.length === 0) return [];
   const rows = await db.select().from(agents).where(inArray(agents.id, ids));
   return rows.map(toAgentRecord);
+}
+
+/**
+ * The agent this owner DESIGNATED to run autonomous Oxy service events, if any.
+ *
+ * A single indexed read against `agents_one_autonomy_per_owner`, which is also
+ * the constraint that makes "the" honest: the database refuses a second
+ * designation, so this cannot return an arbitrary winner. `null` means the
+ * owner has designated nobody, and the caller falls back to a notification —
+ * see `routes/oxy-service-events.ts`.
+ *
+ * `status` is NOT part of the predicate. An idle or offline agent is still the
+ * one its owner chose, and silently routing events to a different agent because
+ * this one is paused is exactly the surprise the designation exists to prevent;
+ * the caller decides what to do about a paused agent.
+ */
+export async function findDesignatedAutonomyAgent(
+  db: Executor,
+  ownerOxyUserId: string,
+): Promise<AgentRecord | null> {
+  const [row] = await db
+    .select()
+    .from(agents)
+    .where(
+      and(
+        eq(agents.authorOxyUserId, ownerOxyUserId),
+        eq(agents.handlesAutonomousEvents, true),
+      ),
+    )
+    .limit(1);
+  return row ? toAgentRecord(row) : null;
 }
 
 export async function listAgentsByAuthor(
@@ -368,14 +384,41 @@ function catalogueFilter(query: AgentCatalogueQuery): SQL | undefined {
   if (query.featured) clauses.push(eq(agents.isFeatured, true));
   if (query.trending) clauses.push(eq(agents.isTrending, true));
 
+  /**
+   * NAME AND HANDLE ARE NOT SEARCHABLE. A KNOWN GAP, not an oversight.
+   *
+   * They used to be two of the five scalar fields matched here. They are Oxy's
+   * now, in another service and another database, so no SQL predicate can reach
+   * them — and reinstating them as a denormalised copy is exactly the cache
+   * this split exists to delete. What a catalogue search matches is what Alia
+   * actually owns: the tagline, the category and the tags.
+   *
+   * ## What would close it, and why the obvious fix is wrong
+   *
+   * Oxy owns the identity, so Oxy should own the search over it. It cannot
+   * today: `GET /profiles/search` takes `{query, limit, offset}` and nothing
+   * else (oxy-api `profileSearchQuerySchema`), matching `username`,
+   * `name.first`, `name.last` and `description` under `peopleSearchMongoMatch`.
+   * There is no `kind` filter at any layer.
+   *
+   * Filtering the RESULTS to `kind: 'bot'` in Alia is the trap. That `$match`
+   * runs before `$skip`/`$limit`, so the filter would be applied AFTER
+   * pagination: a query matching five hundred people and one bot returns a page
+   * with no agents in it, and "I found less" is indistinguishable from "there
+   * is less".
+   *
+   * **The endpoint Oxy needs is `GET /profiles/search?kind=bot`** — `kind`
+   * added to `profileSearchQuerySchema` and folded into the aggregate's
+   * `$match`, so it filters before the page is cut. With it, this becomes:
+   * search Oxy, take the account ids, and union them with the predicate below
+   * over the fields Alia owns.
+   */
   if (query.search !== undefined && query.search !== '') {
     const pattern = `%${escapeLike(query.search)}%`;
     const tagColumn = sql.raw(`"${'agents'}"."${sqlColumnName(agents.tags)}"`);
     clauses.push(
       sql`(
-        ${agents.name} ilike ${pattern}
-        or ${agents.handle} ilike ${pattern}
-        or ${agents.tagline} ilike ${pattern}
+        ${agents.tagline} ilike ${pattern}
         or ${agents.category} ilike ${pattern}
         or exists (select 1 from unnest(${tagColumn}) as t(tag) where t.tag ilike ${pattern})
       )`,
@@ -416,12 +459,16 @@ export async function listAgentCatalogue(
   };
 }
 
-/** The fields `searchAgents` projects for the model to choose between. */
+/**
+ * The fields `searchAgents` projects for the model to choose between.
+ *
+ * `oxyAccountId` rather than a name and a handle: the caller hydrates the batch
+ * through `hydrateAgentIdentities` in ONE round trip, so the model still sees
+ * names — they just come from Oxy, which owns them.
+ */
 export interface AgentSearchResult {
   id: string;
-  name: string;
-  handle: string;
-  avatar: string | null;
+  oxyAccountId: string;
   tagline: string;
   category: string;
   capabilities: string[];
@@ -445,6 +492,11 @@ export interface AgentSearchResult {
  * The escaping is redone for `ILIKE`, whose metacharacters (`%`, `_`, the escape
  * itself) are not a regex's — escaping for the wrong language is how a search
  * silently stops matching.
+ *
+ * The two scalar fields the source matched that are NOT here are `name` and
+ * `handle`: Oxy owns them, in another database. Same known gap as the catalogue
+ * filter above — including which Oxy endpoint would close it, and why filtering
+ * a page of results in Alia would not.
  */
 export async function searchActiveAgents(
   db: Executor,
@@ -472,9 +524,7 @@ export async function searchActiveAgents(
   const rows = await db
     .select({
       id: agents.id,
-      name: agents.name,
-      handle: agents.handle,
-      avatar: agents.avatar,
+      oxyAccountId: agents.oxyAccountId,
       tagline: agents.tagline,
       category: agents.category,
       capabilities: agents.capabilities,
@@ -485,9 +535,7 @@ export async function searchActiveAgents(
         eq(agents.isPublished, true),
         eq(agents.status, 'active'),
         sql`(
-          (${allWords(agents.name)})
-          or (${allWords(agents.handle)})
-          or (${allWords(agents.tagline)})
+          (${allWords(agents.tagline)})
           or (${allWords(agents.description)})
           or (${allWords(agents.category)})
           or ${anyWordInArray(agents.tags)}
@@ -500,21 +548,28 @@ export async function searchActiveAgents(
 }
 
 /**
- * A published, active agent addressed by handle — the delegation lookup.
+ * A published, active agent addressed by its bot account — the delegation lookup.
  *
  * The three predicates travel together because every caller wants the same
  * thing: an agent that can actually be hired right now. Splitting them would let
  * a caller check two and forget the third.
+ *
+ * The caller arrives with an account id because a handle is Oxy's: a delegation
+ * naming `@researcher` resolves that handle at Oxy and passes the id here.
  */
-export async function findHireableAgentByHandle(
+export async function findHireableAgentByOxyAccountId(
   db: Executor,
-  handle: string,
+  oxyAccountId: string,
 ): Promise<AgentRecord | null> {
   const [row] = await db
     .select()
     .from(agents)
     .where(
-      and(eq(agents.handle, handle), eq(agents.isPublished, true), eq(agents.status, 'active')),
+      and(
+        eq(agents.oxyAccountId, oxyAccountId),
+        eq(agents.isPublished, true),
+        eq(agents.status, 'active'),
+      ),
     )
     .limit(1);
   return row ? toAgentRecord(row) : null;
@@ -635,22 +690,19 @@ export async function replaceAgentKnowledge(
 /* ------------------------------ writes ------------------------------ */
 
 export interface CreateAgentInput {
-  name: string;
-  handle: string;
-  avatar?: string | null;
+  /** The Oxy `bot` account the agent IS. Verified by the caller before it gets here. */
+  oxyAccountId: string;
   tagline: string;
   description: string;
   authorOxyUserId: string;
-  authorName: string;
-  /** Alia's own assertion about the author. Only the autonomy runtime sets it. */
-  authorVerified?: boolean;
   category: string;
   tags?: string[];
   price?: number | null;
   capabilities?: string[];
   isPublished?: boolean;
-  creditBalance?: number;
   allowHiring?: boolean;
+  /** The owner's designated autonomy agent. At most one per owner, by index. */
+  handlesAutonomousEvents?: boolean;
   systemPrompt?: string;
   /** Omit to take the column default, which is what `POST /agents` does. */
   allowedModels?: string[];
@@ -663,10 +715,16 @@ export interface CreateAgentInput {
 /**
  * Create an agent and its child lists in ONE transaction.
  *
- * `handle` is UNIQUE (`agents_handle_key`). The source checked `findOne({handle})`
- * first and answered 409, which is a read-then-write race; the constraint is the
- * authority, so a caller catches the violation by NAME rather than trusting the
- * pre-check. The pre-check may stay for the friendly message.
+ * `oxy_account_id` is UNIQUE (`agents_oxy_account_id_key`) and the constraint is
+ * the authority — a caller catches the violation by NAME rather than reading
+ * first, which is a race. There is no pre-check here for the same reason the
+ * handle pre-check was deleted: the row a create would collide with is an agent
+ * the caller can already see.
+ *
+ * The OTHER uniqueness a create can violate is
+ * `agents_one_autonomy_per_owner` — a second agent designated for autonomous
+ * events. Also left to the constraint, and `routes/agents/crud.ts` turns it
+ * into a 409 by constraint name rather than reading first.
  */
 export async function createAgent(
   db: ApiDatabase,
@@ -676,21 +734,17 @@ export async function createAgent(
     const [row] = await tx
       .insert(agents)
       .values({
-        name: input.name,
-        handle: input.handle,
-        avatar: input.avatar ?? null,
+        oxyAccountId: input.oxyAccountId,
         tagline: input.tagline,
         description: input.description,
         authorOxyUserId: input.authorOxyUserId,
-        authorName: input.authorName,
-        ...(input.authorVerified !== undefined && { authorVerified: input.authorVerified }),
         category: input.category,
         tags: input.tags ?? [],
         price: input.price ?? null,
         capabilities: input.capabilities ?? [],
         isPublished: input.isPublished ?? true,
-        creditBalance: input.creditBalance ?? 0,
         allowHiring: input.allowHiring ?? false,
+        handlesAutonomousEvents: input.handlesAutonomousEvents ?? false,
         ...(input.systemPrompt !== undefined && { systemPrompt: input.systemPrompt }),
         ...(input.allowedModels !== undefined && { allowedModels: input.allowedModels }),
         ...(input.archetype !== undefined && { archetype: input.archetype }),
@@ -705,10 +759,14 @@ export async function createAgent(
   });
 }
 
-/** The fields `PATCH /agents/:id`'s allow-list lets a caller set. */
+/**
+ * The fields `PATCH /agents/:id`'s allow-list lets a caller set.
+ *
+ * No `name`, no `avatar`: those are the bot account's, edited through Oxy
+ * (`updateAccount`), never through Alia. A field here that Oxy owns would be a
+ * second writer for one value.
+ */
 export interface UpdateAgentInput {
-  name?: string;
-  avatar?: string | null;
   tagline?: string;
   description?: string;
   category?: string;
@@ -717,8 +775,8 @@ export interface UpdateAgentInput {
   capabilities?: string[];
   isPublished?: boolean;
   status?: AgentStatus;
-  creditBalance?: number;
   allowHiring?: boolean;
+  handlesAutonomousEvents?: boolean;
   systemPrompt?: string;
   allowedModels?: string[];
   scheduleInterval?: number;
@@ -729,7 +787,14 @@ export interface UpdateAgentInput {
 }
 
 /**
- * Patch an agent owned by a named account, with its child lists.
+ * Patch an agent, with its child lists.
+ *
+ * NO OWNERSHIP PREDICATE, and its absence is the point. Who may write to an
+ * agent is `account:act_as` over its bot account, which lives at Oxy and cannot
+ * be a WHERE clause — `lib/agent-account.ts` holds the whole answer and
+ * `loadAgentForActor` is the only way a route reaches this function. A
+ * half-measure that kept `author_oxy_user_id` here as well would silently
+ * refuse every legitimate delegate.
  *
  * The SET clause is built from DEFINED keys only. `$set: { x: undefined }` is a
  * NO-OP in Mongo and the same statement in Postgres writes NULL, so spreading
@@ -743,7 +808,6 @@ export interface UpdateAgentInput {
 export async function updateAgent(
   db: ApiDatabase,
   id: string,
-  ownerOxyUserId: string,
   input: UpdateAgentInput,
 ): Promise<AgentRecord | null> {
   const { skillIds, libraryFileIds, ...columns } = input;
@@ -757,17 +821,9 @@ export async function updateAgent(
 
     let row: AgentRow | undefined;
     if (Object.keys(patch).length > 0) {
-      [row] = await tx
-        .update(agents)
-        .set(patch)
-        .where(and(eq(agents.id, id), eq(agents.authorOxyUserId, ownerOxyUserId)))
-        .returning();
+      [row] = await tx.update(agents).set(patch).where(eq(agents.id, id)).returning();
     } else {
-      [row] = await tx
-        .select()
-        .from(agents)
-        .where(and(eq(agents.id, id), eq(agents.authorOxyUserId, ownerOxyUserId)))
-        .limit(1);
+      [row] = await tx.select().from(agents).where(eq(agents.id, id)).limit(1);
     }
     if (row === undefined) return null;
 
@@ -778,7 +834,9 @@ export async function updateAgent(
 }
 
 /**
- * Delete an agent owned by a named account.
+ * Delete an agent.
+ *
+ * No ownership predicate, for the reason {@link updateAgent} gives.
  *
  * BEHAVIOUR CHANGE, and a deliberate one: Mongo's `deleteOne` cleaned up
  * nothing, so orphaned reviews and team memberships accumulated. Under the
@@ -787,15 +845,8 @@ export async function updateAgent(
  * nulled — see CONVENTIONS §"One parent, four children". Returns the matched
  * count, which is what `deletedCount === 0` meant at the call site.
  */
-export async function deleteAgentOwnedBy(
-  db: Executor,
-  id: string,
-  ownerOxyUserId: string,
-): Promise<number> {
-  const deleted = await db
-    .delete(agents)
-    .where(and(eq(agents.id, id), eq(agents.authorOxyUserId, ownerOxyUserId)))
-    .returning({ id: agents.id });
+export async function deleteAgent(db: Executor, id: string): Promise<number> {
+  const deleted = await db.delete(agents).where(eq(agents.id, id)).returning({ id: agents.id });
   return deleted.length;
 }
 

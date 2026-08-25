@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { eq, sql } from 'drizzle-orm';
 import { closePostgres, connectPostgres, type ApiDatabase } from '../index';
 import { agentSessionResources, agentSessions } from '../schema/agent-sessions';
-import { createAgent, deleteAgentOwnedBy } from '../agents/agentRepository';
+import { createAgent, deleteAgent } from '../agents/agentRepository';
 import {
   accountHasSessionWithAgent,
   agentSessionHasActiveResource,
@@ -59,12 +59,10 @@ const suffix = () => Math.random().toString(36).slice(2, 10);
 
 async function seedAgent(overrides: Record<string, unknown> = {}): Promise<string> {
   const agent = await createAgent(db, {
-    name: 'Runner',
-    handle: `runner-${suffix()}`,
+    oxyAccountId: `oxy-bot-runner-${suffix()}`,
     tagline: 'runs things',
     description: 'd',
     authorOxyUserId: OWNER,
-    authorName: 'Nate',
     category: 'research',
     ...overrides,
   });
@@ -343,12 +341,16 @@ describe('the task listings', () => {
   });
 
   it('carries the agent as an OBJECT, which is the response the app reads', async () => {
-    const agentId = await seedAgent({ name: 'Cardable', avatar: 'file-9' });
+    // The object carries the BOT ACCOUNT, not a name: identity is Oxy's, and
+    // the route attaches it with one batched call. What this asserts is that a
+    // caller gets something it can resolve, rather than a bare agent id.
+    const oxyAccountId = `oxy-bot-cardable-${suffix()}`;
+    const agentId = await seedAgent({ oxyAccountId });
     const user = `oxy-active-${suffix()}`;
     await createAgentSession(db, { agentId, oxyUserId: user, task: 'live', status: 'running' });
 
     const [session] = await listActiveAgentSessions(db, user, 10);
-    expect(session.agentId).toMatchObject({ _id: agentId, name: 'Cardable', avatar: 'file-9' });
+    expect(session.agentId).toMatchObject({ _id: agentId, oxyAccountId });
   });
 
   /**
@@ -360,7 +362,7 @@ describe('the task listings', () => {
     const agentId = await seedAgent();
     const user = `oxy-orphan-${suffix()}`;
     await createAgentSession(db, { agentId, oxyUserId: user, task: 'orphaned', status: 'running' });
-    await deleteAgentOwnedBy(db, agentId, OWNER);
+    await deleteAgent(db, agentId);
 
     const listed = await listActiveAgentSessions(db, user, 10);
     expect(listed).toHaveLength(1);
@@ -384,8 +386,8 @@ describe('the task listings', () => {
   it('attaches child agents, and drops a child whose agent is gone', async () => {
     const user = `oxy-children-${suffix()}`;
     const parentAgent = await seedAgent();
-    const childAgent = await seedAgent({ name: 'Child' });
-    const doomedAgent = await seedAgent({ name: 'Doomed' });
+    const childAgent = await seedAgent();
+    const doomedAgent = await seedAgent();
 
     const parent = await createAgentSession(db, { agentId: parentAgent, oxyUserId: user, task: 'p' });
     await createAgentSession(db, {
@@ -400,10 +402,10 @@ describe('the task listings', () => {
       task: 'c2',
       parentSessionId: parent._id,
     });
-    await deleteAgentOwnedBy(db, doomedAgent, OWNER);
+    await deleteAgent(db, doomedAgent);
 
     const children = await listChildAgentSessions(db, [parent._id], user);
-    expect(children.map((c) => c.agent.name)).toEqual(['Child']);
+    expect(children.map((c) => c.agent._id)).toEqual([childAgent]);
   });
 
   /**
@@ -422,9 +424,10 @@ describe('the task listings', () => {
   it('returns a parent’s children in delegation order, not in plan order', async () => {
     const user = `oxy-order-${suffix()}`;
     const parentAgent = await seedAgent();
-    const first = await seedAgent({ name: 'First' });
-    const second = await seedAgent({ name: 'Second' });
-    const third = await seedAgent({ name: 'Third' });
+    const first = await seedAgent();
+    const second = await seedAgent();
+    const third = await seedAgent();
+    const ordered = [first, second, third];
 
     const parent = await createAgentSession(db, {
       agentId: parentAgent,
@@ -450,7 +453,7 @@ describe('the task listings', () => {
     }
 
     const children = await listChildAgentSessions(db, [parent._id], user);
-    expect(children.map((c) => c.agent.name)).toEqual(['First', 'Second', 'Third']);
+    expect(children.map((c) => c.agent._id)).toEqual(ordered);
   });
 
   it('does not attach another account’s children', async () => {

@@ -4,6 +4,8 @@ import { Text } from "@/components/ui/text";
 import { PromptInput } from "@/components/ui/prompt-input/prompt-input";
 import { useRouter } from "expo-router";
 import { useAgentsStore } from "@/lib/stores/agents-store";
+import { useOxy } from "@oxyhq/services";
+import { createBotAccount } from "@/lib/agents/bot-account";
 import { useTranslation } from "@/lib/hooks/use-translation";
 import { toast } from "@oxyhq/bloom/toast";
 import apiClient from "@/lib/api/client";
@@ -52,6 +54,7 @@ export default function CreateAgentScreen() {
   const router = useRouter();
   const { t } = useTranslation();
   const createAgent = useAgentsStore((state) => state.createAgent);
+  const { createAccount } = useOxy();
 
   const [inputValue, setInputValue] = useState("");
   const [generating, setGenerating] = useState(false);
@@ -62,34 +65,54 @@ export default function CreateAgentScreen() {
     setGenerating(true);
 
     try {
-      // Step 1: AI generates agent config from prompt
+      // Step 1: AI generates agent config from prompt. `suggestedUsername` is a
+      // PROPOSAL — Oxy owns the handle namespace and resolves collisions.
       const genRes = await apiClient.post(API_ROUTES.agents.generate, {
         prompt: inputValue.trim(),
       });
       const config = genRes.data;
 
-      // Step 2: Generate avatar (graceful degradation)
+      // Step 2: Generate avatar (graceful degradation).
       //
-      // The KEY is what gets stored, never `avatarUrl`. That one is a signed
-      // link that expires in minutes — fine for showing what was just
-      // generated, and useless the moment it is written to a record. The
-      // server renders a fresh link from the key every time an agent is read.
-      let avatarKey: string | null = null;
+      // The API stores it as an OXY ASSET and answers with the asset id, which
+      // is what an account's `avatar` is. The previous S3 key was an address
+      // only Alia could serve, on a record Oxy owns.
+      let avatarAssetId: string | undefined;
       try {
         const avatarRes = await apiClient.post(
           API_ROUTES.agents.generateAvatar,
           { name: config.name, description: config.description },
           { timeout: 60000 }
         );
-        avatarKey = avatarRes.data.avatarKey;
+        avatarAssetId = avatarRes.data.avatarAssetId;
       } catch {
         // Continue without avatar
       }
 
-      // Step 3: Create the agent as draft
+      /**
+       * Step 3: mint the agent's IDENTITY at Oxy — a `bot` account under the
+       * signed-in person's own tree, which makes them its owner.
+       *
+       * This is where the agent's name, handle and avatar now live. Alia never
+       * sees them again except by reading them back.
+       */
+      const account = await createBotAccount({
+        createAccount,
+        username: config.suggestedUsername,
+        displayName: config.name,
+        bio: config.tagline,
+        ...(avatarAssetId !== undefined && { avatar: avatarAssetId }),
+      });
+
+      // Step 4: create the RUNTIME, bound to that account.
       const agent = await createAgent({
-        ...config,
-        avatar: avatarKey,
+        oxyAccountId: account.accountId,
+        tagline: config.tagline,
+        description: config.description,
+        category: config.category,
+        tags: config.tags,
+        capabilities: config.capabilities,
+        systemPrompt: config.systemPrompt,
         isPublished: false,
         archetype: config.archetype || selectedArchetype,
       });

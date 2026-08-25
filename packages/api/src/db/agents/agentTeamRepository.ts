@@ -40,12 +40,18 @@ import type { AgentStatus } from '../../domain/agent';
 
 type AgentTeamRow = typeof agentTeams.$inferSelect;
 
-/** The agent fields `populate('agents', 'name handle avatar tagline status')` projected. */
+/**
+ * The agent fields `populate('agents', 'name handle avatar tagline status')`
+ * projected, minus the three the bot account owns.
+ *
+ * `oxyAccountId` stands where `name`, `handle` and `avatar` were: the route
+ * resolves the whole roster in one batched Oxy call
+ * (`attachAgentIdentities`), because a team of eight rendered one lookup at a
+ * time is eight round trips for one screen.
+ */
 export interface AgentTeamAgentRef {
   _id: string;
-  name: string;
-  handle: string;
-  avatar: string | null;
+  oxyAccountId: string;
   tagline: string;
   status: AgentStatus;
 }
@@ -120,9 +126,7 @@ export async function findTeamAgents(db: Executor, teamId: string): Promise<Agen
   const rows = await db
     .select({
       _id: agents.id,
-      name: agents.name,
-      handle: agents.handle,
-      avatar: agents.avatar,
+      oxyAccountId: agents.oxyAccountId,
       tagline: agents.tagline,
       status: agents.status,
     })

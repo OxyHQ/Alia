@@ -1,15 +1,32 @@
 import { tool } from 'ai';
 import { z } from 'zod';
 import { getDb } from '../../db/index.js';
-import { createAgent, findAgentByHandle } from '../../db/agents/agentRepository.js';
+import { createAgent } from '../../db/agents/agentRepository.js';
+import { createAgentBotAccount } from '../agent-account.js';
+import { suggestAgentUsername } from '../agent-identity.js';
 import { log } from '../logger.js';
 import { getErrorMessage } from '../errors/index.js';
 
 /**
  * Factory tool for creating AI agents during conversation.
  * Pattern: same as saveUserMemoryTool — closure over userId.
+ *
+ * ## It takes the caller's BEARER, not their username
+ *
+ * An agent IS an Oxy `bot` account now, so creating one starts at Oxy — with
+ * the user's own credential, because the account is minted under THEIR tree and
+ * they become its owner. The `username` this used to close over was written
+ * into a `author_name` column that no longer exists, and was `'Unknown'` on
+ * nearly every row besides: `req.user` carries only `{ id }` unless the auth
+ * middleware was asked to load the profile, which it never was here.
+ *
+ * The account is minted BEFORE the row, and nothing rolls it back if the row
+ * fails. That is the honest ordering: `agents.oxy_account_id` is `notNull`, so
+ * the row cannot exist first, and an orphaned bot account is a harmless empty
+ * account its owner can archive — whereas an agent row pointing at an account
+ * that was never created is a listing that can never render.
  */
-export const createAgentTool = (userId: string, username?: string) => tool({
+export const createAgentTool = (userId: string, accessToken: string | undefined) => tool({
   description:
     'Create a new AI agent. Use when the user asks to create, build, or make a custom agent, assistant, or specialist. ' +
     'Create immediately with reasonable defaults inferred from the request — do not ask multiple clarifying questions.',
@@ -30,17 +47,14 @@ export const createAgentTool = (userId: string, username?: string) => tool({
 
   execute: async ({ name, description, category, systemPrompt, capabilities, tags }) => {
     try {
-      // Generate handle from name (same logic as routes/agents.ts)
-      let handle = name
-        .toLowerCase()
-        .replace(/[^a-z0-9\s-]/g, '')
-        .replace(/\s+/g, '-')
-        .replace(/-+/g, '-');
-
-      // Check uniqueness, append suffix if taken
-      const existing = await findAgentByHandle(getDb(), handle);
-      if (existing) {
-        handle = `${handle}-${Date.now().toString(36).slice(-4)}`;
+      if (accessToken === undefined) {
+        // An API-key turn has no user bearer, so it cannot mint an account
+        // under anybody's tree. Refused in words the model can relay rather
+        // than thrown, which would end the turn.
+        return {
+          success: false,
+          error: 'Creating an agent requires a signed-in session.',
+        };
       }
 
       // Auto-generate tagline from first sentence of description
@@ -49,13 +63,18 @@ export const createAgentTool = (userId: string, username?: string) => tool({
       // Auto-generate system prompt if not provided
       const finalSystemPrompt = systemPrompt || `You are ${name}. ${description}`;
 
+      const account = await createAgentBotAccount({
+        accessToken,
+        username: suggestAgentUsername(name),
+        displayName: name,
+        bio: tagline,
+      });
+
       const agent = await createAgent(getDb(), {
-        name,
-        handle,
+        oxyAccountId: account.oxyAccountId,
         tagline,
         description,
         authorOxyUserId: userId,
-        authorName: username || 'Unknown',
         category: category || 'Assistant',
         tags: tags || [],
         capabilities: capabilities || [],
@@ -67,18 +86,21 @@ export const createAgentTool = (userId: string, username?: string) => tool({
         allowedModels: ['alia-v1', 'alia-v1-pro'],
       });
 
-      log.general.info({ agentId: agent._id, handle, userId }, 'Agent created via tool');
+      log.general.info(
+        { agentId: agent._id, username: account.username, userId },
+        'Agent created via tool',
+      );
 
       return {
         success: true,
         agent: {
           id: agent._id,
-          name: agent.name,
-          handle: agent.handle,
+          name,
+          handle: account.username,
           tagline: agent.tagline,
           category: agent.category,
         },
-        message: `Agent "${name}" created successfully! Handle: @${handle}`,
+        message: `Agent "${name}" created successfully! Handle: @${account.username}`,
       };
     } catch (error: unknown) {
       log.general.error({ err: error }, 'Agent creation via tool failed');

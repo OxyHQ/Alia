@@ -246,6 +246,20 @@
       "when": 1787579446290,
       "tag": "0034_shows_move_to_syra",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1787619867528,
+      "tag": "0035_an_agent_is_an_oxy_bot_account",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1787619868040,
+      "tag": "0036_alia_stops_storing_agent_identity",
+      "breakpoints": true
     }
   ]
 }

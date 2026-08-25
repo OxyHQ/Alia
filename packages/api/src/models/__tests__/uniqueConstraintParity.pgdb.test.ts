@@ -270,14 +270,6 @@ const UNIQUES_RETIRED_SINCE: readonly RetiredUnique[] = [
     note: 'RENAMED in the port: Mongoose `userId` is the column `oxy_user_id`. Deriving the column from the Mongoose path would report a false gap here forever.',
   },
   {
-    model: 'Agent',
-    file: 'src/models/agent.ts',
-    retiredBy: 'S9 agents',
-    table: 'agents',
-    constraint: 'agents_handle_key',
-    mongooseKey: ['handle'],
-  },
-  {
     model: 'EventStreamEntry',
     file: 'src/models/event-stream-entry.ts',
     retiredBy: 'S9 agents',
@@ -857,8 +849,15 @@ describe('the walk itself found something', () => {
    * failure the equality above cannot see: whole buckets being emptied together.
    */
   it('asserts a constraint count that only ever grows', () => {
+    // `UNIQUES_DEPARTED` counts too. A uniqueness that left this database is
+    // still a uniqueness this file asserts something about — omitting it would
+    // make "it moved to another service" the one edit that shrinks the sum,
+    // which is precisely the erosion this floor exists to catch.
     const asserted =
-      LIVE_REQUIREMENTS.length + UNIQUES_AT_FREEZE.length + UNIQUES_RETIRED_SINCE.length;
+      LIVE_REQUIREMENTS.length +
+      UNIQUES_AT_FREEZE.length +
+      UNIQUES_RETIRED_SINCE.length +
+      UNIQUES_DEPARTED.length;
 
     expect(
       asserted,
@@ -897,6 +896,42 @@ describe('the walk itself found something', () => {
   });
 });
 
+/**
+ * A uniqueness that left this database because the FIELD did.
+ *
+ * The only honest way to retire a row from the lists above. Deleting one
+ * outright would let any dropped constraint out of the gate with a commit
+ * message for evidence, so a departure has to name two things instead: the
+ * constraint that must now be ABSENT, and the one that stands in its place and
+ * must be PRESENT. Both are asserted, in both directions.
+ *
+ * `agents.handle` is the only member. An agent IS an Oxy `bot` account now, so
+ * its handle is `User.username` over there — unique across the WHOLE Oxy
+ * account graph, which is a strictly wider guarantee than one table here could
+ * make. What Alia still owns is that two agents cannot be the same account,
+ * and that is `agents_oxy_account_id_key`.
+ */
+interface DepartedUnique {
+  readonly model: string;
+  /** The constraint that must NO LONGER exist. */
+  readonly wasConstraint: string;
+  readonly table: string;
+  /** Where the uniqueness went. Prose, because the enforcer is another service. */
+  readonly nowEnforcedBy: string;
+  /** What Alia keeps in its place, asserted PRESENT. */
+  readonly replacedBy: string;
+}
+
+const UNIQUES_DEPARTED: readonly DepartedUnique[] = [
+  {
+    model: 'Agent',
+    table: 'agents',
+    wasConstraint: 'agents_handle_key',
+    nowEnforcedBy: "Oxy's `User.username` index, across the whole account graph",
+    replacedBy: 'agents_oxy_account_id_key',
+  },
+];
+
 describe('every uniqueness Mongoose enforced exists in PostgreSQL', () => {
   /**
    * The assertion this file is for, and it is BY NAME AND TABLE.
@@ -930,6 +965,36 @@ describe('every uniqueness Mongoose enforced exists in PostgreSQL', () => {
       `${missing.join('; ')} — a constraint a now-deleted model required. ` +
         'Its source is gone, so this list is the only surviving record that it was ' +
         'ever needed; `git show <retiredBy>^:<file>` re-verifies the claim.',
+    ).toEqual([]);
+  });
+
+  /**
+   * A uniqueness that MOVED is asserted in both directions.
+   *
+   * The absence half stops the old constraint quietly coming back — which would
+   * mean Alia is enforcing a handle again, beside a service that already does.
+   * The presence half is what stops this list becoming a way to delete a
+   * constraint by writing a sentence about it.
+   */
+  it('has neither a departed constraint nor a missing replacement', async () => {
+    const present = new Set((await databaseUniques()).map((r) => `${r.table}.${r.name}`));
+
+    const resurrected = UNIQUES_DEPARTED.filter((r) =>
+      present.has(`${r.table}.${r.wasConstraint}`),
+    ).map((r) => `${r.model} -> ${r.table}.${r.wasConstraint}`);
+    expect(
+      resurrected,
+      `${resurrected.join('; ')} — a constraint that moved OUT of this database is back. ` +
+        'Two services enforcing one uniqueness disagree the first time one of them is down.',
+    ).toEqual([]);
+
+    const unreplaced = UNIQUES_DEPARTED.filter((r) => !present.has(`${r.table}.${r.replacedBy}`)).map(
+      (r) => `${r.model} -> ${r.table}.${r.replacedBy} (${r.nowEnforcedBy})`,
+    );
+    expect(
+      unreplaced,
+      `${unreplaced.join('; ')} — the constraint that replaced a departed one is missing, ` +
+        'so the departure claim above is now unbacked.',
     ).toEqual([]);
   });
 
@@ -1023,6 +1088,7 @@ describe('the map cannot silently lag the schema', () => {
   it('accounts for every retired model, so none leaves with its uniques unrecorded', () => {
     const accounted = new Set([
       ...UNIQUES_RETIRED_SINCE.map((r) => r.model),
+      ...UNIQUES_DEPARTED.map((r) => r.model),
       ...RETIRED_NOT_PORTED.map((r) => r.model),
       ...MODELS_RETIRED_WITHOUT_UNIQUES,
     ]);

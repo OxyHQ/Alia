@@ -673,7 +673,12 @@
       "errorAlreadyRegistered": "This Telegram bot is already registered",
       "errorInvalidToken": "Invalid bot token",
       "errorGeneric": "Something went wrong. Please try again."
-    }
+    },
+    "namePlaceholder": "Agent name",
+    "handlePlaceholder": "handle",
+    "handleTaken": "That handle is taken. Try another.",
+    "handlesAutonomousEvents": "Handles autonomous events",
+    "handlesAutonomousEventsHint": "Runs incoming Oxy service events on its own. Only one of your agents can."
   },
   "authorize": {
     "sendMessages": "Send messages to AI models",

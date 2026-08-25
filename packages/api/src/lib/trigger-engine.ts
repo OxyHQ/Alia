@@ -27,11 +27,13 @@ import {
   type TriggerRecord,
   type TriggerSchedule,
 } from '../db/automation/triggerRepository.js';
+import { findAgentById, listAgentsWithHeartbeat } from '../db/agents/agentRepository.js';
 import {
-  findAgentById,
-  listAgentsWithHeartbeat,
-  type AgentRecord,
-} from '../db/agents/agentRepository.js';
+  agentPromptName,
+  attachAgentIdentities,
+  attachAgentIdentity,
+  type HydratedAgent,
+} from './agent-identity.js';
 import { readArchetypeConfig } from '../domain/agent.js';
 import { resolveModel, getAIModel, getDefaultAliaModel } from './chat-core.js';
 import {
@@ -256,8 +258,10 @@ export async function executeTrigger(
       findUserMemory(getDb(), userId).then(m => m ?? null).catch(() => null),
       oxyClient.getUserById(userId).catch(() => null) as Promise<OxyUser | null>,
       trigger.action.agentId
-        ? findAgentById(getDb(), trigger.action.agentId).catch(() => null)
-        : Promise.resolve<AgentRecord | null>(null),
+        ? findAgentById(getDb(), trigger.action.agentId)
+            .then(async agent => (agent === null ? null : attachAgentIdentity(agent)))
+            .catch(() => null)
+        : Promise.resolve<HydratedAgent | null>(null),
     ]);
 
     // Resolve AI model
@@ -726,7 +730,11 @@ async function startAgentHeartbeatScheduler(): Promise<void> {
 
     log.triggers.info({ count: agents.length }, 'Syncing agent heartbeat triggers');
 
-    for (const agent of agents) {
+    // ONE Oxy call for the whole batch, before the loop: a trigger is NAMED
+    // after its agent, and resolving each account inside the loop would be one
+    // round trip per agent on a boot-time sync.
+    for (const agent of await attachAgentIdentities(agents)) {
+      const agentName = agentPromptName(agent);
       // Check if a heartbeat trigger already exists for this agent
       const existing = await findAgentHeartbeatTrigger(getDb(), agent._id);
 
@@ -736,7 +744,7 @@ async function startAgentHeartbeatScheduler(): Promise<void> {
         if (existing.schedule?.cron !== expectedCron) {
           await setTriggerSchedule(getDb(), existing._id, { type: 'cron', cron: expectedCron });
           scheduleTrigger({ ...existing, schedule: { type: 'cron', cron: expectedCron } });
-          log.triggers.info({ agentName: agent.name, interval: agent.scheduleInterval }, 'Updated heartbeat schedule');
+          log.triggers.info({ agentName, interval: agent.scheduleInterval }, 'Updated heartbeat schedule');
         }
         continue;
       }
@@ -744,8 +752,8 @@ async function startAgentHeartbeatScheduler(): Promise<void> {
       // Create a new heartbeat trigger for this agent
       const trigger = await createTrigger(getDb(), {
         oxyUserId: agent.author,
-        name: `${agent.name} Heartbeat`,
-        description: `Periodic heartbeat check for ${agent.name}`,
+        name: `${agentName} Heartbeat`,
+        description: `Periodic heartbeat check for ${agentName}`,
         type: 'agent_heartbeat',
         enabled: true,
         action: {
@@ -762,7 +770,7 @@ async function startAgentHeartbeatScheduler(): Promise<void> {
       });
 
       scheduleTrigger(trigger);
-      log.triggers.info({ agentName: agent.name, interval: agent.scheduleInterval }, 'Created heartbeat trigger');
+      log.triggers.info({ agentName, interval: agent.scheduleInterval }, 'Created heartbeat trigger');
     }
   } catch (error) {
     log.triggers.error({ err: error }, 'Failed to sync agent heartbeat triggers');

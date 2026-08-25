@@ -1,6 +1,7 @@
 import { CONTRACT_LIMITS } from '@oxyhq/crowdsource-contracts';
 import { getDb } from '../../../db/index.js';
 import { findAgentById } from '../../../db/agents/agentRepository.js';
+import { attachAgentIdentity } from '../../agent-identity.js';
 import { findAgentReviewById } from '../../../db/agents/agentReviewRepository.js';
 import { ReportedType } from '../../../domain/report.js';
 import type {
@@ -48,10 +49,14 @@ const WEB_ORIGIN = process.env.WEB_URL || 'https://alia.onl';
  * answer is for a review read inside the window of a concurrent agent delete.
  */
 async function agentContext(agentId: string): Promise<ModerationContextResource | null> {
-  const agent = await findAgentById(getDb(), agentId);
-  if (!agent) return null;
+  const found = await findAgentById(getDb(), agentId);
+  if (!found) return null;
 
-  const name = agent.name.trim();
+  // The name a jury reads has to be the name the marketplace SHOWS, and that is
+  // Oxy's. An unresolvable account leaves it blank rather than substituting
+  // anything, because the tagline alone is still a truthful context resource.
+  const agent = await attachAgentIdentity(found);
+  const name = (agent.name ?? '').trim();
   const tagline = agent.tagline.trim();
   const text = [name, tagline].filter((part): part is string => Boolean(part)).join(' — ');
   if (!text) return null;

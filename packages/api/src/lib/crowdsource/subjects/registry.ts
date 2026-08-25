@@ -56,9 +56,11 @@ import type { ModerationSubjectProvider } from './types.js';
  * ## Why an account has no provider
  *
  * `ReportedType.USER` is accepted and never delivered. Oxy owns identity — Alia
- * stores a denormalized `authorName` beside the objects a person publishes and
- * nothing else, so there is no Alia-side profile to snapshot and no version of one
- * to pin. Reporting an account under Alia's credential would also open the case in
+ * stores an Oxy ACCOUNT ID beside the objects a person publishes and nothing
+ * else, so there is no Alia-side profile to snapshot and no version of one to
+ * pin. (An agent's own name and handle are read from Oxy at render time and are
+ * not stored here at all, which is why they appear in a snapshot as claims
+ * rather than as columns.) Reporting an account under Alia's credential would also open the case in
  * ALIA's tenant naming an actor only Oxy can act against, and a second Oxy product
  * reporting the same account gets a different §7.3 dedup key — one person, two
  * cases, two juries. That is a cross-application design question the plan has not
