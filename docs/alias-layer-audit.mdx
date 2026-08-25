@@ -1,0 +1,640 @@
+---
+title: "The alia-* layer: audit before removal"
+description: "What ALIA_TIERS and the thirteen alia-* identifiers actually do today, measured against production; what breaks if they are removed; what Kaana replaces and what it does not; and the one decision that belongs to the product owner."
+order: 5
+---
+
+# The `alia-*` layer: audit before removal
+
+The product owner asked what `ALIA_TIERS` is and said the whole alias layer — "names that
+emulate models based on external ones but carrying an Alia name" — should be cleaned out
+now that inference goes through Kaana, and that credits should go through Kaana too.
+
+The instinct is right about what the layer *is*. It is wrong about what the layer is
+currently *doing*, and the difference is revenue. This page establishes the difference with
+measurements, so the removal can be ordered rather than attempted.
+
+**This is an audit, and it proposes no removal.** One live bug it found — a CHECK constraint
+rejecting rows its own seeder wrote — is fixed and merged, in [#339](https://github.com/OxyHQ/Alia/pull/339)
+and in a follow-up commit on this branch, because it stands on its own merits whatever is
+decided about `alia-*`. Everything else here is a measurement and an ordering, not a change.
+
+## How this was measured
+
+Every number below has a source. Where a claim could not be measured it says so instead of
+guessing.
+
+| source | what was read | when |
+|---|---|---|
+| `.worktrees/alias-audit` @ `8aa0f4f3` | all source claims, file and line | 2026-08-25 |
+| `GET https://api.alia.onl/health` | live runtime state | 2026-08-25 02:24Z |
+| `GET https://api.alia.onl/catalogue`, `/v1/models` | live published vocabulary | 2026-08-25 02:24Z |
+| ECS `oxy-alia:185`, service `alia` | live env, secrets, task count | 2026-08-25 02:26Z |
+| ECS `oxy-relay:15`, services `relay`, `relay-publisher` | live Kaana providers | 2026-08-25 02:28Z |
+| `~/Oxy/Relay` `origin/main` @ `2b7763f7` | Kaana routes, adapters, executor | 2026-08-25 |
+| production Postgres `alia`, read-only over an SSM tunnel | row counts, plan rows, usage | 2026-08-25 02:31Z |
+| production `pg_constraint` | the live text of both tier CHECKs | 2026-08-25 02:41Z |
+| `bunx vitest run` over the eight alias suites | 189 tests, all passing | 2026-08-25 02:28Z |
+
+**Source citations are as of `8aa0f4f3`.** The branch carrying this page now sits on
+`9d2c8908`, having been rebased across #339, #340, #341, #343, #344 and #345, so a line
+number here may have moved; the measurements against production, ECS and Kaana are
+unaffected because none of them reads this repository. Where any of those changed something
+this page describes, the Status section above says so.
+
+**Every count of tiers, mappings or pairs on this page is a MEASUREMENT ON A DATE, not an
+invariant.** The routing table gains tiers — that is the normal way it changes, and a
+capability tier can arrive without an alias — so a reader checking this page against a later
+tree should expect the numbers to have grown and should re-derive them rather than treat a
+difference as an error. Where a number is load-bearing to an argument the argument is stated
+first, so it survives the number moving. `ALIA_TIERS.length`, `Object.keys(ALIA_MODELS)` and
+the pair census in §1 are the live answers at any moment.
+
+The local `~/Oxy/Relay` checkout is stale (`254d545` against `origin/main` `2b7763f7`) and
+disagrees with the deployed code on a load-bearing point — the catalogue route. Every Kaana
+claim below is read from `origin/main` through `git show`, never from the working tree.
+
+## The one-paragraph answer
+
+`ALIA_TIERS` was, before #339, a thirteen-value tuple that matched neither list it could
+have been — the tiers an alias named (twelve at the time) nor the keys the routing table had
+(fourteen at the time) — because it was one of **four** declarations of that list and nothing
+compared them. It is an accident, it was already
+costing rows in production, and collapsing the four to one is what #339 and this branch
+between them did. The
+thirteen `alia-*` identifiers are
+de-advertised — `GET /v1/models` returns `[]` and the live catalogue publishes only
+`profile:*` and `<publisher>/<model>` — but **every single chat turn production has served
+still arrives as a legacy alias**, and the alias is what carries the credit multiplier, the
+plan entitlement, the system prompt and the display name that the new vocabulary is
+rendered from. Kaana replaces the *transport* and will eventually replace the *routing*,
+but it explicitly refuses to price anything and today refuses a routing profile outright.
+
+## Status: what the tier work fixed, and what it did not touch
+
+Three branches passed over this tuple in one night — #339, #345 and the one carrying this
+page — so it is worth being exact about how little of the alias layer that changed. **The
+tier work fixed a bookkeeping fault in the routing vocabulary. It removed nothing from the
+alias layer, and nothing in the rest of this page is out of date because of it.**
+
+### Fixed and merged
+
+- **The tuple and the routing table agree.** `ALIA_TIERS.length` is 15 and
+  `GENERATED_TIER_MAPPINGS` has 15 keys — the same 15. One declaration remains, in
+  `alia-tiers.ts`, and it renders both database CHECKs.
+- **Both CHECKs admit every tier**, via `0037_image_tier_is_a_real_tier` (#339) and
+  `0038_sound_effects_get_a_tier` (#345). The seeder no longer has rows refused.
+- **The four dead or duplicate declarations are gone**: the literal union in
+  `alia-models.ts`, the `AliaTier` re-export in `model-resolver.ts`, `= string` in
+  `gateway-client.ts`, and the orphan union in `packages/shared-types` (package deleted).
+- **A capability tier can be added without an alias.** `v1-sfx` is the third — with
+  `v1-tts` and `v1-image` — and is reached by `synthesize-sound-effect.ts` calling
+  `getModelMappingsForTier`, exactly as the other two are reached.
+
+### Untouched, and still exactly as this page describes it
+
+- **The thirteen `alia-*` identifiers.** `ALIA_MODELS` still holds thirteen entries. Not one
+  was removed, renamed or repriced.
+- **Routing is still gated on them.** `fallback-engine.ts:252` still refuses anything that
+  is not an `alia-*` id, throwing `UnregisteredModelError(aliasModelId,
+  Object.keys(ALIA_MODELS))` at `:254`. An identifier outside that set cannot be routed at
+  all.
+- **Billing still reads a multiplier off them.** `credits-manager.ts:113` is still
+  `model?.creditMultiplier || 1`, and the thirteen multipliers in §3 are unchanged, as are
+  the seven production plan rows keyed by alias id.
+- **`GET /v1/models` still returns `[]`** (`routes/v1/models.ts:84`), so the aliases remain
+  de-advertised and routable and billed, which is the state ADR 0003 describes.
+- **The credit boundary between Kaana and Oxy is unresolved**, and remains the product
+  owner's decision. Nothing in the tier work touched it, and nothing could have: it is a
+  question about who prices a metered unit, not about which tiers exist.
+
+### Still outstanding
+
+Everything in §5 beyond its first item. In particular `model_configs.alia_tier` still cannot
+be correct — the mapping table is many-to-many and the column holds one value — and nothing
+yet freezes a credit multiplier in a test, which remains the largest gap on this page.
+
+**Read the rest of this document as still current.** It measures the alias layer, and the
+alias layer has not moved.
+
+## 1. What `ALIA_TIERS` is actually for
+
+### The mechanism: four declarations of one list
+
+This is the finding, not a detail on the way to one. **A single tuple could not have
+drifted.** Four copies of a list, one of which renders a database CHECK and another of which
+keys the routing table, is a drift generator, and it generated the drift described below.
+
+`internal/providers/lib/alia-tiers.ts` opened by saying it existed so the vocabulary was
+"declared once here rather than inline beside each column". That was true of the two database
+columns and false of the codebase.
+
+| declaration | values | what it constrained |
+|---|---|---|
+| `internal/providers/lib/alia-models.ts:9` | **14** (includes `v1-image`) | `ModelMapping.tier` and `GENERATED_TIER_MAPPINGS`' keys — the routing table |
+| `internal/providers/lib/alia-tiers.ts:33` | **13** | only `db/schema/providers.ts`, which renders two CHECK constraints |
+| `lib/gateway-client.ts:301` | `= string` | nothing; imported by nothing |
+| `packages/shared-types/src/models.ts:17` | **14** | nothing; the workspace had no dependent |
+
+Neither of the two lists that mattered was wrong on its own terms. They were wrong about
+each other, and nothing compared them.
+
+**`alia-tiers.ts` is the one that should survive**, because it is the only one that can be
+made load-bearing in both directions at once: it renders the CHECK *and* can type the
+routing `Record`. A survivor that only types code cannot constrain the database; a survivor
+that only renders SQL cannot constrain the routing table.
+
+**Fixed in two commits, by two people who found it from opposite ends.** #339 arrived from
+the log side — five `Error seeding ModelConfig` per boot in `/oxy/ecs` — and collapsed three
+of the copies: `v1-image` joins the tuple, `alia-models.ts` imports the type instead of
+restating it, `generate-model-mappings.ts` repoints, `model-resolver.ts` drops the
+re-export. Migration `0037_image_tier_is_a_real_tier` widens both CHECKs in that same commit.
+This branch removes the two #339 did not reach, both dead: `gateway-client.ts`'s `= string`
+and `packages/shared-types` entire. One declaration remains.
+
+The rest of this section describes the state those two commits end. #339 is merged and
+**not yet deployed**, so it is still production's state.
+
+The orphan package was not merely unused: its `ModelCapabilities` had **already** diverged,
+missing `audioTags` — the flag `synthesize-speech.ts` reads to decide whether a TTS model
+performs a bracketed cue or reads it aloud. That is what disqualified the "make it
+authoritative" option `docs/migration/ownership-matrix.json` had left open since workstream
+4. A registry missing a field the real one uses cannot be promoted without first being
+corrected, and nothing would have said it needed correcting.
+
+### `ALIA_TIERS` matches neither list it could be
+
+Counted on `8aa0f4f3`, before #339:
+
+- **Tiers an alias names:** twelve. `ALIA_MODELS` holds thirteen aliases, and
+  `alia-v1-thinking` and `alia-v1-pro-max` share tier `v1-pro-max`.
+- **Keys the routing table has:** fourteen, verified programmatically against
+  `generate-model-mappings.ts`.
+- **`ALIA_TIERS`:** thirteen. It contained `v1-tts`, which no alias names, and omitted
+  `v1-image`, which no alias names either.
+
+The three numbers have all moved since and will move again; what does not move is that
+**they are three different questions**, and that only the middle one governs what the
+routing table may be keyed by.
+
+So the answer to "are these the same list by design or by coincidence" is **coincidence**,
+and `docs/migration/alias-migration-map.json` already recorded the fact without drawing the
+conclusion, as of its own measurement date: *"TWO TIERS HAVE NO ALIAS. `v1-tts` and
+`v1-image` exist in `TIER_MODEL_MAPPINGS` and no alias points at them."*
+
+The general rule behind that sentence outlives the count in it. **A capability tier is
+reached by what the caller wants done, not by naming a model** — `lib/image-generation.ts:70`,
+`lib/synthesize-speech.ts`, `routes/agents-avatar.ts:138`, `routes/canvas/execute.ts:271`
+and `routes/v1/voice.ts:320` all call `getModelMappingsForTier` directly — so such a tier
+has nothing for a caller to send and needs no `ALIA_MODELS` entry. More of them is the
+expected direction of travel, not an anomaly. The conflation is exactly what let one of them
+exist that the tuple then refused.
+
+### The `v1-image` drift, still live in production, and smaller than it looks
+
+Fixed by #339 and **not yet deployed**, so everything below is still true of the running
+service.
+
+The CHECKs were thirteen-valued, at `drizzle/0003_closed_black_queen.sql:196`
+(`alia_models_tier_check`) and `:284` (`model_configs_alia_tier_check`). No migration between
+`0003` and `0036` altered either — verified against the migration folder AND against live
+`pg_constraint`, with the 21-value `model_configs_provider_check` (widened by `0028` and
+`0031`) as the positive control proving the query reads current definitions. `0037` is what
+changes it.
+
+`seed-model-configs.ts:91` iterates `Object.entries(TIER_MODEL_MAPPINGS)` and writes
+`aliaTier: tier` for every key, so the five `v1-image` rows violate the CHECK. The failure
+is **caught**: the handler at `:156` tests for a duplicate key, a CHECK violation is not
+one, so it logs `Error seeding ModelConfig` and continues. The seeder does not crash. The
+deploy workflow runs it unconditionally on every release (`deploy-aws.yml:245`), so the
+error is emitted on every deploy and nothing acts on it.
+
+Measured in production: `model_configs` holds 65 rows across twelve tiers and **zero rows
+with `alia_tier = 'v1-image'`**, and zero with a NULL tier. All five image
+`(provider, model_id)` pairs — `openai/dall-e-3`, `digitalocean/openai-gpt-image-1`,
+`digitalocean/fal-ai/flux/schnell`, `digitalocean/fal-ai/fast-sdxl`,
+`xai/grok-imagine-image` — appear in no other tier, so all five rows are simply absent.
+
+`alia_models.tier` is unaffected: no alias carries tier `v1-image`, so that CHECK never
+fires.
+
+**Nothing user-facing breaks from the absence**, because `model_configs` is written by the
+seeder and read only by the seeder (`seed-model-configs.ts:199`, building
+`alia_model_provider_mappings`). No request-time code path reads the table. Image
+generation resolves from the in-memory `TIER_MODEL_MAPPINGS`, which has the rows.
+
+### The deeper problem: `alia_tier` cannot be correct
+
+While measuring the image gap a second instance of the same class surfaced, and it is worse
+because it is silent rather than logged.
+
+`model_configs` is unique on `(provider, model_id)` and carries **one** `alia_tier` column.
+`TIER_MODEL_MAPPINGS` is many-to-many, and that is structural rather than incidental: the
+same deployment is a legitimate candidate for several tiers. The seeder upserts each pair
+once per tier, so the column records whichever tier happened to be written last, and **there
+is no value it could hold that would be correct** for a pair serving more than one.
+
+The scale of it on `8aa0f4f3`: of 66 distinct `(provider, modelId)` pairs across the then
+fourteen tiers, **29 served more than one**, `google/gemini-2.5-pro` serving seven.
+Re-derived on `9d2c8908`, after two tiers were admitted and one added: **69 pairs, 29 still
+serving more than one** — `v1-sfx`'s three routes are its own, so the multi-tier count did
+not move this time. It can only rise as tiers are added, and either way the argument does
+not depend on it.
+
+The visible symptom in production is `v1-voice`: it has **zero** `model_configs` rows, not
+because of a CHECK but because its two pairs (`xai/grok-realtime`,
+`openai/gpt-4o-realtime-preview`) are byte-identical to `v1-voice-pro`'s two, and
+`v1-voice-pro` is iterated second.
+
+So `model_configs.alia_tier` is already a lossy record of the routing table, and the
+CHECK was guarding a column that cannot be right. **Admitting the missing tier fixed the
+image rows' absence and did not fix the column.** That is an argument
+for deleting the column with the rest of the layer rather than for maintaining it — see the
+order in §5.
+
+## 2. What still reaches the alias layer
+
+### Production: all of it
+
+`chat_analytics` carries `requested_model_kind`, `requested_model_id` and
+`requested_profile_id` — the ADR 0003 shape already exists in the schema. Every row in
+production:
+
+| `requested_model_kind` | id | turns |
+|---|---|---|
+| `legacy_alias` | `alia-lite` | 51 |
+| `legacy_alias` | `alia-v1` | 16 |
+| `legacy_alias` | `alia-v1-pro` | 1 |
+
+**68 of 68. Zero requests have ever arrived naming a `profile:*` or a
+`<publisher>/<model>`.** 65 of the 68 completed with `error_class = null`; the most recent
+was 2026-08-25T01:04Z, about ninety minutes before this measurement. `fallback_events` holds
+807 rows keyed by `alias_model`, the most recent success at 2026-08-25T02:10Z, resolving to
+`groq/openai/gpt-oss-20b` (275 times) and `openrouter/openai/gpt-4o-mini` (52).
+
+The alias path is not a legacy path being drained. It is the only path carrying traffic.
+
+`/health` reports `providers: {total: 66, healthy: 0, unhealthy: 2, unusable: 51, unknown:
+13}` and `provider_health` has 54 rows of which **zero** have ever recorded a success. Those
+two facts and the 65 successful turns are not contradictory, but reconciling them was not in
+scope — see "What could not be measured".
+
+### The surfaces, and what each sends
+
+| surface | what it sends today | evidence |
+|---|---|---|
+| `@alia.onl/sdk` (`packages/alia-chat`) | `profile:v1` | `src/lib/config.ts:19` |
+| Codea (VS Code) | catalogue-resolved; migrates a stored `alia-v1-codea` | `src/catalogue.ts`, `__tests__/catalogue.test.ts:133` |
+| Codea CLI | catalogue-resolved | `src/utils/catalogue.ts` |
+| Cowork | catalogue-resolved | `src/main/catalogue.ts` |
+| Console playground | catalogue-resolved | `src/routes/_layout/playground.tsx:106` |
+| Canvas | product modes | `src/lib/product-modes.ts` |
+| Expo app — picker | catalogue-resolved; **stored `alia-*` ids are deliberately not rewritten** | `lib/stores/model-store.ts` |
+| Expo app — personality sample | **hardcoded `model: 'alia-lite'`** | `lib/hooks/use-personality-sample-phrase.ts:74` |
+| Show pipeline | `getDefaultAliaModel()` → `'alia-lite'` | `lib/show/show-pipeline.ts:484`, `episode-title.ts:104` |
+| Telegram bots | `agent.allowedModels[0] ?? getDefaultAliaModel()` | `routes/webhooks.ts:376` |
+
+A census of `alia-lite|alia-v1` literals across the eight client packages' `.ts` and `.tsx`
+returns 31 hits. **26 are comment lines** documenting the removal that already happened, and
+two more are test assertions. Three are live code: the personality-sample request above, a
+React Query placeholder (`use-billing.ts:330`) that is rendered and never sent, and the
+one-alias store migration.
+
+`model-store.ts` migrates only `alia-v1-thinking`, and says why: every other stored `alia-*`
+id "still resolves server-side". That is a correct decision and it means **an installed
+population is still sending the other twelve on every turn**, which no repository change can
+reach.
+
+Inside the API, `getDefaultAliaModel()` — `lib/gateway-client.ts:666`, returning
+`'alia-lite'` — has **25 non-test call sites** in product code: the agent runner, planner and
+verifier, context compaction, the trigger engine, proactive hooks, memory, skills, canvas,
+the show pipeline, and the chat request context itself. Every background job in Alia
+currently runs on an alias.
+
+## 3. What billing actually depends on
+
+### The multiplier is the whole of it, and it is not 1
+
+`credits-manager.ts:113` is `getAliaModel(aliasModelId)?.creditMultiplier || 1`. Production
+`alia_models` rows match the source exactly:
+
+| alias | multiplier | charged today | charged if the alias vanished |
+|---|---|---|---|
+| `alia-lite` | 0.5 | 0.5× | 1× — **customers pay double** |
+| `alia-v1`, `alia-v1-audio` | 1 | 1× | 1× — unchanged |
+| `alia-v1-codea`, `-cowork`, `-browser`, `-vision` | 1.5 | 1.5× | 1× — **33% revenue lost** |
+| `alia-v1-multimodal`, `alia-v1-voice` | 2 | 2× | 1× — **50% lost** |
+| `alia-v1-pro` | 3 | 3× | 1× — **67% lost** |
+| `alia-v1-voice-pro` | 4 | 4× | 1× — **75% lost** |
+| `alia-v1-thinking`, `alia-v1-pro-max` | 5 | 5× | 1× — **80% lost** |
+
+`getAliaModel` returning `null` does not throw and does not warn. `|| 1` absorbs it. So a
+removal that missed this would reprice every paid tier downward and every free turn upward,
+silently, with no test going red: the only assertion over multipliers is
+`lib/__tests__/product-modes.test.ts:299`, `toBeGreaterThan(0)`. **No test freezes a single
+multiplier value.**
+
+The most-used tier today is `alia-lite`, so the immediate effect of a naive removal would be
+*overcharging*, which is worse than the revenue loss.
+
+### The alias is also the entitlement key
+
+`plans.model_ids` holds `alia-*` ids and `request-context.ts:668` is
+`entitlements.allowedModelIds.includes(aliasModelId)`; failing it returns
+`MODEL_NOT_IN_PLAN`. All seven production plan rows are populated:
+
+| plan | product | `model_ids` |
+|---|---|---|
+| `free` | alia | 3 aliases |
+| `go` | alia | 9 aliases |
+| `pro`, `max`, `ultra` | alia | 13 aliases each |
+| `codea-pro`, `codea-max` | codea | 3 aliases each |
+
+Two active subscriptions exist (`ultra`, `codea-max`). `routes/v1/voice.ts:93` already has
+to translate `profile:v1-voice` **back** to an alias before the gate, and its comment records
+what happens otherwise: *"Comparing one against the other refuses every request from every
+account on every plan, and reports it as `MODEL_NOT_IN_PLAN`: a permission error that no
+permission can satisfy."* The chat path has no such translation because callers still send
+aliases.
+
+The one write path, `PUT /internal/plans/:planId/models` (`routes/internal.ts:346`),
+validates every id with `isAliaModel`. After a removal it can grant nothing.
+
+### Other alias-keyed production data
+
+| table | rows | keyed by |
+|---|---|---|
+| `alia_models` | 13 | `alias_model_id` — the table *is* the alias set |
+| `alia_model_provider_mappings` | 79 | FK to `alia_models` |
+| `chat_analytics` | 68 | `alia_model_id`, all `alia-*` |
+| `fallback_events` | 807 | `alias_model`, all `alia-*` |
+| `voice_call_usage` | 6 | `alia_model_id`, all `alia-v1-voice` |
+| `plans` | 7 | `model_ids[]`, 47 alias references |
+| `cost_entries` | **0** | `alias_model_id` — the ledger is empty |
+| `agents` | **0** | `allowed_models[]` — no rows to migrate |
+
+`user_credits` holds 3 accounts, 857 free and 148,382 paid credits outstanding.
+
+### Measurement versus pricing — the owner's decision
+
+`~/Oxy/AGENTS.md` records the boundary as *"Kaana measures units and never prices them —
+accounts, credentials, balances and billing stay in Oxy."* Kaana's own `AGENTS.md` states it
+more sharply: *"There is no money type in `internal/contract`, and adding one is the moment
+a second ledger starts."* Its `internal/providercost` package is the only one that may hold
+an amount, and *"a cost never enters a stream event, a usage report, an error body or a
+response of any kind. It is an operator number."*
+
+Here is Alia's credit path, line by line, sorted into the two halves. This is the division
+itself, not a recommendation about it — every line is somewhere today and would be somewhere
+under any answer, and the question is only which column each belongs in.
+
+| line | what it does | measurement or pricing |
+|---|---|---|
+| `usage.inputTokens` / `outputTokens` | counts tokens the turn consumed | **measurement** — Kaana's; today read from the AI SDK |
+| `usage.outputTokenDetails.reasoningTokens` | counts thinking tokens | **measurement** — Kaana declares `reasoning_tokens` |
+| `tokenUsage.systemPromptTokens` | counts Alia's own prompt, to exclude it | **measurement**, but of an Alia artefact Kaana cannot see |
+| `voice_call_usage.duration_minutes` | counts call minutes | **measurement** — Kaana declares `audio_*_milliseconds` |
+| `CREDITS_PER_IMAGE = 5` (`routes/v1/images.ts:23`) | prices one image at five credits | **pricing** — Kaana declares the `images` unit and no rate for it |
+| `TOKENS_PER_CREDIT = 1000` | how many tokens one credit buys | **pricing** |
+| `MIN_CREDITS_PER_REQUEST = 1` | the floor a turn is charged | **pricing** |
+| `REASONING_TOKEN_WEIGHT = 5` | what a thinking token costs relative to another | **pricing** |
+| `AliaModel.creditMultiplier` (0.5–5) | what a tier costs relative to another | **pricing** |
+| `costPerMinute` on the voice mappings | what a voice minute costs | **pricing** |
+| `reserveCredits` / `finalizeCredits` / `refundReservation` | reserve, settle, refund | **pricing** — a ledger operation |
+| `user_credits.credits_free` / `credits_paid` | the balance | **pricing** — a balance, explicitly not Kaana's |
+| `plans.model_ids` | which tiers a plan grants | **neither**; entitlement, Oxy's control plane |
+| `cost_entries.cost_usd` | what the turn cost Alia upstream | **measurement** — Kaana has `internal/providercost`, but it is operator-only and never leaves it |
+
+Two facts follow, and both are measurements rather than opinions.
+
+- **Every measurement line already exists in Kaana's contract.** Eleven declared usage units
+  cover tokens, reasoning tokens, images, audio milliseconds, characters and embeddings. The
+  one exception is `systemPromptTokens`, which counts an Alia artefact Kaana never sees.
+- **No pricing line can move to Kaana without changing its stated boundary.** Not because it
+  is hard, but because `internal/contract` has no money type, `internal/providercost` may
+  not be reached from it, and the rule is asserted in Kaana's tests rather than reviewed.
+
+So "todo lo que son créditos usamos Kaana" describes something that does not exist today,
+and the two halves of the table are where it would have to land.
+
+**The decision that belongs to the owner** is whether "credits use Kaana" means:
+
+1. *Kaana meters, Alia prices* — the boundary as written. Alia keeps the multipliers, keeps
+   `user_credits`, and reads token counts from Kaana's receipt. No boundary change.
+2. *Kaana meters, Oxy prices* — ADR 0005 executed. Alia keeps neither the multipliers nor
+   the balance; both move to Oxy's ledger. This is a real project with a real migration and
+   it is not scheduled.
+3. *Kaana prices* — the boundary changes. This is the one Kaana's own rules forbid, and it
+   would need an ADR overturning ADR 0005 and ADR 0006 before any code moved.
+
+The multiplier table above is the object under discussion in all three. It is a product
+pricing decision that currently happens to be stored inside a routing table, and that is the
+real reason it feels like it belongs somewhere else.
+
+## 4. What Kaana already provides, and what it does not
+
+Measured on the live service and on `origin/main`.
+
+**Live:** `oxy-relay:15`, service `relay` at 2/2 tasks, `relay-publisher` at 1/1.
+`RELAY_PROVIDERS = cerebras,groq,xai,openrouter`, with an API-key secret for each of the
+four. Two adapters exist: `internal/provider/anthropic` and `internal/provider/openaicompat`.
+Routes: `POST /internal/v1/inference`, `GET /internal/v1/models`, `GET /livez`.
+
+**The cutover flag is off, measured three ways.** `ALIA_RELAY_CLIENT_ENABLED` appears in
+neither `environment` nor `secrets` on `oxy-alia:185` (positive control: 16 env names and 9
+secret names were returned, including `KAANA_EDGE_KEY_ID`), and `/health` reports
+`"relay":"disabled"`. It also reports `"kaana":"configured"`, so the edge credential *is*
+present — `KAANA_EDGE_KEY_ID=alia-edge-2026-08-24` plus
+`KAANA_EDGE_SIGNING_PRIVATE_KEY`. Everything is in place except the arming switch.
+
+That matters enormously to this question, as the brief anticipated. With the flag off,
+`kaana-client.ts` answers `service_unavailable` before touching a transport, the boot guard
+and the egress block are inert, and **every provider call still happens in-process in
+`internal/providers`.** The alias layer is not a shim in front of Kaana. It is the live
+routing engine.
+
+### Kaana refuses a routing profile
+
+This is the finding that reorders everything.
+
+`internal/kaana/executor.go:456`, on `origin/main`:
+
+```go
+if request.Target.Kind == contract.TargetRoutingProfile {
+    return nil, contract.NewError(requestID, contract.CodeInvalidRequest,
+        "this build serves concrete model targets only: the envelope carries a routing "+
+        "policy reference, not the snapshot a profile would have to be resolved against",
+    ).WithParam("target.routingProfile")
+}
+```
+
+The comment names the reason: a profile's candidate list *"lives in the Oxy catalogue and is
+not in the envelope"*. That catalogue does not exist.
+
+Alia's own translation goes the other way. `lib/routing/alias-translation.ts:91` turns each
+of the thirteen aliases into `{kind: 'routing_profile', routingProfile: '<tier>'}`, and
+`kaana-request.ts:197` does the same for a bare profile slug. **Flipping the flag today would
+make every alias-named and every profile-named request fail `invalid_request` at Kaana.**
+Only a concrete `<publisher>/<model>` target is servable — which is what
+`chat-core.ts:104` already computes as `kaanaReference`, after the local tier table has
+picked a candidate.
+
+### Replacement matrix
+
+| what the alias layer does | Kaana today | note |
+|---|---|---|
+| Transport to a provider | **yes** | 4 providers, 2 adapters, live |
+| Same-model deployment failover | **yes** | ADR 0003 invariant 4; `RouteSet` guarantees it |
+| Provider health, circuit breakers | **yes** | Relay owns them |
+| Token metering | **yes** | 11 declared usage units |
+| Upstream cost | **operator-only** | never reaches a response, by rule |
+| Tier → ranked candidate list | **no** | refuses `routing_profile`; needs the Oxy catalogue |
+| Cross-model fallback policy | **no** | it is same-model-only by design |
+| Credit multiplier / pricing | **never** | no money type in the contract |
+| Plan entitlement | **never** | Oxy's control plane |
+| TTS (`v1-tts`) | **no adapter** | measured: no non-test code handles `audio_*` API formats |
+| Image (`v1-image`) | **no adapter** | same |
+| Transcription (`v1-audio`) | **no adapter** | same |
+| Realtime voice (`v1-voice*`) | **no adapter** | same |
+| Display name, description, emoji | **no** | product data; the catalogue reads them from `ALIA_MODELS` |
+| System prompt selection | **no** | `prompt-loader.ts` keys on the model id |
+
+The last three rows are the ones most likely to be forgotten. `GET /catalogue` in production
+returns 42 entries — 30 `object: "model"` and 12 `object: "routing_profile"`, zero `alia-*`
+ids — and every profile's `display_name`, `description`, `emoji`, `category` and
+`pricing.credit_multiplier` is read straight off its canonical alias.
+`profile:lite` renders as "Alia Lite", "Fast responses for simple tasks", ⚡, 0.5. Delete
+`ALIA_MODELS` and the published catalogue loses its content, not just its ids. `product-modes.ts`
+says so plainly: *"the alias still owns the metadata a request needs."*
+
+## 5. The removal order
+
+Ordered by what must be true before each step, not by size.
+
+### Now, independent of everything
+
+1. ~~**Collapse the tier declarations to one and widen both CHECKs.**~~ **Done.** #339
+   collapsed three copies and shipped migration `0037`, with two Postgres tests asserting
+   the seeder's rows EXIST rather than that it returned; this branch deletes the remaining
+   two, both dead. `alia-tiers.ts` is now the single source and renders both constraints.
+   It stood on its own merits whatever is decided about `alia-*`: it was a CHECK rejecting
+   rows its own seeder wrote.
+2. **Still open: `model_configs.alia_tier` cannot be correct** — 29 of 66 pairs served more
+   than one tier when it was counted, and every added tier can only raise that. Widening the CHECK
+   fixed the image rows' absence and did not make the column correct — it still records
+   whichever tier was written last, and `v1-voice` still has zero rows for that reason.
+   Deleting the column is the coherent fix, and it is cheap: the table is written by the
+   seeder and read only by the seeder, so nothing at request time notices. Left undone
+   deliberately, because it is a schema deletion and belongs in a change whose subject is
+   that column rather than in a CHECK widening.
+3. **Freeze the multiplier table in a test.** Thirteen `expect` lines. It is the only thing
+   standing between a future removal and silently repricing every account, and today
+   nothing asserts a single value.
+4. **Delete the hardcoded `alia-lite`** at `use-personality-sample-phrase.ts:74`, replacing
+   it with the profile the rest of the app already sends.
+
+### Before any alias can stop resolving
+
+5. **Migrate `plans.model_ids` to `profile:*`.** Seven live rows, 47 references. Requires
+   the entitlement comparison in `request-context.ts:668` and `voice.ts:98` to change in the
+   same commit, and `routes/internal.ts:346` to validate against presets rather than
+   `isAliaModel`. Until this lands, removing an alias 403s every request on every plan.
+6. **Move the product metadata out of `ALIA_MODELS`.** Display name, description, emoji,
+   category, `maxTokens` and the credit multiplier become fields on `RoutingPreset` — where
+   `product-modes.ts` says they belong — rather than facts borrowed from an alias. This is
+   the change that makes the catalogue survive the deletion.
+7. **Re-key the system prompt on the profile.** `prompt-loader.ts` loads per model id.
+8. **Decide the sunset.** `ALIAS_SUNSET` is `2026-10-01T00:00:00.000Z` and
+   `middleware/__tests__/alias-deprecation.test.ts:219` asserts it is still in the future —
+   it goes red on that date **by design, as an alarm**. That is 37 days from this
+   measurement. The choice it forces is: execute the removal, or re-decide on #139 with a
+   stated risk. Letting it slide is the one option the test exists to prevent.
+
+### Before the routing table can be deleted
+
+9. **Land the Oxy routing catalogue**, or accept that Alia resolves a profile to a concrete
+   model before calling Kaana. Kaana refuses `routing_profile` and says why. Until one of
+   these is true, `TIER_MODEL_MAPPINGS` and `fallback-engine.ts` are load-bearing *after*
+   the cutover, not before it.
+10. **Get Kaana adapters for the capability tiers** — TTS, image, transcription, realtime
+    voice, and whatever else is added — or keep the in-process tree for exactly those. They
+    already have no alias, so they are the natural last residents of a shrinking routing
+    table, and they are also the part of it most likely to still be growing.
+11. **Flip `ALIA_RELAY_CLIENT_ENABLED`**, last and alone, per `docs/runbooks/relay-cutover.md`.
+
+### Which gates would catch a mistake, and which would not
+
+**Would catch it:**
+
+- Gate 3 of `architectureGates.test.ts` asserts exactly thirteen aliases against the runtime
+  `ALIA_MODELS`, and censuses every alias-shaped default in non-test source. A removal goes
+  red here first. It is *loud*, not *safe* — the fix is editing a constant.
+- `aliasMigrationMap.test.ts` recomputes the fan-out counts from the live tables and asserts
+  the map's `sunsetAt` equals `ALIAS_SUNSET`.
+- `routing-policy.test.ts` asserts `ROUTING_PRESETS` against the migration map in both
+  directions.
+- `db/__tests__/providers.pgdb.test.ts:199` proves `alia_models_tier_check` rejects an
+  unknown tier — against a real database.
+- **New in #339:** two tests in `db/__tests__/providers.pgdb.test.ts` — one seeds and then
+  diffs `TIER_MODEL_MAPPINGS`' `(provider, modelId)` pairs against `model_configs` rows
+  (named, not counted, with a `> 50` vacuity floor), the other loops `ALIA_TIERS` and
+  asserts each value can actually be stored. Row existence is the only assertion that can
+  fail while the seeder swallows its own error, which is what makes them the right shape.
+  Both run in the `API (Postgres)` CI job; the default `vitest` config excludes
+  `*.pgdb.test.ts`, so naming the job is not decoration.
+- `ownershipMatrixCoverage.test.ts` refuses a deleted file whose matrix row is not
+  annotated, and `typecheck-workspaces.ts` refuses an allow-list entry naming a workspace
+  that no longer exists. Both went red on the `packages/shared-types` deletion, correctly,
+  and both had to be edited in the same commit.
+- The sunset alarm, on 2026-10-01.
+
+**Would not catch it, measured:**
+
+- **No test asserts any credit multiplier value.** Only `> 0`. This is the largest gap on
+  the page: a removal that missed `getAliaModel` would reprice every account and go green.
+- **Nothing compared `ALIA_TIERS` with `TIER_MODEL_MAPPINGS`' keys** while there were two
+  lists to compare, which is why the eight-suite alias run was green — 189 tests — with the
+  drift live in production. The fix removes the comparison's subject rather than adding the
+  comparison: there is now one list, so there is nothing left to disagree.
+- **No test asserts `model_configs.alia_tier` reflects the routing table.** The 29 lossy
+  pairs and the zero-row `v1-voice` are still invisible, and #339's pair test deliberately
+  does not assert the tier — its comment says why, which is that the column cannot be right.
+- **No test asserts a plan's `model_ids` name registered models.** `findExistingAliasModelIds`
+  exists at `aliaModelRepository.ts:497` and the only production write path is a route added
+  after the schema comment saying there was none.
+- **Nothing gates the published catalogue's content.** Deleting `ALIA_MODELS` would empty
+  every profile's display name and description without a red test.
+
+## What could not be measured
+
+Stated plainly, because an audit that guesses is worse than a short one that admits a gap.
+
+- **Whether production can actually serve every tier.** `provider_keys` holds four active
+  credentials (elevenlabs, groq, openrouter, xai), `/health` reports 51 of 66 provider
+  entries `unusable` and **zero ever healthy**, and `provider_health` has 54 rows with no
+  recorded success — yet 65 chat turns completed and `fallback_events` shows successes
+  fourteen minutes before the measurement. Those are consistent only if `provider_health`
+  is not being written on the success path. I did not trace that, and it is a separate bug
+  if true.
+- **The size of the installed alias-sending population.** `model-store.ts` deliberately
+  leaves stored `alia-*` ids alone and published `@alia.onl/sdk` and `@alia-codea/cli` copies
+  carry their own defaults. `chat_analytics` has 68 rows total, which is too few to say
+  anything about a population.
+- **What Kaana's live catalogue actually contains.** `GET /internal/v1/models` needs a signed
+  envelope. The measured claims about Kaana's model coverage come from the code comment in
+  `kaana-catalogue.ts` (32 of 65 Alia entries resolved on 2026-08-23, five misses being
+  spelling), not from asking the service.
+- **Whether `cost_entries` being empty is intended.** Zero rows against 68 billed turns and
+  807 fallback events. Either the cost recorder is not wired, or it is wired to a path
+  nothing takes. It matters for the credit boundary question and I did not chase it.
+- **The Oxy side of ADR 0005.** Whether Oxy's ledger can accept an Alia settlement today was
+  not read; `docs/migration/relay-client-gap.md` says it could not as of 2026-08-16.
+
+## Two smaller findings
+
+- `docs/model-abstraction.mdx` cites `OFFERED_ALIASES` in `product-modes.ts`. The symbol is
+  now `OFFERED_PROFILES`, and it lists four profiles rather than five aliases.
+- `chat_analytics.provider` and `.model` are NULL on all 68 production rows. The schema has
+  columns for which deployment answered and nothing fills them, so the question ADR 0003
+  wants answerable after the fact — which artifacts produced this response — is not
+  answerable from production data today.

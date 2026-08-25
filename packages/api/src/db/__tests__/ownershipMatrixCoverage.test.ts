@@ -186,8 +186,21 @@ interface MatrixRow {
  * `reachable` moved `live` -> `dead` in the same edit: a row claiming removal
  * while still claiming to be live is a contradiction this gate does not check
  * for, so it is not left to be found.
+ *
+ * ## 47 -> 48: `shared-types-duplicate-registry`
+ *
+ * `packages/shared-types` is deleted — workspace entry and lockfile with it.
+ * The row had stood at UNDECIDED between "delete the orphan" and "make it
+ * authoritative", and the second option is disqualified by measurement rather
+ * than preference: the package's `ModelCapabilities` had ALREADY diverged from
+ * the real one, missing `audioTags`, so it could not be promoted to canonical
+ * without first being corrected and nothing would have said it needed
+ * correcting. Its `AliaTier` was one of the copies whose plurality is what let
+ * `v1-image` become a routing key neither tier CHECK admitted (#339).
+ *
+ * It carries a branch name for the reason the others do.
  */
-const REMOVED_ROW_COUNT = 47;
+const REMOVED_ROW_COUNT = 48;
 
 const OWNERS = new Set(['alia', 'oxy', 'relay', 'delete']);
 const REACHABLE = new Set(['live', 'dead', 'unverified', 'loaded-not-invoked']);
