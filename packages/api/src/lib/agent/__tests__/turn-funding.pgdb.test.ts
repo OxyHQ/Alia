@@ -188,6 +188,42 @@ describe('reserveAgentTurn — who pays', () => {
     expect(await rowExists(agentAccountId)).toBe(false);
     expect(await balanceOf(ownerUserId)).toEqual({ free: 90, paid: 0 });
   });
+
+  /**
+   * An owner with no balance row reads as broke, and that is a PRECONDITION of
+   * this module rather than a bug in it.
+   *
+   * The fallback goes through the same `reserveCredits` as the agent attempt, so
+   * an owner who has never been provisioned matches no row and the turn is
+   * refused `both_out_of_credits` — which is false about them: they are entitled
+   * to the default allowance and have simply never collected it.
+   *
+   * The fix is NOT here. Making this module provision would put a write inside
+   * the resolver, and — worse — the obvious next step is to provision both
+   * accounts "for symmetry", which reopens the free-credit farm the case above
+   * exists to prevent. So the caller provisions the payer:
+   * `lib/agent/session-handoff.ts` does it immediately before this is reached.
+   *
+   * This case pins the precondition so that the guarantee has somewhere to point,
+   * and so that a future caller that forgets has a documented reason for the
+   * answer it gets rather than a mystery.
+   */
+  it('reports both_out_of_credits for an unprovisioned owner, which is why the CALLER provisions', async () => {
+    const agentAccountId = unprovisioned();
+    const ownerUserId = unprovisioned();
+
+    const funding = await reserveAgentTurn({
+      agentAccountId,
+      ownerUserId,
+      ownerFallbackAllowed: true,
+      amount: 10,
+    });
+
+    expect(funding).toEqual({ ok: false, reason: 'both_out_of_credits' });
+    // And it still creates nothing, for either of them.
+    expect(await rowExists(agentAccountId)).toBe(false);
+    expect(await rowExists(ownerUserId)).toBe(false);
+  });
 });
 
 describe('the payer is decided ONCE, and the settlement follows it', () => {

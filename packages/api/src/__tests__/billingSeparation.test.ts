@@ -657,7 +657,12 @@ describe('the billing path audit matches the tree it describes (#139 ws12)', () 
     // 14 -> 15: `routes/shows.ts`. Creating a series draws cover art, which is
     // a real image generation, so it reserves and settles credits exactly as
     // the images endpoint does rather than being free.
-    expect(derived.length).toBe(15);
+    // 15 -> 16: `lib/agent/session-handoff.ts`. Hiring an agent already reached
+    // the balance row through `reserveCredits`; what it did not do was CREATE
+    // the row it was spending from, so a first-time owner was refused for
+    // credits they were entitled to. It provisions the payer now, which is the
+    // hop this list counts.
+    expect(derived.length).toBe(16);
   });
 });
 

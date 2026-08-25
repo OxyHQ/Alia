@@ -317,9 +317,10 @@
     }
   ],
   "balanceSurfaces": {
-    "note": "Every non-test module reaching the balance row through lib/user-credits-helpers.ts, which is the one hop between the repository and the product. Listed separately because the writer census sees only the helper: a table-level or writer-level inventory reports ONE caller here and the blast radius is fifteen. Asserted as an exact set. `routes/shows.ts` joined it in #327: creating a show series draws cover art, which is a real image generation and is reserved and settled exactly as the images endpoint does.",
+    "note": "Every non-test module reaching the balance row through lib/user-credits-helpers.ts, which is the one hop between the repository and the product. Listed separately because the writer census sees only the helper: a table-level or writer-level inventory reports ONE caller here and the blast radius is sixteen. Asserted as an exact set. `routes/shows.ts` joined it in #327: creating a show series draws cover art, which is a real image generation and is reserved and settled exactly as the images endpoint does. `lib/agent/session-handoff.ts` joined it when hiring an agent started provisioning the payer before reserving \u2014 it reached the balance row through `reserveCredits` already, and did not create the row it was spending from.",
     "modules": [
       "internal/providers/lib/voice-session-manager.ts",
+      "lib/agent/session-handoff.ts",
       "lib/chat/request-context.ts",
       "lib/seed-comped-accounts.ts",
       "lib/show/show-pipeline.ts",
