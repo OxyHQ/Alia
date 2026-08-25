@@ -8,11 +8,9 @@
 
 import type { TriggerRecord } from '../../db/automation/triggerRepository.js';
 import { findAgentById, type AgentRecord } from '../../db/agents/agentRepository.js';
-import { createAgentSession } from '../../db/agents/agentSessionRepository.js';
 import { createRoutingLog } from '../../db/telemetry/routingLogRepository.js';
 import { getDb } from '../../db/index.js';
-import { enqueueAgentSession } from '../task-queue.js';
-import { reserveCredits } from '../credits-manager.js';
+import { startAgentSession } from './session-handoff.js';
 import { sendNotification } from '../notification-service.js';
 import { log } from '../logger.js';
 
@@ -122,23 +120,34 @@ export async function handleRoutingDecision(
         try {
           const targetAgent = await findAgentById(getDb(), decision.assignTo.id);
           if (targetAgent && targetAgent.isPublished && targetAgent.status === 'active') {
-            const credits = await reserveCredits(userId, targetAgent.price || 15);
-            if (credits) {
-              const session = await createAgentSession(getDb(), {
-                agentId: targetAgent._id,
-                oxyUserId: userId,
-                task: `[Routed by ${agent.name}] ${decision.summary}\n\nPriority: ${decision.priority}\nCategory: ${decision.category}`,
-                status: 'queued',
-                depth: 0,
-                creditReservation: credits,
-              });
-              await enqueueAgentSession({
-                sessionId: session._id,
-                userId,
-                agentId: targetAgent._id,
-                agentName: targetAgent.name,
-              });
+            /**
+             * The delegation spends the trigger owner's credits, so it goes
+             * through the same handoff a hire does.
+             *
+             * It used to reserve, create and enqueue here, with the `catch`
+             * below as the only answer to a failure of any of them — a log line,
+             * while the reservation stayed debited. `startAgentSession` gives
+             * them back.
+             *
+             * A refusal is LOGGED rather than dropped. `if (credits)` silently
+             * did nothing when the owner was out of credit, so a routed task
+             * simply never arrived and the routing log said it had been routed.
+             */
+            const handoff = await startAgentSession({
+              agent: targetAgent,
+              userId,
+              task: `[Routed by ${agent.name}] ${decision.summary}\n\nPriority: ${decision.priority}\nCategory: ${decision.category}`,
+              // Routed by another agent, not chosen by a person: usage, not a hire.
+              origin: 'delegation',
+            });
+
+            if (handoff.ok) {
               log.triggers.info({ targetAgentId: targetAgent._id }, 'Task delegated to agent');
+            } else {
+              log.triggers.warn(
+                { targetAgentId: targetAgent._id, routingLogId: routingLog._id, reason: handoff.reason },
+                'Could not delegate the routed task to its target agent',
+              );
             }
           }
         } catch (err) {
