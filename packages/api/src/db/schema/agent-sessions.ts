@@ -76,8 +76,6 @@ import { createdAt, generatedId, timestamptz, updatedAt } from '@oxyhq/db';
 import { checkOneOf } from './columns';
 import { AGENT_SESSION_RESOURCE_STATUSES, AGENT_SESSION_RESOURCE_TYPES, AGENT_SESSION_STATUSES } from '../../domain/agent-session.js';
 import { agents } from './agents';
-import { skills } from './agents-support';
-import { libraryFiles } from './library';
 
 /** One item of a session's plan, as `TodoManager` serialises it. */
 export interface AgentSessionPlanItem {
@@ -303,114 +301,6 @@ export const agentReviews = pgTable(
      * are no reviews at all. The two bounds are different on purpose.
      */
     check('agent_reviews_rating_range_check', sql`${t.rating} >= 1 and ${t.rating} <= 5`),
-  ],
-);
-
-/** A named group of agents, skills and knowledge, owned by one account. */
-export const agentTeams = pgTable(
-  'agent_teams',
-  {
-    id: generatedId(),
-    name: text().notNull(),
-    description: text(),
-    /**
-     * The Oxy account that owns the team — Mongoose calls this `creator`. No
-     * foreign key: Oxy owns identity. Named for what it holds, the
-     * `agents.author_oxy_user_id` rule.
-     */
-    creatorOxyUserId: text().notNull(),
-    createdAt: createdAt(),
-    updatedAt: updatedAt(),
-  },
-  (t) => [
-    index('agent_teams_creator_oxy_user_id_idx').on(t.creatorOxyUserId),
-    index('agent_teams_creator_created_idx').on(t.creatorOxyUserId, t.createdAt.desc()),
-  ],
-);
-
-/**
- * A team's members.
- *
- * The `agent_skills` shape, with one extra argument for the unique:
- * `routes/agent-teams.ts:161` and `:184` mutate this list with `$addToSet` and
- * `$pull`, which IS set semantics — so `UNIQUE(team_id, agent_id)` is not a new
- * tightening here, it is the constraint Mongo was emulating in the update
- * operator. `position` still carries the order the listing renders.
- */
-export const agentTeamAgents = pgTable(
-  'agent_team_agents',
-  {
-    id: generatedId(),
-    teamId: text().notNull(),
-    agentId: text().notNull(),
-    position: integer().notNull().default(0),
-  },
-  (t) => [
-    foreignKey({
-      name: 'agent_team_agents_team_id_fk',
-      columns: [t.teamId],
-      foreignColumns: [agentTeams.id],
-    }).onDelete('cascade'),
-    foreignKey({
-      name: 'agent_team_agents_agent_id_fk',
-      columns: [t.agentId],
-      foreignColumns: [agents.id],
-    }).onDelete('cascade'),
-    uniqueIndex('agent_team_agents_team_agent_key').on(t.teamId, t.agentId),
-    index('agent_team_agents_team_position_idx').on(t.teamId, t.position),
-    index('agent_team_agents_agent_id_idx').on(t.agentId),
-  ],
-);
-
-/** A team's skills. `agent_skills`, one owner up. */
-export const agentTeamSkills = pgTable(
-  'agent_team_skills',
-  {
-    id: generatedId(),
-    teamId: text().notNull(),
-    skillId: text().notNull(),
-    position: integer().notNull().default(0),
-  },
-  (t) => [
-    foreignKey({
-      name: 'agent_team_skills_team_id_fk',
-      columns: [t.teamId],
-      foreignColumns: [agentTeams.id],
-    }).onDelete('cascade'),
-    foreignKey({
-      name: 'agent_team_skills_skill_id_fk',
-      columns: [t.skillId],
-      foreignColumns: [skills.id],
-    }).onDelete('cascade'),
-    uniqueIndex('agent_team_skills_team_skill_key').on(t.teamId, t.skillId),
-    index('agent_team_skills_team_position_idx').on(t.teamId, t.position),
-    index('agent_team_skills_skill_id_idx').on(t.skillId),
-  ],
-);
-
-/** A team's knowledge files. `agent_knowledge`, one owner up. */
-export const agentTeamKnowledge = pgTable(
-  'agent_team_knowledge',
-  {
-    id: generatedId(),
-    teamId: text().notNull(),
-    libraryFileId: text().notNull(),
-    position: integer().notNull().default(0),
-  },
-  (t) => [
-    foreignKey({
-      name: 'agent_team_knowledge_team_id_fk',
-      columns: [t.teamId],
-      foreignColumns: [agentTeams.id],
-    }).onDelete('cascade'),
-    foreignKey({
-      name: 'agent_team_knowledge_library_file_id_fk',
-      columns: [t.libraryFileId],
-      foreignColumns: [libraryFiles.id],
-    }).onDelete('cascade'),
-    uniqueIndex('agent_team_knowledge_team_file_key').on(t.teamId, t.libraryFileId),
-    index('agent_team_knowledge_team_position_idx').on(t.teamId, t.position),
-    index('agent_team_knowledge_library_file_id_idx').on(t.libraryFileId),
   ],
 );
 

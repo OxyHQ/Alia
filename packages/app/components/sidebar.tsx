@@ -25,7 +25,6 @@ import {
   Target,
   Lightbulb,
   Star as StarIcon,
-  UsersRound,
   Heart,
   Zap,
   ChevronDown,
@@ -237,10 +236,6 @@ export const Sidebar = React.memo(function Sidebar() {
 
   const handleAgents = React.useCallback(() => {
     router.push("/(app)/agents");
-  }, [router]);
-
-  const handleAgentTeams = React.useCallback(() => {
-    router.push("/(app)/agents/teams");
   }, [router]);
 
   const handleToggleAgents = React.useCallback(() => {
@@ -537,7 +532,6 @@ export const Sidebar = React.memo(function Sidebar() {
           {agentsExpanded && (
             <View className="ml-7 gap-px">
               <SidebarRow icon={Users} label={t('agents.allAgents')} onPress={handleAgents} sub />
-              <SidebarRow icon={UsersRound} label={t('agents.teams')} onPress={handleAgentTeams} sub />
             </View>
           )}
         </View>

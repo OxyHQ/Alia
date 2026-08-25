@@ -36,7 +36,7 @@ one session model. `GET /alia/chat` is a status banner and stays public.
 
 ## The Alia product runtime
 
-Alia owns conversations, memory and the context graph, agents and agent teams, tools and
+Alia owns conversations, memory and the context graph, agents, tools and
 tool execution, approvals and the R0–R3 risk policy, deep research, triggers,
 notifications, Codea and Cowork behaviour, and product entitlements. None of it moves to
 Relay.
@@ -89,7 +89,6 @@ earlier revisions of this page had both wrong:
 |---|---|
 | `/agents` | `routes/agents.ts` |
 | `/agents/avatar` | `routes/agents-avatar.ts` |
-| `/agents/teams` | `routes/agent-teams.ts` |
 | `/skills` | `routes/skills.ts` |
 | `/containers` | `routes/containers.ts` |
 | `/tools` | `routes/tools-proxy.ts`, proxied to the integrations service |
