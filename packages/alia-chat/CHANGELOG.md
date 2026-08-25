@@ -1,5 +1,20 @@
 # @alia.onl/sdk
 
+## 7.1.0
+
+### The read-aloud field answers the audio
+
+`useTTS` drove the ambient field from a four-keyframe loop keyed on "is it
+playing?" — the same animation for every clip, and for silence. It now reads the
+player's own samples through `setAudioSamplingEnabled`, and both sources of the
+field, dictation and playback, share one curve: `levelFromDbfs` in
+`src/lib/audio-level.ts`, the logarithmic -60 dBFS floor dictation already used.
+A linear reading of the same audio puts a normal speaking voice near the bottom
+of the range, which is why the two looked nothing alike.
+
+Nothing in the public surface changed shape: the hook keeps its signature and
+its return type. What changed is what the field does while a message plays.
+
 ## 7.0.0
 
 ### `AliaMark` is now `IdentityMark`
