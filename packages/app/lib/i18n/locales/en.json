@@ -661,6 +661,7 @@
     "namePlaceholder": "Agent name",
     "colorLabel": "Colour",
     "handlePlaceholder": "handle",
+    "handleAdjusted": "That handle was taken — your agent is @%{handle}",
     "handleTaken": "That handle is taken. Try another.",
     "handlesAutonomousEvents": "Handles autonomous events",
     "handlesAutonomousEventsHint": "Runs incoming Oxy service events on its own. Only one of your agents can.",

@@ -45,6 +45,19 @@ export interface CreateBotAccountInput {
   createAccount: (data: CreateAccountInput) => Promise<AccountNode>;
   /** The suggestion from `POST /agents/generate`. Never reserved. */
   username: string;
+  /**
+   * `oxyServices.checkUsernameAvailability`, asked BEFORE minting so a taken
+   * suggestion becomes a free one the person is told about, rather than a
+   * silent rename they find later.
+   *
+   * Optional: without it this behaves exactly as it did, and the retry below is
+   * the only defence. That matters right now, because the two are landing at
+   * different times — Oxy still SUFFIXES on collision today, so this is the
+   * only thing standing between a person and `community-maestro1` appearing
+   * unannounced; when Oxy starts answering 409 the retry becomes live and the
+   * two cover each other. Neither is written assuming the other.
+   */
+  checkAvailability?: (username: string) => Promise<boolean>;
   /** The agent's name, as a person reads it. */
   displayName: string;
   bio?: string;
@@ -64,8 +77,40 @@ function isConflict(error: unknown): boolean {
   return (error as { status?: unknown }).status === 409;
 }
 
+/**
+ * The first free name at or after the suggestion: `pepe`, `pepe2`, `pepe3`.
+ *
+ * A COUNTER here, where the retry below uses a random suffix, and the
+ * difference is not an oversight. The retry is reacting to a collision it has
+ * already hit, so it needs to jump away from a sequence every other client is
+ * walking at the same moment. This is choosing a name to SHOW somebody, and
+ * `pepe2` is a name a person can read back, remember and type — `pepe-a7f3` is
+ * not. It is also the shape Oxy's own suffixing produces, so a handle chosen
+ * here looks like one chosen there.
+ *
+ * An unanswerable check ends the walk and returns the candidate it was holding:
+ * the server is still the authority, and a search that cannot proceed must not
+ * become a refusal to create.
+ */
+async function firstFreeUsername(
+  suggestion: string,
+  checkAvailability: (username: string) => Promise<boolean>,
+): Promise<string> {
+  for (let attempt = 0; attempt < USERNAME_ATTEMPTS; attempt++) {
+    const candidate = attempt === 0 ? suggestion : `${suggestion}${String(attempt + 1)}`;
+    try {
+      if (await checkAvailability(candidate)) return candidate;
+    } catch {
+      return candidate;
+    }
+  }
+  return suggestion;
+}
+
 export async function createBotAccount(input: CreateBotAccountInput): Promise<AccountNode> {
-  let username = input.username;
+  let username = input.checkAvailability === undefined
+    ? input.username
+    : await firstFreeUsername(input.username, input.checkAvailability);
 
   for (let attempt = 0; attempt < USERNAME_ATTEMPTS; attempt++) {
     try {
