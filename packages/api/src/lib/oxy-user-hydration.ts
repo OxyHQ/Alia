@@ -21,6 +21,7 @@
 import { getNormalizedUserHandle, type User } from '@oxyhq/core';
 import { oxyClient } from '../middleware/auth.js';
 import { log } from './logger.js';
+import { oxyServiceClient } from './oxy-service-client.js';
 
 /**
  * What a caller may render for an account.
@@ -72,10 +73,31 @@ function toHydrated(user: User): HydratedOxyUser | null {
  * stored right here. The identity is decoration on somebody else's row; the row
  * is the fact.
  *
- * The module-level `oxyClient` is correct here and must NOT have `setTokens`
- * called on it: `/users/by-ids` returns the same public payload to every caller,
- * so there is no viewer-scoped answer to get wrong — and mutating a shared
- * singleton's tokens would leak one request's session into another's.
+ * ## The call is made AS ALIA, and it has to be
+ *
+ * `/users/by-ids` is a POST, so oxy-api's CSRF middleware refuses it unless the
+ * request carries a bearer. `middleware/auth.ts`'s shared `oxyClient` carries
+ * none — it exists to VERIFY inbound user tokens — so this read answered
+ * `403 CSRF_TOKEN_MISSING` for every caller, and `@oxyhq/core` swallows a failed
+ * chunk and returns the users that resolved. Zero of them. Failing open then did
+ * exactly what it promises: every name, handle and avatar in the product
+ * rendered as a client-side fallback, and a newly created agent came back with
+ * no identity at all.
+ *
+ * So the batch goes through {@link oxyServiceClient}, which presents Alia's own
+ * ApplicationCredential. NOT by giving the shared client `setTokens` or
+ * `configureServiceAuth`: it is shared across concurrent requests, so one
+ * caller's session would leak into another's, and arming service mode on it
+ * would change what a dozen unrelated call sites send.
+ *
+ * A deployment with no credential falls back to the shared client, which is the
+ * line this one replaced — same call, same failing-open result, no new failure
+ * mode introduced where there was none. `oxy-service-client.ts` says once, at
+ * warn, that identity will resolve nothing.
+ *
+ * The viewer is still nobody's business here: `/users/by-ids` answers every
+ * caller with the same public profile, which is why one process-wide credential
+ * can serve a read on behalf of any of them.
  */
 export async function hydrateOxyUsers(
   ids: readonly (string | null | undefined)[],
@@ -86,10 +108,25 @@ export async function hydrateOxyUsers(
 
   try {
     // The SDK deduplicates and chunks; passing the whole list is intended use.
-    const users = await oxyClient.getUsersByIds(wanted);
+    const users = await (oxyServiceClient() ?? oxyClient).getUsersByIds(wanted);
     for (const user of users) {
       const hydrated = toHydrated(user);
       if (hydrated) resolved.set(hydrated._id, hydrated);
+    }
+    if (resolved.size === 0) {
+      /**
+       * The line this fault needed and did not have.
+       *
+       * `@oxyhq/core` catches a failed chunk itself and returns the users that
+       * resolved, so an unauthenticated 403 arrives here as an empty array and
+       * the `catch` below never runs. "Oxy refused us" and "none of these
+       * accounts exist" are the same value at this seam; they are not the same
+       * event, and only one of them is a deployment fault.
+       */
+      log.general.warn(
+        { requested: wanted.length },
+        'Oxy resolved none of the requested accounts',
+      );
     }
   } catch (error: unknown) {
     // Counted, not swallowed: a persistent gap here shows as every author
