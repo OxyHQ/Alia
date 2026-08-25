@@ -8,10 +8,13 @@
 
 /**
  * The tier vocabulary comes from `alia-tiers.ts`, the tuple the database's
- * CHECK constraints are rendered from. It was restated here as a literal union
- * and the two copies had drifted: this one had `v1-image` and the tuple did
- * not, so every image mapping the seeder wrote was refused by
- * `model_configs_alia_tier_check`, on every boot.
+ * `alia_models_tier_check` is rendered from. It was restated here as a literal
+ * union and the two copies had drifted: this one had `v1-image` and the tuple
+ * did not, so every image mapping the seeder wrote was refused by
+ * `model_configs_alia_tier_check`, on every boot. That column has since been
+ * dropped for a different reason — it recorded one tier per
+ * `(provider, model_id)` pair over a many-to-many mapping — but the drift is
+ * why this file imports the type rather than restating it.
  */
 import type { AliaTier } from './alia-tiers.js';
 import type { ModelPublisher } from './model-publishers';
