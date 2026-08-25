@@ -23,10 +23,8 @@ import {
   Ellipsis,
   Settings,
   ChevronRight,
-  Zap,
+  Search as SearchIcon,
   FileText,
-  BookOpen,
-  Wrench,
   Globe,
   Terminal,
   FileDown,
@@ -38,6 +36,7 @@ import {
   Trash2,
 } from "lucide-react-native";
 import { Search } from "@oxyhq/bloom/search";
+import { SettingsListGroup, SettingsListItem } from "@oxyhq/bloom/settings-list";
 import { AGENT_TOOLS } from "@/lib/constants/agent-tools";
 import * as DropdownMenu from "@/components/ui/dropdown-menu";
 
@@ -61,7 +60,7 @@ import { ContentPanel } from "@oxyhq/bloom/content-panel";
 import { useOxy } from "@oxyhq/services";
 
 const TOOL_ICONS: Record<string, React.ComponentType<{ size?: number; color?: string; className?: string }>> = {
-  Globe, Terminal, Search, FileDown, FolderOpen, Image, Brain, Users,
+  Globe, Terminal, Search: SearchIcon, FileDown, FolderOpen, Image, Brain, Users,
 };
 
 type LinkedSkill = { _id: string; skillId: string; title: string; icon: string; color: string };
@@ -493,240 +492,194 @@ export default function EditAgentScreen() {
         className="flex-1"
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
-        scrollEnabled={!isLargeScreen}
-        contentContainerStyle={isLargeScreen ? { flex: 1 } : undefined}
+        /* The resources tab is one scrolling column of grouped sections;
+           the settings tab keeps its fixed-height layout on large screens. */
+        scrollEnabled={sidebarTab === "resources" || !isLargeScreen}
+        contentContainerStyle={
+          sidebarTab === "settings" && isLargeScreen ? { flex: 1 } : undefined
+        }
       >
         {sidebarTab === "resources" ? (
-          <View className={isLargeScreen ? "flex-1" : ""}>
-            {/* Linked Skills */}
-            <View className={cn(isLargeScreen && "flex-1", "border-b border-border")}>
-              <View className="px-4 pt-4 pb-2 flex-row items-center justify-between">
-                <View className="flex-row items-center gap-2">
-                  <Zap size={16} className="text-foreground" />
-                  <Text className="text-sm font-semibold text-foreground">
-                    {t("agents.skills")}
-                  </Text>
-                </View>
-                <Pressable
-                  onPress={() => setShowSkillPicker(!showSkillPicker)}
-                  className="active:opacity-70"
-                >
-                  <Plus size={16} className="text-muted-foreground" />
-                </Pressable>
-              </View>
-              <ScrollView
-                className={cn(isLargeScreen && "flex-1")}
-                showsVerticalScrollIndicator={false}
-                scrollEnabled={isLargeScreen}
-              >
-                <View className="px-4 pb-4 gap-2">
-                  {linkedSkills.map((skill) => (
-                    <View
-                      key={skill._id}
-                      className="flex-row items-center justify-between py-1.5"
+          <View className="px-4 pt-4">
+            {/* Skills */}
+            <SettingsListGroup title={t("agents.skills")}>
+              {linkedSkills.map((skill) => (
+                <SettingsListItem
+                  key={skill._id}
+                  icon={<Text className="text-base">{skill.icon}</Text>}
+                  title={skill.title}
+                  rightElement={
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={`${t("agents.removeSkill")}: ${skill.title}`}
+                      onPress={() => removeLinkedSkill(skill._id)}
+                      className="w-7 h-7 items-center justify-center rounded-md active:bg-destructive/10"
                     >
-                      <View className="flex-row items-center gap-2 flex-1">
-                        <Text style={{ fontSize: 16 }}>{skill.icon}</Text>
-                        <Text className="text-sm text-foreground flex-1" numberOfLines={1}>
-                          {skill.title}
-                        </Text>
-                      </View>
-                      <Pressable
-                        onPress={() => removeLinkedSkill(skill._id)}
-                        className="active:opacity-70 ml-2"
-                      >
-                        <X size={14} className="text-muted-foreground" />
-                      </Pressable>
-                    </View>
-                  ))}
+                      <X size={14} className="text-muted-foreground" />
+                    </Pressable>
+                  }
+                />
+              ))}
+              <SettingsListItem
+                icon={<Plus size={18} className="text-muted-foreground" />}
+                title={t("agents.addSkill")}
+                onPress={() => setShowSkillPicker(true)}
+                showChevron={false}
+              />
+            </SettingsListGroup>
+            <Dialog
+              open={showSkillPicker}
+              onClose={() => setShowSkillPicker(false)}
+              placement={{ base: "bottom", md: "center" }}
+              title={t("agents.skills")}
+              // The picker owns its own ScrollView and its own padding.
+              scrollable={false}
+              contentPadding={0}
+            >
+                <View className="mx-4 mb-2">
+                  <Search
+                    label="Search skills..."
+                    value={skillSearch}
+                    onChangeText={setSkillSearch}
+                    onClearText={() => setSkillSearch("")}
+                    autoFocus
+                  />
                 </View>
-              </ScrollView>
-              <Dialog
-                open={showSkillPicker}
-                onClose={() => setShowSkillPicker(false)}
-                placement={{ base: "bottom", md: "center" }}
-                title={t("agents.skills")}
-                // The picker owns its own ScrollView and its own padding.
-                scrollable={false}
-                contentPadding={0}
-              >
-                  <View className="mx-4 mb-2">
-                    <Search
-                      label="Search skills..."
-                      value={skillSearch}
-                      onChangeText={setSkillSearch}
-                      onClearText={() => setSkillSearch("")}
-                      autoFocus
-                    />
-                  </View>
-                  <ScrollView style={{ maxHeight: isLargeScreen ? 300 : undefined }} className={cn(!isLargeScreen && "flex-1")}>
-                    {allSkills
-                      .filter((s) =>
-                        !linkedSkills.some((ls) => ls._id === s._id) &&
-                        (!skillSearch || s.title.toLowerCase().includes(skillSearch.toLowerCase()))
-                      )
-                      .map((skill) => (
-                        <Pressable
-                          key={skill._id}
-                          onPress={() => addLinkedSkill(skill)}
-                          className="flex-row items-center gap-2 px-4 py-2 active:bg-muted"
-                        >
-                          <Text style={{ fontSize: 16 }}>{skill.icon}</Text>
-                          <Text className="text-sm text-foreground">{skill.title}</Text>
-                        </Pressable>
-                      ))}
-                  </ScrollView>
-              </Dialog>
-            </View>
+                <ScrollView style={{ maxHeight: isLargeScreen ? 300 : undefined }} className={cn(!isLargeScreen && "flex-1")}>
+                  {allSkills
+                    .filter((s) =>
+                      !linkedSkills.some((ls) => ls._id === s._id) &&
+                      (!skillSearch || s.title.toLowerCase().includes(skillSearch.toLowerCase()))
+                    )
+                    .map((skill) => (
+                      <Pressable
+                        key={skill._id}
+                        onPress={() => addLinkedSkill(skill)}
+                        className="flex-row items-center gap-2 px-4 py-2 active:bg-muted"
+                      >
+                        <Text className="text-base">{skill.icon}</Text>
+                        <Text className="text-sm text-foreground">{skill.title}</Text>
+                      </Pressable>
+                    ))}
+                </ScrollView>
+            </Dialog>
 
-            {/* Tools / Integrations */}
-            <View className={cn(isLargeScreen && "flex-1", "border-b border-border")}>
-              <View className="px-4 pt-4 pb-2 flex-row items-center gap-2">
-                <Wrench size={16} className="text-foreground" />
-                <Text className="text-sm font-semibold text-foreground">
-                  Tools
-                </Text>
-              </View>
-              <ScrollView
-                className={cn(isLargeScreen && "flex-1")}
-                showsVerticalScrollIndicator={false}
-                scrollEnabled={isLargeScreen}
-              >
-                <View className="px-4 pb-4 gap-1">
-                  {AGENT_TOOLS.map((tool) => {
-                    const enabled = capabilities.includes(tool.id);
-                    const Icon = TOOL_ICONS[tool.icon];
-                    return (
-                      <Pressable
-                        key={tool.id}
-                        onPress={() => toggleCapability(tool.id)}
-                        className="flex-row items-center gap-3 py-1.5"
-                      >
-                        {Icon && <Icon size={15} className={enabled ? "text-foreground" : "text-muted-foreground"} />}
-                        <Text className={cn("text-sm flex-1", enabled ? "text-foreground" : "text-muted-foreground")}>
-                          {tool.name}
-                        </Text>
-                        <Switch
-                          value={enabled}
-                          onValueChange={() => toggleCapability(tool.id)}
-                          size="sm"
+            {/* Tools */}
+            <SettingsListGroup title="Tools">
+              {AGENT_TOOLS.map((tool) => {
+                const enabled = capabilities.includes(tool.id);
+                const Icon = TOOL_ICONS[tool.icon];
+                return (
+                  <SettingsListItem
+                    key={tool.id}
+                    icon={
+                      Icon ? (
+                        <Icon
+                          size={18}
+                          className={enabled ? "text-foreground" : "text-muted-foreground"}
                         />
-                      </Pressable>
-                    );
-                  })}
-                </View>
-              </ScrollView>
-            </View>
+                      ) : undefined
+                    }
+                    title={tool.name}
+                    onPress={() => toggleCapability(tool.id)}
+                    showChevron={false}
+                    rightElement={
+                      <Switch
+                        value={enabled}
+                        onValueChange={() => toggleCapability(tool.id)}
+                        size="sm"
+                      />
+                    }
+                  />
+                );
+              })}
+            </SettingsListGroup>
 
             {/* Permissions */}
-            <View className={cn(isLargeScreen && "flex-1")}>
-              <View className="px-4 pt-4 pb-2 flex-row items-center gap-2">
-                <Settings size={16} className="text-foreground" />
-                <Text className="text-sm font-semibold text-foreground">
-                  Permissions
-                </Text>
-              </View>
-              <View className="px-4 pb-4">
+            <SettingsListGroup title="Permissions">
+              <View className="p-3">
                 <AgentPermissionToggles
                   permissions={permissions}
                   onChange={setPermissions}
                 />
               </View>
-            </View>
+            </SettingsListGroup>
 
             {/* Knowledge (Library Files) */}
-            <View className={cn(isLargeScreen && "flex-1")}>
-              <View className="px-4 pt-4 pb-2 flex-row items-center justify-between">
-                <View className="flex-row items-center gap-2">
-                  <BookOpen size={16} className="text-foreground" />
-                  <Text className="text-sm font-semibold text-foreground">
-                    {t("agents.knowledge")}
-                  </Text>
-                </View>
-                <Pressable
-                  onPress={() => setShowKnowledgePicker(!showKnowledgePicker)}
-                  className="active:opacity-70"
-                >
-                  <Plus size={16} className="text-muted-foreground" />
-                </Pressable>
-              </View>
-              <ScrollView
-                className={cn(isLargeScreen && "flex-1")}
-                showsVerticalScrollIndicator={false}
-                scrollEnabled={isLargeScreen}
-              >
-                <View className="px-4 pb-4 gap-2">
-                  {linkedKnowledge.map((file) => (
-                    <View
-                      key={file._id}
-                      className="flex-row items-center justify-between py-1.5"
+            <SettingsListGroup title={t("agents.knowledge")}>
+              {linkedKnowledge.map((file) => (
+                <SettingsListItem
+                  key={file._id}
+                  icon={<FileText size={18} className="text-muted-foreground" />}
+                  title={file.name}
+                  rightElement={
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={`${t("agents.removeKnowledge")}: ${file.name}`}
+                      onPress={() => removeLinkedKnowledge(file._id)}
+                      className="w-7 h-7 items-center justify-center rounded-md active:bg-destructive/10"
                     >
-                      <View className="flex-row items-center gap-2 flex-1">
+                      <X size={14} className="text-muted-foreground" />
+                    </Pressable>
+                  }
+                />
+              ))}
+              <SettingsListItem
+                icon={<Plus size={18} className="text-muted-foreground" />}
+                title={t("agents.addKnowledge")}
+                onPress={() => setShowKnowledgePicker(true)}
+                showChevron={false}
+              />
+            </SettingsListGroup>
+            <Dialog
+              open={showKnowledgePicker}
+              onClose={() => setShowKnowledgePicker(false)}
+              placement={{ base: "bottom", md: "center" }}
+              title={t("agents.knowledge")}
+              // The picker owns its own ScrollView and its own padding.
+              scrollable={false}
+              contentPadding={0}
+            >
+                <View className="mx-4 mb-2">
+                  <Search
+                    label="Search library..."
+                    value={knowledgeSearch}
+                    onChangeText={setKnowledgeSearch}
+                    onClearText={() => setKnowledgeSearch("")}
+                    autoFocus
+                  />
+                </View>
+                <ScrollView style={{ maxHeight: isLargeScreen ? 300 : undefined }} className={cn(!isLargeScreen && "flex-1")}>
+                  {libraryFiles
+                    .filter((f) =>
+                      !linkedKnowledge.some((lk) => lk._id === f._id) &&
+                      (!knowledgeSearch || f.name.toLowerCase().includes(knowledgeSearch.toLowerCase()))
+                    )
+                    .map((file) => (
+                      <Pressable
+                        key={file._id}
+                        onPress={() => addLinkedKnowledge({
+                          _id: file._id,
+                          name: file.name,
+                          type: file.type,
+                          category: file.category,
+                          url: file.url,
+                        })}
+                        className="flex-row items-center gap-2 px-4 py-2 active:bg-muted"
+                      >
                         <FileText size={14} className="text-muted-foreground" />
                         <Text className="text-sm text-foreground flex-1" numberOfLines={1}>
                           {file.name}
                         </Text>
-                      </View>
-                      <Pressable
-                        onPress={() => removeLinkedKnowledge(file._id)}
-                        className="active:opacity-70 ml-2"
-                      >
-                        <X size={14} className="text-muted-foreground" />
                       </Pressable>
-                    </View>
-                  ))}
-                </View>
-              </ScrollView>
-              <Dialog
-                open={showKnowledgePicker}
-                onClose={() => setShowKnowledgePicker(false)}
-                placement={{ base: "bottom", md: "center" }}
-                title={t("agents.knowledge")}
-                // The picker owns its own ScrollView and its own padding.
-                scrollable={false}
-                contentPadding={0}
-              >
-                  <View className="mx-4 mb-2">
-                    <Search
-                      label="Search library..."
-                      value={knowledgeSearch}
-                      onChangeText={setKnowledgeSearch}
-                      onClearText={() => setKnowledgeSearch("")}
-                      autoFocus
-                    />
-                  </View>
-                  <ScrollView style={{ maxHeight: isLargeScreen ? 300 : undefined }} className={cn(!isLargeScreen && "flex-1")}>
-                    {libraryFiles
-                      .filter((f) =>
-                        !linkedKnowledge.some((lk) => lk._id === f._id) &&
-                        (!knowledgeSearch || f.name.toLowerCase().includes(knowledgeSearch.toLowerCase()))
-                      )
-                      .map((file) => (
-                        <Pressable
-                          key={file._id}
-                          onPress={() => addLinkedKnowledge({
-                            _id: file._id,
-                            name: file.name,
-                            type: file.type,
-                            category: file.category,
-                            url: file.url,
-                          })}
-                          className="flex-row items-center gap-2 px-4 py-2 active:bg-muted"
-                        >
-                          <FileText size={14} className="text-muted-foreground" />
-                          <Text className="text-sm text-foreground flex-1" numberOfLines={1}>
-                            {file.name}
-                          </Text>
-                        </Pressable>
-                      ))}
-                    {libraryFiles.length === 0 && (
-                      <Text className="text-xs text-muted-foreground px-4 py-3 text-center">
-                        No files in library. Upload files on the Library screen.
-                      </Text>
-                    )}
-                  </ScrollView>
-              </Dialog>
-            </View>
+                    ))}
+                  {libraryFiles.length === 0 && (
+                    <Text className="text-xs text-muted-foreground px-4 py-3 text-center">
+                      No files in library. Upload files on the Library screen.
+                    </Text>
+                  )}
+                </ScrollView>
+            </Dialog>
           </View>
         ) : (
           <View className="p-4 gap-4">
