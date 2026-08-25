@@ -18,6 +18,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  */
 
 const resolveModel = vi.fn();
+const findAgentById = vi.fn();
 const findMcpServerForUser = vi.fn();
 const reserveCredits = vi.fn();
 
@@ -51,7 +52,14 @@ vi.mock('../../../db/memory/userMemoryRepository.js', () => ({
 vi.mock('../../../db/chat/conversationRepository.js', () => ({
 }));
 vi.mock('../../../db/agents/skillRepository.js', () => ({ findSkillPrompt: async () => undefined }));
-vi.mock('../../../db/agents/agentRepository.js', () => ({ findAgentById: async () => null }));
+vi.mock('../../../db/agents/agentRepository.js', () => ({
+  findAgentById: (...args: unknown[]) => findAgentById(...args),
+}));
+vi.mock('../../agent-identity.js', () => ({
+  attachAgentIdentity: async (agent: Record<string, unknown>) => ({
+    ...agent, name: 'Pepe', handle: 'pepe', avatar: null, authorName: null,
+  }),
+}));
 vi.mock('../../../db/integrations/mcpServerRepository.js', () => ({
   findMcpServerForUser: (...args: unknown[]) => findMcpServerForUser(...args),
 }));
@@ -80,7 +88,12 @@ interface Captured {
 /** Drive the real function for one `model` value and capture what came back. */
 async function run(
   model: string | undefined,
-  options: { mcpServerId?: unknown; directUserId?: string; apiKey?: boolean } = {},
+  options: {
+    mcpServerId?: unknown;
+    directUserId?: string;
+    apiKey?: boolean;
+    agentId?: string;
+  } = {},
 ) {
   const captured: Captured = { status: null, body: null };
   const res = {
@@ -103,7 +116,11 @@ async function run(
     },
     ...(options.directUserId === undefined ? {} : { user: { id: options.directUserId } }),
     ...(options.apiKey ? { apiKey: { id: 'key-1' } } : {}),
+    accessToken: 'token-1',
   };
+  if (options.agentId !== undefined) {
+    (req.body as Record<string, unknown>).agentId = options.agentId;
+  }
   const ctx = await buildChatRequestContext(
     req as never,
     res as never,
@@ -126,6 +143,66 @@ beforeEach(() => {
   });
   findMcpServerForUser.mockResolvedValue(null);
   reserveCredits.mockResolvedValue({ reservationId: 'reservation-1' });
+  findAgentById.mockResolvedValue(null);
+});
+
+/**
+ * The ENTRYPOINT half of "a turn names its agent".
+ *
+ * `lib/__tests__/turn-names-its-agent.test.ts` asserts that a prompt built WITH
+ * an agent differs from one built without — but it hands the agent in directly,
+ * so it stays green while nothing resolves one. Measured: disabling the
+ * `body.agentId` read entirely left that file passing, which is the same shape
+ * as the bug being replaced (a resolver that resolved nothing, with no symptom).
+ *
+ * So this drives the real `buildChatRequestContext` and reads what it put on
+ * the context. It is the assertion that would have failed on the day
+ * `findConversationAgentById` was pointed at the primary key.
+ */
+describe('the turn resolves the agent it NAMED', () => {
+  it('reads body.agentId and puts the agent on the context', async () => {
+    findAgentById.mockResolvedValue({
+      _id: 'agent-1',
+      oxyAccountId: 'oxy-bot-1',
+      isPublished: true,
+      status: 'active',
+      systemPrompt: 'p',
+    });
+
+    const { ctx } = await run(undefined, { directUserId: 'user-1', agentId: 'agent-1' });
+
+    expect(findAgentById).toHaveBeenCalledWith(expect.anything(), 'agent-1');
+    expect(ctx?.linkedAgent?._id).toBe('agent-1');
+    // Identity is attached on the way through, so the prompt can name it.
+    expect(ctx?.linkedAgent?.name).toBe('Pepe');
+  });
+
+  it('resolves NOTHING when the turn named no agent', async () => {
+    // The negative control. Without it the assertion above passes against a
+    // context that attaches an agent to every turn.
+    const { ctx } = await run(undefined, { directUserId: 'user-1' });
+
+    expect(findAgentById).not.toHaveBeenCalled();
+    expect(ctx?.linkedAgent).toBeNull();
+  });
+
+  it('refuses a DRAFT agent the caller cannot act as', async () => {
+    // `body.agentId` is client input. An unpublished agent is reachable only
+    // through `account:act_as`, and the Oxy client is not configured here — so
+    // the verdict cannot be granted and the turn runs as ordinary Alia.
+    findAgentById.mockResolvedValue({
+      _id: 'agent-2',
+      oxyAccountId: 'oxy-bot-2',
+      isPublished: false,
+      status: 'active',
+      systemPrompt: 'p',
+    });
+
+    const { ctx } = await run(undefined, { directUserId: 'user-1', agentId: 'agent-2' });
+
+    expect(findAgentById).toHaveBeenCalledWith(expect.anything(), 'agent-2');
+    expect(ctx?.linkedAgent).toBeNull();
+  });
 });
 
 describe('one MCP connector can be selected for one direct-user turn', () => {

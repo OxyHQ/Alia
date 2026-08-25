@@ -202,11 +202,6 @@ const RESTATED_DEFAULTS: readonly { file: string; value: string; why: string }[]
     why: "An agent's own allowedModels first, else the chat default. Agrees with the owner; should import it.",
   },
   {
-    file: 'packages/api/src/lib/tools/agent-orchestrator.ts',
-    value: 'alia-lite',
-    why: 'Same shape as agent-delegate, same value, same fix available.',
-  },
-  {
     file: 'packages/api/src/lib/tools/delegate.ts',
     value: 'alia-v1',
     why: 'DELIBERATE and documented in place: names the alias the fallback engine already resolved to, so the tool stops reporting a model it did not run. Its comment states it is explicitly not the default.',
@@ -240,7 +235,10 @@ describe('every site that restates an alias default is accounted for', () => {
     // is the scanner getting weaker. A floor that a gate's own work erodes ends
     // at `>= 0`, so it moves by exactly the number of restatements deleted and
     // the exact-equality check below is what actually holds the line.
-    expect(observed.length).toBeGreaterThanOrEqual(6);
+    // 6 -> 5: `lib/tools/agent-orchestrator.ts` is DELETED. It was registered
+    // into `tools/registry.ts` and reached a model through nothing, and both it
+    // and the registry went with the five tool assemblers becoming one.
+    expect(observed.length).toBeGreaterThanOrEqual(5);
   });
 
   it('is exactly the frozen list, in both directions', () => {
@@ -252,8 +250,8 @@ describe('every site that restates an alias default is accounted for', () => {
   });
 
   it('the frozen list is as long as it says, so it cannot grow a line at a time', () => {
-    expect(RESTATED_DEFAULTS).toHaveLength(5);
-    expect(new Set(RESTATED_DEFAULTS.map((r) => r.file)).size).toBe(5);
+    expect(RESTATED_DEFAULTS).toHaveLength(4);
+    expect(new Set(RESTATED_DEFAULTS.map((r) => r.file)).size).toBe(4);
     for (const entry of RESTATED_DEFAULTS) expect(entry.why.length).toBeGreaterThan(40);
   });
 
@@ -335,7 +333,8 @@ describe('every site that restates an alias default is accounted for', () => {
     // `routes/webhooks.ts` was one of the three and now restates nothing, so
     // the filter has one fewer general-path entry to check rather than one
     // fewer reason to check.
-    expect(generalChatPath).toHaveLength(2);
+    // 2 -> 1 with `agent-orchestrator.ts`, which was the other one.
+    expect(generalChatPath).toHaveLength(1);
     for (const entry of generalChatPath) {
       expect(entry.value, `${entry.file} disagrees with the owner`).toBe(getDefaultAliaModel());
     }

@@ -6,7 +6,8 @@ import { getChannel } from '../lib/channels/registry.js';
 import { resolveModel, getAIModel, reportModelUsage, getDefaultAliaModel } from '../lib/chat-core.js';
 import { sendChannelMessage } from '../lib/channels/outbound.js';
 import { ToolPipeline } from '../lib/tool-pipeline.js';
-import { attachAgentIdentity } from '../lib/agent-identity.js';
+import { agentPromptName, attachAgentIdentity } from '../lib/agent-identity.js';
+import { buildIdentityGuard } from '../lib/identity-guard.js';
 import { loadPrompt } from '../lib/prompt-loader.js';
 import { getDb } from '../db/index.js';
 import {
@@ -424,7 +425,17 @@ export async function processAgentBotMessage(
     }
     const model = getAIModel(resolved, 'agent_run');
 
-    const systemPrompt = agent?.systemPrompt || (await getChannelSystemPrompt(channelType));
+    /**
+     * The identity guard, which this path did not have either.
+     *
+     * An agent's own Telegram bot is the surface where its name matters most —
+     * a stranger is talking to it by name — and it was the surface with no
+     * guard at all, so a route detail could leak straight into a DM.
+     */
+    const composed = agent?.systemPrompt || (await getChannelSystemPrompt(channelType));
+    const systemPrompt = `${buildIdentityGuard(
+      agent ? { agentName: agentPromptName(agent) } : {},
+    )}\n\n---\n\n${composed}`;
 
     /**
      * The bot owner's REAL tool set, through the ONE assembler.

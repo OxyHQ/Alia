@@ -1418,7 +1418,11 @@ describe('gate 3: the alia-* alias set is frozen (ADR 0002)', () => {
     // `getDefaultAliaModel()` and translates through `toRoutableAlias`. The
     // floor moves by exactly the number of defaults deleted; the positive
     // control above is what keeps it from measuring nothing.
-    expect(found.length).toBeGreaterThanOrEqual(7);
+    // 7 -> 6 because `lib/tools/agent-orchestrator.ts` is DELETED, taking its
+    // `alia-lite` default with it. It was registered into `tools/registry.ts`
+    // and reached a model through nothing at all; both went with the five tool
+    // assemblers becoming one.
+    expect(found.length).toBeGreaterThanOrEqual(6);
 
     // A default must name something that resolves to itself: a registered alias,
     // or one of the classified non-model strings (a LiveKit participant identity

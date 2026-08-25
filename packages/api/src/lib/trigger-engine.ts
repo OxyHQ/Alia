@@ -35,6 +35,7 @@ import {
   type HydratedAgent,
 } from './agent-identity.js';
 import { readArchetypeConfig } from '../domain/agent.js';
+import { buildIdentityGuard } from './identity-guard.js';
 import { ToolPipeline } from './tool-pipeline.js';
 import { resolveModel, getAIModel, getDefaultAliaModel } from './chat-core.js';
 import {
@@ -241,6 +242,19 @@ export async function executeTrigger(
     } else {
       systemPrompt = buildTriggerSystemPrompt(trigger, oxyUser, memory, context.source);
     }
+
+    /**
+     * The identity guard, which this path did not have.
+     *
+     * `buildIdentityGuard`'s own docblock claimed "every system-prompt
+     * composition path" while covering three of five — and the two it missed
+     * were the two with the most autonomy, this one and the agent-bot webhook.
+     * A trigger runs unattended and can deliver its answer to Telegram, so it
+     * is the last place a route detail should be able to leak.
+     */
+    systemPrompt = `${buildIdentityGuard(
+      linkedAgent ? { agentName: agentPromptName(linkedAgent) } : {},
+    )}\n\n---\n\n${systemPrompt}`;
 
     // Build user message
     let userMessage = trigger.action.prompt;

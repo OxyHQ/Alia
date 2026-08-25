@@ -30,7 +30,7 @@ import {
 } from '../../db/agents/eventStreamEntryRepository.js';
 import { resolveModel, getAIModel, reportModelUsage, getDefaultAliaModel } from '../chat-core.js';
 import { markKeyCreditExhausted } from '../gateway-client.js';
-import { cleanupSessionResources } from './tools.js';
+import { cleanupSessionResources } from './session-resources.js';
 import { log } from '../logger.js';
 import { EventStream } from './event-stream.js';
 import { AgentStateMachine } from './state-machine.js';
@@ -427,7 +427,8 @@ export async function runAgentSession(sessionId: string): Promise<void> {
   // The identity guard wraps the agent's own prompt so the Alia identity
   // boundary holds even for custom / archetype agent prompts. The runner picks
   // a model per step, so no single model name is passed here.
-  const systemPrompt = `${buildIdentityGuard()}\n\n---\n\n${buildSystemPrompt(agent, session.config)}`;
+  // The agent's OWN name. It used to be told it was Alia, above its own prompt.
+  const systemPrompt = `${buildIdentityGuard({ agentName: agentPromptName(agent) })}\n\n---\n\n${buildSystemPrompt(agent, session.config)}`;
 
   const allowedModels = agent.allowedModels.length > 0
     ? agent.allowedModels

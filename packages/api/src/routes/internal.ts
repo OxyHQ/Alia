@@ -15,6 +15,7 @@ import {
 } from '../lib/tools/index.js';
 import { oxyServiceAuth, oxyClient } from '../middleware/auth.js';
 import { ToolPipeline } from '../lib/tool-pipeline.js';
+import { buildIdentityGuard } from '../lib/identity-guard.js';
 import { setPlanModelIds } from '../db/billing/planRepository.js';
 import { isAliaModel } from '../lib/gateway-client.js';
 import type { User as OxyUser } from '@oxyhq/core';
@@ -190,7 +191,15 @@ router.post('/trigger', oxyServiceAuth, async (req, res) => {
     // Build the user message from the event
     const eventDescription = `[Event: ${event}]${data ? `\n\nEvent data:\n${JSON.stringify(data, null, 2)}` : ''}${instructions ? `\n\nAdditional instructions: ${instructions}` : ''}`;
 
-    const systemPrompt = buildTriggerSystemPrompt(oxyUser, memory, appName);
+    /**
+     * The identity guard on the fifth composition path.
+     *
+     * A service-token trigger has no agent of its own, so it speaks as Alia —
+     * but it still reaches a model and still answers a person through whatever
+     * app delegated the call, so the route secrecy applies exactly as it does
+     * in chat. This path had no guard because nothing enumerated it.
+     */
+    const systemPrompt = `${buildIdentityGuard()}\n\n---\n\n${buildTriggerSystemPrompt(oxyUser, memory, appName)}`;
 
     // Use generateText (non-streaming) for server-to-server
     const result = await generateText({

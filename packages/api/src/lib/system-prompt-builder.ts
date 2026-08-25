@@ -239,7 +239,11 @@ export class SystemPromptBuilder {
     // 0. Identity guard — prepended LAST so it sits above the skill/agent
     // prompts and every other layer. Nothing downstream can override the
     // Alia identity boundary.
-    systemMessage = `${buildIdentityGuard(aliaModel?.name)}\n\n---\n\n${systemMessage}`;
+    // An agent's turn says the AGENT's name; an ordinary turn says the model's.
+    systemMessage = `${buildIdentityGuard({
+      ...(linkedAgent ? { agentName: agentPromptName(linkedAgent) } : {}),
+      modelName: aliaModel?.name,
+    })}\n\n---\n\n${systemMessage}`;
 
     return systemMessage;
   }
