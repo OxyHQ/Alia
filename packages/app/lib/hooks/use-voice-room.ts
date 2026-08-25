@@ -11,11 +11,13 @@ import { useUserDataStore } from '../stores/user-data-store';
 
 export type { RoomState, AgentState, VoiceMessage, VoiceToolInvocation } from '@alia.onl/sdk/voice';
 
-export function useVoiceRoom() {
+/** `agentId` when the open thread belongs to one; the session is Alia without it. */
+export function useVoiceRoom(agentId?: string) {
   const voicePref = useUserDataStore(s => s.memory?.preferences?.voice);
 
   return useVoiceRoomSDK({
     apiUrl: config.apiUrl,
     voicePreference: voicePref === 'male' ? 'male' : 'female',
+    ...(agentId ? { agentId } : {}),
   });
 }

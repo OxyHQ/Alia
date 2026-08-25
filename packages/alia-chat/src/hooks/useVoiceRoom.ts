@@ -42,6 +42,15 @@ export interface UseVoiceRoomOptions {
    * would substitute something that cannot hold a voice session.
    */
   model?: string;
+  /**
+   * The agent this session belongs to, when it is a thread with one.
+   *
+   * Without it the session is ordinary Alia: the API composes the generic
+   * prompt and the identity guard says the model's name, so an agent's voice
+   * answers as Alia. It is the caller's to supply because only the screen knows
+   * whose thread is open.
+   */
+  agentId?: string;
 }
 
 // ============== TITLE TAG UTILITIES ==============
@@ -115,6 +124,7 @@ export function useVoiceRoom(options: UseVoiceRoomOptions = {}) {
   const apiUrl = options.apiUrl || API_URL;
   const voicePref = options.voicePreference ?? 'female';
   const voiceModel = options.model ?? PREFERRED_VOICE_MODEL_ID;
+  const agentId = options.agentId;
 
   const [roomState, setRoomState] = useState<RoomState>('disconnected');
   const [agentState, setAgentState] = useState<AgentState>('idle');
@@ -341,6 +351,10 @@ export function useVoiceRoom(options: UseVoiceRoomOptions = {}) {
         body: JSON.stringify({
           model: voiceModel,
           voice: voicePref === 'male' ? 'echo' : 'nova',
+          // Omitted rather than sent as undefined: the API branches on the key
+          // being a string, and a session with no agent must look exactly as it
+          // did before this existed.
+          ...(agentId ? { agentId } : {}),
         }),
       });
 
@@ -418,7 +432,7 @@ export function useVoiceRoom(options: UseVoiceRoomOptions = {}) {
       setRoomState('error');
       cleanup();
     }
-  }, [getToken, cleanup, handleDataMessage, apiUrl, voicePref]);
+  }, [getToken, cleanup, handleDataMessage, apiUrl, voicePref, voiceModel, agentId]);
 
   // ============== DISCONNECT ==============
 
