@@ -1,0 +1,45 @@
+# The Alia web app is a Worker, not a Pages project, for the same reason Canvas
+# is: a Pages project ALWAYS serves `<project>.pages.dev` and Cloudflare offers
+# no way to switch it off — `wrangler pages project` has only `list`, `create`
+# and `delete`.
+#
+# That is not hypothetical here. Measured before this change:
+#
+#   alia.onl            200  md5 045c76d292e7ec40
+#   alia-app.pages.dev  200  md5 045c76d292e7ec40   <- byte-identical
+#
+# The same deployment under two names, and the second in NEITHER CORS allowlist
+# (`lib/cors-origins.ts` here, `BOOTSTRAP_CORE_ORIGINS` in the Oxy platform), so
+# it rendered the shell and failed every call it made. `workers_dev = false`
+# leaves `alia.onl` as the only name that reaches this deployment.
+#
+# Verified against wrangler 4.125.0, control-verified: a `--dry-run` accepts
+# `workers_dev` and `assets.not_found_handling` without comment, while the same
+# run flags an invented top-level key as "Unexpected fields". Recognised, not
+# ignored.
+name = "alia-app"
+compatibility_date = "2026-08-24"
+
+workers_dev = false
+
+# Static assets with no `main`: no Worker script runs, every request is served
+# from the uploaded directory. `expo export --platform web` emits ONE
+# `index.html` plus hashed assets — a client-routed SPA, not per-route static
+# HTML — so the fallback below is what makes a deep link work.
+#
+# 88 files, 22 MB, largest 11 MB: inside the 20,000-file and 25 MiB-per-file
+# limits with room to spare.
+[assets]
+directory = "./dist"
+# Replaces `public/_redirects` (`/*  /index.html  200`), which is deleted in the
+# same change because `_redirects` is a Pages-only file and would be dead weight
+# here. Behaviour is the same: every miss gets the shell, including a missing
+# script. That is a wart, and it is the one that already shipped — measured on
+# the Canvas Worker, which uses this identical setting.
+not_found_handling = "single-page-application"
+
+# The only way in. `alia.onl` is the zone apex; Cloudflare writes the flattened
+# record for a custom domain, so no CNAME is declared by hand.
+[[routes]]
+pattern = "alia.onl"
+custom_domain = true
