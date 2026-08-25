@@ -26,7 +26,7 @@
  * reading a stale local, which is the bug the shape exists to prevent.
  */
 
-import { and, count, desc, eq, inArray, isNotNull, lt, sql } from 'drizzle-orm';
+import { and, count, desc, eq, inArray, lt, ne, sql } from 'drizzle-orm';
 import type { ApiDatabase } from '../index';
 import {
   ACTIVE_SHOW_EPISODE_STATUSES,
@@ -276,8 +276,10 @@ export interface NewShowEpisode {
   readonly userId: string;
   readonly seriesId: string;
   readonly episodeNumber: number;
+  /** The placeholder the route reserves the Syra draft with; the script renames it. */
   readonly title: string;
-  readonly topic: string;
+  /** Absent when nobody said what this episode covers — the script decides it. */
+  readonly topic?: string | undefined;
   readonly notes?: string | undefined;
   readonly syraEpisodeId: string;
   readonly ingestTicket: string;
@@ -296,7 +298,7 @@ export async function createEpisode(
       seriesId: input.seriesId,
       episodeNumber: input.episodeNumber,
       title: input.title,
-      topic: input.topic,
+      topic: input.topic ?? null,
       notes: input.notes ?? null,
       syraEpisodeId: input.syraEpisodeId,
       ingestTicket: input.ingestTicket,
@@ -311,6 +313,16 @@ export async function createEpisode(
 
 /** Fields the pipeline is allowed to patch. `seriesId` and `userId` are not among them. */
 export interface ShowEpisodePatch {
+  /**
+   * The name the SCRIPT settled on, replacing the route's `Episode {n}`.
+   *
+   * Patchable because the title is now read off the finished episode rather
+   * than guessed from a request, and the same string is what the ingest sends
+   * to Syra — so this write and that call have to agree by construction.
+   */
+  readonly title?: string;
+  /** The subject the script settled on, when the request named none. */
+  readonly topic?: string | null;
   readonly status?: ShowEpisodeStatus;
   readonly progress?: number;
   readonly error?: string | null;
@@ -445,43 +457,65 @@ export async function deleteEpisodeForUser(
 }
 
 /**
- * The recaps of the episodes immediately BEFORE this one, oldest first.
+ * What the episodes BEFORE this one were about, oldest first.
  *
- * This is what makes a series continuous: the script for episode N is told what
- * N-1 and N-2 covered, so it neither repeats them nor pretends they never
- * happened.
+ * This is the series' memory, and it is deliberately two things at two costs.
+ * `topic` is one line per episode, so every episode in the window can be listed
+ * and the script can be told not to cover any of them again; `recap` is several
+ * sentences, so only the most recent few are ever sent. A window of recaps
+ * alone is what lets a show repeat itself at episode nine — from the model's
+ * side, everything older than the window never happened.
  *
  * Selected by `episodeNumber < before` rather than by timestamp, because a
  * regenerated episode 3 is still episode 3 however late its row was written —
  * ordering by time would hand episode 4 a "previously on" that skipped it.
  * Returned OLDEST first so a prompt reads them in the order a listener heard
  * them, which is the reverse of how they are fetched.
+ *
+ * `failed` episodes are EXCLUDED, and that is the difference between a subject
+ * that was covered and one that was merely attempted: an episode whose run died
+ * said nothing to a listener, so holding its subject out of every future episode
+ * would retire a subject the show never actually did. Every other status is
+ * included, in-flight ones especially — an episode still being recorded has
+ * already claimed its subject, and leaving it out is how two episodes queued a
+ * minute apart end up covering the same thing.
+ *
+ * `limit` bounds the newest end. A show longer than the limit may revisit
+ * something from beyond it, which is the honest trade: the alternative is a
+ * prompt that grows without bound.
  */
-export async function recentRecaps(
+export interface PriorEpisode {
+  readonly episodeNumber: number;
+  /** `null` while a queued episode's script has not chosen one yet. */
+  readonly topic: string | null;
+  /** `null` until the episode is produced. */
+  readonly recap: string | null;
+}
+
+export async function priorEpisodes(
   db: ApiDatabase,
   seriesId: string,
   beforeEpisodeNumber: number,
   limit: number,
-): Promise<string[]> {
+): Promise<PriorEpisode[]> {
   const rows = await db
-    .select({ episodeNumber: showEpisodes.episodeNumber, recap: showEpisodes.recap })
+    .select({
+      episodeNumber: showEpisodes.episodeNumber,
+      topic: showEpisodes.topic,
+      recap: showEpisodes.recap,
+    })
     .from(showEpisodes)
     .where(
       and(
         eq(showEpisodes.seriesId, seriesId),
         lt(showEpisodes.episodeNumber, beforeEpisodeNumber),
-        isNotNull(showEpisodes.recap),
+        ne(showEpisodes.status, 'failed'),
       ),
     )
     .orderBy(desc(showEpisodes.episodeNumber))
     .limit(limit);
 
-  // `isNotNull` already excluded the nulls; the filter is what narrows the
-  // TYPE, since drizzle cannot see a predicate in a WHERE clause.
-  return rows
-    .sort((a, b) => a.episodeNumber - b.episodeNumber)
-    .map((r) => r.recap)
-    .filter((recap): recap is string => recap !== null);
+  return rows.sort((a, b) => a.episodeNumber - b.episodeNumber);
 }
 
 // ── Preferences ──────────────────────────────────────────────────────────────

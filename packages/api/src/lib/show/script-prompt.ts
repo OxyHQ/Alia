@@ -1,17 +1,32 @@
 /**
- * The prompts that turn a series brief and an episode topic into a script.
+ * The prompts that turn a series brief into an episode: its subject, its script
+ * and its name.
  *
- * Two changes from the version that produced one-off shows, and both exist
- * because a series is not a folder of unrelated recordings:
+ * Three things this asks for that the version producing one-off shows did not,
+ * and all three exist because a series is not a folder of unrelated recordings:
  *
  *  - **The cast is given, not invented.** Speaker names come from the series and
  *    are the roster voice names, so the model cannot produce a segment attributed
  *    to somebody with no voice. It used to invent names, which the pipeline then
  *    matched against a roster — and a model that spelled a name one way in its
  *    `speakers` list and another in a segment silently lost that segment.
+ *  - **The subject is CHOSEN here, not supplied.** Asking for another episode
+ *    says nothing about what it covers; the series already knows what the show
+ *    is. So the model is handed the brief, every subject the show has already
+ *    used, and the last few recaps, and picking the next one is the first part
+ *    of the job. A request may still name a subject, and then it is simply
+ *    given.
  *  - **The model is told what the previous episodes said.** Without that,
  *    episode 4 of a weekly show re-explains what episodes 1 to 3 explained,
  *    because from the model's side every episode is the first one.
+ *
+ * ## Breadth and detail are two different lists, at two different costs
+ *
+ * A recap is several sentences, so only the last few fit; a topic is one line,
+ * so every episode fits. Sending recaps alone is exactly how a show repeats
+ * itself at episode nine — the window holds 6, 7 and 8, and episode 2 is as
+ * invisible as if it had never aired. So the prompt carries BOTH: a complete
+ * list of subjects already used, and full recaps for the most recent few.
  *
  * ## An audio tag is English, in every language
  *
@@ -32,12 +47,18 @@
  * true, per model: a tag survives to a model that performs it and is removed
  * for one that does not, and anything else in brackets is removed for both.
  *
- * The model does NOT choose the title. Syra fixes an episode's title when the
- * draft is reserved and refuses to let the ingest change it, so a
- * model-authored title could never reach the published episode — it would only
- * make Alia and Syra disagree about the same episode's name.
+ * ## Where a field sits in the schema decides what it is written FROM
+ *
+ * A model fills a JSON object in the order the schema lists it, so a `title`
+ * asked for before `segments` is a title written from the brief and the
+ * subject — which is the title this change exists to stop producing. `title`
+ * and `recap` are therefore the LAST two fields: both are readings of the
+ * finished episode, and the model has to have written it to give either.
+ * `description` and `summary` stay above the segments deliberately, because
+ * they are the outline the script then follows rather than a reading of it.
  */
 
+import type { PriorEpisode } from '../../db/shows/showRepository.js';
 import type { ShowFormat, ShowSpeaker } from '../../db/schema/shows.js';
 import { PERFORMABLE_AUDIO_TAGS } from '../../internal/providers/lib/tts-providers.js';
 import { FORMAT_DEFAULTS } from './voice-roster.js';
@@ -100,70 +121,119 @@ Include sound effect segments at natural break points:
 - Keep SFX prompts short and descriptive (e.g., "upbeat show intro jingle, 4 seconds", "smooth transition whoosh, 2 seconds")
 
 ## Output Format
-Respond with ONLY valid JSON (no markdown, no explanation). Use this exact schema:
+Respond with ONLY valid JSON (no markdown, no explanation). Use this exact schema, with the keys in this order:
 
 {
+  "topic": "One line naming what this episode covers",
   "description": "One or two sentences describing this episode, for a podcast app's episode list",
   "summary": "A longer paragraph summarising what this episode covers",
-  "recap": "Two or three sentences a LATER episode can read to remember what this one said",
   "segments": [
     { "type": "sfx", "speaker": "", "text": "", "sfxPrompt": "upbeat show intro jingle, 4 seconds" },
     { "type": "dialogue", "speaker": "${exampleSpeaker}", "text": "Hey everyone, welcome back to..." },
     { "type": "dialogue", "speaker": "${exampleSecond}", "text": "Thanks for having me..." },
     { "type": "sfx", "speaker": "", "text": "", "sfxPrompt": "smooth transition sound, 2 seconds" },
     { "type": "dialogue", "speaker": "${exampleSpeaker}", "text": "So let's dive into..." }
-  ]
+  ],
+  "recap": "Two or three sentences a LATER episode can read to remember what this one said",
+  "title": "The name of this episode"
 }
 
-The title is NOT yours to choose and is not in the schema — it is already set.`;
+"recap" and "title" come LAST because both describe the episode you have just written. Write the segments first, then read them back and name what is in them.
+
+## The title
+- Take it from what the episode ACTUALLY SAYS — the line that turned out to be the point of it, not the subject you set out to cover
+- Six words or fewer, and it must read like a title somebody would click rather than like a summary
+- Do not repeat the name of the show, do not number it, do not put it in quotes, do not end it with a full stop
+- Write it in the same language as the script`;
 }
+
+/**
+ * How much of one episode's subject the ledger carries.
+ *
+ * A ledger line is a MARKER — enough to recognise "we did that one" — not the
+ * subject itself, and a request may supply two thousand characters of it. Fifty
+ * of those unabridged would be most of the prompt, and would push the writing
+ * guidance out of the model's attention to say nothing new.
+ */
+const LEDGER_TOPIC_CHARS = 140;
 
 export interface ScriptUserPromptInput {
   /** The series' standing premise: what this show is, across every episode. */
   readonly brief: string;
-  /** The title this episode already has. */
-  readonly title: string;
-  /** What THIS episode covers. */
-  readonly topic: string;
+  /** The show's own name, so the episode is not titled after the show. */
+  readonly seriesTitle: string;
+  /**
+   * What THIS episode covers, or `null` to have the model choose one.
+   *
+   * `null` is the ordinary case: the button asks for another episode and says
+   * nothing about it. A string is an owner who wanted a specific one.
+   */
+  readonly topic: string | null;
   /** Which episode this is, so the model can open like a first or a fifth. */
   readonly episodeNumber: number;
   /** Source material the owner supplied, if any. */
   readonly notes?: string | undefined;
-  /** Recaps of the preceding episodes, OLDEST first. */
-  readonly previousRecaps: readonly string[];
+  /**
+   * What the earlier episodes were about, OLDEST first.
+   *
+   * The whole window, not the recap window: every entry contributes its subject
+   * to the "already covered" list, and the most recent few that have a recap
+   * contribute that too.
+   */
+  readonly previously: readonly PriorEpisode[];
+  /** How many recaps to send in full. Every entry still contributes its subject. */
+  readonly recapWindow: number;
   readonly targetDurationMinutes: number;
 }
 
 /**
  * The user prompt, carrying everything that makes this episode this episode.
  *
- * The recaps are numbered relative to the current episode rather than listed
- * flat, so "the previous episode" is unambiguous — a model handed three
- * paragraphs with no ordering will reference the wrong one about a third of the
- * time, and a podcast that says "last week we talked about X" when it did not is
- * worse than one that never refers back at all.
+ * ## Both memories, and why numbering them properly matters
+ *
+ * Every prior episode's subject is listed, and the most recent few also get
+ * their recap in full. Each line carries its REAL episode number, read from the
+ * row rather than counted backwards from the current one: an episode that
+ * failed leaves a gap in the numbering, and a prompt that assumed the recaps
+ * were contiguous labelled them off by one from the first failure onwards. A
+ * podcast that says "last week we talked about X" when it did not is worse than
+ * one that never refers back at all.
  */
 export function buildScriptUserPrompt(input: ScriptUserPromptInput): string {
   const targetWords = Math.round(input.targetDurationMinutes * 150);
+  const covered = input.previously.filter(
+    (episode): episode is PriorEpisode & { topic: string } => episode.topic !== null,
+  );
+  const recaps = input.previously
+    .filter((episode): episode is PriorEpisode & { recap: string } => episode.recap !== null)
+    .slice(-input.recapWindow);
+
   const parts: string[] = [
-    `This show is about: ${input.brief}`,
+    `This show is called "${input.seriesTitle}" and it is about: ${input.brief}`,
     '',
-    `Write episode ${input.episodeNumber}, titled "${input.title}".`,
-    `This episode covers: ${input.topic}`,
-    '',
-    `Target roughly ${input.targetDurationMinutes} minutes, about ${targetWords} words of dialogue.`,
+    `Write episode ${input.episodeNumber}.`,
   ];
 
-  if (input.previousRecaps.length > 0) {
+  if (covered.length > 0) {
+    parts.push(
+      '',
+      '## What this show has already covered',
+      'One line per episode, oldest first. These subjects are used up — do not do any of them again.',
+      '',
+      ...covered.map(
+        (episode) =>
+          `Episode ${episode.episodeNumber}: ${episode.topic.slice(0, LEDGER_TOPIC_CHARS)}`,
+      ),
+    );
+  }
+
+  if (recaps.length > 0) {
     parts.push(
       '',
       '## Previously on this show',
-      'These are the episodes immediately before this one, oldest first. Do not repeat what they already covered. You may refer back to them naturally, the way a real host would.',
+      'The most recent episodes in full. Pick up where they left off, and refer back to them naturally, the way a real host would.',
       '',
-      ...input.previousRecaps.map((recap, index) => {
-        const number = input.episodeNumber - input.previousRecaps.length + index;
-        return `Episode ${number}: ${recap}`;
-      }),
+      ...recaps.map((episode) => `Episode ${episode.episodeNumber}: ${episode.recap}`),
     );
   } else if (input.episodeNumber === 1) {
     parts.push(
@@ -171,6 +241,35 @@ export function buildScriptUserPrompt(input: ScriptUserPromptInput): string {
       'This is the FIRST episode. Introduce the show and the speakers, and set out what listeners can expect from it.',
     );
   }
+
+  if (input.topic === null) {
+    parts.push(
+      '',
+      '## Choosing what this episode covers',
+      'Nobody has said what this one is about, so choosing it is the first part of the job. Pick ONE subject that:',
+      '- sits squarely inside what this show is about, as the brief describes it;',
+      '- is none of the subjects already used above, and is not a rewording of one;',
+      recaps.length > 0
+        ? '- follows on from where the last episodes left off — pick up a thread they opened or a question they raised, if there is one;'
+        : '- is a good place for this show to start;',
+      `- is narrow enough to do properly in ${input.targetDurationMinutes} minutes, rather than a survey of the whole field.`,
+      '',
+      'Put the subject you chose in the "topic" field, in one line, and write the episode about it.',
+    );
+  } else {
+    parts.push(
+      '',
+      '## What this episode covers',
+      input.topic,
+      '',
+      'The owner asked for this one specifically, so cover it even if it overlaps something above. Put it in the "topic" field in your own one-line wording.',
+    );
+  }
+
+  parts.push(
+    '',
+    `Target roughly ${input.targetDurationMinutes} minutes, about ${targetWords} words of dialogue.`,
+  );
 
   if (input.notes !== undefined && input.notes.trim() !== '') {
     parts.push(

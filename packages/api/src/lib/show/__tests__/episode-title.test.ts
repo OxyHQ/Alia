@@ -5,9 +5,8 @@ import { cleanTitle } from '../episode-title';
  * Turning a model's reply into an episode name.
  *
  * Every case here is a shape a model really produces when asked for a title,
- * and every one of them would be STORED verbatim without this — in Syra, on the
- * published episode, permanently, because the ingest allowlist refuses to change
- * a title after the draft.
+ * and every one of them would be STORED verbatim without this — on the row and
+ * in the ingest that names the published episode.
  *
  * A live call cannot test any of it: which of these shapes comes back is a
  * property of whichever provider answered, so the assertion has to be on the

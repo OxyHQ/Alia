@@ -187,7 +187,12 @@ export const showSeries = pgTable(
      * The standing description of what this show is about, in the owner's words.
      *
      * Distinct from an episode's `topic`: the brief is the series' premise and
-     * is fed to every script, while the topic is what one episode covers.
+     * the topic is what one episode covers. The brief is the LOAD-BEARING half
+     * of that pair — asking for another episode says nothing about what it
+     * covers, so every episode's subject is derived from this plus the subjects
+     * already used. A brief of ten characters is accepted and produces a show
+     * with nothing to vary along; the owner's screen says so, because the
+     * schema cannot.
      */
     brief: text().notNull(),
     // `$type` is a TypeScript annotation only — it changes no generated SQL, and
@@ -259,17 +264,33 @@ export const showEpisodes = pgTable(
     /**
      * The episode's name, on BOTH sides.
      *
-     * Set when the episode is created and never rewritten by the pipeline, which
-     * is forced by Syra rather than chosen here: `title` is required on
-     * `POST /:id/episodes/draft` and absent from the ingest allowlist, because a
-     * ticket holder has no session and no standing to rename an episode. So the
-     * script owns `description`, `summary` and `recap`, and the person owns the
-     * title. The alternative — an LLM title stored here only — would leave the
-     * two products disagreeing about one episode's name.
+     * Written TWICE, and the second write is the real one. Syra requires a title
+     * to reserve the draft, minutes before any script exists, so the route
+     * inserts `Episode {n}` — a placeholder that is at least true. The pipeline
+     * replaces it once the script is written, from what the episode actually
+     * says, and sends the same string in the ingest so the two products never
+     * disagree about one episode's name.
+     *
+     * NOT NULL throughout: the placeholder means an unnamed episode is
+     * unrepresentable, and an episode whose run failed keeps `Episode {n}`
+     * rather than a blank.
      */
     title: text().notNull(),
-    /** What this episode covers. The series' `brief` says what the show is. */
-    topic: text().notNull(),
+    /**
+     * What this episode covers. The series' `brief` says what the show is.
+     *
+     * NULL means the subject has not been decided yet, which is the ordinary
+     * state of a freshly queued episode: the request no longer has to say what
+     * an episode is about, so the script model chooses from the brief and from
+     * what earlier episodes already covered, and the pipeline writes its answer
+     * here the moment the script parses.
+     *
+     * Still a real column with a real writer, and it is the SERIES' MEMORY: one
+     * line per episode is what lets episode twenty be told the subjects of all
+     * nineteen before it, which no recap window could afford. A request that
+     * does name a subject writes it here instead, unchanged.
+     */
+    topic: text(),
     /** Source material pasted by the owner, if any. */
     notes: text(),
     status: text({ enum: SHOW_EPISODE_STATUSES as unknown as [string, ...string[]] })
@@ -305,6 +326,10 @@ export const showEpisodes = pgTable(
      * This is what makes a series continuous rather than a folder of unrelated
      * monologues: episode N is told what N-1 covered, so it neither repeats it
      * nor pretends it never happened.
+     *
+     * The DETAIL half of the series' memory, and only the most recent few are
+     * ever sent — several sentences each is not something twenty episodes can
+     * afford. Breadth is `topic`'s job.
      */
     recap: text(),
     /** Measured with ffprobe from the finished file, never estimated from its size. */
