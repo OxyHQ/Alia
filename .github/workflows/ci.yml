@@ -314,6 +314,15 @@ jobs:
       - name: Verify no route is swallowed by the agent profile
         run: node scripts/check-single-segment-routes.mjs
 
+      # `require('…/thing.png')` is typed `any`, so `tsc` never resolves it: a
+      # source file naming a deleted asset passes every gate here and fails in
+      # Metro at runtime. It happened — the agent avatar's PNGs were deleted in
+      # one PR and the last `require` of them removed in another, and the safe
+      # order was luck. Same defect as `check-dockerfile-workspaces.mjs`, one
+      # layer up.
+      - name: Verify every static asset a source file names exists
+        run: node scripts/check-static-assets.mjs
+
       # `alia-canvas` and the Codea `webview-ui` are solution-style projects
       # (`"files": []`, references only), so `tsc --noEmit` in them compiles
       # NOTHING and exits 0 — which is why `typecheck-workspaces.ts` lists both
