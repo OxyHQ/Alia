@@ -215,6 +215,100 @@ function inlineToolLiterals(): string[] {
   return [...new Set(found)].sort();
 }
 
+/**
+ * A tool set built as an ARRAY, which is the shape both censuses above miss.
+ *
+ * ## The gap this closes, and how it was found
+ *
+ * `routes/v1/voice.ts` builds `const voiceTools: OpenAITool[] = [ … ]` and hands
+ * it to `voiceSessionManager.createSession`. It is an assembler by every
+ * behaviour that matters — it decides which tools a session may reach — and
+ * neither census sees it:
+ *
+ *  - {@link toolSetConstructions} matches the NAME `ToolSet`, and this names
+ *    `OpenAITool[]`;
+ *  - {@link inlineToolLiterals} matches an object LITERAL at a
+ *    `generateText`/`streamText` call, and this is an array at neither.
+ *
+ * So the gate had learned to see more FORMS of constructing a `ToolSet` — the
+ * returning function, the annotated binding, the `satisfies` — while its
+ * criterion stayed the TYPE of the container. A different container escaped it
+ * entirely, which is how a sixth assembler ran for as long as it did.
+ *
+ * It came to light the day voice learned about agents: the moment a session
+ * belongs to an agent, that array decides what the AGENT may do, and an agent
+ * without `messaging` could have sent Telegram by voice. The grants are
+ * enforced there now — but by a SECOND COPY of the rule, which is exactly the
+ * divergence this file exists to prevent. The entry below says so, and it is
+ * the reason it is an exemption rather than a blessing.
+ *
+ * ## The predicate is a TOOL-DESCRIPTOR array being BUILT
+ *
+ * Two wrong versions were written first, and both are worth recording because
+ * each looks right:
+ *
+ *  - **Keyed on the type appearing.** Fifteen provider adapters declare
+ *    `tools?: OpenAITool[]` as a PARAMETER and pass it through untouched.
+ *    Reporting them is reporting every consumer as a producer — the same
+ *    false-positive class the generic-constraint case above records.
+ *  - **Keyed on an array in the `tools:` position.** That is what the object
+ *    census does, and transposed to arrays it finds `tools: ['shell']` in
+ *    `threat-patterns.ts` and the `tools` array of an `oxy_services` MANIFEST
+ *    in `seed-oxy-services.ts` — data with the same field name and nothing to
+ *    do with what a model may call. Worse, it MISSED `voice.ts`, whose array
+ *    now reaches the call through a filtering function, so it reported three
+ *    files and not the one it exists for.
+ *
+ * So the subject is the CONSTRUCTION: a binding annotated as an array of tool
+ * DESCRIPTORS, with a non-empty array literal on the right. A parameter is not
+ * a binding; a manifest's `tools` is not annotated `OpenAITool[]`; and where
+ * the value goes afterwards does not matter, because building the set is the
+ * act this file governs.
+ */
+function handBuiltToolArrays(): string[] {
+  const found: string[] = [];
+  /** The descriptor types a tool set can be an array OF. */
+  const DESCRIPTOR = /^(?:OpenAITool|ChatCompletionTool)$/;
+
+  for (const file of trackedSources()) {
+    const text = readFileSync(path.join(REPO_ROOT, file), 'utf8');
+    // Cheap pre-filter. Its floor is the `toContain` assertion below, which
+    // names the one file that must survive it.
+    if (!/OpenAITool|ChatCompletionTool/.test(text)) continue;
+    const source = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+
+    const visit = (node: ts.Node): void => {
+      if (
+        ts.isVariableDeclaration(node) &&
+        node.type !== undefined &&
+        ts.isArrayTypeNode(node.type) &&
+        ts.isTypeReferenceNode(node.type.elementType) &&
+        ts.isIdentifier(node.type.elementType.typeName) &&
+        DESCRIPTOR.test(node.type.elementType.typeName.text) &&
+        node.initializer !== undefined &&
+        ts.isArrayLiteralExpression(node.initializer) &&
+        node.initializer.elements.length > 0
+      ) {
+        found.push(file);
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(source);
+  }
+  return [...new Set(found)].sort();
+}
+
+/** A hand-built tool ARRAY handed to a session, and why it is still there. */
+const ARRAY_TOOLS_ALLOWED: Readonly<Record<string, string>> = {
+  'packages/api/src/routes/v1/voice.ts':
+    'IT IS AN ASSEMBLER, and this line is a debt rather than a blessing. Six tools ' +
+    'written out by hand and handed to `voiceSessionManager.createSession`. Its ' +
+    'agent grants ARE enforced (#398), but by a SECOND COPY of the partition — ' +
+    'today the two agree, and nothing makes them keep agreeing. It collapses when ' +
+    'voice asks `ToolPipeline.forUser` for its set and converts to OpenAI format ' +
+    'on the way out; `lib/tool-converter.ts` already goes the other direction.',
+};
+
 /** A hand-built tool set handed straight to a model, and why it is not an assembler. */
 const INLINE_TOOLS_ALLOWED: Readonly<Record<string, string>> = {
   'packages/api/src/routes/memory.ts':
@@ -302,6 +396,76 @@ describe('nothing hands a model a tool set the assembler did not build', () => {
   it('has no allow-list entry for a file that no longer does it', () => {
     const inline = inlineToolLiterals();
     expect(Object.keys(INLINE_TOOLS_ALLOWED).filter((f) => !inline.includes(f))).toEqual([]);
+  });
+
+  it('passes a hand-built tool ARRAY only where the allow-list says, with the reason', () => {
+    const arrays = handBuiltToolArrays();
+    // The floor. An AST walk that stopped matching produces an empty list,
+    // which satisfies "nothing unexpected" perfectly — so the one file that
+    // really does this is named, not counted.
+    expect(arrays).toContain('packages/api/src/routes/v1/voice.ts');
+    const unexpected = arrays.filter((f) => ARRAY_TOOLS_ALLOWED[f] === undefined);
+    expect(
+      unexpected,
+      `${unexpected.join(', ')} builds a tool set as an ARRAY and hands it over. ` +
+        'A different container is still a tool set: if the turn can belong to an ' +
+        'AGENT, the set must come from `ToolPipeline.forUser` or the agent reaches ' +
+        'tools its owner never granted it. Add it with the reason only while the ' +
+        'collapse into the assembler is still pending.',
+    ).toEqual([]);
+  });
+
+  it('has no array allow-list entry for a file that no longer does it', () => {
+    const arrays = handBuiltToolArrays();
+    expect(Object.keys(ARRAY_TOOLS_ALLOWED).filter((f) => !arrays.includes(f))).toEqual([]);
+  });
+
+  it('tells a hand-built array from a parameter that merely names the type', () => {
+    /**
+     * The positive control, over both the defect and the false positive that
+     * sank the first attempt.
+     *
+     * Fifteen provider adapters declare `tools?: OpenAITool[]` and pass it
+     * through. A census keyed on the TYPE reports all fifteen; one keyed on
+     * CONSTRUCTION reports none of them and still catches the array built here.
+     */
+    const probe = (code: string): boolean => {
+      const source = ts.createSourceFile('probe.ts', code, ts.ScriptTarget.Latest, true);
+      let hit = false;
+      const visit = (node: ts.Node): void => {
+        if (
+          ts.isVariableDeclaration(node) &&
+          node.type !== undefined &&
+          ts.isArrayTypeNode(node.type) &&
+          ts.isTypeReferenceNode(node.type.elementType) &&
+          ts.isIdentifier(node.type.elementType.typeName) &&
+          /^(?:OpenAITool|ChatCompletionTool)$/.test(node.type.elementType.typeName.text) &&
+          node.initializer !== undefined &&
+          ts.isArrayLiteralExpression(node.initializer) &&
+          node.initializer.elements.length > 0
+        ) {
+          hit = true;
+        }
+        ts.forEachChild(node, visit);
+      };
+      visit(source);
+      return hit;
+    };
+
+    // The defect, including the shape `voice.ts` actually has — the array is
+    // built here and reaches the call through a function, so a check on the
+    // `tools:` VALUE would miss it.
+    expect(probe('const t: OpenAITool[] = [{ type: "function" }];\nawait s.create(u, m, { tools: filter(t) });')).toBe(true);
+    // A pass-through PARAMETER, which is what fifteen provider adapters do.
+    expect(probe('async function proxy(k: K, m: M[], tools?: OpenAITool[]) { return call({ tools }); }')).toBe(false);
+    // A manifest's `tools`, and a threat pattern's — same field name, not a
+    // tool set, and what sank the version keyed on the `tools:` position.
+    expect(probe("const seed = { tools: [{ name: 'searchEmails' }] };")).toBe(false);
+    expect(probe("const patterns = [{ id: 'dc-001', tools: ['shell'] }];")).toBe(false);
+    // A set the assembler built, named at the call.
+    expect(probe('const { tools } = await ToolPipeline.forUser(o);\nawait run({ tools });')).toBe(false);
+    // An empty annotated array is a declaration, not an assembly.
+    expect(probe('const t: OpenAITool[] = [];')).toBe(false);
   });
 });
 
