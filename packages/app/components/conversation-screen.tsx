@@ -1,11 +1,19 @@
 import { useState, useCallback, useEffect, useRef } from "react";
-import { useStore } from "@/lib/stores/global-store";
+import { useStore, type Attachment } from "@/lib/stores/global-store";
 import { useChatConversation } from "@/lib/hooks/use-chat-conversation";
 import { useCreateConversation, useSaveConversation } from "@/lib/hooks/use-conversations";
 import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/hooks/query-keys";
 import { ChatPageContent } from "@/components/chat-page-content";
+import type { Message } from "@/types/chat";
+import type { SendOptions } from "@/lib/hooks/use-streaming-chat";
 import { useThreadHistory } from "@/lib/hooks/use-thread-history";
+import { useThreadWindow, type ThreadSearchHit } from "@/lib/hooks/use-thread-search";
+import { ThreadSearch } from "@/components/thread-search";
+import { Text } from "@/components/ui/text";
+import { Button } from "@/components/ui/button";
+import { View } from "react-native";
+import { useTranslation } from "@/lib/hooks/use-translation";
 import { UsageLimitDialog } from "@/components/usage-limit-dialog";
 import { UsageLimitError } from "@/lib/errors/usage-limit-error";
 import { useModelStore } from "@/lib/stores/model-store";
@@ -39,6 +47,12 @@ interface ConversationScreenProps {
   /** Open straight into voice, once. */
   startVoice?: boolean;
 }
+
+/**
+ * No live conversation, as ONE array — a new `[]` per render would be a fresh
+ * dependency on every one of them, and this screen renders per streamed token.
+ */
+const NO_MESSAGES: Message[] = [];
 
 /**
  * One open conversation — the whole of it, wherever it was reached from.
@@ -105,6 +119,42 @@ export const ConversationScreen = ({
    */
   const history = useThreadHistory(threadHandle, conversationId);
 
+  const { t } = useTranslation();
+  const [searchOpen, setSearchOpen] = useState(false);
+  /**
+   * The message the reader jumped to, or `null` for the present.
+   *
+   * A thread has two states and they are not variations of one: at the present,
+   * the history runs into the conversation being streamed into; at a moment,
+   * the screen shows the stretch around one old message and there is nothing
+   * live beneath it. The way back is leaving, not scrolling — the endpoint
+   * pages BACKWARDS only, so walking forward from a jump would be a road that
+   * ends.
+   */
+  const [jumpedTo, setJumpedTo] = useState<string | null>(null);
+  const past = useThreadWindow(threadHandle, jumpedTo);
+  const jumped = jumpedTo !== null;
+
+  /**
+   * Open the thread around a hit, and close the search over it.
+   *
+   * The cursor rather than the message id: an id addresses a message, and only
+   * a cursor addresses a POSITION, which is what a window is asked for.
+   */
+  const handleJump = useCallback((hit: ThreadSearchHit) => {
+    setJumpedTo(hit.cursor);
+    setSearchOpen(false);
+  }, []);
+
+  const handleBackToLatest = useCallback(() => setJumpedTo(null), []);
+  /**
+   * Stable, because it becomes a prop of `ChatHeader` — which is memoized
+   * against a screen that re-renders ~20×/s while streaming, and an arrow at
+   * the call site is a new reference on every one of those renders.
+   */
+  const handleSearchPress = useCallback(() => setSearchOpen(true), []);
+  const handleSearchClose = useCallback(() => setSearchOpen(false), []);
+
   const saveConversation = useSaveConversation();
   const createConversation = useCreateConversation();
   const queryClient = useQueryClient();
@@ -145,6 +195,23 @@ export const ConversationScreen = ({
     }
   }, [conversationId, messages, saveConversation]);
 
+  /**
+   * Writing is done in the present, so it ends a jump.
+   *
+   * The turn goes to the live conversation either way — that is where the
+   * screen is streaming — and leaving the reader looking at a stretch from
+   * March while their message lands somewhere off-screen is the one outcome
+   * that would be a lie.
+   */
+  const handleSubmit = useCallback((
+    value: string,
+    attachments?: Attachment[],
+    options?: SendOptions,
+  ) => {
+    setJumpedTo(null);
+    return sendMessage(value, attachments, options);
+  }, [sendMessage]);
+
   const voice = useVoiceMode({ chatMessages: messages, setMessages, conversationId, agentId, onDeactivate: handleVoiceDeactivate });
 
   // Auto-activate voice when navigated with startVoice (once only)
@@ -172,12 +239,14 @@ export const ConversationScreen = ({
     <ContentPanel surfaceClassName="bg-background">
       <>
         <ChatPageContent
-          messages={messages}
+          // Nothing live under a window: it is a view of the past, and the
+          // conversation being streamed into is not below it in the thread.
+          messages={jumped ? NO_MESSAGES : messages}
           conversationId={conversationId}
           scrollViewRef={scrollViewRef}
           isLoading={isLoading}
           conversationLoading={conversationLoading}
-          onSubmit={sendMessage}
+          onSubmit={handleSubmit}
           onEditMessage={editMessage}
           onStop={stopGeneration}
           onClear={clearConversation}
@@ -193,11 +262,27 @@ export const ConversationScreen = ({
           suggestedNewConversation={suggestedNewConversation}
           onAcceptNewConversation={handleAcceptNewConversation}
           onDismissNewConversation={dismissSuggestedNewConversation}
-          historyMessages={history.messages}
-          hasMoreHistory={history.hasMore}
-          isLoadingHistory={history.isLoadingMore}
-          onLoadHistory={history.loadMore}
+          historyMessages={jumped ? past.messages : history.messages}
+          hasMoreHistory={jumped ? past.hasMore : history.hasMore}
+          isLoadingHistory={jumped ? past.isLoadingMore || past.isLoading : history.isLoadingMore}
+          onLoadHistory={jumped ? past.loadMore : history.loadMore}
+          onSearchPress={threadHandle === undefined ? undefined : handleSearchPress}
+          focusCursor={jumpedTo}
         />
+        {!jumped ? null : (
+          <View className="absolute inset-x-0 top-16 z-10 items-center" pointerEvents="box-none">
+            <Button variant="secondary" size="sm" onPress={handleBackToLatest} className="rounded-full">
+              <Text className="text-sm">{t('chat.backToLatest')}</Text>
+            </Button>
+          </View>
+        )}
+        {!searchOpen || threadHandle === undefined ? null : (
+          <ThreadSearch
+            handle={threadHandle}
+            onJump={handleJump}
+            onClose={handleSearchClose}
+          />
+        )}
         <UsageLimitDialog error={usageLimitError} onDismiss={clearError} />
       </>
     </ContentPanel>

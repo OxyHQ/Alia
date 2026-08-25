@@ -106,6 +106,12 @@ export const API_ROUTES = {
      * cursors come from the messages themselves.
      */
     threadMessages: (username: string) => `/agents/thread/${encodeURIComponent(username)}/messages`,
+    /**
+     * Everything said in the thread that matches, across every conversation in
+     * it. Each hit carries the cursor that opens the window containing it,
+     * which is what makes a result reachable rather than just visible.
+     */
+    threadSearch: (username: string) => `/agents/thread/${encodeURIComponent(username)}/search`,
     create: '/agents',
     update: (id: string) => `/agents/${id}`,
     delete: (id: string) => `/agents/${id}`,
