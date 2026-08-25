@@ -597,6 +597,8 @@
     "reportSubmitted": "Report submitted",
     "bookmark": "Bookmark",
     "removeBookmark": "Remove bookmark",
+    "removeSkill": "Remove skill",
+    "removeKnowledge": "Remove knowledge",
     "reviews": "Reviews",
     "writeReview": "Write a review",
     "editReview": "Edit review",
