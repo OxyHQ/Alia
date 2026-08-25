@@ -407,6 +407,13 @@ function catalogueFilter(query: AgentCatalogueQuery): SQL | undefined {
    * with no agents in it, and "I found less" is indistinguishable from "there
    * is less".
    *
+   * And paginating the Oxy search SEPARATELY does not rescue it, which is the
+   * sharper reason: this query is a conjunction of Alia's own facets and an
+   * identity match, so intersecting two independently paginated result sets
+   * breaks `limit`/`offset` exactly as client-side filtering does — a caller
+   * asks for ten and receives two, with no way to ask for the rest. Whatever
+   * closes this has to evaluate BOTH halves before the page is cut.
+   *
    * **The endpoint Oxy needs is `GET /profiles/search?kind=bot`** — `kind`
    * added to `profileSearchQuerySchema` and folded into the aggregate's
    * `$match`, so it filters before the page is cut. With it, this becomes:

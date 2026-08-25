@@ -20,6 +20,23 @@
  *
  * Bounded at {@link USERNAME_ATTEMPTS}: an unbounded retry against a remote
  * service turns a validation rule this code does not know about into a hot loop.
+ *
+ * ## KNOWN DEPENDENCY: the account is born PUBLIC
+ *
+ * Every Oxy account is discoverable at creation. `createAccountRequestSchema`
+ * carries no privacy field, the account service never writes the column, and
+ * the default is "not private" — so an agent created here appears in Oxy's
+ * global people search from the instant this resolves, which is BEFORE its
+ * owner has published it. `POST /agents` defaults `isPublished: false` and the
+ * create screen sends a draft, so Alia's own catalogue does not show it; Oxy's
+ * search does.
+ *
+ * Not fixable from this side: nothing Alia can send makes a new account
+ * private. Closing it needs a privacy field on `POST /accounts` — which is
+ * being measured separately — and when it lands it goes on
+ * {@link CreateBotAccountInput.private} below, where this function already
+ * forwards it. The field is declared and threaded rather than left to be
+ * discovered, so landing the Oxy half is one line here.
  */
 
 import type { AccountNode, CreateAccountInput } from '@oxyhq/core';
@@ -36,6 +53,17 @@ export interface CreateBotAccountInput {
   bio?: string;
   /** An Oxy asset id, from `POST /agents/avatar/generate`. Never a URL. */
   avatar?: string;
+  /**
+   * Whether the account should be created UNDISCOVERABLE. See the file comment.
+   *
+   * Accepted and forwarded, but Oxy has nowhere to put it yet: `POST /accounts`
+   * takes no privacy field, so passing `true` today changes nothing. It is
+   * declared here so the caller that wants it — the create screen, which builds
+   * a DRAFT agent — states the intent at the one place it belongs, and so the
+   * Oxy-side landing is a single edit rather than a re-derivation of which call
+   * sites needed it.
+   */
+  private?: boolean;
 }
 
 /** A conflict, told apart by STATUS — matching prose breaks when Oxy rephrases it. */
@@ -49,6 +77,9 @@ export async function createBotAccount(input: CreateBotAccountInput): Promise<Ac
 
   for (let attempt = 0; attempt < USERNAME_ATTEMPTS; attempt++) {
     try {
+      // `private` is deliberately NOT spread into this call: `CreateAccountInput`
+      // has no such field, so inventing one would be a property the SDK drops
+      // silently — which reads, to the next person, as privacy that works.
       return await input.createAccount({
         kind: 'bot',
         username,

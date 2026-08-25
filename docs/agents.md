@@ -29,6 +29,17 @@ one column, no foreign key, UNIQUE.
 - **Creating an agent takes the caller's own credential**, because the account
   is minted under their tree and they become its owner. The app does it in one
   tap: generate → avatar → `createAccount` → `POST /agents`.
+
+  **Known dependency: a new agent is DISCOVERABLE in Oxy immediately.** Every
+  Oxy account is born public — `createAccountRequestSchema` carries no privacy
+  field and the account service never writes the column — so an agent created
+  as a DRAFT (`isPublished: false`, which keeps it out of Alia's catalogue)
+  still appears in Oxy's global people search from the moment its account
+  exists. Nothing Alia can send changes that; it needs a privacy field on
+  `POST /accounts`. `CreateBotAccountInput.private` is declared and passed by
+  the create screen so the landing is one edit, and is deliberately NOT spread
+  into the SDK call, which would drop it silently and read as privacy that
+  works.
 - **Searching the catalogue no longer matches a name or a handle.** They live
   in another database, and a denormalised copy here is the cache this split
   exists to delete. A search matches the tagline, the category and the tags.
@@ -37,9 +48,15 @@ one column, no foreign key, UNIQUE.
   search over it, and `GET /profiles/search` has no `kind` filter today
   (`profileSearchQuerySchema` takes `{query, limit, offset}`). Adding
   `?kind=bot`, folded into the aggregate's `$match` so it filters BEFORE the
-  page is cut, is what closes it. Filtering the results in Alia instead does
-  not: the `$match` precedes `$skip`/`$limit`, so a query matching many people
-  and one bot returns a page with no agents in it.
+  page is cut, is what closes it.
+
+  Neither workaround does. Filtering the results in Alia fails because the
+  `$match` precedes `$skip`/`$limit`, so a query matching many people and one
+  bot returns a page with no agents in it. Paginating the Oxy search separately
+  and intersecting fails for a sharper reason: a catalogue query is a
+  conjunction of Alia's own facets AND an identity match, and intersecting two
+  independently paginated result sets breaks `limit`/`offset` the same way —
+  ask for ten, receive two, with no way to ask for the rest.
 
 ## Execution Loop
 
