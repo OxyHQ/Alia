@@ -321,6 +321,8 @@
     "addSourcesHint": "You can add URLs, documents, or other sources for me to reference.",
     "copiedToClipboard": "Copied to clipboard",
     "thanksFeedback": "Thanks for your feedback!",
+    "today": "Today",
+    "yesterday": "Yesterday",
     "sendFailed": "Couldn't send that message. It's back in the box — try again."
   },
   "credits": {

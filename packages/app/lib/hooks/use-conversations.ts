@@ -50,6 +50,16 @@ export interface Message {
     handle: string;
   };
   audioUrl?: string;
+  /**
+   * When the message was written, ISO — what the date separators are derived
+   * from, in the reader's own timezone.
+   *
+   * `GET /conversations/:id` has always sent it; the client simply never
+   * declared it. Absent means the turn has not been persisted yet: a message the
+   * client has only just appended carries the stamp it made locally, and one
+   * carrying nothing draws no line rather than a line a reload would move.
+   */
+  createdAt?: string;
   // Streaming UI metadata (deep research, plan preview, tool approval)
   researchProgress?: ResearchProgress;
   pendingPlan?: PendingPlan;

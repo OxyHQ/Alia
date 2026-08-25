@@ -295,6 +295,8 @@
     "addSourcesHint": "Puedes agregar URLs, documentos u otras fuentes como referencia.",
     "copiedToClipboard": "Copiado al portapapeles",
     "thanksFeedback": "¡Gracias por tu opinión!",
+    "today": "Hoy",
+    "yesterday": "Ayer",
     "sendFailed": "No se pudo enviar el mensaje. Lo tienes de vuelta en el cuadro de texto, inténtalo otra vez."
   },
   "credits": {

@@ -44,6 +44,7 @@ import type { AgentActivityState } from "@/lib/hooks/use-agent-activity";
 import { Skeleton } from "@/components/ui/skeleton";
 import apiClient from "@/lib/api/client";
 import { useTranslation } from "@/lib/hooks/use-translation";
+import { daySeparators } from "@/lib/message-days";
 
 const isWeb = Platform.OS === "web";
 
@@ -82,6 +83,8 @@ type Message = {
     handle: string;
   };
   audioUrl?: string;
+  /** When the message was written, ISO. Absent on a turn that has not been persisted yet. */
+  createdAt?: string;
 };
 
 type ChatInterfaceProps = {
@@ -167,6 +170,24 @@ const ToolBullet = React.memo(function ToolBullet({ isRunning }: { isRunning: bo
         ●
       </Text>
     </Animated.View>
+  );
+});
+
+/**
+ * The line between two days, Messenger-style.
+ *
+ * It takes the finished string, not a label to resolve: `t` is rebuilt on every
+ * render of the hook that returns it, so a component taking it as a prop is a
+ * memo that never holds — and this one is rendered inside a list that re-renders
+ * per streamed token.
+ */
+const DaySeparator = React.memo(function DaySeparator({ text }: { text: string }) {
+  return (
+    <View className="items-center py-4">
+      <View className="rounded-full bg-muted px-3 py-1">
+        <Text className="text-xs font-medium text-muted-foreground">{text}</Text>
+      </View>
+    </View>
   );
 });
 
@@ -496,7 +517,7 @@ const MessageRow = React.memo(function MessageRow({
 const imageThumbStyle = { width: 120, height: 120 };
 
 export const ChatInterface = React.memo(function ChatInterface({ messages, scrollViewRef, isLoading, conversationLoading, onStartEdit, onCopyMessage, bottomPadding = 160, isVoiceActive = false, voiceAgentState, onAtBottomChange, agentActivity, agentSessionId, onApprovePlan, onRejectPlan }: ChatInterfaceProps) {
-    const { t } = useTranslation();
+    const { t, locale } = useTranslation();
     const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
     const [votedMessages, setVotedMessages] = useState<Record<string, 'up' | 'down'>>({});
     const voteInFlightRef = useRef<Set<string>>(new Set());
@@ -523,6 +544,27 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
     const markY = useSharedValue(0);
 
     const filteredMessages = useMemo(() => messages.filter(m => m != null && m.role), [messages]);
+
+    /**
+     * Where the thread changes day, as the finished line, keyed by the message
+     * each one sits above.
+     *
+     * `new Date()` is read here rather than passed in because "today" is a fact
+     * about when the list is being LOOKED at. It is re-read whenever the list
+     * changes, which is what relabels a thread left open across midnight on the
+     * next message rather than on a timer nobody needs.
+     *
+     * Keyed on `locale`, not on `t`: `useTranslation` builds a new `t` on every
+     * render, so depending on it would recompute this per streamed token, and
+     * `i18n.t` reads the locale this depends on at call time anyway.
+     */
+    const separatorsByMessage = useMemo(() => {
+      const separators = daySeparators(filteredMessages, new Date(), locale);
+      return new Map(separators.map(({ messageId, label }) => [
+        messageId,
+        label.kind === 'date' ? label.text : t(`chat.${label.kind}`),
+      ]));
+    }, [filteredMessages, locale]);
     const lastAliaIndex = useMemo(() => filteredMessages.reduce((acc, m, i) =>
       isAliaOwnedMessage(m) ? i : acc, -1), [filteredMessages]);
 
@@ -670,10 +712,14 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
             {filteredMessages.map((m, index) => {
               const isAliaMessage = isAliaOwnedMessage(m);
               const isNewMessage = index >= prevMessageCountRef.current;
+              const separator = separatorsByMessage.get(m.id);
 
               return (
+                <React.Fragment key={m.id || `msg-${index}`}>
+                {separator === undefined ? null : (
+                  <DaySeparator text={separator} />
+                )}
                 <MessageRow
-                  key={m.id || `msg-${index}`}
                   m={m}
                   index={index}
                   isNewMessage={isNewMessage}
@@ -697,6 +743,7 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
                   onApprovePlan={onApprovePlan}
                   onRejectPlan={onRejectPlan}
                 />
+                </React.Fragment>
               );
             })}
           </View>
