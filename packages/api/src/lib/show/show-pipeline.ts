@@ -197,12 +197,75 @@ export async function runShowPipeline(episodeId: string): Promise<void> {
   };
 
   /**
+   * The one way this run fails, because five exits repeating four lines is how
+   * the third of those lines came to be missing from all of them.
+   *
+   * A failing run owes three things. It must give the reservation back, since a
+   * reservation DEBITS immediately and an exit that neither charges nor refunds
+   * silently keeps the owner's credit. It must tell Syra to stop waiting, since
+   * a Syra episode is a DRAFT until audio arrives and nothing there times a
+   * draft out — a run that dies quietly leaves a row at `processing` forever,
+   * which is exactly what three episodes of one production show did. And it
+   * must record the failure where the app can see it.
+   *
+   * `error` is what the owner reads. `reason` is a SHORT description of what
+   * this pipeline did, for Syra's operator log — deliberately not `error` and
+   * never an upstream message: it crosses into another product's logs, where
+   * redaction is absolute and an upstream error code names an operator as
+   * surely as the operator's name would.
+   */
+  const failRun = async (
+    error: string,
+    currentStep: string,
+    reason: string,
+  ): Promise<void> => {
+    if (reservation && !settled) {
+      await refundReservation(reservation).catch((err: unknown) =>
+        log.general.error({ err, episodeId }, 'refundReservation failed on a failed show run'),
+      );
+    }
+    settled = true;
+
+    /**
+     * Not once the ingest has returned: the ticket is spent, the episode is
+     * real, and abandoning it would be a lie about published audio. Syra
+     * refuses a spent ticket on its own, but leaning on that would leave this
+     * code's intent unreadable. A row with no ticket or no Syra episode has no
+     * draft to abandon either — that is the re-run of an already-published
+     * episode, and the same check is what keeps it from posting to nothing.
+     */
+    const ticket = episode.ingestTicket;
+    const syraEpisodeId = episode.syraEpisodeId;
+    if (!published && ticket !== null && syraEpisodeId !== null && syraEpisodeId !== '') {
+      await syraForTicket()
+        .abandonEpisodeIngest({ episodeId: syraEpisodeId, ingestTicket: ticket }, reason)
+        .catch((err: unknown) =>
+          log.general.error(
+            { err, episodeId, syraEpisodeId },
+            'Could not abandon the Syra draft of a failed episode',
+          ),
+        );
+    }
+
+    await applyUpdate({ status: 'failed', error });
+    emitProgress(episode, { status: 'failed', progress: 0, currentStep });
+  };
+
+  /**
    * Out here so every exit can see it, and `settled` so no exit can both charge
    * and refund. A reservation DEBITS immediately, so a path that does neither
    * silently keeps the owner's credit.
    */
   let reservation: CreditReservation | null = null;
   let settled = false;
+
+  /**
+   * Whether Syra has the audio. The route reserved that episode and minted the
+   * ticket BEFORE this run began, so every exit from here owes Syra an answer
+   * about a draft it is already holding. Once the ingest returns there is
+   * nothing left to answer for: the ticket is spent and the episode is real.
+   */
+  let published = false;
 
   /** Keys this run wrote, deleted by key rather than by a computed prefix. */
   const segmentKeys: string[] = [];
@@ -211,10 +274,9 @@ export async function runShowPipeline(episodeId: string): Promise<void> {
     await getOrCreateUserCredits(episode.userId);
     reservation = await reserveCredits(episode.userId);
     if (!reservation) {
-      // Nothing was reserved, so there is nothing to give back.
-      settled = true;
-      await applyUpdate({ status: 'failed', error: 'Insufficient credits' });
-      emitProgress(episode, { status: 'failed', progress: 0, currentStep: 'Out of credits' });
+      // Nothing was reserved, so there is nothing to give back — but Syra is
+      // already holding a draft for an episode that will never be recorded.
+      await failRun('Insufficient credits', 'Out of credits', 'alia: out of credits before recording');
       return;
     }
 
@@ -234,10 +296,11 @@ export async function runShowPipeline(episodeId: string): Promise<void> {
     );
     const script = await generateScript(series, episode, previously);
     if (!script) {
-      settled = true;
-      await refundReservation(reservation);
-      await applyUpdate({ status: 'failed', error: 'Failed to generate the episode script' });
-      emitProgress(episode, { status: 'failed', progress: 0, currentStep: 'Failed' });
+      await failRun(
+        'Failed to generate the episode script',
+        'Failed',
+        'alia: script generation failed',
+      );
       return;
     }
 
@@ -301,10 +364,11 @@ export async function runShowPipeline(episodeId: string): Promise<void> {
     });
 
     if (buffers.length === 0) {
-      settled = true;
-      await refundReservation(reservation);
-      await applyUpdate({ status: 'failed', error: 'No audio could be generated for this episode' });
-      emitProgress(episode, { status: 'failed', progress: 0, currentStep: 'Failed' });
+      await failRun(
+        'No audio could be generated for this episode',
+        'Failed',
+        'alia: no audio segments were produced',
+      );
       return;
     }
 
@@ -337,16 +401,15 @@ export async function runShowPipeline(episodeId: string): Promise<void> {
     const ticket = episode.ingestTicket;
     const syraEpisodeId = episode.syraEpisodeId;
     if (ticket === null || syraEpisodeId === null || syraEpisodeId === '') {
-      settled = true;
-      await refundReservation(reservation);
-      await applyUpdate({
-        status: 'failed',
-        error:
-          ticket === null
-            ? 'This episode has already been published'
-            : 'This episode has no Syra episode to publish to',
-      });
-      emitProgress(episode, { status: 'failed', progress: 0, currentStep: 'Failed' });
+      await failRun(
+        ticket === null
+          ? 'This episode has already been published'
+          : 'This episode has no Syra episode to publish to',
+        'Failed',
+        // Unreachable as an abandon: this exit is taken BECAUSE there is no
+        // ticket or no episode, which is the same guard the abandon uses.
+        'alia: nothing to publish to',
+      );
       return;
     }
 
@@ -376,6 +439,9 @@ export async function runShowPipeline(episodeId: string): Promise<void> {
       },
       `${series.title} — episode ${episode.episodeNumber}.mp3`,
     );
+    // Syra has the audio. From here a failure is a failure of THIS run, not a
+    // reason to withdraw a published episode.
+    published = true;
 
     // ── 5. Settle ────────────────────────────────────────────────────────────
     const spokenCharacters = segments
@@ -433,16 +499,11 @@ export async function runShowPipeline(episodeId: string): Promise<void> {
     });
   } catch (error: unknown) {
     log.general.error({ err: error, episodeId }, 'Show pipeline failed');
-    if (reservation && !settled) {
-      await refundReservation(reservation).catch((err: unknown) =>
-        log.general.error({ err, episodeId }, 'refundReservation failed after a show pipeline error'),
-      );
-    }
-    await applyUpdate({
-      status: 'failed',
-      error: getSafeErrorMessage(error, 'Episode generation failed'),
-    });
-    emitProgress(episode, { status: 'failed', progress: 0, currentStep: 'Failed' });
+    await failRun(
+      getSafeErrorMessage(error, 'Episode generation failed'),
+      'Failed',
+      'alia: pipeline error before ingest',
+    );
   } finally {
     /**
      * The segments were working storage for the join and nothing reads them
