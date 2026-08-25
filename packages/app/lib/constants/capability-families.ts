@@ -128,6 +128,46 @@ export const CAPABILITY_FAMILIES: readonly CapabilityFamily[] = [
 ];
 
 /**
+ * The autonomous runner's session primitives, by the family that grants each.
+ *
+ * Four of the five: `plan` is ungranted — it carries the completion signal, so
+ * an agent denied it could never end its own run — and has no family to take an
+ * icon from.
+ *
+ * This exists so the ACTIVITY PANEL and the agent editor draw one concept one
+ * way. They did not: once the owner's Material glyphs landed, "Agent
+ * Delegation" was `robot_2` in the editor and lucide's `Users` in the panel,
+ * two screens apart inside one feature — the same label under two icons, which
+ * is the duplication the single capability vocabulary exists to end.
+ *
+ * The mapping is checked against the API's `FIXED_FAMILY_TOOLS` in
+ * `agent-editor-autosave.test.ts`, so it cannot quietly disagree with the
+ * assembler about which family owns a tool.
+ */
+export const RUNTIME_TOOL_FAMILIES: Readonly<Record<string, string>> = {
+  shell: 'shell',
+  browser: 'browser',
+  file_edit: 'files',
+  delegate: 'delegation',
+};
+
+/**
+ * The icon a tool carries, taken from the family that grants it.
+ *
+ * `Object.hasOwn` rather than a truthiness check on the lookup: `toolName`
+ * arrives from event metadata the server wrote, so it is an open string, and
+ * `RUNTIME_TOOL_FAMILIES['constructor']` answers a FUNCTION inherited from
+ * `Object.prototype`. An `if (icon)` guard passes on it and React is handed
+ * something that is not a component — the shape
+ * `packages/api/src/__tests__/prototype-keyed-lookups.test.ts` exists for.
+ */
+export function capabilityIconForTool(toolName: string): CapabilityIcon | undefined {
+  if (!Object.hasOwn(RUNTIME_TOOL_FAMILIES, toolName)) return undefined;
+  const family = RUNTIME_TOOL_FAMILIES[toolName];
+  return CAPABILITY_FAMILIES.find((entry) => entry.id === family)?.icon;
+}
+
+/**
  * A connector the owner can grant, as `GET /agents/capability-connectors`
  * serves it.
  *
