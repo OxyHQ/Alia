@@ -145,6 +145,16 @@ jobs:
           bash .github/scripts/test-deploy-ecs-image.sh
           bash .github/scripts/test-resolve-ecr-platform-digest.sh
 
+      # `check-static-assets.mjs` runs in `Frontend Typecheck` and goes green
+      # when the tree is sound — which is indistinguishable from going green
+      # because it stopped looking. Its FIRST version did exactly that: a
+      # `grep -E` backreference matched nothing and it reported a clean sweep
+      # over five real references. This points it at trees built to be broken
+      # and requires it to say so, so its ability to fail is gated too. Runs
+      # here because this job installs nothing and needs no workspace.
+      - name: Verify the static-asset gate can still fail
+        run: node .github/scripts/test-check-static-assets.mjs
+
       # Runs in the one job that installs nothing, so it reports before the jobs
       # it protects would fail. See the header comment: the cache is the only
       # thing stopping an unauthenticatable GitHub fetch on every install.
