@@ -4,10 +4,27 @@
  *
  * - Looks up the agent from the DB
  * - Builds a system prompt from the agent's config
- * - Runs generateText with a lightweight tool set
+ * - Assembles the delegate's tools through THE assembler, under ITS OWN grants
  * - Returns the agent's response with identity metadata
  *
  * Efficiency: uses a lightweight Alia model by default, 45s timeout, max 5 steps, 4096 output tokens.
+ *
+ * ## The tool set was a hand-written literal, and it ignored the delegate
+ *
+ * `{ getCurrentDate, webScraper }`, inline, handed straight to `generateText`.
+ * Two things were wrong with it and only the second is about tidiness: it gave
+ * the delegate a WEB SCRAPER whatever its owner had granted, so a delegation was
+ * a way around the agent's own capabilities; and it was a sixth construction of
+ * a tool set, invisible to `__tests__/one-assembler.test.ts` because it carried
+ * no `ToolSet` annotation for the census to find.
+ *
+ * It goes through `ToolPipeline.forUser` now, with the DELEGATE as the agent, so
+ * what it can reach is what its owner granted it. `actsForPerson` is false and
+ * there is no access token: a delegation is not a person's turn, so none of the
+ * person-bound tools and none of the connector sources are in scope — an agent
+ * hired by a stranger must not reach the stranger's memory or the owner's
+ * connectors. What is left is the date, plus the web and artifact families if
+ * this agent holds them.
  */
 
 import { tool, generateText, stepCountIs } from 'ai';
@@ -16,8 +33,6 @@ import { getDb } from '../../db/index.js';
 import { findAgentById } from '../../db/agents/agentRepository.js';
 import { agentPromptName, attachAgentIdentity } from '../agent-identity.js';
 import { resolveModel, getAIModel } from '../chat-core.js';
-import { getCurrentDateTool } from './date.js';
-import { webScraperTool } from './web-scraper.js';
 import { evolveAgentSoul } from '../agent/soul.js';
 import { log } from '../logger.js';
 import { getErrorMessage } from '../errors/index.js';
@@ -67,8 +82,10 @@ export const createDelegateToAgentTool = () => tool({
       const agent = await attachAgentIdentity(found);
 
       // Build system prompt
+      // No `Capabilities:` line: it listed the decorative `capabilities` ids,
+      // which named no tool this delegation actually hands over.
       const systemPrompt = agent.systemPrompt
-        || `You are ${agentPromptName(agent)}, an AI agent. ${agent.tagline}. ${agent.description}\n\nCapabilities: ${agent.capabilities.join(', ')}`;
+        || `You are ${agentPromptName(agent)}, an AI agent. ${agent.tagline}. ${agent.description}`;
 
       // Resolve model (prefer agent's first allowed model, fallback to alia-lite)
       const preferredModel = agent.allowedModels[0] || 'alia-lite';
@@ -90,11 +107,27 @@ export const createDelegateToAgentTool = () => tool({
 
       const model = getAIModel(resolved, 'agent_run');
 
-      // Lightweight tool set for the agent
-      const agentTools = {
-        getCurrentDate: getCurrentDateTool,
-        webScraper: webScraperTool,
-      };
+      /**
+       * Imported lazily to break a real cycle, not for load time.
+       *
+       * `tool-pipeline.ts` imports `./tools/index.js`, which re-exports this
+       * module, so a static import here closes the loop and leaves one of the
+       * two half-initialised depending on which is entered first. The pipeline
+       * is only needed inside `execute`, which runs long after both modules
+       * are loaded.
+       */
+      const { ToolPipeline } = await import('../tool-pipeline.js');
+      const { tools: agentTools } = await ToolPipeline.forUser({
+        // The delegate's OWN account: this turn is the agent's, not a person's.
+        userId: agent.oxyAccountId,
+        isDirectSession: false,
+        actsForPerson: false,
+        agentMode: false,
+        toolsEnabled: true,
+        webSearch: true,
+        isLocalRuntime: false,
+        agent,
+      });
 
       // Execute with timeout
       const controller = new AbortController();
