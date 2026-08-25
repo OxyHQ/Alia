@@ -179,13 +179,23 @@ describe('an agent created mid-conversation', () => {
   });
 
   it('takes a fresh handle when the first one is taken', async () => {
-    // A short given name in a namespace shared with every person on Oxy makes
-    // the 409 the ordinary path rather than the exotic one.
+    /**
+     * A short given name in a namespace shared with every person on Oxy makes
+     * the 409 the ordinary path rather than the exotic one.
+     *
+     * The suffix is PINNED, because the retry draws it from `Math.random` and
+     * the colour is a nine-way hash of the handle: left to chance, the two
+     * handles collide onto one colour about one run in nine, and this case
+     * would fail in CI for a reason that has nothing to do with the code. It
+     * did, once, before this was pinned.
+     */
+    const random = vi.spyOn(Math, 'random').mockReturnValue(0.5);
     oxy.taken.add('nadia');
     const result = await create({ name: 'Nadia', description: 'Watches the markets.' });
+    random.mockRestore();
 
     expect(result.success).toBe(true);
-    expect(result.agent?.handle).toMatch(/^nadia-/);
+    expect(result.agent?.handle).toBe('nadia-i');
     /**
      * The colour follows the handle that was PROPOSED, not the one the retry
      * minted — measured, and it is the right way round: the point of deriving
@@ -193,8 +203,11 @@ describe('an agent created mid-conversation', () => {
      * a colour that changed because a stranger happened to hold the name would
      * be decided by somebody else. The other door does the same, since it
      * derives from `suggestedUsername` before any account exists.
+     *
+     * The two differ for this pinned pair, which is what makes the assertion
+     * discriminate rather than agree by luck.
      */
+    expect(agentColorFor('nadia-i')).not.toBe(agentColorFor('nadia'));
     expect(oxy.accounts[0].color).toBe(agentColorFor('nadia'));
-    expect(oxy.accounts[0].color).not.toBe(agentColorFor(result.agent?.handle ?? ''));
   });
 });
