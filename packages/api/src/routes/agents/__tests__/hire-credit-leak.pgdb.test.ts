@@ -124,6 +124,16 @@ async function seedAgent(): Promise<string> {
     category: 'research',
     price: 15,
     isPublished: true,
+    /**
+     * PUBLIC, which is what makes a stranger able to hire it at all. Being
+     * listed stopped granting use when `access` arrived (#416), and these cases
+     * are about the credit RESERVATION — an agent nobody may run never reaches
+     * it, and all six failed on `Agent not found` rather than on any balance.
+     *
+     * Who else may hire a PRIVATE one is a question about the rule rather than
+     * about credits, and it is measured in `hire-access.test.ts`.
+     */
+    access: 'public',
   });
   return agent._id;
 }
