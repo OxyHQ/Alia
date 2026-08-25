@@ -63,7 +63,7 @@
  * its own client. One is built per cache MISS, not per request.
  */
 
-import { OxyServices, canSwitchIntoAccount } from '@oxyhq/core';
+import { OxyServices, canSwitchIntoAccount, type AccountNode } from '@oxyhq/core';
 import type { AccountCategoryId } from '@oxyhq/contracts';
 import type { Executor } from '../db/index.js';
 import { findAgentById, type AgentRecord } from '../db/agents/agentRepository.js';
@@ -116,6 +116,13 @@ const NEGATIVE_TTL_MS = 60_000;
 
 interface CacheEntry {
   readonly verdict: AgentAccountVerdict;
+  /**
+   * Whether the caller holds ANY standing in the account — owner, or an active
+   * membership of any role. A weaker fact than the verdict beside it and cached
+   * from the SAME `getAccount`, because the two questions have one answer at
+   * Oxy and asking twice would double the round trips on the read path.
+   */
+  readonly standing: boolean;
   readonly expiresAt: number;
 }
 
@@ -143,10 +150,34 @@ export function clearAgentAccountVerdicts(): void {
  * mutation must never do is TRUST an entry, which is what `cache: false`
  * governs.
  */
-function remember(key: string, verdict: AgentAccountVerdict): AgentAccountVerdict {
+function remember(key: string, verdict: AgentAccountVerdict, standing: boolean): AgentAccountVerdict {
   const ttl = verdict.permitted ? POSITIVE_TTL_MS : NEGATIVE_TTL_MS;
-  verdicts.set(key, { verdict, expiresAt: Date.now() + ttl });
+  verdicts.set(key, { verdict, standing, expiresAt: Date.now() + ttl });
   return verdict;
+}
+
+/**
+ * Does the caller hold any standing in this account at all?
+ *
+ * A weaker question than `account:act_as`, and it has to be: sharing an agent
+ * IS adding somebody to its bot account, and a role that can use an agent is
+ * not necessarily one that can BECOME it. Reading `act_as` as "was shared with
+ * me" would make sharing work only for the roles that can also edit.
+ *
+ * Owner is included without a membership row, because ownership is implicit
+ * there — `callerMembership` is `null` on an account you own.
+ */
+function hasStanding(node: AccountNode): boolean {
+  if (node.relationship === 'self' || node.relationship === 'owner') return true;
+  /**
+   * A SUPERSET of the act-as verdict, never a rival test. Whoever may become
+   * the account plainly has standing in it, and deciding this on the membership
+   * row alone would refuse somebody the other question just admitted — an
+   * inconsistency with no way to reach it from the outside and no way to
+   * explain it from the inside.
+   */
+  if (canSwitchIntoAccount(node)) return true;
+  return node.callerMembership?.status === 'active';
 }
 
 /**
@@ -186,7 +217,9 @@ export async function verifyAgentAccount(params: {
     // Oxy answers 404 for an account the caller cannot see, which is the same
     // response as one that does not exist — and both are cacheable refusals.
     // Anything else is Alia failing to ASK, which is not a verdict at all.
-    if (isNotFound(error)) return remember(key, { permitted: false, refusal: 'account_not_found' });
+    if (isNotFound(error)) {
+      return remember(key, { permitted: false, refusal: 'account_not_found' }, false);
+    }
     log.general.warn(
       { err: error, oxyAccountId: params.oxyAccountId },
       'Oxy could not resolve an agent account; refusing without caching',
@@ -194,13 +227,14 @@ export async function verifyAgentAccount(params: {
     return { permitted: false, refusal: 'identity_unavailable' };
   }
 
+  const standing = hasStanding(node);
   if (node.account?.kind !== 'bot') {
-    return remember(key, { permitted: false, refusal: 'not_a_bot_account' });
+    return remember(key, { permitted: false, refusal: 'not_a_bot_account' }, standing);
   }
   if (!canSwitchIntoAccount(node)) {
-    return remember(key, { permitted: false, refusal: 'not_permitted' });
+    return remember(key, { permitted: false, refusal: 'not_permitted' }, standing);
   }
-  return remember(key, PERMITTED);
+  return remember(key, PERMITTED, standing);
 }
 
 /**
@@ -369,30 +403,37 @@ function isConflict(error: unknown): boolean {
 }
 
 /**
- * May this caller REACH this agent at all — chat with it, open its thread?
+ * May this caller USE this agent — chat with it, open its thread, hire it?
  *
  * The one place the rule is written, because two copies of it would be two
  * chances to leave one of them at "published only" or at "owner only", and
  * neither mistake is visible from the call site.
  *
- * Two grounds, and the first is why this is not expensive:
+ * ## Being listed is not being usable, and it used to be
  *
- *  - The agent is PUBLISHED and active. Its prompt is already public — a
- *    published agent's whole record, `system_prompt` included, is what
- *    `GET /agents/:id` serves to anyone — so using it for your own turn leaks
- *    nothing, and a turn bills the CALLER either way.
- *  - Otherwise the caller must be able to ACT AS its bot account, which is what
- *    lets somebody chat with their own draft and what lets a colleague they
- *    granted membership to do the same. That is a READ, so it takes the cached
- *    verdict: one Oxy round trip per caller per agent per five minutes, not one
- *    per turn.
+ * This began `if (agent.isPublished && agent.status === 'active') return true`,
+ * so `is_published` answered two questions at once: does it appear in the
+ * catalogue, and may anyone run it. The combination people actually want —
+ * listed, so it can be found, but mine to lend — could not be said. Now
+ * `is_published` decides only the first and `access` decides this one:
  *
- * The Oxy graph decides the second ground and Alia adds no permission of its
- * own: `account:act_as` over the bot account is exactly what
- * {@link verifyAgentAccount} asks, and it already answers for a direct owner
- * and for an inherited membership alike.
+ *  - `public` and active — anyone, signed in or not. Same as the old published
+ *    branch, and just as cheap.
+ *  - `private` — its owner, and whoever holds a MEMBERSHIP on its bot account.
+ *    Sharing an agent is adding somebody to that account, which is what
+ *    "hiring" became.
  *
- * A caller with no bearer cannot be asked about, so an unpublished agent is
+ * Standing rather than `account:act_as`, and the difference is the whole point
+ * of sharing: a role that may use an agent is not necessarily one that may
+ * BECOME it. Reading act-as as "was shared with me" would make sharing work
+ * only for the roles that can also edit — and editing is where the prompt is.
+ * {@link verifyAgentAccount} answers both from one `getAccount`, so the weaker
+ * question costs no extra round trip.
+ *
+ * A DRAFT — not published — reaches the same second branch: its owner may use
+ * it, and nobody else may, exactly as before.
+ *
+ * A caller with no bearer cannot be asked about, so a private agent is
  * unreachable to them. That is the same answer as "no such agent", which is the
  * answer a route must give: see {@link loadThreadAgent}.
  */
@@ -400,16 +441,34 @@ export async function canReachAgent(
   agent: AgentRecord,
   caller: { oxyUserId: string; accessToken: string | undefined },
 ): Promise<boolean> {
-  if (agent.isPublished && agent.status === 'active') return true;
+  if (agent.access === 'public' && agent.status === 'active') return true;
   if (caller.accessToken === undefined) return false;
-  const verdict = await verifyAgentAccount({
+  return holdsAgentStanding({
     oxyUserId: caller.oxyUserId,
     accessToken: caller.accessToken,
     oxyAccountId: agent.oxyAccountId,
-    // A READ: the caller is about to render this agent's prompt, not write to it.
-    cache: true,
   });
-  return verdict.permitted;
+}
+
+/**
+ * Whether the caller owns the agent's bot account or was added to it.
+ *
+ * Reads the verdict cache that {@link verifyAgentAccount} fills, so the answer
+ * costs one Oxy round trip per caller per agent per five minutes rather than
+ * one per turn. It asks the act-as question on a miss, but returns the WEAKER
+ * fact recorded beside it — a member who cannot act as the account still has
+ * standing in it.
+ */
+export async function holdsAgentStanding(params: {
+  oxyUserId: string;
+  accessToken: string;
+  oxyAccountId: string;
+}): Promise<boolean> {
+  const key = cacheKey(params.oxyUserId, params.oxyAccountId);
+  const cached = verdicts.get(key);
+  if (cached !== undefined && cached.expiresAt > Date.now()) return cached.standing;
+  await verifyAgentAccount({ ...params, cache: false });
+  return verdicts.get(key)?.standing ?? false;
 }
 
 /**

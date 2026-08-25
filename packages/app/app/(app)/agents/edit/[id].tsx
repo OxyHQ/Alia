@@ -135,7 +135,7 @@ export default function EditAgentScreen() {
   /** The connectors this owner could grant. Empty until the fetch lands. */
   const [connectors, setConnectors] = useState<GrantableConnector[]>([]);
   const [price, setPrice] = useState("");
-  const [allowHiring, setAllowHiring] = useState(false);
+  const [access, setAccess] = useState<'private' | 'public'>('private');
   const [handlesAutonomousEvents, setHandlesAutonomousEvents] = useState(false);
   /**
    * The agent's HANDLE — its Oxy username, editable after creation.
@@ -212,7 +212,7 @@ export default function EditAgentScreen() {
         setLinkedSkills(agent.skills || []);
         setLinkedKnowledge(agent.knowledge || []);
         setPrice(agent.price != null ? String(agent.price) : "");
-        setAllowHiring(agent.allowHiring);
+        setAccess(agent.access);
         setHandlesAutonomousEvents(agent.handlesAutonomousEvents);
         setIsPublished(agent.isPublished);
         setArchetype(agent.archetype || 'general');
@@ -402,7 +402,7 @@ export default function EditAgentScreen() {
       skills: linkedSkills.map((s) => s._id),
       knowledge: linkedKnowledge.map((k) => k._id),
       price: price.trim() ? parseFloat(price) : null,
-      allowHiring,
+      access,
       handlesAutonomousEvents,
       archetype,
       archetypeConfig,
@@ -417,7 +417,7 @@ export default function EditAgentScreen() {
     linkedSkills,
     linkedKnowledge,
     price,
-    allowHiring,
+    access,
     handlesAutonomousEvents,
     archetype,
     archetypeConfig,
@@ -815,12 +815,17 @@ export default function EditAgentScreen() {
               />
             </View>
 
-            {/* Allow Hiring */}
+            {/* Who may use it — a different question from whether it is listed. */}
             <View className="flex-row items-center justify-between">
-              <Label>Allow Hiring</Label>
+              <View className="flex-1 pr-4">
+                <Label>{t("agents.accessPublic")}</Label>
+                <Text className="text-[13px] text-muted-foreground mt-0.5">
+                  {t("agents.accessPublicHint")}
+                </Text>
+              </View>
               <Switch
-                value={allowHiring}
-                onValueChange={setAllowHiring}
+                value={access === 'public'}
+                onValueChange={(next) => setAccess(next ? 'public' : 'private')}
               />
             </View>
 

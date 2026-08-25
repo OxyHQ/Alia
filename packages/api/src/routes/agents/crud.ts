@@ -6,6 +6,7 @@ import {
   createAgent,
   deleteAgent,
   findAgentById,
+  withoutSystemPrompt,
   findAgentKnowledge,
   findAgentSkills,
   listAgentCatalogue,
@@ -29,9 +30,11 @@ import {
 import { TRIGGER_SCHEDULE_TYPES, type TriggerScheduleType } from '../../db/schema/automation.js';
 import { reloadTrigger, generateWebhookToken } from '../../lib/trigger-engine.js';
 import {
+  AGENT_ACCESS,
   AGENT_ARCHETYPES,
   AGENT_STATUSES,
   readArchetypeConfig,
+  type AgentAccess,
   type AgentArchetype,
   type AgentStatus,
 } from '../../domain/agent.js';
@@ -307,7 +310,28 @@ function connectorFailure<T>(family: string): (err: unknown) => T[] {
   };
 }
 
-// GET /agents/:id - get single agent (public)
+/**
+ * GET /agents/:id — the agent's card, and its prompt only for whoever may edit
+ * it.
+ *
+ * ## The prompt does not leave here for anybody else
+ *
+ * This route is `optionalAuth`, `findAgentById` selects every column and
+ * `toAgentRecord` carries `system_prompt`, so a published agent's instructions
+ * were served to anyone who asked — unauthenticated. Anybody could copy an
+ * agent by reading its card. The catalogue had always withheld it; the single
+ * agent had not, which is the shape that reads as closed without being.
+ *
+ * Who may see it is who may EDIT it — `account:act_as` on the bot account,
+ * which is the same question `PATCH /agents/:id` asks, so the editor loads what
+ * it saves. Deliberately NOT everyone who may USE it: an agent shared with you
+ * is one you can run, and running it is not copying it.
+ *
+ * A draft stays owner-only, now asked as act-as rather than as
+ * `author === caller`: an agent under an organization is administered by people
+ * the column does not name, and the column is a listing index rather than a
+ * gate — `db/schema/agents.ts` says so where it is declared.
+ */
 router.get('/:id', optionalAuth, async (req: Request, res: Response) => {
   try {
     const found = await findAgentById(getDb(), String(req.params.id));
@@ -316,12 +340,23 @@ router.get('/:id', optionalAuth, async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Agent not found' });
     }
 
-    // Allow owner to view unpublished (draft) agents
-    if (!found.isPublished && (!req.user?.id || found.author !== req.user.id)) {
+    const mayEdit = req.user?.id === undefined || req.accessToken === undefined
+      ? false
+      : (await verifyAgentAccount({
+          oxyUserId: req.user.id,
+          accessToken: req.accessToken,
+          oxyAccountId: found.oxyAccountId,
+          // A READ. The write paths pass `false`; see `lib/agent-account.ts`.
+          cache: true,
+        })).permitted;
+
+    // A draft is not in the catalogue and not addressable by a stranger.
+    if (!found.isPublished && !mayEdit) {
       return res.status(404).json({ error: 'Agent not found' });
     }
 
-    res.json({ agent: await attachAgentIdentity(await withChildLists(found)) });
+    const agent = await withChildLists(found);
+    res.json({ agent: await attachAgentIdentity(mayEdit ? agent : withoutSystemPrompt(agent)) });
   } catch (error: unknown) {
     log.agents.error({ err: error }, 'Error getting agent');
     res.status(500).json({ error: 'Failed to get agent' });
@@ -338,6 +373,7 @@ router.get('/:id', optionalAuth, async (req: Request, res: Response) => {
  */
 const archetypeSchema = z.enum(AGENT_ARCHETYPES as unknown as [AgentArchetype, ...AgentArchetype[]]);
 const statusSchema = z.enum(AGENT_STATUSES as unknown as [AgentStatus, ...AgentStatus[]]);
+const accessSchema = z.enum(AGENT_ACCESS as unknown as [AgentAccess, ...AgentAccess[]]);
 
 /**
  * One capability grant: `family`, or `family:instanceId` for the three families
@@ -389,7 +425,7 @@ const createAgentSchema = z
     skills: z.array(z.string()).optional(),
     knowledge: z.array(z.string()).optional(),
     isPublished: z.boolean().optional(),
-    allowHiring: z.boolean().optional(),
+    access: accessSchema.optional(),
     handlesAutonomousEvents: z.boolean().optional(),
     systemPrompt: z.string().optional(),
     archetype: archetypeSchema.optional(),
@@ -432,8 +468,14 @@ router.post('/', authenticateToken, async (req: Request, res: Response) => {
       capabilityGrants: data.capabilityGrants ?? [],
       skillIds: data.skills ?? [],
       libraryFileIds: data.knowledge ?? [],
+      /**
+       * Published by default and PRIVATE by default, which is one decision
+       * about two questions: it appears in the catalogue, and using it takes
+       * the owner's say-so. Before these were one flag, "listed" and "anyone
+       * may run it" could not be told apart.
+       */
       isPublished: data.isPublished ?? true,
-      allowHiring: data.allowHiring ?? false,
+      access: data.access ?? 'private',
       handlesAutonomousEvents: data.handlesAutonomousEvents ?? false,
       ...(data.systemPrompt !== undefined && { systemPrompt: data.systemPrompt }),
       ...(data.archetype !== undefined && { archetype: data.archetype }),
@@ -474,7 +516,7 @@ const updateAgentSchema = z
     capabilityGrants: z.array(capabilityGrantSchema).optional(),
     isPublished: z.boolean().optional(),
     status: statusSchema.optional(),
-    allowHiring: z.boolean().optional(),
+    access: accessSchema.optional(),
     handlesAutonomousEvents: z.boolean().optional(),
     systemPrompt: z.string().optional(),
     allowedModels: z.array(z.string()).optional(),

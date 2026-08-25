@@ -31,7 +31,7 @@ const state = vi.hoisted(() => ({
   account: null as null | {
     kind: string;
     relationship: string;
-    callerMembership: null | { permissions: string[] };
+    callerMembership: null | { permissions: string[]; status?: string };
   },
   /** `true` makes `getAccount` reject with a transport failure, not a 404. */
   unreachable: false,
@@ -131,6 +131,8 @@ const AGENT_ROW = {
   category: 'research',
   tags: [],
   isPublished: false,
+  /** A draft, and private — which is what a new agent is. */
+  access: 'private',
   status: 'active',
   systemPrompt: 'a prompt nobody else may read',
   allowedModels: ['alia-v1'],
@@ -371,27 +373,96 @@ describe('the three ways in', () => {
     expect((await thread()).status).toBe(200);
   });
 
-  it('lets anyone in when the agent is published and active', async () => {
+  it('lets anyone in when the agent is PUBLIC and active', async () => {
     repository.findAgentByOxyAccountId.mockResolvedValue({
       ...AGENT_ROW,
       isPublished: true,
+      access: 'public',
       status: 'active',
     });
 
     const res = await thread();
 
     expect(res.status).toBe(200);
-    // And it cost no Oxy round trip: a published agent needs no act-as verdict,
+    // And it cost no Oxy round trip: a public agent needs no verdict at all,
     // which is why this is not one identity call per thread open.
     expect(state.accountLookups).toEqual([]);
   });
 
-  it('refuses a published agent that is not active', async () => {
-    // `isPublished` alone is not the rule. A suspended agent is not a thing a
+  it('keeps a stranger out of a PUBLISHED agent that is private', async () => {
+    /**
+     * The case the old rule could not express, and the one that proves the two
+     * axes are separate: this agent is in the catalogue — findable, hireable in
+     * appearance — and using it still takes its owner's say-so.
+     *
+     * `is_published && status === 'active'` returned true here until now, so
+     * putting that line back turns this red and nothing else.
+     */
+    repository.findAgentByOxyAccountId.mockResolvedValue({
+      ...AGENT_ROW,
+      isPublished: true,
+      access: 'private',
+      status: 'active',
+    });
+
+    const res = await thread();
+
+    expect(res.status).toBe(404);
+    expect(res.body).toEqual(NOT_FOUND_BODY);
+    // Refused after ASKING, which is what tells this apart from a short circuit
+    // that would refuse the owner too.
+    expect(state.accountLookups).toEqual(['acct-bot']);
+  });
+
+  it('lets a plain member use a private agent, with no act-as of their own', async () => {
+    /**
+     * Sharing an agent IS adding somebody to its bot account, and the role that
+     * gets is not necessarily one that can BECOME the account. Reading act-as
+     * as "was shared with me" would make sharing work only for the roles that
+     * can also edit — and editing is where the prompt is.
+     */
+    state.userId = 'oxy-colleague';
+    state.account = {
+      kind: 'bot',
+      relationship: 'member',
+      callerMembership: { permissions: [], status: 'active' },
+    };
+    repository.findAgentByOxyAccountId.mockResolvedValue({
+      ...AGENT_ROW,
+      isPublished: true,
+      access: 'private',
+      status: 'active',
+    });
+
+    expect((await thread()).status).toBe(200);
+  });
+
+  it('keeps out somebody whose membership is not active yet', async () => {
+    // An INVITED member has a row and has not accepted. The row is not the
+    // grant; its status is.
+    state.userId = 'oxy-invited';
+    state.account = {
+      kind: 'bot',
+      relationship: 'member',
+      callerMembership: { permissions: [], status: 'invited' },
+    };
+    repository.findAgentByOxyAccountId.mockResolvedValue({
+      ...AGENT_ROW,
+      isPublished: true,
+      access: 'private',
+      status: 'active',
+    });
+
+    expect((await thread()).status).toBe(404);
+  });
+
+  it('refuses a public agent that is not active', async () => {
+    // `access` alone is not the rule either. A suspended agent is not a thing a
     // stranger may open a thread with, and only `status` says so.
     repository.findAgentByOxyAccountId.mockResolvedValue({
       ...AGENT_ROW,
       isPublished: true,
+      access: 'public',
       status: 'suspended',
     });
 

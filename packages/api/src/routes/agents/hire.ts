@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { getDb } from '../../db/index.js';
 import { findAgentById } from '../../db/agents/agentRepository.js';
 import { authenticateToken } from '../../middleware/auth.js';
+import { canReachAgent } from '../../lib/agent-account.js';
 import { getAgentCapabilities } from '../../lib/agent/health.js';
 import { startAgentSession } from '../../lib/agent/session-handoff.js';
 import { log } from '../../lib/logger.js';
@@ -22,7 +23,19 @@ router.post('/:id/hire', authenticateToken, async (req: Request, res: Response) 
     }
 
     const agent = await findAgentById(getDb(), String(req.params.id));
-    if (!agent || !agent.isPublished) {
+    /**
+     * The same rule the thread applies, because hiring an agent IS using it —
+     * this said `!agent.isPublished`, which was the second half of "published
+     * means anyone may run it" and would now let a stranger run a private
+     * agent that happens to be listed.
+     *
+     * A refusal is 404 rather than 403 for the reason it always is here: a 403
+     * confirms the agent exists.
+     */
+    if (!agent || !(await canReachAgent(agent, {
+      oxyUserId: req.user.id,
+      accessToken: req.accessToken,
+    }))) {
       return res.status(404).json({ error: 'Agent not found' });
     }
 
