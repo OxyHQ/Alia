@@ -1,7 +1,9 @@
 import React from "react";
 import { Pressable, View } from "react-native";
 import * as DropdownMenu from "@/components/ui/dropdown-menu";
-import { MoreHorizontal, Pin, Star } from "lucide-react-native";
+import { Pin, Star } from "lucide-react-native";
+import { DotsHorizontalIcon } from "@/components/ui/icons/dots-horizontal-icon";
+import { useColorScheme } from "@/lib/useColorScheme";
 import type { Conversation } from "@/lib/hooks/use-conversations";
 import type { Project } from "@/lib/stores/projects-store";
 import type { Folder } from "@/lib/stores/folders-store";
@@ -37,11 +39,19 @@ export const ConversationMenu = React.memo<ConversationMenuProps>(({
   onDelete,
 }) => {
   const [isOpen, setIsOpen] = React.useState(false);
+  const { colors } = useColorScheme();
 
   return (
     <DropdownMenu.Root onOpenChange={setIsOpen}>
       <DropdownMenu.Trigger>
         <View className="relative h-6 w-6 items-center justify-center mr-1">
+          {/* The two badges stay lucide, and deliberately: the sheet has `pin`,
+              and it is the same drawing, but both badges turn amber when the
+              conversation is a favourite — and `text-amber-500` is the app's
+              word for "starred" in seven places. Moving them to a `color` value
+              would mean a raw hex here, or borrowing `warning` for something
+              that is not a warning. That is a colour decision, not an icon
+              swap. */}
           {(isPinned || isFavorite) && !isOpen && (
             <View className="absolute inset-0 items-center justify-center web:group-hover:opacity-0">
               {isPinned ? (
@@ -52,7 +62,7 @@ export const ConversationMenu = React.memo<ConversationMenuProps>(({
             </View>
           )}
           <Pressable className={`h-6 w-6 items-center justify-center rounded-lg active:bg-muted/70 ${isOpen ? "opacity-100" : "web:opacity-0 web:group-hover:opacity-100"}`}>
-            <MoreHorizontal size={14} className="text-muted-foreground" />
+            <DotsHorizontalIcon size={14} color={colors.mutedForeground} />
           </Pressable>
         </View>
       </DropdownMenu.Trigger>
