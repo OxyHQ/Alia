@@ -1,4 +1,6 @@
 import { createHash } from 'node:crypto';
+import { existsSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 import { ALIA_MODELS } from '../../../internal/providers/lib/alia-models.js';
@@ -12,7 +14,8 @@ import {
   isFallbackPolicy,
   type FallbackPolicy,
 } from '../policy.js';
-import { ROUTING_PRESETS, getRoutingPreset } from '../presets.js';
+import { canonicalAliasFor } from '../../product-modes.js';
+import { ROUTING_PRESETS, getPromptId, getRoutingPreset } from '../presets.js';
 
 /**
  * The routing-policy configuration (#139 workstream 14, ADR 0003 invariant 3).
@@ -116,6 +119,131 @@ describe('the default is today’s behaviour and cannot move quietly', () => {
       'profile:v1-voice': 'cross-model',
       'profile:v1-voice-pro': 'cross-model',
     });
+  });
+});
+
+/**
+ * The preset table carries the product facts that used to live on the alias
+ * record, and the two must agree for as long as both exist.
+ *
+ * ## What this is for, and when it dies
+ *
+ * `lib/routing/presets.ts` now declares each profile's credit multiplier,
+ * output ceiling, category and prompt file, and `credits-manager`, `catalogue`,
+ * `model-selection`, `models-stats` and `system-prompt-builder` read them from
+ * there. `ALIA_MODELS` still carries the same values, so the move is a no-op
+ * for every response — and this block is what holds it to that. It is a
+ * MIGRATION gate: it retires with the alias record, and the values in the
+ * preset table are what survive.
+ *
+ * Both directions, per alias, because the failure it exists to catch is
+ * asymmetric. A preset edited alone reprices a customer with nothing else
+ * moving; an alias edited alone changes what `models-stats` publishes while the
+ * charge stays where it was, and only one of those two is visible on a bill.
+ *
+ * ## Why the configuration digest below does NOT cover these fields
+ *
+ * That digest exists so a `fallback_events` row recorded under
+ * `ROUTING_POLICY_VERSION` can be read back against the policy it ran under.
+ * Price is not routing. Folding the multiplier into it would force a version
+ * bump on every repricing and declare every historical ROUTING row stale for a
+ * change that never touched routing.
+ */
+describe('the preset table agrees with the alias record it took its facts from', () => {
+  const registered = Object.keys(ALIA_MODELS).sort();
+
+  it('found aliases at all, so the per-alias loops below mean agreement', () => {
+    // The vacuity floor, as elsewhere on this page: an empty `ALIA_MODELS`
+    // satisfies every `it.each` under it by registering no cases at all.
+    expect(registered.length).toBeGreaterThanOrEqual(13);
+  });
+
+  it.each(registered)('%s is priced identically by its preset and its record', (alias) => {
+    const preset = getRoutingPreset(alias);
+    expect(preset?.creditMultiplier).toBe(ALIA_MODELS[alias].creditMultiplier);
+  });
+
+  it.each(registered)('%s carries the same output ceiling in both', (alias) => {
+    const preset = getRoutingPreset(alias);
+    expect(preset?.maxTokens).toBe(ALIA_MODELS[alias].maxTokens);
+  });
+
+  it('prices at least three distinct multipliers, so the pairs above are not all 1', () => {
+    /**
+     * The control the equality loops need.
+     *
+     * Two tables both filled with 1 satisfy every assertion above, and that is
+     * exactly what a botched move produces — a preset table written from the
+     * interface rather than from the values. The registered set spans 0.5 to 5.
+     */
+    const multipliers = new Set(ROUTING_PRESETS.map((p) => p.creditMultiplier));
+    expect(multipliers.size).toBeGreaterThanOrEqual(3);
+    expect(Math.min(...multipliers)).toBeLessThan(1);
+    expect(Math.max(...multipliers)).toBeGreaterThan(1);
+  });
+
+  it('serves each profile the category its CANONICAL alias registers', () => {
+    // What `lib/catalogue.ts` and `lib/routing/model-selection.ts` already
+    // resolved: an entry is built from the canonical alias, so this is the
+    // value both of them published before the field moved.
+    for (const preset of ROUTING_PRESETS) {
+      const alias = canonicalAliasFor(preset.id);
+      expect(alias, `${preset.id} has no canonical alias`).not.toBeNull();
+      if (alias === null) continue;
+      expect(preset.category).toBe(ALIA_MODELS[alias].category);
+    }
+  });
+
+  it('has exactly one identifier whose own category its profile does not serve', () => {
+    /**
+     * `alia-v1-thinking` registers `coding`; `profile:v1-pro-max` is served as
+     * `general`, from `alia-v1-pro-max`. `routes/models-stats.ts` still lists
+     * that identifier as `coding` — it lists IDENTIFIERS — so the divergence is
+     * pinned rather than resolved, and a SECOND one appearing goes red instead
+     * of quietly relabelling somebody's profile.
+     */
+    const diverging = registered.filter((alias) => {
+      const preset = getRoutingPreset(alias);
+      return preset !== null && preset.category !== ALIA_MODELS[alias].category;
+    });
+    expect(diverging).toEqual(['alia-v1-thinking']);
+  });
+
+  it('names a prompt for every identifier it routes, and for no other', () => {
+    for (const preset of ROUTING_PRESETS) {
+      expect(Object.keys(preset.prompts).sort()).toEqual([...preset.aliases].sort());
+    }
+    expect(getPromptId('alia-flash')).toBeNull();
+  });
+
+  it('names prompt files that exist, under the names they already had', () => {
+    /**
+     * Both halves of one fact. `lib/prompt-loader.ts` reads
+     * `prompts/<name>.md`, and `73ce422b` put that directory in the runtime
+     * image — so a name that moves here and not on disk degrades to an EMPTY
+     * prompt rather than to an error, which is the failure
+     * `dockerfileShipsRuntimeData.test.ts` was written for after it happened in
+     * production.
+     *
+     * The second assertion pins the convention that made the move safe: every
+     * value is still its own key, so this change renamed nothing.
+     */
+    const prompts = fileURLToPath(new URL('../../../../prompts/', import.meta.url));
+    for (const alias of registered) {
+      const promptId = getPromptId(alias);
+      expect(promptId, `no prompt registered for ${alias}`).not.toBeNull();
+      expect(existsSync(`${prompts}${promptId}.md`), `prompts/${promptId}.md is missing`).toBe(true);
+      expect(promptId).toBe(alias);
+    }
+  });
+
+  it('gives the two identifiers of one profile DIFFERENT prompts', () => {
+    // The reason `prompts` is keyed by alias rather than being one string per
+    // preset. `alia-v1-pro-max.md` and `alia-v1-thinking.md` are different
+    // pages, and `system-prompt-builder.ts` also layers the second one on as
+    // the extended-reasoning fragment.
+    expect(getPromptId('alia-v1-pro-max')).not.toBe(getPromptId('alia-v1-thinking'));
+    expect(getRoutingPreset('alia-v1-pro-max')).toBe(getRoutingPreset('alia-v1-thinking'));
   });
 });
 

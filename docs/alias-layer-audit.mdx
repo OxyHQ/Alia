@@ -65,9 +65,10 @@ between them did. The
 thirteen `alia-*` identifiers are
 de-advertised — `GET /v1/models` returns `[]` and the live catalogue publishes only
 `profile:*` and `<publisher>/<model>` — but **every single chat turn production has served
-still arrives as a legacy alias**, and the alias is what carries the credit multiplier, the
-plan entitlement, the system prompt and the display name that the new vocabulary is
-rendered from. Kaana replaces the *transport* and will eventually replace the *routing*,
+still arrives as a legacy alias**. The alias no longer carries the credit multiplier, the
+category or the prompt — those moved to `RoutingPreset` (see step 6) — but it is still the
+plan-entitlement key and still carries the display name that the new vocabulary is rendered
+from. Kaana replaces the *transport* and will eventually replace the *routing*,
 but it explicitly refuses to price anything and today refuses a routing profile outright.
 
 ## Status: what the tier work fixed, and what it did not touch
@@ -99,10 +100,11 @@ alias layer, and nothing in the rest of this page is out of date because of it.*
   is not an `alia-*` id, throwing `UnregisteredModelError(aliasModelId,
   Object.keys(ALIA_MODELS))` at `:254`. An identifier outside that set cannot be routed at
   all.
-- **Billing still reads a multiplier off them.** `credits-manager.ts:113` is still
-  `model?.creditMultiplier || 1`, and the thirteen multipliers in §3 are unchanged — now
-  frozen at those values by a test rather than merely unchanged — as are the seven
-  production plan rows keyed by alias id.
+- **Billing no longer reads a multiplier off them.** `getCreditMultiplier` prices from
+  `lib/routing/presets.ts` and REFUSES an identifier nothing prices, instead of the
+  `model?.creditMultiplier || 1` that absorbed it. The thirteen values in §3 are unchanged
+  and frozen by a test, as are the seven production plan rows keyed by alias id — which are
+  still the reason an alias cannot be deleted.
 - **`GET /v1/models` still returns `[]`** (`routes/v1/models.ts:84`), so the aliases remain
   de-advertised and routable and billed, which is the state ADR 0003 describes.
 - **The credit boundary between Kaana and Oxy is unresolved**, and remains the product
@@ -342,8 +344,10 @@ currently runs on an alias.
 
 ### The multiplier is the whole of it, and it is not 1
 
-`credits-manager.ts:113` is `getAliaModel(aliasModelId)?.creditMultiplier || 1`. Production
-`alia_models` rows match the source exactly:
+`getCreditMultiplier` reads `getRoutingPreset(aliasModelId)?.creditMultiplier` and throws
+`UnpricedModelError` when nothing resolves. It read
+`getAliaModel(aliasModelId)?.creditMultiplier || 1` until 2026-08-26, which is what the
+right-hand column below measures. Production `alia_models` rows match the source exactly:
 
 | alias | multiplier | charged today | charged if the alias vanished |
 |---|---|---|---|
@@ -355,10 +359,12 @@ currently runs on an alias.
 | `alia-v1-voice-pro` | 4 | 4× | 1× — **75% lost** |
 | `alia-v1-thinking`, `alia-v1-pro-max` | 5 | 5× | 1× — **80% lost** |
 
-`getAliaModel` returning `null` does not throw and does not warn. `|| 1` absorbs it. So a
-removal that missed this would reprice every paid tier downward and every free turn upward,
-silently, and until 2026-08-25 no test went red: the only assertion over multipliers was
-`lib/__tests__/product-modes.test.ts:299`, `toBeGreaterThan(0)`.
+That last column was reachable in silence. `getAliaModel` returning `null` neither threw nor
+warned and `|| 1` absorbed it, so a removal that missed this would have repriced every paid
+tier downward and every free turn upward with nothing red — until 2026-08-25 the only
+assertion over multipliers was `lib/__tests__/product-modes.test.ts:299`,
+`toBeGreaterThan(0)`. **It is no longer reachable in silence:** the lookup refuses, and the
+value it would have substituted is asserted as a refusal rather than as a price.
 
 **Every value in the table above is now frozen**, by
 `internal/providers/lib/__tests__/credit-multipliers.test.ts`. It pins each alias to its
@@ -433,7 +439,7 @@ under any answer, and the question is only which column each belongs in.
 | `TOKENS_PER_CREDIT = 1000` | how many tokens one credit buys | **pricing** |
 | `MIN_CREDITS_PER_REQUEST = 1` | the floor a turn is charged | **pricing** |
 | `REASONING_TOKEN_WEIGHT = 5` | what a thinking token costs relative to another | **pricing** |
-| `AliaModel.creditMultiplier` (0.5–5) | what a tier costs relative to another | **pricing** |
+| `RoutingPreset.creditMultiplier` (0.5–5) | what a profile costs relative to another | **pricing** |
 | `costPerMinute` on the voice mappings | what a voice minute costs | **pricing** |
 | `reserveCredits` / `finalizeCredits` / `refundReservation` | reserve, settle, refund | **pricing** — a ledger operation |
 | `user_credits.credits_free` / `credits_paid` | the balance | **pricing** — a balance, explicitly not Kaana's |
@@ -582,11 +588,17 @@ Ordered by what must be true before each step, not by size.
    the entitlement comparison in `request-context.ts:668` and `voice.ts:98` to change in the
    same commit, and `routes/internal.ts:346` to validate against presets rather than
    `isAliaModel`. Until this lands, removing an alias 403s every request on every plan.
-6. **Move the product metadata out of `ALIA_MODELS`.** Display name, description, emoji,
-   category, `maxTokens` and the credit multiplier become fields on `RoutingPreset` — where
-   `product-modes.ts` says they belong — rather than facts borrowed from an alias. This is
-   the change that makes the catalogue survive the deletion.
-7. **Re-key the system prompt on the profile.** `prompt-loader.ts` loads per model id.
+6. **Move the product metadata out of `ALIA_MODELS`.** ~~The credit multiplier,
+   `maxTokens` and the category~~ are fields on `RoutingPreset` as of 2026-08-26, read from
+   there by `credits-manager`, `catalogue`, `model-selection` and `models-stats`, with
+   `routing-policy.test.ts` asserting both tables still agree while both exist. **Display
+   name, description and emoji are still borrowed from the alias record** and are what is
+   left of this step.
+7. ~~**Re-key the system prompt on the profile.**~~ Done in the same change: the preset names
+   the file each of its identifiers serves and `system-prompt-builder.ts` and `voice.ts` ask
+   it, instead of passing the request's identifier to `prompt-loader.ts` as a filename. No
+   file was renamed — `73ce422b` put `prompts/` in the runtime image, so a rename here alone
+   degrades to an empty prompt.
 8. **Decide the sunset.** `ALIAS_SUNSET` is `2026-10-01T00:00:00.000Z` and
    `middleware/__tests__/alias-deprecation.test.ts:219` asserts it is still in the future —
    it goes red on that date **by design, as an alarm**. That is 37 days from this

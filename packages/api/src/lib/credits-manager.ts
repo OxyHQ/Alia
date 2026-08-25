@@ -6,8 +6,8 @@ import {
   zeroCredits,
   type UserCreditsRow,
 } from '../db/billing/userCreditsRepository.js';
-import { getAliaModel } from './chat-core.js';
 import { log } from './logger.js';
+import { getRoutingPreset } from './routing/presets.js';
 import { fundingSourceOf, type CreditFundingSource } from '../domain/credit-funding.js';
 
 /**
@@ -105,12 +105,72 @@ export const CREDITS_CONFIG = {
 };
 
 /**
- * Get credit multiplier for an Alia model
+ * A charge that named a model nothing can price.
+ *
+ * A distinct type rather than a bare `Error` because one caller acts on it:
+ * `internal/providers/lib/voice-session-manager.ts` refunds on it, and may only
+ * do so because this error is raised before any balance moves — see
+ * {@link getCreditMultiplier}. A generic failure carries no such guarantee, so
+ * refunding on one would be the double-credit half of the same bug.
+ */
+export class UnpricedModelError extends Error {
+  constructor(readonly aliasModelId: string) {
+    super(`No credit multiplier is registered for model "${aliasModelId}"`);
+    this.name = 'UnpricedModelError';
+  }
+}
+
+/**
+ * What a turn on this model costs, relative to the base rate.
+ *
+ * ## An ABSENT identifier and an UNKNOWN one are different facts
+ *
+ * `undefined` means the caller priced the turn itself and is saying so.
+ * `routes/v1/images.ts`, both handlers in `routes/v1/audio.ts`, the transcribe
+ * path in `routes/v1/voice.ts`, `lib/chat-modes/deep-research-handler.ts` and
+ * `lib/agent/runner.ts` each compute their own token count from their own
+ * formula and settle it at the base rate deliberately. For them 1 is the
+ * answer, not a fallback, which is why this case is kept and not folded in
+ * below.
+ *
+ * A STRING that resolves to nothing is the opposite: somebody named a model and
+ * nothing can price it. That returned 1 as well — `model?.creditMultiplier || 1`
+ * — so the two were indistinguishable and the second was silent. The registered
+ * multipliers span 0.5 to 5, so an identifier that stopped resolving repriced
+ * every request on it, in either direction, with nothing logged and no test
+ * red: `alia-lite` at 1 is double what the customer agreed to, and
+ * `alia-v1-pro-max` at 1 is a fifth of it. `credit-multipliers.test.ts` names
+ * this exact hole, and until now could only pin the values it would have
+ * hidden.
+ *
+ * `|| 1` also swallowed a registered multiplier of 0. The column is constrained
+ * `between 0.1 and 10` (`db/schema/providers.ts`), so that is not reachable
+ * today, but the read no longer depends on it being unreachable.
+ *
+ * ## The price comes from the ROUTING PRESET, not from the alias record
+ *
+ * `lib/routing/presets.ts` owns it. The two tables carry the same numbers and
+ * `routing-policy.test.ts` fails if they stop, so this is not a repricing — it
+ * is what lets the thirteen `alia-*` identifiers be deleted without taking
+ * every price with them. It also takes billing off the model catalogue: this
+ * read no longer goes through `gateway-client`, so no charge depends on a
+ * catalogue fetch.
+ *
+ * ## It throws BEFORE any balance moves, and callers rely on that
+ *
+ * Every route into this function goes through `calculateCreditsFromTokens` or
+ * `calculateCreditsFromMinutes`, both of which resolve the multiplier before
+ * `_adjustReservation` touches a row. So a throw leaves the reservation exactly
+ * as it was found — never half-settled — and each caller's existing release
+ * point gives it back: the chat path leaves `creditsSettled` false and
+ * `routes/v1/chat-completions.ts` refunds, both webhook handlers refund in
+ * their `finally`, and the voice session manager refunds on the type above.
  */
 export async function getCreditMultiplier(aliasModelId?: string): Promise<number> {
-  if (!aliasModelId) return 1;
-  const model = await getAliaModel(aliasModelId);
-  return model?.creditMultiplier || 1;
+  if (aliasModelId === undefined) return 1;
+  const preset = getRoutingPreset(aliasModelId);
+  if (preset === null) throw new UnpricedModelError(aliasModelId);
+  return preset.creditMultiplier;
 }
 
 /**

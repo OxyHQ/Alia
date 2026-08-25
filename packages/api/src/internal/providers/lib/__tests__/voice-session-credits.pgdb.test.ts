@@ -5,35 +5,34 @@ import { eq } from 'drizzle-orm';
  * `VoiceSessionManager.createSession`, against a REAL Postgres server, for the
  * credits it reserves before it has a session at all.
  *
- * ## A voice reservation is fifty credits, not one
+ * ## A voice reservation is a hundred credits, not one
  *
  * `reserveVoiceCredits(userId, 1, model, costPerMinute)` reserves a MINUTE:
- * `1 × 0.05 × 1000 = 50` credits, taken before the LiveKit room exists and
- * before the provider socket is opened. Every step after that can fail — the
+ * `1 × 0.05 × 1000 = 100` credits once `profile:v1-voice`'s 2× multiplier is
+ * applied, taken before the LiveKit room exists and before the provider socket
+ * is opened. Every step after that can fail — the
  * provider refusing the connection is the ordinary case — and each failure was
  * answered by `closeSession`, which FINALIZES at the elapsed duration.
  *
- * That is not a leak of all fifty; it is a charge of one credit for a call that
- * never happened, because `calculateCreditsFromMinutes` floors at
+ * That is not a leak of all hundred; it is a charge of one credit for a call
+ * that never happened, because `calculateCreditsFromMinutes` floors at
  * `MIN_CREDITS_PER_REQUEST`. A session that never became active consumed no
  * provider time, so the whole reservation belongs back with the caller.
  *
  * The outright leak is earlier and larger: a throw between the reservation and
- * the session being registered in the manager's map leaves the fifty with
+ * the session being registered in the manager's map leaves the hundred with
  * nobody holding a handle to them.
  *
  * Everything outside the credits — LiveKit, the provider socket, the model
- * resolver — is stubbed. The balance is real.
+ * resolver — is stubbed. The balance is real, and so is the PRICE: the
+ * multiplier comes from `lib/routing/presets.ts`, a static table, so there is
+ * nothing left to stub and the figures below are the ones production moves.
  */
 
 vi.mock('../../../../lib/logger.js', () => {
   const child = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() };
   return { log: { providers: child, general: child, credits: child, chat: child, v1: child, agents: child } };
 });
-vi.mock('../../../../lib/chat-core.js', () => ({
-  // `credits-manager` reads the credit multiplier from here.
-  getAliaModel: vi.fn(async () => ({ creditMultiplier: 1 })),
-}));
 vi.mock('../model-resolver.js', () => ({
   resolveAliaModel: vi.fn(async () => ({
     provider: 'stub',
@@ -155,10 +154,10 @@ describe('createSession — the minute it reserves up front', () => {
 
     const session = await voiceSessionManager.createSession(userId, 'alia-v1-voice', config);
 
-    // The positive control: 50 credits held for a live call, settled when it
+    // The positive control: 100 credits held for a live call, settled when it
     // ends. An implementation that refunded unconditionally would pass every
     // case below and fail this one.
-    expect(await balanceOf(userId)).toEqual({ free: 450, paid: 0 });
+    expect(await balanceOf(userId)).toEqual({ free: 400, paid: 0 });
     await voiceSessionManager.closeSession(session.sessionId, 'test over');
   });
 
@@ -200,13 +199,13 @@ describe('createSession — the minute it reserves up front', () => {
 /**
  * The cohost reserves a SECOND minute, and `disableCohost` cannot give it back.
  *
- * `enableCohost` reserves fifty more credits, then opens a second provider
+ * `enableCohost` reserves a hundred more credits, then opens a second provider
  * socket, joins a second LiveKit participant, wires handlers and starts a timer
  * — and only at the very end sets `session.cohostEnabled = true`. Its `catch`
  * calls `disableCohost`, whose first line is `if (!session.cohostEnabled)
  * return`. So every failure during cohost setup — which is every failure that
  * can actually happen, since the flag is last — returned immediately and the
- * fifty credits stayed debited with nothing holding them.
+ * hundred credits stayed debited with nothing holding them.
  *
  * A cohost is a Pro feature enabled mid-call by the client, so this fires while
  * somebody is talking and the only symptom is a balance that dropped.
@@ -216,14 +215,14 @@ describe('enableCohost — the second minute it reserves', () => {
     const userId = await account(500, 0);
     connect.mockResolvedValueOnce(fakeSocket());
     const session = await voiceSessionManager.createSession(userId, 'alia-v1-voice', config);
-    expect(await balanceOf(userId)).toEqual({ free: 450, paid: 0 });
+    expect(await balanceOf(userId)).toEqual({ free: 400, paid: 0 });
 
     connect.mockRejectedValueOnce(new Error('provider refused the cohost socket'));
     await voiceSessionManager.enableCohost(session.sessionId);
 
-    // The primary's 50 are still held — it is still a live call. The cohost's
-    // 50 came back.
-    expect(await balanceOf(userId)).toEqual({ free: 450, paid: 0 });
+    // The primary's 100 are still held — it is still a live call. The cohost's
+    // 100 came back.
+    expect(await balanceOf(userId)).toEqual({ free: 400, paid: 0 });
 
     await voiceSessionManager.closeSession(session.sessionId, 'test over');
   });
@@ -239,7 +238,7 @@ describe('enableCohost — the second minute it reserves', () => {
     // The positive control: two reservations held for two live participants.
     // A version that refunded the cohost unconditionally would pass the case
     // above and fail this one.
-    expect(await balanceOf(userId)).toEqual({ free: 400, paid: 0 });
+    expect(await balanceOf(userId)).toEqual({ free: 300, paid: 0 });
 
     await voiceSessionManager.closeSession(session.sessionId, 'test over');
   });
