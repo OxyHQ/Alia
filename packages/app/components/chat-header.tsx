@@ -32,14 +32,6 @@ interface ChatHeaderProps {
    */
   agentName?: string;
   agentColor?: string | null;
-  /**
-   * Cut the thread here, when the thread is one that never ends.
-   *
-   * Present only on `/a/:username`: an ordinary chat already has "New Chat" in
-   * the sidebar, and a second verb for the same intention in a place where it
-   * means something else is how a menu stops being read.
-   */
-  onNewConversation?: () => void;
 }
 
 // Memoized: the chat screen re-renders ~20×/s while streaming and none of
@@ -52,7 +44,6 @@ export const ChatHeader = React.memo(function ChatHeader({
   isConversation = false,
   agentName,
   agentColor,
-  onNewConversation,
 }: ChatHeaderProps) {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
@@ -177,15 +168,6 @@ export const ChatHeader = React.memo(function ChatHeader({
               <DropdownMenu.ItemIcon ios={{ name: "questionmark.circle" }} />
               <DropdownMenu.ItemTitle>{t('chatHeader.help')}</DropdownMenu.ItemTitle>
             </DropdownMenu.Item>
-            {onNewConversation === undefined ? null : (
-              <>
-                <DropdownMenu.Separator />
-                <DropdownMenu.Item key="new-conversation" onSelect={onNewConversation}>
-                  <DropdownMenu.ItemIcon ios={{ name: "text.bubble" }} />
-                  <DropdownMenu.ItemTitle>{t('chatHeader.newConversation')}</DropdownMenu.ItemTitle>
-                </DropdownMenu.Item>
-              </>
-            )}
             {isConversation && (
               <>
                 <DropdownMenu.Separator />
