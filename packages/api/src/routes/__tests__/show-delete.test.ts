@@ -26,9 +26,13 @@ import { SyraApiError } from '@syra.fm/sdk';
  * success at the response and reintroduces the bug on the exact path the fix
  * was written for.
  *
- * **That `404` is NOT a refusal.** The row is gone, which is the state the
- * caller asked for. Treating it as a failure strands the pair the other way
- * round: Alia keeps a record of a podcast that no longer exists.
+ * **That a `403` is not, by itself, a refusal.** Syra answers `403` with one
+ * byte-identical body for a show that does not exist and for one that is not
+ * the caller's, on purpose, so nobody can probe for a private show's id. The
+ * first version of this route read that as "refused" and would have wedged
+ * permanently on any show already deleted in Syra — Alia keeping a record of a
+ * podcast that is not there, unable to drop it. This bug's mirror image. So a
+ * `403` asks a second question, and the tests below pin BOTH answers to it.
  */
 
 const USER_ID = 'show-deleter';
@@ -39,6 +43,8 @@ const EPISODE_ID = 'episode-under-test';
 let sequence: string[] = [];
 /** What Syra should do when asked to delete. */
 let syraOutcome: 'ok' | SyraApiError = 'ok';
+/** What the follow-up read should do. `'gone'` is the 404 that means success. */
+let syraRead: 'present' | 'gone' | SyraApiError = 'present';
 /** Set to null to model a series that never reached Syra. */
 let syraPodcastId: string | null = 'syra-podcast-1';
 let syraEpisodeId: string | null = 'syra-episode-1';
@@ -63,11 +69,19 @@ vi.mock('../../lib/syra/syra.js', async () => {
     if (syraOutcome !== 'ok') throw syraOutcome;
     return { id, episodesDeleted: 2, objectsDeleted: 5, podcastId: 'syra-podcast-1' };
   };
+  const read = (what: string) => async (id: string) => {
+    sequence.push(`syra:${what}:${id}`);
+    if (syraRead === 'gone') throw new SyraApiError(404, 'Syra API request failed: 404 Not Found');
+    if (syraRead !== 'present') throw syraRead;
+    return { id, title: 'The Wednesday Digest' };
+  };
   return {
     ...actual,
     syraForRequest: () => ({
       deletePodcast: remove('deletePodcast'),
       deleteEpisode: remove('deleteEpisode'),
+      getPodcast: read('getPodcast'),
+      getEpisode: read('getEpisode'),
     }),
   };
 });
@@ -138,6 +152,7 @@ afterAll(
 beforeEach(() => {
   sequence = [];
   syraOutcome = 'ok';
+  syraRead = 'present';
   syraPodcastId = 'syra-podcast-1';
   syraEpisodeId = 'syra-episode-1';
 });
@@ -154,31 +169,64 @@ describe('deleting a series', () => {
     expect(await response.json()).toMatchObject({ deleted: true, syraPodcastDeleted: true });
   });
 
-  it('keeps BOTH records when Syra refuses', async () => {
+  it('keeps BOTH records when the show is there and Syra will not delete it', async () => {
     syraOutcome = new SyraApiError(403, 'Syra API request failed: 403 Forbidden');
+    syraRead = 'present';
 
     const response = await del(`/shows/series/${SERIES_ID}`);
 
     expect(response.status).toBe(502);
+    // The 403 asked its second question, the answer was "it is there", and
     // Alia's row survives. Deleting it anyway is the bug this file exists for.
+    expect(sequence).toEqual(['syra:deletePodcast:syra-podcast-1', 'syra:getPodcast:syra-podcast-1']);
+  });
+
+  it('deletes here when the 403 means the show is already gone from Syra', async () => {
+    syraOutcome = new SyraApiError(403, 'Syra API request failed: 403 Forbidden');
+    syraRead = 'gone';
+
+    const response = await del(`/shows/series/${SERIES_ID}`);
+
+    /**
+     * The case the first version of this route got wrong. Syra's 403 is the
+     * same body for "no such show" as for "not yours", so taking it at face
+     * value left Alia holding a record of a podcast that is not there, with no
+     * way to drop it — a creator who deletes in Studio first would be stuck for
+     * good.
+     */
+    expect(response.status).toBe(200);
+    expect(sequence).toEqual([
+      'syra:deletePodcast:syra-podcast-1',
+      'syra:getPodcast:syra-podcast-1',
+      'alia:deleteSeries',
+    ]);
+  });
+
+  it('does not even ask the second question when the answer cannot change', async () => {
+    syraOutcome = new SyraApiError(401, 'Syra API request failed: 401 Unauthorized');
+
+    expect((await del(`/shows/series/${SERIES_ID}`)).status).toBe(502);
+    // A 401 is a fault on this side, not a statement about the show. Reading
+    // after it would be a second request that answers a question nobody asked.
     expect(sequence).toEqual(['syra:deletePodcast:syra-podcast-1']);
   });
 
-  it('keeps BOTH records when the show is under a takedown', async () => {
+  it('keeps BOTH records when the show is under a takedown, without a second look', async () => {
     syraOutcome = new SyraApiError(409, 'Syra API request failed: 409 Conflict');
+    // Even if a read WOULD say it is gone, a takedown is honoured as stated.
+    syraRead = 'gone';
 
     expect((await del(`/shows/series/${SERIES_ID}`)).status).toBe(502);
     expect(sequence).toEqual(['syra:deletePodcast:syra-podcast-1']);
   });
 
-  it('treats a podcast that is already gone as success', async () => {
+  it('treats the narrow 404 race as success', async () => {
+    // Syra answers 404 only when the row goes between its ownership check and
+    // its delete. Gone is gone, and no second look is needed to know it.
     syraOutcome = new SyraApiError(404, 'Syra API request failed: 404 Not Found');
 
     const response = await del(`/shows/series/${SERIES_ID}`);
 
-    // The state the caller asked for is the state that exists. Refusing here
-    // would strand the pair the other way round: Alia keeping a record of a
-    // podcast that is not there.
     expect(response.status).toBe(200);
     expect(sequence).toEqual(['syra:deletePodcast:syra-podcast-1', 'alia:deleteSeries']);
   });
@@ -203,14 +251,27 @@ describe('deleting one episode', () => {
     expect(await response.json()).toMatchObject({ deleted: true, syraEpisodeDeleted: true });
   });
 
-  it('keeps BOTH records when Syra refuses', async () => {
+  it('keeps BOTH records when the episode is there and Syra will not delete it', async () => {
     syraOutcome = new SyraApiError(403, 'Syra API request failed: 403 Forbidden');
+    syraRead = 'present';
 
     expect((await del(`/shows/episodes/${EPISODE_ID}`)).status).toBe(502);
-    expect(sequence).toEqual(['syra:deleteEpisode:syra-episode-1']);
+    expect(sequence).toEqual(['syra:deleteEpisode:syra-episode-1', 'syra:getEpisode:syra-episode-1']);
   });
 
-  it('treats an episode that is already gone as success', async () => {
+  it('deletes here when the 403 means the episode is already gone', async () => {
+    syraOutcome = new SyraApiError(403, 'Syra API request failed: 403 Forbidden');
+    syraRead = 'gone';
+
+    expect((await del(`/shows/episodes/${EPISODE_ID}`)).status).toBe(200);
+    expect(sequence).toEqual([
+      'syra:deleteEpisode:syra-episode-1',
+      'syra:getEpisode:syra-episode-1',
+      'alia:deleteEpisode',
+    ]);
+  });
+
+  it('treats the narrow 404 race as success', async () => {
     syraOutcome = new SyraApiError(404, 'Syra API request failed: 404 Not Found');
 
     expect((await del(`/shows/episodes/${EPISODE_ID}`)).status).toBe(200);
