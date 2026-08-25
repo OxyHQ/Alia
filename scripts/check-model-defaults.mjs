@@ -106,8 +106,6 @@ export const NOT_A_CLIENT = {
     'its picker reads the catalogue (#156); the literals it keeps are policy tables, reconciled under their own box. See the note on TREES.',
   'packages/alia-docker-host':
     'a container manager for agent sandboxes. It runs no inference and offers no picker.',
-  'packages/shared-types':
-    'type declarations shared across packages; it ships no runtime code and no UI.',
 };
 
 /**
@@ -271,9 +269,9 @@ function main() {
   // Exact counts. Each list may only change in a diff that also changes the
   // number beside it, which is the review this gate exists to force.
   const counts = [
-    ['workspaces', workspaces.length, 12],
+    ['workspaces', workspaces.length, 11],
     ['TREES', TREES.length, 9],
-    ['NOT_A_CLIENT', Object.keys(NOT_A_CLIENT).length, 4],
+    ['NOT_A_CLIENT', Object.keys(NOT_A_CLIENT).length, 3],
   ];
   const partition = [
     ...counts
