@@ -659,6 +659,7 @@
       "errorGeneric": "Something went wrong. Please try again."
     },
     "namePlaceholder": "Agent name",
+    "colorLabel": "Colour",
     "handlePlaceholder": "handle",
     "handleTaken": "That handle is taken. Try another.",
     "handlesAutonomousEvents": "Handles autonomous events",

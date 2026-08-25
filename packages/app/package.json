@@ -27,7 +27,7 @@
     "@livekit/react-native-expo-plugin": "^1.0.2",
     "@livekit/react-native-webrtc": "^144.1.1",
     "@oxyhq/bloom": "^1.1.0",
-    "@oxyhq/core": "^21.1.0",
+    "@oxyhq/core": "^21.2.0",
     "@oxyhq/expo-splash": "^0.2.0",
     "@oxyhq/services": "^30.0.1",
     "@radix-ui/react-dropdown-menu": "^2.1.20",
