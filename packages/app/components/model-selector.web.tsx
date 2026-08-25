@@ -64,6 +64,18 @@ function RadioCheck() {
 }
 
 /**
+ * The picker panel's width, and the trigger's while that panel is open.
+ *
+ * One number, not two literals that happen to agree: `align="end"` already puts
+ * the panel's right edge under the trigger's, so matching the width is exactly
+ * what brings the LEFT edges together too. It rides on `style` rather than a
+ * `w-[224px]` class because the panel already names that width in a class and a
+ * second literal is the thing this is avoiding — `model-selector.web.test.tsx`
+ * reads the panel's class back and fails if the two ever drift apart.
+ */
+export const PICKER_WIDTH = 224;
+
+/**
  * Composer intelligence picker.
  *
  * This deliberately follows the supplied component rather than the old Alia
@@ -80,6 +92,7 @@ export function ModelSelector({
   const router = useRouter();
   const { data: entries } = useCatalogue();
   const { data: modes } = useProductModes();
+  const [pickerOpen, setPickerOpen] = useState(false);
   const storedEffort = useModelStore((state) => state.reasoningEffort);
   const setReasoningEffort = useModelStore((state) => state.setReasoningEffort);
   const [advanced, setAdvanced] = useState(false);
@@ -166,23 +179,50 @@ export function ModelSelector({
 
   return (
     <LocalModelsInvite>
-    <DropdownMenu>
+    <DropdownMenu open={pickerOpen} onOpenChange={setPickerOpen}>
       <DropdownMenuTrigger asChild label={`Power: ${effortLabel}`}>
         <Pressable
           accessibilityLabel={`Power: ${effortLabel}`}
           accessibilityRole="button"
-          className="relative h-9 w-[171px] flex-row items-center justify-center rounded-full bg-muted px-9 active:opacity-70 web:hover:bg-muted/80"
+          className={cn(
+            "h-9 flex-row items-center justify-between gap-1.5 rounded-full bg-muted pl-3 pr-2 active:opacity-70 web:hover:bg-muted/80",
+            // Closed, it is as wide as its label — but only up to a point. A
+            // hug with no ceiling lets one long name widen the button until it
+            // squeezes the composer's text; past 10rem the label gives way
+            // instead.
+            !pickerOpen && "max-w-40",
+          )}
+          style={pickerOpen ? { width: PICKER_WIDTH } : undefined}
         >
-          <Text className="text-sm text-foreground" numberOfLines={1}>
+          {/*
+            `shrink` is what turns `numberOfLines` into a truncation: React
+            Native leaves `flexShrink` at 0, so without it the text keeps its
+            full width and pushes the button past the cap rather than ellipsing
+            inside it.
+          */}
+          <Text className="shrink text-sm text-foreground" numberOfLines={1}>
             {effortLabel}
           </Text>
-          <span className="absolute right-3 flex h-4 w-4 items-center justify-center text-muted-foreground">
-            <ComposerGlyph
-              name="chevron-down"
-              size={16}
-              color={colors.mutedForeground}
-            />
-          </span>
+          {/*
+            In flow rather than pinned to the right edge, so `justify-between`
+            can do both jobs: sat beside the label while the button hugs it, and
+            out at the edge once the button takes the panel's width.
+
+            The reference tucks the chevron in by a half step of negative end
+            margin. `ComposerGlyph` takes no class, and a wrapper node for two
+            pixels is not worth it — the chevron is the last thing in the row, so
+            trimming the row's right padding by the same half step is the same
+            picture with nothing added.
+
+            The tone stays `mutedForeground`: `global.css` declares no tertiary
+            text token, and inventing a colour to be a shade quieter is worse
+            than being a shade too loud.
+          */}
+          <ComposerGlyph
+            name="chevron-down"
+            size={16}
+            color={colors.mutedForeground}
+          />
         </Pressable>
       </DropdownMenuTrigger>
 
