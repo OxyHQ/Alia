@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { getDb } from '../../db/index.js';
 import { createAgent } from '../../db/agents/agentRepository.js';
 import { createAgentBotAccount } from '../agent-account.js';
-import { suggestAgentUsername } from '../agent-identity.js';
+import { fallbackAgentUsername, suggestAgentUsername } from '../agent-identity.js';
 import { log } from '../logger.js';
 import { getErrorMessage } from '../errors/index.js';
 import { FIXED_CAPABILITY_FAMILIES } from '../../domain/capability-grants.js';
@@ -73,7 +73,7 @@ export const createAgentTool = (userId: string, accessToken: string | undefined)
 
       const account = await createAgentBotAccount({
         accessToken,
-        username: suggestAgentUsername(name),
+        username: suggestAgentUsername(name) ?? fallbackAgentUsername(),
         displayName: name,
         bio: tagline,
       });
