@@ -100,6 +100,12 @@ export const API_ROUTES = {
      * exist and for one the caller cannot reach — a 403 would confirm it exists.
      */
     thread: (username: string) => `/agents/thread/${encodeURIComponent(username)}`,
+    /**
+     * A page of that thread, oldest-first, crossing the seams between the
+     * conversations it is made of. `before=<cursor>` walks backwards; the
+     * cursors come from the messages themselves.
+     */
+    threadMessages: (username: string) => `/agents/thread/${encodeURIComponent(username)}/messages`,
     create: '/agents',
     update: (id: string) => `/agents/${id}`,
     delete: (id: string) => `/agents/${id}`,

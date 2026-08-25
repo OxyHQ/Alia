@@ -45,6 +45,7 @@ import apiClient from "@/lib/api/client";
 import { useTranslation } from "@/lib/hooks/use-translation";
 import { NewConversationOffer } from "@/components/new-conversation-offer";
 import { daySeparators } from "@/lib/message-days";
+import { threadSeamIds, type ThreadMessage } from "@/lib/thread-history";
 
 const isWeb = Platform.OS === "web";
 
@@ -107,7 +108,30 @@ type ChatInterfaceProps = {
   suggestedNewConversation?: string | null;
   onAcceptNewConversation?: () => void;
   onDismissNewConversation?: () => void;
+  /**
+   * Everything said in this thread before the conversation on screen, oldest
+   * first. Empty on `/c/:id`, which is one conversation with nothing behind it.
+   */
+  historyMessages?: ThreadMessage[];
+  /** A page of history is on its way; the reader is at the top waiting for it. */
+  isLoadingHistory?: boolean;
+  /**
+   * How tall the history is, whenever that changes — the anchor that keeps the
+   * reader on the message they were reading while a page lands above them.
+   */
+  onHistoryHeight?: (height: number) => void;
+  /** The conversation being streamed into, which is what a seam is drawn against. */
+  activeConversationId?: string;
 };
+
+/**
+ * The history of a conversation that has none, as ONE array.
+ *
+ * A fresh `[]` per render would be a new dependency every time, which is what
+ * turns a memo on the message list into a memo that never holds — and this list
+ * re-renders per streamed token.
+ */
+const NO_HISTORY: ThreadMessage[] = [];
 
 /** True for Alia's own assistant messages (excludes delegated agents and voice cohosts). */
 function isAliaOwnedMessage(m: Message): boolean {
@@ -186,6 +210,24 @@ const ToolBullet = React.memo(function ToolBullet({ isRunning }: { isRunning: bo
  * memo that never holds — and this one is rendered inside a list that re-renders
  * per streamed token.
  */
+/**
+ * Where one conversation ended and the next began.
+ *
+ * A different line from the day one on purpose: a date is derived from when a
+ * message was written, while this is a fact about the thread — the model was
+ * given a fresh context here, and everything above is out of its sight. Drawing
+ * them the same way would suggest a break happened every midnight.
+ */
+const ConversationSeam = React.memo(function ConversationSeam({ text }: { text: string }) {
+  return (
+    <View className="flex-row items-center gap-3 py-6">
+      <View className="h-px flex-1 bg-border" />
+      <Text className="text-xs font-medium text-muted-foreground">{text}</Text>
+      <View className="h-px flex-1 bg-border" />
+    </View>
+  );
+});
+
 const DaySeparator = React.memo(function DaySeparator({ text }: { text: string }) {
   return (
     <View className="items-center py-4">
@@ -521,7 +563,7 @@ const MessageRow = React.memo(function MessageRow({
 
 const imageThumbStyle = { width: 120, height: 120 };
 
-export const ChatInterface = React.memo(function ChatInterface({ messages, scrollViewRef, isLoading, conversationLoading, onStartEdit, onCopyMessage, bottomPadding = 160, isVoiceActive = false, voiceAgentState, onScroll, onContentSizeChange, agentActivity, agentSessionId, onApprovePlan, onRejectPlan, suggestedNewConversation, onAcceptNewConversation, onDismissNewConversation }: ChatInterfaceProps) {
+export const ChatInterface = React.memo(function ChatInterface({ messages, scrollViewRef, isLoading, conversationLoading, onStartEdit, onCopyMessage, bottomPadding = 160, isVoiceActive = false, voiceAgentState, onScroll, onContentSizeChange, agentActivity, agentSessionId, onApprovePlan, onRejectPlan, suggestedNewConversation, onAcceptNewConversation, onDismissNewConversation, historyMessages, isLoadingHistory = false, onHistoryHeight, activeConversationId }: ChatInterfaceProps) {
     const { t, locale } = useTranslation();
     const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
     const [votedMessages, setVotedMessages] = useState<Record<string, 'up' | 'down'>>({});
@@ -542,7 +584,30 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
     // ── Flying AliaMark ──
     const markY = useSharedValue(0);
 
-    const filteredMessages = useMemo(() => messages.filter(m => m != null && m.role), [messages]);
+    const liveMessages = useMemo(() => messages.filter(m => m != null && m.role), [messages]);
+    const history = historyMessages ?? NO_HISTORY;
+    /**
+     * Everything on screen, in reading order: the thread's history first, the
+     * conversation being streamed into after it.
+     *
+     * Every position below — the separators, the flying mark, which row is
+     * last — is an index into THIS, not into the live messages, which is why it
+     * is built once here rather than concatenated at each use.
+     */
+    const filteredMessages = useMemo(
+      () => (history.length === 0 ? liveMessages : [...history, ...liveMessages]),
+      [history, liveMessages],
+    );
+
+    /**
+     * Which messages begin a new conversation, deduced from the data rather
+     * than from how long the gap was. Empty on `/c/:id`, which is one
+     * conversation and therefore has no seams.
+     */
+    const seamIds = useMemo(
+      () => threadSeamIds(history, liveMessages, activeConversationId ?? ''),
+      [history, liveMessages, activeConversationId],
+    );
 
     /**
      * Where the thread changes day, as the finished line, keyed by the message
@@ -646,13 +711,75 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
 
     const containerClassName = cn(
       "max-w-3xl mx-auto w-full",
-      messages.length === 0 && "flex-1 justify-center"
+      filteredMessages.length === 0 && "flex-1 justify-center"
     );
 
     const scrollContentStyle = useMemo(
       () => ({ flexGrow: 1, paddingTop: 60, paddingBottom: bottomPadding }),
       [bottomPadding]
     );
+
+    /**
+     * How tall the history is, reported whenever it changes.
+     *
+     * The height rather than a position: what the anchor needs is how much
+     * content was inserted above the reader, and only the history grows that
+     * way — a streamed answer grows the bottom.
+     */
+    const handleHistoryLayout = useCallback((e: LayoutChangeEvent) => {
+      onHistoryHeight?.(e.nativeEvent.layout.height);
+    }, [onHistoryHeight]);
+
+    /**
+     * One message, wherever it sits in the whole of what is shown.
+     *
+     * `index` is a position in `filteredMessages` — history and live together —
+     * because that is what the flying mark, the day separators and "is this the
+     * last one" are all measured in. The two lists are rendered separately only
+     * so the history can be measured as a block.
+     */
+    const renderMessage = (m: Message, index: number) => {
+      const separator = separatorsByMessage.get(m.id);
+
+      return (
+        <React.Fragment key={m.id || `msg-${index}`}>
+          {separator === undefined ? null : (
+            <DaySeparator text={separator} />
+          )}
+          {!seamIds.has(m.id) ? null : (
+            <ConversationSeam text={t('chat.newStretch')} />
+          )}
+          <MessageRow
+            m={m}
+            index={index}
+            // Only a message that arrived since the last render animates in,
+            // and none of the history ever did: it is older than everything on
+            // screen by definition, and the offset is what keeps a page landing
+            // above from animating the whole conversation.
+            isNewMessage={index >= history.length + prevMessageCountRef.current}
+            isAliaMessage={isAliaOwnedMessage(m)}
+            isLastAlia={index === lastAliaIndex}
+            isLoading={isLoading}
+            isLastMessage={index === filteredMessages.length - 1}
+            isCopied={copiedMessageId === m.id}
+            myVote={votedMessages[m.id] ?? null}
+            ttsState={ttsActiveMessageId === m.id ? ttsPlaybackState : 'idle'}
+            chatId={chatId}
+            voiceAgentState={voiceAgentState}
+            handleMarkLayout={handleMarkLayout}
+            handleCopyMessage={handleCopyMessage}
+            handleVote={handleVote}
+            readAloud={readAloud}
+            generateAudio={generateAudio}
+            audioGenRowState={audioGenActiveMessageId === m.id ? audioGenState : 'idle'}
+            openThoughtPanel={openThoughtPanel}
+            onStartEdit={onStartEdit}
+            onApprovePlan={onApprovePlan}
+            onRejectPlan={onRejectPlan}
+          />
+        </React.Fragment>
+      );
+    };
 
     return (
       <KeyboardAwareScrollView
@@ -668,7 +795,7 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
         onContentSizeChange={onContentSizeChange}
       >
         <View className={containerClassName}>
-          {!messages.length && (
+          {!filteredMessages.length && (
             conversationLoading ? (
               <View className="gap-5 py-4">
                 <View className="items-end">
@@ -700,43 +827,28 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
               </Animated.View>
             )}
 
-            {filteredMessages.map((m, index) => {
-              const isAliaMessage = isAliaOwnedMessage(m);
-              const isNewMessage = index >= prevMessageCountRef.current;
-              const separator = separatorsByMessage.get(m.id);
-
-              return (
-                <React.Fragment key={m.id || `msg-${index}`}>
-                {separator === undefined ? null : (
-                  <DaySeparator text={separator} />
+            {/* The history, MEASURED as one block. Its height is what the scroll
+                anchor is restored against, and a block is what react-native-web
+                will report a change for — a marker between the two lists never
+                changes size, so its move goes unobserved and the reader is left
+                looking at the wrong message. */}
+            {history.length === 0 && !isLoadingHistory ? null : (
+              <View onLayout={handleHistoryLayout}>
+                {/* Inside the measured block on purpose: it appears when a page
+                    is asked for and vanishes when it lands, and both of those
+                    are height changes the anchor has to account for. Left
+                    outside, its arrival and departure would displace the reader
+                    by its own height, twice, with nothing to correct it. */}
+                {!isLoadingHistory ? null : (
+                  <View className="items-center py-4">
+                    <Text className="text-xs text-muted-foreground">{t('chat.loadingHistory')}</Text>
+                  </View>
                 )}
-                <MessageRow
-                  m={m}
-                  index={index}
-                  isNewMessage={isNewMessage}
-                  isAliaMessage={isAliaMessage}
-                  isLastAlia={index === lastAliaIndex}
-                  isLoading={isLoading}
-                  isLastMessage={index === filteredMessages.length - 1}
-                  isCopied={copiedMessageId === m.id}
-                  myVote={votedMessages[m.id] ?? null}
-                  ttsState={ttsActiveMessageId === m.id ? ttsPlaybackState : 'idle'}
-                  chatId={chatId}
-                  voiceAgentState={voiceAgentState}
-                  handleMarkLayout={handleMarkLayout}
-                  handleCopyMessage={handleCopyMessage}
-                  handleVote={handleVote}
-                  readAloud={readAloud}
-                  generateAudio={generateAudio}
-                  audioGenRowState={audioGenActiveMessageId === m.id ? audioGenState : 'idle'}
-                  openThoughtPanel={openThoughtPanel}
-                  onStartEdit={onStartEdit}
-                  onApprovePlan={onApprovePlan}
-                  onRejectPlan={onRejectPlan}
-                />
-                </React.Fragment>
-              );
-            })}
+                {history.map((m, index) => renderMessage(m, index))}
+              </View>
+            )}
+
+            {liveMessages.map((m, index) => renderMessage(m, history.length + index))}
           </View>
 
           {/* Agent execution — in-progress card or completed result card */}
