@@ -3,7 +3,7 @@ import { View, ScrollView, Pressable, Share, TextInput, ActivityIndicator } from
 import { useIsLargeScreen } from "@/lib/hooks/use-is-large-screen";
 import { Switch } from "@/components/ui/switch";
 import { Text } from "@/components/ui/text";
-import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { AgentGlyph } from "@/components/ui/agent-glyph";
 import * as DropdownMenu from "@/components/ui/dropdown-menu";
 import {
   ArrowLeft,
@@ -33,7 +33,7 @@ import { useCreateConversation } from "@/lib/hooks/use-conversations";
 import { useAgentFavoritesStore } from "@/lib/stores/agent-favorites-store";
 import { CAPABILITY_FAMILIES } from "@/lib/constants/capability-families";
 import { errorMessage as getErrorMessage, errorStatus, errorResponseData } from "@/lib/errors/error-utils";
-import { agentDisplayName, agentHandle, agentInitial } from "@/lib/agents/identity";
+import { agentDisplayName, agentHandle } from "@/lib/agents/identity";
 import { ContentPanel } from "@oxyhq/bloom/content-panel";
 
 const STATUS_COLORS: Record<string, string> = {
@@ -532,19 +532,9 @@ export default function AgentDetailScreen() {
         {/* Left panel (or full-width on mobile): agent details */}
         <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
           <View className={cn("px-5 pb-6 pt-4", isLargeScreen && "px-6 max-w-2xl")}>
-            {/* Avatar */}
+            {/* The agent's mark, in its own color */}
             <View className="relative self-start">
-              <Avatar className="h-20 w-20">
-                {agent.avatar ? (
-                  <AvatarImage source={{ uri: agent.avatar }} />
-                ) : (
-                  <AvatarFallback>
-                    <Text className="text-2xl font-bold text-foreground">
-                      {agentInitial(agent)}
-                    </Text>
-                  </AvatarFallback>
-                )}
-              </Avatar>
+              <AgentGlyph size={80} color={agent.color} label={agentDisplayName(agent)} />
               <View
                 className={cn(
                   "absolute bottom-1 right-1 w-4 h-4 rounded-full border-2 border-background",
