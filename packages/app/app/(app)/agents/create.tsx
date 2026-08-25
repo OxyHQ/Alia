@@ -3,7 +3,7 @@ import { View, ActivityIndicator, Pressable, ScrollView } from "react-native";
 import { Text } from "@/components/ui/text";
 import { PromptInput } from "@/components/ui/prompt-input/prompt-input";
 import { useRouter } from "expo-router";
-import { useAgentsStore } from "@/lib/stores/agents-store";
+import { useCreateAgent } from "@/lib/hooks/use-agents";
 import { useOxy } from "@oxyhq/services";
 import { SELECTABLE_ACCOUNT_CATEGORY_IDS, type AccountCategoryId } from "@oxyhq/core";
 import { createBotAccount } from "@/lib/agents/bot-account";
@@ -60,7 +60,7 @@ const ARCHETYPE_OPTIONS: ArchetypeOption[] = [
 export default function CreateAgentScreen() {
   const router = useRouter();
   const { t } = useTranslation();
-  const createAgent = useAgentsStore((state) => state.createAgent);
+  const createAgent = useCreateAgent();
   const { createAccount, oxyServices } = useOxy();
 
   const [inputValue, setInputValue] = useState("");
@@ -129,7 +129,7 @@ export default function CreateAgentScreen() {
       });
 
       // Step 3: create the RUNTIME, bound to that account.
-      const agent = await createAgent({
+      const agent = await createAgent.mutateAsync({
         oxyAccountId: account.accountId,
         tagline: config.tagline,
         description: config.description,
@@ -141,25 +141,24 @@ export default function CreateAgentScreen() {
         archetype: config.archetype || selectedArchetype,
       });
 
-      if (agent) {
-        /**
-         * Say which handle it got, and only when it is not the one proposed.
-         *
-         * Informative, never blocking: the account exists either way, and the
-         * screen this navigates to is the agent editor, which has a handle
-         * field. So the person reads what they were given and is already
-         * standing where they can change it.
-         */
-        const granted = account.account.username;
-        if (granted !== undefined && granted !== config.suggestedUsername) {
-          toast.info(t("agents.handleAdjusted", { handle: granted }));
-        } else {
-          toast.success(t("agents.agentUpdated"));
-        }
-        router.replace({ pathname: "/(app)/agents/edit/[id]", params: { id: agent._id } });
+      /**
+       * Say which handle it got, and only when it is not the one proposed.
+       *
+       * Informative, never blocking: the account exists either way, and the
+       * screen this navigates to is the agent editor, which has a handle
+       * field. So the person reads what they were given and is already
+       * standing where they can change it.
+       */
+      const granted = account.account.username;
+      if (granted !== undefined && granted !== config.suggestedUsername) {
+        toast.info(t("agents.handleAdjusted", { handle: granted }));
       } else {
-        toast.error("Failed to create agent");
+        toast.success(t("agents.agentUpdated"));
       }
+      router.replace({ pathname: "/(app)/agents/edit/[id]", params: { id: agent._id } });
+      // No `else` for a null agent any more: the mutation THROWS a refusal
+      // rather than returning null, so a failed create lands in the catch below
+      // with the server's own message instead of a swallowed "Failed to create".
     } catch (error: unknown) {
       const message =
         getErrorMessage(error, "Failed to generate agent");
@@ -167,7 +166,7 @@ export default function CreateAgentScreen() {
     } finally {
       setGenerating(false);
     }
-  }, [inputValue, generating, createAgent, router, t, selectedArchetype]);
+  }, [inputValue, generating, createAgent.mutateAsync, router, t, selectedArchetype]);
 
   if (generating) {
     return (
