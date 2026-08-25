@@ -303,6 +303,17 @@ jobs:
       - name: Test app
         run: bun run --filter @alia/app test
 
+      # The agent thread lives at `app/(app)/[username].tsx`, a dynamic segment
+      # at the top of the group — which is what makes `/@pepe` possible and what
+      # makes it match every single-segment path no static route claims. Forty
+      # routes sit at that level. This resolves each of them through Expo
+      # Router's own matcher and fails if the profile has taken one, and it is
+      # not a test file because a `__tests__` file under `app/` is itself a
+      # ROUTE: `expo-router/_ctx.web.js` excludes exactly `+api`, `+middleware`,
+      # `+html` and `+native-intent`, and nothing else.
+      - name: Verify no route is swallowed by the agent profile
+        run: node scripts/check-single-segment-routes.mjs
+
       # `alia-canvas` and the Codea `webview-ui` are solution-style projects
       # (`"files": []`, references only), so `tsc --noEmit` in them compiles
       # NOTHING and exits 0 — which is why `typecheck-workspaces.ts` lists both
