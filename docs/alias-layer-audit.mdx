@@ -36,10 +36,11 @@ guessing.
 | production `pg_constraint` | the live text of both tier CHECKs | 2026-08-25 02:41Z |
 | `bunx vitest run` over the eight alias suites | 189 tests, all passing | 2026-08-25 02:28Z |
 
-**Source citations are as of `8aa0f4f3`.** The branch carrying this page was later rebased
-across #339 among others, so a line number here may have moved; the measurements against
-production, ECS and Kaana are unaffected because none of them reads this repository. Where
-#339 changed something this page describes, the page says so.
+**Source citations are as of `8aa0f4f3`.** The branch carrying this page now sits on
+`9d2c8908`, having been rebased across #339, #340, #341, #343, #344 and #345, so a line
+number here may have moved; the measurements against production, ECS and Kaana are
+unaffected because none of them reads this repository. Where any of those changed something
+this page describes, the Status section above says so.
 
 **Every count of tiers, mappings or pairs on this page is a MEASUREMENT ON A DATE, not an
 invariant.** The routing table gains tiers — that is the normal way it changes, and a
@@ -68,6 +69,53 @@ still arrives as a legacy alias**, and the alias is what carries the credit mult
 plan entitlement, the system prompt and the display name that the new vocabulary is
 rendered from. Kaana replaces the *transport* and will eventually replace the *routing*,
 but it explicitly refuses to price anything and today refuses a routing profile outright.
+
+## Status: what the tier work fixed, and what it did not touch
+
+Three branches passed over this tuple in one night — #339, #345 and the one carrying this
+page — so it is worth being exact about how little of the alias layer that changed. **The
+tier work fixed a bookkeeping fault in the routing vocabulary. It removed nothing from the
+alias layer, and nothing in the rest of this page is out of date because of it.**
+
+### Fixed and merged
+
+- **The tuple and the routing table agree.** `ALIA_TIERS.length` is 15 and
+  `GENERATED_TIER_MAPPINGS` has 15 keys — the same 15. One declaration remains, in
+  `alia-tiers.ts`, and it renders both database CHECKs.
+- **Both CHECKs admit every tier**, via `0037_image_tier_is_a_real_tier` (#339) and
+  `0038_sound_effects_get_a_tier` (#345). The seeder no longer has rows refused.
+- **The four dead or duplicate declarations are gone**: the literal union in
+  `alia-models.ts`, the `AliaTier` re-export in `model-resolver.ts`, `= string` in
+  `gateway-client.ts`, and the orphan union in `packages/shared-types` (package deleted).
+- **A capability tier can be added without an alias.** `v1-sfx` is the third — with
+  `v1-tts` and `v1-image` — and is reached by `synthesize-sound-effect.ts` calling
+  `getModelMappingsForTier`, exactly as the other two are reached.
+
+### Untouched, and still exactly as this page describes it
+
+- **The thirteen `alia-*` identifiers.** `ALIA_MODELS` still holds thirteen entries. Not one
+  was removed, renamed or repriced.
+- **Routing is still gated on them.** `fallback-engine.ts:252` still refuses anything that
+  is not an `alia-*` id, throwing `UnregisteredModelError(aliasModelId,
+  Object.keys(ALIA_MODELS))` at `:254`. An identifier outside that set cannot be routed at
+  all.
+- **Billing still reads a multiplier off them.** `credits-manager.ts:113` is still
+  `model?.creditMultiplier || 1`, and the thirteen multipliers in §3 are unchanged, as are
+  the seven production plan rows keyed by alias id.
+- **`GET /v1/models` still returns `[]`** (`routes/v1/models.ts:84`), so the aliases remain
+  de-advertised and routable and billed, which is the state ADR 0003 describes.
+- **The credit boundary between Kaana and Oxy is unresolved**, and remains the product
+  owner's decision. Nothing in the tier work touched it, and nothing could have: it is a
+  question about who prices a metered unit, not about which tiers exist.
+
+### Still outstanding
+
+Everything in §5 beyond its first item. In particular `model_configs.alia_tier` still cannot
+be correct — the mapping table is many-to-many and the column holds one value — and nothing
+yet freezes a credit multiplier in a test, which remains the largest gap on this page.
+
+**Read the rest of this document as still current.** It measures the alias layer, and the
+alias layer has not moved.
 
 ## 1. What `ALIA_TIERS` is actually for
 
@@ -187,8 +235,11 @@ once per tier, so the column records whichever tier happened to be written last,
 is no value it could hold that would be correct** for a pair serving more than one.
 
 The scale of it on `8aa0f4f3`: of 66 distinct `(provider, modelId)` pairs across the then
-fourteen tiers, **29 served more than one**, `google/gemini-2.5-pro` serving seven. Adding a
-tier moves both numbers and does not touch the argument.
+fourteen tiers, **29 served more than one**, `google/gemini-2.5-pro` serving seven.
+Re-derived on `9d2c8908`, after two tiers were admitted and one added: **69 pairs, 29 still
+serving more than one** — `v1-sfx`'s three routes are its own, so the multi-tier count did
+not move this time. It can only rise as tiers are added, and either way the argument does
+not depend on it.
 
 The visible symptom in production is `v1-voice`: it has **zero** `model_configs` rows, not
 because of a CHECK but because its two pairs (`xai/grok-realtime`,
