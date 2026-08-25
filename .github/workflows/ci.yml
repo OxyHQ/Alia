@@ -157,6 +157,14 @@ jobs:
       - name: Verify workflow concurrency
         run: node .github/scripts/check-workflow-concurrency.mjs
 
+      # Same job, same reason. The Canvas Worker deploy is a post-merge job that
+      # a paths-filter skips on most pushes, so "is Deploy Frontends green"
+      # answers the same whether or not it works — it failed five consecutive
+      # real runs unnoticed. This asserts the wiring; the step below in
+      # `Frontend Typecheck` exercises the behaviour.
+      - name: Verify the Canvas deploy is wired to a declared wrangler
+        run: node .github/scripts/check-canvas-deploy-wiring.mjs
+
   lint-and-test:
     name: Lint & Test
     runs-on: ubuntu-latest
@@ -305,6 +313,25 @@ jobs:
         run: |
           bunx tsc -b packages/alia-canvas
           bunx tsc -b packages/alia-codea/webview-ui
+
+      # The Canvas Worker deploy, minus the publish — the same wrangler, the
+      # same wrangler.toml and the same build output that `deploy-frontends.yml`
+      # ships, run on every pull request instead of only after merge. That
+      # timing is the point: the deploy job is behind a paths-filter, so it is
+      # SKIPPED on most pushes, and a workflow whose only failing job is skipped
+      # reports success.
+      #
+      # `--dry-run` needs no credentials — it stops before authenticating — and
+      # it is not a no-op: it fails if the assets directory is missing and if
+      # wrangler does not recognise a key in the config, both verified against
+      # wrangler 4.125.0. The build is ~3s.
+      - name: Dry-run the Canvas Worker deploy
+        run: |
+          bun run build:canvas
+          bun run --cwd packages/alia-canvas deploy:dry
+        env:
+          NODE_ENV: production
+          VITE_API_URL: https://api.alia.onl
 
       # Every client reads GET /catalogue instead of baking an `alia-*`
       # identifier into a shipped artefact. It spans nine source trees, and

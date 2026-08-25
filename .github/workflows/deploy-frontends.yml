@@ -122,10 +122,41 @@ jobs:
       # name that reaches it. Everything else — the assets directory, the SPA
       # fallback, the custom domain — is declared in that file rather than passed
       # here, so a deploy cannot disagree with the config.
+      #
+      # DEPLOYED WITH THE REPOSITORY'S OWN WRANGLER, run by bun. This was
+      # `cloudflare/wrangler-action@v3`, and it failed on every run from the
+      # commit that introduced it onwards — five real runs, five failures. The
+      # action installs its own wrangler first, choosing the package manager by
+      # looking for a lockfile in its `workingDirectory`; `packages/alia-canvas`
+      # has none, because the lockfile is at the repository root, so it fell
+      # back to npm. npm resolves the whole package, and cannot: Canvas takes
+      # `react-native-gesture-handler` for `react-native-web` and never depends
+      # on `react-native`, so that library's `peer react-native@"*"` is
+      # unsatisfiable and the install exits ERESOLVE.
+      #
+      # `deploy-app` above is the control: same action, no `workingDirectory`,
+      # so it finds the root `bun.lock`, picks bun, and works. It also shows
+      # what the action does when it works — `bun i wrangler@3.90.0`, which
+      # prints "Saved lockfile". The tool that deploys should be declared and
+      # pinned by us, not installed into the working tree mid-deploy.
+      #
+      # `--legacy-peer-deps` would also have made the npm install succeed, and
+      # is exactly the wrong fix: it ships a dependency resolution nobody has
+      # validated. The anomaly is npm being in the path at all.
+      #
+      # wrangler takes its credentials from the environment (Wrangler's system
+      # environment variables), which is why they are `env:` rather than
+      # arguments. The emptiness check is not paranoia: an organisation secret
+      # scoped to public repositories reaches a private one as an EMPTY STRING
+      # with no error of its own, and `bind-pages-domain.yml` carries the same
+      # guard for the same reason.
       - name: Deploy the Worker
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          workingDirectory: packages/alia-canvas
-          command: deploy
+        working-directory: packages/alia-canvas
+        run: |
+          set -euo pipefail
+          [ -n "${CLOUDFLARE_API_TOKEN:-}" ] || { echo "::error::CLOUDFLARE_API_TOKEN is empty"; exit 1; }
+          [ -n "${CLOUDFLARE_ACCOUNT_ID:-}" ] || { echo "::error::CLOUDFLARE_ACCOUNT_ID is empty"; exit 1; }
+          bun run deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
