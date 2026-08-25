@@ -589,6 +589,7 @@
     "statusOffline": "Offline",
     "share": "Share",
     "shareComingSoon": "Share agent coming soon!",
+    "chatUnavailable": "This agent can't be opened yet",
     "hireComingSoon": "Hire agent coming soon!",
     "activity": "Activity",
     "taskPlaceholder": "Describe the task for this agent...",
