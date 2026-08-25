@@ -39,7 +39,7 @@ vi.mock('../../lib/logger.js', () => {
 });
 
 import { closePostgres, connectPostgres, type ApiDatabase } from '../../db/index.js';
-import { conversations, messages } from '../../db/schema/chat.js';
+import { conversationBreaks, conversations, messages } from '../../db/schema/chat.js';
 import conversationsRouter from '../conversations.js';
 
 let db: ApiDatabase;
@@ -151,6 +151,9 @@ async function storedConversations() {
 
 beforeEach(async () => {
   await db.delete(messages).where(sql`${messages.oxyUserId} in (${ALICE.id}, ${BOB.id})`);
+  await db
+    .delete(conversationBreaks)
+    .where(sql`${conversationBreaks.oxyUserId} in (${ALICE.id}, ${BOB.id})`);
   await db.delete(conversations).where(sql`${conversations.oxyUserId} in (${ALICE.id}, ${BOB.id})`);
   vi.clearAllMocks();
 });
@@ -381,7 +384,7 @@ describe('POST / takes a whitelist, never the body (#139 ws6)', () => {
     /**
      * `agent_info` is four columns, and `toStoredMessage` reassembles the
      * sub-document from `agent_info_id` alone. A row carrying an id and nothing
-     * else comes back as `{ id, name: '', avatar: null, handle: '' }` — an agent
+     * else comes back as `{ id, name: '', color: null, handle: '' }` — an agent
      * attribution with no agent, rendered as a blank name beside a message.
      */
     await call('post', '/', {
@@ -462,6 +465,88 @@ describe('POST / takes a whitelist, never the body (#139 ws6)', () => {
 /* -------------------------------------------------------------------------- */
 /*  Ownership                                                                  */
 /* -------------------------------------------------------------------------- */
+
+describe('a permanent thread is cut into conversations by breaks', () => {
+  async function aThread(id: string) {
+    await call('post', '/', {
+      user: ALICE,
+      body: { conversationId: id, title: 'a thread', messages: [{ role: 'user', content: 'hi' }] },
+    });
+  }
+
+  it('marks a break and serves it beside the messages, not among them', async () => {
+    await aThread('conv-break');
+
+    const marked = await call('post', '/:id/break', { user: ALICE, params: { id: 'conv-break' } });
+    expect(marked.status).toBe(201);
+
+    const read = await call('get', '/:id', { user: ALICE, params: { id: 'conv-break' } });
+    const body = read.body as { breaks: string[]; messages: { role: string }[] };
+
+    expect(body.breaks).toHaveLength(1);
+    expect(body.breaks[0]).toBe((marked.body as { createdAt: string }).createdAt);
+    // The break is NOT a message. A `separator` role would have to be filtered
+    // out of every history fed to a model, and the path that forgets sends an
+    // unknown role upstream — `db/schema/chat.ts` argues it.
+    expect(body.messages.map((m) => m.role)).toEqual(['user']);
+  });
+
+  it('takes many breaks in one thread, in order', async () => {
+    await aThread('conv-many-breaks');
+    await call('post', '/:id/break', { user: ALICE, params: { id: 'conv-many-breaks' } });
+    await call('post', '/:id/break', { user: ALICE, params: { id: 'conv-many-breaks' } });
+
+    const read = await call('get', '/:id', { user: ALICE, params: { id: 'conv-many-breaks' } });
+    const { breaks } = read.body as { breaks: string[] };
+
+    expect(breaks).toHaveLength(2);
+    expect([...breaks].sort()).toEqual(breaks);
+  });
+
+  it('404s a break in somebody else’s thread, and writes nothing', async () => {
+    await aThread('conv-not-yours');
+
+    const res = await call('post', '/:id/break', { user: BOB, params: { id: 'conv-not-yours' } });
+
+    expect(res.status).toBe(404);
+    const rows = await db
+      .select()
+      .from(conversationBreaks)
+      .where(sql`${conversationBreaks.conversationId} = 'conv-not-yours'`);
+    expect(rows).toEqual([]);
+  });
+
+  it('404s a break in a thread that does not exist', async () => {
+    const res = await call('post', '/:id/break', { user: ALICE, params: { id: 'conv-nowhere' } });
+    expect(res.status).toBe(404);
+  });
+
+  it('takes the breaks with the thread when it is deleted', async () => {
+    // No foreign key, so no cascade — `DELETE /:id` removes them by hand or
+    // they outlive the thread forever. Same reason `messages` is in that list.
+    await aThread('conv-deleted');
+    await call('post', '/:id/break', { user: ALICE, params: { id: 'conv-deleted' } });
+
+    await call('delete', '/:id', { user: ALICE, params: { id: 'conv-deleted' } });
+
+    const rows = await db
+      .select()
+      .from(conversationBreaks)
+      .where(sql`${conversationBreaks.conversationId} = 'conv-deleted'`);
+    expect(rows).toEqual([]);
+  });
+
+  it('serves an empty list for a thread nobody has cut', async () => {
+    // The floor. Every assertion above is about breaks EXISTING, and all of
+    // them would pass against a route that always answered the marks it had
+    // just been given regardless of thread.
+    await aThread('conv-uncut');
+
+    const read = await call('get', '/:id', { user: ALICE, params: { id: 'conv-uncut' } });
+
+    expect((read.body as { breaks: string[] }).breaks).toEqual([]);
+  });
+});
 
 describe('every stage of the lifecycle is scoped to the owner (#139 ws6)', () => {
   /** Alice's conversation with one message, built through the real routes. */
@@ -567,6 +652,7 @@ describe('every stage of the lifecycle is scoped to the owner (#139 ws6)', () =>
         ['get', '/:id'],
         ['post', '/'],
         ['patch', '/:id/messages/:messageId/vote'],
+        ['post', '/:id/break'],
         ['delete', '/:id'],
       ].sort(),
     );
