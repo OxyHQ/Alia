@@ -18,7 +18,7 @@ export const WelcomeMessage = () => {
 
   return (
     <View className="flex-col md:flex-row items-center justify-center gap-3">
-      <IdentityMark size={38} color={colors.primary} />
+      <IdentityMark size={38} color={colors.primary} spinOnPress />
       <Text className="text-4xl tracking-tight text-foreground text-center md:text-left">
         {greeting}
       </Text>

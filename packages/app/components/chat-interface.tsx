@@ -913,7 +913,7 @@ export const ChatInterface = React.memo(function ChatInterface({ messages, scrol
             {/* Single flying IdentityMark */}
             {lastAliaIndex >= 0 && (
               <Animated.View style={markAnimatedStyle}>
-                <IdentityMark size={28} color={colors.primary} state={markState} />
+                <IdentityMark size={28} color={colors.primary} state={markState} spinOnPress />
               </Animated.View>
             )}
 

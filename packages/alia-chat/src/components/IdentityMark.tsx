@@ -30,12 +30,24 @@ export interface IdentityMarkProps {
    */
   color?: string;
   /**
-   * Called after the press flourish, and the ONLY thing that makes the mark a
-   * button. Left off, the mark is drawn inert: no press target, so it can sit
-   * inside a row that is itself pressable — a sidebar entry, a card — without
-   * swallowing the tap meant for the row.
+   * Called after the press flourish, for a mark that is a control — the sidebar
+   * logo, which goes home.
    */
   onPress?: () => void;
+  /**
+   * Take the tap for the flourish alone: spin, haptic, nothing else.
+   *
+   * For a mark that IS Alia standing on its own — the welcome greeting, a chat
+   * header — where the spin has always been the whole of what a tap does. There
+   * is no callback to give it, and `onPress={() => {}}` would be a lie about
+   * that, so this is how such a mark asks to be pressable.
+   *
+   * Sibling of `spinOnMount`, and off by default like it. Off is what lets the
+   * mark sit inside a row that is itself pressable — a sidebar agent entry, a
+   * card — without swallowing the tap meant for the row, which is the whole
+   * reason the press target is opt-in.
+   */
+  spinOnPress?: boolean;
   /**
    * Accessible name. A mark standing in for whoever is speaking is not
    * decoration, so it says who; Alia's own, drawn beside her name, is.
@@ -77,6 +89,7 @@ export function IdentityMark({
   className,
   color,
   onPress,
+  spinOnPress = false,
   accessibilityLabel,
   spinOnMount = false,
 }: IdentityMarkProps) {
@@ -157,9 +170,11 @@ export function IdentityMark({
   );
 
   // A `Pressable` captures the touch whether or not the caller wanted one, so
-  // the inert mark is a plain view. Wrapping it in a pressable that only spins
-  // is what would stop a sidebar row from opening when you tap the face on it.
-  if (onPress === undefined) {
+  // the inert mark is a plain view — a mark drawn as somebody's face inside a
+  // row that is itself pressable must not stop that row from opening. Asking for
+  // the touch is therefore explicit, and either prop asks: a callback to run, or
+  // the flourish for its own sake.
+  if (onPress === undefined && !spinOnPress) {
     return (
       <View
         accessibilityRole="image"
@@ -175,7 +190,10 @@ export function IdentityMark({
   return (
     <Pressable
       onPress={handlePress}
-      accessibilityRole="button"
+      // Pressable, but a button only when the press DOES something beyond the
+      // flourish. A screen reader announcing the welcome greeting's mark as a
+      // button would promise an action it does not have.
+      accessibilityRole={onPress === undefined ? 'image' : 'button'}
       accessibilityLabel={accessibilityLabel}
       className={className}
       style={box}

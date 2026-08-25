@@ -237,7 +237,7 @@ export function WelcomeIntro({
       <View className="w-full max-w-[640px] items-center gap-3">
         <Animated.View className="max-w-[560px] items-center gap-4">
           <Animated.View style={markStyle}>
-            <IdentityMark size={40} />
+            <IdentityMark size={40} spinOnPress />
           </Animated.View>
           <Animated.View
             className="flex-row items-center justify-center"

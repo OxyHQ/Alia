@@ -28,7 +28,7 @@ export function AliaWelcomeMessage({
         {/* Mark + Title */}
         <View className="items-start mb-8">
           <View className="mb-4">
-            <IdentityMark size={markSize} />
+            <IdentityMark size={markSize} spinOnPress />
           </View>
           <View className="space-y-2">
             <Text className="text-3xl font-bold tracking-tight text-foreground">
