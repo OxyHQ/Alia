@@ -158,11 +158,20 @@ const EXEMPT: Readonly<Record<string, string>> = {
     'Same producer as `RPM_LIMITS` above, measured by the same assertion.',
   'packages/api/src/middleware/api-key-rate-limit.ts TIER_RATE_LIMITS[tier]':
     'Key is produced by `getUserTier` in this same file, whose returns are all literals — the assertion below reads it.',
-  'packages/api/src/lib/tools/registry.ts PLAN_HIERARCHY[userPlan]':
-    'Fails CLOSED: the inherited value is a function, `function >= number` is false, so the tool is denied rather than granted.',
 };
 
-const EXEMPT_COUNT = 8;
+/**
+ * 8 -> 7. `lib/tools/registry.ts` is DELETED, and its
+ * `PLAN_HIERARCHY[userPlan]` read with it.
+ *
+ * It was a sixth way to assemble a tool set — `getToolsForContext`, filtering
+ * registrations by plan and capability — with no caller anywhere in the service,
+ * so nothing ever read a registration. It went with the five assemblers becoming
+ * one rather than being wired into the survivor: its `requiredPlan` vocabulary
+ * is a never-exercised first draft of the capability grants being designed on
+ * top of that assembler.
+ */
+const EXEMPT_COUNT = 7;
 
 describe('no lookup table answers an untrusted key from Object.prototype', () => {
   const reads = tableReads();
@@ -285,9 +294,8 @@ describe('every fixed accessor refuses an inherited name', () => {
     expect(getProvider('not-a-provider')).toBeUndefined();
   });
 
-  it('a tool named after an inherited property neither throws nor is re-keyed', async () => {
+  it('a tool named after an inherited property does not throw when described', async () => {
     const { enhanceDescription } = await import('../lib/tools/descriptions/tool-specs.js');
-    const { applyToolPrefixes } = await import('../lib/agent/tool-router.js');
 
     for (const name of INHERITED) {
       // `enhanceDescription` read `spec.whenToUse.length` off a function and
@@ -295,18 +303,11 @@ describe('every fixed accessor refuses an inherited name', () => {
       // manifest, so it is third-party input.
       expect(() => enhanceDescription(name, 'base'), name).not.toThrow();
       expect(enhanceDescription(name, 'base'), name).toBe('base');
-
-      // `applyToolPrefixes` renamed the tool to the stringification of a
-      // function, losing it under a key no caller can name.
-      const renamed = applyToolPrefixes({ [name]: 'tool' });
-      expect(Object.keys(renamed), name).toEqual([name]);
-      expect(renamed[name]).toBe('tool');
     }
 
-    // The control: a tool the rename map DOES cover still moves.
-    const { TOOL_RENAME_MAP } = await import('../lib/agent/tool-router.js');
-    const [oldName, newName] = Object.entries(TOOL_RENAME_MAP)[0];
-    expect(oldName).toBeDefined();
-    expect(Object.keys(applyToolPrefixes({ [oldName]: 'tool' }))).toEqual([newName]);
+    // The control: a name the specs DO cover is still enhanced, so the four
+    // assertions above are absences rather than a function that returns its
+    // argument for everything.
+    expect(enhanceDescription('shell_exec', 'base')).not.toBe('base');
   });
 });

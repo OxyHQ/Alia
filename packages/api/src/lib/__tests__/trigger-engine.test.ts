@@ -21,6 +21,13 @@ vi.mock('../tools/index.js', () => ({
 }));
 vi.mock('../tools/integrations.js', () => ({ buildIntegrationTools: vi.fn() }));
 vi.mock('../tools/mcp.js', () => ({ buildMcpTools: vi.fn() }));
+// Tool assembly moved out of the trigger engine into the ONE assembler, and
+// the real one imports every tool module. This file's subject is the
+// reconcile loop, so the assembler is a stub — the same role
+// `../tools/index.js` above already plays for the individual tools.
+vi.mock('../tool-pipeline.js', () => ({
+  ToolPipeline: { forUser: vi.fn(async () => ({ tools: {}, toolNameMapping: new Map() })) },
+}));
 vi.mock('../notification-service.js', () => ({ sendNotification: vi.fn() }));
 vi.mock('../errors/index.js', () => ({ getErrorMessage: vi.fn((e: unknown) => String(e)) }));
 vi.mock('../agent/archetype-prompts.js', () => ({ buildArchetypeSystemPrompt: vi.fn() }));

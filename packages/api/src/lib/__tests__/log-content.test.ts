@@ -448,11 +448,6 @@ describe('no logger call carries message content (#139 ws15)', () => {
     expect(text('routes/suggestions.ts')).not.toContain('{ responseText }');
     expect(text('routes/suggestions.ts')).toContain('Failed to parse AI-generated suggestions');
 
-    expect(text('services/chat.service.ts')).not.toContain('userContext: userContextParts');
-    expect(text('services/chat.service.ts')).toContain('Personalization applied');
-
-    expect(text('lib/tools/agent-orchestrator.ts')).not.toContain('task: task.slice');
-    expect(text('lib/tools/agent-orchestrator.ts')).toContain('Multi-agent orchestration completed');
   });
 
   it('no debug-only payload preview survives', () => {

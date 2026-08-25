@@ -489,7 +489,6 @@ describe('model and routing configuration has no unaudited write path (#139 ws15
       'internal/providers/lib/provider-api.ts',
       'lib/agent/runner.ts',
       'lib/gateway-client.ts',
-      'services/chat.service.ts',
     ],
     // The four `recordKey*` mutations, invisible to the name-based census this
     // block used to run and so never caller-checked before. Same classification

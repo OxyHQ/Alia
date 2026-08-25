@@ -7,6 +7,12 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 vi.mock('@oxyhq/core/server', () => ({ verifySecret: vi.fn() }));
 vi.mock('ai', () => ({ generateText: vi.fn(), stepCountIs: vi.fn() }));
 vi.mock('../../lib/channels/registry.js', () => ({ getChannel: vi.fn() }));
+// The ONE assembler stands in for what `buildChatTools` used to: this file
+// is about per-bot routing and credit handling, not about which tools a bot
+// turn gets, and the real pipeline pulls in every tool module behind it.
+vi.mock('../../lib/tool-pipeline.js', () => ({
+  ToolPipeline: { forUser: vi.fn(async () => ({ tools: {}, toolNameMapping: new Map() })) },
+}));
 vi.mock('../../lib/chat-core.js', () => ({
   resolveModel: vi.fn(),
   getAIModel: vi.fn(),
@@ -14,7 +20,6 @@ vi.mock('../../lib/chat-core.js', () => ({
   getDefaultAliaModel: vi.fn(),
 }));
 vi.mock('../../lib/channels/outbound.js', () => ({ sendChannelMessage: vi.fn() }));
-vi.mock('../../services/chat.service.js', () => ({ buildChatTools: vi.fn() }));
 vi.mock('../../lib/prompt-loader.js', () => ({ loadPrompt: vi.fn() }));
 // `bots` and `bot_users` are Postgres now, so the stubs name the repository
 // rather than the deleted model modules. `vi.mock` specifiers are STRINGS —
@@ -30,6 +35,11 @@ vi.mock('../../db/integrations/botRepository.js', () => ({
   upsertBotUser: vi.fn(),
 }));
 vi.mock('../../db/agents/agentRepository.js', () => ({ findAgentById: vi.fn(async () => null) }));
+// Identity resolution reaches `middleware/auth` and the whole Oxy client
+// behind it; this file's subject is routing, so the seam is stubbed.
+vi.mock('../../lib/agent-identity.js', () => ({
+  attachAgentIdentity: vi.fn(async (agent: unknown) => agent),
+}));
 vi.mock('../../lib/user-credits-helpers.js', () => ({ getOrCreateUserCredits: vi.fn() }));
 vi.mock('../../lib/credits-manager.js', () => ({ reserveCredits: vi.fn(), finalizeCredits: vi.fn() }));
 vi.mock('../../lib/logger.js', () => ({

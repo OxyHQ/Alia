@@ -8,7 +8,7 @@
 
 import crypto from 'crypto';
 import cron, { type ScheduledTask } from 'node-cron';
-import { generateText, stepCountIs, type ToolSet } from 'ai';
+import { generateText, stepCountIs } from 'ai';
 import {
   claimTriggerForRun,
   completeTriggerExecution,
@@ -35,20 +35,12 @@ import {
   type HydratedAgent,
 } from './agent-identity.js';
 import { readArchetypeConfig } from '../domain/agent.js';
+import { buildIdentityGuard } from './identity-guard.js';
+import { userContextBlock } from './user-context.js';
+import { ToolPipeline } from './tool-pipeline.js';
 import { resolveModel, getAIModel, getDefaultAliaModel } from './chat-core.js';
 import {
-  getCurrentDateTool,
-  webSearchTool,
-  browseTool,
-  saveUserMemoryTool,
-  updateUserMemoryTool,
-  updateUserPreferencesTool,
-  updateUserContextTool,
-  createSendTelegramTool,
-  webScraperTool,
 } from './tools/index.js';
-import { buildIntegrationTools } from './tools/integrations.js';
-import { buildMcpTools } from './tools/mcp.js';
 import { getDb } from '../db/index.js';
 import { findUserMemory, type UserMemoryProfile } from '../db/memory/userMemoryRepository.js';
 import { oxyClient } from '../middleware/auth.js';
@@ -120,47 +112,6 @@ function scheduleToCron(schedule: TriggerSchedule): string | null {
   return null;
 }
 
-// ── Tool builder ───────────────────────────────────────────────────
-
-async function buildTriggerTools(userId: string, useTools: boolean): Promise<ToolSet> {
-  // Always include basic tools
-  const tools: ToolSet = {
-    getCurrentDate: getCurrentDateTool,
-  };
-
-  if (!useTools) return tools;
-
-  // Full tool set for triggers that opt in
-  Object.assign(tools, {
-    webSearch: webSearchTool,
-    browse: browseTool,
-    webScraper: webScraperTool,
-    saveUserMemory: saveUserMemoryTool(userId),
-    updateUserMemory: updateUserMemoryTool(userId),
-    updateUserPreferences: updateUserPreferencesTool(userId),
-    updateUserContext: updateUserContextTool(userId),
-    sendTelegramMessage: createSendTelegramTool(userId),
-  });
-
-  // Add integration tools (GitHub, Notion, etc.)
-  try {
-    const integrationTools = await buildIntegrationTools(userId);
-    Object.assign(tools, integrationTools);
-  } catch (error) {
-    log.triggers.error({ err: error, userId }, 'Failed to load integration tools for trigger');
-  }
-
-  // Add MCP tools
-  try {
-    const mcpTools = await buildMcpTools(userId);
-    Object.assign(tools, mcpTools);
-  } catch (error) {
-    log.triggers.error({ err: error, userId }, 'Failed to load MCP tools for trigger');
-  }
-
-  return tools;
-}
-
 // ── System prompt builder ──────────────────────────────────────────
 
 function buildTriggerSystemPrompt(
@@ -169,25 +120,7 @@ function buildTriggerSystemPrompt(
   memory?: UserMemoryProfile | null,
   source?: string
 ): string {
-  const userContext: string[] = [];
-
-  if (oxyUser) {
-    const fullName = oxyUser.name?.full || [oxyUser.name?.first, oxyUser.name?.middle, oxyUser.name?.last].filter(Boolean).join(' ');
-    if (fullName && fullName !== 'User') userContext.push(`The user's name is ${fullName}.`);
-    if (oxyUser.username) userContext.push(`Username: @${oxyUser.username}.`);
-    if (oxyUser.location) userContext.push(`Location: ${oxyUser.location}.`);
-  }
-
-  if (memory) {
-    if (memory.preferences?.language) userContext.push(`Preferred language: ${memory.preferences.language}.`);
-    if (memory.context?.occupation) userContext.push(`Occupation: ${memory.context.occupation}.`);
-    if (memory.memories?.length) {
-      const items = memory.memories.map(m => `- ${m.title}: ${m.summary}`).join('\n');
-      userContext.push(`\nThings to remember:\n${items}`);
-    }
-  }
-
-  let prompt = `You are Alia, an autonomous AI assistant processing a triggered task.
+  const prompt = `You are Alia, an autonomous AI assistant processing a triggered task.
 
 ## Trigger: "${trigger.name}"
 - Type: ${trigger.type}${source ? `\n- Source: ${source}` : ''}
@@ -199,11 +132,10 @@ function buildTriggerSystemPrompt(
 - Use available tools when they help accomplish the task.
 - Respond with a brief summary of what you did.`;
 
-  if (userContext.length > 0) {
-    prompt = `# USER CONTEXT\n\n${userContext.join('\n')}\n\n---\n\n${prompt}`;
-  }
-
-  return prompt;
+  // The user block is shared with `routes/internal.ts`, which had its own copy
+  // under the same name and a different signature. Only the task prompt above
+  // is this path's own.
+  return `${userContextBlock(oxyUser, memory)}${prompt}`;
 }
 
 // ── Core execution ─────────────────────────────────────────────────
@@ -271,7 +203,18 @@ export async function executeTrigger(
     }
 
     const model = getAIModel(resolved, 'trigger');
-    const tools = await buildTriggerTools(userId, trigger.action.useTools);
+    const { tools } = await ToolPipeline.forUser({
+      userId,
+      isDirectSession: false,
+      // A trigger runs for the person who wrote it.
+      actsForPerson: true,
+      agentMode: false,
+      // The trigger's author decides whether it may use tools at all.
+      toolsEnabled: trigger.action.useTools === true,
+      webSearch: true,
+      isLocalRuntime: false,
+      agent: linkedAgent,
+    });
 
     // Use archetype system prompt if the linked agent has one
     let systemPrompt: string;
@@ -281,6 +224,19 @@ export async function executeTrigger(
     } else {
       systemPrompt = buildTriggerSystemPrompt(trigger, oxyUser, memory, context.source);
     }
+
+    /**
+     * The identity guard, which this path did not have.
+     *
+     * `buildIdentityGuard`'s own docblock claimed "every system-prompt
+     * composition path" while covering three of five — and the two it missed
+     * were the two with the most autonomy, this one and the agent-bot webhook.
+     * A trigger runs unattended and can deliver its answer to Telegram, so it
+     * is the last place a route detail should be able to leak.
+     */
+    systemPrompt = `${buildIdentityGuard(
+      linkedAgent ? { agentName: agentPromptName(linkedAgent) } : {},
+    )}\n\n---\n\n${systemPrompt}`;
 
     // Build user message
     let userMessage = trigger.action.prompt;

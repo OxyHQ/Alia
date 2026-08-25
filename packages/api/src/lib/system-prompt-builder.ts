@@ -173,7 +173,7 @@ export class SystemPromptBuilder {
       }
 
       // Communication tools hint
-      systemMessage += '\n\nYou have `sendTelegram` and WhatsApp tools (`getWhatsAppChats`, `getWhatsAppMessages`, `sendWhatsAppMessage`). Use them when the user asks. For WhatsApp, call getWhatsAppChats first to get chat JIDs.';
+      systemMessage += '\n\nYou have `sendTelegramMessage` and WhatsApp tools (`getWhatsAppChats`, `getWhatsAppMessages`, `sendWhatsAppMessage`). Use them when the user asks. For WhatsApp, call getWhatsAppChats first to get chat JIDs.';
 
       // Oxy service context (non-blocking)
       if (userId && accessToken) {
@@ -239,7 +239,11 @@ export class SystemPromptBuilder {
     // 0. Identity guard — prepended LAST so it sits above the skill/agent
     // prompts and every other layer. Nothing downstream can override the
     // Alia identity boundary.
-    systemMessage = `${buildIdentityGuard(aliaModel?.name)}\n\n---\n\n${systemMessage}`;
+    // An agent's turn says the AGENT's name; an ordinary turn says the model's.
+    systemMessage = `${buildIdentityGuard({
+      ...(linkedAgent ? { agentName: agentPromptName(linkedAgent) } : {}),
+      modelName: aliaModel?.name,
+    })}\n\n---\n\n${systemMessage}`;
 
     return systemMessage;
   }

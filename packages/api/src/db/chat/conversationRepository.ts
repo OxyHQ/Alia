@@ -132,37 +132,6 @@ export async function findConversation(
   return row;
 }
 
-/**
- * The agent bound to a thread addressed by its PRIMARY KEY.
- *
- * ## This lookup cannot match, and that is faithful rather than an oversight
- *
- * The source is `Conversation.findById(conversationId)` at
- * `routes/v1/chat-completions.ts` and `lib/chat/request-context.ts`, where
- * `conversationId` is `req.body.conversationId` — the CLIENT-supplied business
- * key, minted as a `randomUUID()` by `POST /conversations/new`. `findById`
- * matches Mongo's `_id`, so it was handed a uuid where an ObjectId was required
- * and threw a CastError that both call sites catch and turn into `null`. The
- * agent-escalation branch behind it has therefore never run.
- *
- * The port keeps the lookup on the primary key, so it keeps answering nothing.
- * Repointing it at `(oxy_user_id, conversation_id)` is the FIX, and it is
- * deliberately not made here: it would switch on a branch that reserves credits,
- * creates an `AgentSession` and starts a container, which is a product change
- * that must land on its own and be tested as one. It is written down here rather
- * than left looking like a translation, because a reader who "corrects" this to
- * the business key gets that branch live with no other change in the diff.
- */
-export async function findConversationAgentById(
-  db: ApiDatabase,
-  id: string,
-): Promise<{ agentId: string | null } | undefined> {
-  const [row] = await db
-    .select({ agentId: conversations.agentId })
-    .from(conversations)
-    .where(eq(conversations.id, id));
-  return row;
-}
 
 /** Whether this user holds a thread with this id. */
 export async function conversationExists(
