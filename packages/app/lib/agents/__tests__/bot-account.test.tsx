@@ -210,6 +210,53 @@ describe('createBotAccount', () => {
     expect(retry.username.startsWith('helper-')).toBe(true);
   });
 
+  it('gives up with something a person can act on, once the attempts run out', async () => {
+    // Never executed in production until Oxy stopped suffixing, so its ending
+    // is exercised here rather than assumed: a rejection nobody can read is the
+    // easy way for an untried path to fail.
+    const createAccount = vi.fn<(data: CreateAccountInput) => Promise<AccountNode>>()
+      .mockRejectedValue(conflict());
+
+    await expect(
+      createBotAccount({ createAccount, username: 'helper', displayName: 'Helper' }),
+    ).rejects.toThrow(/taken/i);
+
+    // It really tried, rather than giving up on the first refusal — and it
+    // stopped, rather than hammering Oxy forever.
+    expect(createAccount.mock.calls.length).toBeGreaterThan(1);
+    expect(createAccount.mock.calls.length).toBeLessThan(10);
+    const attempted = createAccount.mock.calls.map(([data]) => data.username);
+    expect(new Set(attempted).size).toBe(attempted.length);
+  });
+
+  it('still retries when the pre-flight search already chose the name', async () => {
+    /**
+     * Where the two halves meet, and the first place a disagreement between
+     * them would show. The search picks a name it was told is free; Oxy refuses
+     * it anyway, because free-then-taken is exactly the window the pre-check
+     * cannot close. The retry has to carry on from there.
+     */
+    const createAccount = vi.fn<(data: CreateAccountInput) => Promise<AccountNode>>()
+      .mockRejectedValueOnce(conflict())
+      .mockResolvedValue(account);
+    const checkAvailability = vi.fn<(username: string) => Promise<boolean>>()
+      .mockImplementation((username) => Promise.resolve(username === 'helper2'));
+
+    await createBotAccount({
+      createAccount,
+      checkAvailability,
+      username: 'helper',
+      displayName: 'Helper',
+    });
+
+    const attempted = createAccount.mock.calls.map(([data]) => data.username);
+    // The search's answer first, then something else — never the same name
+    // twice, which would ask Oxy a question it has already refused.
+    expect(attempted[0]).toBe('helper2');
+    expect(attempted).toHaveLength(2);
+    expect(attempted[1]).not.toBe(attempted[0]);
+  });
+
   it('rethrows anything that is not a conflict instead of retrying it', async () => {
     const createAccount = vi.fn<(data: CreateAccountInput) => Promise<AccountNode>>()
       .mockRejectedValue({ status: 403 });
