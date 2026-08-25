@@ -298,7 +298,9 @@ export interface AliaModelWithAvailability extends AliaModel {
   isLegacy: boolean;
 }
 
-export type AliaTier = string;
+// No `AliaTier` here. It was `= string`, imported by nothing and constraining
+// nothing, while being the fourth declaration of a list whose whole problem was
+// having four. `internal/providers/lib/alia-tiers.ts` owns it.
 export type ModelCategory = string;
 export type PricingTier = string;
 

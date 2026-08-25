@@ -21,9 +21,32 @@
  * image tier has existed. `alia-models.ts` now imports this type instead of
  * restating it, which is the only shape in which the two cannot disagree.
  *
+ * There were a FOURTH and a FIFTH, both dead and both now deleted, because a
+ * copy that constrains nothing is the one most likely to be edited by somebody
+ * who believes they are editing this file: `lib/gateway-client.ts` declared
+ * `export type AliaTier = string`, imported by nothing, and
+ * `packages/shared-types` carried its own fourteen-value union in a workspace
+ * no package depended on. That second one had ALREADY diverged in another
+ * field — its `ModelCapabilities` was missing `audioTags`, which
+ * `synthesize-speech.ts` reads to decide whether a TTS model performs a
+ * bracketed cue or reads it aloud — so "promote it to canonical" was never
+ * available without first correcting it, and nothing would have said so.
+ *
  * Appending to this tuple CHANGES THE DATABASE: ship the `pre` migration
  * widening both CHECKs in the same commit, exactly as `PROVIDER_NAMES` requires
  * (`db/schema/providers.ts` says so at length).
+ *
+ * ## This is the ROUTING vocabulary, not the alias vocabulary
+ *
+ * Two of these tiers are named by no `alia-*` identifier. `v1-tts` and
+ * `v1-image` have routing tables and no `ALIA_MODELS` entry: they are reached
+ * by CAPABILITY — `lib/synthesize-speech.ts`, `lib/image-generation.ts`,
+ * `routes/agents-avatar.ts`, `routes/canvas/execute.ts` — never by naming a
+ * model, so neither needs an identifier a caller could send. The twelve tiers
+ * the thirteen aliases name are a SUBSET of these fourteen (`alia-v1-thinking`
+ * and `alia-v1-pro-max` share `v1-pro-max`). Do not "tidy" the two unnamed
+ * tiers out again on the grounds that no alias mentions them; that reasoning is
+ * what removed `v1-image` from this tuple in the first place.
  */
 
 export const ALIA_TIERS = [
