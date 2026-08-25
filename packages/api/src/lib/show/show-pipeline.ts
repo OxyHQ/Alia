@@ -387,7 +387,9 @@ export async function runShowPipeline(episodeId: string): Promise<void> {
  * listener cannot do without — had finished.
  *
  * A segment that fails is SKIPPED rather than fatal. One missing transition
- * whoosh is a slightly abrupt show; refusing to publish over it is no show.
+ * whoosh is a slightly abrupt show; refusing to publish over it is no show — but
+ * it is MARKED as it is skipped, so the episode carries what it could not make
+ * instead of looking complete.
  */
 async function renderSegments(
   episode: ShowEpisodeRow,
@@ -431,10 +433,18 @@ async function renderSegments(
         segmentKeys.push(key);
         segment.audioUrl = key;
       } else {
+        /**
+         * On the SEGMENT, not just in the log. Skipping is the right call and
+         * saying nothing about it is not: an episode that quietly loses every
+         * sound cue it asked for reads as a complete episode to everybody who
+         * did not have the container's logs open.
+         */
+        segment.renderFailed = true;
         log.general.warn(
           {
             episodeId: episode.id,
             segmentIndex: segment.index,
+            segmentType: segment.type,
             reason: result.status === 'rejected' ? result.reason : 'no audio returned',
           },
           'Show segment failed, skipping it',

@@ -5,7 +5,12 @@ import { closePostgres, connectPostgres, type ApiDatabase } from '../../../db/in
 import { userCredits } from '../../../db/schema/billing';
 import { showEpisodes, showSeries } from '../../../db/schema/shows';
 import { getOrCreateUserCredits } from '../../../db/billing/userCreditsRepository';
-import { createEpisode, createSeries, findEpisodeById } from '../../../db/shows/showRepository';
+import {
+  createEpisode,
+  createSeries,
+  findEpisodeById,
+  listEpisodesForSeries,
+} from '../../../db/shows/showRepository';
 
 /**
  * The show pipeline's CREDIT behaviour, against a real Postgres balance.
@@ -257,6 +262,84 @@ describe('the pipeline asks the sound-effect chain for every cue the script wrot
     expect(Buffer.from(await published[1].arrayBuffer()).toString()).toBe(
       'fake-mp3-bytes' + 'fake-mp3-bytes' + 'fake-mp3-bytes',
     );
+  });
+});
+
+/**
+ * A lost cue reaches the OWNER, not just the container's logs.
+ *
+ * This is the half that was missing while the bug ran. Every sound effect in
+ * every episode failed for days; the pipeline logged a warning, skipped the
+ * segment, published, and wrote `completed` — so the row, the screen and the
+ * notification all described an episode that had everything it asked for. The
+ * assertion is therefore about the stored row and about what a ROUTE can read
+ * from it, because a flag the pipeline writes and no reader can see is the same
+ * silence with more steps.
+ */
+describe('an episode says which of its segments never rendered', () => {
+  it('marks the cues that were lost, and only those', async () => {
+    await fund(50);
+    const episodeId = await queueEpisode();
+    scriptReply = SCRIPT_WITH_SFX;
+    effectsWork = false;
+
+    const { runShowPipeline } = await import('../show-pipeline.js');
+    await runShowPipeline(episodeId);
+
+    const episode = await findEpisodeById(db, episodeId);
+    expect(episode?.status).toBe('completed');
+
+    const failed = (episode?.segments ?? []).filter((segment) => segment.renderFailed === true);
+    expect(failed.map((segment) => segment.index)).toEqual([0, 2, 5]);
+    // The prompt survives beside the flag, so the row says what the missing
+    // sound was meant to be rather than only that something is missing.
+    expect(failed[0]?.sfxPrompt).toBe('upbeat show intro jingle, 4 seconds');
+
+    // And nothing that DID render is marked. Marking everything would satisfy
+    // the assertion above and tell the owner their whole episode is broken.
+    const spoken = (episode?.segments ?? []).filter((segment) => segment.type === 'dialogue');
+    expect(spoken).toHaveLength(3);
+    expect(spoken.every((segment) => segment.renderFailed === undefined)).toBe(true);
+  });
+
+  /**
+   * The positive control, and the one that stops the flag from being noise: an
+   * episode where everything rendered must carry no mark at all, or the screen
+   * shows a warning on every show ever made.
+   */
+  it('marks nothing when every segment rendered', async () => {
+    await fund(50);
+    const episodeId = await queueEpisode();
+    scriptReply = SCRIPT_WITH_SFX;
+
+    const { runShowPipeline } = await import('../show-pipeline.js');
+    await runShowPipeline(episodeId);
+
+    const episode = await findEpisodeById(db, episodeId);
+    expect(episode?.segments).toHaveLength(6);
+    expect(episode?.segments.some((segment) => segment.renderFailed === true)).toBe(false);
+  });
+
+  it('serves the mark to the screen, through the projection a route reads', async () => {
+    await fund(50);
+    const episodeId = await queueEpisode();
+    scriptReply = SCRIPT_WITH_SFX;
+    effectsWork = false;
+
+    const { runShowPipeline } = await import('../show-pipeline.js');
+    await runShowPipeline(episodeId);
+
+    /**
+     * `EPISODE_PUBLIC_COLUMNS` is an explicit allow-list — a column the table
+     * has is not a column a route returns — so reading the row directly proves
+     * nothing about what the owner can see. This goes through the same function
+     * `GET /shows/series/:id/episodes` calls.
+     */
+    const episode = await findEpisodeById(db, episodeId);
+    const page = await listEpisodesForSeries(db, episode?.seriesId ?? '', 10, 0);
+    const served = page.episodes.find((row) => row.id === episodeId);
+
+    expect(served?.segments.filter((segment) => segment.renderFailed === true)).toHaveLength(3);
   });
 });
 

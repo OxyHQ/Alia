@@ -124,6 +124,26 @@ export interface ShowSegment {
   durationMs?: number;
   type: ShowSegmentType;
   sfxPrompt?: string;
+  /**
+   * This segment asked for audio and got none, so it is not in the episode.
+   *
+   * The pipeline is right to publish anyway — one missing transition whoosh is
+   * a slightly abrupt show, and refusing over it is no show — but it used to
+   * publish and say NOTHING. Three sound cues vanished from every episode for
+   * days while the row read `completed` and the owner had no way to know, which
+   * is worse than an episode that admits what it could not make.
+   *
+   * So the loss is recorded where it happened, on the segment, rather than
+   * summarised into a count somewhere else: the row says exactly which cues are
+   * missing and what they were meant to be. `segments` is already in
+   * `EPISODE_PUBLIC_COLUMNS`, so the screen derives its notice from this and
+   * there is no second copy of the fact to fall out of step.
+   *
+   * Absent means rendered. Nothing sets it to `false` — a segment that was
+   * never attempted cannot exist, because the pipeline builds this array from
+   * the script and then walks all of it.
+   */
+  renderFailed?: boolean;
 }
 
 /**

@@ -78,19 +78,53 @@ export function EpisodeRow({ episode, onDelete }: EpisodeRowProps) {
   const handleDelete = useCallback(() => onDelete(episode.id), [onDelete, episode.id]);
 
   /**
+   * What the episode asked for and did not get.
+   *
+   * Derived from the segments the row already carries rather than from a field
+   * of its own, so there is one fact and not two. It exists because an episode
+   * that lost every sound cue it wrote looked, here, exactly like one that kept
+   * them — ready, playable, and silent about three missing effects nobody could
+   * see outside the container's logs.
+   *
+   * Withheld while the episode is still being made: segments are marked as each
+   * batch finishes, so a count shown then is a number that climbs, next to a
+   * progress bar already saying the work is not done.
+   */
+  const missing = episode.segments?.filter((segment) => segment.renderFailed) ?? [];
+  const missingEffects = missing.filter((segment) => segment.type !== 'dialogue').length;
+  const missingLines = missing.length - missingEffects;
+  const missingEffectsLabel =
+    isGenerating || missingEffects === 0
+      ? ''
+      : missingEffects === 1
+        ? '1 sound effect missing'
+        : `${missingEffects} sound effects missing`;
+  const missingLinesLabel =
+    isGenerating || missingLines === 0
+      ? ''
+      : missingLines === 1
+        ? '1 line missing'
+        : `${missingLines} lines missing`;
+
+  /**
    * `date · duration`, the way Syra states it, behind the episode number — which
    * Syra has no equivalent of, because a Syra episode arrives from a feed while
    * an Alia episode is the Nth one the owner asked for.
    *
    * An episode that will not play says so HERE, in the same quiet line as the
    * duration it is standing in for. It is a fact about this attempt, not a fault
-   * report, and it never claims the episode is still being made.
+   * report, and it never claims the episode is still being made. A cue that
+   * could not be produced belongs in the same line for the same reason: the
+   * recording IS the episode and it plays, so this states what is not in it
+   * rather than raising an alarm about it.
    */
   const meta = joinEpisodeMeta([
     `Episode ${episode.episodeNumber}`,
     formatEpisodeDate(episode.createdAt),
     state === 'unplayable' ? "Couldn't play this one" : formatEpisodeDuration(episode.durationMs),
     episode.creditsCharged ? `${episode.creditsCharged} credits` : '',
+    missingEffectsLabel,
+    missingLinesLabel,
   ]);
 
   /** What the episode is about: its recap once written, its topic until then. */
