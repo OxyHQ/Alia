@@ -89,10 +89,13 @@ on the day somebody deletes them, in a different PR, naming the deleter rather
 than the author.
 
 `ALIA_TIERS` is the case that forced the rule: `AliaModel.tier` and
-`ModelConfig.aliaTier` are one vocabulary and were two identical thirteen-value
-literals in two files, so there was no single tuple to render a CHECK from. It
-now lives in `internal/providers/lib/alia-tiers.ts` beside `provider-names.ts`,
-and both models read it.
+`ModelConfig.aliaTier` were one vocabulary written as two identical
+thirteen-value literals in two files, so there was no single tuple to render a
+CHECK from. It now lives in `internal/providers/lib/alia-tiers.ts` beside
+`provider-names.ts`. `model_configs.alia_tier` has since been dropped
+(`0049_the_tier_column_cannot_be_correct`) — one column could not record a
+many-to-many mapping — so the tuple renders exactly one CHECK today,
+`alia_models_tier_check`.
 
 **`auth_health_metrics.method` has NO CHECK, on purpose.** The Mongoose field is
 a bare `String` with no `enum`, so production may already hold values outside

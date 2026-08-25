@@ -67,7 +67,6 @@ export interface ModelConfigView {
   modelId: string;
   provider: string;
   displayName: string;
-  aliaTier: string | null;
   priority: number | null;
   qualityScore: number | null;
   capabilities: ModelCapabilities;
@@ -92,7 +91,6 @@ export function toModelConfigView(row: ModelConfigRow): ModelConfigView {
     modelId: row.modelId,
     provider: row.provider,
     displayName: row.displayName,
-    aliaTier: row.aliaTier,
     priority: row.priority,
     qualityScore: row.qualityScore,
     capabilities: {
@@ -143,7 +141,6 @@ export interface ModelConfigInput {
   modelId?: string;
   provider?: string;
   displayName?: string;
-  aliaTier?: string | null;
   priority?: number | null;
   qualityScore?: number | null;
   capabilities?: Partial<ModelCapabilities>;
@@ -177,7 +174,6 @@ function toColumns(input: ModelConfigInput): Partial<typeof modelConfigs.$inferI
   put('modelId', input.modelId);
   put('provider', input.provider);
   put('displayName', input.displayName);
-  put('aliaTier', input.aliaTier);
   put('priority', input.priority);
   put('qualityScore', input.qualityScore);
 
@@ -220,7 +216,6 @@ function toColumns(input: ModelConfigInput): Partial<typeof modelConfigs.$inferI
 
 export interface ListModelConfigsFilter {
   provider?: string;
-  aliaTier?: string;
   isActive?: boolean;
   isDeprecated?: boolean;
 }
@@ -243,7 +238,6 @@ export async function listModelConfigs(
     .where(
       and(
         filter.provider ? eq(modelConfigs.provider, filter.provider) : undefined,
-        filter.aliaTier ? eq(modelConfigs.aliaTier, filter.aliaTier) : undefined,
         filter.isActive !== undefined ? eq(modelConfigs.isActive, filter.isActive) : undefined,
         filter.isDeprecated !== undefined
           ? eq(modelConfigs.isDeprecated, filter.isDeprecated)
@@ -251,25 +245,6 @@ export async function listModelConfigs(
       ),
     )
     .orderBy(asc(modelConfigs.provider), sql`${modelConfigs.priority} asc nulls last`, asc(modelConfigs.id));
-  return rows.map(toModelConfigView);
-}
-
-/** Live, non-deprecated models for one tier, in routing order. */
-export async function listModelConfigsForTier(
-  db: Executor,
-  tier: string,
-): Promise<ModelConfigView[]> {
-  const rows = await db
-    .select()
-    .from(modelConfigs)
-    .where(
-      and(
-        eq(modelConfigs.aliaTier, tier),
-        eq(modelConfigs.isActive, true),
-        eq(modelConfigs.isDeprecated, false),
-      ),
-    )
-    .orderBy(sql`${modelConfigs.priority} asc nulls last`, asc(modelConfigs.id));
   return rows.map(toModelConfigView);
 }
 

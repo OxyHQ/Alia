@@ -132,8 +132,11 @@ export async function seedModelConfigs(): Promise<{ seeded: number; skipped: num
             isDeprecated: false,
           },
           {
-            // Always update tier mapping info (allows re-running to update priorities)
-            aliaTier: tier,
+            // The `$set` half: re-running the seed updates routing preference.
+            // NOT the tier. A row is one `(provider, model_id)` pair and this
+            // loop visits a pair once per tier it serves, so a tier column here
+            // recorded whichever iteration came last — see the note on
+            // `modelConfigs` in `db/schema/providers.ts`.
             priority: mapping.priority,
             qualityScore: mapping.qualityScore,
           },

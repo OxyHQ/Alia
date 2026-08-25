@@ -6,7 +6,6 @@ import {
   deleteModelConfig,
   findModelConfig,
   listModelConfigs,
-  listModelConfigsForTier,
   updateModelConfig,
   upsertModelConfig,
   type ModelConfigInput,
@@ -137,19 +136,11 @@ describe('model_configs: the nested wire shape', () => {
     expect(updated?.capabilities.audio).toBe(true);
   });
 
-  it('finds, lists by tier and deletes by (provider, modelId)', async () => {
-    const mine = modelInput({ aliaTier: 'v1', priority: 5 });
-    const other = modelInput({ aliaTier: 'v1', priority: 1, isDeprecated: true });
+  it('finds and deletes by (provider, modelId), which is the row identity', async () => {
+    const mine = modelInput({ priority: 5 });
     await createModelConfig(db, mine, ACTOR);
-    await createModelConfig(db, other, ACTOR);
 
     expect((await findModelConfig(db, 'openai', String(mine.modelId)))?.priority).toBe(5);
-
-    const tier = await listModelConfigsForTier(db, 'v1');
-    expect(tier.some((m) => m.modelId === mine.modelId)).toBe(true);
-    // Deprecated models are excluded even though this one sorts FIRST by
-    // priority — so a missing filter would put it at the head, not hide it.
-    expect(tier.some((m) => m.modelId === other.modelId)).toBe(false);
 
     expect((await deleteModelConfig(db, 'openai', String(mine.modelId), ACTOR))?.modelId).toBe(mine.modelId);
     expect(await findModelConfig(db, 'openai', String(mine.modelId))).toBeNull();
@@ -183,11 +174,11 @@ describe('model_configs: the seed upsert', () => {
       limits: { maxContextTokens: 4096, maxOutputTokens: 2048 },
     };
 
-    const first = await upsertModelConfig(db, key, insertOnly, { aliaTier: 'lite', priority: 1 }, ACTOR);
+    const first = await upsertModelConfig(db, key, insertOnly, { priority: 1 }, ACTOR);
     // `xmax = 0` is Postgres's answer to `upsertedCount`.
     expect(first.inserted).toBe(true);
 
-    const second = await upsertModelConfig(db, key, insertOnly, { aliaTier: 'lite', priority: 9 }, ACTOR);
+    const second = await upsertModelConfig(db, key, insertOnly, { priority: 9 }, ACTOR);
     expect(second.inserted).toBe(false);
 
     const row = await findModelConfig(db, key.provider, key.modelId);
@@ -203,7 +194,7 @@ describe('model_configs: the seed upsert', () => {
       pricing: { tier: 'free', costPer1MInput: 0, costPer1MOutput: 0, averageLatencyMs: 100 },
       limits: { maxContextTokens: 4096, maxOutputTokens: 2048 },
     };
-    await upsertModelConfig(db, key, insertOnly, { aliaTier: 'lite', priority: 1 }, ACTOR);
+    await upsertModelConfig(db, key, insertOnly, { priority: 1 }, ACTOR);
 
     // An operator retunes the pricing by hand.
     await updateModelConfig(db, key.provider, key.modelId, {
@@ -211,7 +202,7 @@ describe('model_configs: the seed upsert', () => {
       pricing: { costPer1MInput: 42 },
     }, ACTOR);
 
-    await upsertModelConfig(db, key, insertOnly, { aliaTier: 'lite', priority: 2 }, ACTOR);
+    await upsertModelConfig(db, key, insertOnly, { priority: 2 }, ACTOR);
 
     const row = await findModelConfig(db, key.provider, key.modelId);
     /**

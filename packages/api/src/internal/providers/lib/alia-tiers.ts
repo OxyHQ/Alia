@@ -2,16 +2,23 @@
  * The Alia tier vocabulary — the public-facing model family a request is served
  * as, independent of whoever actually serves it.
  *
- * Declared once here rather than inline beside each column. `alia_models.tier`
- * and `model_configs.alia_tier` are the SAME vocabulary read from two directions
- * ("what tier is this Alia identifier" and "which tier does this upstream model
- * serve"), and they were two identical thirteen-value literals — a shape where
- * adding a tier to one and not the other is silent, and the symptom is an
- * identifier that cannot be routed to.
+ * Declared once here rather than inline beside each column. It rendered CHECKs
+ * on TWO columns — `alia_models.tier` and `model_configs.alia_tier` — and they
+ * were two identical thirteen-value literals, a shape where adding a tier to one
+ * and not the other is silent and the symptom is an identifier that cannot be
+ * routed to.
  *
- * `provider-names.ts` is the precedent. The Postgres CHECK on both columns is
- * rendered from THIS tuple, so the database and the TypeScript union cannot
- * drift apart.
+ * **`model_configs.alia_tier` is gone**, dropped by
+ * `0049_the_tier_column_cannot_be_correct`: a row there is one
+ * `(provider, model_id)` pair, the routing table maps that pair to many tiers,
+ * and one column over a many-to-many relation records only whichever tier was
+ * written last. So `alia_models.tier` is now the single column this tuple
+ * constrains — but the tuple is still the routing vocabulary and still keys
+ * `GENERATED_TIER_MAPPINGS`, which is where a tier is reachable from whether or
+ * not any row names it.
+ *
+ * `provider-names.ts` is the precedent. The Postgres CHECK is rendered from THIS
+ * tuple, so the database and the TypeScript union cannot drift apart.
  *
  * A THIRD copy survived that unification: `alia-models.ts` kept its own
  * fourteen-value literal, and `v1-image` was the value only it had. The
@@ -33,8 +40,8 @@
  * available without first correcting it, and nothing would have said so.
  *
  * Appending to this tuple CHANGES THE DATABASE: ship the `pre` migration
- * widening both CHECKs in the same commit, exactly as `PROVIDER_NAMES` requires
- * (`db/schema/providers.ts` says so at length).
+ * widening `alia_models_tier_check` in the same commit, exactly as
+ * `PROVIDER_NAMES` requires (`db/schema/providers.ts` says so at length).
  *
  * ## This is the ROUTING vocabulary, not the alias vocabulary
  *
@@ -56,7 +63,10 @@
  * it.** That reasoning is precisely what left `v1-image` out of this tuple
  * while the routing table was keyed by it, and the cost was five
  * `model_configs` rows refused on every deploy for as long as the image tier
- * existed.
+ * existed. A tier with no alias also has no `alia_models` row, so since the
+ * `model_configs` column was dropped NOTHING in the database mentions such a
+ * tier at all — which makes the tuple the only record that it exists, and an
+ * unaliased tier correspondingly easier to delete by mistake.
  */
 
 export const ALIA_TIERS = [
