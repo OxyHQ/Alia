@@ -1,6 +1,8 @@
 import { Pressable, View } from "react-native";
+import { IdentityMark } from "@alia.onl/sdk";
 import { Text } from "@/components/ui/text";
-import { AgentGlyph } from "@/components/ui/agent-glyph";
+import { agentTint } from "@/lib/agents/agent-color";
+import { useColorScheme } from "@/lib/useColorScheme";
 import { formatRelativeTime } from "@/lib/utils/relative-time";
 
 /**
@@ -31,6 +33,8 @@ export function AgentRow({
   emptyLabel: string;
   onPress: () => void;
 }) {
+  const { colors } = useColorScheme();
+
   /*
    * An agent nobody has spoken to yet is the ORDINARY case — you have just made
    * it — so the second line always has something to say. Falling back to an
@@ -49,7 +53,7 @@ export function AgentRow({
       onPress={onPress}
       className="w-full flex-row items-center gap-2 rounded-xl px-1.5 py-1.5 hover:bg-muted active:bg-muted"
     >
-      <AgentGlyph size={28} color={color} label={name} />
+      <IdentityMark size={28} color={agentTint(color, colors)} accessibilityLabel={name} />
       {/*
         `min-w-0` is what lets both lines truncate instead of widening the row:
         a flex child will not shrink past its content without it, so a long

@@ -6,7 +6,7 @@ import { ChevronDown, ChevronUp, Loader } from 'lucide-react-native';
 import { useColorScheme } from '@/lib/useColorScheme';
 import type { TaskSession } from '@/lib/hooks/use-tasks';
 import type { AgentActivityState } from '@/lib/hooks/use-agent-activity';
-import { AgentGlyphRow } from './agent-glyph-row';
+import { AgentMarkRow } from './agent-mark-row';
 import { TaskTimelineStep } from './task-timeline-step';
 import { getStatusConfig, formatDuration, getToolPillLabel } from '@/lib/task-utils';
 import { agentDisplayName } from "@/lib/agents/identity";
@@ -84,7 +84,7 @@ export const TaskCard = React.memo(function TaskCard({
       <Pressable onPress={onPress} className="active:opacity-70">
         {/* Header: agent marks + status badge + elapsed time */}
         <View className="flex-row items-center justify-between mb-2">
-          <AgentGlyphRow agents={agents} />
+          <AgentMarkRow agents={agents} />
           <View className="flex-row items-center gap-2">
             {elapsed ? (
               <Text className="text-xs text-muted-foreground">{elapsed}</Text>

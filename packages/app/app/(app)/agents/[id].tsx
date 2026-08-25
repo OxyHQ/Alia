@@ -3,7 +3,7 @@ import { View, ScrollView, Pressable, Share, TextInput, ActivityIndicator } from
 import { useIsLargeScreen } from "@/lib/hooks/use-is-large-screen";
 import { Switch } from "@/components/ui/switch";
 import { Text } from "@/components/ui/text";
-import { AgentGlyph } from "@/components/ui/agent-glyph";
+import { IdentityMark } from "@alia.onl/sdk";
 import * as DropdownMenu from "@/components/ui/dropdown-menu";
 import {
   ArrowLeft,
@@ -31,6 +31,7 @@ import { ActivityGrid } from "@/components/detail/activity-grid";
 import { AgentTerminal } from "@/components/agent-terminal";
 import apiClient from "@/lib/api/client";
 import { useColorScheme } from "@/lib/useColorScheme";
+import { agentTint } from "@/lib/agents/agent-color";
 import { cn } from "@/lib/utils";
 import { useAgentFavoritesStore } from "@/lib/stores/agent-favorites-store";
 import { CAPABILITY_FAMILIES } from "@/lib/constants/capability-families";
@@ -552,7 +553,11 @@ export default function AgentDetailScreen() {
           <View className={cn("px-5 pb-6 pt-4", isLargeScreen && "px-6 max-w-2xl")}>
             {/* The agent's mark, in its own color */}
             <View className="relative self-start">
-              <AgentGlyph size={80} color={agent.color} label={agentDisplayName(agent)} />
+              <IdentityMark
+                size={80}
+                color={agentTint(agent.color, colors)}
+                accessibilityLabel={agentDisplayName(agent)}
+              />
               <View
                 className={cn(
                   "absolute bottom-1 right-1 w-4 h-4 rounded-full border-2 border-background",

@@ -1,5 +1,32 @@
 # @alia.onl/sdk
 
+## 7.0.0
+
+### `AliaMark` is now `IdentityMark`
+
+**Breaking, and a rename with no alias behind it.** `AliaMark`,
+`AliaMarkProps` and `AliaMarkState` are gone; the exports are `IdentityMark`,
+`IdentityMarkProps` and `IdentityMarkState`. The artwork, the animation states,
+the props and the defaults are unchanged, so upgrading is the rename and
+nothing else.
+
+The old name said the mark belonged to Alia. It does not: the same component
+draws every AGENT in Alia too, differing only in the colour it is handed, and
+an agent's Oxy account carries no avatar image at all — so this is the whole of
+an agent's likeness. A second component had been copied out of this one for
+that job, with the artwork duplicated and a tinted disc behind it. Two
+components drawing one thing is how they drift, and the disc was never wanted.
+Both are now this one, and where a face would otherwise go it is the SIZE that
+adapts, never a background.
+
+### The mark is only a button when you give it `onPress`
+
+Without `onPress` it renders as a plain view rather than a `Pressable`. It had
+always mounted one, to carry a spin-and-haptics flourish on tap, and a
+`Pressable` captures the touch whether or not the caller wanted a control —
+which is what stops a row it sits inside from opening when you tap the face on
+it. Passing `onPress` keeps the flourish exactly as before.
+
 ## 6.0.0
 
 ### Licence: this package now has one, and it is Apache-2.0

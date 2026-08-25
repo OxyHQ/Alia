@@ -45,9 +45,9 @@ export interface ArchetypeConfig {
  * They are also READ-ONLY. `AgentUpdate` cannot carry them and `PATCH /agents`
  * refuses them outright: editing an agent's name is `updateAccount` at Oxy.
  *
- * There is no avatar. An agent's likeness is `components/ui/agent-glyph.tsx`
- * drawn in `color` — so an agent with no color resolved is drawn in the theme's
- * own, which is the same fallback an unresolved name takes.
+ * There is no avatar. An agent's likeness is the same `IdentityMark` Alia
+ * wears, drawn in `color` — so an agent with no color resolved is drawn in the
+ * theme's own, which is the same fallback an unresolved name takes.
  */
 export interface Agent {
   _id: string;

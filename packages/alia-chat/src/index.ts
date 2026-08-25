@@ -9,8 +9,8 @@ export { AliaChatScreen } from './components/AliaChatScreen';
 export type { AliaChatScreenProps } from './components/AliaChatScreen';
 
 // ── Chat UI components ──
-export { AliaMark } from './components/AliaMark';
-export type { AliaMarkProps, AliaMarkState } from './components/AliaMark';
+export { IdentityMark } from './components/IdentityMark';
+export type { IdentityMarkProps, IdentityMarkState } from './components/IdentityMark';
 export { ThinkingIndicator } from './components/ThinkingIndicator';
 export { AliaMarkdown } from './components/Markdown';
 export type { AliaMarkdownProps } from './components/Markdown';

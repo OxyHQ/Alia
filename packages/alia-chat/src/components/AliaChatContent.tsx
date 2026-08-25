@@ -27,7 +27,7 @@ import { AliaChatMessageList } from './AliaChatMessageList';
 import { AliaWelcomeMessage, type WelcomeSuggestion } from './AliaWelcomeMessage';
 import { PromptInput } from './ui/prompt-input/prompt-input';
 import { Button } from './ui/button';
-import type { AliaMarkState } from './AliaMark';
+import type { IdentityMarkState } from './IdentityMark';
 import type {
   ChatMessage,
   VoiceMessage,
@@ -62,7 +62,7 @@ export interface AliaChatContentProps {
   /** Override markdown renderer (app passes CustomMarkdown) */
   renderMarkdown?: (content: string) => React.ReactNode;
   /** Header bar render prop — receives live mark state, message presence, and the clear handler. */
-  header?: (state: { markState: AliaMarkState; hasMessages: boolean; clear: () => void }) => React.ReactNode;
+  header?: (state: { markState: IdentityMarkState; hasMessages: boolean; clear: () => void }) => React.ReactNode;
   /** Theme primary color hex — forwarded to the ambient wave overlay palette. */
   primaryColor?: string;
   /** Dark-mode flag — forwarded to the ambient wave overlay. */
@@ -170,7 +170,7 @@ export function AliaChatContent({
 
   // ── Mark state (drives the header brand mark) ──
   const voiceAgentState = voiceState?.agentState;
-  const markState = useMemo<AliaMarkState>(() => {
+  const markState = useMemo<IdentityMarkState>(() => {
     if (isVoiceActive) {
       if (voiceAgentState === 'speaking') return 'writing';
       if (voiceAgentState === 'thinking') return 'thinking';

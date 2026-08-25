@@ -5,7 +5,7 @@ import { PremiumSparkIcon } from "@/components/ui/premium-spark-icon";
 import { BellIcon } from "@/components/ui/bell-icon";
 import { GetAppIcon } from "@/components/ui/get-app-icon";
 import { CommandKeyIcon } from "@/components/ui/command-key-icon";
-import { AliaMark } from "@alia.onl/sdk";
+import { IdentityMark } from "@alia.onl/sdk";
 import { useColorScheme } from "@/lib/useColorScheme";
 import { Text } from "@/components/ui/text";
 import { BaseSidebar } from "@/components/base-sidebar";
@@ -56,7 +56,6 @@ import { queryKeys } from "@/lib/hooks/query-keys";
 import { useConversations, useDeleteConversation, prefetchConversation } from "@/lib/hooks/use-conversations";
 import { conversationsForHistory } from "@/lib/sidebar-history";
 import { useMyAgents } from "@/lib/hooks/use-my-agents";
-import { AgentGlyph } from "@/components/ui/agent-glyph";
 import { agentDisplayName, agentHandle } from "@/lib/agents/identity";
 import * as DropdownMenu from "@/components/ui/dropdown-menu";
 import { ProjectEditDialog } from "@/components/project-edit-dialog";
@@ -474,7 +473,7 @@ export const Sidebar = React.memo(function Sidebar() {
     <View className={cn("flex-row items-center", collapsed && "justify-center")}>
       {collapsed ? (
         <View className="p-1.5 mx-0.5 rounded-xl hover:bg-muted active:bg-muted">
-          <AliaMark size={24} color={colors.primary} onPress={handleLogoPress} accessibilityLabel="Home" spinOnMount />
+          <IdentityMark size={24} color={colors.primary} onPress={handleLogoPress} accessibilityLabel="Home" spinOnMount />
         </View>
       ) : (
         <Pressable

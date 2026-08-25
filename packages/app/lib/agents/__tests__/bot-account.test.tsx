@@ -361,9 +361,9 @@ describe('the create screen', () => {
   });
 
   /**
-   * An agent's likeness is `components/ui/agent-glyph.tsx` drawn in its
-   * account's own color, and there is no image anywhere in it — so the
-   * generate-an-avatar round trip is gone and nothing is minted with one.
+   * An agent's likeness is an `IdentityMark` drawn in its account's own color,
+   * and there is no image anywhere in it — so the generate-an-avatar round trip
+   * is gone and nothing is minted with one.
    *
    * Asserted on the WHOLE list of routes rather than on the absence of the one
    * that was removed: "`/agents/avatar/generate` was not called" would stay
