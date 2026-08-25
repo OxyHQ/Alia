@@ -55,12 +55,25 @@ vi.mock('../../../../lib/livekit-token.js', () => ({
   deleteVoiceRoom: vi.fn(async () => undefined),
   getLiveKitInternalUrl: vi.fn(() => 'ws://livekit'),
 }));
+/**
+ * Identities whose `join` must fail. Keyed by the identity the manager
+ * constructs the bridge with — `alia-agent` for the primary, `alia-cohost` for
+ * the second participant — so a cohost join can fail while the primary's
+ * succeeds, which is the only interesting arrangement.
+ */
+const bridgeJoinFailures = new Set<string>();
+
 vi.mock('../../../../lib/livekit-agent.js', () => ({
   LiveKitAgentBridge: class {
     onUserAudioFrame: unknown = null;
     onClientData: unknown = null;
     onUserDisconnected: unknown = null;
-    async join(): Promise<void> { /* joined */ }
+    constructor(private readonly identity: string) {}
+    async join(): Promise<void> {
+      if (bridgeJoinFailures.has(this.identity)) {
+        throw new Error(`${this.identity} could not join the room`);
+      }
+    }
     async disconnect(): Promise<void> { /* disconnected */ }
     async publishData(): Promise<void> { /* published */ }
   },
@@ -91,6 +104,16 @@ afterAll(async () => {
 
 afterEach(() => {
   vi.clearAllMocks();
+  /**
+   * Cleared HERE, not at the end of the test that set it.
+   *
+   * A failing assertion aborts the test body, so a reset written after it never
+   * runs and the next test inherits a cohost whose `join` throws. Measured: a
+   * mutation that broke the failure path turned the POSITIVE CONTROL red too,
+   * which reads as a stronger kill than it is and hides which assertion did the
+   * killing.
+   */
+  bridgeJoinFailures.clear();
 });
 
 /** Namespaced by pid — several `*.pgdb.test.ts` files share ONE database. */
@@ -110,9 +133,17 @@ async function balanceOf(id: string): Promise<{ free: number; paid: number }> {
   return { free: row.creditsFree, paid: row.creditsPaid };
 }
 
-/** A socket the manager will treat as open enough to wire handlers onto. */
-function fakeSocket(): unknown {
-  return { readyState: 3, on: vi.fn(), send: vi.fn(), close: vi.fn() };
+/**
+ * A socket the manager will treat as open enough to wire handlers onto.
+ *
+ * `readyState` defaults to CLOSED (3), which is what the sessions that only
+ * care about credits want — nothing then tries to send on it. A caller that
+ * needs the CLOSE path exercised asks for OPEN (1), because every teardown in
+ * the manager is guarded by `readyState === WebSocket.OPEN` and a closed socket
+ * would make "we closed it" and "we ignored it" the same observation.
+ */
+function fakeSocket(readyState = 3): { readyState: number; on: ReturnType<typeof vi.fn>; send: ReturnType<typeof vi.fn>; close: ReturnType<typeof vi.fn> } {
+  return { readyState, on: vi.fn(), send: vi.fn(), close: vi.fn() };
 }
 
 const config = { model: 'alia-v1-voice', instructions: 'be brief', maxDuration: 30 };
@@ -209,6 +240,65 @@ describe('enableCohost — the second minute it reserves', () => {
     // A version that refunded the cohost unconditionally would pass the case
     // above and fail this one.
     expect(await balanceOf(userId)).toEqual({ free: 400, paid: 0 });
+
+    await voiceSessionManager.closeSession(session.sessionId, 'test over');
+  });
+});
+
+/**
+ * The cohost's provider socket is CLOSED when its setup fails after opening it.
+ *
+ * `enableCohost` opens the provider socket, assigns it to the session, and only
+ * then builds the LiveKit bridge and joins the room. `session.cohostEnabled` is
+ * set at the very END. So a `join` failure lands in the `catch` with an open
+ * socket on the session and the flag still false — and `disableCohost`, which
+ * the catch used to delegate to, returns on its first line for exactly that
+ * flag.
+ *
+ * `closeSession` would eventually close it, which bounds the leak to the rest of
+ * the call. What is NOT bounded is a retry: the client can send `cohost.enable`
+ * again, `enableCohost` only refuses when `cohostEnabled` is true, and the second
+ * attempt overwrites `session.cohostProviderSocket` with a new socket. The first
+ * one is then open with nothing referencing it, past the reach of the teardown
+ * that would have closed it.
+ */
+describe('enableCohost — the resources it opened before failing', () => {
+  it('closes the provider socket when the cohost cannot join the room', async () => {
+    const userId = await account(500, 0);
+    connect.mockResolvedValueOnce(fakeSocket());
+    const session = await voiceSessionManager.createSession(userId, 'alia-v1-voice', config);
+
+    // OPEN, so `close()` being called is distinguishable from being skipped.
+    const cohostSocket = fakeSocket(1);
+    connect.mockResolvedValueOnce(cohostSocket);
+    bridgeJoinFailures.add('alia-cohost');
+
+    await voiceSessionManager.enableCohost(session.sessionId);
+
+    expect(cohostSocket.close).toHaveBeenCalled();
+    // And nothing is left on the session for a retry to overwrite and orphan.
+    expect(voiceSessionManager.getSession(session.sessionId)?.cohostProviderSocket).toBeNull();
+
+    await voiceSessionManager.closeSession(session.sessionId, 'test over');
+  });
+
+  /**
+   * The positive control. A cohost that comes up KEEPS its socket, so the case
+   * above is measuring a failure path rather than an implementation that closes
+   * the socket every time.
+   */
+  it('leaves the socket open when the cohost comes up', async () => {
+    const userId = await account(500, 0);
+    connect.mockResolvedValueOnce(fakeSocket());
+    const session = await voiceSessionManager.createSession(userId, 'alia-v1-voice', config);
+
+    const cohostSocket = fakeSocket(1);
+    connect.mockResolvedValueOnce(cohostSocket);
+
+    await voiceSessionManager.enableCohost(session.sessionId);
+
+    expect(cohostSocket.close).not.toHaveBeenCalled();
+    expect(voiceSessionManager.getSession(session.sessionId)?.cohostProviderSocket).not.toBeNull();
 
     await voiceSessionManager.closeSession(session.sessionId, 'test over');
   });
