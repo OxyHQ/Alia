@@ -103,6 +103,7 @@ const TOOL_PILL_LABELS: Record<string, string> = {
   sendSignal: 'Signal',
   sendEmail: 'Email',
   delegateToAgent: 'Delegating',
+  askAgent: 'Asking an agent',
   agentSearch: 'Searching agents',
   userMemory: 'Remembering',
   shellExec: 'Running command',

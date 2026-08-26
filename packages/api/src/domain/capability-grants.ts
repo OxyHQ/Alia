@@ -63,17 +63,49 @@ export const FIXED_CAPABILITY_FAMILIES = [
 ] as const;
 
 /**
- * A family whose tools are GENERATED from rows, granted one row at a time.
+ * A family whose members are ROWS, granted one row at a time.
  *
- * The rule is not a judgement call: a family is instanced exactly when its tool
- * names come from data rather than from source. `mcp_<connector>__<tool>` and
- * `oxy_<service>__<tool>` are built from `mcp_servers` and `oxy_services` rows,
- * and an integration is a row in the owner's connected services. Nobody can
- * enumerate those at the time this file is written, so a whole-family grant
- * would be a blank cheque over rows that do not exist yet — which is precisely
- * what an agent inheriting *all* of its owner's connectors was.
+ * The rule is not a judgement call: a family is instanced exactly when nobody
+ * can enumerate its members at the time this file is written, so a grant has to
+ * name one. Three of them generate their tool NAMES from those rows as well —
+ * `mcp_<connector>__<tool>` and `oxy_<service>__<tool>` are built from
+ * `mcp_servers` and `oxy_services` rows, and an integration is a row in the
+ * owner's connected services — and for those a whole-family grant is a blank
+ * cheque over rows that do not exist yet, which is precisely what an agent
+ * inheriting *all* of its owner's connectors was.
+ *
+ * `agent` is instanced for the first reason and not the second: its single tool
+ * is written here (`askAgent`), and what the grant names is which of the
+ * owner's agents that tool may reach. The tool is not built at all when the
+ * selection resolves to none, so the family is still absent rather than inert.
+ * {@link EVERY_ROW_FAMILIES} is where its bare grant is argued.
  */
-export const INSTANCED_CAPABILITY_FAMILIES = ['mcp', 'oxy_service', 'integration'] as const;
+export const INSTANCED_CAPABILITY_FAMILIES = ['mcp', 'oxy_service', 'integration', 'agent'] as const;
+
+/**
+ * The instanced family whose BARE grant is a decision rather than a blank
+ * cheque: every row I have, resolved again on every turn.
+ *
+ * `mcp` alone is refused above, and the argument is about what a future row
+ * carries. An MCP connector, an integration and an Oxy service each hold or
+ * forward a CREDENTIAL, so "every one I will ever install" hands an agent
+ * access nobody has considered yet — one row at a time is the only honest
+ * grant.
+ *
+ * `agent` is the case where that argument does not hold, because its rows are
+ * themselves SUBJECTS of this vocabulary. Another of the owner's agents reaches
+ * only what its own `capability_grants` allow, and an agent nobody has
+ * configured reaches {@link UNGRANTED_TOOLS} and nothing else — so a row
+ * created after the grant was written cannot widen it. What the bare grant
+ * actually authorises is a CONVERSATION with agents the owner already governs
+ * one by one, which is why "a new agent joins on its own, a deactivated one
+ * drops out" is the feature rather than the hazard.
+ *
+ * The owner keeps a per-row off switch either way: `agents.status`, the
+ * active/idle/offline toggle `PATCH /agents/:id/status` writes, is what the
+ * resolution reads.
+ */
+export const EVERY_ROW_FAMILIES = ['agent'] as const;
 
 export const CAPABILITY_FAMILIES = [
   ...FIXED_CAPABILITY_FAMILIES,
@@ -175,19 +207,27 @@ export function isInstancedFamily(family: CapabilityFamily): family is Instanced
   return (INSTANCED_CAPABILITY_FAMILIES as readonly string[]).includes(family);
 }
 
+/** Whether this family's bare grant means "every row" — see {@link EVERY_ROW_FAMILIES}. */
+export function grantsEveryRow(family: CapabilityFamily): boolean {
+  return (EVERY_ROW_FAMILIES as readonly string[]).includes(family);
+}
+
 /**
  * Whether a stored grant string is one this vocabulary recognises.
  *
- * A fixed family carries no instance and an instanced one requires a non-empty
- * instance id: `mcp` alone is refused rather than read as "every connector",
- * which is the blank cheque the instanced families exist to prevent.
+ * A fixed family carries no instance. An instanced one requires a non-empty
+ * instance id unless it is in {@link EVERY_ROW_FAMILIES}: `mcp` alone is
+ * refused rather than read as "every connector", which is the blank cheque the
+ * instanced families exist to prevent, while `agent` alone is the owner saying
+ * "all of mine" — argued where that list is declared.
  */
 export function isCapabilityGrant(value: string): boolean {
   const match = GRANT.exec(value);
   if (match === null) return false;
   const [, family, instanceId] = match;
   if (!isFamily(family)) return false;
-  return isInstancedFamily(family) ? instanceId !== undefined : instanceId === undefined;
+  if (!isInstancedFamily(family)) return instanceId === undefined;
+  return instanceId !== undefined || grantsEveryRow(family);
 }
 
 /** The canonical string for a grant, and the only place the separator is written. */
@@ -208,8 +248,12 @@ export interface CapabilityGrantSet {
   /**
    * The granted rows of an instanced family.
    *
-   * `null` means EVERY row, which only {@link GRANTS_EVERYTHING} answers — an
-   * agent's set answers an array, empty when nothing was granted.
+   * `null` means EVERY row, resolved by the source at the moment it is asked.
+   * {@link GRANTS_EVERYTHING} answers it for all four families; an agent's set
+   * answers it only for a family in {@link EVERY_ROW_FAMILIES} whose bare grant
+   * the owner actually wrote, and an ARRAY — empty when nothing was granted —
+   * for the other three. That is what keeps `mcp` a per-row decision no matter
+   * what is stored, since the same array is also what a denied family answers.
    */
   instances(family: InstancedCapabilityFamily): readonly string[] | null;
 }
@@ -217,9 +261,12 @@ export interface CapabilityGrantSet {
 /**
  * The answer for a turn with no agent: ordinary Alia, unpartitioned.
  *
- * Not "an agent with every grant" — an agent's set can never return `null` from
- * {@link CapabilityGrantSet.instances}, and that difference is what keeps a
- * missing agent from silently reading as a fully-granted one.
+ * Not "an agent with every grant". An agent's set returns `null` from
+ * {@link CapabilityGrantSet.instances} for at most ONE family — `agent`, and
+ * only when its owner wrote the bare grant — so for `mcp`, `oxy_service` and
+ * `integration` the difference still holds exactly as it did: a missing agent
+ * cannot read as a fully-granted one, which is what stops `mcpSelection` from
+ * handing an agent every runnable connector.
  */
 export const GRANTS_EVERYTHING: CapabilityGrantSet = {
   allows: () => true,
@@ -238,6 +285,12 @@ export const GRANTS_EVERYTHING: CapabilityGrantSet = {
 export function readCapabilityGrants(stored: readonly string[]): CapabilityGrantSet {
   const families = new Set<CapabilityFamily>();
   const instances = new Map<InstancedCapabilityFamily, string[]>();
+  /**
+   * The families granted WITHOUT an instance, which for an instanced family is
+   * the "every row" grant. Kept apart from `families` because the two questions
+   * differ: `agent:x` grants the family too, and only the bare entry means all.
+   */
+  const everyRow = new Set<CapabilityFamily>();
   for (const family of INSTANCED_CAPABILITY_FAMILIES) instances.set(family, []);
 
   for (const entry of stored) {
@@ -246,13 +299,17 @@ export function readCapabilityGrants(stored: readonly string[]): CapabilityGrant
     if (match === null) continue;
     const family = match[1] as CapabilityFamily;
     families.add(family);
-    if (isInstancedFamily(family) && match[2] !== undefined) {
-      instances.get(family)?.push(match[2]);
-    }
+    if (!isInstancedFamily(family)) continue;
+    if (match[2] === undefined) everyRow.add(family);
+    else instances.get(family)?.push(match[2]);
   }
 
   return {
     allows: (family) => families.has(family),
-    instances: (family) => instances.get(family) ?? [],
+    // `grantsEveryRow` as well as the stored entry: a bare instanced grant
+    // outside that list is refused above, and asking here too means a family
+    // added to one list and not the other cannot become a blank cheque.
+    instances: (family) =>
+      everyRow.has(family) && grantsEveryRow(family) ? null : (instances.get(family) ?? []),
   };
 }

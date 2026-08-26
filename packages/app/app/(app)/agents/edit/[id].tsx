@@ -267,20 +267,25 @@ function AgentEditor({ agent }: { agent: Agent }) {
   }, [loadLibraryFiles]);
 
   /**
-   * The connectors this owner can grant, from the one endpoint that knows all
-   * three instanced families.
+   * The rows this owner can grant, from the one endpoint that knows all four
+   * instanced families.
    *
    * Fetched once for the screen rather than per section: MCP connectors, Oxy
-   * apps and integrations are three different tables and this is the only place
-   * that joins them into grant strings. A failure leaves the section empty —
-   * the rest of the editor does not depend on it.
+   * apps, integrations and this owner's other agents are four different tables
+   * and this is the only place that joins them into grant strings. A failure
+   * leaves the section empty — the rest of the editor does not depend on it.
+   *
+   * The agent being edited goes with the request so the server can leave it out
+   * of its own list.
    */
   useEffect(() => {
     apiClient
-      .get<{ connectors: GrantableConnector[] }>(API_ROUTES.agents.capabilityConnectors)
+      .get<{ connectors: GrantableConnector[] }>(
+        API_ROUTES.agents.capabilityConnectors(agent._id),
+      )
       .then((res) => setConnectors(res.data.connectors ?? []))
       .catch(() => setConnectors([]));
-  }, []);
+  }, [agent._id]);
 
   /**
    * Write the draft, and say so.

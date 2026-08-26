@@ -381,6 +381,13 @@ export async function listAgentsByAuthor(
   return rows.map(toAgentRecord);
 }
 
+/** An agent an owner can point another agent at — see {@link listActiveAgentsByAuthor}. */
+export interface GrantableAgent {
+  _id: string;
+  oxyAccountId: string;
+  tagline: string;
+}
+
 export interface AgentCatalogueQuery {
   category?: string;
   archetype?: string;
@@ -634,6 +641,51 @@ export async function findHireableAgentByOxyAccountId(
     )
     .limit(1);
   return row ? toAgentRecord(row) : null;
+}
+
+/**
+ * The owner's ACTIVE agents, projected to what a grant screen and the tool
+ * assembler need — nothing else.
+ *
+ * The two callers are `GET /agents/capability-connectors`, which offers these
+ * rows as grants, and `lib/tools/ask-agent.ts`, which resolves a grant back
+ * into the agents one turn may talk to. Both want the same three columns, and
+ * neither wants the prompt, the soul or the archetype config that
+ * {@link toAgentRecord} carries — so this returns a projection rather than an
+ * `AgentRecord`, and the one place that needs the whole row (the nested turn
+ * itself) reads it again by id at the moment it runs.
+ *
+ * ## `author_oxy_user_id`, and what it is being asked here
+ *
+ * The column is a LISTING index and never an authorization gate — `db/schema/
+ * agents.ts` says so where it is declared, and the question there is "who may
+ * EDIT this agent", which Oxy answers through `account:act_as`.
+ *
+ * The question here is a different one: which agents are YOURS to point at, the
+ * same set `GET /agents/me` draws in the sidebar and off exactly the same
+ * column. A grant is authorised when it is WRITTEN — `PATCH /agents/:id` runs
+ * act-as over the agent being edited — and this scoping is what stops a grant
+ * written by one owner from resolving against a different person's agents when
+ * their turn runs a shared agent. Same asymmetry `/agents/me` already has: a
+ * colleague holding `act_as` without the column does not see the row.
+ *
+ * `status` is the owner's own active/idle/offline toggle, so an owner who
+ * switches an agent off has switched it out of every "all my active agents"
+ * grant, with no second place to remember.
+ */
+export async function listActiveAgentsByAuthor(
+  db: Executor,
+  ownerOxyUserId: string,
+): Promise<GrantableAgent[]> {
+  return db
+    .select({
+      _id: agents.id,
+      oxyAccountId: agents.oxyAccountId,
+      tagline: agents.tagline,
+    })
+    .from(agents)
+    .where(and(eq(agents.authorOxyUserId, ownerOxyUserId), eq(agents.status, 'active')))
+    .orderBy(desc(agents.createdAt), desc(agents.id));
 }
 
 /**

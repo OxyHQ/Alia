@@ -393,9 +393,30 @@ describe('the editor and the route agree on what a save contains', () => {
     // that runs at request time drops what it cannot parse, and a grant that
     // was silently dropped is the failure mode this whole change is about.
     expect((await patch({ capabilityGrants: ['not-a-family'] })).status).toBe(400);
-    // A bare instanced family is a blank cheque over rows, and is refused too.
+    // A bare CONNECTOR family is a blank cheque over rows, and is refused too.
     expect((await patch({ capabilityGrants: ['mcp'] })).status).toBe(400);
+    expect((await patch({ capabilityGrants: ['oxy_service'] })).status).toBe(400);
+    expect((await patch({ capabilityGrants: ['integration'] })).status).toBe(400);
     expect(repository.updateAgent).not.toHaveBeenCalled();
+  });
+
+  it('STORES both shapes of an agent grant, which is the other half of that rule', async () => {
+    /**
+     * `agent` alone is the one bare instanced grant the vocabulary accepts —
+     * "every one of my active agents", re-resolved each turn — and `agent:<id>`
+     * is the same family named a row at a time. Both have to survive the write
+     * path: a grant refused here is a switch that reads as saved and is not,
+     * which is exactly the 400-on-every-autosave this file was written for.
+     */
+    const both = ['agent', 'agent:ag-1'];
+    const res = await patch({ capabilityGrants: both });
+
+    expect(res.status).toBe(200);
+    expect(repository.updateAgent).toHaveBeenCalledTimes(1);
+    // Reached the repository, not merely survived the schema — the same
+    // distinction the 200 above makes for the editor's whole body.
+    const written = repository.updateAgent.mock.calls[0][2] as Record<string, unknown>;
+    expect(written.capabilityGrants).toEqual(both);
   });
 });
 

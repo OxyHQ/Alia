@@ -210,6 +210,31 @@ Two properties are worth stating outright, because both reverse what came before
   OAuth integrations build their tool names from rows, so a grant names the row.
   An agent no longer inherits every connector its owner has installed.
 
+### Talking to your own agents
+
+`agent:<agentId>` is the fourth row-at-a-time family, and it is separate from
+`delegation` on purpose: that one finds, hires and creates agents from the
+CATALOGUE, this one reaches the agents you already have. Granting it exposes one
+tool, `askAgent`, whose schema names exactly the agents the grant resolved to.
+
+Two shapes, both real:
+
+- `agent:<agentId>` — that agent, and no other.
+- `agent` — every one of your agents whose `status` is `active`, resolved again
+  on every turn, so a new agent joins on its own and switching one off removes
+  it. The only bare instanced grant the vocabulary accepts; `EVERY_ROW_FAMILIES`
+  argues why this family may and the connector families may not.
+
+The id the model names is re-checked in `execute` against the allow-list the
+server resolved AND against the row itself — same owner, still active. A grant
+written by one owner never resolves against another person's agents, including
+when a `public` agent runs inside a stranger's turn.
+
+The answer comes from a nested turn (`lib/tools/agent-turn.ts`): the target's own
+prompt, the target's own capability grants, reserved and settled against the
+account that funds the outer turn. It does not act for a person, so it holds no
+`askAgent` of its own — A can ask B, and B cannot ask back.
+
 `lib/__tests__/capability-grants.test.ts` is what says the vocabulary is wired:
 it grants one family, runs the real assembler and asserts the set gained exactly
 that family's tools. A grant that reaches nothing produces an empty difference

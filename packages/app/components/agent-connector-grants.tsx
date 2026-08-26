@@ -1,16 +1,26 @@
 /**
- * AgentConnectorGrants — the connectors an agent may reach, ONE AT A TIME.
+ * AgentConnectorGrants — the rows an agent may reach, ONE AT A TIME.
  *
- * Three of the twelve capability families build their tool names from rows —
- * MCP connectors, Oxy service manifests and OAuth integrations — so a grant
- * names the row rather than the family (`mcp:<id>`). They get their own section
- * for that reason: a single switch labelled "MCP Tools" would be a grant over
- * every connector the owner will ever install, which is exactly what an agent
- * inheriting all of its owner's connectors was.
+ * Four of the thirteen capability families are granted a row at a time — MCP
+ * connectors, Oxy service manifests, OAuth integrations and the owner's own
+ * agents — so a grant names the row rather than the family (`mcp:<id>`,
+ * `agent:<id>`). They get their own section for that reason: a single switch
+ * labelled "MCP Tools" would be a grant over every connector the owner will
+ * ever install, which is exactly what an agent inheriting all of its owner's
+ * connectors was.
  *
  * The rows come from `GET /agents/capability-connectors`, which is the only
- * place that can enumerate all three, and which hands over the grant STRING
+ * place that can enumerate all four, and which hands over the grant STRING
  * already assembled — so this file never writes `family:instanceId` itself.
+ *
+ * ## A row that grants the WHOLE family, and what it does to the others
+ *
+ * One family — `agent` — also offers "all your active agents", and the server
+ * sends it as an ordinary row whose `grant` IS the family name. Nothing here is
+ * special-cased for it: a row whose grant equals its family covers the rest of
+ * the group, so while it is on, the individual switches read as granted and are
+ * disabled. Leaving them live would offer an owner a switch that changes
+ * nothing, which is the inert toggle this vocabulary exists to stop.
  *
  * An owner with no connectors sees nothing here rather than an empty group.
  */
@@ -60,7 +70,11 @@ export function AgentConnectorGrants({
         return (
           <SettingsListGroup key={family} title={INSTANCED_FAMILY_LABELS[family]}>
             {rows.map((connector) => {
-              const granted = grants.includes(connector.grant);
+              // Covered by the family-wide row above, if the group has one and
+              // it is on. Comparing two fields the server sent, never parsing
+              // the grant.
+              const subsumed = connector.grant !== family && grants.includes(family);
+              const granted = subsumed || grants.includes(connector.grant);
               return (
                 <SettingsListItem
                   key={connector.grant}
@@ -72,7 +86,7 @@ export function AgentConnectorGrants({
                   }
                   title={connector.label}
                   description={connector.detail}
-                  disabled={disabled}
+                  disabled={disabled || subsumed}
                   showChevron={false}
                   rightElement={
                     <Switch
@@ -84,7 +98,7 @@ export function AgentConnectorGrants({
                             : [...grants, connector.grant],
                         )
                       }
-                      disabled={disabled}
+                      disabled={disabled || subsumed}
                     />
                   }
                 />

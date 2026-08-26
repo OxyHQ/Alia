@@ -242,8 +242,8 @@ router.post('/token', async (req: Request, res: Response) => {
      *
      * `instancedSources: []` is a FETCH decision of the same kind: a connector's
      * tools would be discarded by the projection anyway, and building them
-     * first is three network round trips on a path where somebody is waiting to
-     * speak.
+     * first is a round trip per instanced family on a path where somebody is
+     * waiting to speak.
      */
     const { tools: assembled } = await ToolPipeline.forUser({
       userId,

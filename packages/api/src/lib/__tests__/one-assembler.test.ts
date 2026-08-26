@@ -128,6 +128,8 @@ const ALLOWED: Readonly<Record<string, string>> = {
   'packages/api/src/lib/tools/integrations/google-calendar.ts': 'SOURCE: one service.',
   'packages/api/src/lib/tools/integrations/google-drive.ts': 'SOURCE: one service.',
   'packages/api/src/lib/tools/oxy-services.ts': 'SOURCE: one origin (the oxy_services manifests).',
+  'packages/api/src/lib/tools/ask-agent.ts':
+    "SOURCE: one origin (the owner's own agents) and ONE tool, whose schema is what the grant narrows. Merges nothing.",
   'packages/api/src/lib/agent/actions.ts':
     'SOURCE plus POLICY: the five session primitives, and the pass that wraps whatever the assembler built.',
   'packages/api/src/lib/tools/result-truncation.ts':
@@ -329,7 +331,10 @@ describe('nothing hands a model a tool set the assembler did not build', () => {
     );
     expect(callers.length).toBeGreaterThanOrEqual(5);
     expect(callers).toContain('packages/api/src/routes/webhooks.ts');
-    expect(callers).toContain('packages/api/src/lib/tools/agent-delegate.ts');
+    // `agent-turn.ts`, not `agent-delegate.ts`: the nested turn — the model
+    // call, its tools and its reservation — is one runner now, shared by the
+    // delegation tool and by `askAgent`.
+    expect(callers).toContain('packages/api/src/lib/tools/agent-turn.ts');
   });
 
   it('passes an inline literal only where the allow-list says, with the reason', () => {

@@ -10,6 +10,7 @@ import {
   findAgentKnowledge,
   findAgentSkills,
   listAgentCatalogue,
+  listActiveAgentsByAuthor,
   listAgentsByAuthor,
   updateAgent,
   type AgentRecord,
@@ -21,7 +22,13 @@ import {
   verifyAgentAccount,
   type AgentAccountRefusal,
 } from '../../lib/agent-account.js';
-import { attachAgentIdentities, attachAgentIdentity } from '../../lib/agent-identity.js';
+import {
+  agentPromptName,
+  attachAgentIdentities,
+  attachAgentIdentity,
+  resolveAgentIdentities,
+  UNRESOLVED_IDENTITY,
+} from '../../lib/agent-identity.js';
 import { latestMessagePerAgent } from '../../db/chat/conversationRepository.js';
 import {
   createTrigger,
@@ -286,12 +293,18 @@ router.get('/health', async (_req: Request, res: Response) => {
 /**
  * GET /agents/capability-connectors — the ROWS this caller can grant an agent.
  *
- * Three of the twelve capability families are granted one row at a time
- * (`mcp:<id>`, `oxy_service:<id>`, `integration:<service>`), because their tool
- * names come from data. A screen offering those grants has to know which rows
- * exist, and only this service knows all three: MCP connectors and OAuth
- * integrations are the caller's own rows, and the Oxy service manifests are
- * global and have no client-facing listing anywhere else.
+ * Four of the thirteen capability families are granted one row at a time
+ * (`mcp:<id>`, `oxy_service:<id>`, `integration:<service>`, `agent:<id>`),
+ * because nobody can enumerate their members in advance. A screen offering
+ * those grants has to know which rows exist, and only this service knows all
+ * four: MCP connectors, OAuth integrations and the caller's agents are the
+ * caller's own rows, and the Oxy service manifests are global and have no
+ * client-facing listing anywhere else.
+ *
+ * `?agent=<id>` is the agent being EDITED, left out of its own list. Cosmetic
+ * only — the assembler excludes the calling agent whatever is stored — but an
+ * inert switch that grants an agent a conversation with itself is worse than no
+ * switch.
  *
  * The `grant` STRING is built here rather than in the client. It is the value
  * that goes into `capability_grants` verbatim, so a client that assembled it
@@ -307,14 +320,17 @@ router.get('/capability-connectors', authenticateToken, async (req: Request, res
   if (!req.user?.id) return res.status(401).json({ error: 'Unauthorized' });
   const oxyUserId = req.user.id;
 
-  const [mcp, oxyService, integration] = await Promise.all([
+  const excludeAgentId = typeof req.query.agent === 'string' ? req.query.agent : undefined;
+  const [mcp, oxyService, integration, ownAgents] = await Promise.all([
     listMcpServersForUser(getDb(), oxyUserId).catch(connectorFailure<McpServerRow>('mcp')),
     listActiveOxyServiceDefs(getDb()).catch(connectorFailure<OxyServiceDefRow>('oxy_service')),
     listIntegrationsForUser(getDb(), oxyUserId).catch(connectorFailure<IntegrationSafeRow>('integration')),
+    grantableAgentRows(oxyUserId, excludeAgentId).catch(connectorFailure<GrantableConnectorRow>('agent')),
   ]);
 
   res.json({
     connectors: [
+      ...ownAgents,
       ...mcp.map((server) => ({
         grant: formatCapabilityGrant('mcp', server.id),
         family: 'mcp',
@@ -342,6 +358,52 @@ router.get('/capability-connectors', authenticateToken, async (req: Request, res
     ],
   });
 });
+
+/** One grantable row, exactly as the agent editor renders it. */
+interface GrantableConnectorRow {
+  grant: string;
+  family: string;
+  label: string;
+  detail: string;
+}
+
+/**
+ * The caller's own active agents, plus the ONE row that means all of them.
+ *
+ * The bare `agent` grant is a real grant string and is assembled here like
+ * every other, so the client still never writes the separator — or its absence.
+ * It is offered only when there is at least one agent to reach, because a
+ * switch labelled "all of them" over none is a promise about an empty set.
+ *
+ * Names come from Oxy in one batch and FAIL OPEN: an account that does not
+ * resolve keeps its row under the generic name, since the tagline beside it is
+ * Alia's own and still says which agent this is.
+ */
+async function grantableAgentRows(
+  oxyUserId: string,
+  excludeAgentId: string | undefined,
+): Promise<GrantableConnectorRow[]> {
+  const owned = (await listActiveAgentsByAuthor(getDb(), oxyUserId)).filter(
+    (agent) => agent._id !== excludeAgentId,
+  );
+  if (owned.length === 0) return [];
+
+  const identities = await resolveAgentIdentities(owned.map((agent) => agent.oxyAccountId));
+  return [
+    {
+      grant: formatCapabilityGrant('agent'),
+      family: 'agent',
+      label: 'All your active agents',
+      detail: 'New agents join automatically; switching one off removes it',
+    },
+    ...owned.map((agent) => ({
+      grant: formatCapabilityGrant('agent', agent._id),
+      family: 'agent',
+      label: agentPromptName(identities.get(agent.oxyAccountId) ?? UNRESOLVED_IDENTITY),
+      detail: agent.tagline,
+    })),
+  ];
+}
 
 /** A connector source that could not be listed contributes nothing, loudly. */
 function connectorFailure<T>(family: string): (err: unknown) => T[] {
