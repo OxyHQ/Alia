@@ -88,7 +88,7 @@ export interface RequestedModelIdentity {
  * Order matters and is not arbitrary: the alias table is consulted FIRST,
  * because `alia-v1-pro` is a well-formed routing-profile slug and a
  * grammar-first reading would classify all thirteen aliases as product modes
- * that Relay has never heard of.
+ * that Kaana has never heard of.
  */
 export function classifyRequestedModel(requested: string): RequestedModelIdentity {
   const translation = translateAlias(requested);

@@ -3,22 +3,22 @@ import type { Server } from 'node:http';
 import express from 'express';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { RELAY_CLIENT_ENABLED_ENV } from '../../lib/inference/kaana-cutover.js';
+import { KAANA_CLIENT_ENABLED_ENV } from '../../lib/inference/kaana-cutover.js';
 
 /**
  * What `/health`, `/health/ready` and `/health/live` actually RETURN — #139 ws8.
  *
  * ## Why this file exists
  *
- * The Relay half of these routes was guarded by a source-text assertion: that
- * `routes/health.ts` contained the string `relayBlocksReadiness()`. That proves
+ * The Kaana half of these routes was guarded by a source-text assertion: that
+ * `routes/health.ts` contained the string `kaanaBlocksReadiness()`. That proves
  * the route NAMES the function. It does not prove the route acts on the answer,
  * and the difference is not academic — measured on `main`, changing
  *
- *     if (relayBlocksReadiness())   ->   if (!relayBlocksReadiness())
+ *     if (kaanaBlocksReadiness())   ->   if (!kaanaBlocksReadiness())
  *
  * left the entire API suite green (101 files, 1387 tests) while inverting the
- * probe: the task then reported NOT READY exactly when Relay was reachable, and
+ * probe: the task then reported NOT READY exactly when Kaana was reachable, and
  * ready when it was not. A guard that asserts the shape of a declaration and
  * never the semantics is the failure this whole verification pass keeps finding.
  *
@@ -30,7 +30,7 @@ import { RELAY_CLIENT_ENABLED_ENV } from '../../lib/inference/kaana-cutover.js';
  *  1. **`/health/live` consults nothing.** It is what the `oxy-alia` target
  *     group polls, so a dependency in it can get a task KILLED — the worst
  *     possible response to a dependency being briefly unavailable.
- *  2. **A cold task is READY.** Relay connectivity `unknown` must not remove a
+ *  2. **A cold task is READY.** Kaana connectivity `unknown` must not remove a
  *     task from rotation, because a task out of rotation receives no request and
  *     could never acquire the evidence that would put it back in. That deadlock
  *     is the reason only an OBSERVED failure counts.
@@ -165,8 +165,21 @@ interface Probe {
   readonly body: Record<string, unknown>;
 }
 
-/** What this process has observed about Relay when the request arrives. */
-type RelayState = 'no observation' | 'reachable' | { readonly unavailableUntilMs: number };
+/** What this process has observed about Kaana when the request arrives. */
+type KaanaState = 'no observation' | 'reachable' | { readonly unavailableUntilMs: number };
+
+/**
+ * The one Kaana object out of an untyped body.
+ *
+ * `body` is `Record<string, unknown>` on purpose — it is JSON off a socket — so
+ * reading two fields off it needs one narrowing, and doing it here means a
+ * response that stopped carrying the object fails on the assertion rather than
+ * on a property of `undefined`.
+ */
+function kaanaOf(body: Record<string, unknown>): { credentials?: string; client?: string } {
+  expect(body.kaana).toBeTypeOf('object');
+  return body.kaana as { credentials?: string; client?: string };
+}
 
 let server: Server | null = null;
 
@@ -189,7 +202,7 @@ async function probe(
   path: string,
   {
     postgresReady = true,
-    relay = 'no observation' as RelayState,
+    kaana = 'no observation' as KaanaState,
     providers = [SERVED] as readonly ProviderRow[],
     credentialed = providers.map((p) => p.provider) as readonly string[],
     // Default: one tier configuring exactly the pairs the fixtures carry rows
@@ -201,9 +214,9 @@ async function probe(
   mockDependencies({ postgresReady, providers, credentialed, configured });
 
   const connectivity = await import('../../lib/inference/kaana-connectivity.js');
-  if (relay === 'reachable') connectivity.reportRelayReachable();
-  else if (relay !== 'no observation') {
-    connectivity.reportRelayUnavailableUntil(relay.unavailableUntilMs);
+  if (kaana === 'reachable') connectivity.reportKaanaReachable();
+  else if (kaana !== 'no observation') {
+    connectivity.reportKaanaUnavailableUntil(kaana.unavailableUntilMs);
   }
 
   const { default: healthRouter } = await import('../health.js');
@@ -283,11 +296,11 @@ describe('/health/live answers only "this process is running"', () => {
     expect(body).toEqual({ status: 'alive' });
   });
 
-  it('is 200 with Relay observed unreachable after the cutover', async () => {
-    // The target group polls this. A Relay outage must not get every task killed
+  it('is 200 with Kaana observed unreachable after the cutover', async () => {
+    // The target group polls this. A Kaana outage must not get every task killed
     // and replaced, which is what a failing LIVENESS probe means.
-    vi.stubEnv(RELAY_CLIENT_ENABLED_ENV, 'true');
-    const { status, body } = await probe('/health/live', { relay: UNAVAILABLE });
+    vi.stubEnv(KAANA_CLIENT_ENABLED_ENV, 'true');
+    const { status, body } = await probe('/health/live', { kaana: UNAVAILABLE });
     expect(status).toBe(200);
     expect(body).toEqual({ status: 'alive' });
   });
@@ -298,72 +311,87 @@ describe('/health/live answers only "this process is running"', () => {
 /* -------------------------------------------------------------------------- */
 
 /**
- * Relay is REPORTED by readiness and never acted on by it.
+ * Kaana is REPORTED by readiness and never acted on by it.
  *
- * `/health/ready` used to answer 503 `relay_unreachable` on an open circuit.
- * The observation is per-process, but Relay being unreachable is not a per-task
+ * `/health/ready` used to answer 503 with a Kaana-unreachable reason on an open circuit.
+ * The observation is per-process, but Kaana being unreachable is not a per-task
  * fact — every task discovers the same outage within a probe interval and they
  * all deregister together, which is the outage `kaana-connectivity.ts`'s own
  * header is written against. Two specifics decide it: `provider_overloaded` and
  * `provider_timeout` are among the four codes that open that circuit, so the
- * gate would have deregistered the fleet on UPSTREAM PROVIDER state; and Relay
+ * gate would have deregistered the fleet on UPSTREAM PROVIDER state; and Kaana
  * implements `AliaInferencePort` alone, so a task that cannot reach it still
  * serves authentication, conversation reads, billing and MCP.
  *
  * So the body still names the state — every case below reads it — and the
  * status code no longer moves with it.
  */
-describe('/health/ready reports Relay connectivity without acting on it', () => {
+describe('/health/ready reports Kaana connectivity without acting on it', () => {
   it('is ready and reports disabled while the cutover flag is off', async () => {
     // Every deployment that exists. Recorded as a status code so a change to it
     // is a change to this test, not a comment.
-    const { status, body } = await probe('/health/ready', { relay: UNAVAILABLE });
+    const { status, body } = await probe('/health/ready', { kaana: UNAVAILABLE });
     expect(status).toBe(200);
-    expect(body).toEqual({ status: 'ready', relay: 'disabled' });
+    expect(body).toEqual({
+      status: 'ready',
+      kaana: { credentials: 'not_configured', client: 'disabled' },
+    });
   });
 
   it('is ready on a COLD task, which is the deadlock this avoids', async () => {
-    vi.stubEnv(RELAY_CLIENT_ENABLED_ENV, 'true');
+    vi.stubEnv(KAANA_CLIENT_ENABLED_ENV, 'true');
     const { status, body } = await probe('/health/ready');
     expect(status).toBe(200);
-    expect(body).toEqual({ status: 'ready', relay: 'unknown' });
+    expect(body).toEqual({
+      status: 'ready',
+      kaana: { credentials: 'not_configured', client: 'unknown' },
+    });
   });
 
   it('is ready once a call has completed', async () => {
-    vi.stubEnv(RELAY_CLIENT_ENABLED_ENV, 'true');
-    const { status, body } = await probe('/health/ready', { relay: 'reachable' });
+    vi.stubEnv(KAANA_CLIENT_ENABLED_ENV, 'true');
+    const { status, body } = await probe('/health/ready', { kaana: 'reachable' });
     expect(status).toBe(200);
-    expect(body).toEqual({ status: 'ready', relay: 'reachable' });
+    expect(body).toEqual({
+      status: 'ready',
+      kaana: { credentials: 'not_configured', client: 'reachable' },
+    });
   });
 
   it('is READY while the circuit is open, and says so in the same breath', async () => {
     /**
      * The case that changed, and the one a re-added gate makes 503.
      *
-     * `relay: 'unreachable'` in a 200 body is the whole design in one line: the
+     * `client: 'unreachable'` in a 200 body is the whole design in one line: the
      * task reports the outage truthfully and stays in rotation, because taking
      * it out would remove every task at once and take authentication,
      * conversations, billing and MCP down with inference.
      */
-    vi.stubEnv(RELAY_CLIENT_ENABLED_ENV, 'true');
-    const { status, body } = await probe('/health/ready', { relay: UNAVAILABLE });
+    vi.stubEnv(KAANA_CLIENT_ENABLED_ENV, 'true');
+    const { status, body } = await probe('/health/ready', { kaana: UNAVAILABLE });
     expect(status).toBe(200);
-    expect(body).toEqual({ status: 'ready', relay: 'unreachable' });
+    expect(body).toEqual({
+      status: 'ready',
+      kaana: { credentials: 'not_configured', client: 'unreachable' },
+    });
   });
 
   it('is ready again once the cooldown lapses, without anything clearing it', async () => {
-    vi.stubEnv(RELAY_CLIENT_ENABLED_ENV, 'true');
-    const { status, body } = await probe('/health/ready', { relay: LAPSED });
+    vi.stubEnv(KAANA_CLIENT_ENABLED_ENV, 'true');
+    const { status, body } = await probe('/health/ready', { kaana: LAPSED });
     expect(status).toBe(200);
-    expect(body).toEqual({ status: 'ready', relay: 'unknown' });
+    expect(body).toEqual({
+      status: 'ready',
+      kaana: { credentials: 'not_configured', client: 'unknown' },
+    });
   });
 
-  it('refuses on Postgres even while Relay is also unreachable', async () => {
-    // The remaining condition still fires when Relay is down too, and it names
-    // the fault an operator should go and look at. With the Relay gate gone
+  it('refuses on Postgres even while Kaana is also unreachable', async () => {
+    // The remaining condition still fires when Kaana is down too, and it names
+    // the fault an operator should go and look at. With the Kaana gate gone
     // this is also the only 503 `/health/ready` can produce.
-    vi.stubEnv(RELAY_CLIENT_ENABLED_ENV, 'true');
-    const { status, body } = await probe('/health/ready', { postgresReady: false, relay: UNAVAILABLE });
+    vi.stubEnv(KAANA_CLIENT_ENABLED_ENV, 'true');
+    const { status, body } = await probe('/health/ready', { postgresReady: false, kaana: UNAVAILABLE });
     expect(status).toBe(503);
     expect(body).toEqual({ status: 'not_ready', reason: 'database_unavailable' });
   });
@@ -373,30 +401,30 @@ describe('/health/ready reports Relay connectivity without acting on it', () => 
 /*  The snapshot                                                               */
 /* -------------------------------------------------------------------------- */
 
-describe('/health names Relay in the snapshot', () => {
+describe('/health names Kaana in the snapshot', () => {
   it('reports disabled and stays healthy while the cutover flag is off', async () => {
-    const { status, body } = await probe('/health', { relay: UNAVAILABLE });
+    const { status, body } = await probe('/health', { kaana: UNAVAILABLE });
     expect(status).toBe(200);
     expect(body.status).toBe('healthy');
-    expect(body.relay).toBe('disabled');
+    expect(kaanaOf(body).client).toBe('disabled');
   });
 
-  it('degrades when Relay is observed unreachable after the cutover', async () => {
-    vi.stubEnv(RELAY_CLIENT_ENABLED_ENV, 'true');
-    const { status, body } = await probe('/health', { relay: UNAVAILABLE });
+  it('degrades when Kaana is observed unreachable after the cutover', async () => {
+    vi.stubEnv(KAANA_CLIENT_ENABLED_ENV, 'true');
+    const { status, body } = await probe('/health', { kaana: UNAVAILABLE });
     expect(status).toBe(503);
     expect(body.status).toBe('degraded');
-    expect(body.relay).toBe('unreachable');
+    expect(kaanaOf(body).client).toBe('unreachable');
   });
 
-  it('stays healthy when Relay is reachable after the cutover', async () => {
-    // The control that makes the degradation above about Relay's STATE rather
+  it('stays healthy when Kaana is reachable after the cutover', async () => {
+    // The control that makes the degradation above about Kaana's STATE rather
     // than about the flag being on.
-    vi.stubEnv(RELAY_CLIENT_ENABLED_ENV, 'true');
-    const { status, body } = await probe('/health', { relay: 'reachable' });
+    vi.stubEnv(KAANA_CLIENT_ENABLED_ENV, 'true');
+    const { status, body } = await probe('/health', { kaana: 'reachable' });
     expect(status).toBe(200);
     expect(body.status).toBe('healthy');
-    expect(body.relay).toBe('reachable');
+    expect(kaanaOf(body).client).toBe('reachable');
   });
 });
 
@@ -692,7 +720,7 @@ describe('the provider census counts what is configured', () => {
  * serve the API", `/health` answers "can the FLEET serve inference". Both
  * answers stay honest; only the first one may move a target out of rotation.
  *
- * The criterion is NOT "is the signal process-local" — Relay's observation is
+ * The criterion is NOT "is the signal process-local" — Kaana's observation is
  * per-process and still failed, because that says where the evidence is stored
  * and not where the fault is. It is **does this task's failure DIFFER from its
  * siblings'**, since deregistering only helps if there is a healthier task to
@@ -732,7 +760,10 @@ describe('readiness answers for the task, and /health keeps the fleet-wide truth
       credentialed: [],
     });
     expect(status).toBe(200);
-    expect(body).toEqual({ status: 'ready', relay: 'disabled' });
+    expect(body).toEqual({
+      status: 'ready',
+      kaana: { credentials: 'not_configured', client: 'disabled' },
+    });
   });
 
   it('/health/ready is 200 even when the fleet WATCHED every provider fail', async () => {
@@ -747,7 +778,10 @@ describe('readiness answers for the task, and /health keeps the fleet-wide truth
      */
     const { status, body } = await probe('/health/ready', { providers: [...NOTHING_SERVES] });
     expect(status).toBe(200);
-    expect(body).toEqual({ status: 'ready', relay: 'disabled' });
+    expect(body).toEqual({
+      status: 'ready',
+      kaana: { credentials: 'not_configured', client: 'disabled' },
+    });
   });
 
   it('/health reports that same fleet as degraded, so nothing is hidden', async () => {
@@ -772,7 +806,10 @@ describe('readiness answers for the task, and /health keeps the fleet-wide truth
       providers: [SERVED, CIRCUIT_OPEN],
     });
     expect(status).toBe(200);
-    expect(body).toEqual({ status: 'ready', relay: 'disabled' });
+    expect(body).toEqual({
+      status: 'ready',
+      kaana: { credentials: 'not_configured', client: 'disabled' },
+    });
   });
 
   it('/health/ready still refuses on the ONE condition that survives the test', async () => {
@@ -797,12 +834,14 @@ describe('readiness answers for the task, and /health keeps the fleet-wide truth
 });
 
 /**
- * `relay` and `kaana` answer different questions, and the snapshot says both.
+ * `credentials` and `client` answer different questions, under ONE name.
  *
- * `relay` reports the cutover flag, so it reads `disabled` on every deployment
+ * `client` reports the cutover flag, so it reads `disabled` on every deployment
  * that exists — including production, where Kaana serves every background
- * derivation. Read as "Kaana is off", which is what it looks like, it says the
- * opposite of the truth.
+ * derivation. Alone, and especially spelled `relay` as it used to be, it says
+ * the opposite of the truth: it looks like "Kaana is off". `credentials` is the
+ * field that contradicts that reading, and the two are now one object so
+ * neither can be read without the other.
  */
 describe('what the snapshot says about Kaana', () => {
   const KAANA_ENV = {
@@ -814,10 +853,10 @@ describe('what the snapshot says about Kaana', () => {
     for (const [name, value] of Object.entries(KAANA_ENV)) vi.stubEnv(name, value);
     const { body } = await probe('/health');
 
-    expect(body.kaana).toBe('configured');
-    // The whole point of the pair: the older field still reads `disabled`, and
-    // a reader who had only that one would conclude Kaana was not in use.
-    expect(body.relay).toBe('disabled');
+    expect(kaanaOf(body).credentials).toBe('configured');
+    // The whole point of the pair: `client` still reads `disabled`, and a
+    // reader who had only that half would conclude Kaana was not in use.
+    expect(kaanaOf(body).client).toBe('disabled');
   });
 
   it('says not_configured when it does not', async () => {
@@ -825,10 +864,10 @@ describe('what the snapshot says about Kaana', () => {
     // pass the case above.
     for (const name of Object.keys(KAANA_ENV)) vi.stubEnv(name, '');
     const { body } = await probe('/health');
-    expect(body.kaana).toBe('not_configured');
+    expect(kaanaOf(body).credentials).toBe('not_configured');
   });
 
-  it('does not let either field decide readiness', async () => {
+  it('does not let either half decide readiness', async () => {
     // Neither may deregister a task: `/health/live` is what the target group
     // polls, and readiness reports rather than gates.
     for (const name of Object.keys(KAANA_ENV)) vi.stubEnv(name, '');

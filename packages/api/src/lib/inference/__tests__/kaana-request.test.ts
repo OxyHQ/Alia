@@ -10,21 +10,21 @@ import {
 } from '@oxyhq/contracts';
 
 import type { AliaModelChoice } from '../product-seam.js';
-import { RelayInferenceError } from '../kaana-error.js';
+import { KaanaInferenceError } from '../kaana-error.js';
 import {
   ALIA_SURFACE_LABEL,
   buildInferenceRequest,
   resolveRoutingTarget,
   targetPinsRevision,
   violatedCapability,
-  type RelayEnvelopeContext,
-  type RelayRequestPayload,
+  type KaanaEnvelopeContext,
+  type KaanaRequestPayload,
 } from '../kaana-request.js';
 
 /**
- * Contract tests for the request the Relay client builds — epic #139 ws3.
+ * Contract tests for the request the Kaana client builds — epic #139 ws3.
  *
- * There is no Relay to call, so the strongest available evidence that this
+ * There is no Kaana to call, so the strongest available evidence that this
  * client speaks the protocol is the protocol's own parser:
  * `inferenceRequestSchema` is a live zod object in the published package, not a
  * type, so "the client builds a valid request" is checkable rather than
@@ -43,7 +43,7 @@ import {
  */
 
 const PRINCIPAL = authenticatedPrincipalSchema.parse({
-  billing: { accountId: 'acct_relay_test' },
+  billing: { accountId: 'acct_kaana_test' },
   applicationId: 'app_alia',
   credentialId: 'cred_alia_1',
   environment: 'production',
@@ -52,7 +52,7 @@ const PRINCIPAL = authenticatedPrincipalSchema.parse({
 
 const ROUTING_POLICY: RoutingPolicyReference = { routingPolicyId: 'alia-default', policyVersion: 1 };
 
-const ENVELOPE: RelayEnvelopeContext = {
+const ENVELOPE: KaanaEnvelopeContext = {
   principal: PRINCIPAL,
   delegatedUserId: 'oxy-user-1',
   requestId: 'alia-req-1',
@@ -63,7 +63,7 @@ const ENVELOPE: RelayEnvelopeContext = {
   costCentre: 'deep_research',
 };
 
-function payload(over: Partial<RelayRequestPayload> = {}): RelayRequestPayload {
+function payload(over: Partial<KaanaRequestPayload> = {}): KaanaRequestPayload {
   return {
     modality: 'text',
     input: {
@@ -117,7 +117,7 @@ describe('the contract schema can refuse (the vacuity floor for this file)', () 
         ...built.attribution,
         principal: {
           ...built.attribution.principal,
-          billing: { accountId: 'acct_relay_test', userId: 'oxy-user-1' },
+          billing: { accountId: 'acct_kaana_test', userId: 'oxy-user-1' },
         },
       },
     };
@@ -193,7 +193,7 @@ describe('buildInferenceRequest fills exactly the fields the product does not', 
 });
 
 describe('buildInferenceRequest refuses what the contract refuses', () => {
-  const cases: readonly [string, Partial<RelayRequestPayload>, string][] = [
+  const cases: readonly [string, Partial<KaanaRequestPayload>, string][] = [
     [
       'a tool choice with no tools',
       { toolChoice: 'required' },
@@ -239,8 +239,8 @@ describe('buildInferenceRequest refuses what the contract refuses', () => {
       } catch (cause) {
         thrown = cause;
       }
-      expect(thrown).toBeInstanceOf(RelayInferenceError);
-      const error = thrown as RelayInferenceError;
+      expect(thrown).toBeInstanceOf(KaanaInferenceError);
+      const error = thrown as KaanaInferenceError;
       expect(error.code).toBe('invalid_request');
       expect(error.retryable).toBe(false);
       expect(error.inferenceError.param ?? '').toContain(expectedParamPrefix);
@@ -267,7 +267,7 @@ describe('buildInferenceRequest refuses what the contract refuses', () => {
     } catch (cause) {
       thrown = cause;
     }
-    const error = thrown as RelayInferenceError;
+    const error = thrown as KaanaInferenceError;
     expect(JSON.stringify(error.inferenceError)).not.toContain('sk-live-secret-material');
   });
 });
@@ -345,12 +345,12 @@ describe('a product model id becomes a target by grammar, and an alias by its pu
      * `alia-flash` is the real case: `lib/tools/delegate.ts` defaulted to it for
      * as long as it did precisely because it is a well-formed slug that every
      * lenient reading accepts. The grammar below would send it as a routing
-     * profile, asking Relay to route a profile only this repository could have
+     * profile, asking Kaana to route a profile only this repository could have
      * defined. Alia knows its own namespace exhaustively, so it answers.
      */
     expect(() =>
       resolveRoutingTarget({ kind: 'user_selected', productModelId: 'alia-flash' }, DEFAULT_TARGET, 'r'),
-    ).toThrow(RelayInferenceError);
+    ).toThrow(KaanaInferenceError);
 
     // The control: the refusal is about the NAMESPACE, not about every slug.
     // `auto` is a legitimate profile nobody in this repository owns.
@@ -365,7 +365,7 @@ describe('a product model id becomes a target by grammar, and an alias by its pu
     // 0003 forbids.
     expect(() =>
       resolveRoutingTarget({ kind: 'user_selected', productModelId: 'Alia V1 Pro' }, DEFAULT_TARGET, 'r'),
-    ).toThrow(RelayInferenceError);
+    ).toThrow(KaanaInferenceError);
   });
 
   it('does not read an unpinned reference as pinned', () => {

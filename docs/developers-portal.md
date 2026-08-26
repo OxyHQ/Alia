@@ -7,7 +7,7 @@ and call `api.oxy.so/v1`. This page exists for people who already hold an Alia-i
 credential is retired.
 
 The decisions behind that split are recorded in
-[ADR 0001](./adr/0001-alia-oxy-relay-responsibility-boundary.md) (Oxy owns accounts,
+[ADR 0001](./adr/0001-alia-oxy-kaana-responsibility-boundary.md) (Oxy owns accounts,
 applications, credentials, the ledger and the public generic inference API) and
 [ADR 0004](./adr/0004-product-endpoints-versus-generic-inference-endpoints.md) (Alia's
 `/v1/*` becomes a bounded compatibility surface and then sunsets). The clock and its gates
@@ -108,7 +108,7 @@ Under ADR 0004 and the compatibility window:
   Every application this surface registered existed to hold `alia_sk_*` keys.
 - **The surface gains nothing.** No new route, no new capability and no new model lands on
   `api.alia.onl/v1/*`. Generic inference development happens on `api.oxy.so/v1`.
-- **Alia stops settling inference charges** for this surface. Usage is metered by Relay and
+- **Alia stops settling inference charges** for this surface. Usage is metered by Kaana and
   charged through the Oxy ledger ([ADR 0005](./adr/0005-product-entitlements-versus-financial-ledger.md)).
 
 Revocation, rotation, listing and inspection of **existing** keys stay available for the

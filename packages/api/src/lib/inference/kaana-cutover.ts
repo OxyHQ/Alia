@@ -17,15 +17,15 @@
  *     temporal-dead-zone bug waiting for an unlucky module order.
  *
  * Nothing here reads the client, the contract or a transport, so a product
- * module asking "has the cutover happened" does not thereby name the Relay
+ * module asking "has the cutover happened" does not thereby name the Kaana
  * client — which is the freeze `__tests__/kaana-boundary.test.ts` enforces.
  */
 
 /**
- * The one environment variable that can make the Relay client answer a call, and
+ * The one environment variable that can make the Kaana client answer a call, and
  * the one that arms every guard this workstream adds.
  *
- * Default OFF. Off means the Relay client returns `service_unavailable` before a
+ * Default OFF. Off means the Kaana client returns `service_unavailable` before a
  * transport is touched, the direct-provider boot guard consults nothing, and the
  * egress block is not installed. Until the cutover happens a deployment that set
  * this by accident would degrade loudly rather than route production traffic at
@@ -50,8 +50,21 @@
  * this is the line somebody reads when they flip it. Skip it and the first real
  * request fails on balance — a long way from its cause, which was a correct
  * cost-centre registration weeks earlier rather than anything in the cutover.
+ *
+ * ## The variable NAME still says `RELAY`
+ *
+ * **And that is not an oversight.** Kaana shipped under the working name Relay,
+ * and every one of these names is set by the LIVE ECS task definition, which `deploy-aws.yml` re-renders from the
+ * running one rather than declaring it whole. Renaming a name here without
+ * renaming it there makes the read return `undefined` and the behaviour change
+ * in silence; renaming it in both leaves BOTH spellings in the task definition,
+ * because the render merges and never removes. So the rename is an
+ * infrastructure change, carried out on the task definition and on the two
+ * GitHub repo secrets that feed SSM, and it is deliberately not made here. Gate
+ * 6 in `__tests__/architectureGates.test.ts` freezes these names, so a
+ * unilateral rename goes red rather than shipping.
  */
-export const RELAY_CLIENT_ENABLED_ENV = 'ALIA_RELAY_CLIENT_ENABLED';
+export const KAANA_CLIENT_ENABLED_ENV = 'ALIA_RELAY_CLIENT_ENABLED';
 
 /**
  * Exactly `'true'` enables it. Any other value, including `'1'`, does not.
@@ -62,6 +75,6 @@ export const RELAY_CLIENT_ENABLED_ENV = 'ALIA_RELAY_CLIENT_ENABLED';
  * silently arming — or silently failing to arm — a guard is worse than a value
  * that plainly does nothing.
  */
-export function isRelayClientEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
-  return env[RELAY_CLIENT_ENABLED_ENV] === 'true';
+export function isKaanaClientEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
+  return env[KAANA_CLIENT_ENABLED_ENV] === 'true';
 }

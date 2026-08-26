@@ -1,6 +1,6 @@
 ---
 title: "Chat runtime"
-description: "The Alia product chat runtime: today's request path, the alia.* product stream events, and the Relay boundary recorded in ADR 0001."
+description: "The Alia product chat runtime: today's request path, the alia.* product stream events, and the Kaana boundary recorded in ADR 0001."
 order: 1
 ---
 
@@ -27,15 +27,15 @@ OpenAI-protocol clients — the CLI, Cowork and the Codea webview — because th
 package derives `POST {baseURL}/chat/completions` itself. The whole census is frozen as
 gate 8 of `packages/api/src/__tests__/architectureGates.test.ts`.
 
-## The Relay boundary
+## The Kaana boundary
 
-[ADR 0001](./adr/0001-alia-oxy-relay-responsibility-boundary.md) splits responsibility
+[ADR 0001](./adr/0001-alia-oxy-kaana-responsibility-boundary.md) splits responsibility
 three ways. Alia owns the product runtime described on this page. Oxy owns accounts,
 applications, credentials, the ledger and the public generic inference API. A separate
-data plane, working name **Relay**, owns request normalization, routing, provider
+data plane — **Kaana**, Oxy's own inference provider — owns request normalization, routing, provider
 adapters, streaming, fallback, health, deployments and metering.
 
-**Today Alia does not call Relay. Relay does not exist yet.** Provider calls happen
+**Today Alia does not call Kaana. Kaana does not exist yet.** Provider calls happen
 in-process: `packages/api/src/lib/chat-core.ts:110` builds a Vercel AI SDK client directly,
 against credentials read from the `provider_keys` table
 (`packages/api/src/db/schema/providers.ts:300`). There is no gateway service —
@@ -43,14 +43,14 @@ against credentials read from the `provider_keys` table
 takes its local in-process path unless both `SERVICE_SECRET` and `GATEWAY_API_URL` are
 set, which production does not do.
 
-Under ADR 0001 that becomes one typed Relay client at a single boundary, with two rules
+Under ADR 0001 that becomes one typed Kaana client at a single boundary, with two rules
 that are absolute once it lands: the Alia client never calls a provider directly, and the
-Alia backend never bypasses Relay after cutover. Extraction is workstream 7 of #139;
+Alia backend never bypasses Kaana after cutover. Extraction is workstream 7 of #139;
 removing the dual-mode gateway seam is workstream 8.
 
-What does **not** move to Relay: conversation lifecycle, context and memory recall, agent
+What does **not** move to Kaana: conversation lifecycle, context and memory recall, agent
 planning, tool execution and approvals, deep-research progress, triggers, notifications,
-title generation, the `alia.*` stream events below, and plan and entitlement checks. Relay
+title generation, the `alia.*` stream events below, and plan and entitlement checks. Kaana
 receives only the context a given inference request requires.
 
 ## Request shape
@@ -128,7 +128,7 @@ default, which is workstream 4 of #139.
 ## SSE event contract
 
 `alia.*` events are **Alia product events**. They are not part of the Oxy generic
-inference contract, they are not implemented by Relay, and no generic client should be
+inference contract, they are not implemented by Kaana, and no generic client should be
 written against them ([ADR 0004](./adr/0004-product-endpoints-versus-generic-inference-endpoints.md)).
 During the compatibility window they may continue to appear on `api.alia.onl/v1/*`
 responses, because that surface is the product runtime under an older name — which is a

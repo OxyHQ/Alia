@@ -16,7 +16,7 @@ First, product semantics leak into a surface that claims to be generic. The `/v1
 
 Second, the generic surface carries its own identity and billing stack. `packages/api/src/routes/v1.ts:59` authenticates with `authenticateTokenOrApiKey`, accepting Alia-issued `alia_sk_*` credentials (`packages/api/src/lib/api-key-crypto.ts:21`), rate-limited per key at `:62`, backed by Alia-owned `developer_apps` and `developer_api_keys` tables. Under ADR 0001 none of that belongs to Alia.
 
-ADR 0001 assigns the public generic inference API to Oxy, backed by Relay. This ADR records what that means for the two endpoints that exist today.
+ADR 0001 assigns the public generic inference API to Oxy, backed by Kaana. This ADR records what that means for the two endpoints that exist today.
 
 ## Decision
 
@@ -35,9 +35,9 @@ ADR 0001 assigns the public generic inference API to Oxy, backed by Relay. This 
 - product-specific SSE events;
 - plan and entitlement checks.
 
-None of these move to Relay. Relay receives only the context a given inference request requires.
+None of these move to Kaana. Kaana receives only the context a given inference request requires.
 
-### Generic inference belongs to `api.oxy.so/v1`, backed by Relay
+### Generic inference belongs to `api.oxy.so/v1`, backed by Kaana
 
 Alia's `/v1/chat/completions` stops being the canonical generic inference endpoint. A developer who wants generic model access uses Oxy: Oxy Console for applications and credentials, `api.oxy.so/v1` for requests, the Oxy catalogue for models. Alia does not own a generic model catalogue after the Oxy catalogue launches.
 
@@ -49,14 +49,14 @@ Of the three options in workstream 6 of #139 — documented redirect or proxy, b
 
 1. **It authenticates through Oxy.** Requests are authorized against Oxy Accounts, Applications and ApplicationCredentials. The compatibility window is a window for *callers*, not for Alia's credential system.
 2. **It does not reintroduce Alia-owned API keys.** No new `alia_sk_*` credential is issued for it. Existing credentials are migrated under workstream 11 of #139 and the compatibility window document; the surface does not become a reason to keep issuing them.
-3. **It does not reintroduce provider billing in Alia.** Usage on this surface is metered by Relay and charged through the Oxy ledger, exactly as it would be on `api.oxy.so/v1`. Alia does not settle inference charges for it. See ADR 0005.
+3. **It does not reintroduce provider billing in Alia.** Usage on this surface is metered by Kaana and charged through the Oxy ledger, exactly as it would be on `api.oxy.so/v1`. Alia does not settle inference charges for it. See ADR 0005.
 4. **It sunsets.** The window is bounded, its deprecation signals and its measurable removal gate are specified in `docs/migration/compatibility-window.md`, and the surface is removed once that gate is satisfied.
 
 Immediate removal was rejected because known external consumers exist and their usage has not been measured; a redirect or transparent proxy was rejected because it preserves the surface indefinitely under a different implementation, which is the outcome the epic exists to avoid.
 
 ### Alia-specific SSE events are not part of the generic Oxy inference API
 
-The `alia.*` events listed above are product events. They are not part of the Oxy generic inference contract, they are not implemented by Relay, and no generic client should be written against them. During the compatibility window they may continue to appear on `api.alia.onl/v1/*` responses, because that surface is the old product runtime under an old name — which is itself a reason the window is bounded rather than open-ended.
+The `alia.*` events listed above are product events. They are not part of the Oxy generic inference contract, they are not implemented by Kaana, and no generic client should be written against them. During the compatibility window they may continue to appear on `api.alia.onl/v1/*` responses, because that surface is the old product runtime under an old name — which is itself a reason the window is bounded rather than open-ended.
 
 One of those events changes meaning under ADR 0003. `alia.model_switch` currently signals a hidden switch between models from different publishers. Under invariant 3 of ADR 0003 that substitution is no longer permitted without an explicit policy, so the event survives only as a signal that an *authorized* route switch occurred.
 
@@ -87,6 +87,6 @@ After the split, `/alia/chat` and `api.alia.onl/v1/*` may share implementation, 
 
 - **Deprecation signalling on the compatibility surface.** `Deprecation` and `Sunset` response headers and the product stream event are specified in `docs/migration/compatibility-window.md`. No such header is emitted by the API today, and the emission is *not yet enforced — tracked by #139 workstream 19*.
 - **No new `alia_sk_*` issuance.** A check failing when a code path issues a new Alia developer credential is *not yet enforced — tracked by #139 workstream 19*. Until then it is a code review rule against `packages/api/src/routes/developer.ts`.
-- **Product events absent from the generic contract.** A contract test asserting that no `alia.*` event appears in the Oxy generic inference schema belongs to the Oxy/Relay contract package and does not exist yet.
+- **Product events absent from the generic contract.** A contract test asserting that no `alia.*` event appears in the Oxy generic inference schema belongs to the Oxy/Kaana contract package and does not exist yet.
 - **Divergence is visible.** A contract test over the compatibility surface's request and response shape, run against the product runtime so that a product change altering it fails, is *not yet enforced — tracked by #139 workstream 19*.
 - **Usage measurement before removal.** The removal gate for this surface is measured usage, defined in `docs/migration/compatibility-window.md`. Removal without a recorded measurement is rejected in review on that document.

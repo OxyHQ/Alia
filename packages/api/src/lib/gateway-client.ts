@@ -181,7 +181,7 @@ export interface ModelMapping {
    * Who RELEASED this model, which is never who serves it.
    *
    * Optional for the same reason `availabilityScope` is: this module is the
-   * seam a Relay catalogue arrives through, and Relay does not carry the field
+   * seam a Kaana catalogue arrives through, and Kaana does not carry the field
    * yet. The LOCAL branch reads `TIER_MODEL_MAPPINGS`, where every one of the
    * 115 mappings has it (`internal/providers/lib/model-publishers.ts`).
    *
@@ -196,7 +196,7 @@ export interface ModelMapping {
    * deployment.
    *
    * Optional for the same reason `publisher` is, and absent for the same
-   * reason: Relay does not carry it yet. The LOCAL branch reads
+   * reason: Kaana does not carry it yet. The LOCAL branch reads
    * `TIER_MODEL_MAPPINGS`, where every mapping carries it because it is
    * authored beside each route — 29 of the 58 deployment ids differ from their
    * model's name, so it cannot be recovered from `modelId`.
@@ -217,7 +217,7 @@ export interface ModelMapping {
    * Optional and populated by NOTHING in this repository: an availability scope
    * is a property of a deployment in the Oxy catalogue, and the local branch of
    * this facade reads `TIER_MODEL_MAPPINGS`, which has no such column. It is
-   * declared here because this module is the seam a Relay catalogue arrives
+   * declared here because this module is the seam a Kaana catalogue arrives
    * through, so the field lands where the data will, and `lib/catalogue.ts`
    * consumes it today against fixtures.
    *

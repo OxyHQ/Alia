@@ -12,22 +12,22 @@ import {
 import type { AliaInferenceCall, AliaInferenceContext } from '../product-seam.js';
 import {
   assertPrincipalMatchesDeployment,
-  createRelayInferenceClient,
-  RELAY_REQUIRED_SCOPE,
+  createKaanaInferenceClient,
+  KAANA_REQUIRED_SCOPE,
   resolveDeploymentEnvironment,
-  type RelayClientConfig,
-  type RelayServiceCredential,
-  type RelayTransport,
-  type RelayTransportRequest,
+  type KaanaClientConfig,
+  type KaanaServiceCredential,
+  type KaanaTransport,
+  type KaanaTransportRequest,
 } from '../kaana-client.js';
-import { assertAllowedRelayOrigin, RELAY_ALLOWED_ORIGINS } from '../kaana-endpoint.js';
-import { ALIA_SURFACE_LABEL, type RelayRequestPayload } from '../kaana-request.js';
+import { assertAllowedKaanaOrigin, KAANA_ALLOWED_ORIGINS } from '../kaana-endpoint.js';
+import { ALIA_SURFACE_LABEL, type KaanaRequestPayload } from '../kaana-request.js';
 
-/** An approved Relay origin, branded through the one function that produces one. */
-const ENDPOINT = assertAllowedRelayOrigin('https://api.oxy.so', 'development');
+/** An approved Kaana origin, branded through the one function that produces one. */
+const ENDPOINT = assertAllowedKaanaOrigin('https://api.oxy.so', 'development');
 
 /**
- * What crosses the Alia→Relay boundary, and what authenticates it — epic #139
+ * What crosses the Alia→Kaana boundary, and what authenticates it — epic #139
  * workstream 15, the *"Request data"* and *"Service security"* subsections.
  *
  * Six checkboxes are properties of this one hop, and each is stated here beside
@@ -39,12 +39,12 @@ const ENDPOINT = assertAllowedRelayOrigin('https://api.oxy.so', 'development');
  *  - *propagate account/application data-retention policy* — retention is a
  *    field of the ROUTING POLICY, which the Oxy control plane owns; a request
  *    carries the reference, and Alia may not invent a local retention answer;
- *  - *product conversation storage stays Alia's, not duplicated by Relay* — the
- *    envelope has no field that could ask Relay to keep anything;
+ *  - *product conversation storage stays Alia's, not duplicated by Kaana* — the
+ *    envelope has no field that could ask Kaana to keep anything;
  *  - *validate scopes and environment* — checked once, at construction;
- *  - *pin allowed Relay origins/endpoints* — an allow-list, enforced at boot and
+ *  - *pin allowed Kaana origins/endpoints* — an allow-list, enforced at boot and
  *    on every call; the RULE lives in `kaana-endpoint.ts` and its own test, and
- *    what this file keeps is the structural half: no relay module may name a
+ *    what this file keeps is the structural half: no Kaana module may name a
  *    host except that one;
  *  - *request signing/mTLS only if the finalized contract requires it* —
  *    `@oxyhq/contracts@0.27.0` requires neither, so the egress carries exactly
@@ -66,24 +66,24 @@ const ENDPOINT = assertAllowedRelayOrigin('https://api.oxy.so', 'development');
 
 const KAANA_DIR = path.resolve(import.meta.dirname, '..');
 
-class CapturingTransport implements RelayTransport {
-  readonly sent: RelayTransportRequest[] = [];
+class CapturingTransport implements KaanaTransport {
+  readonly sent: KaanaTransportRequest[] = [];
 
-  send(input: RelayTransportRequest): Promise<AsyncIterable<unknown>> {
+  send(input: KaanaTransportRequest): Promise<AsyncIterable<unknown>> {
     this.sent.push(input);
     return Promise.resolve(
       (async function* () {
         yield {
           schemaVersion: 1,
           type: 'error',
-          requestId: 'relay-req-1',
+          requestId: 'kaana-req-1',
           sequence: 0,
           error: {
             schemaVersion: 1,
             code: 'internal_error',
             message: 'the transport exists only to be read',
             retryable: false,
-            requestId: 'relay-req-1',
+            requestId: 'kaana-req-1',
           },
         };
       })(),
@@ -102,14 +102,14 @@ class CapturingTransport implements RelayTransport {
  */
 const DELEGATED_USER_ID = 'a1b2c3d4e5f60718293a4b5c';
 
-const CREDENTIAL: RelayServiceCredential = {
+const CREDENTIAL: KaanaServiceCredential = {
   getServiceToken: () => Promise.resolve('oxy-service-token-synthetic'),
   invalidateServiceToken: () => undefined,
 };
 
 const DEFAULT_TARGET: RoutingTarget = { kind: 'routing_profile', routingProfile: 'auto' };
 
-const PRINCIPAL: RelayClientConfig['principal'] = {
+const PRINCIPAL: KaanaClientConfig['principal'] = {
   billing: { accountId: 'acct_alia' },
   applicationId: 'app_alia',
   credentialId: 'cred_alia_1',
@@ -131,7 +131,7 @@ function context(over: Partial<AliaInferenceContext> = {}): AliaInferenceContext
   };
 }
 
-function payload(over: Partial<RelayRequestPayload> = {}): RelayRequestPayload {
+function payload(over: Partial<KaanaRequestPayload> = {}): KaanaRequestPayload {
   return {
     modality: 'text',
     input: {
@@ -145,11 +145,11 @@ function payload(over: Partial<RelayRequestPayload> = {}): RelayRequestPayload {
   };
 }
 
-function client(over: Partial<RelayClientConfig> = {}): {
-  send: (call: AliaInferenceCall<RelayRequestPayload>) => Promise<RelayTransportRequest>;
+function client(over: Partial<KaanaClientConfig> = {}): {
+  send: (call: AliaInferenceCall<KaanaRequestPayload>) => Promise<KaanaTransportRequest>;
 } {
   const transport = over.transport ?? new CapturingTransport();
-  const built = createRelayInferenceClient({
+  const built = createKaanaInferenceClient({
     enabled: true,
     transport,
     credential: CREDENTIAL,
@@ -327,7 +327,7 @@ describe('data-retention policy travels as a reference, and Alia invents none', 
     // Read at the transport, because "it was refused" and "it went out under
     // the wrong policy" are distinguished by whether anything was SENT.
     const transport = new CapturingTransport();
-    const refusing = createRelayInferenceClient({
+    const refusing = createKaanaInferenceClient({
       enabled: true,
       transport,
       credential: CREDENTIAL,
@@ -355,7 +355,7 @@ describe('data-retention policy travels as a reference, and Alia invents none', 
     // The control: a CONFIGURED name is not refused, so the refusal above is
     // about the unknown policy and not about this fixture.
     const accepting = new CapturingTransport();
-    const ok = createRelayInferenceClient({
+    const ok = createKaanaInferenceClient({
       enabled: true,
       transport: accepting,
       credential: CREDENTIAL,
@@ -379,7 +379,7 @@ describe('data-retention policy travels as a reference, and Alia invents none', 
     });
   });
 
-  it('nothing in the envelope asks Relay to keep the conversation', async () => {
+  it('nothing in the envelope asks Kaana to keep the conversation', async () => {
     const request = (await client().send({ context: context(), payload: payload() })).request;
     const raw = JSON.stringify(request);
     // Alia's conversation store is Alia's (`lib/conversation-saver.ts`). The
@@ -406,7 +406,7 @@ describe('the configured principal is validated at construction (#139 ws15)', ()
     // The control: the same call with the scope present does not throw.
     expect(() => assertPrincipalMatchesDeployment(parsed({}), {})).not.toThrow();
     // And the scope is the contract's, not a string invented here.
-    expect(INFERENCE_SCOPES).toContain(RELAY_REQUIRED_SCOPE);
+    expect(INFERENCE_SCOPES).toContain(KAANA_REQUIRED_SCOPE);
   });
 
   it('refuses a principal whose environment is not the deployment it runs on', () => {
@@ -438,7 +438,7 @@ describe('the configured principal is validated at construction (#139 ws15)', ()
     // The check is reachable through the real constructor, not only as a helper
     // a caller may forget: this is what stops it being green and inert.
     expect(() =>
-      createRelayInferenceClient({
+      createKaanaInferenceClient({
         enabled: true,
         transport: new CapturingTransport(),
         credential: CREDENTIAL,
@@ -475,7 +475,7 @@ describe('the hop carries exactly one auth mechanism (#139 ws15)', () => {
       'signal',
     ]);
     expect(sent.authorization).toBe('oxy-service-token-synthetic');
-    expect(RELAY_ALLOWED_ORIGINS).toContain(sent.endpoint);
+    expect(KAANA_ALLOWED_ORIGINS).toContain(sent.endpoint);
   });
 
   /**
@@ -491,7 +491,7 @@ describe('the hop carries exactly one auth mechanism (#139 ws15)', () => {
    * the second mechanism gets argued for, and the entry it fails on is the
    * reminder to REPLACE the bearer rather than sit beside it.
    */
-  it('no relay module computes a signature or configures TLS material', () => {
+  it('no Kaana module computes a signature or configures TLS material', () => {
     const forbidden = [
       'createHmac',
       'createSign',
@@ -504,7 +504,7 @@ describe('the hop carries exactly one auth mechanism (#139 ws15)', () => {
     const offenders: string[] = [];
     let linesScanned = 0;
 
-    for (const name of relayModuleNames()) {
+    for (const name of kaanaModuleNames()) {
       for (const line of readFileSync(path.join(KAANA_DIR, name), 'utf8').split('\n')) {
         const trimmed = line.trim();
         // Comments excluded: this file's own siblings discuss signatures.
@@ -525,9 +525,9 @@ describe('the hop carries exactly one auth mechanism (#139 ws15)', () => {
   });
 
   /**
-   * *"Pin allowed Relay origins/endpoints."*
+   * *"Pin allowed Kaana origins/endpoints."*
    *
-   * This was previously answered by freezing an ABSENCE — no relay module named
+   * This was previously answered by freezing an ABSENCE — no Kaana module named
    * a host, and no config field an origin could arrive in — with a note saying
    * to retire it when an endpoint appeared. It has, in `kaana-endpoint.ts`, so
    * the two halves have moved:
@@ -535,7 +535,7 @@ describe('the hop carries exactly one auth mechanism (#139 ws15)', () => {
    *  - the RULE (which origins, what a production process may not point at, what
    *    happens at boot and on every call) is `__tests__/kaana-endpoint.test.ts`;
    *  - the STRUCTURAL half is here, narrowed rather than deleted: exactly one
-   *    relay module may name a host, and the hosts it names are exactly the
+   *    Kaana module may name a host, and the hosts it names are exactly the
    *    allow-list. A URL literal appearing in `kaana-client.ts` — a hardcoded
    *    fallback base, say — still fails.
    */
@@ -543,7 +543,7 @@ describe('the hop carries exactly one auth mechanism (#139 ws15)', () => {
     const byModule = new Map<string, string[]>();
     let linesScanned = 0;
 
-    for (const name of relayModuleNames()) {
+    for (const name of kaanaModuleNames()) {
       for (const line of readFileSync(path.join(KAANA_DIR, name), 'utf8').split('\n')) {
         const trimmed = line.trim();
         if (trimmed.startsWith('*') || trimmed.startsWith('//') || trimmed.startsWith('/*')) continue;
@@ -560,7 +560,7 @@ describe('the hop carries exactly one auth mechanism (#139 ws15)', () => {
     // Exactly one module, named, and exactly the origins the allow-list holds.
     expect([...byModule.keys()]).toEqual(['kaana-endpoint.ts']);
     expect((byModule.get('kaana-endpoint.ts') ?? []).sort()).toEqual(
-      [...RELAY_ALLOWED_ORIGINS].sort(),
+      [...KAANA_ALLOWED_ORIGINS].sort(),
     );
 
     // The control: the scan does see a URL literal when there is one.
@@ -572,27 +572,27 @@ describe('the hop carries exactly one auth mechanism (#139 ws15)', () => {
 
   it('the endpoint reaches the transport, and only as a checked value', () => {
     // The field the previous version of this test forbade. It exists now, and
-    // what replaces the prohibition is its TYPE: `RelayEndpoint` is branded, so
+    // what replaces the prohibition is its TYPE: `KaanaEndpoint` is branded, so
     // the only way to populate either interface is through the allow-list check.
     // A plain `string` in either position is a compile error, which is where a
     // property enforced by the type system has to be gated.
     const source = readFileSync(path.join(KAANA_DIR, 'kaana-client.ts'), 'utf8');
-    const configBlock = /export interface RelayClientConfig \{([\s\S]*?)\n\}/.exec(source)?.[1] ?? '';
-    const transportBlock = /export interface RelayTransportRequest \{([\s\S]*?)\n\}/.exec(source)?.[1] ?? '';
+    const configBlock = /export interface KaanaClientConfig \{([\s\S]*?)\n\}/.exec(source)?.[1] ?? '';
+    const transportBlock = /export interface KaanaTransportRequest \{([\s\S]*?)\n\}/.exec(source)?.[1] ?? '';
     // Floors before the assertions: both interfaces were found and have members.
-    expect(configBlock).toContain('readonly transport: RelayTransport');
+    expect(configBlock).toContain('readonly transport: KaanaTransport');
     expect(transportBlock).toContain('readonly request: InferenceRequest');
 
-    expect(configBlock).toContain('readonly endpoint: RelayEndpoint');
-    expect(transportBlock).toContain('readonly endpoint: RelayEndpoint');
+    expect(configBlock).toContain('readonly endpoint: KaanaEndpoint');
+    expect(transportBlock).toContain('readonly endpoint: KaanaEndpoint');
 
     // And no OTHER way for a host to arrive, which is what keeps the branded
     // field from becoming decorative beside an unchecked one.
     for (const field of ['baseUrl', 'baseURL', 'origin', 'host', 'url']) {
-      expect(configBlock, `RelayClientConfig gained ${field}`).not.toMatch(
+      expect(configBlock, `KaanaClientConfig gained ${field}`).not.toMatch(
         new RegExp(`\\breadonly ${field}\\??:`),
       );
-      expect(transportBlock, `RelayTransportRequest gained ${field}`).not.toMatch(
+      expect(transportBlock, `KaanaTransportRequest gained ${field}`).not.toMatch(
         new RegExp(`\\breadonly ${field}\\??:`),
       );
     }
@@ -612,7 +612,7 @@ describe('the hop carries exactly one auth mechanism (#139 ws15)', () => {
  * scans were written against must still be here, and the total must be
  * substantial.
  */
-function relayModuleNames(): string[] {
+function kaanaModuleNames(): string[] {
   const names = readdirSync(KAANA_DIR)
     .filter((name) => name.endsWith('.ts'))
     .sort();

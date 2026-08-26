@@ -201,7 +201,7 @@ describe('api keys', () => {
     expect(await deleteKeysForApp(db, app.id, OWNER)).toBe(0);
   });
 
-  it('authenticates by digest, and only an ACTIVE key for the relay', async () => {
+  it('authenticates by digest, and only an ACTIVE key for the MCP relay', async () => {
     const app = await seedApp('dev-auth');
     const plain = aCredential();
     const key = await seedKey({
@@ -218,7 +218,7 @@ describe('api keys', () => {
 
     await updateOwnedKey(db, key.id, app.id, OWNER, { isActive: false });
     // The plain lookup still finds it — the middleware checks `isActive` itself
-    // and answers "inactive" rather than "invalid" — while the relay's cheaper
+    // and answers "inactive" rather than "invalid" — while the MCP relay's cheaper
     // query does not.
     expect((await findKeyByHash(db, hashDeveloperApiKey(plain)))?.id).toBe(key.id);
     expect(await findActiveKeyByHash(db, hashDeveloperApiKey(plain))).toBeNull();

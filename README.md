@@ -76,8 +76,8 @@ There is **no gateway service**. Provider calls happen in process:
 `packages/api/src/lib/chat-core.ts` builds an AI SDK client directly, against credentials
 in the `provider_keys` Postgres table, with a fallback loop that retries a request down the
 tier's ranked list. Under
-[ADR 0001](docs/adr/0001-alia-oxy-relay-responsibility-boundary.md) that moves behind one
-typed client for a separate data plane (working name Relay), which does not exist yet.
+[ADR 0001](docs/adr/0001-alia-oxy-kaana-responsibility-boundary.md) that moves behind one
+typed client for Kaana, Oxy's own inference provider.
 
 `/triggers` is the **only** scheduling API. It covers scheduled, webhook, integration and
 heartbeat executions. There is no second scheduler, and no backward-compatible model
@@ -218,7 +218,7 @@ bun run web    # or ios, or android
 |---|---|
 | [Onboarding](docs/onboarding.md) | **Start here if you are new** |
 | [Overview](docs/index.mdx) | What Alia is |
-| [Chat runtime](docs/chat-runtime.mdx) | The handler, the SSE events, the Relay boundary |
+| [Chat runtime](docs/chat-runtime.mdx) | The handler, the SSE events, the Kaana boundary |
 | [Model abstraction](docs/model-abstraction.mdx) | What the `alia-*` identifiers really are |
 | [API reference](docs/api-reference.md) | The HTTP surface, by boundary |
 | [Architecture decisions](docs/adr/README.md) | The recorded decisions |
@@ -251,6 +251,6 @@ each is easy to break by accident and none is caught by types:
    privacy boundary, not a global ban on the words.
 2. `Triggers` is the only scheduling API. Do not add a second one.
 3. The `alia-*` identifier set is frozen. A pull request adding one is rejected on
-   [ADR 0002](docs/adr/0002-alia-is-a-relay-consumer-and-future-model-publisher.md), and
+   [ADR 0002](docs/adr/0002-alia-is-a-kaana-consumer-and-future-model-publisher.md), and
    nothing may be published under the reserved `alia/*` namespace without the four
    conditions that ADR lists.

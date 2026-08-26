@@ -262,7 +262,7 @@ export class McpLocalClient implements vscode.Disposable {
       this.ws = new WebSocketImpl(wsUrl);
 
       this.ws.onopen = () => {
-        log.info('[MCP] Relay connected');
+        log.info('[MCP] relay connected');
         this.sendMessage({ type: 'auth', token });
       };
 
@@ -277,7 +277,7 @@ export class McpLocalClient implements vscode.Disposable {
 
       this.ws.onclose = () => {
         if (this.stopped) return;
-        log.info('[MCP] Relay disconnected, reconnecting...');
+        log.info('[MCP] relay disconnected, reconnecting...');
         this.reconnectTimer = setTimeout(() => this.connectRelay(token), RECONNECT_DELAY_MS);
       };
 

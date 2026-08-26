@@ -235,7 +235,7 @@ describe('the price band admits a model, or says why not', () => {
   });
 
   it('ignores a route that carries no identity rather than inventing one', () => {
-    // A route arriving without both halves is what a Relay catalogue not yet
+    // A route arriving without both halves is what a Kaana catalogue not yet
     // carrying them looks like. It is not selectable and it is not withheld
     // either — there is no model there to speak about.
     const { selectable, withheld } = classifyModels(

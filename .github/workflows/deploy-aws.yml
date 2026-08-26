@@ -363,7 +363,7 @@ jobs:
       #
       # ## What each variable is
       #
-      # `RELAY_BASE_URL` is checked against `RELAY_ALLOWED_ORIGINS` before a
+      # `RELAY_BASE_URL` is checked against `KAANA_ALLOWED_ORIGINS` before a
       # request leaves, so a typo is refused here rather than discovered by a
       # request arriving somewhere unexpected. The host still says `relay` and
       # the product is Kaana; renaming it is a DNS change plus an allow-list

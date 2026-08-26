@@ -6,7 +6,7 @@
  * The four levels are PRODUCT vocabulary: they are what a person picks, they
  * are published on `GET /catalogue`, and they outlive whichever service ends up
  * resolving a route. The per-model payloads sit beside them rather than in
- * `internal/providers/` because ADR 0001 moves that tree to Relay and gate 1 of
+ * `internal/providers/` because ADR 0001 moves that tree to Kaana and gate 1 of
  * `__tests__/architectureGates.test.ts` only ever lets product imports of it
  * SHRINK — an effort axis rooted there would have been eight new lines on a
  * list whose whole direction of travel is down.

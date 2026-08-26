@@ -132,7 +132,7 @@ function wireFilters(filters: CatalogueFilterReport): Record<string, unknown> {
     },
     // Not applied, and saying so is the point. A region filter needs a
     // catalogue that knows which deployment is where; `lib/routing/presets.ts`
-    // `DELEGATED_TO_RELAY` records that this is Relay's, and answering "no
+    // `DELEGATED_TO_KAANA` records that this is Kaana's, and answering "no
     // region restriction" would be a stub no caller could tell from a working
     // filter with nothing to filter.
     region: { applied: false, delegated_to: filters.region.delegatedTo },

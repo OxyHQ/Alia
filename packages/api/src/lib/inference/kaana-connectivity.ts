@@ -1,18 +1,18 @@
 /**
- * What `/health` and `/health/ready` say about Relay — epic #139 workstream 8,
- * *"Make Relay connectivity explicit in health/readiness checks."*
+ * What `/health` and `/health/ready` say about Kaana — epic #139 workstream 8,
+ * *"Make Kaana connectivity explicit in health/readiness checks."*
  *
  * ## Why this is a process registry and not a probe
  *
- * There is nothing to probe. `RelayTransport` ships no base URL on purpose
- * (`kaana-client.ts` constraint 4) and `Oxy API → Relay` is not mounted, so a
- * health check that "pinged Relay" would have to invent an endpoint, and the
+ * There is nothing to probe. `KaanaTransport` ships no base URL on purpose
+ * (`kaana-client.ts` constraint 4) and `Oxy API → Kaana` is not mounted, so a
+ * health check that "pinged Kaana" would have to invent an endpoint, and the
  * first environment it was ever exercised against would be production.
  *
  * What CAN be reported truthfully today is the judgement the client already
- * makes and then throws away: its circuit. `RelayInferenceClient` counts
+ * makes and then throws away: its circuit. `KaanaInferenceClient` counts
  * consecutive availability failures and opens a circuit for a cooldown when it
- * has seen enough of them — that is a considered statement that Relay is not
+ * has seen enough of them — that is a considered statement that Kaana is not
  * answering, and it was previously visible to nobody outside one object. This
  * module is where it becomes visible, and the client reports into it from the
  * two places that already decide the question.
@@ -27,7 +27,7 @@
  * `routes/health.ts`, which carries the full argument and the two specifics
  * that decide it.
  *
- * This module previously exported a `relayBlocksReadiness()` that the route
+ * This module previously exported a `kaanaBlocksReadiness()` that the route
  * acted on, bounded by three properties which were all true and none of which
  * were sufficient — the flag being off, a cold task reporting `'unknown'`, and
  * the state expiring by itself. They bounded how OFTEN the gate could fire, not
@@ -35,18 +35,18 @@
  * left rotation at once. The three still hold and still matter for the REPORT:
  *
  *  1. **The flag.** With `ALIA_RELAY_CLIENT_ENABLED` off — everywhere today —
- *     this reports {@link RelayConnectivity} `'disabled'`.
+ *     this reports {@link KaanaConnectivity} `'disabled'`.
  *  2. **A cold task is `'unknown'`, not `'unreachable'`.** No call, no evidence.
  *  3. **The state expires by itself**, recorded with the instant the client's
  *     own cooldown ends, so it lapses to `'unknown'` with nothing to clear it.
  */
 
-import { isRelayClientEnabled } from './kaana-cutover.js';
+import { isKaanaClientEnabled } from './kaana-cutover.js';
 
 /**
- * What this process knows about Relay, in the order of how much it knows.
+ * What this process knows about Kaana, in the order of how much it knows.
  *
- *  - `disabled` — the cutover flag is off. Alia does not call Relay at all, so
+ *  - `disabled` — the cutover flag is off. Alia does not call Kaana at all, so
  *    "reachable" has no meaning and readiness must not depend on it.
  *  - `unknown` — the flag is on and no client in this process has yet succeeded
  *    or given up. The honest answer before the first call.
@@ -54,13 +54,13 @@ import { isRelayClientEnabled } from './kaana-cutover.js';
  *  - `unreachable` — a client's circuit is open: it saw enough consecutive
  *    availability failures to stop trying, and the cooldown has not elapsed.
  */
-export type RelayConnectivity = 'disabled' | 'unknown' | 'reachable' | 'unreachable';
+export type KaanaConnectivity = 'disabled' | 'unknown' | 'reachable' | 'unreachable';
 
 /**
  * The LATEST thing a client in this process observed, not the union of them.
  *
  * One value rather than two flags, because the two observations supersede each
- * other: a circuit that opened after a successful call means Relay stopped
+ * other: a circuit that opened after a successful call means Kaana stopped
  * answering, and a registry that remembered "it worked once" would go on
  * reporting `reachable` through an outage. Whichever report came last is the
  * only one that describes now.
@@ -70,15 +70,15 @@ export type RelayConnectivity = 'disabled' | 'unknown' | 'reachable' | 'unreacha
  * a registry object from `src/index.ts` through the health router — would make
  * the wiring the thing most likely to be got wrong.
  */
-type RelayObservation =
+type KaanaObservation =
   | { readonly kind: 'none' }
   | { readonly kind: 'reachable' }
   | { readonly kind: 'unavailable'; readonly until: number };
 
-let latest: RelayObservation = { kind: 'none' };
+let latest: KaanaObservation = { kind: 'none' };
 
 /** A call completed. */
-export function reportRelayReachable(): void {
+export function reportKaanaReachable(): void {
   latest = { kind: 'reachable' };
 }
 
@@ -90,7 +90,7 @@ export function reportRelayReachable(): void {
  * passed — `0`, for one — is not an observation of unavailability at all, so it
  * returns the registry to the state a freshly booted process is in.
  */
-export function reportRelayUnavailableUntil(until: number): void {
+export function reportKaanaUnavailableUntil(until: number): void {
   latest = until > 0 ? { kind: 'unavailable', until } : { kind: 'none' };
 }
 
@@ -101,11 +101,11 @@ export function reportRelayUnavailableUntil(until: number): void {
  * a state that only exists on a deployment this test process is not must still
  * be exercisable.
  */
-export function relayConnectivity(
+export function kaanaConnectivity(
   env: NodeJS.ProcessEnv = process.env,
   now: number = Date.now(),
-): RelayConnectivity {
-  if (!isRelayClientEnabled(env)) return 'disabled';
+): KaanaConnectivity {
+  if (!isKaanaClientEnabled(env)) return 'disabled';
   if (latest.kind === 'reachable') return 'reachable';
   // An expired cooldown is not evidence of anything current, so it decays to
   // `unknown` rather than to `reachable`.
@@ -114,16 +114,16 @@ export function relayConnectivity(
 }
 
 /**
- * Relay does NOT gate readiness, and the function that made it do so is gone.
+ * Kaana does NOT gate readiness, and the function that made it do so is gone.
  *
- * `relayBlocksReadiness()` lived here and returned `connectivity === 'unreachable'`,
+ * `kaanaBlocksReadiness()` lived here and returned `connectivity === 'unreachable'`,
  * and `/health/ready` returned 503 on it. It was deleted rather than left
  * exported-and-unused, because an exported predicate named "blocks readiness" is
  * an invitation to wire it back up.
  *
  * The reason is the one the header above already argues, applied to this
  * module's own signal. Where the OBSERVATION lives is not the question; where
- * the FAULT lives is. This registry is per-process, but Relay being unreachable
+ * the FAULT lives is. This registry is per-process, but Kaana being unreachable
  * is not a per-process fact — every task discovers the same outage within a
  * probe interval and they deregister together, which is precisely the
  * partial-outage-into-total-outage the header is written against.
@@ -135,10 +135,10 @@ export function relayConnectivity(
  *     conditions, so a readiness gate here would deregister the fleet on
  *     provider state — which `routes/health.ts` removed from readiness for
  *     exactly this reason. It would have come back in through this door.
- *  2. Relay implements `AliaInferencePort` and nothing else, so a task that
+ *  2. Kaana implements `AliaInferencePort` and nothing else, so a task that
  *     cannot reach it still serves authentication, conversation reads, billing
  *     and MCP. Keeping it in rotation is worth a lot.
  *
- * {@link relayConnectivity} remains and is REPORTED — by `/health` and in
+ * {@link kaanaConnectivity} remains and is REPORTED — by `/health` and in
  * `/health/ready`'s body. Reporting was always the useful half.
  */

@@ -149,8 +149,8 @@ export const costEntries = pgTable(
  *
  * The resolved model REVISION — the third identifier #139 workstream 5 asks
  * for — is absent because no revision exists to record: revisions are the
- * Relay catalogue's (`resolvedModelReference` on the contract's `start` event),
- * and Alia has no Relay to ask.
+ * Kaana catalogue's (`resolvedModelReference` on the contract's `start` event),
+ * and Alia has no Kaana to ask.
  *
  * `conversation_id` and `skill_id` were absent when the table landed while the
  * hook wrote both, and a write with nowhere to go is data thrown away rather
@@ -258,7 +258,7 @@ export const chatAnalytics = pgTable(
      * Whether the caller withdrew before the turn finished.
      *
      * Today that means the client's socket closed mid-turn, which is the only
-     * cancellation signal an in-process provider call produces. Relay's
+     * cancellation signal an in-process provider call produces. Kaana's
      * contract has the other half — `finishReason: 'cancelled'` and a
      * `cancelled` error code — and it lands on this same column.
      */

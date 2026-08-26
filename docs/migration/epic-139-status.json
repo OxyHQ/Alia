@@ -56,7 +56,7 @@
       "verdictBefore": "BLOCKED_RELAY",
       "reauditedAt": "2026-08-19",
       "reauditNote": "Relay is no longer the blocker. The generic inference control plane now EXISTS outside Alia and is live: `POST https://api.oxy.so/v1/chat/completions` answered 401 with a contract-shaped body on 2026-08-19 (negative control: /nonexistent-control-path 404), and OxyHQ/oxy routes/inferenceEdge.ts states that the Alia proxy moved to `/alia/chat/completions` — which also answers 401. What is left is Alia ceasing to serve one, which is L635 and L387.",
-      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `relay-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__."
+      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `kaana-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__."
     },
     {
       "line": 93,
@@ -72,7 +72,7 @@
       "section": "",
       "text": "Alia uses Oxy Accounts, Applications, ApplicationCredentials, scopes and billing.",
       "verdict": "BLOCKED_OXY_972",
-      "evidence": "The consuming half is built: packages/api/src/lib/inference/relay-boot-check.ts:54 parses the contract's `authenticatedPrincipalSchema` from five env vars, and @oxyhq/core@19.1.2 exposes `configureServiceAuth()`/`getServiceToken()`. What is missing is the Oxy Application and its ApplicationCredentials — see L177/L178, which nothing in this repo can create."
+      "evidence": "The consuming half is built: packages/api/src/lib/inference/kaana-boot-check.ts:54 parses the contract's `authenticatedPrincipalSchema` from five env vars, and @oxyhq/core@19.1.2 exposes `configureServiceAuth()`/`getServiceToken()`. What is missing is the Oxy Application and its ApplicationCredentials — see L177/L178, which nothing in this repo can create."
     },
     {
       "line": 95,
@@ -80,11 +80,11 @@
       "section": "",
       "text": "Alia calls Relay for every model invocation after cutover.",
       "verdict": "BLOCKED_CUTOVER",
-      "evidence": "packages/api/src/lib/inference/__tests__/relay-boundary.test.ts asserts by exact set equality that NOTHING in packages/api imports the Relay client; the live invocation path is gateway-client.ts:339 -> internal/providers/lib/model-resolver.js. There is no Relay endpoint to call (docs/migration/relay-client-gap.md section 1).",
+      "evidence": "packages/api/src/lib/inference/__tests__/kaana-boundary.test.ts asserts by exact set equality that NOTHING in packages/api imports the Relay client; the live invocation path is gateway-client.ts:339 -> internal/providers/lib/model-resolver.js. There is no Relay endpoint to call (docs/migration/relay-client-gap.md section 1).",
       "verdictBefore": "BLOCKED_RELAY",
       "reauditedAt": "2026-08-19",
       "reauditNote": "There is now a Relay endpoint to call, two hops away: Alia -> `https://api.oxy.so/v1/*` -> `POST https://relay.oxy.so/internal/v1/inference`. Alia CANNOT call Relay directly — Relay refuses anything that is not an Ed25519-signed Oxy edge envelope (measured: `GET https://relay.oxy.so/internal/v1/health` -> 401 \"the request is not a signed Oxy edge envelope\"), and it holds only PUBLIC keys (`RELAY_EDGE_PUBLIC_KEYS` on oxy-relay:2).",
-      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `relay-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__.",
+      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `kaana-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__.",
       "relayCapability": "POST https://relay.oxy.so/internal/v1/inference (GET -> 405 Method Not Allowed, so the route exists and is POST-only); internal/httpapi/, internal/edgeauth/"
     },
     {
@@ -97,7 +97,7 @@
       "verdictBefore": "BLOCKED_RELAY",
       "reauditedAt": "2026-08-19",
       "reauditNote": "Unchanged in substance: the three local-fallback branches are still the only serving path. What changed is that removing them no longer removes inference.",
-      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `relay-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__."
+      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `kaana-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__."
     },
     {
       "line": 97,
@@ -110,7 +110,7 @@
       "verdictBefore": "BLOCKED_RELAY",
       "reauditedAt": "2026-08-19",
       "reauditNote": "The ENVIRONMENT clause now holds in PRODUCTION and not only in source: task definition oxy-alia:105 carries no provider-shaped name in `environment[]` or `secrets[]` (read 2026-08-19; the only provider-shaped match is LIVEKIT_API_KEY, which is video). The APPLICATION TABLES clause is unchanged and is the binding one — `provider_keys.key` is a database column read by key-manager.ts, so \"no provider key in the task definition\" is NOT evidence that Alia holds no provider credential.",
-      "namedBlocker": "`provider_keys.key` (L521), which cannot be emptied while it is the only serving path. the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `relay-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__."
+      "namedBlocker": "`provider_keys.key` (L521), which cannot be emptied while it is the only serving path. the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `kaana-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__."
     },
     {
       "line": 99,
@@ -141,7 +141,7 @@
       "verdictBefore": "DUPLICATE_OF",
       "reauditedAt": "2026-08-19",
       "reauditNote": "`DUPLICATE_OF L474` was wrong in the direction that hides work. L474 is ONE of the three separations this invariant names; the row also names entitlements and generic inference billing, and the third is not achieved. Ticking this because its primary is ticked would record the generic-inference-billing separation as done on evidence that only ever measured price against cost. Measured rather than assumed: the price/margin and entitlement halves are green and guarded, so the row is not blocked on them.",
-      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `relay-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__."
+      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `kaana-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__."
     },
     {
       "line": 160,
@@ -160,7 +160,7 @@
       "section": "",
       "text": "Register or confirm the Alia first-party/internal Oxy Application under the correct Oxy account.",
       "verdict": "BLOCKED_OXY_972",
-      "evidence": "Nothing in this repo can register an Oxy Application. No application id appears anywhere: relay-boot-check.ts declares RELAY_PRINCIPAL_ENV naming five variables and packages/api/.env.example documents them, but no value is configured and no deployment sets them (.github/workflows/deploy-aws.yml syncs exactly ten secrets, none of them an Oxy application id)."
+      "evidence": "Nothing in this repo can register an Oxy Application. No application id appears anywhere: kaana-boot-check.ts declares RELAY_PRINCIPAL_ENV naming five variables and packages/api/.env.example documents them, but no value is configured and no deployment sets them (.github/workflows/deploy-aws.yml syncs exactly ten secrets, none of them an Oxy application id)."
     },
     {
       "line": 178,
@@ -176,7 +176,7 @@
       "section": "",
       "text": "Grant only required inference scopes.",
       "verdict": "BLOCKED_OXY_972",
-      "evidence": "The scope vocabulary is published — `INFERENCE_SCOPES` in @oxyhq/contracts, and relay-client.ts:163 already refuses a principal missing the required invoke scope — but granting a scope is an act in the Oxy account."
+      "evidence": "The scope vocabulary is published — `INFERENCE_SCOPES` in @oxyhq/contracts, and kaana-client.ts:163 already refuses a principal missing the required invoke scope — but granting a scope is an act in the Oxy account."
     },
     {
       "line": 180,
@@ -184,7 +184,7 @@
       "section": "",
       "text": "Configure short-lived Oxy service-token exchange through `@oxyhq/core`.",
       "verdict": "ACTIONABLE_NOW",
-      "evidence": "@oxyhq/core@19.1.2 (already a dependency, packages/api/package.json:35) exposes `configureServiceAuth()` and `getServiceToken(apiKey, apiSecret) -> {token, expiresIn, appName}` with per-tenant caching and `invalidateServiceToken`. packages/api/src/lib/inference/relay-client.ts:213-231 already declares a `RelayServiceTokenSource` interface whose docstring says it is \"structurally satisfied by @oxyhq/core's OxyServices\", including the invalidate-on-`authentication_failed` hook at :592. The adapter binding the two is not written.",
+      "evidence": "@oxyhq/core@19.1.2 (already a dependency, packages/api/package.json:35) exposes `configureServiceAuth()` and `getServiceToken(apiKey, apiSecret) -> {token, expiresIn, appName}` with per-tenant caching and `invalidateServiceToken`. packages/api/src/lib/inference/kaana-client.ts:213-231 already declares a `RelayServiceTokenSource` interface whose docstring says it is \"structurally satisfied by @oxyhq/core's OxyServices\", including the invalidate-on-`authentication_failed` hook at :592. The adapter binding the two is not written.",
       "deliverable": "A module that constructs the OxyServices-backed token source and hands it to `RelayClientConfig`. Real credentials are L178 and are not needed to write or test it.",
       "guard": "Extend relay-client.test.ts: a token source that returns an expired token must be re-minted on the next call, and `invalidateServiceToken` must be called exactly once per `authentication_failed`. Mutation: drop the invalidate call -> the test goes red.",
       "resolvedSince": "2026-08-17"
@@ -198,8 +198,8 @@
       "evidence": "The HMAC is gateway-client.ts:64-77 (`generateAuthHeaders`, signing timestamp/service/method/path/body-hash with SERVICE_SECRET). It is only reachable when GATEWAY_API_ENABLED, and removing SERVICE_SECRET is gated on the service-token cutover this row names. SERVICE_SECRET is also the highest-privilege value in docs/runbooks/credential-rotation.md:451 and is used elsewhere, so this is a removal of the HMAC MODE, not of the variable.",
       "verdictBefore": "BLOCKED_RELAY",
       "reauditedAt": "2026-08-19",
-      "reauditNote": "The service-token exchange this row waits on is real and live: `POST /auth/service-token` is the Oxy mint (OxyHQ/oxy routes/auth.ts), and `relay-credential.ts` already composes it through @oxyhq/core. SERVICE_SECRET is still in oxy-alia:105 `secrets[]`.",
-      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `relay-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__. Plus an Oxy Application + ApplicationCredential for Alia carrying `inference:invoke`. The scope is real and mintable — `APPLICATION_SCOPES` in OxyHQ/oxy packages/api/src/utils/applicationScopes.ts:83 — and the service-token lane is NOT flag-gated (inferenceEdge.service.ts:364). Nothing has been created: oxy-alia:105 carries none of ALIA_RELAY_ACCOUNT_ID, _APPLICATION_ID, _CREDENTIAL_ID, _CREDENTIAL_KEY, _CREDENTIAL_SECRET, _ENVIRONMENT, _INFERENCE_SCOPES, _CLIENT_ENABLED or RELAY_BASE_URL."
+      "reauditNote": "The service-token exchange this row waits on is real and live: `POST /auth/service-token` is the Oxy mint (OxyHQ/oxy routes/auth.ts), and `kaana-credential.ts` already composes it through @oxyhq/core. SERVICE_SECRET is still in oxy-alia:105 `secrets[]`.",
+      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `kaana-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__. Plus an Oxy Application + ApplicationCredential for Alia carrying `inference:invoke`. The scope is real and mintable — `APPLICATION_SCOPES` in OxyHQ/oxy packages/api/src/utils/applicationScopes.ts:83 — and the service-token lane is NOT flag-gated (inferenceEdge.service.ts:364). Nothing has been created: oxy-alia:105 carries none of ALIA_RELAY_ACCOUNT_ID, _APPLICATION_ID, _CREDENTIAL_ID, _CREDENTIAL_KEY, _CREDENTIAL_SECRET, _ENVIRONMENT, _INFERENCE_SCOPES, _CLIENT_ENABLED or RELAY_BASE_URL."
     },
     {
       "line": 212,
@@ -207,9 +207,9 @@
       "section": "Client responsibilities",
       "text": "Support tools, structured output, vision, reasoning, prompt caching and modality capabilities.",
       "verdict": "ALREADY_TRUE",
-      "evidence": "CORRECTED. The capability check is `violatedCapability`, which #164 moved to packages/api/src/lib/inference/relay-request.ts:340 (the audit cited :211, now stale). It refuses a request the target cannot serve on `streaming`, `tools`, `structuredOutput`, `jsonMode`, output modality and every input modality used, vision included. Tool definitions, tool choice and response format cross the seam as the contract's own schemas. THE ENTRYPOINT CALLS IT: packages/api/src/lib/inference/relay-client.ts:931 invokes it on every call, so within the client it is wired rather than green-and-inert.",
+      "evidence": "CORRECTED. The capability check is `violatedCapability`, which #164 moved to packages/api/src/lib/inference/kaana-request.ts:340 (the audit cited :211, now stale). It refuses a request the target cannot serve on `streaming`, `tools`, `structuredOutput`, `jsonMode`, output modality and every input modality used, vision included. Tool definitions, tool choice and response format cross the seam as the contract's own schemas. THE ENTRYPOINT CALLS IT: packages/api/src/lib/inference/kaana-client.ts:931 invokes it on every call, so within the client it is wired rather than green-and-inert.",
       "mutation": "MEASURED at the audit: replacing the tools condition with `false` failed packages/api/src/lib/inference/__tests__/relay-request.test.ts:357. Baseline 26 passed; mutated 1 failed, 25 passed.",
-      "residual": "The CLIENT is wired; the PRODUCT is not. relay-boundary.test.ts freezes the Relay client out of the API import graph, so no product request reaches this check yet. `promptCaching` and `reasoning` are deliberately unchecked (neither is a request field in this contract), and prompt caching on the live path is still a hardcoded `cached_tokens: 0`.",
+      "residual": "The CLIENT is wired; the PRODUCT is not. kaana-boundary.test.ts freezes the Relay client out of the API import graph, so no product request reaches this check yet. `promptCaching` and `reasoning` are deliberately unchecked (neither is a request field in this contract), and prompt caching on the live path is still a hardcoded `cached_tokens: 0`.",
       "resolvedSince": "2026-08-17"
     },
     {
@@ -218,11 +218,11 @@
       "section": "Package boundaries",
       "text": "Product modules import only the new Relay client/interface.",
       "verdict": "BLOCKED_CUTOVER",
-      "evidence": "Deliberately false today and guarded as such: relay-boundary.test.ts asserts the Relay client is imported by \"exactly its own modules and its own tests\", so wiring it in is a reviewed diff. Product modules import lib/gateway-client.ts instead, and gate 1 of packages/api/src/__tests__/architectureGates.test.ts freezes the 23 (importer, imported) pairs crossing into internal/providers/. Flipping this needs Relay to serve.",
+      "evidence": "Deliberately false today and guarded as such: kaana-boundary.test.ts asserts the Relay client is imported by \"exactly its own modules and its own tests\", so wiring it in is a reviewed diff. Product modules import lib/gateway-client.ts instead, and gate 1 of packages/api/src/__tests__/architectureGates.test.ts freezes the 23 (importer, imported) pairs crossing into internal/providers/. Flipping this needs Relay to serve.",
       "verdictBefore": "BLOCKED_RELAY",
       "reauditedAt": "2026-08-19",
-      "reauditNote": "The freeze in relay-boundary.test.ts is deliberate and unchanged. Flipping it is the cutover diff.",
-      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `relay-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__."
+      "reauditNote": "The freeze in kaana-boundary.test.ts is deliberate and unchanged. Flipping it is the cutover diff.",
+      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `kaana-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__."
     },
     {
       "line": 241,
@@ -473,7 +473,7 @@
       "verdictBefore": "BLOCKED_RELAY",
       "reauditedAt": "2026-08-19",
       "reauditNote": "The row's stated blocker was \"no revision exists anywhere in Alia to record ... it arrives with the Relay catalogue\". A revision now exists upstream (see L287). What remains is Alia receiving it, which arrives on the `start` event of a Relay response and therefore on the cutover.",
-      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `relay-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__."
+      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `kaana-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__."
     },
     {
       "line": 291,
@@ -847,7 +847,7 @@
       "verdictBefore": "BLOCKED_RELAY",
       "reauditedAt": "2026-08-19",
       "reauditNote": "The DESTINATION now exists and is deployed, so this is no longer blocked on Relay. Relay implements request transformation. What remains is the other half of \"move\": Alia deleting its own, which cannot happen before the cutover.",
-      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `relay-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__.",
+      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `kaana-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__.",
       "relayCapability": "each adapter's pure `Translate` method — internal/provider/openaicompat/adapter.go:132, internal/provider/anthropic/adapter.go"
     },
     {
@@ -860,7 +860,7 @@
       "verdictBefore": "BLOCKED_RELAY",
       "reauditedAt": "2026-08-19",
       "reauditNote": "The DESTINATION now exists and is deployed, so this is no longer blocked on Relay. Relay implements streaming event normalization. What remains is the other half of \"move\": Alia deleting its own, which cannot happen before the cutover.",
-      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `relay-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__.",
+      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `kaana-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__.",
       "relayCapability": "internal/sse/ (decode upstream, encode downstream) plus internal/relay/ executor framing; `event: stream_event` / `event: usage_report`"
     },
     {
@@ -873,7 +873,7 @@
       "verdictBefore": "BLOCKED_RELAY",
       "reauditedAt": "2026-08-19",
       "reauditNote": "The DESTINATION now exists and is deployed, so this is no longer blocked on Relay. Relay implements tool-call normalization. What remains is the other half of \"move\": Alia deleting its own, which cannot happen before the cutover.",
-      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `relay-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__.",
+      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `kaana-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__.",
       "relayCapability": "internal/provider/openaicompat/adapter.go:182-203 translates `tools` and `toolChoice`; the contract carries both (`toolChoiceSchema`, request `tools`)"
     },
     {
@@ -886,7 +886,7 @@
       "verdictBefore": "BLOCKED_RELAY",
       "reauditedAt": "2026-08-19",
       "reauditNote": "The DESTINATION now exists and is deployed, so this is no longer blocked on Relay. Relay implements structured-output handling. What remains is the other half of \"move\": Alia deleting its own, which cannot happen before the cutover.",
-      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `relay-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__.",
+      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `kaana-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__.",
       "relayCapability": "internal/provider/openaicompat/adapter.go:459 `translateResponseFormat` — text, json_object and json_schema"
     },
     {
@@ -899,7 +899,7 @@
       "verdictBefore": "BLOCKED_RELAY",
       "reauditedAt": "2026-08-19",
       "reauditNote": "The DESTINATION now exists and is deployed, so this is no longer blocked on Relay. Relay implements usage normalization. What remains is the other half of \"move\": Alia deleting its own, which cannot happen before the cutover.",
-      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `relay-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__.",
+      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `kaana-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__.",
       "relayCapability": "internal/contract usage units, with the per-provider normalising arithmetic asserted in internal/provider/conformance rather than commented"
     },
     {
@@ -912,7 +912,7 @@
       "verdictBefore": "BLOCKED_RELAY",
       "reauditedAt": "2026-08-19",
       "reauditNote": "The DESTINATION now exists and is deployed, so this is no longer blocked on Relay. Relay implements provider error normalization. What remains is the other half of \"move\": Alia deleting its own, which cannot happen before the cutover.",
-      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `relay-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__.",
+      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `kaana-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__.",
       "relayCapability": "internal/provider error vocabulary + `AttributableCategory`; internal/contract/errors.go carries the closed code set"
     },
     {
@@ -925,7 +925,7 @@
       "verdictBefore": "BLOCKED_RELAY",
       "reauditedAt": "2026-08-19",
       "reauditNote": "The DESTINATION now exists and is deployed, so this is no longer blocked on Relay. Relay implements timeouts and cancellation. What remains is the other half of \"move\": Alia deleting its own, which cannot happen before the cutover.",
-      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `relay-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__.",
+      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `kaana-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__.",
       "relayCapability": "`ctx` threaded to the upstream HTTP request; both links mutation-tested (README \"Cancellation\" table)"
     },
     {
@@ -938,7 +938,7 @@
       "verdictBefore": "BLOCKED_RELAY",
       "reauditedAt": "2026-08-19",
       "reauditNote": "The DESTINATION now exists and is deployed, so this is no longer blocked on Relay. Relay implements key rotation/selection. What remains is the other half of \"move\": Alia deleting its own, which cannot happen before the cutover.",
-      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `relay-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__.",
+      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `kaana-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__.",
       "relayCapability": "internal/provider/credential.go — a key POOL per provider, with `CredentialVerdictFor` as the one classifier"
     },
     {
@@ -964,7 +964,7 @@
       "verdictBefore": "BLOCKED_RELAY",
       "reauditedAt": "2026-08-19",
       "reauditNote": "The DESTINATION now exists and is deployed, so this is no longer blocked on Relay. Relay implements provider health. What remains is the other half of \"move\": Alia deleting its own, which cannot happen before the cutover.",
-      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `relay-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__.",
+      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `kaana-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__.",
       "relayCapability": "internal/rotation/ health scoring"
     },
     {
@@ -977,7 +977,7 @@
       "verdictBefore": "BLOCKED_RELAY",
       "reauditedAt": "2026-08-19",
       "reauditNote": "The DESTINATION now exists and is deployed, so this is no longer blocked on Relay. Relay implements circuit breakers. What remains is the other half of \"move\": Alia deleting its own, which cannot happen before the cutover.",
-      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `relay-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__.",
+      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `kaana-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__.",
       "relayCapability": "internal/rotation/ per-deployment breakers; a deployment returns on one REAL request through a half-open breaker"
     },
     {
@@ -1015,7 +1015,7 @@
       "verdictBefore": "BLOCKED_RELAY",
       "reauditedAt": "2026-08-19",
       "reauditNote": "The DESTINATION now exists and is deployed, so this is no longer blocked on Relay. Relay implements provider cost measurement. What remains is the other half of \"move\": Alia deleting its own, which cannot happen before the cutover.",
-      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `relay-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__.",
+      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `kaana-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__.",
       "relayCapability": "internal/providercost/ — the only package that may hold an amount, asserted unreachable from internal/contract"
     },
     {
@@ -1028,7 +1028,7 @@
       "verdictBefore": "BLOCKED_RELAY",
       "reauditedAt": "2026-08-19",
       "reauditNote": "The DESTINATION now exists and is deployed, so this is no longer blocked on Relay. Relay implements conformance fixtures/tests. What remains is the other half of \"move\": Alia deleting its own, which cannot happen before the cutover.",
-      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `relay-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__.",
+      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `kaana-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__.",
       "relayCapability": "internal/provider/conformance/conformance.go:215 `Run`, invoked by openaicompat/conformance_test.go:29 and anthropic/conformance_test.go:28"
     },
     {
@@ -1055,7 +1055,7 @@
       "verdictBefore": "BLOCKED_RELAY",
       "reauditedAt": "2026-08-19",
       "reauditNote": "Alia's fixtures exist and there is now something to re-run them through.",
-      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `relay-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__."
+      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `kaana-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__."
     },
     {
       "line": 379,
@@ -1067,7 +1067,7 @@
       "verdictBefore": "BLOCKED_RELAY",
       "reauditedAt": "2026-08-19",
       "reauditNote": "THE EVIDENCE WAS STALE IN BOTH HALVES. \"No Relay\" is false: the `relay` service is 2/2 on oxy-relay:2. \"The service is parked at zero capacity, api.alia.onl/health returns 503\" is also false as of 2026-08-19: the `alia` service is 2/2 and `GET https://api.alia.onl/health` returns 200 with `\"relay\":\"disabled\"` and 47076s of uptime. So there IS production traffic to cohort and there IS somewhere to canary onto; what is missing is the path between them.",
-      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `relay-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__. `INFERENCE_EDGE_AUDIENCE` is absent from the oxy-api task definition (oxy-oxy-api:232, read 2026-08-19), so `resolveEdgeAudience()` returns `closed/not_configured` and every authenticated principal is refused `permission_denied` (OxyHQ/oxy packages/api/src/config/rolloutFlags.ts:179)."
+      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `kaana-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__. `INFERENCE_EDGE_AUDIENCE` is absent from the oxy-api task definition (oxy-oxy-api:232, read 2026-08-19), so `resolveEdgeAudience()` returns `closed/not_configured` and every authenticated principal is refused `permission_denied` (OxyHQ/oxy packages/api/src/config/rolloutFlags.ts:179)."
     },
     {
       "line": 380,
@@ -1088,7 +1088,7 @@
       "verdictBefore": "BLOCKED_RELAY",
       "reauditedAt": "2026-08-19",
       "reauditNote": "Unchanged, and correctly ordered: the live provider code cannot be removed until Relay serves.",
-      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `relay-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__."
+      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `kaana-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__."
     },
     {
       "line": 387,
@@ -1100,7 +1100,7 @@
       "verdictBefore": "BLOCKED_RELAY",
       "reauditedAt": "2026-08-19",
       "reauditNote": "Unchanged in substance. \"Deleting it before Relay serves removes inference entirely\" is still the right order; what changed is that Relay now serves, two hops away, and the remaining gap is Alia's transport and an edge audience rather than a missing service.",
-      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `relay-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__. `INFERENCE_EDGE_AUDIENCE` is absent from the oxy-api task definition (oxy-oxy-api:232, read 2026-08-19), so `resolveEdgeAudience()` returns `closed/not_configured` and every authenticated principal is refused `permission_denied` (OxyHQ/oxy packages/api/src/config/rolloutFlags.ts:179)."
+      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `kaana-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__. `INFERENCE_EDGE_AUDIENCE` is absent from the oxy-api task definition (oxy-oxy-api:232, read 2026-08-19), so `resolveEdgeAudience()` returns `closed/not_configured` and every authenticated principal is refused `permission_denied` (OxyHQ/oxy packages/api/src/config/rolloutFlags.ts:179)."
     },
     {
       "line": 388,
@@ -1112,7 +1112,7 @@
       "verdictBefore": "BLOCKED_RELAY",
       "reauditedAt": "2026-08-19",
       "reauditNote": "Unchanged in substance. \"Deleting it before Relay serves removes inference entirely\" is still the right order; what changed is that Relay now serves, two hops away, and the remaining gap is Alia's transport and an edge audience rather than a missing service.",
-      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `relay-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__. `INFERENCE_EDGE_AUDIENCE` is absent from the oxy-api task definition (oxy-oxy-api:232, read 2026-08-19), so `resolveEdgeAudience()` returns `closed/not_configured` and every authenticated principal is refused `permission_denied` (OxyHQ/oxy packages/api/src/config/rolloutFlags.ts:179)."
+      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `kaana-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__. `INFERENCE_EDGE_AUDIENCE` is absent from the oxy-api task definition (oxy-oxy-api:232, read 2026-08-19), so `resolveEdgeAudience()` returns `closed/not_configured` and every authenticated principal is refused `permission_denied` (OxyHQ/oxy packages/api/src/config/rolloutFlags.ts:179)."
     },
     {
       "line": 389,
@@ -1124,7 +1124,7 @@
       "verdictBefore": "BLOCKED_RELAY",
       "reauditedAt": "2026-08-19",
       "reauditNote": "Unchanged in substance. \"Deleting it before Relay serves removes inference entirely\" is still the right order; what changed is that Relay now serves, two hops away, and the remaining gap is Alia's transport and an edge audience rather than a missing service.",
-      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `relay-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__. `INFERENCE_EDGE_AUDIENCE` is absent from the oxy-api task definition (oxy-oxy-api:232, read 2026-08-19), so `resolveEdgeAudience()` returns `closed/not_configured` and every authenticated principal is refused `permission_denied` (OxyHQ/oxy packages/api/src/config/rolloutFlags.ts:179)."
+      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `kaana-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__. `INFERENCE_EDGE_AUDIENCE` is absent from the oxy-api task definition (oxy-oxy-api:232, read 2026-08-19), so `resolveEdgeAudience()` returns `closed/not_configured` and every authenticated principal is refused `permission_denied` (OxyHQ/oxy packages/api/src/config/rolloutFlags.ts:179)."
     },
     {
       "line": 390,
@@ -1136,7 +1136,7 @@
       "verdictBefore": "BLOCKED_RELAY",
       "reauditedAt": "2026-08-19",
       "reauditNote": "Unchanged in substance. \"Deleting it before Relay serves removes inference entirely\" is still the right order; what changed is that Relay now serves, two hops away, and the remaining gap is Alia's transport and an edge audience rather than a missing service.",
-      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `relay-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__. `INFERENCE_EDGE_AUDIENCE` is absent from the oxy-api task definition (oxy-oxy-api:232, read 2026-08-19), so `resolveEdgeAudience()` returns `closed/not_configured` and every authenticated principal is refused `permission_denied` (OxyHQ/oxy packages/api/src/config/rolloutFlags.ts:179)."
+      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `kaana-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__. `INFERENCE_EDGE_AUDIENCE` is absent from the oxy-api task definition (oxy-oxy-api:232, read 2026-08-19), so `resolveEdgeAudience()` returns `closed/not_configured` and every authenticated principal is refused `permission_denied` (OxyHQ/oxy packages/api/src/config/rolloutFlags.ts:179)."
     },
     {
       "line": 391,
@@ -1148,7 +1148,7 @@
       "verdictBefore": "BLOCKED_RELAY",
       "reauditedAt": "2026-08-19",
       "reauditNote": "Unchanged in substance. \"Deleting it before Relay serves removes inference entirely\" is still the right order; what changed is that Relay now serves, two hops away, and the remaining gap is Alia's transport and an edge audience rather than a missing service.",
-      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `relay-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__. `INFERENCE_EDGE_AUDIENCE` is absent from the oxy-api task definition (oxy-oxy-api:232, read 2026-08-19), so `resolveEdgeAudience()` returns `closed/not_configured` and every authenticated principal is refused `permission_denied` (OxyHQ/oxy packages/api/src/config/rolloutFlags.ts:179)."
+      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `kaana-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__. `INFERENCE_EDGE_AUDIENCE` is absent from the oxy-api task definition (oxy-oxy-api:232, read 2026-08-19), so `resolveEdgeAudience()` returns `closed/not_configured` and every authenticated principal is refused `permission_denied` (OxyHQ/oxy packages/api/src/config/rolloutFlags.ts:179)."
     },
     {
       "line": 392,
@@ -1160,7 +1160,7 @@
       "verdictBefore": "BLOCKED_RELAY",
       "reauditedAt": "2026-08-19",
       "reauditNote": "Unchanged in substance. \"Deleting it before Relay serves removes inference entirely\" is still the right order; what changed is that Relay now serves, two hops away, and the remaining gap is Alia's transport and an edge audience rather than a missing service.",
-      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `relay-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__. `INFERENCE_EDGE_AUDIENCE` is absent from the oxy-api task definition (oxy-oxy-api:232, read 2026-08-19), so `resolveEdgeAudience()` returns `closed/not_configured` and every authenticated principal is refused `permission_denied` (OxyHQ/oxy packages/api/src/config/rolloutFlags.ts:179)."
+      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `kaana-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__. `INFERENCE_EDGE_AUDIENCE` is absent from the oxy-api task definition (oxy-oxy-api:232, read 2026-08-19), so `resolveEdgeAudience()` returns `closed/not_configured` and every authenticated principal is refused `permission_denied` (OxyHQ/oxy packages/api/src/config/rolloutFlags.ts:179)."
     },
     {
       "line": 393,
@@ -1168,7 +1168,7 @@
       "section": "",
       "text": "Replace `SERVICE_SECRET`/`GATEWAY_API_URL` assumptions with the finalized Oxy service-auth and Relay endpoint configuration.",
       "verdict": "BLOCKED_OXY_972",
-      "evidence": "The replacement is half-built and half-missing. BUILT: packages/api/src/lib/inference/relay-boot-check.ts declares RELAY_PRINCIPAL_ENV from the contract's `authenticatedPrincipalSchema` with `satisfies Record<keyof RelayPrincipalConfig, string>` so an upstream field addition is a compile error. MISSING: the Relay endpoint value, which relay-egress.test.ts records as absent (\"names no origin, because there is no endpoint to name yet\"), and the credentials (L178)."
+      "evidence": "The replacement is half-built and half-missing. BUILT: packages/api/src/lib/inference/kaana-boot-check.ts declares RELAY_PRINCIPAL_ENV from the contract's `authenticatedPrincipalSchema` with `satisfies Record<keyof RelayPrincipalConfig, string>` so an upstream field addition is a compile error. MISSING: the Relay endpoint value, which kaana-egress.test.ts records as absent (\"names no origin, because there is no endpoint to name yet\"), and the credentials (L178)."
     },
     {
       "line": 394,
@@ -1179,7 +1179,7 @@
       "evidence": "packages/api/src/routes/health.ts checks the datastores, not Relay, and there is no Relay endpoint to probe. Also note the ordering rule in ~/Oxy/AGENTS.md: a new health probe must land LIVE before the removal PR, because the ALB health check depends on this route. RE-OPENED by the team lead after the workstream 8 agent found the guard could not fail. `expect(source).toContain('relayBlocksReadiness()')` proves the route NAMES the function, not that it acts on its answer: keeping the call and inverting the condition to `if (!relayBlocksReadiness())` makes the task report not-ready exactly when Relay IS reachable, and 1387 tests still pass. See verdictHazards.textCannotSeeAnInvertedCondition.",
       "verdictBefore": "BLOCKED_RELAY",
       "reauditedAt": "2026-08-19",
-      "reauditNote": "MISCLASSIFIED ALL ALONG, and the property is now observable in production. This never needed Relay: `relay-connectivity.ts` is a process registry by design, precisely because there was nothing to probe. Measured 2026-08-19: `GET https://api.alia.onl/health` returns `\"relay\":\"disabled\"`, so the mechanism is live and wired into the route. The box was re-opened for a real reason that is also not Relay's — `expect(source).toContain('relayBlocksReadiness()')` cannot see an inverted condition (verdictHazards.textCannotSeeAnInvertedCondition). The deliverable is a test that CALLS the predicate with an environment and a clock, which relay-connectivity.ts already makes possible by taking both as parameters."
+      "reauditNote": "MISCLASSIFIED ALL ALONG, and the property is now observable in production. This never needed Relay: `kaana-connectivity.ts` is a process registry by design, precisely because there was nothing to probe. Measured 2026-08-19: `GET https://api.alia.onl/health` returns `\"relay\":\"disabled\"`, so the mechanism is live and wired into the route. The box was re-opened for a real reason that is also not Relay's — `expect(source).toContain('relayBlocksReadiness()')` cannot see an inverted condition (verdictHazards.textCannotSeeAnInvertedCondition). The deliverable is a test that CALLS the predicate with an environment and a clock, which kaana-connectivity.ts already makes possible by taking both as parameters."
     },
     {
       "line": 395,
@@ -1187,7 +1187,7 @@
       "section": "",
       "text": "Add a production guard that fails CI or startup when direct provider mode is enabled.",
       "verdict": "ACTIONABLE_NOW",
-      "evidence": "The STARTUP half landed in #158: relay-boot-check.ts refuses to boot when the migration flag is on and the principal is unusable, and src/index.ts:69 wires it to `process.exit(1)`. The CI half does not exist — nothing fails a build because direct provider mode is configured, and the flag is off by default so the boot check is inert on every current deployment.",
+      "evidence": "The STARTUP half landed in #158: kaana-boot-check.ts refuses to boot when the migration flag is on and the principal is unusable, and src/index.ts:69 wires it to `process.exit(1)`. The CI half does not exist — nothing fails a build because direct provider mode is configured, and the flag is off by default so the boot check is inert on every current deployment.",
       "deliverable": "A CI assertion that the deployed configuration cannot select direct provider mode: assert the deploy workflow and the task definition never set GATEWAY_API_URL to a provider host, and that the migration flag is on for production once cutover starts.",
       "guard": "A new test beside db/__tests__/deployWorkflow.test.ts, which already reads .github/workflows/deploy-aws.yml as source. Mutation: add a provider host to the workflow env -> red.",
       "resolvedSince": "2026-08-17"
@@ -1198,7 +1198,7 @@
       "section": "",
       "text": "Add an egress policy/test proving the Alia service can contact Relay/Oxy dependencies but not provider API hosts after cutover.",
       "verdict": "ACTIONABLE_NOW",
-      "evidence": "The Relay client side is already proven not to egress: relay-boundary.test.ts asserts the four relay modules \"name no provider tree, no gateway seam and no provider SDK\", with an explicit \"the forbidden-specifier check can actually fire\" control. What is missing is the SERVICE-level statement: gate 2 of packages/api/src/__tests__/architectureGates.test.ts freezes the whole outbound host set including all nineteen provider hosts, so today the policy would say the opposite of what this row wants.",
+      "evidence": "The Relay client side is already proven not to egress: kaana-boundary.test.ts asserts the four relay modules \"name no provider tree, no gateway seam and no provider SDK\", with an explicit \"the forbidden-specifier check can actually fire\" control. What is missing is the SERVICE-level statement: gate 2 of packages/api/src/__tests__/architectureGates.test.ts freezes the whole outbound host set including all nineteen provider hosts, so today the policy would say the opposite of what this row wants.",
       "deliverable": "A post-cutover egress allowlist expressed as a test over EGRESS_HOSTS: after cutover the nineteen provider hostnames must be ABSENT from non-test source, and the Relay and Oxy hosts present. Write it now, gated on the migration flag, so it goes green as extraction proceeds rather than being invented at cutover.",
       "guard": "gate 2 of packages/api/src/__tests__/architectureGates.test.ts:754 is the existing both-directions freeze; the new assertion is its mirror image. Mutation: leave one provider host in source -> red.",
       "resolvedSince": "2026-08-17"
@@ -1256,7 +1256,7 @@
       "verdictBefore": "BLOCKED_RELAY",
       "reauditedAt": "2026-08-19",
       "reauditNote": "Unchanged: the writers are live because the local path is the only serving path.",
-      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `relay-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__."
+      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `kaana-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__."
     },
     {
       "line": 421,
@@ -1300,7 +1300,7 @@
       "verdictBefore": "BLOCKED_RELAY",
       "reauditedAt": "2026-08-19",
       "reauditNote": "Unchanged, and correctly ordered.",
-      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `relay-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__."
+      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `kaana-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__."
     },
     {
       "line": 425,
@@ -1312,7 +1312,7 @@
       "verdictBefore": "BLOCKED_RELAY",
       "reauditedAt": "2026-08-19",
       "reauditNote": "Two blockers, and only one of them was ever Relay's.",
-      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `relay-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__. Plus a production Alia Postgres credential. None exists under ~/.config/oxy/tokens/, so the row counts this box needs are UNMEASURED. This never needed Relay."
+      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `kaana-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__. Plus a production Alia Postgres credential. None exists under ~/.config/oxy/tokens/, so the row counts this box needs are UNMEASURED. This never needed Relay."
     },
     {
       "line": 431,
@@ -1351,7 +1351,7 @@
       "verdictBefore": "BLOCKED_RELAY",
       "reauditedAt": "2026-08-19",
       "reauditNote": "The destination exists: `internal/providercost` is Relay's cost measurement and is asserted unreachable from `internal/contract` (`TestTheContractCannotReachAnAmount`).",
-      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `relay-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__.",
+      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `kaana-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__.",
       "relayCapability": "internal/providercost/"
     },
     {
@@ -1380,7 +1380,7 @@
       "verdictBefore": "BLOCKED_RELAY",
       "reauditedAt": "2026-08-19",
       "reauditNote": "The row's stated blocker — \"no revision exists anywhere in Alia to record\" — has an upstream answer now (L287). The residual it names is `voice_call_usage.provider`/`provider_model`, still NOT NULL, and dropping a column whose production rows are unmeasured is the step this epic cannot take back.",
-      "namedBlocker": "a production Alia Postgres credential. None exists under ~/.config/oxy/tokens/, so the row counts this box needs are UNMEASURED. This never needed Relay. Plus the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `relay-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__. for the revision half."
+      "namedBlocker": "a production Alia Postgres credential. None exists under ~/.config/oxy/tokens/, so the row counts this box needs are UNMEASURED. This never needed Relay. Plus the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `kaana-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__. for the revision half."
     },
     {
       "line": 443,
@@ -1400,7 +1400,7 @@
       "verdictBefore": "BLOCKED_RELAY",
       "reauditedAt": "2026-08-19",
       "reauditNote": "The destination for receipts now exists and is mounted: `GET https://api.oxy.so/v1/generations/:id` answered 401 with a contract-shaped body on 2026-08-19, and `/inference/reporting/usage` answered 401. relay-client-gap.md §5.1's \"no destination\" was measured before either existed.",
-      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `relay-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__.",
+      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `kaana-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__.",
       "relayCapability": "NOT Relay directly. OxyHQ/oxy GET /v1/generations/:id and /inference/reporting/usage; Relay emits the `usage_report` frame that feeds them"
     },
     {
@@ -1660,7 +1660,7 @@
       "verdictBefore": "BLOCKED_RELAY",
       "reauditedAt": "2026-08-19",
       "reauditNote": "Relay holds its OWN provider credentials from the process environment (`RELAY_PROVIDER_CEREBRAS_API_KEY` from SSM on oxy-relay:2) and its AGENTS.md forbids a customer credential ever living there. So the destination for \"not in Alia\" is real.",
-      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `relay-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__."
+      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `kaana-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__."
     },
     {
       "line": 522,
@@ -1689,7 +1689,7 @@
       "section": "Service security",
       "text": "Verify Oxy service-token signatures; never trust decoded claims alone.",
       "verdict": "BLOCKED_OXY_972",
-      "evidence": "Recorded as a deliberate absence: packages/api/src/routes/__tests__/inference-boundary.test.ts asserts \"nothing in the API decodes a JWT itself\" and separately \"records that Alia configures no service-token verification secret\". Alia PRESENTS a token to Relay rather than verifying one (relay-client.ts:222-224: \"Alia never constructs the contract's AuthenticatedPrincipal from a token\"). If Oxy ever calls INTO Alia with a service token, the verification key is #972's to publish.",
+      "evidence": "Recorded as a deliberate absence: packages/api/src/routes/__tests__/inference-boundary.test.ts asserts \"nothing in the API decodes a JWT itself\" and separately \"records that Alia configures no service-token verification secret\". Alia PRESENTS a token to Relay rather than verifying one (kaana-client.ts:222-224: \"Alia never constructs the contract's AuthenticatedPrincipal from a token\"). If Oxy ever calls INTO Alia with a service token, the verification key is #972's to publish.",
       "resolvedSince": "2026-08-17"
     },
     {
@@ -1698,7 +1698,7 @@
       "section": "Service security",
       "text": "Pin allowed Relay origins/endpoints.",
       "verdict": "ALREADY_TRUE",
-      "evidence": "There is no origin to pin, and that is asserted rather than assumed: packages/api/src/lib/inference/__tests__/relay-egress.test.ts has \"names no origin, because there is no endpoint to name yet\" and \"neither the config nor the transport request has a field an origin fits in\". The guard is pre-built; the value is missing.",
+      "evidence": "There is no origin to pin, and that is asserted rather than assumed: packages/api/src/lib/inference/__tests__/kaana-egress.test.ts has \"names no origin, because there is no endpoint to name yet\" and \"neither the config nor the transport request has a field an origin fits in\". The guard is pre-built; the value is missing.",
       "resolvedSince": "2026-08-17",
       "verdictBefore": "BLOCKED_RELAY",
       "reauditedAt": "2026-08-19",
@@ -2046,9 +2046,9 @@
       "section": "Preparation",
       "text": "Land shared contracts.",
       "verdict": "ALREADY_TRUE",
-      "evidence": "Landed and stale in the gap analysis. docs/migration/relay-client-gap.md section 0 recorded (2026-08-16, against @oxyhq/contracts@0.26.0) that the inference module was unpublished and that \"Alia adds no @oxyhq/contracts dependency in this workstream\". Both halves have since changed: packages/api/package.json:34 depends on `@oxyhq/contracts@^0.27.0`, the installed 0.27.0 ships twelve inference modules under dist/types/inference/, and ELEVEN Alia modules import them — the five under lib/inference/ (relay-client.ts:64, relay-request.ts:35, relay-error.ts:30, relay-openai-adapter.ts:32, relay-boot-check.ts:54) and six of their test suites. A twelfth file matches the grep and is not an importer: product-seam.test.ts:166 quotes the specifier inside a string, testing that its own scanner ignores a commented-out import.",
+      "evidence": "Landed and stale in the gap analysis. docs/migration/relay-client-gap.md section 0 recorded (2026-08-16, against @oxyhq/contracts@0.26.0) that the inference module was unpublished and that \"Alia adds no @oxyhq/contracts dependency in this workstream\". Both halves have since changed: packages/api/package.json:34 depends on `@oxyhq/contracts@^0.27.0`, the installed 0.27.0 ships twelve inference modules under dist/types/inference/, and ELEVEN Alia modules import them — the five under lib/inference/ (kaana-client.ts:64, kaana-request.ts:35, kaana-error.ts:30, relay-openai-adapter.ts:32, kaana-boot-check.ts:54) and six of their test suites. A twelfth file matches the grep and is not an importer: product-seam.test.ts:166 quotes the specifier inside a string, testing that its own scanner ignores a commented-out import.",
       "mutation": "Remove the dependency from packages/api/package.json -> `bun run --filter @alia/api typecheck` fails on eleven files in CI.",
-      "residual": "CORRECTED AND LANDED. The audit said 0.29.0 \"adds `entitlement` and `accountBilling`\", implying an additive bump. It was NOT additive: 0.29.0 also widens `INFERENCE_ERROR_CODES` with `provider_credential_invalid` and `provider_billing_refused`, and the finish reasons with `refusal`, and packages/api holds exhaustive `Record`s over both — `tsc` failed in three places (lib/inference/relay-error.ts twice, lib/inference/relay-openai-adapter.ts once) until each new member was answered, and the two exact-count floors in relay-client.test.ts moved 26 -> 28 (:1135, :1191). Landed in #175: packages/api/package.json:35 now pins `^0.29.0`, bun.lock resolves it, and relay-error.ts:183 and relay-openai-adapter.ts:363 answer the new members. An exhaustive Record over a contract enum is a dependency bump that cannot be reviewed as a version number.",
+      "residual": "CORRECTED AND LANDED. The audit said 0.29.0 \"adds `entitlement` and `accountBilling`\", implying an additive bump. It was NOT additive: 0.29.0 also widens `INFERENCE_ERROR_CODES` with `provider_credential_invalid` and `provider_billing_refused`, and the finish reasons with `refusal`, and packages/api holds exhaustive `Record`s over both — `tsc` failed in three places (lib/inference/kaana-error.ts twice, lib/inference/relay-openai-adapter.ts once) until each new member was answered, and the two exact-count floors in relay-client.test.ts moved 26 -> 28 (:1135, :1191). Landed in #175: packages/api/package.json:35 now pins `^0.29.0`, bun.lock resolves it, and kaana-error.ts:183 and relay-openai-adapter.ts:363 answer the new members. An exhaustive Record over a contract enum is a dependency bump that cannot be reviewed as a version number.",
       "resolvedSince": "2026-08-17"
     },
     {
@@ -2066,7 +2066,7 @@
       "section": "Preparation",
       "text": "Implement route/model ID translation for compatibility.",
       "verdict": "ACTIONABLE_NOW",
-      "evidence": "Half of it is built and half is not. BUILT: docs/migration/alias-migration-map.json maps all thirteen aliases to `profile:<tier>` ids, recomputed from the live routing table by packages/api/src/__tests__/aliasMigrationMap.test.ts so it cannot drift, and gate 5 asserts the catalogue serves the type the map classifies. NOT BUILT: nothing TRANSLATES at request time — no code turns an `alia-*` id into a contract `ModelReference` or `RoutingTarget` on the way to Relay. relay-request.ts takes a target it is given.",
+      "evidence": "Half of it is built and half is not. BUILT: docs/migration/alias-migration-map.json maps all thirteen aliases to `profile:<tier>` ids, recomputed from the live routing table by packages/api/src/__tests__/aliasMigrationMap.test.ts so it cannot drift, and gate 5 asserts the catalogue serves the type the map classifies. NOT BUILT: nothing TRANSLATES at request time — no code turns an `alia-*` id into a contract `ModelReference` or `RoutingTarget` on the way to Relay. kaana-request.ts takes a target it is given.",
       "deliverable": "A translation function from the thirteen aliases to the contract's `RoutingTarget`, driven by alias-migration-map.json so it cannot disagree with the published map.",
       "guard": "aliasMigrationMap.test.ts extended: every alias must translate, and the translation must round-trip to the same profile id the map publishes. Mutation: drop one alias -> red.",
       "resolvedSince": "2026-08-17"
@@ -2081,7 +2081,7 @@
       "verdictBefore": "BLOCKED_RELAY",
       "reauditedAt": "2026-08-19",
       "reauditNote": "There is now something to shadow to. The provider-terms clause (L607) is unchanged and is a product decision.",
-      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `relay-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__. `INFERENCE_EDGE_AUDIENCE` is absent from the oxy-api task definition (oxy-oxy-api:232, read 2026-08-19), so `resolveEdgeAudience()` returns `closed/not_configured` and every authenticated principal is refused `permission_denied` (OxyHQ/oxy packages/api/src/config/rolloutFlags.ts:179)."
+      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `kaana-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__. `INFERENCE_EDGE_AUDIENCE` is absent from the oxy-api task definition (oxy-oxy-api:232, read 2026-08-19), so `resolveEdgeAudience()` returns `closed/not_configured` and every authenticated principal is refused `permission_denied` (OxyHQ/oxy packages/api/src/config/rolloutFlags.ts:179)."
     },
     {
       "line": 626,
@@ -2093,7 +2093,7 @@
       "verdictBefore": "BLOCKED_RELAY",
       "reauditedAt": "2026-08-19",
       "reauditNote": "THE SECOND HALF OF THE EVIDENCE IS STALE. \"The service is parked: api.alia.onl/health returned HTTP 503\" was true on 2026-08-17 and is false on 2026-08-19: the `alia` service is 2/2 and /health returns 200. There is production traffic to cohort. The first half stands — there is still no second path to compare against until the cutover.",
-      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `relay-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__. `INFERENCE_EDGE_AUDIENCE` is absent from the oxy-api task definition (oxy-oxy-api:232, read 2026-08-19), so `resolveEdgeAudience()` returns `closed/not_configured` and every authenticated principal is refused `permission_denied` (OxyHQ/oxy packages/api/src/config/rolloutFlags.ts:179)."
+      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `kaana-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__. `INFERENCE_EDGE_AUDIENCE` is absent from the oxy-api task definition (oxy-oxy-api:232, read 2026-08-19), so `resolveEdgeAudience()` returns `closed/not_configured` and every authenticated principal is refused `permission_denied` (OxyHQ/oxy packages/api/src/config/rolloutFlags.ts:179)."
     },
     {
       "line": 627,
@@ -2105,7 +2105,7 @@
       "verdictBefore": "BLOCKED_RELAY",
       "reauditedAt": "2026-08-19",
       "reauditNote": "THE SECOND HALF OF THE EVIDENCE IS STALE. \"The service is parked: api.alia.onl/health returned HTTP 503\" was true on 2026-08-17 and is false on 2026-08-19: the `alia` service is 2/2 and /health returns 200. There is production traffic to cohort. The first half stands — there is still no second path to compare against until the cutover.",
-      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `relay-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__. `INFERENCE_EDGE_AUDIENCE` is absent from the oxy-api task definition (oxy-oxy-api:232, read 2026-08-19), so `resolveEdgeAudience()` returns `closed/not_configured` and every authenticated principal is refused `permission_denied` (OxyHQ/oxy packages/api/src/config/rolloutFlags.ts:179)."
+      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `kaana-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__. `INFERENCE_EDGE_AUDIENCE` is absent from the oxy-api task definition (oxy-oxy-api:232, read 2026-08-19), so `resolveEdgeAudience()` returns `closed/not_configured` and every authenticated principal is refused `permission_denied` (OxyHQ/oxy packages/api/src/config/rolloutFlags.ts:179)."
     },
     {
       "line": 628,
@@ -2117,7 +2117,7 @@
       "verdictBefore": "BLOCKED_RELAY",
       "reauditedAt": "2026-08-19",
       "reauditNote": "THE SECOND HALF OF THE EVIDENCE IS STALE. \"The service is parked: api.alia.onl/health returned HTTP 503\" was true on 2026-08-17 and is false on 2026-08-19: the `alia` service is 2/2 and /health returns 200. There is production traffic to cohort. The first half stands — there is still no second path to compare against until the cutover.",
-      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `relay-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__. `INFERENCE_EDGE_AUDIENCE` is absent from the oxy-api task definition (oxy-oxy-api:232, read 2026-08-19), so `resolveEdgeAudience()` returns `closed/not_configured` and every authenticated principal is refused `permission_denied` (OxyHQ/oxy packages/api/src/config/rolloutFlags.ts:179)."
+      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `kaana-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__. `INFERENCE_EDGE_AUDIENCE` is absent from the oxy-api task definition (oxy-oxy-api:232, read 2026-08-19), so `resolveEdgeAudience()` returns `closed/not_configured` and every authenticated principal is refused `permission_denied` (OxyHQ/oxy packages/api/src/config/rolloutFlags.ts:179)."
     },
     {
       "line": 629,
@@ -2129,7 +2129,7 @@
       "verdictBefore": "BLOCKED_RELAY",
       "reauditedAt": "2026-08-19",
       "reauditNote": "THE SECOND HALF OF THE EVIDENCE IS STALE. \"The service is parked: api.alia.onl/health returned HTTP 503\" was true on 2026-08-17 and is false on 2026-08-19: the `alia` service is 2/2 and /health returns 200. There is production traffic to cohort. The first half stands — there is still no second path to compare against until the cutover.",
-      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `relay-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__. `INFERENCE_EDGE_AUDIENCE` is absent from the oxy-api task definition (oxy-oxy-api:232, read 2026-08-19), so `resolveEdgeAudience()` returns `closed/not_configured` and every authenticated principal is refused `permission_denied` (OxyHQ/oxy packages/api/src/config/rolloutFlags.ts:179)."
+      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `kaana-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__. `INFERENCE_EDGE_AUDIENCE` is absent from the oxy-api task definition (oxy-oxy-api:232, read 2026-08-19), so `resolveEdgeAudience()` returns `closed/not_configured` and every authenticated principal is refused `permission_denied` (OxyHQ/oxy packages/api/src/config/rolloutFlags.ts:179)."
     },
     {
       "line": 630,
@@ -2141,7 +2141,7 @@
       "verdictBefore": "BLOCKED_RELAY",
       "reauditedAt": "2026-08-19",
       "reauditNote": "THE SECOND HALF OF THE EVIDENCE IS STALE. \"The service is parked: api.alia.onl/health returned HTTP 503\" was true on 2026-08-17 and is false on 2026-08-19: the `alia` service is 2/2 and /health returns 200. There is production traffic to cohort. The first half stands — there is still no second path to compare against until the cutover.",
-      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `relay-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__. `INFERENCE_EDGE_AUDIENCE` is absent from the oxy-api task definition (oxy-oxy-api:232, read 2026-08-19), so `resolveEdgeAudience()` returns `closed/not_configured` and every authenticated principal is refused `permission_denied` (OxyHQ/oxy packages/api/src/config/rolloutFlags.ts:179)."
+      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `kaana-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__. `INFERENCE_EDGE_AUDIENCE` is absent from the oxy-api task definition (oxy-oxy-api:232, read 2026-08-19), so `resolveEdgeAudience()` returns `closed/not_configured` and every authenticated principal is refused `permission_denied` (OxyHQ/oxy packages/api/src/config/rolloutFlags.ts:179)."
     },
     {
       "line": 631,
@@ -2153,7 +2153,7 @@
       "verdictBefore": "BLOCKED_RELAY",
       "reauditedAt": "2026-08-19",
       "reauditNote": "THE SECOND HALF OF THE EVIDENCE IS STALE. \"The service is parked: api.alia.onl/health returned HTTP 503\" was true on 2026-08-17 and is false on 2026-08-19: the `alia` service is 2/2 and /health returns 200. There is production traffic to cohort. The first half stands — there is still no second path to compare against until the cutover.",
-      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `relay-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__. `INFERENCE_EDGE_AUDIENCE` is absent from the oxy-api task definition (oxy-oxy-api:232, read 2026-08-19), so `resolveEdgeAudience()` returns `closed/not_configured` and every authenticated principal is refused `permission_denied` (OxyHQ/oxy packages/api/src/config/rolloutFlags.ts:179)."
+      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `kaana-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__. `INFERENCE_EDGE_AUDIENCE` is absent from the oxy-api task definition (oxy-oxy-api:232, read 2026-08-19), so `resolveEdgeAudience()` returns `closed/not_configured` and every authenticated principal is refused `permission_denied` (OxyHQ/oxy packages/api/src/config/rolloutFlags.ts:179)."
     },
     {
       "line": 635,
@@ -2161,7 +2161,7 @@
       "section": "Cutover",
       "text": "Make Relay the default inference path.",
       "verdict": "BLOCKED_CUTOVER",
-      "evidence": "No Relay to make the default. relay-boundary.test.ts freezes the client out of the import graph precisely so this is a reviewed diff rather than an accident.",
+      "evidence": "No Relay to make the default. kaana-boundary.test.ts freezes the client out of the import graph precisely so this is a reviewed diff rather than an accident.",
       "verdictBefore": "BLOCKED_RELAY",
       "reauditedAt": "2026-08-19",
       "reauditNote": "THE cutover row. Relay is deployed and reachable; the Oxy edge is deployed and wired to it (oxy-oxy-api:232 carries RELAY_BASE_URL=https://relay.oxy.so, RELAY_EDGE_SIGNING_KEY_ID=oxy-edge-2026-08-17 and the SSM secret RELAY_EDGE_SIGNING_PRIVATE_KEY, and oxy-relay:2 carries the matching key id in RELAY_EDGE_PUBLIC_KEYS). Every remaining step is enumerated in `blockers.cutover`.",
@@ -2271,7 +2271,7 @@
       "verdictBefore": "DUPLICATE_OF",
       "reauditedAt": "2026-08-19",
       "reauditNote": "`DUPLICATE_OF L411` narrowed the row to one package. L411 is scoped \"for the package\" — the Gateway Admin retirement — and it is earned; this row is unscoped and sits in workstream 18’s Cleanup block, which runs after cutover. Ticking it from L411 would report every stale variable, component and document in the repository as removed, on evidence about one deleted tool.",
-      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `relay-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__."
+      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `kaana-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__."
     },
     {
       "line": 654,
@@ -2302,7 +2302,7 @@
       "verdictBefore": "BLOCKED_RELAY",
       "reauditedAt": "2026-08-19",
       "reauditNote": "Credential revocation now has a real mechanism on the other side: the edge re-reads the credential ROW on every request rather than trusting the token's claims, \"which is what makes a revocation effective inside the token's own hour of life\" (inferenceEdge.service.ts:369-375).",
-      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `relay-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__."
+      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `kaana-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__."
     },
     {
       "line": 668,
@@ -2333,7 +2333,7 @@
       "verdictBefore": "BLOCKED_RELAY",
       "reauditedAt": "2026-08-19",
       "reauditNote": "\"No Relay exists\" is false. App chat can be exercised through Relay once Alia calls it.",
-      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `relay-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__."
+      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `kaana-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__."
     },
     {
       "line": 684,
@@ -2345,7 +2345,7 @@
       "verdictBefore": "BLOCKED_RELAY",
       "reauditedAt": "2026-08-19",
       "reauditNote": "\"No Relay exists\" is false. The Codea coding flow can be exercised through Relay once Alia calls it.",
-      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `relay-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__."
+      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `kaana-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__."
     },
     {
       "line": 685,
@@ -2357,7 +2357,7 @@
       "verdictBefore": "BLOCKED_RELAY",
       "reauditedAt": "2026-08-19",
       "reauditNote": "\"No Relay exists\" is false. The Cowork flow can be exercised through Relay once Alia calls it.",
-      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `relay-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__."
+      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `kaana-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__."
     },
     {
       "line": 686,
@@ -2369,7 +2369,7 @@
       "verdictBefore": "BLOCKED_RELAY",
       "reauditedAt": "2026-08-19",
       "reauditNote": "\"No Relay exists\" is false. A tool-call round trip can be exercised through Relay once Alia calls it. The behaviour is expressible: internal/provider/openaicompat/adapter.go:182-203 translates `tools` and `toolChoice`",
-      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `relay-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__.",
+      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `kaana-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__.",
       "relayCapability": "expressible: internal/provider/openaicompat/adapter.go:182-203 translates `tools` and `toolChoice`"
     },
     {
@@ -2382,7 +2382,7 @@
       "verdictBefore": "BLOCKED_RELAY",
       "reauditedAt": "2026-08-19",
       "reauditNote": "\"No Relay exists\" is false. The approval request/result flow can be exercised through Relay once Alia calls it.",
-      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `relay-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__."
+      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `kaana-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__."
     },
     {
       "line": 688,
@@ -2394,7 +2394,7 @@
       "verdictBefore": "BLOCKED_RELAY",
       "reauditedAt": "2026-08-19",
       "reauditNote": "\"No Relay exists\" is false. The deep-research progress flow can be exercised through Relay once Alia calls it.",
-      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `relay-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__."
+      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `kaana-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__."
     },
     {
       "line": 689,
@@ -2406,7 +2406,7 @@
       "verdictBefore": "BLOCKED_RELAY",
       "reauditedAt": "2026-08-19",
       "reauditNote": "\"No Relay exists\" is false. Vision input can be exercised through Relay once Alia calls it. The behaviour is expressible: internal/provider/openaicompat/adapter.go:372 translates an `image` content part to `image_url`. Whether the two Cerebras models accept one is a separate, unmeasured question",
-      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `relay-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__.",
+      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `kaana-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__.",
       "relayCapability": "expressible: internal/provider/openaicompat/adapter.go:372 translates an `image` content part to `image_url`. Whether the two Cerebras models accept one is a separate, unmeasured question"
     },
     {
@@ -2419,7 +2419,7 @@
       "verdictBefore": "BLOCKED_RELAY",
       "reauditedAt": "2026-08-19",
       "reauditNote": "\"No Relay exists\" is false. Structured output can be exercised through Relay once Alia calls it. The behaviour is expressible: internal/provider/openaicompat/adapter.go:459 translates text, json_object and json_schema",
-      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `relay-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__.",
+      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `kaana-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__.",
       "relayCapability": "expressible: internal/provider/openaicompat/adapter.go:459 translates text, json_object and json_schema"
     },
     {
@@ -2456,7 +2456,7 @@
       "verdictBefore": "BLOCKED_RELAY",
       "reauditedAt": "2026-08-19",
       "reauditNote": "HALF UNBLOCKED. A concrete model with fallback disabled is exactly what Relay serves today: `openai/gpt-oss-120b@observed-2026-08-18` is one deployment, one reference, and failover is off by default. The Alia half — thirteen catalogue entries that all fan out to two or more upstream models — is unchanged.",
-      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `relay-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__. Plus Alia's own catalogue still carrying no concrete entry (gate 5)."
+      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `kaana-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__. Plus Alia's own catalogue still carrying no concrete entry (gate 5)."
     },
     {
       "line": 694,
@@ -2468,7 +2468,7 @@
       "verdictBefore": "BLOCKED_RELAY",
       "reauditedAt": "2026-08-19",
       "reauditNote": "\"No Relay exists\" is false. Client-disconnect cancellation can be exercised through Relay once Alia calls it. The behaviour is expressible, and mutation-tested at both links — internal/httpapi TestClientDisconnectCancelsExecution and the conformance suite's upstream-cancellation case",
-      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `relay-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__.",
+      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `kaana-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__.",
       "relayCapability": "expressible, and mutation-tested at both links — internal/httpapi TestClientDisconnectCancelsExecution and the conformance suite's upstream-cancellation case"
     },
     {
@@ -2480,9 +2480,9 @@
       "evidence": "Relay outage degradation cannot be exercised \"through Relay\" because no Relay exists (docs/migration/relay-client-gap.md section 1). The behaviour is already pinned against the CURRENT path — routes/v1/__tests__/chatFlowFixtures.test.ts and voiceFlowFixtures.test.ts (#146), lib/agent/__tests__/approval-flow.test.ts, routes/__tests__/conversation-lifecycle.test.ts, routes/v1/__tests__/retryToolDuplication.test.ts and routes/v1/__tests__/chat-completions-timeout.test.ts — which is the baseline these will be re-run against, so this is re-pointing rather than writing.",
       "verdictBefore": "BLOCKED_RELAY",
       "reauditedAt": "2026-08-19",
-      "reauditNote": "\"No Relay exists\" is false. Relay outage degradation can be exercised through Relay once Alia calls it. The behaviour is expressible: relay-connectivity.ts already models it, and /health reports `\"relay\":\"disabled\"` today",
-      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `relay-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__.",
-      "relayCapability": "expressible: relay-connectivity.ts already models it, and /health reports `\"relay\":\"disabled\"` today"
+      "reauditNote": "\"No Relay exists\" is false. Relay outage degradation can be exercised through Relay once Alia calls it. The behaviour is expressible: kaana-connectivity.ts already models it, and /health reports `\"relay\":\"disabled\"` today",
+      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `kaana-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__.",
+      "relayCapability": "expressible: kaana-connectivity.ts already models it, and /health reports `\"relay\":\"disabled\"` today"
     },
     {
       "line": 696,
@@ -2529,7 +2529,7 @@
       "verdictBefore": "BLOCKED_RELAY",
       "reauditedAt": "2026-08-19",
       "reauditNote": "Five of six fields exist. The sixth — resolved revision — no longer has \"no revision exists to record\" as its blocker: Relay pins `@observed-2026-08-18` and reports the resolved reference on the `start` event. Alia receives it at cutover.",
-      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `relay-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__.",
+      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `kaana-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__.",
       "relayCapability": "the contract `start` event carries the revision-pinned reference Relay resolved"
     },
     {
@@ -2553,7 +2553,7 @@
       "verdictBefore": "BLOCKED_RELAY",
       "reauditedAt": "2026-08-19",
       "reauditNote": "Parity needs the second path; fallback rates additionally need failover, which is off (L368).",
-      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `relay-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__. For the fallback-rate half, also: Relay ships same-model failover OFF and cannot be authorised per customer: contract 1.1.0's `inferenceRequestSchema.routingPolicy` carries only `{routingPolicyId, policyVersion}` and no snapshot, so `routingFallbackPolicy`'s `disabled`/`sameModelDeployment` never reaches the data plane (Relay README \"What Oxy still has to decide\" item 11). Separately, the live inventory holds exactly ONE deployment per model reference, so there is nothing to fail over to."
+      "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `kaana-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__. For the fallback-rate half, also: Relay ships same-model failover OFF and cannot be authorised per customer: contract 1.1.0's `inferenceRequestSchema.routingPolicy` carries only `{routingPolicyId, policyVersion}` and no snapshot, so `routingFallbackPolicy`'s `disabled`/`sameModelDeployment` never reaches the data plane (Relay README \"What Oxy still has to decide\" item 11). Separately, the live inventory holds exactly ONE deployment per model reference, so there is nothing to fail over to."
     },
     {
       "line": 706,
@@ -2712,7 +2712,7 @@
       "question": "What would it take to flip ALIA_RELAY_CLIENT_ENABLED in production today?",
       "answer": "It cannot be flipped today, and the reason is not Relay. Five things are missing; one is Alia code, three are operator actions, and the fifth is a provider billing state nobody in this repository controls.",
       "requiredVariables": {
-        "verifiedAgainst": "relay-cutover.ts, relay-boot-check.ts (RELAY_PRINCIPAL_ENV), relay-credential.ts (RELAY_CREDENTIAL_REQUIRED_ENV) and relay-endpoint.ts, read on 2026-08-19. The list is TEN, not nine: relay-boot-check.ts folds relay-credential.ts's three into the same refusal, and one of those three is OXY_API_URL.",
+        "verifiedAgainst": "kaana-cutover.ts, kaana-boot-check.ts (RELAY_PRINCIPAL_ENV), kaana-credential.ts (RELAY_CREDENTIAL_REQUIRED_ENV) and kaana-endpoint.ts, read on 2026-08-19. The list is TEN, not nine: kaana-boot-check.ts folds kaana-credential.ts's three into the same refusal, and one of those three is OXY_API_URL.",
         "names": [
           "ALIA_RELAY_CLIENT_ENABLED",
           "ALIA_RELAY_ACCOUNT_ID",
@@ -2731,7 +2731,7 @@
       "steps": [
         {
           "owner": "Alia",
-          "what": "Implement a concrete RelayTransport. None exists: relay-client.ts:203 declares the interface, its docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only under __tests__. This is the largest single piece of missing work and it is now unblocked, because the endpoint it would call exists.",
+          "what": "Implement a concrete RelayTransport. None exists: kaana-client.ts:203 declares the interface, its docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only under __tests__. This is the largest single piece of missing work and it is now unblocked, because the endpoint it would call exists.",
           "blockedBy": "nothing"
         },
         {
@@ -2776,16 +2776,16 @@
         },
         "noIamChangeNeeded": "The execution role oxy-ecs-execution grants ssm:GetParameter/GetParameters on arn:aws:ssm:us-west-2:237343248947:parameter/oxy/* — a prefix wildcard covering new /oxy/alia/ parameters — plus kms:Decrypt conditioned on kms:ViaService = ssm.us-west-2.amazonaws.com, which is what reads a SecureString under alias/aws/ssm. Read from the live policy, and independently corroborated by oxy-infra PR #65, which measures the execution role as `allowed` while the TASK role is implicitDeny.",
         "noEnvOverrideHookExists": "deploy-ecs-image.sh touches .environment for exactly ONE name, INTERNAL_METRICS_ENABLED (:459). TASK_SECRET_OVERRIDES_JSON is secrets-only by construction — it merges into .secrets as {name, valueFrom} pairs. So seven of the ten variables have no CI delivery path at all. The durable fix is a TASK_ENV_OVERRIDES_JSON hook mirroring the secrets one; it is an Alia-repo change (each repo owns its copy of the script) and test-deploy-ecs-image.sh:345 already has the shape to test it.",
-        "armingOrder": "relay-boot-check.ts:101 and direct-provider-guard.ts:111 are both `if (!isRelayClientEnabled(env)) return null;`, so with ALIA_RELAY_CLIENT_ENABLED unset the other nine variables are never read, parsed or validated. Land the two secrets, then the six remaining plain ones, then flip the flag IN ITS OWN REVISION, ALONE. Bundling all ten into one revision means it either works or crash-loops back to a revision carrying none of them.",
+        "armingOrder": "kaana-boot-check.ts:101 and direct-provider-guard.ts:111 are both `if (!isRelayClientEnabled(env)) return null;`, so with ALIA_RELAY_CLIENT_ENABLED unset the other nine variables are never read, parsed or validated. Land the two secrets, then the six remaining plain ones, then flip the flag IN ITS OWN REVISION, ALONE. Bundling all ten into one revision means it either works or crash-loops back to a revision carrying none of them.",
         "rollbackLosesThem": "The alia service carries deploymentCircuitBreaker {enable: true, rollback: true} (measured). relay-boot-check is FAIL-CLOSED — index.ts:376 calls runBootGuards with `exit: (code) => process.exit(code)` and boot-guards.ts:116 terminates on any of the ten being missing or malformed — so a half-delivered cutover crash-loops rather than degrading, and ECS repoints the service back to the revision WITHOUT the variables. Alia's deploy fails LOUDLY on that (deploy-ecs-image.sh:207 gates on PRIMARY deployment IDENTITY plus running == desired >= 1, so it does not have the silent-green-on-rollback gap oxy-infra's AGENTS.md describes for other repos). THE SILENCE IS ONE DEPLOY LATER: the pointer has already moved back, so the next unrelated merge deploys from the pre-cutover revision and the variables are gone from the chain with nothing reporting it.",
         "valueVersusBinding": "THE LIKELIEST WRONG TURN, and it is half-right, which is what makes it dangerous. A secret reaches a container through THREE layers, and only the first is still deliverable: (1) the SSM parameter supplies the VALUE and is written by deploy-aws.yml's `sync_secret` step on every deploy — OPEN; (2) the task definition's `secrets[]` entry supplies the name->ARN BINDING and was delivered by oxy-infra at service CREATION, before `ignore_changes` had anything to ignore, and carried forward by CI ever since — CLOSED; (3) `environment[]` likewise — CLOSED. So writing /oxy/alia/ALIA_RELAY_CREDENTIAL_KEY into SSM DELIVERS NOTHING ON ITS OWN: nothing reads it, there is no error, and the deploy is green. TASK_SECRET_OVERRIDES_JSON is the only way CI can add a NEW binding. Keep declaring the bindings in oxy-infra regardless — that block's own comment gives the reason: \"a live-but-undeclared secret is one apply from vanishing, and an unlisted one silently never syncs.\"",
         "secretVersusConfiguration": {
           "secrets": {
-            "ALIA_RELAY_CREDENTIAL_KEY": "relay-credential.ts calls the pair \"the secret material that proves the process is entitled to act as\" the ApplicationCredential.",
+            "ALIA_RELAY_CREDENTIAL_KEY": "kaana-credential.ts calls the pair \"the secret material that proves the process is entitled to act as\" the ApplicationCredential.",
             "ALIA_RELAY_CREDENTIAL_SECRET": "same; exchanged for a short-lived token and never present in a request."
           },
           "configuration": {
-            "ALIA_RELAY_CREDENTIAL_ID": "the credential RECORD's id. relay-credential.ts: it \"rides on every request inside the contract's principal\" — a value that travels in the envelope is not a secret.",
+            "ALIA_RELAY_CREDENTIAL_ID": "the credential RECORD's id. kaana-credential.ts: it \"rides on every request inside the contract's principal\" — a value that travels in the envelope is not a secret.",
             "ALIA_RELAY_ACCOUNT_ID": "carried in principal.billing.accountId on every request.",
             "ALIA_RELAY_APPLICATION_ID": "carried in the principal on every request.",
             "ALIA_RELAY_ENVIRONMENT": "one of the contract's environment enum values.",
@@ -2801,13 +2801,13 @@
     }
   },
   "verdictHazards": {
-    "greenAndInert": "A mechanism can exist, be tested, and be called by nothing. Evidence that names a function, a config table or a module is not evidence that the property HOLDS unless the ENTRYPOINT calls it. Row 266 failed this way and is corrected above. Every ALREADY_TRUE and DUPLICATE_OF row was re-checked against it on 2026-08-17; the live callers are: reserved-namespace via gateway-client.ts:320, fallback-engine via gateway-client.ts:339, violatedCapability via relay-client.ts:931 (client-internal only), and gates 3/4/5, which are censuses that run in CI. The two rows that hold by ABSENCE with NO guard at all are 454 and 522, and both now say so in their mutation field rather than naming a guard that does not cover them.",
+    "greenAndInert": "A mechanism can exist, be tested, and be called by nothing. Evidence that names a function, a config table or a module is not evidence that the property HOLDS unless the ENTRYPOINT calls it. Row 266 failed this way and is corrected above. Every ALREADY_TRUE and DUPLICATE_OF row was re-checked against it on 2026-08-17; the live callers are: reserved-namespace via gateway-client.ts:320, fallback-engine via gateway-client.ts:339, violatedCapability via kaana-client.ts:931 (client-internal only), and gates 3/4/5, which are censuses that run in CI. The two rows that hold by ABSENCE with NO guard at all are 454 and 522, and both now say so in their mutation field rather than naming a guard that does not cover them.",
     "wrongArtefact": "Rows 266 and 654 were wrong in the same direction and neither was caught by this audit. 266 cited a mechanism nothing called; 654 cited an absence that was not absent, because the scan read headings rather than prose. Both are corrections to the same habit: measure the artefact the claim is about. A heading census answers \"is there a section named X\", never \"is the rule written\"; an import census answers \"does this module exist\", never \"does the entrypoint call it\".",
     "emptyTableReadsCorrect": "Row 475 asserted that a write happened because the code path that would write existed. It did not: `recordCost` has no caller, so `cost_entries` is empty and every aggregate over it returns zero. A correct read of an empty table and a broken switch are indistinguishable without a positive control, which is why the standing gate for it carries one.",
     "ratchetNotSynchroniser": "A synchronising process that only ever ADDS is not a synchroniser, it is a ratchet. This file's `resolvedSince` sync could mark a row resolved and never unmark it, so a re-opened box stayed \"done\" — and the epic read as further along than it was, which is the precise failure the file exists to prevent. Caught only because a count disagreed by one. Same family as a floor that a gate's own work erodes until it asserts nothing, and as a matrix row that outlives the file it names. The fix is always the same: make the check answer BOTH directions and assert the exact count, never a floor.",
     "typeSystemViaTextCensus": "A census over source TEXT cannot answer a question about the TYPE SYSTEM. Found by the workstream 12 agent in #167's audit guard: packages/api/src/lib/security/__tests__/config-audit.test.ts:319 asserts no caller can omit the actor by testing `not.toMatch(/actor\\?\\s*:/)` — and a DEFAULT PARAMETER (`actor: ConfigAuditActor = {…}`) defeats it completely. There is no `?`, so the regex misses; the signature census still sees a parameter named `actor` typed `ConfigAuditActor`; and TypeScript treats it as optional at every call site. Proven rather than argued: a probe calling the writer with no actor typechecks with zero errors. This is the same family as `wrongArtefact` — a property enforced by the type system needs a gate IN the type system, or at minimum an AST check that reads the parameter's optionality rather than its spelling. L544 stays ticked: the mechanism holds, only that sub-property's coverage was hollow.",
     "mentionIsNotACall": "A guard that survives its own mutation because an IMPORT LINE satisfies it. The workstream 4 agent's first version asserted models.tsx contains `useCatalogue`; replacing the hook call with a literal empty array SURVIVED, because the import statement still contained the identifier. A component can satisfy \"imports X\" while never calling X. Fixed by asserting `useCatalogue(` with the parenthesis. Sibling of greenAndInert and distinct from it: there the MECHANISM had no caller, here the ASSERTION could not tell a call from a mention.",
-    "textCannotSeeAnInvertedCondition": "A source-text entrypoint assertion cannot see an inverted condition. `expect(source).toContain('relayBlocksReadiness()')` proves the route NAMES the function, never that it acts on the answer — keep the call and invert to `if (!relayBlocksReadiness())` and the task reports not-ready exactly when Relay IS reachable, with 1387 tests passing. Found by the workstream 8 agent; the box (394) was un-ticked. THE GENERALISATION MATTERS MORE THAN THE INSTANCE: src/index.ts is asserted only by source TEXT because nothing imports it — it opens a socket, arms timers and connects a database at import — so EVERY boot-path guard in this epic shares this shape and none of them can see a negation. The escape is the one relay-boot-check.ts already took: put the decision in a FUNCTION that a test can call with an environment, and leave index.ts holding only the log line and the exit.",
+    "textCannotSeeAnInvertedCondition": "A source-text entrypoint assertion cannot see an inverted condition. `expect(source).toContain('relayBlocksReadiness()')` proves the route NAMES the function, never that it acts on the answer — keep the call and invert to `if (!relayBlocksReadiness())` and the task reports not-ready exactly when Relay IS reachable, with 1387 tests passing. Found by the workstream 8 agent; the box (394) was un-ticked. THE GENERALISATION MATTERS MORE THAN THE INSTANCE: src/index.ts is asserted only by source TEXT because nothing imports it — it opens a socket, arms timers and connects a database at import — so EVERY boot-path guard in this epic shares this shape and none of them can see a negation. The escape is the one kaana-boot-check.ts already took: put the decision in a FUNCTION that a test can call with an environment, and leave index.ts holding only the log line and the exit.",
     "emptyBecauseGated": "An empty list from a gated endpoint and an empty store are the same bytes. `GET https://api.oxy.so/v1/models` returns `{\"data\":[],\"count\":0}` — which reads as \"the catalogue is empty\" and is actually \"you are a PUBLIC viewer and INFERENCE_CATALOGUE_AUDIENCE is unset\" (OxyHQ/oxy routes/inferenceCatalogue.ts states it in its own header). The re-audit therefore records the catalogue contents as UNMEASURED rather than as zero. Same family as `emptyTableReadsCorrect`: a correct read of a filtered view and a correct read of an empty one are indistinguishable without the credential that lifts the filter.",
     "liveIsNotServable": "A green liveness probe and a fresh artefact prove the process is up and the credential is valid. Neither proves the thing behind it will answer. Relay is 2/2, /livez is 200, and its publisher re-issued the inventory 14 minutes before it was read — and its only provider account answered 402 `payment_required` to every chat completion on the day it was measured, because the publisher reads /v1/models and the 402 arrives on /chat/completions. The cheap discriminator: ask which ENDPOINT the freshness signal exercised, not whether it is fresh.",
     "reachableIsNotAddressable": "\"The service exists and answers\" and \"this caller may use it\" are different measurements, and the first is the one that is cheap. Relay is reachable from anywhere; Alia still cannot call it, because it refuses anything that is not an Ed25519-signed Oxy edge envelope and holds only public keys. A re-audit that stopped at `curl /livez` -> 200 would have unblocked 96 rows onto a door Alia has no key to. The discriminator was one more request: `GET /internal/v1/health` -> 401 naming the envelope.",

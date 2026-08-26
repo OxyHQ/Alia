@@ -125,7 +125,7 @@ Removing them from resolution too would brick the product today. Three costs, ea
 2. **Nothing maps a `profile:*` id to a tier on the live path.**
    `lib/routing/alias-translation.ts:133` translates an alias to a contract `RoutingTarget` for the
    *Relay* wire and returns `not_an_alias` for anything else — and its only consumer,
-   `lib/inference/relay-request.ts`, is the client that is frozen out of the product graph. So a
+   `lib/inference/kaana-request.ts`, is the client that is frozen out of the product graph. So a
    caller sending `profile:v1-pro` today reaches nothing.
 3. **The alias is what bills the request.** `lib/credits-manager.ts:52` reads
    `model?.creditMultiplier || 1` off the alias entry. Remove the alias and every request bills at

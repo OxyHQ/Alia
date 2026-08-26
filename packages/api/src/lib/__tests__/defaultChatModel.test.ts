@@ -112,7 +112,7 @@ describe('exactly one function answers "what model when the caller named none"',
     expect(definers).toEqual(['packages/api/src/lib/gateway-client.ts']);
   });
 
-  it('the routing tree ADR 0001 moves to Relay declares no default of its own', () => {
+  it('the routing tree ADR 0001 moves to Kaana declares no default of its own', () => {
     // Stated separately from the count because it is a different property: even
     // one default is in the wrong place if it sits in the tree that migrates.
     const inProviderTree = SOURCES.filter(

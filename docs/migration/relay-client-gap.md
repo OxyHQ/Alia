@@ -158,7 +158,7 @@ brands in `identifiers.ts:38,50` mean the only way to obtain an `OxyAccountId` i
 to parse one through the schema.
 
 **Since 2026-08-17 (#139 ws2).** The replacement half of that edit exists:
-`lib/inference/relay-credential.ts` configures `@oxyhq/core` with the
+`lib/inference/kaana-credential.ts` configures `@oxyhq/core` with the
 ApplicationCredential in `ALIA_RELAY_CREDENTIAL_KEY` / `ALIA_RELAY_CREDENTIAL_SECRET`
 and returns it typed as `RelayClientConfig['credential']`, so the token the
 client presents is minted, cached and refreshed by the SDK — measured against a

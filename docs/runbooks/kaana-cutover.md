@@ -1,6 +1,6 @@
-# Runbook: delivering the Relay cutover variables to production
+# Runbook: delivering the Kaana cutover variables to production
 
-How each of the ten variables `relay-boot-check.ts` demands actually reaches the
+How each of the ten variables `kaana-boot-check.ts` demands actually reaches the
 **running** ECS task, and in what order to land them so that a mistake costs a
 retry rather than an outage.
 
@@ -80,10 +80,10 @@ true }` (measured live). If the cutover revision's tasks fail to reach a steady
 state, **ECS repoints the service back to the previous revision** — and the
 previous revision is the one without the variables.
 
-`relay-boot-check.ts` makes that outcome likely rather than exotic, because it is
+`kaana-boot-check.ts` makes that outcome likely rather than exotic, because it is
 fail-closed by design: `index.ts:376` calls `runBootGuards({ … exit: (code) =>
 process.exit(code) })`, `lib/boot-guards.ts:116` calls
-`relayBootConfigurationFailure(env)`, and any one of the ten variables missing or
+`kaanaBootConfigurationFailure(env)`, and any one of the ten variables missing or
 malformed terminates the process. A half-delivered cutover does not degrade; it
 crash-loops.
 
@@ -138,14 +138,14 @@ parts to get wrong, and each one added is a binding that cannot be delivered.
 
 | variable | secret? | why |
 | --- | --- | --- |
-| `ALIA_RELAY_CREDENTIAL_KEY` | **yes** | `relay-credential.ts` calls these "the secret material that proves the process is entitled to act as" the ApplicationCredential |
+| `ALIA_RELAY_CREDENTIAL_KEY` | **yes** | `kaana-credential.ts` calls these "the secret material that proves the process is entitled to act as" the ApplicationCredential |
 | `ALIA_RELAY_CREDENTIAL_SECRET` | **yes** | same; the pair is exchanged for a short-lived token and never travels in a request |
-| `ALIA_RELAY_CREDENTIAL_ID` | no | the credential RECORD's identifier. `relay-credential.ts`: it "rides on every request inside the contract's principal" — a value that travels in the envelope is not a secret |
+| `ALIA_RELAY_CREDENTIAL_ID` | no | the credential RECORD's identifier. `kaana-credential.ts`: it "rides on every request inside the contract's principal" — a value that travels in the envelope is not a secret |
 | `ALIA_RELAY_ACCOUNT_ID` | no | an Oxy account id, carried in `principal.billing.accountId` on every request |
 | `ALIA_RELAY_APPLICATION_ID` | no | carried in the principal on every request |
 | `ALIA_RELAY_ENVIRONMENT` | no | one of the contract's environment enum values |
 | `ALIA_RELAY_INFERENCE_SCOPES` | no | a comma-separated scope list, echoed in the principal |
-| `RELAY_BASE_URL` | no | fail-closed against a two-entry allow-list (`relay-endpoint.ts`), so it cannot name a host that is not already public knowledge |
+| `RELAY_BASE_URL` | no | fail-closed against a two-entry allow-list (`kaana-endpoint.ts`), so it cannot name a host that is not already public knowledge |
 | `ALIA_RELAY_CLIENT_ENABLED` | no | the literal string `true` |
 | `OXY_API_URL` | no | already present |
 
@@ -267,7 +267,7 @@ about what production runs. It delivers nothing on its own.
 
 ## Order of operations
 
-`relay-boot-check.ts:101` is `if (!isRelayClientEnabled(env)) return null;`, and
+`kaana-boot-check.ts:101` is `if (!isKaanaClientEnabled(env)) return null;`, and
 `direct-provider-guard.ts:111` is the same line. So **with
 `ALIA_RELAY_CLIENT_ENABLED` unset, none of the other nine variables is read,
 parsed or validated by anything.** They are completely inert.
@@ -314,11 +314,14 @@ After each repoint:
 - `services[0].runningCount == desiredCount` and the PRIMARY deployment's
   `rolloutState == COMPLETED`. **`rolloutState COMPLETED` alone is vacuous** on a
   service parked at zero; check the counts separately.
-- `GET https://api.alia.onl/health` — `"relay"` moves from `"disabled"` to
-  `"unknown"` the moment the flag is on, because `relay-connectivity.ts` reports
+- `GET https://api.alia.onl/health` — `kaana.client` moves from `"disabled"` to
+  `"unknown"` the moment the flag is on, because `kaana-connectivity.ts` reports
   `disabled` only while the flag is off. **`"unknown"` is the correct post-arm
-  reading**, not a fault: a task that has never called Relay has no evidence about
-  it. `"reachable"` requires a completed call.
+  reading**, not a fault: a task that has never called Kaana has no evidence about
+  it. `"reachable"` requires a completed call. Its sibling `kaana.credentials`
+  answers a different question — whether the edge key and signing key are set —
+  and is unaffected by the flag. Both used to be reported separately, and the
+  Kaana half was spelled `relay`.
 
 The false pass to watch for: a deploy that reports success while the service
 points at the previous revision. Assert the revision identity, never just the

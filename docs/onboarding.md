@@ -187,7 +187,7 @@ the ADRs landed.
   concealing it would only make the message unactionable.
 - **ALWAYS** resolve display strings via `getAliaModel()`, never from the mapping table.
 - **DO NOT** add an `alia-*` identifier. The set is frozen under
-  [ADR 0002](./adr/0002-alia-is-a-relay-consumer-and-future-model-publisher.md).
+  [ADR 0002](./adr/0002-alia-is-a-kaana-consumer-and-future-model-publisher.md).
 
 It is a product and privacy boundary, not a global ban on the words. Engineering
 documentation, ADRs and schema comments name publishers — ADR 0003 makes
@@ -270,7 +270,7 @@ credentials are not environment variables -- they live in the `provider_keys` ta
 |-------|------|
 | Architecture decisions | [docs/adr/README.md](adr/README.md) |
 | What sunsets, and on what gate | [docs/migration/compatibility-window.md](migration/compatibility-window.md) |
-| Chat runtime, SSE events, the Relay boundary | [docs/chat-runtime.mdx](chat-runtime.mdx) |
+| Chat runtime, SSE events, the Kaana boundary | [docs/chat-runtime.mdx](chat-runtime.mdx) |
 | What the `alia-*` identifiers really are | [docs/model-abstraction.mdx](model-abstraction.mdx) |
 | Agents and autonomy loop | [docs/agents.md](agents.md) |
 | API reference, by boundary | [docs/api-reference.md](api-reference.md) |

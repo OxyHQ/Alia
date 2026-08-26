@@ -16,8 +16,8 @@ import { log } from '../../logger.js';
  * and a legacy alias and recording it alone conflates the three —
  * `lib/observability/requested-model.ts` owns that reading. The RESOLVED
  * REVISION is the one field of the checkbox with nowhere to go: revisions belong
- * to the Relay catalogue (`resolvedModelReference` on the contract's `start`
- * event) and Alia has no Relay to ask, so it is absent rather than guessed.
+ * to the Kaana catalogue (`resolvedModelReference` on the contract's `start`
+ * event) and Alia has no Kaana to ask, so it is absent rather than guessed.
  *
  * The row is written for a FAILED turn as well as a successful one — that is
  * what makes `errorClass` a column with values in it rather than one that is

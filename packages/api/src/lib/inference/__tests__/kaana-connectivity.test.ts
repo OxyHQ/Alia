@@ -6,26 +6,26 @@ import { beforeEach, describe, expect, it } from 'vitest';
 
 import type { AliaInferenceCall, AliaInferenceContext } from '../product-seam.js';
 import {
-  createRelayInferenceClient,
-  type RelayClientConfig,
-  type RelayServiceCredential,
-  type RelayTransport,
-  type RelayTransportRequest,
+  createKaanaInferenceClient,
+  type KaanaClientConfig,
+  type KaanaServiceCredential,
+  type KaanaTransport,
+  type KaanaTransportRequest,
 } from '../kaana-client.js';
 import {
-  relayConnectivity,
-  reportRelayReachable,
-  reportRelayUnavailableUntil,
+  kaanaConnectivity,
+  reportKaanaReachable,
+  reportKaanaUnavailableUntil,
 } from '../kaana-connectivity.js';
-import { RELAY_CLIENT_ENABLED_ENV } from '../kaana-cutover.js';
-import { assertAllowedRelayOrigin } from '../kaana-endpoint.js';
-import type { RelayRequestPayload } from '../kaana-request.js';
+import { KAANA_CLIENT_ENABLED_ENV } from '../kaana-cutover.js';
+import { assertAllowedKaanaOrigin } from '../kaana-endpoint.js';
+import type { KaanaRequestPayload } from '../kaana-request.js';
 
-/** An approved Relay origin, branded through the one function that produces one. */
-const ENDPOINT = assertAllowedRelayOrigin('https://api.oxy.so', 'development');
+/** An approved Kaana origin, branded through the one function that produces one. */
+const ENDPOINT = assertAllowedKaanaOrigin('https://api.oxy.so', 'development');
 
 /**
- * Epic #139 workstream 8 — *"Make Relay connectivity explicit in
+ * Epic #139 workstream 8 — *"Make Kaana connectivity explicit in
  * health/readiness checks."*
  *
  * Three properties, and the first is the one that makes this safe to land while
@@ -46,41 +46,41 @@ const HEALTH_ROUTE = path.resolve(
   fileURLToPath(new URL('../../../routes/health.ts', import.meta.url)),
 );
 
-const ENABLED: NodeJS.ProcessEnv = { [RELAY_CLIENT_ENABLED_ENV]: 'true' };
+const ENABLED: NodeJS.ProcessEnv = { [KAANA_CLIENT_ENABLED_ENV]: 'true' };
 const DISABLED: NodeJS.ProcessEnv = {};
 
 beforeEach(() => {
   // The registry is process state, so each test starts from the boot state: no
   // sample, no recorded unavailability.
-  reportRelayUnavailableUntil(0);
+  reportKaanaUnavailableUntil(0);
 });
 
 /* -------------------------------------------------------------------------- */
 /*  1. The flag-off path is unchanged                                          */
 /* -------------------------------------------------------------------------- */
 
-describe('with the cutover flag off Relay does not enter the health answer', () => {
+describe('with the cutover flag off Kaana does not enter the health answer', () => {
   it('reports disabled whatever the samples say', () => {
-    reportRelayReachable();
-    expect(relayConnectivity(DISABLED, 1_000)).toBe('disabled');
-    reportRelayUnavailableUntil(9_999_999);
-    expect(relayConnectivity(DISABLED, 1_000)).toBe('disabled');
+    reportKaanaReachable();
+    expect(kaanaConnectivity(DISABLED, 1_000)).toBe('disabled');
+    reportKaanaUnavailableUntil(9_999_999);
+    expect(kaanaConnectivity(DISABLED, 1_000)).toBe('disabled');
     // The control: the same samples under the flag DO change the answer, so
     // `disabled` is about the flag and not about a registry nothing wrote to.
-    expect(relayConnectivity(ENABLED, 1_000)).toBe('unreachable');
+    expect(kaanaConnectivity(ENABLED, 1_000)).toBe('unreachable');
   });
 
   it('reports disabled even with an unavailability recorded', () => {
-    reportRelayUnavailableUntil(9_999_999);
-    expect(relayConnectivity(DISABLED, 1_000)).toBe('disabled');
+    reportKaanaUnavailableUntil(9_999_999);
+    expect(kaanaConnectivity(DISABLED, 1_000)).toBe('disabled');
     // The control, so `disabled` is the flag rather than an unwritten registry.
-    expect(relayConnectivity(ENABLED, 1_000)).toBe('unreachable');
+    expect(kaanaConnectivity(ENABLED, 1_000)).toBe('unreachable');
   });
 
   it('is off for every value that is not exactly the literal true', () => {
-    reportRelayUnavailableUntil(9_999_999);
+    reportKaanaUnavailableUntil(9_999_999);
     for (const value of ['1', 'TRUE', 'True', 'yes', '', ' true']) {
-      expect(relayConnectivity({ [RELAY_CLIENT_ENABLED_ENV]: value }, 1_000)).toBe('disabled');
+      expect(kaanaConnectivity({ [KAANA_CLIENT_ENABLED_ENV]: value }, 1_000)).toBe('disabled');
     }
   });
 });
@@ -94,26 +94,26 @@ describe('the four states are distinguished, and none of them blocks readiness',
     // The deadlock this prevents: a task out of rotation receives no request, so
     // it can never acquire the evidence that would put it back in. "No evidence"
     // must therefore be ready.
-    expect(relayConnectivity(ENABLED, 1_000)).toBe('unknown');
+    expect(kaanaConnectivity(ENABLED, 1_000)).toBe('unknown');
   });
 
   it('a completed call makes it reachable', () => {
-    reportRelayReachable();
-    expect(relayConnectivity(ENABLED, 1_000)).toBe('reachable');
+    reportKaanaReachable();
+    expect(kaanaConnectivity(ENABLED, 1_000)).toBe('reachable');
   });
 
   it('an open circuit makes it unreachable until the cooldown lapses', () => {
-    reportRelayUnavailableUntil(5_000);
-    expect(relayConnectivity(ENABLED, 4_999)).toBe('unreachable');
+    reportKaanaUnavailableUntil(5_000);
+    expect(kaanaConnectivity(ENABLED, 4_999)).toBe('unreachable');
     // Self-expiring: nothing has to clear it, so a stale sample cannot pin a
     // task out of rotation forever.
-    expect(relayConnectivity(ENABLED, 5_000)).toBe('unknown');
+    expect(kaanaConnectivity(ENABLED, 5_000)).toBe('unknown');
   });
 
   it('a success closes a recorded unavailability immediately', () => {
-    reportRelayUnavailableUntil(5_000);
-    reportRelayReachable();
-    expect(relayConnectivity(ENABLED, 1_000)).toBe('reachable');
+    reportKaanaUnavailableUntil(5_000);
+    reportKaanaReachable();
+    expect(kaanaConnectivity(ENABLED, 1_000)).toBe('reachable');
   });
 });
 
@@ -123,15 +123,15 @@ describe('the four states are distinguished, and none of them blocks readiness',
 
 const DEFAULT_TARGET: RoutingTarget = { kind: 'routing_profile', routingProfile: 'auto' };
 
-const CREDENTIAL: RelayServiceCredential = {
+const CREDENTIAL: KaanaServiceCredential = {
   getServiceToken: () => Promise.resolve('oxy-service-token-synthetic'),
   invalidateServiceToken: () => undefined,
 };
 
 /** A transport that answers with one terminal event of the caller's choosing. */
-function answering(event: Record<string, unknown>): RelayTransport {
+function answering(event: Record<string, unknown>): KaanaTransport {
   return {
-    send: (_input: RelayTransportRequest): Promise<AsyncIterable<unknown>> =>
+    send: (_input: KaanaTransportRequest): Promise<AsyncIterable<unknown>> =>
       Promise.resolve(
         (async function* () {
           yield event;
@@ -153,7 +153,7 @@ function context(): AliaInferenceContext {
   };
 }
 
-const CALL: AliaInferenceCall<RelayRequestPayload> = {
+const CALL: AliaInferenceCall<KaanaRequestPayload> = {
   context: context(),
   payload: {
     modality: 'text',
@@ -164,8 +164,8 @@ const CALL: AliaInferenceCall<RelayRequestPayload> = {
   },
 };
 
-function client(over: Partial<RelayClientConfig>): ReturnType<typeof createRelayInferenceClient> {
-  return createRelayInferenceClient({
+function client(over: Partial<KaanaClientConfig>): ReturnType<typeof createKaanaInferenceClient> {
+  return createKaanaInferenceClient({
     enabled: true,
     transport: answering({}),
     credential: CREDENTIAL,
@@ -186,19 +186,19 @@ function client(over: Partial<RelayClientConfig>): ReturnType<typeof createRelay
   });
 }
 
-async function drain(built: ReturnType<typeof createRelayInferenceClient>): Promise<void> {
+async function drain(built: ReturnType<typeof createKaanaInferenceClient>): Promise<void> {
   for await (const _event of built.stream(CALL, new AbortController().signal)) {
     // Drained.
   }
 }
 
-describe('the Relay client is what reports connectivity (#139 ws8)', () => {
+describe('the Kaana client is what reports connectivity (#139 ws8)', () => {
   it('a completed call reports reachable, through the real client', async () => {
     const done = [
       {
         schemaVersion: 1,
         type: 'start',
-        requestId: 'relay-req-1',
+        requestId: 'kaana-req-1',
         sequence: 0,
         generationId: 'gen-1',
         resolvedModelReference: 'anthropic/claude',
@@ -208,7 +208,7 @@ describe('the Relay client is what reports connectivity (#139 ws8)', () => {
       {
         schemaVersion: 1,
         type: 'done',
-        requestId: 'relay-req-1',
+        requestId: 'kaana-req-1',
         sequence: 1,
         generationId: 'gen-1',
         finishReason: 'stop',
@@ -230,7 +230,7 @@ describe('the Relay client is what reports connectivity (#139 ws8)', () => {
       }),
     );
 
-    expect(relayConnectivity(ENABLED, 1_000)).toBe('reachable');
+    expect(kaanaConnectivity(ENABLED, 1_000)).toBe('reachable');
   });
 
   it('an availability failure that opens the circuit reports unreachable', async () => {
@@ -241,27 +241,27 @@ describe('the Relay client is what reports connectivity (#139 ws8)', () => {
         transport: answering({
           schemaVersion: 1,
           type: 'error',
-          requestId: 'relay-req-2',
+          requestId: 'kaana-req-2',
           sequence: 0,
           error: {
             schemaVersion: 1,
             code: 'service_unavailable',
-            message: 'relay is not answering',
+            message: 'Kaana is not answering',
             retryable: true,
-            requestId: 'relay-req-2',
+            requestId: 'kaana-req-2',
           },
         }),
       }),
     );
 
     // The cooldown is 30s from the injected clock's 1_000.
-    expect(relayConnectivity(ENABLED, 2_000)).toBe('unreachable');
-    expect(relayConnectivity(ENABLED, 31_001)).toBe('unknown');
+    expect(kaanaConnectivity(ENABLED, 2_000)).toBe('unreachable');
+    expect(kaanaConnectivity(ENABLED, 31_001)).toBe('unknown');
   });
 
   it('a failure that is NOT about availability leaves connectivity alone', async () => {
     // `no_route_available` is a correct, immediate answer about one request and
-    // says nothing about whether Relay is reachable. A client that reported it
+    // says nothing about whether Kaana is reachable. A client that reported it
     // as unreachable would let one badly configured caller take the whole task
     // out of rotation.
     await drain(
@@ -270,20 +270,20 @@ describe('the Relay client is what reports connectivity (#139 ws8)', () => {
         transport: answering({
           schemaVersion: 1,
           type: 'error',
-          requestId: 'relay-req-3',
+          requestId: 'kaana-req-3',
           sequence: 0,
           error: {
             schemaVersion: 1,
             code: 'no_route_available',
             message: 'nothing serves that',
             retryable: false,
-            requestId: 'relay-req-3',
+            requestId: 'kaana-req-3',
           },
         }),
       }),
     );
 
-    expect(relayConnectivity(ENABLED, 2_000)).toBe('unknown');
+    expect(kaanaConnectivity(ENABLED, 2_000)).toBe('unknown');
   });
 });
 
@@ -302,16 +302,16 @@ describe('the health route reads the signal (#139 ws8)', () => {
     expect(source).toContain("router.get('/live'");
   });
 
-  it('puts Relay in the snapshot, and gives it no power to deregister a task', () => {
+  it('puts Kaana in the snapshot, and gives it no power to deregister a task', () => {
     // A mechanism can be green and inert, so the first line is the assertion
     // that the ENTRYPOINT calls it at all.
-    expect(source).toContain('relayConnectivity()');
+    expect(source).toContain('kaanaConnectivity()');
 
     /**
-     * The other two are the REMOVAL, frozen. `relayBlocksReadiness()` used to be
+     * The other two are the REMOVAL, frozen. `kaanaBlocksReadiness()` used to be
      * called here and `/health/ready` used to answer 503 `relay_unreachable`,
-     * which deregistered every task at once the moment Relay stopped answering
-     * — Relay being unreachable is not a per-task fact, however per-process the
+     * which deregistered every task at once the moment Kaana stopped answering
+     * — Kaana being unreachable is not a per-task fact, however per-process the
      * observation is. The full argument is in `kaana-connectivity.ts` and in
      * `routes/health.ts`.
      *
@@ -328,7 +328,7 @@ describe('the health route reads the signal (#139 ws8)', () => {
     // Floor: the slice really is the handler, so an empty read cannot pass.
     expect(readyHandler).toContain('isPostgresReady');
 
-    for (const gone of ['relayBlocksReadiness', 'relay_unreachable', 'no_healthy_providers']) {
+    for (const gone of ['kaanaBlocksReadiness', 'relay_unreachable', 'no_healthy_providers']) {
       expect(readyHandler, `/ready acts on ${gone}`).not.toContain(gone);
     }
   });
@@ -336,7 +336,7 @@ describe('the health route reads the signal (#139 ws8)', () => {
   it('leaves the liveness probe consulting nothing', () => {
     /**
      * `/health/live` is what the `oxy-alia` target group polls today, so a
-     * dependency in it is a dependency that can get a task KILLED. The Relay
+     * dependency in it is a dependency that can get a task KILLED. The Kaana
      * signal has no business in a liveness answer, and this asserts the handler
      * body between `'/live'` and the next route is still the unconditional one.
      */
@@ -346,7 +346,7 @@ describe('the health route reads the signal (#139 ws8)', () => {
     expect(readyStart).toBeGreaterThan(liveStart);
     const liveHandler = source.slice(liveStart, readyStart);
     expect(liveHandler).toContain("status: 'alive'");
-    for (const forbidden of ['relayConnectivity', 'relayBlocksReadiness', 'summariseProviders', 'await']) {
+    for (const forbidden of ['kaanaConnectivity', 'kaanaBlocksReadiness', 'summariseProviders', 'await']) {
       expect(liveHandler, `/live consults ${forbidden}`).not.toContain(forbidden);
     }
   });

@@ -6,7 +6,7 @@
 
 ## Context
 
-ADR 0001 assigns inference to Relay, and `AGENTS.md` states the consequence as a rule: *"An app never ships its own provider adapter, key pool or routing"*. Every model Alia can answer from is a model Kaana can dial.
+ADR 0001 assigns inference to Kaana, and `AGENTS.md` states the consequence as a rule: *"An app never ships its own provider adapter, key pool or routing"*. Every model Alia can answer from is a model Kaana can dial.
 
 A model running on the person's own machine is not such a model. Ollama, LM Studio, llama.cpp's server and vLLM all listen on an address reachable from exactly one place — that machine — and no server in `us-west-2` can reach it. The boundary ADR 0001 draws does not exclude this case on principle; it simply cannot contain it, because Kaana has no route to `127.0.0.1` on someone's laptop.
 
