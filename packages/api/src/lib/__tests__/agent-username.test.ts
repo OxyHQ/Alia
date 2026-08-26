@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { USERNAME_MAX_LENGTH, USERNAME_MIN_LENGTH, isValidUsername } from '@oxyhq/contracts';
 
-import { fallbackAgentUsername, suggestAgentUsername } from '../agent-identity.js';
+import {
+  applyBotUsernameSuffix,
+  fallbackAgentUsername,
+  suggestAgentUsername,
+} from '../agent-identity.js';
 
 /**
  * The username an agent is OFFERED, and who decides whether it is one.
@@ -95,5 +99,77 @@ describe('the username an agent is offered', () => {
     const seen = new Set(Array.from({ length: 50 }, () => fallbackAgentUsername()));
 
     expect(seen.size).toBe(50);
+  });
+});
+
+/**
+ * The label a bot's handle wears, as a rule rather than as a path.
+ *
+ * Oxy holds `kind: 'bot'` to everything the base policy demanded PLUS a handle
+ * ending in `bot`, and Alia is the only thing minting bot accounts anywhere in
+ * the ecosystem. What each door sends is asserted at the door — the chat tool's
+ * in `tools/__tests__/agent-create.test.ts`, the create screen's in the app —
+ * because a proposal is not a handle. This file holds the rule those doors
+ * apply, and the cases where appending blindly would be wrong.
+ *
+ * Checked against `@oxyhq/contracts` for everything except the label itself,
+ * which the installed version does not publish yet. When it does, this function
+ * is replaced by its `applyBotUsernameSuffix` and these cases carry over: they
+ * describe the rule, not Alia's stand-in for it.
+ */
+describe('the label a bot handle ends in', () => {
+  it('turns anything the generator offers into a handle the schema still accepts', () => {
+    // The property over the whole shaping surface: a label that pushed a name
+    // past the maximum, or landed after a truncation that left a separator,
+    // would produce a handle Oxy refuses for a reason that has nothing to do
+    // with bots.
+    const names = [
+      'A', 'Al', 'Ana', 'Zoë Ruiz', '  spaced  out  ', '---', '_x_', 'a--b',
+      '日本語', 'Ünïcödé Nâme', '1984', '007 Bond', 'x'.repeat(200),
+      'Dr. Strange, PhD', 'foo_bar-baz', 'ends-with-', 'Garden Helper',
+      `${'ab '.repeat(40)}tail`,
+    ];
+
+    for (const name of names) {
+      const handle = applyBotUsernameSuffix(suggestAgentUsername(name) ?? fallbackAgentUsername());
+
+      expect(isValidUsername(handle), `${name} -> ${handle}`).toBe(true);
+      expect(handle.length, handle).toBeLessThanOrEqual(USERNAME_MAX_LENGTH);
+      expect(handle.toLowerCase().endsWith('bot'), handle).toBe(true);
+    }
+  });
+
+  it('cuts to leave room for the label rather than overflowing the maximum', () => {
+    const full = applyBotUsernameSuffix('a'.repeat(USERNAME_MAX_LENGTH));
+
+    expect(full.length).toBe(USERNAME_MAX_LENGTH);
+    expect(isValidUsername(full)).toBe(true);
+    expect(full.endsWith('bot')).toBe(true);
+  });
+
+  it('leaves a handle that already carries the label alone, whatever its case', () => {
+    // `mybotbot` is what an unconditional append produces, and Oxy would take
+    // it — so nothing but this says the append is conditional. The folded cases
+    // matter because Oxy's uniqueness index folds too: a case-sensitive test
+    // would accept `mybot` and relabel `MyBot`, two names the index considers
+    // one.
+    expect(applyBotUsernameSuffix('mybot')).toBe('mybot');
+    expect(applyBotUsernameSuffix('MyBot')).toBe('MyBot');
+    expect(applyBotUsernameSuffix('MYBOT')).toBe('MYBOT');
+  });
+
+  it('labels a name that merely contains the word, because the rule is about the end', () => {
+    // The label is not a reserved word: `botanist` is a name anybody may hold,
+    // and as a BOT's handle it still has to end in the label.
+    expect(applyBotUsernameSuffix('botanist')).toBe('botanistbot');
+    expect(applyBotUsernameSuffix('robotics')).toBe('roboticsbot');
+  });
+
+  it('appends and never inserts, leaving the separator to whoever chose the name', () => {
+    // All three conform at Oxy — `-` and `_` are equal separators there — so
+    // this is a statement about what Alia produces, not about what is legal.
+    expect(applyBotUsernameSuffix('garden-helper')).toBe('garden-helperbot');
+    expect(applyBotUsernameSuffix('garden-helper-')).toBe('garden-helper-bot');
+    expect(applyBotUsernameSuffix('garden_helper_')).toBe('garden_helper_bot');
   });
 });

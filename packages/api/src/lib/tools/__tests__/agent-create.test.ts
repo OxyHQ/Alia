@@ -190,12 +190,18 @@ describe('an agent created mid-conversation', () => {
      * did, once, before this was pinned.
      */
     const random = vi.spyOn(Math, 'random').mockReturnValue(0.5);
-    oxy.taken.add('nadia');
+    // `nadiabot`, because that is the handle the first attempt actually asks
+    // for — a bot's must end in the label. Taking `nadia` would leave the first
+    // attempt free and this case would never reach the retry it is about.
+    oxy.taken.add('nadiabot');
     const result = await create({ name: 'Nadia', description: 'Watches the markets.' });
     random.mockRestore();
 
     expect(result.success).toBe(true);
-    expect(result.agent?.handle).toBe('nadia-i');
+    // The collision suffix lands INSIDE the label: `nadia-i`, then labelled.
+    // The other order — `nadiabot-i` — is refused by Oxy for the same reason
+    // the first attempt was, and would burn all five attempts.
+    expect(result.agent?.handle).toBe('nadia-ibot');
     /**
      * The colour follows the handle that was PROPOSED, not the one the retry
      * minted — measured, and it is the right way round: the point of deriving
@@ -207,7 +213,69 @@ describe('an agent created mid-conversation', () => {
      * The two differ for this pinned pair, which is what makes the assertion
      * discriminate rather than agree by luck.
      */
-    expect(agentColorFor('nadia-i')).not.toBe(agentColorFor('nadia'));
+    expect(agentColorFor('nadia-ibot')).not.toBe(agentColorFor('nadia'));
     expect(oxy.accounts[0].color).toBe(agentColorFor('nadia'));
+  });
+});
+
+/**
+ * The label a bot's handle wears, asserted where it counts: on the username
+ * this door actually SENT to Oxy.
+ *
+ * Oxy holds `kind: 'bot'` to a tighter username rule than the other four kinds
+ * — everything the base policy demanded, plus a handle ending in `bot` — and
+ * Alia is the only thing in the ecosystem minting bot accounts. An unlabelled
+ * proposal is not a cosmetic miss: it is a 400, and every agent created through
+ * this tool would fail at the same line.
+ *
+ * The fixture is the account service's own record, never the argument a spy
+ * received, and never `suggestAgentUsername`'s return value — that one is a
+ * BASE by design, and asserting on it would be asserting on the half of the
+ * path that is allowed not to conform.
+ */
+describe('the handle an agent is minted with', () => {
+  /** Every username `POST /accounts` was actually asked for, in order. */
+  const sent = () => oxy.accounts.map((row) => row.username);
+
+  it('ends in the label Oxy requires of a bot', async () => {
+    const result = await create({ name: 'Garden Helper', description: 'Tends the plants.' });
+
+    expect(result.success).toBe(true);
+    expect(sent()).toEqual(['garden-helperbot']);
+    expect(result.agent?.handle).toBe('garden-helperbot');
+  });
+
+  it('labels the fallback too, when the name proposes no handle at all', async () => {
+    // "Al" is shorter than the schema's minimum, so nothing is proposed and the
+    // random fallback is used — the path that reaches Oxy without a name having
+    // shaped it, and the one nobody watches.
+    const result = await create({ name: 'Al', description: 'Helps.' });
+
+    expect(result.success).toBe(true);
+    expect(sent()[0]).toMatch(/^agent-[0-9a-f]{8}bot$/);
+  });
+
+  it('still ends in the label after a collision rewrites the name', async () => {
+    // Pinned, so the handle the retry builds is a fact rather than a draw.
+    const random = vi.spyOn(Math, 'random').mockReturnValue(0.5);
+    oxy.taken.add('garden-helperbot');
+    const result = await create({ name: 'Garden Helper', description: 'Tends the plants.' });
+    random.mockRestore();
+
+    expect(result.success).toBe(true);
+    // The account service records what it ACCEPTED, so this is the second
+    // attempt — the one a label applied before the collision suffix would have
+    // sent as `garden-helperbot-i` and had refused all over again.
+    expect(sent()).toEqual(['garden-helper-ibot']);
+    expect(result.agent?.handle.toLowerCase().endsWith('bot')).toBe(true);
+  });
+
+  it('does not label a name that already carries one', async () => {
+    // `mybotbot` is what an unconditional append produces, and Oxy would take
+    // it — so nothing but this case says the append is conditional.
+    const result = await create({ name: 'Mybot', description: 'Is already a bot.' });
+
+    expect(result.success).toBe(true);
+    expect(sent()).toEqual(['mybot']);
   });
 });
