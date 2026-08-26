@@ -12,7 +12,6 @@ import * as Linking from 'expo-linking';
 import { Platform } from 'react-native';
 
 import { AppErrorBoundary } from '@/components/error-boundary';
-import { SurfaceHost } from '@oxyhq/bloom/surfaces';
 import { KeyboardProvider } from '@/lib/keyboard';
 import { useColorScheme } from '@/lib/useColorScheme';
 import { setTokenGetter } from '@/lib/api/client';
@@ -79,10 +78,13 @@ function AppContent() {
           <Stack.Screen name="(biglayout)" options={{ headerShown: false }} />
         </Stack>
       </KeyboardProvider>
-      {/* No <ToastOutlet /> here on purpose: OxyProvider mounts one already,
-          and a second outlet renders every toast twice. */}
+      {/* Neither a <ToastOutlet /> nor a <SurfaceHost /> here, for the same
+          reason: OxyProvider mounts both (its <SurfaceProvider> renders the
+          host next to its children). A second outlet renders every toast
+          twice, and a second host renders every surface twice — two stacked
+          panels over two backdrops, whose enter/exit animations then run
+          independently and visibly desync. */}
       <ConnectionStatusToasts />
-      <SurfaceHost />
     </AuthSetup>
   );
 }
