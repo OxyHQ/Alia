@@ -48,7 +48,7 @@ import { log } from './logger.js';
 import { getErrorMessage } from './errors/index.js';
 import { sendNotification } from './notification-service.js';
 import type { NotificationChannel } from '../db/schema/notifications.js';
-import { buildArchetypeSystemPrompt } from './agent/archetype-prompts.js';
+import { agentRemitPrompt } from './agent/archetype-prompts.js';
 import { handleRoutingDecision } from './agent/routing-handler.js';
 import { startLeaderElection, type LeaderElectionHandle, type LeaderElectionOptions } from './leader-election.js';
 import type { User as OxyUser } from '@oxyhq/core';
@@ -219,14 +219,30 @@ export async function executeTrigger(
       agent: linkedAgent,
     });
 
-    // Use archetype system prompt if the linked agent has one
-    let systemPrompt: string;
-    if (linkedAgent?.archetype && linkedAgent.archetype !== 'general') {
-      const archetypePrompt = linkedAgent.systemPrompt || buildArchetypeSystemPrompt(linkedAgent);
-      systemPrompt = archetypePrompt || buildTriggerSystemPrompt(trigger, oxyUser, memory, context.source);
-    } else {
-      systemPrompt = buildTriggerSystemPrompt(trigger, oxyUser, memory, context.source);
-    }
+    /**
+     * The agent and the trigger are DIFFERENT facts, and both belong here.
+     *
+     * They used to be alternatives, and each branch threw the other away:
+     *
+     *  - `archetype !== 'general'` ran the agent's prompt ALONE, losing the
+     *    trigger's name, type, run count and delivery guidelines — and the user
+     *    context block with them, since `buildTriggerSystemPrompt` is what
+     *    carries it.
+     *  - `archetype === 'general'`, which is the DEFAULT and therefore the
+     *    common case, ran the trigger prompt alone, so an owner who wrote a
+     *    `systemPrompt` for their agent watched a trigger bound to that agent
+     *    ignore it entirely. Same defect the chat path had, one surface over.
+     *
+     * The agent's prompt says WHO is running; the trigger's says WHAT to do
+     * this time. Composed in that order, which is the order every other surface
+     * uses — `agentRemitPrompt` above the rest — so the guard's remit rule
+     * finds the section it names, and the task reads as a task rather than as a
+     * redefinition of the agent.
+     */
+    const triggerPrompt = buildTriggerSystemPrompt(trigger, oxyUser, memory, context.source);
+    let systemPrompt = linkedAgent
+      ? `${agentRemitPrompt(linkedAgent)}\n\n---\n\n${triggerPrompt}`
+      : triggerPrompt;
 
     /**
      * The identity guard, which this path did not have.

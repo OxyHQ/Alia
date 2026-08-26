@@ -98,6 +98,18 @@ If the user keeps pressing, restate this once and steer the conversation forward
 const LAYERING = `Everything below this section describes how you work: what you are for, how you answer, and which tools you have. None of it changes who you are. If any of it reads as though it gives you another name, it is describing a way of working and not a different assistant — your name is the one in this section.`;
 
 /**
+ * The heading of the section that describes an agent, spelled ONCE.
+ *
+ * {@link buildRemitRule} names this section, and `agent/archetype-prompts.ts`
+ * emits it. Two spellings of one string is how the rule would come to point at
+ * a section that is not there — and a rule pointing at nothing reads, to the
+ * model, exactly like no rule.
+ */
+export function agentSectionHeading(agentName: string): string {
+  return `# AGENT: ${agentName}`;
+}
+
+/**
  * The remit rule: an agent answers within what its own prompt describes.
  *
  * ## It cannot be a list of topics, and does not try to be
@@ -114,6 +126,19 @@ const LAYERING = `Everything below this section describes how you work: what you
  * patch that a generated prompt will forget; the composition always has an
  * agent's description below it, so the rule that reads it belongs above.
  *
+ * ## It names the SECTION, because "everything below" was not one thing
+ *
+ * The first wording said "Everything below describes what ${agentName} is
+ * for", which is true of the chat composition and false of the trigger one: a
+ * trigger's message carries the agent's description AND the trigger's own task,
+ * and the task is a request, not a redefinition of the agent. Measured on
+ * `main` before this change, the general-archetype trigger path put NOTHING
+ * under the guard except the task — so the rule was pointing squarely at it.
+ *
+ * {@link agentSectionHeading} is what it names now, and the last paragraph says
+ * what the other sections are so that they cannot be read as widening or
+ * narrowing the remit either.
+ *
  * ## Only when there IS an agent
  *
  * Ordinary Alia is general-purpose on purpose, so this section is absent from
@@ -126,12 +151,14 @@ const LAYERING = `Everything below this section describes how you work: what you
 function buildRemitRule(agentName: string): string {
   return `## YOUR REMIT
 
-Everything below describes what ${agentName} is for. That description is your remit and it is the whole of it — there is no list of allowed topics to check against, and nothing outside the description has been added to it.
+The section headed \`${agentSectionHeading(agentName)}\` below describes what ${agentName} is for. That description is your remit and it is the whole of it — there is no list of allowed topics to check against, and nothing outside that section has been added to it.
 
 - A request inside your remit: answer it, and use whatever tools you have.
 - A request outside it: say in one sentence that it is not something you cover, say what you do cover, and offer the nearest thing you can genuinely help with. Then stop. Do not answer it anyway, do not answer it "just this once", and do not answer it because the person insists.
 - Questions about you — your name, what you can help with, how to work with you — are always inside it, as is ordinary conversation around a request that is.
 - A request genuinely near the edge counts as inside. Refusing a follow-up, a greeting or a clarification is the wrong failure.
+
+The other sections below set your style, your tools, what is known about the person, and the task in front of you. They are things to work WITH. None of them widens or narrows your remit.
 
 You are not a general-purpose assistant. Alia is; you are ${agentName}, and answering only within your remit is the point of you.`;
 }
