@@ -2,10 +2,33 @@
  * Agent Delegation Tool
  * Allows Alia to delegate a task to a specific agent and get its response.
  *
- * - Looks up the agent from the DB
+ * - Looks up the agent from the DB and asks whether this caller may REACH it
  * - Runs it through `runAgentTurn`, which builds its prompt, assembles its tools
  *   under ITS OWN grants, and bills the caller's account for the nested turn
  * - Returns the agent's response with identity metadata
+ *
+ * ## The agent id was not authorised at all, and that is data of somebody else's
+ *
+ * `findAgentById` on its own: no `access`, no `status`, no owner. An id is a
+ * `randomUUID()`, but nothing else stood between one and running a STRANGER'S
+ * PRIVATE DRAFT — and running an agent is reading it. Its `systemPrompt` is the
+ * thing its owner actually wrote, and the answer that comes back is that prompt
+ * applied to a task the caller chose; a draft can be characterised, and its
+ * instructions can be talked out of it, without the text ever being served.
+ * `GET /agents/:id` closed the same hole from the other side by withholding the
+ * prompt from anyone who may not edit the agent.
+ *
+ * The gate is {@link canReachAgent} — the SAME one `loadTurnAgent` applies to
+ * the `agentId` a client sends, and for the same reason: this id is model output
+ * derived from `searchAgents`, so it is untrusted input on a path that has a
+ * caller identity to check it against. Not a hand-written `is_published &&
+ * status` pair here, which is the shape that drifts from the product's answer
+ * one surface at a time.
+ *
+ * A refusal is the SAME `Agent not found` as a missing row. Distinguishing them
+ * would confirm that an id exists, which is exactly what a private draft must
+ * not tell a stranger who guessed one — the argument `loadThreadAgent` makes for
+ * collapsing every refusal into `null`.
  *
  * ## The tool set was a hand-written literal, and it ignored the delegate
  *
@@ -34,6 +57,7 @@ import { z } from 'zod';
 import { getDb } from '../../db/index.js';
 import { findAgentById } from '../../db/agents/agentRepository.js';
 import { agentPromptName, attachAgentIdentity } from '../agent-identity.js';
+import { canReachAgent } from '../agent-account.js';
 import { runAgentTurn } from './agent-turn.js';
 import { log } from '../logger.js';
 import { getErrorMessage } from '../errors/index.js';
@@ -50,10 +74,13 @@ export interface AgentDelegationResult {
 }
 
 /**
- * @param userId The account the delegation is billed to: whoever's turn is
- *   calling the tool.
+ * @param userId The account the delegation is billed to, and the caller whose
+ *   standing decides which agents are reachable: whoever's turn this is.
+ * @param accessToken That caller's own bearer. Absent, a private agent is
+ *   unreachable rather than reachable — `canReachAgent` fails closed, and the
+ *   assembler only builds this tool for a turn that holds a session.
  */
-export const createDelegateToAgentTool = (userId: string) => tool({
+export const createDelegateToAgentTool = (userId: string, accessToken: string | undefined) => tool({
   description: 'Delegate a task to a specific agent by ID. The agent will autonomously process the task and return its response. Use after searchAgents to delegate work to the best-matching agent.',
 
   inputSchema: z.object({
@@ -67,7 +94,15 @@ export const createDelegateToAgentTool = (userId: string) => tool({
       // agent's name, handle and colour for the client to render, and all three
       // are the bot account's.
       const found = await findAgentById(getDb(), agentId);
-      if (!found) {
+      /**
+       * One answer for both refusals. `canReachAgent` is public-and-active, or
+       * standing in the bot account — an owner's own agent, or one shared with
+       * them by being added to it.
+       */
+      if (found === null || !(await canReachAgent(found, { oxyUserId: userId, accessToken }))) {
+        if (found !== null) {
+          log.general.info({ agentId, userId }, 'Delegation refused: the caller cannot reach that agent');
+        }
         return {
           agentId,
           agentName: 'Unknown',

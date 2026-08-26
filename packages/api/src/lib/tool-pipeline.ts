@@ -489,8 +489,13 @@ export class ToolPipeline {
     // 6. Agent mode: add search & delegation tools
     if (agentMode && isDirectSession && grants.allows('delegation')) {
       tools.searchAgents = createSearchAgentsTool();
-      // The delegating account pays for the delegate's turn; see `agent-turn.ts`.
-      tools.delegateToAgent = createDelegateToAgentTool(userId);
+      /**
+       * The caller is BOTH inputs: the account that pays for the delegate's
+       * turn (`agent-turn.ts`) and the identity `canReachAgent` asks about
+       * before running an agent the model named. It took neither before, and
+       * ran any id it was given.
+       */
+      tools.delegateToAgent = createDelegateToAgentTool(userId, accessToken);
     }
 
     /**
