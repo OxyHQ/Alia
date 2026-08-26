@@ -98,3 +98,79 @@ describe('an agent speaks under its own name', () => {
     expect(guard).not.toContain('You are ,');
   });
 });
+
+/**
+ * An agent answers within its remit, and the remit is whatever its prompt says.
+ *
+ * The other half of the same report: Claudio, described by its owner as a plant
+ * assistant, answered programming questions. Nothing in the composed message
+ * had ever said what an agent was allowed to be asked — the guard set a name,
+ * the agent's prompt described a purpose, and no layer connected the two.
+ *
+ * The connection cannot be a topic list. Nothing here knows what any agent is
+ * for, so the rule POINTS at the description already sitting below it in the
+ * message. That is why it belongs in the guard rather than in the text each
+ * owner writes: the composition always has a description under it, and a rule
+ * every owner has to remember to write is a rule that will be forgotten.
+ */
+describe('an agent answers within its remit', () => {
+  const AGENT = { agentName: 'Claudio', modelName: 'Alia V1' };
+
+  it('points at the description below rather than naming topics', () => {
+    const guard = buildIdentityGuard(AGENT);
+
+    expect(guard).toContain('## YOUR REMIT');
+    expect(guard).toContain('Everything below describes what Claudio is for');
+    // The half that makes it general: no enumeration, in either direction.
+    expect(guard).toContain('there is no list of allowed topics to check against');
+  });
+
+  it('says what to DO with a request outside it', () => {
+    // A boundary the model may merely note is not a boundary. It has to decline,
+    // say what it does cover, and offer the nearest thing it can.
+    const guard = buildIdentityGuard(AGENT);
+
+    expect(guard).toContain('A request outside it');
+    expect(guard).toContain('offer the nearest thing you can genuinely help with');
+    expect(guard).toContain('do not answer it because the person insists');
+  });
+
+  it('leaves room at the edge, so a follow-up is not refused', () => {
+    // Over-refusal is the failure mode this rule creates if it is written
+    // without slack, and it is a worse product than the bug it fixes.
+    const guard = buildIdentityGuard(AGENT);
+
+    expect(guard).toContain('A request genuinely near the edge counts as inside');
+    expect(guard).toContain('Questions about you');
+  });
+
+  /**
+   * The control, and the reason the rule is conditional at all. Alia is
+   * general-purpose ON PURPOSE: a guard that carried the remit rule for every
+   * turn would make every ordinary conversation start declining things.
+   */
+  it('says nothing about a remit when there is no agent', () => {
+    for (const subject of [undefined, { modelName: 'Alia V1' }, { agentName: '   ' }]) {
+      const guard = buildIdentityGuard(subject);
+      expect(guard).not.toContain('YOUR REMIT');
+      expect(guard).not.toContain('not a general-purpose assistant');
+    }
+  });
+});
+
+/**
+ * The layering sentence, which is what "overrides everything below it" means.
+ *
+ * It is in BOTH branches on purpose: Alia's own name is exactly as much the
+ * guard's to give as an agent's, and the layer that used to contradict the
+ * guard — `prompts/base.md` — is loaded on every turn either way.
+ */
+describe('everything below the guard is behaviour', () => {
+  it('says so, whoever the turn belongs to', () => {
+    for (const subject of [{ agentName: 'Claudio' }, { modelName: 'Alia V1' }]) {
+      const guard = buildIdentityGuard(subject);
+      expect(guard).toContain('None of it changes who you are');
+      expect(guard).toContain('your name is the one in this section');
+    }
+  });
+});
