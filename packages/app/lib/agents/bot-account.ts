@@ -64,12 +64,14 @@ const BOT_USERNAME_SUFFIX = 'bot';
  *
  * ## This lives here TEMPORARILY
  *
- * `@oxyhq/contracts` owns the rule and publishes this exact function as
- * `applyBotUsernameSuffix`, beside the schema that enforces it — the version
- * installed here predates it. When a release carries it, this function goes and
- * the import one line above takes its place: same name, same behaviour, so no
- * call site moves. The API has the same stand-in in `lib/agent-identity.ts`,
- * and the two are replaced by the one import together.
+ * `@oxyhq/contracts` owns the rule — `usernameSchema` and the length live
+ * there — but it does NOT publish this function yet. Measured against the
+ * registry: `0.34.0`, today's `latest`, exports `usernameSchema`,
+ * `isValidUsername`, `stripDisallowedUsernameCharacters` and the three length
+ * constants, and nothing named `applyBotUsernameSuffix`. So bumping the
+ * dependency does not retire this; the helper has to be published upstream
+ * first. The API has the same stand-in in `lib/agent-identity.ts`, and the two
+ * are replaced by the one import together, once it exists.
  *
  * It APPENDS and never inserts, leaving the separator to whoever chose the
  * name, and truncates to leave room rather than overflowing

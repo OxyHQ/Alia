@@ -1,8 +1,8 @@
 import type { Request } from 'express';
 import { saveConversation, generateConversationTitle, generateTitle } from './conversation-saver.js';
+import { getRoutingPreset } from './routing/presets.js';
 import { finalizeCredits, type CreditReservation, type CreditUsage } from './credits-manager.js';
 import { detectCreditAnomaly, type CreditWarning } from './credit-anomaly.js';
-import { getAliaModel } from './gateway-client.js';
 import { recordUsage } from '../middleware/api-key-rate-limit.js';
 import { runAfterChatHooks } from './hooks/index.js';
 import { runAutonomyAfterChat, type AutonomyRuntimeContext } from './autonomy/runtime.js';
@@ -205,7 +205,11 @@ export async function finalizeChatCredits(
     try {
       creditWarning = await detectCreditAnomaly(userId);
       if (creditWarning) {
-        creditWarning.currentModelMultiplier = (await getAliaModel(aliasModelId))?.creditMultiplier || 1;
+        // The number the turn was BILLED on, from the same seam `credits-manager`
+        // charges through. Reading it off the catalogue instead let the warning
+        // quote a multiplier the bill never used, once the preset became the
+        // source of price.
+        creditWarning.currentModelMultiplier = getRoutingPreset(aliasModelId)?.creditMultiplier ?? 1;
       }
     } catch { /* non-critical anomaly check */ }
   }
