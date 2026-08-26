@@ -6,7 +6,7 @@
  * Of those four, three already had an answer and one had nothing. Product
  * policy is `lib/product-modes.ts`, plan entitlement is `lib/plan-access.ts`
  * read through `lib/catalogue.ts`, and REGION is deliberately absent —
- * `lib/routing/presets.ts` lists it in `DELEGATED_TO_RELAY` because a region
+ * `lib/routing/presets.ts` lists it in `DELEGATED_TO_KAANA` because a region
  * filter needs a catalogue that knows which deployment is where, and Alia has
  * none. `GET /catalogue` says so in its response rather than answering
  * "no region restriction", which is what a stub would answer and is

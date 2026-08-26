@@ -1,6 +1,6 @@
 /**
  * The egress policy — epic #139 workstream 8, *"Add an egress policy/test
- * proving the Alia service can contact Relay/Oxy dependencies but not provider
+ * proving the Alia service can contact Kaana/Oxy dependencies but not provider
  * API hosts after cutover."*
  *
  * ## The shape of the policy, and why it is a deny list
@@ -43,7 +43,7 @@ import http from 'node:http';
 import https from 'node:https';
 
 import { recordDirectProviderEgress } from '../observability/direct-provider-egress.js';
-import { isRelayClientEnabled } from './kaana-cutover.js';
+import { isKaanaClientEnabled } from './kaana-cutover.js';
 
 /* -------------------------------------------------------------------------- */
 /*  The deny list                                                             */
@@ -109,7 +109,7 @@ function isProviderHost(host: string): boolean {
  *
  *  - `unenforced` — the cutover has not happened. Every call is delegated
  *    untouched, which is the state of every deployment that exists today.
- *  - `allow` — after the cutover, and not a provider API host. Relay, Oxy and
+ *  - `allow` — after the cutover, and not a provider API host. Kaana, Oxy and
  *    every product dependency land here.
  *  - `refuse` — after the cutover, and a provider API host.
  */
@@ -127,7 +127,7 @@ export function providerEgressDecision(
   host: string | null,
   env: NodeJS.ProcessEnv = process.env,
 ): EgressDecision {
-  if (!isRelayClientEnabled(env)) return 'unenforced';
+  if (!isKaanaClientEnabled(env)) return 'unenforced';
   if (host === null || host === '') return 'allow';
   return isProviderHost(host) ? 'refuse' : 'allow';
 }
@@ -256,7 +256,7 @@ let installed: Installed | null = null;
 export function installProviderEgressBlock(
   env: NodeJS.ProcessEnv = process.env,
 ): (() => void) | null {
-  if (!isRelayClientEnabled(env)) return null;
+  if (!isKaanaClientEnabled(env)) return null;
   if (installed !== null) return null;
 
   const originals: Installed = {

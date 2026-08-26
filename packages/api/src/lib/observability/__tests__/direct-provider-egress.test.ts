@@ -19,7 +19,7 @@ import {
   ProviderEgressRefusal,
   providerEgressDecision,
 } from '../../inference/provider-egress-policy.js';
-import { RELAY_CLIENT_ENABLED_ENV } from '../../inference/kaana-cutover.js';
+import { KAANA_CLIENT_ENABLED_ENV } from '../../inference/kaana-cutover.js';
 
 /**
  * Epic #139 workstream 19 — *"Monitor direct-provider egress and alert on any
@@ -54,30 +54,30 @@ import { RELAY_CLIENT_ENABLED_ENV } from '../../inference/kaana-cutover.js';
  * new exemption. Every case that has to exercise a PERMITTED destination uses a
  * loopback server, so no assertion here depends on reaching a real host.
  *
- * ## Which assertions need Relay
+ * ## Which assertions need Kaana
  *
- * None. The policy is armed by an environment variable rather than by a Relay
+ * None. The policy is armed by an environment variable rather than by a Kaana
  * that answers, so the post-cutover behaviour is fully exercisable today. What
- * changes when Relay is real is only WHY the flag is on.
+ * changes when Kaana is real is only WHY the flag is on.
  */
 
 const PACKAGE_SRC = path.resolve(fileURLToPath(new URL('../../../', import.meta.url)));
 const REPO_ROOT = path.resolve(PACKAGE_SRC, '../../..');
 
-const ENABLED: NodeJS.ProcessEnv = { [RELAY_CLIENT_ENABLED_ENV]: 'true' };
+const ENABLED: NodeJS.ProcessEnv = { [KAANA_CLIENT_ENABLED_ENV]: 'true' };
 
 /** Real provider API hosts, read from the shipped map rather than typed. */
 const [PROVIDER_HOST, SECOND_PROVIDER_HOST] = Object.values(PROVIDER_API_HOSTS);
 
 /**
- * Where `Oxy API -> Relay` will answer from.
+ * Where `Oxy API -> Kaana` will answer from.
  *
- * Relay has no origin of its own yet — `lib/inference/__tests__/kaana-egress.test.ts`
+ * Kaana has no origin of its own yet — `lib/inference/__tests__/kaana-egress.test.ts`
  * freezes that fact — so the positive control is the Oxy host it will live
  * behind. Classified rather than contacted: this is an assertion about the
  * policy, not about Oxy being up.
  */
-const RELAY_HOST = 'api.oxy.so';
+const KAANA_HOST = 'api.oxy.so';
 
 const raised: Alert[] = [];
 onAlert((alert) => raised.push(alert));
@@ -206,10 +206,10 @@ describe('the installed policy reaches the recorder', () => {
     expect(raised).toEqual([]);
   });
 
-  it('leaves the host Relay will answer from permitted', () => {
+  it('leaves the host Kaana will answer from permitted', () => {
     // Classified rather than contacted: the assertion is about the policy, and a
     // real request would make it about whether Oxy is reachable from CI.
-    expect(providerEgressDecision(RELAY_HOST, ENABLED)).toBe('allow');
+    expect(providerEgressDecision(KAANA_HOST, ENABLED)).toBe('allow');
     expect(providerEgressDecision(PROVIDER_HOST, ENABLED)).toBe('refuse');
   });
 

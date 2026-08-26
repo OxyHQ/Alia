@@ -11,31 +11,31 @@ import type { OxyServices } from '@oxyhq/core';
 
 import { sanitizeMessage } from '../../errors/sanitize.js';
 import type { AliaInferenceCall, AliaInferenceContext } from '../product-seam.js';
-import { INFERENCE_ERROR_POLICY, RelayInferenceError, RelayTransportRefusal } from '../kaana-error.js';
+import { INFERENCE_ERROR_POLICY, KaanaInferenceError, KaanaTransportRefusal } from '../kaana-error.js';
 import {
-  createRelayInferenceClient,
-  type RelayClientConfig,
-  type RelayServiceCredential,
-  type RelayTransport,
-  type RelayTransportRequest,
+  createKaanaInferenceClient,
+  type KaanaClientConfig,
+  type KaanaServiceCredential,
+  type KaanaTransport,
+  type KaanaTransportRequest,
 } from '../kaana-client.js';
-import { isRelayClientEnabled, RELAY_CLIENT_ENABLED_ENV } from '../kaana-cutover.js';
-import type { RelayRequestPayload } from '../kaana-request.js';
-import { assertAllowedRelayOrigin } from '../kaana-endpoint.js';
+import { isKaanaClientEnabled, KAANA_CLIENT_ENABLED_ENV } from '../kaana-cutover.js';
+import type { KaanaRequestPayload } from '../kaana-request.js';
+import { assertAllowedKaanaOrigin } from '../kaana-endpoint.js';
 
 /**
- * An approved Relay origin, branded through the one function that can produce
+ * An approved Kaana origin, branded through the one function that can produce
  * one. Every fixture below shares it, so a test that cares about the endpoint
  * says so by overriding it rather than by being the only one that sets it.
  */
-const ENDPOINT = assertAllowedRelayOrigin('https://api.oxy.so', 'development');
+const ENDPOINT = assertAllowedKaanaOrigin('https://api.oxy.so', 'development');
 
 /**
- * The Relay client's behavioural suite — epic #139 workstream 3.
+ * The Kaana client's behavioural suite — epic #139 workstream 3.
  *
  * ## What a fake transport does and does not prove
  *
- * There is no Relay to integration-test against — the Oxy inference edge is not
+ * There is no Kaana to integration-test against — the Oxy inference edge is not
  * mounted (gap analysis §1) — so every test below drives a fake. That fake is
  * honest about two things and dishonest about a third:
  *
@@ -46,7 +46,7 @@ const ENDPOINT = assertAllowedRelayOrigin('https://api.oxy.so', 'development');
  *  - it CAN prove protocol conformance in one direction, because the events it
  *    emits and the requests it receives are parsed by the contract's own live
  *    zod schemas rather than by a hand-written matcher.
- *  - it CANNOT prove that Relay emits what this suite feeds in. Nothing
+ *  - it CANNOT prove that Kaana emits what this suite feeds in. Nothing
  *    available today can. Every "the client handles X" below should be read as
  *    "the client handles X as the contract describes X", and the contract is the
  *    only authority any of it rests on.
@@ -65,7 +65,7 @@ const ENDPOINT = assertAllowedRelayOrigin('https://api.oxy.so', 'development');
 /*  Fixtures                                                                  */
 /* -------------------------------------------------------------------------- */
 
-const WIRE_REQUEST_ID = 'relay-req-1';
+const WIRE_REQUEST_ID = 'kaana-req-1';
 const STARTED_AT = '2026-08-16T09:41:00.000Z';
 
 function startEvent(sequence = 0, over: Record<string, unknown> = {}): unknown {
@@ -131,14 +131,14 @@ async function* stall(frames: readonly unknown[]): AsyncGenerator<unknown> {
   await new Promise<never>(() => undefined);
 }
 
-class FakeTransport implements RelayTransport {
-  readonly calls: RelayTransportRequest[] = [];
+class FakeTransport implements KaanaTransport {
+  readonly calls: KaanaTransportRequest[] = [];
 
   constructor(
     private readonly script: (attempt: number) => Promise<AsyncIterable<unknown>>,
   ) {}
 
-  send(input: RelayTransportRequest): Promise<AsyncIterable<unknown>> {
+  send(input: KaanaTransportRequest): Promise<AsyncIterable<unknown>> {
     this.calls.push(input);
     return this.script(this.calls.length - 1);
   }
@@ -149,7 +149,7 @@ function serving(...frames: readonly unknown[]): FakeTransport {
   return new FakeTransport(() => Promise.resolve(iterate(frames)));
 }
 
-class FakeCredential implements RelayServiceCredential {
+class FakeCredential implements KaanaServiceCredential {
   minted = 0;
   invalidated = 0;
   fail = false;
@@ -181,7 +181,7 @@ function context(over: Partial<AliaInferenceContext> = {}): AliaInferenceContext
   };
 }
 
-function payload(over: Partial<RelayRequestPayload> = {}): RelayRequestPayload {
+function payload(over: Partial<KaanaRequestPayload> = {}): KaanaRequestPayload {
   return {
     modality: 'text',
     input: {
@@ -195,29 +195,29 @@ function payload(over: Partial<RelayRequestPayload> = {}): RelayRequestPayload {
   };
 }
 
-function call(over: Partial<AliaInferenceContext> = {}): AliaInferenceCall<RelayRequestPayload> {
+function call(over: Partial<AliaInferenceContext> = {}): AliaInferenceCall<KaanaRequestPayload> {
   return { context: context(over), payload: payload() };
 }
 
 interface Harness {
-  readonly client: ReturnType<typeof createRelayInferenceClient>;
+  readonly client: ReturnType<typeof createKaanaInferenceClient>;
   readonly transport: FakeTransport;
   readonly credential: FakeCredential;
   readonly clock: { value: number };
 }
 
-function harness(over: Partial<RelayClientConfig> = {}): Harness {
+function harness(over: Partial<KaanaClientConfig> = {}): Harness {
   const transport = over.transport instanceof FakeTransport ? over.transport : serving(startEvent(0), doneEvent(1));
   const credential = new FakeCredential();
   const clock = { value: 1_000_000 };
   let ids = 0;
-  const client = createRelayInferenceClient({
+  const client = createKaanaInferenceClient({
     enabled: true,
     transport,
     credential,
     endpoint: ENDPOINT,
     principal: {
-      billing: { accountId: 'acct_relay_test' },
+      billing: { accountId: 'acct_kaana_test' },
       applicationId: 'app_alia',
       credentialId: 'cred_alia_1',
       environment: 'production',
@@ -261,10 +261,10 @@ function terminalCode(events: readonly InferenceStreamEvent[]): string {
 
 describe('the client is off by default (#139 ws3, invariant: not the live path)', () => {
   it('reads exactly the literal "true"', () => {
-    expect(isRelayClientEnabled({})).toBe(false);
-    expect(isRelayClientEnabled({ [RELAY_CLIENT_ENABLED_ENV]: '1' })).toBe(false);
-    expect(isRelayClientEnabled({ [RELAY_CLIENT_ENABLED_ENV]: 'TRUE' })).toBe(false);
-    expect(isRelayClientEnabled({ [RELAY_CLIENT_ENABLED_ENV]: 'true' })).toBe(true);
+    expect(isKaanaClientEnabled({})).toBe(false);
+    expect(isKaanaClientEnabled({ [KAANA_CLIENT_ENABLED_ENV]: '1' })).toBe(false);
+    expect(isKaanaClientEnabled({ [KAANA_CLIENT_ENABLED_ENV]: 'TRUE' })).toBe(false);
+    expect(isKaanaClientEnabled({ [KAANA_CLIENT_ENABLED_ENV]: 'true' })).toBe(true);
   });
 
   it('refuses without touching the transport when disabled', async () => {
@@ -302,7 +302,7 @@ describe('every event the client yields is a contract event', () => {
     await collect(client.stream(call(), new AbortController().signal));
     const sent = transport.calls[0].request;
     expect(sent.attribution.userId).toBe('oxy-user-1');
-    expect(sent.attribution.principal.billing.accountId).toBe('acct_relay_test');
+    expect(sent.attribution.principal.billing.accountId).toBe('acct_kaana_test');
     expect(sent.client.apiFormat).toBe('chat_completions');
     expect(sent.stream).toBe(true);
   });
@@ -492,7 +492,7 @@ describe('a route switch is surfaced, and only when this request authorized it',
   it('leaves a routing-profile request alone, because choosing IS what a profile does', async () => {
     // Gap analysis §7 question 1: `requestedModelId` has no defined value for a
     // profile-targeted request. Refusing here would make profiles unusable the
-    // moment Relay failed over.
+    // moment Kaana failed over.
     const { client } = harness({
       transport: serving(startEvent(0), routeSwitch(1, crossModel({ requestedModelId: 'anything/at-all' })), doneEvent(2)),
     });
@@ -767,7 +767,7 @@ describe('retry rules that cannot double-charge or duplicate a tool effect', () 
 /*  Circuit                                                                   */
 /* -------------------------------------------------------------------------- */
 
-describe('the circuit breaks against Relay, and against nothing else', () => {
+describe('the circuit breaks against Kaana, and against nothing else', () => {
   it('opens after consecutive unavailability failures and then fails fast', async () => {
     const transport = new FakeTransport(() => Promise.resolve(iterate([errorEvent(0, 'service_unavailable', true)])));
     const { client } = harness({ transport, maxAttempts: 1, circuit: { failureThreshold: 2, cooldownMs: 30_000 } });
@@ -850,7 +850,7 @@ describe('authentication is an Oxy service token, minted per attempt', () => {
     expect(transport.calls).toHaveLength(0);
   });
 
-  it('invalidates the cached token when Relay rejects it, and does not retry', async () => {
+  it('invalidates the cached token when Kaana rejects it, and does not retry', async () => {
     // A rotated credential is otherwise unrecoverable inside one process: the
     // cache keeps returning the still-unexpired token. Invalidating is what lets
     // the NEXT call succeed; retrying THIS one is forbidden, because the
@@ -890,12 +890,12 @@ describe('authentication is an Oxy service token, minted per attempt', () => {
   });
 
   it('is structurally satisfied by the SDK client Alia already constructs', () => {
-    // A positive control on the interface itself: `RelayServiceCredential` was
+    // A positive control on the interface itself: `KaanaServiceCredential` was
     // written against `@oxyhq/core`'s real surface, so if `getServiceToken` or
     // `invalidateServiceToken` were invented, this assignment fails to compile.
     // Type-only — nothing is constructed, so no network client exists at import.
-    const satisfies = (credential: RelayServiceCredential): RelayServiceCredential => credential;
-    const asCredential = (oxy: OxyServices): RelayServiceCredential => satisfies(oxy);
+    const satisfies = (credential: KaanaServiceCredential): KaanaServiceCredential => credential;
+    const asCredential = (oxy: OxyServices): KaanaServiceCredential => satisfies(oxy);
     expect(typeof asCredential).toBe('function');
   });
 });
@@ -952,7 +952,7 @@ describe('capabilities are consulted when something knows them', () => {
 
   it('refuses before sending when the target cannot do what was asked', async () => {
     const { client, transport } = harness({ capabilitiesFor: () => capabilities });
-    const withTools: AliaInferenceCall<RelayRequestPayload> = {
+    const withTools: AliaInferenceCall<KaanaRequestPayload> = {
       context: context(),
       payload: payload({ tools: [{ type: 'function', name: 'search', parameters: {} }] }),
     };
@@ -965,7 +965,7 @@ describe('capabilities are consulted when something knows them', () => {
     // The current state, stated rather than assumed: the catalogue is #139
     // workstream 5, and a hardcoded table here would be a second catalogue.
     const { client, transport } = harness();
-    const withTools: AliaInferenceCall<RelayRequestPayload> = {
+    const withTools: AliaInferenceCall<KaanaRequestPayload> = {
       context: context(),
       payload: payload({ tools: [{ type: 'function', name: 'search', parameters: {} }] }),
     };
@@ -978,7 +978,7 @@ describe('capabilities are consulted when something knows them', () => {
 /*  Transport refusals                                                        */
 /* -------------------------------------------------------------------------- */
 
-describe('a refusal Relay articulated beats the client guessing', () => {
+describe('a refusal Kaana articulated beats the client guessing', () => {
   it('reads a typed error body off a rejected request', async () => {
     const body = {
       schemaVersion: 1,
@@ -988,7 +988,7 @@ describe('a refusal Relay articulated beats the client guessing', () => {
       requestId: WIRE_REQUEST_ID,
       retryAfterMs: 0,
     };
-    const transport = new FakeTransport(() => Promise.reject(new RelayTransportRefusal(body)));
+    const transport = new FakeTransport(() => Promise.reject(new KaanaTransportRefusal(body)));
     const { client } = harness({ transport, maxAttempts: 1 });
     const events = await collect(client.stream(call(), new AbortController().signal));
     expect(terminalCode(events)).toBe('rate_limited');
@@ -1004,7 +1004,7 @@ describe('a refusal Relay articulated beats the client guessing', () => {
       retryable: true,
       requestId: WIRE_REQUEST_ID,
     };
-    const transport = new FakeTransport(() => Promise.reject(new RelayTransportRefusal(body)));
+    const transport = new FakeTransport(() => Promise.reject(new KaanaTransportRefusal(body)));
     const { client } = harness({ transport, maxAttempts: 1 });
     const events = await collect(client.stream(call(), new AbortController().signal));
     const last = terminal(events);
@@ -1013,7 +1013,7 @@ describe('a refusal Relay articulated beats the client guessing', () => {
     expect(JSON.stringify(last)).not.toContain('sk-live');
   });
 
-  it('reads an unreachable Relay as unavailability', async () => {
+  it('reads an unreachable Kaana as unavailability', async () => {
     const transport = new FakeTransport(() => Promise.reject(new Error('ECONNREFUSED')));
     const { client } = harness({ transport, maxAttempts: 1 });
     const events = await collect(client.stream(call(), new AbortController().signal));
@@ -1086,7 +1086,7 @@ describe('generate folds the stream, because the contract publishes no completio
     const transport = serving(startEvent(0), deltaEvent(1, 'half'), errorEvent(2, 'provider_error', true));
     const { client } = harness({ transport, maxAttempts: 1 });
     await expect(client.generate(call(), new AbortController().signal)).rejects.toBeInstanceOf(
-      RelayInferenceError,
+      KaanaInferenceError,
     );
   });
 
@@ -1106,7 +1106,7 @@ describe('generate folds the stream, because the contract publishes no completio
     );
     const { client } = harness({ transport });
     await expect(client.generate(call(), new AbortController().signal)).rejects.toBeInstanceOf(
-      RelayInferenceError,
+      KaanaInferenceError,
     );
   });
 });
@@ -1117,8 +1117,8 @@ describe('generate folds the stream, because the contract publishes no completio
 
 describe('degradation is a decision about the surface, not about the error', () => {
   const { client } = harness();
-  const errorFor = (code: InferenceErrorCode): RelayInferenceError =>
-    new RelayInferenceError({
+  const errorFor = (code: InferenceErrorCode): KaanaInferenceError =>
+    new KaanaInferenceError({
       schemaVersion: 1,
       code,
       message: 'internal detail nobody should read',
@@ -1164,7 +1164,7 @@ describe('degradation is a decision about the surface, not about the error', () 
   });
 
   it('never renders the producer text, whatever the producer wrote', () => {
-    const leaky = new RelayInferenceError({
+    const leaky = new KaanaInferenceError({
       schemaVersion: 1,
       code: 'provider_error',
       message: 'the upstream model gpt-5 refused',

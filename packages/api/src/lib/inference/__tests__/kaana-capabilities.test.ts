@@ -3,18 +3,18 @@ import { describe, expect, it } from 'vitest';
 
 import type { AliaInferenceContext } from '../product-seam.js';
 import {
-  createRelayInferenceClient,
-  type RelayClientConfig,
-  type RelayCompletion,
-  type RelayServiceCredential,
-  type RelayTransport,
-  type RelayTransportRequest,
+  createKaanaInferenceClient,
+  type KaanaClientConfig,
+  type KaanaCompletion,
+  type KaanaServiceCredential,
+  type KaanaTransport,
+  type KaanaTransportRequest,
 } from '../kaana-client.js';
-import { assertAllowedRelayOrigin } from '../kaana-endpoint.js';
-import { CAPABILITY_ENFORCEMENT, type RelayRequestPayload } from '../kaana-request.js';
+import { assertAllowedKaanaOrigin } from '../kaana-endpoint.js';
+import { CAPABILITY_ENFORCEMENT, type KaanaRequestPayload } from '../kaana-request.js';
 
-/** An approved Relay origin, branded through the one function that produces one. */
-const ENDPOINT = assertAllowedRelayOrigin('https://api.oxy.so', 'development');
+/** An approved Kaana origin, branded through the one function that produces one. */
+const ENDPOINT = assertAllowedKaanaOrigin('https://api.oxy.so', 'development');
 
 /**
  * Epic #139 workstream 3 — *"Support tools, structured output, vision,
@@ -27,7 +27,7 @@ const ENDPOINT = assertAllowedRelayOrigin('https://api.oxy.so', 'development');
  * `violatedCapability` returns for a capability object. A suite written against
  * the helper would be green with the helper wired to nothing, which is the
  * green-and-inert failure. So each capability is exercised twice through
- * `createRelayInferenceClient`: once where the target lacks it (refused, and
+ * `createKaanaInferenceClient`: once where the target lacks it (refused, and
  * NOTHING sent — read at the transport, because "refused" and "sent and failed"
  * are indistinguishable from the caller) and once where the target has it (sent
  * verbatim, or carried back intact).
@@ -48,12 +48,12 @@ const ENDPOINT = assertAllowedRelayOrigin('https://api.oxy.so', 'development');
 /*  Harness                                                                    */
 /* -------------------------------------------------------------------------- */
 
-class CapturingTransport implements RelayTransport {
-  readonly sent: RelayTransportRequest[] = [];
+class CapturingTransport implements KaanaTransport {
+  readonly sent: KaanaTransportRequest[] = [];
 
   constructor(private readonly frames: readonly Record<string, unknown>[]) {}
 
-  send(input: RelayTransportRequest): Promise<AsyncIterable<unknown>> {
+  send(input: KaanaTransportRequest): Promise<AsyncIterable<unknown>> {
     this.sent.push(input);
     const frames = this.frames;
     return Promise.resolve(
@@ -64,7 +64,7 @@ class CapturingTransport implements RelayTransport {
   }
 }
 
-const CREDENTIAL: RelayServiceCredential = {
+const CREDENTIAL: KaanaServiceCredential = {
   getServiceToken: () => Promise.resolve('oxy-service-token-synthetic'),
   invalidateServiceToken: () => undefined,
 };
@@ -103,7 +103,7 @@ function context(): AliaInferenceContext {
   };
 }
 
-function payload(over: Partial<RelayRequestPayload> = {}): RelayRequestPayload {
+function payload(over: Partial<KaanaRequestPayload> = {}): KaanaRequestPayload {
   return {
     modality: 'text',
     input: {
@@ -120,7 +120,7 @@ function payload(over: Partial<RelayRequestPayload> = {}): RelayRequestPayload {
 const START = {
   schemaVersion: 1,
   type: 'start',
-  requestId: 'relay-req-1',
+  requestId: 'kaana-req-1',
   sequence: 0,
   generationId: 'gen-1',
   resolvedModelReference: 'oxy/test-model',
@@ -131,7 +131,7 @@ const START = {
 const DONE = {
   schemaVersion: 1,
   type: 'done',
-  requestId: 'relay-req-1',
+  requestId: 'kaana-req-1',
   sequence: 99,
   generationId: 'gen-1',
   finishReason: 'stop',
@@ -140,19 +140,19 @@ const DONE = {
 };
 
 interface Driven {
-  readonly sent: RelayTransportRequest[];
+  readonly sent: KaanaTransportRequest[];
   readonly events: { readonly type: string; readonly error?: { readonly code: string; readonly param?: string } }[];
 }
 
 /** Run one call and report both what went out and what came back. */
 async function drive(
   capabilities: ModelCapabilities,
-  request: RelayRequestPayload,
+  request: KaanaRequestPayload,
   frames: readonly Record<string, unknown>[] = [START, DONE],
-  over: Partial<RelayClientConfig> = {},
+  over: Partial<KaanaClientConfig> = {},
 ): Promise<Driven> {
   const transport = new CapturingTransport(frames);
-  const built = createRelayInferenceClient({
+  const built = createKaanaInferenceClient({
     enabled: true,
     transport,
     credential: CREDENTIAL,
@@ -183,10 +183,10 @@ async function drive(
 /** Fold a call to a completion, so the RESPONSE half can be asserted. */
 async function complete(
   capabilities: ModelCapabilities,
-  request: RelayRequestPayload,
+  request: KaanaRequestPayload,
   frames: readonly Record<string, unknown>[],
-): Promise<RelayCompletion> {
-  const built = createRelayInferenceClient({
+): Promise<KaanaCompletion> {
+  const built = createKaanaInferenceClient({
     enabled: true,
     transport: new CapturingTransport(frames),
     credential: CREDENTIAL,
@@ -253,7 +253,7 @@ describe('every capability the contract defines has an answer (#139 ws3)', () =>
     expect(by('response')).toEqual(['parallelToolCalls', 'promptCaching', 'reasoning']);
     // Needs a tokenizer for the resolved revision — provider knowledge this
     // client must not hold.
-    expect(by('relay')).toEqual(['maxContextTokens']);
+    expect(by('kaana')).toEqual(['maxContextTokens']);
   });
 
   it('checks streaming first, because a non-streaming target can serve nothing', async () => {
@@ -300,8 +300,8 @@ describe('tools', () => {
   it('folds streamed tool calls back into the completion', async () => {
     const completion = await complete(EVERYTHING, payload({ tools: [SEARCH_TOOL] }), [
       START,
-      { schemaVersion: 1, type: 'tool_call', requestId: 'relay-req-1', sequence: 1, toolCallId: 'call-1', name: 'search', argumentsDelta: '{"q":"', complete: false },
-      { schemaVersion: 1, type: 'tool_call', requestId: 'relay-req-1', sequence: 2, toolCallId: 'call-1', argumentsDelta: 'weather"}', complete: true },
+      { schemaVersion: 1, type: 'tool_call', requestId: 'kaana-req-1', sequence: 1, toolCallId: 'call-1', name: 'search', argumentsDelta: '{"q":"', complete: false },
+      { schemaVersion: 1, type: 'tool_call', requestId: 'kaana-req-1', sequence: 2, toolCallId: 'call-1', argumentsDelta: 'weather"}', complete: true },
       DONE,
     ]);
     expect(completion.toolCalls).toEqual([{ id: 'call-1', name: 'search', arguments: '{"q":"weather"}' }]);
@@ -316,8 +316,8 @@ describe('parallel tool calls', () => {
     // arguments.
     const completion = await complete(EVERYTHING, payload({ tools: [SEARCH_TOOL] }), [
       START,
-      { schemaVersion: 1, type: 'tool_call', requestId: 'relay-req-1', sequence: 1, toolCallId: 'call-a', name: 'search', argumentsDelta: '{"q":"a"}', complete: true },
-      { schemaVersion: 1, type: 'tool_call', requestId: 'relay-req-1', sequence: 2, toolCallId: 'call-b', name: 'search', argumentsDelta: '{"q":"b"}', complete: true },
+      { schemaVersion: 1, type: 'tool_call', requestId: 'kaana-req-1', sequence: 1, toolCallId: 'call-a', name: 'search', argumentsDelta: '{"q":"a"}', complete: true },
+      { schemaVersion: 1, type: 'tool_call', requestId: 'kaana-req-1', sequence: 2, toolCallId: 'call-b', name: 'search', argumentsDelta: '{"q":"b"}', complete: true },
       DONE,
     ]);
     expect(completion.toolCalls).toEqual([
@@ -350,7 +350,7 @@ describe('structured output', () => {
   it('refuses a json_object request against a target without json mode', async () => {
     // A separate field on purpose: a model can produce syntactically valid JSON
     // without honouring a schema, so collapsing the two would refuse requests
-    // Relay serves.
+    // Kaana serves.
     expectRefusal(
       await drive(without({ jsonMode: false }), payload({ responseFormat: { type: 'json_object' } })),
       'invalid_request',
@@ -374,7 +374,7 @@ describe('structured output', () => {
 /*  Vision                                                                     */
 /* -------------------------------------------------------------------------- */
 
-const IMAGE_TURN: RelayRequestPayload['input'] = {
+const IMAGE_TURN: KaanaRequestPayload['input'] = {
   format: 'messages',
   messages: [
     {
@@ -429,7 +429,7 @@ describe('modality capabilities', () => {
   });
 
   it('refuses an audio input turn against a target without audio input', async () => {
-    const audioTurn: RelayRequestPayload['input'] = {
+    const audioTurn: KaanaRequestPayload['input'] = {
       format: 'messages',
       messages: [
         {
@@ -456,11 +456,11 @@ describe('modality capabilities', () => {
     expect(driven.sent).toHaveLength(1);
   });
 
-  it('leaves maxContextTokens to Relay', async () => {
+  it('leaves maxContextTokens to Kaana', async () => {
     // A prompt far beyond a tiny context window is NOT refused here: counting it
     // needs a tokenizer for the resolved revision. `context_length_exceeded`
-    // comes back from Relay, and a client that guessed would refuse requests
-    // Relay would have served.
+    // comes back from Kaana, and a client that guessed would refuse requests
+    // Kaana would have served.
     const driven = await drive(without({ maxContextTokens: 8 }), payload());
     expect(driven.sent).toHaveLength(1);
   });
@@ -481,8 +481,8 @@ describe('reasoning', () => {
   it('carries reasoning output back separately from the answer', async () => {
     const completion = await complete(EVERYTHING, payload(), [
       START,
-      { schemaVersion: 1, type: 'delta', requestId: 'relay-req-1', sequence: 1, outputIndex: 0, channel: 'reasoning', text: 'let me think' },
-      { schemaVersion: 1, type: 'delta', requestId: 'relay-req-1', sequence: 2, outputIndex: 0, channel: 'output_text', text: 'Tuesday' },
+      { schemaVersion: 1, type: 'delta', requestId: 'kaana-req-1', sequence: 1, outputIndex: 0, channel: 'reasoning', text: 'let me think' },
+      { schemaVersion: 1, type: 'delta', requestId: 'kaana-req-1', sequence: 2, outputIndex: 0, channel: 'output_text', text: 'Tuesday' },
       DONE,
     ]);
     // Separately: a client that concatenated them would put chain-of-thought in
@@ -497,7 +497,7 @@ describe('reasoning', () => {
       {
         schemaVersion: 1,
         type: 'usage',
-        requestId: 'relay-req-1',
+        requestId: 'kaana-req-1',
         sequence: 1,
         usageSource: 'provider_reported',
         units: [
@@ -528,7 +528,7 @@ describe('prompt caching', () => {
       {
         schemaVersion: 1,
         type: 'usage',
-        requestId: 'relay-req-1',
+        requestId: 'kaana-req-1',
         sequence: 1,
         usageSource: 'provider_reported',
         units: [
@@ -557,7 +557,7 @@ describe('with no capability source the client refuses nothing', () => {
     // so it is a known property rather than a surprise: `capabilitiesFor` is
     // optional, and a client without one performs no capability check at all.
     const transport = new CapturingTransport([START, DONE]);
-    const built = createRelayInferenceClient({
+    const built = createKaanaInferenceClient({
       enabled: true,
       transport,
       credential: CREDENTIAL,

@@ -39,7 +39,7 @@ one session model. `GET /alia/chat` is a status banner and stays public.
 Alia owns conversations, memory and the context graph, agents, tools and
 tool execution, approvals and the R0–R3 risk policy, deep research, triggers,
 notifications, Codea and Cowork behaviour, and product entitlements. None of it moves to
-Relay.
+Kaana.
 
 ### Chat
 

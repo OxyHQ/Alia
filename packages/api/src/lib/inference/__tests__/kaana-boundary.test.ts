@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url';
  * Three of them are properties of the MODULE GRAPH rather than of any behaviour,
  * and a property nothing checks is a property the next PR removes:
  *
- *  - the Relay client must never fall back to a direct provider call;
+ *  - the Kaana client must never fall back to a direct provider call;
  *  - it must not become the live path before the cutover (workstream 8);
  *  - the OpenAI dialect must exist only as an adapter at the boundary.
  *
@@ -110,17 +110,17 @@ function resolveSpec(fromFile: string, spec: string): string | null {
 const sources = trackedSources('packages/api/src');
 
 /** The modules this workstream added. Frozen so a seventh one is a reviewed line. */
-const RELAY_MODULES: readonly string[] = [
+const KAANA_MODULES: readonly string[] = [
   `${KAANA_DIR}/kaana-client`,
   // #139 ws2: the service-token exchange. On this list rather than beside the
   // boot check because it is subject to the same three constraints — it may not
   // reach a provider, it may not become the live path, and it holds no dialect —
   // and because the credential is the one thing a fallback would need.
   `${KAANA_DIR}/kaana-credential`,
-  // #139 ws15, *"pin allowed Relay origins/endpoints"*: the allow-list and the
+  // #139 ws15, *"pin allowed Kaana origins/endpoints"*: the allow-list and the
   // branded endpoint type. Added here rather than left outside, so the
   // no-provider and no-fallback censuses below cover it too — it is the one
-  // relay module that names a host, which makes it the likeliest place for a
+  // Kaana module that names a host, which makes it the likeliest place for a
   // provider URL to be added by someone who has stopped reading.
   `${KAANA_DIR}/kaana-endpoint`,
   `${KAANA_DIR}/kaana-error`,
@@ -185,23 +185,23 @@ describe('the scanner reads what it claims to read', () => {
 // Constraint 3: this is not the live path
 // ===========================================================================
 
-describe('nothing in the API imports the Relay client (#139 ws3, constraint 3)', () => {
+describe('nothing in the API imports the Kaana client (#139 ws3, constraint 3)', () => {
   const importers = sources
     .filter((source) =>
       source.refs.some((spec) => {
         const resolved = resolveSpec(source.file, spec);
-        return resolved !== null && RELAY_MODULES.includes(resolved);
+        return resolved !== null && KAANA_MODULES.includes(resolved);
       }),
     )
     .map((source) => source.file)
     .sort();
 
   /**
-   * Exactly the relay modules themselves and their own tests.
+   * Exactly the Kaana modules themselves and their own tests.
    *
    * When workstream 8 wires the client in, this list gains the call site in the
    * SAME diff that flips the flag's default — which is the review this freeze
-   * exists to force. `Oxy API → Relay` is not mounted (gap analysis §1) and
+   * exists to force. `Oxy API → Kaana` is not mounted (gap analysis §1) and
    * mounting the machine credential on the unmetered proxy is deliberately
    * blocked (OxyHQ/oxy#981), so a client wired in today points at a hole.
    */
@@ -210,8 +210,8 @@ describe('nothing in the API imports the Relay client (#139 ws3, constraint 3)',
     /*
      * #139 ws8: the boot-guard suite. It imports `kaana-credential` and
      * `kaana-endpoint` for their VARIABLE-NAME maps only —
-     * `RELAY_CREDENTIAL_REQUIRED_ENV`, `RELAY_BASE_URL_ENV`,
-     * `RELAY_ALLOWED_ORIGINS` — so that its "a Relay configuration that boots"
+     * `KAANA_CREDENTIAL_REQUIRED_ENV`, `KAANA_BASE_URL_ENV`,
+     * `KAANA_ALLOWED_ORIGINS` — so that its "a Kaana configuration that boots"
      * fixture is derived rather than hand-copied. A hand-copied one was already
      * wrong once: #176 added four required variables and the fixture silently
      * refused at the wrong guard.
@@ -224,7 +224,7 @@ describe('nothing in the API imports the Relay client (#139 ws3, constraint 3)',
     /**
      * The model factory, which is the point of the whole exercise.
      *
-     * This constraint exists so the Relay client cannot be reached from
+     * This constraint exists so the Kaana client cannot be reached from
      * anywhere in the product by accident. `chat-core.ts` reaches it ON
      * PURPOSE: `getAIModel` is the one function twenty-eight modules ask for a
      * model, and routing them to Kaana is a change of what that function
@@ -240,7 +240,7 @@ describe('nothing in the API imports the Relay client (#139 ws3, constraint 3)',
     // #139 ws15: back on this list, having dropped off it when the cutover flag
     // moved to `kaana-cutover.ts`. The boot check now also refuses an
     // unapproved `RELAY_BASE_URL`, and `kaana-endpoint.ts` is one of the modules
-    // this census covers — so its test names a relay module again, which is what
+    // this census covers — so its test names a Kaana module again, which is what
     // the list records and nothing more.
     // The transport's own test, which drives it over a fake fetch.
     `${KAANA_DIR}/__tests__/kaana-language-model.test.ts`,
@@ -275,7 +275,7 @@ describe('nothing in the API imports the Relay client (#139 ws3, constraint 3)',
     // delegated identifier, the routing-policy reference and the single
     // credential on the hop. A test importer, so constraint 3 is untouched.
     `${KAANA_DIR}/__tests__/kaana-egress.test.ts`,
-    // #139 ws15, *"pin allowed Relay origins/endpoints"*: drives a real client to
+    // #139 ws15, *"pin allowed Kaana origins/endpoints"*: drives a real client to
     // prove the endpoint is re-checked on every call and that a refused one
     // reaches no transport. A test importer, so constraint 3 is untouched.
     `${KAANA_DIR}/__tests__/kaana-endpoint.test.ts`,
@@ -291,7 +291,7 @@ describe('nothing in the API imports the Relay client (#139 ws3, constraint 3)',
      * The wire and what assembles it. `kaana.ts` constructs a client — the
      * first module in the repository that does — and `kaana-text.ts` is the
      * one-shot call product code holds. `kaana-transport.ts` names the client
-     * only for its `RelayTransport` type, which is the shape it satisfies.
+     * only for its `KaanaTransport` type, which is the shape it satisfies.
      *
      * They are inside `${KAANA_DIR}` on purpose: a product module reaches
      * Kaana through `kaana-text.ts` and nothing else, so the censuses below
@@ -316,7 +316,7 @@ describe('nothing in the API imports the Relay client (#139 ws3, constraint 3)',
     // happened" without naming the client either.
     `${KAANA_DIR}/kaana-boot-check.ts`,
     `${KAANA_DIR}/kaana-client.ts`,
-    // #139 ws2: reads `RelayClientConfig['credential']` to type what it returns,
+    // #139 ws2: reads `KaanaClientConfig['credential']` to type what it returns,
     // so the shape it satisfies is the client's own rather than a copy of it.
     // Nothing else about the client is touched — no construction, no transport.
     `${KAANA_DIR}/kaana-credential.ts`,
@@ -393,16 +393,16 @@ describe('nothing in the API imports the Relay client (#139 ws3, constraint 3)',
 // Constraints 1 and 2: no provider, no direct fallback
 // ===========================================================================
 
-describe('the Relay client cannot reach a provider (#139 ws3, constraints 1 and 2)', () => {
-  const relaySources = sources.filter((source) =>
-    RELAY_MODULES.includes(source.file.replace(/\.ts$/, '')),
+describe('the Kaana client cannot reach a provider (#139 ws3, constraints 1 and 2)', () => {
+  const kaanaSources = sources.filter((source) =>
+    KAANA_MODULES.includes(source.file.replace(/\.ts$/, '')),
   );
 
   it('reads all four modules, so a clean result means clean', () => {
-    expect(relaySources).toHaveLength(RELAY_MODULES.length);
+    expect(kaanaSources).toHaveLength(KAANA_MODULES.length);
     // Each one names at least the contracts package; a file parsed to zero refs
     // would pass every assertion below.
-    for (const source of relaySources) {
+    for (const source of kaanaSources) {
       expect(source.refs.length).toBeGreaterThan(0);
     }
   });
@@ -421,7 +421,7 @@ describe('the Relay client cannot reach a provider (#139 ws3, constraints 1 and 
 
   it('names no provider tree, no gateway seam and no provider SDK', () => {
     const offenders: string[] = [];
-    for (const source of relaySources) {
+    for (const source of kaanaSources) {
       for (const spec of source.refs) {
         if (spec === 'ai' || FORBIDDEN.some((needle) => spec.includes(needle))) {
           offenders.push(`${source.file} -> ${spec}`);

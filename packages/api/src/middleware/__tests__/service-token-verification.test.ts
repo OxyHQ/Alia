@@ -13,10 +13,10 @@ import { describe, expect, it } from 'vitest';
  *
  * There are two hops and only one of them verifies anything:
  *
- *  - **Alia → Relay is OUTBOUND-ONLY.** The client PRESENTS a token
- *    (`RelayServiceCredential.getServiceToken`) and receives no token at all.
+ *  - **Alia → Kaana is OUTBOUND-ONLY.** The client PRESENTS a token
+ *    (`KaanaServiceCredential.getServiceToken`) and receives no token at all.
  *    There is nothing to verify in that direction, and a `jwt.verify` appearing
- *    in the relay tree would mean something had been invented; the last block
+ *    in the Kaana tree would mean something had been invented; the last block
  *    below asserts its absence rather than leaving it implied.
  *  - **Something → Alia is the inbound hop, and is where verification lives.**
  *    `POST /internal/trigger` is the one route that accepts a service token, and
@@ -402,11 +402,11 @@ describe('inbound verification is @oxyhq/core, not a local implementation (#139 
     expect(index).toContain(`req.headers['x-gateway-secret']`);
   });
 
-  it('the outbound Relay hop presents a token and verifies none', () => {
+  it('the outbound Kaana hop presents a token and verifies none', () => {
     // The direction statement, asserted rather than left in prose. A
-    // `verify`/`decode` in the relay tree would mean a second auth mechanism had
+    // `verify`/`decode` in the Kaana tree would mean a second auth mechanism had
     // been invented for a hop that receives no token.
-    const relayDir = path.join(REPO_ROOT, 'packages/api/src/lib/inference');
+    const kaanaDir = path.join(REPO_ROOT, 'packages/api/src/lib/inference');
     const modules = execFileSync('git', ['ls-files', '--', 'packages/api/src/lib/inference'], {
       cwd: REPO_ROOT,
       encoding: 'utf8',
@@ -432,8 +432,8 @@ describe('inbound verification is @oxyhq/core, not a local implementation (#139 
     ).toEqual(['jwt.verify']);
 
     // The credential interface has exactly the two members a PRESENTER needs.
-    const client = readFileSync(path.join(relayDir, 'kaana-client.ts'), 'utf8');
-    const block = /export interface RelayServiceCredential \{([\s\S]*?)\n\}/.exec(client)?.[1] ?? '';
+    const client = readFileSync(path.join(kaanaDir, 'kaana-client.ts'), 'utf8');
+    const block = /export interface KaanaServiceCredential \{([\s\S]*?)\n\}/.exec(client)?.[1] ?? '';
     expect(block).toContain('getServiceToken(): Promise<string>');
     expect(block).toContain('invalidateServiceToken(): void');
     expect(block).not.toMatch(/verify|decode|parse/i);

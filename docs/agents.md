@@ -2,7 +2,7 @@
 
 Alia runs as a context-agent system that prioritizes autonomous retrieval and policy-safe execution.
 
-Agents, tools, approvals, the risk policy, deep research and triggers are Alia's own responsibility and stay that way under [ADR 0001](./adr/0001-alia-oxy-relay-responsibility-boundary.md). None of it moves to the Relay data plane.
+Agents, tools, approvals, the risk policy, deep research and triggers are Alia's own responsibility and stay that way under [ADR 0001](./adr/0001-alia-oxy-kaana-responsibility-boundary.md). None of it moves to the Kaana data plane.
 
 ## An agent IS an Oxy `bot` account
 

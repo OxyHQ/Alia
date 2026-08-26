@@ -135,7 +135,7 @@ export function checkSessionRunaway(sessionId: string, durationMs: number, maxEx
  * An outbound connection to a host the egress policy does not permit — epic
  * #139 workstream 19.
  *
- * `critical`, not `warning`: after the Relay cutover the only thing that can
+ * `critical`, not `warning`: after the Kaana cutover the only thing that can
  * produce one is a direct provider call, which is the invariant the whole epic
  * exists to establish. Before the cutover it fires on Alia's own provider
  * traffic, which is the honest reading — the traffic is real and it is what has

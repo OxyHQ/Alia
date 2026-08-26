@@ -5,17 +5,17 @@
  * ## What this module is
  *
  * The adapter between an Oxy ApplicationCredential in the environment and
- * {@link RelayClientConfig.credential}, which is the only credential the Relay
+ * {@link KaanaClientConfig.credential}, which is the only credential the Kaana
  * client ever presents. `kaana-client.ts` declares that field's interface and
  * says in its own docstring that it is *"structurally satisfied by
  * `@oxyhq/core`'s `OxyServices`"*; this is the module that performs the
- * satisfaction, and its return type is read off `RelayClientConfig` by indexed
+ * satisfaction, and its return type is read off `KaanaClientConfig` by indexed
  * access rather than written out, so a change to that field is a compile error
  * here rather than a second shape that drifts from the first.
  *
  * ## What this module deliberately does NOT do
  *
- * **It mints nothing at import.** `createRelayServiceCredential` is a function,
+ * **It mints nothing at import.** `createKaanaServiceCredential` is a function,
  * not a module-level constant, so importing this file opens no socket and reads
  * no credential. That is what lets `kaana-boot-check.ts` depend on the variable
  * NAMES without putting a token exchange on the boot path.
@@ -40,14 +40,14 @@
  * `middleware/auth.ts` constructs the API's own `OxyServices` for VERIFYING
  * inbound user tokens, and it never configures service credentials. Calling
  * `configureServiceAuth` on that instance would arm `makeServiceRequest`
- * everywhere else in the process as a side effect of wiring Relay, and would
+ * everywhere else in the process as a side effect of wiring Kaana, and would
  * make the inference layer import the Express middleware graph. One instance per
  * purpose is also what the SDK's per-credential cache is designed for.
  */
 
 import { OxyServices } from '@oxyhq/core';
 
-import type { RelayClientConfig } from './kaana-client.js';
+import type { KaanaClientConfig } from './kaana-client.js';
 
 /**
  * The ApplicationCredential this deployment presents to mint service tokens.
@@ -62,8 +62,20 @@ import type { RelayClientConfig } from './kaana-client.js';
  * Separate credentials per environment are `#139` §2's own row, *"Create
  * separate development, staging and production ApplicationCredentials"*: these
  * variables are how a deployment carries whichever one it was issued.
+ *
+ * **The variable NAMES still say `RELAY`, and that is not an oversight.** Kaana
+ * shipped under the working name Relay, and every one of these names is set by
+ * the LIVE ECS task definition, which `deploy-aws.yml` re-renders from the
+ * running one rather than declaring it whole. Renaming a name here without
+ * renaming it there makes the read return `undefined` and the behaviour change
+ * in silence; renaming it in both leaves BOTH spellings in the task definition,
+ * because the render merges and never removes. So the rename is an
+ * infrastructure change, carried out on the task definition and on the two
+ * GitHub repo secrets that feed SSM, and it is deliberately not made here. Gate
+ * 6 in `__tests__/architectureGates.test.ts` freezes these names, so a
+ * unilateral rename goes red rather than shipping.
  */
-export const RELAY_CREDENTIAL_ENV = {
+export const KAANA_CREDENTIAL_ENV = {
   apiKey: 'ALIA_RELAY_CREDENTIAL_KEY',
   apiSecret: 'ALIA_RELAY_CREDENTIAL_SECRET',
 } as const;
@@ -71,7 +83,7 @@ export const RELAY_CREDENTIAL_ENV = {
 /**
  * Where the token is minted.
  *
- * Not a Relay variable and not new: this is the Oxy identity API the whole
+ * Not a Kaana variable and not new: this is the Oxy identity API the whole
  * process already talks to (`middleware/auth.ts`, `lib/tools/oxy-services.ts`),
  * and the token exchange is one more endpoint on it. Required rather than
  * defaulted here — inventing a base URL for a credential exchange is how a
@@ -80,14 +92,14 @@ export const RELAY_CREDENTIAL_ENV = {
 export const OXY_API_URL_ENV = 'OXY_API_URL';
 
 /** Every variable the exchange needs. */
-export const RELAY_CREDENTIAL_REQUIRED_ENV: readonly string[] = [
-  RELAY_CREDENTIAL_ENV.apiKey,
-  RELAY_CREDENTIAL_ENV.apiSecret,
+export const KAANA_CREDENTIAL_REQUIRED_ENV: readonly string[] = [
+  KAANA_CREDENTIAL_ENV.apiKey,
+  KAANA_CREDENTIAL_ENV.apiSecret,
   OXY_API_URL_ENV,
 ];
 
 /**
- * Which of {@link RELAY_CREDENTIAL_REQUIRED_ENV} this environment does not set.
+ * Which of {@link KAANA_CREDENTIAL_REQUIRED_ENV} this environment does not set.
  *
  * Presence only. Whether the credential is ACCEPTED is a question for the Oxy
  * edge and is answered on the first exchange — a check that tried to answer it
@@ -96,38 +108,38 @@ export const RELAY_CREDENTIAL_REQUIRED_ENV: readonly string[] = [
  * not this deployment's.
  *
  * Returned as a LIST rather than as a sentence because
- * `relayBootConfigurationFailure` folds it into the one message that names every
- * unset Relay variable at once. Two messages would send an operator round the
+ * `kaanaBootConfigurationFailure` folds it into the one message that names every
+ * unset Kaana variable at once. Two messages would send an operator round the
  * deploy loop twice: once for the principal, once for the credential.
  */
-export function unsetRelayCredentialVariables(env: NodeJS.ProcessEnv): readonly string[] {
-  return RELAY_CREDENTIAL_REQUIRED_ENV.filter(
+export function unsetKaanaCredentialVariables(env: NodeJS.ProcessEnv): readonly string[] {
+  return KAANA_CREDENTIAL_REQUIRED_ENV.filter(
     (variable) => (env[variable] ?? '').trim().length === 0,
   );
 }
 
 /**
- * The credential the Relay client authenticates every call with.
+ * The credential the Kaana client authenticates every call with.
  *
  * Throws when the environment cannot configure one, naming the variables that
  * are unset. A factory that returned a credential which failed on first use
  * instead would turn a deployment mistake into one `authentication_failed` per
- * user request, which is the failure {@link unsetRelayCredentialVariables}
+ * user request, which is the failure {@link unsetKaanaCredentialVariables}
  * exists to move to boot.
  *
  * The returned object IS the `@oxyhq/core` client, narrowed by the return type
- * to the two methods the Relay client may call. Narrowing by type rather than by
+ * to the two methods the Kaana client may call. Narrowing by type rather than by
  * wrapping keeps the SDK's cache, its concurrent-call deduplication and its
  * constant-time secret check intact — a wrapper would have to forward all three
  * and could only get them wrong.
  */
-export function createRelayServiceCredential(
+export function createKaanaServiceCredential(
   env: NodeJS.ProcessEnv = process.env,
-): RelayClientConfig['credential'] {
-  const unset = unsetRelayCredentialVariables(env);
+): KaanaClientConfig['credential'] {
+  const unset = unsetKaanaCredentialVariables(env);
   if (unset.length > 0) {
     throw new Error(
-      `the Relay service-token exchange has no credential: ${[...unset].sort().join(', ')} not set`,
+      `the Kaana service-token exchange has no credential: ${[...unset].sort().join(', ')} not set`,
     );
   }
 
@@ -138,6 +150,6 @@ export function createRelayServiceCredential(
   const read = (variable: string): string => (env[variable] ?? '').trim();
 
   const oxy = new OxyServices({ baseURL: read(OXY_API_URL_ENV) });
-  oxy.configureServiceAuth(read(RELAY_CREDENTIAL_ENV.apiKey), read(RELAY_CREDENTIAL_ENV.apiSecret));
+  oxy.configureServiceAuth(read(KAANA_CREDENTIAL_ENV.apiKey), read(KAANA_CREDENTIAL_ENV.apiSecret));
   return oxy;
 }

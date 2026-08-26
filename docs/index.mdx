@@ -43,7 +43,7 @@ Model access goes through thirteen `alia-*` identifiers. Upstream routing is nev
      +------------------+
 ```
 
-PostgreSQL is the only store. The last domains — conversations, messages, agents, organizations, containers, skills and the rest — are ported, and `packages/api` opens no MongoDB connection and registers no Mongoose model. Under [ADR 0001](./adr/0001-alia-oxy-relay-responsibility-boundary.md) the in-process model calls move behind one typed client for a separate data plane (working name Relay), which does not exist yet.
+PostgreSQL is the only store. The last domains — conversations, messages, agents, organizations, containers, skills and the rest — are ported, and `packages/api` opens no MongoDB connection and registers no Mongoose model. Under [ADR 0001](./adr/0001-alia-oxy-kaana-responsibility-boundary.md) the in-process model calls move behind one typed client for Kaana, Oxy's own inference provider.
 
 | App | Stack | Purpose |
 | --- | --- | --- |

@@ -204,7 +204,7 @@ interface MatrixRow {
  *
  * ## 48 -> 49: `gwc-import-agents-avatar`
  *
- * `routes/agents-avatar.ts` is gone, and it does NOT retire to Relay as the row
+ * `routes/agents-avatar.ts` is gone, and it does NOT retire to Kaana as the row
  * planned: the whole feature is withdrawn. An agent has no picture any more —
  * it is drawn as a glyph tinted with its Oxy account's colour — so there is
  * nothing left for an image model to generate, and the route's image loop

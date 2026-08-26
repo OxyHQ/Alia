@@ -6,21 +6,21 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { InferenceErrorCode, RoutingTarget } from '@oxyhq/contracts';
 
 import type { AliaInferenceCall, AliaInferenceContext } from '../product-seam.js';
-import { assertAllowedRelayOrigin, RELAY_ALLOWED_ORIGINS } from '../kaana-endpoint.js';
+import { assertAllowedKaanaOrigin, KAANA_ALLOWED_ORIGINS } from '../kaana-endpoint.js';
 import {
-  createRelayInferenceClient,
-  type RelayClientConfig,
-  type RelayTransport,
-  type RelayTransportRequest,
+  createKaanaInferenceClient,
+  type KaanaClientConfig,
+  type KaanaTransport,
+  type KaanaTransportRequest,
 } from '../kaana-client.js';
 import {
-  createRelayServiceCredential,
+  createKaanaServiceCredential,
   OXY_API_URL_ENV,
-  RELAY_CREDENTIAL_ENV,
-  RELAY_CREDENTIAL_REQUIRED_ENV,
-  unsetRelayCredentialVariables,
+  KAANA_CREDENTIAL_ENV,
+  KAANA_CREDENTIAL_REQUIRED_ENV,
+  unsetKaanaCredentialVariables,
 } from '../kaana-credential.js';
-import type { RelayRequestPayload } from '../kaana-request.js';
+import type { KaanaRequestPayload } from '../kaana-request.js';
 
 /**
  * The Oxy service-token exchange — epic #139 workstream 2, *"Configure
@@ -64,8 +64,8 @@ import type { RelayRequestPayload } from '../kaana-request.js';
 const API_ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..');
 const ENV_EXAMPLE = path.join(API_ROOT, '.env.example');
 
-const API_KEY = 'oxy_dk_relay_test';
-const API_SECRET = 'relay-test-secret';
+const API_KEY = 'oxy_dk_kaana_test';
+const API_SECRET = 'kaana-test-secret';
 
 interface Exchange {
   readonly method: string;
@@ -132,8 +132,8 @@ class OxyEdge {
   env(): NodeJS.ProcessEnv {
     return {
       [OXY_API_URL_ENV]: this.baseURL,
-      [RELAY_CREDENTIAL_ENV.apiKey]: API_KEY,
-      [RELAY_CREDENTIAL_ENV.apiSecret]: API_SECRET,
+      [KAANA_CREDENTIAL_ENV.apiKey]: API_KEY,
+      [KAANA_CREDENTIAL_ENV.apiSecret]: API_SECRET,
     };
   }
 }
@@ -155,25 +155,25 @@ afterEach(async () => {
 
 describe('an unconfigured environment cannot produce a credential', () => {
   it('refuses when nothing is set, naming every variable', () => {
-    expect(() => createRelayServiceCredential({})).toThrow(/not set/);
-    for (const variable of RELAY_CREDENTIAL_REQUIRED_ENV) {
-      expect(() => createRelayServiceCredential({})).toThrow(new RegExp(variable));
+    expect(() => createKaanaServiceCredential({})).toThrow(/not set/);
+    for (const variable of KAANA_CREDENTIAL_REQUIRED_ENV) {
+      expect(() => createKaanaServiceCredential({})).toThrow(new RegExp(variable));
     }
-    // The floor for that loop, and for `unsetRelayCredentialVariables` below: an
+    // The floor for that loop, and for `unsetKaanaCredentialVariables` below: an
     // empty required list makes every assertion in this file vacuous.
-    expect(RELAY_CREDENTIAL_REQUIRED_ENV).toHaveLength(3);
-    expect(new Set(RELAY_CREDENTIAL_REQUIRED_ENV).size).toBe(3);
+    expect(KAANA_CREDENTIAL_REQUIRED_ENV).toHaveLength(3);
+    expect(new Set(KAANA_CREDENTIAL_REQUIRED_ENV).size).toBe(3);
   });
 
   it('refuses one missing variable as readily as three', () => {
     // The partially-configured deployment, which is the shape that actually
     // happens: an operator who set the key and the secret has no reason to
     // suspect the base URL.
-    for (const variable of RELAY_CREDENTIAL_REQUIRED_ENV) {
+    for (const variable of KAANA_CREDENTIAL_REQUIRED_ENV) {
       const partial = edge.env();
       delete partial[variable];
-      expect(unsetRelayCredentialVariables(partial)).toEqual([variable]);
-      expect(() => createRelayServiceCredential(partial)).toThrow(new RegExp(variable));
+      expect(unsetKaanaCredentialVariables(partial)).toEqual([variable]);
+      expect(() => createKaanaServiceCredential(partial)).toThrow(new RegExp(variable));
     }
   });
 
@@ -181,14 +181,14 @@ describe('an unconfigured environment cannot produce a credential', () => {
     // A secret that reached the environment as an empty line is not a secret,
     // and the failure it produces otherwise is a 401 from the far end that names
     // nothing.
-    const blank = { ...edge.env(), [RELAY_CREDENTIAL_ENV.apiSecret]: '   ' };
-    expect(unsetRelayCredentialVariables(blank)).toEqual([RELAY_CREDENTIAL_ENV.apiSecret]);
-    expect(() => createRelayServiceCredential(blank)).toThrow(RELAY_CREDENTIAL_ENV.apiSecret);
+    const blank = { ...edge.env(), [KAANA_CREDENTIAL_ENV.apiSecret]: '   ' };
+    expect(unsetKaanaCredentialVariables(blank)).toEqual([KAANA_CREDENTIAL_ENV.apiSecret]);
+    expect(() => createKaanaServiceCredential(blank)).toThrow(KAANA_CREDENTIAL_ENV.apiSecret);
   });
 
   it('accepts a fully configured environment, so the refusals above are about absence', () => {
-    expect(unsetRelayCredentialVariables(edge.env())).toEqual([]);
-    const credential = createRelayServiceCredential(edge.env());
+    expect(unsetKaanaCredentialVariables(edge.env())).toEqual([]);
+    const credential = createKaanaServiceCredential(edge.env());
     expect(typeof credential.getServiceToken).toBe('function');
     expect(typeof credential.invalidateServiceToken).toBe('function');
     // Constructing one exchanges nothing: the credential is minted lazily, on
@@ -204,7 +204,7 @@ describe('an unconfigured environment cannot produce a credential', () => {
     const template = readFileSync(ENV_EXAMPLE, 'utf8');
     // Vacuity floor: a moved or emptied file mentions none of them.
     expect(template).toContain('DATABASE_URL');
-    for (const variable of RELAY_CREDENTIAL_REQUIRED_ENV) expect(template).toContain(variable);
+    for (const variable of KAANA_CREDENTIAL_REQUIRED_ENV) expect(template).toContain(variable);
   });
 });
 
@@ -214,7 +214,7 @@ describe('an unconfigured environment cannot produce a credential', () => {
 
 describe('the token is minted from the configured credential', () => {
   it('presents exactly the configured key and secret, to the configured edge', async () => {
-    const credential = createRelayServiceCredential(edge.env());
+    const credential = createKaanaServiceCredential(edge.env());
     const token = await credential.getServiceToken();
 
     expect(token).toBe('oxy-service-token-1');
@@ -227,10 +227,10 @@ describe('the token is minted from the configured credential', () => {
     // Not cosmetic: a credential that differs from the one the operator set by
     // one invisible character is refused by the far end with a message that
     // names nothing, and the operator is looking at a variable that reads right.
-    const credential = createRelayServiceCredential({
+    const credential = createKaanaServiceCredential({
       ...edge.env(),
-      [RELAY_CREDENTIAL_ENV.apiKey]: `${API_KEY}\n`,
-      [RELAY_CREDENTIAL_ENV.apiSecret]: `  ${API_SECRET}  `,
+      [KAANA_CREDENTIAL_ENV.apiKey]: `${API_KEY}\n`,
+      [KAANA_CREDENTIAL_ENV.apiSecret]: `  ${API_SECRET}  `,
     });
     await credential.getServiceToken();
 
@@ -243,7 +243,7 @@ describe('the token is short-lived: refreshed before expiry, never served past i
     // The positive control for every re-mint assertion below. A source that
     // minted on every call would pass all of them and none of this one.
     edge.expiresIn = 3600;
-    const credential = createRelayServiceCredential(edge.env());
+    const credential = createKaanaServiceCredential(edge.env());
 
     expect(await credential.getServiceToken()).toBe('oxy-service-token-1');
     expect(await credential.getServiceToken()).toBe('oxy-service-token-1');
@@ -255,7 +255,7 @@ describe('the token is short-lived: refreshed before expiry, never served past i
     // The near half of the boundary. Without it, "45 seconds re-mints" is also
     // what a source with no cache at all does.
     edge.expiresIn = 90;
-    const credential = createRelayServiceCredential(edge.env());
+    const credential = createKaanaServiceCredential(edge.env());
 
     expect(await credential.getServiceToken()).toBe('oxy-service-token-1');
     expect(await credential.getServiceToken()).toBe('oxy-service-token-1');
@@ -267,7 +267,7 @@ describe('the token is short-lived: refreshed before expiry, never served past i
     // by the far end for another 45 seconds; the exchange declines to find out
     // whether the request it is about to make would have outlived it.
     edge.expiresIn = 45;
-    const credential = createRelayServiceCredential(edge.env());
+    const credential = createKaanaServiceCredential(edge.env());
 
     expect(await credential.getServiceToken()).toBe('oxy-service-token-1');
     expect(await credential.getServiceToken()).toBe('oxy-service-token-2');
@@ -280,7 +280,7 @@ describe('the token is short-lived: refreshed before expiry, never served past i
     // altogether would keep the first token forever and would be caught only
     // here.
     edge.expiresIn = 0;
-    const credential = createRelayServiceCredential(edge.env());
+    const credential = createKaanaServiceCredential(edge.env());
 
     const first = await credential.getServiceToken();
     const second = await credential.getServiceToken();
@@ -289,11 +289,11 @@ describe('the token is short-lived: refreshed before expiry, never served past i
   });
 
   it('re-mints after invalidation even when the cached token is long-lived', async () => {
-    // The path the Relay client drives on `authentication_failed`: a credential
+    // The path the Kaana client drives on `authentication_failed`: a credential
     // rotated at the far end is otherwise unrecoverable inside one process,
     // because the still-unexpired cached token keeps being returned.
     edge.expiresIn = 3600;
-    const credential = createRelayServiceCredential(edge.env());
+    const credential = createKaanaServiceCredential(edge.env());
 
     expect(await credential.getServiceToken()).toBe('oxy-service-token-1');
     credential.invalidateServiceToken();
@@ -306,7 +306,7 @@ describe('the token is short-lived: refreshed before expiry, never served past i
     // this prevents is a cold start hammering `/auth/service-token` once per
     // in-flight user request.
     edge.expiresIn = 3600;
-    const credential = createRelayServiceCredential(edge.env());
+    const credential = createKaanaServiceCredential(edge.env());
 
     const tokens = await Promise.all(
       Array.from({ length: 8 }, () => credential.getServiceToken()),
@@ -320,11 +320,11 @@ describe('the token is short-lived: refreshed before expiry, never served past i
     // has today, but the cache is keyed and the consequence of getting it wrong
     // is one tenant's token answering another tenant's request.
     edge.expiresIn = 3600;
-    const first = createRelayServiceCredential(edge.env());
-    const second = createRelayServiceCredential({
+    const first = createKaanaServiceCredential(edge.env());
+    const second = createKaanaServiceCredential({
       ...edge.env(),
-      [RELAY_CREDENTIAL_ENV.apiKey]: 'oxy_dk_other_tenant',
-      [RELAY_CREDENTIAL_ENV.apiSecret]: 'other-tenant-secret',
+      [KAANA_CREDENTIAL_ENV.apiKey]: 'oxy_dk_other_tenant',
+      [KAANA_CREDENTIAL_ENV.apiSecret]: 'other-tenant-secret',
     });
 
     expect(await first.getServiceToken()).toBe('oxy-service-token-1');
@@ -337,19 +337,19 @@ describe('the token is short-lived: refreshed before expiry, never served past i
   });
 
   it('reports a refused exchange instead of returning an empty token', async () => {
-    // What the Relay client turns into `authentication_failed` (kaana-client.ts
+    // What the Kaana client turns into `authentication_failed` (kaana-client.ts
     // races `getServiceToken()` and answers with that code when it rejects). A
     // source that resolved with `''` here would send an empty Authorization
     // header and the failure would surface one hop later, as somebody else's.
     const env = edge.env();
     await edge.close();
-    const credential = createRelayServiceCredential(env);
+    const credential = createKaanaServiceCredential(env);
     await expect(credential.getServiceToken()).rejects.toThrow();
   });
 });
 
 // ===========================================================================
-// The other half of the checkbox: handed to RelayClientConfig
+// The other half of the checkbox: handed to KaanaClientConfig
 // ===========================================================================
 
 /**
@@ -359,12 +359,12 @@ describe('the token is short-lived: refreshed before expiry, never served past i
  * exactly that one input: `authentication_failed` is the only code the client
  * answers by invalidating the credential.
  */
-class RefusingTransport implements RelayTransport {
-  readonly sent: RelayTransportRequest[] = [];
+class RefusingTransport implements KaanaTransport {
+  readonly sent: KaanaTransportRequest[] = [];
 
   constructor(private readonly code: InferenceErrorCode) {}
 
-  send(input: RelayTransportRequest): Promise<AsyncIterable<unknown>> {
+  send(input: KaanaTransportRequest): Promise<AsyncIterable<unknown>> {
     this.sent.push(input);
     const { code } = this;
     return Promise.resolve(
@@ -372,14 +372,14 @@ class RefusingTransport implements RelayTransport {
         yield {
           schemaVersion: 1,
           type: 'error',
-          requestId: 'relay-req-credential',
+          requestId: 'kaana-req-credential',
           sequence: 0,
           error: {
             schemaVersion: 1,
             code,
             message: 'the far end refused',
             retryable: false,
-            requestId: 'relay-req-credential',
+            requestId: 'kaana-req-credential',
           },
         };
       })(),
@@ -390,13 +390,13 @@ class RefusingTransport implements RelayTransport {
 const DEFAULT_TARGET: RoutingTarget = { kind: 'routing_profile', routingProfile: 'auto' };
 
 /**
- * An approved Relay origin, branded through the one function that can produce
+ * An approved Kaana origin, branded through the one function that can produce
  * one (#139 ws15). The endpoint is not what this file is about; it is required
  * configuration, so it is built the way the client demands rather than asserted.
  */
-const ENDPOINT = assertAllowedRelayOrigin(RELAY_ALLOWED_ORIGINS[0], 'development');
+const ENDPOINT = assertAllowedKaanaOrigin(KAANA_ALLOWED_ORIGINS[0], 'development');
 
-const PRINCIPAL: RelayClientConfig['principal'] = {
+const PRINCIPAL: KaanaClientConfig['principal'] = {
   billing: { accountId: 'acct_alia' },
   applicationId: 'app_alia',
   credentialId: 'cred_alia_1',
@@ -404,7 +404,7 @@ const PRINCIPAL: RelayClientConfig['principal'] = {
   inferenceScopes: ['inference:invoke'],
 };
 
-function inferenceCall(): AliaInferenceCall<RelayRequestPayload> {
+function inferenceCall(): AliaInferenceCall<KaanaRequestPayload> {
   const context: AliaInferenceContext = {
     surface: 'chat',
     visibility: 'user_turn',
@@ -415,7 +415,7 @@ function inferenceCall(): AliaInferenceCall<RelayRequestPayload> {
     budget: { connectMs: 2_000, firstTokenMs: 2_000, idleStreamMs: 2_000, totalMs: 10_000 },
     onDisconnect: 'finish_and_notify',
   };
-  const payload: RelayRequestPayload = {
+  const payload: KaanaRequestPayload = {
     modality: 'text',
     input: {
       format: 'messages',
@@ -428,13 +428,13 @@ function inferenceCall(): AliaInferenceCall<RelayRequestPayload> {
   return { context, payload };
 }
 
-describe('the credential is the one a RelayClientConfig takes', () => {
+describe('the credential is the one a KaanaClientConfig takes', () => {
   it('reaches the transport as the authorization, and a rejection re-mints the next one', async () => {
     /**
      * The whole checkbox in one path, and the only test here that is about the
      * COMPOSITION rather than about either side.
      *
-     * `createRelayServiceCredential` returns `RelayClientConfig['credential']`,
+     * `createKaanaServiceCredential` returns `KaanaClientConfig['credential']`,
      * so the assignment below is checked by `tsc` — but a type says nothing
      * about behaviour, and the behaviour that matters is the loop the two halves
      * make together: the client mints, the far end rejects, the client
@@ -446,10 +446,10 @@ describe('the credential is the one a RelayClientConfig takes', () => {
      */
     edge.expiresIn = 3600;
     const transport = new RefusingTransport('authentication_failed');
-    const client = createRelayInferenceClient({
+    const client = createKaanaInferenceClient({
       enabled: true,
       transport,
-      credential: createRelayServiceCredential(edge.env()),
+      credential: createKaanaServiceCredential(edge.env()),
       endpoint: ENDPOINT,
       principal: PRINCIPAL,
       defaultTarget: DEFAULT_TARGET,
@@ -485,8 +485,8 @@ describe('the credential is the one a RelayClientConfig takes', () => {
     // nothing but the absence of caching.
     edge.expiresIn = 3600;
     const transport = new RefusingTransport('invalid_request');
-    const credential = createRelayServiceCredential(edge.env());
-    const client = createRelayInferenceClient({
+    const credential = createKaanaServiceCredential(edge.env());
+    const client = createKaanaInferenceClient({
       enabled: true,
       transport,
       credential,

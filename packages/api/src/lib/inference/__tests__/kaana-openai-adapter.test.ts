@@ -15,8 +15,8 @@ import {
   renderRouteSwitchEvent,
   type OpenAIChatCompletionsRequest,
 } from '../kaana-openai-adapter.js';
-import { RelayInferenceError } from '../kaana-error.js';
-import { buildInferenceRequest, type RelayEnvelopeContext } from '../kaana-request.js';
+import { KaanaInferenceError } from '../kaana-error.js';
+import { buildInferenceRequest, type KaanaEnvelopeContext } from '../kaana-request.js';
 
 /**
  * The dialect adapter, in both directions — epic #139 workstream 3.
@@ -34,9 +34,9 @@ import { buildInferenceRequest, type RelayEnvelopeContext } from '../kaana-reque
  * this repository understands it".
  */
 
-const ENVELOPE: RelayEnvelopeContext = {
+const ENVELOPE: KaanaEnvelopeContext = {
   principal: authenticatedPrincipalSchema.parse({
-    billing: { accountId: 'acct_relay_test' },
+    billing: { accountId: 'acct_kaana_test' },
     applicationId: 'app_alia',
     credentialId: 'cred_alia_1',
     environment: 'production',
@@ -64,7 +64,7 @@ function accepted(body: OpenAIChatCompletionsRequest): boolean {
       buildInferenceRequest(fromChatCompletionsRequest(body), ENVELOPE),
     ).success;
   } catch (cause) {
-    if (cause instanceof RelayInferenceError) return false;
+    if (cause instanceof KaanaInferenceError) return false;
     throw cause;
   }
 }

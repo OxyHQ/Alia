@@ -9,12 +9,12 @@
  *
  * ## Why there is no service token
  *
- * `RelayClientConfig` wants a `credential`, and Kaana never reads one. It
+ * `KaanaClientConfig` wants a `credential`, and Kaana never reads one. It
  * authenticates the Ed25519 signature over the body (`kaana-transport.ts`) and
  * takes attribution from the envelope, so a bearer token would be a credential
  * handed to a party with no use for it. The credential here therefore mints
  * nothing: it answers a constant that the transport drops on the floor, and
- * `createRelayServiceCredential` — which exchanges an Oxy service token — is
+ * `createKaanaServiceCredential` — which exchanges an Oxy service token — is
  * deliberately NOT used. That exchange belongs to a different transport for a
  * different hop, and requiring its three variables to reach Kaana would be
  * requiring a credential to satisfy a type.
@@ -28,12 +28,12 @@
  */
 
 import {
-  createRelayInferenceClient,
-  type RelayClientConfig,
-  type RelayInferenceClient,
+  createKaanaInferenceClient,
+  type KaanaClientConfig,
+  type KaanaInferenceClient,
 } from './kaana-client.js';
-import { RELAY_PRINCIPAL_ENV } from './kaana-boot-check.js';
-import { resolveRelayEndpoint } from './kaana-endpoint.js';
+import { KAANA_PRINCIPAL_ENV } from './kaana-boot-check.js';
+import { resolveKaanaEndpoint } from './kaana-endpoint.js';
 import {
   KAANA_EDGE_KEY_ID_ENV,
   KAANA_EDGE_PRIVATE_KEY_ENV,
@@ -105,19 +105,19 @@ function readScopes(value: string): readonly InferenceScope[] | null {
     : null;
 }
 
-function principalFrom(env: NodeJS.ProcessEnv): RelayClientConfig['principal'] | null {
+function principalFrom(env: NodeJS.ProcessEnv): KaanaClientConfig['principal'] | null {
   const read = (name: string): string => (env[name] ?? '').trim();
   // Validated rather than asserted. A cast here would build an envelope Kaana
   // refuses, and it would refuse it in production on the first real request.
-  const environment = readEnvironment(read(RELAY_PRINCIPAL_ENV.environment));
+  const environment = readEnvironment(read(KAANA_PRINCIPAL_ENV.environment));
   if (environment === null) return null;
-  const inferenceScopes = readScopes(read(RELAY_PRINCIPAL_ENV.inferenceScopes));
+  const inferenceScopes = readScopes(read(KAANA_PRINCIPAL_ENV.inferenceScopes));
   if (inferenceScopes === null) return null;
 
   return {
-    billing: { accountId: read(RELAY_PRINCIPAL_ENV.billing) },
-    applicationId: read(RELAY_PRINCIPAL_ENV.applicationId),
-    credentialId: read(RELAY_PRINCIPAL_ENV.credentialId),
+    billing: { accountId: read(KAANA_PRINCIPAL_ENV.billing) },
+    applicationId: read(KAANA_PRINCIPAL_ENV.applicationId),
+    credentialId: read(KAANA_PRINCIPAL_ENV.credentialId),
     environment,
     inferenceScopes: [...inferenceScopes],
   };
@@ -134,7 +134,7 @@ function principalFrom(env: NodeJS.ProcessEnv): RelayClientConfig['principal'] |
  *     envelope carries a routing policy reference, not the snapshot a profile
  *     would have to be resolved against
  *
- * The refusal reached production as `RelayInferenceError: relay inference
+ * The refusal reached production as `KaanaInferenceError: Kaana inference
  * failed: invalid_request` on every background derivation, so the default is a
  * concrete reference until Kaana resolves profiles, at which point this goes
  * back to being `{ kind: 'routing_profile', routingProfile: 'auto' }` and
@@ -161,9 +161,9 @@ const KAANA_DEFAULT_TARGET = { kind: 'model', modelReference: 'openai/gpt-oss-12
  * Built once and memoised — the transport holds a parsed private key, and
  * re-reading it per request is work with no answer that can differ.
  */
-let cached: RelayInferenceClient | null | undefined;
+let cached: KaanaInferenceClient | null | undefined;
 
-export function getKaanaClient(env: NodeJS.ProcessEnv = process.env): RelayInferenceClient | null {
+export function getKaanaClient(env: NodeJS.ProcessEnv = process.env): KaanaInferenceClient | null {
   if (cached !== undefined) return cached;
   cached = buildKaanaClient(env);
   return cached;
@@ -183,7 +183,7 @@ export function getKaanaClient(env: NodeJS.ProcessEnv = process.env): RelayInfer
  * egress block that makes every direct provider host unreachable. It belongs to
  * the day the in-process tree is deleted, not to the day Kaana starts serving.
  */
-export function buildKaanaClient(env: NodeJS.ProcessEnv): RelayInferenceClient | null {
+export function buildKaanaClient(env: NodeJS.ProcessEnv): KaanaInferenceClient | null {
   if (unsetKaanaVariables(env).length > 0) return null;
 
   const principal = principalFrom(env);
@@ -191,7 +191,7 @@ export function buildKaanaClient(env: NodeJS.ProcessEnv): RelayInferenceClient |
   // The endpoint is checked against the ALLOWED origins for this deployment, so
   // a misconfigured base URL is refused here rather than discovered by a request
   // arriving somewhere unexpected.
-  const endpoint = resolveRelayEndpoint(env, principal.environment);
+  const endpoint = resolveKaanaEndpoint(env, principal.environment);
   if (endpoint.kind === 'refused') return null;
 
   const transport = createKaanaTransport({
@@ -199,7 +199,7 @@ export function buildKaanaClient(env: NodeJS.ProcessEnv): RelayInferenceClient |
     privateKey: readEdgePrivateKey(env[KAANA_EDGE_PRIVATE_KEY_ENV] ?? ''),
   });
 
-  return createRelayInferenceClient({
+  return createKaanaInferenceClient({
     enabled: true,
     transport,
     // Kaana reads no bearer token; see the file comment.

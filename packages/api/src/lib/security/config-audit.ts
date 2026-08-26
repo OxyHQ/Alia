@@ -30,7 +30,7 @@
  * ## Why a structured log line rather than a table
  *
  * `docs/migration/ownership.md` assigns `provider_keys`, `model_configs` and the
- * mappings **to Relay**. An Alia-owned audit table for rows that are leaving is
+ * mappings **to Kaana**. An Alia-owned audit table for rows that are leaving is
  * a schema, a migration and an ownership entry for something with a known end
  * date, and it would have to be migrated or abandoned at the cutover. A
  * structured record on its own pino channel is machine-parseable, lands in the

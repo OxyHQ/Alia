@@ -32,7 +32,7 @@ import type { SafeProviderKey } from '../db/providers/providerKeyRepository.js';
  *
  * So each gate records the CURRENT state exactly and fails on anything new. The
  * allowlists are the migration's inventory: workstream 7 shrinks them as it
- * extracts adapters into Relay, and the gates go red if anybody grows them
+ * extracts adapters into Kaana, and the gates go red if anybody grows them
  * instead. Every list is asserted by exact set equality, never by a floor, in
  * BOTH directions — an entry that disappears fails too, so a removal has to be
  * recorded here rather than silently widening the boundary.
@@ -185,7 +185,7 @@ function propertyInitializers(sf: ts.SourceFile, name: string): string[] {
  *
  *  - `process.env.X` and `process.env['X']`;
  *  - `env.X`, where `env` is a parameter, variable or field declared
- *    `NodeJS.ProcessEnv` — the whole Relay layer is written this way, so a census
+ *    `NodeJS.ProcessEnv` — the whole Kaana layer is written this way, so a census
  *    anchored on the word `process` would read the eight `ALIA_RELAY_*`
  *    variables as absent;
  *  - `process.env[expr]`, where the name is not in the expression at all.
@@ -274,9 +274,9 @@ function envUsage(sources: readonly Source[]): EnvUsage {
       }
 
       /**
-       * Resolver 3 — a `*_ENV` constant. The convention the Relay layer follows
-       * (`RELAY_CLIENT_ENABLED_ENV`, `RELAY_PRINCIPAL_ENV`,
-       * `RELAY_CREDENTIAL_ENV`): a module that indexes an environment with its
+       * Resolver 3 — a `*_ENV` constant. The convention the Kaana layer follows
+       * (`KAANA_CLIENT_ENABLED_ENV`, `KAANA_PRINCIPAL_ENV`,
+       * `KAANA_CREDENTIAL_ENV`): a module that indexes an environment with its
        * own map holds the names as a constant whose binding ends in `_ENV`. That
        * is what makes those reads resolvable at all, and this check is what
        * keeps the convention worth following.
@@ -470,7 +470,7 @@ const PROVIDER_IMPORT_ALLOWLIST: readonly { from: string; to: string; via: Modul
     from: 'packages/api/src/lib/__tests__/sanitize.test.ts',
     to: 'packages/api/src/internal/providers/lib/alia-models',
     via: 'import',
-    why: 'Reads TIER_MODEL_MAPPINGS as DATA: the sanitiser census fails on an upstream model id it cannot conceal (#139 ws20). Repoints at the Relay catalogue with cost-calculator.',
+    why: 'Reads TIER_MODEL_MAPPINGS as DATA: the sanitiser census fails on an upstream model id it cannot conceal (#139 ws20). Repoints at the Kaana catalogue with cost-calculator.',
   },
   {
     from: 'packages/api/src/lib/__tests__/sanitize.test.ts',
@@ -482,13 +482,13 @@ const PROVIDER_IMPORT_ALLOWLIST: readonly { from: string; to: string; via: Modul
     from: 'packages/api/src/lib/cost-calculator.ts',
     to: 'packages/api/src/internal/providers/lib/alia-models',
     via: 'import',
-    why: 'Reads TIER_MODEL_MAPPINGS to price a request. Moves to Relay metering (#139 ws7).',
+    why: 'Reads TIER_MODEL_MAPPINGS to price a request. Moves to Kaana metering (#139 ws7).',
   },
   {
     from: 'packages/api/src/lib/cost-tracker.ts',
     to: 'packages/api/src/internal/providers/lib/model-capabilities-data',
     via: 'import',
-    why: 'Upstream per-token pricing. Moves to Relay metering (#139 ws7).',
+    why: 'Upstream per-token pricing. Moves to Kaana metering (#139 ws7).',
   },
   {
     from: 'packages/api/src/lib/errors/sanitize.ts',
@@ -500,7 +500,7 @@ const PROVIDER_IMPORT_ALLOWLIST: readonly { from: string; to: string; via: Modul
     from: 'packages/api/src/lib/gateway-client.ts',
     to: 'packages/api/src/internal/providers/lib/alia-models',
     via: 'dynamic',
-    why: 'THE sanctioned seam (ADR 0001). Its local-fallback branch is what becomes the Relay client.',
+    why: 'THE sanctioned seam (ADR 0001). Its local-fallback branch is what becomes the Kaana client.',
   },
   {
     from: 'packages/api/src/lib/gateway-client.ts',
@@ -560,7 +560,7 @@ const PROVIDER_IMPORT_ALLOWLIST: readonly { from: string; to: string; via: Modul
     from: 'packages/api/src/lib/synthesize-speech.ts',
     to: 'packages/api/src/internal/providers/lib/tts-providers',
     via: 'import',
-    why: 'The voice translation table, plus `speakableText` — which bracketed cue a model can PERFORM rather than pronounce, decided per mapping because the TTS tier fails over. Moves to Relay (#139 ws7).',
+    why: 'The voice translation table, plus `speakableText` — which bracketed cue a model can PERFORM rather than pronounce, decided per mapping because the TTS tier fails over. Moves to Kaana (#139 ws7).',
   },
   {
     from: 'packages/api/src/lib/__tests__/audio-tags.test.ts',
@@ -584,7 +584,7 @@ const PROVIDER_IMPORT_ALLOWLIST: readonly { from: string; to: string; via: Modul
     from: 'packages/api/src/lib/show/script-prompt.ts',
     to: 'packages/api/src/internal/providers/lib/tts-providers',
     via: 'import',
-    why: 'One constant, `PERFORMABLE_AUDIO_TAGS`, rendered into the prompt so the tags a script is ASKED for are the tags the strip KEEPS. No adapter, no key, no call. Two hand-maintained copies is the alternative, and its failure is silent: the model emits a tag nobody performs and `speakableText` deletes it from every episode. Moves to Relay (#139 ws7) with the TTS path.',
+    why: 'One constant, `PERFORMABLE_AUDIO_TAGS`, rendered into the prompt so the tags a script is ASKED for are the tags the strip KEEPS. No adapter, no key, no call. Two hand-maintained copies is the alternative, and its failure is silent: the model emits a tag nobody performs and `speakableText` deletes it from every episode. Moves to Kaana (#139 ws7) with the TTS path.',
   },
   {
     from: 'packages/api/src/lib/show/__tests__/cover-art.test.ts',
@@ -602,7 +602,7 @@ const PROVIDER_IMPORT_ALLOWLIST: readonly { from: string; to: string; via: Modul
     from: 'packages/api/src/routes/canvas/execute.ts',
     to: 'packages/api/src/internal/providers/lib/digitalocean-async',
     via: 'import',
-    why: 'Async-invoke image URL unwrapping. Moves to Relay (#139 ws7).',
+    why: 'Async-invoke image URL unwrapping. Moves to Kaana (#139 ws7).',
   },
   {
     from: 'packages/api/src/routes/v1/__tests__/chat-completions-timeout.test.ts',
@@ -614,13 +614,13 @@ const PROVIDER_IMPORT_ALLOWLIST: readonly { from: string; to: string; via: Modul
     from: 'packages/api/src/lib/routing/__tests__/routing-policy.test.ts',
     to: 'packages/api/src/internal/providers/lib/alia-models',
     via: 'import',
-    why: 'Reads ALIA_MODELS to check the routing presets cover exactly the registered aliases, in both directions (#139 ws14). Test-only; retires when the catalogue moves to Relay.',
+    why: 'Reads ALIA_MODELS to check the routing presets cover exactly the registered aliases, in both directions (#139 ws14). Test-only; retires when the catalogue moves to Kaana.',
   },
   {
     from: 'packages/api/src/lib/__tests__/product-modes.test.ts',
     to: 'packages/api/src/internal/providers/lib/alia-models',
     via: 'import',
-    why: 'Recomputes each product mode’s binding from ALIA_MODELS — category, credit multiplier and the offered set — so a mode cannot become an assignment (#139 ws4). Test-only; retires when the catalogue moves to Relay.',
+    why: 'Recomputes each product mode’s binding from ALIA_MODELS — category, credit multiplier and the offered set — so a mode cannot become an assignment (#139 ws4). Test-only; retires when the catalogue moves to Kaana.',
   },
   {
     from: 'packages/api/src/routes/__tests__/picker-visibility.test.ts',
@@ -632,7 +632,7 @@ const PROVIDER_IMPORT_ALLOWLIST: readonly { from: string; to: string; via: Modul
     from: 'packages/api/src/routes/v1/audio.ts',
     to: 'packages/api/src/internal/providers/lib/digitalocean-async',
     via: 'import',
-    why: 'Async-invoke audio URL unwrapping. Moves to Relay (#139 ws7).',
+    why: 'Async-invoke audio URL unwrapping. Moves to Kaana (#139 ws7).',
   },
   {
     from: 'packages/api/src/lib/image-generation.ts',
@@ -644,13 +644,13 @@ const PROVIDER_IMPORT_ALLOWLIST: readonly { from: string; to: string; via: Modul
     from: 'packages/api/src/lib/image-generation.ts',
     to: 'packages/api/src/internal/providers/lib/image-providers',
     via: 'import',
-    why: 'Per-provider request-body shaping, the sibling of the tts-providers translation the TTS path already uses. `/v1/images/generations` is OpenAI-SHAPED rather than OpenAI-identical: xAI answers 400 to `size` and 422 to `quality` (measured 2026-08-23), and a refused parameter fails the whole request rather than degrading. Knowing WHICH parameters a provider takes is provider knowledge, so it belongs behind this boundary and not inlined in a route as a conditional. MOVED here from routes/v1/images.ts with its sibling above. Moves to Relay (#139 ws7) with the rest of the image path.',
+    why: 'Per-provider request-body shaping, the sibling of the tts-providers translation the TTS path already uses. `/v1/images/generations` is OpenAI-SHAPED rather than OpenAI-identical: xAI answers 400 to `size` and 422 to `quality` (measured 2026-08-23), and a refused parameter fails the whole request rather than degrading. Knowing WHICH parameters a provider takes is provider knowledge, so it belongs behind this boundary and not inlined in a route as a conditional. MOVED here from routes/v1/images.ts with its sibling above. Moves to Kaana (#139 ws7) with the rest of the image path.',
   },
   {
     from: 'packages/api/src/routes/v1/voice.ts',
     to: 'packages/api/src/internal/providers/lib/voice-session-manager',
     via: 'import',
-    why: 'A route driving a provider realtime session directly. Moves to Relay (#139 ws7).',
+    why: 'A route driving a provider realtime session directly. Moves to Kaana (#139 ws7).',
   },
   {
     from: 'packages/api/src/routes/v1/__tests__/voice-knows-the-agent.test.ts',
@@ -682,7 +682,7 @@ const PROVIDER_IMPORT_ALLOWLIST: readonly { from: string; to: string; via: Modul
     from: 'packages/api/src/__tests__/prototype-keyed-lookups.test.ts',
     to: 'packages/api/src/internal/providers/lib/alia-models',
     via: 'dynamic',
-    why: 'Drives the real model-identity gate with the five names an object literal inherits, which is where the worst instance of that bug class lived. Test-only; retires when the catalogue moves to Relay.',
+    why: 'Drives the real model-identity gate with the five names an object literal inherits, which is where the worst instance of that bug class lived. Test-only; retires when the catalogue moves to Kaana.',
   },
   {
     from: 'packages/api/src/__tests__/prototype-keyed-lookups.test.ts',
@@ -706,7 +706,7 @@ const PROVIDER_IMPORT_ALLOWLIST: readonly { from: string; to: string; via: Modul
     from: 'packages/api/src/scripts/seed.ts',
     to: 'packages/api/src/internal/providers/lib/seed-model-configs',
     via: 'import',
-    why: 'The deploy one-shot that triggers seeding. The seeders live in the provider tree and move to Relay with it (#139 ws10); the TRIGGER is the product\'s, which is why it is here and not there.',
+    why: 'The deploy one-shot that triggers seeding. The seeders live in the provider tree and move to Kaana with it (#139 ws10); the TRIGGER is the product\'s, which is why it is here and not there.',
   },
   {
     from: 'packages/api/src/scripts/seed.ts',
@@ -724,7 +724,7 @@ const PROVIDER_IMPORT_ALLOWLIST: readonly { from: string; to: string; via: Modul
     from: 'packages/api/src/lib/__tests__/surface-capability.test.ts',
     to: 'packages/api/src/internal/providers/lib/alia-models',
     via: 'import',
-    why: 'Reads ALIA_MODELS to check the platform-capability map covers exactly the categories the alias set uses, in both directions (#139 ws5). An unmapped category is OFFERED to every surface, so a subset check would hide the gap. Test-only; retires when the catalogue moves to Relay.',
+    why: 'Reads ALIA_MODELS to check the platform-capability map covers exactly the categories the alias set uses, in both directions (#139 ws5). An unmapped category is OFFERED to every surface, so a subset check would hide the gap. Test-only; retires when the catalogue moves to Kaana.',
   },
   {
     from: 'packages/api/src/lib/routing/__tests__/model-selection.test.ts',
@@ -1106,9 +1106,9 @@ const EGRESS_HOSTS: readonly string[] = [
   'mcp.notion.com',
   'oauth2.googleapis.com',
   'openrouter.ai',
-  // #139 ws15, *"pin allowed Relay origins/endpoints"*: one of the two entries
+  // #139 ws15, *"pin allowed Kaana origins/endpoints"*: one of the two entries
   // in `lib/inference/kaana-endpoint.ts`'s allow-list, beside `api.oxy.so`
-  // above. It is a host this package NAMES and does not yet call — the Relay
+  // above. It is a host this package NAMES and does not yet call — the Kaana
   // transport does not exist — and it is here rather than exempted because
   // naming a host is exactly what this gate exists to make a reviewed diff.
   'relay.oxy.so',
@@ -1183,7 +1183,7 @@ describe('gate 2: no provider hostname outside its allowlist (ADR 0001)', () => 
      * The allowlist above says WHERE a provider hostname may appear. This says
      * that each of those places is also a MIGRATION ITEM, filed under the
      * workstream that removes it — workstream 7, *"Extract provider execution
-     * into Relay"*.
+     * into Kaana"*.
      *
      * The two drifted apart once, and that drift is the whole reason this
      * exists. `lib/provider-warmup.ts` opens TLS to seven provider hosts at
@@ -1760,7 +1760,7 @@ describe('gate 4: no provider secret reaches a public serializer (ADR 0001)', ()
   it('the plaintext credential is read in exactly two files, one of them product code', () => {
     // `lib/chat-core.ts:111` is that one: `getAIModel()` reads `keyConfig.key`
     // to construct an AI SDK provider. It is the product-side chokepoint the
-    // Relay client replaces, and it does not serialize — which the shape freeze
+    // Kaana client replaces, and it does not serialize — which the shape freeze
     // above is what proves.
     //
     // Was three until #141 deleted `internal/providers/routes/providers.ts`,
@@ -1943,7 +1943,7 @@ const OBJECT_KIND_EMITTERS: Readonly<Record<string, readonly string[]>> = {
     // the same way `response-shapes.test.ts` does for `chat.completion`.
     'packages/api/src/lib/__tests__/streaming-helpers.test.ts',
     'packages/api/src/lib/chat/provider-loop.ts',
-    // The Relay client's dialect adapter (#139 workstream 3) and its suite. This
+    // The Kaana client's dialect adapter (#139 workstream 3) and its suite. This
     // is the direction the list is SUPPOSED to move: the five entries above
     // construct the OpenAI wire shape in five separate places, and the adapter
     // is the one place it will be constructed after the cutover. It joins the
@@ -2653,7 +2653,7 @@ describe('gate 5: models versus routing profiles (ADR 0003 invariant 1)', () => 
 
 /**
  * #139 workstream 15: *"Remove provider API keys from Alia deployment
- * environments after Relay cutover."*
+ * environments after Kaana cutover."*
  *
  * ## Why this gate exists even though the property already held
  *
@@ -2663,7 +2663,7 @@ describe('gate 5: models versus routing profiles (ADR 0003 invariant 1)', () => 
  * recorded the thing that matters more than the finding: **adding
  * `process.env.OPENAI_API_KEY` to any source file failed nothing.** A property
  * that nothing enforces is a property that holds until the next PR, and this one
- * is load-bearing for the whole migration — the point of routing through Relay
+ * is load-bearing for the whole migration — the point of routing through Kaana
  * is that Alia stops holding upstream credentials.
  *
  * Upstream credentials live in the `provider_keys` table, which is gate 4's
@@ -2919,7 +2919,7 @@ const INDIRECT_ENV_READERS: readonly { file: string; namesFrom: string; resolver
   {
     file: 'packages/api/src/lib/inference/kaana-boot-check.ts',
     namesFrom: 'packages/api/src/lib/inference/kaana-boot-check.ts',
-    resolver: 'The `RELAY_PRINCIPAL_ENV` map: five contract fields, five variables.',
+    resolver: 'The `KAANA_PRINCIPAL_ENV` map: five contract fields, five variables.',
   },
   {
     file: 'packages/api/src/lib/inference/kaana.ts',
@@ -2931,17 +2931,17 @@ const INDIRECT_ENV_READERS: readonly { file: string; namesFrom: string; resolver
     file: 'packages/api/src/lib/inference/kaana-catalogue.ts',
     namesFrom: 'packages/api/src/lib/inference/kaana-transport.ts',
     resolver:
-      'The same two edge-key constants, plus `RELAY_PRINCIPAL_ENV.environment`: the catalogue is fetched over the same signature scheme as an inference envelope, so it reads the same names rather than inventing a second way to be configured.',
+      'The same two edge-key constants, plus `KAANA_PRINCIPAL_ENV.environment`: the catalogue is fetched over the same signature scheme as an inference envelope, so it reads the same names rather than inventing a second way to be configured.',
   },
   {
     file: 'packages/api/src/lib/inference/kaana-cutover.ts',
     namesFrom: 'packages/api/src/lib/inference/kaana-cutover.ts',
-    resolver: 'The `RELAY_CLIENT_ENABLED_ENV` constant: the migration flag (#139 ws8).',
+    resolver: 'The `KAANA_CLIENT_ENABLED_ENV` constant: the migration flag (#139 ws8).',
   },
   {
     file: 'packages/api/src/lib/inference/kaana-endpoint.ts',
     namesFrom: 'packages/api/src/lib/inference/kaana-endpoint.ts',
-    resolver: 'The `RELAY_BASE_URL_ENV` constant: the pinned endpoint (#139 ws15).',
+    resolver: 'The `KAANA_BASE_URL_ENV` constant: the pinned endpoint (#139 ws15).',
   },
   {
     file: 'packages/api/src/lib/inference/direct-provider-guard.ts',
@@ -2952,7 +2952,7 @@ const INDIRECT_ENV_READERS: readonly { file: string; namesFrom: string; resolver
   {
     file: 'packages/api/src/lib/inference/kaana-credential.ts',
     namesFrom: 'packages/api/src/lib/inference/kaana-credential.ts',
-    resolver: 'The `RELAY_CREDENTIAL_ENV` map and `OXY_API_URL_ENV` (#139 ws2).',
+    resolver: 'The `KAANA_CREDENTIAL_ENV` map and `OXY_API_URL_ENV` (#139 ws2).',
   },
   {
     file: 'packages/api/src/lib/integration-token.ts',
@@ -3902,9 +3902,9 @@ describe('gate 9: no origin allowlist admits an opaque origin (#139 ws15)', () =
       'https://console.alia.onl',
     ]);
     // An egress allowlist rather than a CORS one, and the same property: an
-    // opaque entry there matches every custom scheme a relay endpoint could be
+    // opaque entry there matches every custom scheme a Kaana endpoint could be
     // pointed at.
-    expect(list('packages/api/src/lib/inference/kaana-endpoint.ts', 'RELAY_ALLOWED_ORIGINS')).toEqual([
+    expect(list('packages/api/src/lib/inference/kaana-endpoint.ts', 'KAANA_ALLOWED_ORIGINS')).toEqual([
       'https://api.oxy.so',
       'https://relay.oxy.so',
     ]);

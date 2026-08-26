@@ -42,7 +42,7 @@
  *  - operator and audit surfaces — logs, `fallback_events`, the admin console,
  *    `provider_keys.last_failure_reason`. An operator asking "which deployment
  *    failed" is asking the question the concealment would erase;
- *  - anything crossing the Relay contract, whose `providerError.provider` field
+ *  - anything crossing the Kaana contract, whose `providerError.provider` field
  *    is REQUIRED to carry a real provider slug;
  *  - the caller's own input echoed back to them. It is theirs; it reveals
  *    nothing about Alia's routing. Such an echo takes {@link redactUnsafeDetail}
@@ -264,7 +264,7 @@ export function redactUnsafeDetail(text: string): string {
  * surface.
  *
  * Do not reach for this on a catalogue, an audit record, a log line or anything
- * crossing the Relay contract. Those surfaces are required to name what they
+ * crossing the Kaana contract. Those surfaces are required to name what they
  * are talking about; the module header lists them.
  */
 export function sanitizeMessage(text: string): string {

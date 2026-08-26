@@ -104,7 +104,7 @@ measured was not the thing claimed.*
 The last one generalises further than its instance, and that is why it matters most: **`src/index.ts`
 is asserted only by source text, because nothing imports it** — it opens a socket, arms timers and
 connects a database at import. So *every* boot-path guard in this epic shares that shape and none of
-them can see a negation. The escape is the one `relay-boot-check.ts` already took: put the decision
+them can see a negation. The escape is the one `kaana-boot-check.ts` already took: put the decision
 in a **function** a test can call with an environment, and leave `index.ts` holding only the log line
 and the exit.
 
@@ -114,7 +114,7 @@ and the exit.
 | **L454** *"never expose stored hashes as replacement secrets"* | The `mutation` named a guard that does not cover it: gate 4's response census (`architectureGates.test.ts:1342`) matches the identifier `keyConfig`, **not** `keyHash`. Putting `keyHash` in a `res.json` argument would not fire it. | There is **no guard for this direction**. The property holds by absence, and the row now says that instead of naming a gate. |
 | **L522** *"Remove provider API keys from Alia deployment environments"* | Unchanged in substance, but #164 added `direct-provider-guard.ts` with a `PROVIDER_CREDENTIAL_ENV` list, which reads like a guard. | It is **green and inert**: `directProviderModeFailure` returns `null` immediately unless `ALIA_RELAY_CLIENT_ENABLED` is exactly `true`, and no deployment sets it. The property still holds by absence. |
 | **L459** *"Remove duplicate app/key/usage frontend stores and screens"* | The deliverable said to keep "rotate and revoke". **Rotation has never existed on `/developer`** — its `PATCH` covers name, scopes, the active flag and rate limits only, and the one path that ever replaced a secret was `POST /auth/token`, closed by #160. | Keep **revoke** only. #160 corrected the identical false claim at `compatibility-window.md:111`. |
-| **L212** *"Support tools, structured output, vision, …"* | Line references went stale when #164 moved `violatedCapability`, and the row did not name an entrypoint. | `relay-request.ts:340`, and **`relay-client.ts:931` calls it** — wired within the client, though the client itself is still frozen out of the product graph. |
+| **L212** *"Support tools, structured output, vision, …"* | Line references went stale when #164 moved `violatedCapability`, and the row did not name an entrypoint. | `kaana-request.ts:340`, and **`kaana-client.ts:931` calls it** — wired within the client, though the client itself is still frozen out of the product graph. |
 | **L475** *"free/promotional usage is still cost-attributed internally"* | Said free usage *"does write a `cost_entries` row, so cost attribution exists"*. **It does not.** `recordCost` (`cost-tracker.ts:141`) is the only wrapper of `insertCostEntry` and has **zero non-test callers**, so nothing is cost-attributed on the token-metered paths at all — free or paid — and `cost_entries` is empty in production. Measured by the workstream 12 agent, not by this audit | #175 landed `grant_kind` on `cost_entries` and `voice_call_usage` and wired the **voice** settlement; the token paths remain unattributed, held by a standing assertion in `billingSeparation.test.ts` that goes red the day `recordCost` gains a caller |
 | **L618** *"land shared contracts"* | Residual called the `0.29.0` bump additive | **It is breaking.** `0.29.0` widens `INFERENCE_ERROR_CODES` and the finish reasons, and `packages/api` holds exhaustive `Record`s over both — `tsc` failed in three places and two exact-count floors moved 26 → 28. Landed in #175 |
 | **L468** *"audit every plan, credit, subscription and transaction path"* | Said no path audit existed | `inventories/billing-paths.json` — 26 writers over 7 tables, every caller, three-way ADR-0005 classification, set-equality-asserted by `billingSeparation.test.ts:511` |
@@ -240,15 +240,15 @@ their own evidence, so they are the likeliest to fail it next.
 ## The cutover: what it would take in production today
 
 **It cannot be flipped today, and Relay is not why.** The ten variables the boot check demands were
-read off the code rather than off a summary — `relay-cutover.ts`, `relay-boot-check.ts`
-(`RELAY_PRINCIPAL_ENV`), `relay-credential.ts` (`RELAY_CREDENTIAL_REQUIRED_ENV`) and
-`relay-endpoint.ts`:
+read off the code rather than off a summary — `kaana-cutover.ts`, `kaana-boot-check.ts`
+(`RELAY_PRINCIPAL_ENV`), `kaana-credential.ts` (`RELAY_CREDENTIAL_REQUIRED_ENV`) and
+`kaana-endpoint.ts`:
 
 `ALIA_RELAY_CLIENT_ENABLED`, `ALIA_RELAY_ACCOUNT_ID`, `ALIA_RELAY_APPLICATION_ID`,
 `ALIA_RELAY_CREDENTIAL_ID`, `ALIA_RELAY_CREDENTIAL_KEY`, `ALIA_RELAY_CREDENTIAL_SECRET`,
 `ALIA_RELAY_ENVIRONMENT`, `ALIA_RELAY_INFERENCE_SCOPES`, `RELAY_BASE_URL`, `OXY_API_URL`.
 
-**Ten, not nine** — `relay-boot-check.ts` folds `relay-credential.ts`'s three into the same refusal
+**Ten, not nine** — `kaana-boot-check.ts` folds `kaana-credential.ts`'s three into the same refusal
 sentence, and one of those three is `OXY_API_URL`. Task definition `oxy-alia:105` carries exactly
 **one** of them, `OXY_API_URL`.
 
@@ -270,7 +270,7 @@ the service points at it. **oxy-infra PR #74, which declares that route in Terra
 of it.** The Oxy → Relay hop reported live above reached production by hand.
 
 Per-variable mechanism, the arming order, the rollback interaction and the verification steps are
-[`docs/runbooks/relay-cutover.md`](../runbooks/relay-cutover.md); the machine-readable form is
+[`docs/runbooks/kaana-cutover.md`](../runbooks/kaana-cutover.md); the machine-readable form is
 `blockers.cutover.delivery`. The short version: **two of the ten are secrets and have a durable CI
 path** (`TASK_SECRET_OVERRIDES_JSON`, which Mention already uses and Alia does not set); **seven are
 plain and have no CI path at all**, because the script touches `.environment` for exactly one name;
@@ -280,7 +280,7 @@ open with `if (!isRelayClientEnabled(env)) return null;`, so the other nine are 
 Five things are missing. One is Alia code, three are operator actions, and the fifth is nobody's in
 this repository:
 
-1. **A concrete `RelayTransport`.** None exists. `relay-client.ts:203` declares the interface and its
+1. **A concrete `RelayTransport`.** None exists. `kaana-client.ts:203` declares the interface and its
    own docstring says the client *"ships no HTTP transport"*; a repo-wide search finds implementations
    only under `__tests__`. This was the right call while there was no endpoint — *"inventing a base
    URL now produces a client whose first real test is production"* — and that argument has expired.
@@ -340,8 +340,8 @@ reading the checkbox.
 | box | guard, and the entrypoint that calls it | mutation that turns it red |
 | --- | --- | --- |
 | **L338 Cerebras** *(re-audit)* | **partial, and weaker than it looks.** `internal/provider/openaicompat` serves it and *is* guarded by Relay CI's conformance run; but the `knownProviders` entry (`cmd/relay/main.go:337`) is referenced by **no** `_test.go`, and `RELAY_PROVIDERS=cerebras` on `oxy-relay:2` is deployment config no repository asserts | **PROPOSED.** Delete the `"cerebras"` entry from `knownProviders` → startup fails `RELAY_PROVIDER_CEREBRAS_PROTOCOL is required` (`main.go:412`). **Note what this does not cover:** drop `cerebras` from `RELAY_PROVIDERS` instead and the box becomes false with nothing going red anywhere |
-| **L540 Pin allowed Relay origins** *(ticked earlier)* | `relay-endpoint.ts` `RELAY_ALLOWED_ORIGINS`, fail-closed through `relayBootConfigurationFailure` | unchanged. The re-audit adds only the measurement that one of the two pinned origins is currently unusable by Alia |
-| L212 tools/structured output/vision/… **(ticked since)** | `relay-request.ts:340` (moved by #164), called by `relay-client.ts:931` | replacing the tools condition with `false` failed `relay-request.test.ts:357` — measured, 1 failed / 25 passed |
+| **L540 Pin allowed Relay origins** *(ticked earlier)* | `kaana-endpoint.ts` `RELAY_ALLOWED_ORIGINS`, fail-closed through `relayBootConfigurationFailure` | unchanged. The re-audit adds only the measurement that one of the two pinned origins is currently unusable by Alia |
+| L212 tools/structured output/vision/… **(ticked since)** | `kaana-request.ts:340` (moved by #164), called by `kaana-client.ts:931` | replacing the tools condition with `false` failed `relay-request.test.ts:357` — measured, 1 failed / 25 passed |
 | L454 never expose stored hashes as replacement secrets | **no guard.** Holds by absence: no route returns the column, and `routes/developer.ts:224` shows the plaintext once at creation | **none.** The audit named gate 4's response census; that census matches `keyConfig`, **not** `keyHash`, so it would not fire. Corrected above |
 | L522 no provider API key in a deployment environment | **no guard.** Holds by absence — see premise (d). #164's `direct-provider-guard.ts` names provider credentials but is armed only by `ALIA_RELAY_CLIENT_ENABLED`, which no deployment sets | none. Adding `process.env.OPENAI_API_KEY` to any source file still fails nothing |
 | L618 land shared contracts | `packages/api/package.json:34` plus **eleven** importing modules | remove the dependency → `bun run --filter @alia/api typecheck` fails on eleven files |
@@ -355,7 +355,7 @@ developer-key columns, written alongside the re-issue endpoint that would need i
 
 **The two load-bearing rows above were mutation-tested, not asserted.** Baseline: both suites green,
 70 tests. Replacing `payload.tools.length > 0 && !capabilities.tools` with `false` in
-`relay-request.ts:219` failed `relay-request.test.ts:357` (1 failed, 25 passed). Replacing
+`kaana-request.ts:219` failed `relay-request.test.ts:357` (1 failed, 25 passed). Replacing
 `entry.kind === 'model'` with `true` in `routes/catalogue.ts:122` failed two gate 5 assertions —
 `architectureGates.test.ts:1553` (the fan-out biconditional) and `:1599` (disagreement with
 `alias-migration-map.json`, naming all thirteen aliases). Both files were then restored in place and
@@ -719,8 +719,8 @@ stale blocker costs more than an open one.
 inference module was unpublished and that *"Alia adds no `@oxyhq/contracts` dependency in this
 workstream"*. Both halves have changed. `packages/api/package.json:34` depends on `^0.27.0`; the
 installed `0.27.0` ships twelve inference modules under `dist/types/inference/`; and **eleven Alia
-modules import them** — the five under `lib/inference/` (`relay-client.ts:64`, `relay-request.ts:35`,
-`relay-error.ts:30`, `relay-openai-adapter.ts:32`, `relay-boot-check.ts:54`) and six of their test
+modules import them** — the five under `lib/inference/` (`kaana-client.ts:64`, `kaana-request.ts:35`,
+`kaana-error.ts:30`, `relay-openai-adapter.ts:32`, `kaana-boot-check.ts:54`) and six of their test
 suites. A twelfth file matches the grep and is not an importer: `product-seam.test.ts:166` quotes the
 specifier inside a string, testing that its own scanner ignores a commented-out import. That makes
 L618 (*"Land shared contracts"*) `ALREADY_TRUE`.

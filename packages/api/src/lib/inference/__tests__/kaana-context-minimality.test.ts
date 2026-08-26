@@ -5,20 +5,20 @@ import { inferenceRequestSchema, type InferenceRequest, type RoutingTarget } fro
 
 import type { AliaInferenceCall, AliaInferenceContext } from '../product-seam.js';
 import {
-  createRelayInferenceClient,
-  type RelayServiceCredential,
-  type RelayTransport,
-  type RelayTransportRequest,
+  createKaanaInferenceClient,
+  type KaanaServiceCredential,
+  type KaanaTransport,
+  type KaanaTransportRequest,
 } from '../kaana-client.js';
-import { assertAllowedRelayOrigin } from '../kaana-endpoint.js';
-import { ALIA_SURFACE_LABEL, type RelayRequestPayload } from '../kaana-request.js';
+import { assertAllowedKaanaOrigin } from '../kaana-endpoint.js';
+import { ALIA_SURFACE_LABEL, type KaanaRequestPayload } from '../kaana-request.js';
 
-/** An approved Relay origin, branded through the one function that produces one. */
-const ENDPOINT = assertAllowedRelayOrigin('https://api.oxy.so', 'development');
+/** An approved Kaana origin, branded through the one function that produces one. */
+const ENDPOINT = assertAllowedKaanaOrigin('https://api.oxy.so', 'development');
 
 /**
- * What Alia sends to Relay, and what it keeps — epic #139 workstream 13,
- * "Ensure Relay only receives the context required for the inference request"
+ * What Alia sends to Kaana, and what it keeps — epic #139 workstream 13,
+ * "Ensure Kaana only receives the context required for the inference request"
  * and "Keep tool execution in Alia".
  *
  * ## The question, and why the key set is the honest form of it
@@ -46,24 +46,24 @@ const ENDPOINT = assertAllowedRelayOrigin('https://api.oxy.so', 'development');
 /*  Harness: the smallest client that will send one request                    */
 /* -------------------------------------------------------------------------- */
 
-class CapturingTransport implements RelayTransport {
-  readonly sent: RelayTransportRequest[] = [];
+class CapturingTransport implements KaanaTransport {
+  readonly sent: KaanaTransportRequest[] = [];
 
-  send(input: RelayTransportRequest): Promise<AsyncIterable<unknown>> {
+  send(input: KaanaTransportRequest): Promise<AsyncIterable<unknown>> {
     this.sent.push(input);
     return Promise.resolve(
       (async function* () {
         yield {
           schemaVersion: 1,
           type: 'error',
-          requestId: 'relay-req-1',
+          requestId: 'kaana-req-1',
           sequence: 0,
           error: {
             schemaVersion: 1,
             code: 'internal_error',
             message: 'the transport only exists to be read',
             retryable: false,
-            requestId: 'relay-req-1',
+            requestId: 'kaana-req-1',
           },
         };
       })(),
@@ -71,7 +71,7 @@ class CapturingTransport implements RelayTransport {
   }
 }
 
-const CREDENTIAL: RelayServiceCredential = {
+const CREDENTIAL: KaanaServiceCredential = {
   getServiceToken: () => Promise.resolve('oxy-service-token'),
   invalidateServiceToken: () => undefined,
 };
@@ -82,9 +82,9 @@ const DEFAULT_TARGET: RoutingTarget = { kind: 'routing_profile', routingProfile:
  * The context the PRODUCT is holding when it calls the seam.
  *
  * Every field here is real Alia state at the moment of an inference call, and
- * none of it is Relay's business — which is the whole assertion.
+ * none of it is Kaana's business — which is the whole assertion.
  */
-const CONVERSATION_ID = 'conv-ws13-not-relays-business';
+const CONVERSATION_ID = 'conv-ws13-not-kaanas-business';
 
 function context(over: Partial<AliaInferenceContext> = {}): AliaInferenceContext {
   return {
@@ -103,7 +103,7 @@ function context(over: Partial<AliaInferenceContext> = {}): AliaInferenceContext
 /** A prompt whose SYSTEM message already carries the recalled memory, as the route assembles it. */
 const SYSTEM_TEXT = '## Recalled Memories\n- Coffee: Prefers oat milk.';
 
-function payload(over: Partial<RelayRequestPayload> = {}): RelayRequestPayload {
+function payload(over: Partial<KaanaRequestPayload> = {}): KaanaRequestPayload {
   return {
     modality: 'text',
     input: {
@@ -121,10 +121,10 @@ function payload(over: Partial<RelayRequestPayload> = {}): RelayRequestPayload {
 }
 
 async function sendOnce(
-  call: AliaInferenceCall<RelayRequestPayload>,
+  call: AliaInferenceCall<KaanaRequestPayload>,
 ): Promise<{ request: InferenceRequest; raw: string }> {
   const transport = new CapturingTransport();
-  const client = createRelayInferenceClient({
+  const client = createKaanaInferenceClient({
     enabled: true,
     transport,
     credential: CREDENTIAL,
@@ -250,14 +250,14 @@ describe('the product state the seam is holding does not travel', () => {
 
   it('strips product fields a caller attached to the payload', async () => {
     /**
-     * Reachable by ordinary means: `RelayRequestPayload` is derived by
+     * Reachable by ordinary means: `KaanaRequestPayload` is derived by
      * subtraction from the contract type, so a product module assembling one
      * from a wider object literal — the shape a route naturally has — carries
      * whatever else was on that object. The envelope is PARSED rather than cast
      * (`kaana-request.ts:114`), so the extra fields are dropped at the boundary;
      * a build that switched to a cast or a post-parse spread would send them.
      */
-    const contaminated: RelayRequestPayload & Record<string, unknown> = {
+    const contaminated: KaanaRequestPayload & Record<string, unknown> = {
       ...payload(),
       conversationId: CONVERSATION_ID,
       recalledMemories: [{ title: 'Coffee', summary: 'Prefers oat milk.' }],
@@ -307,7 +307,7 @@ describe('a tool crosses the boundary as a declaration, never as something runna
   it('cannot express an executable, because the contract refuses one', () => {
     // Structural rather than conventional: the tool declaration is a STRICT
     // object, so a payload smuggling a callable is an `invalid_request` at the
-    // boundary rather than a request Relay would be asked to run.
+    // boundary rather than a request Kaana would be asked to run.
     const parsed = inferenceRequestSchema.safeParse({
       schemaVersion: 1,
       attribution: {
@@ -360,13 +360,13 @@ describe('a tool crosses the boundary as a declaration, never as something runna
   });
 
   /**
-   * The static half. `kaana-boundary.test.ts` already freezes that the relay
+   * The static half. `kaana-boundary.test.ts` already freezes that the Kaana
    * modules name no provider tree, no gateway seam and no `ai` — which is the
    * SDK a tool would be executed by. What is added here is Alia's own tool
-   * layer: a relay module that imported `lib/tools` or the tool pipeline would
-   * be a relay module that could run one.
+   * layer: a Kaana module that imported `lib/tools` or the tool pipeline would
+   * be a Kaana module that could run one.
    */
-  it('no relay module reaches for Alia\'s tool layer', () => {
+  it('no Kaana module reaches for Alia\'s tool layer', () => {
     const dir = path.resolve(import.meta.dirname, '..');
     const files = fs.readdirSync(dir).filter((name) => name.endsWith('.ts'));
     expect(files.length).toBeGreaterThanOrEqual(4);

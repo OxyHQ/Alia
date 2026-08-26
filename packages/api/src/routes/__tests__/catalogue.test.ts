@@ -53,7 +53,7 @@ interface FixtureMapping {
   pricingTier: string;
   capabilities: Record<string, unknown>;
   /**
-   * The two facts a Relay deployment carries and no route in this repository
+   * The two facts a Kaana deployment carries and no route in this repository
    * does. Absent by default, exactly as production is, so a fixture that sets
    * either is the only place the consumption is exercised — and the response's
    * own `filters.availability_scope.declared_routes` distinguishes the two
@@ -596,7 +596,7 @@ describe('a route whose availability scope does not admit the caller is withheld
   /**
    * The whole group is driven from FIXTURE scopes, because no route in this
    * repository declares one — an availability scope is a property of a
-   * deployment in the Oxy catalogue and Relay does not exist yet. Written
+   * deployment in the Oxy catalogue and Kaana does not exist yet. Written
    * against production data every assertion below would pass vacuously, which
    * is why the first test is about the count that tells the two states apart.
    */
@@ -625,7 +625,7 @@ describe('a route whose availability scope does not admit the caller is withheld
   });
 
   it('counts routes, never entries withheld from the caller', async () => {
-    // The report says whether Relay has classified anything. It must not say
+    // The report says whether Kaana has classified anything. It must not say
     // how many entries the caller may not have: that is a count of what Alia
     // operates and does not sell, and it is a step toward locating an internal
     // deployment — the disclosure `internal-only-access.test.ts` exists to stop.
@@ -820,7 +820,7 @@ describe('the catalogue is filtered by what the calling surface can be offered',
     // The stub this epic keeps hitting would be `region: { applied: true,
     // withheld_entries: 0 }`, which no caller could tell from a working filter.
     const { body } = await get('/catalogue');
-    expect(body.filters?.region).toEqual({ applied: false, delegated_to: 'relay' });
+    expect(body.filters?.region).toEqual({ applied: false, delegated_to: 'kaana' });
   });
 });
 

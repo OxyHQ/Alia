@@ -32,7 +32,7 @@ import type {
 } from '@oxyhq/contracts';
 
 import { CHAT_EVENT_VERSION } from '../chat-events.js';
-import type { RelayRequestPayload } from './kaana-request.js';
+import type { KaanaRequestPayload } from './kaana-request.js';
 
 /* -------------------------------------------------------------------------- */
 /*  The dialect                                                               */
@@ -153,7 +153,7 @@ const DATA_URL = /^data:([^;,]+);base64,(.*)$/;
  * The distinction is the contract's (`inferenceContentSourceSchema`) and it is
  * not cosmetic: an inline part is bytes the customer already sent, while a URL
  * is a fetch the data plane performs on their behalf. Handing a `data:` URL to
- * the `url` branch would ask Relay to fetch a scheme it has no business
+ * the `url` branch would ask Kaana to fetch a scheme it has no business
  * fetching.
  */
 function contentSource(url: string): InferenceContentSource {
@@ -244,13 +244,13 @@ function normalizedResponseFormat(format: OpenAIResponseFormat): InferenceReques
  * contract's list.
  *
  * `stream` is absent from the result on purpose: whether the wire streams is the
- * Relay client's, and a caller asking for `stream: false` gets a folded
+ * Kaana client's, and a caller asking for `stream: false` gets a folded
  * completion rather than a different request.
  */
 export function fromChatCompletionsRequest(
   body: OpenAIChatCompletionsRequest,
   options: { readonly clientRequestId?: string; readonly labels?: Record<string, string> } = {},
-): RelayRequestPayload {
+): KaanaRequestPayload {
   const maxOutputTokens = body.max_completion_tokens ?? body.max_tokens;
   const stopSequences =
     body.stop === undefined ? undefined : typeof body.stop === 'string' ? [body.stop] : [...body.stop];

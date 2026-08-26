@@ -1,6 +1,6 @@
 /**
  * The boot-time refusal — epic #139 workstream 2, *"Add startup validation that
- * production cannot boot without valid Oxy/Relay configuration once the
+ * production cannot boot without valid Oxy/Kaana configuration once the
  * migration flag is enabled."*
  *
  * ## Why this is a separate module and not four lines in `src/index.ts`
@@ -23,7 +23,7 @@
  * so that wiring the client in is a reviewed diff rather than an accident.
  * Putting the check there would put `src/index.ts` on that list, which is the
  * one entry the freeze exists to keep off it. Nothing here constructs a
- * {@link import('./kaana-client.js').RelayInferenceClient}, opens a transport or
+ * {@link import('./kaana-client.js').KaanaInferenceClient}, opens a transport or
  * mints a token; it reads nine environment variables, asks the contract whether
  * five of them describe a principal, checks the base URL against the pinned
  * origins, and asks whether the last three are set at all.
@@ -42,7 +42,7 @@
  * already inside `assertPrincipalMatchesDeployment`: that function returns early
  * on a development process, precisely so a local run may point at whichever
  * environment the engineer configured. Adding an independent `NODE_ENV` gate on
- * top would mean a STAGING task with unusable Relay configuration boots happily
+ * top would mean a STAGING task with unusable Kaana configuration boots happily
  * and fails on live traffic, which is the failure this checkbox exists to
  * prevent. The shape rules are therefore enforced wherever the flag is on, and
  * the environment-match rule keeps the client's own relaxation.
@@ -57,30 +57,42 @@ import { authenticatedPrincipalSchema } from '@oxyhq/contracts';
 import {
   assertPrincipalMatchesDeployment,
   resolveDeploymentEnvironment,
-  type RelayPrincipalConfig,
+  type KaanaPrincipalConfig,
 } from './kaana-client.js';
-import { unsetRelayCredentialVariables } from './kaana-credential.js';
-import { isRelayClientEnabled } from './kaana-cutover.js';
-import { RELAY_BASE_URL_ENV, resolveRelayEndpoint } from './kaana-endpoint.js';
+import { unsetKaanaCredentialVariables } from './kaana-credential.js';
+import { isKaanaClientEnabled } from './kaana-cutover.js';
+import { KAANA_BASE_URL_ENV, resolveKaanaEndpoint } from './kaana-endpoint.js';
 
 /**
  * Which environment variable carries each field of the contract's principal.
  *
- * `satisfies Record<keyof RelayPrincipalConfig, string>` is load-bearing: a
+ * `satisfies Record<keyof KaanaPrincipalConfig, string>` is load-bearing: a
  * field added to `authenticatedPrincipalSchema` upstream becomes a COMPILE error
- * here rather than a field this check silently never reads. `RelayPrincipalConfig`
+ * here rather than a field this check silently never reads. `KaanaPrincipalConfig`
  * is `z.input` of that schema, so the two cannot drift.
+ *
+ * **The variable NAMES still say `RELAY`, and that is not an oversight.** Kaana
+ * shipped under the working name Relay, and every one of these names is set by
+ * the LIVE ECS task definition, which `deploy-aws.yml` re-renders from the
+ * running one rather than declaring it whole. Renaming a name here without
+ * renaming it there makes the read return `undefined` and the behaviour change
+ * in silence; renaming it in both leaves BOTH spellings in the task definition,
+ * because the render merges and never removes. So the rename is an
+ * infrastructure change, carried out on the task definition and on the two
+ * GitHub repo secrets that feed SSM, and it is deliberately not made here. Gate
+ * 6 in `__tests__/architectureGates.test.ts` freezes these names, so a
+ * unilateral rename goes red rather than shipping.
  */
-export const RELAY_PRINCIPAL_ENV = {
+export const KAANA_PRINCIPAL_ENV = {
   billing: 'ALIA_RELAY_ACCOUNT_ID',
   applicationId: 'ALIA_RELAY_APPLICATION_ID',
   credentialId: 'ALIA_RELAY_CREDENTIAL_ID',
   environment: 'ALIA_RELAY_ENVIRONMENT',
   inferenceScopes: 'ALIA_RELAY_INFERENCE_SCOPES',
-} as const satisfies Record<keyof RelayPrincipalConfig, string>;
+} as const satisfies Record<keyof KaanaPrincipalConfig, string>;
 
 /** Field name -> variable name, for turning a zod issue path into something to set. */
-const ENV_BY_FIELD: Readonly<Record<string, string | undefined>> = RELAY_PRINCIPAL_ENV;
+const ENV_BY_FIELD: Readonly<Record<string, string | undefined>> = KAANA_PRINCIPAL_ENV;
 
 /**
  * Why this process must not start, or `null` when it may.
@@ -95,10 +107,10 @@ const ENV_BY_FIELD: Readonly<Record<string, string | undefined>> = RELAY_PRINCIP
  * environment, because "the flag-off path is unchanged" is the whole reason this
  * is safe to land before the cutover.
  */
-export function relayBootConfigurationFailure(
+export function kaanaBootConfigurationFailure(
   env: NodeJS.ProcessEnv = process.env,
 ): string | null {
-  if (!isRelayClientEnabled(env)) return null;
+  if (!isKaanaClientEnabled(env)) return null;
 
   /**
    * Unset variables first, and ALL of them, before anything is parsed.
@@ -125,21 +137,21 @@ export function relayBootConfigurationFailure(
    * 2, *"Configure short-lived Oxy service-token exchange"*).
    */
   const unset = [
-    ...[...Object.values(RELAY_PRINCIPAL_ENV), RELAY_BASE_URL_ENV].filter(
+    ...[...Object.values(KAANA_PRINCIPAL_ENV), KAANA_BASE_URL_ENV].filter(
       (variable) => (env[variable] ?? '').trim().length === 0,
     ),
-    ...unsetRelayCredentialVariables(env),
+    ...unsetKaanaCredentialVariables(env),
   ].sort();
   if (unset.length > 0) {
-    return `the Relay client is enabled but these variables are not set: ${unset.join(', ')}`;
+    return `the Kaana client is enabled but these variables are not set: ${unset.join(', ')}`;
   }
 
   /**
    * Where it may send, before who it says it is.
    *
    * `RELAY_BASE_URL` is checked against
-   * {@link import('./kaana-endpoint.js').RELAY_ALLOWED_ORIGINS} here — #139
-   * workstream 15's *"pin allowed Relay origins/endpoints"* — and this is the
+   * {@link import('./kaana-endpoint.js').KAANA_ALLOWED_ORIGINS} here — #139
+   * workstream 15's *"pin allowed Kaana origins/endpoints"* — and this is the
    * FAIL-CLOSED half of it: a production task whose base URL was mistyped, or
    * whose SSM parameter was replaced, does not start. The alternative is a task
    * that starts and sends a service credential and a user's prompt to whatever
@@ -149,16 +161,16 @@ export function relayBootConfigurationFailure(
    * and of the two, "you are pointed at the wrong host" is the one an operator
    * must not act on a partial answer about.
    */
-  const endpoint = resolveRelayEndpoint(env, resolveDeploymentEnvironment(env));
+  const endpoint = resolveKaanaEndpoint(env, resolveDeploymentEnvironment(env));
   if (endpoint.kind === 'refused') return endpoint.reason;
 
   const parsed = authenticatedPrincipalSchema.safeParse({
-    billing: { accountId: env[RELAY_PRINCIPAL_ENV.billing] },
-    applicationId: env[RELAY_PRINCIPAL_ENV.applicationId],
-    credentialId: env[RELAY_PRINCIPAL_ENV.credentialId],
-    environment: env[RELAY_PRINCIPAL_ENV.environment],
+    billing: { accountId: env[KAANA_PRINCIPAL_ENV.billing] },
+    applicationId: env[KAANA_PRINCIPAL_ENV.applicationId],
+    credentialId: env[KAANA_PRINCIPAL_ENV.credentialId],
+    environment: env[KAANA_PRINCIPAL_ENV.environment],
     // A list, because `inferenceScopes` is one.
-    inferenceScopes: (env[RELAY_PRINCIPAL_ENV.inferenceScopes] ?? '')
+    inferenceScopes: (env[KAANA_PRINCIPAL_ENV.inferenceScopes] ?? '')
       .split(',')
       .map((scope) => scope.trim())
       .filter((scope) => scope.length > 0),
@@ -174,7 +186,7 @@ export function relayBootConfigurationFailure(
         ),
       ),
     ].sort();
-    return `the Relay client is enabled and these variables hold values the contract rejects: ${offenders.join(', ')}`;
+    return `the Kaana client is enabled and these variables hold values the contract rejects: ${offenders.join(', ')}`;
   }
 
   try {
@@ -195,7 +207,7 @@ export function relayBootConfigurationFailure(
      * break silently the next time the wording changed.
      */
     const message = cause instanceof Error ? cause.message : String(cause);
-    return `${message} — check ${RELAY_PRINCIPAL_ENV.inferenceScopes} and ${RELAY_PRINCIPAL_ENV.environment}`;
+    return `${message} — check ${KAANA_PRINCIPAL_ENV.inferenceScopes} and ${KAANA_PRINCIPAL_ENV.environment}`;
   }
 
   return null;

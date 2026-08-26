@@ -55,7 +55,7 @@ import type {
 
 import { getKaanaClient } from './kaana.js';
 import type { AliaInferenceContext, AliaInferenceSurface } from './product-seam.js';
-import type { RelayRequestPayload } from './kaana-request.js';
+import type { KaanaRequestPayload } from './kaana-request.js';
 
 /** One text block per response, because the contract streams one channel of it. */
 const TEXT_BLOCK_ID = 'kaana-text';
@@ -406,7 +406,7 @@ function contextFor(options: KaanaModelOptions): AliaInferenceContext {
 function payloadFor(
   options: LanguageModelV3CallOptions,
   translation: Translation,
-): RelayRequestPayload {
+): KaanaRequestPayload {
   const responseFormat = toResponseFormat(options.responseFormat);
   return {
     modality: 'text',

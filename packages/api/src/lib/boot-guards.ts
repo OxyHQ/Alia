@@ -43,7 +43,7 @@
 
 import { connectPostgres } from '../db/index.js';
 import { assertDirectProviderModeOrExit } from './inference/direct-provider-guard.js';
-import { relayBootConfigurationFailure } from './inference/kaana-boot-check.js';
+import { kaanaBootConfigurationFailure } from './inference/kaana-boot-check.js';
 import { installProviderEgressBlock } from './inference/provider-egress-policy.js';
 
 /** The exit code every refusal here uses. */
@@ -67,7 +67,7 @@ export interface BootGuardDeps {
  *
  * The order is the order these statements have always had in `src/index.ts` and
  * it is load-bearing in one direction: the database is required by everything,
- * so a process with no `DATABASE_URL` should say THAT rather than a Relay
+ * so a process with no `DATABASE_URL` should say THAT rather than a Kaana
  * complaint it would also have. `__tests__/boot-guards.test.ts` asserts the
  * sequence rather than trusting the move.
  *
@@ -94,7 +94,7 @@ export function runBootGuards(deps: BootGuardDeps): void {
      *
      * It is what makes the guard correct under an INJECTED exit, which returns.
      * Without it, a process that has already decided not to start goes on to run
-     * the Relay check, the direct-provider check, and to ARM THE EGRESS POLICY.
+     * the Kaana check, the direct-provider check, and to ARM THE EGRESS POLICY.
      * `__tests__/boot-guards.test.ts` fails on exactly that deletion — see
      * "terminates, names the variable, and never reaches the egress policy".
      *
@@ -108,15 +108,15 @@ export function runBootGuards(deps: BootGuardDeps): void {
    * #139 workstream 2. Half-configured has to be OFF rather than a service that
    * accepts requests and then fails every model call. What it costs when
    * `ALIA_RELAY_CLIENT_ENABLED` is not exactly `'true'` — which is everywhere
-   * today — is one read of that one variable; `relayBootConfigurationFailure`
-   * consults no Relay configuration at all on that path, which
+   * today — is one read of that one variable; `kaanaBootConfigurationFailure`
+   * consults no Kaana configuration at all on that path, which
    * `inference/__tests__/kaana-boot-check.test.ts` pins with a recording
    * environment rather than by inspection.
    */
-  const relayFailure = relayBootConfigurationFailure(env);
-  if (relayFailure !== null) {
-    deps.reportFatal('Relay client configuration is invalid — refusing to start', {
-      failure: relayFailure,
+  const kaanaFailure = kaanaBootConfigurationFailure(env);
+  if (kaanaFailure !== null) {
+    deps.reportFatal('Kaana client configuration is invalid — refusing to start', {
+      failure: kaanaFailure,
     });
     terminate();
     return;
@@ -124,12 +124,12 @@ export function runBootGuards(deps: BootGuardDeps): void {
 
   /*
    * #139 workstream 8, and the other half of the same question: with the cutover
-   * flag set, the check above requires Relay to be usable and this one requires
+   * flag set, the check above requires Kaana to be usable and this one requires
    * nothing else to be. With the flag off it reads that one variable and returns.
    */
   assertDirectProviderModeOrExit(
     (failure) => {
-      deps.reportFatal('Direct provider mode is configured after the Relay cutover — refusing to start', {
+      deps.reportFatal('Direct provider mode is configured after the Kaana cutover — refusing to start', {
         failure,
       });
     },

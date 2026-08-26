@@ -27,7 +27,7 @@ describe('classifyRequestedModel', () => {
   it('reads all thirteen legacy aliases as aliases, not as product modes', () => {
     // Order matters in the implementation: every `alia-*` identifier is ALSO a
     // well-formed routing-profile slug, so a grammar-first reading would report
-    // thirteen product modes Relay has never heard of. The whole set is checked
+    // thirteen product modes Kaana has never heard of. The whole set is checked
     // rather than a sample, because the failure is per-identifier.
     expect(ALIAS_TRANSLATIONS.length).toBe(13);
     for (const { alias, profileId } of ALIAS_TRANSLATIONS) {

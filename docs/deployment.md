@@ -150,11 +150,11 @@ encrypted tokens are written by one process and read by the other.
   sites repo-wide. Upstream credentials live in the `provider_keys` table, not in the
   environment.
 
-### Relay client
+### Kaana client
 
 Seven variables, all unset in every environment today, and **all or nothing**: when
 `ALIA_RELAY_CLIENT_ENABLED` is exactly the literal `true`, the process refuses to start
-unless the other six describe a principal `@oxyhq/contracts` accepts and an approved Relay
+unless the other six describe a principal `@oxyhq/contracts` accepts and an approved Kaana
 origin (`packages/api/src/lib/inference/kaana-boot-check.ts`).
 
 ```bash
@@ -174,17 +174,17 @@ it out again. A development process is left alone, so a local run may point wher
 configured.
 
 `RELAY_BASE_URL` is **pinned to an allow-list**, not merely read
-(`packages/api/src/lib/inference/kaana-endpoint.ts`, `RELAY_ALLOWED_ORIGINS`). A production
+(`packages/api/src/lib/inference/kaana-endpoint.ts`, `KAANA_ALLOWED_ORIGINS`). A production
 or staging process accepts only an approved Oxy origin and refuses to start on anything
 else — a near miss such as `https://api.oxy.so.example`, a scheme downgrade, a URL carrying
 credentials, and loopback are all refused. A **development** process may additionally point
 at `localhost` or `127.0.0.1`; that is the only relaxation, it is keyed on `NODE_ENV`, and
 there is deliberately no variable that widens the list. The client re-checks the value on
 every call as well, so a configuration mutated after boot cannot ride a boot-time approval.
-Adding a host is an edit to `RELAY_ALLOWED_ORIGINS` and therefore a reviewed diff.
+Adding a host is an edit to `KAANA_ALLOWED_ORIGINS` and therefore a reviewed diff.
 
 Deliberately absent from `.do/app.yaml` and from `deploy-aws.yml`'s secret list. Adding
-them there before `Oxy API → Relay` is mounted would be configuration for a service that
+them there before `Oxy API → Kaana` is mounted would be configuration for a service that
 does not answer; adding them is part of the #139 workstream 8 cutover, together with
 flipping the flag.
 
@@ -207,8 +207,8 @@ end of the `server.listen` callback — named rather than cited by line, because
 number in a document drifts with every edit above it):
 
 1. Connect to PostgreSQL, or exit.
-2. Check the Relay client configuration, or exit — see
-   *Relay client* below. A no-op unless `ALIA_RELAY_CLIENT_ENABLED` is exactly `true`.
+2. Check the Kaana client configuration, or exit — see
+   *Kaana client* below. A no-op unless `ALIA_RELAY_CLIENT_ENABLED` is exactly `true`.
 3. Start listening. Nothing below blocks the listener.
 4. Start the expiry sweeper, which deletes rows whose retention has passed. It depends only
    on PostgreSQL.

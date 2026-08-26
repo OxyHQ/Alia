@@ -30,8 +30,8 @@ import {
   readEdgePrivateKey,
   signEnvelope,
 } from './kaana-transport.js';
-import { RELAY_PRINCIPAL_ENV } from './kaana-boot-check.js';
-import { resolveRelayEndpoint } from './kaana-endpoint.js';
+import { KAANA_PRINCIPAL_ENV } from './kaana-boot-check.js';
+import { resolveKaanaEndpoint } from './kaana-endpoint.js';
 
 /** The route Kaana answers its catalogue on. */
 const CATALOGUE_PATH = '/internal/v1/models';
@@ -105,11 +105,11 @@ export async function fetchKaanaCatalogue(
   const pem = (env[KAANA_EDGE_PRIVATE_KEY_ENV] ?? '').trim();
   if (keyId === '' || pem === '') return null;
 
-  const environment = (env[RELAY_PRINCIPAL_ENV.environment] ?? '').trim();
+  const environment = (env[KAANA_PRINCIPAL_ENV.environment] ?? '').trim();
   if (environment !== 'production' && environment !== 'staging' && environment !== 'development') {
     return null;
   }
-  const endpoint = resolveRelayEndpoint(env, environment);
+  const endpoint = resolveKaanaEndpoint(env, environment);
   if (endpoint.kind === 'refused') return null;
 
   let headers: Record<string, string>;

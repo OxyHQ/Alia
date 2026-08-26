@@ -23,7 +23,7 @@
  * That is why this file imports the provider tree and why it is on
  * `architectureGates.test.ts`'s gate-1 allow-list. It reads the routing table as
  * DATA to gate the sanitiser against it; it calls no adapter. When the table
- * moves to Relay the census repoints at the Relay catalogue, and this import —
+ * moves to Kaana the census repoints at the Kaana catalogue, and this import —
  * with the sanitiser's own `provider-names` import — goes with it.
  */
 

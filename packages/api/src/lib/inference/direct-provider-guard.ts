@@ -12,12 +12,12 @@
  *
  * So the guard is conditioned on the CUTOVER, not on the environment: it asks
  * whether this process is configured to reach a model provider by a route that
- * is not Relay, and it only asks once `ALIA_RELAY_CLIENT_ENABLED` says Relay is
+ * is not Kaana, and it only asks once `ALIA_RELAY_CLIENT_ENABLED` says Kaana is
  * the route. Two configurations answer yes:
  *
  *  1. **`GATEWAY_API_URL`.** Setting it alongside `SERVICE_SECRET` flips
  *     `lib/gateway-client.ts` into remote mode, where every model call goes to
- *     an HTTP provider tier that is not Relay. It is read by nothing else except
+ *     an HTTP provider tier that is not Kaana. It is read by nothing else except
  *     `lib/tools/gateway-admin.ts`, which administers that same tier — so its
  *     presence is unambiguous, which `SERVICE_SECRET`'s is not (that one also
  *     gates the browse tool, the browser session and service-to-service auth,
@@ -32,7 +32,7 @@
  * is the migration's own end state, and it is not "turn inference off" — the
  * other half of boot, `kaana-boot-check.ts`, refuses to start unless the five
  * `ALIA_RELAY_*` variables describe a principal the Oxy contract accepts. The
- * two checks together admit exactly one configuration: Relay configured,
+ * two checks together admit exactly one configuration: Kaana configured,
  * provider configuration absent.
  *
  * With the flag OFF — every deployment that exists — the cheapest green is the
@@ -47,10 +47,10 @@
  */
 
 import { PROVIDER_API_HOSTS } from './provider-egress-policy.js';
-import { isRelayClientEnabled } from './kaana-cutover.js';
+import { isKaanaClientEnabled } from './kaana-cutover.js';
 
 /**
- * The variable whose presence means a non-Relay provider tier is configured.
+ * The variable whose presence means a non-Kaana provider tier is configured.
  *
  * Named rather than inlined so the failure message and the test agree on it
  * without either of them restating a string.
@@ -97,7 +97,7 @@ export const PROVIDER_CREDENTIAL_ENV: readonly string[] = [
  * Why this process must not start, or `null` when it may.
  *
  * A returned reason rather than a throw, for the same reason
- * {@link import('./kaana-boot-check.js').relayBootConfigurationFailure} returns
+ * {@link import('./kaana-boot-check.js').kaanaBootConfigurationFailure} returns
  * one: the caller is `src/index.ts`, which wants to log and exit.
  *
  * **With the flag off this reads exactly one variable and returns**, and the
@@ -108,7 +108,7 @@ export const PROVIDER_CREDENTIAL_ENV: readonly string[] = [
 export function directProviderModeFailure(
   env: NodeJS.ProcessEnv = process.env,
 ): string | null {
-  if (!isRelayClientEnabled(env)) return null;
+  if (!isKaanaClientEnabled(env)) return null;
 
   const offenders: string[] = [];
   if ((env[GATEWAY_URL_ENV] ?? '').trim().length > 0) offenders.push(GATEWAY_URL_ENV);
@@ -120,7 +120,7 @@ export function directProviderModeFailure(
 
   // The variable NAMES, never their values: every one of these holds a
   // credential or a route to one, and a boot log is not a secret store.
-  return `the Relay cutover is enabled and direct provider configuration is still present: ${offenders.join(', ')}`;
+  return `the Kaana cutover is enabled and direct provider configuration is still present: ${offenders.join(', ')}`;
 }
 
 /** The exit code a refused boot uses, matching `connectPostgresOrExit`. */

@@ -255,7 +255,7 @@ export async function findKeyByHash(
   return row ?? null;
 }
 
-/** An ACTIVE key with this digest, for the relay's cheaper check. */
+/** An ACTIVE key with this digest, for the MCP relay's cheaper check. */
 export async function findActiveKeyByHash(
   db: ApiDatabase,
   keyHash: string,

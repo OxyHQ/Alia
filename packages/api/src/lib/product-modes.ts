@@ -52,7 +52,7 @@
  *    names no model already routes through `getDefaultAliaModel()`
  *    (`lib/chat/request-context.ts:161`), so `default` is not a stub — it is
  *    that path, named. Selecting a profile per request from the prompt is
- *    routing work, and ADR 0001 puts routing behind Relay.
+ *    routing work, and ADR 0001 puts routing behind Kaana.
  *  - **Deep research** is a PIPELINE, not a tier. `handleDeepResearch` runs on
  *    `ctx.aliasModelId` — whatever the request already resolved
  *    (`lib/chat-modes/deep-research-handler.ts:31`) — so binding it to a

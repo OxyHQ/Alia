@@ -24,7 +24,7 @@
  * ## What a preset controls TODAY, and what it will delegate
  *
  * `fallbackPolicy` is the only one of workstream 14's ROUTING concerns Alia can
- * enforce without Relay. The rest are named in `DELEGATED_TO_RELAY` rather than
+ * enforce without Kaana. The rest are named in `DELEGATED_TO_KAANA` rather than
  * stubbed: a preset field that silently does nothing is worse than an absent
  * one, because the next reader assumes it works. Every field below is read by
  * something, and the doc on each one names what.
@@ -49,8 +49,8 @@
  * Region and data-policy restrictions, provider allow/deny and same-revision
  * deployment fallback all require a catalogue that knows which deployment is
  * where and who operates it. Alia has no such catalogue and ADR 0003 invariant
- * 4 puts deployment fallback on Relay's side of the line, so no shape for them
- * is invented here. When the Relay contract exists, they become fields on
+ * 4 puts deployment fallback on Kaana's side of the line, so no shape for them
+ * is invented here. When the Kaana contract exists, they become fields on
  * `RoutingPreset` and travel with the request.
  *
  * ## Every preset's policy is `cross-model`, and that is the point
@@ -71,18 +71,18 @@ import { DEFAULT_FALLBACK_POLICY, type FallbackPolicy } from './policy.js';
  * not implement locally.
  *
  * `provider-allow-deny` is the sharpest of the four: the workstream's own
- * wording is "support provider allow/deny policy ONLY through the Oxy/Relay
+ * wording is "support provider allow/deny policy ONLY through the Oxy/Kaana
  * routing contract", so an Alia-side implementation would be the violation, not
  * the feature.
  */
-export const DELEGATED_TO_RELAY = [
+export const DELEGATED_TO_KAANA = [
   'region',
   'data-policy',
   'provider-allow-deny',
   'same-revision-deployment-fallback',
 ] as const;
 
-export type DelegatedRoutingConcern = (typeof DELEGATED_TO_RELAY)[number];
+export type DelegatedRoutingConcern = (typeof DELEGATED_TO_KAANA)[number];
 
 export interface RoutingPreset {
   /**

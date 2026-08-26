@@ -540,7 +540,7 @@ describe('the compatibility surface accepts no new credential (#139 ws6, ADR 000
  * Four names, and the boundary between them and Alia's own billing is the
  * distinction ADR 0005 draws: `user_credits`, `transactions` and `subscriptions`
  * are Alia charging its users, which stays; these four are Alia accounting for
- * what it owes upstream, which under ADR 0004 condition 3 moves to Relay and the
+ * what it owes upstream, which under ADR 0004 condition 3 moves to Kaana and the
  * Oxy ledger.
  *
  *  - `insertCostEntry` is the only statement that writes `cost_entries`, whose

@@ -74,7 +74,7 @@ export const oxyServiceAuth = oxyClient.serviceAuth({ debug: true });
  *
  * The same three-way mapping as `lib/inference/kaana-client.ts`'s
  * `resolveDeploymentEnvironment`, and deliberately NOT imported from it — that
- * module is the unwired Relay client, and a middleware that imported it would
+ * module is the unwired Kaana client, and a middleware that imported it would
  * make the client reachable from the request path, which
  * `lib/inference/__tests__/kaana-boundary.test.ts` freezes against.
  */

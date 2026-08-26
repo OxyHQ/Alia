@@ -109,13 +109,13 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
     }
 
     // The correlation record for this turn, before the first branch below can
-    // take a request somewhere else. `relay` is null because Alia serves this
-    // in process; `relayCorrelationOf(event)` fills it the day workstream 8
+    // take a request somewhere else. `kaana` is null because Alia serves this
+    // in process; `kaanaCorrelationOf(event)` fills it the day workstream 8
     // wires the client in.
     recordInferenceCorrelation({
       conversationId: conversationId ?? null,
       runId: requestId,
-      relay: null,
+      kaana: null,
     });
 
     // ── Deep Research Mode ──

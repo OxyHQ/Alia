@@ -53,7 +53,7 @@
  *
  * ADR 0001's sanctioned seam, and the reason no import in this file crosses
  * into `src/internal/providers/` — see gate 1 in `__tests__/architectureGates`.
- * When routing moves to Relay this module keeps working against the same
+ * When routing moves to Kaana this module keeps working against the same
  * functions.
  */
 
@@ -290,7 +290,7 @@ export interface RoutingProfileEntry extends CatalogueEntryCommon {
  * deployment serving it — ADR 0003: *the provider is a property of the
  * deployment, not of the model.* This entry therefore carries no provider,
  * deployment or region field at all; a caller addresses a model, and which
- * deployment answers is Relay's concern (invariant 4).
+ * deployment answers is Kaana's concern (invariant 4).
  *
  * Both were `null` on every entry until the routing table learned who published
  * each model and what they called it, and neither is filled from
@@ -302,7 +302,7 @@ export interface RoutingProfileEntry extends CatalogueEntryCommon {
  * own routes do not carry.
  *
  * `null` remains reachable and remains meaningful: a route that arrives without
- * either half — which is what a Relay catalogue not yet carrying them looks
+ * either half — which is what a Kaana catalogue not yet carrying them looks
  * like — yields an entry that says so rather than one that guesses.
  */
 export interface ModelEntry extends CatalogueEntryCommon {
@@ -316,11 +316,11 @@ export type CatalogueEntry = RoutingProfileEntry | ModelEntry;
 /**
  * One routable choice: what the fallback engine may pick, with what it can do.
  *
- * The last two fields are Relay's to supply and are `null` on every candidate
+ * The last two fields are Kaana's to supply and are `null` on every candidate
  * this repository builds — `lib/gateway-client.ts` `ModelMapping` declares them
  * optional and nothing populates either. They are declared rather than deferred
  * so the consumption below is real code with real tests instead of a plan, and
- * so the day Relay carries them nothing here has to change.
+ * so the day Kaana carries them nothing here has to change.
  */
 export interface Candidate {
   readonly modelId: string;
@@ -373,7 +373,7 @@ export interface Candidate {
  * many publishers. `unattributedRoutes` is what tells them apart.
  *
  * Today the local routing table attributes every route, so the count is zero
- * on every entry. It stops being zero the moment a Relay catalogue arrives
+ * on every entry. It stops being zero the moment a Kaana catalogue arrives
  * without the field, and a client can then say "these and possibly others"
  * instead of asserting a set it cannot stand behind.
  */
@@ -868,7 +868,7 @@ export interface CatalogueOptions {
  * What each filter did, so a caller can tell an applied filter from an absent
  * one and a filter from a stub.
  *
- * This block is why the two Relay-shaped filters can ship before Relay: an
+ * This block is why the two Kaana-shaped filters can ship before Kaana: an
  * availability-scope filter that withheld nothing looks exactly like one that
  * is not wired up, and the difference is `declaredRoutes` — zero means no route
  * carries a scope yet, non-zero with `withheld: 0` means every scoped route
@@ -881,7 +881,7 @@ export interface CatalogueFilterReport {
      * Candidate routes across the whole catalogue that declared a scope.
      *
      * A COUNT OF ROUTES, deliberately, and not a count of entries withheld from
-     * this caller. The first says whether Relay has classified anything yet,
+     * this caller. The first says whether Kaana has classified anything yet,
      * which is what tells an unfiltered answer apart from an absent filter. The
      * second would tell a public caller how many entries Alia operates and does
      * not sell it, which is commercially sensitive and is a step toward finding
@@ -894,8 +894,8 @@ export interface CatalogueFilterReport {
     readonly surface: string | null;
     readonly withheldEntries: number;
   };
-  /** Never applied here. `lib/routing/presets.ts` `DELEGATED_TO_RELAY` is the record. */
-  readonly region: { readonly applied: false; readonly delegatedTo: 'relay' };
+  /** Never applied here. `lib/routing/presets.ts` `DELEGATED_TO_KAANA` is the record. */
+  readonly region: { readonly applied: false; readonly delegatedTo: 'kaana' };
   /** Catalogue-wide count of routes carrying a licence record that requires attribution. */
   readonly attributedRoutes: number;
 }
@@ -977,7 +977,7 @@ export async function buildCatalogue(options: CatalogueOptions): Promise<Catalog
       toCandidate(route, conditions),
     );
     // Counted over every candidate the catalogue looked at, including those on
-    // entries a filter then removed: the question this answers is "does Relay
+    // entries a filter then removed: the question this answers is "does Kaana
     // carry this fact yet", which is a property of the data and not of the
     // response. Counting only survivors would report zero on a request whose
     // filters happened to remove every scoped route.
@@ -1089,7 +1089,7 @@ export async function buildCatalogue(options: CatalogueOptions): Promise<Catalog
         surface: options.surface?.name ?? null,
         withheldEntries: surfaceWithheld,
       },
-      region: { applied: false, delegatedTo: 'relay' },
+      region: { applied: false, delegatedTo: 'kaana' },
       attributedRoutes,
     },
   };

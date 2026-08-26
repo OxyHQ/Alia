@@ -34,7 +34,7 @@
  * `ALIA_RELAY_CREDENTIAL_KEY` / `_SECRET` are Alia's Oxy ApplicationCredential:
  * one record, one secret, seven scopes, of which `user:read` is the one read
  * here and `inference:*` are the ones `kaana-credential.ts` exchanges for. The
- * `RELAY` in the name is the working name Kaana shipped under and is not a claim
+ * `RELAY` in the name is the working name Kaana shipped under (see ADR 0001) and is not a claim
  * about who may use it. Two modules therefore name the same two variables, which
  * is the same shape `OXY_API_URL` already has (`middleware/auth.ts`,
  * `lib/agent-account.ts`, `kaana-credential.ts`); gate 6 in

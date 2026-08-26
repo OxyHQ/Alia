@@ -1,5 +1,5 @@
 /**
- * The typed Relay client — epic #139 workstream 3.
+ * The typed Kaana client — epic #139 workstream 3.
  *
  * Implements {@link AliaInferencePort} against `@oxyhq/contracts`, binding its
  * four payload type parameters to contract types. Nothing in this file describes
@@ -10,16 +10,16 @@
  * ## Four things this client does not do
  *
  *  1. **It never chooses a provider.** There is no candidate list, no ranking
- *     and no provider name in this module. Relay chooses; this client reports
- *     what Relay chose (`start`) and when it changed its mind (`route_switch`).
+ *     and no provider name in this module. Kaana chooses; this client reports
+ *     what Kaana chose (`start`) and when it changed its mind (`route_switch`).
  *  2. **It never falls back to a direct provider call.** Not behind a flag, not
- *     in development. The only egress is {@link RelayTransport}.
- *  3. **It is not the live path.** {@link import('./kaana-cutover.js').isRelayClientEnabled}
+ *     in development. The only egress is {@link KaanaTransport}.
+ *  3. **It is not the live path.** {@link import('./kaana-cutover.js').isKaanaClientEnabled}
  *     defaults to false and nothing in `packages/api` imports this module for
- *     anything but its rules. `Oxy API → Relay`
+ *     anything but its rules. `Oxy API → Kaana`
  *     does not exist yet — see `docs/migration/kaana-client-gap.md` §1 and
  *     OxyHQ/oxy#981 — so a client wired in today would be pointed at a hole.
- *  4. **It ships no HTTP transport.** {@link RelayTransport} is an interface and
+ *  4. **It ships no HTTP transport.** {@link KaanaTransport} is an interface and
  *     the concrete one arrives with the endpoint it would call. Inventing a base
  *     URL now produces a client whose first real test is production.
  *
@@ -39,7 +39,7 @@
  * `@oxyhq/contracts@0.27.0` publishes a request envelope and a stream event
  * union and NO non-streaming response envelope. Folding the stream is therefore
  * the only completion shape available that does not invent a wire type; see
- * {@link RelayCompletion}.
+ * {@link KaanaCompletion}.
  */
 
 import { randomUUID } from 'node:crypto';
@@ -71,21 +71,21 @@ import type {
   AliaInferenceContext,
   AliaInferencePort,
 } from './product-seam.js';
-import { reportRelayReachable, reportRelayUnavailableUntil } from './kaana-connectivity.js';
-import { relayEndpointRefusal, type RelayEndpoint } from './kaana-endpoint.js';
+import { reportKaanaReachable, reportKaanaUnavailableUntil } from './kaana-connectivity.js';
+import { kaanaEndpointRefusal, type KaanaEndpoint } from './kaana-endpoint.js';
 import {
   createInferenceError,
   INFERENCE_ERROR_POLICY,
   parseInferenceError,
-  RelayInferenceError,
-  RelayTransportRefusal,
+  KaanaInferenceError,
+  KaanaTransportRefusal,
 } from './kaana-error.js';
 import {
   buildInferenceRequest,
   resolveRoutingTarget,
   targetPinsRevision,
   violatedCapability,
-  type RelayRequestPayload,
+  type KaanaRequestPayload,
 } from './kaana-request.js';
 
 /* -------------------------------------------------------------------------- */
@@ -102,7 +102,7 @@ import {
  * `inference:models:read` and the rest are other surfaces' business and are
  * deliberately not required here.
  */
-export const RELAY_REQUIRED_SCOPE = 'inference:invoke' as const;
+export const KAANA_REQUIRED_SCOPE = 'inference:invoke' as const;
 
 /**
  * Which Oxy environment this process IS, as opposed to which one it claims.
@@ -144,9 +144,9 @@ export function assertPrincipalMatchesDeployment(
   principal: AuthenticatedPrincipal,
   env: NodeJS.ProcessEnv = process.env,
 ): void {
-  if (!principal.inferenceScopes.includes(RELAY_REQUIRED_SCOPE)) {
+  if (!principal.inferenceScopes.includes(KAANA_REQUIRED_SCOPE)) {
     throw new Error(
-      `Relay principal is missing the ${RELAY_REQUIRED_SCOPE} scope; it can invoke nothing`,
+      `Kaana principal is missing the ${KAANA_REQUIRED_SCOPE} scope; it can invoke nothing`,
     );
   }
 
@@ -154,7 +154,7 @@ export function assertPrincipalMatchesDeployment(
   if (deployment === 'development') return;
   if (principal.environment !== deployment) {
     throw new Error(
-      `Relay principal claims environment ${principal.environment} on a ${deployment} deployment`,
+      `Kaana principal claims environment ${principal.environment} on a ${deployment} deployment`,
     );
   }
 }
@@ -164,7 +164,7 @@ export function assertPrincipalMatchesDeployment(
 /* -------------------------------------------------------------------------- */
 
 /** What the transport is handed. `authorization` is a header VALUE, already minted. */
-export interface RelayTransportRequest {
+export interface KaanaTransportRequest {
   readonly request: InferenceRequest;
   readonly authorization: string;
   /** Echoed as the transport's own idempotency header where the wire supports one. */
@@ -174,12 +174,12 @@ export interface RelayTransportRequest {
    * every attempt.
    *
    * A transport receives it rather than reading `RELAY_BASE_URL` itself, which
-   * is what makes {@link import('./kaana-endpoint.js').RELAY_ALLOWED_ORIGINS}
+   * is what makes {@link import('./kaana-endpoint.js').KAANA_ALLOWED_ORIGINS}
    * enforceable at all: a transport with its own environment read would be a
    * second, unchecked way to choose a host. The type is branded, so a transport
    * cannot be handed a plain string either.
    */
-  readonly endpoint: RelayEndpoint;
+  readonly endpoint: KaanaEndpoint;
   readonly signal: AbortSignal;
 }
 
@@ -195,13 +195,13 @@ export interface RelayTransportRequest {
  * A timeout that only works when the thing it is timing out cooperates is not a
  * timeout.
  *
- * When Relay ANSWERS and refuses, throw
- * {@link import('./kaana-error.js').RelayTransportRefusal} carrying the decoded
+ * When Kaana ANSWERS and refuses, throw
+ * {@link import('./kaana-error.js').KaanaTransportRefusal} carrying the decoded
  * body verbatim; the client parses and, where the contract refuses it, replaces
- * it. Throw anything else when Relay could not be reached.
+ * it. Throw anything else when Kaana could not be reached.
  */
-export interface RelayTransport {
-  send(input: RelayTransportRequest): Promise<AsyncIterable<unknown>>;
+export interface KaanaTransport {
+  send(input: KaanaTransportRequest): Promise<AsyncIterable<unknown>>;
 }
 
 /**
@@ -216,10 +216,10 @@ export interface RelayTransport {
  *
  * Alia never constructs the contract's `AuthenticatedPrincipal` from a token —
  * it cannot, the ids are branded — it presents the token and the Oxy edge
- * resolves the principal. What {@link RelayClientConfig.principal} carries is
+ * resolves the principal. What {@link KaanaClientConfig.principal} carries is
  * the client's own configured identity, which is the same for every call.
  */
-export interface RelayServiceCredential {
+export interface KaanaServiceCredential {
   getServiceToken(): Promise<string>;
   /** Called on `authentication_failed` so the NEXT call mints a fresh token. */
   invalidateServiceToken(): void;
@@ -237,27 +237,27 @@ export interface RelayServiceCredential {
  * added to `authenticatedPrincipalSchema` is a compile error here rather than a
  * silently unsent field.
  */
-export type RelayPrincipalConfig = z.input<typeof authenticatedPrincipalSchema>;
+export type KaanaPrincipalConfig = z.input<typeof authenticatedPrincipalSchema>;
 
-export interface RelayCircuitConfig {
+export interface KaanaCircuitConfig {
   /** Consecutive unavailability failures that open the circuit. */
   readonly failureThreshold: number;
   /** How long it stays open before one probe call is allowed through. */
   readonly cooldownMs: number;
 }
 
-export interface RelayClientConfig {
+export interface KaanaClientConfig {
   /**
-   * Usually {@link import('./kaana-cutover.js').isRelayClientEnabled}. Passed in
+   * Usually {@link import('./kaana-cutover.js').isKaanaClientEnabled}. Passed in
    * so tests need no env.
    */
   readonly enabled: boolean;
-  readonly transport: RelayTransport;
-  readonly credential: RelayServiceCredential;
+  readonly transport: KaanaTransport;
+  readonly credential: KaanaServiceCredential;
   /**
    * Where the transport may send. Obtained from
-   * {@link import('./kaana-endpoint.js').resolveRelayEndpoint} or
-   * {@link import('./kaana-endpoint.js').assertAllowedRelayOrigin}, which are the
+   * {@link import('./kaana-endpoint.js').resolveKaanaEndpoint} or
+   * {@link import('./kaana-endpoint.js').assertAllowedKaanaOrigin}, which are the
    * only producers of the branded type.
    *
    * Re-checked before every attempt as well as at construction. That is not
@@ -266,8 +266,8 @@ export interface RelayClientConfig {
    * otherwise pass the boot check and send elsewhere for the rest of the
    * process's life.
    */
-  readonly endpoint: RelayEndpoint;
-  readonly principal: RelayPrincipalConfig;
+  readonly endpoint: KaanaEndpoint;
+  readonly principal: KaanaPrincipalConfig;
   /** Where `AliaModelChoice.product_default` resolves to. */
   readonly defaultTarget: RoutingTarget;
   /**
@@ -282,7 +282,7 @@ export interface RelayClientConfig {
   readonly defaultRoutingPolicy: RoutingPolicyReference;
   /** Total attempts per call, INCLUDING the first. `1` disables retrying. */
   readonly maxAttempts: number;
-  readonly circuit: RelayCircuitConfig;
+  readonly circuit: KaanaCircuitConfig;
   /**
    * Capabilities of a named target, when something knows them. The catalogue is
    * #139 workstream 5; absent, no capability check runs.
@@ -317,7 +317,7 @@ export interface RelayClientConfig {
  * it. Reported as an open question; folding the stream is what a client can do
  * today without inventing a wire type.
  */
-export interface RelayCompletion {
+export interface KaanaCompletion {
   readonly requestId: InferenceStreamDoneEvent['requestId'];
   readonly generationId: InferenceStreamDoneEvent['generationId'];
   readonly resolvedModelReference: InferenceStreamStartEvent['resolvedModelReference'];
@@ -335,29 +335,29 @@ export interface RelayCompletion {
 }
 
 /** The port, with every payload position bound to a contract type. */
-export type RelayInferencePort = AliaInferencePort<
-  RelayRequestPayload,
-  RelayCompletion,
+export type KaanaInferencePort = AliaInferencePort<
+  KaanaRequestPayload,
+  KaanaCompletion,
   InferenceStreamEvent,
-  RelayInferenceError
+  KaanaInferenceError
 >;
 
 /* -------------------------------------------------------------------------- */
 /*  Timeouts and the circuit                                                  */
 /* -------------------------------------------------------------------------- */
 
-type RelayTimeoutKind = 'connect' | 'first_token' | 'idle_stream' | 'total';
+type KaanaTimeoutKind = 'connect' | 'first_token' | 'idle_stream' | 'total';
 
 /**
  * Which contract code each expired budget reports.
  *
  * `connect` is `service_unavailable` and the other three are `provider_timeout`
- * because they answer different questions: a connect timeout means Relay was not
- * reached at all, while a stalled stream means Relay was reached and the route
+ * because they answer different questions: a connect timeout means Kaana was not
+ * reached at all, while a stalled stream means Kaana was reached and the route
  * behind it stopped producing. Collapsing them would make the circuit below
  * trip on the wrong signal.
  */
-const TIMEOUT_CODE: Readonly<Record<RelayTimeoutKind, InferenceErrorCode>> = {
+const TIMEOUT_CODE: Readonly<Record<KaanaTimeoutKind, InferenceErrorCode>> = {
   connect: 'service_unavailable',
   first_token: 'provider_timeout',
   idle_stream: 'provider_timeout',
@@ -369,7 +369,7 @@ const TIMEOUT_CODE: Readonly<Record<RelayTimeoutKind, InferenceErrorCode>> = {
  *
  * Availability failures only. A `no_route_available` or a `policy_violation` is
  * a correct, immediate answer about THIS request and says nothing about whether
- * Relay is reachable — counting it would let one badly-configured caller open
+ * Kaana is reachable — counting it would let one badly-configured caller open
  * the circuit for every other surface.
  */
 const CIRCUIT_TRIPPING_CODES: ReadonlySet<InferenceErrorCode> = new Set<InferenceErrorCode>([
@@ -512,18 +512,18 @@ class StreamState {
  * Build a client. Throws if the configured principal is not one the contract
  * accepts, which is the only moment that can be checked before traffic.
  */
-export function createRelayInferenceClient(config: RelayClientConfig): RelayInferenceClient {
-  return new RelayInferenceClient(config);
+export function createKaanaInferenceClient(config: KaanaClientConfig): KaanaInferenceClient {
+  return new KaanaInferenceClient(config);
 }
 
-export class RelayInferenceClient implements RelayInferencePort {
+export class KaanaInferenceClient implements KaanaInferencePort {
   private readonly principal: AuthenticatedPrincipal;
   private readonly now: () => number;
   private readonly newId: () => string;
   private consecutiveFailures = 0;
   private openUntil = 0;
 
-  constructor(private readonly config: RelayClientConfig) {
+  constructor(private readonly config: KaanaClientConfig) {
     // Fail at construction, not at the first request: a misconfigured account id
     // is a deployment mistake and a deployment mistake should not wait for a
     // user to discover it. The same reasoning covers the two things the SHAPE
@@ -548,11 +548,11 @@ export class RelayInferenceClient implements RelayInferencePort {
    * repetition is the point: `readonly` is erased at runtime, so a config object
    * mutated after the client was built would otherwise ride a boot-time approval
    * for the life of the process. That is the "at request time" half of *"pin
-   * allowed Relay origins/endpoints"*, and `__tests__/kaana-endpoint.test.ts`
+   * allowed Kaana origins/endpoints"*, and `__tests__/kaana-endpoint.test.ts`
    * mutates a live client's config to prove it fires.
    */
   private endpointRefusal(): string | null {
-    return relayEndpointRefusal(
+    return kaanaEndpointRefusal(
       this.config.endpoint,
       resolveDeploymentEnvironment(this.config.env ?? process.env),
     );
@@ -563,7 +563,7 @@ export class RelayInferenceClient implements RelayInferencePort {
   /* ---------------------------------------------------------------------- */
 
   async *stream(
-    call: AliaInferenceCall<RelayRequestPayload>,
+    call: AliaInferenceCall<KaanaRequestPayload>,
     signal: AbortSignal,
   ): AsyncGenerator<InferenceStreamEvent, void, void> {
     const requestId = `alia-${this.newId()}`;
@@ -640,9 +640,9 @@ export class RelayInferenceClient implements RelayInferencePort {
   }
 
   async generate(
-    call: AliaInferenceCall<RelayRequestPayload>,
+    call: AliaInferenceCall<KaanaRequestPayload>,
     signal: AbortSignal,
-  ): Promise<RelayCompletion> {
+  ): Promise<KaanaCompletion> {
     let start: InferenceStreamStartEvent | null = null;
     let done: InferenceStreamDoneEvent | null = null;
     let outputText = '';
@@ -679,7 +679,7 @@ export class RelayInferenceClient implements RelayInferencePort {
           routeSwitches.push(event);
           break;
         case 'error':
-          throw new RelayInferenceError(event.error);
+          throw new KaanaInferenceError(event.error);
         case 'done':
           done = event;
           break;
@@ -687,7 +687,7 @@ export class RelayInferenceClient implements RelayInferencePort {
     }
 
     if (start === null || done === null) {
-      throw new RelayInferenceError(
+      throw new KaanaInferenceError(
         createInferenceError({ code: 'internal_error', requestId: done?.requestId ?? 'unknown' }),
       );
     }
@@ -698,7 +698,7 @@ export class RelayInferenceClient implements RelayInferencePort {
         // The contract puts `name` on "the first event of a call", so a complete
         // call without one cannot be rendered in any dialect. Refusing beats
         // emitting a nameless tool call the product would then try to execute.
-        throw new RelayInferenceError(
+        throw new KaanaInferenceError(
           createInferenceError({ code: 'internal_error', requestId: done.requestId }),
         );
       }
@@ -734,7 +734,7 @@ export class RelayInferenceClient implements RelayInferencePort {
    * rendered, so upstream prose has no path to a user however the producer wrote
    * it.
    */
-  degrade(context: AliaInferenceContext, error: RelayInferenceError): AliaDegradation {
+  degrade(context: AliaInferenceContext, error: KaanaInferenceError): AliaDegradation {
     // A caller who withdrew the request does not need to be told it was
     // withdrawn, on any surface.
     if (error.code === 'cancelled') return { kind: 'silent' };
@@ -769,9 +769,9 @@ export class RelayInferenceClient implements RelayInferencePort {
   ): AsyncGenerator<InferenceStreamEvent, void, void> {
     const controller = new AbortController();
     const timers = new Set<ReturnType<typeof setTimeout>>();
-    let tripped: RelayTimeoutKind | 'cancelled' | null = null;
+    let tripped: KaanaTimeoutKind | 'cancelled' | null = null;
 
-    const arm = (ms: number, kind: RelayTimeoutKind): ReturnType<typeof setTimeout> => {
+    const arm = (ms: number, kind: KaanaTimeoutKind): ReturnType<typeof setTimeout> => {
       const timer = setTimeout(() => {
         if (tripped === null) tripped = kind;
         controller.abort();
@@ -905,8 +905,8 @@ export class RelayInferenceClient implements RelayInferencePort {
    */
   private terminalFor(
     state: StreamState,
-    tripped: RelayTimeoutKind | 'cancelled' | null,
-    fallback: RelayTimeoutKind,
+    tripped: KaanaTimeoutKind | 'cancelled' | null,
+    fallback: KaanaTimeoutKind,
   ): InferenceStreamErrorEvent {
     const code: InferenceErrorCode =
       tripped === 'cancelled' ? 'cancelled' : TIMEOUT_CODE[tripped ?? fallback];
@@ -920,7 +920,7 @@ export class RelayInferenceClient implements RelayInferencePort {
   /**
    * The terminal error for an attempt whose transport REJECTED.
    *
-   * A refusal Relay articulated wins over the client's guess, because
+   * A refusal Kaana articulated wins over the client's guess, because
    * `rate_limited` and `service_unavailable` differ in whether a retry is worth
    * anything. A refusal that does not parse — including one whose text carries
    * credential-shaped material, which `safeErrorTextSchema` rejects — is
@@ -933,11 +933,11 @@ export class RelayInferenceClient implements RelayInferencePort {
    */
   private terminalForRejection(
     state: StreamState,
-    tripped: RelayTimeoutKind | 'cancelled' | null,
+    tripped: KaanaTimeoutKind | 'cancelled' | null,
     cause: unknown,
-    fallback: RelayTimeoutKind,
+    fallback: KaanaTimeoutKind,
   ): InferenceStreamErrorEvent {
-    if (tripped === null && cause instanceof RelayTransportRefusal) {
+    if (tripped === null && cause instanceof KaanaTransportRefusal) {
       return this.errorEvent(
         state.requestId,
         state.nextSequence(),
@@ -960,7 +960,7 @@ export class RelayInferenceClient implements RelayInferencePort {
   /* ---------------------------------------------------------------------- */
 
   private prepare(
-    call: AliaInferenceCall<RelayRequestPayload>,
+    call: AliaInferenceCall<KaanaRequestPayload>,
     requestId: string,
   ):
     | { readonly kind: 'ready'; readonly request: InferenceRequest; readonly target: RoutingTarget }
@@ -1016,7 +1016,7 @@ export class RelayInferenceClient implements RelayInferencePort {
       });
       return { kind: 'ready', request, target };
     } catch (cause) {
-      if (cause instanceof RelayInferenceError) {
+      if (cause instanceof KaanaInferenceError) {
         return { kind: 'refused', error: cause.inferenceError };
       }
       throw cause;
@@ -1027,7 +1027,7 @@ export class RelayInferenceClient implements RelayInferencePort {
     if (name === null) return this.config.defaultRoutingPolicy;
     const chosen = this.config.routingPolicies[name];
     if (chosen === undefined) {
-      throw new RelayInferenceError(
+      throw new KaanaInferenceError(
         createInferenceError({ code: 'invalid_request', requestId, param: 'fallbackPolicy' }),
       );
     }
@@ -1087,7 +1087,7 @@ export class RelayInferenceClient implements RelayInferencePort {
     // The same fact `/health` needs. Reported from here rather than derived by
     // the health route because the route has no client to ask — see
     // `kaana-connectivity.ts`.
-    reportRelayReachable();
+    reportKaanaReachable();
   }
 
   /**
@@ -1103,10 +1103,10 @@ export class RelayInferenceClient implements RelayInferencePort {
     if (this.consecutiveFailures >= this.config.circuit.failureThreshold) {
       this.openUntil = this.now() + this.config.circuit.cooldownMs;
       this.consecutiveFailures = 0;
-      // An open circuit is this process's considered statement that Relay is not
+      // An open circuit is this process's considered statement that Kaana is not
       // answering, and it is the only such statement anything can make before a
       // transport exists. `/health` reports it; `/health/ready` acts on it.
-      reportRelayUnavailableUntil(this.openUntil);
+      reportKaanaUnavailableUntil(this.openUntil);
     }
   }
 }
@@ -1115,11 +1115,11 @@ export class RelayInferenceClient implements RelayInferencePort {
  * The sentinel a raced await resolves to when the signal won.
  *
  * A sentinel rather than a rejection: an abort is an expected outcome of every
- * await in {@link RelayInferenceClient.runAttempt}, and expressing it as a
+ * await in {@link KaanaInferenceClient.runAttempt}, and expressing it as a
  * throw would put it in the same `catch` as a genuine transport failure, which
  * report different codes.
  */
-const ABORTED: unique symbol = Symbol('relay.aborted');
+const ABORTED: unique symbol = Symbol('kaana.aborted');
 
 /**
  * `work`, unless `signal` aborts first.
@@ -1140,7 +1140,7 @@ function raceAbort<T>(work: Promise<T>, signal: AbortSignal): Promise<T | typeof
       },
       (cause: unknown) => {
         signal.removeEventListener('abort', onAbort);
-        reject(cause instanceof Error ? cause : new Error('relay transport failed'));
+        reject(cause instanceof Error ? cause : new Error('Kaana transport failed'));
       },
     );
   });

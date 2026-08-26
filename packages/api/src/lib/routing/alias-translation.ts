@@ -9,7 +9,7 @@
  * nothing translated: `lib/inference/kaana-request.ts` read an alias
  * structurally — no `/`, therefore a routing profile — and sent `alia-v1-pro`
  * on the wire as a profile literally named `alia-v1-pro`, which is not what the
- * map says it becomes and not a profile Relay could be expected to know.
+ * map says it becomes and not a profile Kaana could be expected to know.
  *
  * ## Why the wire slug drops the `profile:` prefix
  *
@@ -143,7 +143,7 @@ const BY_PROFILE: ReadonlyMap<string, readonly string[]> = (() => {
  * `unregistered_alias` is the one that would be lost by returning `null` for
  * everything unknown, and it is the one that matters: `alia-flash` is a
  * well-formed routing-profile slug, so a caller that treated "not translated"
- * as "not my business" would hand Relay a profile in ALIA's namespace that
+ * as "not my business" would hand Kaana a profile in ALIA's namespace that
  * nothing has ever defined. Which identifiers exist in that namespace is a
  * question only Alia can answer, so answering it is not optional.
  */

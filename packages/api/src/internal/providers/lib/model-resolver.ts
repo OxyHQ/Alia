@@ -93,7 +93,7 @@ export async function resolveAliaModelWithAttempts(
  * never returned to anyone, and it disagreed with the answer that was.
  *
  * Which model a request defaults to is a PRODUCT decision, and `internal/
- * providers/` is the routing tree ADR 0001 moves to Relay. A default declared
+ * providers/` is the routing tree ADR 0001 moves to Kaana. A default declared
  * here would migrate with the routing and leave the product without one.
  * `defaultChatModel.test.ts` asserts this module declares no default.
  *

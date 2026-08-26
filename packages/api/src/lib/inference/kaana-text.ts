@@ -29,7 +29,7 @@ import type { ResponseFormat } from '@oxyhq/contracts';
 
 import { getKaanaClient } from './kaana.js';
 import type { AliaInferenceContext, AliaInferenceSurface } from './product-seam.js';
-import type { RelayRequestPayload } from './kaana-request.js';
+import type { KaanaRequestPayload } from './kaana-request.js';
 
 /**
  * How long a call may take when the caller does not say.
@@ -112,7 +112,7 @@ export async function generateTextViaKaana(request: KaanaTextRequest): Promise<s
     onDisconnect: 'abort',
   };
 
-  const payload: RelayRequestPayload = {
+  const payload: KaanaRequestPayload = {
     modality: 'text',
     // `messages`, not `text`: the contract reads a bare `text` input as an
     // EMBEDDING input, and a chat model refuses it with `unsupported_modality`.

@@ -13,7 +13,7 @@ import {
   PROVIDER_CREDENTIAL_ENV,
 } from '../direct-provider-guard.js';
 import { PROVIDER_API_HOSTS } from '../provider-egress-policy.js';
-import { RELAY_CLIENT_ENABLED_ENV } from '../kaana-cutover.js';
+import { KAANA_CLIENT_ENABLED_ENV } from '../kaana-cutover.js';
 
 /**
  * Epic #139 workstream 8 — *"Add a production guard that fails CI or startup
@@ -39,7 +39,7 @@ import { RELAY_CLIENT_ENABLED_ENV } from '../kaana-cutover.js';
 const REPO_ROOT = path.resolve(fileURLToPath(new URL('../../../../../../', import.meta.url)));
 const API_ROOT = path.resolve(fileURLToPath(new URL('../../../../', import.meta.url)));
 
-const ENABLED = { [RELAY_CLIENT_ENABLED_ENV]: 'true' } as const;
+const ENABLED = { [KAANA_CLIENT_ENABLED_ENV]: 'true' } as const;
 
 interface Recorder {
   readonly env: NodeJS.ProcessEnv;
@@ -83,14 +83,14 @@ describe('with the cutover flag off the guard consults nothing (#139 ws8)', () =
     // touched is the flag. A guard that read `NODE_ENV` first to decide whether
     // to bother would satisfy the weaker one and would still be a guard whose
     // behaviour depends on the environment rather than on the cutover.
-    expect([...new Set(recorder.reads)]).toEqual([RELAY_CLIENT_ENABLED_ENV]);
+    expect([...new Set(recorder.reads)]).toEqual([KAANA_CLIENT_ENABLED_ENV]);
   });
 
   it('is off for every value that is not exactly the literal true', () => {
     for (const value of ['1', 'TRUE', 'True', 'yes', '', ' true']) {
-      const recorder = recording({ [RELAY_CLIENT_ENABLED_ENV]: value, OPENAI_API_KEY: 'sk-x' });
+      const recorder = recording({ [KAANA_CLIENT_ENABLED_ENV]: value, OPENAI_API_KEY: 'sk-x' });
       expect(directProviderModeFailure(recorder.env)).toBeNull();
-      expect([...new Set(recorder.reads)]).toEqual([RELAY_CLIENT_ENABLED_ENV]);
+      expect([...new Set(recorder.reads)]).toEqual([KAANA_CLIENT_ENABLED_ENV]);
     }
   });
 });
@@ -115,7 +115,7 @@ describe('the recorder can see the guard reading', () => {
 /* -------------------------------------------------------------------------- */
 
 describe('with the cutover flag on, direct provider configuration stops the process', () => {
-  it('refuses a configured gateway tier, which is a provider route that is not Relay', () => {
+  it('refuses a configured gateway tier, which is a provider route that is not Kaana', () => {
     const failure = directProviderModeFailure({ ...ENABLED, [GATEWAY_URL_ENV]: 'https://gw.invalid' });
     expect(failure).not.toBeNull();
     expect(failure).toContain(GATEWAY_URL_ENV);

@@ -244,7 +244,7 @@ export class McpLocalClient {
       this.ws = new WebSocket(wsUrl)
 
       this.ws.onopen = () => {
-        logger.info('Relay connected')
+        logger.info('MCP relay connected')
         this.sendMessage({ type: 'auth', token: apiKey })
       }
 
@@ -259,7 +259,7 @@ export class McpLocalClient {
 
       this.ws.onclose = () => {
         if (this.stopped) return
-        logger.info('Relay disconnected, reconnecting...')
+        logger.info('MCP relay disconnected, reconnecting...')
         this.reconnectTimer = setTimeout(() => this.connectRelay(apiKey), RECONNECT_DELAY_MS)
       }
 

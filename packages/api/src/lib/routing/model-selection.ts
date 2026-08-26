@@ -178,7 +178,7 @@ interface Admission {
  * The identity a route carries, or `null` when it carries none.
  *
  * A route arriving without both halves is not guessed at. `lib/gateway-client.ts`
- * declares both optional because Relay does not carry them yet, and inferring
+ * declares both optional because Kaana does not carry them yet, and inferring
  * either from `modelId` is the parse `model-publishers.ts` refuses.
  */
 function routeIdentity(route: ModelMapping): ModelIdentity | null {

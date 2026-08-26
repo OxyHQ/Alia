@@ -75,7 +75,7 @@ function candidate(
 ): Candidate {
   // `availabilityScope` and `attribution` default to `null`, which is what
   // every route in this repository carries: both belong to a deployment in
-  // Relay's catalogue and nothing here has one. A fixture that wants either
+  // Kaana's catalogue and nothing here has one. A fixture that wants either
   // says so, which is the only way the consumption is measurable today.
   //
   // `publisher` is the opposite case and so defaults the other way: the local
@@ -145,7 +145,7 @@ describe('ADR 0003 invariant 1: type follows fan-out, in both directions', () =>
   });
 
   it('reports an unattributed route as an unknown identity rather than guessing one', () => {
-    // A route arriving with neither half — which is what a Relay catalogue not
+    // A route arriving with neither half — which is what a Kaana catalogue not
     // yet carrying them looks like — still classifies as a model, and says it
     // does not know whose. Filling either from `modelId` is the guess.
     const entry = buildEntry(

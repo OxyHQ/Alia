@@ -11,27 +11,27 @@ mislead someone working from the idealised procedure.
 
 ## What rollback means here
 
-Per #139 workstream 18, rollback **returns traffic to the last known good Relay
+Per #139 workstream 18, rollback **returns traffic to the last known good Kaana
 version — never to direct providers inside Alia.** Falling back to in-process
 provider calls would undo the cutover, re-expose upstream credentials to the
 Alia runtime, and put spend back on Alia's own provider accounts, which is a
 larger and less reversible change than whatever prompted the rollback.
 
 **Today that path does not exist yet, and the honest version matters more than
-the aspirational one.** The Relay client in `packages/api/src/lib/inference/` is
+the aspirational one.** The Kaana client in `packages/api/src/lib/inference/` is
 written and unwired: nothing in `packages/api` imports it, frozen by
-`packages/api/src/lib/inference/__tests__/relay-boundary.test.ts:197`–`:207`, and
+`packages/api/src/lib/inference/__tests__/kaana-boundary.test.ts:197`–`:207`, and
 `packages/api/src/lib/inference/product-seam.ts:38`–`:41` records that a
 half-wired seam is worse than an unwired one because it makes the cutover look
-done. The Relay variables are deliberately absent from `deploy-aws.yml`'s secret
+done. The Kaana variables are deliberately absent from `deploy-aws.yml`'s secret
 list, and [deployment](../deployment.md) records them as unset in every
 environment — a claim about configuration this repository can see, so confirm
 `ALIA_RELAY_CLIENT_ENABLED` in the live task definition before relying on it.
 
 So a rollback performed **before** the workstream 8 cutover is an ordinary image
-rollback: both revisions call providers in-process, and there is no Relay version
+rollback: both revisions call providers in-process, and there is no Kaana version
 to return to. A rollback performed **after** it must additionally confirm that
-the revision being rolled back to is one that speaks to Relay — which, once
+the revision being rolled back to is one that speaks to Kaana — which, once
 several such revisions exist, means checking the image, not the date.
 
 ## Before anything: is this service even serving?
@@ -193,19 +193,19 @@ The correction for both is the same, and it is what the deploy script already
 does at zero capacity (`deploy-ecs-image.sh:538`–`:547`): **repoint explicitly,
 at whatever capacity the service currently has.**
 
-### After the Relay cutover: check the target before you repoint
+### After the Kaana cutover: check the target before you repoint
 
 The section at the top of this runbook states the rule. This is how you satisfy
 it, and it is a check you run **before** `update-service`, not after — repointing
 at a revision that speaks to providers directly is the change you are trying not
 to make, and ECS will carry it out perfectly.
 
-**A revision speaks to Relay when its container environment sets
+**A revision speaks to Kaana when its container environment sets
 `ALIA_RELAY_CLIENT_ENABLED` to exactly `true`.** Not `1`, not `TRUE`:
-`isRelayClientEnabled` (`packages/api/src/lib/inference/relay-client.ts:103`–`:104`)
-compares against the literal string, and `relay-boot-check.ts` refuses to boot
+`isKaanaClientEnabled` (`packages/api/src/lib/inference/kaana-client.ts:103`–`:104`)
+compares against the literal string, and `kaana-boot-check.ts` refuses to boot
 when the flag is on and the principal is unusable. So the flag is a reliable
-discriminator in both directions: a revision carrying it either speaks to Relay or
+discriminator in both directions: a revision carrying it either speaks to Kaana or
 does not start.
 
 ```bash
@@ -230,7 +230,7 @@ Read it against these three rules:
 2. **All five principal variables must be present** —
    `ALIA_RELAY_ACCOUNT_ID`, `ALIA_RELAY_APPLICATION_ID`, `ALIA_RELAY_CREDENTIAL_ID`,
    `ALIA_RELAY_ENVIRONMENT`, `ALIA_RELAY_INFERENCE_SCOPES`
-   (`packages/api/src/lib/inference/relay-boot-check.ts:70`–`:76`). A revision with
+   (`packages/api/src/lib/inference/kaana-boot-check.ts:70`–`:76`). A revision with
    the flag and a missing variable does not start; the task will crash-loop, and
    the rollback will look like a broken image rather than a missing value.
    `ALIA_RELAY_ENVIRONMENT` must also match the deployment: a `staging` principal
@@ -241,7 +241,7 @@ Read it against these three rules:
    when the flag is on and either `GATEWAY_API_URL` or any provider credential is
    set, and `provider-egress-policy.ts` refuses outbound requests to provider hosts
    inside the process. So a revision cannot half-roll-back: it either speaks to
-   Relay or it does not start. Read this column anyway — it turns a crash-loop you
+   Kaana or it does not start. Read this column anyway — it turns a crash-loop you
    would otherwise diagnose as a bad image into a value you can see before you
    repoint.
 
@@ -249,16 +249,16 @@ Read it against these three rules:
 Both guards exit the process at boot with the reason in the log, so read the task's
 stopped-reason and the first lines of its log before concluding the build is bad.
 
-**What the ALB polls is unchanged.** `/health/live` does not consult Relay;
-`relay-connectivity.ts` reports into `/health` and `/health/ready` only, and reports
+**What the ALB polls is unchanged.** `/health/live` does not consult Kaana;
+`kaana-connectivity.ts` reports into `/health` and `/health/ready` only, and reports
 `disabled` while the flag is off. A rollback across the cutover boundary therefore
 does not change what the target group considers healthy.
 
 **Turning the flag off is not a rollback.** It is a cutover in reverse: it returns
 inference to Alia's in-process provider stack, puts spend back on Alia's own
 provider accounts, and re-exposes the `provider_keys` plaintext to the request
-path. If the Relay version itself is the problem, the rollback target is the
-**previous Relay version**, which is a different image with the flag still on. If
+path. If the Kaana version itself is the problem, the rollback target is the
+**previous Kaana version**, which is a different image with the flag still on. If
 no such image exists yet, say so and escalate on #139 rather than clearing the
 flag — that decision is larger than the incident.
 
@@ -432,7 +432,7 @@ Any one of these justifies a rollback without further discussion:
   previous revision is the reversible action, and hesitating is the expensive one.
 - **The #139 epic owner decides** anything that would return inference to direct
   providers, anything requiring a `--phase=all` migration run, and any rollback
-  crossing the Relay cutover. These are not on-call decisions.
+  crossing the Kaana cutover. These are not on-call decisions.
 
 ## Open questions
 
@@ -458,7 +458,7 @@ Any one of these justifies a rollback without further discussion:
   sets `DEPLOY_SHA`, and the script refuses cleanly if it ever does
   (`:61`–`:64`) — so this is a trap for whoever enables the guard, not a live
   fault. *Owner: the #139 epic owner.*
-- **What is the rollback procedure once Relay is the inference path?** The
-  "return traffic to the last known Relay version" half of workstream 18 cannot be
+- **What is the rollback procedure once Kaana is the inference path?** The
+  "return traffic to the last known Kaana version" half of workstream 18 cannot be
   written against code that does not exist yet. Revisit at the workstream 8
   cutover. *Owner: the #139 epic owner.*

@@ -37,7 +37,7 @@ import {
  * This file predicted that {@link FROZEN_MODULE_REFS} would gain a type-only
  * contracts import in the PR that bound the four type parameters. It did not,
  * and the prediction was wrong in an instructive direction: the parameters are
- * bound at the IMPLEMENTATION (`kaana-client.ts`, `RelayInferencePort`), so the
+ * bound at the IMPLEMENTATION (`kaana-client.ts`, `KaanaInferencePort`), so the
  * seam still imports nothing at all. A product module that named this port
  * would otherwise have to name the wire types with it, which is the coupling the
  * port exists to remove.

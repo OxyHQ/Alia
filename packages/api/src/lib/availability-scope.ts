@@ -13,14 +13,14 @@
  * The **data** is not, and cannot be faked into existence. Not one route in this
  * repository declares a scope today — `ModelMapping` gained an optional
  * `availabilityScope` field in the same change as this module and nothing sets
- * it, because the fact belongs to Relay's deployment catalogue and Relay does
+ * it, because the fact belongs to Kaana's deployment catalogue and Kaana does
  * not exist yet.
  *
  * That absence is reported rather than papered over. {@link admitEntry} answers
  * `unscoped` when no route behind an entry declares a scope, `GET /catalogue`
  * publishes that state per entry and the declared-route count for the whole
  * response, and the tests drive the decision from FIXTURE scopes so the
- * mechanism is measured before Relay can supply a real one. A filter that
+ * mechanism is measured before Kaana can supply a real one. A filter that
  * quietly answered "admitted" for everything would be indistinguishable from a
  * working filter with nothing to filter, which is the failure this epic keeps
  * running into.
@@ -139,7 +139,7 @@ export function resolveCallerAudience(req: Request): CallerAudience {
  *
  * `null` is an UNCLASSIFIED route, and it is not a scope. It admits, because
  * refusing every unclassified route would empty the catalogue today for a fact
- * that does not exist yet, and because "Relay has not classified this" is not a
+ * that does not exist yet, and because "Kaana has not classified this" is not a
  * statement that anybody is excluded. The response says how many routes were
  * classified, so an admitted entry can be told apart from an unclassified one.
  *
@@ -148,7 +148,7 @@ export function resolveCallerAudience(req: Request): CallerAudience {
  * only the scopes that admitted the caller. That is right at this layer — the
  * entry is reachable through the other route — but it is not a statement that
  * the internal route will not be selected. Selecting among routes is the
- * fallback engine's job and, per ADR 0003 invariant 4, Relay's once it exists;
+ * fallback engine's job and, per ADR 0003 invariant 4, Kaana's once it exists;
  * enforcing the scope at selection time is epic #139 L605, which is blocked on
  * the same catalogue that would supply the scope.
  */

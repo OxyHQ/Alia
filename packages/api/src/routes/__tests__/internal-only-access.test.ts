@@ -39,9 +39,9 @@ import { routingTargetSchema } from '@oxyhq/contracts';
  *
  * ## What this file cannot prove, stated rather than implied
  *
- * Alia does not yet hold a deployment catalogue — `RelayTransport` ships no
+ * Alia does not yet hold a deployment catalogue — `KaanaTransport` ships no
  * endpoint (see `lib/inference/kaana-endpoint.ts` for the origins it is now
- * pinned to) and Relay is not mounted. So there is no live "internal deployment"
+ * pinned to) and Kaana is not mounted. So there is no live "internal deployment"
  * in this repository to attempt access against, and no test here can pretend
  * otherwise. What is provable today is that the ENVELOPE cannot express one and
  * that no public credential acquires internal standing, which is what the
@@ -103,7 +103,7 @@ describe('the request envelope cannot name a deployment at all (#139 ws17)', () 
 
   it('a product model id resolves to a model or a profile, never to anything else', async () => {
     const { resolveRoutingTarget } = await import('../../lib/inference/kaana-request.js');
-    const { RelayInferenceError } = await import('../../lib/inference/kaana-error.js');
+    const { KaanaInferenceError } = await import('../../lib/inference/kaana-error.js');
     const fallback = { kind: 'routing_profile', routingProfile: 'auto' } as const;
 
     // The two legal outcomes.
@@ -121,7 +121,7 @@ describe('the request envelope cannot name a deployment at all (#139 ws17)', () 
      * resolves to `{ kind: 'routing_profile' }` rather than being refused — and
      * that is the correct answer, not a hole. The dangerous outcome would be a
      * target that NAMES the deployment, and there is no such target: a profile
-     * slug is resolved by Relay against the account's own routing configuration,
+     * slug is resolved by Kaana against the account's own routing configuration,
      * so the worst a caller achieves by writing a deployment id there is to name
      * a profile that does not exist.
      *
@@ -145,8 +145,8 @@ describe('the request envelope cannot name a deployment at all (#139 ws17)', () 
       } catch (cause) {
         thrown = cause;
       }
-      expect(thrown, id).toBeInstanceOf(RelayInferenceError);
-      expect((thrown as InstanceType<typeof RelayInferenceError>).code, id).toBe('invalid_request');
+      expect(thrown, id).toBeInstanceOf(KaanaInferenceError);
+      expect((thrown as InstanceType<typeof KaanaInferenceError>).code, id).toBe('invalid_request');
     }
   });
 
