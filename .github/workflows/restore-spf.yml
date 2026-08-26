@@ -33,6 +33,10 @@
 # against the zone's own authoritative nameservers rather than a resolver: the
 # name currently has NO TXT record, so every resolver that has been asked is
 # holding a negative answer, and a cache is not evidence about the zone.
+#
+# EVERY nameserver, and with a deadline. Cloudflare's own nameservers converge
+# seconds apart, so asking one immediately after writing is a coin toss — it
+# cost this workflow a red run on 2026-08-26 with the record perfectly correct.
 name: Restore SPF
 
 on:
@@ -119,23 +123,63 @@ jobs:
       # zone's own authoritative nameservers, because the name has been without
       # a TXT record and every resolver that was asked is caching that absence —
       # a recursive lookup here would be measuring a cache, not the zone.
+      #
+      # ALL of them, and with a deadline, because the first version asked ONE
+      # (`dig +short NS | head -1`) immediately after the write and failed the
+      # run: on 2026-08-26 `alec` served the new record and `deb` had not caught
+      # up yet, seconds behind. The record was correct, the assertion was true a
+      # moment later, and the run was red. A repair workflow that cries wolf is
+      # one people learn to ignore, which is the last thing this one can afford.
+      #
+      # 180s against a 10-minute job, so the `::error::` below is always
+      # reachable — a step whose worst case does not fit its job is a step whose
+      # own message never prints, which is the defect #436 fixed one loop at a
+      # time in these files.
       - name: The nameservers serve it
         if: ${{ !inputs.dry_run }}
         run: |
           set -euo pipefail
-          ns=$(dig +short NS "$ZONE" | head -1)
-          [ -n "$ns" ] || { echo "::error::$ZONE publishes no NS records"; exit 1; }
-          echo "asking $ns"
-          # A TXT value longer than 255 bytes comes back as adjacent quoted
-          # chunks on one line; joining them before stripping quotes is what
-          # makes the comparison the record's real value and not a rendering.
-          got=$(dig +short TXT "$HOSTNAME" "@$ns" | sed 's/" "//g; s/"//g')
-          echo "$HOSTNAME TXT -> ${got:-(none)}"
-          printf '%s\n' "$got" | grep -qxF "$VALUE" \
-            || { echo "::error::$ns does not serve '$VALUE' for $HOSTNAME"; exit 1; }
+          mapfile -t servers < <(dig +short NS "$ZONE" | sort)
+          [ "${#servers[@]}" -gt 0 ] || { echo "::error::$ZONE publishes no NS records"; exit 1; }
+          echo "authoritative nameservers: ${servers[*]}"
+
+          end=$((SECONDS + 180))
+          attempt=0
+          while :; do
+            attempt=$((attempt + 1))
+            behind=""
+            for ns in "${servers[@]}"; do
+              # A TXT value longer than 255 bytes comes back as adjacent quoted
+              # chunks on one line; joining them before stripping quotes is what
+              # makes the comparison the record's real value and not a rendering.
+              got=$(dig +short TXT "$HOSTNAME" "@$ns" | sed 's/" "//g; s/"//g')
+              if printf '%s\n' "$got" | grep -qxF "$VALUE"; then
+                echo "  attempt $attempt (${SECONDS}s of 180): $ns serves it"
+              else
+                echo "  attempt $attempt (${SECONDS}s of 180): $ns -> ${got:-(nothing)}"
+                behind="$behind $ns"
+              fi
+            done
+            [ -n "$behind" ] || break
+            # The failure this can report is propagation and ONLY propagation.
+            # The API read-back in the step above already asserted the record
+            # exists and reads back correctly, so "not written" is not one of
+            # the things being distinguished here — and the message says so,
+            # because a red step that leaves the reader guessing whether
+            # production is broken is worth less than no step at all.
+            if [ "$SECONDS" -ge "$end" ]; then
+              echo "::error::after 180s these nameservers still do not serve '$VALUE' for $HOSTNAME:$behind. The record IS written — the API read-back above asserted it, and the ones listed as serving it above are reading the same zone. This is propagation between Cloudflare's own nameservers, not a failed write. Re-run this step."
+              exit 1
+            fi
+            sleep 10
+          done
+
+          echo "all ${#servers[@]} nameservers serve it"
           {
             echo "### After"
             echo '```'
-            echo "TXT $HOSTNAME @$ns -> $got"
+            for ns in "${servers[@]}"; do
+              echo "TXT $HOSTNAME @$ns -> $(dig +short TXT "$HOSTNAME" "@$ns" | sed 's/" "//g; s/"//g')"
+            done
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
