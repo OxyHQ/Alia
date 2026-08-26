@@ -18,8 +18,12 @@
  *   `levelFromFrames` to reach the same dBFS first, and it cannot go through
  *   React at all — a render per audio buffer is not affordable. That is why the
  *   smoothing here is a time integration it can run per buffer rather than the
- *   `withTiming` the 10Hz path uses; the constants are the same, so the two
- *   settle the same way.
+ *   `withTiming` the 10Hz path uses. The constants are the same; the CURVES are
+ *   not. `withTiming` is at its target after `LEVEL_ATTACK_MS`, and this is an
+ *   exponential whose time constant that is — 63% of the way at 60ms, ~95% at
+ *   180. Sharing the number keeps one knob for one feel; it does not make the
+ *   two settle alike, and anyone tuning it should expect the two paths to move
+ *   by different amounts.
  *
  * This module deliberately imports nothing. It is the part of the metering that
  * can be driven with a buffer and asserted on, and `react-native-reanimated`

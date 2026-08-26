@@ -23,10 +23,18 @@ export interface IdentityMarkProps {
   /** Layout classes for the outer box (color comes from `color`, not classes). */
   className?: string;
   /**
-   * Who the mark stands for, as a colour. Defaults to the Alia brand purple —
-   * never a theme token. An agent passes its own colour and gets the same
-   * artwork at the same size, which is the whole of the difference between
-   * Alia's mark and an agent's.
+   * Who the mark stands for, as a colour. An agent passes its own colour and
+   * gets the same artwork at the same size, which is the whole of the
+   * difference between Alia's mark and an agent's.
+   *
+   * The default is the Alia brand purple, and that is what an agent-less
+   * surface gets when it passes nothing. But do not read the default as a rule:
+   * three of Alia's own surfaces — the sidebar logo, the chat's mark and the
+   * welcome message — deliberately pass `colors.primary`, so Alia's face
+   * follows the account's accent there and stays brand purple elsewhere
+   * (`welcome-intro.tsx`). That split predates this component and is not
+   * settled; it is written down here so the next reader picks a side knowingly
+   * rather than copying whichever neighbour they happened to open.
    */
   color?: string;
   /**
