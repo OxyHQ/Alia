@@ -197,6 +197,52 @@ export async function findAgentByOxyHandle(
     : findAgentByOxyAccountId(db, accountId);
 }
 
+/** The label a bot's handle ends in. Lower-case: the comparison folds case. */
+const BOT_USERNAME_SUFFIX = 'bot';
+
+/**
+ * Label a proposed handle, so what Alia sends is what Oxy will take.
+ *
+ * Every account Alia mints is `kind: 'bot'`, and Oxy holds that one kind to a
+ * tighter username rule than the other four: everything {@link isValidUsername}
+ * already demanded, plus a handle that ENDS in `bot`. So `garden-helper` is
+ * refused where `garden-helperbot`, `garden-bot` and `GardenBOT` are not — the
+ * label says what the account is at the point where the handle is read, which
+ * is the only part of an account that travels into a URL or a mention.
+ *
+ * ## Applied at the EDGE, after the collision suffix, never before it
+ *
+ * {@link suggestAgentUsername} proposes a base and `createAgentBotAccount`
+ * labels it on the way out, so a retry rewrites the base and the label goes
+ * back on top of the rewrite: `nadia` → taken → `nadia-i` → `nadia-ibot`.
+ * Labelling first would produce `nadiabot-i`, refused for exactly the reason
+ * the first attempt was, five times in a row — a loop that only terminates
+ * because somebody bounded it.
+ *
+ * ## This lives here TEMPORARILY
+ *
+ * `@oxyhq/contracts` owns the rule and publishes this exact function as
+ * `applyBotUsernameSuffix`, beside the schema that enforces it — the version
+ * Alia installs predates it. When a release carries it, this function goes and
+ * that import takes its place: same name, same behaviour, so no call site here
+ * moves. Nothing else in Alia may restate the rule in the meantime.
+ *
+ * It APPENDS and never inserts, leaving the separator to whoever chose the
+ * name, and it truncates to leave room rather than overflowing
+ * {@link USERNAME_MAX_LENGTH}. The label is ASCII alphanumeric, so appending it
+ * to a handle the schema accepts yields another one — it can introduce neither
+ * a repeated separator nor an edge one.
+ *
+ * Case-insensitive and therefore idempotent, folded exactly as Oxy's own unique
+ * index folds (`lower(btrim(username))`): `mybot` and `MYBOT` come back
+ * untouched rather than becoming `mybotbot`.
+ */
+export function applyBotUsernameSuffix(candidate: string): string {
+  const trimmed = candidate.trim();
+  if (trimmed.toLowerCase().endsWith(BOT_USERNAME_SUFFIX)) return trimmed;
+  return trimmed.slice(0, USERNAME_MAX_LENGTH - BOT_USERNAME_SUFFIX.length) + BOT_USERNAME_SUFFIX;
+}
+
 /**
  * A username to OFFER Oxy for a new agent's bot account.
  *
@@ -229,6 +275,15 @@ export async function findAgentByOxyHandle(
  * so it is trimmed — an improvement to the proposal, not a verdict on it.
  * `isValidUsername` gives the verdict, and it gives it last.
  *
+ * ## It proposes a NAME, and the minter adds the label
+ *
+ * What comes back does not end in `bot` and is not meant to: this is the base a
+ * bot handle is built from, and {@link applyBotUsernameSuffix} is applied by
+ * whoever sends it to Oxy — `createAgentBotAccount` here, `createBotAccount` in
+ * the app. The label has to go on LAST, after any collision suffix, or the
+ * suffix lands outside it and the handle stops conforming: this is the layer
+ * that makes `nadia2` possible, and the edge is what makes it `nadia2bot`.
+ *
  * ## `null` means "I have nothing to offer"
  *
  * Better than proposing something the server will refuse. The caller supplies
@@ -259,6 +314,10 @@ export function suggestAgentUsername(name: string): string | null {
  *
  * Asserted valid by the suite rather than by reading: a fallback that the
  * schema refuses would turn "no name to propose" into "cannot create an agent".
+ *
+ * A base like the one above, and unlabelled for the same reason: the minter
+ * appends `bot` after resolving any collision, so this one becomes
+ * `agent-3f2a91bcbot` on the way out.
  */
 export function fallbackAgentUsername(): string {
   return `agent-${randomUUID().replace(/-/g, '').slice(0, 8)}`;
