@@ -21,6 +21,39 @@ const resolveModel = vi.fn();
 const findAgentById = vi.fn();
 const findMcpServerForUser = vi.fn();
 const reserveCredits = vi.fn();
+const refundReservation = vi.fn();
+
+/**
+ * What Oxy says when asked whether this caller may act as a bot account.
+ *
+ * `'denies'` is a VERDICT and `'unreachable'` is the absence of one, and until
+ * this file could set them separately it could not tell them apart — every
+ * private-agent case here ran with an unconfigured client, which is the
+ * `unreachable` branch wearing the `denies` label. See the tests below.
+ */
+const oxy = vi.hoisted(() => ({ mode: 'denies' as 'grants' | 'denies' | 'unreachable' }));
+
+vi.mock('@oxyhq/core', async () => {
+  const actual = await vi.importActual<typeof import('@oxyhq/core')>('@oxyhq/core');
+  return {
+    ...actual,
+    OxyServices: class {
+      setTokens(): void {}
+      async getAccount(accountId: string): Promise<unknown> {
+        if (oxy.mode === 'unreachable') throw new Error('ECONNREFUSED api.oxy.so');
+        return {
+          accountId,
+          kind: 'bot',
+          relationship: oxy.mode === 'grants' ? 'owner' : 'none',
+          account: { id: accountId, kind: 'bot' },
+          callerMembership: oxy.mode === 'grants'
+            ? { status: 'active', role: 'owner', permissions: ['account:act_as'] }
+            : null,
+        };
+      }
+    },
+  };
+});
 
 vi.mock('../../chat-core.js', () => ({
   resolveModel: (...args: unknown[]) => resolveModel(...args),
@@ -66,7 +99,9 @@ vi.mock('../../../db/integrations/mcpServerRepository.js', () => ({
 vi.mock('../../user-credits-helpers.js', () => ({ getOrCreateUserCredits: async () => ({}) }));
 vi.mock('../../credits-manager.js', () => ({
   reserveCredits: (...args: unknown[]) => reserveCredits(...args),
-  refundReservation: async () => undefined,
+  // A SPY, not a stub. Every branch here that rejects a request after credits
+  // were held has to give the credit back, and a stub cannot say whether it did.
+  refundReservation: (...args: unknown[]) => refundReservation(...args),
   safeRefund: async () => undefined,
 }));
 vi.mock('../../plan-access.js', () => ({ getUserEntitlements: async () => null }));
@@ -79,6 +114,7 @@ vi.mock('../../logger.js', () => {
 });
 
 const { buildChatRequestContext } = await import('../request-context.js');
+const { clearAgentAccountVerdicts } = await import('../../agent-account.js');
 
 interface Captured {
   status: number | null;
@@ -93,6 +129,8 @@ async function run(
     directUserId?: string;
     apiKey?: boolean;
     agentId?: string;
+    /** A streaming request: headers are already out, so a refusal is an SSE event. */
+    sseSent?: boolean;
   } = {},
 ) {
   const captured: Captured = { status: null, body: null };
@@ -106,7 +144,7 @@ async function run(
       return res;
     },
   };
-  const sse = { sent: false, openEarly: vi.fn(), writeError: vi.fn() };
+  const sse = { sent: options.sseSent === true, openEarly: vi.fn(), writeError: vi.fn() };
   const timer = setTimeout(() => undefined, 60_000);
   const req = {
     body: {
@@ -128,7 +166,7 @@ async function run(
     timer as never,
   );
   clearTimeout(timer);
-  return { ctx, captured };
+  return { ctx, captured, sse };
 }
 
 beforeEach(() => {
@@ -144,6 +182,8 @@ beforeEach(() => {
   findMcpServerForUser.mockResolvedValue(null);
   reserveCredits.mockResolvedValue({ reservationId: 'reservation-1' });
   findAgentById.mockResolvedValue(null);
+  oxy.mode = 'denies';
+  clearAgentAccountVerdicts();
 });
 
 /**
@@ -159,6 +199,16 @@ beforeEach(() => {
  * the context. It is the assertion that would have failed on the day
  * `findConversationAgentById` was pointed at the primary key.
  */
+/** Private and published: listed, but only its owner may use it. */
+const privateAgent = {
+  _id: 'agent-2',
+  oxyAccountId: 'oxy-bot-2',
+  isPublished: true,
+  access: 'private',
+  status: 'active',
+  systemPrompt: 'p',
+};
+
 describe('the turn resolves the agent it NAMED', () => {
   it('reads body.agentId and puts the agent on the context', async () => {
     findAgentById.mockResolvedValue({
@@ -189,24 +239,126 @@ describe('the turn resolves the agent it NAMED', () => {
     expect(ctx?.linkedAgent).toBeNull();
   });
 
-  it('refuses a PRIVATE agent the caller has no standing in', async () => {
-    // `body.agentId` is client input. A private agent is reachable only through
-    // ownership or a membership on its bot account, and the Oxy client is not
-    // configured here — so nothing can be granted and the turn runs as ordinary
-    // Alia. Published, deliberately: being listed is not being usable.
-    findAgentById.mockResolvedValue({
-      _id: 'agent-2',
-      oxyAccountId: 'oxy-bot-2',
-      isPublished: true,
-      access: 'private',
-      status: 'active',
-      systemPrompt: 'p',
-    });
+  it('refuses a PRIVATE agent Oxy says the caller has no standing in', async () => {
+    /**
+     * `body.agentId` is client input, and a private agent is reachable only
+     * through ownership or a membership on its bot account. Published,
+     * deliberately: being listed is not being usable.
+     *
+     * This case used to run with an UNCONFIGURED Oxy client and call the result
+     * a denial — which is the `identity_unavailable` branch wearing the wrong
+     * label, so the test agreed with the bug instead of testing it. Oxy answers
+     * here, and answers no.
+     */
+    oxy.mode = 'denies';
+    findAgentById.mockResolvedValue(privateAgent);
 
     const { ctx } = await run(undefined, { directUserId: 'user-1', agentId: 'agent-2' });
 
     expect(findAgentById).toHaveBeenCalledWith(expect.anything(), 'agent-2');
     expect(ctx?.linkedAgent).toBeNull();
+    // A valid turn, answered by ordinary Alia. Decided and documented — a
+    // deleted agent, an unshared one, a stale id in an old client.
+    expect(ctx).not.toBeNull();
+    expect(refundReservation).not.toHaveBeenCalled();
+  });
+
+  it('grants a PRIVATE agent when Oxy says the caller may act as it — the control', async () => {
+    // Without this, "the turn ran as ordinary Alia" would be true of a fixture
+    // that can never grant anything, which is what the case above used to be.
+    oxy.mode = 'grants';
+    findAgentById.mockResolvedValue(privateAgent);
+
+    const { ctx } = await run(undefined, { directUserId: 'user-1', agentId: 'agent-2' });
+
+    expect(ctx?.linkedAgent?._id).toBe('agent-2');
+  });
+});
+
+/**
+ * An identity failure is REFUSED, never answered by somebody else.
+ *
+ * The second, independent cause of the symptom `#453` fixed. The client keeps
+ * rendering the agent's name and colour around the reply — `[username].tsx`
+ * draws the header from the thread, not from the turn — so substituting Alia
+ * tells the person they are talking to Claudio while Alia answers.
+ *
+ * It was INTERMITTENT, which is what made it nearly unreportable. A positive
+ * verdict is cached five minutes and separately per ECS task, so the collapse
+ * only bit on the first turn after that expired. A person lives it as "sometimes
+ * it forgets who it is".
+ *
+ * Only "Oxy could not be asked". An agent genuinely out of reach still runs as
+ * ordinary Alia — the case above — and that is deliberately a different
+ * question.
+ */
+describe('a turn naming an agent Oxy could not be asked about', () => {
+  it('answers the refusal instead of substituting Alia', async () => {
+    oxy.mode = 'unreachable';
+    findAgentById.mockResolvedValue(privateAgent);
+
+    const { ctx, captured } = await run(undefined, { directUserId: 'user-1', agentId: 'agent-2' });
+
+    expect(ctx).toBeNull();
+    expect(captured.status).toBe(502);
+    expect(captured.body?.error?.code).toBe('IDENTITY_UNAVAILABLE');
+    expect(captured.body?.error?.param).toBe('agentId');
+  });
+
+  it('gives the credit back', async () => {
+    // The reservation DEBITS on the way in, so an exit that neither charges nor
+    // refunds silently costs the person a credit. It is the first thing that
+    // breaks on a new early-return branch.
+    oxy.mode = 'unreachable';
+    findAgentById.mockResolvedValue(privateAgent);
+
+    await run(undefined, { directUserId: 'user-1', agentId: 'agent-2' });
+
+    expect(refundReservation).toHaveBeenCalledTimes(1);
+    expect(refundReservation).toHaveBeenCalledWith({ reservationId: 'reservation-1' });
+  });
+
+  it('leaves a turn that named NO agent alone', async () => {
+    // The blast-radius control: an Oxy outage must not refuse ordinary chat.
+    oxy.mode = 'unreachable';
+
+    const { ctx, captured } = await run(undefined, { directUserId: 'user-1' });
+
+    expect(ctx).not.toBeNull();
+    expect(captured.status).toBeNull();
+    expect(refundReservation).not.toHaveBeenCalled();
+  });
+
+  it('writes the refusal as an SSE event once the stream has opened', async () => {
+    // `sse.openEarly()` fires before any of this work, so on a streaming
+    // request the status line is already gone. The refusal has to travel as an
+    // error EVENT — the same shape every other gate here uses — or the client
+    // waits out the timeout on a stream that will never produce a token.
+    oxy.mode = 'unreachable';
+    findAgentById.mockResolvedValue(privateAgent);
+
+    const { ctx, captured, sse } = await run(undefined, {
+      directUserId: 'user-1', agentId: 'agent-2', sseSent: true,
+    });
+
+    expect(ctx).toBeNull();
+    expect(captured.status).toBeNull();
+    expect(sse.writeError).toHaveBeenCalledWith(
+      expect.objectContaining({ code: 'IDENTITY_UNAVAILABLE' }),
+    );
+    expect(refundReservation).toHaveBeenCalledTimes(1);
+  });
+
+  it('leaves a PUBLIC agent alone, because Oxy is never asked about one', async () => {
+    // `canReachAgent` short-circuits on public-and-active before any round trip,
+    // so an outage cannot touch these turns at all.
+    oxy.mode = 'unreachable';
+    findAgentById.mockResolvedValue({ ...privateAgent, _id: 'agent-1', access: 'public' });
+
+    const { ctx, captured } = await run(undefined, { directUserId: 'user-1', agentId: 'agent-1' });
+
+    expect(captured.status).toBeNull();
+    expect(ctx?.linkedAgent?._id).toBe('agent-1');
   });
 });
 

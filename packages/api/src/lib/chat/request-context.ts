@@ -46,7 +46,7 @@ import { oxyClient } from '../../middleware/auth.js';
 import { findSkillPrompt } from '../../db/agents/skillRepository.js';
 import { runBeforeChatHooks } from '../hooks/index.js';
 import { log } from '../logger.js';
-import { loadTurnAgent } from '../agent-account.js';
+import { loadTurnAgent, refusalMessage, refusalStatus } from '../agent-account.js';
 import type { HydratedAgent } from '../agent-identity.js';
 import { findMcpServerForUser } from '../../db/integrations/mcpServerRepository.js';
 import { runAutonomyBeforeChat, type AutonomyRuntimeContext } from '../autonomy/runtime.js';
@@ -504,7 +504,7 @@ export async function buildChatRequestContext(
   // Run independent operations concurrently to reduce time-to-first-token
   const preStreamStart = Date.now();
 
-  const [creditResult, resolvedResult, userMemory, oxyUser, skill, entitlements, linkedAgent] = await Promise.all([
+  const [creditResult, resolvedResult, userMemory, oxyUser, skill, entitlements, turnAgent] = await Promise.all([
     // Credits: sequential pair (getOrCreate → reserve), parallel with everything else
     // Skip for internal service requests (no credits charged)
     /**
@@ -581,10 +581,18 @@ export async function buildChatRequestContext(
           oxyUserId: req.user.id,
           accessToken: req.accessToken,
         }).catch((err: unknown) => {
+          /**
+           * A THROW is not `identity_unavailable`. `loadTurnAgent` returns that
+           * for the case it knows about — Oxy answering something other than a
+           * verdict — and anything reaching here is a bug in the lookup itself,
+           * which is the pre-existing "run as ordinary Alia" behaviour and stays
+           * that way. Widening this catch would turn every future defect in the
+           * repository layer into a 502 on every agent turn.
+           */
           log.v1.warn({ err, agentId: body.agentId }, 'Could not resolve the turn agent');
-          return null;
+          return { kind: 'none' } as const;
         })
-      : Promise.resolve(null),
+      : Promise.resolve({ kind: 'none' } as const),
   ]);
 
   log.v1.info({ durationMs: Date.now() - preStreamStart }, 'Pre-stream setup complete');
@@ -615,6 +623,47 @@ export async function buildChatRequestContext(
     }
     return null;
   }
+
+  /**
+   * A turn that named an agent we could not verify is REFUSED, never answered
+   * by somebody else.
+   *
+   * This is the second, independent cause of the symptom `#453` fixed: the
+   * client goes on rendering the agent's name and colour around the reply, so
+   * substituting Alia tells the person they are talking to Claudio while Alia
+   * answers. An identity failure cannot resolve to "you are someone else"; it
+   * either fails or says so out loud, and this is the surface with nowhere to
+   * say it.
+   *
+   * Only `identity_unavailable` — "Oxy could not be asked". An agent that is
+   * genuinely out of reach (deleted, unshared, a stale id in an old client)
+   * stays `kind: 'none'` and still runs as ordinary Alia, which is the decided,
+   * documented behaviour and a different question.
+   *
+   * 502 because nothing about the request is wrong and retrying may work, and
+   * it is `refusalStatus`/`refusalMessage`'s own answer for this refusal rather
+   * than a second opinion about it. The reservation is refunded, matching every
+   * other branch here that rejects a request after credits were held — an exit
+   * that neither charges nor refunds silently costs the person a credit.
+   */
+  if (turnAgent.kind === 'identity_unavailable') {
+    if (creditReservation) await refundReservation(creditReservation);
+    clearTimeout(globalTimer);
+    const refusal = {
+      message: refusalMessage('identity_unavailable'),
+      type: 'server_error',
+      param: 'agentId',
+      code: 'IDENTITY_UNAVAILABLE',
+    };
+    if (sse.sent) {
+      sse.writeError(refusal);
+    } else {
+      res.status(refusalStatus('identity_unavailable')).json({ error: refusal });
+    }
+    return null;
+  }
+
+  const linkedAgent = turnAgent.kind === 'agent' ? turnAgent.agent : null;
 
   /**
    * A refused request is answered by the refusal, not by "no models available".

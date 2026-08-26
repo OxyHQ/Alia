@@ -71,25 +71,37 @@ vi.mock('../../../lib/user-credits-helpers.js', () => ({
 }));
 vi.mock('../../../db/index.js', () => ({ getDb: () => ({}) }));
 
-/** The agent the route resolves, or `null` for an ordinary Alia session. */
+/**
+ * What `loadTurnAgent` answers for this session.
+ *
+ * A three-way result, not an agent-or-null: `identity_unavailable` means Oxy
+ * could not be ASKED, which is not the same fact as "you may not use this
+ * agent" and no longer collapses into it. See `lib/agent-account.ts`.
+ */
 const state = vi.hoisted(() => ({
   agent: null as null | { _id: string; systemPrompt: string | null; capabilityGrants: string[] },
+  identityUnavailable: false,
 }));
 
 vi.mock('../../../lib/agent-account.js', () => ({
-  loadTurnAgent: vi.fn(async () =>
-    state.agent === null
-      ? null
-      : {
-          ...state.agent,
-          name: 'Pepe',
-          handle: 'pepe',
-          color: null,
-          authorName: null,
-          archetype: 'general',
-          archetypeConfig: null,
-        },
-  ),
+  refusalStatus: () => 502,
+  refusalMessage: () => 'The identity service is unavailable',
+  loadTurnAgent: vi.fn(async () => {
+    if (state.identityUnavailable) return { kind: 'identity_unavailable' } as const;
+    if (state.agent === null) return { kind: 'none' } as const;
+    return {
+      kind: 'agent',
+      agent: {
+        ...state.agent,
+        name: 'Pepe',
+        handle: 'pepe',
+        color: null,
+        authorName: null,
+        archetype: 'general',
+        archetypeConfig: null,
+      },
+    } as const;
+  }),
 }));
 
 const { voiceSessionManager } = await import('../../../internal/providers/lib/voice-session-manager.js');
@@ -146,6 +158,7 @@ const toolNames = () => session().tools.map((t) => t.function.name).sort();
 beforeEach(() => {
   vi.clearAllMocks();
   state.agent = null;
+  state.identityUnavailable = false;
 });
 
 describe('an ordinary voice session is untouched', () => {
@@ -327,5 +340,55 @@ describe('an agent gets only the tools it was granted', () => {
 
     expect(session().instructions).not.toContain('# AGENT:');
     expect(toolNames()).toHaveLength(6);
+  });
+});
+
+/**
+ * An identity failure is refused, not answered by somebody else.
+ *
+ * A voice session that opens as ordinary Alia while the client draws the
+ * agent's name and colour around it tells the person they are speaking to Pepe
+ * while Alia answers. It is the same symptom `#453` fixed from the other end,
+ * and it was INTERMITTENT — a positive verdict is cached five minutes, so the
+ * collapse only bit on the first session after that expired, per ECS task.
+ *
+ * The refusal comes BEFORE the LiveKit room and the token, which is what the
+ * `startVoiceSession` assertion below measures: not merely that the status is
+ * 502, but that nothing was created to have to clean up.
+ */
+describe('a session whose agent could not be verified', () => {
+  it('refuses with 502 instead of opening an Alia session', async () => {
+    state.agent = null;
+    state.identityUnavailable = true;
+
+    const answer = await token({ agentId: 'agent-1' });
+
+    expect(String(answer)).toContain('502');
+    expect(String(answer)).toContain('IDENTITY_UNAVAILABLE');
+    expect(voiceSessionManager.createSession).not.toHaveBeenCalled();
+  });
+
+  it('control — the same request opens normally when the verdict arrives', async () => {
+    // Without this, "did not open a session" could be true for any reason at
+    // all, including a harness that never opens one.
+    state.identityUnavailable = false;
+    state.agent = { _id: 'agent-1', systemPrompt: 'You are a botanist.', capabilityGrants: [] };
+
+    const status = await token({ agentId: 'agent-1' });
+
+    expect(status).toBe(200);
+    expect(voiceSessionManager.createSession).toHaveBeenCalled();
+  });
+
+  it('control — an agent that is merely OUT OF REACH still gets an Alia session', async () => {
+    // The decided, documented behaviour, and a different question: a deleted
+    // agent or a stale id in an old client is still a valid session.
+    state.identityUnavailable = false;
+    state.agent = null;
+
+    const status = await token({ agentId: 'agent-1' });
+
+    expect(status).toBe(200);
+    expect(voiceSessionManager.createSession).toHaveBeenCalled();
   });
 });
