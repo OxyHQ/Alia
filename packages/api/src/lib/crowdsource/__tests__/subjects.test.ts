@@ -327,15 +327,13 @@ describe('skill subject provider', () => {
   function communitySkill(overrides: Partial<ModerationSkill> = {}): ModerationSkill {
     return {
       id: SKILL_ID,
-      skillId: 'my-skill',
-      title: 'My Skill',
-      tagline: 'A tagline',
-      description: 'A description',
-      systemPrompt: 'Do the thing.',
-      category: 'community',
-      language: 'en-US',
-      isBuiltIn: false,
-      oxyUserId: AUTHOR_ID,
+      name: 'my-skill',
+      displayName: 'My Skill',
+      description: 'A tagline. A description.',
+      body: 'Do the thing.',
+      source: 'authored',
+      visibility: 'public',
+      ownerOxyUserId: AUTHOR_ID,
       createdAt: new Date('2026-01-01T00:00:00.000Z'),
       ...overrides,
     };
@@ -351,7 +349,7 @@ describe('skill subject provider', () => {
     const content = snapshot?.content as ModerationResource;
     expect(content).toMatchObject({
       type: 'listing',
-      data: { title: 'My Skill', description: 'A tagline\n\nA description' },
+      data: { title: 'My Skill', description: 'A tagline. A description.' },
     });
     assertContractValid(content);
     expect(snapshot?.context?.[0]).toMatchObject({ role: 'evidence', type: 'text' });
@@ -370,11 +368,11 @@ describe('skill subject provider', () => {
   });
 
   /**
-   * The external id is what §7.3's dedup key is computed over, and the slug is
-   * derived from the title — which the owner can edit. Two reports about one skill
-   * either side of a rename must reach the same case.
+   * The external id is what §7.3's dedup key is computed over. The `name` is
+   * immutable today — a new version cannot rename a skill — and the row id is
+   * what nothing can ever change, so the key is the row id.
    */
-  it('keys the subject on the immutable id, not on the editable slug', async () => {
+  it('keys the subject on the row id, not on the name in the URL', async () => {
     findReportedSkillMock.mockResolvedValue(communitySkill());
     const snapshot = await provider.snapshot('my-skill');
     expect(snapshot?.subject.externalId).toBe(SKILL_ID);
@@ -402,17 +400,21 @@ describe('skill subject provider', () => {
   });
 
   /**
-   * A built-in skill is Alia's own product, not somebody's published work. A
-   * complaint about one belongs in a support channel, not in front of a jury drawn
-   * to judge a person.
+   * A catalogue skill — one Alia ships, or one synced from an upstream
+   * repository — has no Oxy account behind it. A complaint about one is a
+   * complaint about what Alia distributes and belongs in a support channel, not
+   * in front of a jury drawn to judge a person.
    */
-  it('declines a built-in skill', async () => {
-    findReportedSkillMock.mockResolvedValue(communitySkill({ isBuiltIn: true }));
+  it.each([
+    ['a built-in', { source: 'builtin' as const, ownerOxyUserId: null }],
+    ['one synced from a registry', { source: 'registry' as const, ownerOxyUserId: null }],
+  ])('declines %s skill, which has no author to answer for it', async (_label, overrides) => {
+    findReportedSkillMock.mockResolvedValue(communitySkill(overrides));
     expect(await provider.snapshot('my-skill')).toBeNull();
   });
 
-  it('declines a corrupted row with no title rather than inventing one', async () => {
-    findReportedSkillMock.mockResolvedValue(communitySkill({ title: '  ' }));
+  it('declines a corrupted row with no display name rather than inventing one', async () => {
+    findReportedSkillMock.mockResolvedValue(communitySkill({ displayName: '  ' }));
     expect(await provider.snapshot('my-skill')).toBeNull();
   });
 });

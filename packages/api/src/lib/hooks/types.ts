@@ -3,7 +3,8 @@ export interface ChatHookContext {
   conversationId?: string;
   messages: any[];
   model?: string;
-  skillId?: string;
+  /** The skills whose instructions reached the model this turn, by name. */
+  skillNames?: string[];
   platform: 'app' | 'telegram';
   metadata: Record<string, any>;
 }

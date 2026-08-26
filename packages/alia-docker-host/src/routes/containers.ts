@@ -73,6 +73,10 @@ const createSchema = z.object({
   size: z.enum(['small', 'medium', 'large']).default('small'),
   persistent: z.boolean().default(false),
   labels: z.record(z.string()).optional(),
+  // Deliberately NOT defaulted to 'none': every existing caller wants a network,
+  // and a default that silently cut them off would be a change of behaviour
+  // wearing a security label. The skill runner asks for it explicitly.
+  network: z.enum(['default', 'none']).optional(),
 });
 
 containersRouter.post('/', async (req, res) => {

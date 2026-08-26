@@ -79,7 +79,7 @@ export interface Agent {
    * itself is the API's.
    */
   capabilityGrants: string[];
-  skills: Array<{ _id: string; skillId: string; title: string; icon: string; color: string }>;
+  skills: Array<{ _id: string; name: string; displayName: string; icon: string | null; color: string | null }>;
   /**
    * The newest line of THIS person's thread with the agent, and when it landed.
    *

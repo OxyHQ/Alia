@@ -1,47 +1,59 @@
-import { useState, useEffect } from 'react';
-import { View, ScrollView, Pressable, ActivityIndicator } from 'react-native';
+import { View, ScrollView, Pressable, ActivityIndicator, Linking } from 'react-native';
 import { Text } from '@/components/ui/text';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Pencil, MessageSquare } from 'lucide-react-native';
+import { Switch } from '@/components/ui/switch';
+import { ArrowLeft, Check, Download, ExternalLink, FileText, Pencil, Play, Trash2 } from 'lucide-react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useOxy } from '@oxyhq/services';
 import { useTranslation } from '@/lib/hooks/use-translation';
-import { useSkillsStore, type Skill } from '@/lib/stores/skills-store';
+import {
+  useInstallSkill,
+  useInstalledSkills,
+  useSkill,
+  useUninstallSkill,
+  useUpdateInstall,
+  type InstalledSkill,
+} from '@/lib/hooks/use-skills';
 import { SectionLabel } from '@/components/detail/section-label';
-import { BulletList } from '@/components/detail/bullet-list';
-import { PromptChipList } from '@/components/detail/prompt-chip-list';
-import { GoodAtNotFor } from '@/components/detail/good-at-not-for';
+import { CustomMarkdown } from '@/components/ui/markdown';
 import { SkillCover } from '@/components/ui/skill-cover';
-import { ContentPanel } from "@oxyhq/bloom/content-panel";
+import { ContentPanel } from '@oxyhq/bloom/content-panel';
 
-function formatDate(dateStr: string): string {
-  const d = new Date(dateStr);
-  return d.toLocaleDateString('en', { month: 'short', year: 'numeric' });
+/**
+ * One skill, in full.
+ *
+ * The instructions are SHOWN rather than hidden. A skill is somebody else's
+ * prompt that will run inside your conversations, and the only honest way to
+ * decide whether to install one is to read what it says — which is also why the
+ * publisher and the exact source commit are on this screen rather than in a
+ * tooltip.
+ */
+
+const KIND_ICON = {
+  reference: FileText,
+  script: Play,
+  asset: FileText,
+} as const;
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 export default function SkillDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { t } = useTranslation();
-  const skills = useSkillsStore((s) => s.skills);
-  const getSkill = useSkillsStore((s) => s.getSkill);
+  const { user } = useOxy();
 
-  const [skill, setSkill] = useState<Skill | null>(null);
-  const [loading, setLoading] = useState(true);
+  const detail = useSkill(id);
+  const installed = useInstalledSkills();
+  const install = useInstallSkill();
+  const uninstall = useUninstallSkill();
+  const updateInstall = useUpdateInstall();
 
-  useEffect(() => {
-    const cached = skills.find((s) => s.skillId === id);
-    if (cached) {
-      setSkill(cached);
-      setLoading(false);
-    } else if (id) {
-      getSkill(id).then((s) => {
-        setSkill(s);
-        setLoading(false);
-      });
-    }
-  }, [id, skills, getSkill]);
-
-  if (loading) {
+  if (detail.isLoading) {
     return (
       <View className="flex-1 bg-background items-center justify-center">
         <ActivityIndicator />
@@ -49,7 +61,7 @@ export default function SkillDetailScreen() {
     );
   }
 
-  if (!skill) {
+  if (!detail.data) {
     return (
       <View className="flex-1 bg-background items-center justify-center">
         <Text className="text-muted-foreground">{t('skills.notFound')}</Text>
@@ -57,113 +69,175 @@ export default function SkillDetailScreen() {
     );
   }
 
-  const handleUseSkill = () => {
-    router.replace({ pathname: '/(app)', params: { skillId: skill.skillId } });
-  };
-
-  const handleEdit = () => {
-    router.push({ pathname: "/(app)/skills/edit/[id]", params: { id: skill.skillId } });
-  };
+  const { skill, version, files } = detail.data;
+  const shelf: InstalledSkill | undefined = (installed.data ?? []).find((entry) => entry._id === skill._id);
+  const isOwner = Boolean(user?.id && skill.ownerOxyUserId === user.id);
 
   return (
-    <ContentPanel surfaceClassName="bg-background">
-      <View className="flex-1 bg-background">
-        {/* Header */}
-        <View className="px-5 py-3 flex-row items-center justify-between">
-          <Pressable onPress={() => router.back()} className="active:opacity-70">
-            <ArrowLeft size={22} className="text-foreground" />
+    <View className="flex-1 bg-background">
+      <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
+        <View className="flex-row items-center justify-between px-4 pt-4">
+          <Pressable onPress={() => router.back()} className="h-9 w-9 items-center justify-center rounded-full active:bg-muted">
+            <ArrowLeft size={18} className="text-foreground" />
           </Pressable>
-          {!skill.isBuiltIn && skill.oxyUserId && (
-            <Pressable onPress={handleEdit} className="active:opacity-70">
-              <Pencil size={18} className="text-foreground" />
+          {isOwner ? (
+            <Pressable
+              onPress={() => router.push(`/(app)/skills/edit/${skill._id}`)}
+              className="h-9 w-9 items-center justify-center rounded-full active:bg-muted"
+            >
+              <Pencil size={16} className="text-foreground" />
             </Pressable>
-          )}
+          ) : null}
         </View>
 
-        <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
-          <View className="px-5 pb-6">
-            {/* Identity: book cover + info */}
-            <View className="flex-row gap-4 mb-3">
-              <SkillCover seed={skill.title} width={90} title={skill.title} author={skill.author} updatedAt={skill.updatedAt} />
+        <ContentPanel surfaceClassName="bg-background">
+          <View className="px-5 pt-2 pb-4 flex-row gap-4">
+            <SkillCover seed={skill.name} width={96} color={skill.color ?? undefined} title={skill.displayName} />
+            <View className="flex-1">
+              <Text className="text-xl font-bold text-foreground">{skill.displayName}</Text>
+              <Text className="text-[12px] text-muted-foreground mt-0.5">{skill.name}</Text>
+              {skill.publisher ? (
+                <Text className="text-[12px] text-muted-foreground mt-1">
+                  {t('skills.publisher')}: {skill.publisher}
+                </Text>
+              ) : null}
+              {skill.license ? (
+                <Text className="text-[12px] text-muted-foreground">
+                  {t('skills.license')}: {skill.license}
+                </Text>
+              ) : null}
 
-              <View className="flex-1 justify-center">
-                <Text className="text-xl font-bold text-foreground mb-0.5">
-                  {skill.title}
-                </Text>
-                <Text className="text-[13px] text-muted-foreground">
-                  {skill.author} · {formatDate(skill.createdAt)}
-                </Text>
-                <View className="flex-row items-center gap-1.5 mt-1">
-                  <View className="bg-muted px-2 py-0.5 rounded">
-                    <Text className="text-[10px] font-medium text-muted-foreground uppercase">
-                      {skill.language}
-                    </Text>
+              <View className="mt-3">
+                {shelf ? (
+                  <Button size="sm" variant="outline" className="rounded-full" onPress={() => uninstall.mutate(skill._id)}>
+                    <Check size={13} className="text-foreground" />
+                    <Text className="ml-1.5">{t('skills.uninstall')}</Text>
+                  </Button>
+                ) : (
+                  <Button size="sm" className="rounded-full" disabled={install.isPending} onPress={() => install.mutate(skill._id)}>
+                    <Download size={13} className="text-primary-foreground" />
+                    <Text className="ml-1.5">{install.isPending ? t('skills.installing') : t('skills.install')}</Text>
+                  </Button>
+                )}
+              </View>
+            </View>
+          </View>
+
+          <View className="px-5 pb-4">
+            <Text className="text-[14px] leading-5 text-foreground">{skill.description}</Text>
+          </View>
+        </ContentPanel>
+
+        {shelf ? (
+          <ContentPanel surfaceClassName="bg-background">
+            <View className="px-5 py-4 gap-4">
+              <View className="flex-row items-center justify-between">
+                <View className="flex-1 pr-4">
+                  <Text className="text-[14px] text-foreground">{t('skills.enabled')}</Text>
+                  <Text className="text-[12px] text-muted-foreground mt-0.5">{t('skills.enabledHint')}</Text>
+                </View>
+                <Switch
+                  value={shelf.enabled}
+                  onValueChange={(enabled: boolean) => updateInstall.mutate({ id: skill._id, patch: { enabled } })}
+                />
+              </View>
+              <View className="flex-row items-center justify-between">
+                <View className="flex-1 pr-4">
+                  <Text className="text-[14px] text-foreground">{t('skills.autoInvoke')}</Text>
+                  <Text className="text-[12px] text-muted-foreground mt-0.5">{t('skills.autoInvokeHint')}</Text>
+                </View>
+                <Switch
+                  value={shelf.autoInvoke}
+                  onValueChange={(autoInvoke: boolean) => updateInstall.mutate({ id: skill._id, patch: { autoInvoke } })}
+                />
+              </View>
+              <Text className="text-[12px] text-muted-foreground">
+                {shelf.pinnedVersion === null
+                  ? t('skills.versionFollowLatest')
+                  : t('skills.versionPinned', { version: shelf.pinnedVersion })}
+              </Text>
+            </View>
+          </ContentPanel>
+        ) : null}
+
+        {skill.compatibility ? (
+          <ContentPanel surfaceClassName="bg-background">
+            <View className="px-5 py-3">
+              <SectionLabel>{t('skills.compatibility')}</SectionLabel>
+              <Text className="text-[13px] text-muted-foreground mt-1">{skill.compatibility}</Text>
+            </View>
+          </ContentPanel>
+        ) : null}
+
+        {skill.allowedTools.length > 0 ? (
+          <ContentPanel surfaceClassName="bg-background">
+            <View className="px-5 py-3">
+              <SectionLabel>{t('skills.declaredTools')}</SectionLabel>
+              <View className="flex-row flex-wrap gap-1.5 mt-2">
+                {skill.allowedTools.map((tool) => (
+                  <View key={tool} className="rounded-full border border-border px-2.5 py-1">
+                    <Text className="text-[11px] text-muted-foreground">{tool}</Text>
                   </View>
-                  {!skill.isPublished && !skill.isBuiltIn && (
-                    <View className="bg-muted px-2 py-0.5 rounded">
-                      <Text className="text-[10px] font-medium text-muted-foreground">
-                        {t('skills.draft')}
-                      </Text>
+                ))}
+              </View>
+            </View>
+          </ContentPanel>
+        ) : null}
+
+        <ContentPanel surfaceClassName="bg-background">
+          <View className="px-5 py-3">
+            <SectionLabel>{t('skills.instructions')}</SectionLabel>
+            {skill.publisher ? (
+              <Text className="text-[11px] text-muted-foreground mt-1 mb-2">
+                {t('skills.untrusted', { publisher: skill.publisher })}
+              </Text>
+            ) : null}
+            {version ? <CustomMarkdown content={version.body} /> : null}
+          </View>
+        </ContentPanel>
+
+        <ContentPanel surfaceClassName="bg-background">
+          <View className="px-5 py-3">
+            <SectionLabel>{t('skills.files')}</SectionLabel>
+            {files.length === 0 ? (
+              <Text className="text-[13px] text-muted-foreground mt-1">{t('skills.noFiles')}</Text>
+            ) : (
+              <View className="mt-2 gap-1.5">
+                {files.map((file) => {
+                  const Icon = KIND_ICON[file.kind];
+                  return (
+                    <View key={file.path} className="flex-row items-center gap-2">
+                      <Icon size={13} className="text-muted-foreground" />
+                      <Text className="text-[13px] text-foreground flex-1">{file.path}</Text>
+                      <Text className="text-[11px] text-muted-foreground">{formatBytes(file.bytes)}</Text>
                     </View>
-                  )}
-                </View>
-              </View>
-            </View>
-
-            {/* Tagline */}
-            <Text className="text-[14px] text-muted-foreground leading-5 mb-3">
-              {skill.tagline}
-            </Text>
-
-            {/* Action Buttons */}
-            <View className="flex-row gap-2 mb-5">
-              <Button
-                onPress={handleUseSkill}
-                className="flex-1 h-11 rounded-full"
-              >
-                <View className="flex-row items-center gap-2">
-                  <MessageSquare size={15} className="text-primary-foreground" />
-                  <Text className="text-[13px] font-semibold text-primary-foreground">
-                    {t('skills.useSkill')}
-                  </Text>
-                </View>
-              </Button>
-            </View>
-
-            {/* Description */}
-            <Text className="text-[14px] text-foreground leading-5 mb-5">
-              {skill.description}
-            </Text>
-
-            {/* When to use */}
-            {skill.useCase && (
-              <View className="mb-5">
-                <SectionLabel>{t('roles.whenToUse')}</SectionLabel>
-                <Text className="text-[13px] text-foreground leading-5">{skill.useCase}</Text>
-              </View>
-            )}
-
-            {/* Good At / Not For */}
-            <GoodAtNotFor goodAt={skill.goodAt} notGoodAt={skill.notGoodAt} />
-
-            {/* Triggers */}
-            {skill.triggers.length > 0 && (
-              <View className="mb-5">
-                <SectionLabel>{t('skills.triggers')}</SectionLabel>
-                <PromptChipList items={skill.triggers} />
-              </View>
-            )}
-
-            {/* Includes */}
-            {skill.includes.length > 0 && (
-              <View>
-                <SectionLabel>{t('skills.includes')}</SectionLabel>
-                <BulletList items={skill.includes} color="primary" />
+                  );
+                })}
               </View>
             )}
           </View>
-        </ScrollView>
-      </View>
-    </ContentPanel>
+        </ContentPanel>
+
+        {skill.sourceUrl ? (
+          <ContentPanel surfaceClassName="bg-background">
+            <Pressable
+              className="px-5 py-3 flex-row items-center gap-2 active:opacity-70"
+              onPress={() => void Linking.openURL(skill.sourceUrl!)}
+            >
+              <ExternalLink size={14} className="text-muted-foreground" />
+              <View className="flex-1">
+                <Text className="text-[13px] text-foreground">{t('skills.viewSource')}</Text>
+                <Text className="text-[11px] text-muted-foreground">
+                  {skill.sourceRepo}
+                  {version?.sourceCommit ? ` · ${version.sourceCommit.slice(0, 7)}` : ''}
+                </Text>
+              </View>
+            </Pressable>
+          </ContentPanel>
+        ) : null}
+
+        <View className="h-10" />
+      </ScrollView>
+    </View>
   );
 }

@@ -1,6 +1,6 @@
 /**
  * Pre-flight assembly for /v1/chat/completions: body validation, the parallel
- * prefetch (credits, model, memory, profile, skill, entitlements, linked
+ * prefetch (credits, model, memory, profile, entitlements, linked
  * agent), credit/model/plan gating, and beforeChat hooks.
  *
  * Returns null when a response has already been written (validation error or
@@ -43,7 +43,8 @@ import { reserveCredits, refundReservation, type CreditReservation } from '../cr
 import { getUserEntitlements, type Entitlements } from '../plan-access.js';
 import type { OxyUserProfile } from '../system-prompt-builder.js';
 import { oxyClient } from '../../middleware/auth.js';
-import { findSkillPrompt } from '../../db/agents/skillRepository.js';
+import { findAgentSkills } from '../../db/agents/agentRepository.js';
+import { buildSkillRuntime, type SkillRuntime } from '../skills/runtime.js';
 import { runBeforeChatHooks } from '../hooks/index.js';
 import { log } from '../logger.js';
 import { loadTurnAgent, refusalMessage, refusalStatus } from '../agent-account.js';
@@ -56,17 +57,12 @@ import type { SSEWriter } from './sse-writer.js';
 import { reasoningEffortOf } from '../observability/requested-model.js';
 import type { EffortLevel } from '../reasoning-effort.js';
 
-interface SkillDoc {
-  systemPrompt?: string;
-  title?: string;
-}
-
 export interface ChatRequestContext {
   body: Record<string, unknown> & {
     model?: string;
     fallbackPolicy?: unknown;
     stream?: boolean;
-    skillId?: string;
+    skillIds?: unknown;
     conversationId?: string;
     tools?: OpenAITool[];
     mcpServerId?: unknown;
@@ -124,7 +120,14 @@ export interface ChatRequestContext {
   clientContext: string | undefined;
   userMemory: UserMemoryProfile | null;
   oxyUser: OxyUserProfile | null;
-  skill: SkillDoc | null;
+  /**
+   * The skills this turn may reach, and the tools that reach them.
+   *
+   * Built once, here, because two consumers need the same read: the system
+   * prompt takes its index and any explicitly selected bodies, and the tool
+   * pipeline takes its tools. Building it twice would authorize twice.
+   */
+  skills: SkillRuntime;
   entitlements: Entitlements | null;
   linkedAgent: HydratedAgent | null;
   /** Initial values for the handler's retry-mutable state. */
@@ -222,6 +225,33 @@ export async function buildChatRequestContext(
   // Determine if this is a direct user session (not API key)
   // API key requests should be neutral and not include creator's personal info
   const isDirectUserSession = !!req.user && !req.apiKey;
+
+  /**
+   * The skills the person picked for this message, by name.
+   *
+   * The same three-state shape the connector selector uses: omitted lets the
+   * model discover from the index, `null` withholds skills entirely, and an
+   * array names the ones to inline. Whether a name is REACHABLE is not decided
+   * here — `buildSkillRuntime` resolves every name against what this account
+   * actually installed, so an unknown one is ignored rather than 400ing a chat
+   * over a stale composer selection.
+   */
+  let selectedSkillNames: string[] | null | undefined;
+  if (body.skillIds === undefined || body.skillIds === null) {
+    selectedSkillNames = body.skillIds as null | undefined;
+  } else if (!Array.isArray(body.skillIds) || body.skillIds.some((name: unknown) => typeof name !== 'string')) {
+    res.status(400).json({
+      error: {
+        message: 'skillIds must be an array of skill names, or null.',
+        type: 'invalid_request_error',
+        param: 'skillIds',
+        code: 'invalid_skill_ids',
+      },
+    });
+    return null;
+  } else {
+    selectedSkillNames = (body.skillIds as string[]).map((name) => name.trim()).filter((name) => name !== '');
+  }
 
   let mcpServerId: string | null | undefined;
   if (body.mcpServerId === undefined || body.mcpServerId === null) {
@@ -504,7 +534,7 @@ export async function buildChatRequestContext(
   // Run independent operations concurrently to reduce time-to-first-token
   const preStreamStart = Date.now();
 
-  const [creditResult, resolvedResult, userMemory, oxyUser, skill, entitlements, turnAgent] = await Promise.all([
+  const [creditResult, resolvedResult, userMemory, oxyUser, entitlements, turnAgent] = await Promise.all([
     // Credits: sequential pair (getOrCreate → reserve), parallel with everything else
     // Skip for internal service requests (no credits charged)
     /**
@@ -551,11 +581,6 @@ export async function buildChatRequestContext(
           new Promise<null>(resolve => setTimeout(() => resolve(null), 5000)),
         ]).catch(() => null)
       : Promise.resolve<OxyUserProfile | null>(null),
-
-    // Skill loading
-    (body.skillId && isDirectUserSession)
-      ? findSkillPrompt(getDb(), body.skillId).then(skill => skill ?? null).catch(() => null)
-      : Promise.resolve(null),
 
     // User entitlements (plan-based model access) — parallelized to avoid sequential delay
     (req.user && !req.apiKey)
@@ -666,6 +691,29 @@ export async function buildChatRequestContext(
   const linkedAgent = turnAgent.kind === 'agent' ? turnAgent.agent : null;
 
   /**
+   * Skills, after the batch rather than inside it: the candidate set includes
+   * the skills linked to whichever agent this conversation runs, and that agent
+   * is one of the things the batch resolves.
+   *
+   * Available to API-key callers too, unlike the prompt fragment this replaces.
+   * Authorization is now an install owned by `req.user.id`, and a developer key
+   * carries its owner's account — so scoping it to interactive sessions would
+   * withhold a person's own skills from their own API key for no reason.
+   */
+  const skills = req.user?.id
+    ? await buildSkillRuntime({
+        db: getDb(),
+        oxyUserId: req.user.id,
+        conversationId,
+        selectedNames: selectedSkillNames,
+        agentSkillIds: linkedAgent ? (await findAgentSkills(getDb(), linkedAgent.id)).map((ref) => ref._id) : [],
+      }).catch((err) => {
+        log.v1.warn({ err }, 'Skill runtime unavailable for this turn');
+        return null;
+      })
+    : null;
+
+  /**
    * A refused request is answered by the refusal, not by "no models available".
    *
    * Two distinct outcomes used to arrive here as the same 503: an identifier
@@ -746,7 +794,7 @@ export async function buildChatRequestContext(
       conversationId,
       messages,
       model: aliasModelId,
-      skillId: body.skillId,
+      skillNames: selectedSkillNames ?? undefined,
       platform: req.apiKey ? 'telegram' as const : 'app' as const,
       metadata: {},
     }).catch(() => null);
@@ -770,7 +818,7 @@ export async function buildChatRequestContext(
     clientContext,
     userMemory,
     oxyUser,
-    skill: skill as SkillDoc | null,
+    skills: skills ?? { index: '', active: '', tools: {}, candidateIds: [], activated: () => [] },
     entitlements,
     linkedAgent,
     creditReservation,

@@ -49,6 +49,7 @@ import { reclaimOrphanedAgentSessions } from './agent/session-handoff.js';
 import { getContainerPool, shutdownContainerPool } from './sandbox/container-pool.js';
 import { initShowQueue, shutdownShowQueue, startShowWorker } from './show/show-queue.js';
 import { initTaskQueue, shutdownTaskQueue, startWorker } from './task-queue.js';
+import { startSkillRegistrySync, stopSkillRegistrySync } from './skills/scheduler.js';
 import { startTriggerEngine, stopTriggerEngine } from './trigger-engine.js';
 
 /**
@@ -105,6 +106,9 @@ export function startBackgroundServices(): void {
   initShowQueue()
     .then(() => startShowWorker())
     .catch((err) => log.general.error({ err }, '[ShowQueue] Startup error'));
+  // Keep the shared skill catalogue in step with the repositories it is synced
+  // from. Leader-gated, because it writes rows every account reads.
+  startSkillRegistrySync();
 }
 
 /**
@@ -123,6 +127,10 @@ export async function stopBackgroundServices(): Promise<void> {
   // Release the trigger-engine leadership lease and stop scheduled tasks
   await stopTriggerEngine();
   log.general.info('Trigger engine stopped');
+
+  // Same for the skill catalogue's own lease.
+  await stopSkillRegistrySync();
+  log.general.info('Skill registry sync stopped');
 
   // Stop claiming moderation work, but let the event already in flight reach a
   // durable state — an abandoned claim is reclaimable, a half-applied one is not.

@@ -9,7 +9,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import type { ScrollView as GHScrollView } from "react-native-gesture-handler";
 import { useStore } from "@/lib/stores/global-store";
 import { useUIStore } from "@/lib/stores/ui-store";
-import { X, Ghost, Bot, Search } from "lucide-react-native";
+import { X, Ghost, Bot, Search, BookOpen } from "lucide-react-native";
 import * as DropdownMenu from "@/components/ui/dropdown-menu";
 import { ActionKeyIcon } from "@/components/ui/action-key-icon";
 import { Text } from "@/components/ui/text";
@@ -39,6 +39,7 @@ import type { AgentActivityState } from "@/lib/hooks/use-agent-activity";
 import { AgentTerminal } from "@/components/agent-terminal";
 import { Terminal as TerminalIcon, ChevronDown, ChevronUp } from "lucide-react-native";
 import { useMcpServers } from "@/lib/hooks/use-mcp-servers";
+import { useInstalledSkills } from "@/lib/hooks/use-skills";
 import type { SendOptions } from "@/lib/hooks/use-streaming-chat";
 import { ComposerGlyph } from "@/components/ui/prompt-input/composer-glyph";
 
@@ -207,6 +208,20 @@ export const ChatPageContent = ({
   const [activeModes, setActiveModes] = useState<Set<Mode>>(new Set());
   const [selectedConnectorId, setSelectedConnectorId] = useState<string | null>(null);
   /**
+   * Skills chosen for the NEXT message, by name.
+   *
+   * Per turn, like the connector beside it. Choosing none is the normal case:
+   * Alia carries an index of the installed skills in its system prompt and can
+   * load one on its own when a request matches. This is for saying "use this
+   * one" out loud.
+   */
+  const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
+  const { data: installedSkills = [] } = useInstalledSkills();
+  const availableSkills = useMemo(
+    () => installedSkills.filter((skill) => skill.enabled),
+    [installedSkills],
+  );
+  /**
    * Whether Alia may reach the open web on this turn.
    *
    * On the model store rather than in `activeModes`, because it is one of the
@@ -249,6 +264,7 @@ export const ChatPageContent = ({
     setAppliedDraftSeq(composerDraftSeq);
     setInputValue(composerDraft.text);
     setSelectedConnectorId(composerDraft.mcpServerId);
+    setSelectedSkills(composerDraft.skillNames);
   }
 
   const [showTerminal, setShowTerminal] = useState(false);
@@ -340,7 +356,7 @@ export const ChatPageContent = ({
     }
     const content = draft;
     const pendingAttachments = attachments.length > 0 ? attachments : undefined;
-    const options: SendOptions = { mcpServerId: selectedConnectorId };
+    const options: SendOptions = { mcpServerId: selectedConnectorId, skillNames: selectedSkills };
 
     // Clear optimistically. Both send paths restore text, attachments and the
     // selected connector through composerDraft if the request fails.
@@ -352,11 +368,15 @@ export const ChatPageContent = ({
       if (sent) {
         setEditingMessageId(null);
         setSelectedConnectorId(null);
+        setSelectedSkills([]);
       }
       return;
     }
     const sent = await onSubmit(content, pendingAttachments, options);
-    if (sent) setSelectedConnectorId(null);
+    if (sent) {
+      setSelectedConnectorId(null);
+      setSelectedSkills([]);
+    }
   };
 
   // Send a suggestion's text directly (non-template selections) via the same send path.
@@ -367,9 +387,12 @@ export const ChatPageContent = ({
       return;
     }
     setInputValue("");
-    const sent = await onSubmit(text, undefined, { mcpServerId: selectedConnectorId });
-    if (sent) setSelectedConnectorId(null);
-  }, [isLoading, disabled, isAuthenticated, signIn, onSubmit, selectedConnectorId]);
+    const sent = await onSubmit(text, undefined, { mcpServerId: selectedConnectorId, skillNames: selectedSkills });
+    if (sent) {
+      setSelectedConnectorId(null);
+      setSelectedSkills([]);
+    }
+  }, [isLoading, disabled, isAuthenticated, signIn, onSubmit, selectedConnectorId, selectedSkills]);
 
   const handleWebSearch = () => {
     // Withholds three tools rather than rewording a prompt. The model decides
@@ -481,6 +504,29 @@ export const ChatPageContent = ({
       </DropdownMenu.Item>
       {runnableConnectors.length > 0 && (
         <>
+          {availableSkills.length > 0 && (
+            <>
+              <DropdownMenu.Separator />
+              <DropdownMenu.Label className="px-2.5 font-normal">{t('skills.composerLabel')}</DropdownMenu.Label>
+              {availableSkills.map((skill) => (
+                <DropdownMenu.CheckboxItem
+                  key={skill._id}
+                  value={selectedSkills.includes(skill.name) ? 'on' : 'off'}
+                  onValueChange={() => setSelectedSkills((current) => (
+                    current.includes(skill.name)
+                      ? current.filter((name) => name !== skill.name)
+                      : [...current, skill.name]
+                  ))}
+                >
+                  <DropdownMenu.ItemIcon ios={{ name: "book" }}>
+                    <BookOpen size={16} color={colors.foreground} />
+                  </DropdownMenu.ItemIcon>
+                  <DropdownMenu.ItemTitle>{skill.displayName}</DropdownMenu.ItemTitle>
+                  <DropdownMenu.ItemSubtitle>{skill.description}</DropdownMenu.ItemSubtitle>
+                </DropdownMenu.CheckboxItem>
+              ))}
+            </>
+          )}
           <DropdownMenu.Separator />
           <DropdownMenu.Label className="px-2.5 font-normal">Apps</DropdownMenu.Label>
           {runnableConnectors.map((server) => (

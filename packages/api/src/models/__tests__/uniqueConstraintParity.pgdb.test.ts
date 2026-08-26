@@ -502,15 +502,6 @@ const UNIQUES_RETIRED_SINCE: readonly RetiredUnique[] = [
     mongooseKey: ['oxyUserId', 'conversationId'],
   },
   {
-    model: 'Skill',
-    file: 'src/models/skill.ts',
-    retiredBy: 'S9 containers/skills',
-    table: 'skills',
-    constraint: 'skills_skill_id_key',
-    mongooseKey: ['skillId'],
-    note: 'The constraint is a `uniqueIndex()` rather than a `unique()` because nothing references `skill_id`: `agent_skills` points at `skills.id`. It is still what `lib/seed-skills.ts` upserts on, so the uniqueness is load-bearing, not decorative.',
-  },
-  {
     model: 'Conversation',
     file: 'src/models/conversation.ts',
     retiredBy: '3cb93647',
@@ -558,6 +549,47 @@ const MODELS_RETIRED_WITHOUT_UNIQUES: readonly string[] = [
   'Container',
   'LearningRule',
   'RollbackRecord',
+];
+
+/**
+ * The FOURTH state: a ported uniqueness that a later change REPLACED with a
+ * different one.
+ *
+ * Neither of the two states above fits, and putting it in either is a lie in a
+ * different direction. It is not missing — something still upholds the identity
+ * it protected. It was not "retired outright rather than ported" — it WAS
+ * ported, ran in production, and then a deliberate change moved the identity
+ * somewhere else.
+ *
+ * So the record carries both names, and the assertion is on the REPLACEMENT: the
+ * new constraint must exist, by name, on the named table. That keeps this from
+ * being a note somebody wrote once — if the replacement is dropped tomorrow, the
+ * identity is unprotected and this goes red, which is exactly what the original
+ * row did for the original constraint.
+ */
+interface SupersededUnique {
+  readonly model: string;
+  readonly file: string;
+  readonly retiredBy: string;
+  readonly table: string;
+  readonly mongooseKey: readonly string[];
+  readonly wasConstraint: string;
+  readonly nowConstraint: string;
+  readonly reason: string;
+}
+
+const UNIQUES_SUPERSEDED: readonly SupersededUnique[] = [
+  {
+    model: 'Skill',
+    file: 'src/models/skill.ts',
+    retiredBy: 'S9 containers/skills',
+    table: 'skills',
+    mongooseKey: ['skillId'],
+    wasConstraint: 'skills_skill_id_key',
+    nowConstraint: 'skills_owner_name_key',
+    reason:
+      "The Agent Skills rewrite replaced `skill_id` — a slug derived from a title — with the spec's `name`, and made it unique PER OWNER rather than globally: `coalesce(owner_oxy_user_id, '') + name`. That is deliberately weaker than what Mongoose enforced, and the weakening is the feature. Two accounts may each keep a skill called `writing-tests`, exactly as two people may each keep a file of that name; the shared catalogue, whose owner is null, still holds only one. A global unique would mean the first person to import a public skill takes its name away from everybody else.",
+  },
 ];
 
 /**
@@ -857,7 +889,8 @@ describe('the walk itself found something', () => {
       LIVE_REQUIREMENTS.length +
       UNIQUES_AT_FREEZE.length +
       UNIQUES_RETIRED_SINCE.length +
-      UNIQUES_DEPARTED.length;
+      UNIQUES_DEPARTED.length +
+      UNIQUES_SUPERSEDED.length;
 
     expect(
       asserted,
@@ -966,6 +999,26 @@ describe('every uniqueness Mongoose enforced exists in PostgreSQL', () => {
         'Its source is gone, so this list is the only surviving record that it was ' +
         'ever needed; `git show <retiredBy>^:<file>` re-verifies the claim.',
     ).toEqual([]);
+  });
+
+  it('has the replacement for every superseded constraint, on the named table', async () => {
+    const present = new Set((await databaseUniques()).map((r) => `${r.table}.${r.name}`));
+    const missing = UNIQUES_SUPERSEDED.filter((r) => !present.has(`${r.table}.${r.nowConstraint}`)).map(
+      (r) => `${r.model} -> ${r.table}.${r.nowConstraint} (replaced ${r.wasConstraint})`,
+    );
+
+    expect(
+      missing,
+      `${missing.join('; ')} — the constraint that took over an identity Mongoose ` +
+        'protected is gone too, so nothing upholds it. Either restore it or move ' +
+        'the row into RETIRED_NOT_PORTED with the reason the identity no longer ' +
+        'needs protecting.',
+    ).toEqual([]);
+
+    // And the one it replaced is really gone: a row here whose OLD constraint
+    // still exists is a supersession that never happened.
+    const stillThere = UNIQUES_SUPERSEDED.filter((r) => present.has(`${r.table}.${r.wasConstraint}`));
+    expect(stillThere).toEqual([]);
   });
 
   /**
@@ -1089,6 +1142,7 @@ describe('the map cannot silently lag the schema', () => {
     const accounted = new Set([
       ...UNIQUES_RETIRED_SINCE.map((r) => r.model),
       ...UNIQUES_DEPARTED.map((r) => r.model),
+      ...UNIQUES_SUPERSEDED.map((r) => r.model),
       ...RETIRED_NOT_PORTED.map((r) => r.model),
       ...MODELS_RETIRED_WITHOUT_UNIQUES,
     ]);

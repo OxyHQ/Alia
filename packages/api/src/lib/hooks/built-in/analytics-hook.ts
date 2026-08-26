@@ -45,7 +45,7 @@ registerHook({
         errorClass: ctx.errorClass,
         cancelled: ctx.cancelled,
         platform: ctx.platform,
-        skillId: ctx.skillId,
+        skillNames: ctx.skillNames ?? [],
       });
     } catch (error) {
       log.chat.error({ err: error }, 'Error saving analytics');

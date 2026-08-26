@@ -69,7 +69,7 @@ import type { ApiDatabase, Executor } from '../index';
 import { agentKnowledge, agents, agentSkills } from '../schema/agents';
 import { conversations } from '../schema/chat';
 import { libraryFiles } from '../schema/library';
-import { skills } from '../schema/agents-support';
+import { skills } from '../schema/skills';
 import type { AgentAccess, AgentArchetype, AgentStatus } from '../../domain/agent';
 
 type AgentRow = typeof agents.$inferSelect;
@@ -85,10 +85,12 @@ export interface AgentSoul {
 
 export interface AgentSkillRef {
   _id: string;
-  skillId: string;
-  title: string;
-  icon: string;
-  color: string;
+  /** The Agent Skills `name`: what the model says to load it. */
+  name: string;
+  displayName: string;
+  /** Presentation only, and absent on an imported skill — the app draws a cover from the name. */
+  icon: string | null;
+  color: string | null;
 }
 
 /** The four fields `.populate('knowledge', 'name type category url')` selected. */
@@ -715,8 +717,8 @@ export async function findAgentSkills(db: Executor, agentId: string): Promise<Ag
   const rows = await db
     .select({
       _id: skills.id,
-      skillId: skills.skillId,
-      title: skills.title,
+      name: skills.name,
+      displayName: skills.displayName,
       icon: skills.icon,
       color: skills.color,
     })

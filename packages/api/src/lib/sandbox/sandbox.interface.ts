@@ -30,6 +30,15 @@ export interface CreateSandboxOptions {
   size?: 'small' | 'medium' | 'large';
   persistent?: boolean;
   labels?: Record<string, string>;
+  /**
+   * `'none'` asks for a sandbox with no network at all.
+   *
+   * Part of the interface rather than of the Docker provider, because it is a
+   * property every provider must be able to offer: running third-party code
+   * with no egress is not a Docker feature, it is the contract. A provider that
+   * cannot honour it has to say so rather than quietly ignoring it.
+   */
+  network?: 'default' | 'none';
 }
 
 export interface SandboxProvider {

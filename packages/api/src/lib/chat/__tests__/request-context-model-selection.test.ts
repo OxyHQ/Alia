@@ -87,6 +87,9 @@ vi.mock('../../../db/chat/conversationRepository.js', () => ({
 vi.mock('../../../db/agents/skillRepository.js', () => ({ findSkillPrompt: async () => undefined }));
 vi.mock('../../../db/agents/agentRepository.js', () => ({
   findAgentById: (...args: unknown[]) => findAgentById(...args),
+  // The turn's skill runtime asks which skills the agent carries; an agent with
+  // none is the case every fixture here is about.
+  findAgentSkills: async () => [],
 }));
 vi.mock('../../agent-identity.js', () => ({
   attachAgentIdentity: async (agent: Record<string, unknown>) => ({

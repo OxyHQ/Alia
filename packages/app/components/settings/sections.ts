@@ -5,7 +5,6 @@ import { LockShieldIcon } from "@/components/ui/icons/lock-shield-icon";
 import { PencilIcon } from "@/components/ui/icons/pencil-icon";
 import { PluginsIcon } from "@/components/ui/icons/plugins-icon";
 import { SettingsIcon } from "@/components/ui/icons/settings-icon";
-import { SkillsIcon } from "@/components/ui/icons/skills-icon";
 import type { IconComponent } from "@/lib/types/icon";
 
 export interface SettingsSection {
@@ -23,7 +22,9 @@ export const SETTINGS_GROUPS: { titleKey: string; sections: SettingsSection[] }[
       { id: "personalization", route: "/(app)/settings/personalization", icon: Palette, labelKey: "settings.sections.personalization" },
       { id: "memory", route: "/(app)/settings/memory", icon: Brain, labelKey: "settings.sections.memory" },
       { id: "writing-style", route: "/(app)/settings/writing-style", icon: PencilIcon, labelKey: "settings.sections.writingStyle" },
-      { id: "skills", route: "/(app)/settings/skills", icon: SkillsIcon, labelKey: "settings.sections.skills" },
+      // Skills live at `/(app)/skills`, not under settings. The entry that used
+      // to be here pointed at a screen whose toggle PATCHed a field the API has
+      // never had, so every switch answered 404 and rolled back.
     ],
   },
   {

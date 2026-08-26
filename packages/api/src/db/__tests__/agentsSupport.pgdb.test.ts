@@ -1,10 +1,10 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { eq, sql } from 'drizzle-orm';
-import { constraintNameOf, isCheckViolation, isUniqueViolation } from '@oxyhq/db';
+import { constraintNameOf, isCheckViolation } from '@oxyhq/db';
 import { sweepAllExpiredRows } from '@oxyhq/db/expiry';
 import { closePostgres, connectPostgres, type ApiDatabase } from '../index';
 import { EXPIRY_TARGETS } from '../expiryTargets';
-import { learningRules, rollbackRecords, skills } from '../schema/agents-support';
+import { learningRules, rollbackRecords } from '../schema/agents-support';
 
 /**
  * Batch 9a against a REAL server.
@@ -30,98 +30,6 @@ beforeAll(() => {
 
 afterAll(async () => {
   await closePostgres();
-});
-
-function skillValues(overrides: Partial<typeof skills.$inferInsert> = {}) {
-  return {
-    skillId: 'skill-a',
-    title: 'A skill',
-    tagline: 'does a thing',
-    description: 'a longer description',
-    systemPrompt: 'you are a thing-doer',
-    author: 'Alia',
-    icon: 'sparkles',
-    color: '#123456',
-    category: 'featured' as const,
-    ...overrides,
-  };
-}
-
-describe('skills', () => {
-  it('closes the category set, naming the constraint', async () => {
-    const insert = db.execute(sql`
-      insert into ${skills} (id, skill_id, title, tagline, description, system_prompt, author, icon, color, category)
-      values ('sk-badcat', 'skill-badcat', 'T', 'L', 'D', 'P', 'Alia', 'i', '#000', 'trending')
-    `);
-
-    await expect(insert).rejects.toSatisfy((error: unknown) => {
-      expect(isCheckViolation(error)).toBe(true);
-      expect(constraintNameOf(error)).toBe('skills_category_check');
-      return true;
-    });
-  });
-
-  it('refuses a duplicate skill_id, which is the seed upsert key', async () => {
-    await db.insert(skills).values(skillValues({ id: 'sk-1', skillId: 'skill-dup' }));
-
-    const second = db.insert(skills).values(skillValues({ id: 'sk-2', skillId: 'skill-dup' }));
-
-    await expect(second).rejects.toSatisfy((error: unknown) => {
-      expect(isUniqueViolation(error)).toBe(true);
-      expect(constraintNameOf(error)).toBe('skills_skill_id_key');
-      return true;
-    });
-  });
-
-  it('gives every string array an empty default rather than NULL', async () => {
-    /**
-     * Mongoose returns `[]` for an absent array field on every read, so every
-     * caller does `.map()`/`.length` on these without a guard. A nullable column
-     * would hand those callers a null the day a row was written without the key
-     * — a crash in the read path, not a storage problem.
-     */
-    await db.insert(skills).values(skillValues({ id: 'sk-arrays', skillId: 'skill-arrays' }));
-
-    const [row] = await db
-      .select({
-        triggers: skills.triggers,
-        includes: skills.includes,
-        goodAt: skills.goodAt,
-        notGoodAt: skills.notGoodAt,
-        useCase: skills.useCase,
-      })
-      .from(skills)
-      .where(eq(skills.id, 'sk-arrays'));
-
-    expect(row).toEqual({
-      triggers: [],
-      includes: [],
-      goodAt: [],
-      notGoodAt: [],
-      // Nullable on purpose: "never filled in" must stay tellable apart from
-      // "deliberately blank", so no empty-string default.
-      useCase: null,
-    });
-  });
-
-  it('stores an author with no account behind it', async () => {
-    /**
-     * `skills.author` is a DISPLAY STRING — `lib/seed-skills.ts` writes `'Alia'`
-     * and `'Community'` — while `agents.author` one table over is an Oxy account
-     * id. This fixture is the built-in case that makes the two impossible to
-     * conflate: a required author, and no account at all.
-     */
-    await db
-      .insert(skills)
-      .values(skillValues({ id: 'sk-builtin', skillId: 'skill-builtin', author: 'Alia' }));
-
-    const [row] = await db
-      .select({ author: skills.author, oxyUserId: skills.oxyUserId, isBuiltIn: skills.isBuiltIn })
-      .from(skills)
-      .where(eq(skills.id, 'sk-builtin'));
-
-    expect(row).toEqual({ author: 'Alia', oxyUserId: null, isBuiltIn: true });
-  });
 });
 
 describe('learning_rules', () => {

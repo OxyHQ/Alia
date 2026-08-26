@@ -17,11 +17,10 @@ interface UseChatConversationOptions {
   conversationId?: string;
   reasoningEffort?: EffortLevel | null;
   selectedModel?: string;
-  skillId?: string | null;
   agentId?: string;
 }
 
-export function useChatConversation({ conversationId, reasoningEffort, selectedModel, skillId, agentId }: UseChatConversationOptions = {}) {
+export function useChatConversation({ conversationId, reasoningEffort, selectedModel, agentId }: UseChatConversationOptions = {}) {
   const router = useRouter();
   const queryClient = useQueryClient();
   const scrollViewRef = useRef<GHScrollView>(null);
@@ -77,7 +76,7 @@ export function useChatConversation({ conversationId, reasoningEffort, selectedM
     rejectPlan,
     suggestedNewConversation,
     dismissSuggestedNewConversation,
-  } = useStreamingChat(generateAPIUrl(API_ROUTES.chat.alia), conversationId, reasoningEffort, selectedModel, skillId, agentId);
+  } = useStreamingChat(generateAPIUrl(API_ROUTES.chat.alia), conversationId, reasoningEffort, selectedModel, agentId);
 
   // Expose streaming state globally so sidebar can show a spinner
   const setStreamingChatId = useStore((s) => s.setStreamingChatId);
@@ -148,7 +147,7 @@ export function useChatConversation({ conversationId, reasoningEffort, selectedM
 
     void append(
       { role: 'user', content: pending.content },
-      { mcpServerId: pending.mcpServerId },
+      { mcpServerId: pending.mcpServerId, skillNames: pending.skillNames },
     ).then(async (outcome) => {
       if (outcome !== 'failed') return;
 
@@ -162,6 +161,7 @@ export function useChatConversation({ conversationId, reasoningEffort, selectedM
         text: pending.text,
         target: null,
         mcpServerId: pending.mcpServerId,
+        skillNames: pending.skillNames,
       });
       router.replace("/(app)");
       toast.error(i18n.t('chat.sendFailed'));
@@ -198,6 +198,7 @@ export function useChatConversation({ conversationId, reasoningEffort, selectedM
         text: content,
         target: conversationId ?? null,
         mcpServerId: options?.mcpServerId ?? null,
+        skillNames: options?.skillNames ?? [],
       });
       toast.error(i18n.t('chat.sendFailed'));
     }
@@ -222,6 +223,7 @@ export function useChatConversation({ conversationId, reasoningEffort, selectedM
       text: initialMessage,
       attachments: pendingAttachments,
       mcpServerId: options?.mcpServerId ?? null,
+      skillNames: options?.skillNames ?? [],
     });
     useStore.getState().clearAttachments();
 
@@ -242,6 +244,7 @@ export function useChatConversation({ conversationId, reasoningEffort, selectedM
         text: initialMessage,
         target: null,
         mcpServerId: options?.mcpServerId ?? null,
+        skillNames: options?.skillNames ?? [],
       });
       return false;
     }
@@ -270,6 +273,7 @@ export function useChatConversation({ conversationId, reasoningEffort, selectedM
         text: newContent,
         target: conversationId ?? null,
         mcpServerId: options?.mcpServerId ?? null,
+        skillNames: options?.skillNames ?? [],
       });
       toast.error(i18n.t('chat.sendFailed'));
     }

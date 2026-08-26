@@ -30,6 +30,7 @@ import { log } from '../logger.js';
 import type { CreditReservation, CreditUsage } from '../credits-manager.js';
 import type { ChatMessage } from '../message-converter.js';
 import type { AutonomyRuntimeContext } from '../autonomy/runtime.js';
+import type { SkillRuntime } from '../skills/runtime.js';
 
 export interface NonStreamingParams {
   req: Request;
@@ -49,7 +50,7 @@ export interface NonStreamingParams {
   creditReservation: CreditReservation | null;
   systemPromptTokens: number;
   requestStartTime: number;
-  skillId: string | undefined;
+  skills: SkillRuntime;
   autonomyRuntime: AutonomyRuntimeContext | null;
   toolNameMapping: Map<string, string>;
   /**
@@ -68,7 +69,7 @@ export async function runNonStreaming(params: NonStreamingParams): Promise<void>
   const {
     req, res, requestId, globalTimer, baseConfig, clearFirstByteTimer,
     aliasModelId, requestedModel, reasoningEffort, conversationId, messages, creditReservation,
-    systemPromptTokens, requestStartTime, skillId, autonomyRuntime, toolNameMapping,
+    systemPromptTokens, requestStartTime, skills, autonomyRuntime, toolNameMapping,
     observation, settlement,
   } = params;
 
@@ -120,7 +121,7 @@ export async function runNonStreaming(params: NonStreamingParams): Promise<void>
     creditReservation,
     tokenUsage,
     requestStartTime,
-    skillId,
+    skillNames: skills.activated().map((skill) => skill.name),
     isApiKey: !!req.apiKey,
     autonomyRuntime,
   };

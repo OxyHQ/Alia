@@ -28,6 +28,7 @@ export class DockerSandboxProvider implements SandboxProvider {
       size: opts.size,
       persistent: opts.persistent,
       labels: opts.labels,
+      network: opts.network,
     });
 
     return {

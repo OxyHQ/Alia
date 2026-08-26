@@ -1092,6 +1092,10 @@ const EGRESS_HOSTS: readonly string[] = [
   // dead today and the Pages default above is what a browser sends until it is
   // repointed. Both are allowed browser origins for the window of that move.
   'canvas.alia.onl',
+  // `lib/skills/github.ts` downloads a repository tarball from here, pinned to a
+  // resolved commit, when somebody imports an Agent Skill. A real dial, and the
+  // one this gate exists to make a reviewed line.
+  'codeload.github.com',
   'console.alia.onl',
   'discord.com',
   'duckduckgo.com',
@@ -1120,6 +1124,11 @@ const EGRESS_HOSTS: readonly string[] = [
   // from a socket the user's own browser holds. No packet leaves the process.
   // Listed rather than exempted for the reason the whole gate exists: a new host
   // string in `chat-core.ts` is exactly the diff that should be read in review.
+  // A hostname by SHAPE, like the four named above: `lib/skills/github.ts`
+  // composes `https://github.com/<owner>/<repo>/tree/<commit>/<path>` as the
+  // LINK stored on an imported skill, so a person can read the source it came
+  // from. Nothing dials it.
+  'github.com',
   'user-runtime.invalid',
   'www.google.com',
   'www.googleapis.com',
@@ -1288,6 +1297,7 @@ const NON_MODEL_ALIA_STRINGS: Readonly<Record<string, string>> = {
   'alia-agent': 'LiveKit participant identity (voice-session-manager, livekit-token).',
   'alia-api': 'This service\'s own name in the HMAC signing string and the admin tool.',
   'alia-cohost': 'LiveKit participant identity for the second voice agent.',
+  'alia-skills-importer': 'The User-Agent `lib/skills/github.ts` sends to GitHub, which asks callers to identify themselves.',
   'alia-telegram': 'A conversation SOURCE value. Its former sibling "alia-app" left with services/chat.service.ts, the only file that named it.',
 };
 
@@ -1381,7 +1391,8 @@ describe('gate 3: the alia-* alias set is frozen (ADR 0002)', () => {
 
     // And in the other direction: a classification whose string has gone is a
     // stale line, and the non-model list must not grow to absorb a real alias.
-    expect(Object.keys(NON_MODEL_ALIA_STRINGS)).toHaveLength(4);
+    // Five as of the Agent Skills rewrite, which added the importer's User-Agent.
+    expect(Object.keys(NON_MODEL_ALIA_STRINGS)).toHaveLength(5);
     expect(Object.keys(NON_MODEL_ALIA_STRINGS).filter((s) => !found.has(s))).toEqual([]);
   });
 
@@ -2755,6 +2766,10 @@ const PERMITTED_ENV_VARS: readonly string[] = [
   'DOCKER_HOST_URL',
   'DRY_RUN',
   'GATEWAY_API_URL',
+  // Optional. `lib/skills/github.ts` sends it when importing a skill, purely to
+  // raise GitHub's anonymous rate limit; every import works without it, and it
+  // is not a provider credential — the prohibition below is about those.
+  'GITHUB_TOKEN',
   'GMAIL_ENABLED',
   'GOOGLE_OAUTH_CLIENT_ID',
   'GOOGLE_OAUTH_CLIENT_SECRET',
@@ -2814,7 +2829,7 @@ const PERMITTED_ENV_VARS: readonly string[] = [
  * The exact-count assertion the list needs, so it cannot grow one defensible
  * line at a time.
  *
- * 96 as of #139 ws2: 96 read today, after this workstream removed one and #139
+ * 96 as of #139 ws2: 96 read then, after that workstream removed one and #139
  * ws15 added `RELAY_BASE_URL`. The one removed was a vestigial `GROK_API_KEY`
  * read in `providers/grok-voice.ts`, inside a disjunction ending in `|| true`.
  * It answered the same for every environment, so deleting it changed nothing
@@ -2833,7 +2848,10 @@ const PERMITTED_ENV_VARS: readonly string[] = [
 // single-use ingest ticket the worker redeems, so there is no service
 // credential to hold. It is a destination, in the same class as
 // `INTEGRATIONS_URL`.
-const PERMITTED_ENV_VAR_COUNT = 98;
+// 98 -> 99: `GITHUB_TOKEN`, optional, sent by the skill importer purely to
+// raise GitHub's anonymous rate limit. Not a provider credential — every
+// import works without it.
+const PERMITTED_ENV_VAR_COUNT = 99;
 
 /**
  * Vendor tokens that name an inference provider but are not in `PROVIDER_NAMES`.

@@ -1,514 +1,973 @@
 /**
- * Skills on Postgres: the catalogue, an owner's own, and the two things
- * moderation does to one.
+ * Agent Skills on Postgres: the catalogue, a person's shelf, and the three
+ * reads that serve progressive disclosure.
  *
- * One table, six consumer files — `routes/skills.ts`, `lib/seed-skills.ts`,
- * `lib/chat/request-context.ts`,
- * `lib/crowdsource/subjects/skill-subject.ts` and
- * `lib/crowdsource/enforcement-service.ts` — which is more than any other model
- * in this slice and the reason every read here is a named function rather than
- * a query builder handed out.
+ * Four tables, and the reads divide by WHEN the model is allowed to see what
+ * they return:
  *
- * ## A skill has TWO identifiers and both are public
+ *   - `listInstalledSkillMetadata` is level one. It runs on every turn, returns
+ *     `name` and `description` and nothing else, and its result goes into the
+ *     system prompt. It costs roughly a hundred tokens per installed skill, so
+ *     it selects two columns rather than a row.
+ *   - `findInstalledSkillVersion` is level two: the body of `SKILL.md`, fetched
+ *     only once the model asks for that skill by name.
+ *   - `findSkillFileByPath` and `listVersionFiles` are level three: one bundled
+ *     file at a time, addressed by a row rather than by a path the caller
+ *     composes, which is what makes traversal unrepresentable rather than
+ *     filtered.
  *
- * `skill_id` is a slug derived from the title and is what `GET /skills/:skillId`
- * and every link in the app address. `id` is the row's own key and is what
- * `agent_skills` references and what a moderation case is keyed on. Neither is
- * privileged, so `findSkillByEitherId` looks under both — see its own note.
+ * ## The resolved version is `pinned_version`, else the latest
  *
- * ## `-systemPrompt` is a PROJECTION, not a filter
+ * An install either follows the skill (NULL) or is frozen at a number, and every
+ * read that needs content resolves the same expression. It is spelled once, in
+ * `resolvedVersion`, because a second spelling of it is how a pin silently stops
+ * being honoured on one path.
  *
- * Three routes returned the skill with `.select('-systemPrompt')`. That is the
- * prompt's whole protection: a community skill's prompt is the thing its author
- * is selling, and `GET /skills` is unauthenticated. Expressed here as explicit
- * column lists rather than as a `delete` on the way out, so a new column joins
- * the response only when somebody names it.
+ * ## `_id` is a wire contract, not a preference
+ *
+ * `agent_skills` references `skills.id`, and shipped app builds post
+ * `skills: linkedSkills.map((s) => s._id)` back when linking a skill to an
+ * agent. The projections keep the alias for that reason alone.
+ *
+ * ## Ownership is one WHERE and one 404
+ *
+ * A skill that is not yours, does not exist, or belongs to the shared catalogue
+ * are indistinguishable to a caller — the same call `updateOwnedSkill` made
+ * before this rewrite, kept because it is what stops the routes being used to
+ * probe for other people's private skills.
  */
 
-import { and, asc, desc, eq, or, sql } from 'drizzle-orm';
-import type { SkillCategory } from '../../domain/skill.js';
-import type { ApiDatabase } from '../index';
-import { skills } from '../schema/agents-support';
+import { and, asc, desc, eq, ilike, inArray, isNull, max, or, sql } from 'drizzle-orm';
+import type { SkillFileKind, SkillSource, SkillVisibility } from '../../domain/skill.js';
+import type { ApiDatabase, Executor } from '../index';
+import { skillFiles, skillInstalls, skillVersions, skills } from '../schema/skills';
+
+// ---------------------------------------------------------------------------
+// Shapes
+// ---------------------------------------------------------------------------
 
 /**
- * A skill as the API serves it: every column except `system_prompt`, with `id`
- * renamed to `_id`.
+ * A skill as the API serves it.
  *
- * `_id` is a wire contract with shipped builds — `packages/app/lib/stores/
- * skills-store.ts:7` declares it and `app/(app)/agents/edit/[id].tsx:213` posts
- * `skills: linkedSkills.map((s) => s._id)` back as the agent's skill list. A
- * response without it silently breaks linking a skill to an agent.
+ * Every column except the ones that only make sense next to a version, and the
+ * body of `SKILL.md` is not among them: the catalogue lists what a skill is,
+ * never what it instructs. Reading the instructions is a separate, deliberate
+ * act — `GET /skills/:name/versions/:version` for a person, `loadSkill` for the
+ * model.
  */
 const PUBLIC_COLUMNS = {
   _id: skills.id,
-  skillId: skills.skillId,
-  title: skills.title,
-  tagline: skills.tagline,
+  name: skills.name,
+  displayName: skills.displayName,
   description: skills.description,
-  author: skills.author,
+  license: skills.license,
+  compatibility: skills.compatibility,
+  allowedTools: skills.allowedTools,
+  specMetadata: skills.specMetadata,
+  source: skills.source,
+  sourceRepo: skills.sourceRepo,
+  sourcePath: skills.sourcePath,
+  sourceUrl: skills.sourceUrl,
+  publisher: skills.publisher,
+  tags: skills.tags,
   icon: skills.icon,
   color: skills.color,
-  category: skills.category,
-  language: skills.language,
-  triggers: skills.triggers,
-  includes: skills.includes,
-  useCase: skills.useCase,
-  goodAt: skills.goodAt,
-  notGoodAt: skills.notGoodAt,
-  isBuiltIn: skills.isBuiltIn,
-  isPublished: skills.isPublished,
-  oxyUserId: skills.oxyUserId,
+  ownerOxyUserId: skills.ownerOxyUserId,
+  visibility: skills.visibility,
+  installCount: skills.installCount,
   createdAt: skills.createdAt,
   updatedAt: skills.updatedAt,
 } as const;
 
 export interface PublicSkill {
   readonly _id: string;
-  readonly skillId: string;
-  readonly title: string;
-  readonly tagline: string;
+  readonly name: string;
+  readonly displayName: string;
   readonly description: string;
-  readonly author: string;
-  readonly icon: string;
-  readonly color: string;
-  readonly category: string;
-  readonly language: string;
-  readonly triggers: string[];
-  readonly includes: string[];
-  readonly useCase: string | null;
-  readonly goodAt: string[];
-  readonly notGoodAt: string[];
-  readonly isBuiltIn: boolean;
-  readonly isPublished: boolean;
-  readonly oxyUserId: string | null;
+  readonly license: string | null;
+  readonly compatibility: string | null;
+  readonly allowedTools: string[];
+  readonly specMetadata: Record<string, string>;
+  readonly source: SkillSource;
+  readonly sourceRepo: string | null;
+  readonly sourcePath: string | null;
+  readonly sourceUrl: string | null;
+  readonly publisher: string | null;
+  readonly tags: string[];
+  readonly icon: string | null;
+  readonly color: string | null;
+  readonly ownerOxyUserId: string | null;
+  readonly visibility: SkillVisibility;
+  readonly installCount: number;
   readonly createdAt: Date;
   readonly updatedAt: Date;
 }
 
-export interface SkillCatalogueQuery {
-  readonly language?: string;
-  readonly category?: string;
+export interface NewSkill {
+  name: string;
+  displayName: string;
+  description: string;
+  license?: string | null;
+  compatibility?: string | null;
+  allowedTools?: string[];
+  specMetadata?: Record<string, string>;
+  source: SkillSource;
+  sourceRepo?: string | null;
+  sourcePath?: string | null;
+  sourceUrl?: string | null;
+  publisher?: string | null;
+  tags?: string[];
+  icon?: string | null;
+  color?: string | null;
+  ownerOxyUserId?: string | null;
+  visibility?: SkillVisibility;
+}
+
+export interface NewSkillVersion {
+  skillId: string;
+  body: string;
+  frontmatter: Record<string, unknown>;
+  checksum: string;
+  bytes: number;
+  sourceCommit?: string | null;
+  createdByOxyUserId?: string | null;
+}
+
+export interface NewSkillFile {
+  path: string;
+  kind: SkillFileKind;
+  mime: string;
+  bytes: number;
+  sha256: string;
+  contentText?: string | null;
+  s3Key?: string | null;
+  executable?: boolean;
+}
+
+export interface SkillVersionRef {
+  readonly _id: string;
+  readonly version: number;
+  readonly sourceCommit: string | null;
+  readonly checksum: string;
+  readonly bytes: number;
+  readonly fileCount: number;
+  readonly createdAt: Date;
+}
+
+/** What level one costs: two strings, and the flags that decide whether it is listed at all. */
+export interface InstalledSkillMetadata {
+  readonly skillId: string;
+  readonly name: string;
+  readonly description: string;
+  readonly autoInvoke: boolean;
+  readonly version: number;
+}
+
+/** Level two: the instructions, plus the manifest that tells the model what else it may reach for. */
+export interface LoadedSkillVersion {
+  readonly skillId: string;
+  readonly name: string;
+  readonly displayName: string;
+  readonly versionId: string;
+  readonly version: number;
+  readonly body: string;
+  readonly allowedTools: string[];
+}
+
+export interface SkillFileRow {
+  readonly _id: string;
+  readonly path: string;
+  readonly kind: SkillFileKind;
+  readonly mime: string;
+  readonly bytes: number;
+  readonly sha256: string;
+  readonly contentText: string | null;
+  readonly s3Key: string | null;
+  readonly executable: boolean;
+}
+
+const FILE_COLUMNS = {
+  _id: skillFiles.id,
+  path: skillFiles.path,
+  kind: skillFiles.kind,
+  mime: skillFiles.mime,
+  bytes: skillFiles.bytes,
+  sha256: skillFiles.sha256,
+  contentText: skillFiles.contentText,
+  s3Key: skillFiles.s3Key,
+  executable: skillFiles.executable,
+} as const;
+
+/**
+ * The version an install actually reads: its pin, or the skill's latest.
+ *
+ * Spelled once. A second copy of this expression is how a frozen install
+ * silently starts following upstream on one code path and not another.
+ */
+const resolvedVersion = sql<number>`coalesce(${skillInstalls.pinnedVersion}, (select max(v.version) from ${skillVersions} v where v.skill_id = ${skills.id}))`;
+
+export class SkillChildWriteOutsideTransactionError extends Error {
+  constructor(skillId: string) {
+    super(`writing a skill version requires a transaction (skill ${skillId})`);
+    this.name = 'SkillChildWriteOutsideTransactionError';
+  }
+}
+
+function requireTransaction(executor: Executor, skillId: string): Executor {
+  const rollback: unknown = (executor as { rollback?: unknown }).rollback;
+  if (typeof rollback !== 'function') throw new SkillChildWriteOutsideTransactionError(skillId);
+  return executor;
+}
+
+// ---------------------------------------------------------------------------
+// Catalogue reads
+// ---------------------------------------------------------------------------
+
+export interface CatalogueFilters {
+  /** Free text over name, display name and description. */
+  query?: string;
+  source?: SkillSource;
+  tag?: string;
+  publisher?: string;
+  limit?: number;
+  offset?: number;
 }
 
 /**
- * The public catalogue: published community skills and Alia's own built-ins.
+ * The shared catalogue: everything published, whoever owns it.
  *
- * The `or` is the source's `$or: [{isPublished: true}, {isBuiltIn: true}]` and
- * it is what makes the endpoint safe to serve unauthenticated — a user's draft
- * satisfies neither arm.
- *
- * `language` and `category` narrow it when supplied. `category === 'all'` is
- * handled by the route, which passes nothing; an unrecognised value reaching
- * here filters on it and returns an empty list, exactly as Mongo did.
+ * `visibility = 'public'` is the whole filter. A built-in has no owner and is
+ * public; a person's skill joins the list only once they publish it.
  */
 export async function listSkillCatalogue(
   db: ApiDatabase,
-  query: SkillCatalogueQuery,
+  filters: CatalogueFilters = {},
 ): Promise<PublicSkill[]> {
-  const published = or(eq(skills.isPublished, true), eq(skills.isBuiltIn, true));
-  const filters = [
-    published,
-    ...(query.language === undefined ? [] : [eq(skills.language, query.language)]),
-    ...(query.category === undefined ? [] : [eq(skills.category, query.category)]),
-  ];
+  const conditions = [eq(skills.visibility, 'public')];
+  if (filters.query) {
+    const pattern = `%${filters.query}%`;
+    conditions.push(
+      or(
+        ilike(skills.name, pattern),
+        ilike(skills.displayName, pattern),
+        ilike(skills.description, pattern),
+      )!,
+    );
+  }
+  if (filters.source) conditions.push(eq(skills.source, filters.source));
+  if (filters.publisher) conditions.push(eq(skills.publisher, filters.publisher));
+  if (filters.tag) conditions.push(sql`${filters.tag} = any(${skills.tags})`);
+
   return db
     .select(PUBLIC_COLUMNS)
     .from(skills)
-    .where(and(...filters))
-    .orderBy(asc(skills.category), asc(skills.title));
+    .where(and(...conditions))
+    .orderBy(desc(skills.installCount), asc(skills.name))
+    .limit(filters.limit ?? 60)
+    .offset(filters.offset ?? 0) as Promise<PublicSkill[]>;
 }
 
-/** One owner's skills, published or not, newest first. */
-export async function listOwnedSkills(
-  db: ApiDatabase,
-  oxyUserId: string,
-): Promise<PublicSkill[]> {
+/** Everything one account authored, published or not. */
+export async function listOwnedSkills(db: ApiDatabase, oxyUserId: string): Promise<PublicSkill[]> {
   return db
     .select(PUBLIC_COLUMNS)
     .from(skills)
-    .where(eq(skills.oxyUserId, oxyUserId))
-    .orderBy(desc(skills.createdAt));
-}
-
-/** One skill by its public slug, without the prompt. */
-export async function findPublicSkill(
-  db: ApiDatabase,
-  skillId: string,
-): Promise<PublicSkill | undefined> {
-  const [row] = await db.select(PUBLIC_COLUMNS).from(skills).where(eq(skills.skillId, skillId));
-  return row;
-}
-
-export interface SkillPrompt {
-  readonly skillId: string;
-  readonly title: string;
-  readonly systemPrompt: string;
+    .where(eq(skills.ownerOxyUserId, oxyUserId))
+    .orderBy(desc(skills.updatedAt)) as Promise<PublicSkill[]>;
 }
 
 /**
- * The prompt, for the chat pipeline and for `GET /skills/:skillId/prompt`.
+ * One skill by name, in the namespace a caller can see.
  *
- * A separate function from `findPublicSkill` rather than a flag on it, so that
- * the two responses cannot be confused at a call site: every caller of this one
- * is either authenticated or server-side.
+ * A person addresses their own skill by the same name that would address a
+ * public one, so the owner's copy wins — which is also what the unique index
+ * permits to coexist.
  */
-export async function findSkillPrompt(
-  db: ApiDatabase,
-  skillId: string,
-): Promise<SkillPrompt | undefined> {
-  const [row] = await db
-    .select({
-      skillId: skills.skillId,
-      title: skills.title,
-      systemPrompt: skills.systemPrompt,
-    })
+export async function findSkillByName(
+  db: Executor,
+  name: string,
+  oxyUserId?: string,
+): Promise<PublicSkill | null> {
+  const visible = oxyUserId
+    ? or(eq(skills.ownerOxyUserId, oxyUserId), eq(skills.visibility, 'public'))!
+    : eq(skills.visibility, 'public');
+  const rows = await db
+    .select(PUBLIC_COLUMNS)
     .from(skills)
-    .where(eq(skills.skillId, skillId));
-  return row;
-}
-
-/** True when this slug is taken. `POST /skills` suffixes the slug when it is. */
-export async function skillIdExists(db: ApiDatabase, skillId: string): Promise<boolean> {
-  const [row] = await db
-    .select({ one: sql<number>`1` })
-    .from(skills)
-    .where(eq(skills.skillId, skillId))
+    .where(and(eq(skills.name, name), visible))
+    // Mine first, then anyone's. `desc(ownerOxyUserId)` would sort owner ids
+    // alphabetically, which answers this question correctly only by accident.
+    .orderBy(sql`case when ${skills.ownerOxyUserId} = ${oxyUserId ?? null} then 0 else 1 end`)
     .limit(1);
-  return row !== undefined;
+  return (rows[0] as PublicSkill | undefined) ?? null;
 }
 
-export interface NewSkill {
-  readonly skillId: string;
-  readonly title: string;
-  readonly tagline: string;
-  readonly description: string;
-  readonly systemPrompt: string;
-  readonly author: string;
-  readonly icon: string;
-  readonly color: string;
-  readonly category: SkillCategory;
-  readonly language: string;
-  readonly triggers: string[];
-  readonly includes: string[];
-  readonly useCase: string;
-  readonly goodAt: string[];
-  readonly notGoodAt: string[];
-  readonly oxyUserId: string;
+export async function findSkillById(db: Executor, id: string): Promise<PublicSkill | null> {
+  const rows = await db.select(PUBLIC_COLUMNS).from(skills).where(eq(skills.id, id)).limit(1);
+  return (rows[0] as PublicSkill | undefined) ?? null;
 }
 
-/**
- * Create a community skill, returning it in the public shape.
- *
- * `isBuiltIn: false` and `isPublished: false` are written rather than left to
- * the column defaults, because the defaults say the opposite of what this path
- * means: `is_built_in` defaults to TRUE. A skill created through the API is a
- * user's, and inheriting the default would put it in the unauthenticated
- * catalogue AND make it unreportable — `skill-subject.ts` returns null for a
- * built-in.
- */
-export async function createSkill(db: ApiDatabase, input: NewSkill): Promise<PublicSkill> {
-  const [row] = await db
+export async function listSkillVersions(db: Executor, skillId: string): Promise<SkillVersionRef[]> {
+  return db
+    .select({
+      _id: skillVersions.id,
+      version: skillVersions.version,
+      sourceCommit: skillVersions.sourceCommit,
+      checksum: skillVersions.checksum,
+      bytes: skillVersions.bytes,
+      fileCount: skillVersions.fileCount,
+      createdAt: skillVersions.createdAt,
+    })
+    .from(skillVersions)
+    .where(eq(skillVersions.skillId, skillId))
+    .orderBy(desc(skillVersions.version)) as Promise<SkillVersionRef[]>;
+}
+
+export async function findLatestVersion(
+  db: Executor,
+  skillId: string,
+): Promise<(SkillVersionRef & { body: string }) | null> {
+  const rows = await db
+    .select({
+      _id: skillVersions.id,
+      version: skillVersions.version,
+      sourceCommit: skillVersions.sourceCommit,
+      checksum: skillVersions.checksum,
+      bytes: skillVersions.bytes,
+      fileCount: skillVersions.fileCount,
+      createdAt: skillVersions.createdAt,
+      body: skillVersions.body,
+    })
+    .from(skillVersions)
+    .where(eq(skillVersions.skillId, skillId))
+    .orderBy(desc(skillVersions.version))
+    .limit(1);
+  return (rows[0] as (SkillVersionRef & { body: string }) | undefined) ?? null;
+}
+
+/** Whether this exact bundle is already stored, so a re-import creates nothing. */
+export async function findVersionByChecksum(
+  db: Executor,
+  skillId: string,
+  checksum: string,
+): Promise<SkillVersionRef | null> {
+  const rows = await db
+    .select({
+      _id: skillVersions.id,
+      version: skillVersions.version,
+      sourceCommit: skillVersions.sourceCommit,
+      checksum: skillVersions.checksum,
+      bytes: skillVersions.bytes,
+      fileCount: skillVersions.fileCount,
+      createdAt: skillVersions.createdAt,
+    })
+    .from(skillVersions)
+    .where(and(eq(skillVersions.skillId, skillId), eq(skillVersions.checksum, checksum)))
+    .limit(1);
+  return (rows[0] as SkillVersionRef | undefined) ?? null;
+}
+
+// ---------------------------------------------------------------------------
+// Writes
+// ---------------------------------------------------------------------------
+
+export async function createSkill(db: Executor, input: NewSkill): Promise<PublicSkill> {
+  const rows = await db
     .insert(skills)
-    .values({ ...input, isBuiltIn: false, isPublished: false })
+    .values({
+      name: input.name,
+      displayName: input.displayName,
+      description: input.description,
+      license: input.license ?? null,
+      compatibility: input.compatibility ?? null,
+      allowedTools: input.allowedTools ?? [],
+      specMetadata: input.specMetadata ?? {},
+      source: input.source,
+      sourceRepo: input.sourceRepo ?? null,
+      sourcePath: input.sourcePath ?? null,
+      sourceUrl: input.sourceUrl ?? null,
+      publisher: input.publisher ?? null,
+      tags: input.tags ?? [],
+      icon: input.icon ?? null,
+      color: input.color ?? null,
+      ownerOxyUserId: input.ownerOxyUserId ?? null,
+      visibility: input.visibility ?? 'private',
+    })
     .returning(PUBLIC_COLUMNS);
-  if (!row) throw new Error('skill insert returned no row');
-  return row;
-}
-
-/** The fields `PATCH /skills/:skillId` accepts. Anything else in the body is ignored. */
-export interface SkillPatch {
-  readonly title?: string;
-  readonly tagline?: string;
-  readonly description?: string;
-  readonly systemPrompt?: string;
-  readonly icon?: string;
-  readonly color?: string;
-  readonly category?: SkillCategory;
-  readonly language?: string;
-  readonly triggers?: string[];
-  readonly includes?: string[];
-  readonly useCase?: string;
-  readonly goodAt?: string[];
-  readonly notGoodAt?: string[];
-  readonly isPublished?: boolean;
+  return rows[0] as PublicSkill;
 }
 
 /**
- * Update one of this owner's non-built-in skills.
+ * The fields of a skill that a later import or an edit may change.
  *
- * The three conditions are one WHERE, so "not yours", "does not exist" and
- * "built in" are one 404 — the source's `findOne` had the same three and the
- * route could not tell them apart either. Splitting them here would be a new way
- * to probe which slugs exist.
+ * `name` is absent on purpose: it is the business key the model says out loud
+ * and the directory an import came from, so changing it is creating a different
+ * skill rather than editing this one.
+ */
+export interface SkillPatch {
+  displayName?: string;
+  description?: string;
+  license?: string | null;
+  compatibility?: string | null;
+  allowedTools?: string[];
+  specMetadata?: Record<string, string>;
+  publisher?: string | null;
+  tags?: string[];
+  icon?: string | null;
+  color?: string | null;
+  visibility?: SkillVisibility;
+  sourceCommit?: never;
+}
+
+function buildPatch(patch: SkillPatch): Record<string, unknown> {
+  return {
+    ...(patch.displayName === undefined ? {} : { displayName: patch.displayName }),
+    ...(patch.description === undefined ? {} : { description: patch.description }),
+    ...(patch.license === undefined ? {} : { license: patch.license }),
+    ...(patch.compatibility === undefined ? {} : { compatibility: patch.compatibility }),
+    ...(patch.allowedTools === undefined ? {} : { allowedTools: patch.allowedTools }),
+    ...(patch.specMetadata === undefined ? {} : { specMetadata: patch.specMetadata }),
+    ...(patch.publisher === undefined ? {} : { publisher: patch.publisher }),
+    ...(patch.tags === undefined ? {} : { tags: patch.tags }),
+    ...(patch.icon === undefined ? {} : { icon: patch.icon }),
+    ...(patch.color === undefined ? {} : { color: patch.color }),
+    ...(patch.visibility === undefined ? {} : { visibility: patch.visibility }),
+  };
+}
+
+/**
+ * Update a skill this account owns.
  *
- * An EMPTY patch returns undefined rather than issuing `UPDATE … SET` with no
- * assignments, which Postgres rejects as a syntax error. Mongo's `$set: {}` was
- * a silent no-op that still MATCHED, so the route answered 200 with the
- * unchanged skill; the route now reads the same 404 a missing skill produces.
- * That difference is deliberate and stated rather than papered over: a PATCH
- * naming no known field did nothing before and does nothing now.
- *
- * The assignments are spelled out one per field rather than filtered from
- * `Object.entries`. `$set: { x: undefined }` is a no-op in Mongo and the same
- * key reaching Postgres writes NULL, so the SET clause is built from DEFINED
- * keys only — and writing it out is what makes `tsc` check each value against
- * its column instead of widening the object to `Record<string, unknown>`, where
- * a typo in a key name would compile and silently update nothing.
+ * An empty patch returns `undefined` rather than emitting `UPDATE … SET` with no
+ * assignments, so the route answers 404 for "you sent nothing I accept" instead
+ * of reporting a write that did not happen.
  */
 export async function updateOwnedSkill(
-  db: ApiDatabase,
-  skillId: string,
+  db: Executor,
+  id: string,
   oxyUserId: string,
   patch: SkillPatch,
 ): Promise<PublicSkill | undefined> {
-  const assignments = {
-    ...(patch.title === undefined ? {} : { title: patch.title }),
-    ...(patch.tagline === undefined ? {} : { tagline: patch.tagline }),
-    ...(patch.description === undefined ? {} : { description: patch.description }),
-    ...(patch.systemPrompt === undefined ? {} : { systemPrompt: patch.systemPrompt }),
-    ...(patch.icon === undefined ? {} : { icon: patch.icon }),
-    ...(patch.color === undefined ? {} : { color: patch.color }),
-    ...(patch.category === undefined ? {} : { category: patch.category }),
-    ...(patch.language === undefined ? {} : { language: patch.language }),
-    ...(patch.triggers === undefined ? {} : { triggers: patch.triggers }),
-    ...(patch.includes === undefined ? {} : { includes: patch.includes }),
-    ...(patch.useCase === undefined ? {} : { useCase: patch.useCase }),
-    ...(patch.goodAt === undefined ? {} : { goodAt: patch.goodAt }),
-    ...(patch.notGoodAt === undefined ? {} : { notGoodAt: patch.notGoodAt }),
-    ...(patch.isPublished === undefined ? {} : { isPublished: patch.isPublished }),
-  };
-  if (Object.keys(assignments).length === 0) return undefined;
-
-  const [row] = await db
+  const values = buildPatch(patch);
+  if (Object.keys(values).length === 0) return undefined;
+  const rows = await db
     .update(skills)
-    .set(assignments)
-    .where(
-      and(
-        eq(skills.skillId, skillId),
-        eq(skills.oxyUserId, oxyUserId),
-        eq(skills.isBuiltIn, false),
-      ),
-    )
+    .set(values)
+    .where(and(eq(skills.id, id), eq(skills.ownerOxyUserId, oxyUserId)))
     .returning(PUBLIC_COLUMNS);
-  return row;
+  return rows[0] as PublicSkill | undefined;
 }
 
-/** Delete one of this owner's non-built-in skills. Reports rows removed off `count`. */
+/**
+ * The same update, scoped to the shared catalogue instead of to an owner.
+ *
+ * A built-in or synced skill has no owner, so `updateOwnedSkill`'s predicate can
+ * never match one. Two named functions rather than one with an optional owner:
+ * the predicate is the authorization, and an optional argument that silently
+ * widens a WHERE from "mine" to "anyone's" is the shape that gets misused.
+ */
+export async function updateCatalogueSkill(
+  db: Executor,
+  id: string,
+  patch: SkillPatch,
+): Promise<PublicSkill | undefined> {
+  const values = buildPatch(patch);
+  if (Object.keys(values).length === 0) return undefined;
+  const rows = await db
+    .update(skills)
+    .set(values)
+    .where(and(eq(skills.id, id), isNull(skills.ownerOxyUserId)))
+    .returning(PUBLIC_COLUMNS);
+  return rows[0] as PublicSkill | undefined;
+}
+
 export async function deleteOwnedSkill(
-  db: ApiDatabase,
-  skillId: string,
+  db: Executor,
+  id: string,
   oxyUserId: string,
 ): Promise<number> {
   const result = await db
     .delete(skills)
-    .where(
-      and(
-        eq(skills.skillId, skillId),
-        eq(skills.oxyUserId, oxyUserId),
-        eq(skills.isBuiltIn, false),
-      ),
-    );
+    .where(and(eq(skills.id, id), eq(skills.ownerOxyUserId, oxyUserId)));
   return result.count;
 }
 
-/** Everything `lib/seed-skills.ts` declares for one built-in skill. */
-export interface BuiltInSkill {
-  readonly skillId: string;
-  readonly title: string;
-  readonly tagline: string;
-  readonly description: string;
-  readonly systemPrompt: string;
-  readonly author: string;
-  readonly icon: string;
-  readonly color: string;
-  readonly category: SkillCategory;
-  readonly language: string;
-  readonly triggers: string[];
-  readonly includes: string[];
-  readonly useCase: string;
-  readonly goodAt: string[];
-  readonly notGoodAt: string[];
-}
-
 /**
- * What one built-in skill's seed did.
+ * Append a version, with its files, as one indivisible act.
  *
- * `declined` is the interesting one and the reason this is not `void`: a seed
- * that silently writes nothing is indistinguishable from one that worked, and
- * `lib/seed-skills.ts` logs which slugs were withheld so an operator can see a
- * built-in missing from the catalogue and know why.
+ * The version number is read and written under a row lock on the skill, because
+ * two concurrent imports of the same skill would otherwise both read the same
+ * `max(version)` and one would lose to the unique index — a 500 on a race that
+ * costs nothing to serialize. The transaction is required rather than opened
+ * here for the same reason `replaceAgentSkills` requires one: the caller is
+ * already writing the skill row, and a version without its files is not a state
+ * this table should be able to hold.
  */
-export type BuiltInSkillSeedResult = 'inserted' | 'updated' | 'declined';
+export async function insertSkillVersion(
+  executor: Executor,
+  input: NewSkillVersion,
+  files: NewSkillFile[],
+): Promise<SkillVersionRef> {
+  const tx = requireTransaction(executor, input.skillId);
+  const locked = await tx
+    .select({ id: skills.id })
+    .from(skills)
+    .where(eq(skills.id, input.skillId))
+    .limit(1)
+    .for('update');
+  if (locked.length === 0) throw new Error(`skill ${input.skillId} does not exist`);
 
-/**
- * Seed or refresh one built-in skill, and NEVER touch a user's.
- *
- * ## The `DO UPDATE` is deliberate; its `WHERE` is what makes it safe
- *
- * This is a `$set` upsert, not the `$setOnInsert` shape most seeds in this
- * package take: the seed's job is to push the current text of Alia's own skills
- * on every release, so an existing BUILT-IN row is overwritten and `DO NOTHING`
- * would freeze the catalogue at whatever shipped first.
- *
- * But the conflict target is `skill_id`, which is not Alia's to own. A user
- * creates a skill through `POST /skills`, whose slug is derived from the title;
- * the route suffixes a slug that is already TAKEN, so a user cannot take a
- * built-in's slug after the fact — but nothing stops the reverse, and the
- * reverse is the state production is in right now: the table is empty, this
- * seeder has never run, and the first release that runs it meets whatever users
- * created in the meantime.
- *
- * **Measured before the `setWhere` existed.** A user's `probe-collide` met the
- * seed and came back with Alia's `title` and `system_prompt`, `is_built_in`
- * flipped to `true`, and `oxy_user_id` still pointing at the user. That is worse
- * than losing the text: `updateOwnedSkill` and `deleteOwnedSkill` both require
- * `is_built_in = false`, so the author is locked out of the row that still names
- * them as its owner.
- *
- * `setWhere` scopes the update to rows that are ALREADY built-in. A colliding
- * user row makes the statement conflict, decline, and return nothing — which is
- * what `declined` reports. The built-in is then simply absent from the
- * catalogue, which is the correct trade: a missing built-in is visible and
- * recoverable, a destroyed user skill is neither.
- *
- * `excluded.<col>` is spelled out for every column. Drizzle offers no "all
- * columns" shorthand, and a column added to `BuiltInSkill` but missed here would
- * seed correctly on an empty database and never update afterwards — the failure
- * that survives review, because the first deploy looks perfect.
- *
- * `oxy_user_id` is NOT in the `set`. A built-in has no author account, and a row
- * that already has one is exactly the row this refuses to write.
- */
-export async function upsertBuiltInSkill(
-  db: ApiDatabase,
-  input: BuiltInSkill,
-): Promise<BuiltInSkillSeedResult> {
-  const [row] = await db
-    .insert(skills)
-    .values({ ...input, isBuiltIn: true })
-    .onConflictDoUpdate({
-      target: skills.skillId,
-      setWhere: eq(skills.isBuiltIn, true),
-      set: {
-        title: sql`excluded.title`,
-        tagline: sql`excluded.tagline`,
-        description: sql`excluded.description`,
-        systemPrompt: sql`excluded.system_prompt`,
-        author: sql`excluded.author`,
-        icon: sql`excluded.icon`,
-        color: sql`excluded.color`,
-        category: sql`excluded.category`,
-        language: sql`excluded.language`,
-        triggers: sql`excluded.triggers`,
-        includes: sql`excluded.includes`,
-        useCase: sql`excluded.use_case`,
-        goodAt: sql`excluded.good_at`,
-        notGoodAt: sql`excluded.not_good_at`,
-        isBuiltIn: sql`excluded.is_built_in`,
-        updatedAt: new Date(),
-      },
+  const [{ next }] = await tx
+    .select({ next: sql<number>`coalesce(max(${skillVersions.version}), 0) + 1` })
+    .from(skillVersions)
+    .where(eq(skillVersions.skillId, input.skillId));
+
+  const inserted = await tx
+    .insert(skillVersions)
+    .values({
+      skillId: input.skillId,
+      version: next,
+      body: input.body,
+      frontmatter: input.frontmatter,
+      checksum: input.checksum,
+      bytes: input.bytes,
+      fileCount: files.length,
+      sourceCommit: input.sourceCommit ?? null,
+      createdByOxyUserId: input.createdByOxyUserId ?? null,
     })
-    /**
-     * `xmax = 0` is the ONLY way to tell an insert from an update here:
-     * `INSERT … ON CONFLICT DO UPDATE` reports one row affected on both, so
-     * `rowCount` cannot discriminate. CONVENTIONS.md names this shape.
-     *
-     * An EMPTY result is the third answer and needs no column: `setWhere`
-     * declined, so no row was inserted and none updated.
-     */
-    .returning({ inserted: sql<boolean>`xmax = 0` });
+    .returning({
+      _id: skillVersions.id,
+      version: skillVersions.version,
+      sourceCommit: skillVersions.sourceCommit,
+      checksum: skillVersions.checksum,
+      bytes: skillVersions.bytes,
+      fileCount: skillVersions.fileCount,
+      createdAt: skillVersions.createdAt,
+    });
+  const version = inserted[0] as SkillVersionRef;
 
-  if (!row) return 'declined';
-  return row.inserted ? 'inserted' : 'updated';
+  if (files.length > 0) {
+    await tx.insert(skillFiles).values(
+      files.map((file) => ({
+        versionId: version._id,
+        path: file.path,
+        kind: file.kind,
+        mime: file.mime,
+        bytes: file.bytes,
+        sha256: file.sha256,
+        contentText: file.contentText ?? null,
+        s3Key: file.s3Key ?? null,
+        executable: file.executable ?? false,
+      })),
+    );
+  }
+  return version;
 }
 
-/** The projection `lib/crowdsource/subjects/skill-subject.ts` snapshots. */
+// ---------------------------------------------------------------------------
+// The shelf
+// ---------------------------------------------------------------------------
+
+export interface InstalledSkill extends PublicSkill {
+  readonly enabled: boolean;
+  readonly autoInvoke: boolean;
+  readonly pinnedVersion: number | null;
+  readonly installedVersion: number;
+}
+
+export async function listInstalledSkills(
+  db: ApiDatabase,
+  oxyUserId: string,
+): Promise<InstalledSkill[]> {
+  return db
+    .select({
+      ...PUBLIC_COLUMNS,
+      enabled: skillInstalls.enabled,
+      autoInvoke: skillInstalls.autoInvoke,
+      pinnedVersion: skillInstalls.pinnedVersion,
+      installedVersion: resolvedVersion,
+    })
+    .from(skillInstalls)
+    .innerJoin(skills, eq(skillInstalls.skillId, skills.id))
+    .where(eq(skillInstalls.oxyUserId, oxyUserId))
+    .orderBy(desc(skillInstalls.lastUsedAt), asc(skills.name)) as Promise<InstalledSkill[]>;
+}
+
+/**
+ * Level one, and the only skill read on a turn that activates nothing.
+ *
+ * Enabled installs only, and a skill whose every version was deleted resolves to
+ * no version and is dropped rather than advertised as loadable.
+ */
+export async function listInstalledSkillMetadata(
+  db: ApiDatabase,
+  oxyUserId: string,
+): Promise<InstalledSkillMetadata[]> {
+  const rows = await db
+    .select({
+      skillId: skills.id,
+      name: skills.name,
+      description: skills.description,
+      autoInvoke: skillInstalls.autoInvoke,
+      version: resolvedVersion,
+    })
+    .from(skillInstalls)
+    .innerJoin(skills, eq(skillInstalls.skillId, skills.id))
+    .where(and(eq(skillInstalls.oxyUserId, oxyUserId), eq(skillInstalls.enabled, true)))
+    .orderBy(desc(skillInstalls.lastUsedAt), asc(skills.name));
+  return rows.filter((row): row is InstalledSkillMetadata => row.version != null);
+}
+
+/**
+ * Level two: the instructions of a skill this account may actually load.
+ *
+ * The install is the authorization. A name that is merely public but not
+ * installed answers null — otherwise every account could load every published
+ * skill by guessing its name, which is the hole the old
+ * `GET /skills/:skillId/prompt` route had.
+ */
+export async function findInstalledSkillVersion(
+  db: ApiDatabase,
+  oxyUserId: string,
+  name: string,
+): Promise<LoadedSkillVersion | null> {
+  const rows = await db
+    .select({
+      skillId: skills.id,
+      name: skills.name,
+      displayName: skills.displayName,
+      allowedTools: skills.allowedTools,
+      version: resolvedVersion,
+    })
+    .from(skillInstalls)
+    .innerJoin(skills, eq(skillInstalls.skillId, skills.id))
+    .where(
+      and(
+        eq(skillInstalls.oxyUserId, oxyUserId),
+        eq(skillInstalls.enabled, true),
+        eq(skills.name, name),
+      ),
+    )
+    .limit(1);
+  const head = rows[0];
+  if (!head || head.version == null) return null;
+
+  const versionRows = await db
+    .select({ id: skillVersions.id, body: skillVersions.body })
+    .from(skillVersions)
+    .where(and(eq(skillVersions.skillId, head.skillId), eq(skillVersions.version, head.version)))
+    .limit(1);
+  const version = versionRows[0];
+  if (!version) return null;
+
+  return {
+    skillId: head.skillId,
+    name: head.name,
+    displayName: head.displayName,
+    versionId: version.id,
+    version: head.version,
+    body: version.body,
+    allowedTools: head.allowedTools,
+  };
+}
+
+/**
+ * The same two levels, for skills reached through an AGENT rather than an
+ * install.
+ *
+ * An agent's linked skills are available in that agent's conversations whether
+ * or not the person installed them: attaching a skill to an agent IS the
+ * decision to use it, and requiring a second one would make the agent editor's
+ * skill picker do nothing. Authorization therefore lives at the link, and these
+ * two take ids that a caller has already established belong to the agent.
+ */
+export async function listSkillMetadataByIds(
+  db: ApiDatabase,
+  skillIds: string[],
+): Promise<InstalledSkillMetadata[]> {
+  if (skillIds.length === 0) return [];
+
+  /**
+   * Two queries rather than one correlated subquery, deliberately.
+   *
+   * `sql\`… where v.skill_id = ${skills.id}\`` renders the outer column
+   * QUALIFIED or not depending on how many tables the outer query has: with a
+   * join it is `"skills"."id"`, and with a single table it collapses to `"id"`,
+   * which inside the subquery resolves to the SUBQUERY's own `id` column. The
+   * result is `v.skill_id = v.id` — a condition that is simply always false, so
+   * every skill reads as having no version and the query returns nothing.
+   * Measured; it cost a test that could not see an agent's linked skills.
+   */
+  const rows = await db
+    .select({ skillId: skills.id, name: skills.name, description: skills.description })
+    .from(skills)
+    .where(inArray(skills.id, skillIds))
+    .orderBy(asc(skills.name));
+  if (rows.length === 0) return [];
+
+  const versions = await db
+    .select({ skillId: skillVersions.skillId, version: max(skillVersions.version) })
+    .from(skillVersions)
+    .where(inArray(skillVersions.skillId, rows.map((row) => row.skillId)))
+    .groupBy(skillVersions.skillId);
+  const latest = new Map(versions.map((row) => [row.skillId, row.version]));
+
+  return rows
+    .filter((row) => latest.get(row.skillId) != null)
+    .map((row) => ({ ...row, autoInvoke: true, version: latest.get(row.skillId)! }));
+}
+
+export async function findSkillVersionById(
+  db: ApiDatabase,
+  skillId: string,
+  version?: number,
+): Promise<LoadedSkillVersion | null> {
+  const skill = await findSkillById(db, skillId);
+  if (!skill) return null;
+  const rows = await db
+    .select({ id: skillVersions.id, version: skillVersions.version, body: skillVersions.body })
+    .from(skillVersions)
+    .where(
+      version === undefined
+        ? eq(skillVersions.skillId, skillId)
+        : and(eq(skillVersions.skillId, skillId), eq(skillVersions.version, version)),
+    )
+    .orderBy(desc(skillVersions.version))
+    .limit(1);
+  const row = rows[0];
+  if (!row) return null;
+  return {
+    skillId,
+    name: skill.name,
+    displayName: skill.displayName,
+    versionId: row.id,
+    version: row.version,
+    body: row.body,
+    allowedTools: skill.allowedTools,
+  };
+}
+
+/** Level three, addressed by row: a path that is not a file of this version does not resolve. */
+export async function findSkillFileByPath(
+  db: ApiDatabase,
+  versionId: string,
+  path: string,
+): Promise<SkillFileRow | null> {
+  const rows = await db
+    .select(FILE_COLUMNS)
+    .from(skillFiles)
+    .where(and(eq(skillFiles.versionId, versionId), eq(skillFiles.path, path)))
+    .limit(1);
+  return (rows[0] as SkillFileRow | undefined) ?? null;
+}
+
+export async function listVersionFiles(db: Executor, versionId: string): Promise<SkillFileRow[]> {
+  return db
+    .select(FILE_COLUMNS)
+    .from(skillFiles)
+    .where(eq(skillFiles.versionId, versionId))
+    .orderBy(asc(skillFiles.path)) as Promise<SkillFileRow[]>;
+}
+
+/**
+ * Install a skill, idempotently.
+ *
+ * A second install of the same skill is the person clicking twice, not an error,
+ * so the conflict returns the row that already exists and the counter moves only
+ * when a row was actually created.
+ */
+export async function installSkill(
+  db: ApiDatabase,
+  oxyUserId: string,
+  skillId: string,
+): Promise<{ created: boolean }> {
+  const inserted = await db
+    .insert(skillInstalls)
+    .values({ oxyUserId, skillId })
+    .onConflictDoNothing({ target: [skillInstalls.oxyUserId, skillInstalls.skillId] })
+    .returning({ id: skillInstalls.id });
+  if (inserted.length === 0) return { created: false };
+  await db
+    .update(skills)
+    .set({ installCount: sql`${skills.installCount} + 1` })
+    .where(eq(skills.id, skillId));
+  return { created: true };
+}
+
+export async function uninstallSkill(
+  db: ApiDatabase,
+  oxyUserId: string,
+  skillId: string,
+): Promise<number> {
+  const result = await db
+    .delete(skillInstalls)
+    .where(and(eq(skillInstalls.oxyUserId, oxyUserId), eq(skillInstalls.skillId, skillId)));
+  if (result.count > 0) {
+    await db
+      .update(skills)
+      .set({ installCount: sql`greatest(${skills.installCount} - 1, 0)` })
+      .where(eq(skills.id, skillId));
+  }
+  return result.count;
+}
+
+export interface InstallPatch {
+  enabled?: boolean;
+  autoInvoke?: boolean;
+  /** `null` un-pins and follows the latest version again. */
+  pinnedVersion?: number | null;
+}
+
+export async function updateInstall(
+  db: ApiDatabase,
+  oxyUserId: string,
+  skillId: string,
+  patch: InstallPatch,
+): Promise<boolean> {
+  const values = {
+    ...(patch.enabled === undefined ? {} : { enabled: patch.enabled }),
+    ...(patch.autoInvoke === undefined ? {} : { autoInvoke: patch.autoInvoke }),
+    ...(patch.pinnedVersion === undefined ? {} : { pinnedVersion: patch.pinnedVersion }),
+  };
+  if (Object.keys(values).length === 0) return false;
+  const rows = await db
+    .update(skillInstalls)
+    .set(values)
+    .where(and(eq(skillInstalls.oxyUserId, oxyUserId), eq(skillInstalls.skillId, skillId)))
+    .returning({ id: skillInstalls.id });
+  return rows.length > 0;
+}
+
+/** Orders the level-one index by recency of real use, so a long shelf still surfaces what matters. */
+export async function touchInstalls(
+  db: ApiDatabase,
+  oxyUserId: string,
+  skillIds: string[],
+): Promise<void> {
+  if (skillIds.length === 0) return;
+  await db
+    .update(skillInstalls)
+    .set({ lastUsedAt: new Date() })
+    .where(
+      and(eq(skillInstalls.oxyUserId, oxyUserId), inArray(skillInstalls.skillId, skillIds)),
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Moderation
+// ---------------------------------------------------------------------------
+
+/**
+ * A skill as the moderation pipeline sees it: the listing, plus the instructions
+ * it would install.
+ *
+ * `body` is the CURRENT version's, because that is what a person reporting the
+ * skill just read. An older version is not what they are complaining about.
+ */
 export interface ModerationSkill {
   readonly id: string;
-  readonly skillId: string;
-  readonly title: string;
-  readonly tagline: string;
+  readonly name: string;
+  readonly displayName: string;
   readonly description: string;
-  readonly systemPrompt: string;
-  readonly category: string;
-  readonly language: string;
-  readonly isBuiltIn: boolean;
-  readonly oxyUserId: string | null;
+  readonly ownerOxyUserId: string | null;
+  readonly source: SkillSource;
+  readonly visibility: SkillVisibility;
+  readonly body: string;
   readonly createdAt: Date;
 }
 
 /**
- * Load a reported skill by EITHER of its public identifiers.
+ * A reported skill, addressed by either public identifier.
  *
- * A reporter's client could honestly send the slug it saw in a URL or the `_id`
- * it saw in a payload, and a provider understanding only one would make half the
- * reports about a real skill look like reports about a deleted one.
- *
- * The Mongoose version guarded the second lookup with
- * `mongoose.isValidObjectId(reportedId)` to avoid a CastError. There is nothing
- * to guard here — `id` is `text` — and keeping the guard would have been a live
- * bug rather than dead caution: rows minted after the port carry a `generatedId()`
- * uuid, which `isValidObjectId` rejects, so every report about a skill created
- * from now on would have resolved to "no longer exists".
- *
- * One statement, not two round trips: the columns are independent unique lookups
- * and `or` lets the planner use either index.
+ * A report carries whatever id the reporter's client had: the `name` in every
+ * URL, or the row id in every payload. Both are resolved, name first, because a
+ * name is what a person can see.
  */
 export async function findReportedSkill(
   db: ApiDatabase,
   reportedId: string,
-): Promise<ModerationSkill | undefined> {
-  const [row] = await db
+): Promise<ModerationSkill | null> {
+  const rows = await db
     .select({
       id: skills.id,
-      skillId: skills.skillId,
-      title: skills.title,
-      tagline: skills.tagline,
+      name: skills.name,
+      displayName: skills.displayName,
       description: skills.description,
-      systemPrompt: skills.systemPrompt,
-      category: skills.category,
-      language: skills.language,
-      isBuiltIn: skills.isBuiltIn,
-      oxyUserId: skills.oxyUserId,
+      ownerOxyUserId: skills.ownerOxyUserId,
+      source: skills.source,
+      visibility: skills.visibility,
       createdAt: skills.createdAt,
     })
     .from(skills)
-    .where(or(eq(skills.skillId, reportedId), eq(skills.id, reportedId)))
-    // The slug wins a collision, matching the source's slug-first two-step.
-    .orderBy(sql`case when ${skills.skillId} = ${reportedId} then 0 else 1 end`)
-    .limit(1);
-  return row;
+    .where(or(eq(skills.name, reportedId), eq(skills.id, reportedId)))
+    .orderBy(asc(skills.id))
+    .limit(2);
+  // A name and an id can, in principle, both match — different rows. The name
+  // wins, since that is the one a reporter could have been looking at.
+  const row = rows.find((candidate) => candidate.name === reportedId) ?? rows[0];
+  if (!row) return null;
+
+  const latest = await findLatestVersion(db, row.id);
+  return { ...row, body: latest?.body ?? '' } as ModerationSkill;
 }
 
 /**
- * Whether a skill is in the catalogue, for moderation.
+ * What the crowdsource enforcement layer calls "published", in this schema's own
+ * vocabulary.
  *
- * Returns the flag and not the row: an enforcement effect needs to know whether
- * there is anything to withdraw, and handing back the skill would put its prompt
- * — the thing the projection above exists to keep scoped — in front of a code
- * path that has no use for it.
- *
- * `undefined` means no such skill, which the caller reports as "the reported
- * object no longer exists". That is distinct from `{ isPublished: false }`,
- * which means it exists and was already out of the catalogue.
+ * The contract speaks of `isPublished` for every publishable subject; a skill
+ * has `visibility`. The translation lives here, once, rather than in the
+ * enforcement service where it would be a second model of what publication
+ * means.
  */
 export async function findSkillPublication(
   db: ApiDatabase,
   id: string,
-): Promise<{ isPublished: boolean } | undefined> {
-  const [row] = await db
-    .select({ isPublished: skills.isPublished })
+): Promise<{ isPublished: boolean } | null> {
+  const rows = await db
+    .select({ visibility: skills.visibility })
     .from(skills)
-    .where(eq(skills.id, id));
-  return row;
+    .where(eq(skills.id, id))
+    .limit(1);
+  const row = rows[0];
+  return row ? { isPublished: row.visibility === 'public' } : null;
 }
 
-/** Publish or unpublish a skill, by moderation decision. */
 export async function setSkillPublication(
   db: ApiDatabase,
   id: string,
   isPublished: boolean,
 ): Promise<void> {
-  await db.update(skills).set({ isPublished }).where(eq(skills.id, id));
+  await db
+    .update(skills)
+    .set({ visibility: isPublished ? 'public' : 'private' })
+    .where(eq(skills.id, id));
 }
 
+/**
+ * One skill by name INSIDE one namespace: an account's own, or the shared
+ * catalogue when the owner is null.
+ *
+ * This is what every import resolves against before deciding between a new skill
+ * and a new version of an existing one. Scoping it is what stops an upstream
+ * sync from ever overwriting a person's own skill that happens to share a name —
+ * the unique index permits both to exist, so the lookup has to say which it
+ * means.
+ */
+export async function findSkillInNamespace(
+  db: Executor,
+  name: string,
+  ownerOxyUserId: string | null,
+): Promise<PublicSkill | null> {
+  const rows = await db
+    .select(PUBLIC_COLUMNS)
+    .from(skills)
+    .where(
+      and(
+        eq(skills.name, name),
+        ownerOxyUserId === null ? isNull(skills.ownerOxyUserId) : eq(skills.ownerOxyUserId, ownerOxyUserId),
+      ),
+    )
+    .limit(1);
+  return (rows[0] as PublicSkill | undefined) ?? null;
+}

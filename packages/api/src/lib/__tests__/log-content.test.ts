@@ -444,7 +444,10 @@ describe('no logger call carries message content (#139 ws15)', () => {
     expect(text('routes/agents/generate.ts')).not.toContain('{ responseText }');
     expect(text('routes/agents/generate.ts')).toContain('Failed to parse AI-generated agent config');
     expect(text('routes/skills.ts')).not.toContain('{ responseText }');
-    expect(text('routes/skills.ts')).toContain('Failed to parse AI-generated skill config');
+    // Same absence, new wording: the route drafts a SKILL.md now rather than a
+    // JSON blob of invented fields, and logs the failure by its length.
+    expect(text('routes/skills.ts')).toContain('The drafted skill did not parse');
+    expect(text('routes/skills.ts')).toContain('chars: document.length');
     expect(text('routes/suggestions.ts')).not.toContain('{ responseText }');
     expect(text('routes/suggestions.ts')).toContain('Failed to parse AI-generated suggestions');
 

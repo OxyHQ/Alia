@@ -83,7 +83,7 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
       mcpServerId,
       includeUsage, isDirectUserSession, requestedModel, routingOptions, clientContext, promptModelId,
       isLocalRuntime,
-      userMemory, oxyUser, skill, linkedAgent,
+      userMemory, oxyUser, skills, linkedAgent,
     } = ctx;
     state.creditReservation = ctx.creditReservation;
     state.resolved = ctx.resolved;
@@ -154,6 +154,7 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
       isLocalRuntime,
       toolsEnabled: true,
       agent: linkedAgent,
+      skills,
     });
 
     // Agent mode: full agent escalation for linked conversations
@@ -236,7 +237,7 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
       oxyUser,
       userMemory,
       recalledMemories,
-      skill: skill as { systemPrompt?: string; title?: string } | null,
+      skills,
       linkedAgent,
       agentMode,
       autonomyRuntime,
@@ -284,6 +285,7 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
 
     // Provider fallback retry loop — re-resolve, build config, stream/non-stream, classify + retry
     const loopResult = await runProviderLoop({
+      skills,
       req,
       res,
       sse,

@@ -268,7 +268,16 @@ export const chatAnalytics = pgTable(
     totalTokens: integer().notNull().default(0),
     latencyMs: integer().notNull().default(0),
     platform: text().notNull().default('app'),
-    skillId: text(),
+    /**
+     * The skills whose instructions actually reached the model this turn.
+     *
+     * A set, not one id: a turn may inline two skills the person selected and
+     * load a third the model matched from the index, and recording only the
+     * first would make the common case look like the rare one. Names rather
+     * than row ids, because this table is read by people and a name is what
+     * they see in the product.
+     */
+    skillNames: text().array().notNull().default([]),
     createdAt: createdAt(),
   },
   (t) => [index('chat_analytics_oxy_user_created_at_idx').on(t.oxyUserId, t.createdAt.desc())],
