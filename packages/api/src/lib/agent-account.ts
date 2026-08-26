@@ -68,6 +68,7 @@ import type { AccountCategoryId } from '@oxyhq/contracts';
 import type { Executor } from '../db/index.js';
 import { findAgentById, type AgentRecord } from '../db/agents/agentRepository.js';
 import {
+  applyBotUsernameSuffix,
   attachAgentIdentity,
   findAgentByOxyHandle,
   type HydratedAgent,
@@ -373,10 +374,23 @@ export async function createAgentBotAccount(params: {
 
   let username = params.username;
   for (let attempt = 0; attempt < USERNAME_ATTEMPTS; attempt++) {
+    /**
+     * Labelled HERE, on the way out, because a `bot` handle must end in `bot`
+     * and the retry below rewrites the name. Applying it any earlier would put
+     * the collision suffix after the label — `nadiabot-i`, refused, retried,
+     * refused again, five times — which is the shape of an infinite loop that
+     * happens to be bounded.
+     *
+     * So the label is last, always, and the account is created under the value
+     * that carries it rather than under the one this was asked for.
+     * `suggestAgentUsername` proposes a base — `nadia` — and this is where it
+     * becomes a handle: `nadiabot` first, then `nadia-ibot` if that is taken.
+     */
+    const candidate = applyBotUsernameSuffix(username);
     try {
       const node = await oxy.createAccount({
         kind: 'bot',
-        username,
+        username: candidate,
         name: { displayName: params.displayName },
         ...(params.bio !== undefined && { bio: params.bio }),
         ...(params.parentAccountId !== undefined && { parentAccountId: params.parentAccountId }),
@@ -385,7 +399,7 @@ export async function createAgentBotAccount(params: {
           accountCategories: params.accountCategories,
         }),
       });
-      return { oxyAccountId: node.accountId, username };
+      return { oxyAccountId: node.accountId, username: candidate };
     } catch (error: unknown) {
       if (!isConflict(error)) throw error;
       // A suffix rather than a counter: a counter races with every other client

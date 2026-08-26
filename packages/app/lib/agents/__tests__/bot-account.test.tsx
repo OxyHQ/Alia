@@ -242,7 +242,7 @@ describe('createBotAccount', () => {
       .mockRejectedValueOnce(conflict())
       .mockResolvedValue(account);
     const checkAvailability = vi.fn<(username: string) => Promise<boolean>>()
-      .mockImplementation((username) => Promise.resolve(username === 'helper2'));
+      .mockImplementation((username) => Promise.resolve(username === 'helper2bot'));
 
     await createBotAccount({
       createAccount,
@@ -254,7 +254,7 @@ describe('createBotAccount', () => {
     const attempted = createAccount.mock.calls.map(([data]) => data.username);
     // The search's answer first, then something else — never the same name
     // twice, which would ask Oxy a question it has already refused.
-    expect(attempted[0]).toBe('helper2');
+    expect(attempted[0]).toBe('helper2bot');
     expect(attempted).toHaveLength(2);
     expect(attempted[1]).not.toBe(attempted[0]);
   });
@@ -266,14 +266,15 @@ describe('createBotAccount', () => {
      * Collisions stop being the rare case and become the ordinary one, which
      * moves this whole path from "never runs" to "runs most of the time".
      *
-     * `claudio2`, not `claudio-a7f3`: the pre-flight picks the readable one, and
-     * the random suffix stays where it belongs — reacting to a race it has
-     * already lost.
+     * `claudio2bot`, not `claudio-a7f3bot`: the pre-flight picks the readable
+     * one, and the random suffix stays where it belongs — reacting to a race it
+     * has already lost. The number sits INSIDE the label either way, because
+     * the label is applied to the candidate rather than carried by it.
      */
     const createAccount = vi.fn<(data: CreateAccountInput) => Promise<AccountNode>>()
-      .mockResolvedValue(accountNamed('claudio2'));
+      .mockResolvedValue(accountNamed('claudio2bot'));
     const checkAvailability = vi.fn<(username: string) => Promise<boolean>>()
-      .mockImplementation((username) => Promise.resolve(username !== 'claudio'));
+      .mockImplementation((username) => Promise.resolve(username !== 'claudiobot'));
 
     await createBotAccount({
       createAccount,
@@ -282,8 +283,79 @@ describe('createBotAccount', () => {
       displayName: 'Claudio',
     });
 
-    expect(checkAvailability.mock.calls.map(([u]) => u)).toEqual(['claudio', 'claudio2']);
-    expect(createAccount.mock.calls[0][0].username).toBe('claudio2');
+    expect(checkAvailability.mock.calls.map(([u]) => u)).toEqual(['claudiobot', 'claudio2bot']);
+    expect(createAccount.mock.calls[0][0].username).toBe('claudio2bot');
+  });
+
+  /**
+   * The label Oxy requires of a `bot` handle, asserted on the username that
+   * actually LEAVES for `POST /accounts` — never on the suggestion, which is a
+   * base by design, and never on a variable this file could read on the way
+   * past. Two changes here have been "verified" against the payload being built
+   * while every request failed.
+   */
+  it('mints a handle that ends in the label, from a suggestion that does not', async () => {
+    const createAccount = vi.fn<(data: CreateAccountInput) => Promise<AccountNode>>()
+      .mockResolvedValue(account);
+
+    await createBotAccount({ createAccount, username: 'helper', displayName: 'Helper' });
+
+    expect(createAccount.mock.calls[0][0].username).toBe('helperbot');
+  });
+
+  it('ends the retry in the label too, which is where the wrong order breaks', async () => {
+    /**
+     * The whole reason the label goes on last. Applied before the collision
+     * suffix, this second attempt would be `helperbot-a7f3` — refused for
+     * exactly the reason the first one was, then refused four more times, until
+     * the loop's own bound turns it into "that name is taken".
+     */
+    const createAccount = vi.fn<(data: CreateAccountInput) => Promise<AccountNode>>()
+      .mockRejectedValueOnce(conflict())
+      .mockResolvedValue(account);
+
+    await createBotAccount({ createAccount, username: 'helper', displayName: 'Helper' });
+
+    const attempted = createAccount.mock.calls.map(([data]) => data.username);
+    expect(attempted).toHaveLength(2);
+    expect(attempted[1]).toMatch(/^helper-[a-z0-9]+bot$/);
+    for (const username of attempted) {
+      expect(username.toLowerCase().endsWith('bot'), username).toBe(true);
+    }
+  });
+
+  it('does not label a suggestion that already carries one, whatever its case', async () => {
+    // `mybotbot` is what an unconditional append produces, and Oxy would take
+    // it — so nothing but this case says the append is conditional. The folded
+    // one matters because Oxy's uniqueness index folds: a case-sensitive test
+    // would leave `mybot` alone and relabel `MyBot`, two names that index
+    // considers one.
+    const createAccount = vi.fn<(data: CreateAccountInput) => Promise<AccountNode>>()
+      .mockResolvedValue(account);
+
+    await createBotAccount({ createAccount, username: 'mybot', displayName: 'Mybot' });
+    await createBotAccount({ createAccount, username: 'MyBot', displayName: 'MyBot' });
+
+    expect(createAccount.mock.calls.map(([data]) => data.username)).toEqual(['mybot', 'MyBot']);
+  });
+
+  it('asks about the handle it will mint, not about the name it was given', async () => {
+    // A pre-flight that asked about `helper` would be answering for a name
+    // nobody is going to take — free or taken, it says nothing about whether
+    // `helperbot` is available.
+    const createAccount = vi.fn<(data: CreateAccountInput) => Promise<AccountNode>>()
+      .mockResolvedValue(account);
+    const checkAvailability = vi.fn<(username: string) => Promise<boolean>>()
+      .mockResolvedValue(true);
+
+    await createBotAccount({
+      createAccount,
+      checkAvailability,
+      username: 'helper',
+      displayName: 'Helper',
+    });
+
+    expect(checkAvailability.mock.calls.map(([u]) => u)).toEqual(['helperbot']);
   });
 
   it('rethrows anything that is not a conflict instead of retrying it', async () => {
@@ -444,34 +516,38 @@ describe('the handle a created agent gets', () => {
 
   it('mints the suggestion when it is free, and says nothing about handles', async () => {
     mocks.checkUsernameAvailability.mockResolvedValue({ available: true });
-    mocks.createAccount.mockResolvedValue(accountNamed('helper'));
+    mocks.createAccount.mockResolvedValue(accountNamed('helperbot'));
 
     await createOne();
 
-    expect(asked()).toEqual(['helper']);
-    expect(minted()).toBe('helper');
+    // `helperbot`, from a suggestion of `helper`: the label is what a bot's
+    // handle must end in, and it is added here rather than proposed. Nothing is
+    // said about it, because it is not an adjustment — it is the handle.
+    expect(asked()).toEqual(['helperbot']);
+    expect(minted()).toBe('helperbot');
     expect(mocks.toastInfo).not.toHaveBeenCalled();
   });
 
   it('walks to a readable next handle when the suggestion is taken', async () => {
-    // `helper2`, not `helper-a7f3`: this one is going to be read back, and it is
-    // the shape Oxy's own suffixing produces.
+    // `helper2bot`, not `helper-a7f3bot`: this one is going to be read back, and
+    // it is the shape Oxy's own suffixing produces. The number goes on the NAME
+    // and the label stays last, which is the only order Oxy accepts.
     mocks.checkUsernameAvailability.mockImplementation((username: string) =>
-      Promise.resolve({ available: username === 'helper3' }),
+      Promise.resolve({ available: username === 'helper3bot' }),
     );
-    mocks.createAccount.mockResolvedValue(accountNamed('helper3'));
+    mocks.createAccount.mockResolvedValue(accountNamed('helper3bot'));
 
     await createOne();
 
-    expect(asked()).toEqual(['helper', 'helper2', 'helper3']);
-    expect(minted()).toBe('helper3');
+    expect(asked()).toEqual(['helperbot', 'helper2bot', 'helper3bot']);
+    expect(minted()).toBe('helper3bot');
   });
 
   it('tells the person the handle they got, when it is not the one proposed', async () => {
     mocks.checkUsernameAvailability.mockImplementation((username: string) =>
-      Promise.resolve({ available: username === 'helper2' }),
+      Promise.resolve({ available: username === 'helper2bot' }),
     );
-    mocks.createAccount.mockResolvedValue(accountNamed('helper2'));
+    mocks.createAccount.mockResolvedValue(accountNamed('helper2bot'));
 
     await createOne();
 
@@ -485,12 +561,12 @@ describe('the handle a created agent gets', () => {
     // Degrading to "I don't know" is right; degrading to "you may not create"
     // is not. The account still gets made, and Oxy still has the last word.
     mocks.checkUsernameAvailability.mockRejectedValue(new Error('oxy is down'));
-    mocks.createAccount.mockResolvedValue(accountNamed('helper'));
+    mocks.createAccount.mockResolvedValue(accountNamed('helperbot'));
 
     await createOne();
 
-    expect(asked()).toEqual(['helper']);
-    expect(minted()).toBe('helper');
+    expect(asked()).toEqual(['helperbot']);
+    expect(minted()).toBe('helperbot');
     expect(mocks.createAgent).toHaveBeenCalled();
   });
 });

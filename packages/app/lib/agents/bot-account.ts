@@ -36,14 +36,65 @@
  * what the first one did.
  */
 
+import { USERNAME_MAX_LENGTH } from '@oxyhq/contracts';
 import type { AccountCategoryId, AccountNode, CreateAccountInput } from '@oxyhq/core';
 
 const USERNAME_ATTEMPTS = 5;
 
+/** The label a bot's handle ends in. Lower-case: the comparison folds case. */
+const BOT_USERNAME_SUFFIX = 'bot';
+
+/**
+ * Label a proposed handle, so what Alia asks for is what Oxy will take.
+ *
+ * The account minted below is `kind: 'bot'`, and Oxy holds that one kind to a
+ * tighter username rule than the other four: everything the base policy already
+ * demanded, plus a handle that ENDS in `bot`. `garden-helper` is refused where
+ * `garden-helperbot`, `garden-bot` and `GardenBOT` are not.
+ *
+ * ## Applied at the EDGE, after the collision suffix, never before it
+ *
+ * `POST /agents/generate` proposes a base — `helper`, not `helperbot` — and
+ * this goes on last, at each point a handle leaves for Oxy: the availability
+ * check and the create call. That is what keeps the numbering INSIDE the label
+ * (`helper2bot`, and `helper-a7f3bot` for the retry). Labelling first would
+ * make the retry `helperbot-a7f3`, refused for exactly the reason the first
+ * attempt was, five times in a row — a loop that only terminates because
+ * somebody bounded it.
+ *
+ * ## This lives here TEMPORARILY
+ *
+ * `@oxyhq/contracts` owns the rule and publishes this exact function as
+ * `applyBotUsernameSuffix`, beside the schema that enforces it — the version
+ * installed here predates it. When a release carries it, this function goes and
+ * the import one line above takes its place: same name, same behaviour, so no
+ * call site moves. The API has the same stand-in in `lib/agent-identity.ts`,
+ * and the two are replaced by the one import together.
+ *
+ * It APPENDS and never inserts, leaving the separator to whoever chose the
+ * name, and truncates to leave room rather than overflowing
+ * {@link USERNAME_MAX_LENGTH}. The label is ASCII alphanumeric, so appending it
+ * to a handle the policy accepts yields another one.
+ *
+ * Case-insensitive and therefore idempotent, folded exactly as Oxy's own unique
+ * index folds (`lower(btrim(username))`): `mybot` and `MYBOT` come back
+ * untouched rather than becoming `mybotbot`.
+ */
+export function applyBotUsernameSuffix(candidate: string): string {
+  const trimmed = candidate.trim();
+  if (trimmed.toLowerCase().endsWith(BOT_USERNAME_SUFFIX)) return trimmed;
+  return trimmed.slice(0, USERNAME_MAX_LENGTH - BOT_USERNAME_SUFFIX.length) + BOT_USERNAME_SUFFIX;
+}
+
 export interface CreateBotAccountInput {
   /** `useOxy().createAccount`, passed in so this stays a plain function. */
   createAccount: (data: CreateAccountInput) => Promise<AccountNode>;
-  /** The suggestion from `POST /agents/generate`. Never reserved. */
+  /**
+   * The suggestion from `POST /agents/generate`. Never reserved, and never
+   * labelled: a bot's handle must end in `bot`, and this is the base it is
+   * built from — see {@link applyBotUsernameSuffix} for why the label goes on
+   * at the edge instead of arriving with the name.
+   */
   username: string;
   /**
    * `oxyServices.checkUsernameAvailability`, asked BEFORE minting so a taken
@@ -88,15 +139,16 @@ function isConflict(error: unknown): boolean {
 }
 
 /**
- * The first free name at or after the suggestion: `pepe`, `pepe2`, `pepe3`.
+ * The first free handle at or after the suggestion: `pepebot`, `pepe2bot`,
+ * `pepe3bot` — the number belongs to the name, and the label goes outside it.
  *
  * A COUNTER here, where the retry below uses a random suffix, and the
  * difference is not an oversight. The retry is reacting to a collision it has
  * already hit, so it needs to jump away from a sequence every other client is
  * walking at the same moment. This is choosing a name to SHOW somebody, and
- * `pepe2` is a name a person can read back, remember and type — `pepe-a7f3` is
- * not. It is also the shape Oxy's own suffixing produces, so a handle chosen
- * here looks like one chosen there.
+ * `pepe2bot` is a name a person can read back, remember and type —
+ * `pepe-a7f3bot` is not. It is also the shape Oxy's own suffixing produces,
+ * so a handle chosen here looks like one chosen there.
  *
  * An unanswerable check ends the walk and returns the candidate it was holding:
  * the server is still the authority, and a search that cannot proceed must not
@@ -107,14 +159,19 @@ async function firstFreeUsername(
   checkAvailability: (username: string) => Promise<boolean>,
 ): Promise<string> {
   for (let attempt = 0; attempt < USERNAME_ATTEMPTS; attempt++) {
-    const candidate = attempt === 0 ? suggestion : `${suggestion}${String(attempt + 1)}`;
+    // Labelled before it is asked about, because the labelled handle is the one
+    // that will be minted: asking whether `helper2` is free would answer about a
+    // name nobody is going to take.
+    const candidate = applyBotUsernameSuffix(
+      attempt === 0 ? suggestion : `${suggestion}${String(attempt + 1)}`,
+    );
     try {
       if (await checkAvailability(candidate)) return candidate;
     } catch {
       return candidate;
     }
   }
-  return suggestion;
+  return applyBotUsernameSuffix(suggestion);
 }
 
 export async function createBotAccount(input: CreateBotAccountInput): Promise<AccountNode> {
@@ -123,10 +180,14 @@ export async function createBotAccount(input: CreateBotAccountInput): Promise<Ac
     : await firstFreeUsername(input.username, input.checkAvailability);
 
   for (let attempt = 0; attempt < USERNAME_ATTEMPTS; attempt++) {
+    // Labelled HERE, on the way out, because the retry below rewrites the name
+    // and the label has to end up outside the rewrite. Idempotent, so the walk
+    // above having already labelled its answer costs nothing.
+    const candidate = applyBotUsernameSuffix(username);
     try {
       return await input.createAccount({
         kind: 'bot',
-        username,
+        username: candidate,
         name: { displayName: input.displayName },
         ...(input.bio !== undefined && { bio: input.bio }),
         ...(input.accountCategories !== undefined && { accountCategories: input.accountCategories }),

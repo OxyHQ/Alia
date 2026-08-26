@@ -6,7 +6,7 @@ import { useRouter } from "expo-router";
 import { useCreateAgent } from "@/lib/hooks/use-agents";
 import { useOxy } from "@oxyhq/services";
 import { SELECTABLE_ACCOUNT_CATEGORY_IDS, type AccountCategoryId } from "@oxyhq/core";
-import { createBotAccount } from "@/lib/agents/bot-account";
+import { applyBotUsernameSuffix, createBotAccount } from "@/lib/agents/bot-account";
 import { useTranslation } from "@/lib/hooks/use-translation";
 import { toast } from "@oxyhq/bloom/toast";
 import apiClient from "@/lib/api/client";
@@ -150,7 +150,11 @@ export default function CreateAgentScreen() {
        * standing where they can change it.
        */
       const granted = account.account.username;
-      if (granted !== undefined && granted !== config.suggestedUsername) {
+      // Against the LABELLED suggestion, because a bot's handle ends in `bot`
+      // and that label is added at the mint. Comparing against the bare
+      // suggestion would announce an adjustment on every single create, which
+      // is how a message that means something becomes one nobody reads.
+      if (granted !== undefined && granted !== applyBotUsernameSuffix(config.suggestedUsername)) {
         toast.info(t("agents.handleAdjusted", { handle: granted }));
       } else {
         toast.success(t("agents.agentUpdated"));
