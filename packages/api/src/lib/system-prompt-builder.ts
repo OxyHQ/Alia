@@ -268,9 +268,11 @@ export class SystemPromptBuilder {
      * changed.
      */
     if (linkedAgent) {
-      const agentName = agentPromptName(linkedAgent);
-      systemMessage = `# AGENT: ${agentName}\n\n${agentRemitPrompt(linkedAgent)}\n\n---\n\n${systemMessage}`;
-      log.general.info({ agentName, archetype: linkedAgent.archetype }, 'Agent prompt injected');
+      systemMessage = `${agentRemitPrompt(linkedAgent)}\n\n---\n\n${systemMessage}`;
+      log.general.info(
+        { agentName: agentPromptName(linkedAgent), archetype: linkedAgent.archetype },
+        'Agent prompt injected',
+      );
     }
 
     // 0. Identity guard — prepended LAST so it sits above the skill/agent

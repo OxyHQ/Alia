@@ -201,7 +201,7 @@ router.post('/token', async (req: Request, res: Response) => {
      * and no description of what that name is for.
      */
     if (agent) {
-      voiceInstructions = `# AGENT: ${agentPromptName(agent)}\n\n${agentRemitPrompt(agent)}\n\n---\n\n${voiceInstructions}`;
+      voiceInstructions = `${agentRemitPrompt(agent)}\n\n---\n\n${voiceInstructions}`;
     }
 
     /**
