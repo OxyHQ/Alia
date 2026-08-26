@@ -25,15 +25,7 @@ import {
   Ellipsis,
   Settings,
   ChevronRight,
-  Search as SearchIcon,
   FileText,
-  Globe,
-  Terminal,
-  FileDown,
-  FolderOpen,
-  Image,
-  Brain,
-  Users,
   Send,
   Trash2,
 } from "lucide-react-native";
@@ -43,7 +35,6 @@ import { Item } from "@oxyhq/bloom/item";
 import { SettingsListGroup, SettingsListItem } from "@oxyhq/bloom/settings-list";
 import * as DropdownMenu from "@/components/ui/dropdown-menu";
 
-// eslint-disable-next-line @typescript-eslint/no-var-requires
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useAgent, useUpdateAgent, useDeleteAgent } from "@/lib/hooks/use-agents";
 import type { Agent, AgentArchetype, ArchetypeConfig } from "@/lib/types/agents";
