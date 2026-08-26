@@ -20,12 +20,17 @@
  *
  * ## Instanced families are not toggles
  *
- * `mcp`, `oxy_service` and `integration` build their tool names from rows, so a
- * grant names the row: `mcp:<connectorId>`. They have no entry here, because a
- * switch labelled "MCP Tools" would be a grant over every connector the owner
- * will ever install. They are their own section, and its rows come from
- * `GET /agents/capability-connectors` — which also builds the grant STRING, so
- * this side never writes the separator.
+ * `mcp`, `oxy_service`, `integration` and `agent` are granted a row at a time,
+ * so a grant names the row: `mcp:<connectorId>`, `agent:<agentId>`. They have
+ * no entry in the list below, because a switch labelled "MCP Tools" would be a
+ * grant over every connector the owner will ever install. They are their own
+ * section, and its rows come from `GET /agents/capability-connectors` — which
+ * also builds the grant STRING, so this side never writes the separator.
+ *
+ * `agent` is the one family that ALSO offers a row for the whole family ("all
+ * your active agents"), and that row is a grant string like any other, built on
+ * the same server. `packages/api/src/domain/capability-grants.ts` argues why
+ * that one may and the other three may not.
  *
  * ## `color`, not a NativeWind class
  *
@@ -40,6 +45,7 @@ import {
   Globe,
   MessageSquare,
   Shapes,
+  Users,
 } from 'lucide-react-native';
 import { ActionKeyIcon } from '@/components/ui/action-key-icon';
 import { FilesIcon } from '@/components/ui/files-icon';
@@ -188,14 +194,31 @@ export interface GrantableConnector {
   detail: string;
 }
 
-/** The heading each instanced family gets in the connectors section. */
+/**
+ * The heading each instanced family gets in the connectors section.
+ *
+ * `agent` comes first because it continues the fixed list above: "Other agents"
+ * is the last family a person reads, and "Your agents" is the same subject
+ * narrowed to the ones they already have.
+ */
 export const INSTANCED_FAMILY_LABELS: Readonly<Record<string, string>> = {
+  agent: 'Your agents',
   mcp: 'Connectors',
   oxy_service: 'Oxy apps',
   integration: 'Integrations',
 };
 
+/**
+ * `Users` for `agent`, and deliberately NOT `AgentRobotIcon`.
+ *
+ * That glyph is `delegation` two lists up — finding, hiring and creating agents
+ * — and this family is the other half of the same sentence: the agents you
+ * already have. Drawing both with one mark would put the two switches an owner
+ * has to tell apart under the same picture, which is the duplication #365
+ * removed rather than a consistency to preserve.
+ */
 export const INSTANCED_FAMILY_ICONS: Readonly<Record<string, IconComponent>> = {
+  agent: Users,
   mcp: ActionKeyIcon,
   oxy_service: Shapes,
   integration: AppWindow,

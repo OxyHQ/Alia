@@ -2,12 +2,33 @@
  * Agent Delegation Tool
  * Allows Alia to delegate a task to a specific agent and get its response.
  *
- * - Looks up the agent from the DB
- * - Builds a system prompt from the agent's config
- * - Assembles the delegate's tools through THE assembler, under ITS OWN grants
+ * - Looks up the agent from the DB and asks whether this caller may REACH it
+ * - Runs it through `runAgentTurn`, which builds its prompt, assembles its tools
+ *   under ITS OWN grants, and bills the caller's account for the nested turn
  * - Returns the agent's response with identity metadata
  *
- * Efficiency: uses a lightweight Alia model by default, 45s timeout, max 5 steps, 4096 output tokens.
+ * ## The agent id was not authorised at all, and that is data of somebody else's
+ *
+ * `findAgentById` on its own: no `access`, no `status`, no owner. An id is a
+ * `randomUUID()`, but nothing else stood between one and running a STRANGER'S
+ * PRIVATE DRAFT — and running an agent is reading it. Its `systemPrompt` is the
+ * thing its owner actually wrote, and the answer that comes back is that prompt
+ * applied to a task the caller chose; a draft can be characterised, and its
+ * instructions can be talked out of it, without the text ever being served.
+ * `GET /agents/:id` closed the same hole from the other side by withholding the
+ * prompt from anyone who may not edit the agent.
+ *
+ * The gate is {@link canReachAgent} — the SAME one `loadTurnAgent` applies to
+ * the `agentId` a client sends, and for the same reason: this id is model output
+ * derived from `searchAgents`, so it is untrusted input on a path that has a
+ * caller identity to check it against. Not a hand-written `is_published &&
+ * status` pair here, which is the shape that drifts from the product's answer
+ * one surface at a time.
+ *
+ * A refusal is the SAME `Agent not found` as a missing row. Distinguishing them
+ * would confirm that an id exists, which is exactly what a private draft must
+ * not tell a stranger who guessed one — the argument `loadThreadAgent` makes for
+ * collapsing every refusal into `null`.
  *
  * ## The tool set was a hand-written literal, and it ignored the delegate
  *
@@ -18,28 +39,28 @@
  * a tool set, invisible to `__tests__/one-assembler.test.ts` because it carried
  * no `ToolSet` annotation for the census to find.
  *
- * It goes through `ToolPipeline.forUser` now, with the DELEGATE as the agent, so
- * what it can reach is what its owner granted it. `actsForPerson` is false and
- * there is no access token: a delegation is not a person's turn, so none of the
- * person-bound tools and none of the connector sources are in scope — an agent
- * hired by a stranger must not reach the stranger's memory or the owner's
- * connectors. What is left is the date, plus the web and artifact families if
- * this agent holds them.
+ * ## And the turn was FREE, which is the other half of the same collapse
+ *
+ * Running the delegate reserved nothing, and no reservation upstream covered it
+ * either — see `agent-turn.ts`, which now owns the whole nested-turn shape for
+ * this tool and for `askAgent`. The behaviour change is stated rather than
+ * buried: a delegation costs the delegating account credits, as any other
+ * inference it asks for does.
+ *
+ * The delegating USER pays, which is why this factory takes a `userId` it never
+ * hands to the model. The subject is fixed when the tool is built, before the
+ * model has decided anything.
  */
 
-import { tool, generateText, stepCountIs } from 'ai';
+import { tool } from 'ai';
 import { z } from 'zod';
 import { getDb } from '../../db/index.js';
 import { findAgentById } from '../../db/agents/agentRepository.js';
 import { agentPromptName, attachAgentIdentity } from '../agent-identity.js';
-import { resolveModel, getAIModel } from '../chat-core.js';
-import { evolveAgentSoul } from '../agent/soul.js';
+import { canReachAgent } from '../agent-account.js';
+import { runAgentTurn } from './agent-turn.js';
 import { log } from '../logger.js';
 import { getErrorMessage } from '../errors/index.js';
-
-const AGENT_TIMEOUT_MS = 45_000;
-const AGENT_MAX_STEPS = 5;
-const AGENT_MAX_OUTPUT_TOKENS = 4096;
 
 export interface AgentDelegationResult {
   agentId: string;
@@ -52,7 +73,14 @@ export interface AgentDelegationResult {
   error?: string;
 }
 
-export const createDelegateToAgentTool = () => tool({
+/**
+ * @param userId The account the delegation is billed to, and the caller whose
+ *   standing decides which agents are reachable: whoever's turn this is.
+ * @param accessToken That caller's own bearer. Absent, a private agent is
+ *   unreachable rather than reachable — `canReachAgent` fails closed, and the
+ *   assembler only builds this tool for a turn that holds a session.
+ */
+export const createDelegateToAgentTool = (userId: string, accessToken: string | undefined) => tool({
   description: 'Delegate a task to a specific agent by ID. The agent will autonomously process the task and return its response. Use after searchAgents to delegate work to the best-matching agent.',
 
   inputSchema: z.object({
@@ -61,14 +89,20 @@ export const createDelegateToAgentTool = () => tool({
   }),
 
   execute: async ({ agentId, task }): Promise<AgentDelegationResult> => {
-    const start = Date.now();
-
     try {
       // Look up the agent, then its identity: the delegation result carries the
       // agent's name, handle and colour for the client to render, and all three
       // are the bot account's.
       const found = await findAgentById(getDb(), agentId);
-      if (!found) {
+      /**
+       * One answer for both refusals. `canReachAgent` is public-and-active, or
+       * standing in the bot account — an owner's own agent, or one shared with
+       * them by being added to it.
+       */
+      if (found === null || !(await canReachAgent(found, { oxyUserId: userId, accessToken }))) {
+        if (found !== null) {
+          log.general.info({ agentId, userId }, 'Delegation refused: the caller cannot reach that agent');
+        }
         return {
           agentId,
           agentName: 'Unknown',
@@ -81,95 +115,17 @@ export const createDelegateToAgentTool = () => tool({
       }
 
       const agent = await attachAgentIdentity(found);
+      const outcome = await runAgentTurn({ agent, task, payerOxyUserId: userId });
 
-      // Build system prompt
-      // No `Capabilities:` line: it listed the decorative `capabilities` ids,
-      // which named no tool this delegation actually hands over.
-      const systemPrompt = agent.systemPrompt
-        || `You are ${agentPromptName(agent)}, an AI agent. ${agent.tagline}. ${agent.description}`;
-
-      // Resolve model (prefer agent's first allowed model, fallback to alia-lite)
-      const preferredModel = agent.allowedModels[0] || 'alia-lite';
-      let resolved = await resolveModel(preferredModel);
-      if (!resolved) {
-        resolved = await resolveModel('alia-lite');
-        if (!resolved) {
-          return {
-            agentId,
-            agentName: agentPromptName(agent),
-            agentHandle: agent.handle ?? 'unknown',
-            agentColor: agent.color,
-            response: '',
-            tokensUsed: 0,
-            error: 'No model available for agent execution',
-          };
-        }
-      }
-
-      const model = getAIModel(resolved, 'agent_run');
-
-      /**
-       * Imported lazily to break a real cycle, not for load time.
-       *
-       * `tool-pipeline.ts` imports `./tools/index.js`, which re-exports this
-       * module, so a static import here closes the loop and leaves one of the
-       * two half-initialised depending on which is entered first. The pipeline
-       * is only needed inside `execute`, which runs long after both modules
-       * are loaded.
-       */
-      const { ToolPipeline } = await import('../tool-pipeline.js');
-      const { tools: agentTools } = await ToolPipeline.forUser({
-        // The delegate's OWN account: this turn is the agent's, not a person's.
-        userId: agent.oxyAccountId,
-        isDirectSession: false,
-        actsForPerson: false,
-        agentMode: false,
-        toolsEnabled: true,
-        webSearch: true,
-        isLocalRuntime: false,
-        agent,
-      });
-
-      // Execute with timeout
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), AGENT_TIMEOUT_MS);
-
-      try {
-        const result = await generateText({
-          model,
-          system: systemPrompt,
-          prompt: task,
-          tools: agentTools,
-          stopWhen: stepCountIs(AGENT_MAX_STEPS),
-          maxOutputTokens: AGENT_MAX_OUTPUT_TOKENS,
-          temperature: 0.4,
-          abortSignal: controller.signal,
-        });
-
-        clearTimeout(timeout);
-
-        const tokensUsed = result.usage?.totalTokens || 0;
-        log.general.info(
-          { agentId, agentName: agentPromptName(agent), tokensUsed, latencyMs: Date.now() - start },
-          'Agent delegation completed',
-        );
-
-        // Evolve agent soul on ~10% of interactions (fire-and-forget)
-        if (tokensUsed > 0 && result.text && Math.random() < 0.1) {
-          evolveAgentSoul(agentId, task, result.text).catch(() => {});
-        }
-
-        return {
-          agentId,
-          agentName: agentPromptName(agent),
-          agentHandle: agent.handle ?? 'unknown',
-          agentColor: agent.color,
-          response: result.text,
-          tokensUsed,
-        };
-      } finally {
-        clearTimeout(timeout);
-      }
+      return {
+        agentId,
+        agentName: agentPromptName(agent),
+        agentHandle: agent.handle ?? 'unknown',
+        agentColor: agent.color,
+        response: outcome.response,
+        tokensUsed: outcome.tokensUsed,
+        ...(outcome.error === undefined ? {} : { error: outcome.error }),
+      };
     } catch (error: unknown) {
       log.general.error({ err: error, agentId }, 'Agent delegation failed');
       return {
@@ -179,9 +135,7 @@ export const createDelegateToAgentTool = () => tool({
         agentColor: null,
         response: '',
         tokensUsed: 0,
-        error: error instanceof Error && error.name === 'AbortError'
-          ? 'Agent timed out (45s)'
-          : getErrorMessage(error),
+        error: getErrorMessage(error),
       };
     }
   },

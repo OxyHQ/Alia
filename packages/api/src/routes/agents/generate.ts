@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { generateText } from 'ai';
 import { AGENT_ARCHETYPES } from '../../domain/agent.js';
 import { AGENT_COLORS, agentColorFor, isAgentColor } from '../../domain/agent-color.js';
-import { FIXED_CAPABILITY_FAMILIES, isCapabilityGrant } from '../../domain/capability-grants.js';
+import { FIXED_CAPABILITY_FAMILIES } from '../../domain/capability-grants.js';
 import { accountCategoryChoices, isOfferedAccountCategory } from '../../lib/account-category.js';
 import { fallbackAgentUsername, suggestAgentUsername } from '../../lib/agent-identity.js';
 import { authenticateToken } from '../../middleware/auth.js';
@@ -173,16 +173,25 @@ Do not include any text outside the JSON object.`,
         : 'Assistant',
       tags: Array.isArray(parsed.tags) ? parsed.tags.slice(0, 10) : [],
       /**
-       * Only families this build knows. A model asked for a closed vocabulary
-       * still invents members of it, and an unrecognised grant would travel to
-       * `POST /agents` and be refused there — a 400 on a body the person never
-       * typed. `isCapabilityGrant` also refuses a bare instanced family, which
-       * is what a model reaching for "mcp" would produce.
+       * Exactly the families this route OFFERED, and nothing else.
+       *
+       * A model asked for a closed vocabulary still invents members of it, and
+       * an unrecognised grant would travel to `POST /agents` and be refused
+       * there — a 400 on a body the person never typed.
+       *
+       * Narrower than `isCapabilityGrant` DELIBERATELY. That predicate now
+       * accepts a bare `agent`, which is a real grant meaning every one of the
+       * owner's active agents; a model reaching for the word while drafting an
+       * agent nobody has reviewed yet would hand it a conversation with all of
+       * them. What a generator proposes is limited to what its prompt named,
+       * and the instanced families are granted on the editor screen, by the
+       * person, one row at a time.
        */
       capabilityGrants: Array.isArray(parsed.capabilityGrants)
         ? parsed.capabilityGrants.filter(
             (grant: unknown): grant is string =>
-              typeof grant === 'string' && isCapabilityGrant(grant),
+              typeof grant === 'string' &&
+              (FIXED_CAPABILITY_FAMILIES as readonly string[]).includes(grant),
           )
         : [],
       archetype: validArchetypes.includes(parsed.archetype) ? parsed.archetype : 'general',

@@ -239,9 +239,25 @@ The grants are one vocabulary, partitioned by tool family, declared in
 | `automation` | `createTrigger`, `listTriggers`, `updateTrigger`, `deleteTrigger` |
 | `delegation` | `createAgent`, `searchAgents`, `delegateToAgent`, `delegate` |
 
-Three more build their tool names from ROWS, so they are granted one row at a time
-(`mcp:<connectorId>`, `oxy_service:<serviceId>`, `integration:<serviceId>`): MCP
-connectors, Oxy service manifests and the OAuth integrations.
+Four more are granted one row at a time, because nobody can enumerate their members in
+advance. Three build their tool names from the rows themselves — `mcp:<connectorId>`,
+`oxy_service:<serviceId>`, `integration:<serviceId>`: MCP connectors, Oxy service
+manifests and the OAuth integrations.
+
+The fourth is `agent:<agentId>`, the owner's OWN agents, and it contributes one tool
+(`askAgent`) whose SCHEMA is what the grant narrows: the ids it accepts are exactly the
+agents that turn may talk to, and the tool is not built at all when the selection resolves
+to none. It alone also accepts a BARE `agent` grant, meaning every one of the owner's
+agents whose `status` is `active`, re-resolved on every turn — argued in
+`EVERY_ROW_FAMILIES`, and safe in a way `mcp` is not because each of those rows carries its
+own capability grants.
+
+`askAgent` and `delegateToAgent` both run a NESTED TURN through
+`lib/tools/agent-turn.ts`: the named agent answers under its own prompt, with the tools its
+own grants allow, and the turn is reserved and settled against the account that funds the
+outer turn. A nested turn does not act for a person, so it never receives `askAgent`
+itself — which is what bounds the recursion at one hop, structurally rather than with a
+counter.
 
 `getCurrentDate`, `getDeviceInfo`, `switchModel`, `planPreview` and `plan` are governed
 by no grant — see `UNGRANTED_TOOLS` for the argument for each.

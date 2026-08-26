@@ -77,7 +77,20 @@ export interface AgentIdentity {
   authorName: string | null;
 }
 
-const UNRESOLVED: AgentIdentity = { name: null, handle: null, color: null, authorName: null };
+/**
+ * The identity of an account Oxy did not resolve: every field null.
+ *
+ * Exported because failing open is a CONTRACT, not an implementation detail —
+ * a caller resolving identities in a batch has to render the rows Oxy could not
+ * answer for, and inventing a second empty identity beside this one is how two
+ * surfaces start disagreeing about what an unresolved agent looks like.
+ */
+export const UNRESOLVED_IDENTITY: AgentIdentity = {
+  name: null,
+  handle: null,
+  color: null,
+  authorName: null,
+};
 
 /**
  * Resolve many bot accounts in ONE round trip.
@@ -124,7 +137,7 @@ export async function attachAgentIdentities<T extends { oxyAccountId: string; au
     ...rows.flatMap((row) => (typeof row.author === 'string' ? [row.author] : [])),
   ]);
   return rows.map((row) => {
-    const own = identities.get(row.oxyAccountId) ?? UNRESOLVED;
+    const own = identities.get(row.oxyAccountId) ?? UNRESOLVED_IDENTITY;
     const author = typeof row.author === 'string' ? identities.get(row.author) : undefined;
     return { ...row, ...own, authorName: author?.name ?? null };
   });
