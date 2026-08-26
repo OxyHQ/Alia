@@ -15,7 +15,7 @@ import { aliasesForProfile } from '../../lib/routing/alias-translation.js';
 import { getVoiceUsageSummary } from '../../lib/voice-usage.js';
 import { getSafeErrorMessage } from '../../lib/errors/sanitize.js';
 import { getDb } from '../../db/index.js';
-import { loadTurnAgent } from '../../lib/agent-account.js';
+import { loadTurnAgent, refusalMessage, refusalStatus } from '../../lib/agent-account.js';
 import { agentPromptName } from '../../lib/agent-identity.js';
 import { agentRemitPrompt } from '../../lib/agent/archetype-prompts.js';
 import { ToolPipeline } from '../../lib/tool-pipeline.js';
@@ -135,22 +135,43 @@ router.post('/token', async (req: Request, res: Response) => {
      * text turn names one.
      *
      * Authorised by `loadTurnAgent`, the same function `lib/chat/request-context.ts`
-     * uses — published-and-active, or `account:act_as` on the bot account. A
-     * refusal is `null` and the session runs as ordinary Alia, which is what
-     * every voice session did before this.
+     * uses — published-and-active, or `account:act_as` on the bot account. An
+     * agent this caller may not use is `none` and the session runs as ordinary
+     * Alia, which is what every voice session did before this.
+     *
+     * `identity_unavailable` is refused instead, for the reason the text path
+     * gives at length: a session that opens as Alia while the client draws the
+     * agent's name around it answers an identity failure with a different
+     * identity. Refused BEFORE the LiveKit room and the token, so nothing is
+     * created and there is nothing to clean up — and before any credit is
+     * reserved, which is why this branch has nothing to refund.
      */
     const requestedAgentId = typeof req.body.agentId === 'string' ? req.body.agentId : '';
-    const agent =
-      requestedAgentId === ''
-        ? null
-        : await loadTurnAgent(getDb(), {
-            agentId: requestedAgentId,
-            oxyUserId: userId,
-            accessToken: req.accessToken,
-          }).catch((err: unknown) => {
-            log.general.warn({ err, agentId: requestedAgentId }, 'Could not resolve the voice agent');
-            return null;
-          });
+    const turnAgent = requestedAgentId === ''
+      ? ({ kind: 'none' } as const)
+      : await loadTurnAgent(getDb(), {
+          agentId: requestedAgentId,
+          oxyUserId: userId,
+          accessToken: req.accessToken,
+        }).catch((err: unknown) => {
+          // A THROW is a lookup bug, not `identity_unavailable`. Unchanged
+          // behaviour: the session runs as ordinary Alia. See the same note in
+          // `lib/chat/request-context.ts`.
+          log.general.warn({ err, agentId: requestedAgentId }, 'Could not resolve the voice agent');
+          return { kind: 'none' } as const;
+        });
+
+    if (turnAgent.kind === 'identity_unavailable') {
+      return res.status(refusalStatus('identity_unavailable')).json({
+        error: {
+          code: 'IDENTITY_UNAVAILABLE',
+          message: refusalMessage('identity_unavailable'),
+          retryable: true,
+        },
+      });
+    }
+
+    const agent = turnAgent.kind === 'agent' ? turnAgent.agent : null;
 
     // Enforce model access
     if (!entitlements.allowedModelIds.includes(model)) {

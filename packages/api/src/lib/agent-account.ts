@@ -450,19 +450,48 @@ function isConflict(error: unknown): boolean {
  * A caller with no bearer cannot be asked about, so a private agent is
  * unreachable to them. That is the same answer as "no such agent", which is the
  * answer a route must give: see {@link loadThreadAgent}.
+ *
+ * ## THREE answers, because "I could not ask" is not "no"
+ *
+ * This returned a `boolean`, and that boolean was the bug. {@link
+ * verifyAgentAccount} has always told `identity_unavailable` apart from a real
+ * refusal — it answers 502 on the write paths and is deliberately never
+ * cached — and the read path collapsed the two into `false`. So an owner
+ * talking to their own private agent during an Oxy blip got the same answer as
+ * a stranger who may not use it: no agent on the turn, and Alia answering under
+ * the agent's name and colour.
+ *
+ * Intermittent, which is what made it hard to report. A positive verdict lives
+ * five minutes, so the collapse only bites on the first turn after that expires,
+ * and separately per ECS task. It reads to a person as "sometimes it forgets who
+ * it is".
+ *
+ * Every caller must therefore say what it does with the third answer.
+ * {@link loadThreadAgent} and `routes/agents/hire.ts` deliberately treat it as a
+ * refusal — see their own comments — and {@link loadTurnAgent} does not.
  */
 export async function canReachAgent(
   agent: AgentRecord,
   caller: { oxyUserId: string; accessToken: string | undefined },
-): Promise<boolean> {
-  if (agent.access === 'public' && agent.status === 'active') return true;
-  if (caller.accessToken === undefined) return false;
+): Promise<AgentReach> {
+  if (agent.access === 'public' && agent.status === 'active') return 'reachable';
+  // No bearer is not a failure to ask; it is an answer, and the answer is no.
+  if (caller.accessToken === undefined) return 'out_of_reach';
   return holdsAgentStanding({
     oxyUserId: caller.oxyUserId,
     accessToken: caller.accessToken,
     oxyAccountId: agent.oxyAccountId,
   });
 }
+
+/**
+ * Whether a caller may use an agent — and, separately, whether we know.
+ *
+ * `out_of_reach` is a VERDICT: Oxy was asked and said no. `identity_unavailable`
+ * is the absence of one. A caller that cannot tell them apart has to guess, and
+ * every caller here guessed the same way: no.
+ */
+export type AgentReach = 'reachable' | 'out_of_reach' | 'identity_unavailable';
 
 /**
  * Whether the caller owns the agent's bot account or was added to it.
@@ -472,17 +501,34 @@ export async function canReachAgent(
  * one per turn. It asks the act-as question on a miss, but returns the WEAKER
  * fact recorded beside it — a member who cannot act as the account still has
  * standing in it.
+ *
+ * ## `?? false` was where the distinction died
+ *
+ * The line was `return verdicts.get(key)?.standing ?? false`, read after a call
+ * whose whole purpose is to distinguish four outcomes. `identity_unavailable`
+ * is the ONE outcome `verifyAgentAccount` never caches — on purpose, so a bad
+ * minute at Oxy cannot become a five-minute refusal — so the entry it looked up
+ * was reliably absent, and the `??` turned "we did not find out" into "no"
+ * every single time.
+ *
+ * The verdict is read from the RETURN VALUE now. The cache is still consulted
+ * for the standing, which is the weaker fact that lives beside it.
  */
 export async function holdsAgentStanding(params: {
   oxyUserId: string;
   accessToken: string;
   oxyAccountId: string;
-}): Promise<boolean> {
+}): Promise<AgentReach> {
   const key = cacheKey(params.oxyUserId, params.oxyAccountId);
   const cached = verdicts.get(key);
-  if (cached !== undefined && cached.expiresAt > Date.now()) return cached.standing;
-  await verifyAgentAccount({ ...params, cache: false });
-  return verdicts.get(key)?.standing ?? false;
+  if (cached !== undefined && cached.expiresAt > Date.now()) {
+    return cached.standing ? 'reachable' : 'out_of_reach';
+  }
+  const verdict = await verifyAgentAccount({ ...params, cache: false });
+  if (!verdict.permitted && verdict.refusal === 'identity_unavailable') {
+    return 'identity_unavailable';
+  }
+  return verdicts.get(key)?.standing === true ? 'reachable' : 'out_of_reach';
 }
 
 /**
@@ -498,6 +544,15 @@ export async function holdsAgentStanding(params: {
  * cannot open this thread". A route that distinguished them would answer 403
  * for the third — and a 403 confirms the agent EXISTS, which is precisely what
  * an unpublished draft must not leak to a stranger who guessed a handle.
+ *
+ * `identity_unavailable` is collapsed here ON PURPOSE, and it is the one place
+ * that is still true after {@link canReachAgent} grew a third answer: a handle
+ * is GUESSABLE, so any answer other than 404 tells a stranger something. The
+ * cost — an owner whose Oxy is having a bad minute is told their own agent does
+ * not exist — is accepted and stated in `routes/agents/thread.ts`, and it is
+ * paid LOUDLY: the screen shows an error, so nobody is left believing they
+ * spoke to their agent. That is exactly what the turn path could not say, and
+ * why the turn path stopped collapsing it.
  */
 export async function loadThreadAgent(
   db: Executor,
@@ -505,7 +560,7 @@ export async function loadThreadAgent(
 ): Promise<HydratedAgent | null> {
   const agent = await findAgentByOxyHandle(db, params.username, { hireableOnly: false });
   if (agent === null) return null;
-  if (!(await canReachAgent(agent, params))) return null;
+  if ((await canReachAgent(agent, params)) !== 'reachable') return null;
   return attachAgentIdentity(agent);
 }
 
@@ -531,16 +586,43 @@ export async function loadThreadAgent(
  * By {@link canReachAgent}, which is the same rule `GET /agents/thread/:username`
  * applies — published-and-active, or `account:act_as` on the bot account.
  *
- * A refusal is `null` rather than an error. A turn naming an agent the caller
+ * A refusal is `none` rather than an error. A turn naming an agent the caller
  * may not use is still a valid chat turn; it simply runs as ordinary Alia,
- * which is exactly what happened for every turn before this worked.
+ * which is exactly what happened for every turn before this worked. That covers
+ * a deleted agent, an agent no longer shared, and a stale id in an old client —
+ * all of which have a person on the other end who may legitimately still send
+ * it.
+ *
+ * ## `identity_unavailable` is NOT that, and is the third answer
+ *
+ * A turn that names an agent and gets answered by Alia is a wrong answer, not a
+ * degraded one — the client keeps rendering the agent's name and colour around
+ * it, so the person is told they are talking to Claudio while Alia replies. The
+ * caller refuses the turn instead: `routes/v1/chat-completions.ts` and
+ * `routes/v1/voice.ts` both answer `identity_unavailable` and refund.
+ *
+ * Two questions, deliberately kept apart. "You may not use this agent" is
+ * settled and has a legitimate case behind it; "I could not find out" has
+ * neither. Answering them the same way is what this changes, and only that.
  */
+export type TurnAgent =
+  /** Resolved and authorised. */
+  | { readonly kind: 'agent'; readonly agent: HydratedAgent }
+  /** No such agent, or this caller may not use it. Run as ordinary Alia. */
+  | { readonly kind: 'none' }
+  /** Oxy could not be asked. The caller must refuse rather than substitute. */
+  | { readonly kind: 'identity_unavailable' };
+
 export async function loadTurnAgent(
   db: Executor,
   params: { agentId: string; oxyUserId: string; accessToken: string | undefined },
-): Promise<HydratedAgent | null> {
+): Promise<TurnAgent> {
   const agent = await findAgentById(db, params.agentId);
-  if (agent === null) return null;
-  if (!(await canReachAgent(agent, params))) return null;
-  return attachAgentIdentity(agent);
+  if (agent === null) return { kind: 'none' };
+
+  const reach = await canReachAgent(agent, params);
+  if (reach === 'identity_unavailable') return { kind: 'identity_unavailable' };
+  if (reach === 'out_of_reach') return { kind: 'none' };
+
+  return { kind: 'agent', agent: await attachAgentIdentity(agent) };
 }

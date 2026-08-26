@@ -31,11 +31,17 @@ router.post('/:id/hire', authenticateToken, async (req: Request, res: Response) 
      *
      * A refusal is 404 rather than 403 for the reason it always is here: a 403
      * confirms the agent exists.
+     *
+     * `identity_unavailable` is collapsed into that 404 as well, which is what
+     * this line already did when `canReachAgent` answered a boolean. Hiring is
+     * a deliberate act with a screen in front of it, so the refusal is seen;
+     * the turn path is where the collapse was silent, and that is the one that
+     * changed.
      */
-    if (!agent || !(await canReachAgent(agent, {
+    if (!agent || (await canReachAgent(agent, {
       oxyUserId: req.user.id,
       accessToken: req.accessToken,
-    }))) {
+    })) !== 'reachable') {
       return res.status(404).json({ error: 'Agent not found' });
     }
 
