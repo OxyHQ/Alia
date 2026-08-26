@@ -120,7 +120,10 @@ function buildTriggerSystemPrompt(
   memory?: UserMemoryProfile | null,
   source?: string
 ): string {
-  const prompt = `You are Alia, an autonomous AI assistant processing a triggered task.
+  // Names nobody: `buildIdentityGuard` is prepended above this and owns that.
+  // This used to open with a name claim of its own — under a guard that, for a
+  // trigger bound to an agent, had just given the agent's.
+  const prompt = `You are processing a triggered task, unattended.
 
 ## Trigger: "${trigger.name}"
 - Type: ${trigger.type}${source ? `\n- Source: ${source}` : ''}

@@ -7,6 +7,7 @@ import { resolveModel, getAIModel, reportModelUsage, getDefaultAliaModel } from 
 import { sendChannelMessage } from '../lib/channels/outbound.js';
 import { ToolPipeline } from '../lib/tool-pipeline.js';
 import { agentPromptName, attachAgentIdentity } from '../lib/agent-identity.js';
+import { agentRemitPrompt } from '../lib/agent/archetype-prompts.js';
 import { buildIdentityGuard } from '../lib/identity-guard.js';
 import { loadPrompt } from '../lib/prompt-loader.js';
 import { getDb } from '../db/index.js';
@@ -29,7 +30,13 @@ import type { ChannelId, ChannelInboundMessage } from '../lib/channels/types.js'
 import { log } from '../lib/logger.js';
 import { toRoutableAlias } from '../lib/product-modes.js';
 
-const DEFAULT_CHANNEL_PROMPT = `You are Alia, an AI assistant by Oxy. Be concise and direct — this is a messaging channel.
+/**
+ * How to answer on a channel with no prompt file of its own. It names nobody:
+ * both callers prepend `buildIdentityGuard`, which is the one owner of who the
+ * assistant is, and a second name claim here would contradict the guard on an
+ * AGENT's bot instead of merely repeating it.
+ */
+const DEFAULT_CHANNEL_PROMPT = `Be concise and direct — this is a messaging channel.
 
 CRITICAL: Respond in the same language the user writes to you.
 
@@ -250,8 +257,21 @@ export async function processChannelMessage(
 
     const model = getAIModel(resolved, 'agent_run');
 
-    // Generate AI response
-    const systemPrompt = await getChannelSystemPrompt(channelType);
+    /**
+     * The SHARED system bot, and the seventh composition path.
+     *
+     * It had no identity guard: `prompts/alia-telegram.md` opened "You are
+     * Alia, an AI assistant by Oxy. Never reveal underlying AI models or
+     * providers", and that markdown line was the whole of the boundary on a
+     * surface strangers DM. Now that the prompt files describe style and name
+     * nobody, the line is gone and the guard is what stands here — which is
+     * also a stronger rule than the one it replaces.
+     *
+     * No agent: this bot is Alia itself. `findSystemBot` is what selected it
+     * upstream — the row with no owner — and an agent's own bot is
+     * `processAgentBotMessage` below, which passes that agent's name.
+     */
+    const systemPrompt = `${buildIdentityGuard()}\n\n---\n\n${await getChannelSystemPrompt(channelType)}`;
     const startTime = Date.now();
     const result = await generateText({
       model,
@@ -431,8 +451,15 @@ export async function processAgentBotMessage(
      * An agent's own Telegram bot is the surface where its name matters most —
      * a stranger is talking to it by name — and it was the surface with no
      * guard at all, so a route detail could leak straight into a DM.
+     *
+     * The prompt below it is {@link agentRemitPrompt} rather than
+     * `agent.systemPrompt`, which fell through to the generic Alia channel
+     * prompt whenever the owner had not written one: the guard said "You are
+     * Claudio" and the section under it described Alia's Telegram manners and
+     * nothing about Claudio. The remit is what the guard's remit rule points
+     * at, so the two have to be the same thing on every surface.
      */
-    const composed = agent?.systemPrompt || (await getChannelSystemPrompt(channelType));
+    const composed = agent ? agentRemitPrompt(agent) : await getChannelSystemPrompt(channelType);
     const systemPrompt = `${buildIdentityGuard(
       agent ? { agentName: agentPromptName(agent) } : {},
     )}\n\n---\n\n${composed}`;

@@ -1,12 +1,54 @@
 /**
- * Archetype-Specific System Prompts
+ * The prompt text that describes an AGENT to the model.
  *
- * Generates specialized system prompts for agent archetypes (Q&A, Task Router, Status Update).
- * Called when an agent has an archetype set and no custom systemPrompt override.
+ * Two things live here: the archetype prompts (Q&A, task router, status update)
+ * and {@link agentRemitPrompt}, the one answer to "what describes this agent",
+ * which the archetypes are one branch of.
  */
 
 import { readArchetypeConfig, type ArchetypeConfig } from '../../domain/agent.js';
 import { agentPromptName, type HydratedAgent } from '../agent-identity.js';
+
+/**
+ * What this agent is for, in the words its owner gave. NEVER empty.
+ *
+ * ## Four surfaces asked this question and four answered it differently
+ *
+ * `system-prompt-builder.ts` and `voice.ts` asked `systemPrompt ?? archetype`
+ * and injected NOTHING when both were absent — which is every agent created
+ * through `POST /agents` without a prompt, since `archetype` defaults to
+ * `general` and `buildArchetypeSystemPrompt` returns null for it. The identity
+ * guard above still said "You are Claudio", so the model was given a name and
+ * no remit at all: the reported "responde de todo", exactly.
+ *
+ * `webhooks.ts` asked `systemPrompt` alone and fell back to the generic Alia
+ * channel prompt, so the same agent answering its own Telegram bot was handed
+ * somebody else's description. `runner.ts` was the only one with a real
+ * fallback, and it built it inline.
+ *
+ * One function, so the four cannot drift again.
+ *
+ * ## The fallback is the listing, and the listing always exists
+ *
+ * `tagline` and `description` are `NOT NULL` and `POST /agents` requires
+ * `min(1)` on both, so the last branch can always be reached and can never
+ * produce an empty string. That is what lets the return type be `string` rather
+ * than `string | null` — a caller that has an agent always has something to say
+ * about it.
+ *
+ * It describes and never names: `You are ${name}` belongs to the identity guard
+ * and used to be duplicated here, which is the same two-owners defect one layer
+ * down.
+ */
+export function agentRemitPrompt(agent: HydratedAgent): string {
+  const own = agent.systemPrompt?.trim();
+  if (own) return own;
+
+  const archetype = buildArchetypeSystemPrompt(agent)?.trim();
+  if (archetype) return archetype;
+
+  return `${agent.tagline}\n\n${agent.description}`;
+}
 
 export function buildArchetypeSystemPrompt(agent: HydratedAgent): string | null {
   if (agent.archetype === 'general') return null;

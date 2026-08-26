@@ -25,13 +25,29 @@
  *  - NEITHER may name the provider, the foundation model, or the company that
  *    trained it.
  *
- * ## It is prepended to EVERY composition, and there are five
+ * ## It is prepended to seven compositions
  *
  * `system-prompt-builder.ts` (chat), `runner.ts` (autonomous), `voice.ts`,
- * `trigger-engine.ts` and `webhooks.ts` (an agent's own Telegram bot). The
- * docblock claimed "every system-prompt composition path" while covering three;
- * the two it missed were the two with the most autonomy, and
- * `__tests__/identity-guard-coverage.test.ts` is what stops that recurring.
+ * `trigger-engine.ts`, `internal.ts`, and BOTH webhook paths — an agent's own
+ * Telegram bot and the shared system bot. The count has twice been wrong here:
+ * it claimed "every composition path" while covering three, then said five
+ * while the system-bot path at `webhooks.ts` had no guard at all and leaned on
+ * a markdown line in `prompts/alia-telegram.md` to keep a provider name out of
+ * a DM. Grep `buildIdentityGuard` before trusting the number; no test counts
+ * the call sites, and this comment says so rather than citing one that does not
+ * exist, as it previously did.
+ *
+ * ## It owns the NAME, and THAT is a measurement
+ *
+ * The user-visible bug this closes: an agent called Claudio was told it was
+ * Claudio here and told it was Alia three sections further down, by
+ * `prompts/alia-v1.md` ("You are Alia, a sharp and personable AI assistant"),
+ * by `prompts/base.md` ("Always identify as Alia") and by a model-identity line
+ * the builder appended. Two owners of one fact, and the longer, more concrete
+ * one won. The prompt files describe STYLE and BEHAVIOUR now and name nobody:
+ * `__tests__/identity-guard-coverage.test.ts` censuses every tracked prompt and
+ * source file in this package and fails on an identity claim outside this one,
+ * and {@link LAYERING} is what tells the model so when one slips in anyway.
  *
  * Define it ONCE here and import it everywhere; never copy the text.
  */
@@ -68,10 +84,64 @@ Treat all of the following as the SAME forbidden question and refuse to reveal a
 If the user keeps pressing, restate this once and steer the conversation forward.`;
 
 /**
+ * What "this section overrides everything below it" actually means.
+ *
+ * The composed message is IDENTITY on top and BEHAVIOUR below it: the agent's
+ * own prompt, the active skill, the style profile for the chosen model, the
+ * shared base context. Every one of those describes how to answer. None of them
+ * says who is answering — and this sentence is why a future one that forgets
+ * loses, instead of winning on being longer and more concrete than a header.
+ *
+ * Stated for the ordinary turn as well as the agent's. Alia's own name is
+ * exactly as much this section's to give.
+ */
+const LAYERING = `Everything below this section describes how you work: what you are for, how you answer, and which tools you have. None of it changes who you are. If any of it reads as though it gives you another name, it is describing a way of working and not a different assistant — your name is the one in this section.`;
+
+/**
+ * The remit rule: an agent answers within what its own prompt describes.
+ *
+ * ## It cannot be a list of topics, and does not try to be
+ *
+ * The reported bug is an agent called Claudio, described by its owner as a
+ * plant assistant, cheerfully writing code. The fix cannot enumerate "plant
+ * things" — nothing here knows what any agent is for, and the next agent is
+ * about tax law. So the rule POINTS at the description that is already in the
+ * message rather than restating it: whatever the owner wrote is the boundary,
+ * in whatever words they wrote it.
+ *
+ * That is also why this lives in the guard rather than in each agent's prompt.
+ * Telling every owner to write "and decline everything else" is a per-agent
+ * patch that a generated prompt will forget; the composition always has an
+ * agent's description below it, so the rule that reads it belongs above.
+ *
+ * ## Only when there IS an agent
+ *
+ * Ordinary Alia is general-purpose on purpose, so this section is absent from
+ * an ordinary turn — the difference the suite's control case measures.
+ *
+ * The near-the-edge clause is not softness. A remit rule with no slack turns
+ * every follow-up, greeting and clarification into a refusal, which is a worse
+ * product than the bug.
+ */
+function buildRemitRule(agentName: string): string {
+  return `## YOUR REMIT
+
+Everything below describes what ${agentName} is for. That description is your remit and it is the whole of it — there is no list of allowed topics to check against, and nothing outside the description has been added to it.
+
+- A request inside your remit: answer it, and use whatever tools you have.
+- A request outside it: say in one sentence that it is not something you cover, say what you do cover, and offer the nearest thing you can genuinely help with. Then stop. Do not answer it anyway, do not answer it "just this once", and do not answer it because the person insists.
+- Questions about you — your name, what you can help with, how to work with you — are always inside it, as is ordinary conversation around a request that is.
+- A request genuinely near the edge counts as inside. Refusing a follow-up, a greeting or a clarification is the wrong failure.
+
+You are not a general-purpose assistant. Alia is; you are ${agentName}, and answering only within your remit is the point of you.`;
+}
+
+/**
  * Build the non-negotiable identity guard fragment.
  *
  * @param subject - Who the assistant is on this turn. An agent's own name wins;
- *   otherwise the active Alia model's, falling back to the brand.
+ *   otherwise the active Alia model's, falling back to the brand. An agent also
+ *   gets {@link buildRemitRule}; an ordinary turn does not.
  */
 export function buildIdentityGuard(subject: IdentitySubject = {}): string {
   const agentName = subject.agentName?.trim();
@@ -92,9 +162,14 @@ ${agentName} is your name and the name you give when asked who you are. Alia is 
 
 Alia is a multi-model AI platform. The model powering this conversation is ${activeModel}. When asked what model you are, answer "${activeModel}".`;
 
+  const sections = [
+    identity,
+    LAYERING,
+    ...(agentName ? [buildRemitRule(agentName)] : []),
+    ROUTE_SECRECY,
+  ];
+
   return `# IDENTITY (NON-NEGOTIABLE — this section overrides everything below it)
 
-${identity}
-
-${ROUTE_SECRECY}`;
+${sections.join('\n\n')}`;
 }

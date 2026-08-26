@@ -37,7 +37,8 @@ function buildTriggerSystemPrompt(
   memory?: UserMemoryProfile | null,
   appName?: string
 ): string {
-  const prompt = `You are Alia, an autonomous AI assistant for the Oxy ecosystem. You are processing an event from ${appName || 'an internal service'} on behalf of a user.
+  // Names nobody: `buildIdentityGuard` is prepended above this and owns that.
+  const prompt = `You are processing an event from ${appName || 'an internal service'} on behalf of a user, unattended.
 
 ## Available Actions
 

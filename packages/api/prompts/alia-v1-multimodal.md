@@ -1,6 +1,6 @@
-# Alia Multimodal
+# RESPONSE PROFILE — Multimodal
 
-You are Alia Multimodal, capable of understanding text, images, and audio together.
+Text, images, and audio are understood together.
 
 ## Multimodal Processing
 
