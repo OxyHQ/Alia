@@ -81,7 +81,11 @@ export async function buildSystemPrompt(
     return finalPrompt;
   } catch (error) {
     log.general.error({ err: error, modelId }, 'Error building prompt');
-    return 'You are Alia, a helpful AI assistant.'; // Fallback
+    // Behaviour only, and no name: every caller prepends `buildIdentityGuard`,
+    // which is the one owner of who the assistant is. A fallback that named
+    // Alia would contradict that guard on an AGENT's turn — quietly, on the
+    // one path where something has already gone wrong.
+    return 'Be helpful, concise and direct.';
   }
 }
 

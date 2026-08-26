@@ -42,7 +42,7 @@ import { WorkspaceMemory } from './workspace-memory.js';
 import { TerminalSession, inferImage } from './terminal-session.js';
 import { BrowserSession } from './browser-session.js';
 import { ToolPipeline } from '../tool-pipeline.js';
-import { buildArchetypeSystemPrompt } from './archetype-prompts.js';
+import { agentRemitPrompt } from './archetype-prompts.js';
 import {
   agentPromptName,
   attachAgentIdentity,
@@ -103,27 +103,31 @@ function actionLines(agent: HydratedAgent): string {
     .join('\n\n')}`;
 }
 
+/**
+ * The agent's remit, plus the PROTOCOL of an autonomous run.
+ *
+ * ## The remit chain moved out, and the protocol stopped being conditional
+ *
+ * This function used to answer `systemPrompt ?? archetype ?? listing` itself
+ * and RETURN EARLY on the first two — so an agent whose owner had written a
+ * prompt was never told that `plan` exists, that it must call
+ * `plan(action='complete')` to finish, or how many steps it had. The sections
+ * below are not a fallback description; they are how a session works, and they
+ * are as true of a custom-prompt agent as of any other.
+ *
+ * What describes the agent is {@link agentRemitPrompt}, shared with the chat,
+ * voice and agent-bot surfaces so the four cannot drift. It also stopped
+ * opening `You are ${name}.` — the identity guard prepended above this says
+ * exactly that, and one fact wants one owner.
+ *
+ * No `## Capabilities` section. It listed `agent.capabilities` — the eight
+ * decorative tool ids the generator wrote — so what the model read was
+ * `web-browsing, memory` while the actual tool set was decided somewhere
+ * else entirely and could contradict it in either direction. What the agent
+ * can do is the tools it was handed, each with its own description.
+ */
 function buildSystemPrompt(agent: HydratedAgent, config: AgentSessionConfig): string {
-  if (agent.systemPrompt) {
-    return agent.systemPrompt;
-  }
-
-  // Use archetype-specific prompt if available
-  if (agent.archetype && agent.archetype !== 'general') {
-    const archetypePrompt = buildArchetypeSystemPrompt(agent);
-    if (archetypePrompt) return archetypePrompt;
-  }
-
-  /**
-   * No `## Capabilities` section. It listed `agent.capabilities` — the eight
-   * decorative tool ids the generator wrote — so what the model read was
-   * `web-browsing, memory` while the actual tool set was decided somewhere
-   * else entirely and could contradict it in either direction. What the agent
-   * can do is the tools it was handed, each with its own description.
-   */
-  return `You are ${agentPromptName(agent)}. ${agent.tagline}
-
-${agent.description}
+  return `${agentRemitPrompt(agent)}
 
 ## Actions
 

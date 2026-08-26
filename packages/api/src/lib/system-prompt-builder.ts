@@ -8,7 +8,7 @@
 import { getAliaModel } from './gateway-client.js';
 import { buildIdentityGuard } from './identity-guard.js';
 import { getOxyServicePromptFragment, getOxyServiceContext } from './tools/oxy-services.js';
-import { buildArchetypeSystemPrompt } from './agent/archetype-prompts.js';
+import { agentRemitPrompt } from './agent/archetype-prompts.js';
 import { buildAutonomyPromptFragment, type AutonomyRuntimeContext } from './autonomy/runtime.js';
 import { buildSystemPrompt as loadBasePrompt, loadPrompt } from './prompt-loader.js';
 import { getPromptId } from './routing/presets.js';
@@ -103,17 +103,19 @@ export class SystemPromptBuilder {
    *
    * Layer order (bottom-up):
    *   0. Identity guard (prepended LAST — sits at the absolute top so no skill,
-   *      agent, or downstream fragment can override the Alia identity boundary)
-   *   1. Skill / Agent archetype (prepended — wraps the base prompt)
-   *   2. Base prompt (model-specific identity + capabilities)
+   *      agent, or downstream fragment can override it). The ONLY layer that
+   *      says who the assistant is, and the only one that carries an agent's
+   *      remit rule.
+   *   1. Skill / agent remit (prepended — wraps the base prompt)
+   *   2. Base prompt (the style profile for the chosen model, plus `base.md`) —
+   *      how to answer, never who is answering
    *   3. Date injection
    *   4. Autonomy fragment
    *   5. Recalled memories
-   *   6. Model identity
-   *   7. User profile & communication tools hint
-   *   8. Oxy service description + context
-   *   9. Agent mode hint
-   *  10. User memory (facts, preferences, context)
+   *   6. User profile & communication tools hint
+   *   7. Oxy service description + context
+   *   8. Agent mode hint
+   *   9. User memory (facts, preferences, context)
    */
   static async build(opts: SystemPromptOptions): Promise<string> {
     const {
@@ -173,11 +175,17 @@ export class SystemPromptBuilder {
       systemMessage += `\n\n## Recalled Memories\n${memoryLines}`;
     }
 
-    // 5. Model identity
+    /**
+     * 5. The active model, READ rather than restated.
+     *
+     * This layer used to append "You are currently using the **Alia V1**
+     * model. When asked what model you use, say you are using Alia V1" — which
+     * the guard at the top already says, in both its branches. On an agent's
+     * turn it was a second "You are …" sentence naming something other than the
+     * agent, sitting below the one that named the agent. Two owners of one
+     * fact; the guard is the owner, and this now only feeds it the name.
+     */
     const aliaModel = await getAliaModel(aliasModelId);
-    if (aliaModel) {
-      systemMessage += `\n\nYou are currently using the **${aliaModel.name}** model. When asked what model you use, say you are using ${aliaModel.name}.`;
-    }
 
     // 6. User-specific injections (direct sessions only)
     if (isDirectUserSession) {
@@ -241,20 +249,35 @@ export class SystemPromptBuilder {
       log.general.info({ skillTitle: skill.title }, 'Skill activated');
     }
 
-    // 9. Agent archetype prompt (prepended — wraps everything including skill)
-    if (linkedAgent && isDirectUserSession) {
-      const agentPrompt = linkedAgent.systemPrompt || buildArchetypeSystemPrompt(linkedAgent);
-      if (agentPrompt) {
-        const agentName = agentPromptName(linkedAgent);
-        systemMessage = `# AGENT: ${agentName}\n\n${agentPrompt}\n\n---\n\n${systemMessage}`;
-        log.general.info({ agentName, archetype: linkedAgent.archetype }, 'Agent prompt injected');
-      }
+    /**
+     * 9. The agent's remit (prepended — wraps everything including the skill).
+     *
+     * Unconditional now, where it used to be `systemPrompt || archetype` behind
+     * an `if`. An agent with neither — the default shape of anything created
+     * through `POST /agents` without a prompt — got a NAME from the guard above
+     * and no description of itself anywhere, which is the "it answers
+     * everything" half of the reported bug. {@link agentRemitPrompt} always has
+     * something to say; the guard's remit rule points at what it says.
+     *
+     * Keyed on `linkedAgent` ALONE, where it also asked `isDirectUserSession`.
+     * The guard below never asked — so the two conditions disagreeing produced
+     * exactly the shape this change exists to remove: a turn told it is Claudio
+     * with nothing describing Claudio. Unreachable today, because
+     * `lib/chat/request-context.ts` only resolves an agent for a direct
+     * session, which is why this is a trap removed rather than a behaviour
+     * changed.
+     */
+    if (linkedAgent) {
+      const agentName = agentPromptName(linkedAgent);
+      systemMessage = `# AGENT: ${agentName}\n\n${agentRemitPrompt(linkedAgent)}\n\n---\n\n${systemMessage}`;
+      log.general.info({ agentName, archetype: linkedAgent.archetype }, 'Agent prompt injected');
     }
 
     // 0. Identity guard — prepended LAST so it sits above the skill/agent
     // prompts and every other layer. Nothing downstream can override the
     // Alia identity boundary.
-    // An agent's turn says the AGENT's name; an ordinary turn says the model's.
+    // An agent's turn says the AGENT's name and carries the remit rule; an
+    // ordinary turn says the model's and stays general-purpose.
     systemMessage = `${buildIdentityGuard({
       ...(linkedAgent ? { agentName: agentPromptName(linkedAgent) } : {}),
       modelName: aliaModel?.name,

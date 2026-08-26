@@ -17,7 +17,7 @@ import { getSafeErrorMessage } from '../../lib/errors/sanitize.js';
 import { getDb } from '../../db/index.js';
 import { loadTurnAgent } from '../../lib/agent-account.js';
 import { agentPromptName } from '../../lib/agent-identity.js';
-import { buildArchetypeSystemPrompt } from '../../lib/agent/archetype-prompts.js';
+import { agentRemitPrompt } from '../../lib/agent/archetype-prompts.js';
 import { ToolPipeline } from '../../lib/tool-pipeline.js';
 import { convertToolSetToOpenAITools } from '../../lib/tool-converter.js';
 import type { Request, Response } from 'express';
@@ -188,19 +188,20 @@ router.post('/token', async (req: Request, res: Response) => {
     }
 
     /**
-     * The agent's own prompt, composed the way the TEXT path composes it.
+     * The agent's remit, composed the way the TEXT path composes it.
      *
      * `system-prompt-builder.ts` prepends `# AGENT: <name>` above the Alia
      * prompt rather than replacing it, so voice does the same — not a third
      * shape. It goes on AFTER the client override for the same reason the guard
      * does: a session that belongs to an agent must not be able to stop being
      * that agent because the caller sent instructions.
+     *
+     * Unconditional, like the text path's: `agentRemitPrompt` always describes
+     * the agent, so a voice session can no longer be given a name by the guard
+     * and no description of what that name is for.
      */
     if (agent) {
-      const agentPrompt = agent.systemPrompt || buildArchetypeSystemPrompt(agent);
-      if (agentPrompt) {
-        voiceInstructions = `# AGENT: ${agentPromptName(agent)}\n\n${agentPrompt}\n\n---\n\n${voiceInstructions}`;
-      }
+      voiceInstructions = `# AGENT: ${agentPromptName(agent)}\n\n${agentRemitPrompt(agent)}\n\n---\n\n${voiceInstructions}`;
     }
 
     /**

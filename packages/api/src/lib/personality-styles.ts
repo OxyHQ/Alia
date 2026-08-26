@@ -2,8 +2,12 @@
  * Personality Styles — Curated communication presets for Alia
  *
  * Each style calibrates 5 dimensions to create a distinct conversational experience.
- * The prompt supplement is appended to the base alia-app.md prompt to override
- * only the Personality and Response Style sections while keeping all other rules intact.
+ *
+ * `promptSupplement` is APPENDED TO NOTHING today, and the docblock said it was
+ * appended to `prompts/alia-app.md` — a file no loader named, deleted with the
+ * identity claim it carried. `getPersonalityPromptSupplement` below has no
+ * caller either. What is live is the dimensions and the metadata, read by
+ * `lib/tools/user-memory.ts` when the user picks a tone.
  */
 
 export type PersonalityStyleId = 'alia' | 'brief' | 'chill' | 'sweet' | 'witty' | 'mentor' | 'bold';
@@ -32,7 +36,7 @@ export const PERSONALITY_STYLES: Record<PersonalityStyleId, PersonalityStyle> = 
     tagline: 'Direct, calm, helpful',
     sampleGreeting: 'Hi, how can I help?',
     dimensions: { expressiveness: 2, emotionalOpenness: 2, formality: 3, directness: 4, humor: 2 },
-    promptSupplement: '', // Default — base alia-app.md IS the Alia personality
+    promptSupplement: '', // Default — the base prompts already carry this style
   },
 
   brief: {
