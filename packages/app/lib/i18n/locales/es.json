@@ -1033,6 +1033,7 @@
   },
   "effort": {
     "select": "Esfuerzo",
+    "costNote": "El razonamiento se factura como tokens de salida, así que más esfuerzo cuesta más.",
     "headlinePrefix": "Esfuerzo ",
     "headlineSuffix": "",
     "levels": {
