@@ -31,10 +31,18 @@
 #
 # WHAT REPLACES IT, and why the failure is now structural rather than guarded:
 #
-#   * The destructive half is `cloudflare-clear-address-records.sh`, shared with
-#     `migrate-pages-to-worker.yml`. One file decides what an address record is,
-#     so the two workflows cannot come to disagree about it, and that file
-#     enumerates every record it is NOT deleting and checks each one survived.
+#   * The delete is type-scoped, it enumerates every record it is NOT deleting
+#     and checks each one survived. `migrate-pages-to-worker.yml` does the same
+#     thing through `.github/scripts/cloudflare-clear-address-records.sh`; this
+#     file carries a byte-identical COPY of the type filter instead of calling
+#     it, and `test-cloudflare-cutover.sh` fails if the two ever diverge.
+#
+#     The copy is the point. This workflow runs NO ACTION AT ALL — just
+#     `curl` and `jq` — so it works while GitHub's content hosts are degraded, a
+#     failure this repository has had and documented. It is also what you reach
+#     for when the site is already down. Sharing one line of jq would cost a
+#     checkout, and a checkout turns "I cannot download the repo" into "I cannot
+#     repair DNS".
 #   * What follows is a CREATE, never a replace. A POST of a CNAME cannot land
 #     on a TXT record the way a PUT can, so the incident has no form to take
 #     here — there is no `.result[0]` left in this file.
@@ -97,11 +105,6 @@ jobs:
           echo "token verify: http=$code success=$ok status=$(jq -r '.result.status // "-"' /tmp/verify.json)"
           [ "$ok" = "true" ] || { echo "::error::token rejected: $(jq -c '.errors' /tmp/verify.json)"; exit 1; }
 
-      # The DNS work lives in a script now, shared with the cutover workflow, so
-      # this needs the tree. It is checked out from the ref this run was
-      # dispatched against, which is the same ref whose YAML is executing.
-      - uses: actions/checkout@v4
-
       - name: What the world looks like before
         run: |
           set -euo pipefail
@@ -130,17 +133,93 @@ jobs:
       # CNAMEs to `*.pages.dev` and Cloudflare terminates TLS. A DNS-only record
       # would serve the Pages origin without a certificate for this hostname.
       #
-      # `.github/scripts/test-cloudflare-cutover.sh` extracts this `run:` block
-      # from this file and executes it against a stubbed Cloudflare, including
-      # the case that cost `alia.onl` its SPF record.
+      # `.github/scripts/test-cloudflare-cutover.sh` extracts THIS `run:` block
+      # out of THIS file and executes it against a stubbed Cloudflare, including
+      # the case that cost `alia.onl` its SPF record. It refuses to run if the
+      # block delegates to a script, because then the copy that actually runs
+      # here — the one that has to work when nothing else does — would be the
+      # only thing not under test.
       - name: The address record is a proxied CNAME to the Pages project
         run: |
           set -euo pipefail
+          api=https://api.cloudflare.com/client/v4
           target="${PROJECT}.pages.dev"
 
-          # Deletes A, AAAA and CNAME at this name and NOTHING else, and fails
-          # if any record it was not deleting stopped existing.
-          bash .github/scripts/cloudflare-clear-address-records.sh "$ZONE" "$HOSTNAME"
+          # THE FILTER, and it is a DELIBERATE DUPLICATE of the one in
+          # `.github/scripts/cloudflare-address-records.sh` — byte for byte,
+          # spacing included. `test-cloudflare-cutover.sh` compares the two and
+          # goes red the moment they stop matching, which is what makes copying
+          # it safe by construction rather than by anyone remembering.
+          #
+          # It is copied and not shared because sharing it means checking the
+          # repository out, and this workflow runs NO ACTION AT ALL: no
+          # download, nothing but `curl` and `jq`. That is what lets it run
+          # while GitHub's content hosts are degraded — a failure this
+          # repository has had, and documented — and this is the workflow you
+          # reach for when the site is ALREADY down. A checkout would turn "I
+          # cannot download the repo" into "I cannot repair DNS", to save one
+          # line of duplication.
+          address='select(.type == "A" or .type == "AAAA" or .type == "CNAME")'
+
+          curl -sS -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            "$api/zones/$ZONE_ID/dns_records?name=$HOSTNAME" -o /tmp/before.json
+          [ "$(jq -r '.success' /tmp/before.json)" = "true" ] \
+            || { echo "::error::record lookup failed: $(jq -c '.errors' /tmp/before.json)"; exit 1; }
+
+          # The prior state, in the log, before anything is destroyed. The run
+          # that caused the outage had no way afterwards to say what the record
+          # it deleted had been, or what the second record was.
+          echo "records at $HOSTNAME before:"
+          jq -r 'if (.result | length) == 0 then "  (none)"
+                 else (.result[] | "  \(.type)  \(.content)  proxied=\(.proxied)  ttl=\(.ttl)  id=\(.id)")
+                 end' /tmp/before.json
+
+          # The complement, expressed as "not in that set" rather than as a
+          # second type list. A hand-written inverse is another definition, and
+          # there is already one more of those in this repository than anybody
+          # wants.
+          jq -r "[.result[] | $address | .id] as \$addr | .result[]
+                 | select(.id as \$id | \$addr | index(\$id) | not) | .id" \
+            /tmp/before.json > /tmp/keep-ids
+
+          if [ -z "$(jq -r ".result[] | $address | .id" /tmp/before.json)" ]; then
+            echo "no address record at $HOSTNAME — nothing to delete"
+          else
+            while read -r id; do
+              [ -n "$id" ] || continue
+              what=$(jq -r --arg id "$id" '.result[] | select(.id == $id) | .type + " -> " + .content' /tmp/before.json)
+              echo "deleting $what ($id)"
+              code=$(curl -sS -o /tmp/rd.json -w '%{http_code}' -X DELETE \
+                -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+                "$api/zones/$ZONE_ID/dns_records/$id")
+              # Per record, not once for the batch: a failure in the middle
+              # would otherwise be papered over by the next success.
+              [ "$(jq -r '.success' /tmp/rd.json)" = "true" ] \
+                || { echo "::error::record delete failed for $what (http=$code): $(jq -c '.errors' /tmp/rd.json)"; exit 1; }
+            done < <(jq -r ".result[] | $address | .id" /tmp/before.json)
+          fi
+
+          # Read back. `success: true` is not evidence the field holds.
+          curl -sS -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            "$api/zones/$ZONE_ID/dns_records?name=$HOSTNAME" -o /tmp/cleared.json
+          [ "$(jq -r '.success' /tmp/cleared.json)" = "true" ] \
+            || { echo "::error::read-back failed: $(jq -c '.errors' /tmp/cleared.json)"; exit 1; }
+          left=$(jq -r "[.result[] | $address] | length" /tmp/cleared.json)
+          [ "$left" = "0" ] \
+            || { echo "::error::$left address record(s) still present at $HOSTNAME after deleting them — the DELETE reported success and changed nothing"; exit 1; }
+
+          # And everything it was NOT deleting is still there. This is the
+          # assertion the incident needed: it fires if the filter above ever
+          # widens, and it names the record that went.
+          missing=""
+          while read -r id; do
+            [ -n "$id" ] || continue
+            jq -e --arg id "$id" '.result[] | select(.id == $id)' /tmp/cleared.json >/dev/null && continue
+            missing="$missing $(jq -r --arg id "$id" '.result[] | select(.id == $id) | .type + " " + .content' /tmp/before.json)"
+          done < /tmp/keep-ids
+          [ -z "$missing" ] \
+            || { echo "::error::a record that is not an address record was destroyed at $HOSTNAME:$missing"; exit 1; }
+          echo "address records at $HOSTNAME now: 0 (untouched at this name: $(jq -r '[.result[] | .type] | join(",")' /tmp/cleared.json | sed 's/^$/none/'))"
 
           # A create, not a replace. There is no `.result[0]` here to land on
           # the wrong record: the address records are already gone, and a POST

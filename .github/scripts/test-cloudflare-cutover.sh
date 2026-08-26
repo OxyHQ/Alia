@@ -375,8 +375,29 @@ delete_project="$repo/.github/scripts/delete-pages-project.sh"
 # ===========================================================================
 
 BIND_STEP=$(extract_run bind-pages-domain.yml 'The address record is a proxied CNAME to the Pages project')
-grep -q 'cloudflare-clear-address-records.sh' <<<"$BIND_STEP" \
-  || { echo "the bind step no longer calls the shared script; this harness is pointed at the wrong text" >&2; exit 1; }
+# `bind-pages-domain.yml` carries its OWN copy of the delete, because it runs no
+# action at all and therefore cannot check the repository out to reach a script.
+# If it ever started delegating, every case below would be testing the script
+# for a second time and the copy that actually runs during a recovery — the one
+# that has to work when nothing else does — would be the only untested thing
+# here. So the harness refuses to proceed rather than quietly measuring twice.
+# Comment lines are stripped first. The block explains in prose that the script
+# holds the other copy of the filter, and a check that matched that sentence
+# would be reading the paragraph about the code instead of the code — the same
+# way the static check below skips comments.
+BIND_CODE=$(grep -v '^[[:space:]]*#' <<<"$BIND_STEP")
+if grep -q '\.github/scripts/' <<<"$BIND_CODE"; then
+  echo "the bind step delegates to a script; it must be self-contained, and these cases would then test the script twice" >&2
+  exit 1
+fi
+# Presence, not spelling. Requiring the canonical spacing here would make a
+# respaced copy exit with "no longer filters by record type", which is false and
+# points away from the real answer — the byte-identical check below owns the
+# spelling and names both locations when they diverge.
+if ! grep -q 'AAAA' <<<"$BIND_CODE"; then
+  echo "the bind step no longer filters by record type; this harness is pointed at the wrong text" >&2
+  exit 1
+fi
 
 state "$APEX_WITH_SPF"
 CF_STUB_FAULT=none attempt_block "$BIND_STEP" \
@@ -412,6 +433,41 @@ attempt bash "$clear_records" alia.onl www.alia.onl
 check 'a hostname with no address record is a successful no-op' 0 \
   'says:nothing to delete' \
   'jq:.records | length == 2'
+
+# THE SAME FIXTURES THROUGH THE OTHER COPY. Every case above exercises the
+# script that `migrate-pages-to-worker.yml` calls; these run the block that
+# lives inside `bind-pages-domain.yml`, which is a different body of shell that
+# has to behave identically. Testing one and asserting the filters match would
+# leave the recovery path's error handling — the delete check, the read-back,
+# the survivor check — entirely unmeasured.
+bind_env=(HOSTNAME=alia.onl PROJECT=alia-canvas ZONE=alia.onl ZONE_ID=zone-1
+          CLOUDFLARE_API_TOKEN=stub-token)
+
+state "$APEX_CROWDED"
+attempt_block "$BIND_STEP" "${bind_env[@]}"
+check 'bind, on [A, A, AAAA, TXT, MX]: three go, the TXT and the MX stay' 0 \
+  'jq:[.records[] | .type] | sort == ["CNAME","MX","TXT"]' \
+  'jq:.records[] | select(.type == "CNAME") | .content == "alia-canvas.pages.dev"' \
+  'jq:[.records[] | select(.type == "TXT" and .content == "v=spf1 -all")] | length == 1' \
+  'requests:DELETE /zones/zone-1/dns_records/=3'
+
+state "$APEX_WITH_SPF"
+CF_STUB_FAULT=delete-noop attempt_block "$BIND_STEP" "${bind_env[@]}"
+check 'bind, on a DELETE that reports success and changes nothing: still red' 1 \
+  'says:address record(s) still present' \
+  'silent:creating CNAME' \
+  'jq:[.records[] | select(.content == "alia-canvas.pages.dev")] | length == 0'
+
+state "$APEX_CROWDED"
+CF_STUB_FAULT=delete-collateral attempt_block "$BIND_STEP" "${bind_env[@]}"
+check 'bind, on a delete that takes a record it was not asked for: caught and named' 1 \
+  'says:not an address record was destroyed' \
+  'says:TXT v=spf1 -all'
+
+state "$APEX_WITH_SPF"
+CF_STUB_FAULT=write-noop attempt_block "$BIND_STEP" "${bind_env[@]}"
+check 'bind, on a create that reports success and writes nothing: still red' 1 \
+  'says:CNAME record(s), expected exactly 1'
 
 # ===========================================================================
 # The control: the code as it stood, against the same fixtures
@@ -733,20 +789,73 @@ else
   echo "ok    no workflow indexes into an untyped record listing"
 fi
 
-# The destructive half belongs to the script, which is where the survivor check
-# lives. A DELETE against a DNS record in a workflow is a second copy of it.
+# `bind-pages-domain.yml` deletes a DNS record itself and is the ONLY thing in
+# `.github/workflows` allowed to, because it runs no action and so cannot reach
+# a script. Exact in both directions: a second workflow growing its own delete
+# is a failure, and this one losing its delete means it started delegating —
+# which the extraction guard above would already have caught, but the two say it
+# from opposite ends.
 cases=$((cases + 1))
-raw_delete=$(grep -rn -A2 -- '-X DELETE' "$repo"/.github/workflows/*.yml | grep -F 'dns_records' || true)
-if [ -n "$raw_delete" ]; then
-  failures=$((failures + 1))
-  echo "FAIL  no workflow deletes a DNS record itself"
-  printf '        %s\n' "$raw_delete"
-  echo "        cloudflare-clear-address-records.sh owns this, and it is the only thing that checks what survived."
+inline_delete=""
+for workflow in "$repo"/.github/workflows/*.yml; do
+  if grep -A2 -- '-X DELETE' "$workflow" | grep -qF dns_records; then
+    inline_delete="$inline_delete$(basename "$workflow") "
+  fi
+done
+if [ "$inline_delete" = "bind-pages-domain.yml " ]; then
+  echo "ok    only the workflow that runs no action deletes a DNS record itself"
 else
-  echo "ok    no workflow deletes a DNS record itself"
+  failures=$((failures + 1))
+  echo "FAIL  only the workflow that runs no action deletes a DNS record itself"
+  echo "        found: ${inline_delete:-(none)}, expected: bind-pages-domain.yml"
+  echo "        cloudflare-clear-address-records.sh owns this everywhere a checkout already exists."
 fi
 
-for script in cloudflare-clear-address-records.sh cloudflare-set-spf.sh delete-pages-project.sh; do
+# The property the duplication is bought with. `bind-pages-domain.yml` runs no
+# action at all — no checkout, no download, `curl` and `jq` and nothing else —
+# so it still works when GitHub's content hosts are degraded, which this
+# repository has seen and documented in its AGENTS.md. It is also the workflow
+# reached for when the site is ALREADY down. The day someone adds a `uses:` to
+# share one line of jq, the copy below stops being justified and this goes red.
+cases=$((cases + 1))
+if grep -q 'uses:' "$repo/.github/workflows/bind-pages-domain.yml"; then
+  failures=$((failures + 1))
+  echo "FAIL  the recovery workflow depends on nothing it has to download"
+  printf '        %s\n' "$(grep -n 'uses:' "$repo/.github/workflows/bind-pages-domain.yml")"
+  echo "        An action here turns 'I cannot download the repo' into 'I cannot repair DNS'."
+else
+  echo "ok    the recovery workflow depends on nothing it has to download"
+fi
+
+# ...and the price of that: two copies of the type filter, which may not drift.
+# Byte for byte, spacing included, because "equivalent" is what two copies are
+# right up until one of them is not. The floor matters as much as the equality:
+# a reader that stopped finding filters would otherwise report a clean pass over
+# nothing at all, which is what this check looks like when it silently breaks.
+cases=$((cases + 1))
+# Matched on the presence of AAAA inside a `select(...)`, NOT on the filter's
+# exact spelling. Anchoring the pattern to the canonical text would make a copy
+# that drifted invisible to the very check that exists to catch drift: it would
+# stop matching, the count would fall to the copies that still agree, and the
+# comparison would pass. Measured — respacing one copy left this green until the
+# pattern stopped describing the answer it wanted.
+mapfile -t filters < <(grep -rhoE 'select\([^)]*AAAA[^)]*\)' \
+  "$repo"/.github/workflows "$repo"/.github/scripts | sort)
+mapfile -t distinct < <(printf '%s\n' ${filters[@]+"${filters[@]}"} | sort -u)
+if [ "${#filters[@]}" -lt 2 ]; then
+  failures=$((failures + 1))
+  echo "FAIL  every copy of the address-record filter is byte-identical"
+  echo "        found ${#filters[@]} filter(s), expected at least 2 — the copies are the thing being compared"
+elif [ "${#distinct[@]}" -ne 1 ]; then
+  failures=$((failures + 1))
+  echo "FAIL  every copy of the address-record filter is byte-identical"
+  printf '        %s\n' ${distinct[@]+"${distinct[@]}"}
+  printf '        %s\n' "$(grep -rn -E 'select\([^)]*AAAA[^)]*\)' "$repo"/.github/workflows "$repo"/.github/scripts | sed "s|$repo/||")"
+else
+  echo "ok    every copy of the address-record filter is byte-identical (${#filters[@]} copies)"
+fi
+
+for script in cloudflare-address-records.sh cloudflare-clear-address-records.sh cloudflare-set-spf.sh delete-pages-project.sh; do
   cases=$((cases + 1))
   if grep -rqF ".github/scripts/$script" "$repo/.github/workflows"; then
     echo "ok    $script is reachable from a workflow"
