@@ -46,6 +46,26 @@
 # `wrangler deploy`. It is unavoidable: the hostname cannot belong to both, and
 # the record cannot exist while the Worker claims it.
 #
+# DRY RUN FIRST. `dry_run: true` runs everything that changes nothing — the
+# inspection below, the install, the build and `wrangler deploy --dry-run` — and
+# skips every step from the record delete onwards. It is a rehearsal of the
+# whole approach, not just a look at DNS.
+#
+# THE INSPECTION RUNS ON THE REAL PATH TOO, immediately before the first
+# destructive step. A cutover that goes wrong then has the prior state in its
+# own log instead of something to reconstruct from memory afterwards.
+#
+# THE RECORD DELETE IS TYPE-SCOPED, learned the hard way. It used to take
+# `.result[0]` from `dns_records?name=$HOSTNAME` — a query that filters by name
+# and NOT by type — and delete that one record. At the apex `alia.onl` the list
+# was two entries, `CNAME -> alia-app.pages.dev` and `TXT "v=spf1 -all"`: the
+# CNAME went, the read-back counted the SPF record still sitting there, and the
+# run stopped before the detach. The guard was right; the delete was wrong
+# twice, once in assuming a single record and once in a read-back that counted
+# records which never blocked anything. Only A, AAAA and CNAME provoke 100117,
+# and an apex SPF record has to survive a hostname migration — so the loop and
+# its read-back are both scoped to address records.
+#
 # If step 4 never succeeds the run FAILS THERE, with the Pages project still
 # intact. Recovery is `bind-pages-domain.yml`, which re-creates the record and
 # re-attaches the domain to Pages. Nothing is unrecoverable until step 5, and
@@ -58,6 +78,10 @@ on:
       confirm:
         description: Type DELETE-PAGES-PROJECT to confirm this destroys the Pages project
         required: true
+      dry_run:
+        description: Inspect and stop. Prints the DNS records, the Pages domain and the Worker, and changes nothing.
+        type: boolean
+        default: false
       hostname:
         description: The custom domain it is served on
         required: true
@@ -94,6 +118,7 @@ jobs:
       PAGES_PROJECT: ${{ inputs.pages_project }}
       PACKAGE_DIR: ${{ inputs.package_dir }}
       ZONE: ${{ inputs.zone }}
+      DRY_RUN: ${{ inputs.dry_run }}
 
     steps:
       # A typo in an input must not delete a production project.
@@ -133,6 +158,109 @@ jobs:
             echo '```'
           } | tee -a "$GITHUB_STEP_SUMMARY"
 
+      # EVERYTHING THIS IS ABOUT TO CHANGE, ENUMERATED. The step above prints
+      # HTTP codes, which say the site is up without saying what is holding it
+      # up. The first attempt at this cutover stopped on a record nobody knew
+      # existed and the log could not say which one it was.
+      #
+      # A permission the token lacks does not fail the run: each section prints
+      # either its rows or why it could not read them, so a token without
+      # Workers:Read still yields the DNS and Pages sections. The zone lookup is
+      # the one exception, because the delete step needs the same id and would
+      # fail on it a few steps later regardless.
+      - name: Enumerate the records, the Pages domain and the Worker
+        run: |
+          set -euo pipefail
+          api=https://api.cloudflare.com/client/v4
+
+          # The steps below read `inputs.dry_run` through `if:`; this reads the
+          # same input through the environment. A value that is neither `true`
+          # nor `false` would make the two disagree, and the way that shows up
+          # is six skipped steps and a green run that changed nothing.
+          [ "$DRY_RUN" = "true" ] || [ "$DRY_RUN" = "false" ] \
+            || { echo "::error::dry_run must be true or false, got '$DRY_RUN'"; exit 1; }
+
+          curl -sS -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            "$api/zones?name=$ZONE" -o /tmp/insp-zone.json
+          zone=$(jq -r '.result[0].id // empty' /tmp/insp-zone.json)
+          [ -n "$zone" ] || { echo "::error::zone $ZONE not found"; exit 1; }
+
+          conf="$PACKAGE_DIR/wrangler.toml"
+          [ -f "$conf" ] || { echo "::error::$conf not found"; exit 1; }
+          worker=$(awk -F'"' '/^[[:space:]]*name[[:space:]]*=/ {print $2; exit}' "$conf")
+
+          curl -sS -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            "$api/zones/$zone/dns_records?name=$HOSTNAME" -o /tmp/insp-dns.json
+          pages_code=$(curl -sS -o /tmp/insp-pages.json -w '%{http_code}' \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            "$api/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects/$PAGES_PROJECT/domains")
+          scripts_code=$(curl -sS -o /tmp/insp-scripts.json -w '%{http_code}' \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            "$api/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/scripts")
+          wdomains_code=$(curl -sS -o /tmp/insp-wdomains.json -w '%{http_code}' \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            "$api/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/domains?zone_id=$zone")
+          routes_code=$(curl -sS -o /tmp/insp-routes.json -w '%{http_code}' \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            "$api/zones/$zone/workers/routes")
+
+          {
+            echo "### Inspection: what exists right now"
+            echo
+            echo "**DNS records named \`$HOSTNAME\`** (zone \`$ZONE\`, id \`$zone\`)."
+            echo "Only A, AAAA and CNAME are deleted; anything else at this name is left alone."
+            echo '```'
+            jq -r 'if (.result | length) == 0 then "(none - the hostname does not resolve)"
+                   else (.result[] | "\(.type)  \(.content)  proxied=\(.proxied)  ttl=\(.ttl)  id=\(.id)")
+                   end' /tmp/insp-dns.json
+            echo '```'
+            echo
+            echo "**Pages project \`$PAGES_PROJECT\`, custom domains.**"
+            echo '```'
+            if [ "$(jq -r '.success' /tmp/insp-pages.json)" = "true" ]; then
+              jq -r 'if (.result | length) == 0 then "(no custom domain attached)"
+                     else (.result[] | "\(.name)  status=\(.status)  validation=\(.validation_data.status // "-")  id=\(.id)")
+                     end' /tmp/insp-pages.json
+            else
+              echo "(unreadable: http=$pages_code $(jq -c '.errors // []' /tmp/insp-pages.json))"
+            fi
+            echo '```'
+            echo
+            echo "**Worker \`$worker\`.**"
+            echo '```'
+            if [ "$(jq -r '.success' /tmp/insp-scripts.json)" = "true" ]; then
+              jq -r --arg w "$worker" 'if ([.result[] | select(.id == $w)] | length) == 0
+                     then "script: does not exist yet"
+                     else (.result[] | select(.id == $w) | "script: exists, modified \(.modified_on)")
+                     end' /tmp/insp-scripts.json
+            else
+              echo "script: (unreadable: http=$scripts_code $(jq -c '.errors // []' /tmp/insp-scripts.json))"
+            fi
+            if [ "$(jq -r '.success' /tmp/insp-wdomains.json)" = "true" ]; then
+              jq -r 'if (.result | length) == 0 then "custom domains in this zone: none"
+                     else (.result[] | "custom domain: \(.hostname) -> \(.service) [\(.environment)] id=\(.id)")
+                     end' /tmp/insp-wdomains.json
+            else
+              echo "custom domains: (unreadable: http=$wdomains_code $(jq -c '.errors // []' /tmp/insp-wdomains.json))"
+            fi
+            if [ "$(jq -r '.success' /tmp/insp-routes.json)" = "true" ]; then
+              jq -r 'if (.result | length) == 0 then "routes in this zone: none"
+                     else (.result[] | "route: \(.pattern) -> \(.script // "-") id=\(.id)")
+                     end' /tmp/insp-routes.json
+            else
+              echo "routes: (unreadable: http=$routes_code $(jq -c '.errors // []' /tmp/insp-routes.json))"
+            fi
+            echo "declared in $conf:"
+            grep -nE '^[[:space:]]*(name|workers_dev|pattern|custom_domain)[[:space:]]*=' "$conf" | sed 's/^/  /'
+            echo '```'
+            echo
+            if [ "$DRY_RUN" = "true" ]; then
+              echo "> **DRY RUN.** Every step from the record delete onwards is skipped. Nothing was changed."
+            else
+              echo "> Proceeding: the address records listed above are deleted next."
+            fi
+          } | tee -a "$GITHUB_STEP_SUMMARY"
+
       # The git dependency `libsignal` is fetched from GitHub unauthenticated and
       # cannot be authenticated; a warm cache is what stops that request being
       # made. A cutover is the worst possible moment to discover a degraded
@@ -170,38 +298,52 @@ jobs:
       # 1. The record goes first. A Worker custom domain writes its own, and
       #    refuses a hostname that already has one (code 100117). Deleting it
       #    before the detach also avoids a redirect loop — see the header.
-      - name: Delete the DNS record so the Worker can write its own
+      - name: Delete the DNS records so the Worker can write its own
+        if: ${{ !inputs.dry_run }}
         run: |
           set -euo pipefail
+          # A hostname can carry more than one address record, and `?name=` also
+          # returns every other type sitting at that name. Both halves of this
+          # step read the same filter so they cannot drift apart: what gets
+          # deleted and what the read-back demands be gone are one definition.
+          blocking='select(.type == "A" or .type == "AAAA" or .type == "CNAME")'
           curl -sS -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
             "https://api.cloudflare.com/client/v4/zones?name=$ZONE" -o /tmp/z.json
           zone=$(jq -r '.result[0].id // empty' /tmp/z.json)
           [ -n "$zone" ] || { echo "::error::zone $ZONE not found"; exit 1; }
           curl -sS -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
             "https://api.cloudflare.com/client/v4/zones/$zone/dns_records?name=$HOSTNAME" -o /tmp/r.json
-          rec=$(jq -r '.result[0].id // empty' /tmp/r.json)
-          if [ -z "$rec" ]; then
-            echo "no record to delete — continuing"
+          ids=$(jq -r ".result[] | $blocking | .id" /tmp/r.json)
+          if [ -z "$ids" ]; then
+            echo "no address record to delete — continuing"
           else
-            echo "deleting $(jq -r '.result[0].type + " -> " + .result[0].content' /tmp/r.json)"
-            curl -sS -X DELETE -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
-              "https://api.cloudflare.com/client/v4/zones/$zone/dns_records/$rec" -o /tmp/rd.json
-            [ "$(jq -r '.success' /tmp/rd.json)" = "true" ] \
-              || { echo "::error::record delete failed: $(jq -c '.errors' /tmp/rd.json)"; exit 1; }
+            for rec in $ids; do
+              what=$(jq -r --arg id "$rec" '.result[] | select(.id == $id) | .type + " -> " + .content' /tmp/r.json)
+              echo "deleting $what ($rec)"
+              code=$(curl -sS -o /tmp/rd.json -w '%{http_code}' -X DELETE \
+                -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+                "https://api.cloudflare.com/client/v4/zones/$zone/dns_records/$rec")
+              # Per record, not once for the batch: one failure in the middle
+              # would otherwise be papered over by the next success.
+              [ "$(jq -r '.success' /tmp/rd.json)" = "true" ] \
+                || { echo "::error::record delete failed for $what (http=$code): $(jq -c '.errors' /tmp/rd.json)"; exit 1; }
+            done
           fi
           # Read back: a DELETE that reports success and leaves the record is
           # indistinguishable from one that worked, and the next step would then
           # fail with the same 100117 for a reason that looks unrelated.
           curl -sS -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
             "https://api.cloudflare.com/client/v4/zones/$zone/dns_records?name=$HOSTNAME" -o /tmp/r2.json
-          left=$(jq -r '.result|length' /tmp/r2.json)
-          echo "records for $HOSTNAME now: $left"
-          [ "$left" = "0" ] || { echo "::error::$left record(s) still present"; exit 1; }
+          left=$(jq -r "[.result[] | $blocking] | length" /tmp/r2.json)
+          kept=$(jq -r '[.result[] | .type] | join(",")' /tmp/r2.json)
+          echo "address records for $HOSTNAME now: $left (still at this name: ${kept:-none})"
+          [ "$left" = "0" ] || { echo "::error::$left address record(s) still present"; exit 1; }
 
       # 2. Pages releases its claim. Doing this AFTER the record is gone means
       #    the gap is an NXDOMAIN rather than requests reaching a Pages
       #    deployment that would 301 them straight back here.
       - name: Detach the domain from the Pages project
+        if: ${{ !inputs.dry_run }}
         run: |
           set -euo pipefail
           code=$(curl -sS -o /tmp/det.json -w '%{http_code}' -X DELETE \
@@ -218,12 +360,14 @@ jobs:
       # 3. The Worker claims the hostname and writes its own DNS record, which
       #    is what `custom_domain = true` in wrangler.toml means.
       - name: Deploy the Worker and claim the hostname
+        if: ${{ !inputs.dry_run }}
         working-directory: ${{ inputs.package_dir }}
         run: bunx wrangler@4 deploy
 
       # 4. THE GATE. Everything above is an API claim; only this is evidence a
       #    browser can reach Canvas. Nothing destructive runs unless it passes.
       - name: The Worker really serves the domain
+        if: ${{ !inputs.dry_run }}
         run: |
           set -euo pipefail
           # A wall-clock deadline rather than an attempt count. 30 attempts of
@@ -254,6 +398,7 @@ jobs:
       # 5. The only irreversible step, and it is unreachable unless step 4
       #    proved the replacement works.
       - name: Delete the Pages project
+        if: ${{ !inputs.dry_run }}
         run: |
           set -euo pipefail
           code=$(curl -sS -o /tmp/del.json -w '%{http_code}' -X DELETE \
@@ -278,6 +423,7 @@ jobs:
       # actionable, and at 15 x 20s it was spending five minutes of the job
       # budget that the gate above needs.
       - name: The Pages hostname is gone
+        if: ${{ !inputs.dry_run }}
         continue-on-error: true
         run: |
           set -euo pipefail
