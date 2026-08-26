@@ -8,7 +8,7 @@ import {
 } from '@oxyhq/db';
 import { closePostgres, connectPostgres, type ApiDatabase } from '../index';
 import { agentKnowledge, agents, agentSkills } from '../schema/agents';
-import { skills } from '../schema/agents-support';
+import { skills } from '../schema/skills';
 import { libraryFiles } from '../schema/library';
 
 /**
@@ -138,15 +138,10 @@ function agentValues(overrides: Partial<typeof agents.$inferInsert> = {}) {
 
 function skillValues(overrides: Partial<typeof skills.$inferInsert> = {}) {
   return {
-    skillId: `sk-${Math.random().toString(36).slice(2, 10)}`,
-    title: 'A skill',
-    tagline: 'does a thing',
-    description: 'd',
-    systemPrompt: 'p',
-    author: 'Alia',
-    icon: 'i',
-    color: '#000',
-    category: 'featured' as const,
+    name: `sk-${Math.random().toString(36).slice(2, 10)}`,
+    displayName: 'A skill',
+    description: 'Does a thing. Use when a thing needs doing.',
+    source: 'authored' as const,
     ...overrides,
   };
 }

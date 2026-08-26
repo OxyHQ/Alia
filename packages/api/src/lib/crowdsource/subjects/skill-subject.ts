@@ -22,28 +22,32 @@ import type {
  * prompt is what it actually does, and a `malicious_instructions` report is about
  * the second.
  *
- * ## Built-in skills are not reportable material, and the guard is here
+ * ## Only a skill with an AUTHOR is reportable material, and the guard is here
  *
- * `Skill` holds two populations in one collection: Alia's own seeded skills
- * (`isBuiltIn: true`, no `oxyUserId`) and community skills a user wrote
- * (`isBuiltIn: false`, `isPublished` starting `false`). Only the second is
- * somebody's published work with an author who can answer for it. A report about a
- * built-in skill is a complaint about Alia's own product and belongs in a support
- * channel, not in front of a jury drawn to judge a person — so this returns `null`
- * for one, which the delivery worker treats exactly like a deleted object: the
- * report closes locally with a reason and nothing is sent.
+ * `skills` holds two populations: the shared catalogue, which has no owner —
+ * built-ins Alia ships and skills synced from upstream repositories — and skills
+ * an account wrote and published. Only the second is somebody's published work
+ * with an author who can answer for it. A report about a catalogue skill is a
+ * complaint about what Alia distributes and belongs in a support channel rather
+ * than in front of a jury drawn to judge a person, so this returns `null` for
+ * one; the delivery worker treats that exactly like a deleted object.
  *
- * A skill has TWO public identifiers — the `skillId` slug in every URL and the
- * `_id` in every payload — and a reporter's client could honestly send either.
- * Resolving both is `findReportedSkill`'s job; see its note for why the
- * `isValidObjectId` guard that used to sit here had to go rather than move.
+ * An imported skill raises a question this provider does not answer: its author
+ * is a repository, not an Oxy account. Such a skill is in the catalogue and
+ * therefore ownerless, so it takes the same path — the remedy for a bad upstream
+ * skill is removing it from the registry, not judging a stranger who never
+ * agreed to be judged here.
+ *
+ * A skill has TWO public identifiers — the `name` in every URL and the row id in
+ * every payload — and a reporter's client could honestly send either. Resolving
+ * both is `findReportedSkill`'s job.
  */
 
 const WEB_ORIGIN = process.env.WEB_URL || 'https://alia.onl';
 
-/** The prompt the skill installs, as supporting material. */
+/** The instructions the skill installs, as supporting material. */
 function instructionsContext(skill: ModerationSkill): ModerationContextResource | null {
-  const prompt = skill.systemPrompt.trim();
+  const prompt = skill.body.trim();
   if (!prompt) return null;
   return {
     role: 'evidence',
@@ -60,34 +64,31 @@ export function createSkillSubjectProvider(): ModerationSubjectProvider {
     async snapshot(reportedId: string): Promise<ModerationSubjectSnapshot | null> {
       const skill = await findReportedSkill(getDb(), reportedId);
       if (!skill) return null;
-      if (skill.isBuiltIn) return null;
+      if (skill.ownerOxyUserId === null) return null;
 
-      const title = skill.title.trim();
+      const title = skill.displayName.trim();
       /**
-       * A listing must have a title. A community skill without one cannot be
-       * created through `POST /skills` — the route rejects it — so this is a
-       * corrupted row rather than a case to describe, and describing it with an
-       * invented title would put words in the author's mouth.
+       * A listing must have a title. `display_name` is NOT NULL and the routes
+       * refuse an empty one, so this is a corrupted row rather than a case to
+       * describe, and describing it with an invented title would put words in
+       * the author's mouth.
        */
       if (!title) return null;
 
-      const description = [skill.tagline.trim(), skill.description.trim()]
-        .filter((part) => Boolean(part))
-        .join('\n\n');
+      const description = skill.description.trim();
       const context = instructionsContext(skill);
 
       return {
         subject: {
           /**
-           * The `_id`, not the `skillId` slug. The external id is what §7.3's
-           * dedup key is computed over, and a slug is derived from the title —
-           * which the owner can edit. Two reports about one skill either side of a
-           * rename must reach the same case.
+           * The row id, not the `name`. The external id is what §7.3's dedup key
+           * is computed over, and while `name` is immutable today, the row id is
+           * what nothing can ever change.
            */
           externalId: skill.id,
           type: 'custom.alia.skill',
-          permalink: `${WEB_ORIGIN}/skills/${skill.skillId}`,
-          ...(skill.oxyUserId === null ? {} : { author: { oxyUserId: skill.oxyUserId } }),
+          permalink: `${WEB_ORIGIN}/skills/${skill.name}`,
+          author: { oxyUserId: skill.ownerOxyUserId },
         },
         content: {
           type: 'listing',

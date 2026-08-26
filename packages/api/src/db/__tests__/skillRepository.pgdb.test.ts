@@ -1,35 +1,50 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { eq, getTableColumns, sql } from 'drizzle-orm';
+import { and, eq, like } from 'drizzle-orm';
 import { closePostgres, connectPostgres, type ApiDatabase } from '../index';
 import {
   createSkill,
   deleteOwnedSkill,
-  findPublicSkill,
+  findInstalledSkillVersion,
+  findLatestVersion,
   findReportedSkill,
-  findSkillPrompt,
+  findSkillByName,
+  findSkillFileByPath,
+  findSkillInNamespace,
   findSkillPublication,
+  findSkillVersionById,
+  findVersionByChecksum,
+  insertSkillVersion,
+  installSkill,
+  listInstalledSkillMetadata,
+  listInstalledSkills,
   listOwnedSkills,
   listSkillCatalogue,
+  listSkillMetadataByIds,
+  listSkillVersions,
+  listVersionFiles,
   setSkillPublication,
-  skillIdExists,
+  SkillChildWriteOutsideTransactionError,
+  touchInstalls,
+  uninstallSkill,
+  updateCatalogueSkill,
+  updateInstall,
   updateOwnedSkill,
-  upsertBuiltInSkill,
-  type BuiltInSkill,
   type NewSkill,
+  type NewSkillFile,
 } from '../agents/skillRepository';
-import { skills } from '../schema/agents-support';
+import { skillInstalls, skills } from '../schema/skills';
 
 /**
  * The skill repository against a real server.
  *
- * Three things here can only be measured with one: the `-systemPrompt`
- * projection (a mocked select returns whatever it was told to), the seed's
- * `ON CONFLICT DO UPDATE` (which a single call cannot tell from `DO NOTHING`),
- * and resolving a report by a uuid id (the guard that used to reject one lived
- * in `mongoose`).
+ * What can only be measured here: the resolved-version expression (a `coalesce`
+ * over a correlated subquery, which no mock reproduces), the version numbering
+ * under a row lock, the `ON CONFLICT DO NOTHING` that makes installing twice a
+ * no-op rather than an error, and the cascade from a deleted skill through its
+ * versions to their files.
  *
- * Owners and slugs are namespaced `skr-*`: this suite shares one database with
- * `agentsSupport.pgdb.test.ts`, which seeds the same table.
+ * Owners and names are namespaced `skr-*`: this suite shares one database with
+ * every other `*.pgdb` file, and they run in parallel.
  */
 
 let db: ApiDatabase;
@@ -41,613 +56,339 @@ beforeAll(() => {
 });
 
 afterAll(async () => {
+  // Scoped to this suite's own prefix. A bare delete would reap a sibling
+  // suite's fixtures mid-run, which passes alone and fails in the full run.
+  await db.delete(skills).where(like(skills.name, 'skr-%'));
   await closePostgres();
 });
 
 const OWNER = 'skr-owner';
 const STRANGER = 'skr-stranger';
 
-function newSkill(skillId: string, overrides: Partial<NewSkill> = {}): NewSkill {
+function newSkill(name: string, overrides: Partial<NewSkill> = {}): NewSkill {
   return {
-    skillId,
-    title: 'A Skill',
-    tagline: 'does a thing',
-    description: 'a longer description',
-    systemPrompt: 'You are a specialist. Do the thing.',
-    author: 'Nate',
-    icon: '🎯',
-    color: '#6366f1',
-    category: 'community',
-    language: 'en-US',
-    triggers: ['do the thing'],
-    includes: ['a checklist'],
-    useCase: 'when the thing needs doing',
-    goodAt: ['the thing'],
-    notGoodAt: ['other things'],
-    oxyUserId: OWNER,
+    name,
+    displayName: 'A Skill',
+    description: 'Does a thing. Use when a thing needs doing.',
+    source: 'authored',
+    ownerOxyUserId: OWNER,
     ...overrides,
   };
 }
 
-function builtIn(skillId: string, overrides: Partial<BuiltInSkill> = {}): BuiltInSkill {
-  const { oxyUserId: _ignored, ...rest } = newSkill(skillId);
-  return { ...rest, author: 'Alia', ...overrides };
+let counter = 0;
+function uniqueName(prefix: string): string {
+  counter += 1;
+  return `skr-${prefix}-${counter}`;
 }
 
-describe('creating a skill', () => {
-  it('is NOT built in and NOT published, whatever the column defaults say', async () => {
-    /**
-     * `is_built_in` DEFAULTS TO TRUE, which is the opposite of what this path
-     * means. A create that inherited the default would put a user's draft in the
-     * unauthenticated catalogue AND make it unreportable — `skill-subject.ts`
-     * declines a built-in.
-     */
-    const skill = await createSkill(db, newSkill('skr-create'));
-    expect(skill).toMatchObject({ isBuiltIn: false, isPublished: false, oxyUserId: OWNER });
-    expect(typeof skill._id).toBe('string');
-    expect(skill._id.length).toBeGreaterThan(0);
+async function withVersion(
+  name: string,
+  body: string,
+  overrides: Partial<NewSkill> = {},
+  files: NewSkillFile[] = [],
+) {
+  const skill = await createSkill(db, newSkill(name, overrides));
+  const version = await db.transaction((tx) =>
+    insertSkillVersion(
+      tx,
+      { skillId: skill._id, body, frontmatter: { name }, checksum: `sum-${name}-${body.length}`, bytes: body.length },
+      files,
+    ),
+  );
+  return { skill, version };
+}
+
+describe('createSkill', () => {
+  it('defaults a skill to private and uninstalled', async () => {
+    const skill = await createSkill(db, newSkill(uniqueName('default')));
+    expect(skill.visibility).toBe('private');
+    expect(skill.installCount).toBe(0);
+    expect(skill.allowedTools).toEqual([]);
+    expect(skill.specMetadata).toEqual({});
   });
 
-  it('returns the PUBLIC shape, with no system prompt anywhere in it', async () => {
-    const skill = await createSkill(db, newSkill('skr-create-projection'));
-    // `toHaveProperty` rather than a truthiness check: the failure this guards is
-    // the key being PRESENT, and `''` would pass a truthiness assertion.
-    expect(skill).not.toHaveProperty('systemPrompt');
-    // Positive control: the prompt really was stored, so its absence above is a
-    // projection and not a failed write.
-    expect((await findSkillPrompt(db, 'skr-create-projection'))?.systemPrompt).toContain(
-      'specialist',
+  it('lets two accounts each hold the same name', async () => {
+    const name = uniqueName('shared');
+    await createSkill(db, newSkill(name));
+    const stranger = await createSkill(db, newSkill(name, { ownerOxyUserId: STRANGER }));
+    expect(stranger.name).toBe(name);
+  });
+
+  it('refuses a second skill with that name in the same namespace', async () => {
+    const name = uniqueName('dupe');
+    await createSkill(db, newSkill(name));
+    await expect(createSkill(db, newSkill(name))).rejects.toThrow();
+  });
+
+  it('refuses a name the spec forbids', async () => {
+    await expect(createSkill(db, newSkill('skr--Bad-Name'))).rejects.toThrow();
+  });
+
+  it('refuses an imported skill with no repository to attribute it to', async () => {
+    await expect(createSkill(db, newSkill(uniqueName('unattributed'), { source: 'github' }))).rejects.toThrow();
+  });
+});
+
+describe('versions', () => {
+  it('numbers versions from one, per skill', async () => {
+    const { skill, version } = await withVersion(uniqueName('numbered'), 'first');
+    expect(version.version).toBe(1);
+
+    const second = await db.transaction((tx) =>
+      insertSkillVersion(tx, { skillId: skill._id, body: 'second', frontmatter: {}, checksum: 'sum-2', bytes: 6 }, []),
     );
+    expect(second.version).toBe(2);
+    expect((await findLatestVersion(db, skill._id))?.body).toBe('second');
+    expect((await listSkillVersions(db, skill._id)).map((v) => v.version)).toEqual([2, 1]);
   });
 
-  it('reports whether a slug is taken, which is what the route suffixes on', async () => {
-    await createSkill(db, newSkill('skr-taken'));
-    expect(await skillIdExists(db, 'skr-taken')).toBe(true);
-    expect(await skillIdExists(db, 'skr-not-taken')).toBe(false);
+  it('refuses to write a version outside a transaction', async () => {
+    const skill = await createSkill(db, newSkill(uniqueName('untransacted')));
+    await expect(
+      insertSkillVersion(db, { skillId: skill._id, body: 'x', frontmatter: {}, checksum: 'c', bytes: 1 }, []),
+    ).rejects.toBeInstanceOf(SkillChildWriteOutsideTransactionError);
+  });
+
+  it('finds a version by checksum, which is how a re-import stays a no-op', async () => {
+    const name = uniqueName('checksum');
+    const { skill, version } = await withVersion(name, 'body');
+    const found = await findVersionByChecksum(db, skill._id, version.checksum);
+    expect(found?.version).toBe(1);
+    expect(await findVersionByChecksum(db, skill._id, 'other')).toBeNull();
+  });
+
+  it('deletes versions and their files with the skill', async () => {
+    const { skill, version } = await withVersion(uniqueName('cascade'), 'body', {}, [
+      { path: 'references/API.md', kind: 'reference', mime: 'text/markdown', bytes: 5, sha256: 'a', contentText: '# API' },
+    ]);
+    expect(await listVersionFiles(db, version._id)).toHaveLength(1);
+
+    expect(await deleteOwnedSkill(db, skill._id, OWNER)).toBe(1);
+    expect(await listVersionFiles(db, version._id)).toEqual([]);
+    expect(await findLatestVersion(db, skill._id)).toBeNull();
+  });
+});
+
+describe('files', () => {
+  it('stores text inline and refuses a file stored in both places or neither', async () => {
+    const { skill, version } = await withVersion(uniqueName('files'), 'body', {}, [
+      { path: 'references/API.md', kind: 'reference', mime: 'text/markdown', bytes: 5, sha256: 'a', contentText: '# API' },
+      { path: 'assets/logo.png', kind: 'asset', mime: 'image/png', bytes: 9, sha256: 'b', s3Key: 'k/logo.png' },
+    ]);
+
+    const inline = await findSkillFileByPath(db, version._id, 'references/API.md');
+    expect(inline?.contentText).toBe('# API');
+    expect(inline?.s3Key).toBeNull();
+    expect((await findSkillFileByPath(db, version._id, 'assets/logo.png'))?.s3Key).toBe('k/logo.png');
+    expect(await findSkillFileByPath(db, version._id, 'references/MISSING.md')).toBeNull();
+
+    await expect(
+      db.transaction((tx) =>
+        insertSkillVersion(tx, { skillId: skill._id, body: 'b', frontmatter: {}, checksum: 'c2', bytes: 1 }, [
+          { path: 'both.md', kind: 'reference', mime: 'text/markdown', bytes: 1, sha256: 'c', contentText: 'x', s3Key: 'k' },
+        ]),
+      ),
+    ).rejects.toThrow();
+  });
+
+  it('refuses a path that escapes the skill directory', async () => {
+    const skill = await createSkill(db, newSkill(uniqueName('traversal')));
+    await expect(
+      db.transaction((tx) =>
+        insertSkillVersion(tx, { skillId: skill._id, body: 'b', frontmatter: {}, checksum: 'c', bytes: 1 }, [
+          { path: '../escape.md', kind: 'reference', mime: 'text/markdown', bytes: 1, sha256: 'd', contentText: 'x' },
+        ]),
+      ),
+    ).rejects.toThrow();
   });
 });
 
 describe('the catalogue', () => {
-  const CAT = 'skr-cat';
+  it('lists what is public, whoever owns it, and never what is private', async () => {
+    const publicName = uniqueName('public');
+    const privateName = uniqueName('private');
+    await createSkill(db, newSkill(publicName, { visibility: 'public' }));
+    await createSkill(db, newSkill(privateName));
 
-  beforeAll(async () => {
-    await createSkill(db, newSkill(`${CAT}-draft`, { title: 'Draft', category: 'community' }));
-    const published = await createSkill(
-      db,
-      newSkill(`${CAT}-published`, { title: 'Published', category: 'community' }),
-    );
-    await setSkillPublication(db, published._id, true);
-    await upsertBuiltInSkill(
-      db,
-      builtIn(`${CAT}-builtin`, { title: 'Built In', category: 'featured' }),
-    );
-    await createSkill(
-      db,
-      newSkill(`${CAT}-es`, { title: 'Spanish', language: 'es-ES', category: 'community' }),
-    );
-    const spanish = await findPublicSkill(db, `${CAT}-es`);
-    if (spanish) await setSkillPublication(db, spanish._id, true);
+    const listed = (await listSkillCatalogue(db, { query: 'skr-' })).map((skill) => skill.name);
+    expect(listed).toContain(publicName);
+    expect(listed).not.toContain(privateName);
   });
 
-  const catalogueTitles = async (query: Parameters<typeof listSkillCatalogue>[1]) =>
-    (await listSkillCatalogue(db, query))
-      .filter((s) => s.skillId.startsWith(CAT))
-      .map((s) => s.title);
+  it('filters by source, tag and publisher', async () => {
+    const name = uniqueName('filtered');
+    await createSkill(db, newSkill(name, {
+      visibility: 'public',
+      source: 'registry',
+      sourceRepo: 'anthropics/skills',
+      publisher: 'anthropics',
+      tags: ['skr-documents'],
+    }));
 
-  it('serves published community skills AND built-ins, and no drafts', async () => {
-    const titles = await catalogueTitles({});
-    expect(titles).toContain('Published');
-    expect(titles).toContain('Built In');
-    expect(titles).toContain('Spanish');
-    // The one that must not be there. Without it the `or` could be `true` and
-    // every assertion above would still pass.
-    expect(titles).not.toContain('Draft');
+    expect((await listSkillCatalogue(db, { tag: 'skr-documents' })).map((s) => s.name)).toEqual([name]);
+    expect((await listSkillCatalogue(db, { publisher: 'anthropics', query: 'skr-' })).map((s) => s.name)).toContain(name);
+    expect((await listSkillCatalogue(db, { source: 'upload', query: name })).map((s) => s.name)).toEqual([]);
   });
 
-  it('orders by category then title, which is the source sort', async () => {
-    // 'featured' < 'community' alphabetically is FALSE — 'community' sorts first
-    // — so this also pins that the order is lexical rather than the tuple order
-    // of `SKILL_CATEGORIES`, where 'featured' comes first.
-    expect(await catalogueTitles({})).toEqual(['Published', 'Spanish', 'Built In']);
+  it('resolves a name to the caller their own skill before a public one', async () => {
+    const name = uniqueName('mine-first');
+    await createSkill(db, newSkill(name, { ownerOxyUserId: STRANGER, visibility: 'public' }));
+    await createSkill(db, newSkill(name, { ownerOxyUserId: OWNER }));
+
+    expect((await findSkillByName(db, name, OWNER))?.ownerOxyUserId).toBe(OWNER);
+    expect((await findSkillByName(db, name, STRANGER))?.ownerOxyUserId).toBe(STRANGER);
+    // No caller sees only what is public.
+    expect((await findSkillByName(db, name))?.ownerOxyUserId).toBe(STRANGER);
   });
 
-  it('narrows by language and by category, and an unknown value returns nothing', async () => {
-    expect(await catalogueTitles({ language: 'es-ES' })).toEqual(['Spanish']);
-    expect(await catalogueTitles({ category: 'featured' })).toEqual(['Built In']);
-    // `category=all` never reaches here — the route drops it — so an
-    // unrecognised value filters, exactly as the Mongo `filter.category` did.
-    expect(await catalogueTitles({ category: 'nonsense' })).toEqual([]);
+  it('scopes a namespace lookup to one owner, and to the catalogue when there is none', async () => {
+    const name = uniqueName('namespaced');
+    await createSkill(db, newSkill(name));
+    expect(await findSkillInNamespace(db, name, OWNER)).not.toBeNull();
+    expect(await findSkillInNamespace(db, name, STRANGER)).toBeNull();
+    expect(await findSkillInNamespace(db, name, null)).toBeNull();
   });
 
-  it('carries no system prompt on any catalogue row', async () => {
-    const rows = await listSkillCatalogue(db, {});
-    expect(rows.length).toBeGreaterThan(0);
-    expect(rows.filter((r) => 'systemPrompt' in r)).toEqual([]);
-  });
-
-  it('lists an owner\'s drafts to that owner and to nobody else', async () => {
-    const mine = await listOwnedSkills(db, OWNER);
-    expect(mine.map((s) => s.skillId)).toContain(`${CAT}-draft`);
-    expect(await listOwnedSkills(db, STRANGER)).toEqual([]);
-    expect(mine.filter((r) => 'systemPrompt' in r)).toEqual([]);
+  it('lists an account their own skills, published or not', async () => {
+    const name = uniqueName('owned');
+    await createSkill(db, newSkill(name));
+    expect((await listOwnedSkills(db, OWNER)).map((s) => s.name)).toContain(name);
+    expect((await listOwnedSkills(db, STRANGER)).map((s) => s.name)).not.toContain(name);
   });
 });
 
-describe('updating a skill', () => {
-  it('applies only the keys the patch names, leaving the rest alone', async () => {
-    await createSkill(db, newSkill('skr-patch', { title: 'Before', tagline: 'unchanged' }));
-
-    const updated = await updateOwnedSkill(db, 'skr-patch', OWNER, { title: 'After' });
-    expect(updated).toMatchObject({ title: 'After', tagline: 'unchanged' });
-    // `$set: { x: undefined }` is a no-op in Mongo and writes NULL in Postgres.
-    // `tagline` is NOT NULL, so a patch built from all keys would have thrown —
-    // this is the assertion that would have caught it.
-    expect(updated?.useCase).toBe('when the thing needs doing');
+describe('patching', () => {
+  it('refuses an empty patch rather than emitting an assignment-free UPDATE', async () => {
+    const skill = await createSkill(db, newSkill(uniqueName('empty-patch')));
+    expect(await updateOwnedSkill(db, skill._id, OWNER, {})).toBeUndefined();
   });
 
-  it('refuses a stranger and refuses a built-in, indistinguishably from absent', async () => {
-    /**
-     * The built-in fixture is OWNED, and it is built with a direct UPDATE
-     * rather than through the seed.
-     *
-     * That combination — `oxy_user_id` set AND `is_built_in` true — used to be
-     * reachable through `upsertBuiltInSkill`, whose `DO UPDATE` flipped the flag
-     * on a colliding user row while leaving the owner alone. That was data loss
-     * and the seed now DECLINES such a row, so no code path mints this state any
-     * more; the only source left is a legacy row.
-     *
-     * The guard stays anyway and is still tested, for two reasons: the Mongoose
-     * filter carried all three conditions, and it is the only thing standing
-     * between a future writer of `is_built_in` and an account editing Alia's
-     * seeded text. What changed is that the fixture must now be CONSTRUCTED —
-     * building it out of a bug is how a test starts passing for the wrong reason
-     * the moment the bug is fixed, which is exactly what happened here.
-     *
-     * With an UNOWNED built-in this case passes with the guard deleted, because
-     * the owner clause already refuses it: measured, by deleting
-     * `eq(skills.isBuiltIn, false)` and watching an earlier version stay green.
-     */
-    await createSkill(db, newSkill('skr-patch-scoped', { title: 'Mine' }));
-    await createSkill(db, newSkill('skr-patch-builtin', { title: 'Alia\'s' }));
-    await db
-      .update(skills)
-      .set({ isBuiltIn: true })
-      .where(eq(skills.skillId, 'skr-patch-builtin'));
-    const [collided] = await db
-      .select({ oxyUserId: skills.oxyUserId, isBuiltIn: skills.isBuiltIn })
-      .from(skills)
-      .where(eq(skills.skillId, 'skr-patch-builtin'));
-    expect(collided).toEqual({ oxyUserId: OWNER, isBuiltIn: true });
-
-    expect(await updateOwnedSkill(db, 'skr-patch-scoped', STRANGER, { title: 'Stolen' })).toBeUndefined();
-    expect(await updateOwnedSkill(db, 'skr-patch-builtin', OWNER, { title: 'Hijacked' })).toBeUndefined();
-    expect(await updateOwnedSkill(db, 'skr-no-such-skill', OWNER, { title: 'Ghost' })).toBeUndefined();
-
-    // The rows are untouched — three `undefined`s prove nothing on their own.
-    expect((await findPublicSkill(db, 'skr-patch-scoped'))?.title).toBe('Mine');
-    expect((await findPublicSkill(db, 'skr-patch-builtin'))?.title).toBe('Alia\'s');
+  it('is scoped to the owner', async () => {
+    const skill = await createSkill(db, newSkill(uniqueName('scoped-patch')));
+    expect(await updateOwnedSkill(db, skill._id, STRANGER, { displayName: 'Theirs' })).toBeUndefined();
+    expect((await updateOwnedSkill(db, skill._id, OWNER, { displayName: 'Mine' }))?.displayName).toBe('Mine');
   });
 
-  it('answers an EMPTY patch with undefined rather than an invalid statement', async () => {
-    /**
-     * `UPDATE … SET` with no assignments is a syntax error, so an empty patch
-     * cannot be handed to the server. Mongo's `$set: {}` matched and changed
-     * nothing, so the route answered 200; it now answers 404. Stated as a test
-     * so the difference is a decision on the record rather than a surprise.
-     */
-    await createSkill(db, newSkill('skr-patch-empty', { title: 'Untouched' }));
-    expect(await updateOwnedSkill(db, 'skr-patch-empty', OWNER, {})).toBeUndefined();
-    expect((await findPublicSkill(db, 'skr-patch-empty'))?.title).toBe('Untouched');
-  });
-
-  it('moves updated_at, because the column is maintained by the application', async () => {
-    const created = await createSkill(db, newSkill('skr-patch-clock'));
-    await new Promise((resolve) => setTimeout(resolve, 5));
-    const updated = await updateOwnedSkill(db, 'skr-patch-clock', OWNER, { title: 'Later' });
-    expect(updated?.updatedAt.getTime()).toBeGreaterThan(created.updatedAt.getTime());
-  });
-
-  it('writes an array column whole, replacing rather than appending', async () => {
-    await createSkill(db, newSkill('skr-patch-arrays', { triggers: ['one', 'two'] }));
-    const updated = await updateOwnedSkill(db, 'skr-patch-arrays', OWNER, { triggers: ['three'] });
-    expect(updated?.triggers).toEqual(['three']);
-
-    // An EMPTY array is a legitimate value and must not read as "leave it alone"
-    // — `text[] NOT NULL DEFAULT '{}'` accepts it and the caller meant it.
-    const cleared = await updateOwnedSkill(db, 'skr-patch-arrays', OWNER, { triggers: [] });
-    expect(cleared?.triggers).toEqual([]);
+  it('writes a catalogue skill only through the catalogue-scoped patch', async () => {
+    const skill = await createSkill(db, newSkill(uniqueName('catalogue'), { ownerOxyUserId: null, visibility: 'public' }));
+    expect(await updateOwnedSkill(db, skill._id, OWNER, { displayName: 'Hijacked' })).toBeUndefined();
+    expect((await updateCatalogueSkill(db, skill._id, { displayName: 'Seeded' }))?.displayName).toBe('Seeded');
   });
 });
 
-describe('deleting a skill', () => {
-  it('deletes only the owner\'s non-built-in skill, reporting count', async () => {
-    await createSkill(db, newSkill('skr-delete'));
-    // OWNED and built-in, for the reason the patch case states: only that
-    // combination exercises the `isBuiltIn` guard rather than the owner clause,
-    // and the seed no longer mints it, so it is constructed here.
-    await createSkill(db, newSkill('skr-delete-builtin'));
-    await db.update(skills).set({ isBuiltIn: true }).where(eq(skills.skillId, 'skr-delete-builtin'));
+describe('the shelf', () => {
+  it('installs once, counts once, and uninstalls back to zero', async () => {
+    const { skill } = await withVersion(uniqueName('install'), 'body');
 
-    expect(await deleteOwnedSkill(db, 'skr-delete', STRANGER)).toBe(0);
-    expect(await deleteOwnedSkill(db, 'skr-delete-builtin', OWNER)).toBe(0);
-    // Both survive — a DELETE returns an empty row set whether or not it removed
-    // anything, so `count` is the only thing that says which happened.
-    expect(await findPublicSkill(db, 'skr-delete')).toBeDefined();
-    expect(await findPublicSkill(db, 'skr-delete-builtin')).toBeDefined();
+    expect((await installSkill(db, OWNER, skill._id)).created).toBe(true);
+    expect((await installSkill(db, OWNER, skill._id)).created).toBe(false);
+    expect((await findSkillByName(db, skill.name, OWNER))?.installCount).toBe(1);
 
-    expect(await deleteOwnedSkill(db, 'skr-delete', OWNER)).toBe(1);
-    expect(await findPublicSkill(db, 'skr-delete')).toBeUndefined();
-    expect(await deleteOwnedSkill(db, 'skr-delete', OWNER)).toBe(0);
-  });
-});
-
-describe('the built-in seed', () => {
-  /**
-   * `seedSkills` runs on EVERY boot and its job is to push the current text of
-   * Alia's own skills, so the conflict clause has to be `DO UPDATE`. A single
-   * call cannot tell that from `DO NOTHING` — both leave one row with the right
-   * content. The REPEATED call with changed content is the discriminator.
-   */
-  it('OVERWRITES an existing row on the second run', async () => {
-    await upsertBuiltInSkill(db, builtIn('skr-seed', { title: 'First', tagline: 'v1' }));
-    await upsertBuiltInSkill(db, builtIn('skr-seed', { title: 'Second', tagline: 'v2' }));
-
-    const rows = await db.select().from(skills).where(eq(skills.skillId, 'skr-seed'));
-    expect(rows.length).toBe(1);
-    expect(rows[0]).toMatchObject({ title: 'Second', tagline: 'v2', isBuiltIn: true });
+    expect(await uninstallSkill(db, OWNER, skill._id)).toBe(1);
+    expect(await uninstallSkill(db, OWNER, skill._id)).toBe(0);
+    expect((await findSkillByName(db, skill.name, OWNER))?.installCount).toBe(0);
   });
 
-  /**
-   * The conflict clause names every column by hand, and a column added to
-   * `BuiltInSkill` but missed there would seed correctly on an empty database
-   * and NEVER update afterwards — a failure whose first deploy looks perfect.
-   *
-   * So this drives every field of the seed shape through a second run and
-   * compares the whole row, rather than spot-checking two of them.
-   */
-  it('refreshes EVERY seeded field, not just the ones somebody remembered', async () => {
-    const first = builtIn('skr-seed-all', {
-      title: 'T1',
-      tagline: 'TL1',
-      description: 'D1',
-      systemPrompt: 'P1',
-      author: 'A1',
-      icon: '1️⃣',
-      color: '#111111',
-      category: 'community',
-      language: 'en-US',
-      triggers: ['t1'],
-      includes: ['i1'],
-      useCase: 'U1',
-      goodAt: ['g1'],
-      notGoodAt: ['n1'],
-    });
-    const second: BuiltInSkill = {
-      ...first,
-      title: 'T2',
-      tagline: 'TL2',
-      description: 'D2',
-      systemPrompt: 'P2',
-      author: 'A2',
-      icon: '2️⃣',
-      color: '#222222',
-      category: 'featured',
-      language: 'es-ES',
-      triggers: ['t2'],
-      includes: ['i2'],
-      useCase: 'U2',
-      goodAt: ['g2'],
-      notGoodAt: ['n2'],
-    };
-
-    await upsertBuiltInSkill(db, first);
-    await upsertBuiltInSkill(db, second);
-
-    const [row] = await db.select().from(skills).where(eq(skills.skillId, 'skr-seed-all'));
-    for (const [key, value] of Object.entries(second)) {
-      expect({ [key]: row?.[key as keyof typeof row] }).toEqual({ [key]: value });
-    }
-  });
-
-  /**
-   * The property the seed contract now rests on, and the reason the contract
-   * could be narrowed rather than abandoned.
-   *
-   * `scripts/seed.ts` guarantees its seeders never overwrite a hand-edited row.
-   * `skills` is the one exception, and the exception is NARROWER than the
-   * seeder: `upsertBuiltInSkill` may overwrite a row that is ALREADY built-in
-   * and must never touch a user-created one. Those are different claims and only
-   * the second protects what the contract was written for.
-   *
-   * The collision is reachable, not theoretical. `skill_id` is the conflict
-   * target and users mint it too — `POST /skills` derives a slug from the title
-   * and only suffixes one that is already TAKEN, so a user who names a skill
-   * before the seed has ever run owns that slug when it does. That is exactly
-   * the state production is in: an empty table and a seeder that has never
-   * executed.
-   *
-   * Measured before `setWhere` existed: a user's row came back carrying Alia's
-   * `title` and `system_prompt`, `is_built_in` flipped to `true`, and
-   * `oxy_user_id` still naming the user — who is then locked out of it, because
-   * `updateOwnedSkill` and `deleteOwnedSkill` both require `is_built_in = false`.
-   */
-  it('DECLINES a user-created skill holding the slug, leaving it byte-identical', async () => {
-    const created = await createSkill(
-      db,
-      newSkill('skr-seed-collision', {
-        title: 'MY TITLE',
-        tagline: 'my tagline',
-        description: 'my description',
-        systemPrompt: 'MY PROMPT',
-        author: 'someuser',
-        icon: '🙂',
-        color: '#000000',
-        category: 'community',
-        triggers: ['mine'],
-        goodAt: ['mine'],
-      }),
+  it('resolves the installed version as the pin, else the latest', async () => {
+    const { skill } = await withVersion(uniqueName('pinned'), 'v1');
+    await db.transaction((tx) =>
+      insertSkillVersion(tx, { skillId: skill._id, body: 'v2', frontmatter: {}, checksum: 'p2', bytes: 2 }, []),
     );
+    await installSkill(db, OWNER, skill._id);
 
-    // The WHOLE row before, so the comparison cannot miss a column the seed
-    // touched but this file forgot to name.
-    const [before] = await db.select().from(skills).where(eq(skills.id, created._id));
+    const following = await findInstalledSkillVersion(db, OWNER, skill.name);
+    expect(following?.version).toBe(2);
+    expect(following?.body).toBe('v2');
 
-    const result = await upsertBuiltInSkill(
-      db,
-      builtIn('skr-seed-collision', {
-        title: 'ALIA TITLE',
-        tagline: 'alia tagline',
-        description: 'alia description',
-        systemPrompt: 'ALIA PROMPT',
-        icon: '🤖',
-        color: '#ffffff',
-        category: 'featured',
-        triggers: ['alia'],
-        goodAt: ['alia'],
-      }),
-    );
+    await updateInstall(db, OWNER, skill._id, { pinnedVersion: 1 });
+    const pinned = await findInstalledSkillVersion(db, OWNER, skill.name);
+    expect(pinned?.version).toBe(1);
+    expect(pinned?.body).toBe('v1');
 
-    expect(result).toBe('declined');
-
-    const [after] = await db.select().from(skills).where(eq(skills.id, created._id));
-    // Byte-identical, `updated_at` included: a decline is not a no-op write.
-    expect(after).toEqual(before);
-
-    /**
-     * The consequence that made the old behaviour data loss rather than an
-     * overwrite: with `is_built_in` flipped, the author could no longer edit or
-     * delete the row that still named them as its owner. Asserted through the
-     * real owner-scoped paths, not by reading the flag.
-     */
-    expect(await updateOwnedSkill(db, 'skr-seed-collision', OWNER, { title: 'Still mine' }))
-      .toMatchObject({ title: 'Still mine' });
-    expect(await deleteOwnedSkill(db, 'skr-seed-collision', OWNER)).toBe(1);
+    await updateInstall(db, OWNER, skill._id, { pinnedVersion: null });
+    expect((await findInstalledSkillVersion(db, OWNER, skill.name))?.version).toBe(2);
   });
 
-  it('DOES refresh a row that is already built-in, which is the other half', async () => {
-    // The positive control. Without it, "declines a user row" is also what a
-    // seeder that writes nothing at all would report.
-    expect(await upsertBuiltInSkill(db, builtIn('skr-seed-refresh', { title: 'First' })))
-      .toBe('inserted');
-    expect(await upsertBuiltInSkill(db, builtIn('skr-seed-refresh', { title: 'Second' })))
-      .toBe('updated');
-
-    const [row] = await db.select().from(skills).where(eq(skills.skillId, 'skr-seed-refresh'));
-    expect(row).toMatchObject({ title: 'Second', isBuiltIn: true, oxyUserId: null });
+  it('is what authorizes loading: an uninstalled public skill resolves to nothing', async () => {
+    const { skill } = await withVersion(uniqueName('uninstalled'), 'body', { visibility: 'public' });
+    expect(await findInstalledSkillVersion(db, STRANGER, skill.name)).toBeNull();
+    // …and the same row reached through an agent link does resolve, because the
+    // link is its own authorization.
+    expect((await findSkillVersionById(db, skill._id))?.body).toBe('body');
   });
 
-  /**
-   * The census that makes the case above self-maintaining.
-   *
-   * `BuiltInSkill` is what the seed declares; the table is what exists. Every
-   * column not in the seed shape has to be named as a deliberate omission, so a
-   * NEW column joins one list or the other rather than silently joining neither
-   * — which is the state the "refreshes every field" case cannot detect, because
-   * it iterates the seed shape.
-   */
-  it('accounts for every column the seed does NOT write', () => {
-    const seeded = new Set(Object.keys(builtIn('skr-columns')));
-    const deliberatelyUnseeded = new Set([
-      // Minted by the database or the id helper.
-      'id',
-      'createdAt',
-      'updatedAt',
-      // Written as a literal by `upsertBuiltInSkill`, not taken from the input.
-      'isBuiltIn',
-      // A built-in is Alia's, not an account's; and publication is not the
-      // seed's to decide — moderation owns `is_published`.
-      'oxyUserId',
-      'isPublished',
-    ]);
+  it('withholds a disabled install from level one and from loading', async () => {
+    const { skill } = await withVersion(uniqueName('disabled'), 'body');
+    await installSkill(db, OWNER, skill._id);
+    await updateInstall(db, OWNER, skill._id, { enabled: false });
 
-    const columns = Object.keys(getTableColumns(skills));
-    // Vacuity floor: an empty column list would satisfy the assertion below.
-    expect(columns.length).toBeGreaterThan(15);
-    expect(columns.filter((c) => !seeded.has(c) && !deliberatelyUnseeded.has(c))).toEqual([]);
-    // The exemption list gets its own exact count, so it cannot grow quietly.
-    expect(deliberatelyUnseeded.size).toBe(6);
+    const names = (await listInstalledSkillMetadata(db, OWNER)).map((entry) => entry.name);
+    expect(names).not.toContain(skill.name);
+    expect(await findInstalledSkillVersion(db, OWNER, skill.name)).toBeNull();
+    // It is still ON the shelf — disabled is not uninstalled.
+    expect((await listInstalledSkills(db, OWNER)).map((s) => s.name)).toContain(skill.name);
+  });
+
+  it('drops an installed skill that has no version rather than advertising it', async () => {
+    const skill = await createSkill(db, newSkill(uniqueName('versionless')));
+    await installSkill(db, OWNER, skill._id);
+    expect((await listInstalledSkillMetadata(db, OWNER)).map((entry) => entry.name)).not.toContain(skill.name);
+  });
+
+  it('carries only a name and a description into level one', async () => {
+    const { skill } = await withVersion(uniqueName('metadata'), 'a long body that must not travel');
+    await installSkill(db, OWNER, skill._id);
+
+    const entry = (await listInstalledSkillMetadata(db, OWNER)).find((row) => row.name === skill.name);
+    expect(entry).toBeDefined();
+    expect(Object.keys(entry!).sort()).toEqual(['autoInvoke', 'description', 'name', 'skillId', 'version']);
+  });
+
+  it('refuses an install patch that changes nothing, and one for a skill not installed', async () => {
+    const { skill } = await withVersion(uniqueName('install-patch'), 'body');
+    await installSkill(db, OWNER, skill._id);
+    expect(await updateInstall(db, OWNER, skill._id, {})).toBe(false);
+    expect(await updateInstall(db, STRANGER, skill._id, { enabled: false })).toBe(false);
+  });
+
+  it('records use, which is what orders a long shelf', async () => {
+    const { skill } = await withVersion(uniqueName('touched'), 'body');
+    await installSkill(db, OWNER, skill._id);
+    await touchInstalls(db, OWNER, [skill._id]);
+
+    const rows = await db
+      .select({ lastUsedAt: skillInstalls.lastUsedAt })
+      .from(skillInstalls)
+      .where(and(eq(skillInstalls.oxyUserId, OWNER), eq(skillInstalls.skillId, skill._id)));
+    expect(rows[0].lastUsedAt).toBeInstanceOf(Date);
+  });
+
+  it('reads agent-linked skills without an install', async () => {
+    const { skill } = await withVersion(uniqueName('linked'), 'body', { ownerOxyUserId: STRANGER });
+    const linked = await listSkillMetadataByIds(db, [skill._id]);
+    expect(linked.map((entry) => entry.name)).toEqual([skill.name]);
+    expect(await listSkillMetadataByIds(db, [])).toEqual([]);
   });
 });
 
-describe('the five array columns admit an EMPTY array, and no CHECK says otherwise', () => {
-  /**
-   * ## Why there is no cardinality constraint, and what would happen if one
-   * were added in the obvious wrong shape
-   *
-   * Mongoose declared `triggers`, `includes`, `goodAt` and `notGoodAt` as bare
-   * `[{ type: String }]` with no `minlength` and no validator, so an empty list
-   * has always been legal and CONVENTIONS.md's rule applies: where the source
-   * constrained nothing, neither does this schema. A `>= 1` invented here would
-   * fail on the first legacy row that never filled one in.
-   *
-   * The hazard is worth naming because the FIX for it is also a trap.
-   * `array_length(col, 1)` returns NULL on an empty array, `NULL >= 1` is NULL,
-   * and a CHECK rejects only FALSE — so `array_length(col,1) >= 1` ADMITS
-   * exactly the value it exists to forbid. Measured on this suite's own server:
-   * a table with `check (array_length(arr,1) >= 1)` accepted `'{}'` (1 row in);
-   * the same table with `check (cardinality(arr) >= 1)` rejected it (0 rows in).
-   * `reports_categories_not_empty_check` is the one place in this schema that
-   * needs such a rule, and it already uses `cardinality`.
-   *
-   * So this pair of cases is the ratchet: the first proves `{}` is accepted
-   * TODAY on every array column, and the second reads `pg_constraint` so that a
-   * constraint appearing later — in either spelling — is a red test rather than
-   * a silent narrowing. A `cardinality` rule added deliberately would update
-   * this test; an `array_length` rule added by accident would pass the first
-   * case and fail the second, which is the right way round.
-   */
-  const ARRAY_COLUMNS = ['triggers', 'includes', 'good_at', 'not_good_at'] as const;
+describe('moderation', () => {
+  it('resolves a report by name or by row id, and carries the current instructions', async () => {
+    const { skill } = await withVersion(uniqueName('reported'), 'the instructions');
 
-  it('stores a skill with every array column empty', async () => {
-    const created = await createSkill(
-      db,
-      newSkill('skr-empty-arrays', {
-        triggers: [],
-        includes: [],
-        goodAt: [],
-        notGoodAt: [],
-      }),
-    );
-
-    expect(created).toMatchObject({
-      triggers: [],
-      includes: [],
-      goodAt: [],
-      notGoodAt: [],
-    });
-
-    /**
-     * Read back through raw SQL as well as the builder. An empty Postgres array
-     * and a NULL are different values that both render as falsy in JavaScript,
-     * and the columns are NOT NULL — so this is what tells "stored `{}`" from
-     * "the driver handed back nothing".
-     */
-    const raw = await db.execute(sql`
-      select ${sql.join(
-        ARRAY_COLUMNS.map((c) => sql`cardinality(${sql.identifier(c)}) as ${sql.identifier(c)}`),
-        sql`, `,
-      )}
-      from skills where skill_id = 'skr-empty-arrays'
-    `);
-    expect(raw.length).toBe(1);
-    for (const column of ARRAY_COLUMNS) {
-      expect({ [column]: raw[0]?.[column] }).toEqual({ [column]: 0 });
-    }
+    const byName = await findReportedSkill(db, skill.name);
+    expect(byName?.id).toBe(skill._id);
+    expect(byName?.body).toBe('the instructions');
+    expect((await findReportedSkill(db, skill._id))?.name).toBe(skill.name);
+    expect(await findReportedSkill(db, 'skr-no-such-skill')).toBeNull();
   });
 
-  it('carries no CHECK constraint over any array column', async () => {
-    const rows = await db.execute(sql`
-      select conname, pg_get_constraintdef(oid) as def
-      from pg_constraint
-      where conrelid = 'skills'::regclass and contype = 'c'
-    `);
+  it('translates visibility into the contract publication vocabulary', async () => {
+    const skill = await createSkill(db, newSkill(uniqueName('publication'), { visibility: 'public' }));
+    expect(await findSkillPublication(db, skill._id)).toEqual({ isPublished: true });
 
-    // Vacuity floor: `skills` DOES have a CHECK, so an empty result here would
-    // mean the query is wrong rather than that the table is unconstrained.
-    const names = rows.map((r) => String(r.conname));
-    expect(names).toContain('skills_category_check');
-
-    const overArrays = rows.filter((r) =>
-      ARRAY_COLUMNS.some((column) => String(r.def).includes(column)),
-    );
-    expect(overArrays).toEqual([]);
-  });
-});
-
-describe('resolving a reported skill', () => {
-  it('finds it by its slug AND by its row id', async () => {
-    const created = await createSkill(db, newSkill('skr-reported'));
-
-    const bySlug = await findReportedSkill(db, 'skr-reported');
-    const byId = await findReportedSkill(db, created._id);
-    expect(bySlug?.id).toBe(created._id);
-    expect(byId?.id).toBe(created._id);
-  });
-
-  /**
-   * The bug this replaced.
-   *
-   * The Mongoose version guarded the id lookup with
-   * `mongoose.isValidObjectId(reportedId)`, and a row minted after the port
-   * carries a `generatedId()` uuid — 36 characters with dashes, which that guard
-   * REJECTS. Keeping it would have answered "the reported object no longer
-   * exists" to every report about a skill created from the port onwards.
-   *
-   * The assertion is written against the SHAPE of the id rather than a fixed
-   * string, so it stays meaningful if the id helper changes.
-   */
-  it('finds a skill whose id is a uuid, which the old ObjectId guard refused', async () => {
-    const created = await createSkill(db, newSkill('skr-reported-uuid'));
-    expect(created._id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[0-9a-f]{4}-[0-9a-f]{12}$/);
-    expect(created._id).not.toMatch(/^[0-9a-f]{24}$/);
-
-    expect((await findReportedSkill(db, created._id))?.skillId).toBe('skr-reported-uuid');
-  });
-
-  it('returns undefined for an id that matches neither column', async () => {
-    expect(await findReportedSkill(db, 'skr-nothing-like-this')).toBeUndefined();
-  });
-
-  it('prefers the SLUG when one row\'s slug is another row\'s id', async () => {
-    /**
-     * A collision is possible: `skill_id` is derived from a title and `id` is
-     * `text`, so nothing stops a slug from being spelled like an id. The
-     * Mongoose version looked up by slug FIRST and returned on a hit, so the
-     * slug wins; one statement with an `or` has to reproduce that ordering
-     * explicitly or the planner decides — and the planner's answer is stable
-     * enough to look correct until it is not.
-     *
-     * The fixture is the whole test: TWO rows must match the same argument, one
-     * by `id` and one by `skill_id`. A fixture where only one matches passes
-     * against either ordering and measures nothing — measured, by deleting the
-     * `orderBy` and watching an earlier version of this case stay green.
-     */
-    const byId = await createSkill(db, newSkill('skr-collide-by-id'));
-    const bySlug = await createSkill(db, newSkill('skr-collide-by-slug'));
-
-    // The second row's SLUG is now the first row's ID.
-    await db.update(skills).set({ skillId: byId._id }).where(eq(skills.id, bySlug._id));
-
-    const resolved = await findReportedSkill(db, byId._id);
-    expect(resolved?.id).toBe(bySlug._id);
-    expect(resolved?.id).not.toBe(byId._id);
-  });
-
-  it('carries the prompt and the built-in flag the provider gates on', async () => {
-    await upsertBuiltInSkill(db, builtIn('skr-reported-builtin'));
-    const row = await findReportedSkill(db, 'skr-reported-builtin');
-    expect(row).toMatchObject({ isBuiltIn: true, oxyUserId: null });
-    expect(row?.systemPrompt).toContain('specialist');
-    expect(row?.createdAt).toBeInstanceOf(Date);
-  });
-});
-
-describe('moderation publication', () => {
-  it('reads a boolean, never the row, and tells absent from unpublished', async () => {
-    const created = await createSkill(db, newSkill('skr-moderation'));
-
-    expect(await findSkillPublication(db, created._id)).toEqual({ isPublished: false });
-    // `undefined` means "no such skill"; `{isPublished: false}` means "already
-    // out of the catalogue". The enforcement service reports different reasons
-    // for the two, so collapsing them would change what a moderator is told.
-    expect(await findSkillPublication(db, 'skr-no-such-id')).toBeUndefined();
-
-    await setSkillPublication(db, created._id, true);
-    expect(await findSkillPublication(db, created._id)).toEqual({ isPublished: true });
-    await setSkillPublication(db, created._id, false);
-    expect(await findSkillPublication(db, created._id)).toEqual({ isPublished: false });
-  });
-
-  it('hands back the FLAG ALONE, so an enforcement path cannot leak a prompt', async () => {
-    /**
-     * Asserted on the real returned object, not on a literal written here — a
-     * test that inspects its own fixture measures the fixture. The cost of
-     * getting this wrong is a community author's prompt reaching a code path
-     * whose only question is whether there is anything to withdraw.
-     */
-    const created = await createSkill(db, newSkill('skr-moderation-projection'));
-    const row = await findSkillPublication(db, created._id);
-    expect(row).toBeDefined();
-    expect(Object.keys(row ?? {})).toEqual(['isPublished']);
+    await setSkillPublication(db, skill._id, false);
+    expect(await findSkillPublication(db, skill._id)).toEqual({ isPublished: false });
+    expect((await findSkillByName(db, skill.name, OWNER))?.visibility).toBe('private');
   });
 });

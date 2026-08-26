@@ -71,7 +71,6 @@ export const ConversationScreen = ({
   threadHandle,
   startVoice = false,
 }: ConversationScreenProps) => {
-  const activeSkillId = useStore((state) => state.activeSkillId);
 
   // A conversation keeps its own choice once one is made here, and follows the
   // user's standing choice until then. It used to open on a hard-coded
@@ -109,7 +108,7 @@ export const ConversationScreen = ({
     rejectPlan,
     suggestedNewConversation,
     dismissSuggestedNewConversation,
-  } = useChatConversation({ conversationId, reasoningEffort, selectedModel: selection.effectiveId ?? undefined, skillId: activeSkillId, agentId });
+  } = useChatConversation({ conversationId, reasoningEffort, selectedModel: selection.effectiveId ?? undefined, agentId });
 
   /**
    * Everything said before this conversation, when this screen is a thread.

@@ -42,6 +42,7 @@ import {
 import { log } from '../logger.js';
 import { recordEvent } from '../observability/index.js';
 import type { EffortLevel } from '../reasoning-effort.js';
+import type { SkillRuntime } from '../skills/runtime.js';
 import { classifyError, getRetryAfterHeader, toAliaError } from '../errors/index.js';
 import { AliaErrorCode, type FailoverReason } from '../errors/error-codes.js';
 import type { ChatMessage } from '../message-converter.js';
@@ -86,7 +87,9 @@ export interface ProviderLoopParams {
   /** GLOBAL_TIMEOUT_MS — used for the per-attempt time-budget check. */
   globalTimeoutMs: number;
   state: ChatLoopState;
-  body: Record<string, unknown> & { stream?: boolean; skillId?: string; conversationId?: string };
+  body: Record<string, unknown> & { stream?: boolean; conversationId?: string };
+  /** This turn's skill runtime. Read for what ACTIVATED, which is only final once the turn is. */
+  skills: SkillRuntime;
   messages: ChatMessage[];
   conversationId: string | undefined;
   /** The level, resolved once at the request boundary. */
@@ -121,7 +124,7 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
     req, res, sse, requestId, requestStartTime, globalTimer, globalTimeoutMs, state,
     body, messages, conversationId, reasoningEffort, convertedMessages, truncatedTools,
     toolNameMapping, agentMessages, systemPromptTokens, requestedModel, routingOptions, isSpanish,
-    autonomyRuntime, includeUsage, tierMappingsLength,
+    autonomyRuntime, includeUsage, tierMappingsLength, skills,
   } = params;
 
   // Track token usage (streaming path; the non-streaming path owns its own)
@@ -164,7 +167,7 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
     creditReservation: state.creditReservation,
     tokenUsage,
     requestStartTime,
-    skillId: body.skillId,
+    skillNames: skills.activated().map((skill: { name: string }) => skill.name),
     isApiKey: !!req.apiKey,
     autonomyRuntime,
   });
@@ -283,7 +286,7 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
           creditReservation: state.creditReservation,
           systemPromptTokens,
           requestStartTime,
-          skillId: body.skillId,
+          skills,
           autonomyRuntime,
           toolNameMapping,
           observation,

@@ -28,17 +28,7 @@ const CHAT_RISE_DISTANCE = 22;
 
 const ChatPage = () => {
   const router = useRouter();
-  const { skillId: skillIdParam } = useLocalSearchParams<{ skillId?: string }>();
-  const activeSkillId = useStore((state) => state.activeSkillId);
   const createConversationMutation = useCreateConversation();
-
-  const effectiveSkillId = skillIdParam || activeSkillId;
-
-  useEffect(() => {
-    if (skillIdParam && skillIdParam !== activeSkillId) {
-      useStore.getState().setActiveSkillId(skillIdParam);
-    }
-  }, [skillIdParam, activeSkillId]);
 
   // The store holds what the user chose; the catalogue decides what a request
   // may carry. They differ only when the chosen identifier is no longer one the
@@ -104,7 +94,7 @@ const ChatPage = () => {
     createNewConversation,
     editMessage,
     clearConversation,
-  } = useChatConversation({ reasoningEffort, selectedModel: selection.effectiveId ?? undefined, skillId: effectiveSkillId });
+  } = useChatConversation({ reasoningEffort, selectedModel: selection.effectiveId ?? undefined });
 
   const handleSubmit = ghostMode ? sendMessage : createNewConversation;
 

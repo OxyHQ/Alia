@@ -1,0 +1,112 @@
+---
+title: "Skills"
+description: "Agent Skills in Alia: the format, the three levels of loading, and what an install actually authorises."
+order: 6
+---
+
+# Skills
+
+A skill is a **directory**, not a prompt. Alia implements the open
+[Agent Skills](https://agentskills.io) format: `SKILL.md` with YAML frontmatter,
+plus optional `references/`, `assets/` and `scripts/`. The same folder installs
+into Claude Code, claude.ai, Cursor, Copilot, Codex and a dozen other clients —
+a skill written here is portable by construction rather than by intention.
+
+[ADR 0008](./adr/0008-skills-are-agent-skills.md) records why this replaced the
+previous model, in which a skill was one row whose only functional column was a
+system prompt.
+
+## The format
+
+Six frontmatter fields, and Alia adds none of its own:
+
+| Field | Required | Constraint |
+| --- | --- | --- |
+| `name` | yes | ≤64 chars, lowercase letters, digits and single hyphens, equal to the directory |
+| `description` | yes | ≤1024 chars. What it does **and when to use it** |
+| `license` | no | A licence name, or a reference to a bundled licence file |
+| `compatibility` | no | ≤500 chars. Environment requirements, when there are any |
+| `metadata` | no | A map of string to string, stored verbatim and never interpreted |
+| `allowed-tools` | no | Space-separated. Stored and shown, never used to grant anything |
+
+The limits are CHECK constraints rendered from the same constants
+`lib/skills/spec.ts` validates against, so the database and the validator cannot
+drift apart.
+
+## The three levels
+
+Progressive disclosure is three different moments in one turn.
+
+**Level 1 — the index.** Every enabled installed skill contributes
+`name: description` to the system prompt: roughly a hundred tokens each, capped
+at sixty entries and six thousand characters, ordered by recency of use. This is
+what lets an account keep fifty skills without paying for fifty prompts.
+
+**Level 2 — activation.** Either the person selected the skill for this message,
+in which case its body is prepended as instructions, or the model calls
+`loadSkill` after matching the index against the request.
+
+**Level 3 — resources.** `readSkillFile` returns one bundled file.
+`runSkillScript` executes one in a sandbox and returns only its output, so a
+script's source never costs tokens.
+
+## An install is the authorisation
+
+The candidate set — enabled installs, plus the skills linked to the agent a
+conversation runs — is resolved once per request in
+`lib/chat/request-context.ts`, and the tools close over it. A name outside that
+set resolves to nothing, whoever asked and however it was spelled. There is no
+second authorisation path.
+
+Nothing is installed implicitly. A skill synced from an upstream repository
+lands in the catalogue and on nobody's shelf, because a skill's body becomes
+instructions the moment it loads.
+
+## Where skills come from
+
+| Source | How |
+| --- | --- |
+| `builtin` | `packages/api/skills/<name>/SKILL.md`, shipped in the image and seeded at deploy |
+| `registry` | Synced daily from `lib/skills/registry.ts`, leader-gated, pinned to a commit |
+| `github` | `POST /skills/import` — `owner/repo`, a URL, or a link into one skill directory |
+| `upload` | `POST /skills/upload` — one zip, or path-qualified `files[]` |
+| `authored` | `POST /skills` — written in Alia's own editor |
+
+All five go through one pipeline: `spec.ts` → `bundle.ts` → `store.ts`. A rule
+enforced on one path and not another is a skill that installs here and is
+refused there for reasons nobody can see.
+
+### The catalogue is redistribution, so it checks the licence
+
+A skill enters the SHARED catalogue only if its bundle carries a licence that
+permits hosting. The check reads the licence the bundle actually contains,
+because the repository does not know: `anthropics/skills` holds Apache-2.0
+skills and all-rights-reserved ones (`docx`, `pdf`, `pptx`, `xlsx`) under one
+path, with frontmatter that reads identically for each. A person importing a
+skill into their own account is not redistribution and is not gated by it.
+
+## Versions
+
+A version is immutable. Editing the document creates a new one; editing the
+display name or tags does not. An install either follows the latest version or
+is pinned to a number, and the sync leaves a pinned install alone. Re-importing
+an unchanged upstream commit produces no version at all — the bundle checksum
+decides.
+
+## Running a skill's scripts
+
+Scripts run in a container with **no network interface at all**
+(`network: 'none'`), no credentials, and nothing about the account or the
+conversation written into it beyond the skill's own files. That is the same
+environment Anthropic's Skills API provides, for the same reason. The bundle is
+materialised once per container, tracked by a marker file rather than by
+process memory, because the same conversation can be served by another task.
+
+## What it does not do
+
+- **No `/v1/skills`.** [ADR 0004](./adr/0004-product-endpoints-versus-generic-inference-endpoints.md)
+  freezes that surface: it gains no new route and no new capability. The
+  Skills-API-shaped upload lives on `/skills/upload`.
+- **No implicit trust.** `allowed-tools` is shown before installing, not
+  granted. A skill cannot widen what the model may call.
+- **No interpretation of `metadata`.** Another client's keys are that client's.

@@ -115,6 +115,49 @@ describe('the runtime image ships what the code reads by path', () => {
   });
 
   /**
+   * The third directory read by path: the built-in Agent Skills.
+   *
+   * `lib/skills/seed.ts` walks `<package>/skills/` at deploy time and imports
+   * every `SKILL.md` it finds. Unlike the prompt loader it throws rather than
+   * degrading, so a missing COPY here fails the deploy instead of quietly
+   * shipping an empty catalogue — but the copy still has to be declared, and
+   * this is what notices when it stops being.
+   */
+  it('copies the built-in skills directory into the image', () => {
+    expect(copiedIntoPackage).toContain('skills');
+  });
+
+  it('copies the same directory name the skill seed resolves at runtime', () => {
+    const seedSource = readFileSync(`${packageRoot}src/lib/skills/seed.ts`, 'utf8');
+    expect(seedSource).toContain("'../../../skills'");
+    expect(existsSync(`${packageRoot}skills/code-reviewer/SKILL.md`)).toBe(true);
+  });
+
+  /**
+   * And that every shipped skill is a VALID one.
+   *
+   * A `SKILL.md` that fails the spec cannot be imported, and the seed throws on
+   * the first one that does — which would take a deploy down. Parsing them here
+   * is what makes that a red test rather than a failed release.
+   */
+  it('ships built-in skills that all parse against the Agent Skills spec', async () => {
+    const { readdirSync } = await import('node:fs');
+    const { parseSkillDocument } = await import('../lib/skills/spec.js');
+    const names = readdirSync(`${packageRoot}skills`, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name);
+
+    for (const name of names) {
+      const document = readFileSync(`${packageRoot}skills/${name}/SKILL.md`, 'utf8');
+      const parsed = parseSkillDocument(document, { directoryName: name, authored: true });
+      expect(parsed.frontmatter.name).toBe(name);
+      expect(parsed.body.length).toBeGreaterThan(0);
+    }
+    // Vacuity floor: an empty directory satisfies the loop above.
+    expect(names.length).toBeGreaterThanOrEqual(10);
+  });
+
+  /**
    * And that the directory is not merely PRESENT but populated with the names
    * the code asks for. `buildSystemPrompt` loads `prompts/<modelId>.md`, so the
    * alias id IS the filename — a rename of an id that forgets the file degrades

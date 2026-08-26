@@ -77,8 +77,19 @@ export interface SystemPromptOptions {
   userMemory?: UserMemoryData | null;
   /** Recalled memories from before-chat hooks */
   recalledMemories?: Array<{ title: string; summary: string }>;
-  /** Active skill document */
-  skill?: { title?: string; systemPrompt?: string } | null;
+  /**
+   * The two halves of Agent Skills that reach the system prompt.
+   *
+   * `index` is level one — every installed skill's name and description, which
+   * is how the model knows one exists at all. `active` is level two for skills
+   * the person selected for this message: their instructions, in full.
+   *
+   * They land in different places, and the difference is authority. An index is
+   * CONTEXT and is appended with everything else Alia knows; instructions the
+   * person asked for are prepended, above the base prompt, where a skill can
+   * shape how the turn is answered. Neither goes above the identity guard.
+   */
+  skills?: { index: string; active: string } | null;
   /** Linked agent (for archetype prompt injection) */
   linkedAgent?: HydratedAgent | null;
   /** Whether agent mode is active */
@@ -106,7 +117,7 @@ export class SystemPromptBuilder {
    *      agent, or downstream fragment can override it). The ONLY layer that
    *      says who the assistant is, and the only one that carries an agent's
    *      remit rule.
-   *   1. Skill / agent remit (prepended — wraps the base prompt)
+   *   1. Selected skills / agent remit (prepended — wrap the base prompt)
    *   2. Base prompt (the style profile for the chosen model, plus `base.md`) —
    *      how to answer, never who is answering
    *   3. Date injection
@@ -116,6 +127,7 @@ export class SystemPromptBuilder {
    *   7. Oxy service description + context
    *   8. Agent mode hint
    *   9. User memory (facts, preferences, context)
+   *  10. Skills index (name and description of each installed skill)
    */
   static async build(opts: SystemPromptOptions): Promise<string> {
     const {
@@ -127,7 +139,7 @@ export class SystemPromptBuilder {
       oxyUser,
       userMemory,
       recalledMemories,
-      skill,
+      skills,
       linkedAgent,
       agentMode,
       autonomyRuntime,
@@ -243,10 +255,22 @@ export class SystemPromptBuilder {
       }
     }
 
-    // 8. Skill prompt (prepended — wraps everything)
-    if (skill?.systemPrompt && isDirectUserSession) {
-      systemMessage = `# ACTIVE SKILL: ${skill.title}\n\n${skill.systemPrompt}\n\n---\n\n${systemMessage}`;
-      log.general.info({ skillTitle: skill.title }, 'Skill activated');
+    // 8. Skills.
+    //
+    // The index is appended as context: a list of names and descriptions the
+    // model reads to decide whether to call `loadSkill`. The selected skills'
+    // instructions are prepended, because the person chose them for this turn.
+    //
+    // Not gated on `isDirectUserSession`, unlike the single prompt this
+    // replaces. Authorization is an install owned by the caller's account, and a
+    // developer key carries its owner's — so there is nothing here that leaks
+    // one account's material into another's request.
+    if (skills?.index) {
+      systemMessage += skills.index;
+    }
+    if (skills?.active) {
+      systemMessage = `${skills.active}\n\n---\n\n${systemMessage}`;
+      log.general.info({ chars: skills.active.length }, 'Skills activated');
     }
 
     /**

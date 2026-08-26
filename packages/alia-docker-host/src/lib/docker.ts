@@ -84,6 +84,19 @@ export interface CreateContainerOpts {
   size?: string;
   persistent?: boolean;
   labels?: Record<string, string>;
+  /**
+   * `'none'` creates the container with NO network interface at all.
+   *
+   * For running code nobody in this system wrote: a skill downloaded from a
+   * public repository executes its bundled scripts here, and the useful default
+   * for that is the one Anthropic's own Skills API applies — no network access
+   * and no runtime package installation. A skill that genuinely needs the
+   * network says so in its `compatibility` field, and the caller decides.
+   *
+   * Enforced by Docker rather than by a rule the code is asked to remember,
+   * which is the difference between an isolation property and an intention.
+   */
+  network?: 'default' | 'none';
 }
 
 export interface ContainerInfo {
@@ -148,7 +161,7 @@ export async function createContainer(opts: CreateContainerOpts): Promise<Contai
       CapDrop: ['ALL'],
       CapAdd: ['CHOWN', 'SETUID', 'SETGID', 'NET_BIND_SERVICE', 'DAC_OVERRIDE', 'FOWNER', 'SYS_CHROOT', 'KILL'],
       SecurityOpt: ['no-new-privileges:true'],
-      NetworkMode: NETWORK_NAME,
+      NetworkMode: opts.network === 'none' ? 'none' : NETWORK_NAME,
       RestartPolicy: { Name: '' },
     },
   });

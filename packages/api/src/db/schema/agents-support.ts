@@ -1,11 +1,5 @@
 /**
- * The three tables of the agents domain that reference nothing else in it.
- *
- * Batch 9 ports ten Mongoose models into sixteen tables, and it is ordered by
- * the dependency graph rather than by feature: everything else in the batch
- * points at `agents`, and `agents` itself points at `skills` (below) and at the
- * already-ported `library_files`. So these three land first — they are the only
- * ones with no intra-batch parent to wait for.
+ * The two tables of the agents domain that reference nothing else in it.
  *
  * `learning_rules` and `rollback_records` are here because they are genuinely
  * unattached, not because they are small. `RollbackRecord.sessionId` LOOKS like
@@ -13,99 +7,17 @@
  * ObjectId ref, which is the whole reason this table does not have to wait for
  * batch 9c; see its own note.
  *
- * ## `skills.author` is NOT an account, and `agents.author` IS
- *
- * The identical field name means opposite things one model apart.
- * `Agent.author` is written from `req.user.id` and is an Oxy account;
- * `Skill.author` is a DISPLAY STRING — `lib/seed-skills.ts` writes `'Alia'` and
- * `'Community'` into it. A backfill that pairs source and destination fields by
- * matching names would map both the same way and be right about neither.
- *
- * CONVENTIONS.md already records three spellings of the account id
- * (`oxyUserId`, `userId`, `owner`); this batch adds `author` and `creator`.
- * The rule that follows from the pair is stronger than "grep for the spelling":
- * a field NAME is evidence of nothing in either direction, so read the writer.
- * `agents.author_oxy_user_id` (batch 9b) carries the fact in the column name;
- * `skills.author` deliberately does not, because it is not one.
- *
- * ## `Skill.coverImage` was declared and could never be stored
- *
- * It was in `ISkill` and NOT in the Mongoose schema, and referenced nowhere else
- * in the package — so `strict` dropped it on every write and no document has
- * ever carried it. There is no column, and the interface field was removed in
- * the same change so that nothing invites one later. Recorded because a missing
- * column reads as an oversight and this one is a measurement.
+ * `skills` used to live here as a third such table, back when a skill was one
+ * row whose only functional column was a system prompt. It is now four tables in
+ * `schema/skills.ts`, because an Agent Skill is a versioned directory rather
+ * than a string; `agents.ts` and `agent-sessions.ts` import it from there.
  */
 
-import { boolean, index, integer, jsonb, pgTable, text, uniqueIndex } from 'drizzle-orm/pg-core';
+import { boolean, index, integer, jsonb, pgTable, text } from 'drizzle-orm/pg-core';
 import { createdAt, generatedId, timestamptz, updatedAt } from '@oxyhq/db';
 import { checkOneOf } from './columns';
-import { SKILL_CATEGORIES } from '../../domain/skill.js';
 import { LEARNING_RULE_SOURCES, LEARNING_RULE_TYPES } from '../../domain/learning-rule.js';
 import { ROLLBACK_RISK_LEVELS, ROLLBACK_STATUSES } from '../../domain/rollback-record.js';
-
-/**
- * A skill: a reusable system-prompt fragment an agent or a chat can adopt.
- *
- * `skill_id` is the business key — the seed upserts on it, and it is what
- * `populate('skills', 'skillId …')` projects. It is `uniqueIndex()` rather than
- * `unique()` because nothing references it: `agent_skills` (batch 9b) points at
- * `skills.id`, the primary key, so the FK-before-CREATE-INDEX ordering trap
- * CONVENTIONS.md describes cannot bite here.
- *
- * The five string arrays are `text[]` and not child tables. Each element is a
- * bare value with no identity of its own — no reference, no toggle, no ordering
- * anything filters on — which is the same call `provider_health.latency_samples`
- * took, and the opposite of the one `agent_skills` takes for an array of
- * references.
- *
- * `use_case` is nullable: Mongoose declares it without `required`, so a document
- * written before it existed has no value and inventing an empty string would
- * make "not filled in" indistinguishable from "deliberately blank".
- */
-export const skills = pgTable(
-  'skills',
-  {
-    id: generatedId(),
-    /** The caller's own id for the skill. The seed's upsert key. */
-    skillId: text().notNull(),
-    title: text().notNull(),
-    tagline: text().notNull(),
-    description: text().notNull(),
-    systemPrompt: text().notNull(),
-    /**
-     * A DISPLAY NAME (`'Alia'`, `'Community'`), NOT an account id. See the file
-     * comment — `agents.author` one table over is the opposite.
-     */
-    author: text().notNull(),
-    icon: text().notNull(),
-    color: text().notNull(),
-    category: text({ enum: SKILL_CATEGORIES as unknown as [string, ...string[]] }).notNull(),
-    /** A BCP-47 tag. No CHECK: the set is IANA's, not ours. */
-    language: text().notNull().default('en-US'),
-    triggers: text().array().notNull().default([]),
-    includes: text().array().notNull().default([]),
-    useCase: text(),
-    goodAt: text().array().notNull().default([]),
-    notGoodAt: text().array().notNull().default([]),
-    isBuiltIn: boolean().notNull().default(true),
-    isPublished: boolean().notNull().default(false),
-    /**
-     * The Oxy account that authored a community skill. NULL for a built-in one.
-     * No foreign key: Oxy owns identity.
-     */
-    oxyUserId: text(),
-    createdAt: createdAt(),
-    updatedAt: updatedAt(),
-  },
-  (t) => [
-    uniqueIndex('skills_skill_id_key').on(t.skillId),
-    index('skills_language_idx').on(t.language),
-    index('skills_is_published_idx').on(t.isPublished),
-    index('skills_oxy_user_id_idx').on(t.oxyUserId),
-    checkOneOf('skills_category_check', t.category, SKILL_CATEGORIES),
-  ],
-);
 
 /**
  * A rule the assistant learned about one account, applied to later turns.

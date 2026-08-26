@@ -52,7 +52,8 @@ export interface ChatAnalyticsRecord {
   readonly errorClass: string | null;
   readonly cancelled: boolean;
   readonly platform: string;
-  readonly skillId?: string;
+  /** Every skill that reached the model this turn. Empty for a turn that activated none. */
+  readonly skillNames?: string[];
 }
 
 export async function insertChatAnalytics(
@@ -75,7 +76,7 @@ export async function insertChatAnalytics(
     errorClass: record.errorClass,
     cancelled: record.cancelled,
     platform: record.platform,
-    skillId: record.skillId ?? null,
+    skillNames: record.skillNames ?? [],
   });
 }
 

@@ -372,6 +372,20 @@
       "when": 1787699853974,
       "tag": "0052_the_sidebar_orders_agents_by_activity",
       "breakpoints": true
+    },
+    {
+      "idx": 53,
+      "version": "7",
+      "when": 1787756604296,
+      "tag": "0053_ambitious_layla_miller",
+      "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1787756654748,
+      "tag": "0054_curly_talos",
+      "breakpoints": true
     }
   ]
 }

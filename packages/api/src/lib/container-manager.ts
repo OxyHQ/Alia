@@ -72,6 +72,8 @@ export interface CreateContainerOpts {
   size?: string;
   persistent?: boolean;
   labels?: Record<string, string>;
+  /** `'none'` asks the host for a container with no network interface. See the docker host's own note. */
+  network?: 'default' | 'none';
 }
 
 export interface ContainerInfo {
