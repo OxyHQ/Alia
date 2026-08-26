@@ -166,6 +166,18 @@ jobs:
       - name: Verify the Cloudflare cutover scripts can still fail
         run: bash .github/scripts/test-cloudflare-cutover.sh
 
+      # The same incident, asserted statically. The harness above proves the
+      # scripts behave on fixtures shaped like the apex; this forbids the SHAPE
+      # that caused it — indexing `.result[0]` into a record list a query never
+      # narrowed — anywhere in the workflows or the scripts they call. Both
+      # halves are needed: a behavioural fixture cannot see a new caller written
+      # tomorrow, and a static shape cannot see whether the logic is right.
+      - name: Verify no DNS write indexes into a list it did not narrow
+        run: node .github/scripts/check-dns-record-filters.mjs
+
+      - name: Verify that gate can still fail
+        run: node .github/scripts/test-check-dns-record-filters.mjs
+
       # Runs in the one job that installs nothing, so it reports before the jobs
       # it protects would fail. See the header comment: the cache is the only
       # thing stopping an unauthenticatable GitHub fetch on every install.
