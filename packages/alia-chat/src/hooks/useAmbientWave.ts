@@ -83,8 +83,13 @@ export function useAmbientWave({ voice, isTTSPlaying, ttsWaveAmplitude, isGenera
   // The recorder publishes on a 100ms poll, so what makes this read as speech
   // rather than as ten steps a second is `withTiming` interpolating between
   // them. Read-aloud reaches the same place by a different mechanism — its
-  // player pushes buffers far too fast to route through React — but off the
-  // same two constants, so both settle at the same rate.
+  // player pushes buffers far too fast to route through React — off the same
+  // two constants, but NOT with the same curve: this is a fixed-duration ease
+  // that is at the target after `LEVEL_ATTACK_MS`, and `audio-level`'s is an
+  // exponential whose time constant that is, so 60ms puts it at 63% and full
+  // travel takes about three times as long. Tuning the constant moves both, by
+  // different amounts. They are shared because one number should tune one
+  // feel, not because the two are interchangeable.
   const sttIsRecording = useSTTStore((s) => s.isRecording);
   const sttMetering = useSTTStore((s) => s.metering);
   const stt = useSharedValue(0);
