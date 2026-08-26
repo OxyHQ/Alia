@@ -197,9 +197,9 @@ const RESTATED_DEFAULTS: readonly { file: string; value: string; why: string }[]
     why: 'Voice billing parameter default. Capability-scoped: the chat default cannot price a voice minute.',
   },
   {
-    file: 'packages/api/src/lib/tools/agent-delegate.ts',
+    file: 'packages/api/src/lib/tools/agent-turn.ts',
     value: 'alia-lite',
-    why: "An agent's own allowedModels first, else the chat default. Agrees with the owner; should import it.",
+    why: "An agent's own allowedModels first, else the chat default. Agrees with the owner; should import it. Was in `agent-delegate.ts` until the nested turn became one shared runner.",
   },
   {
     file: 'packages/api/src/lib/tools/delegate.ts',
@@ -226,7 +226,7 @@ describe('every site that restates an alias default is accounted for', () => {
     // clean small number that reads like good news.
     const at = (suffix: string) => observed.filter((o) => o.file.endsWith(suffix)).map((o) => o.value);
     expect(at('lib/tools/delegate.ts')).toContain('alia-v1'); // `||` with a space
-    expect(at('lib/tools/agent-delegate.ts')).toContain('alia-lite'); // `||` after `?.[0]`
+    expect(at('lib/tools/agent-turn.ts')).toContain('alia-lite'); // `||` after `[0]`
     expect(at('lib/credits-manager.ts')).toContain('alia-v1-voice'); // parameter default
     // 8 -> 7 because `/v1/responses` stopped restating a default, then 7 -> 6
     // because `routes/webhooks.ts` did: #244 made a bot's stored preference a

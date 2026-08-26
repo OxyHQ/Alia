@@ -50,8 +50,8 @@
  *
  * The grant is read at the point each tool is BUILT, never filtered out
  * afterwards. A filter would need its own copy of which tool belongs to which
- * family, free to drift from the vocabulary; and for the three instanced
- * families it would mean fetching a connector's tools in order to discard them.
+ * family, free to drift from the vocabulary; and for the instanced families it
+ * would mean fetching a connector's tools in order to discard them.
  */
 
 import type { ToolSet } from 'ai';
@@ -79,6 +79,7 @@ import {
   createSuggestNewConversationTool,
 } from './tools/index.js';
 import { buildMcpTools } from './tools/mcp.js';
+import { buildAskAgentTool } from './tools/ask-agent.js';
 import { buildIntegrationTools } from './tools/integrations.js';
 import { buildOxyServiceTools } from './tools/oxy-services.js';
 import { convertOpenAIToolsToToolSet, type OpenAITool } from './tool-converter.js';
@@ -201,8 +202,8 @@ export interface ForUserOptions {
   /**
    * The INSTANCED families this caller will actually use.
    *
-   * `undefined` means all three, which is every caller that existed before
-   * this. `[]` means none, and the three sources are then not FETCHED at all.
+   * `undefined` means all four, which is every caller that existed before
+   * this. `[]` means none, and the four sources are then not FETCHED at all.
    *
    * ## It is a fetch decision, never a permission one
    *
@@ -426,19 +427,28 @@ export class ToolPipeline {
     if (runtime) Object.assign(aliaTools, buildRuntimeTools(runtime, grants));
 
     /**
-     * 4. The bulk sources — the THREE INSTANCED FAMILIES. All of them, on every
+     * 4. The bulk sources — the FOUR INSTANCED FAMILIES. All of them, on every
      * surface.
      *
      * `buildOxyServiceTools` used to be here alone, so an agent answering on
      * its owner's Telegram bot could not reach one first-party Oxy service —
      * the divergence this collapse exists to end.
      *
-     * Each of the three builds its tool NAMES from rows — `mcp_x__y`,
+     * Three of the four build their tool NAMES from rows — `mcp_x__y`,
      * `oxy_x__y`, and an integration the person connected — so nobody could
      * enumerate them when the vocabulary was written and a whole-family grant
      * would be a blank cheque over rows that do not exist yet. That is exactly
      * what an agent inheriting all of its owner's connectors was, and it is why
-     * these three are granted one row at a time.
+     * those three are granted one row at a time.
+     *
+     * `agent` is the fourth, and its rows are the person's OWN agents: one tool
+     * whose schema names exactly the ones this turn may talk to. It is here
+     * rather than beside `delegateToAgent` below because the selection is a
+     * database read, and reading it in parallel with the other three is the
+     * difference between one round trip and four in series. It is under
+     * `actsForPerson` for the same reason the three are — and that is also what
+     * bounds the recursion, since a nested agent turn does not act for a person
+     * and therefore never receives this tool.
      *
      * A grant of nothing means NOT FETCHING rather than fetching and
      * discarding: an empty selection short-circuits inside each source, so an
@@ -452,7 +462,7 @@ export class ToolPipeline {
     const wants = (family: InstancedCapabilityFamily): boolean =>
       instancedSources === undefined || instancedSources.includes(family);
 
-    const [mcpTools, integrationTools, oxyServiceTools] = actsForPerson
+    const [mcpTools, integrationTools, oxyServiceTools, ownAgentTools] = actsForPerson
       ? await Promise.all([
           wants('mcp')
             ? buildMcpTools(userId, mcpSelection(mcpServerId, grants)).catch(bulkFailure('mcp'))
@@ -465,9 +475,13 @@ export class ToolPipeline {
             ? {}
             : buildOxyServiceTools(userId, accessToken, grants.instances('oxy_service') ?? undefined)
                 .catch(bulkFailure('oxy-service')),
+          wants('agent')
+            ? buildAskAgentTool(userId, ownAgentSelection(grants, agent, userId), agent?._id ?? null)
+                .catch(bulkFailure('agent'))
+            : {},
         ])
-      : [{}, {}, {}];
-    Object.assign(aliaTools, mcpTools, integrationTools, oxyServiceTools);
+      : [{}, {}, {}, {}];
+    Object.assign(aliaTools, mcpTools, integrationTools, oxyServiceTools, ownAgentTools);
 
     // 5. Merge server tools with editor tools
     const tools: ToolSet = { ...aliaTools, ...editorTools };
@@ -475,7 +489,8 @@ export class ToolPipeline {
     // 6. Agent mode: add search & delegation tools
     if (agentMode && isDirectSession && grants.allows('delegation')) {
       tools.searchAgents = createSearchAgentsTool();
-      tools.delegateToAgent = createDelegateToAgentTool();
+      // The delegating account pays for the delegate's turn; see `agent-turn.ts`.
+      tools.delegateToAgent = createDelegateToAgentTool(userId);
     }
 
     /**
@@ -489,6 +504,36 @@ export class ToolPipeline {
 
     return { tools, toolNameMapping };
   }
+}
+
+/**
+ * Which of the owner's own agents this turn may talk to.
+ *
+ * `undefined` is every ACTIVE one, resolved by the source at the moment it is
+ * asked — a bare `agent` grant, or a turn with no agent at all. An array is the
+ * ids the owner named, and `[]` reaches none and costs no query.
+ *
+ * ## A grant written by one owner cannot resolve against another's agents
+ *
+ * An agent whose `access` is `public` runs inside a STRANGER's turn, where
+ * `userId` is the stranger. Per-id grants handle that on their own — the source
+ * scopes rows to `userId`, so ids naming the author's agents match nothing —
+ * but "every active agent" would silently re-point at whoever is talking, and
+ * hand an agent its own conversation partner's private agents.
+ *
+ * So the bare grant resolves only when the turn's user IS the agent's author.
+ * Under anyone else it reaches none, which is the same answer the per-id form
+ * already gives, rather than a different one for the same grant.
+ */
+function ownAgentSelection(
+  grants: CapabilityGrantSet,
+  agent: HydratedAgent | null | undefined,
+  userId: string,
+): readonly string[] | undefined {
+  const granted = grants.instances('agent');
+  if (granted !== null) return granted;
+  if (agent === undefined || agent === null) return undefined;
+  return agent.author === userId ? undefined : [];
 }
 
 /**

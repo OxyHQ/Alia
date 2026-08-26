@@ -34,7 +34,18 @@ import type { SSEWriter } from './sse-writer.js';
 /** Extended stream chunk types not yet exported by AI SDK */
 type ExtendedChunk = { type: string; text?: string; thoughtDelta?: string; reasoningDelta?: string; toolName?: string; error?: Error & { message: string }; [key: string]: unknown };
 
-/** Shape of the `delegateToAgent` tool result the loop unpacks into an alia.agent event. */
+/**
+ * The tools whose result IS another agent's answer, and is drawn as one.
+ *
+ * Both run a nested turn through `lib/tools/agent-turn.ts` and both come back
+ * with the answering agent's identity attached, so the client draws one bubble
+ * for "an agent other than this one said something" rather than two renderings
+ * of one idea. A tool added to that runner and not to this set silently
+ * degrades into a tool result the calling model paraphrases.
+ */
+const AGENT_ANSWER_TOOLS: ReadonlySet<string> = new Set(['delegateToAgent', 'askAgent']);
+
+/** Shape of the tool result the loop unpacks into an alia.agent event. */
 interface DelegateAgentToolOutput {
   error?: unknown;
   agentId: string;
@@ -262,7 +273,7 @@ export async function runStream<TOOLS extends ToolSet>(params: RunStreamParams<T
       }
 
       // Emit agent message as named SSE event (non-standard, Alia extension)
-      if (originalToolName === 'delegateToAgent' && chunk.output && !(chunk.output as DelegateAgentToolOutput).error) {
+      if (AGENT_ANSWER_TOOLS.has(originalToolName ?? '') && chunk.output && !(chunk.output as DelegateAgentToolOutput).error) {
         const ar = chunk.output as DelegateAgentToolOutput;
         res.write(`event: alia.agent\ndata: ${JSON.stringify({
           eventVersion: 1,

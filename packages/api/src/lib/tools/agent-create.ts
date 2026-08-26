@@ -60,9 +60,9 @@ export const createAgentTool = (userId: string, accessToken: string | undefined)
       .optional()
       .describe(
         'What the agent may reach. Pick only the families its purpose needs — an ' +
-          'agent gets NOTHING it was not granted. The three instanced families ' +
-          '(MCP connectors, Oxy services, integrations) are granted per connector ' +
-          'in the agent editor and cannot be chosen here.',
+          'agent gets NOTHING it was not granted. The four row-at-a-time families ' +
+          "(MCP connectors, Oxy services, integrations, and the owner's own agents) " +
+          'are granted a row at a time in the agent editor and cannot be chosen here.',
       ),
     tags: z.array(z.string()).optional()
       .describe('Tags for discoverability (3-5 lowercase tags)'),

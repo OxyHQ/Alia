@@ -126,8 +126,13 @@ export const API_ROUTES = {
     routingLogs: (id: string) => `/agents/${id}/routing-logs`,
     routingStats: (id: string) => `/agents/${id}/routing-stats`,
     generate: '/agents/generate',
-    /** The MCP connectors, Oxy apps and integrations this owner can grant. */
-    capabilityConnectors: '/agents/capability-connectors',
+    /**
+     * The MCP connectors, Oxy apps, integrations and agents this owner can
+     * grant. The agent being EDITED is passed so it is left out of its own
+     * list — an agent cannot be granted a conversation with itself.
+     */
+    capabilityConnectors: (excludeAgentId: string) =>
+      `/agents/capability-connectors?agent=${encodeURIComponent(excludeAgentId)}`,
   },
 
   // Library routes
