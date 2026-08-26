@@ -7,7 +7,7 @@ import {
   providersWithUsableCredentials,
   type HealthMetrics,
 } from '../lib/gateway-client.js';
-import { relayConnectivity } from '../lib/inference/kaana-connectivity.js';
+import { kaanaConnectivity, type KaanaConnectivity } from '../lib/inference/kaana-connectivity.js';
 import { unsetKaanaVariables } from '../lib/inference/kaana.js';
 import { isQueueActive } from '../lib/task-queue.js';
 import { log } from '../lib/logger.js';
@@ -38,10 +38,10 @@ import { log } from '../lib/logger.js';
  * group to `/health/ready` lives in `oxy-infra` and must happen BEFORE this
  * service is scaled up again.
  *
- * ## Relay is reported, and the report is additive (#139 ws8)
+ * ## Kaana is reported, and the report is additive (#139 ws8)
  *
- * `/health` and `/health/ready` both name Relay now. Both are ADDITIVE for every
- * deployment that exists: `relayConnectivity()` returns `'disabled'` while
+ * `/health` and `/health/ready` both name Kaana now. Both are ADDITIVE for every
+ * deployment that exists: `kaanaConnectivity()` returns `'disabled'` while
  * `ALIA_RELAY_CLIENT_ENABLED` is not exactly `true`, which is everywhere, and
  * `'disabled'` neither degrades the snapshot nor blocks readiness. The status
  * code either route returns today is therefore unchanged, and only the response
@@ -49,7 +49,7 @@ import { log } from '../lib/logger.js';
  *
  * `/health/live` is not touched. It is what the `oxy-alia` target group polls,
  * so a change to it is a change to whether the ALB keeps a task in rotation —
- * and the Relay signal has no business in a LIVENESS answer anyway. Only after
+ * and the Kaana signal has no business in a LIVENESS answer anyway. Only after
  * the target group moves to `/health/ready` does any of this reach the ALB, and
  * that move is `oxy-infra`'s.
  *
@@ -163,29 +163,29 @@ import { log } from '../lib/logger.js';
  * shares, so it is true for the whole fleet or for none of it. It could never
  * distinguish one task from another.
  *
- * ### `relay_unreachable` — removed, and this one LOOKED process-local
+ * ### The Kaana-unreachable reason — removed, and it LOOKED process-local
  *
  * The observation is a module-level `let` in `kaana-connectivity.ts`, which is
  * genuinely per-process — but that describes where the EVIDENCE is stored, not
- * where the FAULT is. If Relay is unreachable it is unreachable for every task,
+ * where the FAULT is. If Kaana is unreachable it is unreachable for every task,
  * and each simply discovers the same shared outage independently within a probe
  * interval. They then deregister together, which is the case above wearing a
  * different hat.
  *
  * Two facts settle it beyond the general argument, and both are checkable:
  *
- *  1. **Two of the four codes that open the circuit are not about Relay at
+ *  1. **Two of the four codes that open the circuit are not about Kaana at
  *     all.** `CIRCUIT_TRIPPING_CODES` in `kaana-client.ts` is
  *     `service_unavailable`, `deployment_unavailable`, `provider_overloaded`,
  *     `provider_timeout`. The last two are UPSTREAM PROVIDER conditions, so
  *     this branch would have deregistered the fleet on exactly the provider
- *     state the previous section removed — re-entering through the Relay door.
- *  2. **A task that cannot reach Relay still serves nearly everything.** Relay
+ *     state the previous section removed — re-entering through the Kaana door.
+ *  2. **A task that cannot reach Kaana still serves nearly everything.** Kaana
  *     implements `AliaInferencePort` and nothing else; `product-seam.ts` puts
  *     the catalogue, provider selection, health and keys explicitly outside it.
  *     Keeping such a task in rotation is worth a great deal, not nothing.
  *
- * Relay is still REPORTED, on `/health` and in `/health/ready`'s own body. Only
+ * Kaana is still REPORTED, on `/health` and in `/health/ready`'s own body. Only
  * its power to deregister is gone.
  *
  * ### Postgres — kept, and it is the one that passes
@@ -329,6 +329,37 @@ async function summariseProviders(): Promise<ProviderSummary> {
   return summary;
 }
 
+/**
+ * Everything this process knows about Kaana, under ONE name.
+ *
+ * `/health` used to answer `relay` beside `kaana` — two fields, two spellings,
+ * one system. Kaana is Oxy's inference provider and `Relay` was its working
+ * name, so an operator reading `"kaana": "configured"` above `"relay":
+ * "disabled"` reasonably concluded there were two of them, and the pair reads
+ * as a contradiction rather than as the two different questions it is.
+ *
+ * The two questions survive; only the name does not:
+ *
+ *  - `credentials` — whether this process HAS what it needs to reach Kaana.
+ *    `configured`, not `serving`: nothing is probed to answer it, and a field
+ *    claiming reachability without a request would be the same lie in the other
+ *    direction.
+ *  - `client` — whether the typed Kaana client is armed and, if it is, what the
+ *    last call observed. It reads `disabled` on every deployment that exists,
+ *    including the ones where Kaana is serving every background derivation
+ *    right now, because it reports the CUTOVER FLAG and the derivations do not
+ *    go through the client.
+ */
+function kaanaReport(): {
+  readonly credentials: 'configured' | 'not_configured';
+  readonly client: KaanaConnectivity;
+} {
+  return {
+    credentials: unsetKaanaVariables().length === 0 ? 'configured' : 'not_configured',
+    client: kaanaConnectivity(),
+  };
+}
+
 async function getHealthSnapshot() {
   if (healthCache && healthCache.expiry > Date.now()) {
     return healthCache.data;
@@ -347,18 +378,20 @@ async function getHealthSnapshot() {
 
   const mem = process.memoryUsage();
   const redisStatus = isQueueActive() ? 'connected' : 'unavailable';
-  const relay = relayConnectivity();
+  const kaana = kaanaReport();
 
   // Only require healthy providers if we could actually reach the gateway.
-  // `relay` degrades the snapshot only when it is `unreachable`, which cannot
-  // happen while the cutover flag is off — so the relay term is the one it has
-  // always been on every deployment that exists.
+  // `kaana.client` degrades the snapshot only when it is `unreachable`, which
+  // cannot happen while the cutover flag is off — so the Kaana term is the one
+  // it has always been on every deployment that exists.
   //
   // `providersSummary.healthy` is the term that changed: it now counts only
   // providers with a credential AND a recorded success, so no arrangement of
   // never-called defaults can satisfy this expression.
   const isHealthy =
-    postgresReady && (!providersReachable || providersSummary.healthy > 0) && relay !== 'unreachable';
+    postgresReady &&
+    (!providersReachable || providersSummary.healthy > 0) &&
+    kaana.client !== 'unreachable';
 
   const snapshot = {
     status: isHealthy ? 'healthy' : 'degraded',
@@ -366,21 +399,7 @@ async function getHealthSnapshot() {
     uptime: Math.round(process.uptime()),
     postgres: postgresReady ? 'connected' : 'unavailable',
     redis: redisStatus,
-    relay,
-    /**
-     * Whether this process has what it needs to reach Kaana.
-     *
-     * A DIFFERENT question from `relay`, which reports the cutover flag and
-     * therefore reads `disabled` on every deployment that exists — including
-     * the ones where Kaana is serving every background derivation right now.
-     * An operator reading `relay: disabled` beside a working Kaana concluded
-     * the opposite of the truth, which is what this field exists to stop.
-     *
-     * `configured`, not `serving`: nothing is probed to answer it, and a field
-     * that claimed reachability without a request would be the same mistake in
-     * the other direction.
-     */
-    kaana: unsetKaanaVariables().length === 0 ? 'configured' : 'not_configured',
+    kaana,
     providers: providersSummary,
     memory: {
       rss: Math.round(mem.rss / 1024 / 1024),       // MB
@@ -422,10 +441,10 @@ router.get('/ready', async (_req, res) => {
     return res.status(503).json({ status: 'not_ready', reason: 'database_unavailable' });
   }
 
-  // Neither provider state nor Relay is consulted. Both are reported — Relay
+  // Neither provider state nor Kaana is consulted. Both are reported — Kaana
   // right here in the body — and neither may deregister a task. See the module
   // comment for the test that decides which conditions belong in this answer.
-  res.status(200).json({ status: 'ready', relay: relayConnectivity() });
+  res.status(200).json({ status: 'ready', kaana: kaanaReport() });
 });
 
 export default router;

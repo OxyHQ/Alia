@@ -5,7 +5,7 @@ never been deployed anywhere. This is the DELIVERY runbook for changing that: th
 order to do it in, what each step buys, and what breaks if two of them are
 swapped.
 
-It is a sibling of [`relay-cutover.md`](./relay-cutover.md) and inherits its
+It is a sibling of [`kaana-cutover.md`](./kaana-cutover.md) and inherits its
 central trap — **Terraform cannot deliver a variable to a service that already
 exists, and it fails silently.** The twist here is that half of this rollout is a
 service that does NOT exist yet, where Terraform delivers everything, and the
@@ -72,9 +72,9 @@ Declaring them in `oxy-infra` is still correct and is done: a file that omits a
 variable production needs misleads whoever reads it next. It is simply not a
 rollout.
 
-**What is different from the Relay cutover:** that one delivered its seven plain
+**What is different from the Kaana cutover:** that one delivered its seven plain
 variables by hand, because no CI mechanism existed. This one adds the mechanism
-the Relay runbook named as the durable fix — `TASK_ENV_OVERRIDES_JSON`, mirroring
+the Kaana runbook named as the durable fix — `TASK_ENV_OVERRIDES_JSON`, mirroring
 the secrets hook — so nothing here needs a hand-registered revision, and an
 override survives a circuit-breaker rollback because it is re-asserted on every
 deploy.

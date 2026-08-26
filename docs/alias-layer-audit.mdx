@@ -484,7 +484,8 @@ Routes: `POST /internal/v1/inference`, `GET /internal/v1/models`, `GET /livez`.
 **The cutover flag is off, measured three ways.** `ALIA_RELAY_CLIENT_ENABLED` appears in
 neither `environment` nor `secrets` on `oxy-alia:185` (positive control: 16 env names and 9
 secret names were returned, including `KAANA_EDGE_KEY_ID`), and `/health` reports
-`"relay":"disabled"`. It also reports `"kaana":"configured"`, so the edge credential *is*
+`kaana.client` as `"disabled"`. It also reports `kaana.credentials` as `"configured"`, so
+the edge credential *is*
 present — `KAANA_EDGE_KEY_ID=alia-edge-2026-08-24` plus
 `KAANA_EDGE_SIGNING_PRIVATE_KEY`. Everything is in place except the arming switch.
 
@@ -526,7 +527,7 @@ picked a candidate.
 |---|---|---|
 | Transport to a provider | **yes** | 4 providers, 2 adapters, live |
 | Same-model deployment failover | **yes** | ADR 0003 invariant 4; `RouteSet` guarantees it |
-| Provider health, circuit breakers | **yes** | Relay owns them |
+| Provider health, circuit breakers | **yes** | Kaana owns them |
 | Token metering | **yes** | 11 declared usage units |
 | Upstream cost | **operator-only** | never reaches a response, by rule |
 | Tier → ranked candidate list | **no** | refuses `routing_profile`; needs the Oxy catalogue |
@@ -615,7 +616,7 @@ Ordered by what must be true before each step, not by size.
     voice, and whatever else is added — or keep the in-process tree for exactly those. They
     already have no alias, so they are the natural last residents of a shrinking routing
     table, and they are also the part of it most likely to still be growing.
-11. **Flip `ALIA_RELAY_CLIENT_ENABLED`**, last and alone, per `docs/runbooks/relay-cutover.md`.
+11. **Flip `ALIA_RELAY_CLIENT_ENABLED`**, last and alone, per `docs/runbooks/kaana-cutover.md`.
 
 ### Which gates would catch a mistake, and which would not
 

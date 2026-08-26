@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { RELAY_PRINCIPAL_ENV } from '../inference/kaana-boot-check.js';
-import { RELAY_CREDENTIAL_REQUIRED_ENV } from '../inference/kaana-credential.js';
-import { RELAY_CLIENT_ENABLED_ENV } from '../inference/kaana-cutover.js';
-import { RELAY_ALLOWED_ORIGINS, RELAY_BASE_URL_ENV } from '../inference/kaana-endpoint.js';
+import { KAANA_PRINCIPAL_ENV } from '../inference/kaana-boot-check.js';
+import { KAANA_CREDENTIAL_REQUIRED_ENV } from '../inference/kaana-credential.js';
+import { KAANA_CLIENT_ENABLED_ENV } from '../inference/kaana-cutover.js';
+import { KAANA_ALLOWED_ORIGINS, KAANA_BASE_URL_ENV } from '../inference/kaana-endpoint.js';
 
 /**
  * The boot refusals, asserted as behaviour — #139 workstreams 2 and 8.
@@ -34,26 +34,26 @@ import { RELAY_ALLOWED_ORIGINS, RELAY_BASE_URL_ENV } from '../inference/kaana-en
  * under a real `process.exit` is invisible and under a test double is not.
  */
 
-const ENABLED = { [RELAY_CLIENT_ENABLED_ENV]: 'true' } as const;
+const ENABLED = { [KAANA_CLIENT_ENABLED_ENV]: 'true' } as const;
 
 /**
- * A Relay configuration that boots: the principal, the endpoint and the
+ * A Kaana configuration that boots: the principal, the endpoint and the
  * credential the service-token exchange presents.
  *
  * Every variable NAME is derived from the module that requires it rather than
  * written out. The first draft of this file hand-copied five names and was
  * silently wrong — #176 had added four more requirements, so the "valid"
- * fixture refused at the Relay guard and three tests measured the wrong
+ * fixture refused at the Kaana guard and three tests measured the wrong
  * refusal. A tenth variable added upstream now arrives covered instead.
  */
-const BOOTABLE_RELAY: Readonly<Record<string, string>> = {
-  [RELAY_PRINCIPAL_ENV.billing]: 'acct_alia_prod',
-  [RELAY_PRINCIPAL_ENV.applicationId]: 'app_alia',
-  [RELAY_PRINCIPAL_ENV.credentialId]: 'cred_alia_prod',
-  [RELAY_PRINCIPAL_ENV.environment]: 'production',
-  [RELAY_PRINCIPAL_ENV.inferenceScopes]: 'inference:invoke',
-  [RELAY_BASE_URL_ENV]: RELAY_ALLOWED_ORIGINS[0],
-  ...Object.fromEntries(RELAY_CREDENTIAL_REQUIRED_ENV.map((variable) => [variable, 'configured'])),
+const BOOTABLE_KAANA: Readonly<Record<string, string>> = {
+  [KAANA_PRINCIPAL_ENV.billing]: 'acct_alia_prod',
+  [KAANA_PRINCIPAL_ENV.applicationId]: 'app_alia',
+  [KAANA_PRINCIPAL_ENV.credentialId]: 'cred_alia_prod',
+  [KAANA_PRINCIPAL_ENV.environment]: 'production',
+  [KAANA_PRINCIPAL_ENV.inferenceScopes]: 'inference:invoke',
+  [KAANA_BASE_URL_ENV]: KAANA_ALLOWED_ORIGINS[0],
+  ...Object.fromEntries(KAANA_CREDENTIAL_REQUIRED_ENV.map((variable) => [variable, 'configured'])),
 };
 
 const HEALTHY_ENV: Readonly<Record<string, string>> = {
@@ -76,7 +76,7 @@ let connectSucceeds = true;
  *
  * `connectPostgres` is mocked because it opens a pool, and
  * `installProviderEgressBlock` because arming it would replace this process's
- * `fetch` for every suite that runs after this one. Everything else — the Relay
+ * `fetch` for every suite that runs after this one. Everything else — the Kaana
  * boot check, the direct-provider guard, the ordering — is the real code.
  */
 async function run(env: Record<string, string>): Promise<Run> {
@@ -145,7 +145,7 @@ describe('a well-configured process runs every guard, in order', () => {
     // Order as a sequence, not as four separate presence checks: a version that
     // armed egress FIRST would satisfy "it was armed" and would have armed it in
     // a process that then refused to start.
-    const { egressInstalls, exits } = await run({ ...HEALTHY_ENV, ...ENABLED, ...BOOTABLE_RELAY });
+    const { egressInstalls, exits } = await run({ ...HEALTHY_ENV, ...ENABLED, ...BOOTABLE_KAANA });
     expect(exits).toEqual([]);
     expect(egressInstalls).toBe(1);
   });
@@ -179,7 +179,7 @@ describe('the database is required, and its absence stops everything after it', 
   });
 });
 
-describe('Relay configuration is checked after the database and before the rest', () => {
+describe('Kaana configuration is checked after the database and before the rest', () => {
   it('terminates when the cutover flag is on and the principal is unusable', async () => {
     const { trace, exits, egressInstalls } = await run({ ...HEALTHY_ENV, ...ENABLED });
 
@@ -187,17 +187,17 @@ describe('Relay configuration is checked after the database and before the rest'
     // Postgres ran FIRST and succeeded, so this is the second guard failing
     // rather than the first — the ordering claim, in one assertion.
     expect(trace[0]).toBe('info: Postgres connected');
-    expect(trace[1]).toContain('Relay client configuration is invalid');
+    expect(trace[1]).toContain('Kaana client configuration is invalid');
     expect(egressInstalls).toBe(0);
   });
 
-  it('reports the DATABASE failure, not the Relay one, when both are wrong', async () => {
-    // Order is behaviour: an operator told "Relay configuration is invalid" for a
+  it('reports the DATABASE failure, not the Kaana one, when both are wrong', async () => {
+    // Order is behaviour: an operator told "Kaana configuration is invalid" for a
     // process that has no database goes and looks at the wrong thing.
     connectSucceeds = false;
     const { trace } = await run({ ...ENABLED });
     expect(trace[0]).toContain('DATABASE_URL is required');
-    expect(trace.join('\n')).not.toContain('Relay');
+    expect(trace.join('\n')).not.toContain('Kaana');
   });
 
   it('does not terminate with the flag off, whatever the principal looks like', async () => {
@@ -213,12 +213,12 @@ describe('direct provider configuration is refused after the cutover', () => {
     const { trace, exits, egressInstalls } = await run({
       ...HEALTHY_ENV,
       ...ENABLED,
-      ...BOOTABLE_RELAY,
+      ...BOOTABLE_KAANA,
       OPENAI_API_KEY: 'sk-not-a-real-key',
     });
 
     expect(exits).toEqual([1]);
-    expect(trace.join('\n')).toContain('Direct provider mode is configured after the Relay cutover');
+    expect(trace.join('\n')).toContain('Direct provider mode is configured after the Kaana cutover');
     expect(egressInstalls).toBe(0);
   });
 
@@ -226,7 +226,7 @@ describe('direct provider configuration is refused after the cutover', () => {
     const { exits } = await run({
       ...HEALTHY_ENV,
       ...ENABLED,
-      ...BOOTABLE_RELAY,
+      ...BOOTABLE_KAANA,
       GATEWAY_API_URL: 'https://gw.invalid',
     });
     expect(exits).toEqual([1]);
@@ -250,7 +250,7 @@ describe('direct provider configuration is refused after the cutover', () => {
 /* -------------------------------------------------------------------------- */
 
 describe('the guards run in the order src/index.ts ran them', () => {
-  it('database, then Relay configuration, then direct provider, then egress', async () => {
+  it('database, then Kaana configuration, then direct provider, then egress', async () => {
     /**
      * Asserted by walking the sequence: each guard is failed in turn with every
      * EARLIER one passing, and the trace shows the failure landing at that
@@ -272,18 +272,18 @@ describe('the guards run in the order src/index.ts ran them', () => {
         await run({
           ...HEALTHY_ENV,
           ...ENABLED,
-          ...BOOTABLE_RELAY,
+          ...BOOTABLE_KAANA,
           OPENAI_API_KEY: 'sk-not-a-real-key',
         })
       ).trace[1],
     );
 
     expect(seen[0]).toContain('DATABASE_URL is required');
-    expect(seen[1]).toContain('Relay client configuration is invalid');
+    expect(seen[1]).toContain('Kaana client configuration is invalid');
     expect(seen[2]).toContain('Direct provider mode is configured');
 
     // And the fourth step is reached only when the three refusals pass.
-    const clean = await run({ ...HEALTHY_ENV, ...ENABLED, ...BOOTABLE_RELAY });
+    const clean = await run({ ...HEALTHY_ENV, ...ENABLED, ...BOOTABLE_KAANA });
     expect(clean.exits).toEqual([]);
     expect(clean.egressInstalls).toBe(1);
   });

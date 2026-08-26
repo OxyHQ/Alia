@@ -1,5 +1,5 @@
 /**
- * Typed inference errors for the Relay client — epic #139 workstream 3.
+ * Typed inference errors for the Kaana client — epic #139 workstream 3.
  *
  * The contract owns the error VOCABULARY (`inferenceErrorSchema`, the 26 closed
  * codes, the non-retryable subset and the credential refusal). This module owns
@@ -32,7 +32,7 @@ import {
 const NON_RETRYABLE = new Set<InferenceErrorCode>(NON_RETRYABLE_INFERENCE_ERROR_CODES);
 
 /**
- * The rejection value of {@link import('./kaana-client.js').RelayInferenceClient.generate}.
+ * The rejection value of {@link import('./kaana-client.js').KaanaInferenceClient.generate}.
  *
  * A wrapper rather than the bare contract object: rejecting a promise with a
  * plain object loses the stack, and `instanceof` is how a caller tells a
@@ -43,12 +43,12 @@ const NON_RETRYABLE = new Set<InferenceErrorCode>(NON_RETRYABLE_INFERENCE_ERROR_
  * may carry upstream prose, and an `Error` message is the value most likely to
  * be logged, concatenated or shown by accident.
  */
-export class RelayInferenceError extends Error {
+export class KaanaInferenceError extends Error {
   readonly inferenceError: InferenceError;
 
   constructor(inferenceError: InferenceError) {
-    super(`relay inference failed: ${inferenceError.code}`);
-    this.name = 'RelayInferenceError';
+    super(`Kaana inference failed: ${inferenceError.code}`);
+    this.name = 'KaanaInferenceError';
     this.inferenceError = inferenceError;
   }
 
@@ -249,7 +249,7 @@ export interface CreateInferenceErrorInput {
  * means the retry rule reads one closed list and nothing else can contradict it.
  *
  * Parsed through the contract schema before it is returned, so a value this
- * function produces is by construction a value a Relay consumer can parse.
+ * function produces is by construction a value a Kaana consumer can parse.
  */
 export function createInferenceError(input: CreateInferenceErrorInput): InferenceError {
   const retryable = !NON_RETRYABLE.has(input.code);
@@ -265,7 +265,7 @@ export function createInferenceError(input: CreateInferenceErrorInput): Inferenc
 }
 
 /**
- * What a transport throws when Relay answered, and refused.
+ * What a transport throws when Kaana answered, and refused.
  *
  * The transport's whole job here is to hand over the decoded body untouched —
  * it does not parse it, classify it or redact it. Interpretation stays in the
@@ -273,15 +273,15 @@ export function createInferenceError(input: CreateInferenceErrorInput): Inferenc
  * control and a control implemented once in a caller is a control every future
  * transport re-implements slightly differently.
  *
- * A transport that could not reach Relay at all throws anything else, and the
+ * A transport that could not reach Kaana at all throws anything else, and the
  * client reads that as unavailability.
  */
-export class RelayTransportRefusal extends Error {
+export class KaanaTransportRefusal extends Error {
   readonly body: unknown;
 
   constructor(body: unknown) {
-    super('relay refused the request');
-    this.name = 'RelayTransportRefusal';
+    super('Kaana refused the request');
+    this.name = 'KaanaTransportRefusal';
     this.body = body;
   }
 }

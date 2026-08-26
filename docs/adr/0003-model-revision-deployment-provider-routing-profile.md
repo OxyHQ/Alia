@@ -71,11 +71,11 @@ These four rules follow from the definitions and are binding.
 
 1. **A routing profile is never serialized as `object: "model"`.** A catalogue response distinguishes a model from a routing profile in its type, not in a naming convention a client is expected to decode. A client rendering a picker must be able to tell which entries are models and which are policies without heuristics.
 
-2. **A concrete requested model stays concrete through the whole request path.** If a caller requests `<publisher>/<model>`, that identity is what reaches Relay, what selects the deployment, and what is reported back in usage and analytics. No layer rewrites a concrete request into a different model. A revision pin, where supplied, is equally binding.
+2. **A concrete requested model stays concrete through the whole request path.** If a caller requests `<publisher>/<model>`, that identity is what reaches Kaana, what selects the deployment, and what is reported back in usage and analytics. No layer rewrites a concrete request into a different model. A revision pin, where supplied, is equally binding.
 
 3. **Cross-model fallback is an explicit policy, never hidden behaviour.** Substituting one model for another is only permitted when the caller selected a routing profile that allows it, or set an explicit fallback policy that allows it. `no fallback` and `same model only` are supported policies. When a selected concrete model is unavailable and fallback is not permitted, the product reports that clearly and does not answer from a substitute.
 
-4. **Same-model deployment fallback is allowed, and it is Relay's concern.** Moving a request between deployments of the same revision changes nothing a caller can observe about model identity, so Relay may do it for health, capacity or latency reasons without product involvement. Alia neither implements nor duplicates that logic.
+4. **Same-model deployment fallback is allowed, and it is Kaana's concern.** Moving a request between deployments of the same revision changes nothing a caller can observe about model identity, so Kaana may do it for health, capacity or latency reasons without product involvement. Alia neither implements nor duplicates that logic.
 
 Invariants 3 and 4 are the same distinction seen from two sides. What makes deployment fallback safe is exactly what makes model fallback unsafe: the first preserves the artifacts that produced the answer, the second does not.
 
@@ -92,7 +92,7 @@ Invariants 3 and 4 are the same distinction seen from two sides. What makes depl
 
 **Keep one flat model namespace and encode everything in the identifier.** Rejected. It is what exists today, and it produced an identifier set in which a policy, a preset and a reasoning setting are indistinguishable from a model. Any convention layered on a flat namespace requires every client to parse strings, and parsing conventions drift.
 
-**Treat a deployment as the primary addressable unit.** Rejected. It couples every caller to infrastructure topology, so a capacity change becomes a client-visible change. Callers address models and revisions; Relay addresses deployments.
+**Treat a deployment as the primary addressable unit.** Rejected. It couples every caller to infrastructure topology, so a capacity change becomes a client-visible change. Callers address models and revisions; Kaana addresses deployments.
 
 **Fold revision into the model identifier and drop the `@` form.** Rejected. Callers who want the current best version and callers who need a pinned artifact are both legitimate, and collapsing them forces one of the two to encode intent out of band. Evaluation and internal builds specifically require pinning.
 
@@ -102,6 +102,6 @@ Invariants 3 and 4 are the same distinction seen from two sides. What makes depl
 
 - **No routing profile serialized as a model.** A test failing when a product mode is serialized with `object: "model"` is *not yet enforced — tracked by #139 workstream 19*. Today `packages/api/src/routes/v1/models.ts:24` serializes every entry that way, which is the state this ADR changes.
 - **Concrete requests stay concrete.** A contract test asserting that a concrete requested model and a revision pin survive the full request path unchanged is *not yet enforced — tracked by #139 workstream 19*.
-- **Fallback policy is honoured.** Enforced at the resolver by `packages/api/src/internal/providers/lib/__tests__/fallback-engine-policy.test.ts`, which drives the real `resolveWithFallback` and asserts which candidates each policy offers, and at the request path by the routing-policy cases in `packages/api/src/routes/v1/__tests__/chat-completions-timeout.test.ts`, which assert the status and message a caller sees and that a retry re-resolves under the same policy. *Still outstanding: an end-to-end test against a live deployment, and same-revision deployment fallback, which is Relay's under invariant 4 — tracked by #139 workstream 19.*
+- **Fallback policy is honoured.** Enforced at the resolver by `packages/api/src/internal/providers/lib/__tests__/fallback-engine-policy.test.ts`, which drives the real `resolveWithFallback` and asserts which candidates each policy offers, and at the request path by the routing-policy cases in `packages/api/src/routes/v1/__tests__/chat-completions-timeout.test.ts`, which assert the status and message a caller sees and that a retry re-resolves under the same policy. *Still outstanding: an end-to-end test against a live deployment, and same-revision deployment fallback, which is Kaana's under invariant 4 — tracked by #139 workstream 19.*
 - **Model versus routing-profile parsing.** A unit test over identifier parsing — including that a routing profile identifier never parses as `<publisher>/<model>` — is *not yet enforced — tracked by #139 workstream 19*.
 - **Code review rule.** A PR introducing an identifier that means "a policy" while occupying model-shaped naming is rejected on this ADR, whichever direction it comes from.

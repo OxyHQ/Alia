@@ -6,8 +6,8 @@ An ADR records a decision that is **in force now**, the context that forced it, 
 
 | ADR | Title | Status | Date |
 | --- | --- | --- | --- |
-| [0001](./0001-alia-oxy-relay-responsibility-boundary.md) | Alia / Oxy / Relay responsibility boundary | Accepted | 2026-08-15 |
-| [0002](./0002-alia-is-a-relay-consumer-and-future-model-publisher.md) | Alia is a Relay consumer, and a future model publisher | Accepted | 2026-08-15 |
+| [0001](./0001-alia-oxy-kaana-responsibility-boundary.md) | Alia / Oxy / Kaana responsibility boundary | Accepted | 2026-08-15 |
+| [0002](./0002-alia-is-a-kaana-consumer-and-future-model-publisher.md) | Alia is a Kaana consumer, and a future model publisher | Accepted | 2026-08-15 |
 | [0003](./0003-model-revision-deployment-provider-routing-profile.md) | Model, revision, deployment, provider and routing profile are five distinct things | Accepted | 2026-08-15 |
 | [0004](./0004-product-endpoints-versus-generic-inference-endpoints.md) | Alia product endpoints versus generic inference endpoints | Accepted | 2026-08-15 |
 | [0005](./0005-product-entitlements-versus-financial-ledger.md) | Product entitlements versus the financial ledger | Accepted | 2026-08-15 |

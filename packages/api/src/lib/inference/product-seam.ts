@@ -1,7 +1,7 @@
 /**
  * The inference seam Alia's PRODUCT code needs — epic #139 workstream 3.
  *
- * This is not the Oxy↔Relay wire contract and must never become a copy of it.
+ * This is not the Oxy↔Kaana wire contract and must never become a copy of it.
  * The wire contract lives in `@oxyhq/contracts` (`src/inference/`) and owns the
  * request envelope, the stream events, the usage units, the money and the error
  * codes. This file owns the other half: the CONVERSATION-LEVEL facts that only
@@ -20,7 +20,7 @@
  *
  * `@oxyhq/contracts` is a dependency of `packages/api` as of the inference
  * module's release, and the four parameters are bound in `kaana-client.ts` —
- * `RelayInferencePort`, one type alias, at the implementation rather than here.
+ * `KaanaInferencePort`, one type alias, at the implementation rather than here.
  * That is deliberate: binding them on the interface would make every product
  * module that names this port name the wire types too, and the port's value is
  * that a product module never has to. `__tests__/product-seam.test.ts` fails if
@@ -31,10 +31,10 @@
  *
  * - **The catalogue.** Model listing, tiers, credit multipliers and picker
  *   visibility are #139 workstream 5, not this seam.
- * - **Provider selection, health, keys and circuit breaking.** Relay's, per
+ * - **Provider selection, health, keys and circuit breaking.** Kaana's, per
  *   ADR 0001. `reportModelUsage` has no counterpart on this seam because it has
  *   no counterpart in the target architecture at all — see the gap analysis.
- * - **Any wiring.** The only importer is the Relay client that implements this
+ * - **Any wiring.** The only importer is the Kaana client that implements this
  *   port, and nothing in `packages/api` imports THAT — frozen by
  *   `__tests__/kaana-boundary.test.ts`. A half-wired seam is worse than an
  *   unwired one: it makes the cutover look done. Workstream 8 wires it.
@@ -79,7 +79,7 @@ export type AliaInferenceSurface = (typeof ALIA_INFERENCE_SURFACES)[number];
  *
  * Not the contract's billing principal, which is the Oxy account that owns the
  * Alia application — that identity is the same for every call on this seam and
- * is the Relay client's business, not the product's. What varies per call, and
+ * is the Kaana client's business, not the product's. What varies per call, and
  * what only the product knows, is whether the END USER's Alia credits are
  * charged at all.
  *
@@ -99,7 +99,7 @@ export type AliaBillingMode = (typeof ALIA_BILLING_MODES)[number];
  * `oxyUserId` becomes the contract's DELEGATED user id — attribution only. It
  * is never the payer on the Oxy side, and the contract enforces that with two
  * independent mechanisms. Keeping the field named for what it is here means the
- * Relay client never has to decide which of its inputs is the billing identity.
+ * Kaana client never has to decide which of its inputs is the billing identity.
  *
  * `null` is the anonymous/system case, which is why `platform_cost` exists
  * alongside it rather than being inferred from it: an internal service call
@@ -144,7 +144,7 @@ export type AliaCallVisibility = 'user_turn' | 'derived' | 'background';
  * `productModelId` is deliberately not called a model id: after workstream 4
  * some of today's `alia-*` identifiers resolve to a concrete model reference
  * and others to a routing profile, and this seam must be able to carry both
- * without deciding which. The Relay client makes that translation; the product
+ * without deciding which. The Kaana client makes that translation; the product
  * never does.
  */
 export type AliaModelChoice =
@@ -183,7 +183,7 @@ export interface AliaInferenceBudget {
  * already made in the opposite direction to the obvious default: today a
  * disconnected chat client does NOT abort the generation. The response is
  * finished, saved, and delivered as a push notification. Naming it here is what
- * stops the Relay client from "fixing" it into an abort at cutover and silently
+ * stops the Kaana client from "fixing" it into an abort at cutover and silently
  * removing a feature.
  *
  * `abort` is what a background call wants, and what a `derived` call should
@@ -220,7 +220,7 @@ export type AliaDegradation =
  * `fallbackPolicy` is a `string` here rather than the union in
  * `lib/routing/policy.ts` for one reason: that union describes Alia's CURRENT
  * three-policy fallback engine, which workstream 7 removes. What survives is
- * the request-scoped fact that the caller chose a policy; the Relay client
+ * the request-scoped fact that the caller chose a policy; the Kaana client
  * translates it into the contract's routing policy reference. Importing the
  * union would tie this seam's lifetime to the engine it outlives.
  */
@@ -241,7 +241,7 @@ export interface AliaInferenceContext {
  * One call: Alia's envelope plus a contract payload this module never describes.
  *
  * @typeParam TRequestPayload - bound to the contract's `InferenceRequest`, minus
- * the fields the Relay client resolves rather than the product (`attribution`,
+ * the fields the Kaana client resolves rather than the product (`attribution`,
  * `routingPolicy`, `target`, `client`).
  */
 export interface AliaInferenceCall<TRequestPayload> {

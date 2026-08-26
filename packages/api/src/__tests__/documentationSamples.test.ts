@@ -544,7 +544,7 @@ describe('no sample asserts the retired global rule (#139 ws20)', () => {
       'No provider identity anywhere in the bytes.',
       // A Tailwind utility. An earlier census elsewhere matched `rotate-90`.
       'rotate-90 is a Tailwind utility and has nothing to do with any of this.',
-      'The provider is chosen by Relay, and Alia does not rank candidates at all.',
+      'The provider is chosen by Kaana, and Alia does not rank candidates at all.',
     ];
     for (const sentence of permitted) {
       expect(assertsRetiredRule(sentence), `false positive on: ${sentence}`).toBe(false);

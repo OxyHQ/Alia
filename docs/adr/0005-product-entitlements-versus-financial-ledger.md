@@ -47,7 +47,7 @@ Alia does not settle charges, does not issue invoices, and does not hold the aut
 
 ### Product price and margin are separate from provider upstream cost
 
-What Alia charges a customer and what a request costs upstream are two different numbers with two different owners. Provider upstream cost is measured by Relay (ADR 0001) and is infrastructure data. Product price is an Oxy-recorded financial fact set by product policy. Neither is derived from the other at request time, and neither is stored as if it were the other.
+What Alia charges a customer and what a request costs upstream are two different numbers with two different owners. Provider upstream cost is measured by Kaana (ADR 0001) and is infrastructure data. Product price is an Oxy-recorded financial fact set by product policy. Neither is derived from the other at request time, and neither is stored as if it were the other.
 
 `cost_entries.cost_usd` is not a customer billing source, now or later. It is an internal estimate, and its own schema comment says why it cannot be one.
 

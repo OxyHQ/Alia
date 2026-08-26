@@ -55,16 +55,16 @@ permanence.**
 | artifact | claim |
 | --- | --- |
 | `docs/migration/ownership.md:328` | *"**What stays.** All of `/v1`. It is the public product contract: the OpenAI-compatible shape, the `alia_usage` / `alia_meta` extensions, `system_fingerprint: 'fp_alia'`, and the named SSE events."* |
-| `docs/migration/ownership-matrix.json:5764` (`v1-chat-completions-post`) | `removalGate`: *"**Never removed.** If inference moves to Relay, this endpoint stays as the Alia-facing facade…"* |
+| `docs/migration/ownership-matrix.json:5764` (`v1-chat-completions-post`) | `removalGate`: *"**Never removed.** If inference moves to Kaana, this endpoint stays as the Alia-facing facade…"* |
 | `docs/migration/ownership-matrix.json:5904` (`v1-router-mount`) | `removalGate`: *"**Never removed.** Any route moved OUT of `/v1` loses wildcard CORS and instantly breaks every browser-based external client."* |
 | `docs/migration/inventories/product-api.json:46,143` | the same two gates, in the inventory the matrix was derived from |
-| `docs/migration/inventories/provider-runtime.json` (`sdk-openai-client-codea`) | *"They only require that Alia keeps serving an OpenAI-compatible `/v1` surface after the Relay switch — which is itself a contract Relay must not break."* |
+| `docs/migration/inventories/provider-runtime.json` (`sdk-openai-client-codea`) | *"They only require that Alia keeps serving an OpenAI-compatible `/v1` surface after the Kaana switch — which is itself a contract Kaana must not break."* |
 
 Two of those rows are the loudest, but they are not the extent of it. **Thirty
 rows of `ownership-matrix.json` have a `currentPath` under
 `packages/api/src/routes/v1/`.** Two are the existing `410` tombstones. Of the
 other twenty-eight, nineteen carry `targetPath: keep-alia-product` or `keep`,
-and four of the nine assigned to Relay say in their `targetPath` that *"Alia
+and four of the nine assigned to Kaana say in their `targetPath` that *"Alia
 keeps the `/v1/audio/speech` facade"*, *"…the `/v1/images/generations` facade"*,
 *"…the `/v1/voice/transcribe` facade"*. **Not one row on the `/v1` surface
 records a sunset.** The strings `sunset`, `compatibility window` and `ADR 0004`
@@ -183,12 +183,12 @@ is set for any path.
   line 318 (*"remains a product-specific compatibility endpoint for a bounded
   period"*) would no longer describe the outcome, and none of the three
   sub-options under line 316 would — the epic would need a fourth. Line 315
-  (*"Move generic inference access to `api.oxy.so/v1` backed by Relay"*) survives
+  (*"Move generic inference access to `api.oxy.so/v1` backed by Kaana"*) survives
   either way: Oxy can own generic inference while Alia keeps an OpenAI-shaped
   product surface.
 - **It re-opens ADR 0001 and ADR 0005, not just 0004.** ADR 0004's four
   conditions — authenticate through Oxy, issue no new `alia_sk_*`, meter through
-  Relay and the Oxy ledger, then sunset — were attached to a *window*. A
+  Kaana and the Oxy ledger, then sunset — were attached to a *window*. A
   permanent surface has to answer whose credentials and whose ledger it runs on
   for good, and ADR 0001 assigns the generic inference API to Oxy.
 - **PR #205 is unaffected.** Its date is `ALIAS_SUNSET`, path **(a)** of the

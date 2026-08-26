@@ -44,7 +44,7 @@ TASK_SECRET_OVERRIDES_JSON="${TASK_SECRET_OVERRIDES_JSON:-}"
 # survives exactly until a circuit-breaker rollback moves the service pointer
 # back to a revision that never carried the variable — and then the NEXT
 # unrelated deploy descends from that one and the variable is gone, silently.
-# `docs/runbooks/relay-cutover.md` names this hook as the durable fix and the
+# `docs/runbooks/kaana-cutover.md` names this hook as the durable fix and the
 # reason: an override here is re-asserted on every deploy, so a rollback cannot
 # lose it.
 TASK_ENV_OVERRIDES_JSON="${TASK_ENV_OVERRIDES_JSON:-}"

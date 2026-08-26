@@ -2,28 +2,28 @@ import { describe, expect, it } from 'vitest';
 import type { RoutingTarget } from '@oxyhq/contracts';
 
 import type { AliaInferenceCall, AliaInferenceContext } from '../product-seam.js';
-import { relayBootConfigurationFailure, RELAY_PRINCIPAL_ENV } from '../kaana-boot-check.js';
-import { RELAY_CREDENTIAL_REQUIRED_ENV } from '../kaana-credential.js';
-import { RELAY_CLIENT_ENABLED_ENV } from '../kaana-cutover.js';
+import { kaanaBootConfigurationFailure, KAANA_PRINCIPAL_ENV } from '../kaana-boot-check.js';
+import { KAANA_CREDENTIAL_REQUIRED_ENV } from '../kaana-credential.js';
+import { KAANA_CLIENT_ENABLED_ENV } from '../kaana-cutover.js';
 import {
-  createRelayInferenceClient,
-  type RelayClientConfig,
-  type RelayServiceCredential,
-  type RelayTransport,
-  type RelayTransportRequest,
+  createKaanaInferenceClient,
+  type KaanaClientConfig,
+  type KaanaServiceCredential,
+  type KaanaTransport,
+  type KaanaTransportRequest,
 } from '../kaana-client.js';
 import {
-  assertAllowedRelayOrigin,
-  RELAY_ALLOWED_ORIGINS,
-  RELAY_BASE_URL_ENV,
-  relayEndpointRefusal,
-  resolveRelayEndpoint,
-  type RelayEndpoint,
+  assertAllowedKaanaOrigin,
+  KAANA_ALLOWED_ORIGINS,
+  KAANA_BASE_URL_ENV,
+  kaanaEndpointRefusal,
+  resolveKaanaEndpoint,
+  type KaanaEndpoint,
 } from '../kaana-endpoint.js';
-import type { RelayRequestPayload } from '../kaana-request.js';
+import type { KaanaRequestPayload } from '../kaana-request.js';
 
 /**
- * The pinned Relay endpoint — epic #139 workstream 15, *"Pin allowed Relay
+ * The pinned Kaana endpoint — epic #139 workstream 15, *"Pin allowed Kaana
  * origins/endpoints."*
  *
  * The checkbox asks for a pin, and a pin is only worth anything if pointing
@@ -34,9 +34,9 @@ import type { RelayRequestPayload } from '../kaana-request.js';
  *
  * Three places enforce it and each is tested where it lives:
  *
- *  1. **the rule** — {@link relayEndpointRefusal}, which is where the near-miss
+ *  1. **the rule** — {@link kaanaEndpointRefusal}, which is where the near-miss
  *     hosts are;
- *  2. **boot** — `relayBootConfigurationFailure`, so a task with a bad
+ *  2. **boot** — `kaanaBootConfigurationFailure`, so a task with a bad
  *     `RELAY_BASE_URL` does not start;
  *  3. **every call** — the client, so a config mutated after construction cannot
  *     ride a boot-time approval. That one is the reason the runtime check exists
@@ -48,24 +48,24 @@ import type { RelayRequestPayload } from '../kaana-request.js';
 /*  Harness                                                                    */
 /* -------------------------------------------------------------------------- */
 
-class CapturingTransport implements RelayTransport {
-  readonly sent: RelayTransportRequest[] = [];
+class CapturingTransport implements KaanaTransport {
+  readonly sent: KaanaTransportRequest[] = [];
 
-  send(input: RelayTransportRequest): Promise<AsyncIterable<unknown>> {
+  send(input: KaanaTransportRequest): Promise<AsyncIterable<unknown>> {
     this.sent.push(input);
     return Promise.resolve(
       (async function* () {
         yield {
           schemaVersion: 1,
           type: 'error',
-          requestId: 'relay-req-1',
+          requestId: 'kaana-req-1',
           sequence: 0,
           error: {
             schemaVersion: 1,
             code: 'internal_error',
             message: 'the transport exists only to be counted',
             retryable: false,
-            requestId: 'relay-req-1',
+            requestId: 'kaana-req-1',
           },
         };
       })(),
@@ -73,33 +73,33 @@ class CapturingTransport implements RelayTransport {
   }
 }
 
-const CREDENTIAL: RelayServiceCredential = {
+const CREDENTIAL: KaanaServiceCredential = {
   getServiceToken: () => Promise.resolve('oxy-service-token-synthetic'),
   invalidateServiceToken: () => undefined,
 };
 
 const DEFAULT_TARGET: RoutingTarget = { kind: 'routing_profile', routingProfile: 'auto' };
 
-const APPROVED = RELAY_ALLOWED_ORIGINS[0];
+const APPROVED = KAANA_ALLOWED_ORIGINS[0];
 
 /**
  * A bootable environment, so the boot check reaches the endpoint rule.
  *
  * The credential variables (#139 ws2) are derived from the module's own list
- * rather than written out: the boot check refuses on ANY unset Relay variable
+ * rather than written out: the boot check refuses on ANY unset Kaana variable
  * before it looks at the endpoint, so a fixture that missed one would fail every
  * test below for a reason that has nothing to do with the endpoint.
  */
 function bootEnv(over: Record<string, string> = {}): NodeJS.ProcessEnv {
   return {
-    [RELAY_CLIENT_ENABLED_ENV]: 'true',
-    [RELAY_PRINCIPAL_ENV.billing]: 'acct_alia',
-    [RELAY_PRINCIPAL_ENV.applicationId]: 'app_alia',
-    [RELAY_PRINCIPAL_ENV.credentialId]: 'cred_alia_1',
-    [RELAY_PRINCIPAL_ENV.environment]: 'production',
-    [RELAY_PRINCIPAL_ENV.inferenceScopes]: 'inference:invoke',
-    [RELAY_BASE_URL_ENV]: APPROVED,
-    ...Object.fromEntries(RELAY_CREDENTIAL_REQUIRED_ENV.map((variable) => [variable, 'configured'])),
+    [KAANA_CLIENT_ENABLED_ENV]: 'true',
+    [KAANA_PRINCIPAL_ENV.billing]: 'acct_alia',
+    [KAANA_PRINCIPAL_ENV.applicationId]: 'app_alia',
+    [KAANA_PRINCIPAL_ENV.credentialId]: 'cred_alia_1',
+    [KAANA_PRINCIPAL_ENV.environment]: 'production',
+    [KAANA_PRINCIPAL_ENV.inferenceScopes]: 'inference:invoke',
+    [KAANA_BASE_URL_ENV]: APPROVED,
+    ...Object.fromEntries(KAANA_CREDENTIAL_REQUIRED_ENV.map((variable) => [variable, 'configured'])),
     NODE_ENV: 'production',
     ...over,
   };
@@ -118,7 +118,7 @@ function context(): AliaInferenceContext {
   };
 }
 
-function call(): AliaInferenceCall<RelayRequestPayload> {
+function call(): AliaInferenceCall<KaanaRequestPayload> {
   return {
     context: context(),
     payload: {
@@ -135,12 +135,12 @@ function call(): AliaInferenceCall<RelayRequestPayload> {
 }
 
 /** A mutable config, so the per-call re-check can be given something to catch. */
-function mutableConfig(transport: CapturingTransport): { endpoint: RelayEndpoint } & RelayClientConfig {
+function mutableConfig(transport: CapturingTransport): { endpoint: KaanaEndpoint } & KaanaClientConfig {
   return {
     enabled: true,
     transport,
     credential: CREDENTIAL,
-    endpoint: assertAllowedRelayOrigin(APPROVED, 'development'),
+    endpoint: assertAllowedKaanaOrigin(APPROVED, 'development'),
     principal: {
       billing: { accountId: 'acct_alia' },
       applicationId: 'app_alia',
@@ -157,7 +157,7 @@ function mutableConfig(transport: CapturingTransport): { endpoint: RelayEndpoint
 }
 
 async function terminalCode(
-  client: ReturnType<typeof createRelayInferenceClient>,
+  client: ReturnType<typeof createKaanaInferenceClient>,
 ): Promise<string> {
   let last = 'nothing';
   for await (const event of client.stream(call(), new AbortController().signal)) {
@@ -172,11 +172,11 @@ async function terminalCode(
 
 describe('the allow-list admits Oxy and refuses everything else (#139 ws15)', () => {
   it('admits every approved origin on a production deployment', () => {
-    expect(RELAY_ALLOWED_ORIGINS.length).toBeGreaterThan(0);
-    for (const origin of RELAY_ALLOWED_ORIGINS) {
-      expect(relayEndpointRefusal(origin, 'production'), origin).toBeNull();
+    expect(KAANA_ALLOWED_ORIGINS.length).toBeGreaterThan(0);
+    for (const origin of KAANA_ALLOWED_ORIGINS) {
+      expect(kaanaEndpointRefusal(origin, 'production'), origin).toBeNull();
       // A path under an approved origin is still approved: the list is origins.
-      expect(relayEndpointRefusal(`${origin}/v1/inference`, 'production'), origin).toBeNull();
+      expect(kaanaEndpointRefusal(`${origin}/v1/inference`, 'production'), origin).toBeNull();
     }
   });
 
@@ -205,54 +205,54 @@ describe('the allow-list admits Oxy and refuses everything else (#139 ws15)', ()
       '',
     ];
     for (const value of refused) {
-      expect(relayEndpointRefusal(value, 'production'), value).not.toBeNull();
+      expect(kaanaEndpointRefusal(value, 'production'), value).not.toBeNull();
     }
     // The floor: the same call says YES to something, so the list above is about
     // those values and not about a function that refuses everything.
-    expect(relayEndpointRefusal(APPROVED, 'production')).toBeNull();
+    expect(kaanaEndpointRefusal(APPROVED, 'production')).toBeNull();
   });
 
   it('refuses a base URL carrying credentials, a query or a fragment', () => {
-    expect(relayEndpointRefusal(`https://user:pw@api.oxy.so`, 'production')).toMatch(/credentials/);
-    expect(relayEndpointRefusal(`${APPROVED}/v1?token=abc`, 'production')).toMatch(/query/);
-    expect(relayEndpointRefusal(`${APPROVED}/v1#frag`, 'production')).toMatch(/query|fragment/);
+    expect(kaanaEndpointRefusal(`https://user:pw@api.oxy.so`, 'production')).toMatch(/credentials/);
+    expect(kaanaEndpointRefusal(`${APPROVED}/v1?token=abc`, 'production')).toMatch(/query/);
+    expect(kaanaEndpointRefusal(`${APPROVED}/v1#frag`, 'production')).toMatch(/query|fragment/);
   });
 
   it('the loopback relaxation is keyed on the deployment and nothing else', () => {
     // Both directions, because a relaxation with only the permissive half tested
     // is a relaxation that has quietly become unconditional.
     for (const local of ['http://localhost:8787', 'http://127.0.0.1:3000', 'https://localhost:8443']) {
-      expect(relayEndpointRefusal(local, 'development'), local).toBeNull();
-      expect(relayEndpointRefusal(local, 'staging'), local).not.toBeNull();
-      expect(relayEndpointRefusal(local, 'production'), local).not.toBeNull();
+      expect(kaanaEndpointRefusal(local, 'development'), local).toBeNull();
+      expect(kaanaEndpointRefusal(local, 'staging'), local).not.toBeNull();
+      expect(kaanaEndpointRefusal(local, 'production'), local).not.toBeNull();
     }
     // And it does not extend to a host that merely LOOKS local.
-    expect(relayEndpointRefusal('http://localhost.attacker.example', 'development')).not.toBeNull();
-    expect(relayEndpointRefusal('http://127.0.0.1.attacker.example', 'development')).not.toBeNull();
+    expect(kaanaEndpointRefusal('http://localhost.attacker.example', 'development')).not.toBeNull();
+    expect(kaanaEndpointRefusal('http://127.0.0.1.attacker.example', 'development')).not.toBeNull();
   });
 
   it('the refusal names the origin and never the rest of the URL', () => {
     // A path can carry a token somebody pasted in by mistake, and this sentence
     // reaches a boot log.
-    const reason = relayEndpointRefusal('https://attacker.example/v1/oops-a-token', 'production');
+    const reason = kaanaEndpointRefusal('https://attacker.example/v1/oops-a-token', 'production');
     expect(reason).toContain('https://attacker.example');
     expect(reason).not.toContain('oops-a-token');
   });
 
   it('the only producer of a branded endpoint runs the check', () => {
-    expect(() => assertAllowedRelayOrigin(APPROVED, 'production')).not.toThrow();
-    expect(() => assertAllowedRelayOrigin('https://attacker.example', 'production')).toThrow(
-      /not an approved Relay origin/,
+    expect(() => assertAllowedKaanaOrigin(APPROVED, 'production')).not.toThrow();
+    expect(() => assertAllowedKaanaOrigin('https://attacker.example', 'production')).toThrow(
+      /not an approved Kaana origin/,
     );
   });
 
   it('resolves from the environment, and says which variable is unset', () => {
-    expect(resolveRelayEndpoint({}, 'production')).toEqual({
+    expect(resolveKaanaEndpoint({}, 'production')).toEqual({
       kind: 'refused',
-      reason: `${RELAY_BASE_URL_ENV} is not set`,
+      reason: `${KAANA_BASE_URL_ENV} is not set`,
     });
-    expect(resolveRelayEndpoint({ [RELAY_BASE_URL_ENV]: '   ' }, 'production').kind).toBe('refused');
-    expect(resolveRelayEndpoint({ [RELAY_BASE_URL_ENV]: APPROVED }, 'production')).toEqual({
+    expect(resolveKaanaEndpoint({ [KAANA_BASE_URL_ENV]: '   ' }, 'production').kind).toBe('refused');
+    expect(resolveKaanaEndpoint({ [KAANA_BASE_URL_ENV]: APPROVED }, 'production')).toEqual({
       kind: 'endpoint',
       endpoint: APPROVED,
     });
@@ -263,33 +263,33 @@ describe('the allow-list admits Oxy and refuses everything else (#139 ws15)', ()
 /*  Boot                                                                       */
 /* -------------------------------------------------------------------------- */
 
-describe('a bad Relay endpoint stops the process starting (#139 ws15)', () => {
+describe('a bad Kaana endpoint stops the process starting (#139 ws15)', () => {
   it('refuses to boot when the base URL is unset', () => {
-    const failure = relayBootConfigurationFailure(bootEnv({ [RELAY_BASE_URL_ENV]: '' }));
-    expect(failure).toContain(RELAY_BASE_URL_ENV);
+    const failure = kaanaBootConfigurationFailure(bootEnv({ [KAANA_BASE_URL_ENV]: '' }));
+    expect(failure).toContain(KAANA_BASE_URL_ENV);
     // The control: the same environment with the variable set boots.
-    expect(relayBootConfigurationFailure(bootEnv())).toBeNull();
+    expect(kaanaBootConfigurationFailure(bootEnv())).toBeNull();
   });
 
   it('refuses to boot when the base URL names an unapproved host', () => {
-    const failure = relayBootConfigurationFailure(
-      bootEnv({ [RELAY_BASE_URL_ENV]: 'https://attacker.example' }),
+    const failure = kaanaBootConfigurationFailure(
+      bootEnv({ [KAANA_BASE_URL_ENV]: 'https://attacker.example' }),
     );
-    expect(failure).toContain('not an approved Relay origin');
-    expect(failure).toContain(RELAY_BASE_URL_ENV);
+    expect(failure).toContain('not an approved Kaana origin');
+    expect(failure).toContain(KAANA_BASE_URL_ENV);
   });
 
   it('refuses a PRODUCTION task pointed at loopback', () => {
     // The case the loopback relaxation is most likely to be blamed for: a
     // developer's value reaching a production task definition.
     expect(
-      relayBootConfigurationFailure(bootEnv({ [RELAY_BASE_URL_ENV]: 'http://localhost:8787' })),
-    ).toContain('not an approved Relay origin');
+      kaanaBootConfigurationFailure(bootEnv({ [KAANA_BASE_URL_ENV]: 'http://localhost:8787' })),
+    ).toContain('not an approved Kaana origin');
     // And the same value on a developer machine is fine, which is the whole
     // reason the relaxation exists.
     expect(
-      relayBootConfigurationFailure(
-        bootEnv({ [RELAY_BASE_URL_ENV]: 'http://localhost:8787', NODE_ENV: 'development' }),
+      kaanaBootConfigurationFailure(
+        bootEnv({ [KAANA_BASE_URL_ENV]: 'http://localhost:8787', NODE_ENV: 'development' }),
       ),
     ).toBeNull();
   });
@@ -301,7 +301,7 @@ describe('a bad Relay endpoint stops the process starting (#139 ws15)', () => {
     // code, so it is a fact about behaviour.
     const read: string[] = [];
     const recorder = new Proxy(
-      { [RELAY_CLIENT_ENABLED_ENV]: 'false' } as NodeJS.ProcessEnv,
+      { [KAANA_CLIENT_ENABLED_ENV]: 'false' } as NodeJS.ProcessEnv,
       {
         get(target, property: string) {
           read.push(property);
@@ -309,9 +309,9 @@ describe('a bad Relay endpoint stops the process starting (#139 ws15)', () => {
         },
       },
     );
-    expect(relayBootConfigurationFailure(recorder)).toBeNull();
-    expect(read).toEqual([RELAY_CLIENT_ENABLED_ENV]);
-    expect(read).not.toContain(RELAY_BASE_URL_ENV);
+    expect(kaanaBootConfigurationFailure(recorder)).toBeNull();
+    expect(read).toEqual([KAANA_CLIENT_ENABLED_ENV]);
+    expect(read).not.toContain(KAANA_BASE_URL_ENV);
   });
 });
 
@@ -324,18 +324,18 @@ describe('the client re-checks the endpoint on every call (#139 ws15)', () => {
     // The branded type makes this unreachable from typed code, so the value is
     // cast in — which is exactly the caller this runtime check is for.
     expect(() =>
-      createRelayInferenceClient({
+      createKaanaInferenceClient({
         ...mutableConfig(new CapturingTransport()),
-        endpoint: 'https://attacker.example' as RelayEndpoint,
+        endpoint: 'https://attacker.example' as KaanaEndpoint,
         env: { NODE_ENV: 'production' },
       }),
-    ).toThrow(/not an approved Relay origin/);
+    ).toThrow(/not an approved Kaana origin/);
   });
 
   it('sends nothing at all once the configured endpoint stops being approved', async () => {
     const transport = new CapturingTransport();
     const config = mutableConfig(transport);
-    const client = createRelayInferenceClient(config);
+    const client = createKaanaInferenceClient(config);
 
     // The positive control first: with an approved endpoint the call goes out,
     // and it carries the endpoint. Without this, "nothing was sent" below would
@@ -347,7 +347,7 @@ describe('the client re-checks the endpoint on every call (#139 ws15)', () => {
     // Now move the target after construction. `readonly` is compile-time only,
     // so this is a thing that can happen to a live process — a shared config
     // object, a hot reload, a cast.
-    Object.assign(config, { endpoint: 'https://attacker.example' as RelayEndpoint });
+    Object.assign(config, { endpoint: 'https://attacker.example' as KaanaEndpoint });
 
     expect(await terminalCode(client)).toBe('service_unavailable');
     // The half that matters: not merely that the caller saw an error, but that
@@ -358,8 +358,8 @@ describe('the client re-checks the endpoint on every call (#139 ws15)', () => {
   it('refuses once rather than retrying a configuration mistake', async () => {
     const transport = new CapturingTransport();
     const config = { ...mutableConfig(transport), maxAttempts: 5 };
-    const client = createRelayInferenceClient(config);
-    Object.assign(config, { endpoint: 'https://attacker.example' as RelayEndpoint });
+    const client = createKaanaInferenceClient(config);
+    Object.assign(config, { endpoint: 'https://attacker.example' as KaanaEndpoint });
 
     const events: string[] = [];
     for await (const event of client.stream(call(), new AbortController().signal)) {

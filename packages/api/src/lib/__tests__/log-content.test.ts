@@ -469,7 +469,7 @@ describe('no logger call carries message content (#139 ws15)', () => {
 /*  The correlation record                                                     */
 /* -------------------------------------------------------------------------- */
 
-describe('the Alia/Relay correlation record is one line of identifiers (#139 ws19)', () => {
+describe('the Alia/Kaana correlation record is one line of identifiers (#139 ws19)', () => {
   const MODULE = `${PACKAGE_PREFIX}/lib/observability/inference-correlation.ts`;
   const ENTRYPOINT = `${PACKAGE_PREFIX}/routes/v1/chat-completions.ts`;
 
@@ -477,16 +477,16 @@ describe('the Alia/Relay correlation record is one line of identifiers (#139 ws1
    * The properties of the ONE logger call in the correlation module.
    *
    * Frozen as an exact list rather than a superset, because both directions are
-   * regressions: losing `relayRequestId` makes correlation impossible the day
-   * Relay answers, and GAINING a field is how a prompt gets into the one log
+   * regressions: losing `kaanaRequestId` makes correlation impossible the day
+   * Kaana answers, and GAINING a field is how a prompt gets into the one log
    * line whose whole purpose is that it carries no content. The census records
    * the value expression too, so `runId: prompt` fails here even though the KEY
    * is innocent.
    */
   const CORRELATION_PROPERTIES: readonly string[] = [
     `${MODULE} | conversationId | correlation.conversationId`,
-    `${MODULE} | relayGenerationId | correlation.relay?.generationId ?? null`,
-    `${MODULE} | relayRequestId | correlation.relay?.requestId ?? null`,
+    `${MODULE} | kaanaGenerationId | correlation.kaana?.generationId ?? null`,
+    `${MODULE} | kaanaRequestId | correlation.kaana?.requestId ?? null`,
     `${MODULE} | runId | correlation.runId`,
   ];
 

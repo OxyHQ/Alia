@@ -236,7 +236,7 @@ router.post('/trigger', oxyServiceAuth, async (req, res) => {
 
 /**
  * PUT /internal/plans/:planId/models — which models a plan grants
- * (#139 workstream 14, *"allow the product team to select which Oxy/Relay models
+ * (#139 workstream 14, *"allow the product team to select which Oxy/Kaana models
  * are available per plan/surface"*).
  *
  * ## Why the plan, and why only the model list

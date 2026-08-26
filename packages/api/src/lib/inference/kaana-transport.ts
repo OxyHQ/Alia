@@ -1,7 +1,7 @@
 /**
  * The transport that actually reaches Kaana.
  *
- * `RelayTransport` has been an injected interface with no implementation since
+ * `KaanaTransport` has been an injected interface with no implementation since
  * the client was written: the seam was built, the wire was not. This is the
  * wire, and it is the only module in this repository that speaks Kaana's
  * authentication scheme.
@@ -43,7 +43,7 @@
  *
  * ## No `Authorization` header
  *
- * `RelayTransportRequest` carries one, and it is not sent. Kaana authenticates
+ * `KaanaTransportRequest` carries one, and it is not sent. Kaana authenticates
  * the signature and reads attribution from the envelope; a bearer token would be
  * a credential handed to a party that has no use for it, which is how a
  * credential ends up somewhere nobody meant it to be.
@@ -51,7 +51,7 @@
 
 import { createHash, createPrivateKey, sign as edSign, type KeyObject } from 'node:crypto';
 
-import type { RelayTransport, RelayTransportRequest } from './kaana-client.js';
+import type { KaanaTransport, KaanaTransportRequest } from './kaana-client.js';
 
 /** The variable naming the signing key Kaana knows us by. */
 export const KAANA_EDGE_KEY_ID_ENV = 'KAANA_EDGE_KEY_ID';
@@ -198,12 +198,12 @@ function frameData(frame: string): string | null {
  * to the client — which turns it into a typed terminal event — than an exception
  * carrying an HTTP status.
  */
-export function createKaanaTransport(config: KaanaTransportConfig): RelayTransport {
+export function createKaanaTransport(config: KaanaTransportConfig): KaanaTransport {
   const now = config.now ?? (() => Date.now());
   const doFetch = config.fetch ?? globalThis.fetch;
 
   return {
-    async send(input: RelayTransportRequest): Promise<AsyncIterable<unknown>> {
+    async send(input: KaanaTransportRequest): Promise<AsyncIterable<unknown>> {
       // Serialised once: the bytes that are hashed are the bytes that are sent.
       const body = JSON.stringify(input.request);
       const response = await doFetch(`${input.endpoint}${INFERENCE_PATH}`, {

@@ -440,9 +440,9 @@ describe('when nothing can answer', () => {
   });
 
   it('falls back when Kaana refuses the call, and logs the refusal under err', async () => {
-    // A `RelayInferenceError` carries a code and a request id and no content,
+    // A `KaanaInferenceError` carries a code and a request id and no content,
     // so this is the one failure whose thrown value belongs in the line.
-    H.kaanaThrows = new Error('relay inference failed: cancelled');
+    H.kaanaThrows = new Error('Kaana inference failed: cancelled');
     H.modelText = COMPLETE_ANSWER;
     const res = await generate();
 

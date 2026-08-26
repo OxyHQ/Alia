@@ -1,5 +1,5 @@
 /**
- * Building the normalized request the Relay client sends — epic #139 workstream 3.
+ * Building the normalized request the Kaana client sends — epic #139 workstream 3.
  *
  * Three jobs, all of which are translation and none of which is a decision about
  * WHO serves the request:
@@ -11,7 +11,7 @@
  * ## What is deliberately absent
  *
  * There is no ranking, no candidate list, no provider anywhere in this file.
- * Choosing among routes is Relay's — ADR 0001 and #139's first invariant — and
+ * Choosing among routes is Kaana's — ADR 0001 and #139's first invariant — and
  * the translation below decides nothing: a product model id is a MODEL REFERENCE
  * if it parses as one and a ROUTING PROFILE if it parses as one, and the two
  * grammars are disjoint (`identifiers.ts`: a reference requires a `/`, a profile
@@ -45,7 +45,7 @@ import {
 
 import { translateAlias } from '../routing/alias-translation.js';
 import type { AliaInferenceSurface, AliaModelChoice } from './product-seam.js';
-import { createInferenceError, RelayInferenceError } from './kaana-error.js';
+import { createInferenceError, KaanaInferenceError } from './kaana-error.js';
 
 /**
  * The product's half of a request.
@@ -66,12 +66,12 @@ import { createInferenceError, RelayInferenceError } from './kaana-error.js';
  *    retries. A caller-settable key is a caller-settable double charge.
  *  - `stream` — the client's only wire read path is the stream event union, so
  *    it always asks for a stream and folds when the caller wanted a completion.
- *    See {@link import('./kaana-client.js').RelayCompletion}.
+ *    See {@link import('./kaana-client.js').KaanaCompletion}.
  *  - `client.receivedAt` — an instant the client stamps. The rest of `client`
  *    IS the product's: which Alia dialect the user called is a fact only the
  *    product surface knows.
  */
-export type RelayRequestPayload = Omit<
+export type KaanaRequestPayload = Omit<
   InferenceRequest,
   'schemaVersion' | 'attribution' | 'target' | 'routingPolicy' | 'idempotencyKey' | 'stream' | 'client'
 > & { readonly client: Omit<ClientRequestMetadata, 'receivedAt'> };
@@ -91,7 +91,7 @@ export type RelayRequestPayload = Omit<
 export const ALIA_SURFACE_LABEL = 'alia.surface';
 
 /** Everything the client resolves and the product does not. */
-export interface RelayEnvelopeContext {
+export interface KaanaEnvelopeContext {
   readonly principal: AuthenticatedPrincipal;
   /** Alia's end user, for attribution only. `null` for a system call. */
   readonly delegatedUserId: string | null;
@@ -118,8 +118,8 @@ export interface RelayEnvelopeContext {
  * can quote the value that failed, and the value is the caller's content.
  */
 export function buildInferenceRequest(
-  payload: RelayRequestPayload,
-  context: RelayEnvelopeContext,
+  payload: KaanaRequestPayload,
+  context: KaanaEnvelopeContext,
 ): InferenceRequest {
   const parsed = inferenceRequestSchema.safeParse({
     ...payload,
@@ -146,7 +146,7 @@ export function buildInferenceRequest(
   if (parsed.success) return parsed.data;
 
   const first = parsed.error.issues[0];
-  throw new RelayInferenceError(
+  throw new KaanaInferenceError(
     createInferenceError({
       code: 'invalid_request',
       requestId: context.requestId,
@@ -183,9 +183,9 @@ export function resolveRoutingTarget(
   if (alias.kind === 'translated') return alias.translation.target;
   if (alias.kind === 'unregistered_alias') {
     // An identifier in Alia's own namespace that Alia does not define. It parses
-    // as a profile slug, so the grammars below would send it — asking Relay to
+    // as a profile slug, so the grammars below would send it — asking Kaana to
     // route a profile only this repository could ever have defined.
-    throw new RelayInferenceError(
+    throw new KaanaInferenceError(
       createInferenceError({ code: 'invalid_request', requestId, param: 'model' }),
     );
   }
@@ -196,7 +196,7 @@ export function resolveRoutingTarget(
   if (routingProfileSlugSchema.safeParse(id).success) {
     return { kind: 'routing_profile', routingProfile: id };
   }
-  throw new RelayInferenceError(
+  throw new KaanaInferenceError(
     createInferenceError({ code: 'invalid_request', requestId, param: 'model' }),
   );
 }
@@ -227,19 +227,19 @@ export interface CapabilityViolation {
  *    comes back, and the client's job is to carry it through undamaged;
  *    `carriedBy` names where. Refusing such a request would be inventing a
  *    restriction the contract does not express.
- *  - `relay` — undecidable here without provider knowledge this client must not
- *    hold. Relay answers it, and the caller sees a contract error code.
+ *  - `kaana` — undecidable here without provider knowledge this client must not
+ *    hold. Kaana answers it, and the caller sees a contract error code.
  */
 export type CapabilityEnforcement =
   | {
       readonly where: 'request';
       readonly refuse: (
-        payload: RelayRequestPayload,
+        payload: KaanaRequestPayload,
         capabilities: ModelCapabilities,
       ) => CapabilityViolation | null;
     }
   | { readonly where: 'response'; readonly carriedBy: string }
-  | { readonly where: 'relay'; readonly why: string };
+  | { readonly where: 'kaana'; readonly why: string };
 
 /**
  * Every capability the contract defines, and this client's answer to it.
@@ -263,19 +263,19 @@ export const CAPABILITY_ENFORCEMENT = {
     // The client's only wire read path is the stream event union, so it always
     // asks for a stream — see `buildInferenceRequest`. A non-streaming target is
     // therefore unusable rather than merely limited.
-    refuse: (_payload: RelayRequestPayload, capabilities: ModelCapabilities) =>
+    refuse: (_payload: KaanaRequestPayload, capabilities: ModelCapabilities) =>
       capabilities.streaming ? null : { code: 'unsupported_modality' as const, param: 'stream' },
   },
   tools: {
     where: 'request',
-    refuse: (payload: RelayRequestPayload, capabilities: ModelCapabilities) =>
+    refuse: (payload: KaanaRequestPayload, capabilities: ModelCapabilities) =>
       payload.tools.length > 0 && !capabilities.tools
         ? { code: 'invalid_request' as const, param: 'tools' }
         : null,
   },
   structuredOutput: {
     where: 'request',
-    refuse: (payload: RelayRequestPayload, capabilities: ModelCapabilities) =>
+    refuse: (payload: KaanaRequestPayload, capabilities: ModelCapabilities) =>
       payload.responseFormat?.type === 'json_schema' && !capabilities.structuredOutput
         ? { code: 'invalid_request' as const, param: 'responseFormat' }
         : null,
@@ -284,22 +284,22 @@ export const CAPABILITY_ENFORCEMENT = {
     where: 'request',
     // Separate from `structuredOutput` because the contract separates them: a
     // model can be asked for syntactically valid JSON without being able to
-    // honour a schema, and collapsing the two would refuse requests Relay serves.
-    refuse: (payload: RelayRequestPayload, capabilities: ModelCapabilities) =>
+    // honour a schema, and collapsing the two would refuse requests Kaana serves.
+    refuse: (payload: KaanaRequestPayload, capabilities: ModelCapabilities) =>
       payload.responseFormat?.type === 'json_object' && !capabilities.jsonMode
         ? { code: 'invalid_request' as const, param: 'responseFormat' }
         : null,
   },
   maxOutputTokens: {
     where: 'request',
-    refuse: (payload: RelayRequestPayload, capabilities: ModelCapabilities) =>
+    refuse: (payload: KaanaRequestPayload, capabilities: ModelCapabilities) =>
       payload.maxOutputTokens !== undefined && payload.maxOutputTokens > capabilities.maxOutputTokens
         ? { code: 'output_limit_exceeded' as const, param: 'maxOutputTokens' }
         : null,
   },
   outputModalities: {
     where: 'request',
-    refuse: (payload: RelayRequestPayload, capabilities: ModelCapabilities) =>
+    refuse: (payload: KaanaRequestPayload, capabilities: ModelCapabilities) =>
       capabilities.outputModalities.includes(payload.modality)
         ? null
         : { code: 'unsupported_modality' as const, param: 'modality' },
@@ -308,7 +308,7 @@ export const CAPABILITY_ENFORCEMENT = {
     where: 'request',
     // Vision is this one: an `image` content part is an image INPUT modality,
     // and there is no separate `vision` flag in the contract to check.
-    refuse: (payload: RelayRequestPayload, capabilities: ModelCapabilities) => {
+    refuse: (payload: KaanaRequestPayload, capabilities: ModelCapabilities) => {
       for (const required of requiredInputModalities(payload)) {
         if (!capabilities.inputModalities.includes(required)) {
           return { code: 'unsupported_modality' as const, param: 'input' };
@@ -322,27 +322,27 @@ export const CAPABILITY_ENFORCEMENT = {
     // No request field asks for reasoning, so a target that cannot reason is not
     // a refusal — it simply sends no reasoning. What the client must not do is
     // lose it: `delta` events on the `reasoning` channel fold into
-    // `RelayCompletion.reasoningText`, and `reasoning_tokens` survives in `usage`.
-    carriedBy: 'RelayCompletion.reasoningText and the reasoning_tokens usage unit',
+    // `KaanaCompletion.reasoningText`, and `reasoning_tokens` survives in `usage`.
+    carriedBy: 'KaanaCompletion.reasoningText and the reasoning_tokens usage unit',
   },
   promptCaching: {
     where: 'response',
-    // Likewise unrequestable: caching is Relay's and the provider's business,
+    // Likewise unrequestable: caching is Kaana's and the provider's business,
     // and the only thing Alia needs is the receipt. `cached_input_tokens` is a
     // usage unit, and the client hands the last usage event's units through
     // untouched — a client that summed or dropped them would make the product's
     // cost attribution wrong with no error anywhere.
-    carriedBy: 'the cached_input_tokens usage unit on RelayCompletion.usage',
+    carriedBy: 'the cached_input_tokens usage unit on KaanaCompletion.usage',
   },
   parallelToolCalls: {
     where: 'response',
     // Observable as two tool calls with distinct ids inside one generation. The
     // client folds by `toolCallId`, so concurrent calls stay separate.
-    carriedBy: 'RelayCompletion.toolCalls, keyed by toolCallId',
+    carriedBy: 'KaanaCompletion.toolCalls, keyed by toolCallId',
   },
   maxContextTokens: {
-    where: 'relay',
-    why: 'counting a prompt requires a tokenizer for the resolved revision, which is provider knowledge this client must not hold; Relay answers with context_length_exceeded',
+    where: 'kaana',
+    why: 'counting a prompt requires a tokenizer for the resolved revision, which is provider knowledge this client must not hold; Kaana answers with context_length_exceeded',
   },
 } as const satisfies Record<keyof ModelCapabilities, CapabilityEnforcement>;
 
@@ -363,7 +363,7 @@ export const CAPABILITY_ENFORCEMENT = {
  * so the table is the code rather than a description of it that can drift.
  */
 export function violatedCapability(
-  payload: RelayRequestPayload,
+  payload: KaanaRequestPayload,
   capabilities: ModelCapabilities,
 ): CapabilityViolation | null {
   for (const enforcement of Object.values(CAPABILITY_ENFORCEMENT)) {
@@ -381,7 +381,7 @@ export function violatedCapability(
  * member, so a document upload is not a modality question and inventing one
  * would refuse requests the contract permits.
  */
-function requiredInputModalities(payload: RelayRequestPayload): Set<ModelCapabilities['inputModalities'][number]> {
+function requiredInputModalities(payload: KaanaRequestPayload): Set<ModelCapabilities['inputModalities'][number]> {
   const used = new Set<ModelCapabilities['inputModalities'][number]>();
   if (payload.input.format !== 'messages') {
     used.add('text');

@@ -14,11 +14,11 @@ import {
   ProviderEgressRefusal,
   providerEgressDecision,
 } from '../provider-egress-policy.js';
-import { RELAY_CLIENT_ENABLED_ENV } from '../kaana-cutover.js';
+import { KAANA_CLIENT_ENABLED_ENV } from '../kaana-cutover.js';
 
 /**
  * Epic #139 workstream 8 — *"Add an egress policy/test proving the Alia service
- * can contact Relay/Oxy dependencies but not provider API hosts after cutover."*
+ * can contact Kaana/Oxy dependencies but not provider API hosts after cutover."*
  *
  * Four things have to be true for that sentence to mean anything, and each one
  * fails differently:
@@ -30,7 +30,7 @@ import { RELAY_CLIENT_ENABLED_ENV } from '../kaana-cutover.js';
  *  2. **After the cutover, a provider host is refused**, and refused without the
  *     request being made. Read at the underlying `fetch`, because "it was
  *     refused" and "it went out and failed" look identical from the caller.
- *  3. **After the cutover, Relay and Oxy are still reachable.** Proved against a
+ *  3. **After the cutover, Kaana and Oxy are still reachable.** Proved against a
  *     real socket rather than by asking the decision function, so the delegation
  *     path is exercised too.
  *  4. **The deny list is complete.** Derived from `internal/providers/**`'s own
@@ -40,7 +40,7 @@ import { RELAY_CLIENT_ENABLED_ENV } from '../kaana-cutover.js';
 
 const REPO_ROOT = path.resolve(fileURLToPath(new URL('../../../../../../', import.meta.url)));
 
-const ENABLED: NodeJS.ProcessEnv = { [RELAY_CLIENT_ENABLED_ENV]: 'true' };
+const ENABLED: NodeJS.ProcessEnv = { [KAANA_CLIENT_ENABLED_ENV]: 'true' };
 const DISABLED: NodeJS.ProcessEnv = {};
 
 let dispose: (() => void) | null = null;
@@ -80,7 +80,7 @@ describe('with the cutover flag off the policy installs nothing (#139 ws8)', () 
   it('is off for every value that is not exactly the literal true', () => {
     for (const value of ['1', 'TRUE', 'True', 'yes', '', ' true']) {
       const before = globalThis.fetch;
-      expect(installProviderEgressBlock({ [RELAY_CLIENT_ENABLED_ENV]: value })).toBeNull();
+      expect(installProviderEgressBlock({ [KAANA_CLIENT_ENABLED_ENV]: value })).toBeNull();
       expect(globalThis.fetch).toBe(before);
     }
   });
@@ -210,10 +210,10 @@ describe('after the cutover a provider API host cannot be reached (#139 ws8)', (
 });
 
 /* -------------------------------------------------------------------------- */
-/*  3. After the cutover, Relay and Oxy are still reachable                    */
+/*  3. After the cutover, Kaana and Oxy are still reachable                    */
 /* -------------------------------------------------------------------------- */
 
-describe('after the cutover Relay and Oxy dependencies are still reachable (#139 ws8)', () => {
+describe('after the cutover Kaana and Oxy dependencies are still reachable (#139 ws8)', () => {
   it('allows a real request to a non-provider host, over both doors', async () => {
     const server = http.createServer((_req, res) => {
       res.writeHead(200, { 'content-type': 'text/plain' });
@@ -246,7 +246,7 @@ describe('after the cutover Relay and Oxy dependencies are still reachable (#139
     }
   });
 
-  it('allows the Oxy and Relay hosts by decision, and every non-provider egress host', () => {
+  it('allows the Oxy and Kaana hosts by decision, and every non-provider egress host', () => {
     // The hosts Alia's own source names for its non-inference dependencies. A
     // policy that refused any of these would break the product at cutover, which
     // is the failure an egress deny list is most likely to cause.
