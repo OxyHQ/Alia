@@ -279,3 +279,51 @@ describe('the handle an agent is minted with', () => {
     expect(sent()).toEqual(['mybot']);
   });
 });
+
+/**
+ * The prompt an agent is BORN with describes it and does not name it.
+ *
+ * The seed was `You are ${name}. ${description}`, and the name in it is a COPY:
+ * the same `name` goes to Oxy as the bot account's `displayName`, which is where
+ * `agentPromptName` reads it from on every turn afterwards. Equal until somebody
+ * renames the agent — and the editor renames it, `updateAccount` with a new
+ * `name.displayName`. After that the identity guard says Pepe, live from Oxy,
+ * and the `# AGENT: Pepe` section under it says "You are Claudio", from a column
+ * written months earlier: the two-owners contradiction `#453` removed from the
+ * prompt files, frozen into a row instead.
+ *
+ * Untested until now, which is how it survived a census written to forbid
+ * exactly this — see `lib/__tests__/identity-guard-coverage.test.ts`.
+ */
+describe('the prompt an agent is born with', () => {
+  it('is the description, and names nobody', async () => {
+    await create({ name: 'Claudio', description: 'Looks after houseplants and diagnoses pests.' });
+
+    const [row] = created.rows;
+    expect(row.systemPrompt).toBe('Looks after houseplants and diagnoses pests.');
+    expect(row.systemPrompt).not.toContain('Claudio');
+  });
+
+  it('still prefers a prompt the model wrote', async () => {
+    // The control: the seed is a fallback, and removing the name from it must
+    // not have removed the branch that never used it.
+    await create({
+      name: 'Claudio',
+      description: 'Looks after houseplants.',
+      systemPrompt: 'Answer only about watering schedules.',
+    } as never);
+
+    expect(created.rows[0].systemPrompt).toBe('Answer only about watering schedules.');
+  });
+
+  it('is what the composed message will read as the remit', async () => {
+    // The seed is not free-floating text: it becomes `agents.system_prompt`,
+    // which `agentRemitPrompt` returns and the guard's remit rule cites by
+    // heading. A seed that named the agent would be naming it INSIDE the section
+    // the guard points at as "what Claudio is for".
+    await create({ name: 'Nadia', description: 'Books travel and tracks itineraries.' });
+
+    expect(created.rows[0].systemPrompt).toBe('Books travel and tracks itineraries.');
+    expect(String(created.rows[0].systemPrompt)).not.toMatch(/\bYou are\b/);
+  });
+});
