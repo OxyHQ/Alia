@@ -20,6 +20,20 @@
 # #436 fixed in these same files. Hence a wall-clock budget, a backoff that
 # counts against it, and a message that says what to do when it runs out.
 #
+# THE ACTIVE PRODUCTION DEPLOYMENT NEVER GOES, and that is not a failure. Run
+# 32919327793 deleted 239 of `alia-app`'s 240 and stopped on the last one:
+#
+#   {"code":8000034,"message":"You cannot delete the active production
+#    deployment."}
+#
+# `?force=true` moves the aliased deployments and not that one. So a page whose
+# every refusal is 8000034 means the purge has done all it can, and the run
+# continues to the project delete — which is the only thing the purge was ever
+# for. A page that stalls for ANY other reason is still a hard failure. The
+# difference is the error code and nothing looser: an exception keyed on "the
+# last one left" or "one deployment remaining" would swallow the stalls this
+# guard exists to catch.
+#
 # THE PAGINATION IS "ALWAYS PAGE 1", DELIBERATELY. Walking pages 1..N while
 # deleting from underneath shifts every later page up by as many rows as were
 # removed, so entries slide past the cursor and survive. Re-reading the first
@@ -141,34 +155,61 @@ if [ "$(jq -r '.success' "$work/delete.json")" != "true" ]; then
     echo "pass $pass: $listed of $total remaining (${SECONDS}s of ${budget}s, $deleted deleted)"
 
     progressed=0
+    immovable=0
     while read -r id; do
       [ -n "$id" ] || continue
-      # `force=true` is what lets the live and aliased deployments go; without
-      # it the last few refuse and the project stays undeletable.
+      # `force=true` is what lets the aliased deployments go. It does NOT move
+      # the active production one — Cloudflare refuses that by rule, 8000034.
       code=$(cf DELETE "$base/deployments/$id?force=true" "$work/dd.json" \
         "pages/projects/$project/deployments/$id")
       if [ "$(jq -r '.success' "$work/dd.json")" = "true" ]; then
         deleted=$((deleted + 1))
         progressed=$((progressed + 1))
+      elif jq -e '.errors[]? | select(.code == 8000034)' "$work/dd.json" >/dev/null; then
+        # Identified by ERROR CODE, never by id or by position on the page.
+        # Which deployment is the production one is Cloudflare's answer to give,
+        # and "the last one left" is a guess that is wrong the moment a page
+        # comes back in a different order.
+        immovable=$((immovable + 1))
+        echo "  $id is the active production deployment; Cloudflare does not allow deleting it (8000034)"
       else
         echo "  $id would not delete (http=$code): $(jq -c '.errors // []' "$work/dd.json")"
       fi
       [ "$SECONDS" -lt "$deadline" ] || break
     done < <(jq -r '.result[].id' "$work/page.json")
 
-    # The only way the always-page-1 loop can spin. A pass that deletes nothing
-    # while the page is not empty will do the same forever, so it stops here
-    # with the API's own refusal already in the log above.
-    [ "$progressed" != "0" ] || {
+    if [ "$progressed" = "0" ]; then
+      # Everything still listed is the production deployment. The purge exists
+      # only to satisfy 8000076, so there is nothing left for it to do and the
+      # project delete is the next thing to try — it is the step that was the
+      # point.
+      if [ "$immovable" = "$listed" ]; then
+        echo "$listed remaining deployment(s), all of them the active production deployment that Cloudflare will not delete (8000034) — the purge is done; continuing to the project"
+        break
+      fi
+      # The only way the always-page-1 loop can spin. A pass that deletes
+      # nothing for any OTHER reason will do the same forever, so it stops here
+      # with the API's own refusal already in the log above. The difference is
+      # the error code and nothing else: an exception keyed on anything looser
+      # would swallow the failures this guard exists for.
       echo "::error::a page of $listed deployment(s) and none of them could be deleted — see the refusals above"
       exit 1
-    }
+    fi
   done
-  echo "deployments purged: $deleted deleted, none listed"
+  echo "deployments purged: $deleted deleted"
 
   delete_project
-  [ "$(jq -r '.success' "$work/delete.json")" = "true" ] \
-    || { echo "::error::delete still failed after purging $deleted deployment(s): $(jq -c '.errors' "$work/delete.json")"; exit 1; }
+  if [ "$(jq -r '.success' "$work/delete.json")" != "true" ]; then
+    # 8000076 again, after the purge, means purging was not the way in. Say so
+    # in those words: leaving a workflow retrying something the API does not
+    # permit is worse than saying it has to be done by hand.
+    if jq -e '.errors[]? | select(.code == 8000076)' "$work/delete.json" >/dev/null; then
+      echo "::error::$project still answers 8000076 after deleting $deleted deployment(s), with only the active production deployment left — and Cloudflare refuses to delete that one (8000034). Purging is not a way in for this project: it CANNOT be retired through the API. Delete it in the dashboard (Workers & Pages -> $project -> Settings -> Delete project), which is allowed to remove the production deployment. Re-running this will not change the answer."
+      exit 1
+    fi
+    echo "::error::delete still failed after purging $deleted deployment(s): $(jq -c '.errors' "$work/delete.json")"
+    exit 1
+  fi
 fi
 
 # Read back the project ITSELF, not the account's project list. The list is

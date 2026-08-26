@@ -192,7 +192,15 @@ case "$path" in
   accounts/*/pages/projects/*/deployments/*)
     p=${path#accounts/*/pages/projects/}; d=${p#*/deployments/}; p=${p%%/deployments/*}
     [ "$method" = DELETE ] || fail 405 0 "method not allowed"
+    # What run 32919327793 hit on the 240th. `force=true` moves the aliased
+    # deployments and not this one. Checked BEFORE the blanket fault below, so a
+    # case can put both codes on one page.
+    if [ "$(jq -r --arg p "$p" '.projects[$p].production // ""' "$state")" = "$d" ]; then
+      fail 400 8000034 "You cannot delete the active production deployment."
+    fi
     if [ "$fault" = "deployment-undeletable" ]; then
+      # 8000035, NOT 8000034. The positive control for the exception: same
+      # shape, same refusal, a different code, and it must still be fatal.
       fail 400 8000035 "Deployment is the live deployment."
     fi
     edit --arg p "$p" --arg d "$d" '.projects[$p].deployments |= map(select(. != $d))'
@@ -224,7 +232,12 @@ case "$path" in
         emit 200 "$(jq -c --arg p "$p" '{success:true, errors:[], result:{name:$p, created_on:"2025-01-01T00:00:00Z"}}' "$state")" ;;
       DELETE)
         jq -e --arg p "$p" '.projects[$p]' "$state" >/dev/null || fail 404 8000007 "Project not found."
-        if [ "$(jq -r --arg p "$p" '.projects[$p].deployments | length' "$state")" != "0" ]; then
+        # `deletable_with` is how many deployments may remain and still let the
+        # project go — 0 by default. A case sets it to 1 to model Cloudflare
+        # removing the production deployment along with the project, and leaves
+        # it at 0 to model the opposite, because which of those is true is not
+        # something this repository can assert from here.
+        if [ "$(jq -r --arg p "$p" '(.projects[$p].deployments | length) > (.projects[$p].deletable_with // 0)' "$state")" = "true" ]; then
           fail 400 8000076 "Your project has too many deployments to be deleted, follow this guide to delete them: https://cfl.re/3CXesln"
         fi
         if [ "$fault" != "project-delete-noop" ]; then
@@ -238,6 +251,52 @@ case "$path" in
 esac
 STUB
 chmod +x "$sandbox/bin/curl"
+
+# ---------------------------------------------------------------------------
+# `dig`, and `sleep`. The SPF workflow reads real DNS from the zone's own
+# nameservers, which is the one thing about it a Cloudflare stub cannot answer.
+#
+# `sleep` is a no-op so a retry costs nothing; the wall-clock budget is then
+# measured by real elapsed time only, which is why the timeout case shortens the
+# budget rather than waiting one out.
+# ---------------------------------------------------------------------------
+cat > "$sandbox/bin/dig" <<'DIGSTUB'
+#!/usr/bin/env bash
+set -euo pipefail
+kind=''
+server=''
+for arg in "$@"; do
+  case "$arg" in
+    +short) ;;
+    @*) server=${arg#@} ;;
+    NS|TXT) kind=$arg ;;
+    *) ;;
+  esac
+done
+case "$kind" in
+  NS) printf '%s
+' ${DIG_NS:-} | tr ' ' '
+' | sed '/^$/d' ;;
+  TXT)
+    # A nameserver still catching up answers nothing, for as many queries as
+    # the case says. This is Cloudflare's own nameservers converging seconds
+    # apart, which is what turned a correct write into a red run.
+    if [ "$server" = "${DIG_LAGGING:-}" ]; then
+      seen=$(( $(cat "$CF_STUB_STATE.dig" 2>/dev/null || echo 0) + 1 ))
+      printf '%s' "$seen" > "$CF_STUB_STATE.dig"
+      [ "$seen" -gt "${DIG_LAG_QUERIES:-0}" ] || exit 0
+    fi
+    printf '"%s"
+' "${DIG_VALUE:-}"
+    ;;
+  *) echo "dig stub: unsupported query '$*'" >&2; exit 99 ;;
+esac
+DIGSTUB
+chmod +x "$sandbox/bin/dig"
+printf '#!/usr/bin/env bash
+exit 0
+' > "$sandbox/bin/sleep"
+chmod +x "$sandbox/bin/sleep"
 
 export PATH="$sandbox/bin:$PATH"
 export CLOUDFLARE_API_TOKEN=stub-token
@@ -559,6 +618,59 @@ check 'an SPF write that reports success and changes nothing fails the read-back
   'says:reads' \
   'jq:.records[] | select(.id == "t1") | .content == "v=spf1 -all"'
 
+# ---------------------------------------------------------------------------
+# ...and whether the internet agrees, which is a different claim from the API's
+# ---------------------------------------------------------------------------
+
+SPF_DNS_STEP=$(extract_run restore-spf.yml 'The nameservers serve it')
+# The literal text `@$ns`, not an expansion of it — the point is that the step
+# passes the nameserver to `dig` as a server to query, rather than resolving
+# through whatever the runner points at.
+asks_nameserver='@'\$'ns'
+grep -qF "$asks_nameserver" <<<"$SPF_DNS_STEP" \
+  || { echo "the SPF verification no longer asks a nameserver directly" >&2; exit 1; }
+
+spf_env=(HOSTNAME=alia.onl ZONE=alia.onl 'VALUE=v=spf1 -all')
+
+rm -f "$CF_STUB_STATE.dig"
+attempt_block "$SPF_DNS_STEP" "${spf_env[@]}" \
+  'DIG_NS=alec.ns.cloudflare.com. deb.ns.cloudflare.com.' 'DIG_VALUE=v=spf1 -all'
+check 'both nameservers already serving it passes on the first attempt' 0 \
+  'says:alec.ns.cloudflare.com. serves it' \
+  'says:deb.ns.cloudflare.com. serves it' \
+  'says:all 2 nameservers serve it' \
+  'silent:attempt 2'
+
+# RUN 32919043341, THE ONE THAT WENT RED WITH THE RECORD PERFECTLY CORRECT.
+# `deb` was seconds behind `alec`, the step asked once, and a repair workflow
+# reported failure over a write that had worked. It must now wait instead.
+rm -f "$CF_STUB_STATE.dig"
+attempt_block "$SPF_DNS_STEP" "${spf_env[@]}" \
+  'DIG_NS=alec.ns.cloudflare.com. deb.ns.cloudflare.com.' 'DIG_VALUE=v=spf1 -all' \
+  DIG_LAGGING=deb.ns.cloudflare.com. DIG_LAG_QUERIES=1
+check 'a nameserver seconds behind is waited for, not failed' 0 \
+  'says:deb.ns.cloudflare.com. -> (nothing)' \
+  'says:attempt 2' \
+  'says:all 2 nameservers serve it'
+
+# And when it genuinely never converges, the message has to say which failure
+# this is: the API read-back already proved the record exists, so red here can
+# only ever mean propagation. The budget is shortened to 0 so the error path is
+# reached in a second rather than in three minutes — the ONLY edit made to any
+# lifted block, and it fails loudly if the text it patches ever moves.
+SPF_DNS_IMPATIENT=${SPF_DNS_STEP//SECONDS + 180/SECONDS + 0}
+[ "$SPF_DNS_IMPATIENT" != "$SPF_DNS_STEP" ] \
+  || { echo "the SPF verification's deadline is no longer 'SECONDS + 180'; this case would wait it out" >&2; exit 1; }
+rm -f "$CF_STUB_STATE.dig"
+attempt_block "$SPF_DNS_IMPATIENT" "${spf_env[@]}" \
+  'DIG_NS=alec.ns.cloudflare.com. deb.ns.cloudflare.com.' 'DIG_VALUE=v=spf1 -all' \
+  DIG_LAGGING=deb.ns.cloudflare.com. DIG_LAG_QUERIES=999
+check 'a nameserver that never converges fails, saying it is propagation' 1 \
+  'says:still do not serve' \
+  'says:for alia.onl: deb.ns.cloudflare.com.' \
+  'says:The record IS written' \
+  'says:not a failed write'
+
 # ===========================================================================
 # The way back out of the window (#443), across the seam this change moved
 # ===========================================================================
@@ -636,11 +748,17 @@ check 'a run that deleted nothing restores nothing' 0 \
 # Retiring the Pages project
 # ===========================================================================
 
+# `$3` names a deployment index Cloudflare will refuse to delete (the active
+# production one), `$4` how many may remain and still let the project go.
 pages_state() {
-  jq -n --argjson n "$1" --argjson domains "$2" '{
+  jq -n --argjson n "$1" --argjson domains "$2" \
+        --arg production "${3:-}" --argjson deletable "${4:-0}" '{
     zone: {id:"zone-1", name:"alia.onl"},
     records: [],
-    projects: {"alia-app": {domains: $domains, deployments: [range($n) | "dep-\(.)"]}}
+    projects: {"alia-app": {domains: $domains,
+                            deployments: [range($n) | "dep-\(.)"],
+                            production: $production,
+                            deletable_with: $deletable}}
   }' > "$CF_STUB_STATE"
 }
 
@@ -672,11 +790,64 @@ check 'a project still serving a custom domain is refused, untouched' 1 \
   'requests:DELETE=0' \
   'jq:.projects["alia-app"].deployments | length == 5'
 
+# THE POSITIVE CONTROL for the exception below. Same shape — a page that will
+# not move — and a different error code, so it must still be fatal. If this ever
+# goes green the 8000034 exception has stopped being an exception and become a
+# hole that swallows every stall.
 pages_state 6 '[]'
 CF_STUB_FAULT=deployment-undeletable attempt bash "$delete_project" alia-app
-check 'a deployment that will not delete stops the loop instead of spinning' 1 \
+check 'a deployment that will not delete for any OTHER reason still stops the loop' 1 \
   'says:none of them could be deleted' \
+  'silent:continuing to the project' \
   'jq:.projects["alia-app"].deployments | length == 6'
+
+# THE DISCRIMINATOR, and it is the case the suite was missing. Keying the
+# exception on "one deployment left" instead of on 8000034 passes every other
+# case here — measured. This is the shape that separates them: a single
+# deployment refusing for a reason that is NOT the production rule, where the
+# loose version would call the purge finished and walk past a real fault.
+pages_state 1 '[]'
+CF_STUB_FAULT=deployment-undeletable attempt bash "$delete_project" alia-app
+check 'ONE deployment refusing for another reason is still a hard failure' 1 \
+  'says:none of them could be deleted' \
+  'silent:continuing to the project' \
+  'jq:.projects["alia-app"] != null'
+
+# And the exception needs EVERY refusal on the page to be 8000034, not just one
+# of them: a production deployment sitting next to a genuine stall must not
+# carry it through.
+pages_state 2 '[]' dep-0 0
+CF_STUB_FAULT=deployment-undeletable attempt bash "$delete_project" alia-app
+check 'a production deployment beside a real stall does not excuse the stall' 1 \
+  'says:is the active production deployment' \
+  'says:none of them could be deleted' \
+  'silent:continuing to the project'
+
+# Run 32919327793, exactly: 240 deployments, the last of them the active
+# production one, which Cloudflare refuses by rule. The purge has done all it
+# can and the project delete is what it was for.
+pages_state 240 '[]' dep-239 1
+attempt bash "$delete_project" alia-app
+check 'the active production deployment stops the purge and the project still goes' 0 \
+  'says:is the active production deployment' \
+  'says:continuing to the project' \
+  'says:deployments purged: 239 deleted' \
+  'says:alia-app is gone' \
+  `# 239 deletions plus two refusals: dep-239 is offered on the last full page` \
+  `# of 15 and again on the page of 1, and is refused both times.` \
+  'requests:DELETE /accounts/stub-account/pages/projects/alia-app/deployments/=241' \
+  'jq:.projects == {}'
+
+# And if it turns out Cloudflare will not delete the project either, the run
+# says the project cannot be retired through the API rather than leaving anyone
+# re-running something that cannot succeed.
+pages_state 240 '[]' dep-239 0
+attempt bash "$delete_project" alia-app
+check 'a project that cannot be retired by API says so, and says where to go' 1 \
+  'says:CANNOT be retired through the API' \
+  'says:Workers & Pages' \
+  'says:Re-running this will not change the answer' \
+  'jq:.projects["alia-app"].deployments == ["dep-239"]'
 
 pages_state 40 '[]'
 PAGES_RETIRE_DEADLINE_SECONDS=0 attempt bash "$delete_project" alia-app
