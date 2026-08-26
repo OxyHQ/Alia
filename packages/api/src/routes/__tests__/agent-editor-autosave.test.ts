@@ -348,7 +348,7 @@ describe('the editor and the route agree on what a save contains', () => {
    */
   it('answers with the child lists, exactly as GET does', async () => {
     repository.findAgentSkills.mockResolvedValue([
-      { _id: 'skill-1', skillId: 'research', title: 'Research', icon: '🔎', color: 'blue' },
+      { _id: 'skill-1', name: 'research', displayName: 'Research', icon: '🔎', color: 'blue' },
     ]);
     repository.findAgentKnowledge.mockResolvedValue([
       { _id: 'file-1', name: 'handbook.pdf', type: 'pdf', category: 'docs', url: 'https://x/handbook.pdf' },
@@ -359,7 +359,7 @@ describe('the editor and the route agree on what a save contains', () => {
     expect(res.status).toBe(200);
     const agent = res.body.agent as Record<string, unknown>;
     expect(agent.skills, 'a save that answers without skills wipes them on the next one').toEqual([
-      { _id: 'skill-1', skillId: 'research', title: 'Research', icon: '🔎', color: 'blue' },
+      { _id: 'skill-1', name: 'research', displayName: 'Research', icon: '🔎', color: 'blue' },
     ]);
     expect(agent.knowledge).toEqual([
       { _id: 'file-1', name: 'handbook.pdf', type: 'pdf', category: 'docs', url: 'https://x/handbook.pdf' },

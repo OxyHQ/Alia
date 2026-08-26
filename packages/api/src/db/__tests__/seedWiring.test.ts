@@ -47,11 +47,17 @@ import { fileURLToPath } from 'node:url';
 
 const PACKAGE_ROOT = path.resolve(fileURLToPath(new URL('../../..', import.meta.url)));
 
-/** Files that may define a table seeder. Two directories, both spelled out. */
+/**
+ * Files that may define a table seeder. Three shapes, all spelled out.
+ *
+ * `src/lib/*\/seed.ts` is the third, and it was added the day a seeder moved
+ * into a feature directory (`lib/skills/seed.ts`) and vanished from this
+ * census — which is what the vacuity floor below exists to catch, and did.
+ */
 function seederFiles(): string[] {
   return execFileSync(
     'git',
-    ['ls-files', 'src/lib/seed-*.ts', 'src/internal/providers/lib/seed-*.ts'],
+    ['ls-files', 'src/lib/seed-*.ts', 'src/lib/*/seed.ts', 'src/internal/providers/lib/seed-*.ts'],
     { cwd: PACKAGE_ROOT, encoding: 'utf8' },
   )
     .split('\n')

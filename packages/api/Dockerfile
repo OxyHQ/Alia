@@ -131,6 +131,13 @@ COPY --from=builder /build/packages/api/drizzle ./packages/api/drizzle
 # tracing an unrelated failure, not by anything that was watching for it.
 COPY --from=builder /build/packages/api/prompts ./packages/api/prompts
 
+# The same fact once more, for the skills Alia ships. `lib/skills/seed.ts`
+# resolves `<package>/skills/<name>/SKILL.md` at runtime and the seed THROWS
+# when the directory is absent — deliberately, because the alternative symptom
+# is an empty Skills catalogue that reads as a product decision rather than as a
+# missing COPY.
+COPY --from=builder /build/packages/api/skills ./packages/api/skills
+
 # Security hardening: run as the unprivileged "node" user shipped in the image.
 RUN chown -R node:node /app
 USER node

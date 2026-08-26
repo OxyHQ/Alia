@@ -3,7 +3,7 @@ import { eq, sql } from 'drizzle-orm';
 import { closePostgres, connectPostgres, type ApiDatabase } from '../index';
 import { agentKnowledge, agents, agentSkills } from '../schema/agents';
 import { conversations } from '../schema/chat';
-import { skills } from '../schema/agents-support';
+import { skills } from '../schema/skills';
 import { libraryFiles } from '../schema/library';
 import {
   AgentChildWriteOutsideTransactionError,
@@ -63,15 +63,10 @@ async function seedSkill(): Promise<string> {
   const [row] = await db
     .insert(skills)
     .values({
-      skillId: `sk-${Math.random().toString(36).slice(2, 10)}`,
-      title: 'A skill',
-      tagline: 'does a thing',
-      description: 'd',
-      systemPrompt: 'p',
-      author: 'Alia',
-      icon: 'i',
-      color: '#000',
-      category: 'featured',
+      name: `sk-${Math.random().toString(36).slice(2, 10)}`,
+      displayName: 'A skill',
+      description: 'Does a thing. Use when a thing needs doing.',
+      source: 'authored',
     })
     .returning({ id: skills.id });
   return row.id;

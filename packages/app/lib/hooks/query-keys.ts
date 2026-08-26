@@ -11,6 +11,12 @@ export const queryKeys = {
      */
     modes: () => ['catalogue', 'modes'] as const,
   },
+  skills: {
+    catalogue: (filters?: Record<string, string | undefined>) => ['skills', 'catalogue', filters ?? {}] as const,
+    installed: ['skills', 'installed'] as const,
+    mine: ['skills', 'mine'] as const,
+    detail: (idOrName: string) => ['skills', 'detail', idOrName] as const,
+  },
   agents: {
     /** The agents this person owns, which the sidebar lists. */
     mine: ['agents', 'mine'] as const,

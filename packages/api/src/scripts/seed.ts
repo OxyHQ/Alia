@@ -103,7 +103,7 @@ import { seedFeatures, seedPlanFeatures } from '../internal/providers/lib/seed-f
 import { seedAliaModels, seedModelConfigs } from '../internal/providers/lib/seed-model-configs.js';
 import { seedCompedAccounts } from '../lib/seed-comped-accounts.js';
 import { seedPlans } from '../lib/seed-plans.js';
-import { seedSkills } from '../lib/seed-skills.js';
+import { seedSkills } from '../lib/skills/seed.js';
 import { seedSuggestions } from '../lib/seed-suggestions.js';
 
 const logger = log.seed;

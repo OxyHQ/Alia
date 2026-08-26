@@ -128,6 +128,8 @@ const ALLOWED: Readonly<Record<string, string>> = {
   'packages/api/src/lib/tools/integrations/google-calendar.ts': 'SOURCE: one service.',
   'packages/api/src/lib/tools/integrations/google-drive.ts': 'SOURCE: one service.',
   'packages/api/src/lib/tools/oxy-services.ts': 'SOURCE: one origin (the oxy_services manifests).',
+  'packages/api/src/lib/skills/runtime.ts':
+    "SOURCE: one origin (the skills this account installed). Its three tools read that one candidate set — which is also the turn's authorization, resolved before any tool exists — and it merges nothing from anywhere else.",
   'packages/api/src/lib/tools/ask-agent.ts':
     "SOURCE: one origin (the owner's own agents) and ONE tool, whose schema is what the grant narrows. Merges nothing.",
   'packages/api/src/lib/agent/actions.ts':

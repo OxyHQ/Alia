@@ -55,7 +55,7 @@ import { errorMessage as getErrorMessage, errorStatus } from "@/lib/errors/error
 import { ContentPanel } from "@oxyhq/bloom/content-panel";
 import { useOxy } from "@oxyhq/services";
 
-type LinkedSkill = { _id: string; skillId: string; title: string; icon: string; color: string };
+type LinkedSkill = { _id: string; name: string; displayName: string; icon: string | null; color: string | null };
 type LinkedFile = { _id: string; name: string; type: string; category: string; url: string };
 
 const CATEGORIES = [
@@ -258,11 +258,18 @@ function AgentEditor({ agent }: { agent: Agent }) {
   const draftSaveTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const identitySaveTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
-  // Load available skills from backend
+  // Skills an agent may be given: the public catalogue plus this account's own.
+  // Attaching one is its own authorization — the agent's skills reach its
+  // conversations whether or not the person also installed them.
   useEffect(() => {
-    apiClient.get(API_ROUTES.skills.list).then((res) => {
-      setAllSkills(res.data.skills || []);
-    }).catch(() => {});
+    Promise.all([
+      apiClient.get(API_ROUTES.skills.catalogue).then((res) => res.data.skills ?? []).catch(() => []),
+      apiClient.get(API_ROUTES.skills.mine).then((res) => res.data.skills ?? []).catch(() => []),
+    ]).then(([catalogue, mine]: [LinkedSkill[], LinkedSkill[]]) => {
+      const byId = new Map<string, LinkedSkill>();
+      for (const skill of [...catalogue, ...mine]) byId.set(skill._id, skill);
+      setAllSkills([...byId.values()]);
+    });
     loadLibraryFiles();
   }, [loadLibraryFiles]);
 
@@ -607,12 +614,12 @@ function AgentEditor({ agent }: { agent: Agent }) {
               {skills.map((skill) => (
                 <SettingsListItem
                   key={skill._id}
-                  icon={<Text className="text-base">{skill.icon}</Text>}
-                  title={skill.title}
+                  icon={<Text className="text-base">{skill.icon ?? '\u{1F9E9}'}</Text>}
+                  title={skill.displayName}
                   rightElement={
                     <GhostButton
                       size="small"
-                      accessibilityLabel={`${t("agents.removeSkill")}: ${skill.title}`}
+                      accessibilityLabel={`${t("agents.removeSkill")}: ${skill.displayName}`}
                       onPress={() => editDraft({ skills: skills.filter((s) => s._id !== skill._id) })}
                       icon={<X size={14} className="text-muted-foreground" />}
                     />
@@ -648,7 +655,9 @@ function AgentEditor({ agent }: { agent: Agent }) {
                   {allSkills
                     .filter((s) =>
                       !skills.some((linked) => linked._id === s._id) &&
-                      (!skillSearch || s.title.toLowerCase().includes(skillSearch.toLowerCase()))
+                      (!skillSearch ||
+                        s.displayName.toLowerCase().includes(skillSearch.toLowerCase()) ||
+                        s.name.includes(skillSearch.toLowerCase()))
                     )
                     .map((skill) => (
                       <Item
@@ -658,8 +667,8 @@ function AgentEditor({ agent }: { agent: Agent }) {
                           setShowSkillPicker(false);
                           setSkillSearch("");
                         }}
-                        leading={<Text className="text-base">{skill.icon}</Text>}
-                        title={skill.title}
+                        leading={<Text className="text-base">{skill.icon ?? '\u{1F9E9}'}</Text>}
+                        title={skill.displayName}
                       />
                     ))}
                 </ScrollView>

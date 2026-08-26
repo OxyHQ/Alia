@@ -65,7 +65,7 @@ async function seed(row: {
     errorClass: null,
     cancelled: false,
     platform: 'app',
-    skillId: undefined,
+    skillNames: [],
   });
   if (row.createdAt) {
     await db
@@ -94,7 +94,7 @@ describe('insertChatAnalytics', () => {
       errorClass: 'RATE_LIMITED',
       cancelled: true,
       platform: 'web',
-      skillId: 'ca-skill-1',
+      skillNames: ['ca-skill-1', 'ca-skill-2'],
     });
 
     const [row] = await db
@@ -104,13 +104,17 @@ describe('insertChatAnalytics', () => {
     if (!row) throw new Error('no row written');
 
     /**
-     * `conversation_id`, `alia_model_id` and `skill_id` were absent from the
-     * table when it landed while the hook wrote all three. A port without them
-     * type-checks, inserts cleanly and throws the values away.
+     * `conversation_id`, `alia_model_id` and the skill column were absent from
+     * the table when it landed while the hook wrote all three. A port without
+     * them type-checks, inserts cleanly and throws the values away.
+     *
+     * The skill column is a SET now: a turn can inline two skills the person
+     * picked and load a third the model matched, and the single `skill_id` it
+     * replaced could only ever record one of them.
      */
     expect(row.conversationId).toBe('ca-conv-1');
     expect(row.aliaModelId).toBe('alia-v1-pro');
-    expect(row.skillId).toBe('ca-skill-1');
+    expect(row.skillNames).toEqual(['ca-skill-1', 'ca-skill-2']);
     expect(row.platform).toBe('web');
     expect(row.promptTokens).toBe(11);
 

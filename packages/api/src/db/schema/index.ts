@@ -24,5 +24,6 @@ export * from './organizations';
 export * from './oxy-services';
 export * from './providers';
 export * from './shows';
+export * from './skills';
 export * from './telemetry';
 export * from './usage';

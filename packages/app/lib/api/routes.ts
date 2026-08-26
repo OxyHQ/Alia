@@ -61,16 +61,23 @@ export const API_ROUTES = {
     alia: '/alia/chat',
   },
 
-  // Skills routes
+  // Skills routes. A skill is an Agent Skill (agentskills.io): a versioned
+  // directory addressed by `name` in the app and by row id in write paths.
   skills: {
-    list: '/skills',
-    me: '/skills/me',
-    get: (skillId: string) => `/skills/${skillId}`,
-    prompt: (skillId: string) => `/skills/${skillId}/prompt`,
+    catalogue: '/skills',
+    installed: '/skills/installed',
+    mine: '/skills/mine',
+    get: (idOrName: string) => `/skills/${idOrName}`,
+    versions: (idOrName: string) => `/skills/${idOrName}/versions`,
+    file: (idOrName: string, path: string) => `/skills/${idOrName}/files/${path}`,
     create: '/skills',
-    update: (skillId: string) => `/skills/${skillId}`,
-    delete: (skillId: string) => `/skills/${skillId}`,
+    newVersion: (id: string) => `/skills/${id}/versions`,
+    update: (id: string) => `/skills/${id}`,
+    delete: (id: string) => `/skills/${id}`,
     generate: '/skills/generate',
+    import: '/skills/import',
+    upload: '/skills/upload',
+    install: (id: string) => `/skills/${id}/install`,
   },
 
   // Trigger routes

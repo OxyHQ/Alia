@@ -98,6 +98,7 @@ import {
   buildRuntimeTools,
   type AgentRuntimeContext,
 } from './agent/actions.js';
+import type { SkillRuntime } from './skills/runtime.js';
 import { canvasTool } from './tools/canvas.js';
 import { createGetDeviceInfoTool } from './tools/device-info.js';
 import {
@@ -231,6 +232,15 @@ export interface ForUserOptions {
    * was not granted exposes nothing.
    */
   mcpServerId?: string | null;
+  /**
+   * The skill runtime for this turn, already built.
+   *
+   * Built in `lib/chat/request-context.ts` rather than here, because the system
+   * prompt needs the same read: the index of installed skills and the tools that
+   * load them come from one resolution of what this account may reach. Building
+   * it twice would mean authorizing twice, and the two could disagree.
+   */
+  skills?: SkillRuntime | null;
 }
 
 export interface ForUserResult {
@@ -266,6 +276,7 @@ export class ToolPipeline {
       mcpServerId,
       isLocalRuntime,
       instancedSources,
+      skills,
     } = opts;
 
     const toolNameMapping = new Map<string, string>();
@@ -482,6 +493,13 @@ export class ToolPipeline {
         ])
       : [{}, {}, {}, {}];
     Object.assign(aliaTools, mcpTools, integrationTools, oxyServiceTools, ownAgentTools);
+
+    // Skills: `loadSkill`, `readSkillFile` and — where a sandbox exists —
+    // `runSkillScript`. Present for API-key callers too: a skill reaches the
+    // model only through the candidate set `lib/skills/runtime.ts` already
+    // resolved, so the tools carry their own authorization rather than
+    // depending on the session kind.
+    if (skills) Object.assign(aliaTools, skills.tools);
 
     // 5. Merge server tools with editor tools
     const tools: ToolSet = { ...aliaTools, ...editorTools };

@@ -33,7 +33,7 @@
  * permission is the failure mode the split exists to prevent.
  *
  * The suffix is not decoration. `skills.author` one table over is a DISPLAY
- * STRING (`lib/seed-skills.ts` writes `'Alia'` and `'Community'`), so the same
+ * STRING (the built-in seed wrote `'Alia'` and `'Community'`), so the same
  * field name means opposite things one model apart and a backfill pairing fields
  * by name is wrong about both.
  *
@@ -78,7 +78,7 @@ import { sql } from 'drizzle-orm';
 import { createdAt, generatedId, timestamptz, updatedAt } from '@oxyhq/db';
 import { checkOneOf } from './columns';
 import { AGENT_ACCESS, AGENT_ARCHETYPES, AGENT_STATUSES } from '../../domain/agent.js';
-import { skills } from './agents-support';
+import { skills } from './skills';
 import { libraryFiles } from './library';
 
 /**

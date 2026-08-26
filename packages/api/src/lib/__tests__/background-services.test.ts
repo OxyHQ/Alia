@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Type-only, so it is erased before the `../../db/index.js` mock below applies.
@@ -27,6 +29,23 @@ import type { getDb as getDbSignature } from '../../db/index.js';
  * that is exactly what a double can carry honestly.
  */
 
+const STOPPER_FOR: Readonly<Record<string, string>> = {
+  startTriggerEngine: 'stopTriggerEngine',
+  'dispatcher.start': 'dispatcher.stop',
+  initTaskQueue: 'shutdownTaskQueue',
+  initShowQueue: 'shutdownShowQueue',
+  'containerPool.initialize': 'shutdownContainerPool',
+  // Fire-and-forget work with no running resource behind it. Each of these
+  // is one call that settles; there is nothing left to stop.
+  warmupGatewayClient: '',
+  syncZeroEval: '',
+  failOrphanedAudioJobs: '',
+  reclaimOrphanedAgentSessions: '',
+  startWorker: 'shutdownTaskQueue',
+  startShowWorker: 'shutdownShowQueue',
+  startSkillRegistrySync: 'stopSkillRegistrySync',
+};
+
 const order: string[] = [];
 
 /** Records the call, in order, and resolves. */
@@ -48,6 +67,8 @@ const startShowWorker = traced('startShowWorker');
 const shutdownShowQueue = traced('shutdownShowQueue');
 const containerPoolInitialize = traced('containerPool.initialize');
 const shutdownContainerPool = traced('shutdownContainerPool');
+const startSkillRegistrySync = tracedSync('startSkillRegistrySync');
+const stopSkillRegistrySync = traced('stopSkillRegistrySync');
 const failOrphanedAudioJobs = vi.fn(() => { order.push('failOrphanedAudioJobs'); return Promise.resolve(0); });
 const reclaimOrphanedAgentSessions = vi.fn(() => { order.push('reclaimOrphanedAgentSessions'); return Promise.resolve(0); });
 
@@ -67,6 +88,7 @@ vi.mock('../sandbox/container-pool.js', () => ({
   getContainerPool: () => ({ initialize: containerPoolInitialize }),
   shutdownContainerPool,
 }));
+vi.mock('../skills/scheduler.js', () => ({ startSkillRegistrySync, stopSkillRegistrySync }));
 vi.mock('../../db/notifications/audioJobRepository.js', () => ({ failOrphanedAudioJobs }));
 vi.mock('../agent/session-handoff.js', () => ({ reclaimOrphanedAgentSessions }));
 vi.mock('../../db/index.js', () => ({ getDb }));
@@ -108,6 +130,7 @@ describe('startBackgroundServices', () => {
     expect(reclaimOrphanedAgentSessions).toHaveBeenCalledTimes(1);
     expect(initShowQueue).toHaveBeenCalledTimes(1);
     expect(startShowWorker).toHaveBeenCalledTimes(1);
+    expect(startSkillRegistrySync).toHaveBeenCalledTimes(1);
   });
 
   it('returns synchronously — a starter may not stand between the process and /health/live', () => {
@@ -155,6 +178,7 @@ describe('startBackgroundServices', () => {
       'failOrphanedAudioJobs',
       'reclaimOrphanedAgentSessions',
       'initShowQueue',
+      'startSkillRegistrySync',
       'startWorker',
       'startShowWorker',
     ]);
@@ -201,6 +225,7 @@ describe('stopBackgroundServices', () => {
     expect(shutdownTaskQueue).toHaveBeenCalledTimes(1);
     expect(shutdownShowQueue).toHaveBeenCalledTimes(1);
     expect(shutdownContainerPool).toHaveBeenCalledTimes(1);
+    expect(stopSkillRegistrySync).toHaveBeenCalledTimes(1);
   });
 
   it('leaves nothing running that it started', async () => {
@@ -211,31 +236,19 @@ describe('stopBackgroundServices', () => {
      * strands the leadership lease, so no OTHER task schedules anything until
      * the lease TTL expires.
      *
-     * The map is the seam: adding a starter without a stopper is a compile-time
-     * hole here only if the author edits this map, so the SOURCE is read too —
-     * an unmapped starter fails the last assertion.
+     * The map is the seam, and the assertion below reads only what the MOCKS
+     * recorded — so a starter whose module this file does not mock is invisible
+     * to it. That blind spot was real: a leader-gated catalogue sync was added
+     * to the start half, ran unmocked against a live lease during this suite,
+     * and every assertion here stayed green. The source census in the test
+     * after this one is what closes it.
      */
-    const STOPPER_FOR: Readonly<Record<string, string>> = {
-      startTriggerEngine: 'stopTriggerEngine',
-      'dispatcher.start': 'dispatcher.stop',
-      initTaskQueue: 'shutdownTaskQueue',
-      initShowQueue: 'shutdownShowQueue',
-      'containerPool.initialize': 'shutdownContainerPool',
-      // Fire-and-forget work with no running resource behind it. Each of these
-      // is one call that settles; there is nothing left to stop.
-      warmupGatewayClient: '',
-      syncZeroEval: '',
-      failOrphanedAudioJobs: '',
-      reclaimOrphanedAgentSessions: '',
-      startWorker: 'shutdownTaskQueue',
-      startShowWorker: 'shutdownShowQueue',
-    };
 
     startBackgroundServices();
     await settle();
     const started = [...order];
     // Vacuity floor: an empty `started` would make the loop below assert nothing.
-    expect(started.length).toBe(11);
+    expect(started.length).toBe(12);
 
     order.length = 0;
     await stopBackgroundServices();
@@ -249,6 +262,52 @@ describe('stopBackgroundServices', () => {
     expect(leaked).toEqual([]);
   });
 
+  /**
+   * The census the mocks cannot perform.
+   *
+   * Everything above measures calls that a DOUBLE recorded, so it can only see
+   * modules this file already mocks — which makes "every starter has a stopper"
+   * an assertion about the mock list rather than about the service. Reading the
+   * source is what makes it an assertion about the service: a call added to
+   * `startBackgroundServices` and to nothing else fails here.
+   */
+  /**
+   * Source identifiers that trace under a different name, because the double
+   * stands in for a method rather than for a function.
+   */
+  const TRACE_NAME: Readonly<Record<string, string>> = {
+    start: 'dispatcher.start',
+    initialize: 'containerPool.initialize',
+  };
+
+  it('maps every starter the source actually calls', () => {
+    const source = readFileSync(
+      fileURLToPath(new URL('../background-services.ts', import.meta.url)),
+      'utf8',
+    );
+    const startHalf = source.slice(
+      source.indexOf('export function startBackgroundServices'),
+      source.indexOf('export async function stopBackgroundServices'),
+    );
+    // Vacuity floor on the slice: an index that missed would make every pattern
+    // below match nothing and the test pass over an empty string.
+    expect(startHalf).toContain('warmupGatewayClient');
+
+    const called = [...startHalf.matchAll(/([A-Za-z][A-Za-z0-9]*)\s*\(/g)]
+      .map((match) => match[1])
+      .filter((name) => /^(start|init|warmup|sync|fail)/.test(name))
+      .filter((name) => name !== 'startBackgroundServices')
+      .map((name) => TRACE_NAME[name] ?? name);
+    const unmapped = [...new Set(called)].filter((name) => !(name in STOPPER_FOR)).sort();
+
+    expect(
+      unmapped,
+      `${unmapped.join(', ')} is started by background-services.ts and appears in no ` +
+        'stopper map here. Add it with the function that stops it, or with an empty ' +
+        'string if it settles on its own — silence is what a leaked service looks like.',
+    ).toEqual([]);
+  });
+
   it('releases the leader lease before draining the queues', async () => {
     /*
      * Order matters in one direction here: the trigger engine must let go of its
@@ -260,6 +319,7 @@ describe('stopBackgroundServices', () => {
 
     expect(order).toEqual([
       'stopTriggerEngine',
+      'stopSkillRegistrySync',
       'dispatcher.stop',
       'shutdownTaskQueue',
       'shutdownShowQueue',

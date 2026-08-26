@@ -131,7 +131,7 @@ export default function MemoryScreen() {
    * The model applies it through its own `saveUserMemory` tool.
    */
   const startMemoryChat = (draft: string) => {
-    useStore.getState().setComposerDraft({ text: draft, target: null, mcpServerId: null });
+    useStore.getState().setComposerDraft({ text: draft, target: null, mcpServerId: null, skillNames: [] });
     router.replace('/(app)');
   };
 

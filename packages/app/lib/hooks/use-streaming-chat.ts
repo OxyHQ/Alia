@@ -33,6 +33,16 @@ export type SendOutcome = 'sent' | 'failed' | 'aborted';
 export interface SendOptions {
   /** `null` explicitly withholds MCP tools; omission preserves legacy callers. */
   mcpServerId?: string | null;
+  /**
+   * The skills chosen for THIS message, by name.
+   *
+   * Per turn rather than per session: the previous design set one skill id
+   * globally when a skill's page was opened, applied it to every conversation,
+   * and had nothing that could clear it. Omitted means the person chose none —
+   * Alia can still load an installed skill on its own from the index in its
+   * system prompt, which is what the format is for.
+   */
+  skillNames?: string[];
 }
 
 /** Server tools that mutate the user's memory document (see packages/api `lib/tools/user-memory.ts`). */
@@ -81,7 +91,7 @@ interface ConversationsInfinite {
 }
 
 
-export function useStreamingChat(apiUrl: string, conversationId?: string, reasoningEffort?: EffortLevel | null, selectedModel?: string, skillId?: string | null, agentId?: string | null) {
+export function useStreamingChat(apiUrl: string, conversationId?: string, reasoningEffort?: EffortLevel | null, selectedModel?: string, agentId?: string | null) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const previewAgentRow = useAgentRowPreview();
@@ -277,7 +287,7 @@ export function useStreamingChat(apiUrl: string, conversationId?: string, reason
           // request has behaved that way, so sending it would be noise.
           ...(webSearch === false && { webSearch: false }),
           ...(selectedModel && { model: selectedModel }),
-          ...(skillId && { skillId }),
+          ...(options?.skillNames?.length ? { skillIds: options.skillNames } : {}),
           ...(agentId && { agentId }),
           ...(agentMode && { agentMode: true }),
           ...(deepResearchMode && { deepResearch: true }),
@@ -929,7 +939,7 @@ export function useStreamingChat(apiUrl: string, conversationId?: string, reason
         previewAgentRow(agentId, reply.content);
       }
     }
-  }, [apiUrl, oxyServices, queryClient, conversationId, reasoningEffort, selectedModel, skillId, agentId, scheduleFlush, flushPendingUpdates, setMessagesAndRef, previewAgentRow]);
+  }, [apiUrl, oxyServices, queryClient, conversationId, reasoningEffort, selectedModel, agentId, scheduleFlush, flushPendingUpdates, setMessagesAndRef, previewAgentRow]);
 
   const stop = useCallback(() => {
     if (abortControllerRef.current) {

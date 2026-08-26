@@ -28,6 +28,8 @@ export interface PendingInitialMessage {
   text: string;
   attachments: Attachment[];
   mcpServerId: string | null;
+  /** The skills chosen for that message, carried across the screen hand-off. */
+  skillNames: string[];
 }
 
 /** Composer text handed to the screen identified by `target` (null = new-chat screen). */
@@ -35,6 +37,8 @@ export interface ComposerDraft {
   text: string;
   target: string | null;
   mcpServerId: string | null;
+  /** The skills the composer had chosen, restored when a send fails. */
+  skillNames: string[];
 }
 
 interface StoreState {
@@ -69,9 +73,6 @@ interface StoreState {
   composerDraftSeq: number;
   setComposerDraft: (draft: ComposerDraft) => void;
   clearComposerDraft: () => void;
-
-  activeSkillId: string | null;
-  setActiveSkillId: (skillId: string | null) => void;
 
   ghostMode: boolean;
   setGhostMode: (value: boolean) => void;
@@ -123,9 +124,6 @@ export const useStore = create<StoreState>((set, get) => ({
   setComposerDraft: (draft: ComposerDraft) =>
     set((state) => ({ composerDraft: draft, composerDraftSeq: state.composerDraftSeq + 1 })),
   clearComposerDraft: () => set({ composerDraft: null }),
-
-  activeSkillId: null,
-  setActiveSkillId: (skillId: string | null) => set({ activeSkillId: skillId }),
 
   ghostMode: false,
   setGhostMode: (value: boolean) => set({ ghostMode: value }),
