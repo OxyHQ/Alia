@@ -98,8 +98,22 @@ export const createDelegateToAgentTool = (userId: string, accessToken: string | 
        * One answer for both refusals. `canReachAgent` is public-and-active, or
        * standing in the bot account — an owner's own agent, or one shared with
        * them by being added to it.
+       *
+       * Compared against `'reachable'`, never negated. This read `!(await
+       * canReachAgent(…))` while the function still answered a `boolean`; it now
+       * answers `'reachable' | 'out_of_reach' | 'identity_unavailable'`, and
+       * **every one of those is truthy**, so the negation was constantly false
+       * and the refusal below could not fire. TypeScript does not object to
+       * `!someString`, so nothing caught it — see
+       * `__tests__/reach-is-compared-not-negated.test.ts`, which does now.
+       *
+       * `identity_unavailable` is collapsed into the same refusal here on
+       * purpose. A delegation is model output derived from `searchAgents`, with
+       * no person waiting to be told the identity service is down and no
+       * surface to tell them on; the turn simply carries on without the
+       * delegation, which is what every unreachable agent already does.
        */
-      if (found === null || !(await canReachAgent(found, { oxyUserId: userId, accessToken }))) {
+      if (found === null || (await canReachAgent(found, { oxyUserId: userId, accessToken })) !== 'reachable') {
         if (found !== null) {
           log.general.info({ agentId, userId }, 'Delegation refused: the caller cannot reach that agent');
         }
