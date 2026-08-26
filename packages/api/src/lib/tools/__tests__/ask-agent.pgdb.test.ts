@@ -51,9 +51,27 @@ vi.mock('../../logger.js', () => {
   };
 });
 
-/** Oxy is not reachable from a test, and failing open is the contract. */
+/**
+ * Oxy, at the one seam the identity lookup reaches it through.
+ *
+ * Empty by default — failing open is the contract, and the resolution cases
+ * below do not depend on a name. A case that asserts the composed system
+ * message DOES need one: the guard names the agent, so a test with no display
+ * name would assert that the message says `You are Agent`, which is the
+ * fallback rather than the identity.
+ */
+const oxyNames = vi.hoisted(() => ({ current: new Map<string, string>() }));
 vi.mock('../../oxy-user-hydration.js', () => ({
-  hydrateOxyUsers: vi.fn(async () => new Map()),
+  hydrateOxyUsers: vi.fn(async (ids: readonly string[]) => {
+    const resolved = new Map<string, { displayName: string; username: string; color: null }>();
+    for (const id of ids) {
+      const displayName = oxyNames.current.get(id);
+      if (displayName !== undefined) {
+        resolved.set(id, { displayName, username: displayName.toLowerCase(), color: null });
+      }
+    }
+    return resolved;
+  }),
 }));
 
 vi.mock('../../chat-core.js', () => ({
@@ -95,6 +113,7 @@ afterEach(() => {
   // In `afterEach`, not at the end of a body: a failing assertion skips
   // whatever follows it, which is exactly what a broken implementation causes.
   generateText.mockReset();
+  oxyNames.current = new Map();
 });
 
 /**
@@ -294,9 +313,10 @@ describe('the target agent answers, with its own prompt', () => {
     const owner = await account(100);
     const target = await seedAgent({
       author: owner,
-      systemPrompt: 'You are the archivist. Answer only with dates.',
+      systemPrompt: 'Answer only with dates, and never with prose.',
     });
-    const other = await seedAgent({ author: owner, systemPrompt: 'You are somebody else.' });
+    const other = await seedAgent({ author: owner, systemPrompt: 'You help with taxes.' });
+    oxyNames.current.set(target.oxyAccountId, 'Archivist');
     answers('1969');
 
     const tool = await askAgentTool(owner, [target.id, other.id]);
@@ -305,14 +325,21 @@ describe('the target agent answers, with its own prompt', () => {
     expect(outcome.error).toBeUndefined();
     expect(outcome.response).toBe('1969');
     expect(generateText).toHaveBeenCalledTimes(1);
+
+    const system = String(generateText.mock.calls[0][0].system);
     /**
      * THE assertion of this file's second purpose: the nested turn carries the
-     * TARGET's prompt. A generic one, or the caller's, would still return an
-     * answer and still pass every other line here.
+     * TARGET's own prompt and the TARGET's own name. A generic composition, or
+     * the caller's, would still return an answer and still pass every other
+     * line here.
      */
-    expect(generateText.mock.calls[0][0].system).toBe(
-      'You are the archivist. Answer only with dates.',
-    );
+    expect(system).toContain('Answer only with dates, and never with prose.');
+    expect(system).not.toContain('You help with taxes.');
+    // Composed like every other agent surface since #453: the guard names it,
+    // and the remit rule points at a heading that has to actually be there.
+    expect(system).toContain('You are Archivist,');
+    expect(system).toContain('\n# AGENT: Archivist\n');
+    expect(system).toContain('## YOUR REMIT');
     expect(generateText.mock.calls[0][0].prompt).toBe('when?');
   });
 

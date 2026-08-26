@@ -42,6 +42,11 @@
  * no access token: this is not a person's turn, so none of the person-bound
  * tools and none of the connector sources are in scope.
  *
+ * It answers as ITSELF, too: the system message is the identity guard plus the
+ * agent's remit, the same composition the chat, the voice channel, a trigger
+ * and an agent's own Telegram bot use since #453. An agent that answered
+ * another agent as "Alia" would be the same defect that shipped on those four.
+ *
  * That flag is also the RECURSION BOUND, and it is structural rather than a
  * counter: the `agent` capability family is only built for a turn that acts for
  * a person, so the callee never receives `askAgent` and cannot call back into
@@ -50,6 +55,8 @@
 
 import { generateText, stepCountIs } from 'ai';
 import { agentPromptName, type HydratedAgent } from '../agent-identity.js';
+import { agentRemitPrompt } from '../agent/archetype-prompts.js';
+import { buildIdentityGuard } from '../identity-guard.js';
 import { resolveModel, getAIModel } from '../chat-core.js';
 import { evolveAgentSoul } from '../agent/soul.js';
 import {
@@ -101,13 +108,31 @@ export async function runAgentTurn(input: {
   const start = Date.now();
 
   /**
-   * The agent's own instructions, or a sentence built from what it IS.
+   * Composed the way every other agent surface composes: the identity guard on
+   * top, the agent's remit under it.
    *
-   * No `Capabilities:` line: it listed the decorative `capabilities` ids, which
-   * named no tool this turn actually hands over.
+   * NOT `agent.systemPrompt` with a name sentence built here when it is empty,
+   * which is what this path did and what #453 removed from four surfaces at
+   * once. Two things were wrong with it and the second is the one a person
+   * notices: the sentence was a SECOND owner of the agent's name, and an agent
+   * whose owner never wrote a prompt reached the model with no description of
+   * itself at all — `archetype` defaults to `general`, for which there is no
+   * archetype prompt, so the fallback was the whole remit.
+   *
+   * `agentRemitPrompt` answers "what describes this agent" once —
+   * `systemPrompt`, else the archetype, else the listing, never empty — and
+   * emits the `# AGENT: <name>` heading the guard's remit rule POINTS AT. A
+   * composition that dropped the heading would leave that rule naming a section
+   * that is not there, which reads to the model like no rule at all.
+   *
+   * The shape is `routes/webhooks.ts`'s, deliberately: an agent answering on its
+   * own Telegram bot is the same event as an agent answering another agent —
+   * one agent, one `generateText`, its own tools — and the two must not compose
+   * differently.
    */
-  const systemPrompt =
-    agent.systemPrompt || `You are ${agentPromptName(agent)}, an AI agent. ${agent.tagline}. ${agent.description}`;
+  const systemPrompt = `${buildIdentityGuard({
+    agentName: agentPromptName(agent),
+  })}\n\n---\n\n${agentRemitPrompt(agent)}`;
 
   /**
    * The agent's own first choice, then the lightweight default — and the ALIAS
