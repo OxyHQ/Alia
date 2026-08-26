@@ -593,7 +593,17 @@ router.patch('/:id', authenticateToken, async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Agent not found' });
     }
 
-    const hydrated = await attachAgentIdentity(agent);
+    /**
+     * The SAME shape `GET /agents/:id` answers with — child lists attached.
+     *
+     * They were not, and `useUpdateAgent` writes this answer straight into the
+     * `agents.detail` cache, so a save replaced the agent the editor was holding
+     * with one that had no `skills` and no `knowledge`. The screen re-seeded
+     * from it, and its next autosave sent `skills: []` — which DELETES them.
+     * Two routes serving one resource in two shapes is the bug; the client can
+     * only ever paper over it.
+     */
+    const hydrated = await attachAgentIdentity(await withChildLists(agent));
 
     // Auto-manage linked triggers for archetype agents (non-blocking, only when relevant fields change)
     if (
