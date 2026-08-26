@@ -73,16 +73,20 @@
 # destructive step. A cutover that goes wrong then has the prior state in its
 # own log instead of something to reconstruct from memory afterwards.
 #
-# THE RECORD DELETE IS TYPE-SCOPED, learned the hard way. It used to take
-# `.result[0]` from `dns_records?name=$HOSTNAME` — a query that filters by name
-# and NOT by type — and delete that one record. At the apex `alia.onl` the list
-# was two entries, `CNAME -> alia-app.pages.dev` and `TXT "v=spf1 -all"`: the
-# CNAME went, the read-back counted the SPF record still sitting there, and the
-# run stopped before the detach. The guard was right; the delete was wrong
-# twice, once in assuming a single record and once in a read-back that counted
-# records which never blocked anything. Only A, AAAA and CNAME provoke 100117,
-# and an apex SPF record has to survive a hostname migration — so the loop and
-# its read-back are both scoped to address records.
+# THE RECORD DELETE IS TYPE-SCOPED, learned the hard way, and it now lives in
+# `.github/scripts/cloudflare-clear-address-records.sh` because the recovery
+# workflow needed the same thing and a second copy would have drifted. It used
+# to take `.result[0]` from `dns_records?name=$HOSTNAME` — a query that filters
+# by name and NOT by type — and delete that one record. At the apex `alia.onl`
+# the list was two entries, `CNAME -> alia-app.pages.dev` and
+# `TXT "v=spf1 -all"`: the CNAME went, the read-back counted the SPF record
+# still sitting there, and the run stopped before the detach. Then
+# `bind-pages-domain.yml`, recovering, PUT a CNAME over `.result[0]` of the same
+# query and destroyed the SPF record for real. Only A, AAAA and CNAME provoke
+# 100117, so `cloudflare-address-records.sh` holds that list once and the
+# delete, the recovery bind and the restore step below all read it — and the
+# delete checks that every record it was not deleting is still there afterwards.
+#
 #
 # If step 4 never succeeds the run FAILS THERE, with the Pages project still
 # intact — and the LAST STEP puts the record back by itself. That step is the
@@ -130,7 +134,11 @@ jobs:
   migrate:
     name: ${{ inputs.pages_project }} -> Worker
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    # 40, not 25. The serve-gate waits up to 420s and the deployment purge up to
+    # 600s; at 25 the runner could kill the job before either reached its own
+    # `::error::`, which is where the recovery instruction lives — the defect
+    # #436 fixed one loop at a time and this restates in one place.
+    timeout-minutes: 40
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -374,49 +382,8 @@ jobs:
       - name: Delete the DNS records so the Worker can write its own
         if: ${{ !inputs.dry_run }}
         run: |
-          set -euo pipefail
-          # A hostname can carry more than one address record, and `?name=` also
-          # returns every other type sitting at that name. Both halves of this
-          # step read the same filter so they cannot drift apart: what gets
-          # deleted and what the read-back demands be gone are one definition.
-          blocking='select(.type == "A" or .type == "AAAA" or .type == "CNAME")'
-          curl -sS -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
-            "https://api.cloudflare.com/client/v4/zones?name=$ZONE" -o /tmp/z.json
-          zone=$(jq -r '.result[0].id // empty' /tmp/z.json)
-          [ -n "$zone" ] || { echo "::error::zone $ZONE not found"; exit 1; }
-          curl -sS -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
-            "https://api.cloudflare.com/client/v4/zones/$zone/dns_records?name=$HOSTNAME" -o /tmp/r.json
-          # Written BEFORE the first DELETE, because the restore step at the
-          # bottom cannot ask Cloudflare what used to be there. Everything
-          # needed to recreate the record and nothing else.
-          jq "[.result[] | $blocking | {type, name, content, ttl, proxied}]" /tmp/r.json \
-            > /tmp/deleted-records.json
-          echo "recorded for restore: $(jq -c '[.[] | .type + " -> " + .content]' /tmp/deleted-records.json)"
-          ids=$(jq -r ".result[] | $blocking | .id" /tmp/r.json)
-          if [ -z "$ids" ]; then
-            echo "no address record to delete — continuing"
-          else
-            for rec in $ids; do
-              what=$(jq -r --arg id "$rec" '.result[] | select(.id == $id) | .type + " -> " + .content' /tmp/r.json)
-              echo "deleting $what ($rec)"
-              code=$(curl -sS -o /tmp/rd.json -w '%{http_code}' -X DELETE \
-                -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
-                "https://api.cloudflare.com/client/v4/zones/$zone/dns_records/$rec")
-              # Per record, not once for the batch: one failure in the middle
-              # would otherwise be papered over by the next success.
-              [ "$(jq -r '.success' /tmp/rd.json)" = "true" ] \
-                || { echo "::error::record delete failed for $what (http=$code): $(jq -c '.errors' /tmp/rd.json)"; exit 1; }
-            done
-          fi
-          # Read back: a DELETE that reports success and leaves the record is
-          # indistinguishable from one that worked, and the next step would then
-          # fail with the same 100117 for a reason that looks unrelated.
-          curl -sS -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
-            "https://api.cloudflare.com/client/v4/zones/$zone/dns_records?name=$HOSTNAME" -o /tmp/r2.json
-          left=$(jq -r "[.result[] | $blocking] | length" /tmp/r2.json)
-          kept=$(jq -r '[.result[] | .type] | join(",")' /tmp/r2.json)
-          echo "address records for $HOSTNAME now: $left (still at this name: ${kept:-none})"
-          [ "$left" = "0" ] || { echo "::error::$left address record(s) still present"; exit 1; }
+          bash .github/scripts/cloudflare-clear-address-records.sh \
+            "$ZONE" "$HOSTNAME" /tmp/deleted-records.json
 
       # 2. Pages releases its claim. Doing this AFTER the record is gone means
       #    the gap is an NXDOMAIN rather than requests reaching a Pages
@@ -451,7 +418,8 @@ jobs:
           set -euo pipefail
           # A wall-clock deadline rather than an attempt count. 30 attempts of
           # `--max-time 15` plus `sleep 20` is up to 17 minutes, and with the
-          # install and build ahead of it that overran the 25-minute job — so
+          # install and build ahead of it that overran the job as it was then
+          # budgeted, at 25 minutes — so
           # the runner could kill this step before it reached its own
           # `::error::`, which carries the recovery instruction. Losing that
           # line is losing the most valuable output in the file.
@@ -475,33 +443,24 @@ jobs:
           exit 1
 
       # 5. The only irreversible step, and it is unreachable unless step 4
-      #    proved the replacement works.
+      #    proved the replacement works. A project with more than a handful of
+      #    deployments cannot be deleted outright — `8000076`, "too many
+      #    deployments to be deleted" — so the script purges them first, always
+      #    re-reading page 1 because deleting from a paginated list shifts every
+      #    later page, and reads the project back rather than trusting
+      #    `success: true`. Its budget is 600s, which is why this job's timeout
+      #    is what it is.
       - name: Delete the Pages project
         if: ${{ !inputs.dry_run }}
-        run: |
-          set -euo pipefail
-          code=$(curl -sS -o /tmp/del.json -w '%{http_code}' -X DELETE \
-            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
-            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects/$PAGES_PROJECT")
-          echo "delete http=$code success=$(jq -r '.success' /tmp/del.json)"
-          [ "$(jq -r '.success' /tmp/del.json)" = "true" ] \
-            || { echo "::error::delete failed: $(jq -c '.errors' /tmp/del.json)"; exit 1; }
-          # Read back: a DELETE that reports success and leaves the project is
-          # indistinguishable from one that worked.
-          list=$(curl -sS -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
-            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects" \
-            | jq -r '[.result[].name]|join(",")')
-          echo "projects now: $list"
-          echo "$list" | tr ',' '\n' | grep -qx "$PAGES_PROJECT" \
-            && { echo "::error::$PAGES_PROJECT is still listed"; exit 1; } || true
+        run: bash .github/scripts/delete-pages-project.sh "$PAGES_PROJECT"
 
       # THE WAY BACK, and the only step that runs on `always()`. Everything
       # between the record delete and the Worker claiming the hostname is an
       # outage, and until now the sole exit from a failure inside it was a human
       # noticing and running `bind-pages-domain.yml` by hand — fifteen minutes,
       # on 2026-08-26. `always()` rather than `failure()` because a job killed
-      # by its own 25-minute timeout is CANCELLED, not failed, and a timeout
-      # lands squarely in the window.
+      # by its own timeout is CANCELLED, not failed, and a timeout lands
+      # squarely in the window.
       #
       # It is built not to undo a cutover that worked. Three conditions each end
       # it as a no-op: nothing was deleted, the Worker already holds the
@@ -532,9 +491,12 @@ jobs:
             exit 0
           fi
 
-          curl -sS -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
-            "$api/zones/$zone/dns_records?name=$HOSTNAME" -o /tmp/rr.json
-          live=$(jq -r '[.result[] | select(.type == "A" or .type == "AAAA" or .type == "CNAME")] | length' /tmp/rr.json)
+          # Through the same reader the delete used. A second list of record
+          # types here is a way for the restore path to disagree with the
+          # teardown about whether a hostname resolves, and this is the step
+          # that runs when something has already gone wrong.
+          bash .github/scripts/cloudflare-address-records.sh "$ZONE" "$HOSTNAME" > /tmp/rr.json
+          live=$(jq -r '.address | length' /tmp/rr.json)
           if [ "$live" != "0" ]; then
             echo "$HOSTNAME already has $live address record(s) — it resolves, nothing to restore"
             exit 0
@@ -571,16 +533,15 @@ jobs:
           # Read back the same way everything else here does, and then ask the
           # zone's own nameserver, because the API agreeing with itself is not
           # the site being reachable.
-          curl -sS -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
-            "$api/zones/$zone/dns_records?name=$HOSTNAME" -o /tmp/rr2.json
-          back=$(jq -r '[.result[] | select(.type == "A" or .type == "AAAA" or .type == "CNAME")] | length' /tmp/rr2.json)
+          bash .github/scripts/cloudflare-address-records.sh "$ZONE" "$HOSTNAME" > /tmp/rr2.json
+          back=$(jq -r '.address | length' /tmp/rr2.json)
           [ "$back" = "$n" ] \
             || { echo "::error::restored $back of $n address record(s)"; exit 1; }
           ns=$(jq -r '.result[0].name_servers[0] // empty' /tmp/rz.json)
           {
             echo "### Restored"
             echo '```'
-            echo "$HOSTNAME -> $(jq -r '[.result[] | select(.type == "A" or .type == "AAAA" or .type == "CNAME") | .type + " " + .content] | join(", ")' /tmp/rr2.json)"
+            echo "$HOSTNAME -> $(jq -r '[.address[] | .type + " " + .content] | join(", ")' /tmp/rr2.json)"
             if command -v dig >/dev/null && [ -n "$ns" ]; then
               echo "authoritative (@$ns): $(dig +short "@$ns" "$HOSTNAME" A "$HOSTNAME" CNAME | tr '\n' ' ')"
             fi

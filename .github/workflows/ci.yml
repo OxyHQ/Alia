@@ -155,6 +155,17 @@ jobs:
       - name: Verify the static-asset gate can still fail
         run: node .github/scripts/test-check-static-assets.mjs
 
+      # The Cloudflare cutover scripts mutate production DNS and delete a Pages
+      # project, from a workflow whose inputs are a hostname and a project name.
+      # On 2026-08-26 they cost `alia.onl` fifteen minutes of downtime and its
+      # SPF record, to a query that filters by name and not by type — and the
+      # recovery run that destroyed the SPF record reported success. Nothing
+      # about a green run distinguished it, so the scripts are gated against
+      # fixtures shaped like the apex that provoked it, controls included.
+      # Here because this job installs nothing and needs no workspace.
+      - name: Verify the Cloudflare cutover scripts can still fail
+        run: bash .github/scripts/test-cloudflare-cutover.sh
+
       # Runs in the one job that installs nothing, so it reports before the jobs
       # it protects would fail. See the header comment: the cache is the only
       # thing stopping an unauthenticatable GitHub fetch on every install.

@@ -1,0 +1,141 @@
+# Put an SPF record back on a domain that lost one.
+#
+# WHAT HAPPENED. `alia.onl` published `TXT "v=spf1 -all"` until 2026-08-26. The
+# Pages-to-Worker cutover deleted `.result[0]` of `dns_records?name=alia.onl` —
+# a query that filters by name and NOT by type — which was the apex CNAME, and
+# the domain went down for about fifteen minutes. `bind-pages-domain.yml`
+# brought it back by PUTting a CNAME over `.result[0]` of the same query, which
+# by then was the SPF record. Service was restored and the SPF record was gone.
+# Both defects are fixed in those files; this is the record itself.
+#
+# THE VALUE IS `v=spf1 -all`, AND IT IS NOT SOMEBODY'S MEMORY. The evidence is
+# set out in `.github/scripts/cloudflare-set-spf.sh` — Cloudflare's own
+# description of the record in the log of the run that destroyed it, a second
+# run establishing there was exactly one TXT record at the apex, and a
+# `_dmarc.alia.onl` of `p=reject; sp=reject; adkim=s; aspf=s` next to an apex
+# with no MX. `-all` says this domain sends no mail; that is a live mail policy,
+# so the value is an input and the script refuses anything that is not an SPF
+# record at all.
+#
+# NO SPF IS WEAKER THAN `-all`, NOT NEUTRAL. A receiver that finds no SPF record
+# gets `none` and falls through to DMARC; one that finds `-all` has an explicit
+# instruction to reject. Leaving the apex without one is a standing invitation
+# to spoof it, which is why this exists rather than a note to fix it later.
+#
+# WHY A WORKFLOW: every Cloudflare token on the machine is dead. The working
+# credential is the org secret `CLOUDFLARE_API_TOKEN`, and a GitHub secret
+# cannot be read out — only used from inside a run.
+#
+# IT IS IDEMPOTENT AND IT READS BACK, twice. Once through the API, because a
+# call that returns `success: true` having changed nothing and one that changed
+# something are the same response — and the "already correct" path issues no
+# call at all, so the assertion cannot come from the write. Then over real DNS,
+# against the zone's own authoritative nameservers rather than a resolver: the
+# name currently has NO TXT record, so every resolver that has been asked is
+# holding a negative answer, and a cache is not evidence about the zone.
+name: Restore SPF
+
+on:
+  workflow_dispatch:
+    inputs:
+      zone:
+        description: The Cloudflare zone
+        required: true
+        default: alia.onl
+      hostname:
+        description: The name that carries the SPF record
+        required: true
+        default: alia.onl
+      value:
+        description: The SPF record. -all means this domain sends no mail.
+        required: true
+        default: v=spf1 -all
+      dry_run:
+        description: Inspect and stop. Prints what is published now and changes nothing.
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  restore:
+    name: SPF for ${{ inputs.hostname }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      ZONE: ${{ inputs.zone }}
+      HOSTNAME: ${{ inputs.hostname }}
+      VALUE: ${{ inputs.value }}
+      DRY_RUN: ${{ inputs.dry_run }}
+
+    steps:
+      # An org secret marked "Public repositories" never reaches a private repo
+      # and arrives as an EMPTY STRING with no error of its own.
+      - name: The credentials actually arrived
+        run: |
+          set -euo pipefail
+          [ -n "${CLOUDFLARE_API_TOKEN:-}" ] || { echo "::error::CLOUDFLARE_API_TOKEN is empty"; exit 1; }
+          ok=$(curl -sS -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            https://api.cloudflare.com/client/v4/user/tokens/verify | jq -r '.success')
+          [ "$ok" = "true" ] || { echo "::error::token rejected"; exit 1; }
+
+      - uses: actions/checkout@v4
+
+      # What the internet says right now, before anything is written. The DMARC
+      # record is printed because it is the corroboration for `-all`: a domain
+      # that rejects unaligned mail and has no MX is a domain that sends none.
+      - name: What is published now
+        run: |
+          set -euo pipefail
+          # The steps below read `inputs.dry_run` through `if:`; this reads the
+          # same input through the environment. A value that is neither `true`
+          # nor `false` would make the two disagree, and the way that shows up
+          # is a skipped step and a green run that changed nothing.
+          [ "$DRY_RUN" = "true" ] || [ "$DRY_RUN" = "false" ] \
+            || { echo "::error::dry_run must be true or false, got '$DRY_RUN'"; exit 1; }
+          {
+            echo "### Before"
+            echo '```'
+            echo "TXT   $HOSTNAME       -> $(dig +short TXT "$HOSTNAME" | tr '\n' ' ' | sed 's/ *$//' || true)"
+            echo "MX    $HOSTNAME       -> $(dig +short MX "$HOSTNAME" | tr '\n' ' ' | sed 's/ *$//' || true)"
+            echo "TXT   _dmarc.$ZONE    -> $(dig +short TXT "_dmarc.$ZONE" | tr '\n' ' ' | sed 's/ *$//' || true)"
+            echo '```'
+            if [ "$DRY_RUN" = "true" ]; then
+              echo "> **DRY RUN.** Nothing is written."
+            else
+              echo "> Writing \`$VALUE\` to \`$HOSTNAME\` next."
+            fi
+          } | tee -a "$GITHUB_STEP_SUMMARY"
+
+      # Idempotent, refuses a value that is not an SPF record, refuses to choose
+      # between two of them, and asserts no other record at the name changed.
+      - name: Write the SPF record
+        if: ${{ !inputs.dry_run }}
+        run: bash .github/scripts/cloudflare-set-spf.sh "$ZONE" "$HOSTNAME" "$VALUE"
+
+      # The API said so; this is whether the internet agrees. Asked of the
+      # zone's own authoritative nameservers, because the name has been without
+      # a TXT record and every resolver that was asked is caching that absence —
+      # a recursive lookup here would be measuring a cache, not the zone.
+      - name: The nameservers serve it
+        if: ${{ !inputs.dry_run }}
+        run: |
+          set -euo pipefail
+          ns=$(dig +short NS "$ZONE" | head -1)
+          [ -n "$ns" ] || { echo "::error::$ZONE publishes no NS records"; exit 1; }
+          echo "asking $ns"
+          # A TXT value longer than 255 bytes comes back as adjacent quoted
+          # chunks on one line; joining them before stripping quotes is what
+          # makes the comparison the record's real value and not a rendering.
+          got=$(dig +short TXT "$HOSTNAME" "@$ns" | sed 's/" "//g; s/"//g')
+          echo "$HOSTNAME TXT -> ${got:-(none)}"
+          printf '%s\n' "$got" | grep -qxF "$VALUE" \
+            || { echo "::error::$ns does not serve '$VALUE' for $HOSTNAME"; exit 1; }
+          {
+            echo "### After"
+            echo '```'
+            echo "TXT $HOSTNAME @$ns -> $got"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
