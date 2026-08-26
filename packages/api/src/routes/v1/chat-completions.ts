@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import { Router, Request, Response } from 'express';
-import { getAliaModel, getModelMappingsForTier } from '../../lib/gateway-client.js';
+import { getModelMappingsForTier } from '../../lib/gateway-client.js';
+import { getRoutingPreset } from '../../lib/routing/presets.js';
 import { refundReservation, safeRefund } from '../../lib/credits-manager.js';
 import { handleDeepResearch } from '../../lib/chat-modes/deep-research-handler.js';
 import { ToolPipeline } from '../../lib/tool-pipeline.js';
@@ -260,8 +261,8 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
     const convertedMessages = convertToAISDKMessages(rawMessages, toolNameMapping);
 
     // Wrap tools with truncation to cap large results (saves tokens)
-    const aliaModelInfo = await getAliaModel(state.aliasModelId);
-    const tierMappings = aliaModelInfo ? await getModelMappingsForTier(aliaModelInfo.tier) : [];
+    const tier = getRoutingPreset(state.aliasModelId)?.tier;
+    const tierMappings = tier ? await getModelMappingsForTier(tier) : [];
     const modelContextTokens = (tierMappings[0]?.capabilities?.maxContextTokens as number) || 128000;
     const truncatedTools = wrapToolsWithTruncation(allTools, getToolResultBudget(modelContextTokens));
     log.v1.info({ toolNames: Object.keys(truncatedTools), toolCount: Object.keys(truncatedTools).length }, 'Tools passed to model');

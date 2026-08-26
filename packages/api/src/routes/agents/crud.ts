@@ -230,8 +230,6 @@ router.get('/me', authenticateToken, async (req: Request, res: Response) => {
      * array for that reason.
      */
     const owned = await listAgentsByAuthor(getDb(), req.user.id);
-    const agents = await Promise.all(owned.map(withChildLists));
-    const identified = await attachAgentIdentities(agents);
 
     /*
      * The newest line of each thread, so the sidebar can read like a list of
@@ -239,12 +237,20 @@ router.get('/me', authenticateToken, async (req: Request, res: Response) => {
      * per agent would be a query per row, which is the shape this exists to
      * avoid — and scoped to the caller, because the line belongs to their own
      * thread with the agent and not to the agent's busiest stranger.
+     *
+     * It needs only `owned`, so it runs BESIDE hydration rather than after it.
+     * Awaited in sequence it sat behind `attachAgentIdentities`, which is an
+     * HTTP call to Oxy: a database round trip queued behind a network one, on
+     * every sidebar load.
      */
-    const latest = await latestMessagePerAgent(
-      getDb(),
-      req.user.id,
-      owned.map((agent) => agent._id),
-    );
+    const [identified, latest] = await Promise.all([
+      Promise.all(owned.map(withChildLists)).then(attachAgentIdentities),
+      latestMessagePerAgent(
+        getDb(),
+        req.user.id,
+        owned.map((agent) => agent._id),
+      ),
+    ]);
     const byAgent = new Map(latest.map((row) => [row.agentId, row]));
 
     res.json({
