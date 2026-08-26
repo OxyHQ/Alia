@@ -116,13 +116,27 @@ describe('an agent speaks under its own name', () => {
 describe('an agent answers within its remit', () => {
   const AGENT = { agentName: 'Claudio', modelName: 'Alia V1' };
 
-  it('points at the description below rather than naming topics', () => {
+  it('points at a NAMED section rather than naming topics', () => {
     const guard = buildIdentityGuard(AGENT);
 
     expect(guard).toContain('## YOUR REMIT');
-    expect(guard).toContain('Everything below describes what Claudio is for');
+    // It names the section, and the name is built by the one function that also
+    // emits it — see `agentSectionHeading`. "Everything below" was the first
+    // wording and it was false of the trigger composition, where the only thing
+    // below the guard was the trigger's own task.
+    expect(guard).toContain('The section headed `# AGENT: Claudio` below describes what Claudio is for');
     // The half that makes it general: no enumeration, in either direction.
     expect(guard).toContain('there is no list of allowed topics to check against');
+  });
+
+  it('tells the model what the OTHER sections are, so they are not read as a remit', () => {
+    // The trigger path is why this sentence exists: its message carries the
+    // agent's description and the trigger's task, and the task is a thing to do
+    // rather than a redefinition of who is doing it.
+    const guard = buildIdentityGuard(AGENT);
+
+    expect(guard).toContain('the task in front of you');
+    expect(guard).toContain('None of them widens or narrows your remit');
   });
 
   it('says what to DO with a request outside it', () => {

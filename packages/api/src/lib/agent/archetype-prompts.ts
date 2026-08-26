@@ -8,6 +8,7 @@
 
 import { readArchetypeConfig, type ArchetypeConfig } from '../../domain/agent.js';
 import { agentPromptName, type HydratedAgent } from '../agent-identity.js';
+import { agentSectionHeading } from '../identity-guard.js';
 
 /**
  * What this agent is for, in the words its owner gave. NEVER empty.
@@ -39,8 +40,28 @@ import { agentPromptName, type HydratedAgent } from '../agent-identity.js';
  * It describes and never names: `You are ${name}` belongs to the identity guard
  * and used to be duplicated here, which is the same two-owners defect one layer
  * down.
+ *
+ * ## The HEADER is part of it, and that is what the guard points at
+ *
+ * `buildIdentityGuard`'s remit rule names this section — "the section headed
+ * `# AGENT: <name>`" — rather than saying "everything below", because
+ * everything below is not all one thing. A trigger's composition has the
+ * agent's description AND the trigger's own task under the guard, and "the
+ * task in front of you" is not a redefinition of what the agent is for. The
+ * loose wording read the task as the remit, measurably: on the trigger path the
+ * only thing under the guard WAS the task.
+ *
+ * So the header is emitted here, once, instead of being written out at each
+ * composition site. The guard's reference and the header it refers to are then
+ * two halves of one fact in one repository, and
+ * `__tests__/agent-turn-system-prompt.test.ts` asserts the reference resolves
+ * to a real header in the composed message rather than to nothing.
  */
 export function agentRemitPrompt(agent: HydratedAgent): string {
+  return `${agentSectionHeading(agentPromptName(agent))}\n\n${remitBody(agent)}`;
+}
+
+function remitBody(agent: HydratedAgent): string {
   const own = agent.systemPrompt?.trim();
   if (own) return own;
 

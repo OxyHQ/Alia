@@ -122,8 +122,15 @@ describe('a turn that belongs to an agent', () => {
     const message = await SystemPromptBuilder.build({ ...turn, linkedAgent: claudio });
 
     expect(message).toContain('## YOUR REMIT');
-    expect(message).toContain('Everything below describes what Claudio is for');
-    // The rule is worth nothing without something for it to point at.
+
+    // The rule NAMES a section, so the load-bearing assertion is that the name
+    // resolves: the heading it cites has to exist in the composed message as a
+    // heading. A rule pointing at nothing reads, to the model, like no rule.
+    const cited = /The section headed `(# AGENT: [^`]+)` below/.exec(message);
+    expect(cited).not.toBeNull();
+    expect(message).toContain(`\n${cited?.[1]}\n`);
+
+    // And the section has something in it.
     expect(message).toContain(claudio.systemPrompt);
     // And it must say what to DO with a request outside the remit, or it is a
     // statement of fact the model can note and then ignore.
@@ -137,7 +144,11 @@ describe('a turn that belongs to an agent', () => {
     // de todo", in its purest form.
     const message = await SystemPromptBuilder.build({ ...turn, linkedAgent: undescribedClaudio });
 
-    expect(message).toContain('# AGENT: Claudio');
+    // On its OWN LINE. A bare `toContain('# AGENT: Claudio')` went green the
+    // moment the guard started CITING that heading in its remit rule — it
+    // matched the citation and stopped being able to see whether the section
+    // exists. Found by mutating the heading away and watching this pass.
+    expect(message).toContain('\n# AGENT: Claudio\n');
     expect(message).toContain(undescribedClaudio.tagline);
     expect(message).toContain(undescribedClaudio.description);
     expect([...new Set(identityClaimsIn(message))]).toEqual(['Claudio']);
