@@ -46,7 +46,7 @@ import * as DropdownMenu from "@/components/ui/dropdown-menu";
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useAgent, useUpdateAgent, useDeleteAgent } from "@/lib/hooks/use-agents";
-import type { Agent, AgentUpdate, AgentArchetype, ArchetypeConfig, RoutingRule } from "@/lib/types/agents";
+import type { Agent, AgentArchetype, ArchetypeConfig } from "@/lib/types/agents";
 import { useTranslation } from "@/lib/hooks/use-translation";
 import { useColorScheme } from "@/lib/useColorScheme";
 import { agentTint } from "@/lib/agents/agent-color";
@@ -93,77 +93,153 @@ type SidebarTab = "resources" | "settings";
  */
 const SAVE_TOAST_ID = 'agent-editor-save';
 
+/** How long the editor waits after the last edit before it writes. */
+const SAVE_DELAY_MS = 1000;
+
+/**
+ * The agent's own fields, as the editor holds them while they are being edited.
+ *
+ * A DRAFT, not a cache of the record: the moment somebody types, this and the
+ * server's copy disagree, and the whole point of the screen is that this one
+ * wins until it is written. Which is why nothing re-seeds it — see
+ * {@link EditAgentScreen}.
+ *
+ * `price` is the string the field holds rather than the number the API takes:
+ * `"12."` is a legitimate thing to be halfway through typing and is not a
+ * number, so the parse happens at the boundary, once, in {@link saveDraft}.
+ */
+interface AgentDraft {
+  tagline: string;
+  description: string;
+  systemPrompt: string;
+  category: string;
+  tags: string[];
+  capabilityGrants: string[];
+  skills: LinkedSkill[];
+  knowledge: LinkedFile[];
+  price: string;
+  access: 'private' | 'public';
+  handlesAutonomousEvents: boolean;
+  archetype: AgentArchetype;
+  archetypeConfig: ArchetypeConfig;
+}
+
+/**
+ * The three fields that belong to the agent's Oxy bot ACCOUNT rather than to
+ * its Alia row, so they are written to a different service by a different call.
+ */
+interface IdentityDraft {
+  name: string;
+  handle: string;
+  color: string | null;
+}
+
+/**
+ * The agent editor: load the agent, then hand it to a form that owns the draft.
+ *
+ * ## The split is what stopped the write loop
+ *
+ * There was one component, and it copied the fetched agent into eighteen
+ * `useState`s from an effect that listed the fetched agent in its dependencies.
+ * `useUpdateAgent` writes the mutation's answer into `agents.detail`, so every
+ * save handed that effect a new record; re-seeding assigned fresh references
+ * (`agent.skills || []`) to the very state a second effect watched in order to
+ * decide to save; and that effect saved. **One keystroke wrote for as long as
+ * the screen stayed open** — measured at a PATCH every two seconds, plus an
+ * `updateAccount` to Oxy alongside it, each with its own toast. That is what
+ * "no para de mostrar toasts que pone saving" was.
+ *
+ * A `key` on the form is the whole cure. The draft is seeded ONCE, from props,
+ * in `useState` initialisers; a newer record arriving in the cache re-renders
+ * this component and changes nothing inside the form. Two effects, a
+ * `isInitialLoad` ref and a 500ms timer that existed only to stop the seeding
+ * from tripping the saving all went with it.
+ *
+ * ## And a save is now an EDIT's consequence
+ *
+ * `editDraft` and `editIdentity` are the only ways the draft changes, and each
+ * schedules its own write. Nothing observes state in order to write, so no
+ * amount of re-rendering can produce a request — which is the property
+ * `__tests__/autosave-writes-once.test.tsx` pins.
+ */
 export default function EditAgentScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  const { t } = useTranslation();
+  const { data: agent, isPending } = useAgent(id);
+
+  if (isPending || agent === undefined) {
+    return (
+      <View className="flex-1 bg-background items-center justify-center">
+        <Text className="text-muted-foreground">{t("common.loading")}</Text>
+      </View>
+    );
+  }
+
+  // Keyed on the agent, so opening a DIFFERENT one starts a different draft
+  // and opening the same one again never restarts this one.
+  return <AgentEditor key={agent._id} agent={agent} />;
+}
+
+function AgentEditor({ agent }: { agent: Agent }) {
   const router = useRouter();
   const { t } = useTranslation();
   const { colors } = useColorScheme();
   const isLargeScreen = useIsLargeScreen();
   // The agent's NAME lives on its Oxy bot account, so the editor writes it there.
   const { oxyServices } = useOxy();
-  const { data: loadedAgent, isPending: agentPending } = useAgent(id);
   const updateAgent = useUpdateAgent();
   const deleteAgent = useDeleteAgent();
 
-  // Loading
-  const [loading, setLoading] = useState(true);
+  const [draft, setDraft] = useState<AgentDraft>(() => ({
+    tagline: agent.tagline,
+    description: agent.description,
+    systemPrompt: agent.systemPrompt || "",
+    category: agent.category,
+    tags: agent.tags || [],
+    capabilityGrants: agent.capabilityGrants || [],
+    skills: agent.skills || [],
+    knowledge: agent.knowledge || [],
+    price: agent.price != null ? String(agent.price) : "",
+    access: agent.access,
+    handlesAutonomousEvents: agent.handlesAutonomousEvents,
+    archetype: agent.archetype || 'general',
+    archetypeConfig: agent.archetypeConfig || {},
+  }));
+  const [identity, setIdentity] = useState<IdentityDraft>(() => ({
+    name: agent.name ?? "",
+    handle: agent.handle ?? "",
+    color: agent.color,
+  }));
+  const {
+    tagline,
+    description,
+    systemPrompt,
+    category,
+    capabilityGrants,
+    skills,
+    knowledge,
+    price,
+    access,
+    handlesAutonomousEvents,
+    archetype,
+    archetypeConfig,
+  } = draft;
 
-  // Form state
-  const [name, setName] = useState("");
-  /**
-   * The Oxy `bot` account this agent IS.
-   *
-   * The name below is written to THAT account, not to the agent row: Alia
-   * stores no name any more, and `PATCH /agents/:id` refuses one outright. An
-   * empty string means the agent has not loaded yet, which is why the identity
-   * save below refuses to run on one.
-   */
-  const [oxyAccountId, setOxyAccountId] = useState("");
-  const [color, setColor] = useState<string | null>(null);
-  const [tagline, setTagline] = useState("");
-  const [description, setDescription] = useState("");
-  const [systemPrompt, setSystemPrompt] = useState("");
-  const [category, setCategory] = useState("");
-  const [tags, setTags] = useState<string[]>([]);
-  const [tagInput, setTagInput] = useState("");
-  /**
-   * Every grant this agent holds: `web`, `mcp:<id>`, and the rest.
-   *
-   * ONE list for both shapes, because the API stores one — the families render
-   * as toggles and the connectors as their own section, but a grant is a grant
-   * and splitting the state would need a join on every save.
-   */
-  const [capabilityGrants, setCapabilityGrants] = useState<string[]>([]);
-  /** The connectors this owner could grant. Empty until the fetch lands. */
-  const [connectors, setConnectors] = useState<GrantableConnector[]>([]);
-  const [price, setPrice] = useState("");
-  const [access, setAccess] = useState<'private' | 'public'>('private');
-  const [handlesAutonomousEvents, setHandlesAutonomousEvents] = useState(false);
-  /**
-   * The agent's HANDLE — its Oxy username, editable after creation.
-   *
-   * `POST /agents/generate` proposes one and `POST /accounts` resolves a
-   * collision by appending a suffix, so the person can land here with a name
-   * they did not choose. `PATCH /accounts/:id` accepts `username`, so it is
-   * shown and editable rather than permanent.
-   */
-  const [handle, setHandle] = useState("");
   /** What Oxy last confirmed, so a rejected rename can be put back. */
-  const savedHandle = useRef("");
+  const savedHandle = useRef(agent.handle ?? "");
   /** The colour Oxy already holds, so a save only carries one that CHANGED. */
-  const savedColor = useRef<string | null>(null);
-  const [isPublished, setIsPublished] = useState(false);
-  const [archetype, setArchetype] = useState<AgentArchetype>('general');
-  const [archetypeConfig, setArchetypeConfig] = useState<ArchetypeConfig>({});
+  const savedColor = useRef(agent.color);
 
-  // Linked skills & knowledge
-  const [linkedSkills, setLinkedSkills] = useState<LinkedSkill[]>([]);
-  const [linkedKnowledge, setLinkedKnowledge] = useState<LinkedFile[]>([]);
+  const [isPublished, setIsPublished] = useState(agent.isPublished);
+
+  // Pickers
   const [allSkills, setAllSkills] = useState<LinkedSkill[]>([]);
   const [showSkillPicker, setShowSkillPicker] = useState(false);
   const [skillSearch, setSkillSearch] = useState("");
   const [showKnowledgePicker, setShowKnowledgePicker] = useState(false);
   const [knowledgeSearch, setKnowledgeSearch] = useState("");
+  /** The connectors this owner could grant. Empty until the fetch lands. */
+  const [connectors, setConnectors] = useState<GrantableConnector[]>([]);
 
   // Library files for knowledge picker
   const libraryFiles = useLibraryStore((state) => state.files);
@@ -174,16 +250,22 @@ export default function EditAgentScreen() {
   const [sidebarTab, setSidebarTab] = useState<SidebarTab>("resources");
 
   // Telegram bot binding for this agent
-  const { bots: agentBots, registerBot, removeBot } = useAgentBots(id);
+  const { bots: agentBots, registerBot, removeBot } = useAgentBots(agent._id);
   const [showBotDialog, setShowBotDialog] = useState(false);
   const [botToken, setBotToken] = useState("");
   const [connectingBot, setConnectingBot] = useState(false);
 
-  // Auto-save debounce
-  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
-  /** The identity save has its own timer: it targets a different service. */
-  const identityTimeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
-  const isInitialLoad = useRef(true);
+  /**
+   * The two debounce timers. Two, because the two halves of a save go to two
+   * different services and a slow rename must not hold up a tagline.
+   *
+   * NOT cleared on unmount, deliberately: a save scheduled a moment before
+   * somebody presses back is a save they asked for, and dropping it is how the
+   * name edit used to get lost. Nothing in either callback touches component
+   * state, so there is nothing to leak — only a request and a toast.
+   */
+  const draftSaveTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const identitySaveTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   // Load available skills from backend
   useEffect(() => {
@@ -192,83 +274,6 @@ export default function EditAgentScreen() {
     }).catch(() => {});
     loadLibraryFiles();
   }, [loadLibraryFiles]);
-
-  /*
-   * Seed the form from the fetched agent, once it arrives.
-   *
-   * These eighteen fields ARE client state — they are what is being edited, and
-   * they diverge from the server the moment somebody types. So this is the one
-   * legitimate copy: an editable draft taken from the record, not a second
-   * cache of it.
-   */
-  useEffect(() => {
-    if (!id) return;
-    if (agentPending) return;
-    {
-      const agent = loadedAgent;
-      if (agent) {
-        setName(agent.name ?? "");
-        setHandle(agent.handle ?? "");
-        savedHandle.current = agent.handle ?? "";
-        setOxyAccountId(agent.oxyAccountId);
-        setColor(agent.color);
-        savedColor.current = agent.color;
-        setTagline(agent.tagline);
-        setDescription(agent.description);
-        setSystemPrompt(agent.systemPrompt || "");
-        setCategory(agent.category);
-        setTags(agent.tags || []);
-        setCapabilityGrants(agent.capabilityGrants || []);
-        setLinkedSkills(agent.skills || []);
-        setLinkedKnowledge(agent.knowledge || []);
-        setPrice(agent.price != null ? String(agent.price) : "");
-        setAccess(agent.access);
-        setHandlesAutonomousEvents(agent.handlesAutonomousEvents);
-        setIsPublished(agent.isPublished);
-        setArchetype(agent.archetype || 'general');
-        setArchetypeConfig(agent.archetypeConfig || {});
-      }
-      setLoading(false);
-      // Mark initial load as done after a tick
-      setTimeout(() => {
-        isInitialLoad.current = false;
-      }, 500);
-    }
-  }, [id, loadedAgent, agentPending]);
-
-  /**
-   * Debounced auto-save — and a FAILED save is now visible.
-   *
-   * This used to be `} catch { // silent }` with the spinner cleared in
-   * `finally`, and the store swallowed the error before it too. Under those two
-   * swallows every autosave this screen sent was a 400 — `permissions` against
-   * a `.strict()` schema that did not name it — on every keystroke, for as long
-   * as the screen existed. Nothing was saved: not the prompt, not the tagline,
-   * not the skills. The UI said "saved" the whole time.
-   *
-   * One toast per failed save, not per keystroke: the debounce already
-   * collapses a burst of typing into one request, so this fires as often as a
-   * save does.
-   */
-  const debouncedSave = useCallback(
-    (updates: AgentUpdate) => {
-      if (!id || isInitialLoad.current) return;
-      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
-      saveTimeoutRef.current = setTimeout(async () => {
-        toast.loading(t("agents.saving"), { id: SAVE_TOAST_ID });
-        try {
-          await updateAgent.mutateAsync({ id, updates });
-          toast.success(t("agents.autoSaved"), { id: SAVE_TOAST_ID });
-        } catch (error: unknown) {
-          // The pending indicator goes first: left under its id it would sit
-          // there spinning next to the failure it is contradicting.
-          toast.dismiss(SAVE_TOAST_ID);
-          toast.error(getErrorMessage(error, t("agents.saveFailed")));
-        }
-      }, 1000);
-    },
-    [id, updateAgent.mutateAsync, t]
-  );
 
   /**
    * The connectors this owner can grant, from the one endpoint that knows all
@@ -287,29 +292,68 @@ export default function EditAgentScreen() {
   }, []);
 
   /**
+   * Write the draft, and say so.
+   *
+   * A FAILED save is visible. This used to be `} catch { // silent }` with the
+   * store swallowing the error before it too, and under those two swallows
+   * every autosave this screen sent was a 400 — `permissions` against a
+   * `.strict()` schema that did not name it — on every keystroke. Nothing was
+   * saved: not the prompt, not the tagline, not the skills. The UI said "saved"
+   * the whole time.
+   */
+  const saveDraft = useCallback(
+    async (next: AgentDraft): Promise<void> => {
+      toast.loading(t("agents.saving"), { id: SAVE_TOAST_ID });
+      try {
+        await updateAgent.mutateAsync({
+          id: agent._id,
+          updates: {
+            tagline: next.tagline,
+            description: next.description,
+            systemPrompt: next.systemPrompt,
+            category: next.category,
+            tags: next.tags,
+            capabilityGrants: next.capabilityGrants,
+            skills: next.skills.map((skill) => skill._id),
+            knowledge: next.knowledge.map((file) => file._id),
+            price: next.price.trim() ? parseFloat(next.price) : null,
+            access: next.access,
+            handlesAutonomousEvents: next.handlesAutonomousEvents,
+            archetype: next.archetype,
+            archetypeConfig: next.archetypeConfig,
+          },
+        });
+        toast.success(t("agents.autoSaved"), { id: SAVE_TOAST_ID });
+      } catch (error: unknown) {
+        // The pending indicator goes first: left under its id it would sit
+        // there spinning next to the failure it is contradicting.
+        toast.dismiss(SAVE_TOAST_ID);
+        toast.error(getErrorMessage(error, t("agents.saveFailed")));
+      }
+    },
+    [agent._id, updateAgent.mutateAsync, t]
+  );
+
+  /**
    * The NAME, the HANDLE and the COLOUR are saved to Oxy; everything else to Alia.
    *
-   * Two writes, two services, two timers — not one call that fans out, because
-   * a failed rename must not take the tagline with it and a failed tagline must
-   * not roll back a rename. `updateAccount` sweeps Oxy's own identity caches,
-   * so the profile surfaces do not serve the old name for a TTL afterwards.
+   * Two writes, two services — not one call that fans out, because a failed
+   * rename must not take the tagline with it and a failed tagline must not roll
+   * back a rename. `updateAccount` sweeps Oxy's own identity caches, so the
+   * profile surfaces do not serve the old name for a TTL afterwards.
    *
    * The colour belongs on this side of that split for the same reason the name
    * does: it is the agent's identity, it lives in `User.color` on the bot
    * account, and Alia stores no column for it.
    */
-  useEffect(() => {
-    if (oxyAccountId === "" || isInitialLoad.current) return;
-    if (identityTimeoutRef.current) clearTimeout(identityTimeoutRef.current);
-    identityTimeoutRef.current = setTimeout(async () => {
+  const saveIdentity = useCallback(
+    async (next: IdentityDraft): Promise<void> => {
       toast.loading(t("agents.saving"), { id: SAVE_TOAST_ID });
-      const trimmed = handle.trim();
+      const trimmed = next.handle.trim();
       const handleChanged = trimmed !== savedHandle.current && trimmed !== "";
 
       /**
-       * Ask Oxy whether the handle is free BEFORE writing it.
-       *
-       * On the same one-second debounce the save already uses, and only when the
+       * Ask Oxy whether the handle is free BEFORE writing it, and only when the
        * handle actually CHANGED — the condition the write itself applies. One
        * question per pause, never one per keystroke, and none at all while
        * somebody is editing the name.
@@ -345,15 +389,18 @@ export default function EditAgentScreen() {
 
         if (!free) {
           toast.dismiss(SAVE_TOAST_ID);
-          setHandle(savedHandle.current);
+          // A rollback, so it goes through `setIdentity` rather than
+          // `editIdentity`: putting the old handle back is not an edit and must
+          // not schedule a write of its own.
+          setIdentity((prev) => ({ ...prev, handle: savedHandle.current }));
           toast.error(t("agents.handleTaken"));
           return;
         }
       }
 
       try {
-        await oxyServices.updateAccount(oxyAccountId, {
-          name: { displayName: name },
+        await oxyServices.updateAccount(agent.oxyAccountId, {
+          name: { displayName: next.name },
           // Only when it actually changed: `username` is globally unique, and
           // re-sending the current one on every keystroke of the NAME field
           // would ask Oxy to re-check a handle nobody touched.
@@ -362,10 +409,10 @@ export default function EditAgentScreen() {
           // absent-means-unchanged on `UpdateAccountInput`, so sending the
           // current one on every keystroke of the NAME field would write a
           // value nobody touched.
-          ...(color !== savedColor.current && color !== null && { color }),
+          ...(next.color !== savedColor.current && next.color !== null && { color: next.color }),
         });
         savedHandle.current = trimmed;
-        savedColor.current = color;
+        savedColor.current = next.color;
         toast.success(t("agents.autoSaved"), { id: SAVE_TOAST_ID });
       } catch (error: unknown) {
         toast.dismiss(SAVE_TOAST_ID);
@@ -377,7 +424,7 @@ export default function EditAgentScreen() {
         // answer arrive sooner and more often; it cannot make this unreachable,
         // because the name can be taken in the moment between the two.
         if (errorStatus(error) === 409) {
-          setHandle(savedHandle.current);
+          setIdentity((prev) => ({ ...prev, handle: savedHandle.current }));
           toast.error(t("agents.handleTaken"));
         } else {
           // This used to stay silent, on the reasoning that an autosave raising
@@ -387,68 +434,45 @@ export default function EditAgentScreen() {
           toast.error(getErrorMessage(error, t("agents.saveFailed")));
         }
       }
-    }, 1000);
-    return () => {
-      if (identityTimeoutRef.current) clearTimeout(identityTimeoutRef.current);
-    };
-    /**
-     * `t` is not a dependency, and no longer needs to be excluded for safety —
-     * it is memoised on the locale now. It stays out because a language change
-     * is not a reason to write to Oxy: the only thing this uses it for is a
-     * failure message, and `i18n.t` reads the locale when it is called.
-     */
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [name, handle, color, oxyAccountId, oxyServices]);
+    },
+    [agent.oxyAccountId, oxyServices, t]
+  );
 
-  // Auto-save on field changes
-  useEffect(() => {
-    debouncedSave({
-      tagline,
-      description,
-      systemPrompt,
-      category,
-      tags,
-      capabilityGrants,
-      skills: linkedSkills.map((s) => s._id),
-      knowledge: linkedKnowledge.map((k) => k._id),
-      price: price.trim() ? parseFloat(price) : null,
-      access,
-      handlesAutonomousEvents,
-      archetype,
-      archetypeConfig,
-    });
-  }, [
-    tagline,
-    description,
-    systemPrompt,
-    category,
-    tags,
-    capabilityGrants,
-    linkedSkills,
-    linkedKnowledge,
-    price,
-    access,
-    handlesAutonomousEvents,
-    archetype,
-    archetypeConfig,
-    debouncedSave,
-  ]);
+  /**
+   * An edit, which is the ONLY thing that writes.
+   *
+   * The merged draft is computed here and handed to the timer, so the write
+   * carries what was on screen when it was scheduled rather than reading state
+   * back later. Re-scheduling is what collapses a burst of typing into one
+   * request.
+   */
+  const editDraft = (patch: Partial<AgentDraft>): void => {
+    const next = { ...draft, ...patch };
+    setDraft(next);
+    clearTimeout(draftSaveTimer.current);
+    draftSaveTimer.current = setTimeout(() => { void saveDraft(next); }, SAVE_DELAY_MS);
+  };
+
+  const editIdentity = (patch: Partial<IdentityDraft>): void => {
+    const next = { ...identity, ...patch };
+    setIdentity(next);
+    clearTimeout(identitySaveTimer.current);
+    identitySaveTimer.current = setTimeout(() => { void saveIdentity(next); }, SAVE_DELAY_MS);
+  };
 
   const handlePublishToggle = useCallback(async () => {
-    if (!id) return;
     const newValue = !isPublished;
     setIsPublished(newValue);
     try {
-      await updateAgent.mutateAsync({ id, updates: { isPublished: newValue } });
+      await updateAgent.mutateAsync({ id: agent._id, updates: { isPublished: newValue } });
       toast.success(newValue ? t("agents.published") : t("agents.draft"));
     } catch {
       setIsPublished(!newValue);
       toast.error("Failed to update");
     }
-  }, [id, isPublished, updateAgent.mutateAsync, t]);
+  }, [agent._id, isPublished, updateAgent.mutateAsync, t]);
 
   const handleDelete = useCallback(async () => {
-    if (!id) return;
     const ok = await confirm({
       title: t("agents.deleteAgent"),
       description: t("agents.deleteAgentConfirm"),
@@ -458,51 +482,13 @@ export default function EditAgentScreen() {
     });
     if (!ok) return;
     try {
-      await deleteAgent.mutateAsync(id);
+      await deleteAgent.mutateAsync(agent._id);
       toast.success(t("agents.agentDeleted"));
       router.back();
     } catch {
       toast.error("Failed to delete agent");
     }
-  }, [id, deleteAgent.mutateAsync, router, t]);
-
-  const addTag = useCallback(() => {
-    const trimmed = tagInput.trim();
-    if (trimmed && !tags.includes(trimmed)) {
-      setTags((prev) => [...prev, trimmed]);
-      setTagInput("");
-    }
-  }, [tagInput, tags]);
-
-  const removeTag = useCallback((tag: string) => {
-    setTags((prev) => prev.filter((t) => t !== tag));
-  }, []);
-
-  const addLinkedSkill = useCallback((skill: LinkedSkill) => {
-    setLinkedSkills((prev) => {
-      if (prev.some((s) => s._id === skill._id)) return prev;
-      return [...prev, skill];
-    });
-    setShowSkillPicker(false);
-    setSkillSearch("");
-  }, []);
-
-  const removeLinkedSkill = useCallback((skillId: string) => {
-    setLinkedSkills((prev) => prev.filter((s) => s._id !== skillId));
-  }, []);
-
-  const addLinkedKnowledge = useCallback((file: LinkedFile) => {
-    setLinkedKnowledge((prev) => {
-      if (prev.some((k) => k._id === file._id)) return prev;
-      return [...prev, file];
-    });
-    setShowKnowledgePicker(false);
-    setKnowledgeSearch("");
-  }, []);
-
-  const removeLinkedKnowledge = useCallback((fileId: string) => {
-    setLinkedKnowledge((prev) => prev.filter((k) => k._id !== fileId));
-  }, []);
+  }, [agent._id, deleteAgent.mutateAsync, router, t]);
 
   const handleConnectBot = useCallback(async () => {
     const token = botToken.trim();
@@ -546,14 +532,6 @@ export default function EditAgentScreen() {
     },
     [removeBot, t]
   );
-
-  if (loading) {
-    return (
-      <View className="flex-1 bg-background items-center justify-center">
-        <Text className="text-muted-foreground">{t("common.loading")}</Text>
-      </View>
-    );
-  }
 
   // Sidebar content
   const sidebarContent = (
@@ -630,7 +608,7 @@ export default function EditAgentScreen() {
           <View className="px-4 pt-4">
             {/* Skills */}
             <SettingsListGroup title={t("agents.skills")}>
-              {linkedSkills.map((skill) => (
+              {skills.map((skill) => (
                 <SettingsListItem
                   key={skill._id}
                   icon={<Text className="text-base">{skill.icon}</Text>}
@@ -639,7 +617,7 @@ export default function EditAgentScreen() {
                     <GhostButton
                       size="small"
                       accessibilityLabel={`${t("agents.removeSkill")}: ${skill.title}`}
-                      onPress={() => removeLinkedSkill(skill._id)}
+                      onPress={() => editDraft({ skills: skills.filter((s) => s._id !== skill._id) })}
                       icon={<X size={14} className="text-muted-foreground" />}
                     />
                   }
@@ -673,13 +651,17 @@ export default function EditAgentScreen() {
                 <ScrollView style={{ maxHeight: isLargeScreen ? 300 : undefined }} className={cn(!isLargeScreen && "flex-1")}>
                   {allSkills
                     .filter((s) =>
-                      !linkedSkills.some((ls) => ls._id === s._id) &&
+                      !skills.some((linked) => linked._id === s._id) &&
                       (!skillSearch || s.title.toLowerCase().includes(skillSearch.toLowerCase()))
                     )
                     .map((skill) => (
                       <Item
                         key={skill._id}
-                        onPress={() => addLinkedSkill(skill)}
+                        onPress={() => {
+                          editDraft({ skills: [...skills, skill] });
+                          setShowSkillPicker(false);
+                          setSkillSearch("");
+                        }}
                         leading={<Text className="text-base">{skill.icon}</Text>}
                         title={skill.title}
                       />
@@ -693,19 +675,19 @@ export default function EditAgentScreen() {
               title={t("agents.capabilities")}
               footer={t("agents.capabilitiesFooter")}
               grants={capabilityGrants}
-              onChange={setCapabilityGrants}
+              onChange={(grants) => editDraft({ capabilityGrants: grants })}
             />
 
             {/* Connectors, granted one at a time — see the component. */}
             <AgentConnectorGrants
               connectors={connectors}
               grants={capabilityGrants}
-              onChange={setCapabilityGrants}
+              onChange={(grants) => editDraft({ capabilityGrants: grants })}
             />
 
             {/* Knowledge (Library Files) */}
             <SettingsListGroup title={t("agents.knowledge")}>
-              {linkedKnowledge.map((file) => (
+              {knowledge.map((file) => (
                 <SettingsListItem
                   key={file._id}
                   icon={<FileText size={18} className="text-muted-foreground" />}
@@ -714,7 +696,7 @@ export default function EditAgentScreen() {
                     <GhostButton
                       size="small"
                       accessibilityLabel={`${t("agents.removeKnowledge")}: ${file.name}`}
-                      onPress={() => removeLinkedKnowledge(file._id)}
+                      onPress={() => editDraft({ knowledge: knowledge.filter((k) => k._id !== file._id) })}
                       icon={<X size={14} className="text-muted-foreground" />}
                     />
                   }
@@ -748,19 +730,28 @@ export default function EditAgentScreen() {
                 <ScrollView style={{ maxHeight: isLargeScreen ? 300 : undefined }} className={cn(!isLargeScreen && "flex-1")}>
                   {libraryFiles
                     .filter((f) =>
-                      !linkedKnowledge.some((lk) => lk._id === f._id) &&
+                      !knowledge.some((linked) => linked._id === f._id) &&
                       (!knowledgeSearch || f.name.toLowerCase().includes(knowledgeSearch.toLowerCase()))
                     )
                     .map((file) => (
                       <Item
                         key={file._id}
-                        onPress={() => addLinkedKnowledge({
-                          _id: file._id,
-                          name: file.name,
-                          type: file.type,
-                          category: file.category,
-                          url: file.url,
-                        })}
+                        onPress={() => {
+                          editDraft({
+                            knowledge: [
+                              ...knowledge,
+                              {
+                                _id: file._id,
+                                name: file.name,
+                                type: file.type,
+                                category: file.category,
+                                url: file.url,
+                              },
+                            ],
+                          });
+                          setShowKnowledgePicker(false);
+                          setKnowledgeSearch("");
+                        }}
                         leading={<FileText size={14} className="text-muted-foreground" />}
                         title={file.name}
                       />
@@ -781,7 +772,7 @@ export default function EditAgentScreen() {
               <ToggleGroup
                 type="single"
                 value={category}
-                onValueChange={(val) => setCategory(val as string)}
+                onValueChange={(val) => editDraft({ category: val as string })}
               >
                 {CATEGORIES.map((cat) => (
                   <ToggleGroupItem key={cat} value={cat}>
@@ -796,7 +787,7 @@ export default function EditAgentScreen() {
               <Label>Tagline</Label>
               <Input
                 value={tagline}
-                onChangeText={setTagline}
+                onChangeText={(text) => editDraft({ tagline: text })}
                 placeholder="Short description"
                 placeholderTextColor={colors.mutedForeground}
               />
@@ -807,7 +798,7 @@ export default function EditAgentScreen() {
               <Label>Description</Label>
               <Textarea
                 value={description}
-                onChangeText={setDescription}
+                onChangeText={(text) => editDraft({ description: text })}
                 placeholder="Full description..."
                 placeholderTextColor={colors.mutedForeground}
               />
@@ -818,7 +809,7 @@ export default function EditAgentScreen() {
               <Label>Price per use (USD)</Label>
               <Input
                 value={price}
-                onChangeText={setPrice}
+                onChangeText={(text) => editDraft({ price: text })}
                 placeholder="Free (leave empty)"
                 placeholderTextColor={colors.mutedForeground}
                 keyboardType="decimal-pad"
@@ -835,7 +826,7 @@ export default function EditAgentScreen() {
               </View>
               <Switch
                 value={access === 'public'}
-                onValueChange={(next) => setAccess(next ? 'public' : 'private')}
+                onValueChange={(next) => editDraft({ access: next ? 'public' : 'private' })}
               />
             </View>
 
@@ -849,7 +840,7 @@ export default function EditAgentScreen() {
               </View>
               <Switch
                 value={handlesAutonomousEvents}
-                onValueChange={setHandlesAutonomousEvents}
+                onValueChange={(next) => editDraft({ handlesAutonomousEvents: next })}
               />
             </View>
 
@@ -1048,11 +1039,11 @@ export default function EditAgentScreen() {
             {/* Mark + Name + Handle — all three are the bot ACCOUNT's, saved
                 to Oxy rather than to the agent row. */}
             <View className="flex-row items-center gap-3 mb-6">
-              <IdentityMark size={40} color={agentTint(color, colors)} />
+              <IdentityMark size={40} color={agentTint(identity.color, colors)} />
               <View className="flex-1">
                 <TextInput
-                  value={name}
-                  onChangeText={setName}
+                  value={identity.name}
+                  onChangeText={(text) => editIdentity({ name: text })}
                   placeholder={t("agents.namePlaceholder")}
                   placeholderTextColor={colors.mutedForeground}
                   className="text-foreground"
@@ -1068,8 +1059,8 @@ export default function EditAgentScreen() {
                 <View className="flex-row items-center">
                   <Text className="text-[15px] text-muted-foreground">@</Text>
                   <TextInput
-                    value={handle}
-                    onChangeText={setHandle}
+                    value={identity.handle}
+                    onChangeText={(text) => editIdentity({ handle: text })}
                     placeholder={t("agents.handlePlaceholder")}
                     placeholderTextColor={colors.mutedForeground}
                     autoCapitalize="none"
@@ -1089,8 +1080,8 @@ export default function EditAgentScreen() {
             <View className="mb-6">
               <ColorPicker
                 colors={AGENT_SWATCHES}
-                selected={color ?? ""}
-                onSelect={setColor}
+                selected={identity.color ?? ""}
+                onSelect={(preset) => editIdentity({ color: preset })}
                 label={t("agents.colorLabel")}
                 renderSwatch={(preset) => (
                   <IdentityMark size={28} color={agentTint(preset, colors)} />
@@ -1102,7 +1093,7 @@ export default function EditAgentScreen() {
             <Textarea
               variant="ghost"
               value={systemPrompt}
-              onChangeText={setSystemPrompt}
+              onChangeText={(text) => editDraft({ systemPrompt: text })}
               placeholder={t("agents.systemPromptPlaceholder")}
               placeholderTextColor={colors.mutedForeground}
               style={{ fontSize: 15, lineHeight: 22, minHeight: 300 }}
@@ -1118,7 +1109,7 @@ export default function EditAgentScreen() {
                   <Label>Report Template</Label>
                   <Textarea
                     value={archetypeConfig.reportTemplate || ''}
-                    onChangeText={(text) => setArchetypeConfig((prev: ArchetypeConfig) => ({ ...prev, reportTemplate: text }))}
+                    onChangeText={(text) => editDraft({ archetypeConfig: { ...archetypeConfig, reportTemplate: text } })}
                     placeholder="## Daily Standup\n### What happened\n### Key metrics\n### Action items"
                     placeholderTextColor={colors.mutedForeground}
                     style={{ minHeight: 120 }}
@@ -1134,10 +1125,9 @@ export default function EditAgentScreen() {
                       value={archetypeConfig.schedule?.type || 'daily'}
                       onValueChange={(val) => {
                         const type = val === 'interval' ? 'interval' : val === 'cron' ? 'cron' : 'daily';
-                        setArchetypeConfig((prev: ArchetypeConfig) => ({
-                          ...prev,
-                          schedule: { ...prev.schedule, type },
-                        }));
+                        editDraft({ archetypeConfig: {
+                          ...archetypeConfig,
+                          schedule: { ...archetypeConfig.schedule, type }, } });
                       }}
                     >
                       <ToggleGroupItem value="daily">Daily</ToggleGroupItem>
@@ -1147,10 +1137,9 @@ export default function EditAgentScreen() {
                   {(archetypeConfig.schedule?.type || 'daily') === 'daily' && (
                     <Input
                       value={archetypeConfig.schedule?.time || '09:00'}
-                      onChangeText={(text) => setArchetypeConfig((prev: ArchetypeConfig) => ({
-                        ...prev,
-                        schedule: { ...prev.schedule, type: prev.schedule?.type ?? 'daily', time: text }
-                      }))}
+                      onChangeText={(text) => editDraft({ archetypeConfig: {
+                        ...archetypeConfig,
+                        schedule: { ...archetypeConfig.schedule, type: archetypeConfig.schedule?.type ?? 'daily', time: text } } })}
                       placeholder="09:00"
                       placeholderTextColor={colors.mutedForeground}
                     />
@@ -1168,12 +1157,11 @@ export default function EditAgentScreen() {
                         <Pressable
                           key={channel}
                           onPress={() => {
-                            setArchetypeConfig((prev: ArchetypeConfig) => ({
-                              ...prev,
+                            editDraft({ archetypeConfig: {
+                              ...archetypeConfig,
                               deliveryChannels: isActive
                                 ? channels.filter((c: string) => c !== channel)
-                                : [...channels, channel]
-                            }));
+                                : [...channels, channel] } });
                           }}
                           className={cn(
                             "px-3 py-1.5 rounded-full border",
@@ -1194,7 +1182,7 @@ export default function EditAgentScreen() {
                   <Label>Compare with previous report</Label>
                   <Switch
                     value={archetypeConfig.compareWithPrevious || false}
-                    onValueChange={(val) => setArchetypeConfig((prev: ArchetypeConfig) => ({ ...prev, compareWithPrevious: val }))}
+                    onValueChange={(val) => editDraft({ archetypeConfig: { ...archetypeConfig, compareWithPrevious: val } })}
                   />
                 </View>
               </View>
@@ -1218,7 +1206,7 @@ export default function EditAgentScreen() {
                   <Label>Cite sources in answers</Label>
                   <Switch
                     value={archetypeConfig.citeSources !== false}
-                    onValueChange={(val) => setArchetypeConfig((prev: ArchetypeConfig) => ({ ...prev, citeSources: val }))}
+                    onValueChange={(val) => editDraft({ archetypeConfig: { ...archetypeConfig, citeSources: val } })}
                   />
                 </View>
               </View>
@@ -1239,12 +1227,11 @@ export default function EditAgentScreen() {
                         <Pressable
                           key={channel}
                           onPress={() => {
-                            setArchetypeConfig((prev: ArchetypeConfig) => ({
-                              ...prev,
+                            editDraft({ archetypeConfig: {
+                              ...archetypeConfig,
                               inboundChannels: isActive
                                 ? channels.filter((c: string) => c !== channel)
-                                : [...channels, channel]
-                            }));
+                                : [...channels, channel] } });
                           }}
                           className={cn(
                             "px-3 py-1.5 rounded-full border",
@@ -1266,10 +1253,9 @@ export default function EditAgentScreen() {
                     <Label>Routing Rules</Label>
                     <Pressable
                       onPress={() => {
-                        setArchetypeConfig((prev: ArchetypeConfig) => ({
-                          ...prev,
-                          routingRules: [...(prev.routingRules || []), { condition: '', priority: 'medium', assignTo: { type: 'user', id: '', name: '' } }]
-                        }));
+                        editDraft({ archetypeConfig: {
+                          ...archetypeConfig,
+                          routingRules: [...(archetypeConfig.routingRules || []), { condition: '', priority: 'medium', assignTo: { type: 'user', id: '', name: '' } }] } });
                       }}
                       className="active:opacity-70"
                     >
@@ -1283,7 +1269,7 @@ export default function EditAgentScreen() {
                         onChangeText={(text) => {
                           const rules = [...(archetypeConfig.routingRules || [])];
                           rules[index] = { ...rules[index], condition: text };
-                          setArchetypeConfig((prev: ArchetypeConfig) => ({ ...prev, routingRules: rules }));
+                          editDraft({ archetypeConfig: { ...archetypeConfig, routingRules: rules } });
                         }}
                         placeholder="When the task is about..."
                         placeholderTextColor={colors.mutedForeground}
@@ -1296,7 +1282,7 @@ export default function EditAgentScreen() {
                             const priority = val === 'low' ? 'low' : val === 'high' ? 'high' : val === 'urgent' ? 'urgent' : 'medium';
                             const rules = [...(archetypeConfig.routingRules || [])];
                             rules[index] = { ...rules[index], priority };
-                            setArchetypeConfig((prev: ArchetypeConfig) => ({ ...prev, routingRules: rules }));
+                            editDraft({ archetypeConfig: { ...archetypeConfig, routingRules: rules } });
                           }}
                         >
                           <ToggleGroupItem value="low">Low</ToggleGroupItem>
@@ -1307,7 +1293,7 @@ export default function EditAgentScreen() {
                         <Pressable
                           onPress={() => {
                             const rules = (archetypeConfig.routingRules || []).filter((_, i) => i !== index);
-                            setArchetypeConfig((prev: ArchetypeConfig) => ({ ...prev, routingRules: rules }));
+                            editDraft({ archetypeConfig: { ...archetypeConfig, routingRules: rules } });
                           }}
                           className="active:opacity-70 ml-auto"
                         >
@@ -1319,7 +1305,7 @@ export default function EditAgentScreen() {
                         onChangeText={(text) => {
                           const rules = [...(archetypeConfig.routingRules || [])];
                           rules[index] = { ...rules[index], assignTo: { ...rules[index].assignTo, name: text } };
-                          setArchetypeConfig((prev: ArchetypeConfig) => ({ ...prev, routingRules: rules }));
+                          editDraft({ archetypeConfig: { ...archetypeConfig, routingRules: rules } });
                         }}
                         placeholder="Route to (name)"
                         placeholderTextColor={colors.mutedForeground}
@@ -1335,7 +1321,7 @@ export default function EditAgentScreen() {
                     value={String(archetypeConfig.escalationTimeoutMinutes || '')}
                     onChangeText={(text) => {
                       const num = parseInt(text, 10);
-                      setArchetypeConfig((prev: ArchetypeConfig) => ({ ...prev, escalationTimeoutMinutes: isNaN(num) ? undefined : num }));
+                      editDraft({ archetypeConfig: { ...archetypeConfig, escalationTimeoutMinutes: isNaN(num) ? undefined : num } });
                     }}
                     placeholder="60"
                     placeholderTextColor={colors.mutedForeground}

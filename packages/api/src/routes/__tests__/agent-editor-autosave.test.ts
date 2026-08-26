@@ -36,6 +36,7 @@ import type { Server } from 'node:http';
 import path from 'node:path';
 import ts from 'typescript';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { AgentKnowledgeRef, AgentSkillRef } from '../../db/agents/agentRepository.js';
 import {
   CAPABILITY_FAMILIES,
   FIXED_FAMILY_TOOLS,
@@ -79,8 +80,10 @@ const repository = vi.hoisted(() => ({
   updateAgent: vi.fn(),
   deleteAgent: vi.fn(),
   findAgentById: vi.fn(),
-  findAgentSkills: vi.fn(async () => []),
-  findAgentKnowledge: vi.fn(async () => []),
+  // Typed, because `async () => []` infers `never[]` and a test that then puts
+  // a real skill in it does not compile.
+  findAgentSkills: vi.fn(async (): Promise<AgentSkillRef[]> => []),
+  findAgentKnowledge: vi.fn(async (): Promise<AgentKnowledgeRef[]> => []),
   listAgentCatalogue: vi.fn(async () => ({ agents: [], total: 0 })),
   listAgentsByAuthor: vi.fn(async () => []),
 }));
@@ -160,43 +163,66 @@ beforeEach(() => {
   vi.clearAllMocks();
   repository.updateAgent.mockResolvedValue(AGENT_ROW);
   repository.findAgentById.mockResolvedValue(AGENT_ROW);
+  // `clearAllMocks` keeps implementations, so a child list one test installs
+  // would still be there in the next one.
+  repository.findAgentSkills.mockResolvedValue([]);
+  repository.findAgentKnowledge.mockResolvedValue([]);
 });
 
 /**
- * The property names of every object literal the editor hands to a save call.
+ * The property names of every `updates` object the editor sends to the route.
+ *
+ * Anchored on the MUTATION's argument rather than on a function name. This read
+ * `debouncedSave(…)` until that function was deleted, and a census keyed on a
+ * name it no longer finds returns an empty list — which passes every assertion
+ * below by iterating zero times, silently. `mutateAsync({ id, updates: {…} })`
+ * is the wire payload itself, so this can only go quiet if the screen stops
+ * sending one.
  *
  * Parsed with the TypeScript compiler rather than matched with a regex: the
- * autosave payload is a multi-line object of shorthand properties inside a
- * `useEffect`, and a regex over it would find the state variables one edit away
- * from finding the wrong ones. `ts.forEachChild` walks the real tree.
+ * payload is a multi-line object literal, and a regex over it would find the
+ * state variables one edit away from finding the wrong ones.
  */
-function editorSaveKeys(): string[] {
+function editorSavePayloads(): ts.ObjectLiteralExpression[] {
   const file = path.join(REPO_ROOT, EDITOR);
   const source = ts.createSourceFile(file, readFileSync(file, 'utf8'), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
-  const keys = new Set<string>();
+  const payloads: ts.ObjectLiteralExpression[] = [];
 
   const visit = (node: ts.Node): void => {
-    if (ts.isCallExpression(node) && ts.isIdentifier(node.expression)) {
-      // `debouncedSave({…})` is the autosave; `updateAgent(id, {…})` is the
-      // publish toggle, which sends its own body through the same route.
-      const literal =
-        node.expression.text === 'debouncedSave'
-          ? node.arguments[0]
-          : node.expression.text === 'updateAgent'
-            ? node.arguments[1]
-            : undefined;
-      if (literal !== undefined && ts.isObjectLiteralExpression(literal)) {
-        for (const property of literal.properties) {
-          const name = property.name;
-          if (name !== undefined && (ts.isIdentifier(name) || ts.isStringLiteral(name))) {
-            keys.add(name.text);
-          }
+    if (
+      ts.isCallExpression(node) &&
+      ts.isPropertyAccessExpression(node.expression) &&
+      node.expression.name.text === 'mutateAsync' &&
+      node.arguments[0] !== undefined &&
+      ts.isObjectLiteralExpression(node.arguments[0])
+    ) {
+      for (const property of node.arguments[0].properties) {
+        if (
+          ts.isPropertyAssignment(property) &&
+          (ts.isIdentifier(property.name) || ts.isStringLiteralLike(property.name)) &&
+          property.name.text === 'updates' &&
+          ts.isObjectLiteralExpression(property.initializer)
+        ) {
+          payloads.push(property.initializer);
         }
       }
     }
     ts.forEachChild(node, visit);
   };
   visit(source);
+  return payloads;
+}
+
+function editorSaveKeys(): string[] {
+  const keys = new Set<string>();
+  for (const payload of editorSavePayloads()) {
+    for (const property of payload.properties) {
+      const name = property.name;
+      if (name !== undefined && (ts.isIdentifier(name) || ts.isStringLiteralLike(name))) {
+        keys.add(name.text);
+      }
+    }
+  }
   return [...keys].sort();
 }
 
@@ -244,13 +270,20 @@ async function patch(body: unknown): Promise<{ status: number; body: Record<stri
 
 describe('the editor and the route agree on what a save contains', () => {
   it('reads a real payload out of the screen, so an empty parse cannot pass', () => {
+    // The vacuity floor. A moved file, a payload bound to a `const` first, or a
+    // parser that stopped matching all produce an empty list, which would
+    // satisfy every assertion below by iterating zero times.
+    //
+    // TWO payloads: the autosave and the publish toggle. They go through the
+    // same route with different bodies, and a census that found only one would
+    // stop covering whichever it lost.
+    expect(editorSavePayloads().length).toBeGreaterThanOrEqual(2);
+
     const keys = editorSaveKeys();
-    // The vacuity floor. A renamed save function, a moved file or a parser that
-    // stopped matching all produce an empty list, which would satisfy every
-    // assertion below by iterating zero times.
     expect(keys.length).toBeGreaterThanOrEqual(10);
     expect(keys).toContain('tagline');
     expect(keys).toContain('systemPrompt');
+    expect(keys).toContain('isPublished');
   });
 
   it('has a fixture value for every key the editor sends', () => {
@@ -299,6 +332,51 @@ describe('the editor and the route agree on what a save contains', () => {
     const missing = keys.filter((key) => !(renamed[key] ?? key in written) && !((renamed[key] ?? key) in written));
     expect(missing, `${missing.join(', ')} never reached the repository`).toEqual([]);
     expect(written.capabilityGrants).toEqual(['web', 'mcp:conn-1']);
+  });
+
+  /**
+   * THE ANSWER, not the write: a save comes back in the SAME shape a read does.
+   *
+   * `useUpdateAgent` puts this body straight into the `agents.detail` cache, so
+   * whatever it omits, every screen reading that agent loses. It omitted
+   * `skills` and `knowledge` — `GET /agents/:id` attaches them and this did not
+   * — and the editor, re-seeding from the cache, then sent `skills: []` on its
+   * next autosave and DELETED them.
+   *
+   * Asserted against the child lists the repository actually holds, so an empty
+   * pair cannot pass for a present one.
+   */
+  it('answers with the child lists, exactly as GET does', async () => {
+    repository.findAgentSkills.mockResolvedValue([
+      { _id: 'skill-1', skillId: 'research', title: 'Research', icon: '🔎', color: 'blue' },
+    ]);
+    repository.findAgentKnowledge.mockResolvedValue([
+      { _id: 'file-1', name: 'handbook.pdf', type: 'pdf', category: 'docs', url: 'https://x/handbook.pdf' },
+    ]);
+
+    const res = await patch({ tagline: 'a tagline' });
+
+    expect(res.status).toBe(200);
+    const agent = res.body.agent as Record<string, unknown>;
+    expect(agent.skills, 'a save that answers without skills wipes them on the next one').toEqual([
+      { _id: 'skill-1', skillId: 'research', title: 'Research', icon: '🔎', color: 'blue' },
+    ]);
+    expect(agent.knowledge).toEqual([
+      { _id: 'file-1', name: 'handbook.pdf', type: 'pdf', category: 'docs', url: 'https://x/handbook.pdf' },
+    ]);
+  });
+
+  it('reads them AFTER the write, so the answer is what was just stored', async () => {
+    // The control for the test above: attaching the lists the request came in
+    // with would satisfy it just as well, and would be wrong — the write
+    // replaces them, so the answer has to come from the repository.
+    await patch({ skills: ['skill-2'] });
+
+    expect(repository.updateAgent).toHaveBeenCalledTimes(1);
+    expect(repository.findAgentSkills).toHaveBeenCalledWith(expect.anything(), 'agent-1');
+    const [updateOrder] = repository.updateAgent.mock.invocationCallOrder;
+    const [readOrder] = repository.findAgentSkills.mock.invocationCallOrder;
+    expect(readOrder).toBeGreaterThan(updateOrder);
   });
 
   it('still refuses a key the schema does not name, which is what made the bug', async () => {
