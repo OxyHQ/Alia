@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
@@ -24,47 +24,50 @@ import { describe, expect, it } from 'vitest';
 
 const HOSTS = ['SurfaceHost', 'ToastOutlet'] as const;
 
-const APP_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
-const SKIP_DIRS = new Set([
-  'node_modules',
-  '.expo',
-  'dist',
-  'android',
-  'ios',
-  'public',
-  'assets',
-]);
+const APP = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 
-/** Every `.ts`/`.tsx` file the app owns, except this gate itself. */
-function sourceFiles(dir: string, found: string[] = []): string[] {
-  for (const entry of readdirSync(dir)) {
-    if (SKIP_DIRS.has(entry) || entry.startsWith('.')) continue;
-    const path = join(dir, entry);
-    if (statSync(path).isDirectory()) {
-      sourceFiles(path, found);
-    } else if (/\.tsx?$/.test(entry) && path !== fileURLToPath(import.meta.url)) {
-      found.push(path);
+/** Every source file of the app, minus the installed packages and this gate. */
+function sources(): string[] {
+  const found: string[] = [];
+  const walk = (dir: string): void => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      if (entry.name === 'node_modules' || entry.name.startsWith('.')) continue;
+      const path = join(dir, entry.name);
+      if (entry.isDirectory()) {
+        walk(path);
+      } else if (/\.tsx?$/.test(entry.name) && path !== fileURLToPath(import.meta.url)) {
+        found.push(path);
+      }
     }
-  }
+  };
+  walk(APP);
   return found;
 }
 
 /**
  * Comments are stripped before matching, so the layout may keep SAYING which
  * hosts it deliberately does not mount — naming the trap is how the next
- * person avoids it, and a gate that forbids the words would delete the warning
+ * person avoids it, and a gate that forbade the words would delete the warning
  * along with the bug.
  */
 function withoutComments(source: string): string {
   return source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
 }
 
+/**
+ * Read once for the whole file, not once per host: the walk plus a read of
+ * every source file is the expensive half, and it does not depend on which
+ * host is being looked for.
+ */
+const SOURCES = sources().map((path) => ({
+  path: relative(APP, path),
+  code: withoutComments(readFileSync(path, 'utf8')),
+}));
+
 describe('overlay hosts', () => {
   it.each(HOSTS)('the app mounts no <%s> of its own', (host) => {
-    const mounts = sourceFiles(APP_ROOT)
-      .filter((path) => new RegExp(`<${host}[\\s/>]`).test(withoutComments(readFileSync(path, 'utf8'))))
-      .map((path) => relative(APP_ROOT, path));
+    const mount = new RegExp(`<${host}[\\s/>]`);
 
-    expect(mounts).toEqual([]);
+    expect(SOURCES.filter(({ code }) => mount.test(code)).map(({ path }) => path)).toEqual([]);
   });
 });

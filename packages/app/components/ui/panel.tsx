@@ -3,7 +3,7 @@ import { View, useWindowDimensions } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Dialog } from "@oxyhq/bloom/dialog";
 import { cn } from "@/lib/utils";
-import { MD_BREAKPOINT } from "@/lib/hooks/use-is-large-screen";
+import { useIsLargeScreen } from "@/lib/hooks/use-is-large-screen";
 
 interface PanelProps {
   /** Whether the panel is open */
@@ -36,7 +36,7 @@ export function Panel({
   className,
 }: PanelProps) {
   const { width: screenWidth } = useWindowDimensions();
-  const isLargeScreen = screenWidth >= MD_BREAKPOINT;
+  const isLargeScreen = useIsLargeScreen();
   const insets = useSafeAreaInsets();
 
   // Desktop: Render as part of flex layout
