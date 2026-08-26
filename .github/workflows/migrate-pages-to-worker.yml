@@ -42,9 +42,27 @@
 # a Pages deployment whose `_worker.js` 301s `canvas.alia.onl` right back — a
 # redirect loop. Deleting the record first makes the gap an honest NXDOMAIN.
 #
-# THERE IS A BRIEF OUTAGE between step 1 and step 3, roughly the length of one
-# `wrangler deploy`. It is unavoidable: the hostname cannot belong to both, and
-# the record cannot exist while the Worker claims it.
+# THERE IS A BRIEF OUTAGE between step 1 and step 3, and it is MEASURED rather
+# than estimated. `deploy-frontends.yml` pushes this same Worker on every merge
+# to main, so its `wrangler deploy` runs under exactly the conditions the
+# cutover meets. Run 32914888079, deploying `alia-app` at the current tree:
+#
+#   Uploaded 2 files (86 already uploaded)   3.88s
+#   Uploaded alia-app                        6.71s
+#   trigger reconciliation                   ~1.2s
+#   whole step                               12s
+#
+# So the assets are not the window — they are already in Cloudflare before the
+# cutover starts, uploaded by the last merge. The window is ~12s of deploy plus
+# the ~1s detach plus DNS propagation for the record the Worker writes.
+#
+# IT CANNOT BE SHORTENED WITHOUT AN EXPERIMENTAL COMMAND, and it is not worth
+# that. The only way to claim the hostname separately from the upload is
+# `wrangler versions upload` followed by `wrangler triggers deploy`, and
+# wrangler's own `--help` marks `triggers` `[experimental]`. This is a one-shot
+# production cutover with no way to rehearse the claim, so the critical path
+# stays on `wrangler deploy`. The mitigation is the restore step at the bottom
+# of this file, not a shorter window.
 #
 # DRY RUN FIRST. `dry_run: true` runs everything that changes nothing — the
 # inspection below, the install, the build and `wrangler deploy --dry-run` — and
@@ -67,9 +85,11 @@
 # its read-back are both scoped to address records.
 #
 # If step 4 never succeeds the run FAILS THERE, with the Pages project still
-# intact. Recovery is `bind-pages-domain.yml`, which re-creates the record and
-# re-attaches the domain to Pages. Nothing is unrecoverable until step 5, and
-# step 5 cannot be reached on a broken cutover.
+# intact — and the LAST STEP puts the record back by itself. That step is the
+# reason the list above ends where it does: recovery used to mean a human
+# noticing and running `bind-pages-domain.yml` by hand, which on 2026-08-26 was
+# fifteen minutes of downtime. Nothing is unrecoverable until step 5, and step 5
+# cannot be reached on a broken cutover.
 name: Migrate Pages Project to Worker
 
 on:
@@ -191,6 +211,30 @@ jobs:
 
           curl -sS -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
             "$api/zones/$zone/dns_records?name=$HOSTNAME" -o /tmp/insp-dns.json
+
+          # Asking the zone's own nameserver instead of whatever the runner
+          # resolves through. The two answers are the same right up until they
+          # are not, and the moment they diverge is exactly the moment someone
+          # reads a stale cache as a healthy site.
+          ns=$(jq -r '.result[0].name_servers[0] // empty' /tmp/insp-zone.json)
+          if [ -z "$ns" ] && command -v dig >/dev/null; then
+            ns=$(dig +short NS "$ZONE"); ns=${ns%%$'\n'*}
+          fi
+          # Initialised unconditionally. `set -u` turns an unset `$auth` in the
+          # comparison below into a dead step, and an inspection that aborts the
+          # cutover over a nameserver it could not name is the opposite of the
+          # point.
+          auth=""; resolver=""; asked=0
+          if command -v dig >/dev/null && [ -n "$ns" ]; then
+            asked=1
+            # Kept newline-separated. Flattening with `tr` here leaves a lone
+            # space when there is no answer at all, and " " is not empty — the
+            # one comparison below that has to notice an empty authoritative
+            # side would silently take the wrong branch.
+            auth=$(dig +short "@$ns" "$HOSTNAME" A "$HOSTNAME" AAAA "$HOSTNAME" CNAME | sort)
+            resolver=$(dig +short "$HOSTNAME" A "$HOSTNAME" AAAA "$HOSTNAME" CNAME | sort)
+          fi
+
           pages_code=$(curl -sS -o /tmp/insp-pages.json -w '%{http_code}' \
             -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
             "$api/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects/$PAGES_PROJECT/domains")
@@ -213,6 +257,35 @@ jobs:
             jq -r 'if (.result | length) == 0 then "(none - the hostname does not resolve)"
                    else (.result[] | "\(.type)  \(.content)  proxied=\(.proxied)  ttl=\(.ttl)  id=\(.id)")
                    end' /tmp/insp-dns.json
+            echo '```'
+            echo
+            echo "**Resolution.** The authoritative nameserver is what the zone actually holds;"
+            echo "this runner's resolver is a cache, and a cache is what made a deleted record"
+            echo "look like a live site twice on 2026-08-26."
+            echo '```'
+            if [ "$asked" = 1 ]; then
+              echo "authoritative (@$ns): ${auth:+${auth//$'\n'/ }}${auth:-(nothing)}"
+              echo "runner's resolver:    ${resolver:+${resolver//$'\n'/ }}${resolver:-(nothing)}"
+              # Only one disagreement is an alarm, and it is the one that made a
+              # deleted record look like a live site: the zone holds nothing and
+              # a cache still answers. The reverse is ordinary propagation, and
+              # a set that merely differs is usually a type the resolver has not
+              # been asked for. Saying "they differ" to all three would cry wolf
+              # on the two harmless ones.
+              if [ -z "$auth" ] && [ -n "$resolver" ]; then
+                echo "THE RESOLVER IS SERVING CACHE - the zone holds no address record for $HOSTNAME"
+              elif [ -n "$auth" ] && [ -z "$resolver" ]; then
+                echo "the zone holds records the resolver has not picked up - propagation, not a problem"
+              elif [ "$auth" = "$resolver" ]; then
+                echo "they agree"
+              else
+                echo "they differ - believe the authoritative line"
+              fi
+            elif ! command -v dig >/dev/null; then
+              echo "(dig is not installed on this runner; the API listing above is the zone's own truth)"
+            else
+              echo "(no nameserver found for $ZONE to ask; the API listing above is the zone's own truth)"
+            fi
             echo '```'
             echo
             echo "**Pages project \`$PAGES_PROJECT\`, custom domains.**"
@@ -313,6 +386,12 @@ jobs:
           [ -n "$zone" ] || { echo "::error::zone $ZONE not found"; exit 1; }
           curl -sS -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
             "https://api.cloudflare.com/client/v4/zones/$zone/dns_records?name=$HOSTNAME" -o /tmp/r.json
+          # Written BEFORE the first DELETE, because the restore step at the
+          # bottom cannot ask Cloudflare what used to be there. Everything
+          # needed to recreate the record and nothing else.
+          jq "[.result[] | $blocking | {type, name, content, ttl, proxied}]" /tmp/r.json \
+            > /tmp/deleted-records.json
+          echo "recorded for restore: $(jq -c '[.[] | .type + " -> " + .content]' /tmp/deleted-records.json)"
           ids=$(jq -r ".result[] | $blocking | .id" /tmp/r.json)
           if [ -z "$ids" ]; then
             echo "no address record to delete — continuing"
@@ -415,6 +494,100 @@ jobs:
           echo "projects now: $list"
           echo "$list" | tr ',' '\n' | grep -qx "$PAGES_PROJECT" \
             && { echo "::error::$PAGES_PROJECT is still listed"; exit 1; } || true
+
+      # THE WAY BACK, and the only step that runs on `always()`. Everything
+      # between the record delete and the Worker claiming the hostname is an
+      # outage, and until now the sole exit from a failure inside it was a human
+      # noticing and running `bind-pages-domain.yml` by hand — fifteen minutes,
+      # on 2026-08-26. `always()` rather than `failure()` because a job killed
+      # by its own 25-minute timeout is CANCELLED, not failed, and a timeout
+      # lands squarely in the window.
+      #
+      # It is built not to undo a cutover that worked. Three conditions each end
+      # it as a no-op: nothing was deleted, the Worker already holds the
+      # hostname, or an address record is already there. Only a hostname that
+      # resolves to nothing is restored — and the Pages attachment goes back
+      # with it, because a CNAME pointing at a project that no longer claims the
+      # domain is not a restored site, it is an error page.
+      - name: Put the hostname back if the cutover did not finish
+        if: ${{ always() && !inputs.dry_run }}
+        run: |
+          set -euo pipefail
+          api=https://api.cloudflare.com/client/v4
+          n=$(jq -r 'length' /tmp/deleted-records.json 2>/dev/null || echo 0)
+          [ "$n" -gt 0 ] || { echo "no record was deleted — nothing to restore"; exit 0; }
+
+          curl -sS -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            "$api/zones?name=$ZONE" -o /tmp/rz.json
+          zone=$(jq -r '.result[0].id // empty' /tmp/rz.json)
+          [ -n "$zone" ] || { echo "::error::zone $ZONE not found — cannot restore $HOSTNAME by itself"; exit 1; }
+
+          # The Worker holding the hostname is the cutover having worked. Asked
+          # first because after a successful deploy the record below exists too,
+          # and this says WHY it exists.
+          if curl -sS -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+               "$api/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/domains?zone_id=$zone" -o /tmp/rwd.json \
+             && jq -e --arg h "$HOSTNAME" '.result[]? | select(.hostname == $h)' /tmp/rwd.json >/dev/null; then
+            echo "the Worker holds $HOSTNAME — the cutover got that far, nothing to restore"
+            exit 0
+          fi
+
+          curl -sS -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            "$api/zones/$zone/dns_records?name=$HOSTNAME" -o /tmp/rr.json
+          live=$(jq -r '[.result[] | select(.type == "A" or .type == "AAAA" or .type == "CNAME")] | length' /tmp/rr.json)
+          if [ "$live" != "0" ]; then
+            echo "$HOSTNAME already has $live address record(s) — it resolves, nothing to restore"
+            exit 0
+          fi
+
+          echo "::warning::$HOSTNAME resolves to nothing. Restoring the $n record(s) the delete step took."
+
+          # Pages first, the mirror image of the teardown: the record has to
+          # point at a project that will answer for this Host.
+          code=$(curl -sS -o /tmp/rat.json -w '%{http_code}' -X POST \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" -H 'Content-Type: application/json' \
+            --data "$(jq -nc --arg n "$HOSTNAME" '{name:$n}')" \
+            "$api/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects/$PAGES_PROJECT/domains")
+          if [ "$(jq -r '.success' /tmp/rat.json)" = "true" ]; then
+            echo "re-attached $HOSTNAME to $PAGES_PROJECT"
+          elif jq -e '.errors[]? | select(.message | test("already";"i"))' /tmp/rat.json >/dev/null; then
+            echo "still attached to $PAGES_PROJECT"
+          else
+            echo "::error::re-attach failed (http=$code): $(jq -c '.errors' /tmp/rat.json)"; exit 1
+          fi
+
+          # Process substitution, not a pipe: a pipe would run this loop in a
+          # subshell where `exit 1` on a failed POST exits the loop rather than
+          # the step.
+          while read -r rec; do
+            echo "restoring $(echo "$rec" | jq -r '.type + " -> " + .content')"
+            code=$(curl -sS -o /tmp/rp.json -w '%{http_code}' -X POST \
+              -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" -H 'Content-Type: application/json' \
+              --data "$rec" "$api/zones/$zone/dns_records")
+            [ "$(jq -r '.success' /tmp/rp.json)" = "true" ] \
+              || { echo "::error::restore failed (http=$code): $(jq -c '.errors' /tmp/rp.json)"; exit 1; }
+          done < <(jq -c '.[]' /tmp/deleted-records.json)
+
+          # Read back the same way everything else here does, and then ask the
+          # zone's own nameserver, because the API agreeing with itself is not
+          # the site being reachable.
+          curl -sS -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            "$api/zones/$zone/dns_records?name=$HOSTNAME" -o /tmp/rr2.json
+          back=$(jq -r '[.result[] | select(.type == "A" or .type == "AAAA" or .type == "CNAME")] | length' /tmp/rr2.json)
+          [ "$back" = "$n" ] \
+            || { echo "::error::restored $back of $n address record(s)"; exit 1; }
+          ns=$(jq -r '.result[0].name_servers[0] // empty' /tmp/rz.json)
+          {
+            echo "### Restored"
+            echo '```'
+            echo "$HOSTNAME -> $(jq -r '[.result[] | select(.type == "A" or .type == "AAAA" or .type == "CNAME") | .type + " " + .content] | join(", ")' /tmp/rr2.json)"
+            if command -v dig >/dev/null && [ -n "$ns" ]; then
+              echo "authoritative (@$ns): $(dig +short "@$ns" "$HOSTNAME" A "$HOSTNAME" CNAME | tr '\n' ' ')"
+            fi
+            echo "http=$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 "https://$HOSTNAME/" || echo 000)"
+            echo '```'
+            echo "> The cutover did not complete and $HOSTNAME was put back on $PAGES_PROJECT."
+          } | tee -a "$GITHUB_STEP_SUMMARY"
 
       # 6. What this whole workflow is for.
       # ADVISORY, and marked so. Everything destructive is already done and
