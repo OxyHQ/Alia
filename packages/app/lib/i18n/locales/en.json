@@ -1069,6 +1069,7 @@
   },
   "effort": {
     "select": "Effort",
+    "costNote": "Thinking is billed as output tokens, so higher effort costs more.",
     "headlinePrefix": "",
     "headlineSuffix": " effort",
     "levels": {

@@ -226,6 +226,12 @@ function EffortSheet({
               {t("effort.headlineSuffix")}
             </Text>
             <EffortSlider active={active} offered={offered} onSelect={onSelect} />
+            {/* The one thing the levels themselves cannot say: picking a
+                higher one costs more. Reasoning is billed as output tokens, so
+                the price moves with the choice being made right here. */}
+            <Text className="text-center text-xs text-muted-foreground">
+              {t("effort.costNote")}
+            </Text>
           </View>
         </BottomSheet>
       )}
