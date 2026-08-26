@@ -20,6 +20,27 @@
 # for this, which is why the hostname and project are inputs rather than baked
 # in.
 #
+# THIS IS THE WORKFLOW YOU REACH FOR WHEN SOMETHING IS ALREADY BROKEN, so it is
+# held to a higher standard than the one that broke it — and on 2026-08-26 it
+# was not. It read `dns_records?name=$HOSTNAME`, a query that filters by name
+# and NOT by type, took `.result[0]`, and PUT a CNAME over it. Recovering
+# `alia.onl` from a 15-minute outage, `.result[0]` was `TXT "v=spf1 -all"`: the
+# site came back and the domain's SPF record was destroyed. Its read-back was
+# `.result[0]` too, so it read the CNAME it had just written and reported
+# success.
+#
+# WHAT REPLACES IT, and why the failure is now structural rather than guarded:
+#
+#   * The destructive half is `cloudflare-clear-address-records.sh`, shared with
+#     `migrate-pages-to-worker.yml`. One file decides what an address record is,
+#     so the two workflows cannot come to disagree about it, and that file
+#     enumerates every record it is NOT deleting and checks each one survived.
+#   * What follows is a CREATE, never a replace. A POST of a CNAME cannot land
+#     on a TXT record the way a PUT can, so the incident has no form to take
+#     here — there is no `.result[0]` left in this file.
+#   * The read-back asks for `&type=CNAME`. The query carries the type, so no
+#     filter here has to know one.
+#
 # EVERY WRITE IS READ BACK. A Cloudflare API call that returns `success: true`
 # having changed nothing, and one that genuinely changed something, are
 # indistinguishable from the response alone — so each step re-reads the field it
@@ -53,8 +74,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
-      CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-      CF_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       HOSTNAME: ${{ inputs.hostname }}
       PROJECT: ${{ inputs.project }}
       ZONE: ${{ inputs.zone }}
@@ -67,14 +88,19 @@ jobs:
       - name: The credentials actually arrived
         run: |
           set -euo pipefail
-          [ -n "${CF_TOKEN:-}" ] || { echo "::error::CLOUDFLARE_API_TOKEN is empty — the org secret did not reach this repo"; exit 1; }
-          [ -n "${CF_ACCOUNT:-}" ] || { echo "::error::CLOUDFLARE_ACCOUNT_ID is empty"; exit 1; }
+          [ -n "${CLOUDFLARE_API_TOKEN:-}" ] || { echo "::error::CLOUDFLARE_API_TOKEN is empty — the org secret did not reach this repo"; exit 1; }
+          [ -n "${CLOUDFLARE_ACCOUNT_ID:-}" ] || { echo "::error::CLOUDFLARE_ACCOUNT_ID is empty"; exit 1; }
           code=$(curl -sS -o /tmp/verify.json -w '%{http_code}' \
-            -H "Authorization: Bearer $CF_TOKEN" \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
             https://api.cloudflare.com/client/v4/user/tokens/verify)
           ok=$(jq -r '.success' /tmp/verify.json)
           echo "token verify: http=$code success=$ok status=$(jq -r '.result.status // "-"' /tmp/verify.json)"
           [ "$ok" = "true" ] || { echo "::error::token rejected: $(jq -c '.errors' /tmp/verify.json)"; exit 1; }
+
+      # The DNS work lives in a script now, shared with the cutover workflow, so
+      # this needs the tree. It is checked out from the ref this run was
+      # dispatched against, which is the same ref whose YAML is executing.
+      - uses: actions/checkout@v4
 
       - name: What the world looks like before
         run: |
@@ -88,7 +114,7 @@ jobs:
       - name: Resolve the zone
         run: |
           set -euo pipefail
-          curl -sS -H "Authorization: Bearer $CF_TOKEN" \
+          curl -sS -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
             "https://api.cloudflare.com/client/v4/zones?name=$ZONE" -o /tmp/zone.json
           [ "$(jq -r '.success' /tmp/zone.json)" = "true" ] || { echo "::error::zone lookup failed: $(jq -c '.errors' /tmp/zone.json)"; exit 1; }
           id=$(jq -r '.result[0].id // empty' /tmp/zone.json)
@@ -97,45 +123,49 @@ jobs:
           echo "zone $ZONE resolved"
 
       # Cloudflare will not create its own record while a conflicting one
-      # exists, and the conflicting one here is the CNAME to the dead
-      # DigitalOcean app. Point it at the Pages project first, PROXIED: per the
-      # documented model, frontends are proxied CNAMEs to `*.pages.dev` and
-      # Cloudflare terminates TLS. A DNS-only record would serve the Pages
-      # origin without a certificate for this hostname.
-      - name: Point the record at the Pages project
+      # exists, and the conflicting one here is whatever address record the
+      # hostname already carries — the CNAME to the dead DigitalOcean app, or
+      # the one a failed cutover left behind. It is cleared, then a fresh CNAME
+      # is created, PROXIED: per the documented model, frontends are proxied
+      # CNAMEs to `*.pages.dev` and Cloudflare terminates TLS. A DNS-only record
+      # would serve the Pages origin without a certificate for this hostname.
+      #
+      # `.github/scripts/test-cloudflare-cutover.sh` extracts this `run:` block
+      # from this file and executes it against a stubbed Cloudflare, including
+      # the case that cost `alia.onl` its SPF record.
+      - name: The address record is a proxied CNAME to the Pages project
         run: |
           set -euo pipefail
           target="${PROJECT}.pages.dev"
-          curl -sS -H "Authorization: Bearer $CF_TOKEN" \
-            "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records?name=$HOSTNAME" -o /tmp/rec.json
-          rec=$(jq -r '.result[0].id // empty' /tmp/rec.json)
-          body=$(jq -nc --arg n "$HOSTNAME" --arg c "$target" \
-            '{type:"CNAME",name:$n,content:$c,proxied:true,ttl:1}')
-          if [ -n "$rec" ]; then
-            echo "replacing existing record ($(jq -r '.result[0].type + " -> " + .result[0].content' /tmp/rec.json))"
-            curl -sS -X PUT -H "Authorization: Bearer $CF_TOKEN" -H 'Content-Type: application/json' \
-              --data "$body" \
-              "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records/$rec" -o /tmp/put.json
-          else
-            echo "no record exists; creating one"
-            curl -sS -X POST -H "Authorization: Bearer $CF_TOKEN" -H 'Content-Type: application/json' \
-              --data "$body" \
-              "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records" -o /tmp/put.json
-          fi
-          [ "$(jq -r '.success' /tmp/put.json)" = "true" ] || { echo "::error::record write failed: $(jq -c '.errors' /tmp/put.json)"; exit 1; }
 
-      # Read back, because `success: true` is not evidence the field holds.
-      - name: The record says what we wrote
-        run: |
-          set -euo pipefail
-          curl -sS -H "Authorization: Bearer $CF_TOKEN" \
-            "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records?name=$HOSTNAME" -o /tmp/after.json
-          got_type=$(jq -r '.result[0].type // "-"' /tmp/after.json)
-          got_content=$(jq -r '.result[0].content // "-"' /tmp/after.json)
-          got_proxied=$(jq -r '.result[0].proxied // "-"' /tmp/after.json)
-          echo "record now: $got_type $HOSTNAME -> $got_content proxied=$got_proxied"
-          [ "$got_type" = "CNAME" ] || { echo "::error::type is $got_type, expected CNAME"; exit 1; }
-          [ "$got_content" = "${PROJECT}.pages.dev" ] || { echo "::error::content is $got_content, expected ${PROJECT}.pages.dev"; exit 1; }
+          # Deletes A, AAAA and CNAME at this name and NOTHING else, and fails
+          # if any record it was not deleting stopped existing.
+          bash .github/scripts/cloudflare-clear-address-records.sh "$ZONE" "$HOSTNAME"
+
+          # A create, not a replace. There is no `.result[0]` here to land on
+          # the wrong record: the address records are already gone, and a POST
+          # of a CNAME cannot overwrite a TXT.
+          echo "creating CNAME $HOSTNAME -> $target (proxied)"
+          code=$(curl -sS -o /tmp/put.json -w '%{http_code}' -X POST \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" -H 'Content-Type: application/json' \
+            --data "$(jq -nc --arg n "$HOSTNAME" --arg c "$target" '{type:"CNAME",name:$n,content:$c,proxied:true,ttl:1}')" \
+            "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records")
+          [ "$(jq -r '.success' /tmp/put.json)" = "true" ] \
+            || { echo "::error::record write failed (http=$code): $(jq -c '.errors' /tmp/put.json)"; exit 1; }
+
+          # Read back, because `success: true` is not evidence the field holds.
+          # `&type=CNAME` on the query is what makes this safe: the type is the
+          # server's problem, so nothing here indexes into a mixed list.
+          curl -sS -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records?name=$HOSTNAME&type=CNAME" -o /tmp/after.json
+          [ "$(jq -r '.success' /tmp/after.json)" = "true" ] \
+            || { echo "::error::read-back failed: $(jq -c '.errors' /tmp/after.json)"; exit 1; }
+          n=$(jq -r '.result | length' /tmp/after.json)
+          [ "$n" = "1" ] || { echo "::error::$HOSTNAME has $n CNAME record(s), expected exactly 1"; exit 1; }
+          got_content=$(jq -r '.result[0].content' /tmp/after.json)
+          got_proxied=$(jq -r '.result[0].proxied' /tmp/after.json)
+          echo "record now: CNAME $HOSTNAME -> $got_content proxied=$got_proxied"
+          [ "$got_content" = "$target" ] || { echo "::error::content is $got_content, expected $target"; exit 1; }
           [ "$got_proxied" = "true" ] || { echo "::error::record is not proxied — Cloudflare would not terminate TLS for this hostname"; exit 1; }
 
       # Idempotent: a domain already attached returns an error naming that, and
@@ -144,9 +174,9 @@ jobs:
         run: |
           set -euo pipefail
           code=$(curl -sS -o /tmp/dom.json -w '%{http_code}' -X POST \
-            -H "Authorization: Bearer $CF_TOKEN" -H 'Content-Type: application/json' \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" -H 'Content-Type: application/json' \
             --data "$(jq -nc --arg n "$HOSTNAME" '{name:$n}')" \
-            "https://api.cloudflare.com/client/v4/accounts/$CF_ACCOUNT/pages/projects/$PROJECT/domains")
+            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects/$PROJECT/domains")
           if [ "$(jq -r '.success' /tmp/dom.json)" = "true" ]; then
             echo "attached"
           elif jq -e '.errors[]?|select(.message|test("already";"i"))' /tmp/dom.json >/dev/null; then
@@ -158,8 +188,8 @@ jobs:
       - name: The project lists the domain
         run: |
           set -euo pipefail
-          curl -sS -H "Authorization: Bearer $CF_TOKEN" \
-            "https://api.cloudflare.com/client/v4/accounts/$CF_ACCOUNT/pages/projects/$PROJECT/domains" -o /tmp/doms.json
+          curl -sS -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects/$PROJECT/domains" -o /tmp/doms.json
           echo "domains on $PROJECT: $(jq -r '[.result[].name]|join(", ")' /tmp/doms.json)"
           jq -e --arg n "$HOSTNAME" '.result[]|select(.name==$n)' /tmp/doms.json >/dev/null \
             || { echo "::error::$HOSTNAME is not listed on the project"; exit 1; }

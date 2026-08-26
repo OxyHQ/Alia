@@ -1,0 +1,179 @@
+# Delete a Cloudflare Pages project whose traffic already moved somewhere else.
+#
+# WHY THIS EXISTS SEPARATELY FROM `migrate-pages-to-worker.yml`. That workflow
+# ends by deleting the project, and on 2026-08-26 it got all the way there and
+# was refused:
+#
+#   {"code":8000076,"message":"Your project has too many deployments to be
+#    deleted, follow this guide to delete them: https://cfl.re/3CXesln"}
+#
+# Everything before that step had succeeded — `alia.onl` is served by the Worker,
+# the custom domain is detached, `alia-app.pages.dev` is still up. Re-running the
+# migration to finish the last step would delete the DNS record the WORKER now
+# owns and redeploy over a hostname it already holds, which is a second outage
+# to reach a step that never needed one. So the deletion is dispatchable on its
+# own, and the migration's last step calls the same script.
+#
+# UNTIL THIS RUNS THE MIGRATION IS NOT FINISHED. A Pages project always serves
+# `<project>.pages.dev` and Cloudflare offers no way to switch that off. That
+# hostname renders the whole interface and is in no CORS allowlist, so every
+# call it makes fails — a second copy of the app that looks broken rather than
+# absent. Removing it is the entire reason the migration was done.
+#
+# THE GATE IS THAT SOMETHING ELSE ALREADY SERVES THE HOSTNAME. The project must
+# hold no custom domain (asserted here and again in the script) and the hostname
+# must answer 200. Both have to be true before anything irreversible happens,
+# because the only input is a project name and getting it wrong is a live site.
+#
+# WHY A WORKFLOW: every Cloudflare token on the machine is dead. The working
+# credential is the org secret `CLOUDFLARE_API_TOKEN`, and a GitHub secret
+# cannot be read out — only used from inside a run.
+name: Retire Pages Project
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: Type DELETE-PAGES-PROJECT to confirm this destroys the Pages project
+        required: true
+      pages_project:
+        description: The Pages project to retire
+        required: true
+        default: alia-app
+      hostname:
+        description: The custom domain that must already be served by something else
+        required: true
+        default: alia.onl
+      dry_run:
+        description: Inspect and stop. Prints the project, its domains and its deployments, and changes nothing.
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  retire:
+    name: Retire ${{ inputs.pages_project }}
+    runs-on: ubuntu-latest
+    # The deployment purge runs to a 600s budget and the advisory wait adds
+    # ~120s. A step whose worst case does not fit the job is a step whose own
+    # `::error::` — the line that says it is safe to re-run — never prints.
+    timeout-minutes: 20
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      PAGES_PROJECT: ${{ inputs.pages_project }}
+      HOSTNAME: ${{ inputs.hostname }}
+      DRY_RUN: ${{ inputs.dry_run }}
+
+    steps:
+      # A typo in an input must not delete a production project.
+      - name: The confirmation phrase is exact
+        run: |
+          set -euo pipefail
+          [ "${{ inputs.confirm }}" = "DELETE-PAGES-PROJECT" ] \
+            || { echo "::error::confirm must be exactly DELETE-PAGES-PROJECT"; exit 1; }
+
+      # An org secret marked "Public repositories" never reaches a private repo
+      # and arrives as an EMPTY STRING with no error of its own.
+      - name: The credentials actually arrived
+        run: |
+          set -euo pipefail
+          [ -n "${CLOUDFLARE_API_TOKEN:-}" ] || { echo "::error::CLOUDFLARE_API_TOKEN is empty"; exit 1; }
+          [ -n "${CLOUDFLARE_ACCOUNT_ID:-}" ] || { echo "::error::CLOUDFLARE_ACCOUNT_ID is empty"; exit 1; }
+          ok=$(curl -sS -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            https://api.cloudflare.com/client/v4/user/tokens/verify | jq -r '.success')
+          [ "$ok" = "true" ] || { echo "::error::token rejected"; exit 1; }
+
+      - uses: actions/checkout@v4
+
+      # Everything this is about to destroy, enumerated and gated, before the
+      # first irreversible call. A cutover that goes wrong then has the prior
+      # state in its own log instead of something to reconstruct afterwards.
+      - name: What exists, and whether it is safe to delete
+        run: |
+          set -euo pipefail
+          api=https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects/$PAGES_PROJECT
+
+          # The step below reads `inputs.dry_run` through `if:`; this reads the
+          # same input through the environment. A value that is neither `true`
+          # nor `false` would make the two disagree, and the way that shows up
+          # is a skipped step and a green run that changed nothing.
+          [ "$DRY_RUN" = "true" ] || [ "$DRY_RUN" = "false" ] \
+            || { echo "::error::dry_run must be true or false, got '$DRY_RUN'"; exit 1; }
+
+          proj=$(curl -sS -o /tmp/proj.json -w '%{http_code}' \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" "$api")
+          [ "$(jq -r '.success' /tmp/proj.json)" = "true" ] \
+            || { echo "::error::$PAGES_PROJECT is not readable (http=$proj): $(jq -c '.errors // []' /tmp/proj.json)"; exit 1; }
+
+          curl -sS -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" "$api/domains" -o /tmp/doms.json
+          [ "$(jq -r '.success' /tmp/doms.json)" = "true" ] \
+            || { echo "::error::domains unreadable: $(jq -c '.errors // []' /tmp/doms.json)"; exit 1; }
+          domains=$(jq -r '[.result[].name] | join(", ")' /tmp/doms.json)
+
+          curl -sS -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            "$api/deployments?page=1&per_page=1" -o /tmp/deps.json
+          total=$(jq -r '.result_info.total_count // "?"' /tmp/deps.json)
+
+          serves=$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 "https://$HOSTNAME/" || echo 000)
+          pages=$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 "https://$PAGES_PROJECT.pages.dev/" || echo 000)
+
+          {
+            echo "### Before"
+            echo '```'
+            echo "project        $PAGES_PROJECT (created $(jq -r '.result.created_on // "-"' /tmp/proj.json))"
+            echo "custom domains ${domains:-none}"
+            echo "deployments    $total"
+            echo "$HOSTNAME -> http=$serves"
+            echo "$PAGES_PROJECT.pages.dev -> http=$pages"
+            echo '```'
+          } | tee -a "$GITHUB_STEP_SUMMARY"
+
+          # The gate. Deleting a project that still holds the hostname is an
+          # outage; deleting one whose replacement is not serving is worse,
+          # because the way back is to re-attach the project that no longer
+          # exists.
+          [ -z "$domains" ] || { echo "::error::$PAGES_PROJECT still serves $domains. Detach the custom domain first — deleting this would take the site down."; exit 1; }
+          [ "$serves" = "200" ] || { echo "::error::https://$HOSTNAME/ answers $serves, not 200. Nothing else is serving this hostname, so the Pages project is still the way back."; exit 1; }
+
+          if [ "$DRY_RUN" = "true" ]; then
+            echo "> **DRY RUN.** The project and its $total deployment(s) are left alone." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      # Purges the deployments `8000076` refuses to delete around, then the
+      # project, then reads the project back rather than trusting `success`.
+      - name: Delete the deployments and the project
+        if: ${{ !inputs.dry_run }}
+        run: bash .github/scripts/delete-pages-project.sh "$PAGES_PROJECT"
+
+      # ADVISORY, and marked so. Everything destructive is already done and
+      # already asserted — the script reads the project back. This only waits
+      # for edge cache to expire, and its own error text concedes the failure is
+      # not actionable.
+      - name: The Pages hostname is gone
+        if: ${{ !inputs.dry_run }}
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 6); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "https://$PAGES_PROJECT.pages.dev/" || echo 000)
+            echo "attempt $i: $PAGES_PROJECT.pages.dev -> http=$code"
+            # 200 or 301 means it is still ours and still answering. Anything
+            # else — 404, 522, a dead connection — means it no longer resolves
+            # to a project of ours, which is the goal.
+            case "$code" in
+              200|301|302) sleep 20; continue;;
+              *) {
+                   echo "### After"
+                   echo '```'
+                   echo "$HOSTNAME -> http=$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 "https://$HOSTNAME/")"
+                   echo "$PAGES_PROJECT.pages.dev -> http=$code (gone)"
+                   echo '```'
+                 } >> "$GITHUB_STEP_SUMMARY"
+                 echo "retired"; exit 0;;
+            esac
+          done
+          echo "::error::$PAGES_PROJECT.pages.dev still answers. The project was deleted (asserted above), so this is edge cache — re-run this step before assuming it failed."
+          exit 1
