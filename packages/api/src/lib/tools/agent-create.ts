@@ -100,8 +100,32 @@ export const createAgentTool = (userId: string, accessToken: string | undefined)
       // Auto-generate tagline from first sentence of description
       const tagline = description.split(/[.!?]/)[0].trim().slice(0, 100) || description.slice(0, 100);
 
-      // Auto-generate system prompt if not provided
-      const finalSystemPrompt = systemPrompt || `You are ${name}. ${description}`;
+      /**
+       * The seeded prompt describes the agent and does NOT name it.
+       *
+       * It used to be `You are ${name}. ${description}`, and the name in it is a
+       * COPY: `name` is also sent to Oxy as the bot account's `displayName`,
+       * which is where `agentPromptName` reads the agent's name from on every
+       * turn thereafter. The two are equal for exactly as long as nobody renames
+       * the agent — and the agent editor renames it,
+       * `app/(app)/agents/edit/[id].tsx` calling `updateAccount` with a new
+       * `name.displayName`.
+       *
+       * After a rename the identity guard says "You are Pepe", read live from
+       * Oxy, and the `# AGENT: Pepe` section under it says "You are Claudio",
+       * read from a column written months earlier. That is precisely the
+       * two-owners contradiction `#453` removed from the prompt files, frozen
+       * into a row instead of a markdown file.
+       *
+       * The description alone is the right seed: the guard owns the NAME and
+       * this section owns what the agent is FOR, which is the split the guard's
+       * remit rule already cites. Nothing is lost — the name was never carrying
+       * information the composed message did not already have, twice.
+       *
+       * Rows already written keep their frozen name. Rewriting somebody's own
+       * editable prompt is not this change's to make.
+       */
+      const finalSystemPrompt = systemPrompt || description;
 
       const username = suggestAgentUsername(name) ?? fallbackAgentUsername();
 
