@@ -107,7 +107,6 @@ export interface ProviderLoopParams {
    * later, which is exactly the shape ADR 0003 invariant 3 forbids.
    */
   routingOptions: RoutingOptions;
-  isSpanish: boolean;
   autonomyRuntime: AutonomyRuntimeContext | null;
   includeUsage: boolean;
   /** Length of the tier's provider mappings — sets the retry budget. */
@@ -123,7 +122,7 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
   const {
     req, res, sse, requestId, requestStartTime, globalTimer, globalTimeoutMs, state,
     body, messages, conversationId, reasoningEffort, convertedMessages, truncatedTools,
-    toolNameMapping, agentMessages, systemPromptTokens, requestedModel, routingOptions, isSpanish,
+    toolNameMapping, agentMessages, systemPromptTokens, requestedModel, routingOptions,
     autonomyRuntime, includeUsage, tierMappingsLength, skills,
   } = params;
 
@@ -331,7 +330,6 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
         convertedMessages,
         toolNameMapping,
         agentMessages,
-        isSpanish,
         toolCallCount,
         state: streamState,
         onFirstChunk: () => {
