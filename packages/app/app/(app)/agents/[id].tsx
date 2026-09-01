@@ -355,8 +355,7 @@ export default function AgentDetailScreen() {
    * The granted families, by label, for the listing.
    *
    * Derived rather than stored: the row carries grant STRINGS, and a family the
-   * app does not know about is skipped rather than rendered raw — a listing is
-   * not the place to show `oxy_service:inbox` to a stranger.
+   * app does not know about is skipped rather than rendered raw.
    */
   const grantedFamilyLabels = (agent?.capabilityGrants ?? []).flatMap((grant) => {
     const family = CAPABILITY_FAMILIES.find((entry) => entry.id === grant);

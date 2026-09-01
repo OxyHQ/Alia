@@ -1,9 +1,8 @@
 /**
  * AgentConnectorGrants — the rows an agent may reach, ONE AT A TIME.
  *
- * Four of the thirteen capability families are granted a row at a time — MCP
- * connectors, Oxy service manifests, OAuth integrations and the owner's own
- * agents — so a grant names the row rather than the family (`mcp:<id>`,
+ * Three capability families are granted a row at a time — MCP connectors,
+ * OAuth integrations and the owner's own agents — so a grant names the row rather than the family (`mcp:<id>`,
  * `agent:<id>`). They get their own section for that reason: a single switch
  * labelled "MCP Tools" would be a grant over every connector the owner will
  * ever install, which is exactly what an agent inheriting all of its owner's

@@ -110,7 +110,6 @@ interface AgentDraft {
   knowledge: LinkedFile[];
   price: string;
   access: 'private' | 'public';
-  handlesAutonomousEvents: boolean;
   archetype: AgentArchetype;
   archetypeConfig: ArchetypeConfig;
 }
@@ -192,7 +191,6 @@ function AgentEditor({ agent }: { agent: Agent }) {
     knowledge: agent.knowledge || [],
     price: agent.price != null ? String(agent.price) : "",
     access: agent.access,
-    handlesAutonomousEvents: agent.handlesAutonomousEvents,
     archetype: agent.archetype || 'general',
     archetypeConfig: agent.archetypeConfig || {},
   }));
@@ -211,7 +209,6 @@ function AgentEditor({ agent }: { agent: Agent }) {
     knowledge,
     price,
     access,
-    handlesAutonomousEvents,
     archetype,
     archetypeConfig,
   } = draft;
@@ -321,7 +318,6 @@ function AgentEditor({ agent }: { agent: Agent }) {
             knowledge: next.knowledge.map((file) => file._id),
             price: next.price.trim() ? parseFloat(next.price) : null,
             access: next.access,
-            handlesAutonomousEvents: next.handlesAutonomousEvents,
             archetype: next.archetype,
             archetypeConfig: next.archetypeConfig,
           },
@@ -832,20 +828,6 @@ function AgentEditor({ agent }: { agent: Agent }) {
               <Switch
                 value={access === 'public'}
                 onValueChange={(next) => editDraft({ access: next ? 'public' : 'private' })}
-              />
-            </View>
-
-            {/* Autonomous events — ONE agent per owner, enforced by the API. */}
-            <View className="flex-row items-center justify-between">
-              <View className="flex-1 pr-4">
-                <Label>{t("agents.handlesAutonomousEvents")}</Label>
-                <Text className="text-[13px] text-muted-foreground mt-0.5">
-                  {t("agents.handlesAutonomousEventsHint")}
-                </Text>
-              </View>
-              <Switch
-                value={handlesAutonomousEvents}
-                onValueChange={(next) => editDraft({ handlesAutonomousEvents: next })}
               />
             </View>
 

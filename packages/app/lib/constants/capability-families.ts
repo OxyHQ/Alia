@@ -20,7 +20,7 @@
  *
  * ## Instanced families are not toggles
  *
- * `mcp`, `oxy_service`, `integration` and `agent` are granted a row at a time,
+ * `mcp`, `integration` and `agent` are granted a row at a time,
  * so a grant names the row: `mcp:<connectorId>`, `agent:<agentId>`. They have
  * no entry in the list below, because a switch labelled "MCP Tools" would be a
  * grant over every connector the owner will ever install. They are their own
@@ -204,7 +204,6 @@ export interface GrantableConnector {
 export const INSTANCED_FAMILY_LABELS: Readonly<Record<string, string>> = {
   agent: 'Your agents',
   mcp: 'Connectors',
-  oxy_service: 'Oxy apps',
   integration: 'Integrations',
 };
 
@@ -220,6 +219,5 @@ export const INSTANCED_FAMILY_LABELS: Readonly<Record<string, string>> = {
 export const INSTANCED_FAMILY_ICONS: Readonly<Record<string, IconComponent>> = {
   agent: Users,
   mcp: ActionKeyIcon,
-  oxy_service: Shapes,
   integration: AppWindow,
 };

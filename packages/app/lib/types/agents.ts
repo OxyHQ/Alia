@@ -101,13 +101,6 @@ export interface Agent {
    * on its bot account, which is how an agent is shared; `public` is anyone.
    */
   access: 'private' | 'public';
-  /**
-   * Whether this is the ONE agent the owner has designated to run autonomous
-   * Oxy service events. A declared fact: the API enforces one per owner with a
-   * partial unique index and answers 409 for a second, so a screen offering the
-   * toggle has to handle that refusal rather than assume it can always set it.
-   */
-  handlesAutonomousEvents: boolean;
   systemPrompt?: string;
   allowedModels?: string[];
   archetype?: AgentArchetype;
@@ -149,7 +142,6 @@ export type AgentCreate = Pick<Agent, 'oxyAccountId' | 'tagline' | 'description'
       | 'capabilityGrants'
       | 'isPublished'
       | 'access'
-      | 'handlesAutonomousEvents'
       | 'systemPrompt'
       | 'archetype'
       | 'archetypeConfig'

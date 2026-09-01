@@ -91,9 +91,12 @@ vi.mock('../tools/integrations.js', () => ({
   }),
 }));
 vi.mock('../tools/oxy-services.js', () => ({
-  buildOxyServiceTools: vi.fn(async (_userId: string, _token: string, ids?: readonly string[]) => {
+  buildOxyServiceTools: vi.fn(async (_userId: string, _context: unknown, ids?: readonly string[]) => {
     asked.oxy_service.push(ids);
-    return rowTools('oxy', ids);
+    // Oxy grants now live in Oxy, outside this Alia-owned vocabulary. This
+    // suite proves local grants cannot widen them; oxy-services.test.ts covers
+    // the central capability map and ticket path.
+    return {};
   }),
 }));
 
@@ -235,7 +238,7 @@ describe('an agent reaches exactly what it was granted', () => {
     // regressed, these arrays would carry an empty-array call instead.
     expect(asked.mcp).toEqual([[]]);
     expect(asked.integration).toEqual([[]]);
-    expect(asked.oxy_service).toEqual([[]]);
+    expect(asked.oxy_service).toEqual([undefined]);
     expect(asked.agent).toEqual([[]]);
   });
 
@@ -381,15 +384,15 @@ describe('every tool the assembler can build belongs to exactly one family', () 
     // nothing, would satisfy every set comparison above by comparing two empty
     // sets — which is the shape of a passing test that measures nothing.
     const all = await namesFor(EVERY_GRANT);
-    expect(all.length).toBeGreaterThanOrEqual(25);
-    expect(CAPABILITY_FAMILIES.length).toBe(13);
+    expect(all.length).toBeGreaterThanOrEqual(23);
+    expect(CAPABILITY_FAMILIES.length).toBe(12);
   });
 });
 
 describe('the grant string is read the way it is written', () => {
-  it('splits at the FIRST colon, so an instance id may contain one', () => {
+  it('drops legacy local Oxy grants because Oxy is now their sole authority', () => {
     const grants = readCapabilityGrants(['oxy_service:tenant:inbox']);
-    expect(grants.instances('oxy_service')).toEqual(['tenant:inbox']);
+    expect(grants.allows('web')).toBe(false);
   });
 
   it('drops what it does not recognise instead of throwing', async () => {

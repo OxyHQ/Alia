@@ -136,8 +136,6 @@ export interface AgentRecord {
   isPublished: boolean;
   status: AgentStatus;
   access: AgentAccess;
-  /** Whether this is the owner's designated autonomous-events agent. */
-  handlesAutonomousEvents: boolean;
   systemPrompt: string | null;
   preferredImage: string | null;
   allowedModels: string[];
@@ -221,7 +219,6 @@ export function toAgentRecord(row: AgentRow): AgentRecord {
     isPublished: row.isPublished,
     status: row.status as AgentStatus,
     access: row.access as AgentAccess,
-    handlesAutonomousEvents: row.handlesAutonomousEvents,
     systemPrompt: row.systemPrompt,
     preferredImage: row.preferredImage,
     allowedModels: row.allowedModels,
@@ -283,37 +280,6 @@ export async function findAgentsByIds(db: Executor, ids: string[]): Promise<Agen
   if (ids.length === 0) return [];
   const rows = await db.select().from(agents).where(inArray(agents.id, ids));
   return rows.map(toAgentRecord);
-}
-
-/**
- * The agent this owner DESIGNATED to run autonomous Oxy service events, if any.
- *
- * A single indexed read against `agents_one_autonomy_per_owner`, which is also
- * the constraint that makes "the" honest: the database refuses a second
- * designation, so this cannot return an arbitrary winner. `null` means the
- * owner has designated nobody, and the caller falls back to a notification —
- * see `routes/oxy-service-events.ts`.
- *
- * `status` is NOT part of the predicate. An idle or offline agent is still the
- * one its owner chose, and silently routing events to a different agent because
- * this one is paused is exactly the surprise the designation exists to prevent;
- * the caller decides what to do about a paused agent.
- */
-export async function findDesignatedAutonomyAgent(
-  db: Executor,
-  ownerOxyUserId: string,
-): Promise<AgentRecord | null> {
-  const [row] = await db
-    .select()
-    .from(agents)
-    .where(
-      and(
-        eq(agents.authorOxyUserId, ownerOxyUserId),
-        eq(agents.handlesAutonomousEvents, true),
-      ),
-    )
-    .limit(1);
-  return row ? toAgentRecord(row) : null;
 }
 
 /**
@@ -817,8 +783,6 @@ export interface CreateAgentInput {
   capabilityGrants?: string[];
   isPublished?: boolean;
   access?: AgentAccess;
-  /** The owner's designated autonomy agent. At most one per owner, by index. */
-  handlesAutonomousEvents?: boolean;
   systemPrompt?: string;
   /** Omit to take the column default, which is what `POST /agents` does. */
   allowedModels?: string[];
@@ -837,10 +801,6 @@ export interface CreateAgentInput {
  * handle pre-check was deleted: the row a create would collide with is an agent
  * the caller can already see.
  *
- * The OTHER uniqueness a create can violate is
- * `agents_one_autonomy_per_owner` — a second agent designated for autonomous
- * events. Also left to the constraint, and `routes/agents/crud.ts` turns it
- * into a 409 by constraint name rather than reading first.
  */
 export async function createAgent(
   db: ApiDatabase,
@@ -860,7 +820,6 @@ export async function createAgent(
         capabilityGrants: input.capabilityGrants ?? [],
         isPublished: input.isPublished ?? true,
         access: input.access ?? 'private',
-        handlesAutonomousEvents: input.handlesAutonomousEvents ?? false,
         ...(input.systemPrompt !== undefined && { systemPrompt: input.systemPrompt }),
         ...(input.allowedModels !== undefined && { allowedModels: input.allowedModels }),
         ...(input.archetype !== undefined && { archetype: input.archetype }),
@@ -892,7 +851,6 @@ export interface UpdateAgentInput {
   isPublished?: boolean;
   status?: AgentStatus;
   access?: AgentAccess;
-  handlesAutonomousEvents?: boolean;
   systemPrompt?: string;
   allowedModels?: string[];
   scheduleInterval?: number;

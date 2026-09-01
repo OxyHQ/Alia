@@ -695,8 +695,6 @@
     "handlePlaceholder": "handle",
     "handleAdjusted": "That handle was taken — your agent is @%{handle}",
     "handleTaken": "That handle is taken. Try another.",
-    "handlesAutonomousEvents": "Handles autonomous events",
-    "handlesAutonomousEventsHint": "Runs incoming Oxy service events on its own. Only one of your agents can.",
     "accessPublic": "Anyone can use it",
     "accessPublicHint": "Off, only you and the people you add to its account can. Being listed in the catalogue is separate.",
     "capabilitiesFooter": "An agent reaches nothing you have not switched on here.",

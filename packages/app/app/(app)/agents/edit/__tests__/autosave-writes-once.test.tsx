@@ -318,7 +318,6 @@ function agentFixture(overrides: Record<string, unknown> = {}): Record<string, u
     isPublished: false,
     status: 'active',
     access: 'private',
-    handlesAutonomousEvents: false,
     systemPrompt: 'you are helpful',
     allowedModels: ['alia-v1'],
     archetype: 'general',
