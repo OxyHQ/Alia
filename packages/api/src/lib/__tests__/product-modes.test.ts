@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 import { KAANA_ROUTING_PROFILES } from '../../internal/providers/lib/routing-profile-catalogue.js';
-import { ROUTING_PRESETS, getRoutingPreset } from '../routing/presets.js';
+import { ROUTING_PRESETS } from '../routing/presets.js';
 import {
   OFFERED_PROFILES,
   PRODUCT_MODES,

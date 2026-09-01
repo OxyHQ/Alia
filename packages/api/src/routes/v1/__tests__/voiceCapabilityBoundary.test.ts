@@ -35,17 +35,17 @@ describe.each([
   ['/token', 'voice session'],
   ['/transcribe', 'speech transcription'],
 ] as const)('POST /v1/voice%s is a fail-closed Kaana boundary', (path, capability) => {
-  it('still rejects an anonymous caller before disclosing capability state', () => {
+  it('still rejects an anonymous caller before disclosing capability state', async () => {
     const res = capturingRes();
-    handlerFor(path)({ user: undefined, body: {} }, res, undefined);
+    await handlerFor(path)({ user: undefined, body: {} }, res, undefined);
 
     expect(res.statusCode).toBe(401);
     expect(res.body).toEqual({ error: 'Authentication required' });
   });
 
-  it('returns a stable 503 without evaluating old Alia gates, billing, or providers', () => {
+  it('returns a stable 503 without evaluating old Alia gates, billing, or providers', async () => {
     const res = capturingRes();
-    handlerFor(path)({ user: { id: 'user-ws13' }, body: {} }, res, undefined);
+    await handlerFor(path)({ user: { id: 'user-ws13' }, body: {} }, res, undefined);
 
     expect(res.statusCode).toBe(503);
     expect(res.body).toEqual({

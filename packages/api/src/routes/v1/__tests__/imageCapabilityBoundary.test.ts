@@ -44,17 +44,17 @@ function capturingRes() {
 }
 
 describe('POST /v1/images/generations is a fail-closed Kaana capability boundary', () => {
-  it('still rejects an anonymous caller before disclosing capability state', () => {
+  it('still rejects an anonymous caller before disclosing capability state', async () => {
     const res = capturingRes();
-    handlerFor('/generations')({ user: undefined, body: { prompt: 'a red apple' } }, res, undefined);
+    await handlerFor('/generations')({ user: undefined, body: { prompt: 'a red apple' } }, res, undefined);
 
     expect(res.statusCode).toBe(401);
     expect(res.body).toEqual({ error: 'Authentication required' });
   });
 
-  it('returns a stable 503 without resolving providers or touching Alia credits', () => {
+  it('returns a stable 503 without resolving providers or touching Alia credits', async () => {
     const res = capturingRes();
-    handlerFor('/generations')({ user: { id: 'u1' }, body: { prompt: 'a red apple' } }, res, undefined);
+    await handlerFor('/generations')({ user: { id: 'u1' }, body: { prompt: 'a red apple' } }, res, undefined);
 
     expect(res.statusCode).toBe(503);
     expect(res.body).toEqual({

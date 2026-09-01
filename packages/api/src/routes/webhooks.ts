@@ -267,7 +267,6 @@ export async function processChannelMessage(
      * `processAgentBotMessage` below, which passes that agent's name.
      */
     const systemPrompt = `${buildIdentityGuard()}\n\n---\n\n${await getChannelSystemPrompt(channelType)}`;
-    const startTime = Date.now();
     const result = await generateText({
       model,
       system: systemPrompt,
@@ -471,7 +470,6 @@ export async function processAgentBotMessage(
       agent,
     });
 
-    const startTime = Date.now();
     const result = await generateText({
       model,
       system: systemPrompt,

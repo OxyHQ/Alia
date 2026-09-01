@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { sql } from 'drizzle-orm';
-import { isCheckViolation, isUniqueViolation, constraintNameOf } from '@oxyhq/db';
+import { constraintNameOf } from '@oxyhq/db';
 import { sweepAllExpiredRows } from '@oxyhq/db/expiry';
 import { closePostgres, connectPostgres, type ApiDatabase } from '../index';
 import { EXPIRY_TARGETS } from '../expiryTargets';

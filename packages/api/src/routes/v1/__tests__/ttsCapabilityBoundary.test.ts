@@ -47,17 +47,17 @@ function capturingRes() {
 }
 
 describe('POST /v1/audio/speech is a fail-closed Kaana capability boundary', () => {
-  it('still rejects an anonymous caller before disclosing capability state', () => {
+  it('still rejects an anonymous caller before disclosing capability state', async () => {
     const res = capturingRes();
-    handlerFor('/speech')({ user: undefined, body: { input: 'hello' } }, res, undefined);
+    await handlerFor('/speech')({ user: undefined, body: { input: 'hello' } }, res, undefined);
 
     expect(res.statusCode).toBe(401);
     expect(res.body).toEqual({ error: 'Authentication required' });
   });
 
-  it('returns a stable 503 without synthesizing or touching Alia credits', () => {
+  it('returns a stable 503 without synthesizing or touching Alia credits', async () => {
     const res = capturingRes();
-    handlerFor('/speech')({ user: { id: 'u1' }, body: { input: 'hello' } }, res, undefined);
+    await handlerFor('/speech')({ user: { id: 'u1' }, body: { input: 'hello' } }, res, undefined);
 
     expect(res.statusCode).toBe(503);
     expect(res.body).toEqual({
