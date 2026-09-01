@@ -283,7 +283,7 @@ mints `channel` accounts only, and a channel is deliberately act-as ineligible.
 
 ## Model Abstraction
 
-The product surface exposes only the `alia-*` identifiers (`alia-lite`, `alia-v1` and so
+The product surface exposes only the `alia-*` identifiers (`kaana-lite`, `kaana-v1` and so
 on). Upstream routing detail is never returned to users. Several of those identifiers are
 routing policies rather than models, and the set is frozen — see
 [model abstraction](./model-abstraction.mdx).

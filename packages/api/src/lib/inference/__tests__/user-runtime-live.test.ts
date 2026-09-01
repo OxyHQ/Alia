@@ -74,7 +74,7 @@ describe.skipIf(!MODEL)('a real local model answering through the bridge', () =>
 
     const model = getAIModel(
       {
-        aliasModelId: `local/${RUNTIME_ID}/${MODEL}`,
+        routingProfileId: `local/${RUNTIME_ID}/${MODEL}`,
         provider: USER_RUNTIME_PROVIDER,
         publisher: 'unknown',
         model: String(MODEL),
@@ -88,7 +88,7 @@ describe.skipIf(!MODEL)('a real local model answering through the bridge', () =>
           key: '',
           userRuntime: { userId: OWNER, runtimeId: RUNTIME_ID },
         },
-        aliaModel: {
+        routingProfile: {
           id: `local/${RUNTIME_ID}/${MODEL}`,
           name: String(MODEL),
           tier: 'local',

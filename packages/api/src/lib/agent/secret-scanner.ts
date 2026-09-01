@@ -54,12 +54,11 @@ const SECRET_PATTERNS: SecretPattern[] = [
   // ── Anthropic ──
   { type: 'anthropic_api_key', pattern: /\bsk-ant-[a-zA-Z0-9_-]{40,}\b/g, severity: 'critical', redact: prefixRedact(7) },
 
-  // ── The rest of the providers `provider_keys.provider` admits ──
+  // ── Additional provider credential formats ──
   //
-  // The check constraint (last widened by the migration that registered
-  // CheaperInference) admits twenty providers and the three above covered three
-  // of them, so the redactor missed
-  // the credential type that is actually loaded in production. Each entry here
+  // The historical provider set included twenty providers and the three above
+  // covered only three of them, so the redactor missed several credential
+  // formats. Each entry here
   // is a prefix its vendor documents; the providers whose keys are opaque
   // strings with no prefix at all — Mistral, Cohere, Together, SambaNova,
   // Hyperbolic, Novita, Cloudflare — cannot be matched by any pattern, and are

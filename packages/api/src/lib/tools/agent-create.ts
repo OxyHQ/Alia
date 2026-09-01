@@ -171,7 +171,7 @@ export const createAgentTool = (userId: string, accessToken: string | undefined)
         // Restated rather than left to the column default, because the source
         // stated it: an agent built by this tool is pinned to these two whatever
         // the default becomes.
-        allowedModels: ['alia-v1', 'alia-v1-pro'],
+        allowedModels: ['kaana-v1', 'kaana-v1-pro'],
       });
 
       log.general.info(

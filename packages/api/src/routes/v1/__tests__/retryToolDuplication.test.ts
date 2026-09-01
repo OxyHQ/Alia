@@ -1,18 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
- * The live fallback loop does not re-run a tool it has already run —
+ * The hosted chat loop never retries a Kaana route inside Alia —
  * epic #139 workstream 13, "Ensure retries/fallbacks do not duplicate tools or
  * agent side effects".
  *
  * ## Why this exists beside the Kaana client's own retry tests
  *
- * `lib/inference/__tests__/kaana-client.test.ts` guards the SAME property for
- * the Kaana client (`mayRetry`'s `yielded === 0` conjunct). That client is not
- * the live path: `isKaanaClientEnabled` is off by default and nothing in
- * `packages/api` imports it, which `kaana-boundary.test.ts` freezes. The path
- * that retries in production today is `runProviderLoop`, and until this file
- * nothing measured whether IT could duplicate a tool effect.
+ * `lib/inference/__tests__/kaana-client.test.ts` guards retries inside the Kaana
+ * client. Alia's `runProviderLoop` makes one hosted attempt; Kaana owns route
+ * changes and therefore sees whether a tool side effect has already occurred.
  *
  * ## Where the property actually lives, measured
  *
@@ -63,11 +60,11 @@ const V3_USAGE = {
 };
 
 const RESOLVED = {
-  aliasModelId: 'alia-v1',
+  routingProfileId: 'kaana-v1',
   provider: UPSTREAM_PROVIDER,
   modelId: UPSTREAM_MODEL_ID,
   keyConfig: { provider: UPSTREAM_PROVIDER, key: 'secret', modelId: UPSTREAM_MODEL_ID, keyId: 'key-ws13' },
-  aliaModel: { name: 'Alia V1', creditMultiplier: 1 },
+  routingProfile: { name: 'Kaana V1', creditMultiplier: 1 },
   isFallback: false,
   fallbackIndex: 0,
 };
@@ -90,7 +87,7 @@ vi.mock('../../../lib/chat-core.js', () => ({
     },
   })),
   reportModelUsage: vi.fn(async () => undefined),
-  getDefaultAliaModel: vi.fn(() => 'alia-v1'),
+  getDefaultRoutingProfile: vi.fn(() => 'kaana-v1'),
 }));
 
 /**
@@ -157,7 +154,7 @@ vi.mock('../../../lib/tools/web-search.js', () => ({
 }));
 
 vi.mock('../../../lib/gateway-client.js', () => ({
-  getAliaModel: vi.fn(async (id: string) => ({ id, name: 'Alia V1', tier: 'v1', creditMultiplier: 1 })),
+  getRoutingProfile: vi.fn(async (id: string) => ({ id, name: 'Kaana V1', tier: 'v1', creditMultiplier: 1 })),
   getModelMappingsForTier: vi.fn(async () => [
     { provider: UPSTREAM_PROVIDER, modelId: UPSTREAM_MODEL_ID, capabilities: { maxContextTokens: 128000 } },
   ]),
@@ -296,7 +293,7 @@ function apiKeyReq() {
     off: () => undefined,
     body: {
       messages: [{ role: 'user', content: 'search the web for alia' }],
-      model: 'alia-v1',
+      model: 'kaana-v1',
       stream: true,
     } as Record<string, unknown>,
   };
@@ -324,7 +321,7 @@ beforeEach(() => {
 
 // ===========================================================================
 
-describe('a provider failure after a tool ran is not retried on another provider', () => {
+describe('a hosted inference failure is never retried around Kaana', () => {
   it('runs the tool exactly once, however many providers remain', async () => {
     const res = await run();
 
@@ -353,7 +350,7 @@ describe('a provider failure after a tool ran is not retried on another provider
 
     // No provider identity in the bytes, on this path as on every other.
     // Positive control on the scan: the alias IS there.
-    expect(bytes).toContain('alia-v1');
+    expect(bytes).toContain('kaana-v1');
     expect(bytes).not.toContain(UPSTREAM_PROVIDER);
   });
 
@@ -376,15 +373,13 @@ describe('a provider failure after a tool ran is not retried on another provider
     expect(res.raw.join('')).toContain('data: [DONE]');
   });
 
-  it('DOES retry when the failure produced nothing (the control)', async () => {
-    // Without this, "the tool ran once" above is also what a harness that cannot
-    // observe a retry at all would report — and the whole file would be vacuous.
+  it('does not rotate providers when a failure produced nothing', async () => {
     H.state.mode = 'error_then_text';
     const res = await run();
 
-    expect(H.state.resolveCalls).toBe(2);
-    expect(H.state.modelCalls).toBe(2);
+    expect(H.state.resolveCalls).toBe(1);
+    expect(H.state.modelCalls).toBe(1);
     expect(H.state.toolRuns).toBe(0);
-    expect(res.raw.join('')).toContain('Recovered.');
+    expect(res.raw.join('')).toContain('all models are currently busy');
   });
 });

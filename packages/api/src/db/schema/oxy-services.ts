@@ -95,7 +95,7 @@ export interface OxyServiceEvent {
  * declarations read WHOLE when the manifest is loaded — the tool list is turned
  * into Zod schemas at runtime in one pass — with no cross-table reference and no
  * per-element toggle, which is the `fallback_events.attempts` shape rather than
- * the `alia_model_provider_mappings` one. `tools[].inputSchema` is JSON Schema
+ * the `routing_profile_provider_mappings` one. `tools[].inputSchema` is JSON Schema
  * supplied by the service, a format this repository does not own.
  */
 export const oxyServices = pgTable(

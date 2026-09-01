@@ -48,12 +48,12 @@ const PEM = privateKey.export({ type: 'pkcs8', format: 'pem' }).toString();
 const ENV: NodeJS.ProcessEnv = {
   KAANA_EDGE_KEY_ID: 'alia-edge-test',
   KAANA_EDGE_SIGNING_PRIVATE_KEY: PEM,
-  RELAY_BASE_URL: 'https://relay.oxy.so',
-  ALIA_RELAY_ACCOUNT_ID: 'acc_test',
-  ALIA_RELAY_APPLICATION_ID: 'app_alia',
-  ALIA_RELAY_CREDENTIAL_ID: 'cred_test',
-  ALIA_RELAY_ENVIRONMENT: 'production',
-  ALIA_RELAY_INFERENCE_SCOPES: 'inference:invoke',
+  KAANA_BASE_URL: 'https://kaana.oxy.so',
+  ALIA_KAANA_ACCOUNT_ID: 'acc_test',
+  ALIA_KAANA_APPLICATION_ID: 'app_alia',
+  ALIA_KAANA_CREDENTIAL_ID: 'cred_test',
+  ALIA_KAANA_ENVIRONMENT: 'production',
+  ALIA_KAANA_INFERENCE_SCOPES: 'inference:invoke',
 };
 
 const PAYLOAD = {

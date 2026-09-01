@@ -1,18 +1,18 @@
 /**
- * The routing catalogue: which Alia model a caller asks for, which provider
- * models can serve it, and which credentials are allowed to.
+ * The retained routing catalogue: which Kaana routing profile a caller asks
+ * for and the historical provider-model mapping awaiting Kaana reconciliation.
  *
- * Five tables. Four are the model catalogue and its credentials;
+ * Four tables. Three are the retained model catalogue;
  * `external_models` is unrelated to routing and is here because it is the other
  * thing in this service called a "model" — a read-only mirror of a third party's
  * public leaderboard, which nothing in the completion path consults.
  *
  * ## Provider names are INTERNAL, in the database as everywhere else
  *
- * `model_configs.provider`, `provider_keys.provider` and
- * `alia_model_provider_mappings.provider` hold `openai`, `anthropic`, and so on.
+ * `model_configs.provider` and `routing_profile_provider_mappings.provider`
+ * hold historical provider slugs.
  * They are the same class of value as `cost_entries.actual_provider`: a caller
- * asks for `alia-v1` and must never learn who served it. Nothing selected from
+ * asks for `kaana-v1` and must never learn who served it. Nothing selected from
  * these columns may reach a user-facing response, an error message or a public
  * API surface.
  *
@@ -28,7 +28,7 @@
  *
  * Both stores exist until cutover, so a CHECK written from a second copy of a
  * tuple can disagree with the validator that has been guarding the same column
- * for years. `ALIA_TIERS` was the sharp case: it was two identical thirteen-value
+ * for years. `ROUTING_TIERS` was the sharp case: it was two identical thirteen-value
  * literals in two model files, and unifying it was a precondition of rendering
  * one CHECK from it.
  */
@@ -47,16 +47,9 @@ import {
 import { sql } from 'drizzle-orm';
 import { createdAt, generatedId, timestamptz, updatedAt } from '@oxyhq/db';
 import { checkOneOf } from './columns';
-import { organizations } from './organizations';
-import { ALIA_TIERS } from '../../internal/providers/lib/alia-tiers.js';
+import { ROUTING_TIERS } from '../../internal/providers/lib/routing-tiers.js';
 import { PROVIDER_NAMES } from '../../internal/providers/lib/provider-names.js';
 import { MODEL_PRICING_TIERS } from '../../domain/model-config.js';
-import {
-  PROVIDER_KEY_CREDIT_RENEWALS,
-  PROVIDER_KEY_ENVIRONMENTS,
-  PROVIDER_KEY_ROTATION_SCHEDULES,
-  PROVIDER_KEY_TIERS,
-} from '../../domain/provider-key.js';
 
 /**
  * One provider model this service knows how to call.
@@ -86,7 +79,7 @@ import {
  * had ZERO rows in a table that is supposed to describe it. Nothing at request
  * time ever read the column — routing resolves from the in-memory
  * `TIER_MODEL_MAPPINGS` — so the loss was silent. Which provider models serve a
- * tier is `alia_model_provider_mappings`, a child table that can hold the
+ * tier is `routing_profile_provider_mappings`, a child table that can hold the
  * relation the routing table actually has. See `docs/alias-layer-audit.mdx` §1.
  */
 export const modelConfigs = pgTable(
@@ -157,29 +150,29 @@ export const modelConfigs = pgTable(
 );
 
 /**
- * A virtual Alia model — `alia-v1`, `alia-lite` — and the tier it belongs to.
+ * A virtual Kaana routing profile — `kaana-v1`, `kaana-lite` — and the tier it belongs to.
  *
  * `aggregated_capabilities_*` are columns for the same reason
  * `model_configs.capabilities_*` are. `features` stays a `text[]`: a small
  * unordered display list read whole with the row, exactly the
  * `reports.categories` shape, and with no closed value set to CHECK it against.
  *
- * The provider mappings do NOT live here — see `aliaModelProviderMappings`.
+ * The provider mappings do NOT live here — see `routingProfileProviderMappings`.
  */
-export const aliaModels = pgTable(
-  'alia_models',
+export const routingProfiles = pgTable(
+  'routing_profiles',
   {
     id: generatedId(),
     /**
-     * `alia-v1`, `alia-lite`. Mongoose declared `lowercase: true`, which is a
+     * `kaana-v1`, `kaana-lite`. Mongoose declared `lowercase: true`, which is a
      * SETTER rather than a validator: it normalises on `save()` and does not run
      * on `updateOne`. No CHECK asserts the case here, because one would fail on
      * any row a non-validating write path already stored differently — the
      * backfill audits it.
      */
-    aliasModelId: text().notNull(),
+    routingProfileId: text().notNull(),
     displayName: text().notNull(),
-    tier: text({ enum: ALIA_TIERS as unknown as [string, ...string[]] }).notNull(),
+    tier: text({ enum: ROUTING_TIERS as unknown as [string, ...string[]] }).notNull(),
     description: text(),
     features: text().array().notNull().default(sql`'{}'::text[]`),
 
@@ -207,19 +200,19 @@ export const aliaModels = pgTable(
     updatedAt: updatedAt(),
   },
   (t) => [
-    uniqueIndex('alia_models_alias_model_id_key').on(t.aliasModelId),
-    index('alia_models_tier_active_idx').on(t.tier, t.isActive),
-    index('alia_models_active_deprecated_idx').on(t.isActive, t.isDeprecated),
-    checkOneOf('alia_models_tier_check', t.tier, ALIA_TIERS),
+    uniqueIndex('routing_profiles_routing_profile_id_key').on(t.routingProfileId),
+    index('routing_profiles_tier_active_idx').on(t.tier, t.isActive),
+    index('routing_profiles_active_deprecated_idx').on(t.isActive, t.isDeprecated),
+    checkOneOf('routing_profiles_tier_check', t.tier, ROUTING_TIERS),
     check(
-      'alia_models_credit_multiplier_range_check',
+      'routing_profiles_credit_multiplier_range_check',
       sql`${t.creditMultiplier} between 0.1 and 10`,
     ),
   ],
 );
 
 /**
- * Which provider models can serve an Alia model, in preference order.
+ * Which provider models can serve a Kaana routing profile, in preference order.
  *
  * **A child table, not `jsonb`, and this is the one place that decision is not
  * obvious.** `fallback_events.attempts` is `jsonb` because it is an ordered list
@@ -240,11 +233,11 @@ export const aliaModels = pgTable(
  * the port changes no read path, and `provider` carries the same CHECK as its
  * source column.
  */
-export const aliaModelProviderMappings = pgTable(
-  'alia_model_provider_mappings',
+export const routingProfileProviderMappings = pgTable(
+  'routing_profile_provider_mappings',
   {
     id: generatedId(),
-    aliaModelId: text().notNull(),
+    routingProfileId: text().notNull(),
     modelConfigId: text().notNull(),
     provider: text({ enum: PROVIDER_NAMES as unknown as [string, ...string[]] }).notNull(),
     modelId: text().notNull(),
@@ -255,192 +248,29 @@ export const aliaModelProviderMappings = pgTable(
   },
   (t) => [
     foreignKey({
-      name: 'alia_model_provider_mappings_alia_model_id_fk',
-      columns: [t.aliaModelId],
-      foreignColumns: [aliaModels.id],
+      name: 'routing_profile_provider_mappings_routing_profile_id_fk',
+      columns: [t.routingProfileId],
+      foreignColumns: [routingProfiles.id],
     }).onDelete('cascade'),
     foreignKey({
-      name: 'alia_model_provider_mappings_model_config_id_fk',
+      name: 'routing_profile_provider_mappings_model_config_id_fk',
       columns: [t.modelConfigId],
       foreignColumns: [modelConfigs.id],
     }).onDelete('cascade'),
     /**
-     * One mapping per (Alia model, provider model). Mongo could not express this
+     * One mapping per (Kaana routing profile, provider model). Mongo could not express this
      * — a sub-document array has no unique index — so the seed's whole-array
      * `$set` was what kept it true. A rewrite that appends instead of replacing
      * would have produced duplicates silently.
      */
-    uniqueIndex('alia_model_provider_mappings_model_config_key').on(t.aliaModelId, t.modelConfigId),
-    index('alia_model_provider_mappings_alia_model_priority_idx').on(t.aliaModelId, t.priority),
-    checkOneOf('alia_model_provider_mappings_provider_check', t.provider, PROVIDER_NAMES),
-    check('alia_model_provider_mappings_priority_range_check', sql`${t.priority} between 1 and 100`),
+    uniqueIndex('routing_profile_provider_mappings_model_config_key').on(t.routingProfileId, t.modelConfigId),
+    index('routing_profile_provider_mappings_routing_profile_priority_idx').on(t.routingProfileId, t.priority),
+    checkOneOf('routing_profile_provider_mappings_provider_check', t.provider, PROVIDER_NAMES),
+    check('routing_profile_provider_mappings_priority_range_check', sql`${t.priority} between 1 and 100`),
     check(
-      'alia_model_provider_mappings_quality_score_range_check',
+      'routing_profile_provider_mappings_quality_score_range_check',
       sql`${t.qualityScore} between 0 and 100`,
     ),
-  ],
-);
-
-/**
- * A provider credential, its rate limits, and its rotation state.
- *
- * ## `key` holds a PLAINTEXT provider API key
- *
- * Not a hash — `key_hash` is that. `lib/key-manager.ts` reads this column to
- * make the upstream call, so the secret is genuinely at rest here, exactly as it
- * was in Mongo. Consequences for whoever writes the repository:
- *
- *  - never `select()` this table whole; name the columns, and leave `key` out of
- *    every projection that is not the one call that must sign a request;
- *  - it must never appear in a log line, an error, a metric label or an admin
- *    response — the routes today expose `key_prefix`, which exists for that;
- *  - `key_hash` is NOT a safer alias for it. A hash of a credential is an
- *    exact-match oracle, so it is equally protected.
- *
- * There is no protected-column mechanism in this service yet. This comment and
- * CONVENTIONS.md are the whole of it until the repository lands, which is why
- * both say it rather than one.
- *
- * ## `spent_usd` / `credit_limit_usd` are `double precision`
- *
- * Same reasoning as `model_configs.pricing_cost_per_1m_*`: `spent_usd`
- * accumulates `cost_entries.cost_usd` values, so it inherits their type and
- * their caveats. It is a spend ESTIMATE used to stop routing to an exhausted
- * key, never an amount charged to anybody.
- *
- * The eight `rate_limit_*` columns are the flattened `rateLimit` sub-document.
- * All eight are nullable and nullable means UNLIMITED, not zero — a zero would
- * read as "no requests permitted", which is the opposite.
- */
-export const providerKeys = pgTable(
-  'provider_keys',
-  {
-    id: generatedId(),
-    name: text().notNull(),
-    provider: text({ enum: PROVIDER_NAMES as unknown as [string, ...string[]] }).notNull(),
-    environment: text({ enum: PROVIDER_KEY_ENVIRONMENTS as unknown as [string, ...string[]] })
-      .notNull()
-      .default('production'),
-
-    /** sha256 of the credential. Protected: an exact-match oracle over it. */
-    keyHash: text().notNull(),
-    /** The first few characters, for display. The one identifier safe to log. */
-    keyPrefix: text().notNull(),
-    /** PLAINTEXT credential — see the table comment before reading this column. */
-    key: text(),
-
-    rateLimitRps: integer(),
-    rateLimitRpm: integer(),
-    rateLimitRph: integer(),
-    rateLimitRpd: integer(),
-    rateLimitTps: integer(),
-    rateLimitTpm: integer(),
-    rateLimitTph: integer(),
-    rateLimitTpd: integer(),
-
-    isActive: boolean().notNull().default(true),
-    isPaid: boolean().notNull().default(false),
-    tier: text({ enum: PROVIDER_KEY_TIERS as unknown as [string, ...string[]] })
-      .notNull()
-      .default('free'),
-
-    /**
-     * Dynamic priority. `recordFailure` moves a key to the back of the queue by
-     * setting this to one past the current maximum, and `recordSuccess` restores
-     * it from `original_priority`. The two ranges differ (1..1000 against
-     * 1..100) precisely because this one absorbs that displacement.
-     */
-    currentPriority: integer().notNull().default(10),
-    originalPriority: integer().notNull().default(10),
-
-    /** Null means UNLIMITED spend, not zero. */
-    /**
-     * Why this key exists and where its credit came from, in an operator's own
-     * words — "startup plan grant, $500" or "free tier, 10k characters a month".
-     * `name` answers WHICH key; this answers WHY, and a balance nobody can
-     * explain is a balance nobody dares spend.
-     */
-    description: text(),
-    creditLimitUsd: doublePrecision('credit_limit_usd'),
-    spentUsd: doublePrecision('spent_usd').notNull().default(0),
-    /**
-     * Whether `credit_limit_usd` is a one-off grant or a per-period allowance,
-     * and when the current period began. See `PROVIDER_KEY_CREDIT_RENEWALS`:
-     * without this pair an exhausted key is retired for good — right for a
-     * grant, and throwing away every future period of a quota.
-     */
-    creditRenews: text({ enum: PROVIDER_KEY_CREDIT_RENEWALS as unknown as [string, ...string[]] })
-      .notNull()
-      .default('never'),
-    creditPeriodStart: timestamptz(),
-
-    lastUsedAt: timestamptz(),
-    lastSuccessAt: timestamptz(),
-    totalRequests: integer().notNull().default(0),
-    totalTokens: integer().notNull().default(0),
-    successCount: integer().notNull().default(0),
-
-    consecutiveFailures: integer().notNull().default(0),
-    totalFailures: integer().notNull().default(0),
-    lastFailureAt: timestamptz(),
-    lastFailureReason: text(),
-    cooldownUntil: timestamptz(),
-    rateLimitResetMs: integer(),
-
-    maxTotalFailures: integer().notNull().default(100),
-    isArchived: boolean().notNull().default(false),
-    archivedAt: timestamptz(),
-    archivedReason: text(),
-
-    rotatedAt: timestamptz(),
-    expiresAt: timestamptz(),
-    rotationSchedule: text({ enum: PROVIDER_KEY_ROTATION_SCHEDULES as unknown as [string, ...string[]] })
-      .notNull()
-      .default('manual'),
-
-    /** An Oxy account. No foreign key: Oxy owns identity. */
-    ownerId: text(),
-    /**
-     * The owning organization, and the orgs/dev batch settled what its deletion
-     * does: **cascade**.
-     *
-     * The column is currently INERT — declared and indexed in Mongoose, never
-     * written and never filtered on, verified package-wide rather than within the
-     * providers directory. So the constraint costs nothing today and exists to
-     * close the dangerous direction before multi-tenancy is built on it.
-     *
-     * `ON DELETE SET NULL` is the option to avoid, and it is the tempting one
-     * because the column is nullable. `key-manager.ts` selects keys by PROVIDER
-     * and does not filter by organization at all, so nulling this would silently
-     * promote a deleted organization's private credential into the pool every
-     * other tenant draws from. Deleting the row with the organization is the safe
-     * direction and matches what the field means.
-     */
-    organizationId: text().references(() => organizations.id, { onDelete: 'cascade' }),
-    createdAt: createdAt(),
-    updatedAt: updatedAt(),
-  },
-  (t) => [
-    uniqueIndex('provider_keys_key_hash_key').on(t.keyHash),
-    index('provider_keys_rotation_idx').on(t.provider, t.isActive, t.isArchived, t.currentPriority),
-    index('provider_keys_environment_active_idx').on(t.environment, t.isActive),
-    /**
-     * Partial, the direct equivalent of Mongo's `sparse: true`. A plain index
-     * would carry a row per key for a column almost every key leaves null.
-     */
-    index('provider_keys_owner_id_idx').on(t.ownerId).where(sql`${t.ownerId} is not null`),
-    index('provider_keys_organization_id_idx')
-      .on(t.organizationId)
-      .where(sql`${t.organizationId} is not null`),
-    checkOneOf('provider_keys_provider_check', t.provider, PROVIDER_NAMES),
-    checkOneOf('provider_keys_environment_check', t.environment, PROVIDER_KEY_ENVIRONMENTS),
-    checkOneOf('provider_keys_tier_check', t.tier, PROVIDER_KEY_TIERS),
-    checkOneOf('provider_keys_credit_renews_check', t.creditRenews, PROVIDER_KEY_CREDIT_RENEWALS),
-    checkOneOf('provider_keys_rotation_schedule_check', t.rotationSchedule, PROVIDER_KEY_ROTATION_SCHEDULES),
-    check('provider_keys_current_priority_range_check', sql`${t.currentPriority} between 1 and 1000`),
-    check('provider_keys_original_priority_range_check', sql`${t.originalPriority} between 1 and 100`),
-    check('provider_keys_spent_usd_check', sql`${t.spentUsd} >= 0`),
-    check('provider_keys_max_total_failures_range_check', sql`${t.maxTotalFailures} between 10 and 1000`),
   ],
 );
 

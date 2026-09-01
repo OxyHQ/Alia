@@ -185,8 +185,8 @@ the ADRs landed.
 - **ALWAYS** use `sanitizeMessage()` from `lib/errors/sanitize.ts` for user-facing errors,
   and `redactUnsafeDetail()` from the same module where the text is the CALLER's own and
   concealing it would only make the message unactionable.
-- **ALWAYS** resolve display strings via `getAliaModel()`, never from the mapping table.
-- **DO NOT** add an `alia-*` identifier. The set is frozen under
+- **ALWAYS** resolve display strings via `getRoutingProfile()`, never from the mapping table.
+- **DO NOT** add an `alia-*` routing identifier. The retired namespace is frozen under
   [ADR 0002](./adr/0002-alia-is-a-kaana-consumer-and-future-model-publisher.md).
 
 It is a product and privacy boundary, not a global ban on the words. Engineering
@@ -196,9 +196,9 @@ the vocabulary.
 
 ### Key files
 
-- `internal/providers/lib/alia-models.ts` -- the thirteen identifiers and their tiers
-- `internal/providers/lib/generate-model-mappings.ts` -- the per-tier routing tables
-- `internal/providers/lib/fallback-engine.ts` -- how one is chosen per request
+- `internal/providers/lib/routing-profile-catalogue.ts` -- the product-facing Kaana routing profiles
+- `internal/providers/lib/generate-model-mappings.ts` -- compatibility inputs for the product catalogue
+- `lib/gateway-client.ts` -- the fail-closed Kaana request boundary
 - `routes/v1/models.ts` -- the public catalogue
 - `lib/errors/sanitize.ts` -- the two sanitisation rules, and which surfaces each covers
 
@@ -259,8 +259,9 @@ each run creates and migrates its own throwaway database.
 Environment: copy `.env.example` to `.env` in `packages/api/` and fill it in. `DATABASE_URL`
 is the only variable the API cannot start without -- boot refuses without it. `MONGODB_URI`
 is not read by the server at all; only `packages/api/src/scripts/purge-ip-fields.ts` reads
-it, and its database name is computed as `alia-{NODE_ENV}`, so do not embed it in the URI. Upstream model
-credentials are not environment variables -- they live in the `provider_keys` table.
+it, and its database name is computed as `alia-{NODE_ENV}`, so do not embed it in the URI.
+Upstream model credentials live exclusively in Kaana's database and are never Alia
+environment variables or Alia database rows.
 
 ---
 

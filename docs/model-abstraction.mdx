@@ -1,379 +1,109 @@
 ---
-title: "Model abstraction"
-description: "The thirteen alia-* identifiers Alia serves today, what each one actually is, and the vocabulary ADR 0003 replaces them with."
+title: "Kaana model abstraction"
+description: "How Alia names product choices while Kaana owns hosted inference routing and provider execution."
 order: 2
 ---
 
-# Model abstraction
-
-Alia publishes one flat namespace of `alia-*` identifiers and resolves each one, per
-request, to an upstream deployment. This page describes what that namespace contains
-**today**, and the decisions recorded against it.
-
-Two things are worth stating before the detail, because most of the confusion about this
-layer comes from conflating them:
-
-- The namespace is **not** a catalogue of models. Several `alia-*` identifiers are routing
-  policies, surface presets or reasoning settings.
-- The namespace is **frozen**. Under [ADR 0002](./adr/0002-alia-is-a-kaana-consumer-and-future-model-publisher.md)
-  no new `alia-*` identifier is created, and under the
-  [compatibility window](./migration/compatibility-window.md) the existing ones sunset.
-
-## What Alia serves today
-
-`ALIA_MODELS` (`packages/api/src/internal/providers/lib/alia-models.ts:61`, entries at
-`:62` through `:223`) holds thirteen identifiers. Every one of them is serialized with
-`object: 'model'` and `owned_by: 'alia'` (`packages/api/src/routes/v1/models.ts:22` and
-`:24`), so a client reading `GET /v1/models` cannot tell a policy from a model.
-
-`tier` is what selects the routing table; `id` is what a caller asks for. Where two
-identifiers share a tier, they resolve against the same upstream list.
-
-| Identifier | Tier | Category | Credit multiplier | In the picker | What it actually is |
-|---|---|---|---|---|---|
-| `alia-lite` | `lite` | general | 0.5 | yes | Routing policy over sixteen upstream entries |
-| `alia-v1` | `v1` | general | 1 | yes | Routing policy, the default tier |
-| `alia-v1-codea` | `v1-codea` | coding | 1.5 | no | Surface preset for the Codea extension and CLI |
-| `alia-v1-cowork` | `v1-cowork` | coding | 1.5 | no | Surface preset for the Cowork desktop client |
-| `alia-v1-browser` | `v1-browser` | coding | 1.5 | no | Surface preset for browser automation |
-| `alia-v1-vision` | `v1-vision` | vision | 1.5 | no | Capability-scoped routing policy |
-| `alia-v1-audio` | `v1-audio` | audio | 1 | no | Capability-scoped routing policy |
-| `alia-v1-multimodal` | `v1-multimodal` | multimodal | 2 | no | Capability-scoped routing policy |
-| `alia-v1-pro` | `v1-pro` | coding | 3 | yes | Routing policy; display name is "Codea Pro" |
-| `alia-v1-thinking` | `v1-pro-max` | coding | 5 | yes | Reasoning setting — same tier as `alia-v1-pro-max` |
-| `alia-v1-pro-max` | `v1-pro-max` | general | 5 | yes | Routing policy |
-| `alia-v1-voice` | `v1-voice` | voice | 2 | no | Capability-scoped routing policy |
-| `alia-v1-voice-pro` | `v1-voice-pro` | voice | 4 | no | Capability-scoped routing policy |
-
-Three consequences of that table are easy to miss:
-
-- **`alia-lite` is not a model.** `generate-model-mappings.ts:36` declares the `lite` tier
-  and `:37` through `:52` map it onto sixteen upstream entries operated by fourteen
-  different companies, several of them serving models published by unrelated
-  organizations. Which one answers a given request depends on the ranking below at that
-  instant.
-- **`alia-v1-thinking` and `alia-v1-pro-max` are one tier.** Both carry `tier: 'v1-pro-max'`
-  (`alia-models.ts:176` and `:189`), so both resolve against the same upstream list. The
-  difference between them is presentation and a reasoning setting, not weights.
-- **`alia-v1-tts` and `alia-v1-image` are not served.** Both appear in the `AliaTier` union
-  (`alia-models.ts:9`) and both have routing tables (`generate-model-mappings.ts:132` and
-  `:142`), but neither has an `ALIA_MODELS` entry, so neither is addressable through
-  `GET /v1/models` or a chat request. Earlier revisions of this page listed them as public
-  models; they were not.
-
-Five identifiers are offered in a picker, and those are the five the app and the
-`switchModel` tool show (`packages/api/src/lib/tools/switch-model.ts:18`). That decision is
-product configuration and lives in `packages/api/src/lib/product-modes.ts`
-(`OFFERED_ALIASES`), one identity per routing profile — it used to be a `chatVisible` field inside
-the provider mapping table, which is where a product opinion could not stay once ADR 0001
-started removing that table from this repository.
-
-## How a request resolves today
-
-There is no gateway service. `packages/alia-gateway` was deleted, and
-`packages/api/src/lib/gateway-client.ts:32` computes `GATEWAY_API_ENABLED` from
-`SERVICE_SECRET` **and** `GATEWAY_API_URL` together — production sets only the first, so
-every call takes the in-process local path.
-
-1. `resolveModel()` (`packages/api/src/lib/chat-core.ts:60`) asks the gateway client,
-   which loads `internal/providers/lib/model-resolver.js` in local mode
-   (`gateway-client.ts:339`).
-2. `resolveWithFallback()` (`fallback-engine.ts:136`) reads the tier's mapping list from
-   `TIER_MODEL_MAPPINGS` (`alia-models.ts:248`, which is `GENERATED_TIER_MAPPINGS`) and
-   sorts it by `priority` alone (`:185`). It does not rank by price or by quality score,
-   despite both fields existing on every mapping.
-3. The sorted list is then narrowed to what the request's fallback policy permits
-   (`candidatesUnderPolicy`, `:110`). The default permits all of it.
-4. Entries whose operator the caller excluded, or whose circuit breaker is open, are
-   skipped (`:203` onward).
-5. A credential for the surviving entry is selected from the `provider_keys` table
-   (`packages/api/src/db/schema/providers.ts:300`). Credentials live in Postgres, not in
-   environment variables.
-6. `getAIModel()` (`chat-core.ts:116`) constructs a Vercel AI SDK client for the resolved
-   operator — `createGoogleGenerativeAI` at `:123`, `createOpenAI` at `:127`,
-   `createAnthropic` at `:131`, and an OpenAI-compatible client with an explicit base URL
-   for the rest (`:109`).
-
-## Fallback policy
-
-Which candidates step 3 keeps is a property of the REQUEST, not a global setting
-(ADR 0003 invariant 3). `POST /v1/chat/completions` accepts an optional
-`fallbackPolicy` body field, validated at `lib/chat/request-context.ts:124`:
-
-| Value | What the engine may substitute |
-| --- | --- |
-| `cross-model` | The whole ranked list, other publishers included. **The default.** |
-| `same-model-only` | Other deployments of the top-ranked model only. |
-| `no-fallback` | The top-ranked candidate, or nothing. |
-
-`same-model-only` decides sameness by string equality on the upstream model id,
-which UNDER-approximates: two operators serving one open-weight model can name it
-differently, so a legitimate same-model deployment may be excluded. Admitting a
-different model is the error that matters and string equality cannot make it.
-
-Omitting the field selects `DEFAULT_FALLBACK_POLICY`
-(`packages/api/src/lib/routing/policy.ts:59`), which is `cross-model` — the
-behaviour this path has always had. The policies are enforced, and the presets
-that carry them are product configuration in
-`packages/api/src/lib/routing/presets.ts:95`, keyed by the `profile:<tier>` ids
-`docs/migration/alias-migration-map.json` assigns. Region and data-policy
-restrictions, operator allow/deny and same-revision deployment fallback are named
-in `DELEGATED_TO_KAANA` and deliberately not implemented here.
-
-`ROUTING_POLICY_VERSION` (`policy.ts:71`) and the policy in force are written to
-every `fallback_events` row, so a later question about why a response came from a
-given model does not have to assume the configuration never changed.
-
-Two behaviours of this path are worth knowing:
-
-- **An unrecognised model identifier is refused, not rewritten.**
-  `resolveWithFallback` throws `UnregisteredModelError` (`fallback-engine.ts:164`)
-  and the route answers `400` with a message naming what was requested and what
-  exists (`request-context.ts:276`). Until #139 workstream 14 the same line read
-  `isAliaModel(aliasModelId) ? aliasModelId : 'alia-v1'`: a typo did not error, it
-  answered from the default tier while reporting the name the caller sent.
-- **Substitution across the tier's list is still not announced.** The
-  `alia.model_switch` stream event is emitted by the `switchModel` *tool*
-  (`packages/api/src/lib/tool-pipeline.ts:122`), which is the model choosing a
-  different tier on the user's behalf. The fallback engine emits nothing at all —
-  it contains no SSE code. A caller who needs the guarantee rather than the
-  notification sets `fallbackPolicy`.
-
-## Public API
-
-`GET /v1/models` is mounted before authentication (`packages/api/src/routes/v1.ts`) and
-**lists nothing**. It used to serve the thirteen identifiers above as `object: "model"`, and
-every one of them is a routing profile over third-party models — ADR 0003 invariant 1
-forbids serializing a profile as a model, so #139 workstream 4 emptied it. That is the
-endpoint telling the truth rather than the endpoint being broken: Alia publishes no models,
-and the `alia/*` publisher namespace is reserved and empty.
-
-```json
-{ "object": "list", "data": [] }
-```
-
-The envelope is unchanged, so a client that parses it keeps parsing it; a client that
-populated a picker from it should read `GET /catalogue` instead, which serves routing
-profiles AS routing profiles. `category` and `chat` are accepted and ignored — the answer is
-the same empty list either way.
-
-`GET /v1/models/:modelId` is the one place that still answers about an alias, because
-introspection is not the request path: naming one returns a typed refusal saying what it
-became, which is more useful than the 404 an empty catalogue would produce.
-
-**Requests are unaffected.** The thirteen aliases still resolve, so every already-installed
-`@alia.onl/sdk` and `@alia-codea/cli` copy keeps working against a surface that no longer
-lists what it sends. `docs/migration/compatibility-window.md` records that closure and its
-evidence. New code should send a product mode — `profile:v1`, `profile:v1-pro` — which is
-what the samples in this repository now teach.
-
-## What replaces this
-
-[ADR 0003](./adr/0003-model-revision-deployment-provider-routing-profile.md) splits the
-single word "model" into five concepts — model, model revision, deployment, provider and
-routing profile — and binds four invariants to them. The two that change this page most:
-
-- A routing profile is never serialized as `object: "model"`. A client must be able to tell
-  a policy from a model from the response type, not from a naming convention.
-- A concrete requested model stays concrete for the whole request path. Cross-model
-  substitution becomes an explicit, caller-selected policy rather than the default.
-
-Under that vocabulary every identifier in the table above is reclassified: each becomes
-either a concrete model reference or a routing profile in the product's own namespace.
-None of them is a model owned by Alia — the `alia/*` publisher namespace is reserved and
-empty, and [ADR 0002](./adr/0002-alia-is-a-kaana-consumer-and-future-model-publisher.md)
-lists the four conditions anything must meet before occupying it.
-
-Note the two notations are different and stay visually distinct: `alia-*` with a hyphen is
-the current alias set; `alia/*` with a slash is the reserved publisher namespace in
-canonical `<publisher>/<model>` form.
-
-What is implemented, as of workstreams 4, 5 and 14 of #139:
-
-- **No `alia-*` identifier is advertised on any surface.** `GET /v1/models` serves an empty
-  list, `GET /catalogue` is keyed by routing profile (`profile:*`), the picker and the
-  `switchModel` tool offer profiles, and no response contains an alias. ADR 0003 invariant 1
-  now holds everywhere with nothing frozen — gate 5 has no violation list left to record.
-- **The aliases still resolve.** They are advertised by nothing, not removed, so every
-  installed `@alia.onl/sdk` and `@alia-codea/cli` copy keeps working. `profile:*` is
-  routable too, translated once at the request boundary to the alias that carries the
-  price, tier and prompt.
-- **One identity per policy, structurally.** A profile appears once because it exists once,
-  so `alia-v1-thinking` and `alia-v1-pro-max` can no longer be two entries for one policy.
-- `GET /catalogue/modes` serves the product modes — Automatic, Fast, Balanced, Maximum
-  quality, Coding and Deep research — as `object: 'product_mode'`.
-- **Extended reasoning is a request parameter**, not an identity. `thinkingMode` selects the
-  reasoning prompt on any profile, which is what made `alia-v1-thinking` redundant rather
-  than merely hidden.
-- Cross-model substitution is a typed policy on the request and on the routing preset.
-
-Canonical `<publisher>/<model>` identity is here too, for the models the product offers one
-at a time. Both halves are AUTHORED columns on the routing table
-(`internal/providers/lib/generate-model-mappings.ts`) rather than parsed out of a deployment
-id: 97 of the mappings carry a bare model name with no publisher token, and where a prefix
-does exist it is sometimes the inference platform rather than the publisher. A route that
-arrives without either half is published as unknown, never guessed at.
-
-## Compatibility window
-
-The `alia-*` aliases are section (a) of
-[`docs/migration/compatibility-window.md`](./migration/compatibility-window.md).
-
-**Still works.** Every existing alias resolves and serves requests. `GET /v1/models`
-continues to list them. A migration map from each alias to its replacement is published
-before any alias is removed.
-
-**Does not.** No new alias is created, and no existing alias is extended to cover a new
-capability, surface or tier.
-
-**Removal gate, per alias.** A measurement over `chat_analytics.alia_model_id`
-(`packages/api/src/db/schema/usage.ts:113`) and `cost_entries.alias_model_id` (`:50`)
-showing zero requests across at least one full monthly billing cycle, with a positive
-control on a still-live identifier over the same window — *or* an enumeration showing every
-known consumer has migrated. Plus the published migration map entry. Stored per-conversation
-and per-agent model selections count as consumers even when they generate no traffic.
-
-The deprecation signal for the window is `Deprecation` and `Sunset` response headers plus
-an `alia.deprecation` stream event. Neither exists in the API today; emitting them is a
-prerequisite for starting the clock, tracked by workstream 19.
-
-## Error sanitization
-
-`packages/api/src/lib/errors/sanitize.ts` exports **two** functions, because it enforces
-two rules with different audiences, different failure modes and different scopes.
-
-### Rule 1 — absolute, every surface
-
-`redactUnsafeDetail()` removes what may never reach a user anywhere: credentials, URLs and
-hostnames, and the upstream error-code vocabulary. Nothing opts out of it. It is a security
-and privacy control.
-
-The error-code list is the corpus `failover-error.ts` classifies on — `overloaded_error`
-names Anthropic as surely as the word does, and `insufficient_quota` names OpenAI.
-`sanitize.test.ts` parses that file and fails on a code it reads that the redactor does not
-know, so the list cannot fall behind the classifier. `UNAVAILABLE` is the single documented
-exception: Google's gRPC status is an ordinary English word in capitals and cannot be told
-from prose, the same reason `together` and `command` are treated as words. Node's own
-network codes (`ETIMEDOUT`, `ECONNRESET`) are deliberately NOT redacted — they name no
-operator, and losing them costs a reader real diagnostic information for no privacy gain.
-
-Credentials are also redacted at the point an upstream error body becomes a string
-(`internal/providers/lib/provider-error-body.ts`), which is the primary control; this one
-is defence in depth, because an error string can be assembled outside the provider tree.
-
-### Rule 2 — scoped, product surfaces only
-
-`sanitizeMessage()` is rule 1 plus concealment of upstream operator identity and upstream
-model ids. Use it wherever a thrown error can be serialized into a product API response, an
-SSE event, a user-visible notification, or a customer-facing analytics string.
-
-```ts
-import { sanitizeMessage } from '../lib/errors/sanitize.js';
-
-try {
-  await someUpstreamCall();
-} catch (err) {
-  throw new AliaError({
-    code: AliaErrorCode.MODEL_UNAVAILABLE,
-    message: err instanceof Error ? err.message : 'upstream call failed', // operators
-    userMessage: sanitizeMessage('The selected model is unavailable.'),   // the product
-    retryable: true,
-    reason: 'provider_unavailable',
-  });
-}
-```
-
-`sanitizeMessage` takes a **string**, not an error. The operator-facing `message` keeps the
-upstream detail on purpose — that is what a log is for.
-
-### Where rule 2 must NOT run
-
-Each of these surfaces is required to be truthful, and concealment destroys the thing it is
-required to say:
-
-- **the catalogue and model cards** — a caller choosing a model has to know whose model it
-  is ([ADR 0003](./adr/0003-model-revision-deployment-provider-routing-profile.md) makes
-  `<publisher>/<model>` the canonical identifier form, so publisher identity is part of the
-  vocabulary rather than something to hide);
-- **attribution an open-weight licence requires**, which names the publisher as a condition
-  of use;
-- **operator and audit surfaces** — logs, `fallback_events`, the admin console,
-  `provider_keys.last_failure_reason`. "Which deployment failed" is the question they exist
-  to answer;
-- **anything crossing the Kaana contract**, whose `providerError.provider` field is
-  required to carry a real provider slug;
-- **the caller's own input echoed back**. It is theirs, and it discloses nothing about
-  Alia's routing. `UnregisteredModelError` (`lib/routing/policy.ts`) takes
-  `redactUnsafeDetail()` for exactly this reason: the echo used to read `"Alia4o" is not an
-  Alia model`, which removed the only actionable thing in the sentence;
-- **engineering documentation, ADRs and schema comments**, including this page.
-
-ADR 0001 records the same scoping: `sanitizeMessage()` survives the migration but guards
-the product surface, not the neutral platform surface Oxy operates.
-
-### Rule 2 is best effort, and is not a security control
-
-Concealment recognises the operators registered in `provider-names.ts` and the model
-families present in the live routing table, and it recognises them as **identifiers** — a
-proper noun, or a token joined by `/ . - _ =`. It deliberately leaves ordinary prose alone:
-`llama` is Spanish for a flame and Alia answers in Spanish; `together`, `cohere`,
-`replicate`, `whisper`, `command` and `sonar` are ordinary English words, and rewriting them
-corrupted more messages than it concealed. A lowercase bare-word mention therefore survives.
-
-That is acceptable because rule 2 is a product decision, not a security boundary. The
-things that are a security boundary are rule 1 and the redaction at birth. Do not design
-anything that depends on rule 2 being exhaustive.
-
-`sanitize.test.ts` walks the live routing table and fails on any upstream identifier the
-sanitiser cannot conceal, so the hand-maintained slug lists cannot fall behind the routing
-they describe.
-
-### What stays absolute on the product surface
-
-1. No upstream operator name or upstream model id in a product error, in the chat UI, or
-   in a customer-facing analytics event. The catalogue is the exception, and is the one
-   product response required to attribute truthfully.
-2. No endpoint that maps an Alia identifier back to an upstream model id. The two that
-   existed return `410 Gone`; see below.
-3. The picker renders what the CATALOGUE carries and nothing else — `publisher/model`
-   where the catalogue supplies both, and no attribution where it supplies neither
-   (`packages/app/components/model-selector.tsx:140`,
-   `packages/app/lib/hooks/use-catalogue.ts:89`). Attribution is a decision the catalogue
-   makes; the picker never reaches past it into the mapping table.
-4. Display strings for an `alia-*` identifier come from `ALIA_MODELS` through
-   `getAliaModel()`, never from the mapping table.
-5. User-facing errors go through `sanitizeMessage()`.
-
-## Removed endpoints
-
-Four endpoints return `410 Gone` with no compatibility shim:
-
-| Endpoint | Handler | Response message |
-|---|---|---|
-| `POST /v1/resolve-model` | `packages/api/src/routes/v1.ts:109` | "Use /v1/chat/completions with Alia model IDs. Direct model resolution is internal-only." |
-| `POST /v1/report-usage` | `packages/api/src/routes/v1.ts:120` | "Usage is tracked automatically by Alia runtime." |
-| `POST /codea/resolve-model` | `packages/api/src/routes/codea.ts:235` | Same as `/v1/resolve-model` |
-| `POST /codea/report-usage` | `packages/api/src/routes/codea.ts:246` | Same as `/v1/report-usage` |
-
-This is the pattern compatibility-window removals follow: a `410` naming the replacement,
-rather than deleting the route and returning a bare `404`.
-
-## Adding a model
-
-**You do not.** The `alia-*` set is closed as of ADR 0002, and a pull request adding an
-entry to `ALIA_MODELS` is rejected on that ADR. There is no automated check yet; the freeze
-is a code review rule until workstream 19 lands one.
-
-Adding an upstream route is likewise no longer a unilateral Alia change. Under ADR 0001
-provider execution moves behind Kaana, and adding a route becomes a Kaana change with a
-Kaana conformance test.
-
-## Open questions
-
-- **Whether `alia-v1-thinking` becomes a routing profile or a parameter on `alia-v1-pro-max`.**
-  It shares a tier with `alia-v1-pro-max`, so under ADR 0003 it is either a distinct profile
-  or a reasoning setting on one — the reclassification decides which. *Owner: workstream 4
-  owner.*
-- **Whether the unserved `v1-tts` and `v1-image` tiers carry forward at all.** They have
-  routing tables and no public identifier. *Owner: workstream 1 owner, as part of the
-  inventory.*
+# Kaana model abstraction
+
+Alia is a product consumer of Kaana. Alia owns product modes, prompts,
+conversation state and user-facing presentation. Kaana owns hosted inference:
+provider credentials, deployments, health, routing, retries, fallback and usage
+against the upstream execution plane.
+
+There is no hosted direct-provider mode in Alia. Provider environment keys and
+`GATEWAY_API_URL` are refused at boot rather than treated as alternate
+configuration.
+
+## Product vocabulary
+
+The public vocabulary deliberately separates three things:
+
+- A **product mode** is what a person selects in Alia, such as Automatic, Fast,
+  Balanced, Maximum quality, Coding or Deep research. Modes are serialized as
+  `object: "product_mode"`.
+- A **Kaana routing profile** is a canonical `kaana-*` policy identifier. It is
+  configuration with no weights and is never serialized as a concrete model.
+- A **model reference** uses canonical `<publisher>/<model>` form. An immutable
+  revision adds `@<revision>`. A concrete reference remains concrete through the
+  request path.
+
+The canonical routing-profile set is defined in
+`packages/api/src/lib/routing/kaana-profiles.ts`. Product visibility belongs to
+`packages/api/src/lib/product-modes.ts`; changing what Alia offers does not
+change Kaana's provider routing.
+
+## Hosted request path
+
+For hosted text inference:
+
+1. The request boundary validates the requested product mode or Kaana profile.
+2. `packages/api/src/lib/chat-core.ts` produces a credential-free resolution
+   carrying `kaanaReference`.
+3. `getAIModel()` returns the Kaana AI SDK adapter.
+4. The Kaana transport signs the normalized inference envelope and sends it to
+   the configured Kaana endpoint.
+5. Kaana resolves the profile or model reference and owns every provider-side
+   decision.
+
+Alia performs one hosted attempt. It does not rotate provider keys, construct
+provider clients or widen a policy after an error. Provider health and
+credentials stored for migration cannot influence this request path.
+
+The one explicit exception is a user's connected local runtime. That path uses
+the user's own runtime binding and intercepted fetch bridge; it never becomes a
+hosted fallback and never uses a provider environment key.
+
+## Capabilities
+
+Text chat uses the Kaana seam. Hosted image generation, speech synthesis, audio
+generation, transcription, voice sessions and embeddings do not yet have a
+Kaana capability seam in this repository. Those routes fail closed with HTTP
+503 and `KAANA_CAPABILITY_UNAVAILABLE` before provider selection, billing or
+egress.
+
+A new hosted modality is complete only when its typed Kaana/Oxy contract and
+transport exist. Reconnecting an old provider adapter is not an implementation
+of that capability.
+
+## Catalogue surfaces
+
+`GET /catalogue` is the product catalogue. It distinguishes product modes,
+routing profiles and concrete model references by type; clients do not infer
+meaning from identifier spelling.
+
+`GET /v1/models` remains the bounded OpenAI-compatible surface documented by
+ADR 0004. It must not misrepresent a routing profile as a concrete model.
+
+## Credentials and retained migration data
+
+Provider credentials belong to Kaana's database. Alia does not read provider
+API keys from its environment and cannot enable hosted inference with one.
+
+The routing catalogue and its foreign keys use `routing_profiles` and
+`routing_profile_id`; older names survive only inside immutable migration history.
+Migration 0057 is explicitly post-cutover: it removes Alia's legacy provider keys,
+health, usage and fallback tables only after credential import and reconciliation in
+Kaana are verified and rollback to the Alia provider runtime is forbidden.
+
+Alia contains no hosted provider adapter tree or administrative provider-key script.
+Product inference cannot import or construct a direct provider client.
+
+## Errors and observability
+
+Product errors expose Kaana profile vocabulary, never an upstream operator,
+credential or endpoint. `sanitizeMessage()` remains the product-surface guard,
+while logs and migration tooling may retain the exact historical identity they
+need to reconcile data.
+
+The runtime boundary is enforced by architecture tests that census Kaana client
+importers, provider-tree imports, direct-provider hosts, boot environment reads
+and the local-runtime exception. The direction of travel for historical
+provider code and tables is removal after migration verification; the hosted
+runtime boundary is already Kaana-only.
+
+See also:
+
+- [ADR 0001: Alia, Oxy and Kaana responsibility boundary](./adr/0001-alia-oxy-kaana-responsibility-boundary.md)
+- [ADR 0003: model, revision, deployment, provider and routing profile](./adr/0003-model-revision-deployment-provider-routing-profile.md)
+- [Kaana cutover runbook](./runbooks/kaana-cutover.md)

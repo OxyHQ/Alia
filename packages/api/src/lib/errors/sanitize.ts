@@ -17,7 +17,7 @@
  *
  * **Rule 2 — scoped, product surfaces only.** Which upstream operator and which
  * upstream model answered a request is route detail Alia's *product* chooses not
- * to show: a customer bought "alia-v1", not a seat on a named operator, and the
+ * to show: a customer bought "kaana-v1", not a seat on a named operator, and the
  * routing table is commercially sensitive. {@link sanitizeMessage} is this
  * rule's expression. It is a product decision, best-effort by construction, and
  * **not a security control** — the same conclusion `lib/inference/kaana-error.ts`
@@ -39,8 +39,7 @@
  *    know whose model it is (ADR 0003);
  *  - attribution required by an open-weight licence, which names the publisher
  *    as a condition of use;
- *  - operator and audit surfaces — logs, `fallback_events`, the admin console,
- *    `provider_keys.last_failure_reason`. An operator asking "which deployment
+ *  - operator and audit surfaces — logs and the admin console. An operator asking "which deployment
  *    failed" is asking the question the concealment would erase;
  *  - anything crossing the Kaana contract, whose `providerError.provider` field
  *    is REQUIRED to carry a real provider slug;

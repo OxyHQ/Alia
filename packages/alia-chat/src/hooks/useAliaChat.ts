@@ -11,7 +11,7 @@ export interface UseAliaChatOptions {
   /** Alia API base URL (default: EXPO_PUBLIC_ALIA_API_URL or https://api.alia.onl) */
   apiUrl?: string;
   /**
-   * Alia model to use.
+   * Kaana routing profile to use.
    *
    * Optional, and checked against `GET /catalogue` before a request carries it:
    * an identifier the server no longer offers is replaced rather than sent, so a

@@ -447,7 +447,6 @@ describe('the credential is the one a KaanaClientConfig takes', () => {
     edge.expiresIn = 3600;
     const transport = new RefusingTransport('authentication_failed');
     const client = createKaanaInferenceClient({
-      enabled: true,
       transport,
       credential: createKaanaServiceCredential(edge.env()),
       endpoint: ENDPOINT,
@@ -487,7 +486,6 @@ describe('the credential is the one a KaanaClientConfig takes', () => {
     const transport = new RefusingTransport('invalid_request');
     const credential = createKaanaServiceCredential(edge.env());
     const client = createKaanaInferenceClient({
-      enabled: true,
       transport,
       credential,
       endpoint: ENDPOINT,

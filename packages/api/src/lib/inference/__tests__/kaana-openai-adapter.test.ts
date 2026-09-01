@@ -227,7 +227,7 @@ describe('an OpenAI chat body becomes a normalized request', () => {
 // Response: normalized → dialect
 // ===========================================================================
 
-const FRAME = { id: 'chatcmpl-1', model: 'alia-v1-pro', created: 1_755_000_000 };
+const FRAME = { id: 'chatcmpl-1', model: 'kaana-v1-pro', created: 1_755_000_000 };
 
 function parsed(event: unknown): InferenceStreamEvent {
   // Every fixture below goes through the contract parser first, so a test cannot
@@ -253,7 +253,7 @@ describe('a normalized event becomes an OpenAI chunk, or nothing at all', () => 
       id: 'chatcmpl-1',
       object: 'chat.completion.chunk',
       created: 1_755_000_000,
-      model: 'alia-v1-pro',
+      model: 'kaana-v1-pro',
       choices: [{ index: 0, delta: { content: 'Hola' }, finish_reason: null }],
     });
   });
@@ -427,7 +427,7 @@ describe('the route-switch event Alia emits names no provider', () => {
 
   it('is not alia.model_switch, which means something else entirely', () => {
     // `alia.model_switch` fires when the model calls the `switchModel` tool to
-    // change the conversation's Alia model — a deliberate, user-visible product
+    // change the conversation's Kaana routing profile — a deliberate, user-visible product
     // feature (`lib/chat-events.ts`, `lib/tool-pipeline.ts:122`). Mapping a
     // failover notice onto it would render as a model-picker change.
     expect(ALIA_ROUTE_SWITCH_EVENT).toBe('alia.route_switch');

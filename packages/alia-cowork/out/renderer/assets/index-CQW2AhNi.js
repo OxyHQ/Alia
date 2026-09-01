@@ -32171,8 +32171,8 @@ const toolLabels = {
   set_mode: "Mode"
 };
 const defaultModels = [
-  { id: "alia-v1-codea", name: "Cowork", description: "Fast assistant" },
-  { id: "alia-v1-pro", name: "Cowork Pro", description: "Advanced reasoning" }
+  { id: "kaana-v1-codea", name: "Cowork", description: "Fast assistant" },
+  { id: "kaana-v1-pro", name: "Cowork Pro", description: "Advanced reasoning" }
 ];
 const thinkingPhrases = ["Thinking...", "Pondering...", "Processing...", "Analyzing..."];
 const workingPhrases = ["Working...", "Executing...", "Running...", "Building..."];
@@ -32211,7 +32211,7 @@ function Chat() {
   const [input, setInput] = reactExports.useState("");
   const [isGenerating, setIsGenerating] = reactExports.useState(false);
   const [currentMode, setCurrentMode] = reactExports.useState("ask");
-  const [currentModel, setCurrentModel] = reactExports.useState("alia-v1-codea");
+  const [currentModel, setCurrentModel] = reactExports.useState("kaana-v1-codea");
   const [streamingContent, setStreamingContent] = reactExports.useState("");
   const [userName, setUserName] = reactExports.useState(null);
   const [toolExecutions, setToolExecutions] = reactExports.useState([]);

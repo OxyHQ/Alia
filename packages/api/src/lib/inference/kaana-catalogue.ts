@@ -251,16 +251,16 @@ export const KAANA_MODEL_LINE_ALIASES = KAANA_MODEL_LINE;
  * in-process provider tree, which works; routing to Kaana on a guess does not.
  */
 export async function kaanaReferenceFor(
-  aliaModel: string,
+  routingProfile: string,
   env: NodeJS.ProcessEnv = process.env,
 ): Promise<string | null> {
   if (getKaanaClient(env) === null) return null;
   const catalogue = await getKaanaCatalogue(env);
   if (catalogue === null || !catalogue.servesUnpinned) return null;
-  // `Object.hasOwn` rather than a truthy or nullish read: `aliaModel` reaches
+  // `Object.hasOwn` rather than a truthy or nullish read: `routingProfile` reaches
   // here from a routing table whose entries a request can influence, and
   // `KAANA_MODEL_LINE['constructor']` is the Object CONSTRUCTOR — a value, so
   // `??` never fires and the name sent onward would be a function.
-  const line = Object.hasOwn(KAANA_MODEL_LINE, aliaModel) ? KAANA_MODEL_LINE[aliaModel] : aliaModel;
+  const line = Object.hasOwn(KAANA_MODEL_LINE, routingProfile) ? KAANA_MODEL_LINE[routingProfile] : routingProfile;
   return catalogue.models.some((entry) => entry.model === line) ? line : null;
 }

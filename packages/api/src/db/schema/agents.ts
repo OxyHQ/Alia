@@ -89,7 +89,7 @@ import { libraryFiles } from './library';
  * `auth_health_metrics.method` answer.
  *
  * `allowed_models` gets none either, for a sharper reason — the values are Alia
- * model names, and `ALIA_TIERS`/the model registry could render one. Mongoose
+ * model names, and `ROUTING_TIERS`/the model registry could render one. Mongoose
  * declared no enum, so a CHECK would be a NEW constraint on a column an
  * unvalidated write path has been filling for as long as the column has existed,
  * and it would fail in the routing path on the first agent pinned to a model
@@ -187,7 +187,7 @@ export const agents = pgTable(
     handlesAutonomousEvents: boolean().notNull().default(false),
     systemPrompt: text(),
     preferredImage: text(),
-    allowedModels: text().array().notNull().default(['alia-v1', 'alia-v1-pro']),
+    allowedModels: text().array().notNull().default(['kaana-v1', 'kaana-v1-pro']),
     scheduleInterval: integer(),
 
     /** `soul`, flattened. Absent as a group on an agent that has never evolved. */
@@ -248,7 +248,7 @@ export const agents = pgTable(
  * `routes/agents/crud.ts:166,193` `populate('skills', 'skillId title icon color')`,
  * which is a join. A `text[]` cannot carry a foreign key, so "does this agent's
  * skill still exist" would stay unanswerable in SQL — the same argument
- * `alia_model_provider_mappings` made.
+ * `routing_profile_provider_mappings` made.
  *
  * The CASCADE is a deliberate behaviour CHANGE, and the same one that table
  * chose: Mongo left a deleted skill's id in the array and `populate` silently

@@ -4,7 +4,7 @@
  *
  * ## What this replaces, and why it was a live defect rather than a latent one
  *
- * `src/lib/models.ts` hardcoded `{ id: "alia-lite", name: "Alia Lite" }` and the
+ * `src/lib/models.ts` hardcoded `{ id: "kaana-lite", name: "Kaana Lite" }` and the
  * edit panel rendered it under the label "Model". Its `fetchModels()` read
  * `GET /v1/models` — but nothing ever called it: the panel imported the static
  * `MODELS` export. So the alias name was not a fallback that fired during an

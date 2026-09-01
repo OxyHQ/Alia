@@ -6,7 +6,9 @@
 
 ## Context
 
-Alia is a product. It currently also behaves as a generic inference control plane, because product concerns and infrastructure concerns were built in the same monorepo and share the same database.
+At the time this decision was accepted, Alia also behaved as a generic inference
+control plane because product and infrastructure concerns shared the monorepo and
+database. The bullets below are the pre-cutover evidence, not current runtime state.
 
 The overlap is concrete, not theoretical:
 
@@ -21,7 +23,7 @@ A product that owns provider credentials, a public inference API, developer iden
 
 Epic #139 sets the target: Alia becomes a consumer of a shared inference platform. Identity, applications, credentials, usage, billing and the public developer experience are owned by Oxy. Provider execution moves behind a separate data plane, **Kaana**.
 
-**Kaana (`kaana.ai`) is the inference provider Alia consumes; Alia does not host provider logic.** That is the whole of the relationship, and Kaana is the only name for it inside this repository — modules, types, comments, docs and `/health`'s `kaana` field. `Relay` was Kaana's working name and survives only where Alia does not choose the name: the git repository (`~/Oxy/Relay`), its AWS resources, the signed edge headers `X-Oxy-Relay-*` with their `oxy-relay-envelope:v1` domain separator, the host `relay.oxy.so`, and the `ALIA_RELAY_*` / `RELAY_BASE_URL` environment variables the live task definition already declares. Renaming any of those is a coordinated change with infrastructure or with Kaana, never a rename inside this repository. `packages/api/src/lib/mcp-relay.ts` is a different system that happens to share the word — the MCP WebSocket relay — and is unrelated.
+**Kaana (`kaana.ai`) is the inference provider Alia consumes; Alia does not host provider logic.** Kaana is the only name for that data plane across repositories, AWS resources, signed headers, the `oxy-kaana-envelope:v1` domain separator, `kaana.oxy.so`, configuration, model aliases, docs and `/health`. The former working name is not accepted as a compatibility spelling. `packages/api/src/lib/mcp-relay.ts` is a separate MCP WebSocket relay and retains the protocol term.
 
 ## Decision
 
@@ -91,7 +93,9 @@ The second rule is what makes the first one durable. A single sanctioned bypass 
 ## Consequences
 
 - Alia gains an availability dependency on Kaana. Degradation behaviour becomes a product design question rather than an infrastructure accident, and it must be designed explicitly.
-- Provider credentials leave Alia's database and deployment environment. The `provider_keys` table and the provider environment variables become removable, which shrinks the blast radius of any Alia compromise.
+- Provider credentials have left Alia's database and deployment environment. The
+  legacy `provider_keys` table is removed by post-cutover migration 0057; historical
+  migration SQL remains only for upgrade compatibility.
 - The routing catalogue tables stop being written by Alia. They become migration inputs, not live state, and are dropped under the gates in workstream 10 of #139.
 - Alia's public generic inference surface stops being canonical. ADR 0004 records what happens to `api.alia.onl/v1/*`.
 - Alia's financial tables stop being the source of truth for money. ADR 0005 records the split between entitlements and the ledger.

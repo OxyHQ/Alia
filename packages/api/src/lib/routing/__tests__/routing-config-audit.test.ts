@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
@@ -14,7 +14,7 @@ import { describe, expect, it } from 'vitest';
  *
  * A checkbox can be satisfied by absence, but only if the absence is measured.
  * `routes/__tests__/inference-boundary.test.ts` already holds one half of that
- * measurement: every writer in the four PROVIDER repositories (`alia_models`,
+ * measurement: every writer in the four PROVIDER repositories (`routing_profiles`,
  * `model_configs`, `provider_keys`, `external_models`) is mapped to its caller,
  * nine have no runtime caller at all, and the rest are boot seeding, a script,
  * or automatic key health.
@@ -24,7 +24,7 @@ import { describe, expect, it } from 'vitest';
  *
  *  1. **The routing presets.** `ROUTING_PRESETS` is a `const` array. No
  *     repository, no table, no route.
- *  2. **The alias set.** `ALIA_MODELS` is a `const` record. The `alia_models`
+ *  2. **The alias set.** `KAANA_ROUTING_PROFILES` is a `const` record. The `routing_profiles`
  *     table contributes one display flag (`isLegacy`) and nothing a request
  *     routes on.
  *  3. **Which models a plan grants.** `plans.modelIds` IS a database column, and
@@ -50,11 +50,10 @@ import { describe, expect, it } from 'vitest';
  *
  * ## What is deliberately NOT claimed
  *
- * That nothing anywhere can change routing. Environment and deployment can:
- * `GATEWAY_API_URL` plus `SERVICE_SECRET` switch `lib/gateway-client.ts` between
- * local and remote (`AGENTS.md`), and provider keys are SSM parameters. Those
- * are edited in `oxy-infra`, audited by its git history and by CloudTrail, and
- * an audit log written by this process could not see them anyway.
+ * That nothing anywhere can change routing. Kaana owns provider credentials,
+ * deployments and route policy in its own database and infrastructure. An
+ * Alia audit log cannot observe those changes; this gate only covers the
+ * product configuration that still lives in this repository.
  */
 
 const REPO_ROOT = path.resolve(fileURLToPath(new URL('../../../../../../', import.meta.url)));
@@ -83,9 +82,13 @@ function code(relative: string): string {
 }
 
 function sourceFiles(pathspec: string): string[] {
-  return execFileSync('git', ['ls-files', '--', pathspec], { cwd: REPO_ROOT, encoding: 'utf8' })
+  return execFileSync('git', ['ls-files', '--cached', '--others', '--exclude-standard', '--', pathspec], {
+    cwd: REPO_ROOT,
+    encoding: 'utf8',
+  })
     .split('\n')
     .filter((file) => file.endsWith('.ts') && !file.includes('/__tests__/'))
+    .filter((file) => existsSync(path.join(REPO_ROOT, file)))
     .map((file) => path.relative(API_SRC, path.join(REPO_ROOT, file)));
 }
 
@@ -166,21 +169,15 @@ describe('the routing presets are code, not a row (#139 ws15)', () => {
     ).toContain('lib/product-modes.ts');
   });
 
-  it('the alias set is a literal, and the table behind it carries one display flag', () => {
-    const aliases = code('internal/providers/lib/alia-models.ts');
-    expect(aliases).toMatch(/export const ALIA_MODELS: Record<string, AliaModel> = \{/);
-    expect([...aliases.matchAll(/creditMultiplier:/g)].length).toBeGreaterThanOrEqual(12);
+  it('the Kaana routing-profile set is a literal with no legacy database overlay', () => {
+    const profiles = code('internal/providers/lib/routing-profile-catalogue.ts');
+    expect(profiles).toMatch(/export const KAANA_ROUTING_PROFILES: Record<string, RoutingProfile> = \{/);
+    expect([...profiles.matchAll(/creditMultiplier:/g)].length).toBeGreaterThanOrEqual(12);
 
-    // The database is read for exactly one field, and it is not one a request
-    // routes on — `isLegacy` decides whether a picker greys an entry out.
-    expect(aliases).toContain('listAliaModels(getDb())');
-    expect(aliases).toMatch(/legacyMap\.set\(doc\.aliasModelId, doc\.isLegacy\)/);
-    // Nothing else is taken from the row. A second `doc.` read here would mean
-    // the catalogue had started living in the table.
-    expect([...aliases.matchAll(/\bdoc\.[a-zA-Z]+/g)].map((m) => m[0]).sort()).toEqual([
-      'doc.aliasModelId',
-      'doc.isLegacy',
-    ]);
+    expect(profiles).not.toContain('listRoutingProfiles');
+    expect(profiles).not.toContain('getDb');
+    expect(profiles).not.toMatch(/\bdoc\.[a-zA-Z]+/);
+    expect(profiles).not.toContain('legacyMap');
   });
 });
 

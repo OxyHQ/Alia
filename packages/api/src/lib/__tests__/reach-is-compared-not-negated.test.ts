@@ -28,7 +28,8 @@
  */
 
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
+import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
@@ -126,7 +127,7 @@ function productSources(): string[] {
   return execFileSync('git', ['ls-files', 'src'], { cwd: packageRoot, encoding: 'utf8' })
     .split('\n')
     .filter(Boolean)
-    .filter((f) => f.endsWith('.ts') && !f.includes('__tests__') && !f.endsWith('.test.ts'));
+    .filter((f) => f.endsWith('.ts') && !f.includes('__tests__') && !f.endsWith('.test.ts') && existsSync(path.join(packageRoot, f)));
 }
 
 describe('an agent-reach verdict is compared, never coerced', () => {

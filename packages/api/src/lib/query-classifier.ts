@@ -2,13 +2,13 @@
  * Query-Complexity Router
  *
  * Zero-LLM heuristic classifier that analyzes a user's message and
- * conversation context to determine the optimal Alia model tier.
+ * conversation context to determine the optimal Kaana routing profile tier.
  * Runs in <1ms using regex/heuristic scoring — no LLM calls.
  *
  * Inspired by TinyClaw's ClawRouter (8-15 dimension classification).
  *
  * Only used when the user hasn't explicitly selected a model (i.e., they're
- * on the default alia-v1). If a user chose a model, their choice is respected.
+ * on the default kaana-v1). If a user chose a model, their choice is respected.
  */
 
 import { log } from './logger.js';
@@ -93,14 +93,14 @@ function countPatternMatches(text: string, patterns: RegExp[]): number {
 // ============== CLASSIFIER ==============
 
 /**
- * Classify a user query's complexity and return the optimal Alia model.
+ * Classify a user query's complexity and return the optimal Kaana routing profile.
  *
  * Scoring: each dimension contributes points to a 0-100 complexity score.
- * The score maps to an Alia model tier:
- *   0-20  → alia-lite    (simple greetings, short factual questions)
- *   21-55 → alia-v1      (general conversation, moderate complexity)
- *   56-75 → alia-v1-pro  (code analysis, reasoning, multi-step tasks)
- *   76+   → alia-v1-thinking (deep reasoning, multi-part complex tasks)
+ * The score maps to a Kaana routing profile tier:
+ *   0-20  → kaana-lite    (simple greetings, short factual questions)
+ *   21-55 → kaana-v1      (general conversation, moderate complexity)
+ *   56-75 → kaana-v1-pro  (code analysis, reasoning, multi-step tasks)
+ *   76+   → kaana-v1-thinking (deep reasoning, multi-part complex tasks)
  */
 export function classifyQuery(
   userMessage: string,
@@ -169,13 +169,13 @@ export function classifyQuery(
   // Map score to model
   let suggestedModel: string;
   if (score <= 20) {
-    suggestedModel = 'alia-lite';
+    suggestedModel = 'kaana-lite';
   } else if (score <= 55) {
-    suggestedModel = 'alia-v1';
+    suggestedModel = 'kaana-v1';
   } else if (score <= 75) {
-    suggestedModel = 'alia-v1-pro';
+    suggestedModel = 'kaana-v1-pro';
   } else {
-    suggestedModel = 'alia-v1-thinking';
+    suggestedModel = 'kaana-v1-thinking';
   }
 
   const dimensions: QueryDimensions = {

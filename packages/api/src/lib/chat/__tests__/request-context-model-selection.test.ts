@@ -57,7 +57,7 @@ vi.mock('@oxyhq/core', async () => {
 
 vi.mock('../../chat-core.js', () => ({
   resolveModel: (...args: unknown[]) => resolveModel(...args),
-  getDefaultAliaModel: () => 'alia-lite',
+  getDefaultRoutingProfile: () => 'kaana-lite',
 }));
 
 /**
@@ -69,12 +69,12 @@ vi.mock('../../chat-core.js', () => ({
  * prices say about them.
  */
 vi.mock('../../gateway-client.js', async () => {
-  const actual = await vi.importActual<typeof import('../../../internal/providers/lib/alia-models.js')>(
-    '../../../internal/providers/lib/alia-models.js',
+  const actual = await vi.importActual<typeof import('../../../internal/providers/lib/routing-profile-catalogue.js')>(
+    '../../../internal/providers/lib/routing-profile-catalogue.js',
   );
   return {
     getTierMappings: async () => actual.TIER_MODEL_MAPPINGS,
-    getAllAliaModels: async () => Object.values(actual.ALIA_MODELS),
+    getAllRoutingProfiles: async () => Object.values(actual.KAANA_ROUTING_PROFILES),
   };
 });
 
@@ -175,11 +175,11 @@ async function run(
 beforeEach(() => {
   vi.clearAllMocks();
   resolveModel.mockResolvedValue({
-    aliasModelId: 'alia-v1-pro',
+    routingProfileId: 'kaana-v1-pro',
     provider: 'an-operator',
     modelId: 'a-deployment',
     keyConfig: { provider: 'an-operator', key: 'secret', modelId: 'a-deployment' },
-    aliaModel: { name: 'x', creditMultiplier: 1 },
+    routingProfile: { name: 'x', creditMultiplier: 1 },
     isFallback: false,
   });
   findMcpServerForUser.mockResolvedValue(null);
@@ -438,7 +438,7 @@ describe('a named model reaches the resolver as a pin, not as a tier', () => {
 
     // The alias is what everything downstream reads for price, plan and prompt.
     const [alias, , , options] = resolveModel.mock.calls[0];
-    expect(alias).toBe('alia-v1-pro');
+    expect(alias).toBe('kaana-v1-pro');
     // …and the identity travels separately, so the tier is not asked to encode
     // which of its models may answer.
     expect(options).toEqual({ pinnedModel: { publisher: 'anthropic', model: 'claude-sonnet-4.6' } });
@@ -451,25 +451,25 @@ describe('a named model reaches the resolver as a pin, not as a tier', () => {
     });
   });
 
-  it('does not pin anything when a PROFILE was named', async () => {
+  it('does not pin anything when a canonical Kaana profile was named', async () => {
     // The control. Without it, a `pinnedModel` set unconditionally — to the
     // tier's default, say — would satisfy every assertion above.
-    const { ctx } = await run('profile:v1');
+    const { ctx } = await run('kaana-v1');
     const [alias, , , options] = resolveModel.mock.calls[0];
-    expect(alias).toBe('alia-v1');
+    expect(alias).toBe('kaana-v1');
     expect(options).toEqual({});
     expect(ctx?.routingOptions).toEqual({});
   });
 
-  it('does not pin anything for a legacy alias, which still resolves', async () => {
-    const { ctx } = await run('alia-lite');
-    expect(resolveModel.mock.calls[0][0]).toBe('alia-lite');
+  it('does not pin anything for another canonical Kaana profile', async () => {
+    const { ctx } = await run('kaana-lite');
+    expect(resolveModel.mock.calls[0][0]).toBe('kaana-lite');
     expect(ctx?.routingOptions).toEqual({});
   });
 
   it('does not pin anything when the request names no model at all', async () => {
     const { ctx } = await run(undefined);
-    expect(resolveModel.mock.calls[0][0]).toBe('alia-lite');
+    expect(resolveModel.mock.calls[0][0]).toBe('kaana-lite');
     expect(ctx?.routingOptions).toEqual({});
   });
 

@@ -2,6 +2,12 @@
 
 Binding for every table in this schema. Decision and reason, nothing else.
 
+> Post-cutover note: references below to `provider_keys`, `provider_health`,
+> `api_usage` and `fallback_events` document immutable migration decisions only.
+> They are not active Alia tables after post-cutover migration 0057. Kaana owns
+> hosted provider credentials and runtime telemetry; do not reintroduce readers,
+> writers or compatibility endpoints in Alia.
+
 `packages/integrations/src/db/schema/CONVENTIONS.md` established the toolchain on
 the smallest service. This file does NOT repeat it — read that one first. What
 follows is only where `packages/api` differs, and it differs in the two ways that
@@ -88,14 +94,14 @@ typechecks and leaves every suite green, because the models still exist; it bite
 on the day somebody deletes them, in a different PR, naming the deleter rather
 than the author.
 
-`ALIA_TIERS` is the case that forced the rule: `AliaModel.tier` and
-`ModelConfig.aliaTier` were one vocabulary written as two identical
+`ROUTING_TIERS` is the case that forced the rule: the routing-profile tier and
+the former model-config tier were one vocabulary written as two identical
 thirteen-value literals in two files, so there was no single tuple to render a
-CHECK from. It now lives in `internal/providers/lib/alia-tiers.ts` beside
+CHECK from. It now lives in `internal/providers/lib/routing-tiers.ts` beside
 `provider-names.ts`. `model_configs.alia_tier` has since been dropped
 (`0049_the_tier_column_cannot_be_correct`) — one column could not record a
 many-to-many mapping — so the tuple renders exactly one CHECK today,
-`alia_models_tier_check`.
+`routing_profiles_tier_check`.
 
 **`auth_health_metrics.method` has NO CHECK, on purpose.** The Mongoose field is
 a bare `String` with no `enum`, so production may already hold values outside
@@ -205,8 +211,8 @@ benchmark is an additive migration.
 
 ### An ARRAY of sub-documents is a CHILD TABLE, not either of those
 
-`alia_models.providerMappings` was a Mongoose sub-document array and is now
-`alia_model_provider_mappings`. It looked identical in Mongo to
+`routing_profiles.providerMappings` was a Mongoose sub-document array and is now
+`routing_profile_provider_mappings`. It looked identical in Mongo to
 `fallback_events.attempts` and is not the same thing: each element carries a
 REFERENCE to `model_configs` and a per-element `is_active` toggle, so `jsonb`
 would hide a foreign key inside an opaque value and leave "does this mapping
@@ -215,13 +221,13 @@ point at a model that still exists" unanswerable in SQL.
 The test is not "is it an array" but **does an element have an identity of its
 own** — a reference, a toggle, an ordering that something filters on. Mongo could
 not express a unique index over a sub-document array at all, so
-`UNIQUE(alia_model_id, model_config_id)` is new: what kept it true before was
+`UNIQUE(routing_profile_id, model_config_id)` is new: what kept it true before was
 only that the seed replaced the whole array with `$set`.
 
 **`retrieval_strategies.source_steps` is the counter-case, and it is `jsonb`
 despite passing that test on paper.** Its elements carry an `order`, a
 `required` toggle and a `source_key` naming a `context_sources` row — three
-identity signals, the `alia_model_provider_mappings` shape almost exactly. It is
+identity signals, the `routing_profile_provider_mappings` shape almost exactly. It is
 `jsonb` because **nothing reads it**: the whole-package grep returns two sites
 and both are writes, each building the array from a hardcoded constant, while
 the one loader tests only that a strategy row EXISTS. A child table would add
@@ -245,7 +251,7 @@ shape. What answers it is `.populate()`: `routes/agents/crud.ts:166` and
 
 `text[]` was the alternative and it loses two things. It cannot carry a foreign
 key, so "does this agent's skill still exist" stays unanswerable in SQL — the
-`alia_model_provider_mappings` argument unchanged. And `routes/agent-teams.ts:161,184`
+`routing_profile_provider_mappings` argument unchanged. And `routes/agent-teams.ts:161,184`
 mutates the member list with `$addToSet`/`$pull`, which is set semantics that
 `UNIQUE(parent, child)` expresses exactly and an array does not.
 
@@ -256,7 +262,7 @@ Two things a child table must then carry that the array gave for free:
 - **the CASCADE decision, stated.** Mongo left a deleted skill's id in the array
   and `populate` silently dropped it on read, so an agent's skill list shrank
   with nothing recording why. `ON DELETE CASCADE` is a deliberate behaviour
-  CHANGE, the same one `alia_model_provider_mappings.model_config_id` made — and
+  CHANGE, the same one `routing_profile_provider_mappings.model_config_id` made — and
   it is what turns those dangling ids into a backfill item rather than a
   permanent silent discrepancy. See the audit list.
 
@@ -306,7 +312,7 @@ So a dangling id, deliberately, bounded by the 48-hour sweep. Write the reason
 down rather than the absence: "no FK" and "nobody decided" look identical later.
 
 **Within a batch, a genuine relation gets a real constraint.** Both references on
-`plan_features` and both on `alia_model_provider_mappings` are foreign keys with
+`plan_features` and both on `routing_profile_provider_mappings` are foreign keys with
 `ON DELETE CASCADE`, because each child is meaningless without its parent and a
 survivor would be silently re-adopted by a re-created row of the same name.
 Both endpoints of `context_edges` are the same call for a sharper reason: an
@@ -325,7 +331,7 @@ Parent and child are written concurrently, so a foreign key would convert a
 working write into a race-dependent `23503` on whichever statement lost. The
 `api_usage.key_id` reasoning applied to an ordering rather than to a deletion:
 every available answer is worse than none, so write down which one was chosen.
-`alia_model_provider_mappings.model_config_id` is a deliberate behaviour CHANGE:
+`routing_profile_provider_mappings.model_config_id` is a deliberate behaviour CHANGE:
 Mongo left the sub-document behind when its `ModelConfig` was deleted, and
 `getNextProvider` would then hand the router a provider whose configuration no
 longer existed.
@@ -928,8 +934,8 @@ only `modifiedCount` (20), `deletedCount` (18), `upsertedCount` (8),
 no fifteenth site hiding behind a name the first pass omitted. Attribution
 produced three FALSE positives — `lib/notification-service.ts` and
 `routes/notifications.ts` import `WebPushSubscription`, not the billing
-`Subscription`; `routes/skills.ts` imports `getDefaultAliaModel`, a function, not
-`AliaModel` — each resolved by reading the file. False positives are the safe
+`Subscription`; `routes/skills.ts` imports `getDefaultRoutingProfile`, a function, not
+`RoutingProfile` — each resolved by reading the file. False positives are the safe
 direction; the residual is what makes a false NEGATIVE visible.
 
 ## Tests run against a REAL Postgres, in their own config
@@ -1012,7 +1018,7 @@ about enums, applied to all of them.
 | Where | What to audit | If it fires |
 |---|---|---|
 | every `text` + CHECK column | a stored value outside its tuple | Mongoose never validated enums on `updateOne`/`findOneAndUpdate`, so this is the expected class. Widen the tuple or fix the row — do not drop the CHECK. |
-| `model_configs.priority`, `.quality_score`, `alia_model_provider_mappings.*`, `provider_keys.current_priority`, `.original_priority`, `.spent_usd`, `.max_total_failures`, `alia_models.credit_multiplier`, `credit_packages.credits`, `.price` | a number outside the Mongoose `min`/`max` it preserves | These are domain invariants, not input shaping. A violation means a non-validating write path produced it. |
+| `model_configs.priority`, `.quality_score`, `routing_profile_provider_mappings.*`, `provider_keys.current_priority`, `.original_priority`, `.spent_usd`, `.max_total_failures`, `routing_profiles.credit_multiplier`, `credit_packages.credits`, `.price` | a number outside the Mongoose `min`/`max` it preserves | These are domain invariants, not input shaping. A violation means a non-validating write path produced it. |
 | `notifications.dismissed_at` | `status = 'dismissed'` with no `dismissed_at`, or the reverse | Backfill `dismissed_at` from the row's `updatedAt` (the best available proxy) for dismissed rows, and NULL for every other status. |
 | `triggers` | `schedule` present with `type NOT IN ('schedule','agent_heartbeat')` | No CHECK was added — this is the correct-but-unvalidated tightening deliberately left out. Audit it, then decide whether to add the constraint in a later `post` migration. |
 | `containers.container_id` | two live rows sharing one Docker id | No unique index. It is the lookup key every writer uses (`terminal-session.ts:250`, `tools.ts:386` find by it alone), so one looks obviously right — but Mongoose declares only `index: true` and TWO independent creation paths write it. Count duplicates first; a partial unique `WHERE status <> 'destroyed'` is the correct tightening and is deliberately left out until audited, exactly like `triggers.schedule`. |
@@ -1033,7 +1039,7 @@ about enums, applied to all of them.
 | `referral_redemptions_referred_user_key` | one account appearing under TWO referrers | The double-credit race is real (`routes/referrals.ts` pays before it records). A hit here is a customer who was credited twice. |
 | `voice_call_usage_session_id_key` | two rows for one provider `sessionId` | Mongoose declared this unique, so a hit means a row predating it. It matters because `lib/voice-usage.ts` sums minutes per user: a duplicated session double-counts against a plan's voice entitlement. |
 | `organizations_slug_lower_key` | two slugs differing only in case | Mongoose's `lowercase` setter folded them; a row written around it did not. |
-| `alia_models.alias_model_id` | a value that is not already lowercase | Same setter, no CHECK added — the port stores whatever is there. |
+| `routing_profiles.routing_profile_id` | a value that is not already lowercase | Same setter, no CHECK added — the port stores whatever is there. |
 | `user_memory_entries_memory_title_lower_key` | two memories under one profile whose titles differ only in case or surrounding whitespace | Mongo could not index inside a sub-document array, so nothing enforced this; the application already treats such a pair as ONE memory, so a hit is two entries a user sees as duplicates. Merge them rather than relaxing the index. |
 | `user_memories_oxy_user_id_key` | two profiles for one account | Mongoose declares `unique: true`, so a hit means a row predating it or a raw write around it. |
 | `skills_skill_id_key` | two skills sharing a `skill_id` | Mongoose declares `unique: true`, so a hit means a row predating it. It matters because `lib/seed-skills.ts` upserts on this key: a duplicate makes which row the seed updates arbitrary, and the other one is then a skill nobody can correct. |

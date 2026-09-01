@@ -93,7 +93,7 @@ const AGENT_SHAPE = {
   access: 'private',
   status: 'active',
   systemPrompt: 'nobody else’s business',
-  allowedModels: ['alia-v1'],
+  allowedModels: ['kaana-v1'],
   capabilityGrants: [] as string[],
   archetype: 'general',
   createdAt: new Date(),

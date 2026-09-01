@@ -216,7 +216,7 @@ export const agentSessions = pgTable(
  * `status` in ten places (`session.resources.find(r => r.status === 'active')`),
  * `:488` iterates them at cleanup, and `routes/agents/files.ts:86` reads the
  * list to resolve a container. A per-element toggle that something filters on is
- * exactly what `alia_model_provider_mappings` was.
+ * exactly what `routing_profile_provider_mappings` was.
  *
  * `UNIQUE(session_id, resource_id)` is new — Mongo could not index inside a
  * sub-document array — and `lib/agent/runner.ts:272` already checks

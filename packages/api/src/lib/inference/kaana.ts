@@ -21,10 +21,9 @@
  *
  * ## What it refuses to do
  *
- * Return a client to a process that was never given one's parts. A missing
- * endpoint, key or principal yields `null` rather than a client that fails at
- * the first request — and `null` is a state the callers already handle, because
- * the in-process path still exists behind them.
+ * Return a client to a process that was never given one's parts. Boot refuses
+ * that configuration before listening; `null` remains only as a defensive
+ * construction result for isolated module use.
  */
 
 import {
@@ -156,8 +155,8 @@ const KAANA_DEFAULT_TARGET = { kind: 'model', modelReference: 'openai/gpt-oss-12
 /**
  * The client, or `null` when this process is not configured to reach Kaana.
  *
- * `null` rather than a throwing stub: a caller holding it decides whether to
- * fall back, and that decision belongs at the call site while both paths exist.
+ * `null` rather than a throwing stub so isolated construction can report an
+ * incomplete configuration without opening a transport.
  * Built once and memoised — the transport holds a parsed private key, and
  * re-reading it per request is work with no answer that can differ.
  */
@@ -171,17 +170,8 @@ export function getKaanaClient(env: NodeJS.ProcessEnv = process.env): KaanaInfer
 
 /** For tests, which need a client per environment rather than per process. */
 /**
- * There is no flag here, deliberately.
- *
- * Kaana IS the inference provider; using it is not a feature to opt into. What
- * decides whether this process reaches it is whether it has been GIVEN what it
- * needs to — an endpoint, a signing key, a principal — and a deployment that
- * has all three has said everything there is to say.
- *
- * `ALIA_RELAY_CLIENT_ENABLED` is a different question and is left alone: that
- * one declares the cutover DONE, which arms the boot refusal and installs the
- * egress block that makes every direct provider host unreachable. It belongs to
- * the day the in-process tree is deleted, not to the day Kaana starts serving.
+ * There is no flag here: Kaana is the inference provider, not an optional
+ * feature. The endpoint, signing key and principal are the complete decision.
  */
 export function buildKaanaClient(env: NodeJS.ProcessEnv): KaanaInferenceClient | null {
   if (unsetKaanaVariables(env).length > 0) return null;
@@ -200,7 +190,6 @@ export function buildKaanaClient(env: NodeJS.ProcessEnv): KaanaInferenceClient |
   });
 
   return createKaanaInferenceClient({
-    enabled: true,
     transport,
     // Kaana reads no bearer token; see the file comment.
     credential: {

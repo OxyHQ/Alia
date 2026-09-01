@@ -190,7 +190,7 @@ export interface ForUserOptions {
    *
    * What it withholds is not "expensive tools" in general — it is the ONE tool
    * in this set that reaches inference Alia pays for. `deepResearch` runs
-   * `lib/research/research-engine.ts`, which resolves `alia-lite` and `alia-v1`
+   * `lib/research/research-engine.ts`, which resolves `kaana-lite` and `kaana-v1`
    * by name; offered on an unreserved turn it is free hosted inference behind a
    * tool call. The matching request FLAGS are refused at the boundary
    * (`lib/chat/request-context.ts`), and `delegateToAgent` needs `agentMode`,

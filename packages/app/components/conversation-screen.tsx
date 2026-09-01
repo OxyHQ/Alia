@@ -86,7 +86,7 @@ export const ConversationScreen = ({
    *
    * It used to be `selection.effectiveId === THINKING_MODEL_ID`, which made
    * extended reasoning a property of WHICH model was chosen. The routing table
-   * shows that was never true: `alia-v1-thinking` and `alia-v1-pro-max` are two
+   * shows that was never true: `kaana-v1-thinking` and `kaana-v1-pro-max` are two
    * aliases of one profile, so the "thinking model" and the "maximum quality
    * model" routed identically and differed only by the prompt this flag selects.
    */

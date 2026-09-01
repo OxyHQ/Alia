@@ -4,32 +4,13 @@ import { fileURLToPath } from 'node:url';
 import { authenticatedPrincipalSchema } from '@oxyhq/contracts';
 import { describe, expect, it } from 'vitest';
 
-import { KAANA_CLIENT_ENABLED_ENV } from '../kaana-cutover.js';
 import { KAANA_PRINCIPAL_ENV, kaanaBootConfigurationFailure } from '../kaana-boot-check.js';
 import { KAANA_CREDENTIAL_REQUIRED_ENV } from '../kaana-credential.js';
 import { KAANA_ALLOWED_ORIGINS, KAANA_BASE_URL_ENV } from '../kaana-endpoint.js';
 
 /**
- * Epic #139 workstream 2 — *"Add startup validation that production cannot boot
- * without valid Oxy/Kaana configuration once the migration flag is enabled."*
- *
- * The requirement has two halves and only one of them is about refusing.
- *
- * The half that decides whether this is safe to land at all is the OTHER one:
- * `ALIA_RELAY_CLIENT_ENABLED` is off in every environment that exists, so the
- * flag-off path must be indistinguishable from the boot that ran before this
- * change. "Indistinguishable" is not something a source diff can say, and it is
- * not something an assertion on the RETURN value can say either — a validation
- * that ran unconditionally and happened to pass would return `null` too, and
- * every test below would still be green.
- *
- * So the flag-off assertions are made against a RECORDING environment: an env
- * object that remembers which keys were read. A check that consulted the
- * principal would show those reads whatever it concluded from them, and the
- * paired positive control ({@link describe} "the recorder can see a principal
- * being read") proves the recorder sees them when they do happen — otherwise a
- * recorder that records nothing would report the comfortable answer for the
- * wrong reason.
+ * Epic #139 workstream 2 — startup validation that every process has valid
+ * Oxy/Kaana configuration before it can listen.
  */
 
 const API_ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..');
@@ -94,55 +75,16 @@ const VALID_CREDENTIAL: Readonly<Record<string, string>> = Object.fromEntries(
   KAANA_CREDENTIAL_REQUIRED_ENV.map((variable) => [variable, 'configured']),
 );
 
-/** Everything a flag-on process must have. */
+/** Everything a process must have. */
 const VALID_CONFIG: Readonly<Record<string, string>> = {
   ...VALID_PRINCIPAL,
   ...VALID_ENDPOINT,
   ...VALID_CREDENTIAL,
 };
 
-const ENABLED = { [KAANA_CLIENT_ENABLED_ENV]: 'true' } as const;
-
-// ===========================================================================
-// The half that must not change: the flag is off
-// ===========================================================================
-
-describe('with the flag off, boot does not consult Kaana configuration', () => {
-  it('reads the flag and nothing else', () => {
-    const recorder = recording({ ...VALID_CONFIG, NODE_ENV: 'production' });
-
-    expect(kaanaBootConfigurationFailure(recorder.env)).toBeNull();
-    // Not "no principal variable was read" — the stronger statement, that the
-    // ONLY key touched is the flag. A future check that read `NODE_ENV` first to
-    // decide whether to bother would satisfy the weaker one.
-    expect([...new Set(recorder.reads)]).toEqual([KAANA_CLIENT_ENABLED_ENV]);
-  });
-
-  it('is off for every value that is not exactly the literal true', () => {
-    // The client's own rule (`isKaanaClientEnabled`), restated where a change to
-    // it would silently arm this refusal for deployments that never opted in.
-    for (const value of ['1', 'TRUE', 'True', 'yes', '', ' true']) {
-      const recorder = recording({ [KAANA_CLIENT_ENABLED_ENV]: value });
-      expect(kaanaBootConfigurationFailure(recorder.env)).toBeNull();
-      expect([...new Set(recorder.reads)]).toEqual([KAANA_CLIENT_ENABLED_ENV]);
-    }
-  });
-
-  it('is off when the variable is absent, with no principal configured either', () => {
-    // The literal production state today: neither the flag nor any principal
-    // variable is set anywhere. A refusal here would be an outage.
-    const recorder = recording({ NODE_ENV: 'production' });
-    expect(kaanaBootConfigurationFailure(recorder.env)).toBeNull();
-    expect([...new Set(recorder.reads)]).toEqual([KAANA_CLIENT_ENABLED_ENV]);
-  });
-});
-
 describe('the recorder can see a principal being read', () => {
-  it('records every principal variable when the flag is on', () => {
-    // The positive control for the three assertions above. Without it, a Proxy
-    // whose trap never fired would report "only the flag was read" for a check
-    // that read everything.
-    const recorder = recording({ ...ENABLED, ...VALID_CONFIG, NODE_ENV: 'production' });
+  it('records every principal variable on every boot', () => {
+    const recorder = recording({ ...VALID_CONFIG, NODE_ENV: 'production' });
 
     expect(kaanaBootConfigurationFailure(recorder.env)).toBeNull();
     for (const variable of Object.values(KAANA_PRINCIPAL_ENV)) {
@@ -156,9 +98,9 @@ describe('the recorder can see a principal being read', () => {
 // The half that refuses
 // ===========================================================================
 
-describe('with the flag on, an unusable principal stops the process', () => {
+describe('an unusable principal stops the process', () => {
   /**
-   * Every variable a flag-on process must have, derived rather than listed.
+   * Every variable a process must have, derived rather than listed.
    *
    * `Object.keys(VALID_CONFIG)` rather than a written-out array: the two loops
    * below are a CENSUS, and a census whose expected set is hand-maintained skips
@@ -168,7 +110,7 @@ describe('with the flag on, an unusable principal stops the process', () => {
   const REQUIRED = Object.keys(VALID_CONFIG).sort();
 
   it('names every variable that has to be set when none of them are', () => {
-    const failure = kaanaBootConfigurationFailure({ ...ENABLED, NODE_ENV: 'production' });
+    const failure = kaanaBootConfigurationFailure({ NODE_ENV: 'production' });
 
     expect(failure).not.toBeNull();
     // All NINE, in one message. Four is the answer the contract alone gives —
@@ -191,7 +133,6 @@ describe('with the flag on, an unusable principal stops the process', () => {
     // one: an operator who set eight of nine has no reason to suspect the ninth.
     for (const variable of REQUIRED) {
       const partial: NodeJS.ProcessEnv = {
-        ...ENABLED,
         ...VALID_CONFIG,
         NODE_ENV: 'production',
       };
@@ -208,7 +149,6 @@ describe('with the flag on, an unusable principal stops the process', () => {
     // rest of the configuration here is the one the assertions below accept, so
     // the only difference between booting and not is the credential.
     const withoutCredential: NodeJS.ProcessEnv = {
-      ...ENABLED,
       ...VALID_CONFIG,
       NODE_ENV: 'production',
     };
@@ -229,7 +169,6 @@ describe('with the flag on, an unusable principal stops the process', () => {
     // Shape-valid and useless: the far end answers `insufficient_scope` once per
     // user request, forever. `assertPrincipalMatchesDeployment` owns this rule.
     const failure = kaanaBootConfigurationFailure({
-      ...ENABLED,
       ...VALID_CONFIG,
       [KAANA_PRINCIPAL_ENV.inferenceScopes]: 'inference:models:read',
       NODE_ENV: 'production',
@@ -243,7 +182,6 @@ describe('with the flag on, an unusable principal stops the process', () => {
     // A staging credential on a production task bills test traffic to the
     // production account, and no later query separates it out again.
     const failure = kaanaBootConfigurationFailure({
-      ...ENABLED,
       ...VALID_CONFIG,
       [KAANA_PRINCIPAL_ENV.environment]: 'staging',
       NODE_ENV: 'production',
@@ -255,7 +193,6 @@ describe('with the flag on, an unusable principal stops the process', () => {
 
   it('refuses an environment the contract does not define, without echoing it', () => {
     const failure = kaanaBootConfigurationFailure({
-      ...ENABLED,
       ...VALID_CONFIG,
       [KAANA_PRINCIPAL_ENV.environment]: 'prod',
       NODE_ENV: 'production',
@@ -269,14 +206,13 @@ describe('with the flag on, an unusable principal stops the process', () => {
 
   it('accepts a principal the contract and the deployment both accept', () => {
     expect(
-      kaanaBootConfigurationFailure({ ...ENABLED, ...VALID_CONFIG, NODE_ENV: 'production' }),
+      kaanaBootConfigurationFailure({ ...VALID_CONFIG, NODE_ENV: 'production' }),
     ).toBeNull();
   });
 
   it('accepts a staging principal on a staging deployment', () => {
     expect(
       kaanaBootConfigurationFailure({
-        ...ENABLED,
         ...VALID_CONFIG,
         [KAANA_PRINCIPAL_ENV.environment]: 'staging',
         NODE_ENV: 'staging',
@@ -291,20 +227,19 @@ describe('with the flag on, an unusable principal stops the process', () => {
     // to `development`, and demanding the environment match would mean every one
     // of them had to name whichever environment its runner happens to have.
     expect(
-      kaanaBootConfigurationFailure({ ...ENABLED, ...VALID_CONFIG, NODE_ENV: 'test' }),
+      kaanaBootConfigurationFailure({ ...VALID_CONFIG, NODE_ENV: 'test' }),
     ).toBeNull();
-    expect(kaanaBootConfigurationFailure({ ...ENABLED, ...VALID_CONFIG })).toBeNull();
+    expect(kaanaBootConfigurationFailure({ ...VALID_CONFIG })).toBeNull();
   });
 
   it('still demands a usable principal on a development process', () => {
     // The half that does NOT relax. "Enabled but unconfigured" is broken
     // everywhere, and the cheapest place to find that out is a laptop.
-    expect(kaanaBootConfigurationFailure({ ...ENABLED })).not.toBeNull();
+    expect(kaanaBootConfigurationFailure({})).not.toBeNull();
   });
 
   it('treats a whitespace-only scope list as no scopes at all', () => {
     const failure = kaanaBootConfigurationFailure({
-      ...ENABLED,
       ...VALID_CONFIG,
       [KAANA_PRINCIPAL_ENV.inferenceScopes]: ' , ,  ',
       NODE_ENV: 'production',
@@ -320,7 +255,6 @@ describe('with the flag on, an unusable principal stops the process', () => {
     // enum on `environment`. Without a case like this the two branches could
     // swap and every other assertion here would still pass.
     const failure = kaanaBootConfigurationFailure({
-      ...ENABLED,
       ...VALID_CONFIG,
       [KAANA_PRINCIPAL_ENV.inferenceScopes]: 'inference:invoke,inference:everything',
       NODE_ENV: 'production',
@@ -333,12 +267,11 @@ describe('with the flag on, an unusable principal stops the process', () => {
   it('separates a variable that is unset from one that holds a bad value', () => {
     // Two different fixes, so two different sentences. A single message for both
     // would send an operator looking for a typo in a variable they never set.
-    expect(kaanaBootConfigurationFailure({ ...ENABLED, NODE_ENV: 'production' })).toContain(
+    expect(kaanaBootConfigurationFailure({ NODE_ENV: 'production' })).toContain(
       'are not set',
     );
     expect(
       kaanaBootConfigurationFailure({
-        ...ENABLED,
         ...VALID_CONFIG,
         [KAANA_PRINCIPAL_ENV.environment]: 'prod',
         NODE_ENV: 'production',
@@ -372,9 +305,7 @@ describe('the variable map covers exactly the contract principal', () => {
      * A variable this check refuses to boot without, and which no template
      * mentions, is a deployment that fails with a name its operator has never
      * seen. The template is the only place the five appear together — they are
-     * deliberately absent from `.do/app.yaml` and from `deploy-aws.yml`'s secret
-     * allow-list while the flag is off, because config for an unmounted service
-     * is config that rots.
+     * coordinated with deployment manifests because Kaana is mandatory.
      */
     const template = readFileSync(ENV_EXAMPLE, 'utf8');
     // Vacuity floor: a moved or emptied file mentions none of them, which is
@@ -383,7 +314,6 @@ describe('the variable map covers exactly the contract principal', () => {
     expect(template.length).toBeGreaterThan(3_000);
 
     for (const variable of [
-      KAANA_CLIENT_ENABLED_ENV,
       ...Object.values(KAANA_PRINCIPAL_ENV),
       ...KAANA_CREDENTIAL_REQUIRED_ENV,
     ]) {
@@ -392,7 +322,7 @@ describe('the variable map covers exactly the contract principal', () => {
   });
 });
 
-describe('the boot check does not make Kaana the live path (#139 ws3, constraint 3)', () => {
+describe('the boot check validates without opening a transport', () => {
   const source = readFileSync(MODULE, 'utf8');
 
   it('read the module it claims to read', () => {
@@ -404,8 +334,8 @@ describe('the boot check does not make Kaana the live path (#139 ws3, constraint
     // `kaana-boundary.test.ts` lists this file as an importer of the client
     // module. That entry is only defensible while this stays true: it reads the
     // client's RULES, it does not run the client. A `new KaanaInferenceClient`
-    // here would put a transport on the boot path with the flag as its only
-    // guard.
+    // here would make every boot issue network traffic before configuration
+    // validation completes.
     for (const forbidden of [
       'new KaanaInferenceClient',
       'createKaanaInferenceClient',
@@ -417,6 +347,6 @@ describe('the boot check does not make Kaana the live path (#139 ws3, constraint
     // The negative control's floor: the names it DOES import are present, so
     // "not contained" is a fact about this file rather than about an empty read.
     expect(source).toContain('assertPrincipalMatchesDeployment');
-    expect(source).toContain('isKaanaClientEnabled');
+    expect(source).toContain('resolveKaanaEndpoint');
   });
 });

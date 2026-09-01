@@ -150,7 +150,6 @@ function client(over: Partial<KaanaClientConfig> = {}): {
 } {
   const transport = over.transport ?? new CapturingTransport();
   const built = createKaanaInferenceClient({
-    enabled: true,
     transport,
     credential: CREDENTIAL,
     endpoint: ENDPOINT,
@@ -328,7 +327,6 @@ describe('data-retention policy travels as a reference, and Alia invents none', 
     // the wrong policy" are distinguished by whether anything was SENT.
     const transport = new CapturingTransport();
     const refusing = createKaanaInferenceClient({
-      enabled: true,
       transport,
       credential: CREDENTIAL,
     endpoint: ENDPOINT,
@@ -356,7 +354,6 @@ describe('data-retention policy travels as a reference, and Alia invents none', 
     // about the unknown policy and not about this fixture.
     const accepting = new CapturingTransport();
     const ok = createKaanaInferenceClient({
-      enabled: true,
       transport: accepting,
       credential: CREDENTIAL,
     endpoint: ENDPOINT,
@@ -439,7 +436,6 @@ describe('the configured principal is validated at construction (#139 ws15)', ()
     // a caller may forget: this is what stops it being green and inert.
     expect(() =>
       createKaanaInferenceClient({
-        enabled: true,
         transport: new CapturingTransport(),
         credential: CREDENTIAL,
         endpoint: ENDPOINT,

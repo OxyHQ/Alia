@@ -1,7 +1,7 @@
 /**
  * Seed the routing catalogue from TIER_MODEL_MAPPINGS.
  *
- * Populates the `model_configs` and `alia_models` PostgreSQL tables from the
+ * Populates the `model_configs` and `routing_profiles` PostgreSQL tables from the
  * hardcoded tier mappings, through the repositories in `db/providers/`. Uses
  * upsert for idempotency.
  *
@@ -17,7 +17,7 @@
 
 import { PROVIDER_NAMES } from './provider-names.js';
 import { findModelConfig, upsertModelConfig } from '../../../db/providers/modelConfigRepository.js';
-import { upsertAliaModel } from '../../../db/providers/aliaModelRepository.js';
+import { upsertRoutingProfile } from '../../../db/providers/routingProfileRepository.js';
 import type { ConfigAuditActor } from '../../../lib/security/config-audit.js';
 
 /**
@@ -32,7 +32,7 @@ const SEED_ACTOR: ConfigAuditActor = {
   id: 'internal/providers/lib/seed-model-configs',
 };
 import { getDb } from '../../../db/index.js';
-import { TIER_MODEL_MAPPINGS, ALIA_MODELS, type ModelCapabilities } from './alia-models.js';
+import { TIER_MODEL_MAPPINGS, KAANA_ROUTING_PROFILES, type ModelCapabilities } from './routing-profile-catalogue.js';
 import { log } from '../../../lib/logger.js';
 import { isDuplicateKeyError } from '../../../lib/errors/index.js';
 
@@ -174,13 +174,13 @@ export async function seedModelConfigs(): Promise<{ seeded: number; skipped: num
 }
 
 /**
- * Seed `alia_models` from ALIA_MODELS and TIER_MODEL_MAPPINGS.
+ * Seed `routing_profiles` from KAANA_ROUTING_PROFILES and TIER_MODEL_MAPPINGS.
  *
- * Writes the alia-* identifiers (alia-v1, alia-lite and the rest) with their
+ * Writes the alia-* identifiers (kaana-v1, kaana-lite and the rest) with their
  * mappings linked to `model_configs` rows. Must run AFTER seedModelConfigs() so
  * those rows exist.
  */
-export async function seedAliaModels(): Promise<{ seeded: number; skipped: number }> {
+export async function seedRoutingProfiles(): Promise<{ seeded: number; skipped: number }> {
   let seeded = 0;
   let skipped = 0;
 
@@ -189,10 +189,10 @@ export async function seedAliaModels(): Promise<{ seeded: number; skipped: numbe
     'deepseek', 'together', 'cerebras', 'cloudflare', 'openrouter', 'xai',
   ];
 
-  for (const [modelId, aliaModel] of Object.entries(ALIA_MODELS)) {
+  for (const [modelId, routingProfile] of Object.entries(KAANA_ROUTING_PROFILES)) {
     try {
       // Get tier mappings for this model's tier
-      const tierMappings = TIER_MODEL_MAPPINGS[aliaModel.tier] || [];
+      const tierMappings = TIER_MODEL_MAPPINGS[routingProfile.tier] || [];
 
       // Build provider mappings with ModelConfig references
       const providerMappings = [];
@@ -219,15 +219,15 @@ export async function seedAliaModels(): Promise<{ seeded: number; skipped: numbe
       const hasCodeExecution = tierMappings.some(m => m.capabilities?.codeExecution);
       const hasWebSearch = tierMappings.some(m => m.capabilities?.webSearch);
 
-      const result = await upsertAliaModel(
+      const result = await upsertRoutingProfile(
         getDb(),
         modelId,
         {
-          displayName: aliaModel.name,
-          tier: aliaModel.tier,
-          description: aliaModel.description,
-          creditMultiplier: aliaModel.creditMultiplier,
-          isFreeTier: aliaModel.creditMultiplier <= 1.0,
+          displayName: routingProfile.name,
+          tier: routingProfile.tier,
+          description: routingProfile.description,
+          creditMultiplier: routingProfile.creditMultiplier,
+          isFreeTier: routingProfile.creditMultiplier <= 1.0,
           isActive: true,
           isDeprecated: false,
         },
@@ -246,7 +246,7 @@ export async function seedAliaModels(): Promise<{ seeded: number; skipped: numbe
 
       if (result.inserted) {
         seeded++;
-        log.seed.info({ modelId, tier: aliaModel.tier, providers: providerMappings.length }, 'Created AliaModel');
+        log.seed.info({ modelId, tier: routingProfile.tier, providers: providerMappings.length }, 'Created RoutingProfile');
       } else {
         skipped++;
       }
@@ -254,11 +254,11 @@ export async function seedAliaModels(): Promise<{ seeded: number; skipped: numbe
       if (isDuplicateKeyError(error)) {
         skipped++;
       } else {
-        log.seed.error({ err: error, modelId }, 'Error seeding AliaModel');
+        log.seed.error({ err: error, modelId }, 'Error seeding RoutingProfile');
       }
     }
   }
 
-  log.seed.info({ seeded, skipped }, 'AliaModel seeding complete');
+  log.seed.info({ seeded, skipped }, 'RoutingProfile seeding complete');
   return { seeded, skipped };
 }

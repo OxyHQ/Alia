@@ -4,7 +4,6 @@ import type { RoutingTarget } from '@oxyhq/contracts';
 import type { AliaInferenceCall, AliaInferenceContext } from '../product-seam.js';
 import { kaanaBootConfigurationFailure, KAANA_PRINCIPAL_ENV } from '../kaana-boot-check.js';
 import { KAANA_CREDENTIAL_REQUIRED_ENV } from '../kaana-credential.js';
-import { KAANA_CLIENT_ENABLED_ENV } from '../kaana-cutover.js';
 import {
   createKaanaInferenceClient,
   type KaanaClientConfig,
@@ -37,7 +36,7 @@ import type { KaanaRequestPayload } from '../kaana-request.js';
  *  1. **the rule** — {@link kaanaEndpointRefusal}, which is where the near-miss
  *     hosts are;
  *  2. **boot** — `kaanaBootConfigurationFailure`, so a task with a bad
- *     `RELAY_BASE_URL` does not start;
+ *     `KAANA_BASE_URL` does not start;
  *  3. **every call** — the client, so a config mutated after construction cannot
  *     ride a boot-time approval. That one is the reason the runtime check exists
  *     at all beside the branded type, and it is mutation-tested by actually
@@ -92,7 +91,6 @@ const APPROVED = KAANA_ALLOWED_ORIGINS[0];
  */
 function bootEnv(over: Record<string, string> = {}): NodeJS.ProcessEnv {
   return {
-    [KAANA_CLIENT_ENABLED_ENV]: 'true',
     [KAANA_PRINCIPAL_ENV.billing]: 'acct_alia',
     [KAANA_PRINCIPAL_ENV.applicationId]: 'app_alia',
     [KAANA_PRINCIPAL_ENV.credentialId]: 'cred_alia_1',
@@ -137,7 +135,6 @@ function call(): AliaInferenceCall<KaanaRequestPayload> {
 /** A mutable config, so the per-call re-check can be given something to catch. */
 function mutableConfig(transport: CapturingTransport): { endpoint: KaanaEndpoint } & KaanaClientConfig {
   return {
-    enabled: true,
     transport,
     credential: CREDENTIAL,
     endpoint: assertAllowedKaanaOrigin(APPROVED, 'development'),
@@ -294,25 +291,6 @@ describe('a bad Kaana endpoint stops the process starting (#139 ws15)', () => {
     ).toBeNull();
   });
 
-  it('with the flag off, the endpoint is not consulted at all', () => {
-    // The property that makes this safe to land before the cutover: a deployment
-    // that has not opted in is not refused for a variable it has no reason to
-    // set. Measured with a recording environment rather than by reading the
-    // code, so it is a fact about behaviour.
-    const read: string[] = [];
-    const recorder = new Proxy(
-      { [KAANA_CLIENT_ENABLED_ENV]: 'false' } as NodeJS.ProcessEnv,
-      {
-        get(target, property: string) {
-          read.push(property);
-          return Reflect.get(target, property) as string | undefined;
-        },
-      },
-    );
-    expect(kaanaBootConfigurationFailure(recorder)).toBeNull();
-    expect(read).toEqual([KAANA_CLIENT_ENABLED_ENV]);
-    expect(read).not.toContain(KAANA_BASE_URL_ENV);
-  });
 });
 
 /* -------------------------------------------------------------------------- */

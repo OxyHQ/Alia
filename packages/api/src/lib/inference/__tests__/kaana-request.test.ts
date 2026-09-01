@@ -9,7 +9,7 @@ import {
   type RoutingTarget,
 } from '@oxyhq/contracts';
 
-import type { AliaModelChoice } from '../product-seam.js';
+import type { RoutingProfileChoice } from '../product-seam.js';
 import { KaanaInferenceError } from '../kaana-error.js';
 import {
   ALIA_SURFACE_LABEL,
@@ -276,14 +276,14 @@ describe('buildInferenceRequest refuses what the contract refuses', () => {
 // Target resolution
 // ===========================================================================
 
-describe('a product model id becomes a target by grammar, and an alias by its published map', () => {
+describe('a product model id becomes a canonical Kaana target', () => {
   const DEFAULT_TARGET: RoutingTarget = { kind: 'routing_profile', routingProfile: 'auto' };
 
   it('the two grammars are disjoint, which is why no precedence rule is needed', () => {
     // The whole translation rests on this: if a string could be read as both,
     // the order of the two `safeParse` calls would silently decide whether a
     // caller asked for a model or asked Oxy to choose one.
-    const probes = ['alia-v1-pro', 'alia/v1-pro', 'alia/v1-pro@2026-05-01', 'auto', 'Not Valid'];
+    const probes = ['kaana-v1-pro', 'alia/v1-pro', 'alia/v1-pro@2026-05-01', 'auto', 'Not Valid'];
     let sawReference = 0;
     let sawProfile = 0;
     for (const probe of probes) {
@@ -299,7 +299,7 @@ describe('a product model id becomes a target by grammar, and an alias by its pu
   });
 
   it('resolves the product default to the configured target', () => {
-    const choice: AliaModelChoice = { kind: 'product_default' };
+    const choice: RoutingProfileChoice = { kind: 'product_default' };
     expect(resolveRoutingTarget(choice, DEFAULT_TARGET, 'r')).toEqual(DEFAULT_TARGET);
   });
 
@@ -317,46 +317,25 @@ describe('a product model id becomes a target by grammar, and an alias by its pu
     expect(targetPinsRevision(pinned)).toBe(true);
   });
 
-  it("translates today's alia-* alias to the profile the migration map publishes", () => {
-    /**
-     * It used to answer `routingProfile: 'alia-v1-pro'` — the grammar's reading,
-     * since an alias has no `/` and therefore parses as a profile slug. That is
-     * well-formed and wrong: `docs/migration/alias-migration-map.json` publishes
-     * `profile:v1-pro` as what this alias becomes, and a profile named after the
-     * alias is one no catalogue outside this repository has heard of.
-     *
-     * Asserted here against the value, and against the published file itself in
-     * `lib/routing/__tests__/alias-translation.test.ts` for all thirteen.
-     */
+  it('carries a canonical Kaana routing profile without translation', () => {
     expect(
-      resolveRoutingTarget({ kind: 'user_selected', productModelId: 'alia-v1-pro' }, DEFAULT_TARGET, 'r'),
-    ).toEqual({ kind: 'routing_profile', routingProfile: 'v1-pro' });
+      resolveRoutingTarget({ kind: 'user_selected', productModelId: 'kaana-v1-pro' }, DEFAULT_TARGET, 'r'),
+    ).toEqual({ kind: 'routing_profile', routingProfile: 'kaana-v1-pro' });
 
-    // The two identifiers that share a policy resolve to one target.
+    // Canonical ids remain distinct on the wire; Kaana owns their policies.
     expect(
-      resolveRoutingTarget({ kind: 'user_selected', productModelId: 'alia-v1-thinking' }, DEFAULT_TARGET, 'r'),
-    ).toEqual(
-      resolveRoutingTarget({ kind: 'user_selected', productModelId: 'alia-v1-pro-max' }, DEFAULT_TARGET, 'r'),
+      resolveRoutingTarget({ kind: 'user_selected', productModelId: 'kaana-v1-thinking' }, DEFAULT_TARGET, 'r'),
+    ).not.toEqual(
+      resolveRoutingTarget({ kind: 'user_selected', productModelId: 'kaana-v1-pro-max' }, DEFAULT_TARGET, 'r'),
     );
   });
 
-  it('refuses an alia-namespaced id that is not one of the thirteen', () => {
-    /**
-     * `alia-flash` is the real case: `lib/tools/delegate.ts` defaulted to it for
-     * as long as it did precisely because it is a well-formed slug that every
-     * lenient reading accepts. The grammar below would send it as a routing
-     * profile, asking Kaana to route a profile only this repository could have
-     * defined. Alia knows its own namespace exhaustively, so it answers.
-     */
-    expect(() =>
-      resolveRoutingTarget({ kind: 'user_selected', productModelId: 'alia-flash' }, DEFAULT_TARGET, 'r'),
-    ).toThrow(KaanaInferenceError);
-
-    // The control: the refusal is about the NAMESPACE, not about every slug.
-    // `auto` is a legitimate profile nobody in this repository owns.
-    expect(
-      resolveRoutingTarget({ kind: 'user_selected', productModelId: 'auto' }, DEFAULT_TARGET, 'r'),
-    ).toEqual({ kind: 'routing_profile', routingProfile: 'auto' });
+  it('refuses removed aliases and arbitrary routing-profile slugs', () => {
+    for (const id of ['alia-v1', 'alia-flash', 'profile:v1', 'auto']) {
+      expect(() =>
+        resolveRoutingTarget({ kind: 'user_selected', productModelId: id }, DEFAULT_TARGET, 'r'),
+      ).toThrow(KaanaInferenceError);
+    }
   });
 
   it('refuses an unparseable id instead of treating it as a profile', () => {
@@ -364,7 +343,7 @@ describe('a product model id becomes a target by grammar, and an alias by its pu
     // typo into "Oxy chose something for you", which is the substitution ADR
     // 0003 forbids.
     expect(() =>
-      resolveRoutingTarget({ kind: 'user_selected', productModelId: 'Alia V1 Pro' }, DEFAULT_TARGET, 'r'),
+      resolveRoutingTarget({ kind: 'user_selected', productModelId: 'Kaana V1 Pro' }, DEFAULT_TARGET, 'r'),
     ).toThrow(KaanaInferenceError);
   });
 

@@ -25,7 +25,7 @@ vi.mock('../../../lib/logger.js', () => {
   return { log: { agents: child, chat: child, general: child, v1: child, credits: child, providers: child } };
 });
 vi.mock('../../../lib/chat-core.js', () => ({
-  getAliaModel: vi.fn().mockResolvedValue({ creditMultiplier: 1 }),
+  getRoutingProfile: vi.fn().mockResolvedValue({ creditMultiplier: 1 }),
 }));
 vi.mock('../../../lib/agent/health.js', () => ({
   getAgentCapabilities: vi.fn(async () => ({ shell: true, browser: true })),

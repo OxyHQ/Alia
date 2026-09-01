@@ -36,7 +36,7 @@ vi.mock('../../logger.js', () => {
   return { log: { agents: child, chat: child, general: child, v1: child, triggers: child, credits: child, providers: child } };
 });
 vi.mock('../../chat-core.js', () => ({
-  getAliaModel: vi.fn().mockResolvedValue({ creditMultiplier: 1 }),
+  getRoutingProfile: vi.fn().mockResolvedValue({ creditMultiplier: 1 }),
 }));
 /**
  * Oxy, at the seam `lib/agent-identity.ts` reads through. Empty by default, so

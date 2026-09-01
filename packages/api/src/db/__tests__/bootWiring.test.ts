@@ -320,7 +320,7 @@ describe('the Mongo driver is imported by exactly one file', () => {
   function trackedSources(): string[] {
     return execFileSync('git', ['ls-files', 'src'], { cwd: PACKAGE_ROOT, encoding: 'utf8' })
       .split('\n')
-      .filter((file) => /\.ts$/.test(file));
+      .filter((file) => /\.ts$/.test(file) && existsSync(join(PACKAGE_ROOT, file)));
   }
 
   /**

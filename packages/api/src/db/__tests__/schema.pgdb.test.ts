@@ -4,7 +4,7 @@ import { isCheckViolation, isUniqueViolation, constraintNameOf } from '@oxyhq/db
 import { sweepAllExpiredRows } from '@oxyhq/db/expiry';
 import { closePostgres, connectPostgres, type ApiDatabase } from '../index';
 import { EXPIRY_TARGETS } from '../expiryTargets';
-import { apiUsage, authHealthMetrics, providerHealth, routingLogs } from '../schema/telemetry';
+import { authHealthMetrics, routingLogs } from '../schema/telemetry';
 import { agentSessions } from '../schema/agent-sessions';
 import { oauthStates } from '../schema/integrations';
 import { leases } from '../schema/leases';
@@ -36,34 +36,6 @@ afterAll(async () => {
 });
 
 describe('closed value sets are enforced by the DATABASE, not just the editor', () => {
-  it('refuses a circuit state outside the tuple', async () => {
-    // `text({ enum })` emits NO DDL — it is a TypeScript narrowing only. This is
-    // what proves the CHECK beside it actually reached the server.
-    const insert = db.execute(sql`
-      insert into ${providerHealth} (id, provider, model_id, circuit_state)
-      values ('probe-1', 'p', 'm', 'not-a-state')
-    `);
-
-    await expect(insert).rejects.toSatisfy((error: unknown) => {
-      expect(isCheckViolation(error)).toBe(true);
-      expect(constraintNameOf(error)).toBe('provider_health_circuit_state_check');
-      return true;
-    });
-  });
-
-  it('accepts every value that IS in the tuple', async () => {
-    for (const state of ['closed', 'open', 'half-open']) {
-      await db.execute(sql`
-        insert into ${providerHealth} (id, provider, model_id, circuit_state)
-        values (${`ok-${state}`}, 'p', ${state}, ${state})
-      `);
-    }
-    const rows = await db.execute<{ n: string }>(
-      sql`select count(*)::text as n from ${providerHealth} where id like 'ok-%'`,
-    );
-    expect(rows[0]?.n).toBe('3');
-  });
-
   it('refuses a routing status outside the tuple, naming its own constraint', async () => {
     const insert = db.execute(sql`
       insert into ${routingLogs}
@@ -80,22 +52,6 @@ describe('closed value sets are enforced by the DATABASE, not just the editor', 
 });
 
 describe('the unique indexes a port must not lose', () => {
-  it('refuses a second provider_health row for one (provider, model)', async () => {
-    await db.execute(sql`
-      insert into ${providerHealth} (id, provider, model_id) values ('u-1', 'openai', 'gpt-x')
-    `);
-    const duplicate = db.execute(sql`
-      insert into ${providerHealth} (id, provider, model_id) values ('u-2', 'openai', 'gpt-x')
-    `);
-
-    await expect(duplicate).rejects.toSatisfy((error: unknown) => {
-      expect(isUniqueViolation(error)).toBe(true);
-      // Named, so this cannot pass on some OTHER unique index on the table.
-      expect(constraintNameOf(error)).toBe('provider_health_provider_model_key');
-      return true;
-    });
-  });
-
   it('refuses a second auth metric for one (method, hour)', async () => {
     /**
      * ISO string plus an explicit cast, NOT a bare `Date`.
@@ -180,60 +136,6 @@ describe('leader election: the CAS Mongo did with an aggregation pipeline', () =
   });
 });
 
-/**
- * ## Both sweep cases run inside a TRANSACTION, and that is load-bearing
- *
- * `vitest.pg.globalSetup.ts` creates ONE database for the whole run and vitest
- * runs test FILES in parallel. Four other files
- * (`automation`, `notifications` ×2, `organizations`) call
- * `sweepAllExpiredRows(db, EXPIRY_TARGETS)` with the FULL registry — which
- * includes `api_usage` and `oauth_states`. A sweep deletes by AGE, not by
- * owner, so a deliberately-stale fixture committed here is fair game to every
- * one of them.
- *
- * That produced a real, intermittent failure: another file's sweep reaped
- * `sweep-old` between this test's insert and its own sweep, so `deleted` came
- * back 0 and the assertion below failed — on code nobody had touched. Measured
- * 1 run in 5 on the whole suite, 2 in 5 with just these five files, and 0 in 7
- * sequentially.
- *
- * Writing the fixture inside a transaction fixes it at the source rather than
- * loosening the assertion: an uncommitted row is invisible to every other
- * connection, so no other sweep can see it, while this transaction's own sweep
- * can. `SqlExecutor` exists for exactly this — its own doc comment says a
- * transaction handle satisfies it "so a sweep or a gate can run inside one".
- *
- * The count stays `>= 1` rather than tightening to exactly 1: the transaction
- * still sees any COMMITTED expired row another file left behind, and pinning
- * the number would swap this flake for a new coupling to other files' data.
- */
-describe('the expiry sweep actually deletes, and only what is expired', () => {
-  it('removes rows past their retention and leaves the rest', async () => {
-    const target = EXPIRY_TARGETS.find((t) => t.table === apiUsage);
-    if (!target) throw new Error('api_usage has no expiry target; expiryTargets.ts changed');
-
-    await db.transaction(async (tx) => {
-      await tx.execute(sql`
-        insert into ${apiUsage} (id, key_id, provider, model_id, timestamp) values
-          ('sweep-old',   'k', 'p', 'm', now() - interval '3 days'),
-          ('sweep-fresh', 'k', 'p', 'm', now())
-      `);
-
-      const results = await sweepAllExpiredRows(tx, [target]);
-
-      const swept = results.find((r) => r.table === 'api_usage');
-      expect(swept?.deleted).toBeGreaterThanOrEqual(1);
-
-      const survivors = await tx.execute<{ id: string }>(
-        sql`select id from ${apiUsage} where id like 'sweep-%'`,
-      );
-      // The 48h retention is measured from `timestamp`: the 3-day-old row goes,
-      // today's stays. A sweep that took both would look identical in the count.
-      expect(survivors.map((r) => r.id)).toEqual(['sweep-fresh']);
-    });
-  });
-});
-
 describe('a bigint counter reaches JavaScript as a STRING', () => {
   it('needs TWO increments to tell numeric addition from concatenation', async () => {
     /**
@@ -279,7 +181,8 @@ describe('an expires_at deadline is retention ZERO, not a duration', () => {
     expect(target.retentionSeconds).toBe(0);
 
     /**
-     * Transactional for the reason given above `api_usage`, with a different
+     * Transactional so another file's full-registry sweep cannot consume this
+     * fixture first, with a different
      * symptom: this case asserts only on SURVIVORS, so another file's
      * full-registry sweep reaping `os-expired` first leaves it passing while
      * measuring nothing about the sweep it calls. A silent vacuity rather than

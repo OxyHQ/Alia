@@ -15,7 +15,7 @@ const CATALOGUE = {
   data: [
     {
       id: 'profile:lite',
-      display_name: 'Alia Lite',
+      display_name: 'Kaana Lite',
       description: 'Fast responses for simple tasks',
       chat_visible: true,
       object: 'routing_profile',
@@ -93,13 +93,13 @@ describe('parseModes', () => {
     // Not silently `{kind:'default'}` with the mode's meaning moved — the mode
     // parses, but it now names no profile, so it labels nothing.
     expect(parsed[0].routing).toEqual({ kind: 'default' });
-    expect(presentation(entries[0], parsed).label).toBe('Alia Lite');
+    expect(presentation(entries[0], parsed).label).toBe('Kaana Lite');
   });
 });
 
 describe('presentation', () => {
   it("uses the product's word for a profile a mode selects", () => {
-    expect(entries[0].displayName).toBe('Alia Lite');
+    expect(entries[0].displayName).toBe('Kaana Lite');
     expect(presentation(entries[0], modes).label).toBe('Fast');
   });
 
@@ -130,7 +130,7 @@ describe('resolveSelection', () => {
     // `profile:v1-codea` is in the catalogue but not chat-visible, so the
     // preference is checked rather than trusted — the property the extension's
     // `config.ts` docstring states.
-    const selection = resolveSelection('alia-v1-codea', entries, 'profile:v1-codea');
+    const selection = resolveSelection('kaana-v1-codea', entries, 'profile:v1-codea');
     expect(selection.source).toBe('replaced');
     expect(selection.effectiveId).toBe('profile:lite');
   });

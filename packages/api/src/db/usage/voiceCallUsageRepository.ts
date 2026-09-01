@@ -31,7 +31,7 @@ import type { CreditFundingSource } from '../../domain/credit-funding.js';
 export interface VoiceCallUsageRecord {
   readonly sessionId: string;
   readonly oxyUserId: string;
-  readonly aliaModelId: string;
+  readonly routingProfileId: string;
   readonly provider: string;
   readonly providerModel: string;
   readonly startTime: Date;

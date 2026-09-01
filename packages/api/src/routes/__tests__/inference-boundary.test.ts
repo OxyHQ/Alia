@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
@@ -101,12 +101,13 @@ describe('no privilege comes from an unverified token (#139 ws15)', () => {
     // payload and acting on it. `@oxyhq/core` decodes to pick a branch and then
     // VERIFIES (HMAC-SHA256 plus issuer, audience and expiry) before granting
     // anything; a second, local decoder would have no such obligation.
-    const files = execFileSync('git', ['ls-files', '--', 'packages/api/src'], {
+    const files = execFileSync('git', ['ls-files', '--cached', '--others', '--exclude-standard', '--', 'packages/api/src'], {
       cwd: REPO_ROOT,
       encoding: 'utf8',
     })
       .split('\n')
-      .filter((file) => file.endsWith('.ts') && !file.includes('/__tests__/'));
+      .filter((file) => file.endsWith('.ts') && !file.includes('/__tests__/'))
+      .filter((file) => existsSync(path.join(REPO_ROOT, file)));
 
     const forbidden = ['jwtDecode', 'jwt_decode', 'jsonwebtoken', 'decodeJwt'];
     const offenders: string[] = [];
@@ -278,12 +279,13 @@ describe('every route that reaches inference is rate limited (#139 ws15)', () =>
    * finding its importers rather than by listing routes from memory.
    */
   const importers = (): string[] => {
-    const files = execFileSync('git', ['ls-files', '--', 'packages/api/src/routes'], {
+    const files = execFileSync('git', ['ls-files', '--cached', '--others', '--exclude-standard', '--', 'packages/api/src/routes'], {
       cwd: REPO_ROOT,
       encoding: 'utf8',
     })
       .split('\n')
-      .filter((file) => file.endsWith('.ts') && !file.includes('/__tests__/'));
+      .filter((file) => file.endsWith('.ts') && !file.includes('/__tests__/'))
+      .filter((file) => existsSync(path.join(REPO_ROOT, file)));
 
     return files
       .filter((file) => {
@@ -412,288 +414,5 @@ describe('every route that reaches inference is rate limited (#139 ws15)', () =>
     const limiter = code('middleware/api-key-rate-limit.ts');
     expect(limiter).toContain('return { limited: false }; ');
     expect(limiter).toContain('checkApiKeyRateLimits');
-  });
-});
-
-/* -------------------------------------------------------------------------- */
-/*  Configuration changes that affect model or routing behaviour               */
-/* -------------------------------------------------------------------------- */
-
-describe('model and routing configuration has no unaudited write path (#139 ws15)', () => {
-  /**
-   * Every writer in the four provider repositories, and who calls it.
-   *
-   * The checkbox asks for audit logs on configuration changes. The finding is
-   * that **there is no configuration change to audit**: the admin surface that
-   * used to make them was retired (#141), and of the twenty-one mutations below,
-   * eleven have no runtime caller at all, three are boot seeding, one is a
-   * script, and six are automatic key HEALTH rather than configuration a person
-   * chose.
-   *
-   * Those counts changed without a single line of repository code changing. The
-   * census used to derive its writer set from NAMES, matching
-   * `create|update|delete|upsert|set|reset|mark`, and six real mutations of these
-   * tables begin with something else: `rotateProviderKey`,
-   * `replaceProviderMappings` and the four `recordKey*` functions. They were not
-   * unmapped, they were unSEEN — the caller question was never asked about them
-   * at all, and `rotateProviderKey` replaces a live provider credential. The set
-   * is now derived from what a function DOES to the tables.
-   *
-   * So the deliverable is this map. A writer gaining a request-driven caller
-   * fails here, and the fix at that moment is an audit record plus a line in
-   * `AUDITED`, not an edit to the expected value.
-   */
-  const REPOSITORIES = [
-    'db/providers/aliaModelRepository.ts',
-    'db/providers/externalModelRepository.ts',
-    'db/providers/modelConfigRepository.ts',
-    'db/providers/providerKeyRepository.ts',
-  ] as const;
-
-  /** Writers reachable at runtime, and the ONE caller each is allowed. */
-  const CALLED_BY: Readonly<Record<string, readonly string[]>> = {
-    // Seeding, reached from the DEPLOY ONE-SHOT (`scripts/seed.ts`) and from
-    // nothing in the serving process. This comment previously said "seeding that
-    // NOTHING RUNS", which was true and is no longer: their caller
-    // `runStartupSeed()` had zero callers repo-wide and is deleted.
-    //
-    // The distinction that stays load-bearing: a reader who believes this
-    // re-asserts the model list from code would conclude a hand-edited row
-    // cannot survive a deploy. It still can — every seeder is
-    // `onConflictDoNothing`, so it fills gaps and overwrites nothing.
-    upsertAliaModel: ['internal/providers/lib/seed-model-configs.ts'],
-    upsertModelConfig: ['internal/providers/lib/seed-model-configs.ts'],
-    // The credential one-shot (`scripts/provider-key.ts`), which is the
-    // sanctioned way a provider key enters or is rotated in this table. Both
-    // emit a `config-audit` record, which is what makes a caller acceptable
-    // here at all — and the caller is a deliberate operator action, not a
-    // request. `:536`-`:556` still fails if a ROUTE calls either.
-    createProviderKey: ['scripts/provider-key.ts'],
-    rotateProviderKey: ['scripts/provider-key.ts'],
-    // The same one-shot, correcting a row it already installed. It writes
-    // PROVENANCE only — why the credit exists, its size, whether it renews —
-    // never the credential, which is why the row is found by hash rather than
-    // rewritten. Here rather than in `UNCALLED` because it now has a caller,
-    // and that caller is a deliberate operator action carrying a `config-audit`
-    // record, which is the whole basis on which a caller is acceptable.
-    updateProviderKey: ['scripts/provider-key.ts'],
-    // A one-shot script, not part of the serving process.
-    upsertExternalModels: ['scripts/sync-zeroeval.ts'],
-    // Automatic health state. A key cools down because it failed, not because
-    // somebody configured it — an audit log of these is a metric, and
-    // `lib/observability/metrics.ts` is where that belongs.
-    setKeyCooldown: ['internal/providers/lib/key-manager.ts'],
-    markKeyCreditExhausted: [
-      'internal/providers/lib/fallback-engine.ts',
-      'internal/providers/lib/key-manager.ts',
-      'internal/providers/lib/provider-api.ts',
-      'lib/agent/runner.ts',
-      'lib/gateway-client.ts',
-    ],
-    // The four `recordKey*` mutations, invisible to the name-based census this
-    // block used to run and so never caller-checked before. Same classification
-    // as the two above: automatic key HEALTH, written because an upstream said
-    // no rather than because a person configured anything.
-    recordKeyFailure: [
-      'internal/providers/lib/key-manager.ts',
-      'internal/providers/lib/provider-api.ts',
-      'lib/gateway-client.ts',
-    ],
-    recordKeySpend: ['internal/providers/lib/key-manager.ts'],
-    recordKeySuccess: [
-      'internal/providers/lib/key-manager.ts',
-      'internal/providers/lib/provider-api.ts',
-      'lib/gateway-client.ts',
-    ],
-    recordKeyUsage: [
-      'internal/providers/lib/key-manager.ts',
-      'internal/providers/lib/provider-api.ts',
-    ],
-    // The counterpart of `markKeyCreditExhausted`, and health for the same
-    // reason: a provider restoring a period's allowance is something that
-    // happened TO the key. Called from the key load path so a renewed key is in
-    // the very read that follows.
-    renewExpiredKeyQuotas: ['internal/providers/lib/key-manager.ts'],
-  };
-
-  /** Writers with no runtime caller. Nothing to audit because nothing calls them. */
-  const UNCALLED: readonly string[] = [
-    'createAliaModel',
-    'createModelConfig',
-    'deleteAliaModel',
-    'deleteModelConfig',
-    'deleteProviderKey',
-    // Reached by nothing since the deploy one-shot replaced `runStartupSeed()`,
-    // which was its only caller. Resetting a cooldown discards evidence that a
-    // key is failing, so a release boundary is deliberately NOT a reason for it
-    // to happen — see `scripts/seed.ts`. It stays exported for an operator
-    // one-shot; an entry here is what would catch it acquiring a request-driven
-    // caller.
-    'resetAllKeyCooldowns',
-    // Module-private: every caller is inside `db/providers/`, which the caller
-    // census excludes. `config-audit.test.ts` separately requires it to stay
-    // unexported — the moment it is exported it is a public routing mutation
-    // with no record of its own.
-    'replaceProviderMappings',
-    'updateAliaModel',
-    'updateModelConfig',
-  ];
-
-  /**
-   * Writers with a REQUEST-DRIVEN caller, which would need a route-level record
-   * of who asked as well as the repository-level one.
-   *
-   * Still empty, and it means something narrower than it did. Since #139 ws15
-   * every configuration writer emits a `config.change` record from inside the
-   * repository, so the audit itself is no longer this list's job —
-   * `lib/security/__tests__/config-audit.test.ts` owns it.
-   *
-   * What this list still asks is the question that file cannot: whether a writer
-   * has acquired a caller on the request path, which would make the ACTOR a
-   * request's user rather than the seed. That is a caller census, and it stays
-   * here. The two files now derive the same set the same way, which is what
-   * makes their answers comparable — before that, this one was asking its
-   * question of a strictly smaller set and nothing said so.
-   */
-  const AUDITED: readonly string[] = [];
-
-  /**
-   * The five tables a configuration change touches.
-   *
-   * The predicate is `.insert(<one of these>)` rather than a bare `.update(`,
-   * because `crypto.createHash('sha256').update(key)` is a `.update(` too and
-   * naming the tables is what tells a hash from a write. Deliberately the same
-   * predicate `lib/security/__tests__/config-audit.test.ts` uses: that file asks
-   * whether each mutation AUDITS, this one asks who CALLS it, and the two
-   * questions are only comparable if they are asked of the same set.
-   */
-  const CONFIG_TABLES = [
-    'aliaModels',
-    'aliaModelProviderMappings',
-    'modelConfigs',
-    'providerKeys',
-    'externalModels',
-  ] as const;
-
-  const MUTATES = new RegExp(
-    `\\.(?:insert|update|delete)\\s*\\(\\s*(?:${CONFIG_TABLES.join('|')})\\b`,
-  );
-
-  /**
-   * Every top-level function in the four repositories that MUTATES one of them.
-   *
-   * Derived from what a function DOES, on the AST, rather than from what it is
-   * called. This used to match names beginning
-   * `create|update|delete|upsert|set|reset|mark`, and six real mutations —
-   * `rotateProviderKey`, `replaceProviderMappings` and the four `recordKey*`
-   * functions — begin with something else and were invisible to it. The caller
-   * question below was therefore never asked about them: `rotateProviderKey`
-   * replaces a live credential, and it could have acquired a request-driven
-   * caller without this file noticing.
-   *
-   * A name-based census answers "is it called something that sounds like a
-   * writer", which is not the question. Reading the AST also means a mention in
-   * a comment or a string is not a definition, so `code()`'s comment stripping
-   * is not needed here.
-   */
-  const writers = (): string[] => {
-    const found: string[] = [];
-    for (const repository of REPOSITORIES) {
-      const text = read(repository);
-      const source = ts.createSourceFile(repository, text, ts.ScriptTarget.Latest, true);
-      for (const statement of source.statements) {
-        if (!ts.isFunctionDeclaration(statement) || statement.name === undefined) continue;
-        if (statement.body === undefined) continue;
-        if (!MUTATES.test(statement.body.getText(source))) continue;
-        found.push(statement.name.text);
-      }
-    }
-    return found.sort();
-  };
-
-  const callersOf = (writer: string): string[] => {
-    const files = execFileSync('git', ['ls-files', '--', 'packages/api/src'], {
-      cwd: REPO_ROOT,
-      encoding: 'utf8',
-    })
-      .split('\n')
-      .filter(
-        (file) =>
-          file.endsWith('.ts') &&
-          !file.includes('/__tests__/') &&
-          !file.startsWith('packages/api/src/db/providers/'),
-      );
-
-    return files
-      .map((file) => path.relative(API_SRC, path.join(REPO_ROOT, file)))
-      .filter((relative) => new RegExp(`\\b${writer}\\s*\\(`).test(code(relative)))
-      .sort();
-  };
-
-  it('every writer is mapped: audited, boot-only, or uncalled', () => {
-    const found = writers();
-    // The floor before the equality: the repositories were read.
-    expect(found.length).toBeGreaterThanOrEqual(21);
-    expect(found).toContain('upsertModelConfig');
-    // The positive control for the DERIVATION, not just the read: these two are
-    // mutations whose names match no writer verb, so their presence is what
-    // distinguishes the AST census from the name census it replaced. If this
-    // ever regresses to matching names, this line goes red rather than the
-    // count quietly dropping to 15.
-    expect(found).toContain('rotateProviderKey');
-    expect(found).toContain('recordKeyFailure');
-
-    const mapped = [...Object.keys(CALLED_BY), ...UNCALLED, ...AUDITED].sort();
-    // Exact, not a subset: an unmapped writer fails, and so does a stale entry
-    // for a writer that no longer exists.
-    expect(found).toEqual([...new Set(mapped)].sort());
-  });
-
-  it('no writer has a caller its map does not name', () => {
-    for (const writer of UNCALLED) {
-      expect(callersOf(writer), `${writer} gained a caller`).toEqual([]);
-    }
-    for (const [writer, expected] of Object.entries(CALLED_BY)) {
-      expect(callersOf(writer), `${writer} changed callers`).toEqual([...expected].sort());
-    }
-  });
-
-  it('the caller census can see a caller, and does not see a comment', () => {
-    // Both controls in one place, because both failures print the same
-    // comfortable answer. `seed-model-configs.ts` is a known-present caller of
-    // `upsertModelConfig`; `lib/reserved-namespace.ts` names three of these
-    // writers in PROSE and must not be counted — it was, before `code()` was
-    // stripping comments, and that false positive is why this control exists.
-    expect(callersOf('upsertModelConfig')).toContain('internal/providers/lib/seed-model-configs.ts');
-    expect(read('lib/reserved-namespace.ts')).toContain('createAliaModel');
-    expect(callersOf('createAliaModel')).toEqual([]);
-  });
-
-  it('nothing has been added under a routing-config route', () => {
-    // The other direction: a NEW admin surface would more likely arrive as a
-    // route than as a caller of an existing writer. `#141` retired the gateway
-    // admin, so the expected count is zero, with the floor proving the scan ran.
-    //
-    // The names come from the census rather than a literal list. The list here
-    // was nine hand-written ones and carried the same blind spot the census did:
-    // a route calling `rotateProviderKey` matched nothing and passed. No route
-    // calls ANY of these today — every caller in the map above is a lib, an
-    // internal module, a service or a script — so the stronger invariant is
-    // also the true one, and it maintains itself as writers come and go.
-    const routes = execFileSync('git', ['ls-files', '--', 'packages/api/src/routes'], {
-      cwd: REPO_ROOT,
-      encoding: 'utf8',
-    })
-      .split('\n')
-      .filter((file) => file.endsWith('.ts') && !file.includes('/__tests__/'));
-
-    expect(routes.length).toBeGreaterThan(20);
-    const mutations = writers();
-    expect(mutations.length).toBeGreaterThanOrEqual(21);
-    const calls = new RegExp(`\\b(?:${mutations.join('|')})\\s*\\(`);
-    const offenders = routes
-      .map((file) => path.relative(API_SRC, path.join(REPO_ROOT, file)))
-      .filter((relative) => calls.test(code(relative)));
-    expect(offenders).toEqual([]);
   });
 });

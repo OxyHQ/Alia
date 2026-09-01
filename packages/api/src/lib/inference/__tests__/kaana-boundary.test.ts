@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import ts from 'typescript';
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -78,15 +78,16 @@ interface Source {
 }
 
 /**
- * `git ls-files` rather than a directory walk: it reports the INDEX, so it
- * cannot disagree with what git tracks. A file in the index but missing from the
- * working tree throws here rather than being skipped — an unread file is where a
- * violation would hide.
+ * `git ls-files` rather than a directory walk: it reports the INDEX. A
+ * clean-cut deletion remains there until the final commit is assembled, so
+ * paths absent from the working tree are excluded from this working-tree
+ * census.
  */
 function trackedSources(prefix: string): Source[] {
   return execFileSync('git', ['ls-files', '--', prefix], { cwd: REPO_ROOT, encoding: 'utf8' })
     .split('\n')
     .filter((file) => file.endsWith('.ts') && file !== SELF)
+    .filter((file) => existsSync(path.join(REPO_ROOT, file)))
     .map((file) => ({
       file,
       refs: moduleRefs(
@@ -237,9 +238,11 @@ describe('nothing in the API imports the Kaana client (#139 ws3, constraint 3)',
      * module does it, that is a review and not a silent pass.
      */
     'packages/api/src/lib/chat-core.ts',
-    // #139 ws15: back on this list, having dropped off it when the cutover flag
-    // moved to `kaana-cutover.ts`. The boot check now also refuses an
-    // unapproved `RELAY_BASE_URL`, and `kaana-endpoint.ts` is one of the modules
+    // Captures the normalized Kaana request to prove reasoning configuration
+    // does not reintroduce provider wire options or credentials.
+    'packages/api/src/lib/chat/__tests__/reasoning-on-the-wire.test.ts',
+    // #139 ws15: the boot check also refuses an
+    // unapproved `KAANA_BASE_URL`, and `kaana-endpoint.ts` is one of the modules
     // this census covers — so its test names a Kaana module again, which is what
     // the list records and nothing more.
     // The transport's own test, which drives it over a fake fetch.
@@ -309,11 +312,8 @@ describe('nothing in the API imports the Kaana client (#139 ws3, constraint 3)',
     // the boot check, NOT this module, so the constraint below is unchanged: the
     // product runtime still names the client nowhere.
     //
-    // Its own test dropped off this list when the cutover flag moved to
-    // `kaana-cutover.ts` (#139 ws8) — that module is not the client, so the
-    // three product modules the cutover added (`direct-provider-guard.ts`,
-    // `provider-egress-policy.ts`, `kaana-connectivity.ts`) ask "has the cutover
-    // happened" without naming the client either.
+    // The boot guard is not the client. The provider guard, egress policy and
+    // connectivity registry do not construct a second client either.
     `${KAANA_DIR}/kaana-boot-check.ts`,
     `${KAANA_DIR}/kaana-client.ts`,
     // #139 ws2: reads `KaanaClientConfig['credential']` to type what it returns,
@@ -354,6 +354,7 @@ describe('nothing in the API imports the Kaana client (#139 ws3, constraint 3)',
      * place, where it would drift from the factory that decides it for real.
      */
     'packages/api/src/routes/health.ts',
+    'packages/api/src/routes/__tests__/health-route.test.ts',
     'packages/api/src/routes/suggestions.ts',
     /**
      * That route's own suite, which names `kaana-text.js` to REPLACE it.

@@ -2,10 +2,10 @@
  * The model catalogue, as the CLI consumes it (`GET /catalogue`, epic #139
  * workstream 5).
  *
- * The CLI used to bake `alia-v1-codea` into four command definitions, a session
+ * The CLI used to bake `kaana-v1-codea` into four command definitions, a session
  * fallback and a shorthand expander. A retired identifier therefore became a 400
  * inside a version somebody had already installed, and `codea --model pro`
- * expanded to `alia-v1-pro` whether or not such a thing existed. This module is
+ * expanded to `kaana-v1-pro` whether or not such a thing existed. This module is
  * how the CLI asks the server what it offers instead.
  *
  * ## A third implementation of one contract, and why it is not shared
@@ -138,7 +138,7 @@ export function parseModes(payload: unknown): ProductMode[] {
  * What a person reads for an entry: the product's word for it, or the
  * catalogue's own.
  *
- * The CLI printed `Model: Alia Lite` — the display name of the alias a routing
+ * The CLI printed `Model: Kaana Lite` — the display name of the alias a routing
  * profile came from, under the word "model". #139's non-negotiable invariant
  * says a routing policy is never presented as an Alia-owned model, and that was
  * both halves of the prohibition at once. `displayName` remains the fallback for
@@ -262,12 +262,12 @@ export function resolveSelection(
 /**
  * What the user typed after `/model`, turned into an identifier the server knows.
  *
- * This replaces `args[0].startsWith('alia-') ? args[0] : \`alia-v1-${args[0]}\``,
+ * This replaces `args[0].startsWith('alia-') ? args[0] : \`kaana-v1-${args[0]}\``,
  * which hardcoded the naming SCHEME rather than a single identifier — worse than
  * a hardcoded default, because it silently produced identifiers that had never
  * existed. Matching is: exact id, then case-insensitive display name, then a
  * unique suffix match, so `pro` still finds the entry actually called
- * `alia-v1-pro` WITHOUT the CLI knowing that name in advance. An ambiguous or
+ * `kaana-v1-pro` WITHOUT the CLI knowing that name in advance. An ambiguous or
  * unknown shorthand returns `null` and the caller says so, rather than sending a
  * guess.
  */

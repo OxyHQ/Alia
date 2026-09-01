@@ -10,7 +10,7 @@
 
 import { generateObject } from 'ai';
 import { z } from 'zod';
-import { resolveModel, getAIModel, getDefaultAliaModel } from '../chat-core.js';
+import { resolveModel, getAIModel, getDefaultRoutingProfile } from '../chat-core.js';
 import { log } from '../logger.js';
 
 export interface Subtask {
@@ -68,7 +68,7 @@ export async function generatePlan(
   const maxSubtasks = context?.maxSubtasks ?? 10;
 
   // Use the best available model for planning
-  const plannerModels = ['alia-v1-thinking', 'alia-v1-pro', 'alia-v1'];
+  const plannerModels = ['kaana-v1-thinking', 'kaana-v1-pro', 'kaana-v1'];
   let resolved: Awaited<ReturnType<typeof resolveModel>> | null = null;
 
   for (const modelId of plannerModels) {
@@ -77,7 +77,7 @@ export async function generatePlan(
   }
 
   if (!resolved) {
-    resolved = await resolveModel(getDefaultAliaModel());
+    resolved = await resolveModel(getDefaultRoutingProfile());
   }
 
   if (!resolved) {

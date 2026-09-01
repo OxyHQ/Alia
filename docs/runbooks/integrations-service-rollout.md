@@ -257,9 +257,9 @@ revision, `TASK_SECRET_OVERRIDES_JSON` keeps the secret bound, and hosted MCP
 comes alive.
 
 A variable rather than a workflow literal so that this step is a decision
-somebody makes, not a side effect of a merge — the same discipline as flipping
-`ALIA_RELAY_CLIENT_ENABLED` alone in its own revision. Undo is deleting the
-variable and re-running the deploy.
+somebody makes, not a side effect of a merge — the same discipline used when
+adopting a complete Kaana task revision. Undo is deleting the variable and
+re-running the deploy.
 
 **The half-armed combination is refused rather than warned about.**
 `deploy-aws.yml` fails if `INTEGRATIONS_URL` is set while the

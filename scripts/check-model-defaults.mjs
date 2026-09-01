@@ -4,8 +4,8 @@
  *
  * Epic #139 workstream 5, `Update Codea, Cowork, CLI and SDK pickers
  * consistently.` The clients used to bake an alias into the shipped artefact —
- * `alia-v1-codea` in the VS Code extension and the CLI, `alia-v1-cowork` in the
- * Electron main process, `alia-v1` and `alia-v1-voice` in the published SDK — so
+ * `kaana-v1-codea` in the VS Code extension and the CLI, `kaana-v1-cowork` in the
+ * Electron main process, `kaana-v1` and `kaana-v1-voice` in the published SDK — so
  * a retired identifier became a 400 inside somebody else's installed build, with
  * nothing they could do about it. Every one of those now asks
  * `GET /catalogue` and resolves through the same fallback
@@ -73,8 +73,8 @@ const ROOT = resolve(import.meta.dirname, '..');
  * The three trees added by #244 — canvas, the Codea webview and integrations —
  * were each a live defect rather than a latent one, because `GET /v1/models`
  * has served an empty list since #178: canvas rendered a hardcoded
- * `Alia Lite`, the webview a hardcoded `alia-v1-codea`, and the Telegram and
- * Discord bots printed `Model: alia-lite` to every user. This script was green
+ * `Kaana Lite`, the webview a hardcoded `kaana-v1-codea`, and the Telegram and
+ * Discord bots printed `Model: kaana-lite` to every user. This script was green
  * throughout, reporting `245 files walked`, because none of the three was in
  * this list.
  */
@@ -101,7 +101,7 @@ export const TREES = [
  */
 export const NOT_A_CLIENT = {
   'packages/api':
-    'the server. Its `alia-*` literals ARE the routing table — `internal/providers/lib/alia-models.ts` is the frozen set every other package resolves against.',
+    'the server. Its `alia-*` literals ARE the routing table — `internal/providers/lib/routing-profile-catalogue.ts` is the frozen set every other package resolves against.',
   'packages/app':
     'its picker reads the catalogue (#156); the literals it keeps are policy tables, reconciled under their own box. See the note on TREES.',
   'packages/alia-docker-host':
@@ -311,12 +311,12 @@ function main() {
   // Positive control: the detector fires on the shape it looks for, and ignores
   // a comment. A detector broken by a parser upgrade reports the same clean zero
   // as a correct one, and only this tells them apart.
-  const control = identifiersIn('control.tsx', "const m = 'alia-v1-codea';\n// 'alia-lite'\n");
-  if (control.length !== 1 || control[0].text !== 'alia-v1-codea') {
+  const control = identifiersIn('control.tsx', "const m = 'kaana-v1-codea';\n// 'kaana-lite'\n");
+  if (control.length !== 1 || control[0].text !== 'kaana-v1-codea') {
     console.error('check-model-defaults: the detector does not detect. Refusing to report a pass.');
     process.exit(1);
   }
-  if (identifiersIn('control.tsx', "<Button>alia-v1</Button>").length !== 1) {
+  if (identifiersIn('control.tsx', "<Button>kaana-v1</Button>").length !== 1) {
     console.error('check-model-defaults: the detector cannot see a JSX label.');
     process.exit(1);
   }

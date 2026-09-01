@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import http from 'node:http';
 import https from 'node:https';
 import type { AddressInfo } from 'node:net';
@@ -19,11 +19,10 @@ import {
   ProviderEgressRefusal,
   providerEgressDecision,
 } from '../../inference/provider-egress-policy.js';
-import { KAANA_CLIENT_ENABLED_ENV } from '../../inference/kaana-cutover.js';
 
 /**
  * Epic #139 workstream 19 — *"Monitor direct-provider egress and alert on any
- * post-cutover attempt."*
+ * hosted direct-provider attempt."*
  *
  * ## What this file is for, given that workstream 8 already has a test
  *
@@ -54,17 +53,13 @@ import { KAANA_CLIENT_ENABLED_ENV } from '../../inference/kaana-cutover.js';
  * new exemption. Every case that has to exercise a PERMITTED destination uses a
  * loopback server, so no assertion here depends on reaching a real host.
  *
- * ## Which assertions need Kaana
- *
- * None. The policy is armed by an environment variable rather than by a Kaana
- * that answers, so the post-cutover behaviour is fully exercisable today. What
- * changes when Kaana is real is only WHY the flag is on.
+ * None. The policy is armed unconditionally and does not need Kaana to answer.
  */
 
 const PACKAGE_SRC = path.resolve(fileURLToPath(new URL('../../../', import.meta.url)));
 const REPO_ROOT = path.resolve(PACKAGE_SRC, '../../..');
 
-const ENABLED: NodeJS.ProcessEnv = { [KAANA_CLIENT_ENABLED_ENV]: 'true' };
+const POLICY_ENV: NodeJS.ProcessEnv = {};
 
 /** Real provider API hosts, read from the shipped map rather than typed. */
 const [PROVIDER_HOST, SECOND_PROVIDER_HOST] = Object.values(PROVIDER_API_HOSTS);
@@ -154,7 +149,7 @@ describe('the recorder', () => {
 
 describe('the installed policy reaches the recorder', () => {
   it('counts and alerts on a refused fetch', async () => {
-    dispose = installProviderEgressBlock(ENABLED);
+    dispose = installProviderEgressBlock(POLICY_ENV);
     expect(dispose).not.toBeNull();
 
     await expect(fetch(`https://${PROVIDER_HOST}/v1/models`)).rejects.toBeInstanceOf(
@@ -169,7 +164,7 @@ describe('the installed policy reaches the recorder', () => {
   });
 
   it('counts a refused https.request, which is how a provider socket opens', () => {
-    dispose = installProviderEgressBlock(ENABLED);
+    dispose = installProviderEgressBlock(POLICY_ENV);
 
     // `ws` reads `https.request` off the module namespace at call time, so this
     // is the door the two provider realtime sockets use — and the one a
@@ -181,7 +176,7 @@ describe('the installed policy reaches the recorder', () => {
   });
 
   it('counts both `get` doors, so neither is left unobserved', () => {
-    dispose = installProviderEgressBlock(ENABLED);
+    dispose = installProviderEgressBlock(POLICY_ENV);
 
     expect(() => https.get({ hostname: PROVIDER_HOST })).toThrow(ProviderEgressRefusal);
     expect(() => http.get({ hostname: PROVIDER_HOST })).toThrow(ProviderEgressRefusal);
@@ -194,7 +189,7 @@ describe('the installed policy reaches the recorder', () => {
     // The discriminator. Without it, "a refusal is counted" is equally true of a
     // recorder invoked on every outbound call — one that would alert on Oxy, on
     // Telegram and on the object store.
-    dispose = installProviderEgressBlock(ENABLED);
+    dispose = installProviderEgressBlock(POLICY_ENV);
     const server = await loopback();
     try {
       await expect(fetch(server.url)).resolves.toBeInstanceOf(Response);
@@ -209,26 +204,10 @@ describe('the installed policy reaches the recorder', () => {
   it('leaves the host Kaana will answer from permitted', () => {
     // Classified rather than contacted: the assertion is about the policy, and a
     // real request would make it about whether Oxy is reachable from CI.
-    expect(providerEgressDecision(KAANA_HOST, ENABLED)).toBe('allow');
-    expect(providerEgressDecision(PROVIDER_HOST, ENABLED)).toBe('refuse');
+    expect(providerEgressDecision(KAANA_HOST, POLICY_ENV)).toBe('allow');
+    expect(providerEgressDecision(PROVIDER_HOST, POLICY_ENV)).toBe('refuse');
   });
 
-  it('counts nothing before the cutover, because nothing is installed', async () => {
-    // Stated as a property rather than left implicit: pre-cutover this counter
-    // is zero BY CONSTRUCTION, and a reader who took it for a measurement of
-    // today's direct-provider traffic would be reading a zero as good news. It
-    // is not a measurement at all until the flag is on.
-    expect(installProviderEgressBlock({})).toBeNull();
-    expect(providerEgressDecision(PROVIDER_HOST, {})).toBe('unenforced');
-
-    const server = await loopback();
-    try {
-      await fetch(server.url);
-    } finally {
-      await server.close();
-    }
-    expect(directProviderEgressReport()).toEqual([]);
-  });
 });
 
 describe('there is one interceptor, and the entrypoint arms it', () => {
@@ -274,7 +253,12 @@ describe('there is one interceptor, and the entrypoint arms it', () => {
       encoding: 'utf8',
     })
       .split('\n')
-      .filter((file) => file.endsWith('.ts') && !file.includes('/__tests__/'));
+      .filter(
+        (file) =>
+          file.endsWith('.ts') &&
+          !file.includes('/__tests__/') &&
+          existsSync(path.join(REPO_ROOT, file)),
+      );
 
     // The floor: the listing found the package.
     expect(tracked.length).toBeGreaterThan(400);

@@ -23,17 +23,17 @@ describe('the envelope signature', () => {
     const body = '{"hello":"kaana"}';
     const headers = signEnvelope({ keyId: 'alia-edge-test', privateKey }, body, 1_700_000_000_000);
 
-    expect(headers['X-Oxy-Relay-Key-Id']).toBe('alia-edge-test');
-    expect(headers['X-Oxy-Relay-Timestamp']).toBe('1700000000000');
-    expect(headers['X-Oxy-Relay-Signature']).toMatch(/^v1=/);
+    expect(headers['X-Oxy-Kaana-Key-Id']).toBe('alia-edge-test');
+    expect(headers['X-Oxy-Kaana-Timestamp']).toBe('1700000000000');
+    expect(headers['X-Oxy-Kaana-Signature']).toMatch(/^v1=/);
 
     const preimage = [
-      'oxy-relay-envelope:v1',
+      'oxy-kaana-envelope:v1',
       'alia-edge-test',
       '1700000000000',
       createHash('sha256').update(body, 'utf8').digest('hex'),
     ].join('\n');
-    const signature = Buffer.from(headers['X-Oxy-Relay-Signature'].slice(3), 'base64');
+    const signature = Buffer.from(headers['X-Oxy-Kaana-Signature'].slice(3), 'base64');
 
     expect(edVerify(null, Buffer.from(preimage, 'utf8'), publicKey, signature)).toBe(true);
   });
@@ -43,12 +43,12 @@ describe('the envelope signature', () => {
     // rather than covering it would still verify here.
     const headers = signEnvelope({ keyId: 'k', privateKey }, '{"a":1}', 1_700_000_000_000);
     const otherPreimage = [
-      'oxy-relay-envelope:v1',
+      'oxy-kaana-envelope:v1',
       'k',
       '1700000000000',
       createHash('sha256').update('{"a":2}', 'utf8').digest('hex'),
     ].join('\n');
-    const signature = Buffer.from(headers['X-Oxy-Relay-Signature'].slice(3), 'base64');
+    const signature = Buffer.from(headers['X-Oxy-Kaana-Signature'].slice(3), 'base64');
 
     expect(edVerify(null, Buffer.from(otherPreimage, 'utf8'), publicKey, signature)).toBe(false);
   });

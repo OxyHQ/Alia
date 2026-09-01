@@ -39,13 +39,14 @@ function resolvedFor(provider: string, publisher: string, model: string): Resolv
   // A key config is enough to construct a provider client; `getAIModel` makes
   // no network call, so no credential and no fixture server is needed.
   return {
-    aliasModelId: 'alia-v1-pro-max',
+    routingProfileId: 'kaana-v1-pro-max',
     provider,
     publisher,
     model,
     modelId: 'test-model',
     keyConfig: { provider, modelId: 'test-model', key: 'test-key' },
-    aliaModel: { id: 'alia-v1-pro-max' },
+    kaanaReference: `${publisher}/${model}`,
+    routingProfile: { id: 'kaana-v1-pro-max' },
     isFallback: false,
     fallbackIndex: 0,
   } as unknown as ResolvedModel;

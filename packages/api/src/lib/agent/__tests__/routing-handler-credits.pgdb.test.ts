@@ -20,7 +20,7 @@ vi.mock('../../logger.js', () => {
   return { log: { agents: child, triggers: child, chat: child, general: child, v1: child, credits: child, providers: child } };
 });
 vi.mock('../../chat-core.js', () => ({
-  getAliaModel: vi.fn().mockResolvedValue({ creditMultiplier: 1 }),
+  getRoutingProfile: vi.fn().mockResolvedValue({ creditMultiplier: 1 }),
 }));
 vi.mock('../../task-queue.js', () => ({
   enqueueAgentSession: vi.fn(async () => ({ queued: true, jobId: 'job-1' })),

@@ -320,7 +320,7 @@ function agentFixture(overrides: Record<string, unknown> = {}): Record<string, u
     access: 'private',
     handlesAutonomousEvents: false,
     systemPrompt: 'you are helpful',
-    allowedModels: ['alia-v1'],
+    allowedModels: ['kaana-v1'],
     archetype: 'general',
     archetypeConfig: null,
     createdAt: '2026-08-01T00:00:00.000Z',

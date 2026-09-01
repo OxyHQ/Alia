@@ -147,7 +147,7 @@ const AGENT_ROW = {
   handlesAutonomousEvents: false,
   systemPrompt: null,
   preferredImage: null,
-  allowedModels: ['alia-v1'],
+  allowedModels: ['kaana-v1'],
   scheduleInterval: null,
   archetype: 'general',
   archetypeConfig: null,

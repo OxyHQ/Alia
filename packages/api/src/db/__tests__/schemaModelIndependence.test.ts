@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -43,14 +43,15 @@ const PACKAGE_ROOT = path.resolve(fileURLToPath(new URL('../../..', import.meta.
  * `git ls-files` rather than a directory walk: it reports the INDEX, so it
  * cannot disagree with what git tracks and excludes build output for free.
  *
- * A file named in the index but absent from the working tree throws here rather
- * than being skipped — an unread file is exactly where a reintroduced import
- * would hide.
+ * A path can remain in the index while an intentional removal is unstaged in a
+ * review worktree. Scan every tracked source that still exists; the migration
+ * gates cover the removal itself.
  */
 function trackedSources(prefix: string): { file: string; text: string }[] {
   return execFileSync('git', ['ls-files', '--', prefix], { cwd: PACKAGE_ROOT, encoding: 'utf8' })
     .split('\n')
     .filter((f) => f.endsWith('.ts'))
+    .filter((f) => existsSync(path.join(PACKAGE_ROOT, f)))
     .map((file) => ({ file, text: readFileSync(path.join(PACKAGE_ROOT, file), 'utf8') }));
 }
 

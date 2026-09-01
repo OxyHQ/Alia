@@ -29,7 +29,7 @@ import {
 import { getOrCreateUserMemory } from '../lib/memory/user-memory-service.js';
 import { log } from '../lib/logger.js';
 import { generateText, stepCountIs } from 'ai';
-import { resolveModel, getAIModel, getDefaultAliaModel } from '../lib/chat-core.js';
+import { resolveModel, getAIModel, getDefaultRoutingProfile } from '../lib/chat-core.js';
 import { classifyError } from '../lib/errors/index.js';
 import { saveUserMemoryTool } from '../lib/tools/index.js';
 
@@ -859,7 +859,7 @@ router.post('/import/from-text', async (req, res) => {
     let lastError: unknown = null;
 
     for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-      const resolved = await resolveModel(getDefaultAliaModel(), skipProviders, skipKeyIds);
+      const resolved = await resolveModel(getDefaultRoutingProfile(), skipProviders, skipKeyIds);
       if (!resolved) break;
 
       const model = getAIModel(resolved, 'background');

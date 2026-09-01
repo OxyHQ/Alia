@@ -460,7 +460,7 @@ export class ChatCompletionsRenderer {
  *
  * `alia.model_switch` (`lib/chat-events.ts`, emitted at `lib/tool-pipeline.ts:122`)
  * fires when the model calls the `switchModel` tool to change the
- * conversation's Alia model — a deliberate, user-visible product feature.
+ * conversation's Kaana routing profile — a deliberate, user-visible product feature.
  * Mapping the contract's `route_switch` onto it would render a failover notice
  * as a model-picker change in the user's UI.
  */

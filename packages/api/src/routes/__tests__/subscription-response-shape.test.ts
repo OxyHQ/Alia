@@ -46,7 +46,7 @@ vi.mock('../../lib/gateway-client.js', () => ({
   getCreditPackages: vi.fn(),
   getFeatures: vi.fn(),
   getPlanFeatures: vi.fn(),
-  getAllAliaModels: vi.fn(),
+  getAllRoutingProfiles: vi.fn(),
 }));
 
 vi.mock('../../lib/stripe-prices.js', () => ({ ensureStripePriceId: vi.fn() }));

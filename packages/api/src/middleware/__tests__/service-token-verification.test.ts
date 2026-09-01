@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
@@ -110,7 +110,7 @@ function moduleRefs(absolute: string): string[] {
 function tracked(prefix: string): string[] {
   return execFileSync('git', ['ls-files', '--', prefix], { cwd: REPO_ROOT, encoding: 'utf8' })
     .split('\n')
-    .filter((file) => file.endsWith('.ts') && file !== SELF)
+    .filter((file) => file.endsWith('.ts') && file !== SELF && existsSync(path.join(REPO_ROOT, file)))
     .map((file) => path.join(REPO_ROOT, file));
 }
 
@@ -412,7 +412,7 @@ describe('inbound verification is @oxyhq/core, not a local implementation (#139 
       encoding: 'utf8',
     })
       .split('\n')
-      .filter((file) => file.endsWith('.ts') && !isTest(file));
+      .filter((file) => file.endsWith('.ts') && !isTest(file) && existsSync(path.join(REPO_ROOT, file)));
     expect(modules.length).toBeGreaterThanOrEqual(6);
 
     const FORBIDDEN_VERIFIERS = ['jwt.verify', 'verifyToken', 'createVerify', 'jwtVerify'];

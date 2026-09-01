@@ -130,7 +130,7 @@ const AGENT_ROW = {
   handlesAutonomousEvents: false,
   systemPrompt: null,
   preferredImage: null,
-  allowedModels: ['alia-v1'],
+  allowedModels: ['kaana-v1'],
   scheduleInterval: null,
   archetype: 'general',
   archetypeConfig: null,
@@ -255,7 +255,7 @@ const VALUE_FOR: Readonly<Record<string, unknown>> = {
   archetypeConfig: { citeSources: true },
   isPublished: false,
   status: 'active',
-  allowedModels: ['alia-v1'],
+  allowedModels: ['kaana-v1'],
   scheduleInterval: 60,
 };
 

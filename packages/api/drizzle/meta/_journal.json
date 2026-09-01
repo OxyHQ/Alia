@@ -386,6 +386,27 @@
       "when": 1787756654748,
       "tag": "0054_curly_talos",
       "breakpoints": true
+    },
+    {
+      "idx": 55,
+      "version": "7",
+      "when": 1788283820620,
+      "tag": "0055_kaana_routing_profiles",
+      "breakpoints": true
+    },
+    {
+      "idx": 56,
+      "version": "7",
+      "when": 1788283820621,
+      "tag": "0056_remove_alias_identity",
+      "breakpoints": true
+    },
+    {
+      "idx": 57,
+      "version": "7",
+      "when": 1788285903528,
+      "tag": "0057_remove_alia_hosted_provider_runtime",
+      "breakpoints": true
     }
   ]
 }

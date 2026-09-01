@@ -11,16 +11,16 @@ import {
   type ModelConfigInput,
 } from '../providers/modelConfigRepository';
 import {
-  createAliaModel,
-  deleteAliaModel,
-  findAliaModel,
-  findExistingAliasModelIds,
-  listAliaModels,
+  createRoutingProfile,
+  deleteRoutingProfile,
+  findRoutingProfile,
+  findExistingRoutingProfileIds,
+  listRoutingProfiles,
   modelConfigKey,
   resolveModelConfigIds,
-  updateAliaModel,
-  upsertAliaModel,
-} from '../providers/aliaModelRepository';
+  updateRoutingProfile,
+  upsertRoutingProfile,
+} from '../providers/routingProfileRepository';
 import {
   findExternalModel,
   listExternalModels,
@@ -28,7 +28,7 @@ import {
   upsertExternalModels,
 } from '../providers/externalModelRepository';
 import { ReservedNamespaceError } from '../../lib/reserved-namespace';
-import { aliaModelProviderMappings, modelConfigs } from '../schema/providers';
+import { routingProfileProviderMappings, modelConfigs } from '../schema/providers';
 
 /**
  * The actor every writer below is called with.
@@ -41,7 +41,7 @@ import { aliaModelProviderMappings, modelConfigs } from '../schema/providers';
 const ACTOR = { kind: 'script', id: 'catalogueRepositories.pgdb.test' } as const;
 
 /**
- * The routing catalogue — `model_configs`, `alia_models`, its mappings child
+ * The routing catalogue — `model_configs`, `routing_profiles`, its mappings child
  * table and `external_models` — against a real server.
  *
  * Three properties carry the weight, and all three fail by returning something
@@ -51,7 +51,7 @@ const ACTOR = { kind: 'script', id: 'catalogueRepositories.pgdb.test' } as const
  * mappings out under Mongo.
  *
  * `provider` and `tier` are CHECK-constrained, so fixtures use real members and
- * are separated by `modelId` / `aliasModelId` instead.
+ * are separated by `modelId` / `routingProfileId` instead.
  */
 
 let db: ApiDatabase;
@@ -216,7 +216,7 @@ describe('model_configs: the seed upsert', () => {
   });
 });
 
-describe('alia_models and their provider mappings', () => {
+describe('routing_profiles and their provider mappings', () => {
   async function seedConfig(provider: string) {
     const input = modelInput({ provider });
     const created = await createModelConfig(db, input, ACTOR);
@@ -226,11 +226,11 @@ describe('alia_models and their provider mappings', () => {
   it('serves providerMappings NESTED, ordered by priority', async () => {
     const a = await seedConfig('openai');
     const b = await seedConfig('anthropic');
-    const aliasModelId = nextId('alia');
+    const routingProfileId = nextId('alia');
 
-    const created = await createAliaModel(
+    const created = await createRoutingProfile(
       db,
-      { aliasModelId, displayName: 'Test', tier: 'v1' },
+      { routingProfileId, displayName: 'Test', tier: 'v1' },
       [
         { modelConfigId: b.id, provider: 'anthropic', modelId: b.modelId, priority: 5, qualityScore: 80 },
         { modelConfigId: a.id, provider: 'openai', modelId: a.modelId, priority: 1, qualityScore: 90 },
@@ -244,16 +244,16 @@ describe('alia_models and their provider mappings', () => {
     expect(created.providerMappings[1].provider).toBe('anthropic');
     expect(created._id).toBe(created.id);
 
-    const read = await findAliaModel(db, aliasModelId);
+    const read = await findRoutingProfile(db, routingProfileId);
     expect(read?.providerMappings).toHaveLength(2);
     expect(read?.aggregatedCapabilities.vision).toBe(false);
   });
 
   it('refuses to register anything in the reserved alia/* namespace', async () => {
     /**
-     * ADR 0002 reserves `alia/<model>` for real released Alia models and nothing
-     * qualifies. This is the REGISTRATION chokepoint — `createAliaModel` and
-     * `upsertAliaModel` are the only writers of `alia_models.alias_model_id` —
+     * ADR 0002 reserves `alia/<model>` for real released Kaana routing profiles and nothing
+     * qualifies. This is the REGISTRATION chokepoint — `createRoutingProfile` and
+     * `upsertRoutingProfile` are the only writers of `routing_profiles.routing_profile_id` —
      * so the refusal is asserted here against a real server rather than against
      * a stub that would accept any statement.
      *
@@ -268,43 +268,43 @@ describe('alia_models and their provider mappings', () => {
 
     for (const reserved of ['alia/atlas', 'alia/atlas@2026-08-01', 'ALIA/Atlas', 'alia/']) {
       await expect(
-        createAliaModel(db, { aliasModelId: reserved, displayName: 'X', tier: 'v1' }, mappings, ACTOR),
+        createRoutingProfile(db, { routingProfileId: reserved, displayName: 'X', tier: 'v1' }, mappings, ACTOR),
       ).rejects.toBeInstanceOf(ReservedNamespaceError);
-      expect(await findAliaModel(db, reserved)).toBeNull();
+      expect(await findRoutingProfile(db, reserved)).toBeNull();
     }
 
     // The upsert path too, including the identifier that reaches the
     // ON CONFLICT ... SET clause and could otherwise RENAME an existing row.
     await expect(
-      upsertAliaModel(db, 'alia/atlas', { displayName: 'X', tier: 'v1' }, {}, mappings, ACTOR),
+      upsertRoutingProfile(db, 'alia/atlas', { displayName: 'X', tier: 'v1' }, {}, mappings, ACTOR),
     ).rejects.toBeInstanceOf(ReservedNamespaceError);
-    expect(await findAliaModel(db, 'alia/atlas')).toBeNull();
+    expect(await findRoutingProfile(db, 'alia/atlas')).toBeNull();
 
     const existing = nextId('alia-rename-target');
-    await createAliaModel(db, { aliasModelId: existing, displayName: 'T', tier: 'v1' }, mappings, ACTOR);
+    await createRoutingProfile(db, { routingProfileId: existing, displayName: 'T', tier: 'v1' }, mappings, ACTOR);
     await expect(
-      upsertAliaModel(db, existing, {}, { aliasModelId: 'alia/atlas' }, mappings, ACTOR),
+      upsertRoutingProfile(db, existing, {}, { routingProfileId: 'alia/atlas' }, mappings, ACTOR),
     ).rejects.toBeInstanceOf(ReservedNamespaceError);
-    expect(await findAliaModel(db, existing)).not.toBeNull();
+    expect(await findRoutingProfile(db, existing)).not.toBeNull();
 
     // The negative control: the hyphenated alias form is one character away and
     // must still register. Without this, a guard refusing every identifier
     // would pass everything above and take the catalogue down.
-    const hyphenated = nextId('alia-v1-not-reserved');
-    const ok = await createAliaModel(db, { aliasModelId: hyphenated, displayName: 'T', tier: 'v1' }, mappings, ACTOR);
-    expect(ok.aliasModelId).toBe(hyphenated);
+    const hyphenated = nextId('kaana-v1-not-reserved');
+    const ok = await createRoutingProfile(db, { routingProfileId: hyphenated, displayName: 'T', tier: 'v1' }, mappings, ACTOR);
+    expect(ok.routingProfileId).toBe(hyphenated);
   });
 
   it('REPLACES the mappings rather than appending to them', async () => {
     const a = await seedConfig('openai');
     const b = await seedConfig('google');
-    const aliasModelId = nextId('alia-replace');
-    await createAliaModel(db, { aliasModelId, displayName: 'T', tier: 'v1' }, [
+    const routingProfileId = nextId('alia-replace');
+    await createRoutingProfile(db, { routingProfileId, displayName: 'T', tier: 'v1' }, [
       { modelConfigId: a.id, provider: 'openai', modelId: a.modelId, priority: 1, qualityScore: 50 },
       { modelConfigId: b.id, provider: 'google', modelId: b.modelId, priority: 2, qualityScore: 50 },
     ], ACTOR);
 
-    const updated = await updateAliaModel(db, aliasModelId, {}, ACTOR, [
+    const updated = await updateRoutingProfile(db, routingProfileId, {}, ACTOR, [
       { modelConfigId: b.id, provider: 'google', modelId: b.modelId, priority: 1, qualityScore: 99 },
     ]);
 
@@ -322,47 +322,47 @@ describe('alia_models and their provider mappings', () => {
 
   it('leaves the mappings alone when a PATCH does not mention them', async () => {
     const a = await seedConfig('openai');
-    const aliasModelId = nextId('alia-keep');
-    await createAliaModel(db, { aliasModelId, displayName: 'T', tier: 'v1' }, [
+    const routingProfileId = nextId('alia-keep');
+    await createRoutingProfile(db, { routingProfileId, displayName: 'T', tier: 'v1' }, [
       { modelConfigId: a.id, provider: 'openai', modelId: a.modelId, priority: 1, qualityScore: 50 },
     ], ACTOR);
 
-    const renamed = await updateAliaModel(db, aliasModelId, { displayName: 'Renamed' }, ACTOR);
+    const renamed = await updateRoutingProfile(db, routingProfileId, { displayName: 'Renamed' }, ACTOR);
     // `undefined` means "leave them"; collapsing it with `[]` would make a
     // rename silently unroute the model.
     expect(renamed?.displayName).toBe('Renamed');
     expect(renamed?.providerMappings).toHaveLength(1);
 
-    const cleared = await updateAliaModel(db, aliasModelId, {}, ACTOR, []);
+    const cleared = await updateRoutingProfile(db, routingProfileId, {}, ACTOR, []);
     expect(cleared?.providerMappings).toHaveLength(0);
   });
 
   it('cascades the mappings away with the model', async () => {
     const a = await seedConfig('openai');
-    const aliasModelId = nextId('alia-cascade');
-    const created = await createAliaModel(db, { aliasModelId, displayName: 'T', tier: 'v1' }, [
+    const routingProfileId = nextId('alia-cascade');
+    const created = await createRoutingProfile(db, { routingProfileId, displayName: 'T', tier: 'v1' }, [
       { modelConfigId: a.id, provider: 'openai', modelId: a.modelId, priority: 1, qualityScore: 50 },
     ], ACTOR);
 
-    const deleted = await deleteAliaModel(db, aliasModelId, ACTOR);
+    const deleted = await deleteRoutingProfile(db, routingProfileId, ACTOR);
     // The response still carries the mappings — read before the delete.
     expect(deleted?.providerMappings).toHaveLength(1);
 
     const orphans = await db
       .select()
-      .from(aliaModelProviderMappings)
-      .where(eq(aliaModelProviderMappings.aliaModelId, created.id));
+      .from(routingProfileProviderMappings)
+      .where(eq(routingProfileProviderMappings.routingProfileId, created.id));
     expect(orphans).toHaveLength(0);
   });
 
   it('upserts idempotently and always replaces the mappings', async () => {
     const a = await seedConfig('openai');
     const b = await seedConfig('deepseek');
-    const aliasModelId = nextId('alia-upsert');
+    const routingProfileId = nextId('alia-upsert');
 
-    const first = await upsertAliaModel(
+    const first = await upsertRoutingProfile(
       db,
-      aliasModelId,
+      routingProfileId,
       { displayName: 'Original', tier: 'v1' },
       { aggregatedCapabilities: { vision: false } },
       [{ modelConfigId: a.id, provider: 'openai', modelId: a.modelId, priority: 1, qualityScore: 50 }],
@@ -370,9 +370,9 @@ describe('alia_models and their provider mappings', () => {
     );
     expect(first.inserted).toBe(true);
 
-    const second = await upsertAliaModel(
+    const second = await upsertRoutingProfile(
       db,
-      aliasModelId,
+      routingProfileId,
       { displayName: 'Ignored on update', tier: 'v1' },
       { aggregatedCapabilities: { vision: true } },
       [{ modelConfigId: b.id, provider: 'deepseek', modelId: b.modelId, priority: 1, qualityScore: 70 }],
@@ -380,7 +380,7 @@ describe('alia_models and their provider mappings', () => {
     );
     expect(second.inserted).toBe(false);
 
-    const row = await findAliaModel(db, aliasModelId);
+    const row = await findRoutingProfile(db, routingProfileId);
     // `$setOnInsert` half preserved, `$set` half applied, mappings replaced.
     expect(row?.displayName).toBe('Original');
     expect(row?.aggregatedCapabilities.vision).toBe(true);
@@ -392,14 +392,14 @@ describe('alia_models and their provider mappings', () => {
     const a = await seedConfig('openai');
     const first = nextId('alia-list-a');
     const second = nextId('alia-list-b');
-    await createAliaModel(db, { aliasModelId: first, displayName: 'A', tier: 'lite' }, [
+    await createRoutingProfile(db, { routingProfileId: first, displayName: 'A', tier: 'lite' }, [
       { modelConfigId: a.id, provider: 'openai', modelId: a.modelId, priority: 1, qualityScore: 50 },
     ], ACTOR);
-    await createAliaModel(db, { aliasModelId: second, displayName: 'B', tier: 'lite' }, [], ACTOR);
+    await createRoutingProfile(db, { routingProfileId: second, displayName: 'B', tier: 'lite' }, [], ACTOR);
 
-    const listed = await listAliaModels(db, { tier: 'lite' });
-    const one = listed.find((m) => m.aliasModelId === first);
-    const none = listed.find((m) => m.aliasModelId === second);
+    const listed = await listRoutingProfiles(db, { tier: 'lite' });
+    const one = listed.find((m) => m.routingProfileId === first);
+    const none = listed.find((m) => m.routingProfileId === second);
     expect(one?.providerMappings).toHaveLength(1);
     // A model with no mappings gets an empty array, not a missing key — the
     // client maps over it unconditionally.
@@ -428,21 +428,21 @@ describe('alia_models and their provider mappings', () => {
     expect(crossed.size).toBe(0);
   });
 
-  it('validates plan model ids against aliasModelId — the field the source missed', async () => {
+  it('validates plan model ids against routingProfileId — the field the source missed', async () => {
     const present = nextId('alia-plan');
-    await createAliaModel(db, { aliasModelId: present, displayName: 'P', tier: 'v1' }, [], ACTOR);
+    await createRoutingProfile(db, { routingProfileId: present, displayName: 'P', tier: 'v1' }, [], ACTOR);
 
     /**
-     * `plans.ts` filtered `AliaModel.find({ modelId: ... })`. `modelId` belongs
+     * `plans.ts` filtered `RoutingProfile.find({ modelId: ... })`. `modelId` belongs
      * to the providerMappings SUB-DOCUMENT and a bare path does not reach into
      * one, so the query matched nothing and every plan id was reported invalid.
-     * This asks about `aliasModelId`, which `plans.modelIds` in
+     * This asks about `routingProfileId`, which `plans.modelIds` in
      * `db/schema/billing.ts` documents as what the field holds.
      */
-    const found = await findExistingAliasModelIds(db, [present, 'alia-does-not-exist']);
+    const found = await findExistingRoutingProfileIds(db, [present, 'alia-does-not-exist']);
     expect(found.has(present)).toBe(true);
     expect(found.has('alia-does-not-exist')).toBe(false);
-    expect(await findExistingAliasModelIds(db, [])).toEqual(new Set());
+    expect(await findExistingRoutingProfileIds(db, [])).toEqual(new Set());
   });
 });
 

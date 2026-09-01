@@ -22,7 +22,7 @@ const CATALOGUE = {
   data: [
     {
       id: 'profile:lite',
-      display_name: 'Alia Lite',
+      display_name: 'Kaana Lite',
       description: 'Fast responses for simple tasks',
       emoji: '⚡',
       chat_visible: true,
@@ -32,7 +32,7 @@ const CATALOGUE = {
     },
     {
       id: 'profile:v1',
-      display_name: 'Alia V1',
+      display_name: 'Kaana V1',
       description: 'Balanced performance for everyday tasks',
       emoji: '🤖',
       chat_visible: true,
@@ -134,7 +134,7 @@ describe('parsing', () => {
 describe('presentation', () => {
   it("uses the product's word for a profile a mode selects", () => {
     const lite = entries.find((entry) => entry.id === 'profile:lite');
-    expect(lite?.displayName).toBe('Alia Lite');
+    expect(lite?.displayName).toBe('Kaana Lite');
     expect(presentation(lite ?? entries[0], modes).label).toBe('Fast');
   });
 
@@ -156,8 +156,8 @@ describe('offeredModes', () => {
   });
 
   it('never puts an alias display name in front of a person', () => {
-    // The negative control the whole change exists for: `Alia Lite` and
-    // `Alia V1` are in the payload above and must not reach a label.
+    // The negative control the whole change exists for: `Kaana Lite` and
+    // `Kaana V1` are in the payload above and must not reach a label.
     expect(offered.map((mode) => mode.label)).toEqual(['Fast', 'Balanced', 'Codea Pro']);
   });
 });
@@ -183,6 +183,6 @@ describe('labelForPreference', () => {
     // A preference saved before `GET /v1/models` closed. It still routes on the
     // server; the product simply has no word for it, and reporting `Fast` here
     // would claim a routing this request does not make.
-    expect(labelForPreference('alia-v1-pro-max', entries, modes)).toBeNull();
+    expect(labelForPreference('kaana-v1-pro-max', entries, modes)).toBeNull();
   });
 });

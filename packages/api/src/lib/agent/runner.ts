@@ -31,8 +31,7 @@ import {
   listRecentEventStreamEntries,
   type EventStreamEntryMetadata,
 } from '../../db/agents/eventStreamEntryRepository.js';
-import { resolveModel, getAIModel, reportModelUsage, getDefaultAliaModel } from '../chat-core.js';
-import { markKeyCreditExhausted } from '../gateway-client.js';
+import { resolveModel, getAIModel, getDefaultRoutingProfile } from '../chat-core.js';
 import { cleanupSessionResources } from './session-resources.js';
 import { log } from '../logger.js';
 import { EventStream } from './event-stream.js';
@@ -161,19 +160,19 @@ interface StepContext {
 function selectModelForStep(ctx: StepContext): string {
   const { allowedModels, task, stepNumber, maxSteps, errorCount, currentState, recentToolNames } = ctx;
 
-  if (allowedModels.length === 0) return getDefaultAliaModel();
+  if (allowedModels.length === 0) return getDefaultRoutingProfile();
   if (allowedModels.length === 1) return allowedModels[0];
 
   const tierOrder: Record<string, number> = {
-    'alia-lite': 0,
-    'alia-v1': 1,
-    'alia-v1-codea': 2,
-    'alia-v1-cowork': 2,
-    'alia-v1-browser': 2,
-    'alia-v1-vision': 2,
-    'alia-v1-pro': 3,
-    'alia-v1-thinking': 4,
-    'alia-v1-pro-max': 4,
+    'kaana-lite': 0,
+    'kaana-v1': 1,
+    'kaana-v1-codea': 2,
+    'kaana-v1-cowork': 2,
+    'kaana-v1-browser': 2,
+    'kaana-v1-vision': 2,
+    'kaana-v1-pro': 3,
+    'kaana-v1-thinking': 4,
+    'kaana-v1-pro-max': 4,
   };
 
   // `?? 1` does not catch an inherited property: `tierOrder['constructor']` is a
@@ -464,11 +463,10 @@ export async function runAgentSession(sessionId: string): Promise<void> {
 
   const allowedModels = agent.allowedModels.length > 0
     ? agent.allowedModels
-    : ['alia-lite', 'alia-v1'];
+    : ['kaana-lite', 'kaana-v1'];
 
   let totalSteps = 0;
   let totalTokens = 0;
-  const failedKeyIds = new Set<string>();
   let lastStepHadToolCalls: boolean;
   let iteration = 0;
   let textOnlyCount = 0;
@@ -577,11 +575,10 @@ export async function runAgentSession(sessionId: string): Promise<void> {
 
       eventStream.append('thinking', `Step ${totalSteps + 1}: Using model ${modelId} in state ${stateMachine.current()}`);
 
-      // Resolve model provider (with alia-lite fallback)
-      const skipKeys = failedKeyIds.size > 0 ? failedKeyIds : undefined;
-      let activeResolved = await resolveModel(modelId, undefined, skipKeys);
-      if (!activeResolved && modelId !== 'alia-lite') {
-        activeResolved = await resolveModel('alia-lite', undefined, skipKeys);
+      // Resolve model provider (with kaana-lite fallback)
+      let activeResolved = await resolveModel(modelId);
+      if (!activeResolved && modelId !== 'kaana-lite') {
+        activeResolved = await resolveModel('kaana-lite');
       }
       if (!activeResolved) {
         eventStream.append('error', 'No AI models available');
@@ -617,16 +614,6 @@ export async function runAgentSession(sessionId: string): Promise<void> {
           maxRetries: 0,
           stopWhen: stepCountIs(1),  // One action per iteration (Manus principle)
         });
-
-        const latency = Date.now() - startMs;
-
-        await reportModelUsage(
-          activeResolved.keyConfig?.keyId,
-          activeResolved.provider,
-          activeResolved.modelId,
-          true,
-          latency,
-        );
 
         // Process the single step
         lastStepHadToolCalls = false;
@@ -787,33 +774,12 @@ export async function runAgentSession(sessionId: string): Promise<void> {
         if (taskCompleted) break;
 
       } catch (err: unknown) {
-        const latency = Date.now() - startMs;
         const errMsg = getErrorMessage(err);
 
         // Classify error to determine retry strategy
         const reason = classifyError(err);
 
         eventStream.append('error', `Model error (${reason}): ${errMsg}`);
-
-        // Only mark key as failed for key-specific errors
-        if (activeResolved.keyConfig?.keyId) {
-          if (reason === 'billing') {
-            markKeyCreditExhausted(activeResolved.keyConfig.keyId).catch(() => {});
-            failedKeyIds.add(activeResolved.keyConfig.keyId);
-          } else if (reason === 'auth' || reason === 'rate_limit') {
-            failedKeyIds.add(activeResolved.keyConfig.keyId);
-          }
-          // For 'format', 'unknown', 'timeout' — do NOT mark key as failed
-        }
-
-        await reportModelUsage(
-          activeResolved.keyConfig?.keyId,
-          activeResolved.provider,
-          activeResolved.modelId,
-          false,
-          latency,
-          errMsg,
-        );
 
         log.agents.error({ err, sessionId, reason }, 'Agent generation error');
 

@@ -80,12 +80,16 @@ export async function generateCoverArt(
   brief: string,
   format: ShowFormat,
 ): Promise<Buffer | null> {
-  return generateImageBytes({
-    prompt: buildCoverPrompt(title, brief, format),
-    n: 1,
-    size: COVER_SIZE,
-    quality: 'standard',
-    responseFormat: 'url',
-    timeoutMs: COVER_TIMEOUT_MS,
-  });
+  try {
+    return await generateImageBytes({
+      prompt: buildCoverPrompt(title, brief, format),
+      n: 1,
+      size: COVER_SIZE,
+      quality: 'standard',
+      responseFormat: 'url',
+      timeoutMs: COVER_TIMEOUT_MS,
+    });
+  } catch {
+    return null;
+  }
 }

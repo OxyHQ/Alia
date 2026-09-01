@@ -339,7 +339,7 @@ rather than deleting a route and returning a bare `404`.
 
 | Endpoint | Handler | Message |
 |---|---|---|
-| `POST /v1/resolve-model` | `routes/v1.ts:109` | "Use /v1/chat/completions with Alia model IDs. Direct model resolution is internal-only." |
+| `POST /v1/resolve-model` | `routes/v1.ts:109` | "Use /v1/chat/completions with Kaana routing profile IDs. Direct model resolution is internal-only." |
 | `POST /v1/report-usage` | `routes/v1.ts:120` | "Usage is tracked automatically by Alia runtime." |
 | `POST /codea/resolve-model` | `routes/codea.ts:235` | Same as `/v1/resolve-model` |
 | `POST /codea/report-usage` | `routes/codea.ts:246` | Same as `/v1/report-usage` |
@@ -362,10 +362,10 @@ All `/automations*` endpoints were removed outright; use `/triggers`.
 - The concealment half is a product decision and best-effort by construction: it matches
   identifiers — a proper noun, or a `/ . - _ =` joined token — and leaves ordinary prose
   alone. It is not a security control, and nothing should be designed as if it were.
-- A value the CALLER sent is echoed back readable. `"gpt-4o" is not an Alia model`
+- A value the CALLER sent is echoed back readable. `"gpt-4o" is not a Kaana routing profile or model reference`
   discloses nothing about Alia's routing, so it takes `redactUnsafeDetail()` — the
   absolute half alone.
-- Product responses carry Alia identifiers only. See
+- Product responses carry Kaana routing-profile or canonical model identifiers only. See
   [model abstraction](./model-abstraction.mdx) for the surfaces the second rule covers,
   and the ones where publisher identity is required instead.
 

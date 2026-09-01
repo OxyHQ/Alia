@@ -34,27 +34,21 @@
  * what happened when it did, and what happened when it did was that every task
  * left rotation at once. The three still hold and still matter for the REPORT:
  *
- *  1. **The flag.** With `ALIA_RELAY_CLIENT_ENABLED` off — everywhere today —
- *     this reports {@link KaanaConnectivity} `'disabled'`.
- *  2. **A cold task is `'unknown'`, not `'unreachable'`.** No call, no evidence.
- *  3. **The state expires by itself**, recorded with the instant the client's
+ *  1. **A cold task is `'unknown'`, not `'unreachable'`.** No call, no evidence.
+ *  2. **The state expires by itself**, recorded with the instant the client's
  *     own cooldown ends, so it lapses to `'unknown'` with nothing to clear it.
  */
-
-import { isKaanaClientEnabled } from './kaana-cutover.js';
 
 /**
  * What this process knows about Kaana, in the order of how much it knows.
  *
- *  - `disabled` — the cutover flag is off. Alia does not call Kaana at all, so
- *    "reachable" has no meaning and readiness must not depend on it.
- *  - `unknown` — the flag is on and no client in this process has yet succeeded
+ *  - `unknown` — no client in this process has yet succeeded
  *    or given up. The honest answer before the first call.
  *  - `reachable` — a call completed.
  *  - `unreachable` — a client's circuit is open: it saw enough consecutive
  *    availability failures to stop trying, and the cooldown has not elapsed.
  */
-export type KaanaConnectivity = 'disabled' | 'unknown' | 'reachable' | 'unreachable';
+export type KaanaConnectivity = 'unknown' | 'reachable' | 'unreachable';
 
 /**
  * The LATEST thing a client in this process observed, not the union of them.
@@ -102,10 +96,9 @@ export function reportKaanaUnavailableUntil(until: number): void {
  * be exercisable.
  */
 export function kaanaConnectivity(
-  env: NodeJS.ProcessEnv = process.env,
+  _env: NodeJS.ProcessEnv = process.env,
   now: number = Date.now(),
 ): KaanaConnectivity {
-  if (!isKaanaClientEnabled(env)) return 'disabled';
   if (latest.kind === 'reachable') return 'reachable';
   // An expired cooldown is not evidence of anything current, so it decays to
   // `unknown` rather than to `reachable`.

@@ -47,7 +47,7 @@ const H = vi.hoisted(() => ({
    * How many tokens the model spends thinking before its first word.
    *
    * The default is one of three values measured against the deployment
-   * `alia-lite` resolves to in production on 2026-08-25 (UTC) — 104, with 78 and 127
+   * `kaana-lite` resolves to in production on 2026-08-25 (UTC) — 104, with 78 and 127
    * on the other two runs of the same prompt. It is a property of the model,
    * not of the prompt, and the caller cannot see it or turn it off.
    */
@@ -90,10 +90,10 @@ vi.mock('../../db/chat/messageRepository.js', () => ({
 }));
 
 vi.mock('../chat-core.js', () => ({
-  resolveModel: vi.fn(async (aliasModelId: string) =>
+  resolveModel: vi.fn(async (routingProfileId: string) =>
     H.resolvesToModel
       ? {
-          aliasModelId,
+          routingProfileId,
           provider: 'upstream',
           modelId: 'upstream-model',
           keyConfig: { provider: 'upstream', key: 'secret-not-for-clients', modelId: 'upstream-model' },
@@ -202,7 +202,7 @@ describe('a title is generated from the first user message (#139 ws6)', () => {
     // The cheap tier is the point: titling every new conversation on the same
     // model that answers it would double the cost of a first turn.
     const { resolveModel } = await import('../chat-core.js');
-    expect(vi.mocked(resolveModel).mock.calls[0]?.[0]).toBe('alia-lite');
+    expect(vi.mocked(resolveModel).mock.calls[0]?.[0]).toBe('kaana-lite');
     expect(H.titlePrompts).toEqual(['what do I take in my coffee']);
   });
 
@@ -310,14 +310,14 @@ describe('no title is never silent (operator logs, never the response body)', ()
     expect(faults()).toEqual(['Title generation failed']);
 
     // `resolveModel` throws for an unregistered identifier and for a policy that
-    // forbids fallback. Neither is reachable for `alia-lite` today — it is
+    // forbids fallback. Neither is reachable for `kaana-lite` today — it is
     // registered and its preset is `cross-model` — but the call used to sit
     // OUTSIDE the try, so the day a preset narrows, the throw leaves this
     // function and lands in `provider-loop`'s catch, the one place that cannot
     // name it. Asserted at the source because the reachable inputs cannot
     // produce it.
     const saver = code('lib/conversation-saver.ts');
-    expect(saver).toMatch(/try \{\s*const resolved = await resolveModel\('alia-lite'\);/);
+    expect(saver).toMatch(/try \{\s*const resolved = await resolveModel\('kaana-lite'\);/);
   });
 
   it('the provider loop logs what it catches instead of discarding it', () => {

@@ -470,7 +470,7 @@ router.post('/generate', authenticateToken, async (req: Request, res: Response) 
     }
 
     for (let attempt = 0; generated === null && attempt < MAX_PROVIDER_RETRIES; attempt++) {
-      const resolved = await resolveModel('alia-lite', skipProviders);
+      const resolved = await resolveModel('kaana-lite', skipProviders);
       if (!resolved) {
         if (attempt === 0) {
           return res.status(503).json({ error: 'No AI models available' });

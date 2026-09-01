@@ -2,7 +2,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { KAANA_PRINCIPAL_ENV } from '../inference/kaana-boot-check.js';
 import { KAANA_CREDENTIAL_REQUIRED_ENV } from '../inference/kaana-credential.js';
-import { KAANA_CLIENT_ENABLED_ENV } from '../inference/kaana-cutover.js';
 import { KAANA_ALLOWED_ORIGINS, KAANA_BASE_URL_ENV } from '../inference/kaana-endpoint.js';
 
 /**
@@ -17,13 +16,8 @@ import { KAANA_ALLOWED_ORIGINS, KAANA_BASE_URL_ENV } from '../inference/kaana-en
  * lose its `process.exit` — reporting the problem and then starting anyway —
  * with every suite in the repo green.
  *
- * ## The two directions
- *
- * A guard that never refuses is the obvious failure. **A guard that refuses too
- * eagerly is the dangerous one**: every deployment today runs this path with
- * provider configuration present and the cutover flag absent, so a refusal there
- * is a total outage rather than a missed check. Both directions are asserted for
- * every guard.
+ * A guard that never refuses is the obvious failure. A clean, fully configured
+ * Kaana process must also reach the egress policy without terminating.
  *
  * ## Why the order is asserted rather than assumed
  *
@@ -33,8 +27,6 @@ import { KAANA_ALLOWED_ORIGINS, KAANA_BASE_URL_ENV } from '../inference/kaana-en
  * ran them in the wrong order, or ran all four after the first refusal — which
  * under a real `process.exit` is invisible and under a test double is not.
  */
-
-const ENABLED = { [KAANA_CLIENT_ENABLED_ENV]: 'true' } as const;
 
 /**
  * A Kaana configuration that boots: the principal, the endpoint and the
@@ -134,7 +126,7 @@ afterEach(() => {
 
 describe('a well-configured process runs every guard, in order', () => {
   it('connects, reports, and never terminates', async () => {
-    const { trace, exits, connectAttempts } = await run({ ...HEALTHY_ENV });
+    const { trace, exits, connectAttempts } = await run({ ...HEALTHY_ENV, ...BOOTABLE_KAANA });
 
     expect(exits).toEqual([]);
     expect(connectAttempts).toEqual([HEALTHY_ENV.DATABASE_URL]);
@@ -145,7 +137,7 @@ describe('a well-configured process runs every guard, in order', () => {
     // Order as a sequence, not as four separate presence checks: a version that
     // armed egress FIRST would satisfy "it was armed" and would have armed it in
     // a process that then refused to start.
-    const { egressInstalls, exits } = await run({ ...HEALTHY_ENV, ...ENABLED, ...BOOTABLE_KAANA });
+    const { egressInstalls, exits } = await run({ ...HEALTHY_ENV, ...BOOTABLE_KAANA });
     expect(exits).toEqual([]);
     expect(egressInstalls).toBe(1);
   });
@@ -180,8 +172,8 @@ describe('the database is required, and its absence stops everything after it', 
 });
 
 describe('Kaana configuration is checked after the database and before the rest', () => {
-  it('terminates when the cutover flag is on and the principal is unusable', async () => {
-    const { trace, exits, egressInstalls } = await run({ ...HEALTHY_ENV, ...ENABLED });
+  it('terminates when the principal is unusable', async () => {
+    const { trace, exits, egressInstalls } = await run({ ...HEALTHY_ENV });
 
     expect(exits).toEqual([1]);
     // Postgres ran FIRST and succeeded, so this is the second guard failing
@@ -195,54 +187,35 @@ describe('Kaana configuration is checked after the database and before the rest'
     // Order is behaviour: an operator told "Kaana configuration is invalid" for a
     // process that has no database goes and looks at the wrong thing.
     connectSucceeds = false;
-    const { trace } = await run({ ...ENABLED });
+    const { trace } = await run({});
     expect(trace[0]).toContain('DATABASE_URL is required');
     expect(trace.join('\n')).not.toContain('Kaana');
   });
 
-  it('does not terminate with the flag off, whatever the principal looks like', async () => {
-    // Every deployment that exists. A refusal here is a total outage.
-    const { exits, trace } = await run({ ...HEALTHY_ENV, ALIA_RELAY_ACCOUNT_ID: 'nonsense' });
-    expect(exits).toEqual([]);
-    expect(trace).toEqual(['info: Postgres connected']);
-  });
 });
 
-describe('direct provider configuration is refused after the cutover', () => {
+describe('direct provider configuration is always refused', () => {
   it('terminates on a provider credential, and never arms the egress policy', async () => {
     const { trace, exits, egressInstalls } = await run({
       ...HEALTHY_ENV,
-      ...ENABLED,
       ...BOOTABLE_KAANA,
       OPENAI_API_KEY: 'sk-not-a-real-key',
     });
 
     expect(exits).toEqual([1]);
-    expect(trace.join('\n')).toContain('Direct provider mode is configured after the Kaana cutover');
+    expect(trace.join('\n')).toContain('Kaana is the only hosted inference route');
     expect(egressInstalls).toBe(0);
   });
 
   it('terminates on a configured gateway tier', async () => {
     const { exits } = await run({
       ...HEALTHY_ENV,
-      ...ENABLED,
       ...BOOTABLE_KAANA,
       GATEWAY_API_URL: 'https://gw.invalid',
     });
     expect(exits).toEqual([1]);
   });
 
-  it('does NOT terminate with the flag off, with the same provider configuration', async () => {
-    // The control that makes the two above about the CUTOVER rather than about
-    // the presence of a provider credential — which every deployment has.
-    const { exits, trace } = await run({
-      ...HEALTHY_ENV,
-      OPENAI_API_KEY: 'sk-not-a-real-key',
-      GATEWAY_API_URL: 'https://gw.invalid',
-    });
-    expect(exits).toEqual([]);
-    expect(trace).toEqual(['info: Postgres connected']);
-  });
 });
 
 /* -------------------------------------------------------------------------- */
@@ -266,12 +239,11 @@ describe('the guards run in the order src/index.ts ran them', () => {
     seen.push((await run({})).trace[0]);
     connectSucceeds = true;
 
-    seen.push((await run({ ...HEALTHY_ENV, ...ENABLED })).trace[1]);
+    seen.push((await run({ ...HEALTHY_ENV })).trace[1]);
     seen.push(
       (
         await run({
           ...HEALTHY_ENV,
-          ...ENABLED,
           ...BOOTABLE_KAANA,
           OPENAI_API_KEY: 'sk-not-a-real-key',
         })
@@ -280,10 +252,10 @@ describe('the guards run in the order src/index.ts ran them', () => {
 
     expect(seen[0]).toContain('DATABASE_URL is required');
     expect(seen[1]).toContain('Kaana client configuration is invalid');
-    expect(seen[2]).toContain('Direct provider mode is configured');
+    expect(seen[2]).toContain('Kaana is the only hosted inference route');
 
     // And the fourth step is reached only when the three refusals pass.
-    const clean = await run({ ...HEALTHY_ENV, ...ENABLED, ...BOOTABLE_KAANA });
+    const clean = await run({ ...HEALTHY_ENV, ...BOOTABLE_KAANA });
     expect(clean.exits).toEqual([]);
     expect(clean.egressInstalls).toBe(1);
   });

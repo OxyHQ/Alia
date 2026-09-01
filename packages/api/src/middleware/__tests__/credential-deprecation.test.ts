@@ -28,7 +28,7 @@ import { describe, expect, it } from 'vitest';
 
 import * as apiKeyCrypto from '../../lib/api-key-crypto.js';
 import type { DeveloperApiKeyUpdate } from '../../db/developers/developerRepository.js';
-import { ALIAS_SUNSET, toHttpDate, toStructuredFieldDate } from '../alias-deprecation.js';
+import { toHttpDate, toStructuredFieldDate } from '../http-deprecation.js';
 import {
   CREDENTIAL_DEPRECATION,
   CREDENTIAL_SUNSET,
@@ -127,19 +127,7 @@ describe('the credential deprecation signal', () => {
     }
   });
 
-  it('emits no Sunset, and did NOT inherit the one the aliases were given', () => {
-    // The assertion that protects production, and it is deliberately a
-    // DISAGREEMENT with path (a): `ALIAS_SUNSET` was set on 2026-08-18 and this
-    // was not. Section (c)'s gate opens with "every key owner has been
-    // notified", the notification channel is still an open question, and no Oxy
-    // replacement credential exists yet (OxyHQ/oxy#972) — so a date here is a
-    // deadline holders cannot meet, and an alias past its sunset still resolves
-    // where a credential past its sunset authenticates nothing.
-    //
-    // Read the two together, so this cannot pass by both being unset: the day
-    // someone copies the alias date across, this goes red and has to be argued
-    // for on #139 instead of arriving as a tidy-up.
-    expect(ALIAS_SUNSET.getTime()).toBeGreaterThan(0);
+  it('emits no Sunset until the credential removal gate sets one', () => {
     expect(CREDENTIAL_SUNSET).toBeNull();
     const call = run(credentialDeprecationHeaders, { authorization: 'Bearer alia_sk_live' });
     expect(Object.keys(call.headers).sort()).toEqual(['Deprecation', 'Link']);

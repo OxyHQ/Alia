@@ -19,7 +19,6 @@ import {
   type KaanaTransport,
   type KaanaTransportRequest,
 } from '../kaana-client.js';
-import { isKaanaClientEnabled, KAANA_CLIENT_ENABLED_ENV } from '../kaana-cutover.js';
 import type { KaanaRequestPayload } from '../kaana-request.js';
 import { assertAllowedKaanaOrigin } from '../kaana-endpoint.js';
 
@@ -212,7 +211,6 @@ function harness(over: Partial<KaanaClientConfig> = {}): Harness {
   const clock = { value: 1_000_000 };
   let ids = 0;
   const client = createKaanaInferenceClient({
-    enabled: true,
     transport,
     credential,
     endpoint: ENDPOINT,
@@ -254,29 +252,6 @@ function terminalCode(events: readonly InferenceStreamEvent[]): string {
   const last = terminal(events);
   return last.type === 'error' ? last.error.code : last.type;
 }
-
-/* -------------------------------------------------------------------------- */
-/*  The flag                                                                  */
-/* -------------------------------------------------------------------------- */
-
-describe('the client is off by default (#139 ws3, invariant: not the live path)', () => {
-  it('reads exactly the literal "true"', () => {
-    expect(isKaanaClientEnabled({})).toBe(false);
-    expect(isKaanaClientEnabled({ [KAANA_CLIENT_ENABLED_ENV]: '1' })).toBe(false);
-    expect(isKaanaClientEnabled({ [KAANA_CLIENT_ENABLED_ENV]: 'TRUE' })).toBe(false);
-    expect(isKaanaClientEnabled({ [KAANA_CLIENT_ENABLED_ENV]: 'true' })).toBe(true);
-  });
-
-  it('refuses without touching the transport when disabled', async () => {
-    const { client, transport, credential } = harness({ enabled: false });
-    const events = await collect(client.stream(call(), new AbortController().signal));
-    expect(terminalCode(events)).toBe('service_unavailable');
-    // The floor: a client that reached the transport and happened to fail would
-    // look identical from the terminal code alone.
-    expect(transport.calls).toHaveLength(0);
-    expect(credential.minted).toBe(0);
-  });
-});
 
 /* -------------------------------------------------------------------------- */
 /*  Protocol conformance                                                      */
@@ -1195,4 +1170,3 @@ describe('degradation is a decision about the surface, not about the error', () 
     expect(sanitizeMessage('served by openai')).not.toBe('served by openai');
   });
 });
-

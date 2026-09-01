@@ -37,29 +37,19 @@ async function runSubtask(
 ): Promise<SubtaskResult> {
   const start = Date.now();
   /**
-   * `alia-v1` is the alias delegation has actually been running on.
-   *
-   * The previous default was `alia-flash`, which is not one of the thirteen
-   * registered aliases. That was not rejected anywhere: resolution reaches
-   * `internal/providers/lib/fallback-engine.ts:82`, whose first act is
-   * `isAliaModel(aliasModelId) ? aliasModelId : 'alia-v1'`, and `isAliaModel`
-   * tests membership of `ALIA_MODELS`. So every subtask ran on `alia-v1` while
-   * the result below reported `model: 'alia-flash'` to the caller.
-   *
-   * Naming the alias it already resolved to keeps behaviour identical and
-   * removes the false report. It is deliberately NOT `getDefaultAliaModel()`,
-   * which returns `alia-lite` — that would be a behaviour change wearing a
-   * cleanup's clothes. Registering `alia-flash` was not an option either: ADR
-   * 0002 freezes the alias set.
+   * Delegation historically resolved to `kaana-v1`; naming that profile here
+   * keeps the reported identifier equal to the one sent through the Kaana
+   * boundary. This is deliberately not `getDefaultRoutingProfile()` because
+   * changing the delegation policy is outside this identity cutover.
    */
-  const aliasModelId = preferredModel || 'alia-v1';
+  const routingProfileId = preferredModel || 'kaana-v1';
 
   try {
-    const resolved = await resolveModel(aliasModelId);
+    const resolved = await resolveModel(routingProfileId);
     if (!resolved) {
       return {
         task,
-        model: aliasModelId,
+        model: routingProfileId,
         result: null,
         error: 'No model available for subtask',
         latencyMs: Date.now() - start,
@@ -86,7 +76,7 @@ async function runSubtask(
 
       return {
         task,
-        model: aliasModelId,
+        model: routingProfileId,
         result: result.text,
         error: null,
         latencyMs: Date.now() - start,
@@ -98,7 +88,7 @@ async function runSubtask(
   } catch (error: unknown) {
     return {
       task,
-      model: aliasModelId,
+      model: routingProfileId,
       result: null,
       error: error instanceof Error && error.name === 'AbortError' ? 'Subtask timed out (30s)' : getErrorMessage(error),
       latencyMs: Date.now() - start,
@@ -117,24 +107,8 @@ export const delegateSubtaskTool = tool({
   inputSchema: z.object({
     subtasks: z.array(z.object({
       task: z.string().describe('The subtask to complete'),
-      /**
-       * The model reads this on every call, so a wrong statement here is a
-       * wrong statement made repeatedly. It named an identifier that does not
-       * exist and promised a default the tool never used.
-       *
-       * It also called the `alia-*` set "Alia models" (#139 ws20). All thirteen
-       * are routing profiles over third-party models and `GET /v1/models` lists
-       * nothing, so that was the claim ADR 0003 invariant 1 forbids — told to
-       * the model itself rather than to a person.
-       *
-       * The IDENTIFIERS are unchanged, deliberately. `resolveModel` reaches
-       * `internal/providers/lib/fallback-engine.ts`, which is keyed by the
-       * `alia-*` set; a `profile:*` id is not registered there and would throw
-       * `UnregisteredModelError`. Teaching the model the newer vocabulary would
-       * make every delegated subtask fail, so what changes here is the CLAIM
-       * about what they are, not what a caller may send.
-       */
-      model: z.string().optional().describe('Optional: which routing profile to run the subtask on (e.g., "alia-lite", "alia-v1", "alia-v1-pro"). These are routing profiles over third-party models, not models Alia owns. Defaults to alia-v1.'),
+      /** The accepted values are product-facing Kaana routing profile IDs. */
+      model: z.string().optional().describe('Optional: which routing profile to run the subtask on (e.g., "kaana-lite", "kaana-v1", "kaana-v1-pro"). These are routing profiles over third-party models, not models Alia owns. Defaults to kaana-v1.'),
       context: z.string().optional().describe('Optional: additional system context for the subtask'),
     })).min(1).max(MAX_CONCURRENT_SUBTASKS).describe('List of subtasks to run in parallel (max 3)'),
   }),
@@ -160,7 +134,7 @@ export const delegateSubtaskTool = tool({
       return {
         task: tasks[i].task,
         // Same default as `runSubtask`, for the rejected-promise path.
-        model: tasks[i].model || 'alia-v1',
+        model: tasks[i].model || 'kaana-v1',
         result: null,
         error: s.reason?.message || 'Subtask failed',
         latencyMs: Date.now() - start,

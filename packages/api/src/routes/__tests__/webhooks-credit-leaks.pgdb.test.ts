@@ -55,9 +55,9 @@ vi.mock('../../lib/chat-core.js', () => ({
   })),
   getAIModel: vi.fn(() => ({})),
   reportModelUsage: vi.fn(async () => undefined),
-  getDefaultAliaModel: vi.fn(() => 'alia-lite'),
+  getDefaultRoutingProfile: vi.fn(() => 'kaana-lite'),
   // `credits-manager` reads the credit multiplier from this same module.
-  getAliaModel: vi.fn(async () => ({ creditMultiplier: 1 })),
+  getRoutingProfile: vi.fn(async () => ({ creditMultiplier: 1 })),
 }));
 
 import { generateText } from 'ai';

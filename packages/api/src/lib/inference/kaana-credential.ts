@@ -52,7 +52,7 @@ import type { KaanaClientConfig } from './kaana-client.js';
 /**
  * The ApplicationCredential this deployment presents to mint service tokens.
  *
- * Named beside `ALIA_RELAY_CREDENTIAL_ID` on purpose: all three describe the
+ * Named beside `ALIA_KAANA_CREDENTIAL_ID` on purpose: all three describe the
  * SAME Oxy ApplicationCredential. The `_ID` is the record's own identifier and
  * rides on every request inside the contract's principal
  * (`kaana-boot-check.ts`); these two are the secret material that proves the
@@ -63,21 +63,12 @@ import type { KaanaClientConfig } from './kaana-client.js';
  * separate development, staging and production ApplicationCredentials"*: these
  * variables are how a deployment carries whichever one it was issued.
  *
- * **The variable NAMES still say `RELAY`, and that is not an oversight.** Kaana
- * shipped under the working name Relay, and every one of these names is set by
- * the LIVE ECS task definition, which `deploy-aws.yml` re-renders from the
- * running one rather than declaring it whole. Renaming a name here without
- * renaming it there makes the read return `undefined` and the behaviour change
- * in silence; renaming it in both leaves BOTH spellings in the task definition,
- * because the render merges and never removes. So the rename is an
- * infrastructure change, carried out on the task definition and on the two
- * GitHub repo secrets that feed SSM, and it is deliberately not made here. Gate
- * 6 in `__tests__/architectureGates.test.ts` freezes these names, so a
- * unilateral rename goes red rather than shipping.
+ * These names are coordinated with the task definition and repository secrets.
+ * No former spelling is read; a partial rollout is a boot refusal.
  */
 export const KAANA_CREDENTIAL_ENV = {
-  apiKey: 'ALIA_RELAY_CREDENTIAL_KEY',
-  apiSecret: 'ALIA_RELAY_CREDENTIAL_SECRET',
+  apiKey: 'ALIA_KAANA_CREDENTIAL_KEY',
+  apiSecret: 'ALIA_KAANA_CREDENTIAL_SECRET',
 } as const;
 
 /**

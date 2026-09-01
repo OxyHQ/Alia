@@ -153,7 +153,6 @@ async function drive(
 ): Promise<Driven> {
   const transport = new CapturingTransport(frames);
   const built = createKaanaInferenceClient({
-    enabled: true,
     transport,
     credential: CREDENTIAL,
     endpoint: ENDPOINT,
@@ -187,7 +186,6 @@ async function complete(
   frames: readonly Record<string, unknown>[],
 ): Promise<KaanaCompletion> {
   const built = createKaanaInferenceClient({
-    enabled: true,
     transport: new CapturingTransport(frames),
     credential: CREDENTIAL,
     endpoint: ENDPOINT,
@@ -558,7 +556,6 @@ describe('with no capability source the client refuses nothing', () => {
     // optional, and a client without one performs no capability check at all.
     const transport = new CapturingTransport([START, DONE]);
     const built = createKaanaInferenceClient({
-      enabled: true,
       transport,
       credential: CREDENTIAL,
       endpoint: ENDPOINT,

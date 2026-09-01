@@ -5,7 +5,7 @@
  * ## What this is for
  *
  * The picker used to label a routing profile with the display name of the alias
- * it came from — "Alia V1 Pro Max", "Alia Lite". Those are model names for
+ * it came from — "Kaana V1 Pro Max", "Kaana Lite". Those are model names for
  * things that are not models, which is the habit ADR 0003 exists to end. A
  * product mode is where the product's own words live: Automatic, Fast,
  * Balanced, Maximum quality, Coding, Deep research.
@@ -163,7 +163,7 @@ export function modeForProfile(
  * A routing profile that a product mode selects is shown as that mode —
  * "Fast", "Balanced", "Maximum quality", "Coding" — because those are the
  * product's words for the decision a person is actually making. The alias
- * display names this replaces ("Alia V1 Pro Max", "Alia Lite") were model names
+ * display names this replaces ("Kaana V1 Pro Max", "Kaana Lite") were model names
  * for things that are not models, which is the habit ADR 0003 ends.
  *
  * The catalogue's own `displayName` remains the fallback, and it is a real

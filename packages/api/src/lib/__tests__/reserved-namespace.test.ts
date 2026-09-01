@@ -15,8 +15,8 @@ import {
   assertUnreservedModelIdentifier,
   isReservedModelNamespace,
 } from '../reserved-namespace.js';
-import { resolveAliaModel } from '../gateway-client.js';
-import { DEPRECATED_ALIASES } from '../../middleware/alias-deprecation.js';
+import { resolveRoutingProfile } from '../gateway-client.js';
+import { KAANA_ROUTING_PROFILE_IDS } from '../routing/kaana-profiles.js';
 
 describe('the alia/* publisher namespace is reserved', () => {
   const reserved = [
@@ -55,13 +55,11 @@ describe('the alia/* publisher namespace is reserved', () => {
 });
 
 describe('the reservation does not touch anything that is not in it', () => {
-  it('lets every one of the thirteen frozen aliases through', () => {
-    // The whole set, not an example. The hyphen form and the slash form are
-    // one character apart, and refusing the wrong one takes the product down.
-    expect(DEPRECATED_ALIASES.length).toBe(13);
-    for (const alias of DEPRECATED_ALIASES) {
-      expect(isReservedModelNamespace(alias)).toBe(false);
-      expect(() => assertUnreservedModelIdentifier(alias)).not.toThrow();
+  it('lets every canonical Kaana routing profile through', () => {
+    expect(KAANA_ROUTING_PROFILE_IDS.length).toBe(13);
+    for (const profileId of KAANA_ROUTING_PROFILE_IDS) {
+      expect(isReservedModelNamespace(profileId)).toBe(false);
+      expect(() => assertUnreservedModelIdentifier(profileId)).not.toThrow();
     }
   });
 
@@ -86,14 +84,14 @@ describe('the reservation does not touch anything that is not in it', () => {
 describe('the serving chokepoint refuses it, not just the validator', () => {
   /**
    * A validator with no caller is green and inert at once. This drives the real
-   * entrypoint: `gateway-client.resolveAliaModel` is the only door into model
+   * entrypoint: `gateway-client.resolveRoutingProfile` is the only door into model
    * resolution from outside `internal/providers/` — which is not an assumption,
    * it is what gate 1's frozen importer list in `architectureGates.test.ts`
    * measures — so refusing there is refusing everywhere product code can ask.
    */
   it('rejects a reserved identifier before it can resolve to anything', async () => {
-    await expect(resolveAliaModel('alia/atlas')).rejects.toBeInstanceOf(ReservedNamespaceError);
-    await expect(resolveAliaModel('alia/atlas@2026-08-01')).rejects.toBeInstanceOf(ReservedNamespaceError);
+    await expect(resolveRoutingProfile('alia/atlas')).rejects.toBeInstanceOf(ReservedNamespaceError);
+    await expect(resolveRoutingProfile('alia/atlas@2026-08-01')).rejects.toBeInstanceOf(ReservedNamespaceError);
   });
 
   it('does not refuse a registered alias on its way through', async () => {
@@ -102,7 +100,7 @@ describe('the serving chokepoint refuses it, not just the validator', () => {
     // above and take down all thirteen aliases. Resolution legitimately fails
     // here for want of a database and provider keys; what matters is the shape
     // of the failure, not that there is one.
-    const outcome: unknown = await resolveAliaModel('alia-v1').then(
+    const outcome: unknown = await resolveRoutingProfile('kaana-v1').then(
       () => null,
       (error: unknown) => error,
     );

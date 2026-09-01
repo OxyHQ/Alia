@@ -144,10 +144,10 @@ export async function runAgentTurn(input: {
    * default would leave the frozen list by being harder to see rather than by
    * being removed.
    */
-  const preferredModel = agent.allowedModels[0] || 'alia-lite';
+  const preferredModel = agent.allowedModels[0] || 'kaana-lite';
   const resolvedPreferred = await resolveModel(preferredModel);
-  const aliasModelId = resolvedPreferred ? preferredModel : 'alia-lite';
-  const resolved = resolvedPreferred ?? (await resolveModel('alia-lite'));
+  const routingProfileId = resolvedPreferred ? preferredModel : 'kaana-lite';
+  const resolved = resolvedPreferred ?? (await resolveModel('kaana-lite'));
   if (!resolved) return failed('No model available for agent execution');
 
   const model = getAIModel(resolved, 'agent_run');
@@ -207,7 +207,7 @@ export async function runAgentTurn(input: {
         completionTokens: result.usage?.outputTokens || 0,
         totalTokens: tokensUsed,
       },
-      aliasModelId,
+      routingProfileId,
     );
     // Only once the charge returned. A finalize that threw leaves the
     // reservation unsettled, and therefore refunded rather than kept.

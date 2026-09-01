@@ -14,11 +14,8 @@
  *     what Kaana chose (`start`) and when it changed its mind (`route_switch`).
  *  2. **It never falls back to a direct provider call.** Not behind a flag, not
  *     in development. The only egress is {@link KaanaTransport}.
- *  3. **It is not the live path.** {@link import('./kaana-cutover.js').isKaanaClientEnabled}
- *     defaults to false and nothing in `packages/api` imports this module for
- *     anything but its rules. `Oxy API → Kaana`
- *     does not exist yet — see `docs/migration/kaana-client-gap.md` §1 and
- *     OxyHQ/oxy#981 — so a client wired in today would be pointed at a hole.
+ *  3. **It is the only hosted inference path.** Boot validates every
+ *     collaborator before the process listens; there is no feature flag.
  *  4. **It ships no HTTP transport.** {@link KaanaTransport} is an interface and
  *     the concrete one arrives with the endpoint it would call. Inventing a base
  *     URL now produces a client whose first real test is production.
@@ -173,7 +170,7 @@ export interface KaanaTransportRequest {
    * The base URL this call may be sent to, re-checked against the allow-list on
    * every attempt.
    *
-   * A transport receives it rather than reading `RELAY_BASE_URL` itself, which
+   * A transport receives it rather than reading `KAANA_BASE_URL` itself, which
    * is what makes {@link import('./kaana-endpoint.js').KAANA_ALLOWED_ORIGINS}
    * enforceable at all: a transport with its own environment read would be a
    * second, unchecked way to choose a host. The type is branded, so a transport
@@ -247,11 +244,6 @@ export interface KaanaCircuitConfig {
 }
 
 export interface KaanaClientConfig {
-  /**
-   * Usually {@link import('./kaana-cutover.js').isKaanaClientEnabled}. Passed in
-   * so tests need no env.
-   */
-  readonly enabled: boolean;
   readonly transport: KaanaTransport;
   readonly credential: KaanaServiceCredential;
   /**
@@ -268,7 +260,7 @@ export interface KaanaClientConfig {
    */
   readonly endpoint: KaanaEndpoint;
   readonly principal: KaanaPrincipalConfig;
-  /** Where `AliaModelChoice.product_default` resolves to. */
+  /** Where `RoutingProfileChoice.product_default` resolves to. */
   readonly defaultTarget: RoutingTarget;
   /**
    * Alia's request-scoped policy names mapped onto contract policy references.
@@ -965,13 +957,6 @@ export class KaanaInferenceClient implements KaanaInferencePort {
   ):
     | { readonly kind: 'ready'; readonly request: InferenceRequest; readonly target: RoutingTarget }
     | { readonly kind: 'refused'; readonly error: InferenceError } {
-    if (!this.config.enabled) {
-      return {
-        kind: 'refused',
-        error: createInferenceError({ code: 'service_unavailable', requestId }),
-      };
-    }
-
     // Refused HERE rather than inside an attempt, so a client pointed at an
     // unapproved host fails once instead of being retried: the code is
     // retryable, and every retry would re-read the same wrong configuration.

@@ -17,7 +17,7 @@
  * reach a user's `localhost`, so this case falls outside its reach by
  * construction rather than by preference. What is modelled here is USER
  * COMPUTE: no credential, no key manager, no rate table, no entry in
- * `ALIA_MODELS`, and — see `lib/chat/provider-loop.ts` — no fallback. A local
+ * `KAANA_ROUTING_PROFILES`, and — see `lib/chat/provider-loop.ts` — no fallback. A local
  * turn that fails, fails. Substituting a hosted model would send a conversation
  * to an operator the person deliberately avoided, and bill credits that were
  * never reserved.

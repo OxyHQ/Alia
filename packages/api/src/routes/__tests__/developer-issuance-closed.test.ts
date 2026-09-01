@@ -26,7 +26,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import authRouter from '../auth.js';
 import developerRouter from '../developer.js';
 import { log } from '../../lib/logger.js';
-import { toStructuredFieldDate } from '../../middleware/alias-deprecation.js';
+import { toStructuredFieldDate } from '../../middleware/http-deprecation.js';
 import { CREDENTIAL_DEPRECATION } from '../../middleware/credential-deprecation.js';
 
 let base: string;

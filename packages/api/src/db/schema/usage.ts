@@ -49,12 +49,12 @@ export const costEntries = pgTable(
     id: generatedId(),
     userId: text().notNull(),
     sessionId: text(),
-    aliasModelId: text().notNull(),
+    routingProfileId: text().notNull(),
     /**
-     * The real provider and model behind the Alia-branded alias. This is
+     * The real provider and model behind the Kaana routing profile. This is
      * INTERNAL: it must never reach a user-facing response, an error message or
      * a public API surface — the whole point of the alias is that a caller sees
-     * `alia-v1`, not whoever served it.
+     * `kaana-v1`, not whoever served it.
      */
     actualProvider: text().notNull(),
     actualModelId: text().notNull(),
@@ -85,8 +85,8 @@ export const costEntries = pgTable(
   },
   (t) => [
     index('cost_entries_user_timestamp_idx').on(t.userId, t.timestamp.desc()),
-    index('cost_entries_alias_model_timestamp_idx').on(t.aliasModelId, t.timestamp.desc()),
-    index('cost_entries_user_alias_model_idx').on(t.userId, t.aliasModelId),
+    index('cost_entries_routing_profile_timestamp_idx').on(t.routingProfileId, t.timestamp.desc()),
+    index('cost_entries_user_routing_profile_idx').on(t.userId, t.routingProfileId),
     index('cost_entries_session_id_idx').on(t.sessionId),
     // `col in (…)` is NULL for a NULL column and a CHECK rejects only FALSE, so
     // this constrains the value without making the column required.
@@ -113,8 +113,8 @@ export const costEntries = pgTable(
  * Both are declared to hold provider identity. Today they hold none: `model`
  * receives a second copy of the alias and `provider` receives the literal
  * string `'unknown'`, because `chat-lifecycle.ts` is the only caller of
- * `runAfterChatHooks` and passes `modelUsed: aliasModelId` and
- * `metadata: { model: aliasModelId }`.
+ * `runAfterChatHooks` and passes `modelUsed: routingProfileId` and
+ * `metadata: { model: routingProfileId }`.
  *
  * **That is a fact about the code, and the rows are older than the code.** The
  * git history of every writer says so: `899cfd21` (2026-02-11) introduced three
@@ -136,13 +136,13 @@ export const costEntries = pgTable(
  *
  * The model identity of a NEW turn is `requested_model_id` (what the caller
  * asked for, NOT NULL) with `requested_model_kind` saying what KIND of
- * identifier that is (NOT NULL), plus `alia_model_id`, the alias that served
+ * identifier that is (NOT NULL), plus `routing_profile_id`, the alias that served
  * it. `GET /analytics/models` groups by the alias alone — the `coalesce` that
  * let a null alias fall back to `model` is gone — and resolves each group
- * through `getAliaModel()`; per the model-abstraction rule an entry that cannot
+ * through `getRoutingProfile()`; per the model-abstraction rule an entry that cannot
  * resolve is SKIPPED, which is what a null alias produces either way.
  *
- * `alia_model_id` deliberately does NOT become NOT NULL. Both eras' writers set
+ * `routing_profile_id` deliberately does NOT become NOT NULL. Both eras' writers set
  * it, so the constraint would probably hold — but "probably" is a claim about
  * writers, the gain is nil, and the cost of being wrong is a failed post-phase
  * migration on a table whose row count nobody has.
@@ -169,8 +169,8 @@ export const chatAnalytics = pgTable(
      * 0024 and written by nothing — see the table comment.
      */
     model: text(),
-    /** The Alia-branded alias that served this turn. What `getAliaModel()` resolves. */
-    aliaModelId: text(),
+    /** The Kaana routing profile that served this turn. What `getRoutingProfile()` resolves. */
+    routingProfileId: text(),
     /**
      * The provider that served the turn, over the same 29-day window; the
      * literal `'unknown'` for every row since. Nullable from 0024 and written by
@@ -181,7 +181,7 @@ export const chatAnalytics = pgTable(
      * What the CALLER asked for, before resolution — `body.model`, or the
      * product default when the caller named nothing.
      *
-     * Distinct from `alia_model_id`, which is the alias that actually served
+     * Distinct from `routing_profile_id`, which is the alias that actually served
      * the turn after the provider-fallback loop had its say. The two agree on
      * most turns and diverge on exactly the turns worth looking at: a request
      * for an alias the caller is not entitled to, or a string that is not a
@@ -189,7 +189,7 @@ export const chatAnalytics = pgTable(
      *
      * NOT NULL, so a row that cannot say what was asked for is a write that
      * fails rather than a row that silently falls back to whatever else is
-     * lying around — which is the shape `coalesce(alia_model_id, model)` had
+     * lying around — which is the shape `coalesce(routing_profile_id, model)` had
      * before this column existed.
      */
     requestedModelId: text().notNull(),
@@ -198,7 +198,7 @@ export const chatAnalytics = pgTable(
      * legacy `alia-*` alias, or something nothing serves.
      *
      * One string carries all four, and they are not comparable — recording the
-     * identifier alone makes `alia-v1-pro` and `qwen/qwen3-32b` two rows of one
+     * identifier alone makes `kaana-v1-pro` and `qwen/qwen3-32b` two rows of one
      * column and invites every later query to read them as two model choices.
      * `lib/observability/requested-model.ts` owns the classification and its
      * doc comment owns the reasoning. No CHECK, for the same reason
@@ -218,7 +218,7 @@ export const chatAnalytics = pgTable(
      * How much reasoning the caller asked for, or null for the default.
      *
      * Its own column because reasoning is a PARAMETER and not a model:
-     * `alia-v1-thinking` and `alia-v1-pro-max` are one routing preset with two
+     * `kaana-v1-thinking` and `kaana-v1-pro-max` are one routing preset with two
      * names, so recording the alias as a model choice would bury the reasoning
      * request inside a model identifier — exactly the conflation this epic is
      * removing. Populated from the `thinkingMode` flag and from that alias
@@ -324,9 +324,8 @@ export const chatAnalytics = pgTable(
  *
  * `average_latency_ms` and `client_type` are in the Mongoose schema and appear
  * in no write anywhere in the package — verified whole-package, not just around
- * the writer. They are ported so the shape is faithful, and they are the
- * `provider_keys.organization_id` case: confirm they are entirely absent before
- * anybody reads one as meaningful.
+ * the writer. They are ported so the shape is faithful; confirm they are
+ * entirely absent before anybody reads one as meaningful.
  *
  * `session_id` is the provider's own session identifier and is UNIQUE, which is
  * load-bearing rather than decorative: `voice-session-manager.ts:1258` upserts
@@ -344,7 +343,7 @@ export const voiceCallUsage = pgTable(
     id: generatedId(),
     sessionId: text().notNull(),
     oxyUserId: text().notNull(),
-    aliaModelId: text().notNull(),
+    routingProfileId: text().notNull(),
     /** No CHECK, deliberately — see the table comment. */
     provider: text().notNull(),
     providerModel: text().notNull(),
@@ -403,9 +402,9 @@ export const voiceCallUsage = pgTable(
     // Serves the entitlement check in `lib/voice-usage.ts`.
     index('voice_call_usage_oxy_user_start_time_idx').on(t.oxyUserId, t.startTime.desc()),
     index('voice_call_usage_provider_start_time_idx').on(t.provider, t.startTime.desc()),
-    index('voice_call_usage_alia_model_start_time_idx').on(t.aliaModelId, t.startTime.desc()),
+    index('voice_call_usage_routing_profile_start_time_idx').on(t.routingProfileId, t.startTime.desc()),
     checkOneOf('voice_call_usage_grant_kind_check', t.grantKind, CREDIT_FUNDING_SOURCES),
-    // Mongoose also declared single-field indexes on `oxyUserId`, `aliaModelId`
+    // Mongoose also declared single-field indexes on `oxyUserId`, `routingProfileId`
     // and `provider`; each is the PREFIX of a compound above, so the compound
     // serves it and a separate index would only cost writes. Its fourth,
     // `startTime` alone, has no reader in this package — every query that

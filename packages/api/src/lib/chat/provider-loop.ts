@@ -1,21 +1,19 @@
 /**
- * Provider fallback retry orchestration for /v1/chat/completions.
+ * One Kaana-hosted attempt for /v1/chat/completions.
  *
- * Drives up to `MAX_PROVIDER_RETRIES` attempts across the tier's providers/keys:
- * per attempt it re-resolves the model (skipping failed providers/keys), builds
- * the shared config (`buildBaseConfig`), then runs EITHER the non-streaming
+ * Builds the shared config (`buildBaseConfig`), then runs either the non-streaming
  * `generateText` path (`runNonStreaming`) OR the streaming path (`streamText`
  * → `runStream` → text-tool fallback → save/title/credits/hooks/observability).
- * On a provider failure it classifies the error and decides key-level vs
- * provider-level skip before retrying; on success it fully sends the response.
+ * Kaana owns deployment choice, key rotation and route changes. Alia never
+ * re-resolves a hosted failure around it.
  *
- * The retry-mutable trio (`resolved`, `aliasModelId`, `creditReservation`) and
- * the `globalTimedOut` flag live in `ChatLoopState`, owned by the route so its
+ * `resolved`, `routingProfileId`, `creditReservation` and `globalTimedOut` live in
+ * `ChatLoopState`, owned by the route so its
  * global-timeout timer, outer catch, and last-resort synthetic observe the
  * loop's writes. Returns `completed` when a response was fully sent, or
  * `exhausted` (with the attempt count) so the route emits its synthetic reply.
- * Rethrows the provider error when content already streamed and can't be
- * retried — the route's outer catch handles the graceful mid-stream recovery.
+ * Rethrows an inference error when content already streamed; the route's outer
+ * catch handles graceful mid-stream recovery.
  *
  * Behaviour is byte-identical to the inline loop it replaced. Import seams
  * (`ai`, `../chat-core.js`, `../chat-lifecycle.js`, `../logger.js`,
@@ -24,8 +22,7 @@
  */
 import type { Request, Response } from 'express';
 import { streamText, type ToolSet } from 'ai';
-import { resolveModel, reportModelUsage, type ResolvedModel, type RoutingOptions } from '../chat-core.js';
-import { USER_RUNTIME_PROVIDER } from '../inference/user-runtime-bridge.js';
+import type { ResolvedModel } from '../chat-core.js';
 import { getDb } from '../../db/index.js';
 import { updateConversationTitle } from '../../db/chat/conversationRepository.js';
 import type { CreditReservation, CreditUsage } from '../credits-manager.js';
@@ -43,7 +40,7 @@ import { log } from '../logger.js';
 import { recordEvent } from '../observability/index.js';
 import type { EffortLevel } from '../reasoning-effort.js';
 import type { SkillRuntime } from '../skills/runtime.js';
-import { classifyError, getRetryAfterHeader, toAliaError } from '../errors/index.js';
+import { classifyError, toAliaError } from '../errors/index.js';
 import { AliaErrorCode, type FailoverReason } from '../errors/error-codes.js';
 import type { ChatMessage } from '../message-converter.js';
 import type { AutonomyRuntimeContext } from '../autonomy/runtime.js';
@@ -53,19 +50,17 @@ import { runNonStreaming } from './non-streaming.js';
 import { runStream, type AgentMessage, type StreamRunnerState } from './stream-runner.js';
 import { runTextToolFallback } from './text-tool-fallback.js';
 
-/** Errors that should NOT be retried on a different provider (model-level issues, not provider-level) */
-const NON_RETRYABLE_STREAM: Set<FailoverReason> = new Set(['format', 'content_filter']);
+/** Terminal model-response errors that need no route-level substitution. */
+const TERMINAL_STREAM_ERRORS: Set<FailoverReason> = new Set(['format', 'content_filter']);
 
 /**
- * Retry-mutable state shared between the route and the provider loop. The loop
- * reassigns `resolved`/`aliasModelId` on each re-resolve and reads
- * `creditReservation` for credit finalization; the route's global-timeout timer
- * sets `globalTimedOut` (read at the top of every attempt) and reads
- * `aliasModelId`, and its outer catch + last-resort synthetic read the trio.
+ * Mutable state shared between the route and the hosted attempt. The route's
+ * global-timeout timer sets `globalTimedOut`, and the outer catch plus
+ * last-resort synthetic reply read the same state.
  */
 export interface ChatLoopState {
   resolved: ResolvedModel | null;
-  aliasModelId: string;
+  routingProfileId: string;
   creditReservation: CreditReservation | null;
   /**
    * Whether the reservation has been resolved — charged or refunded. It stays
@@ -106,25 +101,22 @@ export interface ProviderLoopParams {
    * different (wider) policy would reintroduce silent substitution one retry
    * later, which is exactly the shape ADR 0003 invariant 3 forbids.
    */
-  routingOptions: RoutingOptions;
   isSpanish: boolean;
   autonomyRuntime: AutonomyRuntimeContext | null;
   includeUsage: boolean;
-  /** Length of the tier's provider mappings — sets the retry budget. */
-  tierMappingsLength: number;
 }
 
 export type ProviderLoopResult =
   | { status: 'completed' }
   | { status: 'exhausted'; attemptedProviders: number };
 
-/** Run the provider fallback retry loop; returns whether a response was sent or all providers were exhausted. */
+/** Run one Kaana-hosted attempt and report whether a response was sent. */
 export async function runProviderLoop(params: ProviderLoopParams): Promise<ProviderLoopResult> {
   const {
     req, res, sse, requestId, requestStartTime, globalTimer, globalTimeoutMs, state,
     body, messages, conversationId, reasoningEffort, convertedMessages, truncatedTools,
-    toolNameMapping, agentMessages, systemPromptTokens, requestedModel, routingOptions, isSpanish,
-    autonomyRuntime, includeUsage, tierMappingsLength, skills,
+    toolNameMapping, agentMessages, systemPromptTokens, requestedModel, isSpanish,
+    autonomyRuntime, includeUsage, skills,
   } = params;
 
   // Track token usage (streaming path; the non-streaming path owns its own)
@@ -142,10 +134,7 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
    * What this turn observed, shared with the stream runner and the
    * non-streaming branch.
    *
-   * The disconnect listener is registered ONCE, here, rather than per attempt
-   * inside the loop: it used to be added after the non-streaming early return,
-   * so a non-streaming turn tracked no cancellation at all and a retried
-   * streaming turn accumulated one listener per attempt.
+   * The disconnect listener is registered once, before either response mode.
    */
   const observation: TurnObservation = { timeToFirstTokenMs: null, cancelled: false };
 
@@ -154,14 +143,13 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
 
   /**
    * The lifecycle context AS IT STANDS, read fresh at each call because the
-   * retry loop reassigns `state.aliasModelId` and `state.creditReservation` and
    * `tokenUsage` is captured asynchronously by `onFinish`.
    */
   const lifecycleContext = (): LifecycleContext => ({
     userId: req.user?.id,
     conversationId,
     messages,
-    aliasModelId: state.aliasModelId,
+    routingProfileId: state.routingProfileId,
     requestedModel,
     reasoningEffort,
     creditReservation: state.creditReservation,
@@ -175,10 +163,8 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
   /**
    * The error class this turn ends with if it never completes.
    *
-   * Reassigned as the loop learns more: it starts as the answer for "every
-   * provider was tried and none worked" and becomes the specific class the last
-   * provider failure classified into, so the analytics row names the failure
-   * that actually happened rather than the shape of the loop that contained it.
+   * It starts as the generic hosted-inference exhaustion class and becomes the
+   * specific class the Kaana failure classified into.
    */
   let failureClass: AliaErrorCode = AliaErrorCode.FALLBACK_EXHAUSTED;
 
@@ -195,62 +181,27 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
     runPostChatHooks(lifecycleContext(), '', observation, errorClass);
   };
 
-  // Provider fallback retry loop
-  // Dynamic retry budget: try every configured provider in the tier, minimum 5
-  const MAX_PROVIDER_RETRIES = Math.max(tierMappingsLength, 5);
-  const skipProviders = new Set<string>();
-  const failedKeyIds = new Set<string>();
-
-  /** Reasons that indicate a key-level failure (try next key, not next provider) */
-  const KEY_LEVEL_REASONS: Set<FailoverReason> = new Set(['auth', 'rate_limit']);
-
-  for (let providerAttempt = 0; providerAttempt < MAX_PROVIDER_RETRIES; providerAttempt++) {
-    // Check global timeout before each provider attempt
+  hostedAttempt: {
+    // Check the global timeout before opening the hosted stream.
     if (state.globalTimedOut) {
       failureClass = AliaErrorCode.TIMEOUT;
-      break;
+      break hostedAttempt;
     }
 
-    // Check time budget before each attempt (leave 5s for last-resort response)
+    // Leave enough time for the last-resort response.
     const elapsedMs = Date.now() - requestStartTime;
     if (elapsedMs > globalTimeoutMs - 10_000) {
-      log.v1.warn({ elapsedMs }, 'Time budget nearly exhausted, breaking retry loop');
+      log.v1.warn({ elapsedMs }, 'Time budget nearly exhausted before Kaana inference');
       failureClass = AliaErrorCode.TIMEOUT;
-      break;
+      break hostedAttempt;
     }
 
-    /**
-     * A turn served by the person's own machine never falls back.
-     *
-     * There is nowhere honest to fall back TO. Re-resolving would hand the
-     * conversation to a hosted operator the person chose to avoid by picking a
-     * local model, and bill it against a reservation that was deliberately
-     * never taken. A dead local runtime ends the turn.
-     */
-    if (providerAttempt > 0 && state.resolved?.provider === USER_RUNTIME_PROVIDER) {
-      log.v1.info('Local runtime failed; not substituting a hosted provider');
-      break;
-    }
-
-    // Re-resolve model on retry (skipping failed providers and keys)
-    if (providerAttempt > 0) {
-      state.resolved = await resolveModel(requestedModel, skipProviders, failedKeyIds, routingOptions);
-      if (!state.resolved) {
-        log.v1.warn({ retries: providerAttempt }, 'No more providers available after retries');
-        break;
-      }
-      state.aliasModelId = state.resolved.aliasModelId;
-      log.v1.info({ attempt: providerAttempt, provider: state.resolved.provider, modelId: state.resolved.modelId }, 'Retrying with provider');
-    }
-
-    // Attempt 0 is guaranteed non-null by the route (it returns 503 otherwise);
-    // retry attempts break above when re-resolution fails. Capture a non-null
-    // local so the attempt avoids repeated non-null assertions.
+    // The route returns 503 before this function when resolution is absent.
     const resolved = state.resolved;
-    if (!resolved) break;
-    const aliasModelId = state.aliasModelId;
+    if (!resolved) break hostedAttempt;
+    const routingProfileId = state.routingProfileId;
 
-    // Shared with the stream runner + provider-retry catch: reflects writes made
+    // Shared with the stream runner and catch: reflects writes made
     // inside runStream even when the stream throws mid-flight.
     const streamState: StreamRunnerState = { hasStreamedContent: false };
 
@@ -266,7 +217,7 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
       onUsage: (usage) => { tokenUsage = usage; },
     });
 
-    try { // Provider attempt try block
+    try {
 
       // Handle non-streaming requests
       if (body.stream !== true) {
@@ -278,7 +229,7 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
           globalTimer,
           baseConfig,
           clearFirstByteTimer,
-          aliasModelId,
+          routingProfileId,
           requestedModel,
           reasoningEffort,
           conversationId,
@@ -325,7 +276,7 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
         res,
         sse,
         requestId,
-        aliasModelId,
+        routingProfileId,
         resolved,
         baseConfig,
         convertedMessages,
@@ -365,7 +316,7 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
         baseConfig,
         res,
         requestId,
-        aliasModelId,
+        routingProfileId,
         resolved,
       })).assistantResponse;
 
@@ -408,7 +359,7 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
           id: requestId,
           object: 'chat.completion.chunk',
           created: Math.floor(Date.now() / 1000),
-          model: aliasModelId,
+          model: routingProfileId,
           system_fingerprint: 'fp_alia',
           service_tier: 'default',
           choices: [],
@@ -456,65 +407,41 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
 
       return { status: 'completed' }; // Success - exit the route handler
 
-    } catch (providerError: unknown) {
-      // Clean up timers on provider failure
+    } catch (inferenceError: unknown) {
+      // Clean up timers on inference failure.
       sse.stopKeepAlive();
       clearFirstByteTimer();
-      // Provider attempt failed — classify with shared error classifier
-      log.v1.error({ err: providerError, provider: resolved.provider, modelId: resolved.modelId }, 'Provider failed');
-      const errorReason = classifyError(providerError);
-      const retryAfterSec = getRetryAfterHeader(providerError);
-      const retryAfterMs = retryAfterSec ? retryAfterSec * 1000 : undefined;
-      await reportModelUsage(resolved.keyConfig?.keyId, resolved.provider, resolved.modelId, false, 0, errorReason, retryAfterMs);
+      log.v1.error({ err: inferenceError, modelId: resolved.modelId }, 'Kaana inference failed');
+      const errorReason = classifyError(inferenceError);
 
       // The class this failure would end the turn with, if nothing after it
       // succeeds. `toAliaError` owns the reason -> code table, so this is the
       // same classification the client is answered with rather than a second
       // one that can disagree with it.
-      failureClass = toAliaError(providerError).code;
+      failureClass = toAliaError(inferenceError).code;
 
-      // Non-retryable errors: stop immediately (would fail on any provider)
-      if (NON_RETRYABLE_STREAM.has(errorReason)) {
+      if (TERMINAL_STREAM_ERRORS.has(errorReason)) {
         if (streamState.hasStreamedContent) {
           recordFailedTurn(failureClass);
-          throw providerError;
+          throw inferenceError;
         }
-        break; // Fall through to last-resort response
+        break hostedAttempt;
       }
 
-      // If content already streamed, can't retry — fall to outer handler
+      // If content already streamed, the outer handler finishes the SSE reply.
       if (streamState.hasStreamedContent) {
         recordFailedTurn(failureClass);
-        throw providerError;
+        throw inferenceError;
       }
 
-      // Discriminate key-level vs provider-level failures for smarter retry
-      if (KEY_LEVEL_REASONS.has(errorReason) && resolved.keyConfig?.keyId) {
-        // Key-level: skip just this key, keep the provider available
-        failedKeyIds.add(resolved.keyConfig.keyId);
-        log.v1.info({ provider: resolved.provider, reason: errorReason, keyId: resolved.keyConfig.keyId }, 'Key-level failure, retrying with different key');
-      } else if (errorReason === 'provider_unavailable' || errorReason === 'billing') {
-        // Provider-level: skip the entire provider
-        skipProviders.add(resolved.provider);
-        log.v1.info({ provider: resolved.provider, reason: errorReason }, 'Provider-level failure, skipping provider');
-      } else {
-        // timeout, unknown: skip provider to try a different one
-        skipProviders.add(resolved.provider);
-        log.v1.info({ provider: resolved.provider, reason: errorReason }, 'Provider failed, trying next provider');
-      }
-
-      if (providerAttempt < MAX_PROVIDER_RETRIES - 1) {
-        continue; // Try next provider/key
-      }
-
-      // Last attempt exhausted — fall through to last-resort response
-      break;
+      // Kaana owns routing and retries; Alia never re-resolves around it.
+      break hostedAttempt;
     }
 
-  } // End of provider retry loop
+  }
 
-  // Every exit from the loop above that is not `completed` is a turn that
+  // Every exit above that is not `completed` is a turn that
   // failed, and this is the only place it gets a usage record.
   recordFailedTurn(failureClass);
-  return { status: 'exhausted', attemptedProviders: skipProviders.size + failedKeyIds.size };
+  return { status: 'exhausted', attemptedProviders: 1 };
 }

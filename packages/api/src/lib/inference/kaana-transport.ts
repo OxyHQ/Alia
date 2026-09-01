@@ -25,7 +25,7 @@
  *
  * Signed, with `\n` separators and no trailing newline:
  *
- *     oxy-relay-envelope:v1
+ *     oxy-kaana-envelope:v1
  *     <key id>
  *     <unix milliseconds>
  *     <lowercase hex sha256 of the exact bytes POSTed>
@@ -37,9 +37,7 @@
  * usually agree.
  *
  * The header names, the `v1=` prefix and the domain string are Kaana's, spelled
- * as Kaana spells them today. They still say `relay`, which the product no
- * longer is: renaming them is a change to a verified wire format and has to
- * happen on both sides in one move, so it is deliberately NOT done here.
+ * exactly as its verifier expects them.
  *
  * ## No `Authorization` header
  *
@@ -64,13 +62,13 @@ const INFERENCE_PATH = '/internal/v1/inference';
 /**
  * The domain separator and header names Kaana verifies against.
  *
- * Spelled `relay` because that is what the verifier compares, byte for byte.
- * See the file comment on why the rename cannot start here.
+ * These constants are part of the signed Kaana protocol and must match the
+ * verifier byte for byte.
  */
-const DOMAIN = 'oxy-relay-envelope:v1';
-const HEADER_KEY_ID = 'X-Oxy-Relay-Key-Id';
-const HEADER_TIMESTAMP = 'X-Oxy-Relay-Timestamp';
-const HEADER_SIGNATURE = 'X-Oxy-Relay-Signature';
+const DOMAIN = 'oxy-kaana-envelope:v1';
+const HEADER_KEY_ID = 'X-Oxy-Kaana-Key-Id';
+const HEADER_TIMESTAMP = 'X-Oxy-Kaana-Timestamp';
+const HEADER_SIGNATURE = 'X-Oxy-Kaana-Signature';
 
 export interface KaanaTransportConfig {
   readonly keyId: string;

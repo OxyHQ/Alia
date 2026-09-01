@@ -235,7 +235,7 @@ const FROZEN_DECLARATIONS: readonly Declaration[] = [
   { name: 'AliaBillingMode', kind: 'type' },
   { name: 'AliaInferenceCaller', kind: 'interface' },
   { name: 'AliaCallVisibility', kind: 'type' },
-  { name: 'AliaModelChoice', kind: 'type' },
+  { name: 'RoutingProfileChoice', kind: 'type' },
   { name: 'AliaInferenceBudget', kind: 'interface' },
   { name: 'AliaDisconnectPolicy', kind: 'type' },
   { name: 'AliaDegradation', kind: 'type' },

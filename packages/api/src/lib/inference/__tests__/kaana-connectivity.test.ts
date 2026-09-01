@@ -17,7 +17,6 @@ import {
   reportKaanaReachable,
   reportKaanaUnavailableUntil,
 } from '../kaana-connectivity.js';
-import { KAANA_CLIENT_ENABLED_ENV } from '../kaana-cutover.js';
 import { assertAllowedKaanaOrigin } from '../kaana-endpoint.js';
 import type { KaanaRequestPayload } from '../kaana-request.js';
 
@@ -28,16 +27,12 @@ const ENDPOINT = assertAllowedKaanaOrigin('https://api.oxy.so', 'development');
  * Epic #139 workstream 8 — *"Make Kaana connectivity explicit in
  * health/readiness checks."*
  *
- * Three properties, and the first is the one that makes this safe to land while
- * the product is still served by the in-process provider path:
+ * Two properties keep the health signal meaningful:
  *
- *  1. **With the cutover flag off, readiness is what it was.** `'disabled'`
- *     neither degrades `/health` nor blocks `/health/ready`, so the status code
- *     either route returns today is unchanged and only the body gains a field.
- *  2. **The signal has a real producer.** A registry nothing writes to is green
+ *  1. **The signal has a real producer.** A registry nothing writes to is green
  *     and inert, so the client's own circuit is driven here through the real
  *     constructor and the state is read afterwards.
- *  3. **The route consumes it.** A producer with no consumer is the same failure
+ *  2. **The route consumes it.** A producer with no consumer is the same failure
  *     from the other end, so `routes/health.ts` is asserted to call both
  *     functions — the entrypoint, not just the mechanism.
  */
@@ -46,8 +41,7 @@ const HEALTH_ROUTE = path.resolve(
   fileURLToPath(new URL('../../../routes/health.ts', import.meta.url)),
 );
 
-const ENABLED: NodeJS.ProcessEnv = { [KAANA_CLIENT_ENABLED_ENV]: 'true' };
-const DISABLED: NodeJS.ProcessEnv = {};
+const KAANA_ENV: NodeJS.ProcessEnv = {};
 
 beforeEach(() => {
   // The registry is process state, so each test starts from the boot state: no
@@ -56,64 +50,34 @@ beforeEach(() => {
 });
 
 /* -------------------------------------------------------------------------- */
-/*  1. The flag-off path is unchanged                                          */
-/* -------------------------------------------------------------------------- */
-
-describe('with the cutover flag off Kaana does not enter the health answer', () => {
-  it('reports disabled whatever the samples say', () => {
-    reportKaanaReachable();
-    expect(kaanaConnectivity(DISABLED, 1_000)).toBe('disabled');
-    reportKaanaUnavailableUntil(9_999_999);
-    expect(kaanaConnectivity(DISABLED, 1_000)).toBe('disabled');
-    // The control: the same samples under the flag DO change the answer, so
-    // `disabled` is about the flag and not about a registry nothing wrote to.
-    expect(kaanaConnectivity(ENABLED, 1_000)).toBe('unreachable');
-  });
-
-  it('reports disabled even with an unavailability recorded', () => {
-    reportKaanaUnavailableUntil(9_999_999);
-    expect(kaanaConnectivity(DISABLED, 1_000)).toBe('disabled');
-    // The control, so `disabled` is the flag rather than an unwritten registry.
-    expect(kaanaConnectivity(ENABLED, 1_000)).toBe('unreachable');
-  });
-
-  it('is off for every value that is not exactly the literal true', () => {
-    reportKaanaUnavailableUntil(9_999_999);
-    for (const value of ['1', 'TRUE', 'True', 'yes', '', ' true']) {
-      expect(kaanaConnectivity({ [KAANA_CLIENT_ENABLED_ENV]: value }, 1_000)).toBe('disabled');
-    }
-  });
-});
-
-/* -------------------------------------------------------------------------- */
 /*  The states, and the one that must not block a cold task                    */
 /* -------------------------------------------------------------------------- */
 
-describe('the four states are distinguished, and none of them blocks readiness', () => {
+describe('the three states are distinguished', () => {
   it('a cold task is unknown and stays in rotation', () => {
     // The deadlock this prevents: a task out of rotation receives no request, so
     // it can never acquire the evidence that would put it back in. "No evidence"
     // must therefore be ready.
-    expect(kaanaConnectivity(ENABLED, 1_000)).toBe('unknown');
+    expect(kaanaConnectivity(KAANA_ENV, 1_000)).toBe('unknown');
   });
 
   it('a completed call makes it reachable', () => {
     reportKaanaReachable();
-    expect(kaanaConnectivity(ENABLED, 1_000)).toBe('reachable');
+    expect(kaanaConnectivity(KAANA_ENV, 1_000)).toBe('reachable');
   });
 
   it('an open circuit makes it unreachable until the cooldown lapses', () => {
     reportKaanaUnavailableUntil(5_000);
-    expect(kaanaConnectivity(ENABLED, 4_999)).toBe('unreachable');
+    expect(kaanaConnectivity(KAANA_ENV, 4_999)).toBe('unreachable');
     // Self-expiring: nothing has to clear it, so a stale sample cannot pin a
     // task out of rotation forever.
-    expect(kaanaConnectivity(ENABLED, 5_000)).toBe('unknown');
+    expect(kaanaConnectivity(KAANA_ENV, 5_000)).toBe('unknown');
   });
 
   it('a success closes a recorded unavailability immediately', () => {
     reportKaanaUnavailableUntil(5_000);
     reportKaanaReachable();
-    expect(kaanaConnectivity(ENABLED, 1_000)).toBe('reachable');
+    expect(kaanaConnectivity(KAANA_ENV, 1_000)).toBe('reachable');
   });
 });
 
@@ -166,7 +130,6 @@ const CALL: AliaInferenceCall<KaanaRequestPayload> = {
 
 function client(over: Partial<KaanaClientConfig>): ReturnType<typeof createKaanaInferenceClient> {
   return createKaanaInferenceClient({
-    enabled: true,
     transport: answering({}),
     credential: CREDENTIAL,
     endpoint: ENDPOINT,
@@ -230,7 +193,7 @@ describe('the Kaana client is what reports connectivity (#139 ws8)', () => {
       }),
     );
 
-    expect(kaanaConnectivity(ENABLED, 1_000)).toBe('reachable');
+    expect(kaanaConnectivity(KAANA_ENV, 1_000)).toBe('reachable');
   });
 
   it('an availability failure that opens the circuit reports unreachable', async () => {
@@ -255,8 +218,8 @@ describe('the Kaana client is what reports connectivity (#139 ws8)', () => {
     );
 
     // The cooldown is 30s from the injected clock's 1_000.
-    expect(kaanaConnectivity(ENABLED, 2_000)).toBe('unreachable');
-    expect(kaanaConnectivity(ENABLED, 31_001)).toBe('unknown');
+    expect(kaanaConnectivity(KAANA_ENV, 2_000)).toBe('unreachable');
+    expect(kaanaConnectivity(KAANA_ENV, 31_001)).toBe('unknown');
   });
 
   it('a failure that is NOT about availability leaves connectivity alone', async () => {
@@ -283,7 +246,7 @@ describe('the Kaana client is what reports connectivity (#139 ws8)', () => {
       }),
     );
 
-    expect(kaanaConnectivity(ENABLED, 2_000)).toBe('unknown');
+    expect(kaanaConnectivity(KAANA_ENV, 2_000)).toBe('unknown');
   });
 });
 

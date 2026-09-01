@@ -5,7 +5,7 @@
  * ## Why this exists at all
  *
  * The Telegram and Discord bots read `GET /v1/models` and, when it came back
- * empty, printed `alia-lite` — a routing profile wearing a model's name, and
+ * empty, printed `kaana-lite` — a routing profile wearing a model's name, and
  * the identifier ADR 0002 froze. `docs/migration/compatibility-window.md`
  * records that `/v1/models` is CLOSED FOR ADVERTISEMENT and permanently serves
  * `{"object":"list","data":[]}`, so "when it came back empty" is now always:
@@ -232,7 +232,7 @@ export function offeredModes(
 /**
  * The mode that expresses no preference, derived rather than named.
  *
- * A request that carries no `model` routes through `getDefaultAliaModel()`
+ * A request that carries no `model` routes through `getDefaultRoutingProfile()`
  * (`packages/api/src/lib/chat/request-context.ts`), and the mode published for
  * exactly that path is the one whose routing is `default` and which does not
  * additionally set the deep-research flag. Deriving it from those two published
@@ -261,7 +261,7 @@ function automaticMode(modes: readonly ProductMode[]): ProductMode | null {
  *    removes, and substituting some other mode's label would claim a routing
  *    the request does not make. Deliberately NOT resolved through a
  *    `resolveSelection`-style replacement, which would report Fast for someone
- *    whose stored `alia-v1-pro-max` still routes to maximum quality.
+ *    whose stored `kaana-v1-pro-max` still routes to maximum quality.
  */
 export function labelForPreference(
   preferredModel: string | null | undefined,

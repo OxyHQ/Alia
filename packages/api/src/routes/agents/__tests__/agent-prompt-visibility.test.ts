@@ -141,7 +141,7 @@ const AGENT_ROW = {
   access: 'public',
   status: 'active',
   systemPrompt: PROMPT,
-  allowedModels: ['alia-v1'],
+  allowedModels: ['kaana-v1'],
   capabilityGrants: [],
   archetype: 'general',
   createdAt: new Date(),

@@ -8,7 +8,7 @@
  * Asked to write code, Claudio wrote code; asked its name, Claudio said Alia.
  * Both symptoms came from the same defect, and neither was in the agent's own
  * prompt: the COMPOSED message carried three claims about who was answering —
- * the identity guard at the top saying Claudio, `prompts/alia-v1.md` saying
+ * the identity guard at the top saying Claudio, `prompts/general.md` saying
  * "You are Alia, a sharp and personable AI assistant", `prompts/base.md` saying
  * "Always identify as Alia" — and no statement of scope anywhere at all. The
  * longest, most concrete claim won, which was never the guard's.
@@ -33,7 +33,7 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 import type { HydratedAgent } from '../agent-identity.js';
 
 vi.mock('../gateway-client.js', () => ({
-  getAliaModel: vi.fn(async () => ({ name: 'Alia V1' })),
+  getRoutingProfile: vi.fn(async () => ({ name: 'Kaana V1' })),
 }));
 vi.mock('../tools/oxy-services.js', () => ({
   getOxyServicePromptFragment: vi.fn(async () => ''),
@@ -59,8 +59,8 @@ function identityClaimsIn(message: string): string[] {
 const HISTORICAL_RIVAL_CLAIMS = [
   'You are Alia, a sharp and personable AI assistant. Witty, direct, and genuinely useful.',
   'You are **Alia**, an AI assistant built by the Alia AI team.',
-  'You are currently using the **Alia V1** model. When asked what model you use, say you are using Alia V1.',
-  'You are Alia Lite, optimized for speed and efficiency.',
+  'You are currently using the **Kaana V1** model. When asked what model you use, say you are using Kaana V1.',
+  'You are Kaana Lite, optimized for speed and efficiency.',
 ];
 
 const claudio = {
@@ -81,7 +81,7 @@ const claudio = {
 /** The default shape of an agent made through `POST /agents` without a prompt. */
 const undescribedClaudio = { ...claudio, systemPrompt: null } as HydratedAgent;
 
-const turn = { aliasModelId: 'alia-v1', isDirectUserSession: true } as const;
+const turn = { routingProfileId: 'kaana-v1', isDirectUserSession: true } as const;
 
 // `loadPrompt` memoizes per process, and these tests read the real files.
 beforeEach(() => clearPromptCache());
@@ -93,7 +93,7 @@ describe('the extractor', () => {
    * a message full of them.
    */
   it('finds the claims that used to contradict the guard', () => {
-    expect(identityClaimsIn(HISTORICAL_RIVAL_CLAIMS.join('\n\n'))).toEqual(['Alia', 'Alia', 'Alia Lite']);
+    expect(identityClaimsIn(HISTORICAL_RIVAL_CLAIMS.join('\n\n'))).toEqual(['Alia', 'Alia', 'Kaana Lite']);
   });
 
   it('does not mistake the guard\'s other sentences for a name', () => {
@@ -183,7 +183,7 @@ describe('a turn that belongs to nobody — the control', () => {
   it('still says who it is, and says the model', async () => {
     const message = await SystemPromptBuilder.build(turn);
 
-    expect(message).toContain('You are Alia V1,');
-    expect([...new Set(identityClaimsIn(message))]).toEqual(['Alia V1']);
+    expect(message).toContain('You are Kaana V1,');
+    expect([...new Set(identityClaimsIn(message))]).toEqual(['Kaana V1']);
   });
 });

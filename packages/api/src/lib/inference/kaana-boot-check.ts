@@ -1,7 +1,6 @@
 /**
  * The boot-time refusal — epic #139 workstream 2, *"Add startup validation that
- * production cannot boot without valid Oxy/Kaana configuration once the
- * migration flag is enabled."*
+ * production cannot boot without valid Oxy/Kaana configuration."*
  *
  * ## Why this is a separate module and not four lines in `src/index.ts`
  *
@@ -9,9 +8,8 @@
  * so no test imports it (`db/__tests__/bootWiring.test.ts` says so, and reads its
  * source text instead). A refusal written there could only ever be gated by
  * grepping for the string that implements it, and the property that matters here
- * is not "the call exists" but **what it does with an environment** — including
- * the one case worth more than all the others, that with the flag off it does
- * nothing at all. That is a question about a function, so it is a function.
+ * is not "the call exists" but **what it does with an environment**. That is a
+ * question about a function, so it is a function.
  *
  * `index.ts` keeps the part that is genuinely its own: the log line and the
  * `process.exit(1)`, in exactly the shape `connectPostgresOrExit` already uses.
@@ -44,12 +42,12 @@
  * environment the engineer configured. Adding an independent `NODE_ENV` gate on
  * top would mean a STAGING task with unusable Kaana configuration boots happily
  * and fails on live traffic, which is the failure this checkbox exists to
- * prevent. The shape rules are therefore enforced wherever the flag is on, and
- * the environment-match rule keeps the client's own relaxation.
+ * prevent. The shape rules are therefore enforced for every boot, and the
+ * environment-match rule keeps the client's own relaxation.
  *
- * A developer who sets the flag and nothing else is refused, and told every
- * variable name in one sentence. That is a thirty-second fix with the answer in
- * the message; booting into a process whose every model call fails is not.
+ * A developer with no Kaana configuration is refused and told every variable
+ * name in one sentence. Booting into a process whose every model call fails is
+ * not an accepted state.
  */
 
 import { authenticatedPrincipalSchema } from '@oxyhq/contracts';
@@ -60,7 +58,6 @@ import {
   type KaanaPrincipalConfig,
 } from './kaana-client.js';
 import { unsetKaanaCredentialVariables } from './kaana-credential.js';
-import { isKaanaClientEnabled } from './kaana-cutover.js';
 import { KAANA_BASE_URL_ENV, resolveKaanaEndpoint } from './kaana-endpoint.js';
 
 /**
@@ -71,24 +68,15 @@ import { KAANA_BASE_URL_ENV, resolveKaanaEndpoint } from './kaana-endpoint.js';
  * here rather than a field this check silently never reads. `KaanaPrincipalConfig`
  * is `z.input` of that schema, so the two cannot drift.
  *
- * **The variable NAMES still say `RELAY`, and that is not an oversight.** Kaana
- * shipped under the working name Relay, and every one of these names is set by
- * the LIVE ECS task definition, which `deploy-aws.yml` re-renders from the
- * running one rather than declaring it whole. Renaming a name here without
- * renaming it there makes the read return `undefined` and the behaviour change
- * in silence; renaming it in both leaves BOTH spellings in the task definition,
- * because the render merges and never removes. So the rename is an
- * infrastructure change, carried out on the task definition and on the two
- * GitHub repo secrets that feed SSM, and it is deliberately not made here. Gate
- * 6 in `__tests__/architectureGates.test.ts` freezes these names, so a
- * unilateral rename goes red rather than shipping.
+ * These names are canonical and coordinated with the live task definition.
+ * There is no compatibility read for a former spelling.
  */
 export const KAANA_PRINCIPAL_ENV = {
-  billing: 'ALIA_RELAY_ACCOUNT_ID',
-  applicationId: 'ALIA_RELAY_APPLICATION_ID',
-  credentialId: 'ALIA_RELAY_CREDENTIAL_ID',
-  environment: 'ALIA_RELAY_ENVIRONMENT',
-  inferenceScopes: 'ALIA_RELAY_INFERENCE_SCOPES',
+  billing: 'ALIA_KAANA_ACCOUNT_ID',
+  applicationId: 'ALIA_KAANA_APPLICATION_ID',
+  credentialId: 'ALIA_KAANA_CREDENTIAL_ID',
+  environment: 'ALIA_KAANA_ENVIRONMENT',
+  inferenceScopes: 'ALIA_KAANA_INFERENCE_SCOPES',
 } as const satisfies Record<keyof KaanaPrincipalConfig, string>;
 
 /** Field name -> variable name, for turning a zod issue path into something to set. */
@@ -101,17 +89,12 @@ const ENV_BY_FIELD: Readonly<Record<string, string | undefined>> = KAANA_PRINCIP
  * wants to log and exit, and a `try`/`catch` around a boot step reads as if the
  * step could fail for reasons other than the one being checked.
  *
- * **With the flag off this reads exactly one variable and returns.** No principal
- * variable is consulted, no schema is run and no deployment is resolved — the
- * property `__tests__/kaana-boot-check.test.ts` pins with a recording
- * environment, because "the flag-off path is unchanged" is the whole reason this
- * is safe to land before the cutover.
+ * Kaana is mandatory. Every deployment validates the complete configuration
+ * before it can listen; there is no feature flag or direct-provider fallback.
  */
 export function kaanaBootConfigurationFailure(
   env: NodeJS.ProcessEnv = process.env,
 ): string | null {
-  if (!isKaanaClientEnabled(env)) return null;
-
   /**
    * Unset variables first, and ALL of them, before anything is parsed.
    *
@@ -143,13 +126,13 @@ export function kaanaBootConfigurationFailure(
     ...unsetKaanaCredentialVariables(env),
   ].sort();
   if (unset.length > 0) {
-    return `the Kaana client is enabled but these variables are not set: ${unset.join(', ')}`;
+    return `the Kaana client is required but these variables are not set: ${unset.join(', ')}`;
   }
 
   /**
    * Where it may send, before who it says it is.
    *
-   * `RELAY_BASE_URL` is checked against
+   * `KAANA_BASE_URL` is checked against
    * {@link import('./kaana-endpoint.js').KAANA_ALLOWED_ORIGINS} here — #139
    * workstream 15's *"pin allowed Kaana origins/endpoints"* — and this is the
    * FAIL-CLOSED half of it: a production task whose base URL was mistyped, or
@@ -186,7 +169,7 @@ export function kaanaBootConfigurationFailure(
         ),
       ),
     ].sort();
-    return `the Kaana client is enabled and these variables hold values the contract rejects: ${offenders.join(', ')}`;
+    return `the Kaana client is required and these variables hold values the contract rejects: ${offenders.join(', ')}`;
   }
 
   try {

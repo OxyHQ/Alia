@@ -122,7 +122,7 @@ Config is stored in `~/.config/alia-codea-cli/config.json`:
 {
   "apiKey": "your-api-key",
   "apiBaseUrl": "https://api.alia.onl",
-  "defaultModel": "alia-v1-codea"
+  "defaultModel": "kaana-v1-codea"
 }
 ```
 

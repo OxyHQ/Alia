@@ -6,15 +6,8 @@
  * modules want a string back from a prompt. This is that call, and it is the
  * FIRST product-facing entry to Kaana in this repository.
  *
- * ## Why it answers `null` instead of throwing
- *
- * Two paths exist while the migration runs: Kaana, and the in-process provider
- * tree Kaana replaces. A caller that gets `null` knows Kaana did not serve this
- * request — because the cutover flag is off, because the process is not
- * configured for it, or because the call itself failed — and falls back. The
- * day the in-process tree is deleted, the fallbacks go with it and this starts
- * throwing instead. Until then, an exception here would take out a surface that
- * has a working alternative one line below.
+ * An empty generated answer is represented as `null`; configuration and
+ * transport failures throw. Hosted callers never select a second provider path.
  *
  * ## What it does not do
  *
@@ -68,6 +61,15 @@ export interface KaanaTextRequest {
   readonly signal?: AbortSignal;
 }
 
+export class KaanaClientUnavailableError extends Error {
+  readonly code = 'KAANA_CLIENT_UNAVAILABLE' as const;
+
+  constructor() {
+    super('Kaana is required for hosted text generation but no client is configured');
+    this.name = 'KaanaClientUnavailableError';
+  }
+}
+
 /**
  * The generated text, or `null` when Kaana did not serve it.
  *
@@ -78,7 +80,7 @@ export interface KaanaTextRequest {
  */
 export async function generateTextViaKaana(request: KaanaTextRequest): Promise<string | null> {
   const client = getKaanaClient();
-  if (client === null) return null;
+  if (client === null) throw new KaanaClientUnavailableError();
 
   const budgetMs = request.budgetMs ?? DEFAULT_BUDGET_MS;
 

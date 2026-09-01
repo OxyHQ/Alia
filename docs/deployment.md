@@ -132,48 +132,40 @@ show queue before rotating, or accept that those episodes need starting again.
 It must also be the **same value** in the API and the integrations service:
 encrypted tokens are written by one process and read by the other.
 
-### Two variables that are not what they look like
+### Variables that must remain absent
 
-- **`GATEWAY_API_URL`.** Setting it *and* `SERVICE_SECRET` flips
-  `packages/api/src/lib/gateway-client.ts:32` into remote mode and every provider call goes
-  to an HTTP service that no longer exists. `packages/alia-gateway` was deleted. Leave
-  `GATEWAY_API_URL` unset. Its second reader, `packages/api/src/lib/tools/gateway-admin.ts`,
-  was deleted by workstream 9 of #139 — an AI-callable tool that proxied provider-key CRUD
-  to `${GATEWAY_API_URL}/gateway/v1/*`, endpoints that had ceased to exist. One reader
-  remains, `gateway-client.ts` itself, so the variable retires with that seam
-  (workstream 8), not before.
-- **`GROK_API_KEY`.** Removed from `packages/api/.env.example`; documented here so nobody
-  puts it back. Its only reader is
-  `packages/api/src/internal/providers/lib/providers/grok-voice.ts:52`, in the expression
-  `!!process.env.GROK_API_KEY || true`, which is true either way — and that read never
-  executes at all: `isEnabled` has 24 definitions under `packages/api/src` and zero call
-  sites repo-wide. Upstream credentials live in the `provider_keys` table, not in the
-  environment.
+`GATEWAY_API_URL` and every upstream-provider key variable must be unset. The
+hosted runtime has one inference boundary, Kaana, and boot guards reject a task
+that combines it with a direct-provider route. Provider credentials live only in
+Kaana's encrypted database; they never live in Alia's environment or SSM tree.
 
 ### Kaana client
 
-Seven variables, all unset in every environment today, and **all or nothing**: when
-`ALIA_RELAY_CLIENT_ENABLED` is exactly the literal `true`, the process refuses to start
-unless the other six describe a principal `@oxyhq/contracts` accepts and an approved Kaana
-origin (`packages/api/src/lib/inference/kaana-boot-check.ts`).
+The configuration is all-or-nothing. There is no enable flag and no direct
+provider fallback: when the task is configured for hosted inference, the boot
+guard requires the complete principal, approved origin, Oxy application
+credential and edge-signing identity.
 
 ```bash
-ALIA_RELAY_CLIENT_ENABLED=true        # exactly `true`; `1` and `TRUE` do not enable it
-ALIA_RELAY_ACCOUNT_ID=<oxy-account>   # who is charged; never an end user
-ALIA_RELAY_APPLICATION_ID=<oxy-app>
-ALIA_RELAY_CREDENTIAL_ID=<oxy-credential>
-ALIA_RELAY_ENVIRONMENT=production     # development | staging | production
-ALIA_RELAY_INFERENCE_SCOPES=inference:invoke
-RELAY_BASE_URL=https://api.oxy.so     # must be an approved origin; see below
+ALIA_KAANA_ACCOUNT_ID=<oxy-account>   # who is charged; never an end user
+ALIA_KAANA_APPLICATION_ID=<oxy-app>
+ALIA_KAANA_CREDENTIAL_ID=<oxy-credential>
+ALIA_KAANA_ENVIRONMENT=production     # development | staging | production
+ALIA_KAANA_INFERENCE_SCOPES=inference:invoke
+ALIA_KAANA_CREDENTIAL_KEY=<oxy-application-key>
+ALIA_KAANA_CREDENTIAL_SECRET=<oxy-application-secret>
+KAANA_BASE_URL=https://kaana.oxy.so   # must be an approved origin; see below
+KAANA_EDGE_KEY_ID=<trusted-edge-key-id>
+KAANA_EDGE_SIGNING_PRIVATE_KEY=<ed25519-pkcs8-pem>
 ```
 
-`ALIA_RELAY_ENVIRONMENT` is the environment the **credential** was issued into, and on a
+`ALIA_KAANA_ENVIRONMENT` is the environment the **credential** was issued into, and on a
 production or staging task it must match `NODE_ENV`: a staging credential presented by a
 production task bills test traffic to the production account, and no later query separates
 it out again. A development process is left alone, so a local run may point wherever it was
 configured.
 
-`RELAY_BASE_URL` is **pinned to an allow-list**, not merely read
+`KAANA_BASE_URL` is **pinned to an allow-list**, not merely read
 (`packages/api/src/lib/inference/kaana-endpoint.ts`, `KAANA_ALLOWED_ORIGINS`). A production
 or staging process accepts only an approved Oxy origin and refuses to start on anything
 else — a near miss such as `https://api.oxy.so.example`, a scheme downgrade, a URL carrying
@@ -183,10 +175,17 @@ there is deliberately no variable that widens the list. The client re-checks the
 every call as well, so a configuration mutated after boot cannot ride a boot-time approval.
 Adding a host is an edit to `KAANA_ALLOWED_ORIGINS` and therefore a reviewed diff.
 
-Deliberately absent from `.do/app.yaml` and from `deploy-aws.yml`'s secret list. Adding
-them there before `Oxy API → Kaana` is mounted would be configuration for a service that
-does not answer; adding them is part of the #139 workstream 8 cutover, together with
-flipping the flag.
+The Oxy application credential and the Kaana edge key are not upstream-provider
+credentials. Their exact bindings are declared by `deploy-aws.yml`; adding an
+SSM value without adding or preserving its task-definition binding delivers
+nothing.
+
+The hosted cutover remains blocked while Alia signs a direct Kaana request:
+Oxy's inference edge is the component that resolves policy into the non-empty
+`authorizedRoutes` list Kaana requires for a routing profile. Alia must enter
+through that Oxy boundary (or receive an equivalent reviewed Oxy-owned
+resolution) before profile traffic can be enabled. Do not hardcode routes,
+regions or providers here.
 
 ### Secrets
 
@@ -207,8 +206,8 @@ end of the `server.listen` callback — named rather than cited by line, because
 number in a document drifts with every edit above it):
 
 1. Connect to PostgreSQL, or exit.
-2. Check the Kaana client configuration, or exit — see
-   *Kaana client* below. A no-op unless `ALIA_RELAY_CLIENT_ENABLED` is exactly `true`.
+2. Check the complete Kaana client configuration, or exit — see *Kaana client*
+   above. There is no enable flag and no partial/direct-provider mode.
 3. Start listening. Nothing below blocks the listener.
 4. Start the expiry sweeper, which deletes rows whose retention has passed. It depends only
    on PostgreSQL.
@@ -256,15 +255,14 @@ healthy and still receives traffic. Moving the target group to `/health/ready` i
 ## Operational notes
 
 - Keep logs sanitized on customer-facing surfaces. `sanitizeMessage()` is the chokepoint.
-- Do not expose upstream routing detail in product responses. Operator surfaces are the
-  opposite case: a log, an audit record and a `fallback_events` row must name the
-  deployment that failed, or the question they exist to answer cannot be asked. The scope
-  is in [model abstraction](./model-abstraction.mdx).
+- Do not expose upstream routing detail in product responses. Kaana owns provider
+  deployment, retry and health telemetry; Alia logs only the Kaana request/result
+  identifiers needed to correlate a product failure.
 
 ### Auditing a change to model or routing configuration
 
-Every write to `alia_models`, `alia_model_provider_mappings`, `model_configs`,
-`provider_keys` or `external_models` emits a structured record on the `config-audit`
+Every write to `routing_profiles`, `routing_profile_provider_mappings`, `model_configs`
+or `external_models` emits a structured record on the `config-audit`
 subsystem, from inside the repository function rather than from a caller — so any future
 caller is audited without being changed
 (`packages/api/src/lib/security/config-audit.ts`). In CloudWatch:
@@ -274,16 +272,8 @@ caller is audited without being changed
 ```
 
 Each record carries `resource`, `action`, `target`, `actor`, `before`, `after` and `at`.
-Two things it deliberately never carries, both enforced by an allow-list rather than by
-care: **no prompt or response content**, and **no credential** — `provider_keys.key` and
-`key_hash` are excluded, and `key_prefix` is the identifier a record names a key by, the
-same form [credential-rotation](./runbooks/credential-rotation.md) matches rows on.
-
-Automatic key health — a cooldown, a failure run, a credit exhaustion — is **not** here.
-Nobody configured it; it is a metric, and `lib/observability/metrics.ts` is where it
-belongs. `packages/api/src/lib/security/__tests__/config-audit.test.ts` derives the writer
-list from what each function does to those five tables rather than from its name, so a new
-writer that emits nothing fails the build.
+It deliberately carries no prompt, response content or credential. Alia has no hosted
+provider-key writer to audit; Kaana owns that administrative trail.
 
 ## Open questions
 

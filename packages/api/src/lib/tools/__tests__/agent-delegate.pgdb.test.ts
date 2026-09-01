@@ -141,7 +141,7 @@ async function seedAgent(input: {
     access: input.access ?? 'private',
     status: input.status ?? 'active',
     systemPrompt: 'You are the seeded agent.',
-    allowedModels: ['alia-lite'],
+    allowedModels: ['kaana-lite'],
   });
   return { id, oxyAccountId };
 }
@@ -277,7 +277,7 @@ describe('a delegation that runs is paid for by the delegating account', () => {
   it('settles the nested turn against the caller', async () => {
     const caller = await account(100);
     const target = await seedAgent({ author: uniqueId('other'), access: 'public' });
-    // 1000 tokens, `TOKENS_PER_CREDIT` 1000, `alia-lite`'s multiplier 0.5 —
+    // 1000 tokens, `TOKENS_PER_CREDIT` 1000, `kaana-lite`'s multiplier 0.5 —
     // one credit, which is also the floor, so the assertion is the balance.
     answers('billed');
 

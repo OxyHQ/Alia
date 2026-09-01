@@ -146,12 +146,12 @@ interface RetiredUnique extends UniqueRequirement {
 
 const UNIQUES_AT_FREEZE: readonly RetiredUnique[] = [
   {
-    model: 'AliaModel',
+    model: 'RoutingProfile',
     file: 'src/internal/providers/models/alia-model.ts',
     retiredBy: '60f910dd',
-    table: 'alia_models',
-    constraint: 'alia_models_alias_model_id_key',
-    mongooseKey: ['aliasModelId'],
+    table: 'routing_profiles',
+    constraint: 'routing_profiles_routing_profile_id_key',
+    mongooseKey: ['routingProfileId'],
   },
   {
     model: 'ModelConfig',

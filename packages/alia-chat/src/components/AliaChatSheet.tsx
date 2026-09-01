@@ -45,7 +45,7 @@ const SPRING_CONFIG = {
 export interface AliaChatSheetProps {
   /** App context injected into system prompt */
   clientContext?: string;
-  /** Alia model. Checked against `GET /catalogue`; omitted, the build's preference is used. */
+  /** Kaana routing profile. Checked against `GET /catalogue`; omitted, the build's preference is used. */
   model?: string;
   /** API URL override */
   apiUrl?: string;

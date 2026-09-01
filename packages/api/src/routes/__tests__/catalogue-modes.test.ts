@@ -88,7 +88,7 @@ describe('the modes surface serves the product table, in the product vocabulary'
     expect(byId.get('mode:deep-research')?.routing).toEqual({ kind: 'default' });
     expect(byId.get('mode:deep-research')?.deep_research).toBe(true);
 
-    const profiles = new Set(ROUTING_PRESETS.map((preset) => preset.id));
+    const profiles = new Set(ROUTING_PRESETS.flatMap((preset) => preset.profileIds));
     for (const mode of PRODUCT_MODES) {
       if (mode.routing.kind !== 'profile') continue;
       const routing = byId.get(mode.id)?.routing as { kind: string; profile_id: string };

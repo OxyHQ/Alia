@@ -147,7 +147,7 @@ export type AliaCallVisibility = 'user_turn' | 'derived' | 'background';
  * without deciding which. The Kaana client makes that translation; the product
  * never does.
  */
-export type AliaModelChoice =
+export type RoutingProfileChoice =
   | { readonly kind: 'product_default' }
   | { readonly kind: 'user_selected'; readonly productModelId: string }
   | { readonly kind: 'surface_pinned'; readonly productModelId: string };
@@ -228,7 +228,7 @@ export interface AliaInferenceContext {
   readonly surface: AliaInferenceSurface;
   readonly visibility: AliaCallVisibility;
   readonly caller: AliaInferenceCaller;
-  readonly model: AliaModelChoice;
+  readonly model: RoutingProfileChoice;
   /** The Alia conversation this call belongs to, when it belongs to one. */
   readonly conversationId: string | null;
   /** The caller's chosen fallback policy, or `null` for the product default. */

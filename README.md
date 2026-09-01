@@ -48,14 +48,14 @@ rather than an investigation.
 </table>
 
 > [!IMPORTANT]
-> **The product surface exposes Alia model identifiers only.** Thirteen `alia-*`
-> identifiers are served today; upstream operator names and upstream model IDs never appear
+> **The product surface exposes Kaana routing-profile identifiers only.** The public
+> `kaana-*` profiles are served today; upstream operator names and deployment IDs never appear
 > in a product API response, an error, the UI or a customer-facing analytics event, and
 > user-facing errors go through a sanitiser first. The rule is a product and privacy
 > boundary, not a global ban on the words — engineering docs and ADRs name publishers,
 > because [ADR 0003](docs/adr/0003-model-revision-deployment-provider-routing-profile.md)
-> makes `<publisher>/<model>` the canonical identifier form. Several of the thirteen are
-> routing policies rather than models; see
+> makes `<publisher>/<model>` the canonical identifier form for concrete models. Profiles
+> are routing policies, not models; see
 > [model abstraction](docs/model-abstraction.mdx).
 
 ## The chat runtime
@@ -72,12 +72,11 @@ on the second.
 [ADR 0004](docs/adr/0004-product-endpoints-versus-generic-inference-endpoints.md); new
 generic integrations go to Oxy Console and `api.oxy.so/v1`.
 
-There is **no gateway service**. Provider calls happen in process:
-`packages/api/src/lib/chat-core.ts` builds an AI SDK client directly, against credentials
-in the `provider_keys` Postgres table, with a fallback loop that retries a request down the
-tier's ranked list. Under
-[ADR 0001](docs/adr/0001-alia-oxy-kaana-responsibility-boundary.md) that moves behind one
-typed client for Kaana, Oxy's own inference provider.
+Hosted inference goes through Kaana. Alia stores no upstream provider credential,
+constructs no provider client and has no direct-provider fallback. Kaana owns the
+provider credentials and runtime state in its database. Routing-profile traffic remains
+fail-closed until Oxy resolves policy into the signed `authorizedRoutes` list; Alia's
+current direct transport deliberately does not invent that authorization.
 
 `/triggers` is the **only** scheduling API. It covers scheduled, webhook, integration and
 heartbeat executions. There is no second scheduler, and no backward-compatible model

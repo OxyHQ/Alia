@@ -45,7 +45,7 @@ import type { CreditFundingSource } from '../domain/credit-funding.js';
 export interface CostEntry {
   userId: string;
   sessionId?: string;
-  aliasModelId: string;      // User sees this (e.g., "alia-v1-pro")
+  routingProfileId: string;      // User sees this (e.g., "kaana-v1-pro")
   actualProvider: string;    // Internal only
   actualModelId: string;     // Internal only
   inputTokens: number;
@@ -63,7 +63,7 @@ export interface UserCostSummary {
   totalSpent: number;
   totalTokens: number;
   totalRequests: number;
-  costByModel: Record<string, number>;  // Only Alia model names!
+  costByModel: Record<string, number>;  // Only Kaana routing profile names!
   tokensByModel: Record<string, number>;
   avgCostPerRequest: number;
   estimatedMonthlyCost: number;
@@ -82,7 +82,7 @@ function toCostEntry(row: CostEntryRow): CostEntry {
   return {
     userId: row.userId,
     ...(row.sessionId === null ? {} : { sessionId: row.sessionId }),
-    aliasModelId: row.aliasModelId,
+    routingProfileId: row.routingProfileId,
     actualProvider: row.actualProvider,
     actualModelId: row.actualModelId,
     inputTokens: row.inputTokens,
@@ -140,7 +140,7 @@ export function estimateFreeTierSavings(
  */
 export async function recordCost(
   userId: string,
-  aliasModelId: string,
+  routingProfileId: string,
   actualProvider: string,
   actualModelId: string,
   inputTokens: number,
@@ -156,7 +156,7 @@ export async function recordCost(
     await insertCostEntry(getDb(), {
       userId,
       sessionId: sessionId ?? null,
-      aliasModelId,
+      routingProfileId,
       actualProvider,
       actualModelId,
       inputTokens,
@@ -168,7 +168,7 @@ export async function recordCost(
       timestamp: new Date(),
     });
 
-    log.credits.info({ costUSD, aliasModelId, totalTokens, grantKind, savedFromCache }, 'Recorded cost');
+    log.credits.info({ costUSD, routingProfileId, totalTokens, grantKind, savedFromCache }, 'Recorded cost');
   } catch (error) {
     log.credits.error({ err: error }, 'Error recording cost');
   }
@@ -198,8 +198,8 @@ export async function getUserCostSummary(
       totalSpent += entry.costUsd;
       totalTokens += entry.totalTokens;
 
-      // Aggregate by Alia model (not provider!)
-      const model = entry.aliasModelId;
+      // Aggregate by Kaana routing profile (not provider!)
+      const model = entry.routingProfileId;
       costByModel[model] = (costByModel[model] || 0) + entry.costUsd;
       tokensByModel[model] = (tokensByModel[model] || 0) + entry.totalTokens;
 
@@ -272,7 +272,7 @@ export async function getGlobalCostStats(
   totalTokens: number;
   totalRequests: number;
   uniqueUsers: number;
-  costByAliasModel: Record<string, number>;
+  costByRoutingProfile: Record<string, number>;
   costByActualProvider: Record<string, number>;  // Internal only!
   avgCostPerRequest: number;
   cacheSavingsTotal: number;
@@ -289,15 +289,15 @@ export async function getGlobalCostStats(
     let totalTokens = 0;
     let cacheSavingsTotal = 0;
     let freeTierSavingsTotal = 0;
-    const costByAliasModel: Record<string, number> = {};
+    const costByRoutingProfile: Record<string, number> = {};
     const costByActualProvider: Record<string, number> = {};
 
     for (const entry of entries) {
       totalRevenue += entry.costUsd;
       totalTokens += entry.totalTokens;
 
-      // By Alia model (user-facing)
-      costByAliasModel[entry.aliasModelId] = (costByAliasModel[entry.aliasModelId] || 0) + entry.costUsd;
+      // By Kaana routing profile (user-facing)
+      costByRoutingProfile[entry.routingProfileId] = (costByRoutingProfile[entry.routingProfileId] || 0) + entry.costUsd;
 
       // By actual provider (internal analytics only!)
       costByActualProvider[entry.actualProvider] = (costByActualProvider[entry.actualProvider] || 0) + entry.costUsd;
@@ -319,7 +319,7 @@ export async function getGlobalCostStats(
       totalTokens,
       totalRequests,
       uniqueUsers,
-      costByAliasModel,        // Safe for users
+      costByRoutingProfile,        // Safe for users
       costByActualProvider,    // INTERNAL ONLY - never expose to users!
       avgCostPerRequest,
       cacheSavingsTotal,
@@ -332,7 +332,7 @@ export async function getGlobalCostStats(
       totalTokens: 0,
       totalRequests: 0,
       uniqueUsers: 0,
-      costByAliasModel: {},
+      costByRoutingProfile: {},
       costByActualProvider: {},
       avgCostPerRequest: 0,
       cacheSavingsTotal: 0,
@@ -361,7 +361,7 @@ export async function getTopUsersByCost(
  * Get cost efficiency by model (cost per 1k tokens)
  */
 export async function getModelEfficiency(): Promise<Array<{
-  aliasModelId: string;
+  routingProfileId: string;
   avgCostPer1kTokens: number;
   totalRequests: number;
   totalCost: number;
@@ -384,11 +384,11 @@ export async function getCostOptimizationRecommendations(userId: string): Promis
   const recommendations: string[] = [];
 
   // Check if using expensive models unnecessarily
-  const proUsage = (summary.costByModel['alia-v1-pro'] || 0) + (summary.costByModel['alia-v1-pro-max'] || 0);
+  const proUsage = (summary.costByModel['kaana-v1-pro'] || 0) + (summary.costByModel['kaana-v1-pro-max'] || 0);
   const totalCost = summary.totalSpent;
 
   if (proUsage > totalCost * 0.5 && summary.totalRequests > 20) {
-    recommendations.push('💡 You\'re using Pro models frequently. Consider using standard Alia V1 for simpler tasks to save costs.');
+    recommendations.push('💡 You\'re using Pro models frequently. Consider using standard Kaana V1 for simpler tasks to save costs.');
   }
 
   // Check cache usage

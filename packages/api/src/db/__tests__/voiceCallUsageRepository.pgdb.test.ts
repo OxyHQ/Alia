@@ -40,7 +40,7 @@ const minutesAgo = (n: number) => new Date(Date.now() - n * MIN_MS);
 
 function record(over: Partial<VoiceCallUsageRecord> & { sessionId: string; oxyUserId: string }): VoiceCallUsageRecord {
   return {
-    aliaModelId: 'alia-v1-voice',
+    routingProfileId: 'kaana-v1-voice',
     provider: 'vcur-provider',
     providerModel: 'vcur-provider-model',
     startTime: minutesAgo(10),

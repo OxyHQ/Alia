@@ -125,7 +125,6 @@ async function sendOnce(
 ): Promise<{ request: InferenceRequest; raw: string }> {
   const transport = new CapturingTransport();
   const client = createKaanaInferenceClient({
-    enabled: true,
     transport,
     credential: CREDENTIAL,
     endpoint: ENDPOINT,

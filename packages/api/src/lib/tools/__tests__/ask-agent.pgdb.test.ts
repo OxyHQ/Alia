@@ -149,7 +149,7 @@ async function seedAgent(input: {
     category: 'research',
     status: input.status ?? 'active',
     systemPrompt,
-    allowedModels: ['alia-lite'],
+    allowedModels: ['kaana-lite'],
   });
   return { id, oxyAccountId, systemPrompt };
 }
@@ -385,7 +385,7 @@ describe('who pays for the nested turn', () => {
     const owner = await account(100);
     const target = await seedAgent({ author: owner });
     /**
-     * 6000 tokens, `TOKENS_PER_CREDIT` 1000, and the `alia-lite` preset's
+     * 6000 tokens, `TOKENS_PER_CREDIT` 1000, and the `kaana-lite` preset's
      * multiplier of 0.5 — three credits. The agent's OWN model decides the
      * price, which is why the row above pins `allowedModels`, and a number
      * bigger than the one-credit reservation is what makes the settlement

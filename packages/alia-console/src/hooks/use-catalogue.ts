@@ -5,7 +5,7 @@
  *
  * `documentation/models.tsx` used to carry a `const models = [...]` naming four
  * `alia-*` identifiers, calling them "models", and quoting context windows and
- * output limits that matched nothing in the routing table — `alia-lite` was
+ * output limits that matched nothing in the routing table — `kaana-lite` was
  * documented at 8K context when its candidates carry far more. Every number on
  * that page was invented, and nothing could tell you, because there was nothing
  * to compare it against.

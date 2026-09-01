@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
@@ -111,25 +111,10 @@ describe('the request envelope cannot name a deployment at all (#139 ws17)', () 
       resolveRoutingTarget({ kind: 'user_selected', productModelId: 'oxy/atlas' }, fallback, 'req-1').kind,
     ).toBe('model');
     expect(
-      resolveRoutingTarget({ kind: 'user_selected', productModelId: 'alia-v1-pro' }, fallback, 'req-1').kind,
+      resolveRoutingTarget({ kind: 'user_selected', productModelId: 'kaana-v1-pro' }, fallback, 'req-1').kind,
     ).toBe('routing_profile');
 
-    /**
-     * A deployment-shaped identifier, MEASURED rather than assumed.
-     *
-     * `dep_internal_1` is a syntactically valid routing-profile slug, so it
-     * resolves to `{ kind: 'routing_profile' }` rather than being refused — and
-     * that is the correct answer, not a hole. The dangerous outcome would be a
-     * target that NAMES the deployment, and there is no such target: a profile
-     * slug is resolved by Kaana against the account's own routing configuration,
-     * so the worst a caller achieves by writing a deployment id there is to name
-     * a profile that does not exist.
-     *
-     * This assertion is therefore about the KIND, for every input, including
-     * the ones a caller would try. The version that expected a refusal here was
-     * wrong, and passed only until it was run.
-     */
-    for (const id of ['dep_internal_1', 'internal_alia', 'oxy/atlas', 'alia-lite']) {
+    for (const id of ['oxy/atlas', 'kaana-lite']) {
       const target = resolveRoutingTarget({ kind: 'user_selected', productModelId: id }, fallback, 'req-1');
       expect(['model', 'routing_profile'], id).toContain(target.kind);
       expect(Object.keys(target).sort(), id).not.toContain('deploymentId');
@@ -138,7 +123,7 @@ describe('the request envelope cannot name a deployment at all (#139 ws17)', () 
     // And an identifier that parses as neither grammar is `invalid_request`,
     // never quietly treated as a profile — the silent-substitution failure ADR
     // 0003 forbids.
-    for (const id of ['deployment:dep_1', 'has space', '', '../etc/passwd', 'UPPER']) {
+    for (const id of ['dep_internal_1', 'internal_alia', 'deployment:dep_1', 'has space', '', '../etc/passwd', 'UPPER']) {
       let thrown: unknown = null;
       try {
         resolveRoutingTarget({ kind: 'user_selected', productModelId: id }, fallback, 'req-1');
@@ -178,7 +163,7 @@ describe('the request envelope cannot name a deployment at all (#139 ws17)', () 
       encoding: 'utf8',
     })
       .split('\n')
-      .filter((file) => file.endsWith('.ts') && !file.includes('/__tests__/'));
+      .filter((file) => file.endsWith('.ts') && !file.includes('/__tests__/') && existsSync(path.join(REPO_ROOT, file)));
 
     const naming = files.filter((file) =>
       /\binternal_alia\b|\bavailabilityScope\b/.test(readFileSync(path.join(REPO_ROOT, file), 'utf8')),
@@ -405,7 +390,7 @@ describe('the internal surface takes service tokens and nothing else (#139 ws17)
       encoding: 'utf8',
     })
       .split('\n')
-      .filter((file) => file.endsWith('.ts') && !file.includes('/__tests__/'));
+      .filter((file) => file.endsWith('.ts') && !file.includes('/__tests__/') && existsSync(path.join(REPO_ROOT, file)));
 
     expect(routes.length).toBeGreaterThan(20);
     const offenders = routes

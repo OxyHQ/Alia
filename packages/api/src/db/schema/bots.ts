@@ -26,9 +26,9 @@
  *
  * Mongoose omitted both columns from every query that did not ask for them, which
  * is why the one caller that needs them says `.select('+botToken +webhookSecret')`.
- * drizzle has no projection default: a bare `select()` returns them. The rule is
- * the one `provider_keys.key` already states — name columns, and leave these out
- * of every projection but the call that must use them. It is the setter rule's
+ * drizzle has no projection default: a bare `select()` returns them. Name
+ * columns, and leave these out of every projection but the call that must use
+ * them. It is the setter rule's
  * sibling: a Mongoose default that held by construction and now holds only by
  * discipline.
  */

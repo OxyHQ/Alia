@@ -6,7 +6,7 @@ import { FIXED_CAPABILITY_FAMILIES } from '../../domain/capability-grants.js';
 import { accountCategoryChoices, isOfferedAccountCategory } from '../../lib/account-category.js';
 import { fallbackAgentUsername, suggestAgentUsername } from '../../lib/agent-identity.js';
 import { authenticateToken } from '../../middleware/auth.js';
-import { resolveModel, getAIModel, getDefaultAliaModel } from '../../lib/chat-core.js';
+import { resolveModel, getAIModel, getDefaultRoutingProfile } from '../../lib/chat-core.js';
 import { log } from '../../lib/logger.js';
 import type { Request, Response } from 'express';
 
@@ -31,7 +31,7 @@ router.post('/generate', authenticateToken, async (req: Request, res: Response) 
     let result: Awaited<ReturnType<typeof generateText>> | null = null;
 
     for (let attempt = 0; attempt < MAX_PROVIDER_RETRIES; attempt++) {
-      const resolved = await resolveModel(getDefaultAliaModel(), skipProviders);
+      const resolved = await resolveModel(getDefaultRoutingProfile(), skipProviders);
       if (!resolved) {
         if (attempt === 0) {
           return res.status(503).json({ error: 'No AI models available' });

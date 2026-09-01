@@ -39,7 +39,10 @@ import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
-import { ALIA_MODELS } from '../internal/providers/lib/alia-models.js';
+import {
+  PRODUCT_PROMPT_BY_KAANA_PROFILE,
+  PRODUCT_PROMPT_PROFILE_IDS,
+} from '../lib/product-prompt-registry.js';
 
 const packageRoot = fileURLToPath(new URL('../..', import.meta.url));
 const dockerfile = readFileSync(`${packageRoot}Dockerfile`, 'utf8');
@@ -90,7 +93,7 @@ describe('the runtime image ships what the code reads by path', () => {
    * else. `lib/prompt-loader.ts` resolves `join(__dirname, '../prompts', name)`
    * and the runtime stage did not copy that directory, so every request logged
    *
-   *   Error loading prompt  ENOENT: ... '/app/packages/api/prompts/alia-lite.md'
+   *   Error loading prompt  ENOENT: ... '/app/packages/api/prompts/general-lite.md'
    *   Error loading prompt  ENOENT: ... '/app/packages/api/prompts/base.md'
    *
    * and `loadPrompt` RETURNS '' on failure. Alia therefore served every request
@@ -159,18 +162,19 @@ describe('the runtime image ships what the code reads by path', () => {
 
   /**
    * And that the directory is not merely PRESENT but populated with the names
-   * the code asks for. `buildSystemPrompt` loads `prompts/<modelId>.md`, so the
-   * alias id IS the filename — a rename of an id that forgets the file degrades
-   * to an empty prompt rather than to an error.
+   * the product prompt registry asks for. Routing profile ids and product
+   * prompt filenames are deliberately separate, so this follows the registry
+   * instead of re-coupling `kaana-*` inference ids to files on disk.
    *
-   * Read from `ALIA_MODELS` rather than from a list written here, or the check
-   * measures a copy of the answer instead of the answer.
+   * Read from the runtime registry rather than from a list written here, or the
+   * check measures a copy of the answer instead of the answer.
    */
-  it('ships a prompt for every alias the builder will ask for', () => {
-    const ids = Object.keys(ALIA_MODELS);
-    const missing = ids.filter((id) => !existsSync(`${packageRoot}prompts/${id}.md`));
+  it('ships every semantic product prompt the builder will ask for', () => {
+    const promptIds = Object.values(PRODUCT_PROMPT_BY_KAANA_PROFILE);
+    const missing = promptIds.filter((id) => !existsSync(`${packageRoot}prompts/${id}.md`));
     expect(missing).toEqual([]);
-    // Vacuity floor: an empty ALIA_MODELS satisfies the line above.
-    expect(ids.length).toBeGreaterThanOrEqual(10);
+    // Vacuity floors: an empty or partial registry satisfies the line above.
+    expect(PRODUCT_PROMPT_PROFILE_IDS.length).toBeGreaterThanOrEqual(10);
+    expect(promptIds).toHaveLength(PRODUCT_PROMPT_PROFILE_IDS.length);
   });
 });

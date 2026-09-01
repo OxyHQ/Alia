@@ -31,7 +31,6 @@ import billingRouter from './routes/billing.js';
 import organizationRouter from './routes/organization.js';
 import canvasRouter from './routes/canvas/index.js';
 import codeaRouter from './routes/codea.js';
-import modelsStatsRouter from './routes/models-stats.js';
 import catalogueRouter from './routes/catalogue.js';
 import externalModelsRouter from './routes/external-models.js';
 import localRuntimesRouter from './routes/local-runtimes.js';
@@ -55,12 +54,10 @@ import { createCrowdSourceWebhookRoutes } from './routes/crowdsource-webhook.js'
 
 // Register hooks (side-effect import)
 import './lib/hooks/index.js';
-import { aliasDeprecationHeaders } from './middleware/alias-deprecation.js';
 import { credentialDeprecationHeaders } from './middleware/credential-deprecation.js';
 import { authenticateToken } from './middleware/auth.js';
 import { resolveWorkspace } from './middleware/workspace.js';
 import { startBackgroundServices, stopBackgroundServices } from './lib/background-services.js';
-import { warmupProviders } from './lib/provider-warmup.js';
 import { initChannels } from './lib/channels/index.js';
 // Socket.io
 import { initSocket } from './socket.js';
@@ -190,12 +187,6 @@ app.use(express.json({
 }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// The alias deprecation signal (compatibility window (a), RFC 9745 + RFC 8594).
-// Below the body parsers because it reads `body.model`, and above every route
-// because the subject is the alias, not one surface: `/alia/chat` and `/v1/*`
-// both name aliases and both owe their callers the notice.
-app.use(aliasDeprecationHeaders);
-
 // The credential deprecation signal (compatibility window (c), same two RFCs).
 // Above every route for the same reason: an `alia_sk_*` credential authenticates
 // `/v1/*`, `/codea/*` and the MCP relay alike, so the notice cannot belong to one
@@ -254,7 +245,6 @@ app.use('/billing', billingRouter);
 app.use('/organization', organizationRouter);
 app.use('/api', canvasRouter);
 app.use('/codea', codeaRouter);
-app.use('/models', modelsStatsRouter);
 // Outside `/v1` on purpose: ADR 0004 keeps that surface frozen at the routes it
 // already has. See routes/catalogue.ts for the full shape argument.
 app.use('/catalogue', catalogueRouter);
@@ -405,11 +395,8 @@ server.listen(PORT, '0.0.0.0', () => {
    * Called here, after `listen`, for the same reason the seeders are not called
    * here at all: nothing on the boot path may stand between the process and
    * `/health/live` answering.
-   */
+  */
   startBackgroundServices();
-
-  // Pre-warm TLS connections to AI providers (non-blocking, no DB dependency)
-  warmupProviders().catch((err) => log.general.error({ err }, '[Warmup] Provider warmup error'));
 
   // Verify Redis connectivity (non-blocking)
   import('./lib/redis.js').then(({ getRedisClient }) => {

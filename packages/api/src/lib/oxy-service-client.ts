@@ -31,11 +31,11 @@
  *
  * ## The credential is Oxy's, not Kaana's
  *
- * `ALIA_RELAY_CREDENTIAL_KEY` / `_SECRET` are Alia's Oxy ApplicationCredential:
+ * `ALIA_KAANA_CREDENTIAL_KEY` / `_SECRET` are Alia's Oxy ApplicationCredential:
  * one record, one secret, seven scopes, of which `user:read` is the one read
  * here and `inference:*` are the ones `kaana-credential.ts` exchanges for. The
- * `RELAY` in the name is the working name Kaana shipped under (see ADR 0001) and is not a claim
- * about who may use it. Two modules therefore name the same two variables, which
+ * The Kaana qualifier names the Oxy inference audience, not an upstream
+ * provider. Two modules therefore name the same two variables, which
  * is the same shape `OXY_API_URL` already has (`middleware/auth.ts`,
  * `lib/agent-account.ts`, `kaana-credential.ts`); gate 6 in
  * `__tests__/architectureGates.test.ts` records every file that reads each one.
@@ -89,13 +89,13 @@ function build(): OxyServices | null {
   // a credential that differs by one invisible character fails with a 401 that
   // names nothing.
   const baseURL = (process.env.OXY_API_URL ?? '').trim();
-  const apiKey = (process.env.ALIA_RELAY_CREDENTIAL_KEY ?? '').trim();
-  const apiSecret = (process.env.ALIA_RELAY_CREDENTIAL_SECRET ?? '').trim();
+  const apiKey = (process.env.ALIA_KAANA_CREDENTIAL_KEY ?? '').trim();
+  const apiSecret = (process.env.ALIA_KAANA_CREDENTIAL_SECRET ?? '').trim();
 
   const unset = Object.entries({
     OXY_API_URL: baseURL,
-    ALIA_RELAY_CREDENTIAL_KEY: apiKey,
-    ALIA_RELAY_CREDENTIAL_SECRET: apiSecret,
+    ALIA_KAANA_CREDENTIAL_KEY: apiKey,
+    ALIA_KAANA_CREDENTIAL_SECRET: apiSecret,
   })
     .filter(([, value]) => value === '')
     .map(([variable]) => variable);

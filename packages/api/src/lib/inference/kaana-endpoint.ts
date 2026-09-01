@@ -12,7 +12,7 @@
  *
  * This is that moment, and the order matters. The allow-list is cheap to add
  * before the first URL is configurable and expensive afterwards: once
- * `RELAY_BASE_URL` is a variable an operator sets, "it points wherever the
+ * `KAANA_BASE_URL` is a variable an operator sets, "it points wherever the
  * environment says" is already the behaviour, and every later restriction is a
  * migration. Landing the pin WITH the field means there has never been a version
  * of Alia that would send a user's prompt and a service credential to an
@@ -47,19 +47,11 @@ import type { AuthenticatedPrincipal } from '@oxyhq/contracts';
 /**
  * The variable that names the Kaana endpoint. There is no default.
  *
- * **The variable NAMES still say `RELAY`, and that is not an oversight.** Kaana
- * shipped under the working name Relay, and every one of these names is set by
- * the LIVE ECS task definition, which `deploy-aws.yml` re-renders from the
- * running one rather than declaring it whole. Renaming a name here without
- * renaming it there makes the read return `undefined` and the behaviour change
- * in silence; renaming it in both leaves BOTH spellings in the task definition,
- * because the render merges and never removes. So the rename is an
- * infrastructure change, carried out on the task definition and on the two
- * GitHub repo secrets that feed SSM, and it is deliberately not made here. Gate
- * 6 in `__tests__/architectureGates.test.ts` freezes these names, so a
- * unilateral rename goes red rather than shipping.
+ * The name is shared with deployment configuration and has no legacy fallback.
+ * A partial rollout therefore refuses at boot instead of sending a prompt to a
+ * surprising endpoint.
  */
-export const KAANA_BASE_URL_ENV = 'RELAY_BASE_URL';
+export const KAANA_BASE_URL_ENV = 'KAANA_BASE_URL';
 
 /**
  * The origins a real deployment may send inference to.
@@ -75,7 +67,7 @@ export const KAANA_BASE_URL_ENV = 'RELAY_BASE_URL';
  * `https://api.oxy.so.attacker.example` a matter of string prefixes rather than
  * of host equality.
  */
-export const KAANA_ALLOWED_ORIGINS: readonly string[] = ['https://api.oxy.so', 'https://relay.oxy.so'];
+export const KAANA_ALLOWED_ORIGINS: readonly string[] = ['https://api.oxy.so', 'https://kaana.oxy.so'];
 
 declare const KAANA_ENDPOINT_BRAND: unique symbol;
 

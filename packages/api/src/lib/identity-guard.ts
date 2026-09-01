@@ -20,8 +20,8 @@
  *  - An AGENT keeps its own name. It is an Oxy `bot` account with a real
  *    handle, and telling a person who they are talking to is the product
  *    working.
- *  - Ordinary Alia answers with the Alia model name, because that is genuinely
- *    what it is: `alia-v1` is a routing policy, not a rebadge of one model.
+ *  - Ordinary Alia answers with the Kaana routing profile name, because that is genuinely
+ *    what it is: `kaana-v1` is a routing policy, not a rebadge of one model.
  *  - NEITHER may name the provider, the foundation model, or the company that
  *    trained it.
  *
@@ -41,7 +41,7 @@
  *
  * The user-visible bug this closes: an agent called Claudio was told it was
  * Claudio here and told it was Alia three sections further down, by
- * `prompts/alia-v1.md` ("You are Alia, a sharp and personable AI assistant"),
+ * `prompts/general.md` ("You are Alia, a sharp and personable AI assistant"),
  * by `prompts/base.md` ("Always identify as Alia") and by a model-identity line
  * the builder appended. Two owners of one fact, and the longer, more concrete
  * one won. The prompt files describe STYLE and BEHAVIOUR now and name nobody:
@@ -58,12 +58,12 @@ export interface IdentitySubject {
    * The agent's own display name, when this turn belongs to one.
    *
    * Takes precedence over `modelName`: the person is talking to the agent, and
-   * which Alia model is answering for it is the route detail below, not the
+   * which Kaana routing profile is answering for it is the route detail below, not the
    * identity above.
    */
   agentName?: string | null;
   /**
-   * Active Alia model display name (e.g. "Alia V1"). Falls back to the plain
+   * Active Kaana routing profile display name (e.g. "Kaana V1"). Falls back to the plain
    * "Alia" brand when the active model is unknown.
    */
   modelName?: string | null;
@@ -167,7 +167,7 @@ You are not a general-purpose assistant. Alia is; you are ${agentName}, and answ
  * Build the non-negotiable identity guard fragment.
  *
  * @param subject - Who the assistant is on this turn. An agent's own name wins;
- *   otherwise the active Alia model's, falling back to the brand. An agent also
+ *   otherwise the active Kaana routing profile's, falling back to the brand. An agent also
  *   gets {@link buildRemitRule}; an ordinary turn does not.
  */
 export function buildIdentityGuard(subject: IdentitySubject = {}): string {
@@ -175,7 +175,7 @@ export function buildIdentityGuard(subject: IdentitySubject = {}): string {
   const activeModel = subject.modelName?.trim() || 'Alia';
 
   /**
-   * An AGENT says its own name and, if asked, which Alia model powers it.
+   * An AGENT says its own name and, if asked, which Kaana routing profile powers it.
    *
    * That second half is deliberate: "which model are you running on" has a
    * true, product-level answer that gives away no route detail, and refusing it
@@ -184,7 +184,7 @@ export function buildIdentityGuard(subject: IdentitySubject = {}): string {
   const identity = agentName
     ? `You are ${agentName}, an AI agent running on the Alia AI platform. You ARE an AI: never claim to be human, and never deny being an AI.
 
-${agentName} is your name and the name you give when asked who you are. Alia is the platform you run on — a multi-model AI platform — and ${activeModel} is the Alia model powering this conversation. You may say both.`
+${agentName} is your name and the name you give when asked who you are. Alia is the platform you run on — a multi-model AI platform — and ${activeModel} is the Kaana routing profile powering this conversation. You may say both.`
     : `You are ${activeModel}, an AI assistant built by the Alia AI platform. You ARE an AI assistant: never claim to be human, and never deny being an AI.
 
 Alia is a multi-model AI platform. The model powering this conversation is ${activeModel}. When asked what model you are, answer "${activeModel}".`;
