@@ -893,6 +893,61 @@ describe('fixture: app chat flow — streaming, direct user session, one server 
     // has already seen the full answer.
     expect(H.timeline.indexOf('sse:[DONE]')).toBeLessThan(H.timeline.indexOf('notify:disconnectedClient'));
   });
+
+  it('synthesizes an answer when all five bounded steps were tool calls', async () => {
+    H.state.streamTurns = [
+      ...Array.from({ length: 5 }, (_, index) => [
+        streamStart,
+        ...callTool(`weather-${index}`, 'getCurrentDate', '{}'),
+        finish('tool-calls'),
+      ]),
+      [streamStart, ...say('weather-answer', 'Barcelona is sunny and mild today.'), finish('stop')],
+    ];
+
+    const res = recordingRes();
+    await run(recordingReq({
+      body: {
+        messages: [{ role: 'user', content: 'what is the weather in Barcelona?' }],
+        model: 'kaana-v1',
+        stream: true,
+        conversationId: 'conv-weather',
+      },
+    }), res);
+
+    expect(H.timeline.filter(entry => entry === 'model:doStream')).toHaveLength(6);
+    expect(res.raw.join('')).toContain('Barcelona is sunny and mild today.');
+    expect(H.timeline).toContain('persist:conversation("Barcelona is sunny and mild today.")');
+    expect(H.timeline).toContain('credits:finalize');
+    expect(res.raw.join('')).not.toContain('"synthetic":true');
+  });
+
+  it('does not save or bill tool progress when the tools-disabled synthesis is empty', async () => {
+    H.state.streamTurns = [
+      ...Array.from({ length: 5 }, (_, index) => [
+        streamStart,
+        ...callTool(`weather-${index}`, 'getCurrentDate', '{}'),
+        finish('tool-calls'),
+      ]),
+      [streamStart, finish('stop')],
+    ];
+
+    const res = recordingRes();
+    await run(recordingReq({
+      body: {
+        messages: [{ role: 'user', content: 'what is the weather in Barcelona?' }],
+        model: 'kaana-v1',
+        stream: true,
+        conversationId: 'conv-weather-empty',
+      },
+    }), res);
+
+    expect(H.timeline.filter(entry => entry === 'model:doStream')).toHaveLength(6);
+    expect(H.timeline.filter(entry => entry.startsWith('persist:'))).toEqual([]);
+    expect(H.timeline).not.toContain('credits:finalize');
+    expect(H.timeline).toContain('credits:refund');
+    expect(res.raw.join('')).toContain('"synthetic":true');
+    expect(res.raw.join('')).toContain('"retryable":true');
+  });
 });
 
 // ===========================================================================

@@ -5,7 +5,8 @@
  * (text/reasoning/tool-call/tool-result/tool-error/error/finish) into the
  * OpenAI-compatible SSE frames the client expects, tracks tool invocations for
  * the conversation save, and performs the in-loop synthesis retry when a
- * provider errors after emitting only tool results.
+ * provider errors or the bounded agent loop finishes after emitting only tool
+ * results.
  *
  * Behaviour is byte-identical to the inline loop it replaced. Two pieces of
  * state deliberately cross the module boundary instead of being returned,
@@ -121,8 +122,6 @@ export interface RunStreamParams<TOOLS extends ToolSet> {
   toolNameMapping: Map<string, string>;
   /** Accumulator for delegate-to-agent replies; mutated in place. */
   agentMessages: AgentMessage[];
-  /** Whether the user's last message looked Spanish (graceful error copy). */
-  isSpanish: boolean;
   /** Running tool-call count carried across provider attempts. */
   toolCallCount: number;
   /** Shared with the first-byte timer + provider-retry catch; mutated in place. */
@@ -147,7 +146,7 @@ export interface RunStreamResult {
 export async function runStream<TOOLS extends ToolSet>(params: RunStreamParams<TOOLS>): Promise<RunStreamResult> {
   const {
     result, res, sse, requestId, aliasModelId, resolved, baseConfig,
-    convertedMessages, toolNameMapping, agentMessages, isSpanish, state, onFirstChunk,
+    convertedMessages, toolNameMapping, agentMessages, state, onFirstChunk,
   } = params;
 
   // Tool tracking for observability
@@ -160,6 +159,58 @@ export async function runStream<TOOLS extends ToolSet>(params: RunStreamParams<T
   let assistantResponse = ''; // Track assistant's response for conversation save
   let hasStreamedText = false; // Track whether actual text (not just tool calls) was streamed
   const toolInvocations: ToolInvocation[] = [];
+
+  /**
+   * Turn completed tool results into the user-facing answer the original
+   * request was for.
+   *
+   * `stopWhen: stepCountIs(5)` is a hard safety bound. A model can spend all
+   * five steps calling tools and then reach the ordinary `finish` event with
+   * no text at all. That is not a successful answer: the tool cards are
+   * progress, not the requested response. The same tools-disabled follow-up is
+   * also the safe recovery for a provider error after tools ran.
+   */
+  const synthesizeCompletedToolResults = async (): Promise<boolean> => {
+    const completed = toolInvocations.filter(t => t.state === 'result');
+    if (completed.length === 0 || res.writableEnded) return false;
+
+    const followUpMessages = [
+      ...convertedMessages,
+      ...completed.flatMap(t => [
+        { role: 'assistant' as const, content: '', toolCalls: [{ toolCallId: t.toolCallId, toolName: t.toolName, args: t.args }] },
+        { role: 'tool' as const, content: [{ type: 'tool-result' as const, toolCallId: t.toolCallId, toolName: t.toolName, output: { type: 'text' as const, value: typeof t.result === 'string' ? t.result : JSON.stringify(t.result) } }] },
+      ]),
+    ];
+
+    const retryAbort = new AbortController();
+    const retryTimer = setTimeout(() => retryAbort.abort(), 30_000);
+
+    try {
+      const retryResult = streamText({
+        ...baseConfig,
+        abortSignal: retryAbort.signal,
+        messages: followUpMessages,
+        tools: undefined,
+        stopWhen: undefined,
+      });
+
+      for await (const retryChunk of retryResult.fullStream) {
+        if (res.writableEnded) break;
+        if (retryChunk.type === 'text-delta' && retryChunk.text) {
+          const filtered = writeTextChunk(res, requestId, aliasModelId, retryChunk.text);
+          if (filtered) {
+            state.hasStreamedContent = true;
+            hasStreamedText = true;
+            assistantResponse += filtered;
+          }
+        }
+      }
+      return hasStreamedText;
+    } finally {
+      clearTimeout(retryTimer);
+    }
+  };
+
   for await (const chunk of result.fullStream) {
     chunkCount++;
     // Clear first-byte timer on first chunk (provider responded)
@@ -335,38 +386,7 @@ export async function runStream<TOOLS extends ToolSet>(params: RunStreamParams<T
       if (!hasStreamedText && toolInvocations.some(t => t.state === 'result')) {
         log.v1.info({ provider: resolved.provider, modelId: resolved.modelId }, 'Synthesis failed after tool results, retrying without tools');
         try {
-          const followUpMessages = [
-            ...convertedMessages,
-            ...toolInvocations
-              .filter(t => t.state === 'result')
-              .flatMap(t => [
-                { role: 'assistant' as const, content: '', toolCalls: [{ toolCallId: t.toolCallId, toolName: t.toolName, args: t.args }] },
-                { role: 'tool' as const, content: [{ type: 'tool-result' as const, toolCallId: t.toolCallId, toolName: t.toolName, output: { type: 'text' as const, value: typeof t.result === 'string' ? t.result : JSON.stringify(t.result) } }] },
-              ]),
-          ];
-
-          // Fresh abort controller — the original may already be aborted
-          const retryAbort = new AbortController();
-          const retryTimer = setTimeout(() => retryAbort.abort(), 30_000);
-
-          try {
-            const retryResult = streamText({ ...baseConfig, abortSignal: retryAbort.signal, messages: followUpMessages, tools: undefined, stopWhen: undefined });
-
-            for await (const retryChunk of retryResult.fullStream) {
-              if (res.writableEnded) break;
-              if (retryChunk.type === 'text-delta' && retryChunk.text) {
-                const filtered = writeTextChunk(res, requestId, aliasModelId, retryChunk.text);
-                if (filtered) {
-                  hasStreamedText = true;
-                  assistantResponse += filtered;
-                }
-              }
-            }
-          } finally {
-            clearTimeout(retryTimer);
-          }
-
-          if (hasStreamedText && !res.writableEnded) {
+          if (await synthesizeCompletedToolResults()) {
             writeStopChunk(res, requestId, aliasModelId);
             break; // Exit main stream loop — synthesis retry succeeded
           }
@@ -375,19 +395,44 @@ export async function runStream<TOOLS extends ToolSet>(params: RunStreamParams<T
         }
       }
 
-      // Mid-stream graceful recovery: send a friendly message instead of raw error
+      // Let the route emit its typed synthetic retryable response. Throwing is
+      // what prevents the provider loop from saving or billing tool progress
+      // as though it were a completed answer.
       if (!hasStreamedText && !res.writableEnded) {
-        sse.ensureHeaders();
-        const midStreamMsg = isSpanish
-          ? '\n\nHubo una breve interrupción. Por favor, envía tu mensaje de nuevo y completaré mi respuesta.'
-          : '\n\nI encountered a brief interruption. Please send your message again and I\'ll complete my response.';
-        writeContentChunk(res, requestId, aliasModelId, midStreamMsg, { synthetic: true, retryable: true });
-        writeStopChunk(res, requestId, aliasModelId);
+        throw rawError ?? new Error('Tool result synthesis produced no assistant answer');
       }
     } else if (chunk.type === 'finish') {
       log.v1.debug('Finish chunk received');
       sse.ensureHeaders();
-      writeStopChunk(res, requestId, aliasModelId, chunk.finishReason || 'stop');
+      let finishReason = chunk.finishReason || 'stop';
+
+      // A normal, bounded agent loop can finish immediately after its last
+      // tool result. Unless another agent already supplied the answer as its
+      // own product event, that is progress without a response and needs one
+      // final tools-disabled synthesis pass.
+      if (
+        !hasStreamedText &&
+        agentMessages.length === 0 &&
+        toolInvocations.some(t => t.state === 'result')
+      ) {
+        log.v1.info(
+          { toolResultCount: toolInvocations.filter(t => t.state === 'result').length },
+          'Stream finished after tool results without an answer; synthesizing without tools',
+        );
+        try {
+          if (await synthesizeCompletedToolResults()) {
+            finishReason = 'stop';
+          }
+        } catch (synthesisError) {
+          log.v1.error({ err: synthesisError }, 'Tool result synthesis failed');
+        }
+
+        if (!hasStreamedText) {
+          throw new Error('Tool result synthesis produced no assistant answer');
+        }
+      }
+
+      writeStopChunk(res, requestId, aliasModelId, finishReason);
     } else {
       // The type, never the chunk: an unrecognised frame is the one case where
       // nothing here knows what the payload holds, and "unknown" is exactly
