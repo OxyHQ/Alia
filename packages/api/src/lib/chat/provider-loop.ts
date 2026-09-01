@@ -101,7 +101,6 @@ export interface ProviderLoopParams {
    * different (wider) policy would reintroduce silent substitution one retry
    * later, which is exactly the shape ADR 0003 invariant 3 forbids.
    */
-  isSpanish: boolean;
   autonomyRuntime: AutonomyRuntimeContext | null;
   includeUsage: boolean;
 }
@@ -115,7 +114,7 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
   const {
     req, res, sse, requestId, requestStartTime, globalTimer, globalTimeoutMs, state,
     body, messages, conversationId, reasoningEffort, convertedMessages, truncatedTools,
-    toolNameMapping, agentMessages, systemPromptTokens, requestedModel, isSpanish,
+    toolNameMapping, agentMessages, systemPromptTokens, requestedModel,
     autonomyRuntime, includeUsage, skills,
   } = params;
 
@@ -282,7 +281,6 @@ export async function runProviderLoop(params: ProviderLoopParams): Promise<Provi
         convertedMessages,
         toolNameMapping,
         agentMessages,
-        isSpanish,
         toolCallCount,
         state: streamState,
         onFirstChunk: () => {

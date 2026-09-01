@@ -279,7 +279,6 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
       agentMessages,
       systemPromptTokens,
       requestedModel,
-      isSpanish,
       autonomyRuntime,
       includeUsage,
     });
