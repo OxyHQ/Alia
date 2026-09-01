@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 /**
- * No client package hardcodes an `alia-*` identifier as a model default.
+ * No client package hardcodes a routing identifier outside its audited
+ * preference module.
  *
  * Epic #139 workstream 5, `Update Codea, Cowork, CLI and SDK pickers
  * consistently.` The clients used to bake an alias into the shipped artefact —
@@ -146,7 +147,8 @@ const PREFERENCE_MODULES = new Map([
 ]);
 
 /**
- * A routing identifier a client could hardcode, in EITHER vocabulary.
+ * A routing identifier a client could hardcode, in any supported or retired
+ * vocabulary.
  *
  * `profile:*` is what `GET /catalogue` publishes and what a client should send
  * (`lib/chat/request-context.ts` accepts it, or a legacy `alia-*`, and refuses
@@ -154,11 +156,12 @@ const PREFERENCE_MODULES = new Map([
  * #178 but still resolving — installed `@alia.onl/sdk` and `@alia-codea/cli`
  * copies still send them, so it stays a shape this census must recognise.
  *
- * Both are matched because the hazard is identical either way: an identifier
- * baked into a shipped artefact is one a retirement cannot reach. Anchored, so
- * `alia-codea-cli` (a package name) is not mistaken for one.
+ * Canonical `kaana-*` IDs are included too: the identifier is legitimate, but
+ * baking it into an unaudited module still makes a future catalogue change
+ * unable to reach an installed client. Anchored, so `alia-codea-cli` (a package
+ * name) is not mistaken for one.
  */
-const IDENTIFIER = /^(profile:[a-z0-9][a-z0-9-]*|alia-(v\d[a-z0-9-]*|lite))$/;
+const IDENTIFIER = /^(?:profile:[a-z0-9][a-z0-9-]*|(?:alia|kaana)-(?:v\d[a-z0-9-]*|lite))$/;
 
 export function sourceFiles(dir) {
   const out = [];
