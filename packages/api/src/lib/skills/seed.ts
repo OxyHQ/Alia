@@ -33,12 +33,25 @@ import { buildSkillBundle } from './bundle.js';
 import { storeSkillBundle } from './store.js';
 
 /**
- * Two candidate roots, for the same reason `prompt-loader.ts` has two: from
- * source this file sits at `src/lib/skills/`, and in the image the bundle sits
- * at `dist/`. The directory ships beside both.
+ * Candidate roots for every place esbuild can put the code that calls this
+ * module:
+ *
+ * - source/tests: `src/lib/skills/` -> `../../../skills`
+ * - the seed one-shot: `dist/scripts/seed.js` -> `../../skills`
+ * - a bundle emitted directly under `dist/` -> `../skills`
+ *
+ * The middle path is deliberately explicit. The deploy invokes the seed
+ * one-shot, whose bundle is one directory deeper than the API bundle; treating
+ * both bundles as if they lived directly under `dist/` leaves the skills in the
+ * image but makes the seeder look in `/app/packages/skills` and
+ * `/app/packages/api/dist/skills` instead.
  */
 const HERE = dirname(fileURLToPath(import.meta.url));
-const CANDIDATE_ROOTS = [join(HERE, '../../../skills'), join(HERE, '../skills')];
+const CANDIDATE_ROOTS = [
+  join(HERE, '../../../skills'),
+  join(HERE, '../../skills'),
+  join(HERE, '../skills'),
+];
 
 async function resolveSkillsRoot(): Promise<string | null> {
   for (const root of CANDIDATE_ROOTS) {

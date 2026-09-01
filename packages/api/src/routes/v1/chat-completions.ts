@@ -305,7 +305,6 @@ export const handleChatCompletions = async (req: Request, res: Response) => {
       systemPromptTokens,
       requestedModel,
       routingOptions,
-      isSpanish,
       autonomyRuntime,
       includeUsage,
       tierMappingsLength: tierMappings.length,
