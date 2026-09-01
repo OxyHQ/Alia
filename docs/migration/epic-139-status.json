@@ -83,9 +83,9 @@
       "evidence": "packages/api/src/lib/inference/__tests__/kaana-boundary.test.ts asserts by exact set equality that NOTHING in packages/api imports the Kaana client; the live invocation path is gateway-client.ts:339 -> internal/providers/lib/model-resolver.js. There is no Kaana endpoint to call (docs/migration/kaana-client-gap.md section 1).",
       "verdictBefore": "BLOCKED_KAANA",
       "reauditedAt": "2026-08-19",
-      "reauditNote": "There is now a Kaana endpoint to call, two hops away: Alia -> `https://api.oxy.so/v1/*` -> `POST https://kaana.oxy.so/internal/v1/inference`. Alia CANNOT call Kaana directly — Kaana refuses anything that is not an Ed25519-signed Oxy edge envelope (measured: `GET https://kaana.oxy.so/internal/v1/health` -> 401 \"the request is not a signed Oxy edge envelope\"), and it holds only PUBLIC keys (`KAANA_EDGE_PUBLIC_KEYS` on oxy-kaana:2).",
+      "reauditNote": "The intended path is two hops: Alia -> `https://api.oxy.so/v1/*` -> `POST https://kaana.ai/internal/v1/inference`. Alia CANNOT call Kaana directly: the source requires an Ed25519-signed Oxy edge envelope and Kaana holds only PUBLIC keys. The 2026-08-19 HTTP result was measured against a retired hostname; on 2026-09-02 the canonical `kaana.ai` hostname did not resolve and still needs DNS/TLS plus route verification.",
       "namedBlocker": "the cutover itself (L635). Its remaining steps are in `blockers.cutover`; the one Alia owns is that no concrete `RelayTransport` implementation exists in packages/api/src — `kaana-client.ts:203` declares the interface and its own docstring says the client \"ships no HTTP transport\", and a repo-wide search finds implementations only in __tests__.",
-      "kaanaCapability": "POST https://kaana.oxy.so/internal/v1/inference (GET -> 405 Method Not Allowed, so the route exists and is POST-only); internal/httpapi/, internal/edgeauth/"
+      "kaanaCapability": "Source declares POST https://kaana.ai/internal/v1/inference in internal/httpapi/ and signed edge auth in internal/edgeauth/. Canonical-host HTTP behavior is unverified while kaana.ai DNS is unresolved."
     },
     {
       "line": 96,
@@ -1702,7 +1702,7 @@
       "resolvedSince": "2026-08-17",
       "verdictBefore": "BLOCKED_KAANA",
       "reauditedAt": "2026-08-19",
-      "reauditNote": "Already resolved (it carries `resolvedSince`), and the re-audit adds one measured fact worth recording: of the two pinned origins, only `https://api.oxy.so` is USABLE by Alia. Kaana refuses anything that is not an Ed25519-signed edge envelope and holds only public keys, and Alia has no signing key and no way to obtain one — so `https://kaana.oxy.so` in KAANA_ALLOWED_ORIGINS is currently a dead entry rather than a second option.",
+      "reauditNote": "Already resolved (it carries `resolvedSince`). Of the two pinned origins, only `https://api.oxy.so` is currently usable by Alia. Source requires a signed edge envelope, Alia has no signing key, and on 2026-09-02 the canonical `https://kaana.ai` hostname did not resolve — so that allowlist entry is pinned correctly but is not a usable second option.",
       "mutation": "Unchanged from the original resolution. The re-audit adds no mutation; it adds the measurement that one of the two pinned origins is currently unusable by Alia."
     },
     {
@@ -2164,7 +2164,7 @@
       "evidence": "No Kaana to make the default. kaana-boundary.test.ts freezes the client out of the import graph precisely so this is a reviewed diff rather than an accident.",
       "verdictBefore": "BLOCKED_KAANA",
       "reauditedAt": "2026-08-19",
-      "reauditNote": "THE cutover row. Kaana is deployed and reachable; the Oxy edge is deployed and wired to it (oxy-oxy-api:232 carries KAANA_BASE_URL=https://kaana.oxy.so, KAANA_EDGE_SIGNING_KEY_ID=oxy-edge-2026-08-17 and the SSM secret KAANA_EDGE_SIGNING_PRIVATE_KEY, and oxy-kaana:2 carries the matching key id in KAANA_EDGE_PUBLIC_KEYS). Every remaining step is enumerated in `blockers.cutover`.",
+      "reauditNote": "THE cutover row. The 2026-08-19 ECS audit found Kaana deployed and the Oxy edge carrying the matching signing key, but that Oxy task used a hostname which is no longer canonical. It must be changed to KAANA_BASE_URL=https://kaana.ai; DNS/TLS and the signed route must then be re-probed. Every remaining step is enumerated in `blockers.cutover`.",
       "namedBlocker": "see `blockers.cutover` — five steps, of which one is Alia code, three are operator actions and one is a Cerebras billing state nobody in this repository controls."
     },
     {
@@ -2696,9 +2696,9 @@
       "repository": "https://github.com/OxyHQ/Kaana",
       "trackedAs": "workstream 13 of https://github.com/OxyHQ/oxy/issues/972",
       "measuredAt": "2026-08-19",
-      "status": "DEPLOYED AND SERVING. The 2026-08-17 entry said \"what is missing is A DEPLOYMENT\"; that was true then and is false now. ECS oxy-cluster/kaana is 2/2 on oxy-kaana:2, GET https://kaana.oxy.so/livez returns 200 with contractVersion 1.1.0, and kaana-publisher re-issues the inventory every 15 minutes.",
+      "status": "ECS WAS DEPLOYED in the 2026-08-19 audit: oxy-cluster/kaana was 2/2 on oxy-kaana:2 and kaana-publisher re-issued inventory. Canonical public serving is NOT currently verified: GET https://kaana.ai/livez failed DNS resolution on 2026-09-02, and the earlier HTTP 200 belonged to a retired hostname.",
       "requestSurface": "POST /internal/v1/inference, GET /internal/v1/health, GET /livez. The first two require an Ed25519 signature over the exact body from the Oxy edge; Kaana holds only PUBLIC keys (KAANA_EDGE_PUBLIC_KEYS), so it cannot construct an envelope it would accept and neither can Alia.",
-      "whatAliaMayCall": "NOT kaana.oxy.so. Alia has no Ed25519 edge key and no way to obtain one, so the only usable value for KAANA_BASE_URL is https://api.oxy.so — the Oxy edge, which authenticates Alia with a short-lived service token, resolves the principal, signs the envelope and forwards it. Of the two entries in KAANA_ALLOWED_ORIGINS, the kaana.oxy.so one is currently dead.",
+      "whatAliaMayCall": "NOT kaana.ai directly. Alia has no Ed25519 edge key and no way to obtain one, so it calls https://api.oxy.so — the Oxy edge, which authenticates Alia with a short-lived service token, resolves the principal, signs the envelope and forwards it to the canonical Kaana host. The kaana.ai allowlist entry is currently unusable directly and its DNS was unresolved on 2026-09-02.",
       "whatItServes": "ONE provider. KAANA_PROVIDERS=cerebras, two model references, one deployment each. Seventeen of the nineteen slugs in workstream 7 are not declared, and three of them (google, cloudflare, replicate) speak neither of Kaana's two protocols and would need a Go adapter.",
       "namedGapsThatRemain": [
         "Non-text modalities. Refused `unsupported_modality` at internal/provider/openaicompat/adapter.go:133 and internal/provider/anthropic/adapter.go:147. Voice, realtime, embeddings, images, audio and rerank have no Kaana path at contract 1.1.0.",
@@ -2726,7 +2726,7 @@
           "OXY_API_URL"
         ],
         "presentInProduction": "ONE. Task definition oxy-alia:105 carries OXY_API_URL and none of the other nine.",
-        "notes": "ALIA_KAANA_INFERENCE_SCOPES must carry inference:invoke or assertPrincipalMatchesDeployment throws and the boot check refuses. ALIA_KAANA_ENVIRONMENT must agree with the deployment. KAANA_BASE_URL is checked against KAANA_ALLOWED_ORIGINS = [https://api.oxy.so, https://kaana.oxy.so] and the process refuses to start otherwise — and of those two only api.oxy.so is usable (see blockers.kaana.whatAliaMayCall)."
+        "notes": "ALIA_KAANA_INFERENCE_SCOPES must carry inference:invoke or assertPrincipalMatchesDeployment throws and the boot check refuses. ALIA_KAANA_ENVIRONMENT must agree with the deployment. KAANA_BASE_URL is checked against KAANA_ALLOWED_ORIGINS = [https://api.oxy.so, https://kaana.ai] and the process refuses to start otherwise — and of those two only api.oxy.so is usable (see blockers.kaana.whatAliaMayCall)."
       },
       "steps": [
         {
@@ -2835,19 +2835,19 @@
     "at": "2026-08-19",
     "subject": "the 97 rows classified BLOCKED_KAANA, 96 of them open",
     "why": "The verdict rested on a premise that is now false. `blockers.kaana` said Kaana was missing \"A DEPLOYMENT ... no Dockerfile, no deploy workflow and no infrastructure\". Kaana has been deployed since 2026-08-18 and the whole Oxy inference control plane went with it.",
-    "method": "Read-only. AWS `describe-services` / `describe-task-definition` / `s3 cp` under profile oxy in us-west-2; unauthenticated HTTPS probes of api.oxy.so, kaana.oxy.so and api.alia.onl; `gh api` reads of OxyHQ/oxy and OxyHQ/Kaana on main; the published @oxyhq/contracts@0.29.0 tarball; and the OxyHQ/Kaana working tree at /home/nate/Oxy/Kaana. No mutating call of any kind. No credential VALUE is recorded anywhere in this file.",
+    "method": "Read-only. AWS `describe-services` / `describe-task-definition` / `s3 cp` under profile oxy in us-west-2; unauthenticated HTTPS probes of api.oxy.so, the then-live retired Kaana hostname and api.alia.onl; `gh api` reads of OxyHQ/oxy and OxyHQ/Kaana on main; the published @oxyhq/contracts@0.29.0 tarball; and the OxyHQ/Kaana working tree at /home/nate/Oxy/Kaana. The canonical host was rechecked on 2026-09-02 and kaana.ai did not resolve. No mutating call of any kind. No credential VALUE is recorded anywhere in this file.",
     "negativeControls": [
       "HTTP route existence: `GET https://api.oxy.so/nonexistent-control-path` returns 404 with `{\"error\":\"NOT_FOUND\"}` while /inference/routing-policies, /inference/provider-connections and /inference/reporting/usage return 401 — so the 401s are mounted routes and not a blanket auth wall.",
-      "Kaana method routing: `GET https://kaana.oxy.so/internal/v1/inference` returns 405 Method Not Allowed while /readyz and /metrics return 404 — so the inference path exists and is POST-only, and 404 really does mean absent on that server."
+      "The 2026-08-19 Kaana method-routing negative control was measured against the retired hostname. It must be repeated against https://kaana.ai after DNS resolves; source still declares the inference route POST-only."
     ],
     "measuredLive": {
       "kaanaService": "ECS oxy-cluster/kaana 2/2 on oxy-kaana:2; oxy-cluster/kaana-publisher 1/1 on oxy-kaana-publisher:1",
-      "kaanaLiveness": "GET https://kaana.oxy.so/livez -> 200 {\"contractVersion\":\"1.1.0\",\"status\":\"ok\"}",
-      "kaanaRequestSurface": "POST https://kaana.oxy.so/internal/v1/inference (GET -> 405). GET /internal/v1/health -> 401 authentication_failed, \"the request is not a signed Oxy edge envelope\"",
+      "kaanaLiveness": "GET https://kaana.ai/livez -> DNS resolution failure on 2026-09-02. The 2026-08-19 HTTP 200 was against a retired hostname and is not evidence for canonical-host liveness.",
+      "kaanaRequestSurface": "Source declares POST https://kaana.ai/internal/v1/inference and signed GET /internal/v1/health. Canonical-host HTTP behavior is unverified while DNS is unresolved.",
       "kaanaProviders": "KAANA_PROVIDERS=cerebras, KAANA_PROVIDER_CEREBRAS_BASE_URL=https://api.cerebras.ai/v1, one SSM secret KAANA_PROVIDER_CEREBRAS_API_KEY. One provider, not nineteen.",
       "kaanaInventory": "s3://oxy-kaana-inventory-usw2-237343248947/inventory/current.json, snapshotId snap_011361d3b1a380da, issuedAt 2026-08-19T13:12:52.607Z, two deployments: openai/gpt-oss-120b@observed-2026-08-18 and google/gemma-4-31b@observed-2026-08-18, both provider cerebras",
       "oxyInferenceEdge": "POST https://api.oxy.so/v1/chat/completions -> 401 in the OpenAI error dialect; GET /v1/generations/:id -> 401 with schemaVersion 1; GET /v1/models -> 200 {\"data\":[],\"count\":0}. Source: OxyHQ/oxy packages/api/src/routes/inferenceEdge.ts",
-      "oxyToRelayHop": "oxy-oxy-api:232 carries KAANA_BASE_URL=https://kaana.oxy.so, KAANA_EDGE_SIGNING_KEY_ID=oxy-edge-2026-08-17 and the SSM secret KAANA_EDGE_SIGNING_PRIVATE_KEY. oxy-kaana:2 carries the SAME key id in KAANA_EDGE_PUBLIC_KEYS, so the pair is confirmed on both sides.",
+      "oxyToRelayHop": "The 2026-08-19 oxy-oxy-api:232 task and oxy-kaana:2 agreed on edge key id oxy-edge-2026-08-17, but the Oxy task used a now-noncanonical base URL. It must be updated to KAANA_BASE_URL=https://kaana.ai and re-probed before cutover.",
       "aliaService": "ECS oxy-cluster/alia 2/2 on oxy-alia:105. GET https://api.alia.onl/health -> 200, \"kaana\":\"disabled\", uptime 47076s. The audit's \"parked at zero capacity, /health returns 503\" is stale.",
       "inferenceScope": "`inference:invoke` is a real ApplicationScope on OxyHQ/oxy main (packages/api/src/utils/applicationScopes.ts:83), and the service-token lane the Kaana client uses is NOT flag-gated (services/inferenceEdge.service.ts:364)."
     },

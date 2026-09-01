@@ -154,7 +154,7 @@ ALIA_KAANA_ENVIRONMENT=production     # development | staging | production
 ALIA_KAANA_INFERENCE_SCOPES=inference:invoke
 ALIA_KAANA_CREDENTIAL_KEY=<oxy-application-key>
 ALIA_KAANA_CREDENTIAL_SECRET=<oxy-application-secret>
-KAANA_BASE_URL=https://kaana.oxy.so   # must be an approved origin; see below
+KAANA_BASE_URL=https://kaana.ai   # must be an approved origin; see below
 KAANA_EDGE_KEY_ID=<trusted-edge-key-id>
 KAANA_EDGE_SIGNING_PRIVATE_KEY=<ed25519-pkcs8-pem>
 ```

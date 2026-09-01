@@ -23,7 +23,7 @@ A product that owns provider credentials, a public inference API, developer iden
 
 Epic #139 sets the target: Alia becomes a consumer of a shared inference platform. Identity, applications, credentials, usage, billing and the public developer experience are owned by Oxy. Provider execution moves behind a separate data plane, **Kaana**.
 
-**Kaana (`kaana.ai`) is the inference provider Alia consumes; Alia does not host provider logic.** Kaana is the only name for that data plane across repositories, AWS resources, signed headers, the `oxy-kaana-envelope:v1` domain separator, `kaana.oxy.so`, configuration, model aliases, docs and `/health`. The former working name is not accepted as a compatibility spelling. `packages/api/src/lib/mcp-relay.ts` is a separate MCP WebSocket relay and retains the protocol term.
+**Kaana (`kaana.ai`) is the inference provider Alia consumes; Alia does not host provider logic.** Kaana is the only name for that data plane across repositories, AWS resources, signed headers, the `oxy-kaana-envelope:v1` domain separator, `kaana.ai`, configuration, model aliases, docs and `/health`. The former working name is not accepted as a compatibility spelling. `packages/api/src/lib/mcp-relay.ts` is a separate MCP WebSocket relay and retains the protocol term.
 
 ## Decision
 

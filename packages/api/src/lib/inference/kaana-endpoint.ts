@@ -67,7 +67,7 @@ export const KAANA_BASE_URL_ENV = 'KAANA_BASE_URL';
  * `https://api.oxy.so.attacker.example` a matter of string prefixes rather than
  * of host equality.
  */
-export const KAANA_ALLOWED_ORIGINS: readonly string[] = ['https://api.oxy.so', 'https://kaana.oxy.so'];
+export const KAANA_ALLOWED_ORIGINS: readonly string[] = ['https://api.oxy.so', 'https://kaana.ai'];
 
 declare const KAANA_ENDPOINT_BRAND: unique symbol;
 

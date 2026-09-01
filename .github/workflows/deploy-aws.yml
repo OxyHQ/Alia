@@ -368,7 +368,7 @@ jobs:
       # `KAANA_BASE_URL` is checked against `KAANA_ALLOWED_ORIGINS` before a
       # request leaves, so a typo is refused here rather than discovered by a
       # request arriving somewhere unexpected. The canonical production host is
-      # `kaana.oxy.so` and no former hostname is accepted.
+      # `kaana.ai` and no former hostname is accepted.
       #
       # There is no enable flag. Kaana is the inference provider, and a
       # deployment that has been given an endpoint, a signing key and a
@@ -445,7 +445,7 @@ jobs:
               ALIA_KAANA_CREDENTIAL_KEY: $key,
               ALIA_KAANA_CREDENTIAL_SECRET: $secret}')"
           kaana_env="$(jq -cn '{
-            KAANA_BASE_URL: "https://kaana.oxy.so",
+            KAANA_BASE_URL: "https://kaana.ai",
             KAANA_EDGE_KEY_ID: "alia-edge-2026-08-24",
             ALIA_KAANA_ACCOUNT_ID: "01a0369b-1222-712f-8df6-f8ffeb78ccc2",
             ALIA_KAANA_APPLICATION_ID: "6a2f851751b784a86fd0e934",

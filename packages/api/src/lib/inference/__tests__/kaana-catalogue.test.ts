@@ -24,7 +24,7 @@ const PEM = privateKey.export({ type: 'pkcs8', format: 'pem' }).toString();
 const ENV: NodeJS.ProcessEnv = {
   KAANA_EDGE_KEY_ID: 'alia-edge-test',
   KAANA_EDGE_SIGNING_PRIVATE_KEY: PEM,
-  KAANA_BASE_URL: 'https://kaana.oxy.so',
+  KAANA_BASE_URL: 'https://kaana.ai',
   ALIA_KAANA_ACCOUNT_ID: 'acc_test',
   ALIA_KAANA_APPLICATION_ID: 'app_alia',
   ALIA_KAANA_CREDENTIAL_ID: 'cred_test',
@@ -62,7 +62,7 @@ describe('fetching it', () => {
     await fetchKaanaCatalogue(ENV);
 
     const call = (globalThis.fetch as unknown as { mock: { calls: [string, RequestInit][] } }).mock.calls[0];
-    expect(call[0]).toBe('https://kaana.oxy.so/internal/v1/models');
+    expect(call[0]).toBe('https://kaana.ai/internal/v1/models');
     const headers = call[1].headers as Record<string, string>;
     expect(headers['X-Oxy-Kaana-Key-Id']).toBe('alia-edge-test');
     expect(headers['X-Oxy-Kaana-Signature']).toMatch(/^v1=/);
