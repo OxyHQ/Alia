@@ -16,7 +16,6 @@
 import express, { type Express, type NextFunction, type Request, type Response } from 'express';
 import type { Server } from 'node:http';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { constraintNameOf, isUniqueViolation } from '@oxyhq/db';
 
 /** An `AccountNode` as `GET /accounts/:id` answers it, or a refusal. */
 const state = vi.hoisted(() => ({
@@ -144,7 +143,6 @@ const AGENT_ROW = {
   isPublished: true,
   status: 'active',
   allowHiring: false,
-  handlesAutonomousEvents: false,
   systemPrompt: null,
   preferredImage: null,
   allowedModels: ['alia-v1'],
@@ -552,74 +550,5 @@ describe('a mutation never trusts a cached verdict', () => {
     };
 
     expect((await patch({ tagline: 'after revocation' })).status).toBe(404);
-  });
-});
-
-/**
- * A unique violation shaped like the one postgres.js actually throws.
- *
- * MEASURED, not guessed: `name`, `code` and `constraint_name` sit on the error
- * ITSELF, and `@oxyhq/db`'s reader walks the `cause` chain only while each link
- * `instanceof Error`. An earlier version of this fixture hung the fields on a
- * plain-object `cause`, which the walk cannot enter — so it was not a unique
- * violation at all and the case it was written for passed for the wrong reason.
- *
- * `assertFaithful` below is the positive control that keeps it honest: if the
- * shape ever stops satisfying the SHIPPED predicate, this fails here rather
- * than quietly making every case in this block vacuous.
- */
-function uniqueViolation(constraint: string): Error {
-  return Object.assign(new Error('duplicate key value violates unique constraint'), {
-    name: 'PostgresError',
-    code: '23505',
-    constraint_name: constraint,
-  });
-}
-
-describe('the autonomy designation is declared, and bounded to one per owner', () => {
-  it('uses a violation fixture the SHIPPED predicate recognises', () => {
-    const violation = uniqueViolation('agents_one_autonomy_per_owner');
-    expect(isUniqueViolation(violation)).toBe(true);
-    expect(constraintNameOf(violation)).toBe('agents_one_autonomy_per_owner');
-  });
-
-  it('accepts it on create and passes it to the repository', async () => {
-    const res = await post({ ...VALID_BODY, handlesAutonomousEvents: true });
-
-    expect(res.status).toBe(201);
-    const input = repository.createAgent.mock.calls[0][1] as Record<string, unknown>;
-    expect(input.handlesAutonomousEvents).toBe(true);
-  });
-
-  it('defaults to false rather than to whatever the column says', async () => {
-    await post(VALID_BODY);
-
-    const input = repository.createAgent.mock.calls[0][1] as Record<string, unknown>;
-    expect(input.handlesAutonomousEvents).toBe(false);
-  });
-
-  /**
-   * The partial unique index is the authority, so a second designation arrives
-   * as a constraint violation. A 500 would tell the owner their edit broke
-   * Alia; a 409 tells them they already have one.
-   */
-  it('answers 409, not 500, when the owner already has a designated agent', async () => {
-    const violation = uniqueViolation('agents_one_autonomy_per_owner');
-    repository.updateAgent.mockRejectedValueOnce(violation);
-
-    const res = await patch({ handlesAutonomousEvents: true });
-
-    expect(res.status).toBe(409);
-    expect(res.body.error).toBe('Another of your agents already handles autonomous events');
-  });
-
-  /** A DIFFERENT unique violation is not this one, and must not read as a 409. */
-  it('does not turn an unrelated unique violation into that 409', async () => {
-    const violation = uniqueViolation('agents_oxy_account_id_key');
-    repository.updateAgent.mockRejectedValueOnce(violation);
-
-    const res = await patch({ handlesAutonomousEvents: true });
-
-    expect(res.status).toBe(500);
   });
 });

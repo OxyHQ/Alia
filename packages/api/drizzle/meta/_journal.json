@@ -386,6 +386,20 @@
       "when": 1787756654748,
       "tag": "0054_curly_talos",
       "breakpoints": true
+    },
+    {
+      "idx": 55,
+      "version": "7",
+      "when": 1788297926424,
+      "tag": "0055_organic_newton_destine",
+      "breakpoints": true
+    },
+    {
+      "idx": 56,
+      "version": "7",
+      "when": 1788298800183,
+      "tag": "0056_tough_synch",
+      "breakpoints": true
     }
   ]
 }

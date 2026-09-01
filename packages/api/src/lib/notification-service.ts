@@ -64,8 +64,8 @@ export interface SendNotificationOptions {
 
 /**
  * Determine which channels to deliver a notification to.
- * If explicit channels are provided, use those. Otherwise, default to in_app
- * plus any connected messaging accounts the user has.
+ * If explicit channels are provided, use those. Otherwise, default to Alia
+ * in-app and Oxy push. External messaging connections are opt-in per rule.
  */
 async function resolveChannels(userId: string, explicit?: NotificationChannel[]): Promise<NotificationChannel[]> {
   if (explicit && explicit.length > 0) {
@@ -75,33 +75,17 @@ async function resolveChannels(userId: string, explicit?: NotificationChannel[])
   // Default: always in_app
   const channels: NotificationChannel[] = ['in_app'];
 
-  // Check in parallel: push tokens, web push subscriptions, and Telegram account
-  const [hasPushTokens, hasWebPushSubs, telegramBotUser] = await Promise.all([
+  // Check push availability only. Telegram/WhatsApp/etc. are never inferred.
+  const [hasPushTokens, hasWebPushSubs] = await Promise.all([
     // Push: check if user has any active Expo push tokens
     hasActivePushToken(getDb(), userId).catch(() => false),
 
     // Web push: check if user has any active browser push subscriptions (only if VAPID configured)
     VAPID_PUBLIC_KEY ? hasActiveWebPushSubscription(getDb(), userId).catch(() => false) : false,
-
-    // Telegram: check if user has a linked Telegram bot account
-    (async () => {
-      try {
-        const db = getDb();
-        const bot = await findSystemBot(db, 'telegram', { activeOnly: true });
-        if (!bot) return null;
-        return findLinkedBotUser(db, bot.id, userId);
-      } catch {
-        return null;
-      }
-    })(),
   ]);
 
   if (hasPushTokens || hasWebPushSubs) {
     channels.push('push');
-  }
-
-  if (telegramBotUser?.chatId) {
-    channels.push('telegram');
   }
 
   return channels;

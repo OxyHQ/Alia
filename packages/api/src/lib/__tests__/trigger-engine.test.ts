@@ -34,6 +34,10 @@ vi.mock('../agent/archetype-prompts.js', () => ({ buildArchetypeSystemPrompt: vi
 vi.mock('../agent/routing-handler.js', () => ({ handleRoutingDecision: vi.fn() }));
 vi.mock('../../middleware/auth.js', () => ({ oxyClient: { getUserById: vi.fn() } }));
 vi.mock('../../db/index.js', () => ({ getDb: vi.fn(() => ({})) }));
+vi.mock('../../db/automation/automationDefinitionRepository.js', () => ({
+  beginLegacyTriggerAutomationRun: vi.fn(async () => true),
+  markAutomationRunForSession: vi.fn(async () => undefined),
+}));
 vi.mock('../../db/memory/userMemoryRepository.js', () => ({ findUserMemory: vi.fn() }));
 vi.mock('../../db/agents/agentRepository.js', () => ({
   findAgentById: vi.fn(async () => null),

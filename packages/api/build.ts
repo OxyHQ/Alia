@@ -166,4 +166,23 @@ try {
   console.error('⚠️ Failed to copy prompts:', error);
 }
 
+/**
+ * The built-in Agent Skills, beside the prompts and for the same reason.
+ *
+ * `lib/skills/seed.ts` resolves `<bundle>/../skills` at runtime, which is
+ * `dist/skills` — the bundle is emitted to `dist/scripts/seed.js`. The
+ * Dockerfile also copies `packages/api/skills`, but nothing reads THAT path
+ * from inside the bundle: this copy is what puts the directory where the code
+ * looks. Its absence cost a production deploy — the seed threw
+ * `No built-in skills directory found`, the reconciliation task exited 1, and
+ * ECS rolled the service back onto an image older than the migrations that had
+ * already applied.
+ */
+try {
+  await cp('skills', 'dist/skills', { recursive: true });
+  console.log('✅ Copied skills to dist/');
+} catch (error) {
+  console.error('⚠️ Failed to copy skills:', error);
+}
+
 console.log('✅ Build complete');

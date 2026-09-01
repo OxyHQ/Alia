@@ -52,6 +52,10 @@ import { agentRemitPrompt } from './agent/archetype-prompts.js';
 import { handleRoutingDecision } from './agent/routing-handler.js';
 import { startLeaderElection, type LeaderElectionHandle, type LeaderElectionOptions } from './leader-election.js';
 import type { User as OxyUser } from '@oxyhq/core';
+import {
+  beginLegacyTriggerAutomationRun,
+  markAutomationRunForSession,
+} from '../db/automation/automationDefinitionRepository.js';
 
 // ── Scheduled task registry ────────────────────────────────────────
 
@@ -81,7 +85,7 @@ function dayToCronNumber(day: string): number {
   return Object.hasOwn(dayMap, normalized) ? dayMap[normalized] : -1;
 }
 
-function scheduleToCron(schedule: TriggerSchedule): string | null {
+export function scheduleToCron(schedule: TriggerSchedule): string | null {
   if (schedule.type === 'cron' && schedule.cron) {
     return schedule.cron;
   }
@@ -198,6 +202,18 @@ export async function executeTrigger(
             .catch(() => null)
         : Promise.resolve<HydratedAgent | null>(null),
     ]);
+    if (trigger.action.agentId && !linkedAgent) {
+      throw new Error('The automation\'s assigned agent is unavailable');
+    }
+    await beginLegacyTriggerAutomationRun({
+      db: getDb(),
+      legacyTriggerId: triggerId,
+      executionId: execution.id,
+      requesterAccountId: userId,
+      selectedAgentId: linkedAgent?._id,
+      selectedActorAccountId: linkedAgent?.oxyAccountId ?? userId,
+      manual: context.source === 'manual',
+    });
 
     // Resolve AI model
     const resolved = await resolveModel(getDefaultAliaModel());
@@ -217,6 +233,8 @@ export async function executeTrigger(
       webSearch: true,
       isLocalRuntime: false,
       agent: linkedAgent,
+      runId: execution.id,
+      oxyAutonomy: context.source === 'manual' ? 'execute_on_request' : 'autonomous',
     });
 
     /**
@@ -318,6 +336,7 @@ export async function executeTrigger(
       durationMs,
       completedAt: new Date(),
     });
+    await markAutomationRunForSession(getDb(), execution.id, 'succeeded');
 
     // Update trigger stats
     await recordTriggerSuccess(getDb(), triggerId, {
@@ -375,6 +394,7 @@ export async function executeTrigger(
       durationMs,
       completedAt: new Date(),
     });
+    await markAutomationRunForSession(getDb(), execution.id, 'failed');
 
     await recordTriggerFailure(getDb(), triggerId, {
       lastResult: errMsg,

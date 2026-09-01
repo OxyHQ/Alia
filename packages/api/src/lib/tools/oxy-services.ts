@@ -1,273 +1,315 @@
 /**
- * Oxy Service Tools — Dynamic tools from registered Oxy ecosystem services
+ * Oxy app tools for Alia.
  *
- * Queries OxyService manifests and creates AI SDK tool() wrappers so the AI
- * can interact with Inbox (email), and future Oxy apps on the user's behalf.
- *
- * Auth: forwards the user's OxyHQ JWT — no OAuth needed for first-party services.
- *
- * Every tool execute() is wrapped with safeExecute() so that errors never
- * propagate — the AI always receives a structured { error } object it can
- * communicate naturally to the user.
+ * App definitions come from Oxy's signed capability-catalog registry. Each
+ * execution asks Oxy for a short-lived capability ticket and sends that ticket
+ * to the app; a user's persistent session token is never forwarded or stored.
  */
 
+import { createHash, randomUUID } from 'node:crypto';
 import { tool, type ToolSet } from 'ai';
-import type { ZodTypeAny } from 'zod';
-import { getDb } from '../../db/index.js';
-import { listActiveOxyServiceDefs } from '../../db/integrations/oxyServiceRepository.js';
-import type {
-  OxyServiceTool,
-  OxyServiceToolEndpoint,
-} from '../../db/schema/oxy-services.js';
+import { z, type ZodTypeAny } from 'zod';
 import { jsonSchemaToZod } from './mcp-schema.js';
-import { log } from '../logger.js';
 import { getErrorMessage } from '../errors/index.js';
+import { log } from '../logger.js';
+import { oxyServiceClient } from '../oxy-service-client.js';
 import { TTLCache } from '../ttl-cache.js';
 
 const TOOL_TIMEOUT_MS = 15_000;
-const OXY_API_URL = process.env.OXY_API_URL || 'https://api.oxy.so';
+const OXY_API_URL = (process.env.OXY_API_URL || 'https://api.oxy.so').replace(/\/$/, '');
 
-// ---------------------------------------------------------------------------
-// Safe execution wrapper — tools never throw, always return structured data
-// ---------------------------------------------------------------------------
+const autonomySchema = z.enum(['read_only', 'draft', 'execute_on_request', 'autonomous']);
+export type OxyToolAutonomy = z.infer<typeof autonomySchema>;
 
-async function safeExecute(service: string, fn: () => Promise<any>): Promise<any> {
+const resourceSchema = z.object({
+  appId: z.string().min(1),
+  effectiveAccountId: z.string().min(1),
+  resourceType: z.string().min(1),
+  resourceId: z.string().min(1),
+});
+const catalogToolSchema = z.object({
+  name: z.string().min(1),
+  version: z.string().min(1),
+  description: z.string().min(1),
+  inputSchema: z.record(z.unknown()),
+  outputSchema: z.record(z.unknown()),
+  capabilityPackage: z.string().min(1),
+  requiredCapabilities: z.array(z.string()),
+  resourceTypes: z.array(z.string()).min(1),
+  effect: z.enum(['read', 'write', 'external', 'financial', 'security']),
+  idempotency: z.enum(['none', 'supported', 'required']),
+  rollback: z.enum(['none', 'manual', 'supported']),
+  exposure: z.array(z.enum(['internal', 'mcp'])),
+  invocation: z.object({
+    method: z.enum(['GET', 'POST', 'PATCH', 'PUT', 'DELETE']),
+    path: z.string().min(1),
+  }),
+});
+const catalogSchema = z.object({
+  schemaVersion: z.literal('1'),
+  appId: z.string().min(1),
+  version: z.string().min(1),
+  audience: z.string().min(1),
+  accountResourceType: z.string().min(1),
+  tools: z.array(catalogToolSchema),
+  events: z.array(z.unknown()),
+});
+const catalogsResponseSchema = z.object({
+  registrations: z.array(z.object({ catalog: catalogSchema })),
+});
+const assignmentSchema = z.object({
+  grantId: z.string().min(1),
+  resource: resourceSchema,
+  maximumAutonomy: autonomySchema,
+  limits: z.array(z.object({ key: z.string(), value: z.unknown() })),
+  toolNames: z.array(z.string()),
+});
+const mapResponseSchema = z.object({ assignments: z.array(assignmentSchema) });
+const ticketResponseSchema = z.object({
+  decision: z.object({ allowed: z.boolean(), reason: z.string() }).passthrough(),
+  ticket: z.string().min(1).optional(),
+});
+
+type Catalog = z.infer<typeof catalogSchema>;
+type CatalogTool = z.infer<typeof catalogToolSchema>;
+type Resource = z.infer<typeof resourceSchema>;
+type Actor =
+  | { type: 'alia'; ownerAccountId: string }
+  | { type: 'agent'; accountId: string };
+type Assignment = z.infer<typeof assignmentSchema>;
+
+export interface OxyToolExecutionContext {
+  requesterAccountId: string;
+  ownerAccountId: string;
+  actor: Actor;
+  runId?: string;
+  autonomy?: OxyToolAutonomy;
+}
+
+interface CompiledTool {
+  catalog: Catalog;
+  definition: CatalogTool;
+  inputSchema: ZodTypeAny;
+}
+interface CatalogDef {
+  catalog: Catalog;
+  displayName: string;
+  compiledTools: CompiledTool[];
+}
+interface BoundTool {
+  compiled: CompiledTool;
+  resource: Resource;
+  suffix: string | null;
+}
+
+const defsCache = new TTLCache<CatalogDef[]>({ ttlMs: 60_000, maxSize: 1 });
+const contextCache = new TTLCache<string>({ ttlMs: 60_000, maxSize: 2_000 });
+const DEFS_KEY = 'catalogs';
+
+async function safeExecute(service: string, operation: () => Promise<unknown>): Promise<unknown> {
   try {
-    return await fn();
-  } catch (err: unknown) {
-    log.general.warn({ err, service }, 'Oxy service tool error');
-    return { error: `Could not access ${service}: ${getErrorMessage(err).slice(0, 150)}` };
+    return await operation();
+  } catch (error: unknown) {
+    log.general.warn({ err: error, service }, 'Oxy capability tool error');
+    return { error: `Could not access ${service}: ${getErrorMessage(error).slice(0, 180)}` };
   }
 }
 
-// ---------------------------------------------------------------------------
-// Global service-definition cache
-//
-// OxyService manifests are user-independent (the query has no user filter), so
-// the DB read + zod compilation — the expensive part — is cached ONCE globally.
-// Per-request work (wrapping tools with the CURRENT access token, rendering the
-// per-user context) is cheap and done fresh on top of these shared defs.
-// ---------------------------------------------------------------------------
-
-interface CompiledTool {
-  toolName: string;
-  displayName: string;
-  description: string;
-  inputSchema: ZodTypeAny;
-  toolDef: OxyServiceTool;
+async function serviceToken(): Promise<string> {
+  const client = oxyServiceClient();
+  if (!client) throw new Error('Alia Oxy service credential is not configured');
+  return client.getServiceToken();
 }
 
-interface ServiceDef {
-  serviceId: string;
-  displayName: string;
-  description: string;
-  /**
-   * `null` rather than `undefined`, because Postgres answers an unset column
-   * with `null` and the two are not interchangeable to the `!!d.contextEndpoint`
-   * filter's TYPE below — narrowing on the wrong one leaves `URL()` taking
-   * `string | null`.
-   */
-  contextEndpoint: string | null;
-  toolNames: string[];
-  hasConfirm: boolean;
-  compiledTools: CompiledTool[];
+async function oxyAuthorityFetch(path: string, init: RequestInit = {}): Promise<unknown> {
+  const token = await serviceToken();
+  const response = await fetch(`${OXY_API_URL}${path}`, {
+    ...init,
+    headers: {
+      authorization: `Bearer ${token}`,
+      accept: 'application/json',
+      ...(init.body ? { 'content-type': 'application/json' } : {}),
+      ...init.headers,
+    },
+    signal: init.signal ?? AbortSignal.timeout(TOOL_TIMEOUT_MS),
+  });
+  if (!response.ok) {
+    throw new Error(`Oxy authority error (${response.status}): ${(await response.text()).slice(0, 240)}`);
+  }
+  return response.json();
 }
 
-const defsCache = new TTLCache<ServiceDef[]>({ ttlMs: 60_000, maxSize: 1 });
-const contextCache = new TTLCache<string>({ ttlMs: 60_000, maxSize: 2000 });
-const DEFS_KEY = 'defs';
+function appDisplayName(appId: string): string {
+  return appId.length === 0 ? appId : `${appId.charAt(0).toUpperCase()}${appId.slice(1)}`;
+}
 
-async function loadServiceDefs(): Promise<ServiceDef[]> {
-  const services = await listActiveOxyServiceDefs(getDb());
+async function loadCatalogDefs(): Promise<CatalogDef[]> {
+  const parsed = catalogsResponseSchema.parse(await oxyAuthorityFetch('/capabilities/catalogs'));
+  return parsed.registrations.map(({ catalog }) => ({
+    catalog,
+    displayName: appDisplayName(catalog.appId),
+    compiledTools: catalog.tools
+      .filter((definition) => definition.exposure.includes('internal'))
+      .map((definition) => ({ catalog, definition, inputSchema: jsonSchemaToZod(definition.inputSchema) })),
+  }));
+}
 
-  return services.map((svc) => {
-    const prefix = `oxy_${sanitizeName(svc.serviceId)}`;
-    const compiledTools: CompiledTool[] = svc.tools.map((svcTool) => ({
-      toolName: `${prefix}__${sanitizeName(svcTool.name)}`,
-      displayName: svc.displayName,
-      description: svcTool.description,
-      inputSchema: jsonSchemaToZod(svcTool.inputSchema),
-      toolDef: svcTool,
-    }));
+function getCatalogDefs(): Promise<CatalogDef[]> {
+  return defsCache.getOrLoad(DEFS_KEY, loadCatalogDefs);
+}
 
+async function agentAssignments(context: OxyToolExecutionContext): Promise<Assignment[]> {
+  if (context.actor.type !== 'agent') return [];
+  const parsed = mapResponseSchema.parse(await oxyAuthorityFetch('/capabilities/capability-map', {
+    method: 'POST',
+    body: JSON.stringify({
+      requesterAccountId: context.requesterAccountId,
+      ownerAccountId: context.ownerAccountId,
+      actorAccountId: context.actor.accountId,
+    }),
+  }));
+  return parsed.assignments;
+}
+
+/** Capability-only view used by the coordinator; it contains no app content. */
+export async function getOxyAgentCapabilityMap(
+  context: OxyToolExecutionContext,
+): Promise<ReadonlyArray<{
+  resource: Resource;
+  maximumAutonomy: OxyToolAutonomy;
+  limits: ReadonlyArray<{ key: string; value?: unknown }>;
+  toolNames: readonly string[];
+}>> {
+  return agentAssignments(context);
+}
+
+function regularAliaBindings(defs: readonly CatalogDef[], context: OxyToolExecutionContext): BoundTool[] {
+  const bindings: BoundTool[] = [];
+  for (const service of defs) {
+    for (const compiled of service.compiledTools) {
+      if (!compiled.definition.resourceTypes.includes(compiled.catalog.accountResourceType)) continue;
+      bindings.push({
+        compiled,
+        resource: {
+          appId: compiled.catalog.appId,
+          effectiveAccountId: context.requesterAccountId,
+          resourceType: compiled.catalog.accountResourceType,
+          resourceId: context.requesterAccountId,
+        },
+        suffix: null,
+      });
+    }
+  }
+  return bindings;
+}
+
+function agentBindings(defs: readonly CatalogDef[], assignments: readonly Assignment[]): BoundTool[] {
+  const candidates: Array<{ compiled: CompiledTool; assignment: Assignment }> = [];
+  for (const assignment of assignments) {
+    const service = defs.find((entry) => entry.catalog.appId === assignment.resource.appId);
+    if (!service) continue;
+    for (const compiled of service.compiledTools) {
+      if (assignment.toolNames.includes(compiled.definition.name)) candidates.push({ compiled, assignment });
+    }
+  }
+  const counts = new Map<string, number>();
+  for (const candidate of candidates) {
+    const key = `${candidate.compiled.catalog.appId}:${candidate.compiled.definition.name}`;
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  return candidates.map(({ compiled, assignment }) => {
+    const key = `${compiled.catalog.appId}:${compiled.definition.name}`;
+    const digest = createHash('sha256').update([
+      assignment.resource.resourceType,
+      assignment.resource.resourceId,
+      assignment.resource.effectiveAccountId,
+    ].join(':')).digest('hex').slice(0, 8);
     return {
-      serviceId: svc.serviceId,
-      displayName: svc.displayName,
-      description: svc.description,
-      contextEndpoint: svc.contextEndpoint,
-      toolNames: compiledTools.map((t) => t.toolName),
-      hasConfirm: svc.tools.some((t) => t.confirmBeforeExecute),
-      compiledTools,
+      compiled,
+      resource: assignment.resource,
+      suffix: (counts.get(key) ?? 0) > 1 ? digest : null,
     };
   });
 }
 
-/** Load the shared service definitions (single-flight, 60s TTL). */
-function getServiceDefs(): Promise<ServiceDef[]> {
-  return defsCache.getOrLoad(DEFS_KEY, loadServiceDefs);
-}
-
-// ---------------------------------------------------------------------------
-// HTTP caller — executes a tool's endpoint on behalf of the user
-// ---------------------------------------------------------------------------
-
-function resolveEndpointPath(
-  endpoint: OxyServiceToolEndpoint,
-  args: Record<string, any>,
-): { url: URL; remainingArgs: Record<string, any> } {
-  const baseUrl = OXY_API_URL;
-  let path = endpoint.path;
-
-  // Clone args so we can remove consumed path params
+function resolveInvocation(definition: CatalogTool, args: Record<string, unknown>): {
+  url: URL;
+  body: Record<string, unknown> | undefined;
+} {
   const remaining = { ...args };
-
-  // Replace {param} placeholders with actual values
-  const paramRegex = /\{(\w+)\}/g;
-  path = path.replace(paramRegex, (_match, paramName) => {
-    // `paramName` is a `{placeholder}` out of the service manifest and `\w+`
-    // matches `constructor` as happily as `id`. `remaining` is a spread, so it
-    // inherits `Object.prototype` — the value would not be `undefined` and the
-    // "missing required path parameter" refusal below would not fire.
-    const value: unknown = Object.hasOwn(remaining, paramName) ? remaining[paramName] : undefined;
-    delete remaining[paramName];
-    if (value === undefined || value === null) {
-      throw new Error(`Missing required path parameter: ${paramName}`);
-    }
+  const path = definition.invocation.path.replace(/\{(\w+)\}/g, (_match, parameter: string) => {
+    const value = Object.hasOwn(remaining, parameter) ? remaining[parameter] : undefined;
+    delete remaining[parameter];
+    if (value === undefined || value === null) throw new Error(`Missing required path parameter: ${parameter}`);
     return encodeURIComponent(String(value));
   });
-
-  const url = new URL(path, baseUrl);
-  return { url, remainingArgs: remaining };
-}
-
-function applyQueryMapping(
-  url: URL,
-  args: Record<string, any>,
-  queryMapping?: Record<string, string>,
-): void {
-  if (!queryMapping) return;
-  for (const [toolParam, queryParam] of Object.entries(queryMapping)) {
-    const value = args[toolParam];
-    if (value !== undefined && value !== null) {
-      url.searchParams.set(queryParam, String(value));
+  const url = new URL(path, `${OXY_API_URL}/`);
+  if (definition.invocation.method === 'GET') {
+    for (const [key, value] of Object.entries(remaining)) {
+      if (value !== undefined && value !== null) url.searchParams.set(key, String(value));
     }
+    return { url, body: undefined };
   }
+  return { url, body: remaining };
 }
 
-function buildRequestBody(
-  args: Record<string, any>,
-  bodyMapping?: Record<string, string>,
-): Record<string, any> | undefined {
-  if (!bodyMapping) return args;
-
-  const body: Record<string, any> = {};
-  for (const [toolParam, bodyField] of Object.entries(bodyMapping)) {
-    const value = args[toolParam];
-    if (value !== undefined) {
-      body[bodyField] = value;
-    }
+async function issueTicket(
+  context: OxyToolExecutionContext,
+  resource: Resource,
+  definition: CatalogTool,
+  runId: string,
+): Promise<string> {
+  const requestedAutonomy: OxyToolAutonomy = definition.effect === 'read'
+    ? 'read_only'
+    : context.autonomy ?? 'execute_on_request';
+  const parsed = ticketResponseSchema.parse(await oxyAuthorityFetch('/capabilities/tickets', {
+    method: 'POST',
+    body: JSON.stringify({
+      requesterAccountId: context.requesterAccountId,
+      ownerAccountId: context.ownerAccountId,
+      actor: context.actor,
+      resource,
+      tool: definition.name,
+      runId,
+      requestedAutonomy,
+      coordinatorMaximumAutonomy: context.autonomy ?? 'execute_on_request',
+    }),
+  }));
+  if (!parsed.decision.allowed || !parsed.ticket) {
+    throw new Error(`Oxy policy denied ${definition.name}: ${parsed.decision.reason}`);
   }
-  return Object.keys(body).length > 0 ? body : undefined;
+  return parsed.ticket;
 }
 
-function applyResultMapping(
-  data: any,
-  toolDef: OxyServiceTool,
-): any {
-  if (!toolDef.resultMapping) return data;
-
-  let result = data;
-
-  // Extract a specific field
-  if (toolDef.resultMapping.extract && result && typeof result === 'object') {
-    result = result[toolDef.resultMapping.extract] ?? result;
-  }
-
-  // Summarize: keep only specified fields per item
-  if (toolDef.resultMapping.summarize && Array.isArray(result)) {
-    const fields = toolDef.resultMapping.summarize;
-    result = result.map((item: any) => {
-      if (typeof item !== 'object' || !item) return item;
-      const summary: Record<string, any> = {};
-      for (const field of fields) {
-        // Support nested access with dot notation (e.g., "flags.seen")
-        const parts = field.split('.');
-        let val: any = item;
-        for (const part of parts) {
-          val = val?.[part];
-        }
-        if (val !== undefined) {
-          summary[field] = val;
-        }
-      }
-      return summary;
-    });
-  }
-
-  // Per-tool truncation
-  if (toolDef.resultMapping.maxChars && typeof result === 'string' && result.length > toolDef.resultMapping.maxChars) {
-    result = result.slice(0, toolDef.resultMapping.maxChars) + '\n[truncated]';
-  }
-
-  return result;
-}
-
-async function callOxyService(
-  toolDef: OxyServiceTool,
-  args: Record<string, any>,
-  accessToken: string,
-): Promise<any> {
-  const { url, remainingArgs } = resolveEndpointPath(toolDef.endpoint, args);
-  const method = toolDef.endpoint.method;
-
-  if (method === 'GET') {
-    // For GET, map remaining args to query params
-    applyQueryMapping(url, remainingArgs, toolDef.endpoint.queryMapping);
-    // Also add any remaining args not in the mapping directly as query params
-    if (!toolDef.endpoint.queryMapping) {
-      for (const [key, value] of Object.entries(remainingArgs)) {
-        if (value !== undefined && value !== null) {
-          url.searchParams.set(key, String(value));
-        }
-      }
-    }
-  }
-
-  const fetchOptions: RequestInit = {
-    method,
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      Accept: 'application/json',
-      ...(method !== 'GET' ? { 'Content-Type': 'application/json' } : {}),
-    },
-    signal: AbortSignal.timeout(TOOL_TIMEOUT_MS),
+async function callBoundTool(
+  binding: BoundTool,
+  args: Record<string, unknown>,
+  context: OxyToolExecutionContext,
+): Promise<unknown> {
+  const runId = context.runId ?? randomUUID();
+  const capabilityTicket = await issueTicket(context, binding.resource, binding.compiled.definition, runId);
+  const { url, body } = resolveInvocation(binding.compiled.definition, args);
+  const headers: Record<string, string> = {
+    authorization: `Capability ${capabilityTicket}`,
+    accept: 'application/json',
   };
-
-  if (method !== 'GET') {
-    const body = buildRequestBody(remainingArgs, toolDef.endpoint.bodyMapping);
-    if (body) {
-      fetchOptions.body = JSON.stringify(body);
-    }
+  if (body) headers['content-type'] = 'application/json';
+  if (binding.compiled.definition.idempotency === 'required') {
+    headers['idempotency-key'] = createHash('sha256')
+      .update(`${runId}:${binding.compiled.definition.name}:${JSON.stringify(args)}`)
+      .digest('hex');
   }
-
-  const response = await fetch(url.toString(), fetchOptions);
-
-  if (!response.ok) {
-    const body = await response.text().catch(() => '');
-    throw new Error(`API error (${response.status}): ${body.slice(0, 200)}`);
-  }
-
-  const contentType = response.headers.get('content-type') || '';
-  const data = contentType.includes('application/json')
-    ? await response.json()
-    : await response.text();
-
-  return applyResultMapping(data, toolDef);
+  const response = await fetch(url, {
+    method: binding.compiled.definition.invocation.method,
+    headers,
+    ...(body ? { body: JSON.stringify(body) } : {}),
+    signal: AbortSignal.timeout(TOOL_TIMEOUT_MS),
+  });
+  if (!response.ok) throw new Error(`Oxy app error (${response.status}): ${(await response.text()).slice(0, 240)}`);
+  return response.headers.get('content-type')?.includes('application/json')
+    ? response.json()
+    : response.text();
 }
-
-// ---------------------------------------------------------------------------
-// Tool builder — generates AI SDK tools from OxyService manifests
-// ---------------------------------------------------------------------------
 
 function sanitizeName(name: string): string {
   return name.replace(/[^a-zA-Z0-9_]/g, '_');
@@ -275,136 +317,75 @@ function sanitizeName(name: string): string {
 
 export async function buildOxyServiceTools(
   oxyUserId: string,
-  accessToken: string,
-  /**
-   * The `service_id`s this turn may reach, or `undefined` for every active one.
-   *
-   * `undefined` is the turn with no agent: a person reaching their own Oxy apps
-   * through Alia. An agent always names them, and an EMPTY array is the real
-   * answer for one granted no service — which is the default, because a grant
-   * over an instanced family has to name the row.
-   */
+  context: OxyToolExecutionContext,
   serviceIds?: readonly string[],
 ): Promise<ToolSet> {
-  if (serviceIds !== undefined && serviceIds.length === 0) return {};
   try {
-    const all = await getServiceDefs();
-    const allowed = serviceIds === undefined ? undefined : new Set(serviceIds);
-    const defs = allowed === undefined ? all : all.filter((svc) => allowed.has(svc.serviceId));
-
-    // Wrap the shared (cached) tool defs FRESH with THIS caller's access token.
-    // Closures are cheap to build; caching them per-user is what leaked the
-    // first caller's token to later callers within the TTL window.
+    const allDefs = await getCatalogDefs();
+    const allowed = serviceIds === undefined
+      ? null
+      : new Set(serviceIds.flatMap((id) => [id, id.replace(/^oxy-/, '')]));
+    const defs = allowed
+      ? allDefs.filter((entry) => allowed.has(entry.catalog.appId) || allowed.has(`oxy-${entry.catalog.appId}`))
+      : allDefs;
+    const bindings = context.actor.type === 'agent'
+      ? agentBindings(defs, await agentAssignments(context))
+      : regularAliaBindings(defs, context);
     const tools: ToolSet = {};
-    for (const svc of defs) {
-      for (const compiled of svc.compiledTools) {
-        tools[compiled.toolName] = tool({
-          description: `[${compiled.displayName}] ${compiled.description}`,
-          inputSchema: compiled.inputSchema,
-          execute: async (args: Record<string, unknown>) =>
-            safeExecute(compiled.displayName, () =>
-              callOxyService(compiled.toolDef, args as Record<string, any>, accessToken)),
-        });
-      }
+    for (const binding of bindings) {
+      const baseName = `oxy_${sanitizeName(binding.compiled.catalog.appId)}__${sanitizeName(binding.compiled.definition.name)}`;
+      const toolName = binding.suffix ? `${baseName}__${binding.suffix}` : baseName;
+      tools[toolName] = tool({
+        description: `[${appDisplayName(binding.compiled.catalog.appId)}] ${binding.compiled.definition.description} Resource: ${binding.resource.resourceType}/${binding.resource.resourceId}.`,
+        inputSchema: binding.compiled.inputSchema,
+        execute: async (args: Record<string, unknown>) => safeExecute(
+          binding.compiled.catalog.appId,
+          () => callBoundTool(binding, args, context),
+        ),
+      });
     }
-
-    const toolCount = Object.keys(tools).length;
-    if (toolCount > 0) {
-      log.general.info({ userId: oxyUserId, toolCount, serviceCount: defs.length }, 'Oxy service tools loaded');
-    }
-
+    log.general.info({ userId: oxyUserId, toolCount: Object.keys(tools).length }, 'Oxy capability tools loaded');
     return tools;
-  } catch (err) {
-    log.general.error({ err, userId: oxyUserId }, 'Failed to load Oxy service tools');
+  } catch (error: unknown) {
+    log.general.error({ err: error, userId: oxyUserId }, 'Failed to load Oxy capability tools');
     return {};
   }
 }
 
-// ---------------------------------------------------------------------------
-// Context provider — fetches context from each service's contextEndpoint
-// ---------------------------------------------------------------------------
-
-export async function getOxyServiceContext(
-  userId: string,
-  accessToken: string,
-): Promise<string> {
+export async function getOxyServiceContext(userId: string, _accessToken: string): Promise<string> {
   const cached = contextCache.get(userId);
   if (cached !== undefined) return cached;
-
+  const context: OxyToolExecutionContext = {
+    requesterAccountId: userId,
+    ownerAccountId: userId,
+    actor: { type: 'alia', ownerAccountId: userId },
+    autonomy: 'read_only',
+  };
   try {
-    const defs = await getServiceDefs();
-    const contextDefs = defs.filter(
-      (d): d is ServiceDef & { contextEndpoint: string } => !!d.contextEndpoint,
-    );
-
-    if (contextDefs.length === 0) {
-      contextCache.set(userId, '');
-      return '';
-    }
-
-    const results = await Promise.allSettled(
-      contextDefs.map(async (svc) => {
-        const url = new URL(svc.contextEndpoint, OXY_API_URL);
-        const response = await fetch(url.toString(), {
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            Accept: 'application/json',
-          },
-          signal: AbortSignal.timeout(3_000), // Tight timeout — don't block chat
-        });
-        if (!response.ok) return null;
-        const data = await response.json();
-        return { service: svc.displayName, context: data };
-      }),
-    );
-
-    const contextParts: string[] = [];
-    for (const result of results) {
-      if (result.status === 'fulfilled' && result.value) {
-        const { service, context } = result.value;
-        if (typeof context === 'string') {
-          contextParts.push(`- **${service}**: ${context}`);
-        } else if (typeof context === 'object' && context) {
-          const summary = Object.entries(context)
-            .filter(([, v]) => v !== undefined && v !== null)
-            .map(([k, v]) => `${k}: ${v}`)
-            .join(', ');
-          if (summary) {
-            contextParts.push(`- **${service}**: ${summary}`);
-          }
-        }
-      }
-    }
-
-    const rendered = contextParts.length > 0
-      ? '\n\n## Connected Services Context\n' + contextParts.join('\n')
-      : '';
+    const defs = await getCatalogDefs();
+    const service = defs.find((entry) => entry.catalog.appId === 'inbox');
+    const compiled = service?.compiledTools.find((entry) => entry.definition.name === 'getEmailContext');
+    if (!compiled || !compiled.definition.resourceTypes.includes('email_account')) return '';
+    const result = await callBoundTool({
+      compiled,
+      resource: { appId: 'inbox', effectiveAccountId: userId, resourceType: 'email_account', resourceId: userId },
+      suffix: null,
+    }, {}, context);
+    const rendered = `\n\n## Connected Services Context\n- **Inbox**: ${JSON.stringify(result)}`;
     contextCache.set(userId, rendered);
     return rendered;
-  } catch (err) {
-    log.general.warn({ err }, 'Failed to fetch Oxy service context');
+  } catch (error: unknown) {
+    log.general.warn({ err: error }, 'Failed to fetch Oxy service context');
     return '';
   }
 }
 
-// ---------------------------------------------------------------------------
-// Prompt helper — builds a system prompt fragment for connected services
-// ---------------------------------------------------------------------------
-
 export function getOxyServicePromptFragment(_oxyUserId: string): string {
-  // Reads the shared, user-independent defs snapshot. It is warm whenever any
-  // request built tools/context in the last 60s (buildOxyServiceTools runs
-  // before the system prompt in the request flow), so this stays sync.
   const defs = defsCache.get(DEFS_KEY);
-  if (!defs || defs.length === 0) return '';
-
-  const lines = defs.map((svc) => {
-    let line = `- **${svc.displayName}**: ${svc.description}. Tools: ${svc.toolNames.join(', ')}.`;
-    if (svc.hasConfirm) {
-      line += ' ALWAYS confirm with the user before performing write actions.';
-    }
-    return line;
+  if (!defs?.length) return '';
+  const lines = defs.map((service) => {
+    const names = service.compiledTools.map((entry) => `oxy_${sanitizeName(service.catalog.appId)}__${sanitizeName(entry.definition.name)}`);
+    return `- **${service.displayName}**: ${names.join(', ')}. Access and autonomy are checked for every call.`;
   });
-
-  return '\n\n## Connected Oxy Services\nYou have access to the user\'s Oxy apps through tools prefixed with `oxy_`.\n' + lines.join('\n');
+  return '\n\n## Connected Oxy Services\nUse the user or agent\'s delegated Oxy app capabilities through these tools.\n' + lines.join('\n');
 }

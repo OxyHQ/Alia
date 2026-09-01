@@ -85,8 +85,8 @@ describe('Alia stores no identity of its own for an agent', () => {
       expect(present.has(column)).toBe(false);
     }
 
-    // The designation is a COLUMN, not a convention over `category` and `tags`.
-    expect(present.has('handles_autonomous_events')).toBe(true);
+    // Event autonomy is represented by normalized automation definitions.
+    expect(present.has('handles_autonomous_events')).toBe(false);
   });
 
   it('keys the seam UNIQUE and no longer indexes a handle', async () => {
@@ -103,25 +103,12 @@ describe('Alia stores no identity of its own for an agent', () => {
     expect(indexes.has('agents_handle_key')).toBe(false);
   });
 
-  /**
-   * The designation index exists AND is partial.
-   *
-   * `pg_indexes.indexdef` carries the `WHERE` clause, and it is the only place
-   * the partiality is visible: a plain unique index over the same column has an
-   * identical name, an identical column list, and enforces something entirely
-   * different. Asserting existence alone would pass against it.
-   */
-  it('constrains one autonomy agent per owner, and only the designated rows', async () => {
-    const [row] = await db.execute<{ indexdef: string }>(sql`
-      select indexdef from pg_indexes
+  it('has retired the one-agent autonomy designation index', async () => {
+    const rows = await db.execute<{ indexname: string }>(sql`
+      select indexname from pg_indexes
       where schemaname = 'public' and indexname = 'agents_one_autonomy_per_owner'
     `);
-
-    expect(row).toBeDefined();
-    expect(row.indexdef).toContain('UNIQUE');
-    expect(row.indexdef).toContain('author_oxy_user_id');
-    expect(row.indexdef).toContain('WHERE');
-    expect(row.indexdef).toContain('handles_autonomous_events');
+    expect(rows).toHaveLength(0);
   });
 });
 
@@ -204,63 +191,6 @@ describe('agents', () => {
       expect(constraintNameOf(error)).toBe('agents_oxy_account_id_key');
       return true;
     });
-  });
-
-  /**
-   * ONE designated autonomy agent per owner, and the DATABASE says so.
-   *
-   * The predecessor was a convention — `category = 'automation'` plus an
-   * `autonomy` tag — over two fields the owner edits by hand, so a second
-   * designation was not refused at all: it produced two matches and whichever
-   * the query returned first won. That failure is invisible to any functional
-   * test that seeds one agent, which is why this seeds two.
-   */
-  it('refuses a SECOND autonomy designation for one owner', async () => {
-    const owner = `oxy-autonomy-${Math.random().toString(36).slice(2, 10)}`;
-    await db
-      .insert(agents)
-      .values(
-        agentValues({ id: 'ag-auto1', authorOxyUserId: owner, handlesAutonomousEvents: true }),
-      );
-
-    const second = db
-      .insert(agents)
-      .values(
-        agentValues({ id: 'ag-auto2', authorOxyUserId: owner, handlesAutonomousEvents: true }),
-      );
-
-    await expect(second).rejects.toSatisfy((error: unknown) => {
-      expect(isUniqueViolation(error)).toBe(true);
-      expect(constraintNameOf(error)).toBe('agents_one_autonomy_per_owner');
-      return true;
-    });
-  });
-
-  /**
-   * The half a plain unique index would get wrong.
-   *
-   * `agents_one_autonomy_per_owner` is PARTIAL. Without the
-   * `where handles_autonomous_events` predicate it would constrain every row,
-   * so an owner could have exactly ONE agent in total — and the failure would
-   * look like "creating a second agent is broken" rather than like a bad index.
-   */
-  it('lets one owner keep many agents that are NOT designated', async () => {
-    const owner = `oxy-many-${Math.random().toString(36).slice(2, 10)}`;
-    await db.insert(agents).values(agentValues({ id: 'ag-many1', authorOxyUserId: owner }));
-    await db.insert(agents).values(agentValues({ id: 'ag-many2', authorOxyUserId: owner }));
-    await db
-      .insert(agents)
-      .values(
-        agentValues({ id: 'ag-many3', authorOxyUserId: owner, handlesAutonomousEvents: true }),
-      );
-
-    const rows = await db
-      .select({ id: agents.id, designated: agents.handlesAutonomousEvents })
-      .from(agents)
-      .where(eq(agents.authorOxyUserId, owner));
-
-    expect(rows).toHaveLength(3);
-    expect(rows.filter((r) => r.designated)).toHaveLength(1);
   });
 
   it('defaults capability_grants to an EMPTY ARRAY, never to NULL', async () => {
