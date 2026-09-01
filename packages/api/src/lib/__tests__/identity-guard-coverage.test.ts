@@ -185,7 +185,20 @@ describe('one owner for the assistant\'s name', () => {
     expect(files).toContain('prompts/base.md');
     expect(files.filter((f) => f.startsWith('prompts/')).sort()).toEqual([
       'prompts/alia-telegram.md',
+      'prompts/audio.md',
       'prompts/base.md',
+      'prompts/browser.md',
+      'prompts/codea-pro.md',
+      'prompts/codea.md',
+      'prompts/cowork.md',
+      'prompts/extended-reasoning.md',
+      'prompts/general-lite.md',
+      'prompts/general.md',
+      'prompts/multimodal.md',
+      'prompts/pro-max.md',
+      'prompts/vision.md',
+      'prompts/voice-pro.md',
+      'prompts/voice.md',
     ]);
     // And the AST half specifically: a walk that returned nothing would make
     // every TypeScript file trivially clean.
