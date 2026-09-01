@@ -96,7 +96,6 @@ async function run(toolName: string, output: unknown) {
     convertedMessages: [],
     toolNameMapping: new Map(),
     agentMessages,
-    isSpanish: false,
     toolCallCount: 0,
     state: { hasStreamedContent: false },
     onFirstChunk: () => undefined,

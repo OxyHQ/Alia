@@ -18,6 +18,7 @@ import { toast } from '@oxyhq/bloom/toast';
 import i18n from '@/lib/i18n';
 import type { Conversation } from '@/lib/hooks/use-conversations';
 import { buildOutboundMessages } from '@/lib/chat-message-history';
+import { hasUsableStreamOutput, type StreamOutputEvidence } from '@/lib/chat/stream-outcome';
 
 import type { ToolInvocation } from '@/lib/types/messages';
 import { errorMessage as getErrorMessage, errorStatus, errorCode, errorName } from '../errors/error-utils';
@@ -198,8 +199,12 @@ export function useStreamingChat(apiUrl: string, conversationId?: string, reason
     // dead provider, a mid-stream break or a global timeout with HTTP 200 and a
     // stand-in message flagged `alia_meta.synthetic` — that is a failed send
     // wearing a reply's clothes.
-    let realOutputChars = 0;
-    let hasToolInvocations = false;
+    const outputEvidence: StreamOutputEvidence = {
+      realOutputChars: 0,
+      agentOutputChars: 0,
+      durableArtifactCount: 0,
+      toolInvocationCount: 0,
+    };
 
     const rollback = (): SendOutcome => {
       // Drop anything still batched first: flushPendingUpdates appends to
@@ -216,7 +221,7 @@ export function useStreamingChat(apiUrl: string, conversationId?: string, reason
     };
 
     /** Keep a half-streamed turn — destroying real output is worse than showing the error. */
-    const settleError = (): SendOutcome => (realOutputChars || hasToolInvocations ? 'sent' : rollback());
+    const settleError = (): SendOutcome => hasUsableStreamOutput(outputEvidence) ? 'sent' : rollback();
 
     /**
      * Stamped here, not on the way back: a thread left open across midnight has
@@ -381,7 +386,7 @@ export function useStreamingChat(apiUrl: string, conversationId?: string, reason
           flushPendingUpdates();
 
           // The stream closed without the model producing anything usable.
-          if (!realOutputChars && !hasToolInvocations) {
+          if (!hasUsableStreamOutput(outputEvidence)) {
             setError(new Error('No response received from AI'));
             return rollback();
           }
@@ -456,6 +461,7 @@ export function useStreamingChat(apiUrl: string, conversationId?: string, reason
                       }
                       // Detect artifact-like results
                       if (name === 'generateFile' && output && typeof output === 'object') {
+                        outputEvidence.durableArtifactCount += 1;
                         const artifactType = output.language ? 'code' : 'markdown';
                         useUIStore.getState().addCanvasArtifact({
                           id: tool_call_id,
@@ -468,6 +474,7 @@ export function useStreamingChat(apiUrl: string, conversationId?: string, reason
                         });
                         useUIStore.getState().setRightPanel('canvas');
                       } else if (output?.artifact) {
+                        outputEvidence.durableArtifactCount += 1;
                         const a = output.artifact;
                         useUIStore.getState().addCanvasArtifact({
                           id: tool_call_id,
@@ -484,6 +491,9 @@ export function useStreamingChat(apiUrl: string, conversationId?: string, reason
                   }
                   case 'alia.agent': {
                     const am = parsed;
+                    if (typeof am.content === 'string') {
+                      outputEvidence.agentOutputChars += am.content.length;
+                    }
                     setMessages((prev) => {
                       const updated = [...prev];
                       const agentMsg: Message = {
@@ -695,7 +705,7 @@ export function useStreamingChat(apiUrl: string, conversationId?: string, reason
               // Handle text content (batched for performance)
               if (delta.content) {
                 if (parsed.alia_meta?.synthetic !== true) {
-                  realOutputChars += delta.content.length;
+                  outputEvidence.realOutputChars += delta.content.length;
                 }
 
                 // Subtle streaming haptic, throttled by time — per-character
@@ -736,11 +746,11 @@ export function useStreamingChat(apiUrl: string, conversationId?: string, reason
 
               // Handle tool calls (OpenAI format: delta.tool_calls)
               if (delta.tool_calls && Array.isArray(delta.tool_calls)) {
-                hasToolInvocations = true;
                 for (const tc of delta.tool_calls) {
                   const toolCallId = tc.id;
                   const toolName = tc.function?.name;
                   if (!toolCallId || !toolName) continue;
+                  outputEvidence.toolInvocationCount += 1;
 
                   let args: Record<string, unknown> | undefined;
                   if (tc.function?.arguments) {
@@ -796,6 +806,7 @@ export function useStreamingChat(apiUrl: string, conversationId?: string, reason
 
                   // Detect artifact-like results and push to canvas panel
                   if (name === 'generateFile' && output && typeof output === 'object') {
+                    outputEvidence.durableArtifactCount += 1;
                     const artifactType = output.language ? 'code' : 'markdown';
                     useUIStore.getState().addCanvasArtifact({
                       id: tool_call_id,
@@ -808,6 +819,7 @@ export function useStreamingChat(apiUrl: string, conversationId?: string, reason
                     });
                     useUIStore.getState().setRightPanel('canvas');
                   } else if (output?.artifact) {
+                    outputEvidence.durableArtifactCount += 1;
                     const a = output.artifact;
                     useUIStore.getState().addCanvasArtifact({
                       id: tool_call_id,
@@ -824,6 +836,9 @@ export function useStreamingChat(apiUrl: string, conversationId?: string, reason
               // Handle agent delegation messages (agent mode)
               if (delta.agent_message) {
                 const am = delta.agent_message;
+                if (typeof am.content === 'string') {
+                  outputEvidence.agentOutputChars += am.content.length;
+                }
                 setMessages((prev) => {
                   const updated = [...prev];
                   const agentMsg: Message = {
