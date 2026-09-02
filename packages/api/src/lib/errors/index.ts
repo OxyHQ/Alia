@@ -20,7 +20,6 @@ export {
   classifyError,
   getErrorMessage,
   getStatusCode,
-  isDuplicateKeyError,
   isTimeoutError,
   toAliaError,
   getRetryAfterHeader,

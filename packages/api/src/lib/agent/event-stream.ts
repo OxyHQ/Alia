@@ -9,8 +9,8 @@
  *   - Append-only: entries are never modified or removed
  *   - Deterministic serialization: stable output for KV-cache friendliness
  *   - Token-aware: can return a window that fits within a budget
- *   - Persistent: entries are batched and flushed to a separate MongoDB collection
- *     to avoid the 16MB BSON limit on long sessions
+ *   - Persistent: entries are batched into PostgreSQL rows so long sessions do
+ *     not grow one unbounded session value
  */
 
 import { emitAgentActivity, type AgentActivityEvent } from '../../socket.js';
@@ -61,7 +61,7 @@ function estimateTokens(text: string): number {
   return Math.ceil(text.length / 4);
 }
 
-/** Batch size for flushing to MongoDB */
+/** Batch size for flushing to PostgreSQL. */
 const FLUSH_BATCH_SIZE = 10;
 
 export class EventStream {
@@ -72,7 +72,7 @@ export class EventStream {
   private agentId?: string;
   private sessionId?: string;
 
-  /** Pending entries not yet flushed to MongoDB */
+  /** Pending entries not yet flushed to PostgreSQL. */
   private pendingFlush: EventStreamEntry[] = [];
 
   constructor(opts?: { agentId?: string; sessionId?: string }) {
@@ -280,7 +280,7 @@ export class EventStream {
     }
   }
 
-  /** Export entries for persistence to MongoDB (embedded in session) */
+  /** Export the in-memory view stored with the session snapshot. */
   toJSON(): EventStreamEntry[] {
     return this.entries.map(e => ({ ...e }));
   }

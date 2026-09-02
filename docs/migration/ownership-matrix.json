@@ -1914,7 +1914,7 @@
       "dependsOn": [
         "dead-internal-providers-router"
       ],
-      "removalGate": "Alia-model CRUD plus its provider mappings. None: measured orphan — unreachable from all three build entrypoints (src/index.ts, src/db/migrate.ts, src/scripts/purge-ip-fields.ts), and its parent router is never mounted. Deleting the file removes no live behaviour. The FUNCTION it implements has no live home today, so its replacement is a new build rather than a migration — say which before deleting, or the capability quietly ceases to be anybody's.",
+      "removalGate": "Alia-model CRUD plus its provider mappings. None: measured orphan — unreachable from all six build entrypoints listed in ownership.md, and its parent router is never mounted. Deleting the file removes no live behaviour. The FUNCTION it implements has no live home today, so its replacement is a new build rather than a migration — say which before deleting, or the capability quietly ceases to be anybody's.",
       "provenance": "re-derived",
       "evidence": "packages/api/src/internal/providers/routes/alia-models.ts; parent internal/providers/index.ts has zero importers; packages/api/src/index.ts has 46 app.use mounts, none for it"
     },
@@ -1931,7 +1931,7 @@
       "dependsOn": [
         "dead-internal-providers-router"
       ],
-      "removalGate": "Reads auth_health_metrics, a table whose only writer is the equally dead service-auth middleware. None: measured orphan — unreachable from all three build entrypoints (src/index.ts, src/db/migrate.ts, src/scripts/purge-ip-fields.ts), and its parent router is never mounted. Deleting the file removes no live behaviour. The FUNCTION it implements has no live home today, so its replacement is a new build rather than a migration — say which before deleting, or the capability quietly ceases to be anybody's.",
+      "removalGate": "Reads auth_health_metrics, a table whose only writer is the equally dead service-auth middleware. None: measured orphan — unreachable from all six build entrypoints listed in ownership.md, and its parent router is never mounted. Deleting the file removes no live behaviour. The FUNCTION it implements has no live home today, so its replacement is a new build rather than a migration — say which before deleting, or the capability quietly ceases to be anybody's.",
       "provenance": "re-derived",
       "evidence": "packages/api/src/internal/providers/routes/auth-health.ts; parent internal/providers/index.ts has zero importers; packages/api/src/index.ts has 46 app.use mounts, none for it"
     },
@@ -1948,7 +1948,7 @@
       "dependsOn": [
         "dead-internal-providers-router"
       ],
-      "removalGate": "Read-only admin over subscriptions, transactions and user credits. None: measured orphan — unreachable from all three build entrypoints (src/index.ts, src/db/migrate.ts, src/scripts/purge-ip-fields.ts), and its parent router is never mounted. Deleting the file removes no live behaviour. The FUNCTION it implements has no live home today, so its replacement is a new build rather than a migration — say which before deleting, or the capability quietly ceases to be anybody's.",
+      "removalGate": "Read-only admin over subscriptions, transactions and user credits. None: measured orphan — unreachable from all six build entrypoints listed in ownership.md, and its parent router is never mounted. Deleting the file removes no live behaviour. The FUNCTION it implements has no live home today, so its replacement is a new build rather than a migration — say which before deleting, or the capability quietly ceases to be anybody's.",
       "provenance": "re-derived",
       "evidence": "packages/api/src/internal/providers/routes/billing-admin.ts; parent internal/providers/index.ts has zero importers; packages/api/src/index.ts has 46 app.use mounts, none for it"
     },
@@ -1965,7 +1965,7 @@
       "dependsOn": [
         "dead-internal-providers-router"
       ],
-      "removalGate": "CRUD over credit_packages. None: measured orphan — unreachable from all three build entrypoints (src/index.ts, src/db/migrate.ts, src/scripts/purge-ip-fields.ts), and its parent router is never mounted. Deleting the file removes no live behaviour. The FUNCTION it implements has no live home today, so its replacement is a new build rather than a migration — say which before deleting, or the capability quietly ceases to be anybody's.",
+      "removalGate": "CRUD over credit_packages. None: measured orphan — unreachable from all six build entrypoints listed in ownership.md, and its parent router is never mounted. Deleting the file removes no live behaviour. The FUNCTION it implements has no live home today, so its replacement is a new build rather than a migration — say which before deleting, or the capability quietly ceases to be anybody's.",
       "provenance": "re-derived",
       "evidence": "packages/api/src/internal/providers/routes/credit-packages.ts; parent internal/providers/index.ts has zero importers; packages/api/src/index.ts has 46 app.use mounts, none for it"
     },
@@ -1982,7 +1982,7 @@
       "dependsOn": [
         "dead-internal-providers-router"
       ],
-      "removalGate": "The ONLY reader of fallback_events, which makes that table write-only today. None: measured orphan — unreachable from all three build entrypoints (src/index.ts, src/db/migrate.ts, src/scripts/purge-ip-fields.ts), and its parent router is never mounted. Deleting the file removes no live behaviour. The FUNCTION it implements has no live home today, so its replacement is a new build rather than a migration — say which before deleting, or the capability quietly ceases to be anybody's.",
+      "removalGate": "The ONLY reader of fallback_events, which makes that table write-only today. None: measured orphan — unreachable from all six build entrypoints listed in ownership.md, and its parent router is never mounted. Deleting the file removes no live behaviour. The FUNCTION it implements has no live home today, so its replacement is a new build rather than a migration — say which before deleting, or the capability quietly ceases to be anybody's.",
       "provenance": "re-derived",
       "evidence": "packages/api/src/internal/providers/routes/fallback-stats.ts; parent internal/providers/index.ts has zero importers; packages/api/src/index.ts has 46 app.use mounts, none for it"
     },
@@ -1999,7 +1999,7 @@
       "dependsOn": [
         "dead-internal-providers-router"
       ],
-      "removalGate": "CRUD over features. None: measured orphan — unreachable from all three build entrypoints (src/index.ts, src/db/migrate.ts, src/scripts/purge-ip-fields.ts), and its parent router is never mounted. Deleting the file removes no live behaviour. The FUNCTION it implements has no live home today, so its replacement is a new build rather than a migration — say which before deleting, or the capability quietly ceases to be anybody's.",
+      "removalGate": "CRUD over features. None: measured orphan — unreachable from all six build entrypoints listed in ownership.md, and its parent router is never mounted. Deleting the file removes no live behaviour. The FUNCTION it implements has no live home today, so its replacement is a new build rather than a migration — say which before deleting, or the capability quietly ceases to be anybody's.",
       "provenance": "re-derived",
       "evidence": "packages/api/src/internal/providers/routes/features.ts; parent internal/providers/index.ts has zero importers; packages/api/src/index.ts has 46 app.use mounts, none for it"
     },
@@ -2016,7 +2016,7 @@
       "dependsOn": [
         "dead-internal-providers-router"
       ],
-      "removalGate": "Provider-key CRUD, including create-with-raw-key and rotate. The server half of the gateway admin Keys screen. None: measured orphan — unreachable from all three build entrypoints (src/index.ts, src/db/migrate.ts, src/scripts/purge-ip-fields.ts), and its parent router is never mounted. Deleting the file removes no live behaviour. The FUNCTION it implements has no live home today, so its replacement is a new build rather than a migration — say which before deleting, or the capability quietly ceases to be anybody's.",
+      "removalGate": "Provider-key CRUD, including create-with-raw-key and rotate. The server half of the gateway admin Keys screen. None: measured orphan — unreachable from all six build entrypoints listed in ownership.md, and its parent router is never mounted. Deleting the file removes no live behaviour. The FUNCTION it implements has no live home today, so its replacement is a new build rather than a migration — say which before deleting, or the capability quietly ceases to be anybody's.",
       "provenance": "re-derived",
       "evidence": "packages/api/src/internal/providers/routes/keys.ts; parent internal/providers/index.ts has zero importers; packages/api/src/index.ts has 46 app.use mounts, none for it"
     },
@@ -2033,7 +2033,7 @@
       "dependsOn": [
         "dead-internal-providers-router"
       ],
-      "removalGate": "CRUD over model_configs. None: measured orphan — unreachable from all three build entrypoints (src/index.ts, src/db/migrate.ts, src/scripts/purge-ip-fields.ts), and its parent router is never mounted. Deleting the file removes no live behaviour. The FUNCTION it implements has no live home today, so its replacement is a new build rather than a migration — say which before deleting, or the capability quietly ceases to be anybody's.",
+      "removalGate": "CRUD over model_configs. None: measured orphan — unreachable from all six build entrypoints listed in ownership.md, and its parent router is never mounted. Deleting the file removes no live behaviour. The FUNCTION it implements has no live home today, so its replacement is a new build rather than a migration — say which before deleting, or the capability quietly ceases to be anybody's.",
       "provenance": "re-derived",
       "evidence": "packages/api/src/internal/providers/routes/models.ts; parent internal/providers/index.ts has zero importers; packages/api/src/index.ts has 46 app.use mounts, none for it"
     },
@@ -2050,7 +2050,7 @@
       "dependsOn": [
         "dead-internal-providers-router"
       ],
-      "removalGate": "The plan-by-feature matrix. None: measured orphan — unreachable from all three build entrypoints (src/index.ts, src/db/migrate.ts, src/scripts/purge-ip-fields.ts), and its parent router is never mounted. Deleting the file removes no live behaviour. The FUNCTION it implements has no live home today, so its replacement is a new build rather than a migration — say which before deleting, or the capability quietly ceases to be anybody's.",
+      "removalGate": "The plan-by-feature matrix. None: measured orphan — unreachable from all six build entrypoints listed in ownership.md, and its parent router is never mounted. Deleting the file removes no live behaviour. The FUNCTION it implements has no live home today, so its replacement is a new build rather than a migration — say which before deleting, or the capability quietly ceases to be anybody's.",
       "provenance": "re-derived",
       "evidence": "packages/api/src/internal/providers/routes/plan-features.ts; parent internal/providers/index.ts has zero importers; packages/api/src/index.ts has 46 app.use mounts, none for it"
     },
@@ -2067,7 +2067,7 @@
       "dependsOn": [
         "dead-internal-providers-router"
       ],
-      "removalGate": "CRUD over plans. None: measured orphan — unreachable from all three build entrypoints (src/index.ts, src/db/migrate.ts, src/scripts/purge-ip-fields.ts), and its parent router is never mounted. Deleting the file removes no live behaviour. The FUNCTION it implements has no live home today, so its replacement is a new build rather than a migration — say which before deleting, or the capability quietly ceases to be anybody's.",
+      "removalGate": "CRUD over plans. None: measured orphan — unreachable from all six build entrypoints listed in ownership.md, and its parent router is never mounted. Deleting the file removes no live behaviour. The FUNCTION it implements has no live home today, so its replacement is a new build rather than a migration — say which before deleting, or the capability quietly ceases to be anybody's.",
       "provenance": "re-derived",
       "evidence": "packages/api/src/internal/providers/routes/plans.ts; parent internal/providers/index.ts has zero importers; packages/api/src/index.ts has 46 app.use mounts, none for it"
     },
@@ -2084,7 +2084,7 @@
       "dependsOn": [
         "dead-internal-providers-router"
       ],
-      "removalGate": "Aggregates api_usage and cost_entries for operators. None: measured orphan — unreachable from all three build entrypoints (src/index.ts, src/db/migrate.ts, src/scripts/purge-ip-fields.ts), and its parent router is never mounted. Deleting the file removes no live behaviour. The FUNCTION it implements has no live home today, so its replacement is a new build rather than a migration — say which before deleting, or the capability quietly ceases to be anybody's.",
+      "removalGate": "Aggregates api_usage and cost_entries for operators. None: measured orphan — unreachable from all six build entrypoints listed in ownership.md, and its parent router is never mounted. Deleting the file removes no live behaviour. The FUNCTION it implements has no live home today, so its replacement is a new build rather than a migration — say which before deleting, or the capability quietly ceases to be anybody's.",
       "provenance": "re-derived",
       "evidence": "packages/api/src/internal/providers/routes/usage.ts; parent internal/providers/index.ts has zero importers; packages/api/src/index.ts has 46 app.use mounts, none for it"
     },
@@ -2514,16 +2514,16 @@
       "domain": "provider-runtime",
       "kind": "env",
       "currentPath": "packages/api/.env.example",
-      "reachable": "live",
+      "reachable": "dead",
       "owner": "delete",
       "targetPath": "delete",
       "dependsOn": [
         "dead-providers-mongoose-db",
         "hazard-mongo-gated-boot"
       ],
-      "removalGate": "Not the provider workstream's call alone — other product code still holds Mongoose models. NARROWED by the chat port: routes/v1/audio.ts, routes/conversations.ts, lib/conversation-saver.ts, routes/webhooks.ts and socket.ts are all on Postgres and the Conversation/Message/CanvasSession models are deleted. What still holds MONGODB_URI open is the agents, organizations and skills domain.",
+      "removalGate": "SATISFIED: every product domain is on PostgreSQL, the final backup-only script is deleted, MONGODB_URI is absent from the environment contract and the architecture gate no longer permits a runtime read.",
       "provenance": "inventory-provider-runtime",
-      "evidence": "packages/api/.env.example:35; packages/api/src/index.ts:435-446; routes/v1/audio.ts now calls db/chat/messageRepository"
+      "evidence": "packages/api/.env.example; packages/api/src/__tests__/architectureGates.test.ts; packages/api/src/db/__tests__/bootWiring.test.ts"
     },
     {
       "id": "env-service-secret",
@@ -4120,15 +4120,16 @@
       "domain": "data-billing",
       "kind": "module",
       "currentPath": "packages/api/src/scripts/purge-ip-fields.ts",
-      "reachable": "live",
+      "removedIn": "refactor/alia-postgres-runtime-final",
+      "reachable": "dead",
       "owner": "delete",
       "targetPath": "delete",
       "dependsOn": [
         "table-api-key-usage"
       ],
-      "removalGate": "The `alia-production` MongoDB database no longer exists (CONVENTIONS.md:960), so this script can only fail. It is the same class as the deleted backfill-audit runner: a safety net that cannot run is worse than none, because it survives greps and reads as protection. Delete it, or record in the file that its target is gone.",
+      "removalGate": "SATISFIED: the `alia-production` MongoDB database no longer exists (CONVENTIONS.md:960), so the script and its sole Mongoose dependency were deleted together. The retained pre-drop archive was not modified.",
       "provenance": "re-derived",
-      "evidence": "packages/api/src/scripts/purge-ip-fields.ts:11"
+      "evidence": "packages/api/src/db/__tests__/bootWiring.test.ts; packages/api/package.json"
     },
     {
       "id": "model-capabilities-data",

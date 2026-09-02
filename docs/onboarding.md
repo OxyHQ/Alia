@@ -256,11 +256,9 @@ bun run --filter @alia/api db:generate   # Generate a migration from the schema
 `test:pg` and the integrations suite need a real PostgreSQL and read `TEST_DATABASE_URL`;
 each run creates and migrates its own throwaway database.
 
-Environment: copy `.env.example` to `.env` in `packages/api/` and fill it in. `DATABASE_URL`
-is the only variable the API cannot start without -- boot refuses without it. `MONGODB_URI`
-is not read by the server at all; only `packages/api/src/scripts/purge-ip-fields.ts` reads
-it, and its database name is computed as `alia-{NODE_ENV}`, so do not embed it in the URI. Upstream model
-credentials are not environment variables -- they live in the `provider_keys` table.
+Environment: copy `.env.example` to `.env` in `packages/api/` and fill it in.
+`DATABASE_URL` is the only database variable and the API refuses to boot without
+it. Provider-key custody is a separate Kaana cutover tracked by ADR 0001.
 
 ---
 

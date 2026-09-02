@@ -77,7 +77,7 @@ RUN cd packages/api && bun run build
 FROM node:${NODE_VERSION}-bookworm-slim AS runtime
 
 # Runtime system libraries:
-# - ca-certificates: outbound TLS (MongoDB Atlas, Redis TLS, Stripe, S3, providers).
+# - ca-certificates: outbound TLS (Redis TLS, Stripe, S3, Kaana and Oxy services).
 # - curl: container HEALTHCHECK.
 # - libglib2.0-0: required by @livekit/rtc-node's native module (libgio /
 #   libgobject / libglib) — loaded at startup, so the process crashes without it.
