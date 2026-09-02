@@ -46,8 +46,13 @@ const SELF = path.relative(REPO_ROOT, fileURLToPath(import.meta.url));
 
 const read = (relative: string): string => readFileSync(path.join(API_SRC, relative), 'utf8');
 
+const commentFreeSourceCache = new Map<string, string>();
+
 /** Source with comments stripped, so a census cannot read this repo's prose. */
 function code(relative: string): string {
+  const cached = commentFreeSourceCache.get(relative);
+  if (cached !== undefined) return cached;
+
   const text = read(relative);
   const source = ts.createSourceFile(relative, text, ts.ScriptTarget.Latest, true);
   const ranges: [number, number][] = [];
@@ -65,6 +70,7 @@ function code(relative: string): string {
   for (const [start, end] of ranges.sort((a, b) => b[0] - a[0])) {
     out = out.slice(0, start) + ' '.repeat(end - start) + out.slice(end);
   }
+  commentFreeSourceCache.set(relative, out);
   return out;
 }
 
@@ -577,6 +583,23 @@ describe('model and routing configuration has no unaudited write path (#139 ws15
     `\\.(?:insert|update|delete)\\s*\\(\\s*(?:${CONFIG_TABLES.join('|')})\\b`,
   );
 
+  // This list and every comment-free source are immutable during a test run.
+  // Building both once keeps the census proportional to repository size instead
+  // of reparsing the entire API once for every writer it audits.
+  const CALLER_FILES = execFileSync('git', ['ls-files', '--', 'packages/api/src'], {
+    cwd: REPO_ROOT,
+    encoding: 'utf8',
+  })
+    .split('\n')
+    .filter(
+      (file) =>
+        file.endsWith('.ts') &&
+        !file.includes('/__tests__/') &&
+        !file.startsWith('packages/api/src/db/providers/') &&
+        existsSync(path.join(REPO_ROOT, file)),
+    )
+    .map((file) => path.relative(API_SRC, path.join(REPO_ROOT, file)));
+
   /**
    * Every top-level function in the four repositories that MUTATES one of them.
    *
@@ -610,21 +633,7 @@ describe('model and routing configuration has no unaudited write path (#139 ws15
   };
 
   const callersOf = (writer: string): string[] => {
-    const files = execFileSync('git', ['ls-files', '--', 'packages/api/src'], {
-      cwd: REPO_ROOT,
-      encoding: 'utf8',
-    })
-      .split('\n')
-      .filter(
-        (file) =>
-          file.endsWith('.ts') &&
-          !file.includes('/__tests__/') &&
-          !file.startsWith('packages/api/src/db/providers/') &&
-          existsSync(path.join(REPO_ROOT, file)),
-      );
-
-    return files
-      .map((file) => path.relative(API_SRC, path.join(REPO_ROOT, file)))
+    return CALLER_FILES
       .filter((relative) => new RegExp(`\\b${writer}\\s*\\(`).test(code(relative)))
       .sort();
   };
