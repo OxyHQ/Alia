@@ -31,6 +31,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 const oxy = vi.hoisted(() => ({
   mode: 'grants' as 'grants' | 'denies' | 'unreachable' | 'not_found',
   calls: 0,
+  agentPresent: true,
 }));
 
 class NotFound extends Error {
@@ -75,7 +76,7 @@ const CLAUDIO = {
 };
 
 vi.mock('../../db/agents/agentRepository.js', () => ({
-  findAgentById: async () => CLAUDIO,
+  findAgentById: async () => oxy.agentPresent ? CLAUDIO : null,
   findAgentByOxyAccountId: async () => CLAUDIO,
   findHireableAgentByOxyAccountId: async () => CLAUDIO,
 }));
@@ -100,6 +101,7 @@ beforeEach(() => {
   clearAgentAccountVerdicts();
   oxy.calls = 0;
   oxy.mode = 'grants';
+  oxy.agentPresent = true;
 });
 
 describe('the fixture can tell the three cases apart', () => {
@@ -114,7 +116,9 @@ describe('the fixture can tell the three cases apart', () => {
 
     clearAgentAccountVerdicts();
     oxy.mode = 'denies';
-    expect(await loadTurnAgent({} as never, CALLER)).toEqual({ kind: 'none' });
+    expect(await loadTurnAgent({} as never, CALLER)).toEqual({
+      kind: 'unavailable', reason: 'out_of_reach',
+    });
 
     clearAgentAccountVerdicts();
     oxy.mode = 'unreachable';
@@ -168,26 +172,37 @@ describe('Oxy could not be asked', () => {
   });
 });
 
-describe('a genuine refusal is unchanged', () => {
-  it('stays `none`, so the turn still runs as ordinary Alia', async () => {
-    // Deliberately a DIFFERENT question, and left alone: a deleted agent, one no
-    // longer shared, or a stale id in an old client is still a valid turn.
+describe('a genuine refusal is fail-closed', () => {
+  it('stays typed and cannot turn into ordinary Alia', async () => {
     oxy.mode = 'denies';
-    expect(await loadTurnAgent({} as never, CALLER)).toEqual({ kind: 'none' });
+    expect(await loadTurnAgent({} as never, CALLER)).toEqual({
+      kind: 'unavailable', reason: 'out_of_reach',
+    });
   });
 
-  it('stays `none` for an account Oxy does not have', async () => {
+  it('is unavailable for an account Oxy does not have', async () => {
     // A 404 IS a verdict — "no such account, or you cannot see it" — and is
     // cacheable. It must not be mistaken for a transport failure.
     oxy.mode = 'not_found';
-    expect(await loadTurnAgent({} as never, CALLER)).toEqual({ kind: 'none' });
+    expect(await loadTurnAgent({} as never, CALLER)).toEqual({
+      kind: 'unavailable', reason: 'out_of_reach',
+    });
   });
 
-  it('stays `none` for a caller with no bearer', async () => {
+  it('is unavailable for a caller with no bearer', async () => {
     // Nobody to ask ABOUT is an answer, not a failure to ask.
     const result = await loadTurnAgent({} as never, { ...CALLER, accessToken: undefined });
 
-    expect(result).toEqual({ kind: 'none' });
+    expect(result).toEqual({ kind: 'unavailable', reason: 'out_of_reach' });
+    expect(oxy.calls).toBe(0);
+  });
+
+  it('distinguishes an agent id that does not exist', async () => {
+    oxy.agentPresent = false;
+
+    expect(await loadTurnAgent({} as never, CALLER)).toEqual({
+      kind: 'unavailable', reason: 'not_found',
+    });
     expect(oxy.calls).toBe(0);
   });
 });
