@@ -118,9 +118,12 @@ Both scheduled row types are reconciled by the same elected scheduler.
 
 ### Webhooks and events
 
-**`POST /webhooks/oxy/:serviceId`** — Oxy service events (`routes/oxy-service-events.ts`).
-Idempotent by `eventId`, HMAC verified, creates a persistent `AgentSession` before
-autonomous queueing, and falls back to a notification if autonomous execution fails.
+**`POST /webhooks/oxy`** — normalized Oxy application events
+(`routes/oxy-service-events.ts`). The publisher authenticates with an Oxy service bearer,
+must own the signed capability catalog for the declared app and may publish only event
+types in that catalog. The route enforces app/account/resource consistency, claims each
+`(appId, eventId)` once and dispatches matching structured automations. The former
+per-service HMAC route, `POST /webhooks/oxy/:serviceId`, returns `410 Gone`.
 
 **`/webhooks`** — channel bot inbound (`routes/webhooks.ts`) plus the CrowdSource webhook
 routes mounted at `packages/api/src/index.ts:194`.
