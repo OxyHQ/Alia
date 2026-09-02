@@ -153,15 +153,24 @@ The two `ALIA_KAANA_CREDENTIAL_*` names are retained for deployment
 compatibility. Their values are one Oxy ApplicationCredential, not a provider
 or Kaana credential. Their exact bindings are declared by `deploy-aws.yml`.
 
+Merging this configuration does not prove production cutover. The rollout must
+still verify the deployed Alia task revision, Oxy route and Kaana health, and
+must census the live task definition for retired provider variables and direct
+Kaana signing material.
+
 ### Secrets
 
-GitHub Actions repository secrets are the source of truth. The deploy workflow syncs an
-explicitly enumerated list into SSM under `/oxy/alia/*` and `/oxy/_shared/*`
+The deploy workflow syncs an explicitly enumerated set of operational GitHub
+secrets into SSM under `/oxy/alia/*` and `/oxy/_shared/*`
 (`.github/workflows/deploy-aws.yml:65` onward), and ECS injects them at task launch. The
 list is enumerated one secret at a time on purpose: a workflow that walks the whole
 `secrets` context is shaped like an exfiltration payload and makes every run wait for
 human approval. **Adding a new secret means adding it to that list, or it never reaches
 SSM.**
+
+`/oxy/alia/INTEGRATIONS_SECRET` and
+`/oxy/alia-integrations/DATABASE_URL` are SSM-owned exceptions. Deploys verify
+only their name and type, never retrieve, decrypt, log or overwrite their value.
 
 Never set a repository secret to a placeholder. The sync job overwrites the real value.
 

@@ -78,6 +78,12 @@ provider client, signs no Kaana envelope and has no direct-provider fallback.
 Kaana owns provider credentials and runtime state in its PostgreSQL database;
 Oxy resolves identity and routing policy before forwarding the request.
 
+That is the source target, not a claim that production has already cut over.
+Kaana's PostgreSQL/KMS provider-credential custody is merged, but the coordinated
+Alia/Oxy/infra rollout and live task-definition gates must still prove that no
+old Alia task or provider key remains active. The exclusive canonical Kaana
+origin is `https://kaana.ai`; Alia never configures that origin directly.
+
 `/triggers` is the **only** scheduling API. It covers scheduled, webhook, integration and
 heartbeat executions. There is no second scheduler, and no backward-compatible model
 resolution endpoint — `POST /v1/resolve-model` and `POST /v1/report-usage` return
@@ -94,7 +100,8 @@ model and declares no Mongo driver dependency — the last domains (conversation
 messages, agents and their sessions, teams and reviews, organizations, containers,
 skills, learning rules, rollback records, canvas sessions and event-stream entries)
 landed in PostgreSQL with the port tracked on
-[#139](https://github.com/OxyHQ/Alia/issues/139).
+[#139](https://github.com/OxyHQ/Alia/issues/139) and merged in
+[#465](https://github.com/OxyHQ/Alia/pull/465).
 `packages/api/src/db/__tests__/bootWiring.test.ts` walks the real boot graph and the
 whole tracked source tree, and fails on any Mongo driver import or direct dependency.
 

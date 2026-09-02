@@ -23,7 +23,18 @@ A product that owns provider credentials, a public inference API, developer iden
 
 Epic #139 sets the target: Alia becomes a consumer of a shared inference platform. Identity, applications, credentials, usage, billing and the public developer experience are owned by Oxy. Provider execution moves behind a separate data plane, **Kaana**.
 
-**Kaana (`kaana.ai`) is the inference provider Alia consumes; Alia does not host provider logic.** Kaana is the only name for that data plane across repositories, AWS resources, signed headers, the `oxy-kaana-envelope:v1` domain separator, `kaana.ai`, configuration, model aliases, docs and `/health`. The former working name is not accepted as a compatibility spelling. `packages/api/src/lib/mcp-relay.ts` is a separate MCP WebSocket relay and retains the protocol term.
+**Kaana is the inference data plane Alia consumes through Oxy.** Its only canonical signed origin is `https://kaana.ai`; a Kaana host below `oxy.so` is not a compatibility origin. Alia neither signs nor calls Kaana directly. The Alia product remains Alia because agents, conversations, memory, tools and approvals are not provider execution. The ordinary word “relay” in `packages/api/src/lib/mcp-relay.ts` names the unrelated MCP WebSocket transport and is not Kaana.
+
+## Implementation status
+
+The database cut and the inference cut are separate. [PR #465](https://github.com/OxyHQ/Alia/pull/465) completed the PostgreSQL-only runtime: `@alia/api` opens no MongoDB connection and has no Mongo or Mongoose dependency. Before this change, provider adapters and plaintext `provider_keys` rows remained in Alia, and the dormant client/configuration still carried legacy `ALIA_RELAY_*`, `RELAY_BASE_URL`, `X-Oxy-Relay-*` and `oxy-relay-envelope:v1` identifiers. Those identifiers described migration debt, not a supported second name or proof of production cutover.
+
+This change removes that direct hosted runtime and uses the published
+`OxyInferenceClient`, but source completion is not production completion. Kaana
+has merged PostgreSQL/KMS custody for upstream credentials, including customer
+BYOK; the coordinated Alia/Oxy/infra route must still be deployed and live task
+definitions proven to contain no provider key before the production cutover can
+be claimed.
 
 ## Decision
 
@@ -77,7 +88,10 @@ Alia product runtime
         │ Oxy service token
         │ + application / account / credential attribution
         ▼
-Kaana client
+Oxy inference edge
+        │ signed authorized routes
+        ▼
+Kaana (`https://kaana.ai`)
         │
         ▼
 selected model / deployment

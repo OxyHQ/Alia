@@ -9,9 +9,14 @@ Alia no aloja lógica ni credenciales de proveedor, claves de firma de Kaana o
 un transporte alternativo.
 
 El antiguo nombre de trabajo `Relay` está retirado. El repositorio es
-`~/Oxy/Kaana`; no se admiten aliases de compatibilidad. `lib/mcp-relay.ts`
-es otro sistema — el relay WebSocket de MCP — y conserva ese nombre porque
-describe el protocolo que implementa.
+`~/Oxy/Kaana` y su único origen firmado canónico es `https://kaana.ai`; no se
+admiten aliases de compatibilidad ni un host Kaana bajo `oxy.so`. No llames
+completado al corte de producción sin la verificación coordinada de Oxy, Kaana
+e infra. El estado y la deuda de despliegue se documentan en `README.md` y ADR
+0001, no aquí.
+
+`lib/mcp-relay.ts` es otro sistema — el transporte WebSocket de MCP — y no se
+renombra.
 
 Los **shows** son series de podcast publicadas en **Syra** (`syra.fm`), no audio
 guardado en Alia. El worker que las produce no lleva credencial de usuario y Syra
