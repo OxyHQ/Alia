@@ -72,12 +72,19 @@ on the second.
 [ADR 0004](docs/adr/0004-product-endpoints-versus-generic-inference-endpoints.md); new
 generic integrations go to Oxy Console and `api.oxy.so/v1`.
 
-There is **no gateway service**. Provider calls happen in process:
-`packages/api/src/lib/chat-core.ts` builds an AI SDK client directly, against credentials
-in the `provider_keys` Postgres table, with a fallback loop that retries a request down the
-tier's ranked list. Under
-[ADR 0001](docs/adr/0001-alia-oxy-kaana-responsibility-boundary.md) that moves behind one
-typed client for Kaana, Oxy's own inference provider.
+There is **no gateway service**. In current `main`, provider calls still happen in
+process: `packages/api/src/lib/chat-core.ts` builds an AI SDK client directly, against
+credentials in the `provider_keys` PostgreSQL table, with a fallback loop that retries a
+request down the tier's ranked list. This is remaining migration debt, not a second
+inference product named “Alia provider” or “Relay”. Under
+[ADR 0001](docs/adr/0001-alia-oxy-kaana-responsibility-boundary.md), the final path is
+Alia → Oxy inference edge → Kaana at the exclusive canonical origin
+`https://kaana.ai` → upstream provider.
+
+Kaana's PostgreSQL/KMS provider-credential custody is merged in the Kaana repository,
+but the coordinated Alia/Oxy/infra cut and its production gates are not complete. Until
+they are, this README deliberately describes the direct Alia path above instead of
+pretending that provider keys have already left Alia production.
 
 `/triggers` is the **only** scheduling API. It covers scheduled, webhook, integration and
 heartbeat executions. There is no second scheduler, and no backward-compatible model
@@ -95,7 +102,8 @@ model and declares no Mongo driver dependency — the last domains (conversation
 messages, agents and their sessions, teams and reviews, organizations, containers,
 skills, learning rules, rollback records, canvas sessions and event-stream entries)
 landed in PostgreSQL with the port tracked on
-[#139](https://github.com/OxyHQ/Alia/issues/139).
+[#139](https://github.com/OxyHQ/Alia/issues/139) and merged in
+[#465](https://github.com/OxyHQ/Alia/pull/465).
 `packages/api/src/db/__tests__/bootWiring.test.ts` walks the real boot graph and the
 whole tracked source tree, and fails on any Mongo driver import or direct dependency.
 
