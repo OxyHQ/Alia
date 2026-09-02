@@ -440,7 +440,7 @@ export class ChatProvider {
 
       logger.debug('Stream created, processing chunks...')
       let assistantMessage = ''
-      let toolCalls: OpenAI.Chat.ChatCompletionMessageToolCall[] = []
+      let toolCalls: OpenAI.Chat.ChatCompletionMessageFunctionToolCall[] = []
       let chunkCount = 0
 
       // Process stream chunks
@@ -815,7 +815,7 @@ export class ChatProvider {
 
       logger.debug('Continuation stream created, processing chunks...')
       let assistantMessage = ''
-      let toolCalls: OpenAI.Chat.ChatCompletionMessageToolCall[] = []
+      let toolCalls: OpenAI.Chat.ChatCompletionMessageFunctionToolCall[] = []
       let contChunkCount = 0
 
       // Process stream chunks

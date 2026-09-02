@@ -8,6 +8,7 @@ import {
   createObservedAutomationRun,
   findAutomationDefinition,
   findAutomationDefinitionById,
+  listAutomationDefinitions,
   listAutomationExecutionAuthorizationsForRun,
   listAutomationRuns,
   listAutomationRunSteps,
@@ -348,9 +349,10 @@ describe('normalized automation definitions', () => {
       limits: [],
       enabled: true,
     });
+    const legacyTriggerId = uuidv7();
     await upsertLegacyTriggerAutomation({
       db,
-      legacyTriggerId: uuidv7(),
+      legacyTriggerId,
       ownerAccountId: 'aut-owner-schedule',
       objective: 'Legacy schedule',
       triggerKind: 'schedule',
@@ -367,5 +369,7 @@ describe('normalized automation definitions', () => {
       .toEqual(expect.objectContaining({
         trigger: { type: 'schedule', cron: '0 9 * * 1', timezone: 'UTC' },
       }));
+    expect(await listAutomationDefinitions(db, 'aut-owner-schedule'))
+      .toContainEqual(expect.objectContaining({ legacyTriggerId }));
   });
 });

@@ -495,10 +495,11 @@ describe('reasoning', () => {
     const completion = await complete(EVERYTHING, payload(), [
       START,
       {
-        schemaVersion: 1,
+        schemaVersion: 2,
         type: 'usage',
         requestId: 'kaana-req-1',
         sequence: 1,
+        deploymentId: 'deployment-1',
         usageSource: 'provider_reported',
         units: [
           { unit: 'input_tokens', quantity: 100 },
@@ -526,10 +527,11 @@ describe('prompt caching', () => {
     const completion = await complete(EVERYTHING, payload(), [
       START,
       {
-        schemaVersion: 1,
+        schemaVersion: 2,
         type: 'usage',
         requestId: 'kaana-req-1',
         sequence: 1,
+        deploymentId: 'deployment-1',
         usageSource: 'provider_reported',
         units: [
           { unit: 'input_tokens', quantity: 40 },
