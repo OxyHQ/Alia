@@ -279,8 +279,8 @@ These return `410 Gone` with no compatibility shim:
 - `POST /codea/resolve-model` (`packages/api/src/routes/codea.ts:235`)
 - `POST /codea/report-usage` (`packages/api/src/routes/codea.ts:246`)
 
-All `/automations*` endpoints were removed outright; `/triggers` is the only scheduling
-API.
+`/automations` is the normalized structured control plane. `/triggers` remains available
+for legacy routines; both scheduled row types use the same elected scheduler.
 
 ## Real-time channel
 

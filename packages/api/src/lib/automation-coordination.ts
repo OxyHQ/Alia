@@ -33,6 +33,19 @@ export interface AutomationStagePlan {
   actions: AutomationActionPlanInput[];
 }
 
+type AutomationAutonomy = AutomationCapabilityAssignment['maximumAutonomy'];
+
+const AUTONOMY_RANK: Readonly<Record<AutomationAutonomy, number>> = {
+  read_only: 0,
+  draft: 1,
+  execute_on_request: 2,
+  autonomous: 3,
+};
+
+function autonomyCovers(granted: AutomationAutonomy, required: AutomationAutonomy): boolean {
+  return AUTONOMY_RANK[granted] >= AUTONOMY_RANK[required];
+}
+
 export function sameAutomationResource(left: ResourceRef, right: ResourceRef): boolean {
   return left.appId === right.appId
     && left.effectiveAccountId === right.effectiveAccountId
@@ -49,8 +62,9 @@ export function uniqueAutomationResources(resources: readonly ResourceRef[]): Re
 function assignmentCoversResource(
   assignment: AutomationCapabilityAssignment,
   resource: ResourceRef,
+  requiredAutonomy: AutomationAutonomy,
 ): boolean {
-  if (assignment.maximumAutonomy !== 'autonomous') return false;
+  if (!autonomyCovers(assignment.maximumAutonomy, requiredAutonomy)) return false;
   const granted = assignment.resource;
   if (granted.appId !== resource.appId
     || granted.effectiveAccountId !== resource.effectiveAccountId) return false;
@@ -66,19 +80,22 @@ function assignmentCoversResource(
 export function candidateCoversResources(
   candidate: AutomationActorCandidate,
   resources: readonly ResourceRef[],
+  requiredAutonomy: AutomationAutonomy = 'autonomous',
 ): boolean {
   return resources.every((resource) => candidate.assignments.some((assignment) => (
-    assignment.toolNames.length > 0 && assignmentCoversResource(assignment, resource)
+    assignment.toolNames.length > 0
+      && assignmentCoversResource(assignment, resource, requiredAutonomy)
   )));
 }
 
 export function candidateCoversAction(
   candidate: AutomationActorCandidate,
   action: AutomationActionPlanInput,
+  requiredAutonomy: AutomationAutonomy = 'autonomous',
 ): boolean {
   return candidate.assignments.some((assignment) => (
     assignment.toolNames.includes(action.tool)
-    && assignmentCoversResource(assignment, action.resource)
+    && assignmentCoversResource(assignment, action.resource, requiredAutonomy)
   ));
 }
 
@@ -95,10 +112,12 @@ export function planAutomationStages(input: {
   sourceResources: readonly ResourceRef[];
   actions: readonly AutomationActionPlanInput[];
   activeAuthorizationPairs?: ReadonlySet<string>;
+  requiredAutonomy?: AutomationAutonomy;
 }): AutomationStagePlan[] | null {
+  const requiredAutonomy = input.requiredAutonomy ?? 'autonomous';
   const selected = input.actions.map((action, index) => input.candidates.find((candidate) => (
-    candidateCoversAction(candidate, action)
-    && (index > 0 || candidateCoversResources(candidate, input.sourceResources))
+    candidateCoversAction(candidate, action, requiredAutonomy)
+    && (index > 0 || candidateCoversResources(candidate, input.sourceResources, requiredAutonomy))
     && (
       input.activeAuthorizationPairs === undefined
       || input.activeAuthorizationPairs.has(authorizationPairKey(action.id, candidate.agentId))
@@ -128,9 +147,11 @@ export function planAutomationStages(input: {
 export function provisionableAutomationPairs(input: {
   candidates: readonly AutomationActorCandidate[];
   actions: readonly AutomationActionPlanInput[];
+  requiredAutonomy?: AutomationAutonomy;
 }) {
+  const requiredAutonomy = input.requiredAutonomy ?? 'autonomous';
   return input.actions.flatMap((action) => input.candidates
-    .filter((candidate) => candidateCoversAction(candidate, action))
+    .filter((candidate) => candidateCoversAction(candidate, action, requiredAutonomy))
     .map((candidate) => ({
       agent: { agentId: candidate.agentId, actorAccountId: candidate.actorAccountId },
       action,
@@ -141,6 +162,7 @@ export function provisionableAutomationPairs(input: {
 export async function loadAutomationActorCandidates(
   ownerAccountId: string,
   agents: readonly AgentRecord[],
+  autonomy: AutomationAutonomy = 'autonomous',
 ): Promise<AutomationActorCandidate[]> {
   const availableAgents = agents.filter((agent) => agent.status === 'active');
   const results = await Promise.all(availableAgents.map(async (agent) => {
@@ -149,7 +171,7 @@ export async function loadAutomationActorCandidates(
         requesterAccountId: ownerAccountId,
         ownerAccountId,
         actor: { type: 'agent', accountId: agent.oxyAccountId },
-        autonomy: 'autonomous',
+        autonomy,
       });
       return {
         agentId: agent.id,
