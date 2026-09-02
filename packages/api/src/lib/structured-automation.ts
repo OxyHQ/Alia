@@ -43,6 +43,8 @@ export function automationReceipt(automation: StructuredAutomation) {
   return {
     trigger: automation.trigger,
     actors: automation.actorSelection,
+    executionMode: automation.executionMode,
+    actions: automation.actions,
     resources: automation.resources,
     dataFlow: automation.dataFlow,
     maximumAutonomy: automation.maximumAutonomy,

@@ -90,6 +90,8 @@ describe('structured automation synchronization', () => {
       objective: 'Summarize my notes',
       trigger: { type: 'schedule', cron: '0 9 * * 1', timezone: 'UTC' },
       actorSelection: { mode: 'automatic', eligibleAgentIds: [] },
+      executionMode: 'execute',
+      actions: [],
       inputs: {},
       resources: [],
       dataFlow: { sources: [], destinations: [] },
@@ -102,6 +104,8 @@ describe('structured automation synchronization', () => {
     expect(automationReceipt(automation)).toEqual({
       trigger: { type: 'schedule', cron: '0 9 * * 1', timezone: 'UTC' },
       actors: { mode: 'automatic', eligibleAgentIds: [] },
+      executionMode: 'execute',
+      actions: [],
       resources: [],
       dataFlow: { sources: [], destinations: [] },
       maximumAutonomy: 'autonomous',

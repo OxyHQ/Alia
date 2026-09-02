@@ -10,8 +10,10 @@ import { Router, type Request, type Response } from 'express';
 import { z } from 'zod';
 import { getDb } from '../db/index.js';
 import {
+  automationHasActiveAuthorizationCoverage,
   claimAutomationEvent,
   createAutomationRunForSession,
+  createObservedAutomationRun,
   markAutomationEventStatus,
   matchingEventAutomations,
   type NormalizedAutomationEventInput,
@@ -56,6 +58,13 @@ const serviceIdentitySchema = z.object({
 }).strict();
 
 type EventResource = z.infer<typeof resourceSchema>;
+interface DeclaredAction {
+  id: string;
+  resource: EventResource;
+  tool: string;
+  input: Record<string, unknown>;
+  limits: ReadonlyArray<{ key: string; value: number | boolean }>;
+}
 
 function bearer(request: Request): string | null {
   const authorization = request.headers.authorization;
@@ -73,12 +82,12 @@ async function identifyPublisher(token: string) {
   return serviceIdentitySchema.parse(await response.json());
 }
 
-function assignmentCoversEvent(assignment: {
+function assignmentCoversResource(assignment: {
   resource: EventResource;
   maximumAutonomy: 'read_only' | 'draft' | 'execute_on_request' | 'autonomous';
   toolNames: readonly string[];
 }, eventResource: EventResource): boolean {
-  if (assignment.maximumAutonomy !== 'autonomous' || assignment.toolNames.length === 0) return false;
+  if (assignment.maximumAutonomy !== 'autonomous') return false;
   const granted = assignment.resource;
   if (granted.appId !== eventResource.appId
     || granted.effectiveAccountId !== eventResource.effectiveAccountId) return false;
@@ -93,10 +102,31 @@ function assignmentCoversEvent(assignment: {
     && granted.resourceId === granted.effectiveAccountId;
 }
 
+export function assignmentsCoverAutomation(input: {
+  assignments: ReadonlyArray<{
+    resource: EventResource;
+    maximumAutonomy: 'read_only' | 'draft' | 'execute_on_request' | 'autonomous';
+    toolNames: readonly string[];
+  }>;
+  eventResource: EventResource;
+  actions: readonly DeclaredAction[];
+}): boolean {
+  const eventCovered = input.assignments.some((assignment) => (
+    assignment.toolNames.length > 0 && assignmentCoversResource(assignment, input.eventResource)
+  ));
+  return eventCovered && input.actions.every((action) => input.assignments.some((assignment) => (
+    assignment.toolNames.includes(action.tool)
+    && assignmentCoversResource(assignment, action.resource)
+  )));
+}
+
 async function eligibleAgent(
   ownerAccountId: string,
   candidateIds: readonly string[],
   resource: EventResource,
+  automationId: string,
+  actions: readonly DeclaredAction[],
+  requireDurableAuthority: boolean,
 ) {
   for (const agentId of candidateIds) {
     const agent = await findAgentById(getDb(), agentId);
@@ -108,7 +138,14 @@ async function eligibleAgent(
         actor: { type: 'agent', accountId: agent.oxyAccountId },
         autonomy: 'autonomous',
       });
-      if (assignments.some((assignment) => assignmentCoversEvent(assignment, resource))) return agent;
+      if (!assignmentsCoverAutomation({ assignments, eventResource: resource, actions })) continue;
+      if (requireDurableAuthority && !await automationHasActiveAuthorizationCoverage(
+        getDb(),
+        automationId,
+        agent.id,
+        actions.map((action) => action.id),
+      )) continue;
+      return agent;
     } catch (error: unknown) {
       log.triggers.warn({ err: error, agentId, ownerAccountId }, 'Agent capability-map lookup failed closed');
     }
@@ -136,7 +173,7 @@ async function dispatchEvent(event: NormalizedAutomationEventInput): Promise<voi
   }
   await markAutomationEventStatus(getDb(), event.appId, event.eventId, 'matched');
 
-  for (const { row, eligibleAgentIds } of definitions) {
+  for (const { row, actions, eligibleAgentIds } of definitions) {
     if (row.maximumAutonomy !== 'autonomous') {
       await notifyNoExecution(event, `“${row.objective}” needs approval under its ${row.maximumAutonomy} policy.`);
       continue;
@@ -144,9 +181,31 @@ async function dispatchEvent(event: NormalizedAutomationEventInput): Promise<voi
     const candidates = row.actorMode === 'fixed' && row.fixedAgentId
       ? [row.fixedAgentId]
       : eligibleAgentIds;
-    const agent = await eligibleAgent(event.accountId, candidates, event.resource);
+    const agent = await eligibleAgent(
+      event.accountId,
+      candidates,
+      event.resource,
+      row.id,
+      actions,
+      row.executionMode === 'execute',
+    );
     if (!agent) {
       await notifyNoExecution(event, `No eligible agent currently has access to ${event.resource.resourceType} ${event.resource.resourceId}.`);
+      continue;
+    }
+
+    if (row.executionMode === 'observe') {
+      await createObservedAutomationRun({
+        db: getDb(),
+        automationId: row.id,
+        requesterAccountId: event.accountId,
+        selectedAgentId: agent.id,
+        selectedActorAccountId: agent.oxyAccountId,
+        triggerEventId: event.eventId,
+        resource: event.resource,
+        objective: row.objective,
+        actions,
+      });
       continue;
     }
 
@@ -161,6 +220,11 @@ async function dispatchEvent(event: NormalizedAutomationEventInput): Promise<voi
         occurredAt: event.occurredAt.toISOString(),
         resource: event.resource,
         data: event.data,
+        actions: actions.map((action) => ({
+          resource: action.resource,
+          tool: action.tool,
+          input: action.input,
+        })),
       }),
     ].join('\n');
     const session = await createAgentSession(getDb(), {
@@ -180,6 +244,7 @@ async function dispatchEvent(event: NormalizedAutomationEventInput): Promise<voi
       triggerEventId: event.eventId,
       resource: event.resource,
       objective: row.objective,
+      actions,
     });
     if (!claimed) {
       await updateAgentSession(getDb(), session.id, {
