@@ -1,14 +1,16 @@
 /** Structured autonomy: durable definitions, runs, steps and normalized events. */
 
-import { boolean, index, integer, jsonb, pgTable, text, uniqueIndex } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
+import { boolean, check, index, integer, jsonb, pgTable, text, uniqueIndex } from 'drizzle-orm/pg-core';
 import { createdAt, generatedId, timestamptz, updatedAt } from '@oxyhq/db';
 import { checkOneOf } from './columns';
 
 export const AUTOMATION_TRIGGER_KINDS = ['manual', 'event', 'schedule'] as const;
 export const AUTOMATION_ACTOR_MODES = ['fixed', 'automatic'] as const;
+export const AUTOMATION_EXECUTION_MODES = ['observe', 'execute'] as const;
 export const AUTOMATION_AUTONOMY_LEVELS = ['read_only', 'draft', 'execute_on_request', 'autonomous'] as const;
-export const AUTOMATION_RUN_STATUSES = ['planned', 'running', 'succeeded', 'failed', 'cancelled'] as const;
-export const AUTOMATION_STEP_STATUSES = ['planned', 'running', 'succeeded', 'failed', 'denied', 'cancelled'] as const;
+export const AUTOMATION_RUN_STATUSES = ['planned', 'running', 'observed', 'succeeded', 'failed', 'cancelled'] as const;
+export const AUTOMATION_STEP_STATUSES = ['planned', 'running', 'observed', 'succeeded', 'failed', 'denied', 'cancelled'] as const;
 export const AUTOMATION_EVENT_STATUSES = ['received', 'matched', 'duplicate', 'processed', 'failed'] as const;
 
 export interface AutomationResourceRef {
@@ -21,6 +23,12 @@ export interface AutomationResourceRef {
 export interface AutomationLimit {
   key: string;
   value: string | number | boolean | string[];
+}
+
+/** Oxy policy limits are deliberately scalar and scoped to one exact action. */
+export interface AutomationActionLimit {
+  key: string;
+  value: number | boolean;
 }
 
 export interface AutomationDataFlow {
@@ -42,10 +50,16 @@ export const automationDefinitions = pgTable(
     scheduleTimezone: text(),
     actorMode: text({ enum: AUTOMATION_ACTOR_MODES as unknown as [string, ...string[]] }).notNull(),
     fixedAgentId: text(),
+    executionMode: text({ enum: AUTOMATION_EXECUTION_MODES as unknown as [string, ...string[]] })
+      .$type<(typeof AUTOMATION_EXECUTION_MODES)[number]>()
+      .notNull()
+      .default('observe'),
     inputs: jsonb().$type<Record<string, unknown>>().notNull().default({}),
     resources: jsonb().$type<AutomationResourceRef[]>().notNull().default([]),
     dataFlow: jsonb().$type<AutomationDataFlow>().notNull().default({ sources: [], destinations: [] }),
-    maximumAutonomy: text({ enum: AUTOMATION_AUTONOMY_LEVELS as unknown as [string, ...string[]] }).notNull(),
+    maximumAutonomy: text({ enum: AUTOMATION_AUTONOMY_LEVELS as unknown as [string, ...string[]] })
+      .$type<(typeof AUTOMATION_AUTONOMY_LEVELS)[number]>()
+      .notNull(),
     limits: jsonb().$type<AutomationLimit[]>().notNull().default([]),
     enabled: boolean().notNull().default(true),
     /** Transitional one-to-one link used while legacy triggers are backfilled. */
@@ -60,6 +74,7 @@ export const automationDefinitions = pgTable(
     uniqueIndex('automation_definitions_legacy_trigger_key').on(table.legacyTriggerId),
     checkOneOf('automation_definitions_trigger_kind_check', table.triggerKind, AUTOMATION_TRIGGER_KINDS),
     checkOneOf('automation_definitions_actor_mode_check', table.actorMode, AUTOMATION_ACTOR_MODES),
+    checkOneOf('automation_definitions_execution_mode_check', table.executionMode, AUTOMATION_EXECUTION_MODES),
     checkOneOf('automation_definitions_autonomy_check', table.maximumAutonomy, AUTOMATION_AUTONOMY_LEVELS),
   ],
 );
@@ -76,6 +91,75 @@ export const automationActorAssignments = pgTable(
   (table) => [
     uniqueIndex('automation_actor_assignments_automation_agent_key').on(table.automationId, table.agentId),
     index('automation_actor_assignments_priority_idx').on(table.automationId, table.priority, table.agentId),
+  ],
+);
+
+/** Exact Oxy effects a structured automation may attempt, in stable order. */
+export const automationActions = pgTable(
+  'automation_actions',
+  {
+    id: generatedId(),
+    automationId: text().notNull().references(() => automationDefinitions.id, { onDelete: 'cascade' }),
+    position: integer().notNull(),
+    resourceAppId: text().notNull(),
+    effectiveAccountId: text().notNull(),
+    resourceType: text().notNull(),
+    resourceId: text().notNull(),
+    tool: text().notNull(),
+    input: jsonb().$type<Record<string, unknown>>().notNull().default({}),
+    limits: jsonb().$type<AutomationActionLimit[]>().notNull().default([]),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    uniqueIndex('automation_actions_automation_position_key').on(table.automationId, table.position),
+    uniqueIndex('automation_actions_exact_tool_key').on(
+      table.automationId,
+      table.resourceAppId,
+      table.effectiveAccountId,
+      table.resourceType,
+      table.resourceId,
+      table.tool,
+    ),
+    index('automation_actions_resource_idx').on(
+      table.resourceAppId,
+      table.effectiveAccountId,
+      table.resourceType,
+      table.resourceId,
+    ),
+    check('automation_actions_input_check', sql`jsonb_typeof(${table.input}) = 'object'`),
+    check(
+      'automation_actions_limits_check',
+      sql`jsonb_typeof(${table.limits}) = 'array'
+        and not jsonb_path_exists(${table.limits}, '$[*] ? (@.type() != "object" || !exists(@.key) || @.key.type() != "string" || !exists(@.value) || (@.value.type() != "number" && @.value.type() != "boolean"))')
+        and not jsonb_path_exists(${table.limits}, '$[*] ? (@.type() == "object").keyvalue() ? (@.key != "key" && @.key != "value")')`,
+    ),
+  ],
+);
+
+/**
+ * Durable Oxy authorization references. The bearer that created them is never
+ * stored; Oxy remains the authority and re-evaluates every issued ticket.
+ */
+export const automationActionAuthorizations = pgTable(
+  'automation_action_authorizations',
+  {
+    id: generatedId(),
+    automationActionId: text().notNull().references(() => automationActions.id, { onDelete: 'cascade' }),
+    agentId: text().notNull(),
+    actorAccountId: text().notNull(),
+    oxyAuthorizationId: text().notNull(),
+    expiresAt: timestamptz().notNull(),
+    revokedAt: timestamptz(),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    uniqueIndex('automation_action_authorizations_action_agent_key')
+      .on(table.automationActionId, table.agentId),
+    uniqueIndex('automation_action_authorizations_oxy_key').on(table.oxyAuthorizationId),
+    index('automation_action_authorizations_agent_live_idx')
+      .on(table.agentId, table.expiresAt, table.revokedAt),
   ],
 );
 
@@ -109,6 +193,7 @@ export const automationSteps = pgTable(
   {
     id: generatedId(),
     runId: text().notNull(),
+    automationActionId: text().references(() => automationActions.id, { onDelete: 'set null' }),
     position: integer().notNull(),
     actorType: text({ enum: ['alia', 'agent'] as unknown as [string, ...string[]] }).notNull(),
     actorAccountId: text().notNull(),
