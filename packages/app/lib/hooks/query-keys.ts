@@ -48,6 +48,11 @@ export const queryKeys = {
     threadWindow: (username: string, cursor: string) =>
       ['agent-thread-window', username, cursor] as const,
   },
+  automations: {
+    overview: ['automations', 'overview'] as const,
+    history: (automationId: string) => ['automations', automationId, 'history'] as const,
+    steps: (runId: string) => ['automations', 'runs', runId, 'steps'] as const,
+  },
   conversations: {
     all: ['conversations'] as const,
     detail: (id: string) => ['conversation', id] as const,
