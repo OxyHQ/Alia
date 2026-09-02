@@ -86,10 +86,11 @@ but the coordinated Alia/Oxy/infra cut and its production gates are not complete
 they are, this README deliberately describes the direct Alia path above instead of
 pretending that provider keys have already left Alia production.
 
-`/triggers` is the **only** scheduling API. It covers scheduled, webhook, integration and
-heartbeat executions. There is no second scheduler, and no backward-compatible model
-resolution endpoint — `POST /v1/resolve-model` and `POST /v1/report-usage` return
-`410 Gone`.
+`/automations` is the normalized scheduling and control API for explicit actors,
+resources, actions, data flow and autonomy. `/triggers` remains available for legacy
+routines, and both row types use the same elected scheduler rather than competing
+runtimes. There is no backward-compatible model resolution endpoint —
+`POST /v1/resolve-model` and `POST /v1/report-usage` return `410 Gone`.
 
 ## Storage
 
