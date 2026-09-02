@@ -50,21 +50,6 @@ await esbuild.build({
   logLevel: 'info',
 });
 
-// One-shot operational scripts — bundled so they ship in the runtime image and
-// can be run as a Fargate command override (e.g. the IP-purge migration).
-await esbuild.build({
-  entryPoints: ['src/scripts/purge-ip-fields.ts'],
-  bundle: true,
-  platform: 'node',
-  target: 'node20',
-  format: 'esm',
-  outfile: 'dist/scripts/purge-ip-fields.js',
-  plugins: [externalizeNodeModules],
-  sourcemap: false,
-  minify: false,
-  logLevel: 'info',
-});
-
 // The database migrator, bundled so it ships in the runtime image and can be run
 // as a Fargate command override before the rollout.
 //

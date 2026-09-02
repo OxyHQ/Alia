@@ -216,8 +216,15 @@ interface MatrixRow {
  * claiming to be live is a contradiction this gate does not check for.
  *
  * It carries a branch name for the reason the others do.
+ *
+ * ## 49 -> 50: `migration-purge-ip-fields-unrunnable`
+ *
+ * The source Mongo database had already been destroyed. The backup-only purge
+ * script therefore stopped being a working safety net and was the sole reason
+ * the Mongoose driver remained installed. The script and dependency leave in
+ * one cut; the retained pre-drop archive is external data and is not deleted.
  */
-const REMOVED_ROW_COUNT = 49;
+const REMOVED_ROW_COUNT = 50;
 
 const OWNERS = new Set(['alia', 'oxy', 'relay', 'delete']);
 const REACHABLE = new Set(['live', 'dead', 'unverified', 'loaded-not-invoked']);

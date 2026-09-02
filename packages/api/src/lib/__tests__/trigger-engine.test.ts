@@ -1,11 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-// Standalone Mongo has no change streams, so trigger-engine reconciles the
-// in-memory cron registry against the DB on a timer. This suite exercises that
-// reconcile loop; every heavy collaborator of trigger-engine is stubbed so the
-// module imports cheaply and only the scheduling bookkeeping is under test.
+// The trigger engine reconciles its in-memory cron registry against PostgreSQL
+// on a timer. This suite exercises that loop; every heavy collaborator is
+// stubbed so the module imports cheaply and only the scheduling bookkeeping is
+// under test.
 
-vi.mock('mongoose', () => ({ default: { connection: { db: undefined, collection: vi.fn() } } }));
 vi.mock('node-cron', () => ({ default: { schedule: vi.fn(), validate: vi.fn(() => true) } }));
 vi.mock('ai', () => ({ generateText: vi.fn(), stepCountIs: vi.fn() }));
 vi.mock('../chat-core.js', () => ({ resolveModel: vi.fn(), getAIModel: vi.fn(), getDefaultAliaModel: vi.fn() }));
