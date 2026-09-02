@@ -88,7 +88,6 @@ the environment.
 | MCP connector OAuth state | `mcp_connector_auths.*` | encrypted |
 | Messaging session credentials | `telegram_sessions`, `whatsapp_sessions`, `signal_sessions` | **plaintext**, projection-protected only |
 | User-supplied MCP server config | `mcp_servers.config_headers`, `config_env` | **plaintext jsonb** |
-| Oxy service webhook HMAC keys | `oxy_services.webhook_secret` | **plaintext** |
 | Trigger webhook secrets | `triggers.webhook_secret` | **plaintext** |
 | Process secrets | environment / SSM | plaintext |
 
@@ -522,16 +521,13 @@ database is exposed, they are exposed.
 
 ---
 
-## Webhook HMAC keys
+## Webhook verification secrets
 
-**`oxy_services.webhook_secret`** (`packages/api/src/db/schema/oxy-services.ts:118`)
-verifies inbound signatures from other Oxy apps. Unlike the bot one it is a
-VERIFICATION key, found by `service_id` rather than looked up by
-(`oxy-services.ts:10`–`:12`), so it could be encrypted; it is not, and the file
-says why that stayed a separate decision (`:12`–`:15`). Rotating it requires the
-same value on the other side, so coordinate with the owning app; the window
-between the two edits is one where every event that service sends fails
-verification.
+Oxy application events have no Alia-held per-app secret to rotate. Migration `0056`
+wiped the former `oxy_services.webhook_secret` values and retired the legacy table.
+Publishers now authenticate with centrally managed Oxy service credentials and may emit
+only events declared by a signed catalog they own. Rotate or revoke those service
+credentials centrally in Oxy; never add a replacement secret to Alia.
 
 **`triggers.webhook_secret`** (`packages/api/src/db/schema/automation.ts:100`) is
 an optional per-trigger HMAC secret, user-owned, alongside `webhook_token`
