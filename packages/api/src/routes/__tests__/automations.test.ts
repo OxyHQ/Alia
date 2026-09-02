@@ -6,6 +6,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 const state = vi.hoisted(() => ({
   token: 'user-token' as string | undefined,
   create: vi.fn(),
+  dispatch: vi.fn(),
   find: vi.fn(),
   setEnabled: vi.fn(),
   listActive: vi.fn(),
@@ -52,6 +53,9 @@ vi.mock('../../lib/automation-authority.js', () => ({
   provisionAutomationAuthorizations: state.provision,
   revokeAutomationAuthorizations: state.revoke,
 }));
+vi.mock('../../lib/automation-dispatcher.js', () => ({
+  dispatchStructuredAutomation: state.dispatch,
+}));
 vi.mock('../../lib/tools/oxy-services.js', () => ({
   getOxyAgentCapabilityMap: state.oxyMap,
 }));
@@ -69,7 +73,12 @@ const { default: router } = await import('../automations.js');
 let server: Server;
 let port: number;
 
-function send(method: string, path: string, body?: unknown): Promise<{ status: number; body: Record<string, unknown> }> {
+function send(
+  method: string,
+  path: string,
+  body?: unknown,
+  headers: Record<string, string> = {},
+): Promise<{ status: number; body: Record<string, unknown> }> {
   return new Promise((resolve, reject) => {
     const json = body === undefined ? '' : JSON.stringify(body);
     const request = httpRequest({
@@ -77,7 +86,10 @@ function send(method: string, path: string, body?: unknown): Promise<{ status: n
       port,
       path,
       method,
-      headers: json ? { 'content-type': 'application/json', 'content-length': Buffer.byteLength(json) } : {},
+      headers: {
+        ...headers,
+        ...(json ? { 'content-type': 'application/json', 'content-length': String(Buffer.byteLength(json)) } : {}),
+      },
     }, (response) => {
       const chunks: Buffer[] = [];
       response.on('data', (chunk: Buffer) => chunks.push(chunk));
@@ -145,6 +157,7 @@ beforeEach(() => {
     updatedAt: new Date(),
   }));
   state.provision.mockResolvedValue([]);
+  state.dispatch.mockResolvedValue({ status: 'queued', sessionId: 'session-1' });
   state.listActive.mockResolvedValue([]);
   state.revoke.mockResolvedValue({ revoked: [], failed: [] });
   state.markRevoked.mockResolvedValue(undefined);
@@ -219,6 +232,66 @@ describe('structured automation control plane', () => {
     expect(JSON.stringify(persisted)).not.toContain('user-token');
   });
 
+  it('resolves manual authority at execute-on-request rather than autonomous level', async () => {
+    const response = await send('POST', '/automations', {
+      ...payload,
+      trigger: { type: 'manual' },
+      executionMode: 'execute',
+      maximumAutonomy: 'execute_on_request',
+    });
+
+    expect(response.status).toBe(201);
+    expect(state.oxyMap).toHaveBeenCalledWith(expect.objectContaining({
+      ownerAccountId: 'owner-1',
+      autonomy: 'execute_on_request',
+    }));
+  });
+
+  it('rejects active background execution below autonomous policy', async () => {
+    const response = await send('POST', '/automations', {
+      ...payload,
+      executionMode: 'execute',
+      maximumAutonomy: 'execute_on_request',
+    });
+
+    expect(response.status).toBe(400);
+    expect(response.body.error).toBe('background_execution_requires_autonomous_policy');
+    expect(state.create).not.toHaveBeenCalled();
+    expect(state.provision).not.toHaveBeenCalled();
+  });
+
+  it('rejects manual execution under a draft policy', async () => {
+    const response = await send('POST', '/automations', {
+      ...payload,
+      trigger: { type: 'manual' },
+      executionMode: 'execute',
+      maximumAutonomy: 'draft',
+    });
+
+    expect(response.status).toBe(400);
+    expect(response.body.error).toBe('manual_execution_requires_request_autonomy');
+    expect(state.create).not.toHaveBeenCalled();
+    expect(state.provision).not.toHaveBeenCalled();
+  });
+
+  it('does not reactivate an execute definition with an incompatible policy', async () => {
+    state.find.mockResolvedValue({
+      id: 'automation-1',
+      ownerAccountId: 'owner-1',
+      trigger: { type: 'schedule', cron: '0 9 * * 1', timezone: 'Europe/Madrid' },
+      executionMode: 'execute',
+      maximumAutonomy: 'draft',
+      enabled: false,
+    });
+
+    const response = await send('PATCH', '/automations/automation-1', { enabled: true });
+
+    expect(response.status).toBe(409);
+    expect(response.body.error).toBe('background_execution_requires_autonomous_policy');
+    expect(state.provision).not.toHaveBeenCalled();
+    expect(state.setEnabled).not.toHaveBeenCalled();
+  });
+
   it('stops locally first and reports Oxy revocation results', async () => {
     state.find.mockResolvedValue({
       id: 'automation-1',
@@ -234,5 +307,40 @@ describe('structured automation control plane', () => {
     expect(state.revoke).toHaveBeenCalledWith('user-token', ['authorization-1']);
     expect(state.markRevoked).toHaveBeenCalledWith(database, ['authorization-1']);
     expect(response.body.revocation).toEqual({ revoked: 1, failed: 0 });
+  });
+
+  it('dispatches a manual definition with the caller and an explicit idempotency key', async () => {
+    state.find.mockResolvedValue({
+      id: 'automation-1',
+      ownerAccountId: 'owner-1',
+      trigger: { type: 'manual' },
+    });
+
+    const response = await send(
+      'POST',
+      '/automations/automation-1/run',
+      undefined,
+      { 'idempotency-key': 'request-0001' },
+    );
+
+    expect(response.status).toBe(202);
+    expect(response.body.run).toEqual({ status: 'queued', sessionId: 'session-1' });
+    expect(state.dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'automation-1' }),
+      expect.objectContaining({
+        kind: 'manual',
+        id: 'manual:automation-1:request-0001',
+        requesterAccountId: 'owner-1',
+      }),
+    );
+  });
+
+  it('requires an idempotency key before reading or dispatching a manual definition', async () => {
+    const response = await send('POST', '/automations/automation-1/run');
+
+    expect(response.status).toBe(400);
+    expect(response.body.error).toBe('valid_idempotency_key_required');
+    expect(state.find).not.toHaveBeenCalled();
+    expect(state.dispatch).not.toHaveBeenCalled();
   });
 });
