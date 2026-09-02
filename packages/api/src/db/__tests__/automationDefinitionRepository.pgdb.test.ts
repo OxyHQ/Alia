@@ -6,10 +6,13 @@ import {
   createAutomationRunForSession,
   createObservedAutomationRun,
   findAutomationDefinition,
+  findAutomationDefinitionById,
   listAutomationExecutionAuthorizationsForRun,
   listAutomationRuns,
   listAutomationRunSteps,
+  listSchedulableAutomationDefinitions,
   markAutomationActionStep,
+  upsertLegacyTriggerAutomation,
   upsertAutomationActionAuthorizations,
 } from '../automation/automationDefinitionRepository';
 import { closePostgres, connectPostgres, type ApiDatabase } from '../index';
@@ -173,5 +176,53 @@ describe('normalized automation definitions', () => {
       .toEqual(['observed', 'observed']);
     expect(await findAutomationDefinition(db, automationId, 'aut-owner-observe'))
       .toEqual(expect.objectContaining({ executionMode: 'observe' }));
+  });
+
+  it('schedules normalized definitions without duplicating legacy trigger rows', async () => {
+    const automationId = uuidv7();
+    await createAutomationDefinition(db, {
+      id: automationId,
+      ownerAccountId: 'aut-owner-schedule',
+      objective: 'Prepare the weekly summary',
+      triggerKind: 'schedule',
+      scheduleCron: '0 9 * * 1',
+      scheduleTimezone: 'UTC',
+      actorMode: 'fixed',
+      fixedAgentId: 'aut-agent-schedule',
+      eligibleAgentIds: [],
+      executionMode: 'observe',
+      actions: [{
+        id: uuidv7(),
+        resource: { ...resource, appId: 'noted', effectiveAccountId: 'aut-owner-schedule' },
+        tool: 'searchNotes',
+        input: {},
+        limits: [],
+      }],
+      inputs: {},
+      resources: [{ ...resource, appId: 'noted', effectiveAccountId: 'aut-owner-schedule' }],
+      dataFlow: { sources: [], destinations: [] },
+      maximumAutonomy: 'autonomous',
+      limits: [],
+      enabled: true,
+    });
+    await upsertLegacyTriggerAutomation({
+      db,
+      legacyTriggerId: uuidv7(),
+      ownerAccountId: 'aut-owner-schedule',
+      objective: 'Legacy schedule',
+      triggerKind: 'schedule',
+      scheduleCron: '0 10 * * 1',
+      scheduleTimezone: 'UTC',
+      inputs: {},
+      enabled: true,
+    });
+
+    const scheduled = await listSchedulableAutomationDefinitions(db);
+    expect(scheduled.filter((entry) => entry.ownerAccountId === 'aut-owner-schedule'))
+      .toEqual([expect.objectContaining({ id: automationId })]);
+    expect(await findAutomationDefinitionById(db, automationId))
+      .toEqual(expect.objectContaining({
+        trigger: { type: 'schedule', cron: '0 9 * * 1', timezone: 'UTC' },
+      }));
   });
 });
