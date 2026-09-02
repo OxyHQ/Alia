@@ -222,6 +222,13 @@ beforeEach(() => {
 });
 
 describe('an agent reaches exactly what it was granted', () => {
+  it('withholds automation creation when there is no live user session', async () => {
+    const names = await namesFor(['automation'], { isDirectSession: false, accessToken: undefined });
+
+    expect(names).not.toContain('createAutomation');
+    expect(names).toEqual(expect.arrayContaining(['listTriggers', 'updateTrigger', 'deleteTrigger']));
+  });
+
   it('limits a preauthorized Oxy automation stage to protocol and Oxy sources', async () => {
     const names = await namesFor([...EVERY_GRANT], {
       isDirectSession: false,
