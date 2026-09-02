@@ -131,7 +131,7 @@ async function run(
     mcpServerId?: unknown;
     directUserId?: string;
     apiKey?: boolean;
-    agentId?: string;
+    agentId?: unknown;
     /** A streaming request: headers are already out, so a refusal is an SSE event. */
     sseSent?: boolean;
   } = {},
@@ -256,14 +256,50 @@ describe('the turn resolves the agent it NAMED', () => {
     oxy.mode = 'denies';
     findAgentById.mockResolvedValue(privateAgent);
 
-    const { ctx } = await run(undefined, { directUserId: 'user-1', agentId: 'agent-2' });
+    const { ctx, captured } = await run(undefined, { directUserId: 'user-1', agentId: 'agent-2' });
 
     expect(findAgentById).toHaveBeenCalledWith(expect.anything(), 'agent-2');
-    expect(ctx?.linkedAgent).toBeNull();
-    // A valid turn, answered by ordinary Alia. Decided and documented — a
-    // deleted agent, an unshared one, a stale id in an old client.
-    expect(ctx).not.toBeNull();
-    expect(refundReservation).not.toHaveBeenCalled();
+    expect(ctx).toBeNull();
+    expect(captured.status).toBe(404);
+    expect(captured.body?.error).toMatchObject({
+      code: 'agent_unavailable',
+      param: 'agentId',
+      message: 'The selected agent is unavailable.',
+    });
+    expect(refundReservation).toHaveBeenCalledWith({ reservationId: 'reservation-1' });
+  });
+
+  it('refuses an id that does not resolve with the same neutral error', async () => {
+    findAgentById.mockResolvedValue(null);
+
+    const { ctx, captured } = await run(undefined, {
+      directUserId: 'user-1', agentId: 'agent-does-not-exist',
+    });
+
+    expect(ctx).toBeNull();
+    expect(captured.status).toBe(404);
+    expect(captured.body?.error).toMatchObject({
+      code: 'agent_unavailable',
+      param: 'agentId',
+      message: 'The selected agent is unavailable.',
+    });
+    expect(refundReservation).toHaveBeenCalledTimes(1);
+  });
+
+  it('refuses a repository failure instead of converting it to no agent', async () => {
+    findAgentById.mockRejectedValue(new Error('database unavailable'));
+
+    const { ctx, captured } = await run(undefined, {
+      directUserId: 'user-1', agentId: 'agent-1',
+    });
+
+    expect(ctx).toBeNull();
+    expect(captured.status).toBe(503);
+    expect(captured.body?.error).toMatchObject({
+      code: 'AGENT_RESOLUTION_UNAVAILABLE',
+      param: 'agentId',
+    });
+    expect(refundReservation).toHaveBeenCalledTimes(1);
   });
 
   it('grants a PRIVATE agent when Oxy says the caller may act as it — the control', async () => {
@@ -275,6 +311,31 @@ describe('the turn resolves the agent it NAMED', () => {
     const { ctx } = await run(undefined, { directUserId: 'user-1', agentId: 'agent-2' });
 
     expect(ctx?.linkedAgent?._id).toBe('agent-2');
+  });
+});
+
+describe('agentId is an exact fail-closed selector', () => {
+  it('rejects malformed ids before lookup or credit reservation', async () => {
+    for (const agentId of ['', '   ', 42, null]) {
+      const { ctx, captured } = await run(undefined, { directUserId: 'user-1', agentId });
+      expect(ctx).toBeNull();
+      expect(captured.status).toBe(400);
+      expect(captured.body?.error).toMatchObject({ code: 'invalid_agent_id', param: 'agentId' });
+    }
+    expect(findAgentById).not.toHaveBeenCalled();
+    expect(reserveCredits).not.toHaveBeenCalled();
+  });
+
+  it('does not let an API key select an agent or reveal whether it exists', async () => {
+    const { ctx, captured } = await run(undefined, {
+      directUserId: 'user-1', apiKey: true, agentId: 'agent-1',
+    });
+
+    expect(ctx).toBeNull();
+    expect(captured.status).toBe(404);
+    expect(captured.body?.error).toMatchObject({ code: 'agent_unavailable', param: 'agentId' });
+    expect(findAgentById).not.toHaveBeenCalled();
+    expect(reserveCredits).not.toHaveBeenCalled();
   });
 });
 
@@ -291,9 +352,8 @@ describe('the turn resolves the agent it NAMED', () => {
  * only bit on the first turn after that expired. A person lives it as "sometimes
  * it forgets who it is".
  *
- * Only "Oxy could not be asked". An agent genuinely out of reach still runs as
- * ordinary Alia — the case above — and that is deliberately a different
- * question.
+ * "Oxy could not be asked" remains retryable and distinct from the neutral
+ * unavailable result, but both stop before any model can substitute Alia.
  */
 describe('a turn naming an agent Oxy could not be asked about', () => {
   it('answers the refusal instead of substituting Alia', async () => {

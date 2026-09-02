@@ -441,8 +441,10 @@ function isConflict(error: unknown): boolean {
  * it is".
  *
  * Every caller must therefore say what it does with the third answer.
- * {@link loadThreadAgent} and `routes/agents/hire.ts` deliberately treat it as a
- * refusal — see their own comments — and {@link loadTurnAgent} does not.
+ * {@link loadThreadAgent} conceals every refusal behind the same not-found
+ * surface because a handle is guessable. {@link loadTurnAgent} keeps the
+ * outcomes typed so a request that explicitly selected an agent can fail
+ * closed without confirming whether that id exists.
  */
 export async function canReachAgent(
   agent: AgentRecord,
@@ -560,12 +562,12 @@ export async function loadThreadAgent(
  * By {@link canReachAgent}, which is the same rule `GET /agents/thread/:username`
  * applies — published-and-active, or `account:act_as` on the bot account.
  *
- * A refusal is `none` rather than an error. A turn naming an agent the caller
- * may not use is still a valid chat turn; it simply runs as ordinary Alia,
- * which is exactly what happened for every turn before this worked. That covers
- * a deleted agent, an agent no longer shared, and a stale id in an old client —
- * all of which have a person on the other end who may legitimately still send
- * it.
+ * A refusal is a typed unavailable result, never `none`. The request explicitly
+ * selected an identity; silently replacing a deleted, unshared or stale id with
+ * ordinary Alia would put Alia's answer underneath somebody else's name and
+ * colour in the client. The request boundary maps both not-found and
+ * out-of-reach to one neutral public error so it does not become an existence
+ * oracle.
  *
  * ## `identity_unavailable` is NOT that, and is the third answer
  *
@@ -575,28 +577,29 @@ export async function loadThreadAgent(
  * caller refuses the turn instead: `routes/v1/chat-completions.ts` and
  * `routes/v1/voice.ts` both answer `identity_unavailable` and refund.
  *
- * Two questions, deliberately kept apart. "You may not use this agent" is
- * settled and has a legitimate case behind it; "I could not find out" has
- * neither. Answering them the same way is what this changes, and only that.
+ * The reasons stay separate internally because retryability differs, while the
+ * chat surface refuses all of them before any model is invoked.
  */
 export type TurnAgent =
   /** Resolved and authorised. */
   | { readonly kind: 'agent'; readonly agent: HydratedAgent }
-  /** No such agent, or this caller may not use it. Run as ordinary Alia. */
-  | { readonly kind: 'none' }
+  /** The id did not resolve, or the caller may not use the resolved agent. */
+  | { readonly kind: 'unavailable'; readonly reason: 'not_found' | 'out_of_reach' }
   /** Oxy could not be asked. The caller must refuse rather than substitute. */
-  | { readonly kind: 'identity_unavailable' };
+  | { readonly kind: 'identity_unavailable' }
+  /** Alia could not load the selected agent. The caller may retry. */
+  | { readonly kind: 'resolution_unavailable' };
 
 export async function loadTurnAgent(
   db: Executor,
   params: { agentId: string; oxyUserId: string; accessToken: string | undefined },
 ): Promise<TurnAgent> {
   const agent = await findAgentById(db, params.agentId);
-  if (agent === null) return { kind: 'none' };
+  if (agent === null) return { kind: 'unavailable', reason: 'not_found' };
 
   const reach = await canReachAgent(agent, params);
   if (reach === 'identity_unavailable') return { kind: 'identity_unavailable' };
-  if (reach === 'out_of_reach') return { kind: 'none' };
+  if (reach === 'out_of_reach') return { kind: 'unavailable', reason: 'out_of_reach' };
 
   return { kind: 'agent', agent: await attachAgentIdentity(agent) };
 }
