@@ -35,8 +35,12 @@ vi.mock('../../middleware/auth.js', () => ({ oxyClient: { getUserById: vi.fn() }
 vi.mock('../../db/index.js', () => ({ getDb: vi.fn(() => ({})) }));
 vi.mock('../../db/automation/automationDefinitionRepository.js', () => ({
   beginLegacyTriggerAutomationRun: vi.fn(async () => true),
+  findAutomationDefinitionById: vi.fn(),
+  listSchedulableAutomationDefinitions: vi.fn(async () => []),
+  listSchedulableAutomationVersions: vi.fn(async () => []),
   markAutomationRunForSession: vi.fn(async () => undefined),
 }));
+vi.mock('../automation-dispatcher.js', () => ({ dispatchStructuredAutomation: vi.fn() }));
 vi.mock('../../db/memory/userMemoryRepository.js', () => ({ findUserMemory: vi.fn() }));
 vi.mock('../../db/agents/agentRepository.js', () => ({
   findAgentById: vi.fn(async () => null),
@@ -74,7 +78,13 @@ import {
   findTriggerById,
   listSchedulableTriggerVersions,
 } from '../../db/automation/triggerRepository.js';
+import {
+  findAutomationDefinitionById,
+  listSchedulableAutomationDefinitions,
+  listSchedulableAutomationVersions,
+} from '../../db/automation/automationDefinitionRepository.js';
 import { listAgentsWithHeartbeat } from '../../db/agents/agentRepository.js';
+import { dispatchStructuredAutomation } from '../automation-dispatcher.js';
 import cron from 'node-cron';
 
 type MockFn = ReturnType<typeof vi.fn>;
@@ -82,6 +92,10 @@ const schedulable = findSchedulableTriggers as unknown as MockFn;
 const versions = listSchedulableTriggerVersions as unknown as MockFn;
 const byIdFn = findTriggerById as unknown as MockFn;
 const heartbeatAgents = listAgentsWithHeartbeat as unknown as MockFn;
+const schedulableAutomations = listSchedulableAutomationDefinitions as unknown as MockFn;
+const automationVersions = listSchedulableAutomationVersions as unknown as MockFn;
+const automationById = findAutomationDefinitionById as unknown as MockFn;
+const dispatchAutomation = dispatchStructuredAutomation as unknown as MockFn;
 const cronMock = cron as unknown as { schedule: MockFn; validate: MockFn };
 
 interface FakeTrigger {
@@ -108,6 +122,8 @@ describe('trigger-engine reconcile loop', () => {
     cronMock.validate.mockReturnValue(true);
     // The heartbeat sync runs at startup and is not what this file measures.
     heartbeatAgents.mockResolvedValue([]);
+    schedulableAutomations.mockResolvedValue([]);
+    automationVersions.mockResolvedValue([]);
   });
 
   afterEach(() => {
@@ -158,6 +174,52 @@ describe('trigger-engine reconcile loop', () => {
     expect(tasks[0].stop).toHaveBeenCalled();
     expect(tasks[1].stop).toHaveBeenCalled();
 
+    stopAllScheduledTasks();
+  });
+
+  it('runs normalized schedules through the same elected cron engine', async () => {
+    const { startTriggerScheduler, stopAllScheduledTasks } = await import('../trigger-engine.js');
+    const automation = {
+      id: 'automation-1',
+      ownerAccountId: 'owner-1',
+      objective: 'Weekly summary',
+      trigger: { type: 'schedule', cron: '0 9 * * 1', timezone: 'UTC' },
+      actorSelection: { mode: 'fixed', agentId: 'agent-1' },
+      executionMode: 'observe',
+      actions: [],
+      inputs: {},
+      resources: [],
+      dataFlow: { sources: [], destinations: [] },
+      maximumAutonomy: 'autonomous',
+      limits: [],
+      enabled: true,
+      createdAt: new Date('2026-09-02T00:00:00.000Z'),
+      updatedAt: new Date('2026-09-02T00:00:00.000Z'),
+    };
+    schedulable.mockResolvedValue([]);
+    versions.mockResolvedValue([]);
+    schedulableAutomations.mockResolvedValue([automation]);
+    automationVersions.mockResolvedValue([{ id: automation.id, updatedAt: automation.updatedAt }]);
+    automationById.mockResolvedValue(automation);
+    dispatchAutomation.mockResolvedValue({ status: 'observed' });
+    let callback: ((context: { date: Date }) => Promise<void>) | undefined;
+    cronMock.schedule.mockImplementation((_expression: string, run: (context: { date: Date }) => Promise<void>) => {
+      callback = run;
+      return { stop: vi.fn() };
+    });
+
+    await startTriggerScheduler();
+    expect(cronMock.schedule).toHaveBeenCalledWith('0 9 * * 1', expect.any(Function), {
+      timezone: 'UTC',
+      noOverlap: true,
+    });
+    const occurredAt = new Date('2026-09-07T09:00:00.456Z');
+    await callback?.({ date: occurredAt });
+    expect(dispatchAutomation).toHaveBeenCalledWith(automation, {
+      kind: 'schedule',
+      id: 'schedule:automation-1:2026-09-07T09:00:00.000Z',
+      occurredAt: new Date('2026-09-07T09:00:00.000Z'),
+    });
     stopAllScheduledTasks();
   });
 });

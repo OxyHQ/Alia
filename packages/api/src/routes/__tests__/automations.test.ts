@@ -13,6 +13,8 @@ const state = vi.hoisted(() => ({
   upsert: vi.fn(),
   provision: vi.fn(),
   revoke: vi.fn(),
+  reload: vi.fn(),
+  scheduleError: vi.fn(),
 }));
 
 const database = { transaction: vi.fn(async (callback) => callback(database)) };
@@ -47,6 +49,10 @@ vi.mock('../../db/automation/automationDefinitionRepository.js', () => ({
 vi.mock('../../lib/automation-authority.js', () => ({
   provisionAutomationAuthorizations: state.provision,
   revokeAutomationAuthorizations: state.revoke,
+}));
+vi.mock('../../lib/trigger-engine.js', () => ({
+  automationScheduleError: state.scheduleError,
+  reloadAutomationSchedule: state.reload,
 }));
 vi.mock('../../lib/logger.js', () => {
   const child = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() };
@@ -137,7 +143,9 @@ beforeEach(() => {
   state.listActive.mockResolvedValue([]);
   state.revoke.mockResolvedValue({ revoked: [], failed: [] });
   state.markRevoked.mockResolvedValue(undefined);
-  state.setEnabled.mockImplementation(async (_db, _id, _owner, enabled) => ({ enabled }));
+  state.reload.mockResolvedValue(undefined);
+  state.scheduleError.mockReturnValue(null);
+  state.setEnabled.mockImplementation(async (_db, id, _owner, enabled) => ({ id, enabled }));
 });
 
 describe('structured automation control plane', () => {
@@ -164,6 +172,17 @@ describe('structured automation control plane', () => {
     expect(state.create).not.toHaveBeenCalled();
   });
 
+  it('rejects an invalid schedule before persisting the definition', async () => {
+    state.scheduleError.mockReturnValueOnce('invalid_timezone');
+    const response = await send('POST', '/automations', {
+      ...payload,
+      trigger: { type: 'schedule', cron: '0 9 * * 1', timezone: 'Mars/Olympus' },
+    });
+    expect(response.status).toBe(400);
+    expect(response.body.error).toBe('invalid_timezone');
+    expect(state.create).not.toHaveBeenCalled();
+  });
+
   it('persists only opaque authorization references for execute mode', async () => {
     state.provision.mockImplementationOnce(async (input) => [{
       automationActionId: input.actions[0].id,
@@ -185,6 +204,7 @@ describe('structured automation control plane', () => {
       oxyAuthorizationId: 'authorization-1',
     })]);
     expect(state.setEnabled).toHaveBeenCalledWith(database, persisted.id, 'owner-1', true);
+    expect(state.reload).toHaveBeenCalledWith(persisted.id);
     expect(JSON.stringify(persisted)).not.toContain('user-token');
   });
 

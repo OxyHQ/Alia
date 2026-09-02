@@ -7,7 +7,7 @@
  */
 
 import crypto from 'crypto';
-import cron, { type ScheduledTask } from 'node-cron';
+import cron, { type ScheduledTask, type TaskContext } from 'node-cron';
 import { generateText, stepCountIs } from 'ai';
 import {
   claimTriggerForRun,
@@ -54,16 +54,23 @@ import { startLeaderElection, type LeaderElectionHandle, type LeaderElectionOpti
 import type { User as OxyUser } from '@oxyhq/core';
 import {
   beginLegacyTriggerAutomationRun,
+  findAutomationDefinitionById,
+  listSchedulableAutomationDefinitions,
+  listSchedulableAutomationVersions,
   markAutomationRunForSession,
+  type AutomationDefinitionRecord,
 } from '../db/automation/automationDefinitionRepository.js';
+import { dispatchStructuredAutomation } from './automation-dispatcher.js';
 
 // ── Scheduled task registry ────────────────────────────────────────
 
 const scheduledTasks = new Map<string, ScheduledTask>();
+const scheduledAutomationTasks = new Map<string, ScheduledTask>();
 // Tracks the updatedAt (epoch ms) of each currently scheduled trigger so the
 // reconcile loop can detect edits made by (and cron tasks removed on) instances
 // other than the leader — standalone Mongo has no change streams.
 const scheduledUpdatedAt = new Map<string, number>();
+const scheduledAutomationUpdatedAt = new Map<string, number>();
 const RECONCILE_INTERVAL_MS = 30_000;
 let reconcileTimer: ReturnType<typeof setInterval> | null = null;
 let electionHandle: LeaderElectionHandle | null = null;
@@ -114,6 +121,19 @@ export function scheduleToCron(schedule: TriggerSchedule): string | null {
   }
 
   return null;
+}
+
+export function automationScheduleError(
+  cronExpression: string,
+  timezone: string,
+): 'invalid_cron' | 'invalid_timezone' | null {
+  if (!cron.validate(cronExpression)) return 'invalid_cron';
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: timezone }).format(new Date(0));
+    return null;
+  } catch {
+    return 'invalid_timezone';
+  }
 }
 
 // ── System prompt builder ──────────────────────────────────────────
@@ -452,6 +472,69 @@ function scheduleTrigger(trigger: TriggerRecord): void {
   log.triggers.info({ name: trigger.name, cronExpression, timezone: trigger.schedule.timezone }, 'Scheduled trigger');
 }
 
+function unscheduleAutomation(automationId: string): void {
+  const existing = scheduledAutomationTasks.get(automationId);
+  if (!existing) return;
+  Promise.resolve(existing.stop()).catch((error) => {
+    log.triggers.error({ err: error, automationId }, 'Failed to stop scheduled automation');
+  });
+  scheduledAutomationTasks.delete(automationId);
+  scheduledAutomationUpdatedAt.delete(automationId);
+}
+
+function scheduleOccurrence(automationId: string, context: TaskContext) {
+  const occurredAt = new Date(context.date);
+  occurredAt.setMilliseconds(0);
+  return {
+    occurredAt,
+    id: `schedule:${automationId}:${occurredAt.toISOString()}`,
+  };
+}
+
+function scheduleAutomation(automation: AutomationDefinitionRecord): void {
+  const automationId = automation.id;
+  unscheduleAutomation(automationId);
+  if (!automation.enabled || automation.trigger.type !== 'schedule') return;
+  const cronExpression = automation.trigger.cron;
+  const timezone = automation.trigger.timezone;
+  if (!cronExpression || !timezone) {
+    log.triggers.error({ automationId }, 'Structured automation schedule is incomplete');
+    return;
+  }
+  const scheduleError = automationScheduleError(cronExpression, timezone);
+  if (scheduleError) {
+    log.triggers.error(
+      { automationId, cronExpression, scheduleError },
+      'Invalid structured automation schedule',
+    );
+    return;
+  }
+
+  try {
+    const task = cron.schedule(cronExpression, async (now) => {
+      try {
+        const fresh = await findAutomationDefinitionById(getDb(), automationId);
+        if (!fresh?.enabled || fresh.trigger.type !== 'schedule') return;
+        const occurrence = scheduleOccurrence(automationId, now);
+        await dispatchStructuredAutomation(fresh, { kind: 'schedule', ...occurrence });
+      } catch (error: unknown) {
+        log.triggers.error({ err: error, automationId }, 'Scheduled structured automation failed');
+      }
+    }, {
+      timezone,
+      noOverlap: true,
+    });
+    scheduledAutomationTasks.set(automationId, task);
+    scheduledAutomationUpdatedAt.set(automationId, automation.updatedAt.getTime());
+    log.triggers.info(
+      { automationId, cronExpression, timezone },
+      'Scheduled structured automation',
+    );
+  } catch (error: unknown) {
+    log.triggers.error({ err: error, automationId }, 'Invalid structured automation timezone or schedule');
+  }
+}
+
 // ── Webhook verification ───────────────────────────────────────────
 
 export function verifyWebhookSignature(
@@ -544,11 +627,20 @@ export async function startTriggerScheduler(): Promise<void> {
   log.triggers.info('Starting trigger scheduler...');
 
   try {
-    const triggers = await findSchedulableTriggers(getDb());
-    log.triggers.info({ count: triggers.length }, 'Found enabled schedule triggers');
+    const [triggers, automations] = await Promise.all([
+      findSchedulableTriggers(getDb()),
+      listSchedulableAutomationDefinitions(getDb()),
+    ]);
+    log.triggers.info(
+      { triggerCount: triggers.length, automationCount: automations.length },
+      'Found enabled schedules',
+    );
 
     for (const trigger of triggers) {
       scheduleTrigger(trigger);
+    }
+    for (const automation of automations) {
+      scheduleAutomation(automation);
     }
 
     // Start agent heartbeat scheduler
@@ -577,6 +669,13 @@ export function stopAllScheduledTasks(): void {
   }
   scheduledTasks.clear();
   scheduledUpdatedAt.clear();
+  for (const [automationId, task] of scheduledAutomationTasks) {
+    Promise.resolve(task.stop()).catch((error) => {
+      log.triggers.error({ err: error, automationId }, 'Failed to stop scheduled automation');
+    });
+  }
+  scheduledAutomationTasks.clear();
+  scheduledAutomationUpdatedAt.clear();
   if (reconcileTimer) {
     clearInterval(reconcileTimer);
     reconcileTimer = null;
@@ -590,7 +689,10 @@ export function stopAllScheduledTasks(): void {
  */
 async function reconcileScheduledTriggers(): Promise<void> {
   try {
-    const rows = await listSchedulableTriggerVersions(getDb());
+    const [rows, automationRows] = await Promise.all([
+      listSchedulableTriggerVersions(getDb()),
+      listSchedulableAutomationVersions(getDb()),
+    ]);
 
     const seen = new Set<string>();
     for (const row of rows) {
@@ -607,6 +709,18 @@ async function reconcileScheduledTriggers(): Promise<void> {
     // Triggers that were scheduled but no longer match (deleted/disabled/retyped).
     for (const triggerId of [...scheduledUpdatedAt.keys()]) {
       if (!seen.has(triggerId)) unscheduleTrigger(triggerId);
+    }
+
+    const seenAutomations = new Set<string>();
+    for (const row of automationRows) {
+      seenAutomations.add(row.id);
+      const updatedAtMs = row.updatedAt.getTime();
+      if (scheduledAutomationUpdatedAt.get(row.id) === updatedAtMs) continue;
+      const full = await findAutomationDefinitionById(getDb(), row.id);
+      if (full) scheduleAutomation(full);
+    }
+    for (const automationId of [...scheduledAutomationUpdatedAt.keys()]) {
+      if (!seenAutomations.has(automationId)) unscheduleAutomation(automationId);
     }
   } catch (error) {
     log.triggers.error({ err: error }, 'Trigger reconcile failed');
@@ -628,6 +742,17 @@ export async function reloadTrigger(triggerId: string): Promise<void> {
   } else {
     // Trigger deleted, disabled, or type changed — stop its schedule
     unscheduleTrigger(triggerId);
+  }
+}
+
+/** Reload one normalized schedule on the elected trigger-engine instance. */
+export async function reloadAutomationSchedule(automationId: string): Promise<void> {
+  if (!isTriggerLeader()) return;
+  const automation = await findAutomationDefinitionById(getDb(), automationId);
+  if (automation?.enabled && automation.trigger.type === 'schedule') {
+    scheduleAutomation(automation);
+  } else {
+    unscheduleAutomation(automationId);
   }
 }
 

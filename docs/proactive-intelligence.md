@@ -5,7 +5,8 @@ Last updated: 2026-09-02
 Alia proactive intelligence has one normalized control plane (`/automations`) and
 one scheduler (`trigger-engine.ts`) during the trigger migration. Automation
 definitions own actors, exact Oxy actions, data flow, limits and execution mode;
-triggers remain only the clock/event adapter for legacy definitions.
+the elected scheduler reconciles both normalized schedules and legacy trigger
+rows without duplicating cron processes.
 
 ## Architecture
 
@@ -101,5 +102,6 @@ All chat clients consume the same named events with `eventVersion: 1`:
 
 ## Important
 
-Scheduled execution remains trigger-engine-native until every legacy trigger is
-backfilled. `/automations` is the normalized control plane, not a second scheduler.
+Scheduled execution is trigger-engine-native. `/automations` owns normalized
+schedules while existing trigger rows remain supported during migration; both
+use the same leader lease, cron registry and reconciliation loop.
