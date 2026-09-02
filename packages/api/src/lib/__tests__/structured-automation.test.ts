@@ -98,6 +98,7 @@ describe('structured automation synchronization', () => {
       maximumAutonomy: 'autonomous',
       limits: [],
       enabled: true,
+      legacyTriggerId: null,
       createdAt: new Date('2026-09-02T00:00:00.000Z'),
       updatedAt: new Date('2026-09-02T00:00:00.000Z'),
     };

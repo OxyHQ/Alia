@@ -121,6 +121,7 @@ function toDefinition(
     maximumAutonomy: row.maximumAutonomy,
     limits: row.limits,
     enabled: row.enabled,
+    legacyTriggerId: row.legacyTriggerId,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
